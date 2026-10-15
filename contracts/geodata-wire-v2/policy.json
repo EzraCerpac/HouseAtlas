@@ -1,0 +1,36 @@
+{
+  "profile": "houseatlas.geodata-wire-v2-policy/1",
+  "selection": "explicit-only",
+  "predecessor": "stock-wire3 remains frozen and separately selected",
+  "stockProviderCapabilities": [],
+  "presenceCapabilities": [],
+  "documentOperations": [
+    "list",
+    "get",
+    "readOriginal",
+    "readPreview",
+    "create",
+    "replace",
+    "tombstone",
+    "restore"
+  ],
+  "runtimeAdoption": "requires native adapters and persistent fresh-profile validation",
+  "semanticRequirements": [
+    "Reject duplicate JSON keys and non-finite/inexact numbers before typed decode.",
+    "Validate extent length 4 or 6, finite ordinates and each minimum <= corresponding maximum.",
+    "Source URL has HTTPS scheme, no credentials or fragment, and no private query credentials.",
+    "Enforce exact scoped active original/preview pins and workspace-wide record ID uniqueness.",
+    "Original asset pin is immutable for the lifetime of the Document.",
+    "Validate source/receipt field equality, RFC8785 receipt digests and retained trusted custody evidence.",
+    "Preview inputs equal exactly [original], with a different output asset ID, measured PNG and trusted derivation evidence.",
+    "Recheck authority, guards and final graph atomically at commit.",
+    "Byte reads revalidate scope, session, source grants, lifecycle, document revision and pins before and after I/O.",
+    "Lists bind cursor to scope, filters and stable read epoch, omit denied rows, disclose no total count."
+  ],
+  "syntheticRestriction": true,
+  "mediaBytes": {
+    "minimum": 1,
+    "maximum": 10485760
+  },
+  "legacyUpgrade": "refuse ordinary open; separate offline copy-converter required"
+}

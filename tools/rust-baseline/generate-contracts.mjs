@@ -1,22 +1,28 @@
 // Deterministic local generation. No network, controls, or executable fixtures.
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const root = new URL('../../', import.meta.url);
 assert.equal(process.version, 'v26.10.0', 'Contract generation requires the repository-pinned Node version');
-const atlasPath = 'packages/contracts/schemas/atlas.schema.json';
-const historyPath = 'packages/contracts/history/http-history.v1.1.0.schema.json';
+const v2 = process.argv.includes('--v2');
+const atlasPath = v2 ? 'packages/contracts/schemas/atlas.v2.schema.json' : 'packages/contracts/schemas/atlas.schema.json';
+const historyPath = v2 ? 'packages/contracts/history/http-history.v2.schema.json' : 'packages/contracts/history/http-history.v1.1.0.schema.json';
 const read = path => readFileSync(new URL(path, root), 'utf8');
 const atlasBytes = read(atlasPath);
 const historyBytes = read(historyPath);
 const atlas = JSON.parse(atlasBytes);
 const history = JSON.parse(historyBytes);
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
-const sources = `${atlasPath} sha256:${hash(atlasBytes)}\n${historyPath} sha256:${hash(historyBytes)}`;
+const closureInputs = v2 ? JSON.parse(read('contracts/geodata-wire-v2/adoption-manifest.json')).sources : [];
+for (const source of closureInputs) assert.equal(hash(read(source.path)), source.sha256, `Unpinned v2 input: ${source.path}`);
+const closurePaths = v2 ? closureInputs.map(source => source.path) : [atlasPath, historyPath];
+const sources = v2 ? closurePaths.map(path => `${path} sha256:${hash(read(path))}`).join('\n') : `${atlasPath} sha256:${hash(atlasBytes)}\n${historyPath} sha256:${hash(historyBytes)}`;
 const pascal = name => name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').split(/[^A-Za-z0-9]+/).filter(Boolean)
   .map(word => word[0].toUpperCase() + word.slice(1)).join('').replace(/^(?=[0-9])/u, 'V');
 const snake = name => name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/[^A-Za-z0-9]+/g, '_').toLowerCase();
@@ -60,7 +66,7 @@ function inspect(schema) {
 inspect(atlas);
 inspect(history);
 assert.equal(history.type, 'array');
-assert.equal(history.items.$ref, '../schemas/atlas.schema.json#/$defs/audit');
+assert.equal(history.items.$ref, v2 ? 'https://houseatlas.invalid/contracts/2.0.0/atlas.schema.json#/$defs/audit' : '../schemas/atlas.schema.json#/$defs/audit');
 
 const declarations = new Map();
 const schemaDefinitions = Object.keys(atlas.$defs);
@@ -106,7 +112,8 @@ function declare(name, schema) {
       const variants = branches.map((branch, index) => {
         const discriminator = ['kind', 'recordType', 'operation', 'status'].map(key => branch.properties?.[key]?.const).find(value => typeof value === 'string');
         const variant = branch.$ref ? refName(branch.$ref) : discriminator ? pascal(discriminator) : branch.type && !Array.isArray(branch.type) ? pascal(branch.type) : `Variant${index + 1}`;
-        return { variant, type: typeOf(branch, name + variant) };
+        const uniqueVariant = v2 && branches.filter(other => other.type === branch.type && other.type).length > 1 ? `${variant}${index + 1}` : variant;
+        return { variant: uniqueVariant, type: typeOf(branch, name + uniqueVariant) };
       });
       assert.equal(new Set(variants.map(branch => branch.variant)).size, variants.length, `Union name collision: ${name}`);
       // Box the wide document envelope while preserving its untagged JSON shape.
@@ -165,12 +172,21 @@ const consumerInputs = [
   ['healthyMutationResult', 'MutationResult', 'packages/contracts/fixtures/create-circuit.result.json'],
 ];
 const consumer = `// @generated from named existing synthetic fixtures; no fixture execution.\nimport type { Snapshot, HttpHistory, HomeboxPageWire, MutationResult } from '../../frontend/src/api/generated/contracts';\n\n${consumerInputs.map(([name, type, path]) => `// ${path}\nexport const ${name}: ${type} = ${JSON.stringify(JSON.parse(read(path)), null, 2)};`).join('\n\n')}\n`;
+// File input avoids a large synchronous stdin pipe blocking rustfmt.
+const formatDir = mkdtempSync(join(tmpdir(), 'houseatlas-contracts-format-'));
+let formattedRust;
+try {
+  const input = join(formatDir, 'generated.rs');
+  writeFileSync(input, rust);
+  await promisify(execFile)('rustfmt', ['--edition', '2024', input], { cwd: fileURLToPath(root), encoding: 'utf8', timeout: 30000 });
+  formattedRust = readFileSync(input, 'utf8');
+} finally { rmSync(formatDir, { recursive: true, force: true }); }
 const allOutputs = [
-  ['backend/src/contracts/generated.rs', execFileSync('rustfmt', ['--edition', '2024', '--emit', 'stdout'], { cwd: fileURLToPath(root), input: rust, encoding: 'utf8' })],
-  ['frontend/src/api/generated/contracts.ts', ts],
-  ['tools/rust-baseline/healthy-contracts.ts', consumer],
+  [v2 ? 'backend/src/contracts/generated_v2.rs' : 'backend/src/contracts/generated.rs', formattedRust],
+  [v2 ? 'packages/contracts/generated/contracts-v2.ts' : 'frontend/src/api/generated/contracts.ts', ts],
+  ...v2 ? [] : [['tools/rust-baseline/healthy-contracts.ts', consumer]],
 ];
-assert.ok(process.argv.slice(2).every(arg => ['--check', '--rust-only'].includes(arg)), 'Usage: node generate-contracts.mjs [--check] [--rust-only]');
+assert.ok(process.argv.slice(2).every(arg => ['--check', '--rust-only', '--v2'].includes(arg)), 'Usage: node generate-contracts.mjs [--check] [--rust-only] [--v2]');
 const outputs = process.argv.includes('--rust-only') ? allOutputs.filter(([path]) => path.endsWith('.rs')) : allOutputs;
 for (const [path, content] of outputs) {
   if (process.argv.includes('--check')) assert.equal(read(path), content, `${path} differs; run the generator`);

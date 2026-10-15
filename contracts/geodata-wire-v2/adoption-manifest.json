@@ -1,0 +1,73 @@
+{
+  "format": "houseatlas-geodata-wire-adoption/1",
+  "selection": "geodata-wire-v2",
+  "contractVersion": "2.0.0",
+  "runtimeRegistration": false,
+  "predecessorFilesUnchanged": true,
+  "sources": [
+    {
+      "path": "packages/contracts/schemas/atlas.v2.schema.json",
+      "sha256": "7bfe2625d8afd630e8361960b1edf68a9a51fe233d7017b4268d4006e2bfb9cf"
+    },
+    {
+      "path": "packages/contracts/history/http-history.v2.schema.json",
+      "sha256": "3d4378eba184e2542f76f904ac016bb26ea7dc073250d3927baab2284aae1ae2"
+    },
+    {
+      "path": "contracts/geodata-wire-v2/agent/agent.schema.json",
+      "sha256": "7a4ab8f364fa8f6b92602031c813f27a47dad8138a78713788a5d3750884fa47"
+    },
+    {
+      "path": "contracts/geodata-wire-v2/agent/operation-catalog.json",
+      "sha256": "eb9a02ff5427768768882e217421487b186b2fdbe0cbe41ee1b9cfd08a9a31d0"
+    },
+    {
+      "path": "contracts/geodata-wire-v2/resource-map.json",
+      "sha256": "941a451c53e85e23aba5f15c43cd52a16804d69b417bfc58b1e8f17fcb023693"
+    },
+    {
+      "path": "contracts/geodata-wire-v2/policy.json",
+      "sha256": "975d5b7a054acf85637b63347294d4bb886d33a02463bce6f55a45afdef2da18"
+    },
+    {
+      "path": "tools/rust-baseline/generate-contracts.mjs",
+      "sha256": "d71d295a8bc4d6d3b507c21873d87b69f526f31d6dbdeeff347b6fa960ac6893"
+    }
+  ],
+  "generatedOutputs": [
+    {
+      "path": "backend/src/contracts/generated_v2.rs",
+      "sha256": "463ebdbed8c9158e4d8c0a4df51293b804f2245d75cefe2948afd6a094880c8a"
+    },
+    {
+      "path": "packages/contracts/generated/contracts-v2.ts",
+      "sha256": "fafd991138bedb3fddb1bc9dda910b9b458aa10e4c9ca3c269e2f73d5765326b"
+    }
+  ],
+  "frozenPredecessorInputs": [
+    {
+      "path": "packages/contracts/schemas/atlas.schema.json",
+      "sha256": "c7c380b317e3cc640c8c437bf360e5f04d443f91ec03a54cc0f23a98b5a13b0c"
+    },
+    {
+      "path": "packages/contracts/history/http-history.v1.1.0.schema.json",
+      "sha256": "bf9dd4d7894d668a271234f2db2879f302e26f32c62746d8c37784958952248a"
+    },
+    {
+      "path": "contracts/stock-wire3/agent/agent.schema.json",
+      "sha256": "44afff94ad51135282e0a34c1efd1ad77e240dd55bd8dff13cfb8120cdf4b5ca"
+    },
+    {
+      "path": "contracts/stock-wire3/agent/operation-catalog.json",
+      "sha256": "55be83932373e63e6ef52fe9da75f0d64f1cc7c890963d19a8a77065ddc294e9"
+    },
+    {
+      "path": "contracts/stock-wire3/resource-map.json",
+      "sha256": "31a27009407b82ecfb521feec00f4faa526c07ce8654d8e016ceed9eb15fb5e4"
+    },
+    {
+      "path": "contracts/stock-wire3/PROVIDER-AND-AI-POLICY.md",
+      "sha256": "f0f5ee9b081a57fe186dc35f9b7b6b7de0f06321283db35cd21c5a34e53fbdd2"
+    }
+  ]
+}
