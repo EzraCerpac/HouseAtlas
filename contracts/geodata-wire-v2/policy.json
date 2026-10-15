@@ -25,12 +25,64 @@
     "Preview inputs equal exactly [original], with a different output asset ID, measured PNG and trusted derivation evidence.",
     "Recheck authority, guards and final graph atomically at commit.",
     "Byte reads revalidate scope, session, source grants, lifecycle, document revision and pins before and after I/O.",
-    "Lists bind cursor to scope, filters and stable read epoch, omit denied rows, disclose no total count."
+    "Lists bind cursor to scope, filters and stable read epoch, omit denied rows, disclose no total count.",
+    "Original Documents can retain source dataset metadata, catalogues, or source previews as independent originals; declared family and licensing do not imply GIS validity, physical placement, rights verification or qualified preview derivation."
   ],
   "syntheticRestriction": true,
   "mediaBytes": {
     "minimum": 1,
     "maximum": 10485760
   },
-  "legacyUpgrade": "refuse ordinary open; separate offline copy-converter required"
+  "legacyUpgrade": "refuse ordinary open; separate offline copy-converter required",
+  "originalAdmissionFamilies": [
+    {
+      "family": "GeoJSON",
+      "measuredContentType": "application/geo+json",
+      "delivery": "safe-attachment",
+      "retainsDeclaredLicense": true,
+      "impliesPreviewQualification": false,
+      "impliesGisValidity": false
+    },
+    {
+      "family": "CityJSON",
+      "measuredContentType": "application/city+json",
+      "delivery": "safe-attachment",
+      "retainsDeclaredLicense": true,
+      "impliesPreviewQualification": false,
+      "impliesGisValidity": false
+    },
+    {
+      "family": "JSON",
+      "measuredContentType": "application/json",
+      "delivery": "safe-attachment",
+      "retainsDeclaredLicense": true,
+      "impliesPreviewQualification": false,
+      "impliesGisValidity": false
+    },
+    {
+      "family": "TIFF",
+      "measuredContentType": "image/tiff",
+      "delivery": "safe-attachment",
+      "retainsDeclaredLicense": true,
+      "impliesPreviewQualification": false,
+      "impliesGisValidity": false
+    },
+    {
+      "family": "PDF",
+      "measuredContentType": "application/pdf",
+      "delivery": "safe-attachment",
+      "retainsDeclaredLicense": true,
+      "impliesPreviewQualification": false,
+      "impliesGisValidity": false
+    },
+    {
+      "family": "PNG",
+      "measuredContentType": "image/png",
+      "delivery": "safe-attachment",
+      "retainsDeclaredLicense": true,
+      "impliesPreviewQualification": false,
+      "impliesGisValidity": false
+    }
+  ],
+  "admissionProfileAuthority": "Custody admissionProfile is bounded source-neutral text identifying the trusted server admission implementation; caller strings confer no custody or GIS authority."
 }

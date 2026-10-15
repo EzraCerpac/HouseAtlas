@@ -79,7 +79,9 @@ separate deterministic v2 Rust/TypeScript output, confirms the unchanged v1
 outputs and eleven preserved record definitions, and compiles every successor
 definition. Its explicit generated examples cover original-only and preview
 shapes, the synthetic snapshot restriction, closed read/list/framing requests,
-mutation/audit/result/batch closure and eight catalog operation pairs. It calls
+mutation/audit/result/batch closure, eight catalog operation pairs and six
+original-family MIME/license shapes (GeoJSON, CityJSON, JSON, TIFF, PDF, PNG).
+Family examples are shape-only; they measure no media and assert no GIS validity. It calls
 no provider, storage, renderer or service, and asserts no trusted custody,
 qualification, persistence, recovery or actual-media behavior. It adds no ordinary
 CI command and executes no controls or failure-injection cases.

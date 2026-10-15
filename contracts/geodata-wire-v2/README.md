@@ -19,7 +19,12 @@ Schema validation alone cannot establish those semantic or trust properties.
 Byte-read operation outputs select separate frames with an exact `original` or
 `preview` mode. Preview framing reports measured `image/png`; its asset purpose
 content type remains `application/vnd.houseatlas.geodata-preview+png`. Original
-framing reports a MIME from the reviewed original admission family.
+framing reports a MIME from the reviewed original admission family. The six
+original families are GeoJSON, CityJSON, generic JSON, TIFF, PDF and PNG.
+Dataset metadata, catalogues and previews delivered by a source can each be
+retained as independent original Documents. Their declared source license is
+preserved; it is not verified by the schema. Generic JSON, PDF and PNG originals
+carry no GIS-validity or derived-preview claim and remain safe attachments.
 
 [resource-map.json](resource-map.json) resolves the complete schema closure
 without network access. Catalog input/output fragments resolve against the

@@ -93,6 +93,28 @@ const originalAsset = { ...document, recordType:'asset', recordId:pin.assetId, p
 const previewAsset = { ...originalAsset, recordId:output.assetId, payload:{...originalAsset.payload,purpose:'preview',sha256:output.sha256,bytes:output.bytes,contentType:'application/vnd.houseatlas.geodata-preview+png'} };
 validate('geodataAssetRecord', originalAsset);
 validate('geodataAssetRecord', previewAsset);
+// Explicit six-family schema examples use generated text pins, not measured media.
+const sourceFamilies = [['GeoJSON','application/geo+json'],['CityJSON','application/city+json'],['JSON','application/json'],['TIFF','image/tiff'],['PDF','application/pdf'],['PNG','image/png']];
+assert.deepEqual(policy.originalAdmissionFamilies.map(({family,measuredContentType}) => [family,measuredContentType]), sourceFamilies);
+assert.deepEqual(schema.$defs.geodataDocumentOriginalByteFrame.properties.measuredContentType.enum, sourceFamilies.map(([,mime]) => mime));
+assert.deepEqual(schema.$defs.geodataAssetPayload.allOf[1].then.properties.contentType.enum, sourceFamilies.map(([,mime]) => mime));
+for (const [family, mime] of sourceFamilies) {
+  const license = {status:'permitted',reference:'CC-BY-4.0; synthetic source declaration'};
+  const familyAsset = {...originalAsset,payload:{...originalAsset.payload,contentType:mime,sourceLicense:license}};
+  const familyDocument = structuredClone(document);
+  familyDocument.payload.title = `Synthetic ${family} source metadata, shape only`;
+  familyDocument.payload.provenance.license = license;
+  const familyCustody = {...fixture.custodyReceipt,admissionProfile:`houseatlas.synthetic-original.${family.toLowerCase()}.v1`,measuredContentType:mime};
+  familyDocument.payload.provenance.custodyReceiptSha256 = hash(canonical(familyCustody));
+  const familyFrame = {...frame,measuredContentType:mime};
+  validate('geodataAssetRecord',familyAsset);
+  validate('geodataDocumentRecord',familyDocument);
+  validate('geodataCustodyReceipt',familyCustody);
+  validate('geodataDocumentOriginalByteFrame',familyFrame);
+  assert.deepEqual(familyAsset.payload.sourceLicense,familyDocument.payload.provenance.license);
+  assert.equal(familyDocument.payload.preview,null);
+}
+
 for (const date of [{value:'2026',precision:'year'},{value:'2026-01-01',precision:'day'},{value:'2026-01-01T00:00:00Z',precision:'instant'}]) validate('geodataSourceDate',date);
 snapshot.records.push(originalAsset, document);
 for (const [name, value] of [['snapshot',snapshot],['record',document],['record',preview.document],['geodataCustodyReceipt',fixture.custodyReceipt],['geodataDerivationReceipt',receipt],['geodataDocumentRead',originalRead],['geodataDocumentRead',preview],['geodataDocumentList',page],['geodataDocumentByteFrame',frame],['geodataDocumentByteRequest',byteRequest],['audit',audit],['mutationResult',result],['batchMutation',{schemaVersion:1,batchId:audit.mutationId,reason:'Synthetic shape',commands:[{target:audit.record,command:commands.create}]}],['batchResult',{schemaVersion:1,batchId:audit.mutationId,results:[result],replayed:false}]]) validate(name,value);
@@ -113,4 +135,4 @@ for (const command of catalog.commands) {
 for (const name of Object.keys(schema.$defs)) ajv.compile({$ref:`${schema.$id}#/$defs/${name}`});
 const history = ajv.getSchema('https://houseatlas.invalid/contracts/2.0.0/http-history.schema.json');
 assert.equal(history([audit]),true,JSON.stringify(history.errors));
-console.log(`PASS geodata-wire-v2: ${schema.$defs.record.oneOf.length} record arms, ${Object.keys(schema.$defs).length} definitions, ${catalog.commands.length} operation pairs, original-only/preview shapes, legacy records, history, batch, resource/digest closure. Shape-only synthetic evidence; no trust, custody, renderer, authorization, persistence or recovery qualification.`);
+console.log(`PASS geodata-wire-v2: ${schema.$defs.record.oneOf.length} record arms, ${Object.keys(schema.$defs).length} definitions, ${catalog.commands.length} operation pairs, six original-family/license shapes, original-only/preview shapes, legacy records, history, batch, resource/digest closure. Shape-only synthetic evidence; no trust, custody, renderer, authorization, persistence or recovery qualification.`);
