@@ -4,22 +4,38 @@
 
 The requested performance-report lane has these exact focused checks. Inspect
 the complete sources in `tools/perf/reporting/` before running them with Node
-26.10.0. They use numeric synthetic samples, fake GitHub API metadata, and fresh
+26.10.0 and Python 3's standard library. They use numeric synthetic samples,
+generated in-memory ZIP archives, fake GitHub API metadata/transports, and fresh
 disposable JSON files under the operating-system temporary directory. They
 open no listener and call no remote API, application service, provider or real
 account. They exercise report arithmetic/rendering, strict comparability,
-bounded file ingestion and prepared comment-update logic only:
+bounded file/archive ingestion, token-free storage redirects and comment-update logic only:
 
 ```sh
-node --test --test-concurrency=1 tools/perf/reporting/compare.test.mjs tools/perf/reporting/report.test.mjs tools/perf/reporting/read-json.test.mjs tools/perf/reporting/adapter.test.mjs
+node --test --test-concurrency=1 tools/perf/reporting/compare.test.mjs tools/perf/reporting/report.test.mjs tools/perf/reporting/read-json.test.mjs tools/perf/reporting/adapter.test.mjs tools/perf/reporting/availability.test.mjs tools/perf/reporting/origin.test.mjs tools/perf/reporting/github-api.test.mjs
 ```
 
-This named formatter check is outside automatic ordinary CI. It adds no runtime
+The two reporting workflows also have this read-only YAML/expression check with
+the official actionlint 1.7.12 executable, retained only in a temporary tooling
+directory. Its Linux amd64 release archive SHA-256 is
+`8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`.
+This does not run workflows, install a repository dependency or execute PR code:
+
+```sh
+/tmp/houseatlas-actionlint-1.7.12/actionlint -shellcheck= -pyflakes= .github/workflows/performance.yml .github/workflows/performance-report.yml
+```
+
+This named formatter check runs in the separate unprivileged performance workflow,
+outside automatic ordinary CI. It adds no runtime
 alias, workflow permission or application-control scope. It establishes no
 application speedup, actual GPU completion, hosted comment permission, security
 or deployment qualification. See [the report lane](../ci-performance.md) and
 [measurement-owner handoff](../../tools/perf/reporting/README.md) for the remaining
-contract and token-permission integration.
+measurement-contract integration. The separate read-only availability workflow
+and default-branch `workflow_run` reporter emit only an explicit blocked table
+until the harness exists. Only the reporter's publish job has the separately
+scoped ephemeral PR-comment write permission; the ordinary CI workflows retain
+their original scope and permissions.
 
 The retained USDZ padding compatibility check builds two tiny stored archives
 in memory, with identical local/central alignment padding or the earlier

@@ -91,7 +91,17 @@ recomputed summaries, delta and the failed flag. These are report outputs, not
 an alternate input schema. The production CLI remains unavailable until the
 measurement owner's contract module exists; unit tests inject a fake adapter.
 
-The prepared comment updater accepts the same trusted identity, contract and
+The metric comment updater accepts the same trusted identity, contract and
 validated base/head records and regenerates its content internally. It has no
 raw-Markdown input. The hosting workflow must import the contract from trusted
 default-branch source and obtain identity from GitHub rather than an artifact.
+
+The installed workflow currently uses only the separate closed
+`houseatlas.perf.availability/1` record, not the missing measurement schema.
+It reports an explicit blocked row without a harness identity or numeric values.
+Availability identities have `harnessSha: null` and the actual trusted
+`reporterSha`; measured identities still require a full harness commit. The
+availability publisher validates the completed originating run, actual GitHub
+commit trees, exact artifact metadata/contents and current PR before updating
+the same bot marker. The read-only resolver selects the per-PR concurrency key
+from API data. No PR number or Markdown is accepted from an artifact.

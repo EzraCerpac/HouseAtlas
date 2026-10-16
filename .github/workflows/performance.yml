@@ -1,0 +1,78 @@
+name: Synthetic PR performance
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  formatter-tests:
+    name: Synthetic reporting checks (unprivileged)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Checkout exact candidate without persistent credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Set exact Node runtime
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '26.10.0'
+          check-latest: false
+          package-manager-cache: false
+      - name: Run the named reporting checks when the candidate supplies them
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(node --version)" = v26.10.0
+          if test ! -f tools/perf/reporting/origin.test.mjs; then
+            printf '%s\n' 'Reporting checks skipped: this candidate predates the reporting source. Its availability record is handled separately.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          node --test --test-concurrency=1 tools/perf/reporting/compare.test.mjs tools/perf/reporting/report.test.mjs tools/perf/reporting/read-json.test.mjs tools/perf/reporting/adapter.test.mjs tools/perf/reporting/availability.test.mjs tools/perf/reporting/origin.test.mjs tools/perf/reporting/github-api.test.mjs
+  availability:
+    name: Availability record (harness unavailable)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # No checkout, PR code, dependencies, secrets or cache writes in this lane.
+      - name: Set exact Node runtime
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '26.10.0'
+          check-latest: false
+          package-manager-cache: false
+      - name: Emit only exact source metadata and the explicit skip reason
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
+          import { join } from 'node:path';
+          if (process.version !== 'v26.10.0') throw new Error('Unexpected runtime');
+          const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+          const pr = event.pull_request;
+          const record = { format: 'houseatlas.perf.availability/1', repository: process.env.GITHUB_REPOSITORY,
+            prNumber: pr.number, baseSha: pr.base.sha, headSha: pr.head.sha,
+            runId: Number(process.env.GITHUB_RUN_ID), runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT),
+            status: 'blocked', reason: 'measurement-harness-unavailable' };
+          if (![record.baseSha, record.headSha].every(value => /^[0-9a-f]{40}$/.test(value)) ||
+              ![record.prNumber, record.runId, record.runAttempt].every(value => Number.isSafeInteger(value) && value > 0) ||
+              record.repository !== event.repository.full_name || record.repository !== pr.base.repo.full_name) throw new Error('Invalid event identity');
+          const directory = join(process.env.RUNNER_TEMP, 'houseatlas-perf-availability');
+          mkdirSync(directory);
+          writeFileSync(join(directory, 'availability.json'), JSON.stringify(record) + '\n', { flag: 'wx' });
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, '| Metric | Base | Head | Status |\n| --- | --- | --- | --- |\n| Synthetic benchmark suite | unavailable | unavailable | blocked: measurement harness unavailable |\n\nNo performance measurement or speedup claim is made.\n');
+          NODE
+      - name: Upload the bounded availability record
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: houseatlas-perf-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/houseatlas-perf-availability/availability.json
+          if-no-files-found: error
+          retention-days: 7

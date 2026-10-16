@@ -4,8 +4,9 @@ export const COMMENT_MARKER = '<!-- houseatlas-performance-v1 -->';
 const sha = value => typeof value === 'string' && /^[0-9a-f]{40}$/.test(value);
 const repository = value => typeof value === 'string' && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value);
 export function validateIdentity(identity) {
-  const keys = ['repository', 'baseSha', 'headSha', 'harnessSha', 'baseTree', 'headTree', 'prNumber', 'runId', 'runAttempt'];
-  if (!identity || !repository(identity.repository) || !sha(identity.baseSha) || !sha(identity.headSha) || !sha(identity.harnessSha) ||
+  const keys = ['repository', 'baseSha', 'headSha', 'harnessSha', 'reporterSha', 'baseTree', 'headTree', 'prNumber', 'runId', 'runAttempt'];
+  if (!identity || !repository(identity.repository) || !sha(identity.baseSha) || !sha(identity.headSha) || (identity.harnessSha !== null && !sha(identity.harnessSha)) ||
+      (identity.reporterSha !== undefined && !sha(identity.reporterSha)) ||
       !sha(identity.baseTree) || !sha(identity.headTree) ||
       Object.keys(identity).some(key => !keys.includes(key)) ||
       !Number.isSafeInteger(identity.prNumber) || identity.prNumber < 1 ||
@@ -16,6 +17,7 @@ export function validateIdentity(identity) {
 
 export function makeReport({ identity, policies, base, head }) {
   validateIdentity(identity);
+  if (!sha(identity.harnessSha)) throw new Error('Measurement harness identity unavailable');
   if (!Array.isArray(policies) || policies.length < 1 || policies.length > 64 || new Set(policies.map(p => p.id)).size !== policies.length) throw new Error('Invalid metric policy');
   for (const policy of policies) {
     if (!/^[a-z0-9][a-z0-9._-]{0,95}$/.test(policy.id) || !['timing', 'deterministic'].includes(policy.kind) || !['lower', 'higher'].includes(policy.direction) ||

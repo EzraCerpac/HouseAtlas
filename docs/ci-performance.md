@@ -1,10 +1,11 @@
 # Synthetic PR performance reports
 
-This lane compares the exact PR base tip and head, rather than a moving branch
-name or GitHub's synthetic merge commit. It uses only generated or checked-in
-public fixtures. It adds no service, credential, provider, household input or
-deployment qualification. Existing ordinary workflows and their scope remain
-unchanged.
+This lane identifies the exact PR base tip and head. Until the measurement owner
+supplies the harness and canonical contract, every PR emits a bounded blocked
+availability record and the trusted reporter updates one explicit skip table.
+No metrics are fabricated. The existing ordinary workflows remain unchanged;
+this separate reporting lane adds no service, stored credential, provider,
+household input or deployment qualification.
 
 The measurement owner defines the benchmark CLI, JSON contract and public
 fixture identities. `tools/perf/reporting/` consumes normalized metric rows;
@@ -30,18 +31,8 @@ budget they fail because the proposed budget cannot be evaluated reliably.
 
 ## Permission boundary
 
-Current workflows grant only `contents: read`. A job summary and review artifact
-can carry a table with these existing permissions. Automatically creating or
-updating a PR conversation comment requires an additional GitHub token permission.
-That expansion has not been approved or implemented.
-
-All three checked-in workflows explicitly declare `permissions: { contents:
-read }`. Unspecified permissions are therefore `none`, regardless of broader
-repository defaults. The existing local GitHub connector's ability to create
-this PR does not grant an Actions job comment access. Reading the repository's
-default workflow-permission setting returned HTTP 403; no setting was changed.
-
-The minimal proposed reporter job permissions are:
+The three existing workflows retain `contents: read`. The separately scoped
+reporter uses an ephemeral `GITHUB_TOKEN` with these publish-job permissions:
 
 ```yaml
 permissions:
@@ -50,33 +41,60 @@ permissions:
   pull-requests: write # create/update the PR conversation comment
 ```
 
-The comment endpoint accepts `pull-requests: write`; a separate `issues: write`
-grant is unnecessary. This is a new versioned workflow permission declaration.
-The resulting `GITHUB_TOKEN` is ephemeral per job; no persistent credential,
-PAT, app installation, new secret or repository-default permission change is
-needed. It still requires the task's scoped approval before installation. See
+The metadata-resolution job has only read access to contents, Actions and PRs.
+The PR availability workflow grants only `contents: read`. Unspecified scopes
+are `none`. The comment endpoint accepts `pull-requests: write`; a separate
+`issues: write` grant is unnecessary. No persistent credential, PAT, app
+installation, new secret or repository-default permission change is needed. See
 [workflow permission rules](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions)
 and [comment API permissions](https://docs.github.com/en/rest/issues/comments#create-an-issue-comment).
 
-`comment.mjs` is a prepared, dependency-injected updater with synthetic API tests.
-It is not wired to a privileged workflow or a credential. A future approved
-reporting workflow must be triggered by `workflow_run` after the unprivileged
-`pull_request` measurement workflow. It must use the default branch's trusted reporter, never check
-out or execute PR code, never execute artifacts, and never restore caches
-produced by PR code. The measurement workflow must remain unprivileged with no
-secrets, persistent checkout credentials or shared cache writes. GitHub describes
+`performance.yml` triggers for every PR without path/target-branch exclusions.
+Its availability job checks out no source and runs no PR code. Its small JSON record contains only
+repository, PR number, exact base/head commits, run/attempt and a fixed blocked
+reason; the artifact expires after seven days. Its job summary also records the
+skip. Actual measurement integration remains the measurement owner's task.
+Its separate formatter-test job runs the exact named synthetic reporting checks
+against the pinned candidate in the unprivileged read-only PR context, with
+credentials not persisted and no secrets, dependencies or caches.
+Candidates predating the reporting source get an explicit reporting-test skip;
+their availability record and comment are still supported.
+
+`performance-report.yml` triggers through `workflow_run` after that workflow.
+Both reporter jobs check out only the platform's exact default-branch SHA, with
+credentials not persisted. They run trusted built-in Node/Python code, install
+no dependencies, execute no PR code/artifacts and restore no caches. The PR
+number is resolved from GitHub API metadata before the per-PR publish-job
+concurrency group is selected. The workflow must exist on the default branch
+before GitHub can trigger it; a candidate-only PR cannot prove hosted writes.
+GitHub describes the trust boundary in its
 these risks in its [workflow event reference](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run)
 and [secure use reference](https://docs.github.com/en/actions/reference/security/secure-use#mitigating-the-risks-of-untrusted-code-checkout).
 
-Before any future comment write, resolve the workflow by its trusted path/id and
-fetch the completed run and associated PR from GitHub. Validate repository,
-workflow, event, run id, attempt, full base/head commits and current open PR state.
-Resolve both source commit objects and verify their actual tree hashes as well.
-Derive the PR number from GitHub's run association, never from uploaded JSON.
-Bound artifact size and parse data only. The measurement owner's schema must be
-validated before normalization; unknown metric names and raw text are not report
-policy. Recompute the Markdown table with trusted labels/direction/budgets rather
-than accepting artifact Markdown. Do not print raw artifact content on errors.
+Before each comment write, the reporter resolves the canonical workflow id/path
+and fetches the exact originating run attempt and associated PR from GitHub.
+It validates repository, workflow, event, run id/attempt, exact head/base and
+current open PR state, then resolves actual commit-tree hashes. Fork events with
+an empty run association can use only a unique exact API match for head commit,
+head repository, head branch and target repository. Ambiguity or a stale run is
+an explicit job-summary skip; artifact content never chooses the destination PR.
+
+The artifact must have the exact run/attempt name, originate in that run/head,
+be unexpired and be at most 64 KiB. An isolated Python standard-library reader
+admits exactly one regular `availability.json` member, at most 4 KiB, with
+stored/deflate compression and valid framing/CRC. Extra members, symlinks,
+paths, encryption and oversized payloads are rejected without extracting files.
+The JSON is a closed availability record whose identities must match the API.
+Unknown formats, arbitrary text and metric values are rejected. Invalid/missing
+artifacts produce explicit unavailable rows. A failed originating run is also
+explicit. API/archive errors never print raw artifact content or signed URLs.
+The job token is sent only to the fixed GitHub API origin; storage redirects
+must be HTTPS on known artifact hosts and receive no Authorization header.
+
+The comment is regenerated from fixed labels and validated data. For future
+metrics, the measurement owner's schema must be validated before normalization;
+unknown metric names and raw text cannot set report policy. The formatter never
+accepts artifact Markdown.
 
 Serialize updates by PR and recheck base/head immediately before writing. Update
 only a `github-actions[bot]` comment beginning with
@@ -89,10 +107,10 @@ an older one. Outdated runs and closed PRs are explicit skips.
 Inspect these complete sources before executing the named local checks:
 
 ```sh
-node --test --test-concurrency=1 tools/perf/reporting/compare.test.mjs tools/perf/reporting/report.test.mjs tools/perf/reporting/read-json.test.mjs tools/perf/reporting/adapter.test.mjs
+node --test --test-concurrency=1 tools/perf/reporting/compare.test.mjs tools/perf/reporting/report.test.mjs tools/perf/reporting/read-json.test.mjs tools/perf/reporting/adapter.test.mjs tools/perf/reporting/availability.test.mjs tools/perf/reporting/origin.test.mjs tools/perf/reporting/github-api.test.mjs
 ```
 
-These tests exercise report arithmetic, rendering and fake GitHub API metadata.
+These tests exercise report arithmetic, rendering, generated in-memory ZIPs and fake GitHub API metadata/transports.
 They open no listener, call no remote API and execute no application or provider
 controls. They do not establish end-to-end hosted comment permission or security
 qualification.

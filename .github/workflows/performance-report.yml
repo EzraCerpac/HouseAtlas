@@ -1,0 +1,76 @@
+name: Report synthetic PR performance
+on:
+  workflow_run:
+    workflows: [Synthetic PR performance]
+    types: [completed]
+permissions: {}
+jobs:
+  resolve:
+    name: Resolve trusted originating PR
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      pr_number: ${{ steps.origin.outputs.pr_number }}
+    steps:
+      - name: Checkout exact default-branch reporter source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Set exact Node runtime
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '26.10.0'
+          check-latest: false
+          package-manager-cache: false
+      - name: Resolve the PR using GitHub metadata only
+        id: origin
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_SOURCE_SHA: ${{ github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$TRUSTED_SOURCE_SHA"
+          node tools/perf/reporting/github-run.mjs resolve
+  publish:
+    name: Update the validated PR performance table
+    needs: resolve
+    if: needs.resolve.outputs.pr_number != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # Serialize only the resolved PR. Older completed runs cannot overwrite newer ones.
+    concurrency:
+      group: houseatlas-performance-comment-${{ needs.resolve.outputs.pr_number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    steps:
+      - name: Checkout exact default-branch reporter source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Set exact Node runtime
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '26.10.0'
+          check-latest: false
+          package-manager-cache: false
+      - name: Validate provenance and bounded data, then update one owned comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_SOURCE_SHA: ${{ github.sha }}
+          EXPECTED_PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$TRUSTED_SOURCE_SHA"
+          node tools/perf/reporting/github-run.mjs publish
