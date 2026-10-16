@@ -107,6 +107,7 @@ const { readCanonicalSceneV2, ADAPTER_ID } = await import(adapterURL);
 const { retriesFor, takeRetry, MAX_STALE_RETRIES } = await import(staleRetryURL);
 const { readLocalGlb, readLocalFiles, LocalReadError } = await import(localURL);
 const { loadStandardGlb } = await import(standardURL);
+const { navigationIndex } = await import(navigatorURL);
 const { buildGlb, box, SAMPLE_HOUSE, SAMPLE_HOUSE_BOUNDS, SAMPLE_REFERENCE, SAMPLE_REFERENCE_BOUNDS, sampleManifest } = await import(sampleURL);
 const { publicationA, publicationB, generatedCoverage } = await import(fixturesURL);
 
@@ -487,6 +488,23 @@ assert.deepEqual(read.manifest.data.reference.groups.map(group => group.name), [
 assert.deepEqual(flat(read.reference.bounds), SAMPLE_REFERENCE_BOUNDS.flat().map(Math.fround), 'GLB positions are float32 as stored');
 assert.equal(read.reference.glb.copyright, SAMPLE_REFERENCE.asset.copyright, 'Reference attribution is preserved');
 assert.ok(read.reference.glb.meshes.every(mesh => mesh.meshKey.startsWith('reference#')));
+// Navigation preserves source order and object identity while grouping into
+// its own local arrays, including metadata-only products and repeated parts.
+const navigationInput = read.manifest.data;
+const navigationBefore = JSON.stringify(navigationInput);
+const navigation = navigationIndex(read.house.glb, navigationInput);
+assert.deepEqual(navigation.storeys.map(group => [group.key, group.products.map(product => product.nodeIndex)]),
+  [['a', [1]], ['b', [2, 3, 5]]]);
+assert.equal(navigation.storeys[1].products[2], navigationInput.products[3]);
+assert.equal(navigation.occurrences.get(4), navigationInput.roomOccurrences[0]);
+assert.deepEqual(navigation.unlisted, []);
+assert.deepEqual(navigationIndex(read.house.glb, undefined).unlisted, read.house.glb.drawn.map(item => item.meshKey));
+const repeatedParts = navigationIndex({ ...read.house.glb, drawn: [read.house.glb.drawn[1],
+  { ...read.house.glb.drawn[1], meshKey: 'generated-second-part' }, read.house.glb.drawn[0]] }, navigationInput);
+assert.deepEqual(repeatedParts.meshesByNode.get(2), [read.house.glb.drawn[1].meshKey, 'generated-second-part']);
+assert.deepEqual([...repeatedParts.meshesByNode.keys()], [2, 1]);
+assert.notEqual(repeatedParts.meshesByNode.get(2), navigation.meshesByNode.get(2));
+assert.equal(JSON.stringify(navigationInput), navigationBefore, 'Navigation does not mutate the admitted manifest');
 const houseOnly = await readLocalFiles([await manifestFile(), new File([houseGlb], 'house.glb')], live());
 assert.equal(houseOnly.reference, null, 'The reference layer is optional');
 

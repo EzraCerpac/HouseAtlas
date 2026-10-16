@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "cf45fd9c0647ed7cae87c2275f076557c0f81da90b0e10e11abcb527c77bb0d4",
+  "sourceDigestSha256": "645c8ee106668141a2d4cd48cc6a358856fefca9c4db74807a35b5bc5f33f495",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -6881,8 +6881,8 @@
     {
       "path": "frontend/lantern-tests/canonical-ifc-viewer.test.mjs",
       "mode": "100644",
-      "bytes": 45783,
-      "sha256": "6554147e3d568ea16fffc9c1f4b29d8157f1c4428210c6fd1291758b2a862132",
+      "bytes": 47220,
+      "sha256": "0a32f879dc1f6e54ad106d6544edef2492e815c6d3fb494c768c7b119ca1ca3a",
       "owner": "web"
     },
     {
@@ -8211,8 +8211,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/ModelNavigator.tsx",
       "mode": "100644",
-      "bytes": 9792,
-      "sha256": "84e7cc131789888e5f31a2217e018c1c99171a7b9c7258bf1ad49594c7755f46",
+      "bytes": 9920,
+      "sha256": "aea3757d858914dc03901d9661c5259b618b99ad4ff113de38451224f298cbb6",
       "owner": "web"
     },
     {
