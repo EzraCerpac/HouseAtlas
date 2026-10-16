@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "15ebd0d530a3bb52bc69e48837ad728c1f3e486cbccab25869e70635a1f86c19",
+  "sourceDigestSha256": "c041959db7529145c36ea8aabef7687954ac850970d86e8b71b3c57dddf78429",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -10328,6 +10328,146 @@
       "mode": "100644",
       "bytes": 4070,
       "sha256": "9f963f128058d05cc32cf9e380ccde984cf1c98e34903b23b3b4d6e8fe583e86"
+    },
+    {
+      "path": "tools/perf/contract/README.md",
+      "mode": "100644",
+      "bytes": 2317,
+      "sha256": "9172f625d6d1af9d05fb15743894542aab2dd13bbb273d763a322083b37ee7e8",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/contract/index.mjs",
+      "mode": "100644",
+      "bytes": 4108,
+      "sha256": "3122e4503409e883c6e247f7bd6481f21d26d1471fb0a0fbf6d1ec8c6f5055c8",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/contract/index.test.mjs",
+      "mode": "100644",
+      "bytes": 4866,
+      "sha256": "743605745d2da62669ae578a1832443cda9fd4c1613a2ae4387fdf91d4dd1a1c",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/contract/policies.mjs",
+      "mode": "100644",
+      "bytes": 3071,
+      "sha256": "8a161bae223f9b07aae4b0aa3bc79337e2d552ab0621cb9544196d5bccd9947a",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/contract/run.schema.json",
+      "mode": "100644",
+      "bytes": 16743,
+      "sha256": "642af28eacc14e6fdd7b9f7071979f07abc8dcb9a427773f5d74dab672b7056a",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/contract/test-fixture.mjs",
+      "mode": "100644",
+      "bytes": 1872,
+      "sha256": "0a8c43a0e5b57727987a96354268c0d66a036a8352d950d99ea233f67b6d2178",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/harness/README.md",
+      "mode": "100644",
+      "bytes": 6991,
+      "sha256": "821df22b9889cb0c3ac0f0f64a454237bea0b78b9962756057963112dfe51e5e",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/harness/bundle.mjs",
+      "mode": "100644",
+      "bytes": 3898,
+      "sha256": "65a682ce97b6e668bc9ea503df00ac5e977d15c8c3b9c2e43dfeb58bb0533743",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/harness/bundle.test.mjs",
+      "mode": "100644",
+      "bytes": 2271,
+      "sha256": "7a10a2ffe370bc0308ba4e5f3504f71658b2e468866ac6ddd5411dcb093d0b8b",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/harness/cpu-worker.mjs",
+      "mode": "100644",
+      "bytes": 6751,
+      "sha256": "dd8c6db76b6cc4afa72a244f243dc940fd71a246e205a6433e328fcd418ad54d",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/harness/fixtures.mjs",
+      "mode": "100644",
+      "bytes": 2690,
+      "sha256": "c0128437c0688169ae14df42759d9d1df6b6dfe9ae4c970f4ff84ce69a21dd9f",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/harness/load-source.mjs",
+      "mode": "100644",
+      "bytes": 1433,
+      "sha256": "b6288cca209d9b79f42209521777b856a8c5e50b5ac3fe1d842f2f54aa304097",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/harness/mesh-profile.fixture.json",
+      "mode": "100644",
+      "bytes": 18610,
+      "sha256": "567c33c8977c7c2effebb5da197107777375db158d2a3adde04c89d6b478b63e",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/harness/package-lock.json",
+      "mode": "100644",
+      "bytes": 28199,
+      "sha256": "06e043d2e9e8188f5f3cf0629ae55665e2a01e0aa37bac7b00cc15498036dac0",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/harness/package.json",
+      "mode": "100644",
+      "bytes": 282,
+      "sha256": "6a8f4994c5f0aa4258f518c2a77b98c5b58a9fd25600b170de091ea663b11541",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/harness/reporting-integration.test.mjs",
+      "mode": "100644",
+      "bytes": 3604,
+      "sha256": "a1f60fdc680813d16c29ca658228809668ce8aeeeebca74d921c85cd977d92f7",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/harness/run.mjs",
+      "mode": "100644",
+      "bytes": 7074,
+      "sha256": "13e060c4a7ece3f234b32660810cb9ac461dd389f5f594a9b7c3cfa47a137a79",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/harness/run.test.mjs",
+      "mode": "100644",
+      "bytes": 4302,
+      "sha256": "60b829a58e64a223d243d047e176510cbed2f6e4626b31fe944d5907688d169a",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/harness/settings.mjs",
+      "mode": "100644",
+      "bytes": 558,
+      "sha256": "0344660925550506d967ed025c9179c009877e16fcedad3a5726ec8bb5d376ad",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/harness/source.mjs",
+      "mode": "100644",
+      "bytes": 2241,
+      "sha256": "a1550980ec80d2b9df53eb335636febd069890ce931af41cf9d808181d5d6ef4",
+      "owner": "core-integration"
     },
     {
       "path": "tools/publication/verify-source.mjs",
