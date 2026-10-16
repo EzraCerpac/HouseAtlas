@@ -94,6 +94,9 @@ fn healthy_partition_indexes_preserve_joins_order_and_freshness() {
                 }
             }
             source_instance(&mut part, &preceding);
+        }
+        // Same collection across different instances must also differ in freshness.
+        if copy % 4 != 0 {
             part["caches"][0]["lastSuccessfulFetchAt"] = json!("2026-01-02T11:00:00Z");
             part["caches"][0]["lastAttemptAt"] = json!("2026-01-02T11:00:00Z");
             for entity in part["homeboxEntities"].as_array_mut().unwrap() {
