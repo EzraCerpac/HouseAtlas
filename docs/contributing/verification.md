@@ -1260,3 +1260,19 @@ check. Its four required options are `--overview-manifest`,
 semantic/GLB validators without reading native state or starting a service.
 Do not interpret source validation as current native joins, browser acceptance
 or release. No actual private source is included or exercised by this lane.
+
+### Unified Atlas native documentary overlay source healthy read
+
+Inspect `frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs` before
+running this one generated positive. It exercises the actual source-only
+current-association HTTP qualifier and closed network/electricity/fixture
+parsers with an in-process GET transport and two dedicated fake native document
+owners. It checks exact current native room/package/receipt joins, retained
+primary and historical originals, final current-head read, arbitrary-precision
+asset revision, documentary-only detail DTOs and explicit owner release. It
+uses no old rendered geometry, real source, provider, listener, native mutation,
+expiry/revocation/replay/denial or other held controls. Use pinned Node 26.10.0:
+
+```sh
+node frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs
+```
