@@ -605,6 +605,36 @@ impl AccessBoundary {
         Ok(binding.finalize().into())
     }
 
+    /// Cleanup evidence only, never authorization. Membership/source denial and
+    /// clock observations are deliberately excluded: they can recover while the
+    /// same cookie remains usable. Only native session/issuer/user retirement
+    /// can release process-local per-session replay tombstones.
+    pub(crate) fn session_binding_has_ended(&self, original: &Principal) -> AccessResult<bool> {
+        if original.instance != self.instance {
+            return Ok(true);
+        }
+        let Some(session) = store::session(&self.store.db, &original.token_hash)? else {
+            return Ok(true);
+        };
+        if session.epoch != store::epoch(&self.store.db)?
+            || session.origin != original.origin
+            || session.user_id != original.user_id
+        {
+            return Ok(true);
+        }
+        let user = store::user_with_loopback(
+            &self.store.db,
+            &session.user_id,
+            self.config.loopback_local.as_ref(),
+        )?;
+        Ok(!user.is_some_and(|user| {
+            user.enabled
+                && user.version == session.user_version
+                && user.user_id == original.user_id
+                && user.actor_id == original.actor_id
+        }))
+    }
+
     pub fn assert_mutation<'p>(&self, principal: &'p Principal) -> AccessResult<&'p Principal> {
         self.current().assert_mutation(principal)
     }

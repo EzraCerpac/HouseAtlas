@@ -93,7 +93,7 @@ impl Store {
     pub(super) fn open_existing(path: &Path) -> AccessResult<Self> {
         Ok(Self {
             db: super::existing::open(path)?,
-            session_cleanup_after: None,
+            session_cleanup_after: Some(hex(&random_bytes::<32>()?)),
         })
     }
 
@@ -124,7 +124,7 @@ impl Store {
         tx.commit()?;
         Ok(Self {
             db,
-            session_cleanup_after: None,
+            session_cleanup_after: Some(hex(&random_bytes::<32>()?)),
         })
     }
 
@@ -439,7 +439,9 @@ pub(super) fn session(db: &Connection, token_hash: &str) -> AccessResult<Option<
 // Seek the existing token primary-key index, inspecting at most 64 rows per
 // issuance. Expiration remains an authentication check independent of cleanup.
 const SESSION_CLEANUP_SELECT: &str = "SELECT token_hash,expires_at FROM access_sessions
-    WHERE token_hash>?1 ORDER BY token_hash LIMIT 64";
+    WHERE token_hash>?1 ORDER BY token_hash LIMIT ?2";
+const SESSION_CLEANUP_WRAP_SELECT: &str = "SELECT token_hash,expires_at FROM access_sessions
+    WHERE token_hash<=?1 ORDER BY token_hash LIMIT ?2";
 const SESSION_CLEANUP_DELETE: &str =
     "DELETE FROM access_sessions WHERE token_hash=?1 AND expires_at<=?2";
 
@@ -449,17 +451,25 @@ pub(super) fn insert_session(
     now: i64,
     cleanup_after: Option<&str>,
 ) -> AccessResult<Option<String>> {
-    let candidates = db
+    let after = cleanup_after.unwrap_or("");
+    let mut candidates = db
         .prepare(SESSION_CLEANUP_SELECT)?
-        .query_map([cleanup_after.unwrap_or("")], |row| {
+        .query_map(params![after, 64], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
         })?
         .collect::<Result<Vec<_>, _>>()?;
-    // A short page proves the end of this range. Wrap on the next issuance,
-    // never inspect a second page in this transaction. A full final page may
-    // require one subsequent empty seek before wrapping.
-    let next =
-        (candidates.len() == 64).then(|| candidates.last().expect("Full cleanup page").0.clone());
+    if candidates.len() < 64 && !after.is_empty() {
+        // Circular seek: both disjoint indexed ranges share ONE 64-row budget.
+        let remaining = (64 - candidates.len()) as i64;
+        candidates.extend(
+            db.prepare(SESSION_CLEANUP_WRAP_SELECT)?
+                .query_map(params![after, remaining], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+                })?
+                .collect::<Result<Vec<_>, _>>()?,
+        );
+    }
+    let next = candidates.last().map(|row| row.0.clone());
     for (token, expires_at) in candidates {
         if expires_at <= now {
             db.execute(SESSION_CLEANUP_DELETE, params![token, now])?;
@@ -646,7 +656,8 @@ mod bounded_session_cleanup_tests {
                 .unwrap();
         }
         access.store.session_cleanup_after = None;
-        indexed(&access.store.db, SESSION_CLEANUP_SELECT, &[&""]);
+        indexed(&access.store.db, SESSION_CLEANUP_SELECT, &[&"", &64]);
+        indexed(&access.store.db, SESSION_CLEANUP_WRAP_SELECT, &[&"f", &64]);
         indexed(&access.store.db, SESSION_CLEANUP_DELETE, &[&"", &NOW]);
         for page in 0..64 {
             access
@@ -669,16 +680,23 @@ mod bounded_session_cleanup_tests {
                     .is_err()
             );
         }
-        // Finish the nonce-key tail and observe wrap without a second page in
-        // one issuance. Expired rejection already held while its row remained.
+        // Finish the nonce-key tail and observe circular wrap within the same
+        // 64-row budget. Expired rejection held while its row remained.
         let mut wrapped = false;
         for _ in 0..8 {
             let before = count(&access.store.db, false);
+            let previous = access.store.session_cleanup_after.clone();
             access
                 .login_loopback_local(&request(None, Method::Post), peer)
                 .unwrap();
             assert_eq!(count(&access.store.db, false), before + 1);
-            if access.store.session_cleanup_after.is_none() {
+            if access
+                .store
+                .session_cleanup_after
+                .as_ref()
+                .zip(previous.as_ref())
+                .is_some_and(|(next, previous)| next < previous)
+            {
                 wrapped = true;
                 break;
             }
@@ -695,5 +713,110 @@ mod bounded_session_cleanup_tests {
                 .session_info(&request(Some(expired_cookie), Method::Get))
                 .is_err()
         );
+    }
+
+    #[test]
+    #[ignore = "Explicit isolated generated annual-session cleanup/reopen lane; exact documented command only"]
+    fn fresh_cleanup_seeds_and_circular_budget_reach_later_ranges_after_reopen() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("generated-access.sqlite");
+        let mut store = Store::open(&path).unwrap();
+        let identity = LoopbackLocalIdentity {
+            user_id: id(4),
+            actor_id: id(5),
+            username: "generated-reopen".into(),
+            scope: Scope {
+                workspace_id: id(1),
+                home_id: id(2),
+            },
+        };
+        store.provision_loopback_local_user(&identity).unwrap();
+        let epoch = epoch(&store.db).unwrap();
+        for n in 0..256 {
+            for (prefix, expires) in [("1", NOW + 1_000_000), ("e", NOW)] {
+                store
+                    .db
+                    .execute(
+                        "INSERT INTO access_sessions VALUES(?1,?2,?3,1,?4,?5,?6,?6,?7)",
+                        params![
+                            format!("{prefix}{n:063x}"),
+                            "generated-csrf",
+                            identity.user_id.as_str(),
+                            epoch.0,
+                            ORIGIN,
+                            NOW,
+                            expires
+                        ],
+                    )
+                    .unwrap();
+            }
+        }
+        let mut previous_seed = store.session_cleanup_after.clone();
+        assert!(previous_seed.is_some());
+        drop(store);
+        // Controlled starts demonstrate later-range progress after separate
+        // strict reopens. Production startup seeds are random, so fairness
+        // across repeated short processes is probabilistic, not durable.
+        for pass in 0..4 {
+            let mut reopened = Store::open_existing(&path).unwrap();
+            assert!(reopened.session_cleanup_after.is_some());
+            assert_ne!(reopened.session_cleanup_after, previous_seed);
+            previous_seed = reopened.session_cleanup_after.clone();
+            let start = if pass == 0 {
+                "8".repeat(64)
+            } else {
+                format!("e{:063x}", pass * 64 - 1)
+            };
+            let active_before = count(&reopened.db, false);
+            let tx = reopened
+                .db
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            let session = Session {
+                token_hash: format!("f{pass:063x}"),
+                csrf_hash: "generated-csrf".into(),
+                user_id: identity.user_id.clone(),
+                user_version: AuthorityVersion(1),
+                epoch: epoch.clone(),
+                origin: ORIGIN.into(),
+                created_at: NOW,
+                last_seen: NOW,
+                expires_at: NOW + 1_000_000,
+            };
+            let next = insert_session(&tx, &session, NOW, Some(&start)).unwrap();
+            tx.commit().unwrap();
+            reopened.session_cleanup_after = next;
+            assert_eq!(count(&reopened.db, true), 256 - (pass + 1) * 64);
+            assert_eq!(count(&reopened.db, false), active_before + 1);
+        }
+        // A start beyond every key must wrap now, not require a second login.
+        let mut reopened = Store::open_existing(&path).unwrap();
+        indexed(
+            &reopened.db,
+            SESSION_CLEANUP_WRAP_SELECT,
+            &[&"f".repeat(64), &64],
+        );
+        let tx = reopened
+            .db
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .unwrap();
+        let session = Session {
+            token_hash: "f".repeat(64),
+            csrf_hash: "generated-csrf".into(),
+            user_id: identity.user_id,
+            user_version: AuthorityVersion(1),
+            epoch,
+            origin: ORIGIN.into(),
+            created_at: NOW,
+            last_seen: NOW,
+            expires_at: NOW + 1_000_000,
+        };
+        let next = insert_session(&tx, &session, NOW, Some(&"f".repeat(64)))
+            .unwrap()
+            .unwrap();
+        tx.commit().unwrap();
+        assert_eq!(next, format!("1{:063x}", 63));
+        assert_eq!(count(&reopened.db, true), 0);
+        assert_eq!(count(&reopened.db, false), 261);
     }
 }
