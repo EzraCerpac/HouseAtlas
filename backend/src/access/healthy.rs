@@ -324,7 +324,7 @@ fn healthy_session_principal_checkpoint() {
     let (mut boundary, clock) = setup();
     let session = login(&mut boundary, "synthetic-viewer");
     assert_eq!(session.info().actor_id(), &id(5));
-    assert_eq!(session.info().expires_at_ms(), NOW + 604_800_000);
+    assert_eq!(session.info().expires_at_ms(), NOW + 31_536_000_000);
     assert!(
         session
             .set_cookie()

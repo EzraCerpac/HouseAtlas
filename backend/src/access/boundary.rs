@@ -22,11 +22,10 @@ use super::{
     types::{LoopbackLocalIdentity, RestoreEpoch},
 };
 
-/// Trusted server configuration, with the published defaults and ceilings.
+/// Trusted server configuration. Native sessions default to 365 days, with no
+/// inactivity timeout or device-count eviction. Absolute expiry stays bounded.
 pub struct AccessLimits {
     pub absolute_ms: i64,
-    pub idle_ms: i64,
-    pub max_sessions: u32,
     pub login_limit: u32,
     pub global_login_limit: u32,
     pub request_limit: u32,
@@ -35,9 +34,7 @@ pub struct AccessLimits {
 impl Default for AccessLimits {
     fn default() -> Self {
         Self {
-            absolute_ms: 604_800_000,
-            idle_ms: 28_800_000,
-            max_sessions: 5,
+            absolute_ms: 31_536_000_000,
             login_limit: 10,
             global_login_limit: 60,
             request_limit: 300,
@@ -47,9 +44,7 @@ impl Default for AccessLimits {
 
 impl AccessLimits {
     fn validate(&self) -> AccessResult<()> {
-        if !(1..=604_800_000).contains(&self.absolute_ms)
-            || !(1..=self.absolute_ms).contains(&self.idle_ms)
-            || !(1..=100).contains(&self.max_sessions)
+        if !(1..=31_536_000_000).contains(&self.absolute_ms)
             || !(1..=1000).contains(&self.login_limit)
             || !(1..=10_000).contains(&self.global_login_limit)
             || !(1..=10_000).contains(&self.request_limit)
@@ -610,6 +605,36 @@ impl AccessBoundary {
         Ok(binding.finalize().into())
     }
 
+    /// Cleanup evidence only, never authorization. Membership/source denial and
+    /// clock observations are deliberately excluded: they can recover while the
+    /// same cookie remains usable. Only native session/issuer/user retirement
+    /// can release process-local per-session replay tombstones.
+    pub(crate) fn session_binding_has_ended(&self, original: &Principal) -> AccessResult<bool> {
+        if original.instance != self.instance {
+            return Ok(true);
+        }
+        let Some(session) = store::session(&self.store.db, &original.token_hash)? else {
+            return Ok(true);
+        };
+        if session.epoch != store::epoch(&self.store.db)?
+            || session.origin != original.origin
+            || session.user_id != original.user_id
+        {
+            return Ok(true);
+        }
+        let user = store::user_with_loopback(
+            &self.store.db,
+            &session.user_id,
+            self.config.loopback_local.as_ref(),
+        )?;
+        Ok(!user.is_some_and(|user| {
+            user.enabled
+                && user.version == session.user_version
+                && user.user_id == original.user_id
+                && user.actor_id == original.actor_id
+        }))
+    }
+
     pub fn assert_mutation<'p>(&self, principal: &'p Principal) -> AccessResult<&'p Principal> {
         self.current().assert_mutation(principal)
     }
@@ -830,8 +855,15 @@ impl AccessBoundary {
                 .as_ref()
                 .map_or(now + self.config.limits.absolute_ms, |s| s.expires_at),
         };
-        store::insert_session(&tx, &session, self.config.limits.max_sessions, now)?;
+        let cleanup_after = store::insert_session(
+            &tx,
+            &session,
+            now,
+            self.store.session_cleanup_after.as_deref(),
+        )?;
         tx.commit()?;
+        // Only committed cleanup advances the process-local range cursor.
+        self.store.session_cleanup_after = cleanup_after;
         Ok(SessionReceipt {
             info: SessionInfo {
                 actor_id: user.actor_id,
@@ -950,7 +982,6 @@ impl CurrentAuthority<'_> {
             || now < session.created_at
             || now < session.last_seen
             || now >= session.expires_at
-            || now - session.last_seen >= self.config.limits.idle_ms
         {
             return Err(AccessError::Unauthenticated);
         }

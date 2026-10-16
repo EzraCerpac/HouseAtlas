@@ -188,3 +188,6 @@ impl<'request, 'evidence> CheckedGatewayIdentity<'request, 'evidence> {
         self.uid
     }
 }
+
+#[cfg(test)]
+mod session_policy_tests;
