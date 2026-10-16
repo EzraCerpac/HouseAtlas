@@ -1,0 +1,670 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://houseatlas.invalid/perf/run.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "synthetic",
+    "source",
+    "harness",
+    "method",
+    "fixtures",
+    "environment",
+    "profile",
+    "metrics"
+  ],
+  "properties": {
+    "format": {
+      "const": "houseatlas.perf.run/1"
+    },
+    "synthetic": {
+      "const": true
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commit",
+        "tree",
+        "dirty",
+        "after",
+        "files"
+      ],
+      "properties": {
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "tree": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "dirty": {
+          "type": "boolean"
+        },
+        "after": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "commit",
+            "tree",
+            "dirty"
+          ],
+          "properties": {
+            "commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "tree": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "dirty": {
+              "type": "boolean"
+            }
+          }
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "pattern": "^frontend/[A-Za-z0-9_./-]{1,180}$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          },
+          "minItems": 0,
+          "maxItems": 64
+        }
+      }
+    },
+    "harness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commit",
+        "tree",
+        "dirty",
+        "schemaSha256",
+        "filesSha256",
+        "after"
+      ],
+      "properties": {
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "tree": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "dirty": {
+          "type": "boolean"
+        },
+        "schemaSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "filesSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "after": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "commit",
+            "tree",
+            "dirty",
+            "filesSha256"
+          ],
+          "properties": {
+            "commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "tree": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "dirty": {
+              "type": "boolean"
+            },
+            "filesSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
+      }
+    },
+    "method": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "revision"
+      ],
+      "properties": {
+        "id": {
+          "const": "synthetic-cpu-bundle"
+        },
+        "revision": {
+          "const": 1
+        }
+      }
+    },
+    "fixtures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "bytes",
+          "sha256"
+        ],
+        "properties": {
+          "id": {
+            "enum": [
+              "public-readme-mesh-v1",
+              "shared-box-grid-1000-v1"
+            ]
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8388608
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtime",
+        "host",
+        "toolchain",
+        "browser",
+        "gpu"
+      ],
+      "properties": {
+        "runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "node",
+            "v8",
+            "npm",
+            "platform",
+            "arch",
+            "reactMode",
+            "execArgv"
+          ],
+          "properties": {
+            "node": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "v8": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "npm": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "platform": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "arch": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "reactMode": {
+              "const": "production"
+            },
+            "execArgv": {
+              "const": []
+            }
+          }
+        },
+        "host": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cpu",
+            "logicalCpus",
+            "memoryBytes",
+            "availableParallelism",
+            "cpuQuota",
+            "memoryLimit"
+          ],
+          "properties": {
+            "cpu": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "logicalCpus": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4096
+            },
+            "memoryBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "availableParallelism": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4096
+            },
+            "cpuQuota": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(max|[0-9]+) [0-9]+$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "memoryLimit": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(max|[0-9]+)$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "toolchain": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "vite",
+            "react",
+            "reactDom",
+            "three",
+            "ajv",
+            "lockSha256",
+            "buildVite",
+            "buildReact"
+          ],
+          "properties": {
+            "vite": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "react": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "reactDom": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "three": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "ajv": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "lockSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "buildVite": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "buildReact": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "browser": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "reason",
+            "version"
+          ],
+          "properties": {
+            "status": {
+              "const": "unsupported"
+            },
+            "reason": {
+              "const": "supported-browser-tool-unavailable"
+            },
+            "version": {
+              "type": "null"
+            }
+          }
+        },
+        "gpu": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "reason",
+            "renderer"
+          ],
+          "properties": {
+            "status": {
+              "const": "unsupported"
+            },
+            "reason": {
+              "const": "no-renderer-executed"
+            },
+            "renderer": {
+              "type": "null"
+            }
+          }
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "build",
+        "cache",
+        "scenario",
+        "warmups",
+        "repetitions"
+      ],
+      "properties": {
+        "id": {
+          "const": "synthetic-cpu-bundle-v1"
+        },
+        "build": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "cache",
+            "startupAssets",
+            "gzip"
+          ],
+          "properties": {
+            "mode": {
+              "const": "production"
+            },
+            "cache": {
+              "const": "fresh-process-temporary-output"
+            },
+            "startupAssets": {
+              "const": "entry-and-html-modulepreload-js"
+            },
+            "gzip": {
+              "const": "node-zlib-default"
+            }
+          }
+        },
+        "cache": {
+          "const": "warm-process-generated-inputs"
+        },
+        "scenario": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scan",
+            "glbInstances",
+            "viewport",
+            "yaw",
+            "pitch",
+            "clipY",
+            "pick",
+            "navigationStoreys"
+          ],
+          "properties": {
+            "scan": {
+              "const": "public-readme-seven-mesh"
+            },
+            "glbInstances": {
+              "const": 1000
+            },
+            "viewport": {
+              "const": [
+                960,
+                640
+              ]
+            },
+            "yaw": {
+              "const": -32
+            },
+            "pitch": {
+              "const": 36
+            },
+            "clipY": {
+              "type": "null"
+            },
+            "pick": {
+              "const": "middle-node-top"
+            },
+            "navigationStoreys": {
+              "const": 1
+            }
+          }
+        },
+        "warmups": {
+          "const": 3
+        },
+        "repetitions": {
+          "const": 9
+        }
+      }
+    },
+    "metrics": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "status",
+              "samples",
+              "summary"
+            ],
+            "properties": {
+              "id": {
+                "enum": [
+                  "frontend.scan.parse_ms",
+                  "frontend.scan.prepare_ms",
+                  "frontend.scan.edges_ms",
+                  "frontend.scan.prepared_bytes",
+                  "frontend.standard_glb.load_ms",
+                  "frontend.standard_glb.prepared_bytes",
+                  "frontend.navigation.index_ms",
+                  "frontend.mesh.pick_ms",
+                  "frontend.navigator.ssr_ms",
+                  "frontend.startup_js.bytes",
+                  "frontend.startup_js.gzip_bytes",
+                  "frontend.bundle.largest_asset_bytes"
+                ]
+              },
+              "status": {
+                "const": "measured"
+              },
+              "samples": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "minItems": 1,
+                "maxItems": 1000
+              },
+              "summary": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "count",
+                  "median",
+                  "p95",
+                  "mad",
+                  "min",
+                  "max"
+                ],
+                "properties": {
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000
+                  },
+                  "median": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "p95": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "mad": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "min": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "max": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "status",
+              "reason"
+            ],
+            "properties": {
+              "id": {
+                "enum": [
+                  "frontend.scan.parse_ms",
+                  "frontend.scan.prepare_ms",
+                  "frontend.scan.edges_ms",
+                  "frontend.scan.prepared_bytes",
+                  "frontend.standard_glb.load_ms",
+                  "frontend.standard_glb.prepared_bytes",
+                  "frontend.navigation.index_ms",
+                  "frontend.mesh.pick_ms",
+                  "frontend.navigator.ssr_ms",
+                  "frontend.startup_js.bytes",
+                  "frontend.startup_js.gzip_bytes",
+                  "frontend.bundle.largest_asset_bytes",
+                  "browser.first_mesh_draw_ms",
+                  "browser.selection_commit_ms",
+                  "browser.transition_frame_ms",
+                  "browser.draw_calls",
+                  "browser.live_gpu_bytes"
+                ]
+              },
+              "status": {
+                "enum": [
+                  "unsupported",
+                  "blocked",
+                  "failed"
+                ]
+              },
+              "reason": {
+                "enum": [
+                  "feature-not-present",
+                  "dependency-unavailable",
+                  "runtime-mismatch",
+                  "build-unavailable",
+                  "execution-failed",
+                  "source-changed",
+                  "harness-changed",
+                  "supported-browser-tool-unavailable"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "minItems": 0,
+      "maxItems": 64
+    }
+  }
+}
