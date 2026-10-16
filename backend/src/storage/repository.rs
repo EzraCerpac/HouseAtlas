@@ -42,6 +42,51 @@ pub(crate) fn snapshot(db: &Connection) -> Result<Snapshot> {
         ..Snapshot::default()
     })
 }
+/// Prefilter authorized reads with the existing scope indexes before decoding.
+/// The caller still checks body scope; this is not whole-store validation.
+/// Mutation and recovery callers retain the complete `snapshot` above.
+pub(crate) fn scoped_snapshot(db: &Connection, scope: &Scope) -> Result<Snapshot> {
+    fn scoped_rows<T: DeserializeOwned>(
+        db: &Connection,
+        sql: &str,
+        scope: &Scope,
+    ) -> Result<Vec<T>> {
+        db.prepare(sql)?
+            .query_map(params![scope.workspace_id, scope.home_id], |row| {
+                row.get::<_, String>(0)
+            })?
+            .map(|row| Ok(serde_json::from_str(&row?)?))
+            .collect()
+    }
+    Ok(Snapshot {
+        records: scoped_rows(
+            db,
+            "SELECT body FROM records WHERE workspace_id=?1 AND home_id=?2 ORDER BY rowid",
+            scope,
+        )?,
+        sources: scoped_rows(
+            db,
+            "SELECT body FROM sources WHERE workspace_id=?1 AND home_id=?2 ORDER BY rowid",
+            scope,
+        )?,
+        homebox_entities: scoped_rows(
+            db,
+            "SELECT body FROM projections WHERE workspace_id=?1 AND home_id=?2 ORDER BY rowid",
+            scope,
+        )?,
+        caches: scoped_rows(
+            db,
+            "SELECT body FROM caches WHERE workspace_id=?1 AND home_id=?2 ORDER BY rowid",
+            scope,
+        )?,
+        network_relations: scoped_rows(
+            db,
+            "SELECT body FROM network_relations WHERE workspace_id=?1 AND home_id=?2 ORDER BY rowid",
+            scope,
+        )?,
+        ..Snapshot::default()
+    })
+}
 pub(crate) fn string<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
     value[key].as_str().ok_or(Error::new(
         "invalid-contract",
