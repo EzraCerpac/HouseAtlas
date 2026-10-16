@@ -31,6 +31,7 @@ test('deterministic absolute and relative budgets fail independently', () => {
   assert.equal(compareMetric({ ...policy, maxRegressionPercent: undefined }, values([100]), values([121])).failed, true);
   assert.equal(compareMetric(policy, values([100]), values([110])).failed, false);
   assert.equal(compareMetric(policy, values([100, 101]), values([100])).reason, 'deterministic-samples-disagree');
+  assert.equal(compareMetric({ ...timing, kind: 'deterministic' }, values([100, 101]), values([100])).failed, false);
 });
 test('missing and skipped metrics stay visible', () => {
   assert.equal(compareMetric(timing, null, values([1])).reason, 'metric-unavailable');
@@ -41,7 +42,23 @@ test('missing and skipped metrics stay visible', () => {
   assert.match(table, /lower is better/);
 });
 test('Markdown cells cannot create rows, images, links or mentions', () => {
-  const external = 'x | [click](https://x) ![img](https://x) @everyone <img> `code`\nnext';
+  const external = 'x | [click](https://x) ![img](https://x) @everyone <img> `code`\nnext https://evil.example www.evil.example';
   const escaped = cell(external);
   for (const character of ['|', '[', ']', '!', '@', '<', '>', '`', '\n']) assert(!escaped.includes(character));
+  assert(!escaped.includes('https://'));
+  assert(!escaped.includes('www.'));
+});
+test('small values and budgets retain significant digits rather than rounding to zero', () => {
+  const policy = { ...timing, kind: 'deterministic', maximum: 0.0001 };
+  const result = compareMetric(policy, values([0.0001]), values([0.0002]));
+  const table = renderTable([policy], [result]);
+  assert(table.includes('0.0002 ms'));
+  assert(table.includes('max 0.0001 ms'));
+  assert(table.includes('FAIL'));
+  const closePolicy = { ...policy, maximum: 100.0000001 };
+  const closeTable = renderTable([closePolicy], [compareMetric(closePolicy, values([100]), values([100.0000002]))]);
+  assert(closeTable.includes('100.0000002 ms'));
+  assert(closeTable.includes('max 100.0000001 ms'));
+  const smallDelta = renderTable([timing], [compareMetric(timing, values([100]), values([100.0000001]))]);
+  assert(!smallDelta.includes('| +0% |'));
 });

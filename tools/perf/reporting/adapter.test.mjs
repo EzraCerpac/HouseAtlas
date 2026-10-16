@@ -17,6 +17,7 @@ const run = (baseRun = view('base'), headRun = view('head')) => compareRuns({ id
 test('adapter computes p95 and retains full identities and comparability fingerprints', () => {
   const result = run();
   assert.equal(result.comparisons[0].deltaPercent, -25);
+  assert.equal(result.comparisons[0].deltaAbsolute, -25);
   assert.equal(result.comparisons[0].head.p95, 75);
   for (const text of [identity.baseTree, identity.headTree, contract.schemaSha256, '1'.repeat(64), '2'.repeat(64)]) assert(result.markdown.includes(text));
 });

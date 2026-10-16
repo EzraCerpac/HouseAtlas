@@ -90,3 +90,8 @@ movement alone never fails. The comparison JSON records
 recomputed summaries, delta and the failed flag. These are report outputs, not
 an alternate input schema. The production CLI remains unavailable until the
 measurement owner's contract module exists; unit tests inject a fake adapter.
+
+The prepared comment updater accepts the same trusted identity, contract and
+validated base/head records and regenerates its content internally. It has no
+raw-Markdown input. The hosting workflow must import the contract from trusted
+default-branch source and obtain identity from GitHub rather than an artifact.

@@ -13,7 +13,7 @@ full base, head and harness source commits and the GitHub run/attempt. Use the
 same harness and fixture profile for both sources. Differences in harness,
 fixture, environment or runtime must be explicit skips, never inferred speedups.
 
-The Markdown table includes absolute medians, raw percent changes, whether lower
+The Markdown table includes absolute medians, absolute and percent changes, whether lower
 or higher is better, nearest-rank p95, base/head sample counts and robust relative dispersion.
 Dispersion is `1.4826 × MAD / median`, not a confidence interval. Timing changes
 within `max(5%, 2 × (base dispersion + head dispersion))` are labeled
@@ -25,6 +25,8 @@ or regression percentage. Their samples must agree exactly. No configured budget
 is displayed as `no budget`; missing data is displayed as a skip. A zero baseline
 has no percentage change unless both values are zero. This avoids reporting an
 infinite or invented speedup.
+Inconsistent deterministic samples skip an unbudgeted metric; with a configured
+budget they fail because the proposed budget cannot be evaluated reliably.
 
 ## Permission boundary
 
@@ -69,6 +71,7 @@ and [secure use reference](https://docs.github.com/en/actions/reference/security
 Before any future comment write, resolve the workflow by its trusted path/id and
 fetch the completed run and associated PR from GitHub. Validate repository,
 workflow, event, run id, attempt, full base/head commits and current open PR state.
+Resolve both source commit objects and verify their actual tree hashes as well.
 Derive the PR number from GitHub's run association, never from uploaded JSON.
 Bound artifact size and parse data only. The measurement owner's schema must be
 validated before normalization; unknown metric names and raw text are not report

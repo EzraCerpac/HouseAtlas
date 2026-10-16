@@ -1,5 +1,26 @@
 # HouseAtlas
 
+## Synthetic PR performance formatter
+
+The requested performance-report lane has these exact focused checks. Inspect
+the complete sources in `tools/perf/reporting/` before running them with Node
+26.10.0. They use numeric synthetic samples, fake GitHub API metadata, and fresh
+disposable JSON files under the operating-system temporary directory. They
+open no listener and call no remote API, application service, provider or real
+account. They exercise report arithmetic/rendering, strict comparability,
+bounded file ingestion and prepared comment-update logic only:
+
+```sh
+node --test --test-concurrency=1 tools/perf/reporting/compare.test.mjs tools/perf/reporting/report.test.mjs tools/perf/reporting/read-json.test.mjs tools/perf/reporting/adapter.test.mjs
+```
+
+This named formatter check is outside automatic ordinary CI. It adds no runtime
+alias, workflow permission or application-control scope. It establishes no
+application speedup, actual GPU completion, hosted comment permission, security
+or deployment qualification. See [the report lane](../ci-performance.md) and
+[measurement-owner handoff](../../tools/perf/reporting/README.md) for the remaining
+contract and token-permission integration.
+
 The retained USDZ padding compatibility check builds two tiny stored archives
 in memory, with identical local/central alignment padding or the earlier
 central-directory profile. It uses the actual native framing validator and

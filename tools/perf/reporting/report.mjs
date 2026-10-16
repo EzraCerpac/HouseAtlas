@@ -33,7 +33,7 @@ export function makeReport({ identity, policies, base, head }) {
     `[Measurement run ${identity.runId}, attempt ${identity.runAttempt}](${runUrl})`, '',
     renderTable(policies, comparisons), '',
     'Delta = (head − base) / base × 100; the direction column identifies improvement. Values are medians; p95 uses the nearest rank. Noise is 1.4826 × MAD / median; it is descriptive, not a confidence interval.', '',
-    'Hosted-runner timings are informational. Changes within max(5%, 2 × summed relative MAD) are labeled within-noise; fewer than five samples are labeled insufficient-samples. Only explicitly configured deterministic budgets can fail this check.', '',
+    'Hosted-runner timings are informational. Changes within max(5%, 2 × summed relative MAD) are labeled within-noise; fewer than five samples are labeled insufficient-samples. Timing movement alone never fails; configured deterministic budgets and failed measurements can fail this check.', '',
     'Scope: checked-in public or generated synthetic fixtures. No household data, credentials, provider calls or deployment. Uploaded measurements are untrusted observations.'].join('\n');
   return { markdown, comparisons, failed: comparisons.some(row => row.failed) };
 }

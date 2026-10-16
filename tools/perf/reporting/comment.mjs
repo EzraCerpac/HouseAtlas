@@ -1,13 +1,14 @@
 // Prepared integration for a separately approved, trusted workflow_run reporter.
 // No workflow currently grants or invokes a comment-write token.
 import { COMMENT_MARKER, validateIdentity } from './report.mjs';
+import { compareRuns } from './adapter.mjs';
 
 const WORKFLOW_PATH = '.github/workflows/performance.yml';
 export function eligiblePullRequest({ run, pull, identity, workflowId }) {
   validateIdentity(identity);
   if (!Number.isSafeInteger(workflowId) || workflowId < 1 || !run || !pull ||
       run.repository?.full_name !== identity.repository || run.event !== 'pull_request' || run.status !== 'completed' ||
-      run.path !== WORKFLOW_PATH || run.workflow_id !== workflowId || run.id !== identity.runId || run.run_attempt !== identity.runAttempt ||
+      typeof run.path !== 'string' || run.path.split('@')[0] !== WORKFLOW_PATH || run.workflow_id !== workflowId || run.id !== identity.runId || run.run_attempt !== identity.runAttempt ||
       run.head_sha !== identity.headSha || !['success', 'failure'].includes(run.conclusion)) return false;
   // The PR number comes from the API's run association, never an artifact.
   if (!run.pull_requests?.some(pr => pr.number === identity.prNumber && pr.base?.sha === identity.baseSha && pr.head?.sha === identity.headSha)) return false;
@@ -15,12 +16,18 @@ export function eligiblePullRequest({ run, pull, identity, workflowId }) {
     pull.base.sha === identity.baseSha && pull.head?.sha === identity.headSha;
 }
 
-export async function updateComment({ api, identity, markdown, workflowId }) {
+export async function updateComment({ api, identity, baseRun, headRun, contract, workflowId }) {
   validateIdentity(identity);
-  if (typeof markdown !== 'string' || !markdown.startsWith(COMMENT_MARKER + '\n') || Buffer.byteLength(markdown) > 60000) throw new Error('Invalid rendered report');
   const run = await api.getRun(identity.runId);
   let pull = await api.getPull(identity.prNumber);
   if (!eligiblePullRequest({ run, pull, identity, workflowId })) return { status: 'skipped', reason: 'stale-or-unassociated-run' };
+  const [baseCommit, headCommit] = await Promise.all([api.getCommit(identity.baseSha), api.getCommit(identity.headSha)]);
+  if (baseCommit.sha !== identity.baseSha || baseCommit.commit?.tree?.sha !== identity.baseTree ||
+      headCommit.sha !== identity.headSha || headCommit.commit?.tree?.sha !== identity.headTree) return { status: 'skipped', reason: 'source-tree-mismatch' };
+  // Rebuild from the trusted contract and validated data. Uploaded Markdown is
+  // never accepted as comment content, even if it contains the correct marker.
+  const { markdown, failed } = compareRuns({ identity, baseRun, headRun, contract });
+  if (Buffer.byteLength(markdown) > 60000) throw new Error('Invalid rendered report');
   const comments = await api.listComments(identity.prNumber);
   const owned = comments.filter(comment => comment.user?.login === 'github-actions[bot]' && comment.user?.type === 'Bot' &&
     comment.body?.startsWith(COMMENT_MARKER + '\n'));
@@ -37,5 +44,5 @@ export async function updateComment({ api, identity, markdown, workflowId }) {
   if (!eligiblePullRequest({ run, pull, identity, workflowId })) return { status: 'skipped', reason: 'stale-or-unassociated-run' };
   if (owned.length) await api.updateComment(owned[0].id, markdown);
   else await api.createComment(identity.prNumber, markdown);
-  return { status: owned.length ? 'updated' : 'created' };
+  return { status: owned.length ? 'updated' : 'created', failed };
 }
