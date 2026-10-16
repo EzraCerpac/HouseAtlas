@@ -59,6 +59,8 @@ assert.equal(outline.preview, null);
 assert.equal(outline.availability.preview, 'not-qualified');
 assert.deepEqual(outline.provenance.published, { value: '2024-02-29', precision: 'day' });
 assert.equal(second.documents[0].availability.original, 'stale');
+assert.equal(second.documents[0].preview, null);
+assert.equal(second.documents[0].availability.preview, 'not-qualified', 'no preview lineage stays unqualified even when its original is stale');
 // An ordered 3D extent with a negative minimum keeps its exact tokens.
 assert.deepEqual(second.documents[0].provenance.frame.extent, ['0', '0', '-2', '50', '40', '12']);
 assert.equal(JSON.stringify(await reader.get(surveyId, signal)), JSON.stringify(survey));
@@ -87,7 +89,10 @@ assert.equal(geojson.measuredContentType, 'application/geo+json');
 assert.equal(JSON.parse(new TextDecoder().decode(await bytesOf(geojson))).type, 'FeatureCollection');
 reader.release(geojson);
 assert.equal(reader.getBlob(geojson), null);
+const disposedOwners = [];
+reader.subscribeOwner(() => { disposedOwners.push(reader.owner()); });
 reader.dispose();
+assert.deepEqual(disposedOwners, [null], 'ordinary cleanup notifies once; a subscriber cannot recreate a disposed owner');
 assert.equal(reader.owner(), null);
 
 // Canvas budget arithmetic: an ordinary page is untouched; a tall page fits the budget.

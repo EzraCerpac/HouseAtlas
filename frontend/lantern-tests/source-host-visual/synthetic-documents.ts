@@ -122,7 +122,7 @@ export async function createSyntheticDocumentServer(scope: SyntheticScope): Prom
       published: { value: '2024-02-29', precision: 'day' }, observed: null,
       frame: { crs: null, axes: [], linearUnit: null, extent: null }, custodyReceiptSha256: 'f'.repeat(64),
     }, null) },
-    { availability: { original: 'stale', preview: 'unavailable' }, document: record(3, 1, 'Synthetic elevation tile', tiffPin, {
+    { availability: { original: 'stale', preview: 'not-qualified' }, document: record(3, 1, 'Synthetic elevation tile', tiffPin, {
       agency: 'Synthetic Survey Office', url: null, license: { status: 'restricted', reference: 'Synthetic internal use only' },
       retrievedAt: '2026-09-30T16:45:00Z', published: null, observed: { value: '2025-06-01', precision: 'day' },
       frame: { crs: 'LOCAL:synthetic-site', axes: ['east', 'north', 'up'], linearUnit: 'metre', extent: [0, 0, -2, 50, 40, 12] },

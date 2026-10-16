@@ -133,13 +133,15 @@ function documentRead(value: LosslessJson | undefined, scope: Scope): SourceDocu
   const original = pin(payload.original), preview = lineage(payload.preview);
   // Inputs are exactly [original]; the preview output is a different asset.
   need(preview === null || (samePin(preview.inputs[0]!, original) && preview.asset.assetId !== original.assetId));
+  const previewAvailability = oneOf(availability.preview, PREVIEW_STATES);
+  need(preview !== null || previewAvailability === 'not-qualified');
   return Object.freeze({ scope: Object.freeze({ workspaceId: scope.workspaceId, homeId: scope.homeId }),
     documentId: uuid(record.recordId), revision: integer(record.revision, 1, MAX_REVISION),
     lifecycle: oneOf(record.lifecycle, ['active', 'tombstoned'] as const), createdAt: instant(record.createdAt),
     updatedAt: instant(record.updatedAt), lastAuditId: uuid(record.lastAuditId), title: text(payload.title),
     original, provenance: provenance(payload.provenance), preview,
     availability: Object.freeze({ original: oneOf(availability.original, ORIGINAL_STATES),
-      preview: oneOf(availability.preview, PREVIEW_STATES) }) });
+      preview: previewAvailability }) });
 }
 
 /** Rejects duplicate keys and bounds the whole graph before the lossless parser
@@ -426,6 +428,6 @@ export function createNativeSourceDocumentReader(options: NativeSourceDocumentRe
       return () => { live.listeners.delete(changed); };
     },
     release: (frame: SourceDocumentFrame) => { const live = frames.get(frame); if (current(live)) invalidate(); },
-    dispose: () => { if (disposed) return; dropOwner(); disposed = true; ownerListeners.clear(); unsubscribe(); },
+    dispose: () => { if (disposed) return; disposed = true; dropOwner(); ownerListeners.clear(); unsubscribe(); },
   });
 }

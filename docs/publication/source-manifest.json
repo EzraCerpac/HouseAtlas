@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "633e9efada552d17b062b7cf675d889752968068c4665cf6190d094a6e1fb989",
+  "sourceDigestSha256": "613e9ef5466928c56095ac515281112ba861086c48da200dd37d26403bb70477",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -6804,8 +6804,8 @@
     {
       "path": "frontend/integration/native-source-document-reader.ts",
       "mode": "100644",
-      "bytes": 30916,
-      "sha256": "ec03df22654e741ee3274f25ec17b632f4b999ec1c9837efcf5abbfd0c0050ba",
+      "bytes": 31036,
+      "sha256": "9bc0c3446f7ab83f7629e764f7957a3161dbe6259dc1ab7b84388d878c83d0d7",
       "owner": "web"
     },
     {
@@ -7364,8 +7364,8 @@
     {
       "path": "frontend/lantern-tests/source-documents-reader.test.mjs",
       "mode": "100644",
-      "bytes": 6277,
-      "sha256": "516f72b4e0159a024875a65d56f618e012f03869425e01a23387d388f9fc1be6",
+      "bytes": 6692,
+      "sha256": "769b23e756a86a0fa4796cb5bed36c3eea2d03b5a136bd8392236e4f9087b335",
       "owner": "web"
     },
     {
@@ -7385,8 +7385,8 @@
     {
       "path": "frontend/lantern-tests/source-host-visual/synthetic-documents.ts",
       "mode": "100644",
-      "bytes": 12704,
-      "sha256": "1be16132a989c8dfe5e9c681ca313022531fda7af5d3244d4ac10764730b46f6",
+      "bytes": 12706,
+      "sha256": "30b5daedd10f9e76d7875e1cafe94a013fac39e4261742e431ad7363b649c1b7",
       "owner": "web"
     },
     {
@@ -9058,8 +9058,8 @@
     {
       "path": "frontend/src/lantern/site-artifacts/useSitePublication.ts",
       "mode": "100644",
-      "bytes": 9393,
-      "sha256": "6eedfe8cdf46ce4f9e2eff9057226c69caad307fb1827b221b07923c3856cd60",
+      "bytes": 9745,
+      "sha256": "96af20766267bd75b59557a0b4fb31479277471b9d41c69007945b9470dbb92d",
       "owner": "web"
     },
     {

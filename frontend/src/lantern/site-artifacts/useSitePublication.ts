@@ -6,7 +6,7 @@ import { RENDER_LIMITS } from '../canonical-ifc/MeshLayer';
 import { declaredHex, hex, notDrawnReason, planReason, PLAN_CONTENT_TYPE, readPlan, readSitePublication, SITE_LIMITS, SitePublicationError,
   type SitePlan } from './publication';
 import { createSiteBudget, createTurns, planPoints, runLimited, type SiteBudgetLimits } from './site-budget';
-import type { SiteAsset, SitePublication, SiteSourcePort } from './types';
+import type { SiteAsset, SitePin, SitePublication, SiteSourcePort } from './types';
 import { stageMark } from '../observability/stage-timing';
 
 export type SiteAssetOutcome =
@@ -49,7 +49,7 @@ const message = (error: unknown, fallback: string) => error instanceof SitePubli
  * never decides which plan is shown. Assets beyond the budget are not drawn
  * and say why. */
 export function useSitePublication(port: SiteSourcePort, stage: { readonly current: HTMLElement | null }) {
-  const [state, setState] = useState<{ readonly owner: object; readonly state: SiteState } | null>(null);
+  const [state, setState] = useState<{ readonly owner: object; readonly port: SiteSourcePort; readonly pin: SitePin; readonly state: SiteState } | null>(null);
   const owner = useRef<object | null>(null);
   const { publicationId, version } = port.selection;
   useEffect(() => {
@@ -59,8 +59,8 @@ export function useSitePublication(port: SiteSourcePort, stage: { readonly curre
     let inEffect = true;
     const commit = (next: SiteState) => {
       if (owner.current !== mine) return;
-      if (inEffect) setState({ owner: mine, state: next });
-      else flushSync(() => setState({ owner: mine, state: next }));
+      if (inEffect) setState({ owner: mine, port, pin, state: next });
+      else flushSync(() => setState({ owner: mine, port, pin, state: next }));
     };
     const invalidate = (reason: string) => {
       if (owner.current !== mine || signal.aborted) return;
@@ -71,7 +71,7 @@ export function useSitePublication(port: SiteSourcePort, stage: { readonly curre
     };
     // Subscribe first: an invalidation during any read below clears it.
     const unsubscribe = port.subscribeInvalidation(pin, invalidate);
-    if (!signal.aborted) setState({ owner: mine, state: LOADING });
+    if (!signal.aborted) setState({ owner: mine, port, pin, state: LOADING });
     inEffect = false;
     const current = () => owner.current === mine && !signal.aborted;
     const budget = createSiteBudget(SITE_SCENE_LIMITS);
@@ -158,5 +158,8 @@ export function useSitePublication(port: SiteSourcePort, stage: { readonly curre
       unsubscribe();
     };
   }, [port, publicationId, version, stage]);
-  return state && state.owner === owner.current ? state.state : LOADING;
+  // Render can precede passive-effect cleanup: the old owner's ready state
+  // must never paint under a replacement port or publication/version pin.
+  return state && state.port === port && state.pin.publicationId === publicationId && state.pin.version === version
+    && state.owner === owner.current ? state.state : LOADING;
 }
