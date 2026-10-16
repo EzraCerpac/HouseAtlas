@@ -6,7 +6,8 @@ const timing = { id: 'latency', label: 'Synthetic latency', unit: 'ms', kind: 't
 const values = samples => ({ samples });
 test('median and MAD report all samples without claiming confidence', () => {
   assert.equal(median([10, 1, 4, 2]), 3);
-  assert.deepEqual(summarize([2, 2, 2, 2, 100]), { value: 2, count: 5, noisePercent: 0 });
+  assert.deepEqual(summarize([2, 2, 2, 2, 100]), { value: 2, count: 5, p95: 100, mad: 0, min: 2, max: 100, noisePercent: 0 });
+  assert.equal(summarize(Array.from({ length: 20 }, (_, i) => i + 1)).p95, 19);
   assert.throws(() => summarize([NaN]));
   assert.throws(() => summarize([-1]));
   assert.throws(() => summarize([]));

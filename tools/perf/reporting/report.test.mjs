@@ -3,7 +3,7 @@ import test from 'node:test';
 import { COMMENT_MARKER, makeReport } from './report.mjs';
 import { eligiblePullRequest, updateComment } from './comment.mjs';
 
-const identity = { repository: 'example/HouseAtlas', baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), harnessSha: 'c'.repeat(40), prNumber: 7, runId: 123, runAttempt: 1 };
+const identity = { repository: 'example/HouseAtlas', baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), baseTree: 'd'.repeat(40), headTree: 'e'.repeat(40), harnessSha: 'c'.repeat(40), prNumber: 7, runId: 123, runAttempt: 1 };
 const policies = [{ id: 'latency', label: 'Synthetic latency', unit: 'ms', direction: 'lower', kind: 'timing' }];
 const report = () => makeReport({ identity, policies, base: new Map([['latency', { samples: [100, 100, 100, 100, 100] }]]), head: new Map([['latency', { samples: [75, 75, 75, 75, 75] }]]) });
 const run = () => ({ repository: { full_name: identity.repository }, event: 'pull_request', status: 'completed', conclusion: 'success', path: '.github/workflows/performance.yml', workflow_id: 9, id: 123, run_attempt: 1, head_sha: identity.headSha, pull_requests: [{ number: 7, base: { sha: identity.baseSha }, head: { sha: identity.headSha } }] });
@@ -19,6 +19,7 @@ test('report records exact commits, absolute medians, delta, noise and scope', (
   for (const text of [identity.baseSha, identity.headSha, identity.harnessSha, '100 ms', '75 ms', '-25%', '5 / 0%', 'improved; informational', 'No household data']) assert(markdown.includes(text));
   assert.equal(failed, false);
   assert.throws(() => makeReport({ identity: { ...identity, repository: 'bad\nrepo' }, policies }));
+  assert.throws(() => makeReport({ identity: { ...identity, unexpected: 'raw artifact text' }, policies }));
 });
 test('association requires exact repository, workflow, attempt, current base/head and open PR', () => {
   const input = { run: run(), pull: pull(), identity, workflowId: 9 };

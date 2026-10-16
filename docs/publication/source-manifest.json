@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b270651094357959f4587dab9a42873f6f9202689f391ee706212ff1ed2ba492",
+  "sourceDigestSha256": "d7153830dcc60e82362dfdf5a882cd0dfac1d6559af2d4e2a853be50d5086593",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5733,8 +5733,8 @@
     {
       "path": "docs/ci-performance.md",
       "mode": "100644",
-      "bytes": 4271,
-      "sha256": "922ddc48bc3b3c43999095112c2095394b79c7914286c6d836a68cc898b0290b",
+      "bytes": 5886,
+      "sha256": "f226aeb7c5863165ccc07d63be4594c565f6ac1cfc4fbd5a2e2eea041c4cdd3f",
       "owner": "core-integration"
     },
     {
@@ -9735,52 +9735,80 @@
       "owner": "core-integration"
     },
     {
-      "path": "tools/performance-report/comment.mjs",
+      "path": "tools/perf/reporting/README.md",
+      "mode": "100644",
+      "bytes": 4827,
+      "sha256": "cbf21615a379803aa3c1fea0dbee490372a9158b1e67284946a51b0ad408c1d1",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/reporting/adapter.mjs",
+      "mode": "100644",
+      "bytes": 3372,
+      "sha256": "b40994acc41833c730d787cbbeeb513de298e43463f8677e908d3f9add9c73b9",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/reporting/adapter.test.mjs",
+      "mode": "100644",
+      "bytes": 4415,
+      "sha256": "35b5c16a0dd305619a7247147ba7d18d40310f2c0822095e374e63ed601537ce",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/reporting/cli.mjs",
+      "mode": "100644",
+      "bytes": 1984,
+      "sha256": "14328411cd55ea06655b259ebafa7d103c35cfbd2277949cabbc90457fa5c838",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/reporting/comment.mjs",
       "mode": "100644",
       "bytes": 3070,
       "sha256": "2ffc206155688212ac50182fbbd6eb8ee8e050bc5ffb5c9f7d2dad3a138fd7ee",
       "owner": "core-integration"
     },
     {
-      "path": "tools/performance-report/compare.mjs",
+      "path": "tools/perf/reporting/compare.mjs",
       "mode": "100644",
-      "bytes": 5035,
-      "sha256": "fb037fc1d075726e9b9a2e0fdd87d147c5c758c50035fabe56afdd94e287bc0c",
+      "bytes": 5326,
+      "sha256": "4b1ae72a1dc5c25e02917049ffb1964fec0a9b537ab6d9f6657e1deab378511e",
       "owner": "core-integration"
     },
     {
-      "path": "tools/performance-report/compare.test.mjs",
+      "path": "tools/perf/reporting/compare.test.mjs",
       "mode": "100644",
-      "bytes": 2853,
-      "sha256": "ba328b241fb227b14a68c5d2eb8399fdb0822e09c070f53d20c51f11de38ac1c",
+      "bytes": 2969,
+      "sha256": "07d911f6d44dd2e40c1a729a5f3fc948a25ad889c45e00824a84d2845245bc38",
       "owner": "core-integration"
     },
     {
-      "path": "tools/performance-report/read-json.mjs",
+      "path": "tools/perf/reporting/read-json.mjs",
       "mode": "100644",
       "bytes": 1141,
       "sha256": "4d7f11a2402a18787bcad120c042d4cabb67af27d0f417267ca31fec037a7f03",
       "owner": "core-integration"
     },
     {
-      "path": "tools/performance-report/read-json.test.mjs",
+      "path": "tools/perf/reporting/read-json.test.mjs",
       "mode": "100644",
       "bytes": 1429,
       "sha256": "42965e4daf9fbc27ba8783844a872c1d8e55526ac95dedd76e364dabcbdb437f",
       "owner": "core-integration"
     },
     {
-      "path": "tools/performance-report/report.mjs",
+      "path": "tools/perf/reporting/report.mjs",
       "mode": "100644",
-      "bytes": 3058,
-      "sha256": "c63edba82058dca8a7b9f46f93ce8cba963de7cd41f405cdaef43fa2878fd752",
+      "bytes": 3399,
+      "sha256": "76bd210acca0300cf997318c2e21a68d31b8ce20182f8f90317f8df3b0adc0e6",
       "owner": "core-integration"
     },
     {
-      "path": "tools/performance-report/report.test.mjs",
+      "path": "tools/perf/reporting/report.test.mjs",
       "mode": "100644",
-      "bytes": 4500,
-      "sha256": "5c689f418dfad28d28d4414881894053e8a00656e83b777cf65a0453c8aa1acd",
+      "bytes": 4661,
+      "sha256": "d0a55f91b385af64437a95819303da955eac6ee4c53a5b3bdf6b3bcdb47a503c",
       "owner": "core-integration"
     },
     {

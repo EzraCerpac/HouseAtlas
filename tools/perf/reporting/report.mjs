@@ -4,7 +4,10 @@ export const COMMENT_MARKER = '<!-- houseatlas-performance-v1 -->';
 const sha = value => typeof value === 'string' && /^[0-9a-f]{40}$/.test(value);
 const repository = value => typeof value === 'string' && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value);
 export function validateIdentity(identity) {
+  const keys = ['repository', 'baseSha', 'headSha', 'harnessSha', 'baseTree', 'headTree', 'prNumber', 'runId', 'runAttempt'];
   if (!identity || !repository(identity.repository) || !sha(identity.baseSha) || !sha(identity.headSha) || !sha(identity.harnessSha) ||
+      !sha(identity.baseTree) || !sha(identity.headTree) ||
+      Object.keys(identity).some(key => !keys.includes(key)) ||
       !Number.isSafeInteger(identity.prNumber) || identity.prNumber < 1 ||
       !Number.isSafeInteger(identity.runId) || identity.runId < 1 ||
       !Number.isSafeInteger(identity.runAttempt) || identity.runAttempt < 1) throw new Error('Invalid report identity');
@@ -25,11 +28,11 @@ export function makeReport({ identity, policies, base, head }) {
   const runUrl = `https://github.com/${identity.repository}/actions/runs/${identity.runId}/attempts/${identity.runAttempt}`;
   const link = commit => `[\`${commit}\`](https://github.com/${identity.repository}/commit/${commit})`;
   const markdown = [COMMENT_MARKER, '### Synthetic performance comparison', '',
-    `Base: ${link(identity.baseSha)}  `, `Head: ${link(identity.headSha)}  `,
+    `Base: ${link(identity.baseSha)} (tree \`${identity.baseTree}\`)  `, `Head: ${link(identity.headSha)} (tree \`${identity.headTree}\`)  `,
     `Harness source: ${link(identity.harnessSha)}  `,
     `[Measurement run ${identity.runId}, attempt ${identity.runAttempt}](${runUrl})`, '',
     renderTable(policies, comparisons), '',
-    'Delta = (head − base) / base × 100; the direction column identifies improvement. Values are medians. Noise is 1.4826 × MAD / median; it is descriptive, not a confidence interval.', '',
+    'Delta = (head − base) / base × 100; the direction column identifies improvement. Values are medians; p95 uses the nearest rank. Noise is 1.4826 × MAD / median; it is descriptive, not a confidence interval.', '',
     'Hosted-runner timings are informational. Changes within max(5%, 2 × summed relative MAD) are labeled within-noise; fewer than five samples are labeled insufficient-samples. Only explicitly configured deterministic budgets can fail this check.', '',
     'Scope: checked-in public or generated synthetic fixtures. No household data, credentials, provider calls or deployment. Uploaded measurements are untrusted observations.'].join('\n');
   return { markdown, comparisons, failed: comparisons.some(row => row.failed) };

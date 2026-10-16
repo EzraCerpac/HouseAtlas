@@ -13,13 +13,15 @@ export function summarize(samples) {
   }
   const value = median(samples);
   const mad = median(samples.map(sample => Math.abs(sample - value)));
-  return { value, count: samples.length, noisePercent: value === 0 ? (mad === 0 ? 0 : null) : 100 * 1.4826 * mad / value };
+  const sorted = [...samples].sort((a, b) => a - b);
+  return { value, count: samples.length, p95: sorted[Math.ceil(samples.length * 0.95) - 1], mad,
+    min: sorted[0], max: sorted.at(-1), noisePercent: value === 0 ? (mad === 0 ? 0 : null) : 100 * 1.4826 * mad / value };
 }
 
 export function compareMetric(policy, base, head) {
   const missing = base?.skipReason || head?.skipReason || (!base || !head ? 'metric-unavailable' : null);
   if (missing) return { id: policy.id, status: 'skipped', reason: missing,
-    base: base?.samples ? summarize(base.samples) : null, head: head?.samples ? summarize(head.samples) : null, deltaPercent: null, failed: false };
+    base: base?.samples ? summarize(base.samples) : null, head: head?.samples ? summarize(head.samples) : null, deltaPercent: null, failed: base?.failed === true || head?.failed === true };
   const before = summarize(base.samples), after = summarize(head.samples);
   const deltaPercent = before.value === 0 ? (after.value === 0 ? 0 : null) : 100 * (after.value - before.value) / before.value;
   const signedChange = (after.value - before.value) * (policy.direction === 'lower' ? 1 : -1);
@@ -50,7 +52,7 @@ export function cell(value) {
 }
 
 export function renderTable(policies, comparisons) {
-  const rows = ['| Metric | Base | Head | Delta | Direction | Samples / noise (base → head) | Result / budget |',
+  const rows = ['| Metric | Base median / p95 | Head median / p95 | Delta | Direction | Samples / noise (base → head) | Result / budget |',
     '| --- | ---: | ---: | ---: | --- | --- | --- |'];
   for (const policy of policies) {
     const result = comparisons.find(row => row.id === policy.id);
@@ -58,11 +60,12 @@ export function renderTable(policies, comparisons) {
     const direction = policy.direction === 'lower' ? '↓ lower is better' : '↑ higher is better';
     const sample = value => value ? `${value.count} / ${value.noisePercent === null ? 'n/a' : number(value.noisePercent) + '%'}` : '—';
     const hasBudget = ['maximum', 'minimum', 'maxRegressionPercent'].some(key => policy[key] !== undefined);
-    const budget = policy.kind === 'deterministic' ? result.failed ? 'FAIL' : result.status === 'skipped' ? 'unavailable' : hasBudget ? 'pass' : 'no budget' : 'informational';
+    const budget = result.failed ? 'FAIL' : policy.kind === 'deterministic' ? result.status === 'skipped' ? 'unavailable' : hasBudget ? 'pass' : 'no budget' : 'informational';
     const limits = policy.kind === 'deterministic' ? [policy.maximum === undefined ? '' : `max ${number(policy.maximum)} ${cell(policy.unit)}`,
       policy.minimum === undefined ? '' : `min ${number(policy.minimum)} ${cell(policy.unit)}`,
       policy.maxRegressionPercent === undefined ? '' : `regression ≤ ${number(policy.maxRegressionPercent)}%`].filter(Boolean).join(', ') : '';
-    rows.push(`| ${cell(policy.label)} | ${result.base ? number(result.base.value) + ' ' + cell(policy.unit) : '—'} | ${result.head ? number(result.head.value) + ' ' + cell(policy.unit) : '—'} | ${result.status === 'skipped' ? '—' : percent(result.deltaPercent)} | ${direction} | ${sample(result.base)} → ${sample(result.head)} | ${cell(result.reason ?? result.status)}; ${budget}${limits ? ' (' + limits + ')' : ''} |`);
+    const absolute = value => value ? `${number(value.value)} ${cell(policy.unit)}${policy.kind === 'timing' ? ' / ' + number(value.p95) + ' ' + cell(policy.unit) : ''}` : '—';
+    rows.push(`| ${cell(policy.label)} | ${absolute(result.base)} | ${absolute(result.head)} | ${result.status === 'skipped' ? '—' : percent(result.deltaPercent)} | ${direction} | ${sample(result.base)} → ${sample(result.head)} | ${cell(result.reason ?? result.status)}; ${budget}${limits ? ' (' + limits + ')' : ''} |`);
   }
   return rows.join('\n');
 }

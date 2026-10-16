@@ -7,14 +7,14 @@ deployment qualification. Existing ordinary workflows and their scope remain
 unchanged.
 
 The measurement owner defines the benchmark CLI, JSON contract and public
-fixture identities. `tools/performance-report/` consumes normalized metric rows;
+fixture identities. `tools/perf/reporting/` consumes normalized metric rows;
 it does not define a second measurement schema. A comparison must record the
 full base, head and harness source commits and the GitHub run/attempt. Use the
 same harness and fixture profile for both sources. Differences in harness,
 fixture, environment or runtime must be explicit skips, never inferred speedups.
 
 The Markdown table includes absolute medians, raw percent changes, whether lower
-or higher is better, base/head sample counts and robust relative dispersion.
+or higher is better, nearest-rank p95, base/head sample counts and robust relative dispersion.
 Dispersion is `1.4826 × MAD / median`, not a confidence interval. Timing changes
 within `max(5%, 2 × (base dispersion + head dispersion))` are labeled
 `within-noise`; fewer than five samples are labeled `insufficient-samples`.
@@ -33,9 +33,33 @@ can carry a table with these existing permissions. Automatically creating or
 updating a PR conversation comment requires an additional GitHub token permission.
 That expansion has not been approved or implemented.
 
+All three checked-in workflows explicitly declare `permissions: { contents:
+read }`. Unspecified permissions are therefore `none`, regardless of broader
+repository defaults. The existing local GitHub connector's ability to create
+this PR does not grant an Actions job comment access. Reading the repository's
+default workflow-permission setting returned HTTP 403; no setting was changed.
+
+The minimal proposed reporter job permissions are:
+
+```yaml
+permissions:
+  contents: read       # exact trusted default-branch reporter/contract source
+  actions: read        # originating run metadata and cross-workflow artifacts
+  pull-requests: write # create/update the PR conversation comment
+```
+
+The comment endpoint accepts `pull-requests: write`; a separate `issues: write`
+grant is unnecessary. This is a new versioned workflow permission declaration.
+The resulting `GITHUB_TOKEN` is ephemeral per job; no persistent credential,
+PAT, app installation, new secret or repository-default permission change is
+needed. It still requires the task's scoped approval before installation. See
+[workflow permission rules](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions)
+and [comment API permissions](https://docs.github.com/en/rest/issues/comments#create-an-issue-comment).
+
 `comment.mjs` is a prepared, dependency-injected updater with synthetic API tests.
 It is not wired to a privileged workflow or a credential. A future approved
-reporting workflow must use the default branch's trusted reporter, never check
+reporting workflow must be triggered by `workflow_run` after the unprivileged
+`pull_request` measurement workflow. It must use the default branch's trusted reporter, never check
 out or execute PR code, never execute artifacts, and never restore caches
 produced by PR code. The measurement workflow must remain unprivileged with no
 secrets, persistent checkout credentials or shared cache writes. GitHub describes
@@ -62,10 +86,13 @@ an older one. Outdated runs and closed PRs are explicit skips.
 Inspect these complete sources before executing the named local checks:
 
 ```sh
-node --test --test-concurrency=1 tools/performance-report/compare.test.mjs tools/performance-report/report.test.mjs tools/performance-report/read-json.test.mjs
+node --test --test-concurrency=1 tools/perf/reporting/compare.test.mjs tools/perf/reporting/report.test.mjs tools/perf/reporting/read-json.test.mjs tools/perf/reporting/adapter.test.mjs
 ```
 
 These tests exercise report arithmetic, rendering and fake GitHub API metadata.
 They open no listener, call no remote API and execute no application or provider
 controls. They do not establish end-to-end hosted comment permission or security
 qualification.
+
+The exact contract adapter exports, proposed canonical schema path and implemented
+report CLI are in [the measurement handoff](../tools/perf/reporting/README.md).
