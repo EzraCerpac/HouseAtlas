@@ -154,7 +154,7 @@ added. Existing exact-head ordinary CI remains separate from these local checks.
 
 The separate helper runner is `python3 -B tools/houseatlas-mcp-bridge/test_key_entry.py CASE`.
 Healthy cases: `healthy_create_only_file`, `healthy_tty_noecho`,
-`healthy_wrapper_environment`. Exact synthetic denial cases:
+`healthy_wrapper_environment`, `healthy_launcher_pipe`. Exact synthetic denial cases:
 `denial_existing_or_symlink`, `denial_no_tty_fallback`,
 `denial_unconfigured_wrapper`, `denial_tty_oversize`.
 The TTY cases use an owned pseudoterminal and require an external 15-second
