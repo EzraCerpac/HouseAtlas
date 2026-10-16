@@ -37,8 +37,12 @@ subject to actual native qualification and atomic final graph validation. Nested
 batch, asset create, scene-association create, HomeBox and Network writes are
 excluded. Native full closed schemas, original actor and transaction/audit
 linkage remain authoritative; local bounds/admission checks do not replace them.
-JSON numbers and submitted bytes stay exact. Native results/digests are retained
-verbatim; the adapter does not independently manufacture a wire3 intent digest.
+Submitted JSON numbers and wire bytes stay exact. Separately, native receipt
+intent correlation follows stock/digest.rs: root-only requestId/approvalReceiptId
+exclusions, raw UTF16 key order, ordered arrays, finite binary64 conversion and
+shortest ECMAScript number formatting before SHA256. This canonical digest never
+rewrites submitted bytes or manufactures a native receipt. Incorrect normal,
+retained root/inspection or child digests keep the UNKNOWN hold.
 
 Binding remap and batches containing it remain held in the shipped CLI until a
 trusted exact-impact confirmation owner is integrated. The in-process
@@ -75,11 +79,13 @@ independent tool operations when the observed lifetime approaches its end.
 A spontaneous401, failed mutation or post-dispatch uncertainty is never an
 instruction to reauthenticate/replay. Native authorization remains per request.
 
-EOF, termination or hangup triggers best-effort native logout with the current
+EOF, interrupt, termination, hangup or SIGQUIT triggers best-effort native logout with the current
 issued CSRF, followed by memory discard. Failure is reported only as unconfirmed
 logout; it does not fabricate revocation. No native cookie/CSRF is written to a
 file, journal, argv, environment or log. There is no `native-session.json`,
 `--session-fd`, credential extraction or user-supplied native-cookie mechanism.
+Actual host paths, UID and executable pins live only in validated private
+deployment.json, not public source or MCP arguments; see NAS-HANDOFF.md.
 The separately reviewed launcher strips the tunnel runtime-key environment and
 executes the fixed bridge command using the inspected pinned Python executable.
 
@@ -114,7 +120,7 @@ POST `/api/atlas/retained-intent` with current Origin/CSRF. This is the genuine
 ReadHistory owner, not mutation dispatch. It revalidates exact actor-keyed intent,
 retained root/child receipts, current/original semantic closure and final session
 binding. The bridge checks wrapper/lookup/original request IDs, scope, command,
-root/operation IDs, native digest agreement, and exact ordered batch child
+root/operation IDs, independently derived intent digest equality, and exact ordered batch child
 correlation plus root record/audit flattening.
 
 Only a fully correlated `retained-commit` followed by session revalidation records
@@ -135,7 +141,9 @@ can gather additional evidence, but cannot automatically clear that hold.
 
 Source evidence reads accept authorized active native evidence-original
 text/PDF/PNG/JPEG up to10MiB. Each returned chunk (at most256KiB) rechecks the
-entire original hash/size and current revision/scene pins. Direct scene documents
+entire original hash/size and current revision/scene pins. The native evidence
+record supplies its asset reference; an asset evidenceIds backlink is not required
+by that contract and is not inferred or repaired. Direct scene documents
 also require the association's exact evidence/asset/revision/hash tuple. Other
 scoped evidence does not imply reviewed room/electrical/network correspondence.
 Binary output is original bytes; PDF/OCR and semantic analysis are separate.
@@ -167,7 +175,9 @@ Run each named case separately with
 Healthy: `healthy_stdio`, `healthy_write_forms`, `healthy_batch`,
 `healthy_lossless_read`, `healthy_scene_original`,
 `healthy_retained_reconciliation`, `healthy_retained_batch`, `healthy_memory_session`,
-`healthy_stdio_optional_arguments`, `healthy_escaped_write_frame`.
+`healthy_stdio_optional_arguments`, `healthy_escaped_write_frame`,
+`healthy_empty_asset_backlinks`, `healthy_native_intent_digest`. The last case checks selected published RFC8785
+binary64 vectors, exact Unicode ordering and root-only intent exclusions.
 The write-form and escaped-frame tests use invented payloads to check transport,
 including36 routes and a large escaped frame, not native
 per-form domain qualification. Batch tests verify adapter forwarding/correlation.
@@ -178,17 +188,21 @@ Separately reviewed denial/failure lane: `denial_scope_and_routes`,
 `failure_post_dispatch_session`, `failure_commit_correlation`,
 `failure_unknown_keeps_reads`, `failure_reconcile_absence`,
 `failure_reconcile_correlation`, `denial_reconcile_byte_bound`,
-`failure_session_after_login_cleanup`, `denial_semantic_duplicate_targets`.
+`failure_session_after_login_cleanup`, `denial_semantic_duplicate_targets`,
+`failure_intent_digest_correlation`, `failure_evidence_reference_and_pins`,
+`failure_bridge_sigquit_cleanup`, `healthy_journal_binding_order` (contains an
+actor-mismatch denial assertion, so belongs only to this regression lane).
 
 Helper runner:
 `python3 -B tools/houseatlas-mcp-bridge/test_key_entry.py CASE`.
 Healthy: `healthy_create_only_file`, `healthy_tty_noecho`,
 `healthy_wrapper_environment`, `healthy_launcher_memory_only`,
-`healthy_executable_contract`.
+`healthy_executable_contract`, `healthy_private_deployment`.
 Separate denial lane: `denial_existing_or_symlink`, `denial_no_tty_fallback`,
 `denial_unconfigured_wrapper`, `denial_tty_oversize`, `denial_executable_contract`,
-`failure_tty_sigquit_restore`.
-Use an external15-second process timeout for both TTY cases.
+`failure_tty_sigquit_restore`, `failure_tty_sigtstp_restore`,
+`denial_private_deployment`.
+Use an external15-second process timeout for every owned-PTY case.
 
 All cases use generated strings, disposable directories/SQLite, owned PTYs,
 mocked processes or deterministic fake native exchanges with no external

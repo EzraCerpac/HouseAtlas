@@ -5,19 +5,13 @@ import json
 import os
 from pathlib import Path
 import re
+import runpy
+import shlex
 import stat
 import subprocess
 import sys
 
-UID = 502
-CONFIG = Path('/Users/server/.config/houseatlas-mcp-read-bridge')
-ROOT = Path('/Users/server/.local/share/houseatlas-mcp-read-bridge')
-STATE = Path('/Users/server/.local/state/houseatlas-mcp-read-bridge')
-BINARY = '/usr/local/Cellar/tunnel-client/0.0.14/bin/tunnel-client'
-VERSION = '0.0.14+0f870e50a973fa820d4c409000059e181e8d242b'
-BINARY_SHA256 = '623c42ba3b241938edb05e52d1f451065b5881cbc8f118928e39295019fb446c'
-PYTHON = '/usr/local/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14'
-PYTHON_SHA256 = 'b08b055365df6dcd3fff0b805b688428f0f6a01839303f22c0716780155c480d'
+UID = CONFIG = ROOT = STATE = BINARY = VERSION = PYTHON = None
 
 class WrapperError(Exception):
     pass
@@ -26,6 +20,20 @@ class WrapperError(Exception):
 def need(condition):
     if not condition:
         raise WrapperError()
+
+
+def load_host():
+    script = Path(__file__).absolute()
+    root = script.parents[2]
+    need(script.resolve() == script and root.resolve() == root)
+    info = root.lstat()
+    need(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid()
+         and stat.S_IMODE(info.st_mode) == 0o700)
+    helper = script.parent / 'key-entry.py'
+    info = helper.lstat()
+    need(helper.resolve() == helper and stat.S_ISREG(info.st_mode)
+         and info.st_uid == os.getuid() and info.st_nlink == 1 and not info.st_mode & 0o022)
+    return runpy.run_path(str(helper))['deployment']()
 
 
 def read_private(name, limit):
@@ -72,26 +80,34 @@ def verify_executable(path, expected_hash, exact_mode=None, exact_uid=None):
 
 
 def command(spec):
-    need(set(spec) == {'configured', 'expectedVersion', 'registrationId'})
-    need(spec['configured'] is True and spec['expectedVersion'] == VERSION
+    need(set(spec) == {'configured', 'registrationId'})
+    need(spec['configured'] is True
          and isinstance(spec['registrationId'], str)
          and re.fullmatch(r'tunnel_[0-9a-f]{32}', spec['registrationId']))
     return [BINARY, 'run', '--control-plane.base-url', 'https://api.openai.com',
             '--control-plane.tunnel-id', spec['registrationId'],
             '--control-plane.api-key=env:CONTROL_PLANE_API_KEY',
-            '--mcp.command', PYTHON + ' -I -B ' + str(ROOT / 'tools/houseatlas-mcp-bridge/native-session-launcher.py'),
+            '--mcp.command', shlex.join([PYTHON, '-I', '-B', str(ROOT / 'tools/houseatlas-mcp-bridge/native-session-launcher.py')]),
             '--mcp.max-concurrent-requests', '1', '--mcp.stdio-send-initialized-notification',
             '--control-plane.max-inflight', '1', '--health.listen-addr', '127.0.0.1:0',
             '--health.url-file', str(STATE / 'health-url'), '--log.level', 'info', '--log.format', 'json']
 
 
 def launch():
+    global UID, CONFIG, ROOT, STATE, BINARY, VERSION, PYTHON
+    host = load_host()
+    UID = host['uid']
+    CONFIG, ROOT, STATE = (Path(host[key]) for key in ('config', 'root', 'state'))
+    BINARY, VERSION, PYTHON = host['tunnel']['path'], host['tunnel']['version'], host['python']['path']
     need(len(sys.argv) == 1 and os.getuid() == UID and os.geteuid() == UID)
+    for directory in (ROOT, STATE):
+        info = directory.lstat()
+        need(directory.resolve() == directory and stat.S_ISDIR(info.st_mode)
+             and info.st_uid == UID and stat.S_IMODE(info.st_mode) == 0o700)
     argv = command(json.loads(read_private('launch-spec.json', 16384)))
-    # Exact installed target contract from the NAS owner's passive observation;
-    # Homebrew binary is UID502/mode0555, not an assumed root-owned file.
-    verify_executable(BINARY, BINARY_SHA256, exact_mode=0o555, exact_uid=UID)
-    verify_executable(PYTHON, PYTHON_SHA256)
+    for key in ('tunnel', 'python'):
+        pin = host[key]
+        verify_executable(pin['path'], pin['sha256'], exact_mode=pin['mode'], exact_uid=pin['uid'])
     env = {k: v for k, v in os.environ.items() if k in ('PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR')}
     version = subprocess.run([BINARY, '--version'], env=env, stdin=subprocess.DEVNULL,
                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=5, check=True)
@@ -105,6 +121,6 @@ def launch():
 if __name__ == '__main__':
     try:
         launch()
-    except (WrapperError, OSError, ValueError, subprocess.SubprocessError):
+    except (Exception, KeyboardInterrupt):
         print('HouseAtlas tunnel wrapper stopped; inspect private launch contract metadata.', file=sys.stderr)
         sys.exit(1)

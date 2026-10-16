@@ -7,6 +7,8 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import struct
+from unittest.mock import patch
 import unittest
 
 HERE = Path(__file__).resolve().parent
@@ -78,7 +80,7 @@ class FakeOwner:
     def receipt(req, operation=99):
         return {'schemaVersion': 3, 'commandId': req['commandId'], 'requestId': req['requestId'],
                 'resolvedScope': SCOPE, 'status': 'committed', 'replayed': False,
-                'operationId': uid(operation), 'data': {'requestDigest': 'a' * 64,
+                'operationId': uid(operation), 'data': {'requestDigest': b.intent_digest(req),
                 'records': [{'target': req['target'], 'revision': 1}], 'auditIds': [uid(operation + 1)]}}
 
     def retained(self, req, children=()):
@@ -90,7 +92,7 @@ class FakeOwner:
                 'inspection': {'format': 'atlas-retained-intent-inspection/1', 'resolvedScope': SCOPE,
                 'coverage': 'retained-atlas-stock-only', 'outcome': 'retained-commit',
                 'retrySafety': 'not-established', 'rootOperationId': uid(99), 'operationId': uid(99),
-                'commandId': req['commandId'], 'requestDigest': 'a' * 64},
+                'commandId': req['commandId'], 'requestDigest': b.intent_digest(req)},
                 'committedResult': {'originalRequestId': req['requestId'], 'wire': wire, 'children': list(children),
                                     'originalMediaRelease': 'not-established', 'originalHttpDelivery': 'not-established'}}
 
@@ -112,7 +114,7 @@ class FakeOwner:
             req = b.strict_json(body)
             result = {'schemaVersion': 3, 'commandId': req['commandId'], 'requestId': req['requestId'],
                       'resolvedScope': SCOPE, 'status': 'committed', 'replayed': False,
-                      'operationId': uid(99), 'data': {'requestDigest': 'a' * 64,
+                      'operationId': uid(99), 'data': {'requestDigest': b.intent_digest(req),
                       'records': [{'target': req['target'], 'revision': 1}], 'auditIds': [uid(98)]}}
         elif path == '/api/atlas/auth/session':
             if self.fail_post_session and self.posts:
@@ -219,6 +221,117 @@ class Cases(unittest.TestCase):
         with self.assertRaises(b.BridgeError): self.bridge.write(b.compact(req))
         self.assertEqual(self.owner.posts, [])
         self.assertFalse(self.bridge.status()['writeBlocked'])
+
+    def healthy_empty_asset_backlinks(self):
+        self.owner.records[('asset', ASSET)]['payload']['evidenceIds'] = []
+        result = self.bridge.evidence(BUILDING, EVIDENCE, 0, 262144)
+        self.assertTrue(result['directSceneSourceDocument'])
+        self.assertTrue(result['revalidated'])
+        self.assertEqual(b.base64.b64decode(result['content']), self.owner.original)
+        self.assertEqual(self.owner.posts, [])
+
+    def healthy_journal_binding_order(self):
+        old = {'actorId': uid(9), 'scope': {'homeId': SCOPE['homeId'], 'workspaceId': SCOPE['workspaceId']},
+               'origin': self.owner.origin}
+        self.journal.db.execute('INSERT INTO binding VALUES (1,?)', (b.compact(old),))
+        self.journal.db.commit()
+        self.bridge.capabilities()
+        self.journal.bind({'origin': self.owner.origin, 'scope': dict(reversed(list(SCOPE.items()))), 'actorId': uid(9)})
+        with self.assertRaises(b.BridgeError):
+            self.journal.bind({'origin': self.owner.origin, 'scope': SCOPE, 'actorId': uid(90)})
+
+    def healthy_native_intent_digest(self):
+        # RFC8785 Appendix B binary64/ECMAScript vectors; not runtime discovery.
+        vectors = {
+            '0000000000000000': '0', '8000000000000000': '0',
+            '0000000000000001': '5e-324', '8000000000000001': '-5e-324',
+            '7fefffffffffffff': '1.7976931348623157e+308',
+            'ffefffffffffffff': '-1.7976931348623157e+308',
+            '4340000000000000': '9007199254740992',
+            '4430000000000000': '295147905179352830000',
+            '44b52d02c7e14af5': '9.999999999999997e+22',
+            '44b52d02c7e14af6': '1e+23', '44b52d02c7e14af7': '1.0000000000000001e+23',
+            '444b1ae4d6e2ef4e': '999999999999999700000',
+            '444b1ae4d6e2ef4f': '999999999999999900000',
+            '444b1ae4d6e2ef50': '1e+21',
+            '3eb0c6f7a0b5ed8c': '9.999999999999997e-7',
+            '3eb0c6f7a0b5ed8d': '0.000001',
+            '41b3de4355555553': '333333333.3333332',
+            '41b3de4355555554': '333333333.33333325',
+            '41b3de4355555555': '333333333.3333333',
+            '41b3de4355555556': '333333333.3333334',
+            '41b3de4355555557': '333333333.33333343',
+            'becbf647612f3696': '-0.0000033333333333333333',
+            '43143ff3c1cb0959': '1424953923781206.2',
+        }
+        for bits, expected in vectors.items():
+            self.assertEqual(b.ecma_number(struct.unpack('>d', bytes.fromhex(bits))[0]), expected)
+        value = b.strict_json('{"\\uE000":1.0,"\\ud83d\\ude00":-0.0,"x":[1e-7,0.000001,1e20,1e21,333333333.33333329]}')
+        self.assertEqual(b.intent_canonical(value), '{"x":[1e-7,0.000001,100000000000000000000,1e+21,333333333.3333333],"😀":0,"\ue000":1}')
+        root = request(b.BATCH); root['payload'] = {'commands': [request(n=200), request(n=300)]}
+        original = b.intent_digest(root)
+        root['requestId'], root['approvalReceiptId'] = uid(800), uid(801)
+        self.assertEqual(b.intent_digest(root), original)
+        root['payload']['commands'][0]['requestId'] = uid(802)
+        self.assertNotEqual(b.intent_digest(root), original)
+        self.assertEqual(b.intent_canonical(b.strict_json('[0.123456789123456789,1.0,-0.0]')),
+                         '[0.12345678912345678,1,0]')
+
+    def failure_intent_digest_correlation(self):
+        original_exchange = self.owner.exchange
+        def exchange(method, path, *args, **kwargs):
+            headers, body = original_exchange(method, path, *args, **kwargs)
+            if method == 'POST' and path.endswith('/commands'):
+                result = b.strict_json(body); result['data']['requestDigest'] = '0' * 64
+                return headers, b.decimal_json(result).encode()
+            return headers, body
+        self.owner.exchange = exchange
+        req = request()
+        with self.assertRaises(b.BridgeError): self.bridge.write(b.compact(req))
+        self.assertTrue(self.bridge.status()['writeBlocked'])
+        self.owner.lookup_result = self.owner.retained(req)
+        self.owner.lookup_result['inspection']['requestDigest'] = '0' * 64
+        self.owner.lookup_result['committedResult']['wire']['data']['requestDigest'] = '0' * 64
+        with self.assertRaises(b.BridgeError): self.bridge.reconcile_operation(req['requestId'])
+        self.assertTrue(self.bridge.status()['writeBlocked'])
+        self.assertEqual(len(self.owner.posts), 1)
+
+    def failure_evidence_reference_and_pins(self):
+        self.owner.records[('asset', ASSET)]['payload']['evidenceIds'] = []
+        evidence = self.owner.records[('evidence', EVIDENCE)]
+        refs = evidence['payload']['references']
+        evidence['payload']['references'] = []
+        with self.assertRaises(b.BridgeError): self.bridge.evidence(BUILDING, EVIDENCE, 0, 20)
+        evidence['payload']['references'] = refs
+        payload = self.owner.current['association']['payload']
+        payload['sourceDocuments'][0]['originalAssetRevision'] -= 1
+        self.owner.head['head']['payloadSha256'] = b.sha(b.scene_canonical(payload).encode())
+        with self.assertRaises(b.BridgeError): self.bridge.evidence(BUILDING, EVIDENCE, 0, 20)
+        self.assertEqual(self.owner.posts, [])
+
+    def failure_bridge_sigquit_cleanup(self):
+        with tempfile.TemporaryDirectory(prefix='houseatlas-signal-synthetic-') as temp:
+            root = Path(temp); root.chmod(0o700)
+            config = root / 'bridge.json'
+            config.write_text(b.compact({'origin': self.owner.origin, 'scope': SCOPE})); config.chmod(0o600)
+            handlers, logouts = {}, []
+            original_signal = b.signal.signal
+            previous = b.signal.getsignal(b.signal.SIGQUIT)
+            def register(number, handler):
+                if callable(handler): handlers[number] = handler
+                return original_signal(number, handler)
+            def interrupted(bridge, source, destination):
+                self.assertIn(b.signal.SIGQUIT, handlers)
+                bridge.prepare_session()
+                handlers[b.signal.SIGQUIT](b.signal.SIGQUIT, None)
+            def logout(csrf): logouts.append(csrf); self.owner.cookie = None
+            with patch.object(b.sys, 'argv', ['bridge', '--config', str(config), '--state-dir', str(root)]), \
+                 patch.object(b, 'HTTPSOwner', return_value=self.owner), patch.object(b, 'serve', interrupted), \
+                 patch.object(b.signal, 'signal', register), patch.object(self.owner, 'logout', logout):
+                with self.assertRaises(KeyboardInterrupt): b.main()
+            self.assertEqual(logouts, ['synthetic-only-not-a-real-token'])
+            self.assertIsNone(self.owner.cookie)
+            self.assertEqual(b.signal.getsignal(b.signal.SIGQUIT), previous)
 
     def healthy_write_forms(self):
         self.assertEqual(len(b.WRITES), 37)
@@ -427,11 +540,11 @@ class Cases(unittest.TestCase):
 
 HEALTHY = ('healthy_stdio', 'healthy_write_forms', 'healthy_batch', 'healthy_lossless_read', 'healthy_scene_original', 'healthy_retained_reconciliation',
            'healthy_retained_batch', 'healthy_memory_session', 'healthy_stdio_optional_arguments',
-           'healthy_escaped_write_frame')
+           'healthy_escaped_write_frame', 'healthy_empty_asset_backlinks', 'healthy_native_intent_digest')
 REGRESSION = ('denial_scope_and_routes', 'denial_confirmation_and_batch', 'denial_duplicate_json',
               'denial_read_correlation', 'failure_unknown_persistence', 'failure_scene_change', 'failure_original_hash', 'failure_post_dispatch_session',
               'failure_commit_correlation', 'failure_unknown_keeps_reads', 'failure_reconcile_absence',
-              'failure_reconcile_correlation', 'denial_reconcile_byte_bound', 'failure_session_after_login_cleanup', 'denial_semantic_duplicate_targets')
+              'failure_reconcile_correlation', 'denial_reconcile_byte_bound', 'failure_session_after_login_cleanup', 'denial_semantic_duplicate_targets', 'failure_intent_digest_correlation', 'failure_evidence_reference_and_pins', 'failure_bridge_sigquit_cleanup', 'healthy_journal_binding_order')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('case', choices=HEALTHY + REGRESSION)

@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """NAS custodian's create-only /dev/tty entry. Never activates a service."""
+import json
 import os
+import re
 from pathlib import Path
 import signal
 import stat
 import sys
 import termios
 
-UID = 502
-CONFIG = Path('/Users/server/.config/houseatlas-mcp-read-bridge')
+UID = None
+CONFIG = None
 KEY_NAME = 'runtime-key'
 
 class EntryError(Exception):
@@ -30,9 +32,58 @@ def check_directory(path, owner=None, mode=None):
         need(stat.S_IMODE(item.st_mode) == mode)
 
 
+def deployment():
+    """Trusted installer metadata only; no CLI/env/MCP selection or discovery."""
+    script = Path(__file__).absolute()
+    need(script.resolve() == script)
+    root = script.parent
+    if root.name == 'houseatlas-mcp-bridge' and root.parent.name == 'tools':
+        root = root.parent.parent
+    check_directory(root, os.getuid(), 0o700)
+    need(script in (root / 'key-entry.py', root / 'tools/houseatlas-mcp-bridge/key-entry.py'))
+    fd = os.open(root / 'deployment.json', os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        info = os.fstat(fd)
+        need(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and info.st_nlink == 1
+             and stat.S_IMODE(info.st_mode) == 0o600 and info.st_size <= 16384)
+        raw = os.read(fd, 16385)
+        need(len(raw) == info.st_size)
+    finally:
+        os.close(fd)
+    def pairs(items):
+        out = {}
+        for key, value in items:
+            need(key not in out)
+            out[key] = value
+        return out
+    host = json.loads(raw, object_pairs_hook=pairs)
+    need(type(host) is dict and set(host) == {'schemaVersion', 'uid', 'root', 'config', 'state', 'tunnel', 'python'})
+    need(type(host['schemaVersion']) is int and host['schemaVersion'] == 1
+         and type(host['uid']) is int and host['uid'] == os.getuid() == os.geteuid()
+         and host['root'] == str(root))
+    for key in ('root', 'config', 'state'):
+        need(isinstance(host[key], str))
+        path = Path(host[key])
+        need(path.is_absolute() and path.resolve() == path and len(path.parts) > 2)
+    need(len({host[k] for k in ('root', 'config', 'state')}) == 3)
+    for key in ('tunnel', 'python'):
+        pin = host[key]
+        fields = {'path', 'sha256', 'uid', 'mode'} | ({'version'} if key == 'tunnel' else set())
+        need(type(pin) is dict and set(pin) == fields and isinstance(pin['path'], str))
+        path = Path(pin['path'])
+        need(path.is_absolute() and path.resolve() == path and len(path.parts) > 2
+             and isinstance(pin['sha256'], str) and re.fullmatch(r'[0-9a-f]{64}', pin['sha256'])
+             and type(pin['uid']) is int and pin['uid'] >= 0
+             and type(pin['mode']) is int and 0 <= pin['mode'] <= 0o777
+             and pin['mode'] & 0o111 and not pin['mode'] & 0o022)
+    need(isinstance(host['tunnel']['version'], str)
+         and re.fullmatch(r'0[.]0[.]14[+][0-9a-f]{40}', host['tunnel']['version']))
+    return host
+
+
 def open_config():
     need(os.getuid() == UID and os.geteuid() == UID)
-    for path in (Path('/Users'), Path('/Users/server'), Path('/Users/server/.config')):
+    for path in reversed(CONFIG.parents):
         check_directory(path)
     check_directory(CONFIG.parent, UID)
     try:
@@ -66,7 +117,7 @@ def read_tty_key():
         quiet[6][termios.VTIME] = 0
         # Require an ordinary terminal on entry, then avoid canonical line truncation.
         need(old[3] & termios.ICANON)
-        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT):
+        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT, signal.SIGTSTP):
             handlers[sig] = signal.signal(sig, interrupted)
         termios.tcsetattr(fd, termios.TCSAFLUSH, quiet)
         need(not (termios.tcgetattr(fd)[3] & (termios.ECHO | termios.ECHONL | termios.ICANON)))
@@ -116,7 +167,10 @@ def create_key(directory_fd, value):
 
 
 def main():
+    global UID, CONFIG
     need(len(sys.argv) == 1)
+    host = deployment()
+    UID, CONFIG = host['uid'], Path(host['config'])
     os.umask(0o077)
     directory = open_config()
     try:
@@ -136,6 +190,6 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except (EntryError, OSError, termios.error, KeyboardInterrupt):
+    except (EntryError, OSError, ValueError, TypeError, KeyError, termios.error, KeyboardInterrupt):
         print('Key entry stopped. No replacement or retry was performed; inspect metadata privately.', file=sys.stderr)
         sys.exit(1)

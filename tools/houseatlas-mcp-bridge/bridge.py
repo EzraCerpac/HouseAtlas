@@ -9,6 +9,7 @@ from functools import wraps
 import hashlib
 import http.client
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -154,9 +155,16 @@ class Journal:
             os.close(fd)
 
     def bind(self, identity):
-        encoded = compact(identity)
+        keys(identity, ('origin', 'scope', 'actorId'))
+        keys(identity['scope'], ('workspaceId', 'homeId'))
+        # Compare a validated descriptor, including old lexical encodings, so
+        # regenerating equivalent private config cannot strand retained state.
+        normalized = {'origin': identity['origin'], 'scope': {
+            'workspaceId': identity['scope']['workspaceId'], 'homeId': identity['scope']['homeId']},
+            'actorId': identity['actorId']}
+        encoded = compact(normalized)
         retained = self.db.execute('SELECT identity FROM binding WHERE id=1').fetchone()
-        need(retained is None or retained[0] == encoded, 'Journal native origin/scope/actor binding differs')
+        need(retained is None or strict_json(retained[0]) == normalized, 'Journal native origin/scope/actor binding differs')
         if retained is None:
             self.db.execute('INSERT INTO binding VALUES (1,?)', (encoded,))
             self.db.commit()
@@ -455,6 +463,7 @@ class Bridge:
         need(not self.journal.pending(), 'Unknown write outcome blocks further writes; passive reconciliation required')
         admitted = self.admission()
         self.write_requests(request, admitted)
+        intent_digest(request)  # Reject unrepresentable native numbers before dispatch.
         commands = request['payload']['commands'] if request['commandId'] == BATCH else [request]
         if any(c['commandId'] == 'atlas.binding.remap' for c in commands):
             need(self.approval_owner is not None and self.approval_owner.authorize_exact(raw, self.scope, self.actor),
@@ -474,7 +483,7 @@ class Bridge:
     def commit_receipt(self, result, request):
         need(result.get('status') == 'committed' and result.get('replayed') is False
              and isinstance(result.get('data'), dict)
-             and SHA.fullmatch(result['data'].get('requestDigest', ''))
+             and result['data'].get('requestDigest') == intent_digest(request)
              and isinstance(result['data'].get('records'), list) and result['data']['records']
              and isinstance(result['data'].get('auditIds'), list)
              and len(result['data']['auditIds']) == len(result['data']['records']), 'Native commit receipt unavailable')
@@ -510,7 +519,7 @@ class Bridge:
         need(inspection['format'] == 'atlas-retained-intent-inspection/1'
              and inspection['resolvedScope'] == self.scope and inspection['coverage'] == 'retained-atlas-stock-only'
              and inspection['commandId'] == request['commandId'] and inspection['retrySafety'] == 'not-established'
-             and SHA.fullmatch(inspection['requestDigest']), 'Native reconciliation inspection differs')
+             and inspection['requestDigest'] == intent_digest(request), 'Native reconciliation inspection differs')
         if inspection['outcome'] == 'not-retained-at-snapshot':
             need(result['committedResult'] is None and inspection['rootOperationId'] is None
                  and inspection['operationId'] is None, 'Native absence inspection differs')
@@ -610,7 +619,7 @@ class Bridge:
         size, digest, mime = p.get('byteSize'), p.get('sha256'), p.get('contentType')
         need(p.get('owner') == 'atlas' and p.get('purpose') == 'evidence-original'
              and p.get('availability') == 'available' and p.get('previewPolicy') in ('safe-rendered', 'download-only')
-             and evidence_id in p.get('evidenceIds', []) and SHA.fullmatch(digest or '')
+             and SHA.fullmatch(digest or '')
              and type(size) is int and 0 <= size <= MAX_ORIGINAL
              and mime in ('text/plain', 'application/pdf', 'image/png', 'image/jpeg'), 'Native original unavailable')
         descriptor = compact({'assetId': asset_id, 'kind': 'atlas-asset'}).encode('utf-8')
@@ -653,6 +662,72 @@ class Bridge:
                 'batchAdmitted': BATCH in admitted, 'exactImpactConfirmationAvailable': self.approval_owner is not None,
                 'genericAssetUpload': False, 'genericSceneAssociationCreate': False,
                 'mcpCommandsChanged': False, 'operationStatus': self.status()}
+
+
+def ecma_number(value):
+    """Finite binary64 -> shortest roundtripping decimal, ECMA fixed cutoffs.
+
+    Native stock/digest.rs converts every JSON number to f64 before JCS. Search
+    exact rational floor/ceil candidates, shortest first; select nearest, ties
+    even. Binary64 always has a roundtripping candidate within17digits. Neither
+    repr formatting nor Decimal token spelling determines the canonical bytes.
+    """
+    try:
+        number = float(value)
+    except (ValueError, OverflowError):
+        raise BridgeError('Native intent number unavailable') from None
+    need(math.isfinite(number), 'Native intent number unavailable')
+    if number == 0:
+        return '0'
+    sign = '-' if number < 0 else ''
+    number = abs(number)
+    numerator, denominator = number.as_integer_ratio()
+    order = len(str(numerator)) - len(str(denominator))
+    def power_ratio(exponent):
+        return (10 ** exponent, 1) if exponent >= 0 else (1, 10 ** -exponent)
+    a, z = power_ratio(order)
+    if numerator * z < denominator * a:
+        order -= 1
+    for precision in range(1, 18):
+        exponent = order - precision + 1
+        a, z = power_ratio(exponent)
+        scaled, divisor = numerator * z, denominator * a
+        lower = scaled // divisor
+        candidates = [m for m in (lower, lower + 1)
+                      if m > 0 and float(str(m) + 'e' + str(exponent)) == number]
+        if candidates:
+            closest = min(candidates, key=lambda m: (abs(m * divisor - scaled), m % 2))
+            digits = str(closest).rstrip('0')
+            point = len(str(closest)) + exponent
+            if 0 < point <= 21:
+                text = digits[:point] + ('.' + digits[point:] if point < len(digits)
+                                         else '0' * (point - len(digits)))
+            elif -6 < point <= 0:
+                text = '0.' + '0' * -point + digits
+            else:
+                power = point - 1
+                text = digits[0] + ('.' + digits[1:] if len(digits) > 1 else '')
+                text += 'e' + ('+' if power >= 0 else '') + str(power)
+            return sign + text
+    raise BridgeError('Native intent number unavailable')
+
+
+def intent_canonical(value):
+    if isinstance(value, dict):
+        return '{' + ','.join(compact(k) + ':' + intent_canonical(value[k])
+                              for k in sorted(value, key=lambda k: k.encode('utf-16be'))) + '}'
+    if isinstance(value, list):
+        return '[' + ','.join(intent_canonical(v) for v in value) + ']'
+    if type(value) is int or isinstance(value, Decimal):
+        return ecma_number(value)
+    need(value is None or type(value) in (str, bool), 'Native intent canonical profile differs')
+    return compact(value)
+
+
+def intent_digest(request):
+    # Atlas-only root exclusions; all child transport/approval fields stay bound.
+    intent = {k: v for k, v in request.items() if k not in ('requestId', 'approvalReceiptId')}
+    return sha(intent_canonical(intent).encode('utf-8'))
 
 
 def scene_canonical(value):
@@ -794,7 +869,7 @@ def main():
     bridge = Bridge(config['scope'], owner, journal)
     def stop(_number, _frame):
         raise KeyboardInterrupt()
-    previous_handlers = {sig: signal.signal(sig, stop) for sig in (signal.SIGTERM, signal.SIGHUP)}
+    previous_handlers = {sig: signal.signal(sig, stop) for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT)}
     try:
         serve(bridge, sys.stdin.buffer, sys.stdout.buffer)
     finally:

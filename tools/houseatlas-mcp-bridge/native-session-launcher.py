@@ -2,30 +2,42 @@
 """Start the fixed bridge; native gateway login/cookie/CSRF stay in memory."""
 import os
 from pathlib import Path
+import runpy
 import stat
 import sys
 
-ROOT = Path('/Users/server/.local/share/houseatlas-mcp-read-bridge')
-CONFIG = Path('/Users/server/.config/houseatlas-mcp-read-bridge')
-STATE = Path('/Users/server/.local/state/houseatlas-mcp-read-bridge')
-PYTHON = '/usr/local/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14'
-UID = 502
+def load_host():
+    script = Path(__file__).absolute()
+    root = script.parents[2]
+    if script.resolve() != script or root.resolve() != root:
+        raise RuntimeError()
+    info = root.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+        raise RuntimeError()
+    helper = script.parent / 'key-entry.py'
+    info = helper.lstat()
+    if helper.resolve() != helper or not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1 or info.st_mode & 0o022:
+        raise RuntimeError()
+    return runpy.run_path(str(helper))['deployment']()
 
 
 def main():
-    if len(sys.argv) != 1 or os.getuid() != UID or os.geteuid() != UID:
+    host = load_host()
+    root, config, state = (Path(host[key]) for key in ('root', 'config', 'state'))
+    python, owner = host['python']['path'], host['uid']
+    if len(sys.argv) != 1 or os.getuid() != owner or os.geteuid() != owner:
         raise RuntimeError()
-    for directory in (ROOT, CONFIG, STATE):
+    for directory in (root, config, state):
         info = directory.lstat()
-        if directory.resolve() != directory or not stat.S_ISDIR(info.st_mode) or info.st_uid != UID or stat.S_IMODE(info.st_mode) != 0o700:
+        if directory.resolve() != directory or not stat.S_ISDIR(info.st_mode) or info.st_uid != owner or stat.S_IMODE(info.st_mode) != 0o700:
             raise RuntimeError()
-    helper = ROOT / 'tools/houseatlas-mcp-bridge/bridge.py'
+    helper = root / 'tools/houseatlas-mcp-bridge/bridge.py'
     if helper.resolve() != helper:
         raise RuntimeError()
     # No native-session.json, cookie pipe or credential extraction. The bridge
     # uses its normal canonical HTTPS /auth/proxy owner and logs out on shutdown.
-    os.execve(PYTHON, [PYTHON, '-I', '-B', str(helper), '--config', str(CONFIG / 'bridge.json'),
-                       '--state-dir', str(STATE)], {'PATH': '/usr/bin:/bin:/usr/sbin:/sbin'})
+    os.execve(python, [python, '-I', '-B', str(helper), '--config', str(config / 'bridge.json'),
+                       '--state-dir', str(state)], {'PATH': '/usr/bin:/bin:/usr/sbin:/sbin'})
 
 
 if __name__ == '__main__':

@@ -1,6 +1,7 @@
 """Synthetic TTY/filesystem fixtures only; never the NAS key path or binary."""
 import argparse
 import importlib.util
+import json
 import os
 from pathlib import Path
 import pty
@@ -24,6 +25,16 @@ def module(name, path):
 entry = module('entry', HERE / 'key-entry.py')
 wrapper = module('wrapper', HERE / 'tunnel-wrapper.py')
 launcher = module('launcher', HERE / 'native-session-launcher.py')
+
+def host_fixture(temp):
+    root, config, state = (Path(temp) / name for name in ('source', 'config', 'state'))
+    for directory in (root, config, state): directory.mkdir(mode=0o700)
+    return {'schemaVersion': 1, 'uid': os.getuid(), 'root': str(root), 'config': str(config), 'state': str(state),
+            'tunnel': {'path': str(Path(temp) / 'synthetic-tunnel-not-executed'), 'uid': os.getuid(),
+                       'mode': 0o555, 'sha256': '1' * 64, 'version': '0.0.14+' + '1' * 40},
+            'python': {'path': str(Path(temp) / 'synthetic-python-not-executed'), 'uid': os.getuid(),
+                       'mode': 0o755, 'sha256': '2' * 64}}
+
 
 class Cases(unittest.TestCase):
     def healthy_create_only_file(self):
@@ -111,10 +122,16 @@ class Cases(unittest.TestCase):
         finally:
             os.close(master); os.close(slave)
 
+    def failure_tty_sigtstp_restore(self):
+        self.signal_restore(entry.signal.SIGTSTP)
+
     def failure_tty_sigquit_restore(self):
+        self.signal_restore(entry.signal.SIGQUIT)
+
+    def signal_restore(self, delivered):
         master, slave = pty.openpty()
         original = termios.tcgetattr(slave)
-        previous = entry.signal.getsignal(entry.signal.SIGQUIT)
+        previous = entry.signal.getsignal(delivered)
         registered = {}
         real_open, real_signal = os.open, entry.signal.signal
         def fake_open(path, flags, *args, **kwargs):
@@ -122,13 +139,13 @@ class Cases(unittest.TestCase):
         def register(number, handler):
             if callable(handler): registered[number] = handler
             return real_signal(number, handler)
-        def inject(_fd, _count): registered[entry.signal.SIGQUIT](entry.signal.SIGQUIT, None)
+        def inject(_fd, _count): registered[delivered](delivered, None)
         try:
             with patch.object(entry.os, 'open', fake_open), patch.object(entry.signal, 'signal', register), \
                  patch.object(entry.os, 'read', inject):
                 with self.assertRaises(KeyboardInterrupt): entry.read_tty_key()
             self.assertEqual(termios.tcgetattr(slave), original)
-            self.assertEqual(entry.signal.getsignal(entry.signal.SIGQUIT), previous)
+            self.assertEqual(entry.signal.getsignal(delivered), previous)
         finally:
             os.close(master); os.close(slave)
 
@@ -150,32 +167,61 @@ class Cases(unittest.TestCase):
             with self.assertRaises(OSError): entry.read_tty_key()
 
     def denial_unconfigured_wrapper(self):
-        spec = b'{"configured":false,"expectedVersion":"unused","registrationId":"unconfigured"}'
-        names = []
-        def read(name, limit):
-            names.append(name)
-            self.assertEqual(name, 'launch-spec.json')
-            return spec
-        with patch.object(wrapper.os, 'getuid', return_value=502), patch.object(wrapper.os, 'geteuid', return_value=502), \
-             patch.object(wrapper.sys, 'argv', ['wrapper']), patch.object(wrapper, 'read_private', read), \
-             patch.object(wrapper.subprocess, 'run', side_effect=AssertionError('No binary execution')):
-            with self.assertRaises(wrapper.WrapperError): wrapper.launch()
-        self.assertEqual(names, ['launch-spec.json'])
+        with tempfile.TemporaryDirectory(prefix='houseatlas-wrapper-denial-') as temp:
+            host = host_fixture(temp)
+            names = []
+            def read(name, limit):
+                names.append(name)
+                self.assertEqual(name, 'launch-spec.json')
+                return b'{"configured":false,"registrationId":"unconfigured"}'
+            with patch.object(wrapper, 'load_host', return_value=host), \
+                 patch.object(wrapper.sys, 'argv', ['wrapper']), patch.object(wrapper, 'read_private', read), \
+                 patch.object(wrapper.subprocess, 'run', side_effect=AssertionError('No binary execution')):
+                with self.assertRaises(wrapper.WrapperError): wrapper.launch()
+            self.assertEqual(names, ['launch-spec.json'])
 
     def healthy_launcher_memory_only(self):
         with tempfile.TemporaryDirectory(prefix='houseatlas-launcher-synthetic-') as temp:
-            root, config, state = (Path(temp) / name for name in ('source', 'config', 'state'))
-            for directory in (root, config, state): directory.mkdir(mode=0o700)
+            host = host_fixture(temp)
             captured = {}
             def execute(binary, argv, env): captured.update(binary=binary, argv=argv, env=env)
-            with patch.object(launcher, 'UID', os.getuid()), patch.object(launcher, 'ROOT', root), \
-                 patch.object(launcher, 'CONFIG', config), patch.object(launcher, 'STATE', state), \
+            with patch.object(launcher, 'load_host', return_value=host), \
                  patch.object(launcher.sys, 'argv', ['launcher']), patch.object(launcher.os, 'execve', execute):
                 launcher.main()
-            self.assertEqual(captured['binary'], launcher.PYTHON)
+            self.assertEqual(captured['binary'], host['python']['path'])
             self.assertNotIn('--session-fd', captured['argv'])
             self.assertEqual(captured['env'], {'PATH': '/usr/bin:/bin:/usr/sbin:/sbin'})
-            self.assertEqual(list(config.iterdir()), [])
+            self.assertEqual(list(Path(host['config']).iterdir()), [])
+
+    def healthy_private_deployment(self):
+        with tempfile.TemporaryDirectory(prefix='houseatlas-host-synthetic-') as temp:
+            host = host_fixture(temp)
+            root = Path(host['root'])
+            script = root / 'key-entry.py'
+            script.write_text('# synthetic path marker, never executed')
+            metadata = root / 'deployment.json'
+            metadata.write_text(json.dumps(host)); metadata.chmod(0o600)
+            with patch.object(entry, '__file__', str(script)):
+                self.assertEqual(entry.deployment(), host)
+            # Nested source setter and top-level stable setter resolve same contract.
+            nested = root / 'tools/houseatlas-mcp-bridge/key-entry.py'
+            nested.parent.mkdir(parents=True); nested.write_text('# marker')
+            with patch.object(entry, '__file__', str(nested)):
+                self.assertEqual(entry.deployment(), host)
+
+    def denial_private_deployment(self):
+        with tempfile.TemporaryDirectory(prefix='houseatlas-host-denial-') as temp:
+            host = host_fixture(temp); root = Path(host['root'])
+            script = root / 'key-entry.py'; script.write_text('# marker')
+            metadata = root / 'deployment.json'
+            metadata.write_text(json.dumps(host)); metadata.chmod(0o644)
+            with patch.object(entry, '__file__', str(script)):
+                with self.assertRaises(entry.EntryError): entry.deployment()
+                metadata.chmod(0o600)
+                host['uid'] += 1; metadata.write_text(json.dumps(host))
+                with self.assertRaises(entry.EntryError): entry.deployment()
+                host['uid'] -= 1; host['extraArgv'] = ['unapproved']; metadata.write_text(json.dumps(host))
+                with self.assertRaises(entry.EntryError): entry.deployment()
 
     def healthy_executable_contract(self):
         with tempfile.TemporaryDirectory(prefix='houseatlas-executable-synthetic-') as temp:
@@ -192,32 +238,33 @@ class Cases(unittest.TestCase):
                 wrapper.verify_executable(str(path), '0' * 64, 0o555, os.getuid())
 
     def healthy_wrapper_environment(self):
-        spec = {'configured': True, 'expectedVersion': wrapper.VERSION,
-                'registrationId': 'tunnel_' + '1' * 32}
-        import json
-        def read(name, limit):
-            return json.dumps(spec).encode() if name == 'launch-spec.json' else b'SYNTHETIC-WRAPPER-ONLY'
-        def run(argv, **kwargs):
-            self.assertNotIn('CONTROL_PLANE_API_KEY', kwargs['env'])
-            self.assertEqual(argv, [wrapper.BINARY, '--version'])
-            return types.SimpleNamespace(stdout=wrapper.VERSION.encode())
-        captured, verified = {}, []
-        def execute(binary, argv, env): captured.update(binary=binary, argv=argv, env=env)
-        def verify(*args, **kwargs): verified.append((args, kwargs))
-        with patch.object(wrapper.os, 'getuid', return_value=502), patch.object(wrapper.os, 'geteuid', return_value=502), \
-             patch.object(wrapper.sys, 'argv', ['wrapper']), patch.object(wrapper, 'read_private', read), \
-             patch.object(wrapper, 'verify_executable', verify), \
-             patch.object(wrapper.subprocess, 'run', run), patch.object(wrapper.os, 'execve', execute):
-            wrapper.launch()
-        self.assertEqual(captured['env']['CONTROL_PLANE_API_KEY'], 'SYNTHETIC-WRAPPER-ONLY')
-        self.assertNotIn('SYNTHETIC-WRAPPER-ONLY', captured['argv'])
-        self.assertEqual(captured['argv'][captured['argv'].index('--control-plane.base-url') + 1], 'https://api.openai.com')
-        self.assertEqual(captured['argv'][captured['argv'].index('--health.listen-addr') + 1], '127.0.0.1:0')
-        self.assertEqual(verified[0], ((wrapper.BINARY, wrapper.BINARY_SHA256), {'exact_mode': 0o555, 'exact_uid': 502}))
-        self.assertEqual(verified[1], ((wrapper.PYTHON, wrapper.PYTHON_SHA256), {}))
+        with tempfile.TemporaryDirectory(prefix='houseatlas-wrapper-synthetic-') as temp:
+            host = host_fixture(temp)
+            spec = {'configured': True, 'registrationId': 'tunnel_' + '1' * 32}
+            def read(name, limit):
+                return json.dumps(spec).encode() if name == 'launch-spec.json' else b'SYNTHETIC-WRAPPER-ONLY'
+            def run(argv, **kwargs):
+                self.assertNotIn('CONTROL_PLANE_API_KEY', kwargs['env'])
+                self.assertEqual(argv, [host['tunnel']['path'], '--version'])
+                return types.SimpleNamespace(stdout=host['tunnel']['version'].encode())
+            captured, verified = {}, []
+            def execute(binary, argv, env): captured.update(binary=binary, argv=argv, env=env)
+            def verify(*args, **kwargs): verified.append((args, kwargs))
+            with patch.object(wrapper, 'load_host', return_value=host), \
+                 patch.object(wrapper.sys, 'argv', ['wrapper']), patch.object(wrapper, 'read_private', read), \
+                 patch.object(wrapper, 'verify_executable', verify), \
+                 patch.object(wrapper.subprocess, 'run', run), patch.object(wrapper.os, 'execve', execute):
+                wrapper.launch()
+            self.assertEqual(captured['env']['CONTROL_PLANE_API_KEY'], 'SYNTHETIC-WRAPPER-ONLY')
+            self.assertNotIn('SYNTHETIC-WRAPPER-ONLY', captured['argv'])
+            self.assertEqual(captured['argv'][captured['argv'].index('--control-plane.base-url') + 1], 'https://api.openai.com')
+            self.assertEqual(captured['argv'][captured['argv'].index('--health.listen-addr') + 1], '127.0.0.1:0')
+            for index, key in enumerate(('tunnel', 'python')):
+                pin = host[key]
+                self.assertEqual(verified[index], ((pin['path'], pin['sha256']), {'exact_mode': pin['mode'], 'exact_uid': pin['uid']}))
 
-HEALTHY = ('healthy_create_only_file', 'healthy_tty_noecho', 'healthy_wrapper_environment', 'healthy_launcher_memory_only', 'healthy_executable_contract')
-REGRESSION = ('denial_existing_or_symlink', 'denial_no_tty_fallback', 'denial_unconfigured_wrapper', 'denial_tty_oversize', 'denial_executable_contract', 'failure_tty_sigquit_restore')
+HEALTHY = ('healthy_create_only_file', 'healthy_tty_noecho', 'healthy_wrapper_environment', 'healthy_launcher_memory_only', 'healthy_executable_contract', 'healthy_private_deployment')
+REGRESSION = ('denial_existing_or_symlink', 'denial_no_tty_fallback', 'denial_unconfigured_wrapper', 'denial_tty_oversize', 'denial_executable_contract', 'failure_tty_sigquit_restore', 'failure_tty_sigtstp_restore', 'denial_private_deployment')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('case', choices=HEALTHY + REGRESSION)
