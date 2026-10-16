@@ -17,8 +17,23 @@ The immutable harness source is `d03223b0669761cf92846492fe56fb9e8f9f7db9`.
 The sole schema, owned by PR190, is `tools/perf/contract/run.schema.json`, SHA-256
 `642af28eacc14e6fdd7b9f7071979f07abc8dcb9a427773f5d74dab672b7056a`.
 
-The Markdown table includes absolute medians, absolute and percent changes, whether lower
-or higher is better, nearest-rank p95, base/head sample counts and robust relative dispersion.
+The comment uses a five-column table: metric, base/head medians, percentage
+change and result. Percentage deltas have one decimal; timing values use three
+significant digits and sizes use IEC units. ✅ marks improvements, ❌ regressions
+or budget failures, ➖ unchanged/within-noise results and ⚪ unavailable evidence.
+Both missing-side reasons remain explicit. Unsupported browser/GPU coverage is
+one short note; measured, blocked or failed browser rows are not hidden.
+
+A short collapsed Evidence section links exact source revisions, the run,
+method/noise thresholds and raw measurement artifact, with its archive digest.
+The raw records retain exact values, p95, MAD, min/max, sample counts, fixture,
+schema and method/environment inputs. The CLI comparison JSON also retains
+unrounded deltas and derived fingerprints. Display rounding does not change
+classification, noise thresholds or budget decisions. Configured budget limits
+remain exact in Evidence. CLI identities may include `reporterSha` to link that
+revision’s reporting method; without it, Evidence labels the harness link as
+collection-only and states the comparison noise rule inline.
+
 Dispersion is `1.4826 × MAD / median`, not a confidence interval. Timing changes
 within `max(5%, 2 × (base dispersion + head dispersion))` are labeled
 `within-noise`; fewer than five samples are labeled `insufficient-samples`.
@@ -84,8 +99,9 @@ immutable harness pin above into a separate fixture root, installs its exact
 public lock with scripts/audit/funding disabled and optional packages omitted,
 and runs only `healthy-reporting.test.mjs` from the default checkout. Its body
 and imports therefore come from the accepted default revision, never from a PR
-filename or presence test. The six cases use valid samples/archives, fake exact
-metadata and the actual pinned canonical contract. No job token is supplied to
+filename or presence test. The eleven cases use valid samples/archives, fake exact metadata and the actual
+pinned canonical contract. They include compact rendering, direction/noise and
+budget display, browser coverage grouping and concise provenance checks. No job token is supplied to
 that test step. Held test files remain excluded. A missing default-source test
 fails; candidate additions, edits or deletions do not select automatic cases.
 

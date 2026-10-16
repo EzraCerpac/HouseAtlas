@@ -81,7 +81,9 @@ node tools/perf/reporting/cli.mjs --base /absolute/base.json --head /absolute/he
 
 The identity file comes from the trusted event/GitHub API and must contain
 `repository`, `prNumber`, `runId`, `runAttempt`, `baseSha`, `baseTree`, `headSha`,
-`headTree` and `harnessSha`. Its source identities are checked against both
+`headTree` and `harnessSha`. Include optional `reporterSha` for a revision-pinned
+reporting-method link; otherwise the report states its noise rule inline and
+labels the harness link as collection-only. Its source identities are checked against both
 validated measurement views. It is not supplied by a PR artifact. The CLI writes
 new files only; exit code 1 denotes a configured deterministic budget failure,
 a failed metric, invalid contract/data/identity or an unavailable output. Timing
@@ -126,3 +128,10 @@ default-source test fails. Retained adversarial and mutation/omission files
 remain held and are source-reviewed rather than invoked by this lane. Proposed
 reporter changes require source inspection and the named local healthy check
 before acceptance; this automatic suite exercises accepted default code.
+
+The comment presents five columns with one-decimal percentage deltas, concise
+status symbols and a single unsupported-browser/GPU note. The short Evidence
+section links source revisions, methodology and raw p95/noise data; it does not
+repeat the full run documents. Full precision, statistics, profiles and gate
+results remain in the machine comparison and raw records. Display rounding
+never participates in comparison or budget arithmetic.

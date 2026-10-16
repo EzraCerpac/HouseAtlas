@@ -38,14 +38,14 @@ test('missing and skipped metrics stay visible', () => {
   const result = compareMetric(timing, { skipReason: 'baseline-unavailable' }, values([1]));
   assert.equal(result.status, 'skipped');
   const table = renderTable([timing], [result]);
-  assert.match(table, /baseline-unavailable/);
-  assert.match(table, /lower is better/);
+  assert.match(table, /baseline unavailable/);
+  assert.match(table, /↓/);
 });
 test('different non-measured base and head statuses both remain visible', () => {
   const result = compareMetric(timing, { skipReason: 'base-unsupported' }, { skipReason: 'head-failed', failed: true });
   assert.equal(result.reason, 'base-unsupported; head-failed');
   assert.equal(result.failed, true);
-  assert(renderTable([timing], [result]).includes('base-unsupported; head-failed; FAIL'));
+  assert(renderTable([timing], [result]).includes('base unsupported; head failed; ❌ failed'));
 });
 test('decimal regression boundaries are exact and an actual excess still fails', () => {
   const lower = { ...timing, kind: 'deterministic', maxRegressionPercent: 10 };
@@ -62,17 +62,16 @@ test('Markdown cells cannot create rows, images, links or mentions', () => {
   assert(!escaped.includes('https://'));
   assert(!escaped.includes('www.'));
 });
-test('small values and budgets retain significant digits rather than rounding to zero', () => {
+test('compact values remain nonzero and budget failures stay explicit', () => {
   const policy = { ...timing, kind: 'deterministic', maximum: 0.0001 };
   const result = compareMetric(policy, values([0.0001]), values([0.0002]));
   const table = renderTable([policy], [result]);
   assert(table.includes('0.0002 ms'));
-  assert(table.includes('max 0.0001 ms'));
-  assert(table.includes('FAIL'));
+  assert(table.includes('❌ Budget failed'));
   const closePolicy = { ...policy, maximum: 100.0000001 };
   const closeTable = renderTable([closePolicy], [compareMetric(closePolicy, values([100]), values([100.0000002]))]);
-  assert(closeTable.includes('100.0000002 ms'));
-  assert(closeTable.includes('max 100.0000001 ms'));
+  assert(closeTable.includes('100 ms'));
+  assert(closeTable.includes('❌ Budget failed'));
   const smallDelta = renderTable([timing], [compareMetric(timing, values([100]), values([100.0000001]))]);
-  assert(!smallDelta.includes('| +0% |'));
+  assert(smallDelta.includes('| 0.0% |'));
 });

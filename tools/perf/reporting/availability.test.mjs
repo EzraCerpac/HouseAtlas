@@ -26,9 +26,9 @@ test('archive parsing rejects extra members, paths, symlinks, large output and m
 test('skip table makes no measurement, harness source or zero-valued speedup claim', () => {
   const report = makeAvailabilityReport({ identity, availability: { reason: 'measurement-harness-unavailable' } });
   assert.equal(report.failed, false);
-  assert(report.markdown.includes('Reporter source:'));
-  assert(report.markdown.includes('Missing values are unavailable, never zero'));
-  assert(!report.markdown.includes('Harness source:'));
+  assert(report.markdown.includes('Reporter `'));
+  assert(report.markdown.includes('⚪ No comparable measurements'));
+  assert(!report.markdown.includes('Harness `'));
   assert(!report.markdown.includes('0%'));
   assert.throws(() => makeAvailabilityReport({ identity, availability: { reason: 'arbitrary raw text' } }));
 });
