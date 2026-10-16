@@ -53,6 +53,34 @@ fn request(
         .insert(ConnectInfo("127.0.0.1:50123".parse::<SocketAddr>()?));
     Ok(request)
 }
+async fn source_documents_service(
+    app: &Router,
+    cookie: &str,
+    scope: &Value,
+    available: bool,
+) -> Result<(), Failure> {
+    let workspace = scope["workspaceId"].as_str().ok_or("Workspace scope")?;
+    let home = scope["homeId"].as_str().ok_or("Home scope")?;
+    for path in [
+        "/api/atlas/view".to_owned(),
+        format!("/api/atlas/homes/{workspace}/{home}/view"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(request("GET", &path, vec![], Some(cookie), None)?)
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let view: Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), MAX_RESPONSE).await?)?;
+        assert_eq!(view["status"], "ready");
+        assert_eq!(&view["scope"], scope);
+        assert_eq!(
+            view["sourceDocumentsService"],
+            json!({"profile":"houseatlas.geodata-document-read.v2", "available":available})
+        );
+    }
+    Ok(())
+}
 struct Client {
     app: Router,
     core: Arc<std::sync::Mutex<houseatlas_backend::app::Core>>,
@@ -102,11 +130,13 @@ impl Client {
             .as_str()
             .ok_or("Missing native CSRF")?
             .to_owned();
+        let scope = json!({"workspaceId":id(2),"homeId":id(3)});
+        source_documents_service(&app, &cookie, &scope, false).await?;
         Ok((
             Self {
                 app,
                 core,
-                scope: json!({"workspaceId":id(2),"homeId":id(3)}),
+                scope,
                 cookie,
                 csrf,
                 serial: 5000,
@@ -780,6 +810,7 @@ async fn main() -> Result<(), Failure> {
         serial: 20000,
         posts: 0,
     };
+    source_documents_service(&app, &cookie, &full.scope, true).await?;
     let building = full
         .read("location-semantics", "get", 201, json!({}))
         .await?;
@@ -1098,7 +1129,10 @@ async fn main() -> Result<(), Failure> {
     let selected = Host::new(selected, ORIGIN.into(), Arc::new(BTreeMap::new()), vec![])?
         .with_loopback_local()?
         .with_full_geodata()?;
-    let response = router(selected)
+    let selected_app = router(selected);
+    let scope = json!({"workspaceId":id(2),"homeId":id(3)});
+    source_documents_service(&selected_app, &cookie, &scope, true).await?;
+    let response = selected_app
         .oneshot(request(
             "GET",
             &format!("{base}/{}", id(8101)),
