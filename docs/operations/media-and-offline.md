@@ -43,10 +43,22 @@ blocked content cannot render. Rendering is an AT-12 choice, not code in AT-05.
 
 Use `Cache-Control: private, no-store` for authenticated private responses and
 downloads in the first release. Browser-held in-memory content is not an offline
-archive. No service worker or persisted private media/document cache is promised.
+archive. No service worker or general persisted private media/document cache is promised.
 No automatic hard purge of original assets, tombstones, binding reservations,
 audit or reconciliation journals is authorized. Uncommitted staging cleanup is
 distinct from deleting committed or retained bytes.
+
+The separately authorized scan-cache amendment permits only verified native
+scan derivative bytes in bounded origin storage. Reuse requires a freshly
+authorized descriptor for the current authenticated actor, workspace and home,
+and an exact match of the offered derivative identity, version, content digest,
+type and permission. Session tokens, credentials, descriptors, other API
+responses, documents and capture drafts are outside this cache. Explicit refresh
+reads the derivative again. Storage eviction or quota failure must fall back to
+an authorized server read; browser storage is not a backup or offline access.
+The candidate's synthetic reopen counts are documented in
+[verification](../contributing/verification.md); browser/PWA acceptance remains
+pending and those counts do not establish installed-iOS behavior.
 
 ## Availability cases
 
