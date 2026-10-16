@@ -1,0 +1,15 @@
+/* Viewer failure stays inside the viewer slot; neighbouring actions remain. */
+.lantern-host .viewer-unavailable {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+  gap: 8px;
+  min-width: 0;
+  max-width: 44rem;
+  padding: 12px 14px;
+  border: 1px solid var(--warn);
+  border-radius: var(--r-panel);
+  background: var(--warn-soft);
+  color: var(--ink);
+}
+.lantern-host .viewer-unavailable p { font-size: var(--fs-s); }

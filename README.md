@@ -92,6 +92,20 @@ and its two-floor synthetic fixture exercise one logical room spanning two
 floor-qualified IFC space occurrences. Its routes and ready state are mock
 contract examples, not live service behavior.
 
+The isolated canonical viewer has a focused synthetic check:
+
+```sh
+node frontend/lantern-tests/canonical-ifc-viewer.test.mjs --healthy
+```
+
+It checks v2 artifact pins, occurrence selection and memory, overlay joins and
+CPU geometry picking. The browser fixture is
+`/lantern-tests/canonical-ifc-visual/?fixture=coverage` on the frontend dev
+server; `a`, `b`, `scene` and `local` select the other fixture modes. Local files
+use the closed HouseAtlas IFC-derived GLB profile and remain unbound to rooms
+and floors. The viewer is not mounted in the application yet; these checks do
+not qualify actual model placement, GPU picking or a live scene endpoint.
+
 ## Development and verification
 
 The current development snapshot includes a Rust backend, SQLite persistence and a React interface with strict TypeScript.

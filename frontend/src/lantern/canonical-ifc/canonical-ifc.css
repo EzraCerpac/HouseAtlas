@@ -1,0 +1,908 @@
+/* Canonical model viewer. Same drafting-table language as the Lantern stage:
+   paper grid ground, ink frame, lantern yellow only on the current floor and
+   the selected room. The selected room is the one bold element in both views. */
+
+.lantern-host .cifc {
+  --cifc-height: 720px;
+  container: cifc / inline-size;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lantern-host .cifc-layout {
+  --cifc-panel: 320px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  border: 1px solid var(--hair-2);
+  border-radius: var(--r-sheet);
+  overflow: clip;
+  background: var(--card);
+}
+
+/* Local file preview: dashed frame, never mistaken for a publication. */
+.lantern-host .cifc-preview .cifc-layout {
+  border-style: dashed;
+  border-color: var(--ink-2);
+}
+
+/* ---------- Stage ---------- */
+
+.lantern-host .cifc-stage {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  background:
+    linear-gradient(rgba(22, 50, 79, 0.055) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, rgba(22, 50, 79, 0.055) 1px, transparent 1px) 0 0 / 32px 32px,
+    #eceee9;
+}
+
+.lantern-host .cifc-stage-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px;
+  min-width: 0;
+}
+
+.lantern-host .cifc-floors {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: var(--r-panel);
+  background: rgba(251, 251, 248, 0.94);
+  border: 1px solid var(--hair);
+  box-shadow: var(--shadow-float);
+}
+
+.lantern-host .cifc-floors .floor-btn {
+  flex: 0 0 auto;
+  grid-template-columns: 34px auto;
+  min-height: 44px;
+  padding: 4px 12px 4px 2px;
+}
+
+.lantern-host .cifc-floors .floor-short {
+  font-size: 21px;
+}
+
+.lantern-host .cifc-floor-mark {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--lantern);
+  box-shadow: 0 0 0 1.5px var(--ink);
+}
+
+/* Floor holds another occurrence of the selected room, not the selection itself. */
+.lantern-host .cifc-floor-mark.is-context {
+  background: var(--lantern-soft);
+  box-shadow: 0 0 0 1.5px var(--lantern-edge);
+}
+
+.lantern-host .cifc-view-ctrl {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  margin-left: auto;
+}
+
+/* Camera buttons wrap inside their group rather than widening the stage. */
+.lantern-host .cifc-view-ctrl .ctrl-group {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.lantern-host .cifc-view-ctrl > .seg {
+  box-shadow: var(--shadow-float);
+}
+
+.lantern-host .cifc-view-ctrl .seg button {
+  min-height: 36px;
+  min-width: 52px;
+}
+
+.lantern-host .cifc-view-ctrl .ctrl-wide {
+  height: 42px;
+}
+
+.lantern-host .cifc-viewport {
+  position: relative;
+  height: clamp(280px, 72cqw, 560px);
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.lantern-host .cifc-viewport.is-dragging {
+  cursor: grabbing;
+}
+
+.lantern-host .cifc-viewport:focus-visible {
+  outline: 2.5px solid var(--focus);
+  outline-offset: -4px;
+  border-radius: 10px;
+}
+
+.lantern-host .cifc-canvas-wrap,
+.lantern-host .cifc-canvas,
+.lantern-host .cifc-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.lantern-host .cifc-svg {
+  pointer-events: none;
+  overflow: visible;
+}
+
+.lantern-host .cifc-plan-space {
+  fill: #f7efdd;
+  stroke: rgba(24, 35, 58, 0.32);
+  stroke-width: 1;
+}
+
+/* No space identity on this floor: drawn for orientation, never selectable. */
+.lantern-host .cifc-plan-space.is-display-only {
+  fill: #eeede7;
+  stroke: var(--c-unknown);
+  stroke-dasharray: 4 3;
+}
+
+/* Another occurrence of the selected room: same family, quieter than the selection. */
+.lantern-host .cifc-plan-space.is-context {
+  fill: var(--lantern-soft);
+  stroke: var(--lantern-edge);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 3;
+}
+
+.lantern-host .cifc-plan-space.is-selected {
+  fill: var(--lantern);
+  stroke: var(--lantern-edge);
+  stroke-width: 2.5;
+}
+
+.lantern-host .cifc-plan-wall {
+  fill: var(--ink);
+}
+
+.lantern-host .cifc-plan-opening {
+  fill: #fdfcf8;
+  stroke: var(--ink-2);
+  stroke-width: 1;
+}
+
+.lantern-host .cifc-plan-other {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.lantern-host .cifc-label text {
+  font-family: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  fill: var(--ink-2);
+}
+
+.lantern-host .cifc-label .cifc-label-halo {
+  fill: none;
+  stroke: rgba(252, 252, 250, 0.94);
+  stroke-width: 4.5px;
+  stroke-linejoin: round;
+}
+
+.lantern-host .cifc-label.is-context text {
+  font-weight: 700;
+  fill: var(--lantern-ink);
+}
+
+.lantern-host .cifc-label.is-context .cifc-label-halo {
+  stroke: var(--lantern-soft);
+  stroke-width: 13px;
+}
+
+.lantern-host .cifc-label.is-selected text {
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 750;
+  fill: var(--ink);
+}
+
+/* A wide rounded halo in lantern yellow reads as a tag without measuring text. */
+.lantern-host .cifc-label.is-selected .cifc-label-halo {
+  stroke: var(--lantern);
+  stroke-width: 17px;
+}
+
+.lantern-host .cifc-label > line {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+.lantern-host .cifc-label > circle {
+  fill: var(--lantern);
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+/* Count badge: fill comes from badgeFill(tone); numerals stay white in every tier. */
+.lantern-host .cifc-label .cifc-label-badge circle {
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+.lantern-host .cifc-label .cifc-label-badge .cifc-label-count {
+  fill: #fff;
+  font-family: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.lantern-host .cifc-stage-note {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: max-content;
+  max-width: min(360px, calc(100% - 32px));
+  padding: 12px 14px;
+  border-radius: var(--r-panel);
+  background: var(--card);
+  box-shadow: var(--shadow-float);
+  font-size: var(--fs-s);
+  text-align: center;
+}
+
+.lantern-host .cifc-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 5px 12px;
+  border-radius: 14px;
+  text-align: center;
+  overflow-wrap: anywhere;
+  background: var(--chrome);
+  color: var(--chrome-ink);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.lantern-host .cifc-hint:empty {
+  display: none;
+}
+
+.lantern-host .cifc-stage-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px;
+  min-width: 0;
+}
+
+.lantern-host .cifc-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lantern-host .cifc-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 2px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--hair-2);
+  background: rgba(252, 252, 250, 0.95);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  color: var(--ink-2);
+  box-shadow: var(--shadow-float);
+}
+
+.lantern-host .cifc-chip.is-synthetic {
+  border-style: dashed;
+  border-color: var(--c-unknown);
+}
+
+.lantern-host .cifc-chip.is-preview {
+  background: var(--warn-soft);
+  border-color: #e3c088;
+  color: var(--warn);
+}
+
+.lantern-host .cifc-chip.is-published {
+  border-color: color-mix(in srgb, var(--ok) 45%, #fff);
+  color: var(--ok);
+}
+
+.lantern-host .cifc-chip.is-local {
+  border-style: dashed;
+  border-color: var(--ink-2);
+  color: var(--ink);
+}
+
+.lantern-host .cifc .layer-bar {
+  max-width: 100%;
+}
+
+.lantern-host .cifc .layer-chip {
+  min-height: 40px;
+}
+
+.lantern-host .cifc .layer-chip[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--layer) 14%, #fff);
+  border-color: color-mix(in srgb, var(--layer) 60%, #fff);
+  box-shadow: inset 0 -3px 0 var(--layer);
+  color: var(--ink);
+}
+
+/* ---------- Panel ---------- */
+
+.lantern-host .cifc-panel {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  min-width: 0;
+  padding: 18px 16px 24px;
+  border-top: 1px solid var(--hair);
+  background: var(--card);
+}
+
+.lantern-host .cifc-panel-head h2 {
+  font-size: var(--fs-xl);
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.lantern-host .cifc-panel h2:focus-visible,
+.lantern-host .cifc-focus h3:focus-visible {
+  outline-offset: 3px;
+}
+
+.lantern-host .cifc-panel h2:focus:not(:focus-visible),
+.lantern-host .cifc-focus h3:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.lantern-host .cifc-pub {
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.lantern-host .cifc-notice {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-control);
+  background: var(--warn-soft);
+  font-size: var(--fs-s);
+}
+
+.lantern-host .cifc-notice .text-btn {
+  flex: 0 0 auto;
+  min-height: 32px;
+}
+
+.lantern-host .cifc-focus {
+  padding: 14px;
+  border-radius: var(--r-panel);
+  border: 1px solid var(--hair);
+  background: var(--card-2);
+}
+
+.lantern-host .cifc-focus.has-room {
+  background: var(--lantern-soft);
+  border-color: color-mix(in srgb, var(--lantern-edge) 40%, #fff);
+  box-shadow: inset 5px 0 0 var(--lantern);
+}
+
+.lantern-host .cifc-focus-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lantern-host .cifc-focus h3 {
+  font-size: var(--fs-2xl);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.lantern-host .cifc-focus-head .chip-btn {
+  flex: 0 0 auto;
+  min-height: 36px;
+}
+
+.lantern-host .cifc-focus-floor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-top: 4px;
+  font-size: var(--fs-s);
+  color: var(--ink-2);
+}
+
+.lantern-host .cifc-focus-floor .text-btn {
+  min-height: 32px;
+}
+
+.lantern-host .cifc-facts {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+}
+
+.lantern-host .cifc-facts > div {
+  display: grid;
+  grid-template-columns: minmax(84px, 112px) minmax(0, 1fr);
+  gap: 8px;
+  font-size: var(--fs-s);
+}
+
+.lantern-host .cifc-facts dt {
+  min-width: 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.lantern-host .cifc-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lantern-host .cifc-facts code {
+  font-size: 11.5px;
+  white-space: normal;
+}
+
+.lantern-host .cifc-facts.is-source dd code,
+.lantern-host .cifc-facts.is-source dd span {
+  display: block;
+}
+
+.lantern-host .cifc-facts.is-source dd span {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.lantern-host .cifc-link-facts,
+.lantern-host .cifc-records ul,
+.lantern-host .cifc-overlay-facts ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.lantern-host .cifc-records {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--lantern-edge) 25%, transparent);
+}
+
+.lantern-host .cifc-records h4 {
+  font-size: var(--fs-s);
+  margin-bottom: 6px;
+}
+
+.lantern-host .cifc-records li,
+.lantern-host .cifc-overlay-facts li {
+  display: grid;
+  font-size: var(--fs-s);
+}
+
+.lantern-host .cifc-records li span,
+.lantern-host .cifc-overlay-facts li span {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.lantern-host .cifc-records p {
+  font-size: var(--fs-s);
+  color: var(--muted);
+}
+
+.lantern-host .cifc-rooms h3,
+.lantern-host .cifc-overlay-facts h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-l);
+}
+
+.lantern-host .cifc-count {
+  font-family: var(--text);
+  font-size: var(--fs-s);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.lantern-host .cifc-room-group h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 4px;
+  font-family: var(--text);
+  font-size: var(--fs-s);
+  font-weight: 650;
+  color: var(--muted);
+}
+
+.lantern-host .cifc-group-short {
+  min-width: 24px;
+  font-family: var(--display);
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--faint);
+}
+
+.lantern-host .cifc-room-group.is-current h4,
+.lantern-host .cifc-room-group.is-current .cifc-group-short {
+  color: var(--ink);
+}
+
+.lantern-host .cifc-room-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+
+.lantern-host .cifc-room-btn {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'name count' 'tags count';
+  align-items: center;
+  column-gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-control);
+  background: transparent;
+  text-align: left;
+  font-size: var(--fs-m);
+}
+
+.lantern-host .cifc-room-btn:hover {
+  background: rgba(27, 35, 48, 0.05);
+}
+
+.lantern-host .cifc-room-btn.is-context {
+  background: var(--lantern-soft);
+  border-color: var(--lantern-edge);
+  border-style: dashed;
+}
+
+.lantern-host .cifc-room-btn[aria-pressed='true'] {
+  background: var(--lantern);
+  border-color: var(--lantern-edge);
+  border-style: solid;
+  font-weight: 650;
+}
+
+.lantern-host .cifc-room-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.lantern-host .cifc-room-name {
+  grid-area: name;
+  overflow-wrap: anywhere;
+}
+
+.lantern-host .cifc-room-id {
+  font-family: var(--code);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.lantern-host .cifc-room-tags {
+  grid-area: tags;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.lantern-host .cifc-room-btn[aria-pressed='true'] .cifc-room-tags,
+.lantern-host .cifc-room-btn[aria-pressed='true'] .cifc-room-id {
+  color: var(--lantern-ink);
+}
+
+.lantern-host .cifc-room-count {
+  grid-area: count;
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.lantern-host .cifc-room-btn[aria-pressed='true'] .cifc-room-count {
+  box-shadow: 0 0 0 2px var(--card);
+}
+
+.lantern-host .cifc-room-group.is-unplaced h4 {
+  font-style: italic;
+}
+
+.lantern-host .cifc-siblings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.lantern-host .cifc-siblings .chip-btn {
+  min-height: 40px;
+}
+
+/* Narrow layouts stack the panel under the stage; this bar returns to the model. */
+.lantern-host .cifc-return {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 -16px -24px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--hair);
+  background: var(--card);
+  font-size: var(--fs-s);
+  font-weight: 650;
+}
+
+.lantern-host .cifc-return span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lantern-host .cifc-return .chip-btn {
+  flex: none;
+  min-height: 40px;
+}
+
+.lantern-host .cifc-empty {
+  font-size: var(--fs-s);
+  color: var(--muted);
+  padding: 4px 10px;
+}
+
+.lantern-host .cifc-overlay-facts {
+  display: grid;
+  gap: 4px;
+}
+
+.lantern-host .cifc-overlay-facts .layer-swatch {
+  --layer: currentColor;
+}
+
+.lantern-host .cifc-overlay-facts details,
+.lantern-host .cifc-source {
+  border-top: 1px solid var(--hair);
+  padding-top: 8px;
+}
+
+.lantern-host .cifc-overlay-facts summary,
+.lantern-host .cifc-source summary {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  cursor: pointer;
+  font-size: var(--fs-s);
+  font-weight: 650;
+}
+
+/* Local standard preview: producer unknowns stay prominent, never resolved here. */
+.lantern-host .cifc-focus.is-uncertain {
+  background: var(--warn-soft);
+  border-color: #e3c088;
+}
+
+.lantern-host .cifc-focus.is-uncertain h3,
+.lantern-host .cifc-panel .cifc-subhead {
+  font-size: var(--fs-m);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.lantern-host .cifc-unknowns {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding-left: 1.1em;
+  font-size: var(--fs-s);
+}
+
+.lantern-host .cifc-caveat {
+  margin-top: 4px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.lantern-host .cifc-unavailable {
+  padding: 24px;
+  border: 1px dashed var(--c-unknown);
+  border-radius: var(--r-sheet);
+  background: var(--card);
+  display: grid;
+  gap: 6px;
+}
+
+/* ---------- Wide: stage controls float, panel beside the stage ---------- */
+
+@container cifc (min-width: 1000px) {
+  .lantern-host .cifc-layout {
+    grid-template-columns: minmax(0, 1fr) var(--cifc-panel);
+    height: var(--cifc-height);
+  }
+
+  .lantern-host .cifc-stage {
+    display: block;
+    height: 100%;
+  }
+
+  .lantern-host .cifc-viewport {
+    position: absolute;
+    inset: 0;
+    height: auto;
+  }
+
+  .lantern-host .cifc-stage-head,
+  .lantern-host .cifc-stage-foot {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 5;
+    padding: 16px;
+    pointer-events: none;
+  }
+
+  .lantern-host .cifc-stage-head {
+    top: 0;
+  }
+
+  .lantern-host .cifc-stage-foot {
+    bottom: 0;
+  }
+
+  .lantern-host .cifc-stage-head > *,
+  .lantern-host .cifc-stage-foot > * {
+    pointer-events: auto;
+  }
+
+  .lantern-host .cifc-floors {
+    flex-direction: column;
+    max-height: calc(var(--cifc-height) - 160px);
+    overflow-y: auto;
+  }
+
+  .lantern-host .cifc-floors .floor-btn {
+    grid-template-columns: 42px 1fr;
+    min-height: 48px;
+  }
+
+  .lantern-host .cifc-floors .floor-short {
+    font-size: 24px;
+  }
+
+  .lantern-host .cifc-hint {
+    bottom: 76px;
+  }
+
+  .lantern-host .cifc-panel {
+    overflow-y: auto;
+    border-top: 0;
+    border-left: 1px solid var(--hair);
+  }
+
+  .lantern-host .cifc-return {
+    display: none;
+  }
+}
+
+@container cifc (min-width: 1240px) {
+  .lantern-host .cifc-layout {
+    --cifc-panel: 360px;
+  }
+}
+
+@container cifc (max-width: 479px) {
+  .lantern-host .cifc-floors .floor-sub {
+    display: none;
+  }
+
+  .lantern-host .cifc-floors .floor-btn {
+    padding-right: 10px;
+  }
+
+  .lantern-host .cifc-view-ctrl {
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+
+  .lantern-host .cifc .layer-chip {
+    padding: 0 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lantern-host .cifc * {
+    transition: none !important;
+  }
+}
+
+/* ---------- Local navigation: declared storeys, classes, occurrences ---------- */
+
+.lantern-host .cifc-nav {
+  display: grid;
+  gap: 8px;
+}
+
+.lantern-host .cifc-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lantern-host .cifc-toggles .chip-btn {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.lantern-host .cifc-toggles .chip-btn[aria-pressed='false'] {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--faint);
+}
+
+.lantern-host .cifc-source.cifc-room-group ul {
+  margin-top: 6px;
+}

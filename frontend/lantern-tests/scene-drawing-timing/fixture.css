@@ -1,0 +1,10 @@
+html, body { margin: 0; }
+.lantern-host.drawing-fixture { height: auto; min-height: 100vh; padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: start; }
+.drawing-fixture > header h1 { margin: 0 0 4px; font-size: var(--fs-xl, 20px); }
+.drawing-fixture > header p { margin: 0; max-width: 72ch; color: var(--muted, #5a6375); }
+/* The drawing is absolutely inset inside its scene in the product; this stage
+   stands in for that positioned scene at a bounded size. */
+.drawing-fixture-stage { position: relative; min-width: 0; height: min(70vh, 560px); min-height: 320px; overflow: hidden;
+  display: grid; place-items: center; border: 1px solid var(--line, #ddd); border-radius: 12px; background: var(--card-2, #f0f1ec); }
+.drawing-fixture-stage > .chip-btn { min-height: 40px; }
+@media (max-width: 520px) { .lantern-host.drawing-fixture { padding: 10px; } }

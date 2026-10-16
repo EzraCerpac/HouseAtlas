@@ -1,8 +1,11 @@
 import {
+  lazy,
+  Suspense,
   useEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
@@ -19,8 +22,11 @@ import { useEased } from './useCamera';
 import { LAYER, ROOM_KIND_LABEL, ROOM_TINT } from './palette';
 import { Icon } from '../components/Icon';
 import { EntityLink } from '../components/ui';
+import { OptionalViewerBoundary } from '../components/OptionalViewerBoundary';
 import { BuildingSection } from '../topology/BuildingScope';
 import { NativeScanAtlas, useNativeGeometryClient } from '../scans/native-ui/NativeScanAtlas';
+import { useSourcePorts } from '../source-ports';
+import '../source-models/source-switch.css';
 
 const DEFAULT_YAW = -32;
 const DEFAULT_TILT = 36;
@@ -30,7 +36,40 @@ const camPrefs = { yaw: DEFAULT_YAW, tilt: DEFAULT_TILT, zoom: 1, introDone: fal
 const OVERLAYS: Overlay[] = ['spaces', 'belongings', 'electrical', 'water', 'network', 'upkeep'];
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 
+const SourceModelView = lazy(() => import('../source-models/SourceModelView').then(module => ({ default: module.SourceModelView })));
+const SiteArtifactView = lazy(() => import('../site-artifacts/SiteArtifactView').then(module => ({ default: module.SiteArtifactView })));
+const noOverview = () => null;
+const noOverviewSubscription = () => () => {};
+
 export function AtlasView() {
+  const { models } = useSourcePorts();
+  const selectedOverview = useSyncExternalStore(models?.overview?.subscribe ?? noOverviewSubscription,
+    models?.overview?.current ?? noOverview, noOverview);
+  const [source, setSource] = useState<'home' | 'model' | 'site' | null>(null);
+  if (!models) return <HomeAtlas />;
+  const preferred = source ?? (selectedOverview ? 'model' : 'home');
+  const shown = preferred === 'site' && !models.site ? 'home' : preferred;
+  return <>
+    <div className="seg source-switch" role="group" aria-label="Atlas source">
+      <button type="button" aria-pressed={shown === 'home'} onClick={() => setSource('home')}>Home atlas</button>
+      <button type="button" aria-pressed={shown === 'model'} onClick={() => setSource('model')}>{selectedOverview ? 'Model' : 'Model file'}</button>
+      {models.site && <button type="button" aria-pressed={shown === 'site'} onClick={() => setSource('site')}>Site</button>}
+    </div>
+    {/* Keys keep each viewer's failure state with its own source. */}
+    {shown === 'model'
+      ? <OptionalViewerBoundary key="model" label="The model viewer">
+        <Suspense fallback={<p className="source-model-pane" role="status">Loading model viewer…</p>}><SourceModelView port={models} /></Suspense>
+      </OptionalViewerBoundary>
+      : shown === 'site' && models.site
+      ? <OptionalViewerBoundary key="site" label="The site viewer">
+        <Suspense fallback={<p className="source-model-pane" role="status">Loading site viewer…</p>}>
+          <div className="source-model-pane"><SiteArtifactView port={models.site} /></div></Suspense>
+      </OptionalViewerBoundary>
+      : <HomeAtlas />}
+  </>;
+}
+
+function HomeAtlas() {
   const { house } = useStore();
   const nativeGeometry = useNativeGeometryClient();
   if (house.geometry === 'none' && nativeGeometry) return <NativeScanAtlas client={nativeGeometry} />;
