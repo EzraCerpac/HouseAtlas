@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b8662ffbeeb74d1e693d4e568e37326042fdc64b8f39401de89573200e0bff74",
+  "sourceDigestSha256": "47870966add73721f0fee7021c0345dcf1892fdae674a5b91babfa4e27b65651",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -1743,8 +1743,15 @@
     {
       "path": "backend/src/domain/projection.rs",
       "mode": "100644",
-      "bytes": 14628,
-      "sha256": "fe52ae4937d3df288293e6f10429c621eb2890f5eaa87469b1867e1006a39076",
+      "bytes": 15288,
+      "sha256": "2af10a4f6f38be3819de91669377677a8f0360a7fbb9e7509fba945811a80099",
+      "owner": "domain"
+    },
+    {
+      "path": "backend/src/domain/projection_healthy.rs",
+      "mode": "100644",
+      "bytes": 7139,
+      "sha256": "f9ddbd0d057db8767aa33dfebf60d158792c524ceef2221720f8dd0306e9cd10",
       "owner": "domain"
     },
     {
