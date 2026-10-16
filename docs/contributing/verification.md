@@ -1141,6 +1141,41 @@ The timing tables show bounded anonymous local stages from the real components;
 fake read delays describe only the generated fixture. Stop the owned preview
 within 20 minutes. This manual review adds no workflow or ordinary CI command.
 
+## Unified Atlas healthy generated check
+
+The unified Atlas reads one `houseatlas.unified-atlas-scene.v1` envelope and its
+pinned GLB. Inspect `frontend/lantern-tests/unified-atlas-healthy.mjs`, its
+generator `frontend/lantern-tests/unified-atlas/synthetic-atlas.ts` and the
+imported reader, scene, geometry, GLB preflight and standard GLB modules. Then use
+Node 26.10.0 and the locked frontend dependencies:
+
+```sh
+node frontend/lantern-tests/unified-atlas-healthy.mjs
+```
+
+It takes no arguments. It runs the production scene reader against a generated
+in-process HTTPS transport, loads the generated GLB through the pinned
+GLTFLoader once, and checks nested-transform baking, per-primitive building and
+level membership, shared multi-level geometry, out-of-order and split-level
+elevations, selectable and excluded rooms, duplicate labels, qualified overlay
+joins and explicit unplaced reasons. It also checks the shared presentation used
+for drawing, hidden room picks, explosion offsets, section clips, labels, and
+3D, stacked, focused, mid-transition and plan picking. It uses no browser,
+GPU, listener, native host, credentials, household input or provider. It adds
+no malformed, denial, replay, expiry, crash or private-intake case. Its
+generated geometry does not establish real publication coverage, layout,
+rendering or device behavior.
+
+The `/lantern-tests/source-host-visual/` fixture keeps its default. With
+`?atlas=generated` it also mounts the unified Atlas through the production
+reader against an in-page synthetic HTTPS transport. With
+`?atlas-scene=<path>&atlas-model=<path>` it reads an externally supplied
+publication companion and GLB once from the same loopback origin instead. Both
+paths are required, and they are fetched without credentials or redirects.
+Keep supplied files and any captures outside Git. Follow the loopback preview
+bounds above. A fixture review does not qualify native authority, household
+data or deployment, and it adds no workflow or ordinary CI command.
+
 ## Native geodata document first slice
 
 Inspect `backend/src/media/geodata_original.rs`,

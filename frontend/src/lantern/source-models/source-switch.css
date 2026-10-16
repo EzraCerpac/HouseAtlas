@@ -8,6 +8,21 @@
 /* A failed model viewer stays below the switch; Home atlas remains available. */
 .lantern-host .source-switch ~ .viewer-unavailable { margin: 0 12px 16px; }
 
+/* Unified Atlas: other sources are a quiet row, and an opened one leads with a way back. */
+.lantern-host .atlas-sources {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 14px;
+  margin: 8px 12px 0;
+}
+.lantern-host .atlas-sources.is-open { justify-content: flex-start; }
+.lantern-host .atlas-sources .text-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; }
+.lantern-host .atlas-sources h2 { margin: 0; font: 700 var(--fs-l)/1.2 var(--display); }
+.lantern-host .atlas-sources ~ .viewer-unavailable { margin: 0 12px 16px; }
+
 .lantern-host.view-atlas .main > .source-model-pane {
   flex: 1;
   min-height: 0;

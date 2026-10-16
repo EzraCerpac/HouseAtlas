@@ -29,6 +29,13 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape }: {
   const [zoom, setZoom] = useState(1), [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const drag = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null);
+  // Two touching pointers pinch to zoom and move to pan; neither turns nor taps.
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ distance: number; x: number; y: number } | null>(null);
+  const span = () => {
+    const [a, b] = [...pointers.current.values()];
+    return a && b ? { distance: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : null;
+  };
   // Top-down returns to the source orientation by the shortest turn.
   const topYaw = Math.round(orbit.yaw / 360) * 360;
   const eased = useEased({ yaw: top ? topYaw : orbit.yaw, pitch: top ? 90 : orbit.pitch, zoom, panX: pan.x, panY: pan.y },
@@ -57,12 +64,31 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape }: {
   const zoomBy = (factor: number) => setZoom(value => Math.min(ZOOM.max, Math.max(ZOOM.min, value * factor)));
   const fit = () => { setZoom(1); setPan({ x: 0, y: 0 }); if (!top) setOrbit(DEFAULT_ORBIT); };
   const endDrag = () => { drag.current = null; setDragging(false); };
+  const forget = (id: number) => { pointers.current.delete(id); if (pointers.current.size < 2) pinch.current = null; };
 
   const bind = {
     onPointerDown: (event: PointerEvent<HTMLDivElement>) => {
-      if (event.button !== 0) return; drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+      if (event.button !== 0) return;
+      // Touch pointers are implicitly captured, so their up events always arrive here.
+      if (event.pointerType === 'touch') pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (pointers.current.size >= 2) {
+        // A second finger turns the gesture into a pinch; the first finger's drag and tap end.
+        drag.current = null; pinch.current = span();
+        if (!event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.setPointerCapture(event.pointerId);
+        setDragging(true); return;
+      }
+      drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
     },
     onPointerMove: (event: PointerEvent<HTMLDivElement>) => {
+      if (pointers.current.has(event.pointerId)) pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      const from = pinch.current;
+      if (from) {
+        const to = span(); if (!to) return;
+        pinch.current = to;
+        setZoom(value => Math.min(ZOOM.max, Math.max(ZOOM.min, value * to.distance / from.distance)));
+        setPan(value => ({ x: value.x + to.x - from.x, y: value.y + to.y - from.y }));
+        return;
+      }
       const d = drag.current; if (!d || d.id !== event.pointerId) return;
       const dx = event.clientX - d.x, dy = event.clientY - d.y;
       if (!d.moved && Math.hypot(dx, dy) < 5) return;
@@ -72,13 +98,21 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape }: {
       else setOrbit(value => ({ yaw: value.yaw + dx * .4, pitch: Math.min(PITCH_3D.max, Math.max(PITCH_3D.min, value.pitch - dy * .25)) }));
     },
     onPointerUp: (event: PointerEvent<HTMLDivElement>) => {
-      const d = drag.current; endDrag();
+      const multi = pinch.current !== null || pointers.current.size > 1;
+      forget(event.pointerId);
       if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      // The gesture stays a pinch until every finger has lifted.
+      if (multi) { if (pointers.current.size === 0) endDrag(); return; }
+      const d = drag.current; endDrag();
       if (!d || d.id !== event.pointerId || d.moved) return;
       const rect = event.currentTarget.getBoundingClientRect(); onTap(event.clientX - rect.left, event.clientY - rect.top);
     },
-    onPointerCancel: endDrag,
-    onLostPointerCapture: endDrag,
+    onPointerCancel: (event: PointerEvent<HTMLDivElement>) => { forget(event.pointerId); endDrag(); },
+    onLostPointerCapture: (event: PointerEvent<HTMLDivElement>) => {
+      // Releasing capture on pointer up also lands here; only an unexpected loss ends the gesture.
+      if (!pointers.current.has(event.pointerId)) return;
+      forget(event.pointerId); endDrag();
+    },
     onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
       if (event.target !== event.currentTarget) return;
       const step = event.shiftKey ? 4 : 1;

@@ -398,6 +398,20 @@ const sourceModels: SourceModelPort = {
       } finally { unsubscribe(); }
     },
   },
+  // The unified Atlas reads the same selected publication's opt-in scene and
+  // pinned model bytes; the same owner, session and expiry fence every step.
+  atlas: {
+    current: currentOverview, subscribe: subscribeOverview,
+    async read(selection, signal) {
+      const controller = new AbortController();
+      const unsubscribe = subscribeOverview(() => { if (currentOverview() !== selection) controller.abort(); });
+      try {
+        const reader = await import('./unified-atlas-reader');
+        return await reader.readUnifiedAtlas({ selection, signal: AbortSignal.any([signal, controller.signal]),
+          origin: window.location.origin, isCurrent: () => currentOverview() === selection });
+      } finally { unsubscribe(); }
+    },
+  },
   session: {
     current() {
       if (!currentSession || !currentQuantityScope) return null;
