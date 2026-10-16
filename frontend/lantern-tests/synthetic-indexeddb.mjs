@@ -8,7 +8,7 @@
  * survives a closed page and process. */
 
 export function createSyntheticDisk({ quota = Infinity } = {}) {
-  return { databases: new Map(), quota, commits: 0, quotaAborts: 0 };
+  return { databases: new Map(), quota, commits: 0, quotaAborts: 0, transactions: Promise.resolve(), pause: Promise.resolve() };
 }
 
 const later = callback => setTimeout(callback, 0);
@@ -27,7 +27,6 @@ export function syntheticRecords(disk, databaseName, storeName) {
 }
 
 export function createSyntheticIndexedDB(disk) {
-  let queue = Promise.resolve();
   function request(owner) {
     return { result: undefined, error: null, onsuccess: null, onerror: null, onblocked: null, onupgradeneeded: null, source: owner };
   }
@@ -53,14 +52,15 @@ export function createSyntheticIndexedDB(disk) {
     return db;
   }
   function transaction(record, names, mode) {
-    // Copy-on-write snapshot; committed to the disk only on success.
-    const staged = new Map(names.map(storeName => [storeName, new Map(record.stores.get(storeName).records)]));
+    // Snapshot only when this transaction starts, after preceding connections'
+    // transactions commit. A factory-local queue would conceal cross-page bugs.
+    const staged = new Map();
     let pending = 0, finished = false, started = false;
     const operations = [];
     const tx = { mode, error: null, oncomplete: null, onabort: null, onerror: null,
       objectStore(storeName) {
-        if (!staged.has(storeName)) throw domError('NotFoundError', `No store ${storeName} in transaction`);
-        const keyPath = record.stores.get(storeName).keyPath, rows = staged.get(storeName);
+        if (!names.includes(storeName)) throw domError('NotFoundError', `No store ${storeName} in transaction`);
+        const keyPath = record.stores.get(storeName).keyPath, rows = () => staged.get(storeName);
         const issue = (write, run) => {
           if (finished) throw domError('TransactionInactiveError', 'Transaction finished');
           if (write && mode !== 'readwrite') throw domError('ReadOnlyError', 'Read-only transaction');
@@ -75,11 +75,11 @@ export function createSyntheticIndexedDB(disk) {
         };
         const key = value => { if (typeof value !== 'string') throw domError('DataError', 'Invalid key'); return value; };
         return {
-          get: id => issue(false, () => { const value = rows.get(key(id)); return value === undefined ? undefined : structuredClone(value); }),
-          getAll: () => issue(false, () => [...rows.keys()].sort().map(id => structuredClone(rows.get(id)))),
-          put: value => { const id = key(value?.[keyPath]), copy = structuredClone(value); return issue(true, () => { rows.set(id, copy); return id; }); },
-          delete: id => { const target = key(id); return issue(true, () => { rows.delete(target); }); },
-          clear: () => issue(true, () => { rows.clear(); }),
+          get: id => issue(false, () => { const value = rows().get(key(id)); return value === undefined ? undefined : structuredClone(value); }),
+          getAll: () => issue(false, () => [...rows().keys()].sort().map(id => structuredClone(rows().get(id)))),
+          put: value => { const id = key(value?.[keyPath]), copy = structuredClone(value); return issue(true, () => { rows().set(id, copy); return id; }); },
+          delete: id => { const target = key(id); return issue(true, () => { rows().delete(target); }); },
+          clear: () => issue(true, () => { rows().clear(); }),
         };
       },
       abort() { if (finished) throw domError('InvalidStateError', 'Transaction finished'); abort(null); },
@@ -89,9 +89,10 @@ export function createSyntheticIndexedDB(disk) {
       later(() => {
         if (finished || pending > 0 || operations.length) return;
         if (mode === 'readwrite') {
+          const previousBytes = sizeOf(disk);
           const previous = new Map(names.map(storeName => [storeName, record.stores.get(storeName).records]));
           for (const [storeName, rows] of staged) record.stores.get(storeName).records = rows;
-          if (sizeOf(disk) > disk.quota) {
+          if (sizeOf(disk) > disk.quota && sizeOf(disk) > previousBytes) {
             for (const [storeName, rows] of previous) record.stores.get(storeName).records = rows;
             disk.quotaAborts++;
             abort(domError('QuotaExceededError', 'Synthetic origin quota exceeded'));
@@ -109,11 +110,12 @@ export function createSyntheticIndexedDB(disk) {
     }
     let done;
     // Transactions run one at a time across every connection to this disk.
-    queue = queue.then(() => new Promise(resolve => {
+    disk.transactions = disk.transactions.then(async () => { await disk.pause; return new Promise(resolve => {
       done = resolve; started = true;
       if (finished) { resolve(); return; }
+      for (const storeName of names) staged.set(storeName, new Map(record.stores.get(storeName).records));
       drain(); settle();
-    }));
+    }); });
     return tx;
   }
   return {

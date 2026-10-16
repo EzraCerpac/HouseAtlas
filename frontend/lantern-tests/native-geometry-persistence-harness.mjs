@@ -6,6 +6,7 @@
  * IndexedDB disk that outlives it. No browser, credential or user data. */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { transformWithOxc } from 'vite';
 import { loadClientSource } from './native-geometry-read.mjs';
@@ -33,7 +34,11 @@ export async function derivative(label) {
   const bytes = new TextEncoder().encode(JSON.stringify(syntheticMeshFixture(label)));
   return Object.freeze({ label, bytes, sha: Buffer.from(await crypto.subtle.digest('SHA-256', bytes)).toString('hex') });
 }
-export const floorKey = index => (index + 1).toString(16).padStart(64, '8');
+// Like the native owner's digest, this changes with the offered record's
+// revision, content or licence; the logical geometry record ID stays stable.
+export const floorKey = (index, state) => createHash('sha256').update(JSON.stringify([
+  index, state.revision, state.mesh.sha, state.license,
+])).digest('hex');
 const id = (prefix, index) => `${prefix}-${prefix.slice(0, 4)}-${prefix.slice(0, 4)}-${prefix.slice(0, 4)}-${String(index).padStart(12, '0')}`;
 
 /** One building whose descriptor offers `floors` exports of the current
@@ -45,11 +50,11 @@ export async function startSyntheticOwner(initial) {
   const descriptor = homeId => {
     const path = `/api/atlas/geometry/v1/workspaces/${workspaceId}/homes/${homeId}/buildings/${buildingId}`;
     const floors = Array.from({ length: state.floors }, (_, index) => ({ floor: {
-      key: floorKey(index), exportLabel: state.mesh.label, originalSha256: 'a'.repeat(64), derivativeSha256: state.mesh.sha,
+      key: floorKey(index, state), exportLabel: state.mesh.label, originalSha256: 'a'.repeat(64), derivativeSha256: state.mesh.sha,
       geometryId: id('44444444', index), geometryRevision: '5', evidenceId: id('55555555', index), evidenceRevision: '7',
       originalAssetId: id('66666666', index), originalRevision: '11', derivativeAssetId: id('77777777', index), derivativeRevision: state.revision,
       originalLicense: { status: 'unknown', reference: null }, derivativeLicense: state.license,
-    }, readPath: `${path}/frames/${state.viewKey}/meshes/${floorKey(index)}` }));
+    }, readPath: `${path}/frames/${state.viewKey}/meshes/${floorKey(index, state)}` }));
     const json = JSON.stringify({ schemaVersion: 1, profile: 'houseatlas.magicplan-authored-mesh.v1', scope: { workspaceId, homeId },
       buildingId, viewKey: state.viewKey, floors, physicalScale: 'unknown', floorAlignment: 'unknown', stageToHouseTransform: null });
     // Native u64 revisions are JSON numbers.
@@ -72,7 +77,7 @@ export async function startSyntheticOwner(initial) {
       reads.push({ kind: 'descriptor', homeId }); send(response, descriptor(homeId), 'application/json'); return;
     }
     // Only the current frame's owner-offered mesh path is served.
-    const offered = Array.from({ length: state.floors }, (_, index) => floorKey(index));
+    const offered = Array.from({ length: state.floors }, (_, index) => floorKey(index, state));
     if (viewKey !== state.viewKey || !offered.includes(key) || request.headers.accept !== MESH_MIME) return refuse('not offered');
     reads.push({ kind: 'mesh', homeId, key }); send(response, Buffer.from(state.mesh.bytes), MESH_MIME);
   });
@@ -100,11 +105,12 @@ export async function createProcesses(owner) {
     // The canonical session as published by the session route.
     const session = Object.freeze({ schemaVersion: 1, actorId, csrfToken: CSRF_MARKER, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString() });
     const scope = Object.freeze({ workspaceId, homeId });
+    let cacheRequests = 0;
     const client = createNativeGeometryReadClient({
       origin: owner.origin,
       getBinding: () => ({ sessionIdentity: session, actorId: session.actorId, expiresAt: session.expiresAt, scope }),
       subscribeBinding: () => () => undefined,
-      retainMeshes: { sessionPresent: () => true, persist: cache },
+      retainMeshes: { sessionPresent: () => true, persist: async () => { cacheRequests++; return cache; } },
     });
     // The scans view's sequence: a fresh descriptor, then each floor through
     // the verifying mesh reader.
@@ -121,6 +127,7 @@ export async function createProcesses(owner) {
     };
     return {
       open, cache, database: cacheModule.SCAN_CACHE_DATABASE, limits: cacheModule.SCAN_CACHE_LIMITS,
+      get cacheRequests() { return cacheRequests; },
       // A closed page: queued cache work settles, then every reference is dropped.
       async close() { client.dispose(); await cache.close(); },
     };

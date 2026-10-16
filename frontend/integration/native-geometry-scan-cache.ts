@@ -14,9 +14,11 @@ export const SCAN_CACHE_DATABASE = 'houseatlas-scan-asset-cache-v1';
 export const SCAN_CACHE_LIMITS = Object.freeze({
   entries: 16, bytes: 64 * 1024 * 1024, entryBytes: 8 * 1024 * 1024, unusedMs: 30 * 24 * 60 * 60 * 1000,
 });
-export type ScanCacheLimits = typeof SCAN_CACHE_LIMITS;
+export type ScanCacheLimits = Readonly<Record<keyof typeof SCAN_CACHE_LIMITS, number>>;
 
 export interface NativeGeometryScanCache {
+  /** Establish this handle's generation before a fresh authorized mesh read. */
+  ready(): Promise<void>;
   /** Bytes stored for exactly this partition and derivative key, or null. */
   read(partition: string, key: string): Promise<Uint8Array | null>;
   /** Queues a copy of verified bytes; replaces other versions in the same slot. */
@@ -28,7 +30,7 @@ export interface NativeGeometryScanCache {
   close(): Promise<void>;
 }
 
-const ENTRIES = 'entries', BLOBS = 'blobs', deadlineMs = 10_000;
+const ENTRIES = 'entries', BLOBS = 'blobs', CONTROL = 'control', deadlineMs = 10_000;
 interface Entry { readonly id: string; readonly partition: string; readonly slot: string; readonly bytes: number; readonly usedAt: number }
 interface Blob { readonly id: string; readonly data: ArrayBuffer }
 
@@ -49,9 +51,9 @@ function ask<T>(request: IDBRequest<T>): Promise<T> {
   });
 }
 function transaction<T>(db: IDBDatabase, mode: IDBTransactionMode,
-  body: (entries: IDBObjectStore, blobs: IDBObjectStore) => Promise<T>): Promise<T> {
+  body: (entries: IDBObjectStore, blobs: IDBObjectStore, control: IDBObjectStore) => Promise<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const tx = db.transaction([ENTRIES, BLOBS], mode);
+    const tx = db.transaction([ENTRIES, BLOBS, CONTROL], mode);
     let value: T, failure: unknown;
     const timer = setTimeout(() => {
       failure ??= new Error('Scan cache did not complete');
@@ -60,7 +62,7 @@ function transaction<T>(db: IDBDatabase, mode: IDBTransactionMode,
     tx.oncomplete = () => { clearTimeout(timer); resolve(value); };
     // A quota failure surfaces as the transaction's own error.
     tx.onabort = () => { clearTimeout(timer); reject(tx.error ?? failure ?? new Error('Scan cache transaction aborted')); };
-    body(tx.objectStore(ENTRIES), tx.objectStore(BLOBS)).then(result => { value = result; }, error => {
+    body(tx.objectStore(ENTRIES), tx.objectStore(BLOBS), tx.objectStore(CONTROL)).then(result => { value = result; }, error => {
       failure = error;
       try { tx.abort(); } catch { /* Already finished. */ }
     });
@@ -86,7 +88,7 @@ export function openNativeGeometryScanCache(factory: IDBFactory | undefined,
   };
   const connect = (): Promise<IDBDatabase> => connection ??= new Promise<IDBDatabase>((resolve, reject) => {
     let request: IDBOpenDBRequest;
-    try { request = factory!.open(SCAN_CACHE_DATABASE, 1); } catch (error) { unavailable = true; reject(error); return; }
+    try { request = factory!.open(SCAN_CACHE_DATABASE, 2); } catch (error) { unavailable = true; reject(error); return; }
     let settled = false;
     const stop = (error: unknown) => {
       if (settled) return;
@@ -99,21 +101,39 @@ export function openNativeGeometryScanCache(factory: IDBFactory | undefined,
       const db = request.result;
       if (!db.objectStoreNames.contains(ENTRIES)) db.createObjectStore(ENTRIES, { keyPath: 'id' });
       if (!db.objectStoreNames.contains(BLOBS)) db.createObjectStore(BLOBS, { keyPath: 'id' });
+      if (!db.objectStoreNames.contains(CONTROL)) db.createObjectStore(CONTROL, { keyPath: 'id' });
     };
     request.onsuccess = () => {
       const db = request.result;
-      // Another tab's sign-out deletes the database; reconnect on next use.
+      // Release this connection for a future schema upgrade in another page.
       db.onversionchange = () => { db.close(); connection = null; };
       if (settled) { db.close(); return; }
       settled = true; clearTimeout(timer); resolve(db);
     };
   });
 
+  // Establish this handle's durable generation before hashing or queueing any
+  // writes. Clear rotates it atomically with deletion. Other handles retain
+  // their old generation and cannot read or repopulate the cleared cache;
+  // a newly opened handle can join the new generation after fresh authority.
+  let generation: string | null = null;
+  const ready = factory ? connect().then(db => transaction(db, 'readwrite', async (_entries, _blobs, control) => {
+    const record = await ask(control.get('generation')) as { value?: unknown } | undefined;
+    const value = typeof record?.value === 'string' ? record.value : crypto.randomUUID();
+    if (!record) control.put({ id: 'generation', value });
+    return value;
+  })).then(value => { generation = value; }, () => { unavailable = true; }) : Promise.resolve();
+  const matches = async (control: IDBObjectStore, expected: string | null) => {
+    const record = await ask(control.get('generation')) as { value?: unknown } | undefined;
+    return expected !== null && record?.value === expected;
+  };
+
   const removeRows = (entries: IDBObjectStore, blobs: IDBObjectStore, id: string) => { entries.delete(id); blobs.delete(id); };
   // Strictly increasing recency, even within one millisecond or across pages.
   const stamp = (rows: readonly unknown[]) => rows.reduce<number>((latest, row) => entry(row, limits)
     && row.usedAt < Date.now() + 60_000 ? Math.max(latest, row.usedAt + 1) : latest, Date.now());
-  const load = async (partitionId: string, id: string): Promise<Uint8Array | null> => transaction(await connect(), 'readwrite', async (entries, blobs) => {
+  const load = async (partitionId: string, id: string): Promise<Uint8Array | null> => transaction(await connect(), 'readwrite', async (entries, blobs, control) => {
+    if (!await matches(control, generation)) return null;
     const row: unknown = await ask(entries.get(id));
     if (row === undefined) return null;
     const blob = await ask(blobs.get(id)) as Blob | undefined;
@@ -124,7 +144,8 @@ export function openNativeGeometryScanCache(factory: IDBFactory | undefined,
     entries.put({ ...row, usedAt: stamp(await ask(entries.getAll())) } satisfies Entry);
     return new Uint8Array(blob.data);
   });
-  const store = async (partitionId: string, slotId: string, id: string, data: ArrayBuffer) => transaction(await connect(), 'readwrite', async (entries, blobs) => {
+  const store = async (partitionId: string, slotId: string, id: string, data: ArrayBuffer, expected: string | null) => transaction(await connect(), 'readwrite', async (entries, blobs, control) => {
+    if (!await matches(control, expected)) return;
     const rows: unknown[] = await ask(entries.getAll()), now = Date.now(), kept: Entry[] = [];
     const usedAt = stamp(rows);
     // Contents in an unknown shape are dropped as a whole.
@@ -145,39 +166,55 @@ export function openNativeGeometryScanCache(factory: IDBFactory | undefined,
     entries.put({ id, partition: partitionId, slot: slotId, bytes: data.byteLength, usedAt } satisfies Entry);
   });
   /** Frees the least recently used half of this cache's records (at least one). */
-  const shrink = async () => transaction(await connect(), 'readwrite', async (entries, blobs) => {
+  const shrink = async (expected: string | null) => transaction(await connect(), 'readwrite', async (entries, blobs, control) => {
+    if (!await matches(control, expected)) return false;
     const rows = (await ask(entries.getAll()) as unknown[]).filter(row => entry(row, limits)).sort((a, b) => a.usedAt - b.usedAt);
     for (const row of rows.slice(0, Math.max(1, Math.ceil(rows.length / 2)))) removeRows(entries, blobs, row.id);
     return rows.length > 0;
   });
-  const empty = async () => transaction(await connect(), 'readwrite', async (entries, blobs) => { entries.clear(); blobs.clear(); });
+  const empty = async () => {
+    const next = crypto.randomUUID();
+    await transaction(await connect(), 'readwrite', async (entries, blobs, control) => {
+      entries.clear(); blobs.clear(); control.put({ id: 'generation', value: next });
+    });
+    generation = next;
+  };
 
   return Object.freeze({
+    ready: () => ready,
     read: (partition: string, key: string) => enqueue(async () => {
+      await ready;
       const [partitionId, id] = await Promise.all([digest(partition), digest(partition, key)]);
       return load(partitionId, id);
     }, null),
     write(partition: string, slot: string, key: string, bytes: Uint8Array) {
-      if (bytes.byteLength === 0 || bytes.byteLength > limits.entryBytes || bytes.byteLength > limits.bytes) return;
+      // Capture synchronously: a write called before initialization must not
+      // acquire a generation established after another page has cleared it.
+      const expected = generation;
+      if (expected === null || bytes.byteLength === 0 || bytes.byteLength > limits.entryBytes || bytes.byteLength > limits.bytes) return;
       const data = bytes.slice().buffer;
       void enqueue(async () => {
         const [partitionId, slotId, id] = await Promise.all([digest(partition), digest(partition, slot), digest(partition, key)]);
-        try { await store(partitionId, slotId, id, data); return; } catch (error) { if (!quota(error)) throw error; }
+        try { await store(partitionId, slotId, id, data, expected); return; } catch (error) { if (!quota(error)) throw error; }
         // Origin storage is fuller than this cache's own bound: give way in
         // halves, oldest used first, until the record fits or nothing is left.
-        while (await shrink()) {
-          try { await store(partitionId, slotId, id, data); return; } catch (error) { if (!quota(error)) throw error; }
+        while (await shrink(expected)) {
+          try { await store(partitionId, slotId, id, data, expected); return; } catch (error) { if (!quota(error)) throw error; }
         }
       }, undefined);
     },
     remove(partition: string, key: string) {
       void enqueue(async () => {
+        await ready;
         const id = await digest(partition, key);
-        await transaction(await connect(), 'readwrite', async (entries, blobs) => { removeRows(entries, blobs, id); });
+        await transaction(await connect(), 'readwrite', async (entries, blobs, control) => {
+          if (await matches(control, generation)) removeRows(entries, blobs, id);
+        });
       }, undefined);
     },
-    clear: () => enqueue(empty, undefined),
+    clear: () => enqueue(async () => { await ready; await empty(); }, undefined),
     close: async () => {
+      await ready;
       await enqueue(async () => undefined, undefined);
       closed = true;
       const open = connection; connection = null;

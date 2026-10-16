@@ -17,7 +17,7 @@ import { createNativePlaceClient } from "../src/api/native-place-client";
 import { createTopologyClient } from "../src/api/topology-client";
 import { createNetworkRelationsClient } from "../src/api/network-relations-client";
 import { createNativeGeometryReadClient } from "./native-geometry-read-client";
-import { openNativeGeometryScanCache } from "./native-geometry-scan-cache";
+import type { NativeGeometryScanCache } from "./native-geometry-scan-cache";
 import { createNativeEvidenceDocumentClient } from "./native-evidence-document-client";
 import { createNativeSceneAssociationClient } from "./native-scene-association-client";
 import { createNativeSceneSourceClient } from "./native-scene-source-client";
@@ -80,7 +80,9 @@ const modelContext = detectModelContext(document);
 let sessionGeneration = 0;
 // Verified scan derivative bytes only, opened on first scan read; sign-out
 // deletes them. Unavailable storage reads from the server as before.
-const scanCache = openNativeGeometryScanCache(typeof indexedDB === "undefined" ? undefined : indexedDB);
+let scanCache: Promise<NativeGeometryScanCache> | undefined;
+const getScanCache = () => scanCache ??= import("./native-geometry-scan-cache").then(module =>
+  module.openNativeGeometryScanCache(typeof indexedDB === "undefined" ? undefined : indexedDB));
 const nativeSignOut = nativeSessions.signOut;
 const nativeLocalAccess = nativeSessions.localAccess;
 const nativeLocalSignIn = nativeLocalAccess?.signIn;
@@ -129,7 +131,7 @@ const sessions: AtlasSessionClient = {
     currentQuantityScope = null;
     currentReadyView = null;
     quantityChanged();
-    const scansCleared = scanCache.clear();
+    const scansCleared = getScanCache().then(cache => cache.clear()).catch(() => undefined);
     try { await nativeSignOut(signal); }
     finally { await scansCleared; captureDrafts.announceSessionChange(); }
   } } : {}),
@@ -261,7 +263,7 @@ const nativeGeometry = createNativeGeometryReadClient({
     quantityEvents.addEventListener("changed", changed);
     return () => quantityEvents.removeEventListener("changed", changed);
   },
-  retainMeshes: { sessionPresent: () => currentSession !== null, persist: scanCache },
+  retainMeshes: { sessionPresent: () => currentSession !== null, persist: getScanCache },
 });
 // Saved originals share the current canonical owner and completed view scope.
 const nativeEvidenceDocuments = createNativeEvidenceDocumentClient({

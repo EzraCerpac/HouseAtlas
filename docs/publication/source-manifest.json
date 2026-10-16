@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d0824cd3fc1edfc7397e23b943039343a95b4da62e75b7d105b947a545daab28",
+  "sourceDigestSha256": "a60d8717f69cd1337b3c0cf684ded2fee5e280f64ba527029eb3d7299deeea6e",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5797,8 +5797,8 @@
       "path": "docs/contributing/verification.md",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 64030,
-      "sha256": "45b3e808a0e2a27c5482a8ffc73898536c3966f56efc9b474b13571862999474"
+      "bytes": 65342,
+      "sha256": "c5f40f7a326bdb81f67f0fd7a4f5678a86528df36a394d7d444612e5990b5e19"
     },
     {
       "path": "docs/coordination/agent-write-amendment-proposal.md",
@@ -6651,8 +6651,8 @@
       "path": "frontend/integration/main.tsx",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 33070,
-      "sha256": "2f4738c9e42f44b2f501f4527a6273c4ab48ec879c282ab5b5a83f3d9dd133e3"
+      "bytes": 33271,
+      "sha256": "23686c72bb7803b92b6c4b1a5b424700d9cab02abd8ef8aa789359ad9d26632e"
     },
     {
       "path": "frontend/integration/native-document-read-client.ts",
@@ -6679,14 +6679,14 @@
       "path": "frontend/integration/native-geometry-read-client.ts",
       "owner": "web",
       "mode": "100644",
-      "bytes": 31596,
-      "sha256": "46d76d691e9c1b3a695b04713934e88dd46b8c7f82a0e9c252d850f7fa17f831"
+      "bytes": 32674,
+      "sha256": "1e4bc601c9910aa61252f6a686a909e792751327be3c5ad1c0b31dcd82f15c2b"
     },
     {
       "path": "frontend/integration/native-geometry-scan-cache.ts",
       "mode": "100644",
-      "bytes": 10911,
-      "sha256": "62a0fe5ac3623edb93a69bb7609526ea49489d155fb5a551f1b49de5f3c305cf",
+      "bytes": 13102,
+      "sha256": "03e9eec52454b70cd9b507fd32e6ba0d11f4adc94e065e94f70d390c439f340e",
       "owner": "web"
     },
     {
@@ -6886,17 +6886,38 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/native-geometry-persistence-budget.mjs",
+      "mode": "100644",
+      "bytes": 1975,
+      "sha256": "06c9152b2cea6d0cc38af913d777fcd1143437bf2d42503c2b6a087971681c27",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/native-geometry-persistence-clear.mjs",
+      "mode": "100644",
+      "bytes": 3596,
+      "sha256": "c2fff722c5e2166ea9968c785e20d119abca80150b1165ec5819fc4014018e16",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/native-geometry-persistence-harness.mjs",
       "mode": "100644",
-      "bytes": 8868,
-      "sha256": "6b4d713c08fccc9a9365fb18f6676d89dab567d4b26ad306b3935398bc63315c",
+      "bytes": 9289,
+      "sha256": "4eaa95cc58f826a19a7627477d27203ec0a38da3d1802f861452b9580cceaef3",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/native-geometry-persistence-quota.mjs",
+      "mode": "100644",
+      "bytes": 2837,
+      "sha256": "8dfb7483f4245d9176452e0f754ba0ac7a2db9a9e11489adede20df6bdc157f9",
       "owner": "web"
     },
     {
       "path": "frontend/lantern-tests/native-geometry-persistence.mjs",
       "mode": "100644",
-      "bytes": 7348,
-      "sha256": "c8d6d554b0359ba65fc7a3c0db44c82178e13a0a9a178f141f993fdb6253fbc5",
+      "bytes": 7387,
+      "sha256": "4ccfe52d293576502cc06fc3a3ffba85844533156b079966542fe3f066828d32",
       "owner": "web"
     },
     {
@@ -7126,8 +7147,8 @@
     {
       "path": "frontend/lantern-tests/synthetic-indexeddb.mjs",
       "mode": "100644",
-      "bytes": 6994,
-      "sha256": "edab1d1d6ead56c01d68fe48896496d44c58b98eb3285af4fb09608c6246a3b9",
+      "bytes": 7296,
+      "sha256": "fce89017e84fccd139b851ab87f70ad029a89aece454176505db0683843e4927",
       "owner": "web"
     },
     {

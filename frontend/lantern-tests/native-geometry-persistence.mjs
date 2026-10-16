@@ -67,7 +67,7 @@ export async function runHealthyNativeGeometryPersistence() {
       // Storage holds digests and verified bytes only, in its own database.
       assert.deepEqual([...disk.databases.keys()], [database]);
       const rows = entries(disk), text = JSON.stringify(rows);
-      for (const value of [actorA, actorB, CSRF_MARKER, workspaceId, homeA, homeB, buildingId, floorKey(0)])
+      for (const value of [actorA, actorB, CSRF_MARKER, workspaceId, homeA, homeB, buildingId, floorKey(0, owner.state)])
         assert(!text.includes(value), 'No identity, scope, token or offer field is stored in readable form');
       for (const row of rows) {
         assert.deepEqual(Object.keys(row).sort(), ['bytes', 'id', 'partition', 'slot', 'usedAt']);
@@ -93,7 +93,7 @@ export async function runHealthyNativeGeometryPersistence() {
       await cold(`cold reopen, ${limits.entries} most recent floors`, session, { descriptors: 1, meshes: 0 }, undefined,
         Array.from({ length: limits.entries }, (_, index) => index + 1));
       await cold('cold reopen, least recently used floor', session, { descriptors: 1, meshes: 1 }, undefined, [0]);
-      assert.equal(owner.reads.at(-1).key, floorKey(0));
+      assert.equal(owner.reads.at(-1).key, floorKey(0, owner.state));
     }
 
     {
@@ -105,7 +105,7 @@ export async function runHealthyNativeGeometryPersistence() {
       assert.equal(entries(disk).length, 2);
       await cold('cold reopen, two most recent floors', session, { descriptors: 1, meshes: 0 }, undefined, [1, 2]);
       await cold('cold reopen, floor beyond the byte bound', session, { descriptors: 1, meshes: 1 }, undefined, [0]);
-      assert.equal(owner.reads.at(-1).key, floorKey(0));
+      assert.equal(owner.reads.at(-1).key, floorKey(0, owner.state));
     }
   } finally { await owner.close(); }
   for (const line of results) console.log(`PASS ${line}`);

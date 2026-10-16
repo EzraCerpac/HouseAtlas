@@ -20,7 +20,7 @@ export interface NativeGeometryReadOptions {
    * the bytes, from sign-out or a session check, which drops them. `persist`
    * also stores verified bytes across page loads for the binding's actor and
    * home; it is consulted only for a fresh descriptor's exact offer. */
-  retainMeshes?: { readonly sessionPresent: () => boolean; readonly persist?: NativeGeometryScanCache };
+  retainMeshes?: { readonly sessionPresent: () => boolean; readonly persist?: () => Promise<NativeGeometryScanCache> };
 }
 
 export const NATIVE_GEOMETRY_READ_LIMITS = Object.freeze({
@@ -29,6 +29,8 @@ export const NATIVE_GEOMETRY_READ_LIMITS = Object.freeze({
 });
 /** Page-memory mesh retention: one session/home partition. */
 export const NATIVE_GEOMETRY_RETAINED_LIMITS = Object.freeze({ entries: 6, bytes: 3 * MESH_LIMITS.bytes });
+/** Total optional-cache wait, leaving the reader's deadline for server reads. */
+export const NATIVE_GEOMETRY_CACHE_READ_MS = 500;
 const MESH_MIME = 'application/vnd.houseatlas.magicplan-authored-mesh+json';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const SHA = /^[0-9a-f]{64}$/;
@@ -436,23 +438,37 @@ export function createNativeGeometryReadClient(options: NativeGeometryReadOption
           // The persistent partition is the authenticated actor and this home.
           const place = key !== null && persist && found.actorId !== null
             ? JSON.stringify([found.actorId, found.scope.workspaceId, found.scope.homeId]) : null;
+          let cache: NativeGeometryScanCache | null = null;
           let bytes: Uint8Array | null = null;
           if (key !== null && !live.refresh) {
             const kept = partitionOf(found) ? retained.get(key) : undefined;
             if (kept) {
               retained.delete(key); retained.set(key, kept);
               bytes = new Uint8Array(kept);
-            } else if (place !== null) {
-              const stored = await persist!.read(place, key).catch(() => null);
+            }
+          }
+          if (!bytes && place !== null && key !== null) {
+            // One budget covers module loading, database readiness and lookup.
+            // Late results are ignored and never used for a subsequent write.
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            const consulted = persist!().then(async candidate => {
+              await candidate.ready();
+              return { cache: candidate, stored: live.refresh ? null : await candidate.read(place, key) };
+            }).catch(() => null);
+            const result = await Promise.race([consulted, new Promise<null>(resolve => {
+              timer = setTimeout(resolve, NATIVE_GEOMETRY_CACHE_READ_MS, null);
+            })]);
+            clearTimeout(timer);
+            cache = result?.cache ?? null;
+            const stored = result?.stored;
+            need(current(live)); readSignal.throwIfAborted();
+            if (stored) {
+              // Stored bytes are used only if they still match this offer.
+              const digest = await sha256Hex(stored);
               need(current(live)); readSignal.throwIfAborted();
-              if (stored) {
-                // Stored bytes are used only if they still match this offer.
-                const digest = await sha256Hex(stored);
-                need(current(live)); readSignal.throwIfAborted();
-                if (digest === offer.floor.derivativeSha256 && stored.byteLength <= MESH_LIMITS.bytes) {
-                  bytes = stored; if (partitionOf(found)) retain(key, stored);
-                } else persist!.remove(place, key);
-              }
+              if (digest === offer.floor.derivativeSha256 && stored.byteLength <= MESH_LIMITS.bytes) {
+                bytes = stored; if (partitionOf(found)) retain(key, stored);
+              } else cache!.remove(place, key);
             }
           }
           if (!bytes) {
@@ -464,7 +480,9 @@ export function createNativeGeometryReadClient(options: NativeGeometryReadOption
               // Unverified bytes are delivered for the reader to refuse, never kept.
               if (digest === offer.floor.derivativeSha256) {
                 if (partitionOf(found)) retain(key, bytes);
-                if (place !== null) persist!.write(place, JSON.stringify([descriptor.buildingId, offer.floor.key]), key, bytes);
+                // Geometry record identity survives revision, licence and
+                // floor-key changes; each native floor has its own record.
+                if (place !== null && cache) cache.write(place, JSON.stringify([descriptor.buildingId, offer.floor.geometryId]), key, bytes);
               }
             }
           }
