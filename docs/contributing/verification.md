@@ -33,6 +33,8 @@ it verifies fallback, recovery, oldest-entry eviction and preservation of a
 separate synthetic draft store. The clear case uses independent cache handles
 and a shared synthetic transaction queue, delays actual hashing, and checks
 that a durable generation fences pending writes after another handle clears.
+It also uses the production logout/cleanup helper to cover a new page joining
+while logout is pending; the clear follows completion of the server transition.
 It opens no listener. The budget case pauses the synthetic database's transactions
 and requires an actual server read within three seconds, rather than waiting
 for the mesh reader's fifteen-second deadline; it also checks that warm memory

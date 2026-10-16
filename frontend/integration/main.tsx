@@ -16,7 +16,7 @@ import { createPinnedFileClient } from "./pinned-file-client";
 import { createNativePlaceClient } from "../src/api/native-place-client";
 import { createTopologyClient } from "../src/api/topology-client";
 import { createNetworkRelationsClient } from "../src/api/network-relations-client";
-import { createNativeGeometryReadClient } from "./native-geometry-read-client";
+import { createNativeGeometryReadClient, signOutWithScanCleanup } from "./native-geometry-read-client";
 import type { NativeGeometryScanCache } from "./native-geometry-scan-cache";
 import { createNativeEvidenceDocumentClient } from "./native-evidence-document-client";
 import { createNativeSceneAssociationClient } from "./native-scene-association-client";
@@ -131,9 +131,10 @@ const sessions: AtlasSessionClient = {
     currentQuantityScope = null;
     currentReadyView = null;
     quantityChanged();
-    const scansCleared = getScanCache().then(cache => cache.clear()).catch(() => undefined);
-    try { await nativeSignOut(signal); }
-    finally { await scansCleared; captureDrafts.announceSessionChange(); }
+    await signOutWithScanCleanup(() => nativeSignOut(signal), async () => {
+      await getScanCache().then(cache => cache.clear()).catch(() => undefined);
+      captureDrafts.announceSessionChange();
+    });
   } } : {}),
   // Mode is informational and writes no shared state; local and proxy sign-in
   // publish the returned session under the same fence as password sign-in.

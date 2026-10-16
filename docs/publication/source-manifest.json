@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "07145898874838d4cd399358335a01a5d1390a690d74f2cfacac86947ff9d4bd",
+  "sourceDigestSha256": "54c35181ad3b16e0316926742447c0098d6004a1c922d38daea83172ae488892",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5804,8 +5804,8 @@
       "path": "docs/contributing/verification.md",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 65342,
-      "sha256": "c5f40f7a326bdb81f67f0fd7a4f5678a86528df36a394d7d444612e5990b5e19"
+      "bytes": 65500,
+      "sha256": "5fec3fd466b118b9bcb353d09b881132d51b0270b707c5bf63f8dc1bf6d4752c"
     },
     {
       "path": "docs/coordination/agent-write-amendment-proposal.md",
@@ -6665,8 +6665,8 @@
       "path": "frontend/integration/main.tsx",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 33271,
-      "sha256": "23686c72bb7803b92b6c4b1a5b424700d9cab02abd8ef8aa789359ad9d26632e"
+      "bytes": 33295,
+      "sha256": "dca2898b2e173045c4b5172535a67a015139fd6f1ea175a92702efaee49b3f72"
     },
     {
       "path": "frontend/integration/native-document-read-client.ts",
@@ -6693,8 +6693,8 @@
       "path": "frontend/integration/native-geometry-read-client.ts",
       "owner": "web",
       "mode": "100644",
-      "bytes": 32674,
-      "sha256": "1e4bc601c9910aa61252f6a686a909e792751327be3c5ad1c0b31dcd82f15c2b"
+      "bytes": 33022,
+      "sha256": "fa077b94553373b9adaa0369f76aed50142aad492a62e978cfe65dd68c047784"
     },
     {
       "path": "frontend/integration/native-geometry-scan-cache.ts",
@@ -6909,8 +6909,8 @@
     {
       "path": "frontend/lantern-tests/native-geometry-persistence-clear.mjs",
       "mode": "100644",
-      "bytes": 3596,
-      "sha256": "c2fff722c5e2166ea9968c785e20d119abca80150b1165ec5819fc4014018e16",
+      "bytes": 4909,
+      "sha256": "e789bebde361d9761eecc65b445bf602380df19c12576e5bbb8abddbc0e653e1",
       "owner": "web"
     },
     {

@@ -281,6 +281,13 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
+/** Clear after the server transition, including its failure path. Clearing
+ * before logout lets another still-authorized page join the new generation. */
+export async function signOutWithScanCleanup(signOut: () => Promise<unknown>, clearScans: () => Promise<void>): Promise<void> {
+  try { await signOut(); }
+  finally { await clearScans(); }
+}
+
 /** Passive native reads. The server authorizes each GET afresh; a local frame
  * is only a fence over this host observation and never a permission fallback.
  * With `retainMeshes`, a freshly authorized descriptor may be served verified

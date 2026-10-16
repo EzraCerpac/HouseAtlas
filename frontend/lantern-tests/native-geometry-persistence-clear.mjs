@@ -4,6 +4,7 @@
  * No listener, browser, credentials, session revocation or provider calls. */
 import assert from 'node:assert/strict';
 import { loadScanCacheSource } from './native-geometry-persistence-harness.mjs';
+import { loadClientSource } from './native-geometry-read.mjs';
 import { createSyntheticDisk, createSyntheticIndexedDB, syntheticRecords } from './synthetic-indexeddb.mjs';
 
 const source = await loadScanCacheSource();
@@ -59,4 +60,24 @@ await signingOut.clear(); await openingPage.close();
 assert.equal(rows().length, 0, 'An uninitialized queued write must not join a later generation');
 await signingOut.close();
 console.log('PASS old handles stay fenced after clear; clearing and newly opened handles can store fresh reads');
+
+// Exercise the actual integration's production logout/cleanup sequencing.
+// A page joining while the server transition is pending is still authorized;
+// its generation and bytes must be cleared once that transition completes.
+const { signOutWithScanCleanup } = await import(await loadClientSource());
+const logoutPage = open(); await logoutPage.ready();
+let completeLogout;
+const logoutPending = new Promise(resolve => { completeLogout = resolve; });
+const signedOut = signOutWithScanCleanup(() => logoutPending, () => logoutPage.clear());
+const joiningPage = open(); await joiningPage.ready();
+joiningPage.write('still-authorized', 'slot', 'version', bytes);
+assert.deepEqual(await joiningPage.read('still-authorized', 'version'), bytes);
+assert.equal(rows().length, 1);
+completeLogout(); await signedOut;
+assert.equal(rows().length, 0, 'Cleanup must run after logout, covering pages that joined while it was pending');
+joiningPage.write('still-authorized', 'slot', 'late-version', bytes);
+await joiningPage.close();
+assert.equal(rows().length, 0, 'The page that joined during logout must now be fenced');
+await logoutPage.close();
+console.log('PASS logout completion clears and fences a page that joined during the pending server transition');
 console.log('PASS isolated synthetic cross-page scan-cache clear; not browser or iOS proof');
