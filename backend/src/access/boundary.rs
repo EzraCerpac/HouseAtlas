@@ -825,8 +825,15 @@ impl AccessBoundary {
                 .as_ref()
                 .map_or(now + self.config.limits.absolute_ms, |s| s.expires_at),
         };
-        store::insert_session(&tx, &session, now)?;
+        let cleanup_after = store::insert_session(
+            &tx,
+            &session,
+            now,
+            self.store.session_cleanup_after.as_deref(),
+        )?;
         tx.commit()?;
+        // Only committed cleanup advances the process-local range cursor.
+        self.store.session_cleanup_after = cleanup_after;
         Ok(SessionReceipt {
             info: SessionInfo {
                 actor_id: user.actor_id,

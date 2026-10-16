@@ -6,7 +6,9 @@ expiry, monotonic timestamps, the restore epoch, current user/version,
 membership/version/role, native session cookie, same-origin evidence and mutation
 CSRF remain required. Logout deletes only the requesting session; trusted
 user-session revocation and recovery epoch invalidation retain their existing
-meaning. Expired sessions are still removed on issuance.
+meaning. Issuance incrementally removes expired rows in bounded batches using
+its existing primary-key index; expired rows are refused immediately even while
+awaiting physical cleanup.
 
 The existing explicit `POST /api/atlas/auth/proxy` sign-in is also the renewal
 path in trusted-proxy mode. Each call requires a freshly checked gateway channel
@@ -27,14 +29,19 @@ cannot issue a native Editor mutation principal or bypass same-origin CSRF.
 ## Bounded generated verification
 
 Inspect `backend/src/app/trusted_gateway/session_policy_tests.rs` and its Access
-and `GatewaySocket` imports before running these exact commands in an isolated
+and `GatewaySocket` imports, plus the bounded cleanup case in
+`backend/src/access/store.rs`, before running these exact commands in an isolated
 synthetic lane. Use Rust 1.99.0, locked cached dependencies and an owned Cargo
-target outside the checkout. No workflow or default suite is added.
+target outside the checkout. The four tests are ignored by default and run only
+with explicit `--ignored --exact` selection. No workflow or default suite is added.
 
 ```sh
-cargo test --offline --locked -p houseatlas-backend --lib app::trusted_gateway::session_policy_tests::year_sessions_keep_devices_and_idle_then_expire_and_renew_with_identity -- --exact --test-threads=1
-cargo test --offline --locked -p houseatlas-backend --lib app::trusted_gateway::session_policy_tests::year_sessions_preserve_logout_revocation_scope_and_csrf -- --exact --test-threads=1
-cargo test --offline --locked -p houseatlas-backend --lib app::trusted_gateway::session_policy_tests::generated_local_gateway_admission_benchmark -- --exact --test-threads=1 --nocapture
+# Reuse this already-owned external target after coordinating its writer.
+export CARGO_TARGET_DIR=/tmp/houseatlas-offline-read-pack-target-20261016
+cargo test --offline --locked -p houseatlas-backend --lib app::trusted_gateway::session_policy_tests::year_sessions_keep_devices_and_idle_then_expire_and_renew_with_identity -- --ignored --exact --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib app::trusted_gateway::session_policy_tests::year_sessions_preserve_logout_revocation_scope_and_csrf -- --ignored --exact --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib app::trusted_gateway::session_policy_tests::generated_local_gateway_admission_benchmark -- --ignored --exact --test-threads=1 --nocapture
+cargo test --offline --locked -p houseatlas-backend --lib access::store::bounded_session_cleanup_tests::indexed_cleanup_bounds_each_issuance_and_preserves_current_authority -- --ignored --exact --test-threads=1
 ```
 
 The first generated case retains eight independent live sessions through nine
@@ -45,6 +52,12 @@ read and real native Editor mutation/Origin/CSRF checks. Fixtures use generated
 identities, in-memory Access and one disposable private Unix socket with actual
 OS peer credentials; no external listener, real credentials, household or
 provider data, production cookie, account or installed service is used.
+
+The fourth case uses 4,096 generated retained rows interleaving expired and
+active sessions. It checks primary-key range-search plans, exactly 64 inspected
+candidates and 32 expired removals per initial issuance, preservation of every
+active row, eventual expired-row purge, cursor wrap, and immediate native refusal
+of an expired session while its row remains stored. It opens no listener.
 
 The benchmark runs 200 warmups and 2,000 timed calls for each of an empty control,
 actual native authorization, actual `GatewaySocket::admit`, and both native
@@ -67,6 +80,14 @@ The external gateway, native POST authentication, routes, frontend, configuratio
 contracts, schema, migration SQL and legacy `packages/access` JavaScript package
 are unchanged. The standalone legacy package still has its earlier defaults;
 this policy applies to the native deployed backend.
+
+Cleanup seeks at most 64 candidate rows in token-hash order using the existing
+primary-key index, deletes only expired selected keys, and inserts the new
+session in the same transaction. The process-local cursor advances only after
+commit. A short page wraps on the next issuance; a full final page can require
+one empty seek before wrapping. No issuance inspects a second page. Restart
+resets only this cleanup position; it changes no session expiry or authority.
+Cleanup is eventual and does not require a new index, schema or migration.
 
 There is no database migration, account reprovisioning, membership change,
 session bulk rewrite or history reset. Existing sessions keep their persisted

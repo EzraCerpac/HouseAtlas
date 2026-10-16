@@ -115,6 +115,7 @@ impl Fixture {
 }
 
 #[tokio::test]
+#[ignore = "Explicit isolated generated session-policy lane; run only the exact documented command"]
 async fn year_sessions_keep_devices_and_idle_then_expire_and_renew_with_identity() {
     let mut f = Fixture::new().await;
     let sessions: Vec<_> = (0..8).map(|_| f.login(None)).collect();
@@ -193,6 +194,7 @@ async fn year_sessions_keep_devices_and_idle_then_expire_and_renew_with_identity
 }
 
 #[tokio::test]
+#[ignore = "Explicit isolated generated session-policy lane; run only the exact documented command"]
 async fn year_sessions_preserve_logout_revocation_scope_and_csrf() {
     let mut f = Fixture::new().await;
     let first = f.login(None);
@@ -311,6 +313,7 @@ fn measure(name: &str, mut operation: impl FnMut()) {
 }
 
 #[tokio::test]
+#[ignore = "Explicit isolated generated session-policy lane; run only the exact documented command"]
 async fn generated_local_gateway_admission_benchmark() {
     let mut f = Fixture::new().await;
     let session = f.login(None);

@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "2e6ebd0cc08258e616c925c5741e8b96d4b37fa36fb2c6b4db9e47f9d31a3cc4",
+  "sourceDigestSha256": "ca6dfeea907759d4129de2cb919186d94f03205ff3191b49b065e8f43d456c18",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -434,8 +434,8 @@
     {
       "path": "backend/src/access/boundary.rs",
       "mode": "100644",
-      "bytes": 39077,
-      "sha256": "9f67846f369646a2d7a488581afe82a4b86296501512f0b44105d60d12f90d61",
+      "bytes": 39334,
+      "sha256": "cee33fbc53e37a8faeca933c31ac0daabe42d8cd6fcd450aa47260f1ee8f37b0",
       "owner": "access"
     },
     {
@@ -567,8 +567,8 @@
     {
       "path": "backend/src/access/store.rs",
       "mode": "100644",
-      "bytes": 17043,
-      "sha256": "2fcaf30e27ad51e1f9a40ddb49cb43439c12079f23fbc9de75c43b7c4f96304d",
+      "bytes": 25113,
+      "sha256": "aebf50e7e7c5d7654f1e44d84576a0d27e7a0d3f59c1fdaf86273f6e445f575b",
       "owner": "access"
     },
     {
@@ -1127,8 +1127,8 @@
     {
       "path": "backend/src/app/trusted_gateway/session_policy_tests.rs",
       "mode": "100644",
-      "bytes": 11299,
-      "sha256": "4ecc3919650789dff0a045378ac6beed6583646f4bd9163c0e7afee2514c26ce",
+      "bytes": 11602,
+      "sha256": "370f3a36b66ae1899a5e368c1dce9a1070f0eaba30b0da3c0a0fb1337fba5c28",
       "owner": "core-integration"
     },
     {
@@ -5831,8 +5831,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 72338,
-      "sha256": "1583db565fb85b494a93b6bb1eebee79f92ebf2797570287a207676be534fab5",
+      "bytes": 72361,
+      "sha256": "82494f13f41abd793292fb436e30051b5a567350a6f3ed8a536597179851d6a6",
       "owner": "core-integration"
     },
     {
@@ -6223,8 +6223,8 @@
     {
       "path": "docs/operations/native-session-policy.md",
       "mode": "100644",
-      "bytes": 6498,
-      "sha256": "820132294c2add8f836a57fe7e628a76ea44c1ce4f40462bd347d2f9e4d00858",
+      "bytes": 8109,
+      "sha256": "e14b9d9847b526d489fb703048d29fbd496236e6fd90bb7227f9148916251bfc",
       "owner": "core-integration"
     },
     {
