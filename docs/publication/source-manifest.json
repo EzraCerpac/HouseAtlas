@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "5b1bd7306c62ef40aabcff905700c328873e2297b23e419c2076e87bea0440cf",
+  "sourceDigestSha256": "7fe4f793939d439b06946835883e8d1ddd58511fd07223d5a96e7122c89e2e40",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -4921,8 +4921,15 @@
     {
       "path": "backend/src/storage/repository.rs",
       "mode": "100644",
-      "bytes": 11437,
-      "sha256": "0899aa44c5021a7eb379077458afd2edca3fec40adc5572edd1a63d7a29f9ed0",
+      "bytes": 13058,
+      "sha256": "4ac1de2059ea773beaa284ef089084410f1193381763cea91934b6b17d98546c",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/snapshot_tests.rs",
+      "mode": "100644",
+      "bytes": 11756,
+      "sha256": "5176b000f63954aaad2071a55952615c624e2ddf0c5eb5e9cbbb8acae8773e1b",
       "owner": "storage"
     },
     {
@@ -5117,8 +5124,8 @@
     {
       "path": "backend/src/storage/store.rs",
       "mode": "100644",
-      "bytes": 22597,
-      "sha256": "9029a5f1bf7d9327890a48727f72bce1f0bc353e07f49ed8fe03e1584e90b13e",
+      "bytes": 22675,
+      "sha256": "68e4e1ef3b13250ec3cb83de7a6f3da99d7c4ca4bdf4182e0e36590fe5da8f87",
       "owner": "storage"
     },
     {
