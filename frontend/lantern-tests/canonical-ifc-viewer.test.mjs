@@ -53,7 +53,8 @@ const adapterURL = await sourceURL(`${base}adapter.ts`, 'ts', { '../../numeric/d
 const fixturesURL = await sourceURL('./canonical-ifc-visual/synthetic-publication.ts', 'ts', { '../../src/lantern/canonical-ifc/model': modelURL });
 const iconURL = await sourceURL('../src/lantern/components/Icon.tsx', 'tsx', { 'react/jsx-runtime': jsx });
 const cameraURL = await sourceURL('../src/lantern/atlas/useCamera.ts', 'ts', { react });
-const stageCameraURL = await sourceURL(`${base}useStageCamera.ts`, 'ts', { react, '../atlas/useCamera': cameraURL });
+const pointersURL = await sourceURL(`${base}stage-pointers.ts`, 'ts');
+const stageCameraURL = await sourceURL(`${base}useStageCamera.ts`, 'ts', { react, '../atlas/useCamera': cameraURL, './stage-pointers': pointersURL });
 const meshLayerURL = await sourceURL(`${base}MeshLayer.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx, './geometry': geometryURL });
 const stageURL = await sourceURL(`${base}ModelStage.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx, '../components/Icon': iconURL,
   './geometry': geometryURL, './selection': selectionURL, './MeshLayer': meshLayerURL, './tones': tonesURL, './useStageCamera': stageCameraURL });

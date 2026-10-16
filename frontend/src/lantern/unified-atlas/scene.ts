@@ -665,7 +665,7 @@ export function frameBox(model: AtlasModel, state: AtlasViewState, presentation:
         || (part.role === 'room-pick' && part.levelIds.some(levelId => presentation.visibleLevels.has(levelId)));
       if (part.role === 'context' || !shown) continue;
       if (buildingId !== null && part.buildingId !== buildingId) continue;
-      if (focus !== null && part.levelId !== focus && !(part.levelId === null && part.levelIds.includes(focus))) continue;
+      if (t === 0 && focus !== null && part.levelId !== focus && !(part.levelId === null && part.levelIds.includes(focus))) continue;
       const lift = levelLift(presentation, part.levelId, t), b = part.mesh.bounds;
       const top = Math.min(b.max[1], presentation.clips.get(part.mesh.meshKey) ?? Infinity);
       add(b.min[0], b.min[1] + lift, b.min[2]); add(b.max[0], Math.max(b.min[1], top) + lift, b.max[2]);

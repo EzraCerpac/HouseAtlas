@@ -62,14 +62,17 @@ export function AtlasView() {
     ];
     const open = others.find(row => row.id === other) ?? null;
     if (!open) return <>
-      <nav className="atlas-sources" aria-label="Other sources">
-        {others.map(row => <button key={row.id} type="button" className="text-btn" onClick={() => setOther(row.id)}>{row.label}</button>)}
-      </nav>
       <OptionalViewerBoundary key="atlas" label="The Atlas">
         <Suspense fallback={<p className="source-model-pane" role="status">Loading Atlas…</p>}>
           <UnifiedAtlas port={atlas} onOpenModel={() => setOther('model')} />
         </Suspense>
       </OptionalViewerBoundary>
+      <details className="atlas-source-details">
+        <summary>Other sources</summary>
+        <nav className="atlas-sources" aria-label="Source inspection">
+          {others.map(row => <button key={row.id} type="button" className="text-btn" onClick={() => setOther(row.id)}>{row.label}</button>)}
+        </nav>
+      </details>
     </>;
     return <>
       <div className="atlas-sources is-open">

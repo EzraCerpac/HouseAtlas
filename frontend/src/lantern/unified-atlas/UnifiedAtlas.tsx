@@ -16,7 +16,10 @@ import {
   pickOccurrence, planPickOccurrence, planPoint, presentAtlas,
   type AtlasAction, type AtlasModel, type AtlasViewState, type OverlayLayerIndex, type UnplacedReason,
 } from './scene';
-import { AtlasReadError, type AtlasLevel, type AtlasOverlayBinding, type AtlasReadFailure, type OverlayKind, type UnifiedAtlasPort } from './types';
+import { AtlasReadError, type AtlasLevel, type AtlasOccurrence, type AtlasRoom, type AtlasOverlayBinding, type AtlasReadFailure, type OverlayKind, type UnifiedAtlasPort } from './types';
+import { floorLabel } from './labels';
+import { documentaryOverlayIndex, type RuntimeRecords, type DocumentaryRecord, type SourceFact } from './runtime-overlays';
+import { useDocumentaryOverlays } from './useDocumentaryOverlays';
 import '../canonical-ifc/canonical-ifc.css';
 import './unified-atlas.css';
 
@@ -98,7 +101,7 @@ export default function UnifiedAtlas({ port, onOpenModel }: { readonly port: Uni
       </div>
     </section>;
   }
-  return <AtlasStage key={memoryKey(outcome.model)} model={outcome.model} />;
+  return <AtlasStage key={memoryKey(outcome.model)} model={outcome.model} port={port} selection={selection} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -116,7 +119,7 @@ const LINK_LABEL = { reviewed: 'Linked to a home place', historical: 'Linked in 
 const plural = (count: number, one: string, many = `${one}s`) => `${count.toLocaleString()} ${count === 1 ? one : many}`;
 const elevation = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : '±'}${Math.abs(value).toFixed(2)} m`;
 
-function AtlasStage({ model }: { readonly model: AtlasModel }) {
+function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; readonly port: UnifiedAtlasPort; readonly selection: ModelOverviewSelection }) {
   const { dispatch: appDispatch } = useStore();
   const reduced = useReducedMotion();
   const key = memoryKey(model);
@@ -129,7 +132,13 @@ function AtlasStage({ model }: { readonly model: AtlasModel }) {
 
   const selected = state.occurrenceId;
   const context = useMemo(() => contextOccurrenceIds(model, selected), [model, selected]);
-  const layer = state.overlay === null ? null : model.overlays.get(state.overlay)!;
+  const runtimeBuildingId = focusBuildingId(model, state) ?? model.defaultBuildingId;
+  const runtime = useDocumentaryOverlays(port, selection, model, runtimeBuildingId, state.overlay !== null);
+  const overlays = useMemo<ReadonlyMap<OverlayKind, OverlayLayerIndex>>(() => runtime.records ? new Map((['electrical', 'network'] as const).map(kind =>
+    [kind, documentaryOverlayIndex(model, runtime.records!, kind)])) : port.createOverlays
+      ? new Map((['electrical', 'network'] as const).map(kind => [kind, { kind, placed: new Map(), unplaced: [], records: 0, unplacedRecords: 0 } satisfies OverlayLayerIndex]))
+      : model.overlays, [runtime.records, port, model]);
+  const layer = state.overlay === null ? null : overlays.get(state.overlay)!;
   // Overlay rooms light in the layer tint; hidden room picks become visible for them only.
   const tints = useMemo(() => {
     const map = new Map<string, string>();
@@ -162,7 +171,11 @@ function AtlasStage({ model }: { readonly model: AtlasModel }) {
 
   const select = (occurrenceId: string | null) => dispatch({ type: 'select', occurrenceId });
   const camera = useStageCamera({ element: viewport, top: plan, reduced, onEscape: () => select(null),
-    onTap: (px, py) => {
+    onTap: (px, py, target) => {
+      const label = target instanceof Element ? target.closest<HTMLButtonElement>('button[data-atlas-occurrence]') : null;
+      if (label?.dataset.atlasOccurrence && model.selectable.has(label.dataset.atlasOccurrence)) {
+        select(label.dataset.atlasOccurrence); return;
+      }
       if (!projection) return;
       if (camera.planBlend >= .5) {
         const levelId = presentation.focusLevelId; if (levelId === null) return;
@@ -246,7 +259,7 @@ function AtlasStage({ model }: { readonly model: AtlasModel }) {
   const ladderLevels = ladderBuildingId === null ? [] : model.levelsByBuilding.get(ladderBuildingId) ?? [];
   const building = ladderBuildingId === null ? null : model.buildingsById.get(ladderBuildingId)!;
   const focusLevel = presentation.focusLevelId === null ? null : model.levelsById.get(presentation.focusLevelId)!;
-  const scopeLabel = focusLevel ? `${focusLevel.label}${buildings.length > 1 ? `, ${model.buildingsById.get(focusLevel.buildingId)!.label}` : ''}`
+  const scopeLabel = focusLevel ? `${floorLabel(focusLevel.label)}${buildings.length > 1 ? `, ${model.buildingsById.get(focusLevel.buildingId)!.label}` : ''}`
     : state.buildingId === null && model.scene.buildings.length > 1 ? 'all buildings' : building?.label ?? 'this model';
   const canExplode = !plan && (state.buildingId === null ? model.scene.levels.length > 1 : ladderLevels.length > 1);
   const selectionLevel = selected ? model.occurrencesById.get(selected)!.levelId : null;
@@ -320,16 +333,24 @@ function AtlasStage({ model }: { readonly model: AtlasModel }) {
             </g>)}
           </g>
         </svg>
+        {labels.filter(label => {
+          const half = Math.max(44, Math.min(320, label.text.length * 7 + 12)) / 2, y = label.y - (label.leader ? 49 : 0);
+          return label.x >= half && label.x + half <= size.width && y >= 16 && y + 16 <= size.height;
+        }).map(label => <button key={label.id} type="button" className="ua-label-hit" data-atlas-occurrence={label.id}
+          style={{ left: label.x, top: label.y - (label.leader ? 49 : 0), width: Math.max(44, Math.min(320, label.text.length * 7 + 12)) }}
+          aria-label={`Select room: ${label.text}`} onClick={event => { if (event.detail === 0) select(label.id); }} />)}
         {layer && markers.map(row => <button key={row.key} type="button" className="ua-marker"
           style={{ left: row.x, top: row.y, '--layer': badgeFill(layer.kind) } as CSSProperties}
           aria-label={`${row.roomLabel}: ${plural(row.count, `${OVERLAY_LABEL[layer.kind].toLowerCase()} record`)}`}
           onPointerDown={stop} onPointerUp={stop} onClick={() => select(row.occurrenceId)}>{row.count}</button>)}
-        {failure && <p className="cifc-stage-note" role="status">{failure} Plan remains available.</p>}
+        {failure && !plan && <p className="cifc-stage-note" role="status">3D view is unavailable. Use Plan or check Source details.</p>}
         {plan && planBlend >= 1 && planFeatures.length === 0 && <p className="cifc-stage-note" role="status">
-          {focusLevel ? `No plan for ${focusLevel.label} in this model.` : 'This model has no floors to show as a plan.'}</p>}
+          {focusLevel ? `No plan for ${floorLabel(focusLevel.label)} in this model.` : 'This model has no floors to show as a plan.'}</p>}
       </div>
 
-      <Inspector model={model} state={state} dispatch={dispatch} context={context}
+      <Inspector model={model} state={state} dispatch={dispatch} context={context} renderFailure={failure}
+        runtime={runtime.records} runtimeReason={runtime.reason} runtimeConfigured={Boolean(port.createOverlays)}
+        openDocuments={() => appDispatch({ type: 'view', view: 'library' })}
         openNetwork={() => appDispatch({ type: 'view', view: 'network' })} />
     </div>
 
@@ -338,14 +359,16 @@ function AtlasStage({ model }: { readonly model: AtlasModel }) {
         <button type="button" className="layer-chip" aria-pressed={state.overlay === null} style={{ '--layer': '#8C6A3C' } as CSSProperties}
           onClick={() => dispatch({ type: 'overlay', overlay: null })}><span className="layer-swatch" aria-hidden="true" />Rooms</button>
         {(['electrical', 'network'] as const).map(kind => {
-          const index = model.overlays.get(kind)!;
+          const index = overlays.get(kind)!;
           return <button key={kind} type="button" className="layer-chip" aria-pressed={state.overlay === kind}
             style={{ '--layer': TONE_COLOR[kind] } as CSSProperties} onClick={() => dispatch({ type: 'overlay', overlay: kind })}>
             <span className="layer-swatch" aria-hidden="true" />{OVERLAY_LABEL[kind]}
-            {index.records === 0 && <span className="ua-chip-note">none</span>}</button>;
+            {state.overlay === kind && index.records === 0 && <span className="ua-chip-note">{!port.createOverlays || runtime.records?.[kind] === 'available' ? '0' : runtime.reason === 'loading' ? 'loading' : runtime.records?.[kind] === 'partial' ? 'partial' : 'unavailable'}</span>}</button>;
         })}
       </div>
-      {layer && <OverlayKey layer={layer} openNetwork={() => appDispatch({ type: 'view', view: 'network' })} />}
+      {layer && <OverlayKey layer={layer} sourceScope={port.createOverlays && runtimeBuildingId ? model.buildingsById.get(runtimeBuildingId)!.label : null}
+        publishedOnly={!port.createOverlays} unplaced={runtime.records?.unplaced[layer.kind] ?? []} openDocuments={() => appDispatch({ type: 'view', view: 'library' })} availability={runtime.records?.[layer.kind] ?? (!port.createOverlays ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
+        openNetwork={() => appDispatch({ type: 'view', view: 'network' })} />}
     </footer>
   </section>;
 }
@@ -383,11 +406,10 @@ function DatumLadder({ model, levels, building, state, plan, dispatch, selection
         return <li key={level.levelId} style={at > 0 ? { '--rung-gap': `${gaps[at - 1]}px` } as CSSProperties : undefined}>
           <button type="button" className={`ua-rung${current ? ' is-current' : ''}`} aria-pressed={current}
             title={level.elevationBasis ?? undefined}
-            aria-label={`${level.label}: ${plural(rooms, 'room')}${hasPlan ? '' : ', no plan'}${holds ? ', has the selected room' : also ? ', has another part of the selected room' : ''}`}
+            aria-label={`${floorLabel(level.label)}: ${plural(rooms, 'room')}${hasPlan ? '' : ', no plan'}${holds ? ', has the selected room' : also ? ', has another part of the selected room' : ''}`}
             onClick={() => dispatch({ type: 'level', levelId: level.levelId })}>
             <span className="ua-rung-tick" aria-hidden="true" />
-            <span className="ua-rung-name">{level.label}</span>
-            {level.sourceElevationM !== null && <span className="ua-rung-elev">{elevation(level.sourceElevationM)}</span>}
+            <span className="ua-rung-name">{floorLabel(level.label)}</span>
             {(holds || also) && <span className={`ua-rung-mark${also ? ' is-context' : ''}`} aria-hidden="true" />}
           </button>
         </li>;
@@ -398,9 +420,12 @@ function DatumLadder({ model, levels, building, state, plan, dispatch, selection
 
 // ---------------------------------------------------------------------------
 
-function Inspector({ model, state, dispatch, context, openNetwork }: {
+function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, renderFailure, runtime, runtimeReason, runtimeConfigured }: {
   readonly model: AtlasModel; readonly state: AtlasViewState; readonly dispatch: (action: AtlasAction) => void;
   readonly context: readonly string[]; readonly openNetwork: () => void;
+  readonly renderFailure: string | null;
+  readonly runtime: RuntimeRecords | null; readonly runtimeReason: string; readonly runtimeConfigured: boolean;
+  readonly openDocuments: () => void;
 }) {
   const occurrence = state.occurrenceId === null ? null : model.occurrencesById.get(state.occurrenceId)!;
   // A choice made inside the panel replaces its content, so focus follows to the new heading.
@@ -413,12 +438,12 @@ function Inspector({ model, state, dispatch, context, openNetwork }: {
   }, [state.occurrenceId]);
   const levelName = (levelId: string) => {
     const level = model.levelsById.get(levelId)!;
-    return model.floorBuildings.length > 1 ? `${level.label}, ${model.buildingsById.get(level.buildingId)!.label}` : level.label;
+    return model.floorBuildings.length > 1 ? `${floorLabel(level.label)}, ${model.buildingsById.get(level.buildingId)!.label}` : floorLabel(level.label);
   };
 
   if (!occurrence) return <aside className="ua-inspector" aria-label="Rooms">
     <RoomList model={model} state={state} choose={choose} levelName={levelName} heading={heading} />
-    <SourceDetails model={model} />
+    <SourceDetails model={model} renderFailure={renderFailure} overlayReason={runtimeReason} runtimeSource={runtime?.sourceFacts ?? []} />
   </aside>;
 
   const room = model.roomsById.get(occurrence.roomId)!;
@@ -426,7 +451,7 @@ function Inspector({ model, state, dispatch, context, openNetwork }: {
   const overlays = (['electrical', 'network'] as const).map(kind => {
     const index = model.overlays.get(kind)!;
     return { kind, placement: index.placed.get(room.roomId) ?? null, unplaced: index.unplaced.filter(row => row.binding.roomId === room.roomId) };
-  }).filter(row => row.placement || row.unplaced.length > 0);
+  }).filter(row => !runtimeConfigured && (row.placement || row.unplaced.length > 0));
   return <aside className="ua-inspector is-room" aria-label="Selected room">
     <div className="ua-room-head">
       <h2 ref={heading} tabIndex={-1}>{room.label}</h2>
@@ -440,11 +465,17 @@ function Inspector({ model, state, dispatch, context, openNetwork }: {
     </div>}
 
     <dl className="ua-facts">
-      <div><dt>Shape</dt><dd>{basis.kind === 'owner-estimated-pick-proxy'
-        ? <><strong className="ua-qualifier">Preliminary pick area. Not measured or reviewed.</strong>{basis.note && <span className="ua-note">{basis.note}</span>}</>
-        : <>From the model{basis.note && <span className="ua-note">{basis.note}</span>}</>}</dd></div>
-      <div><dt>Home place</dt><dd className={`ua-link is-${room.nativeBinding.status}`}>{LINK_LABEL[room.nativeBinding.status]}</dd></div>
+      <div><dt>Layout</dt><dd>{basis.kind === 'owner-estimated-pick-proxy' ? 'Estimated layout' : 'From the model'}</dd></div>
+      <div><dt>Home place</dt><dd className={`ua-link is-${room.nativeBinding.status}`}>{runtime?.rooms.has(room.roomId) ? 'Linked for these sources' : room.nativeBinding.status === 'historical' ? 'Link needs review' : LINK_LABEL[room.nativeBinding.status]}</dd></div>
     </dl>
+
+    {state.overlay && runtime && <section className="ua-records" aria-label={`${OVERLAY_LABEL[state.overlay]} in this room`}>
+      <h3>{OVERLAY_LABEL[state.overlay]}</h3>
+      {!runtime.rooms.has(room.roomId) ? <p>Room source link unavailable.</p>
+        : runtime[state.overlay] === 'unavailable' ? <p>Source unavailable.</p>
+        : <DocumentaryRecords records={runtime.rooms.get(room.roomId)![state.overlay]} openDocuments={openDocuments} />}
+      {runtime[state.overlay] === 'partial' && <p>Some electrical sources are unavailable.</p>}
+    </section>}
 
     {overlays.length > 0 && <section className="ua-records" aria-label="Records in this room">
       {overlays.map(({ kind, placement, unplaced }) => <div key={kind} className="ua-record" style={{ '--layer': TONE_COLOR[kind] } as CSSProperties}>
@@ -460,8 +491,22 @@ function Inspector({ model, state, dispatch, context, openNetwork }: {
         {kind === 'network' && <button type="button" className="text-btn" onClick={openNetwork}>Open Network</button>}
       </div>)}
     </section>}
-    <SourceDetails model={model} occurrenceSourceRef={basis.sourceRef} />
+    <SourceDetails model={model} occurrence={occurrence} room={room} renderFailure={renderFailure} overlayReason={runtimeReason} runtimeSource={runtime?.sourceFacts ?? []} />
   </aside>;
+}
+
+function DocumentaryRecords({ records, openDocuments }: { readonly records: readonly DocumentaryRecord[]; readonly openDocuments: () => void }) {
+  if (!records.length) return <p>No linked records in the available source.</p>;
+  return <div>{records.map(record => <details className="ua-refs" key={record.key}>
+    <summary>{record.label}</summary>
+    <p>{record.category}: {record.detail}</p><p>{record.qualification}</p>
+    <p>Source date: {record.sourceDate ?? 'unknown'}. Retrieved: {record.retrievedAt ?? 'unknown'}.</p>
+    {record.connections.length > 0 && <ul>{record.connections.map((connection, at) => <li key={at}>{connection}</li>)}</ul>}
+    {(record.category === 'Electrical drawing' || record.category === 'Historical symbol') && <button type="button" className="text-btn" onClick={openDocuments}>Open Documents</button>}
+    <details className="ua-source"><summary>Source</summary><dl><div><dt>Source record</dt><dd>{record.id}</dd></div>
+      {record.sourceFacts.map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value ?? 'unknown'}</dd></div>)}
+    </dl></details>
+  </details>)}</div>;
 }
 
 function SourceDates({ bindings }: { readonly bindings: readonly AtlasOverlayBinding[] }) {
@@ -503,17 +548,27 @@ function RoomList({ model, state, choose, levelName, heading }: {
   </div>;
 }
 
-function SourceDetails({ model, occurrenceSourceRef = null }: { readonly model: AtlasModel; readonly occurrenceSourceRef?: string | null }) {
+function SourceDetails({ model, occurrence, room, renderFailure, overlayReason, runtimeSource }: {
+  readonly model: AtlasModel; readonly occurrence?: AtlasOccurrence; readonly room?: AtlasRoom; readonly renderFailure: string | null;
+  readonly overlayReason: string;
+  readonly runtimeSource?: readonly SourceFact[];
+}) {
   const { publication, coverage } = model.scene;
-  const elevations = model.scene.levels.filter(level => level.elevationBasis !== null);
+  const elevations = model.scene.levels.filter(level => level.elevationBasis !== null || level.sourceElevationM !== null);
   return <details className="ua-source">
     <summary>Source</summary>
     <dl>
       <div><dt>Model revision</dt><dd>{publication.sourceRevisionId}</dd></div>
       <div><dt>Model file</dt><dd><code title={model.scene.model.sha256}>{model.scene.model.sha256.slice(0, 12)}</code>, {(model.scene.model.bytes / 1_048_576).toFixed(1)} MiB</dd></div>
-      {occurrenceSourceRef && <div><dt>Room source</dt><dd>{occurrenceSourceRef}</dd></div>}
+      {renderFailure && <div><dt>3D diagnostic</dt><dd>{renderFailure}</dd></div>}
+      {overlayReason !== 'not-loaded' && <div><dt>Overlay source</dt><dd>{overlayReason}</dd></div>}
+      {runtimeSource?.map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value ?? 'unknown'}</dd></div>)}
+      {occurrence && <div><dt>Room layout</dt><dd>{occurrence.geometryBasis.kind === 'owner-estimated-pick-proxy' ? 'Estimated pick area; not measured or reviewed.' : 'Source model geometry.'}
+        {occurrence.geometryBasis.note && <span className="ua-note">{occurrence.geometryBasis.note}</span>}</dd></div>}
+      {occurrence?.geometryBasis.sourceRef && <div><dt>Room source</dt><dd>{occurrence.geometryBasis.sourceRef}</dd></div>}
+      {room && <div><dt>Place link</dt><dd>{LINK_LABEL[room.nativeBinding.status]}</dd></div>}
       <div><dt>Position</dt><dd>Model frame only. Not aligned to the physical site.</dd></div>
-      {elevations.length > 0 && <div><dt>Elevations</dt><dd><ul>{elevations.map(level => <li key={level.levelId}>{level.label}: {level.elevationBasis}</li>)}</ul></dd></div>}
+      {elevations.length > 0 && <div><dt>Source elevations</dt><dd><ul>{elevations.map(level => <li key={level.levelId}>{floorLabel(level.label)}: {level.sourceElevationM !== null ? `${elevation(level.sourceElevationM)}; ` : ''}{level.elevationBasis ?? 'Datum not specified.'}</li>)}</ul></dd></div>}
       {coverage.exclusions.length > 0 && <div><dt>Not selectable</dt><dd><ul>
         {coverage.exclusions.map((row, at) => <li key={at}>{row.id && model.occurrencesById.has(row.id)
           ? model.roomsById.get(model.occurrencesById.get(row.id)!.roomId)!.label : row.id ?? 'Unnamed'}{row.reason ? `: ${row.reason}` : ''}</li>)}
@@ -522,15 +577,23 @@ function SourceDetails({ model, occurrenceSourceRef = null }: { readonly model: 
   </details>;
 }
 
-function OverlayKey({ layer, openNetwork }: { readonly layer: OverlayLayerIndex; readonly openNetwork: () => void }) {
+function OverlayKey({ layer, openNetwork, availability, unplaced, openDocuments, publishedOnly, sourceScope }: {
+  readonly layer: OverlayLayerIndex; readonly openNetwork: () => void; readonly openDocuments: () => void; readonly unplaced: readonly DocumentaryRecord[]; readonly availability: 'available' | 'partial' | 'unavailable' | 'loading';
+  readonly publishedOnly: boolean;
+  readonly sourceScope: string | null;
+}) {
   const reasons = new Map<UnplacedReason, number>();
   for (const row of layer.unplaced) reasons.set(row.reason, (reasons.get(row.reason) ?? 0) + row.binding.recordIds.length);
   return <div className="ua-key" style={{ '--layer': TONE_COLOR[layer.kind] } as CSSProperties}>
-    <p>{layer.records === 0 ? `No ${OVERLAY_LABEL[layer.kind].toLowerCase()} records are linked to this model.`
-      : 'Counts show records per room, not device positions.'}</p>
+    {sourceScope && <span>{sourceScope} source records only</span>}
+    <p>{availability === 'loading' ? 'Loading room sources…' : availability === 'unavailable' ? 'Current room sources are unavailable.'
+      : availability === 'partial' ? 'Some electrical sources are unavailable.'
+      : publishedOnly && layer.records === 0 ? 'No source references in this publication.'
+      : layer.records === 0 ? 'No linked records in the available source.' : 'Counts show source records per room, not device positions.'}</p>
     {layer.unplacedRecords > 0 && <details>
       <summary>{plural(layer.unplacedRecords, 'record')} not placed</summary>
-      <ul>{[...reasons].map(([reason, count]) => <li key={reason}>{plural(count, 'record')}: {UNPLACED_LABEL[reason]}</li>)}</ul>
+      {unplaced.length > 0 ? <DocumentaryRecords records={unplaced} openDocuments={openDocuments} />
+        : <ul>{[...reasons].map(([reason, count]) => <li key={reason}>{plural(count, 'record')}: {UNPLACED_LABEL[reason]}</li>)}</ul>}
     </details>}
     {layer.kind === 'network' && <button type="button" className="text-btn" onClick={openNetwork}>Open Network</button>}
   </div>;

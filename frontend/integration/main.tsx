@@ -402,6 +402,26 @@ const sourceModels: SourceModelPort = {
   // pinned model bytes; the same owner, session and expiry fence every step.
   atlas: {
     current: currentOverview, subscribe: subscribeOverview,
+    async createOverlays(selection, scene, building) {
+      if (currentOverview() !== selection || building.nativePlaceId === null) return null;
+      const { createUnifiedAtlasOverlaySource } = await import('./unified-atlas-overlay-source');
+      const sceneSelection = Object.freeze({ ...scene.scope, revision: scene.selection.revision,
+        publicationId: scene.publication.publicationId, semanticsSha256: scene.publication.semanticsSha256 });
+      const publicationRooms = Object.freeze(scene.rooms.filter(room => room.buildingId === building.buildingId));
+      const request = Object.freeze({ sceneSelection, publicationRooms, nativeBuildingId: building.nativePlaceId });
+      const source = createUnifiedAtlasOverlaySource({
+        getContext: () => currentOverview() === selection && currentSession && currentReadyView
+          && currentReadyView.scope === currentQuantityScope ? {
+            native: { sessionIdentity: currentSession, session: currentSession, view: currentReadyView, admission: currentStockAdmission },
+            ...request,
+            // A source-owner supplied, independently reviewed map is still
+            // required. Producer IDs/status never manufacture this input.
+            reviewedRoomLinks: null,
+          } : null,
+        subscribeContext: subscribeOverview, createDocuments: makeSceneDocumentOwner,
+      });
+      return { source, request };
+    },
     async read(selection, signal) {
       const controller = new AbortController();
       const unsubscribe = subscribeOverview(() => { if (currentOverview() !== selection) controller.abort(); });

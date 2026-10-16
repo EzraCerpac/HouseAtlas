@@ -1141,6 +1141,30 @@ The timing tables show bounded anonymous local stages from the real components;
 fake read delays describe only the generated fixture. Stop the owned preview
 within 20 minutes. This manual review adds no workflow or ordinary CI command.
 
+## Unified Atlas native documentary source healthy check
+
+Inspect `frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs`,
+`frontend/integration/unified-atlas-overlay-source.ts` and its closed native
+association/source parser imports. With Node 26.10.0 and locked frontend
+packages, run:
+
+```sh
+node frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs
+```
+
+This one generated positive read bundles the actual adapter with Vite into an
+owned disposable temporary directory. It uses an in-process synthetic GET
+transport and two dedicated fake original-document owners. It checks exact
+source/receipt and arbitrary-precision revision retention, independently reviewed
+room links, recorded Network data, electrical drawings and historical symbols,
+a normal mobile documentary record retained without room placement, and
+the consumer’s exact room-summary projection with source IDs and historical
+producer status preserved, one normal sequential same-head refresh after ten seconds, and ordinary
+release/disposal. No listener, browser, actual native/household data, external
+provider, writes, malformed/omission, denial, replay, expiry or failure controls.
+The host still needs an independent reviewed room map and actual current native
+original/document owners; generated success does not qualify their availability.
+
 ## Unified Atlas healthy generated check
 
 The unified Atlas reads one `houseatlas.unified-atlas-scene.v1` envelope and its
@@ -1158,13 +1182,23 @@ in-process HTTPS transport, loads the generated GLB through the pinned
 GLTFLoader once, and checks nested-transform baking, per-primitive building and
 level membership, shared multi-level geometry, out-of-order and split-level
 elevations, selectable and excluded rooms, duplicate labels, qualified overlay
-joins and explicit unplaced reasons. It also checks the shared presentation used
+joins. It also checks the shared presentation used
 for drawing, hidden room picks, explosion offsets, section clips, labels, and
 3D, stacked, focused, mid-transition and plan picking. It uses no browser,
 GPU, listener, native host, credentials, household input or provider. It adds
 no malformed, denial, replay, expiry, crash or private-intake case. Its
 generated geometry does not establish real publication coverage, layout,
 rendering or device behavior.
+
+The named `node frontend/lantern-tests/unified-atlas-healthy.mjs` also checks
+normal generated pointer tap/drag, viewport capture handoff, descendant-to-viewport
+capture transfer, pinch with either-finger release, and plan pan through the
+production pointer-handler factory. Its source fixtures cover context-first Plan
+navigation, reordered plan references, same-winding polygon holes and focused
+exploded-floor framing. Only qualified positive overlay joins are supplied;
+foreign-publication, unqualified-join and unselectable-action controls are not
+part of this ordinary runner. This adds no device cancellation, hardware failure,
+malformed/omission, denial, replay, expiry, private-intake or browser test.
 
 The `/lantern-tests/source-host-visual/` fixture keeps its default. With
 `?atlas=generated` it also mounts the unified Atlas through the production

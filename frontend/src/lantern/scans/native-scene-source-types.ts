@@ -83,6 +83,8 @@ export interface NativeSceneAcceptedRoomMapping {
   readonly sourceOriginalSha256: string;
   readonly sourceAnchorIds: readonly string[];
   readonly evidenceIds: readonly string[];
+  /** Original unresolved source components; retained by current readers. */
+  readonly unresolvedLabels?: readonly string[];
   readonly targets: readonly Readonly<{ packagePlaceKey: string; packagePlaceUuid: string; atlasPlaceId: string | null }>[];
 }
 

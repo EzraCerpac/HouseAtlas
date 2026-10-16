@@ -1,5 +1,6 @@
 import type { PlanRing } from '../canonical-ifc/model';
 import type { ModelOverviewSelection } from '../source-models/overview-types';
+import type { UnifiedAtlasOverlayOpen, UnifiedAtlasOverlaySource } from '../../../integration/unified-atlas-overlay-source';
 
 /** One selected Blender/Bonsai publication read as `houseatlas.unified-atlas-scene.v1`.
  * Every coordinate is in the glTF world frame after node transforms were
@@ -130,4 +131,8 @@ export interface UnifiedAtlasPort {
   current(): ModelOverviewSelection | null;
   subscribe(changed: () => void): () => void;
   read(selection: ModelOverviewSelection, signal: AbortSignal): Promise<UnifiedAtlasRead>;
+  /** Separate current documentary owner; never changes producer semantics. */
+  createOverlays?(selection: ModelOverviewSelection, scene: AtlasScene, building: AtlasBuilding): Promise<{
+    readonly source: UnifiedAtlasOverlaySource; readonly request: UnifiedAtlasOverlayOpen;
+  } | null>;
 }

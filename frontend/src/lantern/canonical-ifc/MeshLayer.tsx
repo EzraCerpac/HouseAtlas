@@ -62,8 +62,22 @@ export function MeshLayer(props: Props) {
       props.hiddenKeys, props.selectedKeys, props.lifts, props.clips, props.dims]);
   useLayoutEffect(() => {
     const element = canvas.current; if (!element || props.meshes.length === 0) return;
-    const gl = element.getContext('webgl', { antialias: true, alpha: true, preserveDrawingBuffer: false });
-    if (!gl) { props.onUnavailable('3D rendering is unavailable in this browser.'); return; }
+    let creationReason = '';
+    const creationFailed = (event: Event) => {
+      creationReason = (event as WebGLContextEvent).statusMessage?.replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 240) ?? '';
+    };
+    element.addEventListener('webglcontextcreationerror', creationFailed);
+    let gl: WebGLRenderingContext | null;
+    try {
+      gl = element.getContext('webgl', { antialias: true, alpha: true, preserveDrawingBuffer: false });
+    } catch {
+      element.removeEventListener('webglcontextcreationerror', creationFailed);
+      props.onUnavailable('3D context creation threw an exception (context-exception).'); return;
+    }
+    element.removeEventListener('webglcontextcreationerror', creationFailed);
+    if (!gl) {
+      props.onUnavailable(`3D context creation returned no context (context-null).${creationReason ? ` ${creationReason}` : ' No browser reason was provided.'}`); return;
+    }
     let disposed = false, frame: number | null = null, program: WebGLProgram | null = null;
     const shaders: WebGLShader[] = [], uploaded: { mesh: PreparedMesh; buffer: WebGLBuffer }[] = [];
     const schedule = () => {

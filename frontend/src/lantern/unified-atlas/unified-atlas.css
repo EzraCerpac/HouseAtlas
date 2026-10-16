@@ -194,6 +194,19 @@
   overflow-wrap: anywhere;
 }
 
+.lantern-host .ua-label-hit {
+  position: absolute;
+  z-index: 3;
+  min-height: 32px;
+  transform: translate(-50%, -50%);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.lantern-host .ua-label-hit:focus-visible { outline: 2px solid var(--lantern-ink); outline-offset: 2px; }
+
 .lantern-host .ua-rung-all {
   grid-template-columns: minmax(0, 1fr);
   padding-left: 10px;
