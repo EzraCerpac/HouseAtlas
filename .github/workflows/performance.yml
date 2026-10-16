@@ -1,0 +1,114 @@
+name: Synthetic PR performance
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  measurement:
+    name: Synthetic base and head measurements (unprivileged)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      HARNESS_SHA: d03223b0669761cf92846492fe56fb9e8f9f7db9
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Checkout the reviewed immutable harness without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: d03223b0669761cf92846492fe56fb9e8f9f7db9
+          path: harness
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Checkout exact base without persistent credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Checkout exact head without persistent credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Set exact Node runtime
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '26.10.0'
+          check-latest: false
+          package-manager-cache: false
+      - name: Verify identities and prepare only locked public dependencies
+        id: bootstrap
+        env:
+          npm_config_cache: ${{ runner.temp }}/houseatlas-perf-npm
+        run: |
+          test "$(node --version)" = v26.10.0
+          test "$(npm --version)" = 11.19.1
+          test "$(git -C harness rev-parse HEAD)" = "$HARNESS_SHA"
+          test "$(git -C base rev-parse HEAD)" = "$BASE_SHA"
+          test "$(git -C head rev-parse HEAD)" = "$HEAD_SHA"
+          npm ci --prefix harness/tools/perf/harness --ignore-scripts --no-audit --no-fund
+          for perf_side in base head; do
+            if test -f "$perf_side/frontend/package-lock.json"; then
+              if ! npm ci --prefix "$perf_side/frontend" --ignore-scripts --no-audit --no-fund > "$RUNNER_TEMP/houseatlas-perf-$perf_side-install.log" 2>&1; then
+                printf '%s\n' 'Source build dependencies unavailable; affected bundle metrics will be blocked.' >> "$GITHUB_STEP_SUMMARY"
+              fi
+            fi
+          done
+          mkdir -p "$RUNNER_TEMP/houseatlas-perf-data"
+      - name: Collect both sources sequentially on the same runner
+        run: |
+          set +e
+          node harness/tools/perf/harness/run.mjs --source-root "$GITHUB_WORKSPACE/base" --output "$RUNNER_TEMP/houseatlas-perf-data/base.json"
+          perf_base_exit=$?
+          node harness/tools/perf/harness/run.mjs --source-root "$GITHUB_WORKSPACE/head" --output "$RUNNER_TEMP/houseatlas-perf-data/head.json"
+          perf_head_exit=$?
+          test "$perf_base_exit" = 0 && test "$perf_head_exit" = 0
+      # No candidate test or formatter runs after collection. Only the fixed
+      # inline availability writer and immutable upload action touch this pair.
+      - name: Prepare an explicit blocked record when measurement could not complete
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/houseatlas-perf-data"
+          if test -f "$RUNNER_TEMP/houseatlas-perf-data/base.json" && test -f "$RUNNER_TEMP/houseatlas-perf-data/head.json"; then
+            printf '%s\n' 'Both raw measurement records are available; timings are informational and browser/GPU metrics remain unsupported.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          rm -f "$RUNNER_TEMP/houseatlas-perf-data/base.json" "$RUNNER_TEMP/houseatlas-perf-data/head.json"
+          node --input-type=module <<'NODE'
+          import { readFileSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
+          import { join } from 'node:path';
+          const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+          const pr = event.pull_request;
+          const record = { format: 'houseatlas.perf.availability/1', repository: process.env.GITHUB_REPOSITORY,
+            prNumber: pr.number, baseSha: pr.base.sha, headSha: pr.head.sha,
+            runId: Number(process.env.GITHUB_RUN_ID), runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT),
+            status: 'blocked', reason: 'measurement-bootstrap-unavailable' };
+          if (![record.baseSha, record.headSha].every(value => /^[0-9a-f]{40}$/.test(value)) ||
+              ![record.prNumber, record.runId, record.runAttempt].every(value => Number.isSafeInteger(value) && value > 0) ||
+              record.repository !== event.repository.full_name || record.repository !== pr.base.repo.full_name) throw new Error('Invalid event identity');
+          const directory = join(process.env.RUNNER_TEMP, 'houseatlas-perf-data');
+          writeFileSync(join(directory, 'availability.json'), JSON.stringify(record) + '\n', { flag: 'wx' });
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, '| Metric | Base | Head | Status |\n| --- | --- | --- | --- |\n| Synthetic benchmark suite | unavailable | unavailable | blocked: measurement bootstrap unavailable |\n');
+          NODE
+      - name: Upload only the raw pair or the explicit blocked record
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: houseatlas-perf-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/houseatlas-perf-data/base.json
+            ${{ runner.temp }}/houseatlas-perf-data/head.json
+            ${{ runner.temp }}/houseatlas-perf-data/availability.json
+          if-no-files-found: error
+          retention-days: 7
