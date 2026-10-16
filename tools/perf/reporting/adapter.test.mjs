@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -63,5 +63,20 @@ test('CLI writes new Markdown and machine comparison using the owner validator',
     assert.match(readFileSync(file('report.md'), 'utf8'), /-25%/);
     assert.equal(JSON.parse(readFileSync(file('comparison.json'))).comparisons[0].head.p95, 75);
     assert.throws(() => runCli(args, contract)); // Existing evidence is never overwritten.
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+test('comparison-output collision removes only the newly reserved Markdown and permits a clean retry', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'houseatlas-report-pair-'));
+  try {
+    const file = name => join(directory, name);
+    for (const [name, value] of [['base.json', view('base')], ['head.json', view('head')], ['identity.json', identity]]) writeFileSync(file(name), JSON.stringify(value));
+    writeFileSync(file('existing.json'), 'existing evidence');
+    const args = ['--base', file('base.json'), '--head', file('head.json'), '--identity', file('identity.json'), '--markdown', file('report.md'), '--comparison', file('existing.json')];
+    assert.throws(() => runCli(args, contract));
+    assert.equal(existsSync(file('report.md')), false);
+    assert.equal(readFileSync(file('existing.json'), 'utf8'), 'existing evidence');
+    args[9] = file('comparison.json');
+    assert.equal(runCli(args, contract), 0);
+    assert(existsSync(file('report.md')) && existsSync(file('comparison.json')));
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

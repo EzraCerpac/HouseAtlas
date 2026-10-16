@@ -18,8 +18,26 @@ export function summarize(samples) {
     min: sorted[0], max: sorted.at(-1), noisePercent: value === 0 ? (mad === 0 ? 0 : null) : 100 * 1.4826 * mad / value };
 }
 
+// Compare the shortest round-trip decimal forms exactly. This avoids a false
+// gate failure such as (0.33 - 0.3) / 0.3 * 100 > 10 due to binary round-off,
+// while retaining strict integer/byte budgets without a broad noise tolerance.
+function decimal(value) {
+  const [coefficient, power = '0'] = value.toString().split('e');
+  const [whole, fraction = ''] = coefficient.split('.');
+  const exponent = Number(power) - fraction.length;
+  const digits = BigInt(whole + fraction);
+  return exponent >= 0 ? { n: digits * 10n ** BigInt(exponent), d: 1n } : { n: digits, d: 10n ** BigInt(-exponent) };
+}
+function exceedsRegression(base, head, limit) {
+  const before = decimal(base), after = decimal(head), budget = decimal(limit);
+  const change = after.n * before.d - before.n * after.d;
+  const absolute = change < 0n ? -change : change;
+  return before.n === 0n || absolute * 100n * budget.d > after.d * before.n * budget.n;
+}
+
 export function compareMetric(policy, base, head) {
-  const missing = base?.skipReason || head?.skipReason || (!base || !head ? 'metric-unavailable' : null);
+  const missing = [...new Set([base?.skipReason, head?.skipReason,
+    !base ? 'base-metric-unavailable' : null, !head ? 'head-metric-unavailable' : null].filter(Boolean))].join('; ') || null;
   if (missing) return { id: policy.id, status: 'skipped', reason: missing,
     base: base?.samples ? summarize(base.samples) : null, head: head?.samples ? summarize(head.samples) : null, deltaAbsolute: null, deltaPercent: null, failed: base?.failed === true || head?.failed === true };
   const before = summarize(base.samples), after = summarize(head.samples);
@@ -36,7 +54,7 @@ export function compareMetric(policy, base, head) {
     failed = policy.maximum !== undefined && after.value > policy.maximum;
     failed ||= policy.minimum !== undefined && after.value < policy.minimum;
     failed ||= policy.maxRegressionPercent !== undefined && signedChange > 0 &&
-      (deltaPercent === null || Math.abs(deltaPercent) > policy.maxRegressionPercent);
+      exceedsRegression(before.value, after.value, policy.maxRegressionPercent);
   } else {
     // A hosted-runner timing is descriptive. MAD is a noise indicator, not a CI.
     const noise = Math.max(5, 2 * ((before.noisePercent ?? Infinity) + (after.noisePercent ?? Infinity)));

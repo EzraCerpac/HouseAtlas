@@ -28,6 +28,9 @@ has no percentage change unless both values are zero. This avoids reporting an
 infinite or invented speedup.
 Inconsistent deterministic samples skip an unbudgeted metric; with a configured
 budget they fail because the proposed budget cannot be evaluated reliably.
+Relative deterministic budgets compare the numeric inputs' shortest round-trip
+decimal forms exactly, avoiding binary rounding at limits while preserving
+strict integer/byte limits. Both sides' unavailable statuses remain visible.
 
 ## Permission boundary
 

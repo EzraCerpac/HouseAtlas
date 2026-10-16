@@ -34,12 +34,26 @@ test('deterministic absolute and relative budgets fail independently', () => {
   assert.equal(compareMetric({ ...timing, kind: 'deterministic' }, values([100, 101]), values([100])).failed, false);
 });
 test('missing and skipped metrics stay visible', () => {
-  assert.equal(compareMetric(timing, null, values([1])).reason, 'metric-unavailable');
+  assert.equal(compareMetric(timing, null, values([1])).reason, 'base-metric-unavailable');
   const result = compareMetric(timing, { skipReason: 'baseline-unavailable' }, values([1]));
   assert.equal(result.status, 'skipped');
   const table = renderTable([timing], [result]);
   assert.match(table, /baseline-unavailable/);
   assert.match(table, /lower is better/);
+});
+test('different non-measured base and head statuses both remain visible', () => {
+  const result = compareMetric(timing, { skipReason: 'base-unsupported' }, { skipReason: 'head-failed', failed: true });
+  assert.equal(result.reason, 'base-unsupported; head-failed');
+  assert.equal(result.failed, true);
+  assert(renderTable([timing], [result]).includes('base-unsupported; head-failed; FAIL'));
+});
+test('decimal regression boundaries are exact and an actual excess still fails', () => {
+  const lower = { ...timing, kind: 'deterministic', maxRegressionPercent: 10 };
+  assert.equal(compareMetric(lower, values([0.3]), values([0.33])).failed, false);
+  assert.equal(compareMetric(lower, values([0.3]), values([0.330001])).failed, true);
+  assert.equal(compareMetric({ ...lower, direction: 'higher' }, values([0.3]), values([0.27])).failed, false);
+  assert.equal(compareMetric({ ...lower, maxRegressionPercent: 0 }, values([9007199254740990]), values([9007199254740991])).failed, true);
+  assert.equal(compareMetric(lower, values([3e-10]), values([3.3e-10])).failed, false);
 });
 test('Markdown cells cannot create rows, images, links or mentions', () => {
   const external = 'x | [click](https://x) ![img](https://x) @everyone <img> `code`\nnext https://evil.example www.evil.example';

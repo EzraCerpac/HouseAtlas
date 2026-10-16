@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { closeSync, openSync, unlinkSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { readMeasurement } from './read-json.mjs';
 import { validateIdentity } from './report.mjs';
@@ -17,9 +17,27 @@ export function runCli(args, contract) {
   const baseRun = readMeasurement(options.get('--base'), contract.validateRun);
   const headRun = readMeasurement(options.get('--head'), contract.validateRun);
   const result = compareRuns({ identity, baseRun, headRun, contract });
-  writeFileSync(options.get('--markdown'), result.markdown + '\n', { flag: 'wx' });
-  writeFileSync(options.get('--comparison'), JSON.stringify({ format: 'houseatlas.perf.comparison/1', identity,
-    profiles: result.profiles, comparisons: result.comparisons, failed: result.failed }, null, 2) + '\n', { flag: 'wx' });
+  const outputs = [
+    { path: options.get('--markdown'), content: result.markdown + '\n' },
+    { path: options.get('--comparison'), content: JSON.stringify({ format: 'houseatlas.perf.comparison/1', identity,
+      profiles: result.profiles, comparisons: result.comparisons, failed: result.failed }, null, 2) + '\n' },
+  ];
+  const created = [];
+  try {
+    // Reserve both new files before writing either body. On a normal I/O error,
+    // remove only files created by this invocation; existing evidence is untouched.
+    for (const output of outputs) created.push({ ...output, fd: openSync(output.path, 'wx') });
+    for (const output of created) writeFileSync(output.fd, output.content);
+  } catch {
+    for (const output of created) {
+      try { closeSync(output.fd); } catch { /* Cleanup continues for owned files. */ }
+      finally { output.fd = undefined; }
+      try { unlinkSync(output.path); } catch { /* Caller must inspect failed I/O. */ }
+    }
+    throw new Error('Report output pair could not be published');
+  } finally {
+    for (const output of created) { if (output.fd !== undefined) closeSync(output.fd); }
+  }
   return result.failed ? 1 : 0;
 }
 
