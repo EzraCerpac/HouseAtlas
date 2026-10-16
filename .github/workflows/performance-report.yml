@@ -1,0 +1,104 @@
+name: Report synthetic PR performance
+on:
+  workflow_run:
+    workflows: [Synthetic PR performance]
+    types: [completed]
+permissions: {}
+jobs:
+  resolve:
+    name: Resolve trusted originating PR
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      pr_number: ${{ steps.origin.outputs.pr_number }}
+    steps:
+      - name: Checkout exact default-branch reporter source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Checkout the immutable canonical healthy fixture source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: d03223b0669761cf92846492fe56fb9e8f9f7db9
+          path: .houseatlas-perf-harness
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Set exact Node runtime
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '26.10.0'
+          check-latest: false
+          package-manager-cache: false
+      - name: Prepare only the pinned canonical healthy contract lock
+        env:
+          npm_config_cache: ${{ runner.temp }}/houseatlas-report-healthy-npm
+        run: npm ci --prefix .houseatlas-perf-harness/tools/perf/harness --omit=optional --ignore-scripts --no-audit --no-fund
+      - name: Run the named healthy suite only from trusted default source
+        env:
+          TRUSTED_SOURCE_SHA: ${{ github.sha }}
+          HOUSEATLAS_PERF_CONTRACT_ROOT: ${{ github.workspace }}/.houseatlas-perf-harness
+        run: |
+          test "$(git rev-parse HEAD)" = "$TRUSTED_SOURCE_SHA"
+          test "$(node --version)" = v26.10.0
+          node --test --test-concurrency=1 tools/perf/reporting/healthy-reporting.test.mjs
+      - name: Resolve the PR using GitHub metadata only
+        id: origin
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_SOURCE_SHA: ${{ github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$TRUSTED_SOURCE_SHA"
+          node tools/perf/reporting/github-run.mjs resolve
+  publish:
+    name: Update the validated PR performance table
+    needs: resolve
+    if: needs.resolve.outputs.pr_number != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # Serialize only the resolved PR. Older completed runs cannot overwrite newer ones.
+    concurrency:
+      group: houseatlas-performance-comment-${{ needs.resolve.outputs.pr_number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    steps:
+      - name: Checkout exact default-branch reporter source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Set exact Node runtime
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '26.10.0'
+          check-latest: false
+          package-manager-cache: false
+      - name: Prepare only the trusted default-branch contract lock when present
+        continue-on-error: true
+        env:
+          npm_config_cache: ${{ runner.temp }}/houseatlas-report-npm
+        run: |
+          if test -f tools/perf/harness/package-lock.json; then
+            npm ci --prefix tools/perf/harness --omit=optional --ignore-scripts --no-audit --no-fund
+          fi
+      - name: Validate provenance and bounded data, then update one owned comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUSTED_SOURCE_SHA: ${{ github.sha }}
+          EXPECTED_PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$TRUSTED_SOURCE_SHA"
+          node tools/perf/reporting/github-run.mjs publish

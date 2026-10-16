@@ -22,6 +22,8 @@ import type { NativeGeometryWriteClient } from './scans/native-write-types';
 import type { NativeGeometryIntakeAssociation } from './scans/native-ui/NativeGeometryIntake';
 import type { NativeSceneHost } from './scans/native-ui/native-scene-host';
 import { NativeGeometryProvider } from './scans/native-ui/NativeScanAtlas';
+import { SourcePortsContext, type SourceModelPort } from './source-ports';
+import type { SourceDocumentsPort } from './source-documents/types';
 import './styles/fonts.css';
 import './styles/tokens.css';
 import './styles/app.css';
@@ -31,7 +33,7 @@ import './styles/integration.css';
 import './styles/topology.css';
 
 /** The existing session/view/stock owners remain above this presentation seam. */
-export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinnedFiles, networkRelations, topology, nativePlaces, nativeGeometry, nativeGeometryWrite, nativeGeometryAssociation, nativeEvidenceDocuments, nativeScene }: {
+export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinnedFiles, networkRelations, topology, nativePlaces, nativeGeometry, nativeGeometryWrite, nativeGeometryAssociation, nativeEvidenceDocuments, nativeScene, sourceModels, sourceDocuments }: {
   view: ReadyView; actions: AtlasContentActions; nativeContent: ReactNode;
   quantityWebMcp?: { readonly admission: QuantityAdmissionPort; readonly modelContext: ModelContextPort };
   /** Optional local HomeBox file consumer; its actions are explicit user reads. */
@@ -46,7 +48,12 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   nativeGeometryAssociation?: NativeGeometryIntakeAssociation;
   nativeEvidenceDocuments?: NativeEvidenceDocumentClient;
   nativeScene?: NativeSceneHost;
+  /** Optional browser-only model file viewer; nothing is uploaded or saved. */
+  sourceModels?: SourceModelPort;
+  /** Optional native v2 source Documents reader. */
+  sourceDocuments?: SourceDocumentsPort;
 }) {
+  const sources = useMemo(() => ({ ...(sourceModels ? { models: sourceModels } : {}), ...(sourceDocuments ? { documents: sourceDocuments } : {}) }), [sourceModels, sourceDocuments]);
   const client = useMemo(() => createGeometryClient(), []);
   const historyClient = useMemo(() => createOperationHistoryClient(), []);
   const session = actions.session?.expiresAt;
@@ -114,7 +121,7 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   } }), [view, session, includeArchived]);
   const ports = useMemo(() => ({ ...actions, nativeContent, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, nativeContent, archiveVisibility, pinnedFiles, networkRelations]);
   return <StoreProvider key={projection.house.id} projection={projection} actions={ports}>
-    <TopologyProvider client={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments}><NativeGeometryProvider client={nativeGeometry} writeClient={nativeGeometryWrite} associationClient={nativeGeometryAssociation} scene={nativeScene}><App /></NativeGeometryProvider></TopologyProvider>
+    <TopologyProvider client={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments}><NativeGeometryProvider client={nativeGeometry} writeClient={nativeGeometryWrite} associationClient={nativeGeometryAssociation} scene={nativeScene}><SourcePortsContext value={sources}><App /></SourcePortsContext></NativeGeometryProvider></TopologyProvider>
     <NativeActions />
     {quantityWebMcp && actions.quantity && <QuantityHandoffLeaf client={actions.quantity} admission={quantityWebMcp.admission} modelContext={quantityWebMcp.modelContext} />}
     {actions.notice && <p className="lantern-reload-notice" role="status">{actions.notice}</p>}

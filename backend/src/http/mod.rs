@@ -16,6 +16,7 @@ mod geodata_documents;
 mod geodata_original;
 mod intake;
 mod media;
+mod model_overview;
 mod mutations;
 mod native_geometry;
 mod native_scene_association;
@@ -106,6 +107,7 @@ pub struct Host {
     quantity_previews: Arc<Mutex<quantity::Registry>>,
     #[cfg(test)]
     quantity_tls_fixture: Option<Arc<quantity_fixture::PrivateLoopbackQuantityTls>>,
+    model_overview: Option<Arc<crate::config::model_overview::ServerModelOverviewSelection>>,
     full_geodata_identity: Option<crate::storage::FullGeodataIdentity>,
     geodata_dataset: Option<Arc<Mutex<crate::storage::geodata::GeodataStore>>>,
     loopback_local: bool,
@@ -128,6 +130,7 @@ impl Host {
             quantity_previews: Arc::new(Mutex::new(quantity::Registry::default())),
             #[cfg(test)]
             quantity_tls_fixture: None,
+            model_overview: None,
             full_geodata_identity: None,
             geodata_dataset: None,
             loopback_local: false,
@@ -155,9 +158,20 @@ impl Host {
             )),
         })
     }
-    /// Explicit startup choice validated against the actual native local user.
-    /// Explicit exclusive dataset selection. The router serves v2 Documents and
-    /// native auth only; it never attaches Documents to the legacy core store.
+    /// Trusted immutable overview selection; all requests retain native access.
+    pub fn with_model_overview(
+        mut self,
+        selection: crate::config::model_overview::ServerModelOverviewSelection,
+    ) -> crate::storage::Result<Self> {
+        if !self.mcp_scopes.iter().any(|scope| selection.matches(scope)) {
+            return Err(crate::storage::Error::new(
+                "identity-conflict",
+                "Overview scope is not configured",
+            ));
+        }
+        self.model_overview = Some(Arc::new(selection));
+        Ok(self)
+    }
     /// Compose Documents with native/Stock routes only on the original full
     /// profile Core.store connection; no second dataset connection is accepted.
     pub fn with_full_geodata(mut self) -> crate::storage::Result<Self> {
@@ -560,25 +574,17 @@ fn evidence<'a>(
         csrf: headers.csrf.as_deref(),
     })
 }
-fn authorized_read<T>(
+/// Issue exactly the existing native Read and home-choice principals.
+/// The caller holds the canonical Core only for capture and native queries.
+fn capture_read(
     host: &Host,
+    core: &Core,
     headers: &CheckedHeaders,
     uri: &Uri,
     method: &Method,
     scope: Option<d::Scope>,
     include_home_choices: bool,
-    operation: impl FnOnce(&mut Core, &RequestPrincipal, &d::HomeSummary) -> Result<T, HttpFailure>,
-) -> Result<T, HttpFailure> {
-    // Caller-selected scope syntax has the same 404 contract on every read
-    // route, before any session or data lookup. Trusted configured scopes are
-    // still checked by the access boundary in capture_homes.
-    if let Some(scope) = &scope {
-        crate::app::access_scope(scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
-    }
-    let mut core = host
-        .core
-        .lock()
-        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+) -> Result<(RequestPrincipal, d::HomeSummary), HttpFailure> {
     let url = format!(
         "{}{}",
         host.origin,
@@ -625,9 +631,86 @@ fn authorized_read<T>(
     let selected = choices.remove(selected);
     let mut principal = RequestPrincipal::new(selected.principal);
     principal.home_choices = choices;
-    let result = operation(&mut core, &principal, &selected.summary)?;
+    Ok((principal, selected.summary))
+}
+fn authorized_read<T>(
+    host: &Host,
+    headers: &CheckedHeaders,
+    uri: &Uri,
+    method: &Method,
+    scope: Option<d::Scope>,
+    include_home_choices: bool,
+    operation: impl FnOnce(&mut Core, &RequestPrincipal, &d::HomeSummary) -> Result<T, HttpFailure>,
+) -> Result<T, HttpFailure> {
+    // Preserve the existing syntax rejection before any session/data lookup.
+    if let Some(scope) = &scope {
+        crate::app::access_scope(scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
+    }
+    let mut core = host
+        .core
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    let (principal, home) = capture_read(
+        host,
+        &core,
+        headers,
+        uri,
+        method,
+        scope,
+        include_home_choices,
+    )?;
+    let result = operation(&mut core, &principal, &home)?;
     let access = core
         .access
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    principal.release(&access).map_err(access_error)?;
+    Ok(result)
+}
+/// Preserve every captured native grant through a separately unlocked finish.
+/// Only model publication I/O belongs in finish; native query work stays locked.
+fn authorized_read_phased<P, T>(
+    host: &Host,
+    headers: &CheckedHeaders,
+    uri: &Uri,
+    method: &Method,
+    selection: (Option<d::Scope>, bool),
+    prepare: impl FnOnce(&mut Core, &RequestPrincipal, &d::HomeSummary) -> Result<P, HttpFailure>,
+    finish: impl FnOnce(P, &d::Scope) -> Result<T, HttpFailure>,
+) -> Result<T, HttpFailure> {
+    if let Some(scope) = &selection.0 {
+        crate::app::access_scope(scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
+    }
+    let mut core = host
+        .core
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    let current_selection = selection.0.is_none().then(|| core.home.scope.clone());
+    let (principal, home) =
+        capture_read(host, &core, headers, uri, method, selection.0, selection.1)?;
+    let canonical = Arc::clone(&core.access);
+    let prepared = prepare(&mut core, &principal, &home)?;
+    drop(core);
+    let result = finish(prepared, &home.scope)?;
+    let core = host
+        .core
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    if !Arc::ptr_eq(&canonical, &core.access)
+        || current_selection
+            .as_ref()
+            .is_some_and(|scope| *scope != core.home.scope)
+        || !core.homes.iter().any(|current| current.scope == home.scope)
+        || principal.home_choices.iter().any(|choice| {
+            !core
+                .homes
+                .iter()
+                .any(|current| current.scope == choice.summary.scope)
+        })
+    {
+        return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+    }
+    let access = canonical
         .lock()
         .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
     principal.release(&access).map_err(access_error)?;
@@ -706,9 +789,25 @@ fn query_view(
         )
         .map_err(domain_error)
 }
+/// Match the installed Documents route selection to its original native owners.
+/// The caller has already authorized the current/scoped view read.
+fn source_documents_service_selected(host: &Host, core: &Core) -> Result<bool, HttpFailure> {
+    let Some(identity) = &host.full_geodata_identity else {
+        return Ok(false);
+    };
+    let store = core
+        .store
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    Ok(store.matches_full_geodata_identity(identity)
+        && store.full_geodata_belongs_to(&core.access, &core.vault))
+}
 /// Deliberate narrow projection for AT10's browser wire proposal. Unimplemented
 /// extension facts stay unknown/absent; the read-only graph excludes Network.
-fn browser_view(view: d::CurrentOutput) -> Result<Value, HttpFailure> {
+fn browser_view(
+    view: d::CurrentOutput,
+    source_documents_available: bool,
+) -> Result<Value, HttpFailure> {
     let mut v =
         serde_json::to_value(&view).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
     let entries = v["entries"]
@@ -720,6 +819,12 @@ fn browser_view(view: d::CurrentOutput) -> Result<Value, HttpFailure> {
     for (entry, original) in entries.iter_mut().zip(&view.entries) {
         browser_entry(entry, original)?;
     }
+    // Availability on this selected host, not a grant or a promise about any
+    // individual Document. Its routes retain their own current authorization.
+    v["sourceDocumentsService"] = serde_json::json!({
+        "profile": "houseatlas.geodata-document-read.v2",
+        "available": source_documents_available,
+    });
     Ok(v)
 }
 fn browser_entry(entry: &mut Value, original: &d::CurrentEntry) -> Result<(), HttpFailure> {
@@ -824,17 +929,20 @@ async fn current(
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
         let _admitted = headers.admission_permit()?;
-        authorized_read(
+        authorized_read_phased(
             &host,
             &headers,
             &uri,
             &method,
-            None,
-            true,
+            (None, true),
             |core, principal, home| {
-                Ok(json_response(browser_view(query_view(
-                    core, principal, home,
-                )?)?))
+                let view = query_view(core, principal, home)?;
+                let selected = source_documents_service_selected(&host, core)?;
+                browser_view(view, selected)
+            },
+            |mut wire, scope| {
+                wire["modelOverviewService"] = model_overview::availability(&host, scope);
+                Ok(json_response(wire))
             },
         )
     })
@@ -850,20 +958,26 @@ async fn scoped(
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
         let _admitted = headers.admission_permit()?;
-        authorized_read(
+        authorized_read_phased(
             &host,
             &headers,
             &uri,
             &method,
-            Some(d::Scope {
-                workspace_id,
-                home_id,
-            }),
-            true,
+            (
+                Some(d::Scope {
+                    workspace_id,
+                    home_id,
+                }),
+                true,
+            ),
             |core, principal, home| {
-                Ok(json_response(browser_view(query_view(
-                    core, principal, home,
-                )?)?))
+                let view = query_view(core, principal, home)?;
+                let selected = source_documents_service_selected(&host, core)?;
+                browser_view(view, selected)
+            },
+            |mut wire, scope| {
+                wire["modelOverviewService"] = model_overview::availability(&host, scope);
+                Ok(json_response(wire))
             },
         )
     })
@@ -1071,6 +1185,9 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         ),
         None => base,
     };
+    let base = base
+        .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/overview", get(model_overview::descriptor).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/overview/{publication_id}/original", get(model_overview::original).head(auth::session_head).fallback(auth::session_head));
     let base = if host.full_geodata_identity.is_some() {
         base.merge(geodata_documents::full_routes())
     } else {

@@ -12,6 +12,7 @@ import { NativeSceneCandidate } from './NativeSceneCandidate';
 import { RoomIndex } from '../../views/RoomsView';
 import type { NativeGeometryWriteClient } from '../native-write-types';
 import type { NativeGeometryIntakeAssociation } from './NativeGeometryIntake';
+import { stageMark, stageSpan } from '../../observability/stage-timing';
 
 const Context = createContext<NativeGeometryReadClient | undefined>(undefined);
 const IntakeContext = createContext<{ readonly write: NativeGeometryWriteClient | undefined;
@@ -53,6 +54,10 @@ export function NativeScanAtlas({ client }: { readonly client: NativeGeometryRea
   const owner = useMemo(() => ({ client, view, index: topology.index, buildingId: building?.id ?? null, attempt }),
     [client, view, topology.index, building?.id, attempt]);
   const current = useRef(owner); current.current = owner;
+  // Anonymous timing only: a later load in this view counts as warm.
+  const completedLoads = useRef(0);
+  // The attempt an explicit Refresh scans started; it reads meshes afresh.
+  const refreshed = useRef<number | null>(null);
   useEffect(() => topology.activate(), [topology.activate]);
   useEffect(() => {
     const controller = new AbortController(); let released = false;
@@ -63,14 +68,19 @@ export function NativeScanAtlas({ client }: { readonly client: NativeGeometryRea
     setLoaded(null); setDenied(null); setOutcome(null);
     if (!building || topology.status !== 'ready') return () => { released = true; controller.abort(); };
     setOutcome({ owner, status: 'loading' });
+    const timing = stageSpan('scan-atlas', 'building-load', { cache: completedLoads.current > 0 ? 'warm' : 'cold' });
+    controller.signal.addEventListener('abort', () => timing({ status: 'withdrawn' }), { once: true });
     void (async () => {
-      const frame = await client.loadBuilding(building.id, controller.signal);
+      const frame = await client.loadBuilding(building.id, controller.signal, { refresh: refreshed.current === owner.attempt });
       if (!live()) return;
+      stageMark('scan-atlas', 'descriptor-read', { floors: frame.floors.length });
+      if (refreshed.current === owner.attempt) refreshed.current = null;
       if (!client.isCurrent(frame) || frame.descriptor.scope.workspaceId !== view.scope.workspaceId
         || frame.descriptor.scope.homeId !== view.scope.homeId || frame.descriptor.buildingId !== building.id) {
-        setOutcome({ owner, status: 'unavailable' }); controller.abort(); return;
+        timing({ status: 'unavailable' }); setOutcome({ owner, status: 'unavailable' }); controller.abort(); return;
       }
       unsubscribe = client.subscribeInvalidation(frame, () => {
+        stageMark('scan-atlas', 'invalidated');
         // Withdraw the actual bitmap and scene controls synchronously. React's
         // queued state change is not the native lease's visibility fence.
         if (displayed.current === frame && surface.current) surface.current.hidden = true;
@@ -79,20 +89,29 @@ export function NativeScanAtlas({ client }: { readonly client: NativeGeometryRea
       });
       if (!live()) return;
       if (!client.isCurrent(frame)) { setOutcome({ owner, status: 'unavailable' }); controller.abort(); return; }
-      if (frame.floors.length === 0) { setOutcome({ owner, status: 'empty' }); return; }
+      if (frame.floors.length === 0) { timing({ status: 'empty' }); setOutcome({ owner, status: 'empty' }); return; }
       // A bounded presentation shows at most three export floors. Additional
       // retained floors remain explicitly counted, never silently discarded.
       const selected = frame.floors.slice(0, 3);
       let floors: readonly PresentationFloor[] = selected.map((floor, index) => ({ key: floor.key,
         label: floor.exportLabel, short: String(index + 1), profile: null }));
-      for (const floor of selected) {
+      for (const [at, floor] of selected.entries()) {
+        // A read that loses its owner, signal or frame is withdrawn, never shown
+        // or failed; the span records only its first end.
+        const floorTiming = stageSpan('scan-atlas', 'floor-read', { floor: at });
+        const withdraw = () => floorTiming({ status: 'withdrawn' });
+        controller.signal.addEventListener('abort', withdraw, { once: true });
         try {
           const profile = await readScanMesh(frame.readPort, frame.viewKey, floor, controller.signal);
-          if (!live() || !client.isCurrent(frame)) return;
+          if (!live() || !client.isCurrent(frame)) { withdraw(); return; }
+          floorTiming({ status: 'shown' });
           floors = floors.map(row => row.key === floor.key ? { ...row, profile } : row);
         } catch {
-          if (!live() || !client.isCurrent(frame)) return;
+          if (!live() || !client.isCurrent(frame)) { withdraw(); return; }
+          floorTiming({ status: 'failed' });
           floors = floors.map(row => row.key === floor.key ? { ...row, unavailable: 'Scan unavailable or unsupported.' } : row);
+        } finally {
+          controller.signal.removeEventListener('abort', withdraw);
         }
       }
       if (!live() || !client.isCurrent(frame)) return;
@@ -118,8 +137,12 @@ export function NativeScanAtlas({ client }: { readonly client: NativeGeometryRea
           sceneFrame = null; selectedScene = null;
         }
       }
-      if (live() && client.isCurrent(frame)) setLoaded({ owner, frame, floors, source: sceneFrame });
-    })().catch(() => { if (live()) setOutcome({ owner, status: 'unavailable' }); });
+      if (live() && client.isCurrent(frame)) {
+        completedLoads.current++;
+        timing({ status: 'shown', floors: floors.length, scene: sceneFrame !== null });
+        setLoaded({ owner, frame, floors, source: sceneFrame });
+      }
+    })().catch(() => { if (live()) { timing({ status: 'unavailable' }); setOutcome({ owner, status: 'unavailable' }); } });
     return () => { released = true; controller.abort(); unsubscribe(); unsubscribeScene();
       if (sceneFrame) intake.scene?.sources.release(sceneFrame);
       if (selectedScene) intake.scene?.clear(selectedScene);
@@ -131,14 +154,20 @@ export function NativeScanAtlas({ client }: { readonly client: NativeGeometryRea
   useLayoutEffect(() => {
     displayed.current = observation?.frame ?? null;
     if (surface.current) surface.current.hidden = !observation || !client.isCurrent(observation.frame) || current.current !== owner;
+    if (!observation || surface.current?.hidden !== false) return;
+    // First frame after the scene is committed and visible.
+    const frame = requestAnimationFrame(() => stageMark('scan-atlas', 'scene-visible'));
+    return () => cancelAnimationFrame(frame);
   }, [client, observation, owner]);
   return <div className={`native-scan-atlas${building ? ' has-building' : ''}`}>
     {!building && <header className="atlas-section-head"><h1>{projection.house.name}</h1></header>}
     <div className="filter-row" role="group" aria-label="Scan building">
       {buildings.length > 0 && <span className="filter-row-label" aria-hidden="true">Building</span>}
       {buildings.map(row => <button key={row.id} type="button" className="chip-btn" aria-pressed={building?.id === row.id}
-        onClick={() => topology.chooseBuilding(row.id)}>{row.label}</button>)}
-      {building && <button type="button" className="text-btn" onClick={() => setAttempt(value => value + 1)}>Refresh scans</button>}
+        onClick={event => { stageMark('scan-atlas', 'building-switch', { input: event.detail === 0 ? 'keyboard' : 'pointer' }); topology.chooseBuilding(row.id); }}>{row.label}</button>)}
+      {building && <button type="button" className="text-btn" onClick={() => {
+        refreshed.current = attempt + 1; setAttempt(attempt + 1);
+      }}>Refresh scans</button>}
     </div>
     {!building ? <p role="status">{topology.status !== 'ready' ? buildingReadMessages[topology.status]
       : buildings.length ? 'Select a reviewed building to read its scans.' : 'No reviewed building available for scans.'}</p>

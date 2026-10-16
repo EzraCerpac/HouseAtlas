@@ -21,7 +21,7 @@ WORKFLOW = '.github/workflows/pr185-qualifier-artifact.yml'
 SUPPORT = 'tools/pr185-qualifier-artifact.py'
 HELPER = 'tools/pr185-full-qualifier.rs'
 ABI_SUPPORT = 'tools/pr185-darwin-artifact.py'
-ABI_SUPPORT_SHA256 = 'b212e3c0652e2cc45b649650517066d4c7643804eb3540b3a77efbeed6b3d8ff'
+ABI_SUPPORT_SHA256 = '8730d79b2a1acfae3756f091726d988c39c02ea7019d27bff9d709661b04b59b'
 CRATES = ('houseatlas_backend', 'rusqlite', 'serde_json', 'sha2', 'rustix')
 
 
@@ -147,7 +147,7 @@ def main():
     xcode = record('xcode', ['xcodebuild', '-version'])
     release = target / TARGET / 'release'
     binary = release / BINARY
-    selfcheck = temp / 'pr185-qualifier-self-check'
+    selfcheck = canonical_tmp / 'pr185-qualifier-self-check'
     need(not selfcheck.exists(), 'Self-check output root already exists')
     try:
         record('cargo-fetch', ['cargo', 'fetch', '--locked'], cwd=source)

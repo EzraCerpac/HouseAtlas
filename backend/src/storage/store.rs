@@ -405,7 +405,7 @@ fn read_snapshot<C: Contract, B: Authorization>(
         principal,
         read_request(scope, Capability::Read, &[]),
     )?;
-    let mut snapshot = repo::snapshot(&tx)?.scoped(scope);
+    let mut snapshot = repo::scoped_snapshot(&tx, scope)?.scoped(scope);
     let partition_key = |p: &SourcePartition| {
         (
             p.workspace_id.clone(),
@@ -635,3 +635,7 @@ fn source_denied(result: Result<VerifiedActor>) -> Result<bool> {
 }
 
 pub(crate) use quantity_installation::observe_quantity_installation_in_transaction;
+
+#[cfg(test)]
+#[path = "snapshot_tests.rs"]
+mod snapshot_tests;
