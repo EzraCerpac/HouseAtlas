@@ -83,7 +83,7 @@ def inspect_macho(path):
             libraries.append(name)
         offset += length
     need(offset == 32 + size and minimums, 'Missing macOS deployment version')
-    need(all(tuple(v) <= (15, 8, 0) for v in minimums), 'Minimum macOS exceeds 15.8')
+    need(all(tuple(v) == (15, 0, 0) for v in minimums), 'Require exact minimum macOS 15.0.0')
     return {'format': 'thin Mach-O64', 'architecture': 'x86_64',
             'minimumMacOSVersions': minimums, 'platformIds': platforms,
             'linkedLibraries': libraries, 'loadCommands': count}

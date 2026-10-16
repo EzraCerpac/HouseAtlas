@@ -6,6 +6,8 @@ import { fmtDate } from '../data/time';
 import { useSelect, useStore } from '../state/store';
 import { Icon } from '../components/Icon';
 import { Empty, StorageTag } from '../components/ui';
+import { useSourcePorts } from '../source-ports';
+import { SourceDocuments } from '../source-documents/SourceDocuments';
 
 type Filter = 'all' | 'manual' | 'photo' | 'report' | 'receipt' | 'link';
 
@@ -74,6 +76,7 @@ function docQualifiers(d: Doc, entry: Entry | undefined): string[] {
 
 export function LibraryView() {
   const { house, dispatch, projection } = useStore();
+  const { documents } = useSourcePorts();
   const select = useSelect();
   const [filter, setFilter] = useState<Filter>('all');
   const test = FILTERS.find((f) => f.id === filter)!.test;
@@ -127,6 +130,7 @@ export function LibraryView() {
           </ul>
         </>;
       })()}
+      {documents && <SourceDocuments port={documents} />}
     </div>
   );
 }

@@ -215,3 +215,7 @@ path = "examples/healthy-native-geodata-documents.rs"
 [[example]]
 name = "healthy-native-full-geodata-profile"
 path = "examples/healthy-native-full-geodata-profile.rs"
+
+[[example]]
+name = "healthy-model-overview-read"
+path = "examples/healthy-model-overview-read.rs"

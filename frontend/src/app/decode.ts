@@ -301,6 +301,14 @@ export function decodeAtlasView(value: unknown): AtlasView {
     throw new TypeError("Inconsistent view scope");
   if (!homes.some((h) => sameScope(h, currentScope)))
     throw new TypeError("Current home missing");
+  // Unknown/absent/false optional services leave the native home usable.
+  const model = o.modelOverviewService;
+  const selected = model && typeof model === 'object' && !Array.isArray(model) ? model as ObjectValue : null;
+  const modelOverviewService = selected?.profile === 'houseatlas.model-overview-read.v1' && selected.available === true
+    && typeof selected.publicationId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(selected.publicationId)
+    && typeof selected.manifestSha256 === 'string' && /^[0-9a-f]{64}$/.test(selected.manifestSha256)
+    ? { profile: 'houseatlas.model-overview-read.v1' as const, available: true as const,
+      publicationId: selected.publicationId, manifestSha256: selected.manifestSha256 } : undefined;
   return {
     status,
     scope: currentScope,
@@ -310,5 +318,6 @@ export function decodeAtlasView(value: unknown): AtlasView {
     entries,
     homes,
     caches: list(o.caches, cache),
+    ...(modelOverviewService ? { modelOverviewService } : {}),
   };
 }

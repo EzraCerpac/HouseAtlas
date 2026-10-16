@@ -1,5 +1,38 @@
 # HouseAtlas
 
+The selected provisional overview consumer has this healthy generated check:
+
+```sh
+node frontend/lantern-tests/model-overview-read-healthy.mjs
+```
+
+It runs the actual view decoder and bounded GET reader with generated responses,
+checks the optional service facet and exact descriptor/original frame, SHA and
+byte pins on two fresh reads. It creates no listener, credential, household
+intake, browser or deployment. Actual standard-GLB admission and browser mesh
+rendering remain separate from transport success.
+
+The isolated canonical IFC viewer check uses generated presentations, the
+checked-in two-floor v2 artifacts and a fake read port. Inspect the runner and
+its imports before this focused local command with Node 26.10.0 and the locked
+frontend dependencies:
+
+```sh
+node frontend/lantern-tests/canonical-ifc-viewer.test.mjs --healthy
+```
+
+It covers artifact pins, logical rooms with multiple floor-qualified
+occurrences, selection memory, overlay joins and CPU plan/3D picking. It also
+reads one public closed-profile GLB without assigning rooms or floors. The
+visual fixture at `/lantern-tests/canonical-ifc-visual/` supports `?fixture=a`,
+`b`, `coverage`, `scene` and `local`. Actual browser layout and GPU checks are
+separate. This command adds no live scene service, household intake,
+application mount, deployment or held lifecycle/control-test permission.
+The `--healthy` selection excludes the script's malformed-record, duplicate
+admission, cancellation and artifact/manifest refusal controls. The default
+mixed runner is not the ordinary command; this selection grants no permission
+to execute held controls and changes no CI workflow.
+
 The persistent scan-cache check uses the actual native geometry reader, mesh
 parser and IndexedDB adapter with a synthetic IndexedDB model and an owned
 numeric loopback HTTP listener. Fresh module, client and cache instances stand
@@ -1043,6 +1076,71 @@ only an authenticated correlated intake rejection proves that invocation did
 not commit. These checks do not resolve historical upload requests, prove crash
 recovery, release a resend, change ordinary CI or accept deployment.
 
+## Source Documents frontend reader and mounted host
+
+The optional local model review and source-site consumer have one focused
+healthy synthetic check. Inspect `frontend/lantern-tests/model-review-logic.test.mjs`
+and its finite renderer-owner, local-reader, publication and synthetic-fixture
+imports, then use Node 26.10.0 and the locked frontend dependencies:
+
+```sh
+node frontend/lantern-tests/model-review-logic.test.mjs
+```
+
+It checks original File-object ownership, normal renderer replacement, an
+acknowledged local JSON representation, exact synthetic site pins/2D source
+coordinates, finite shared-budget arithmetic and generated read/load ordering.
+It uses no browser, listener, native service, private input or
+external provider. A fake acknowledgement does not establish actual browser
+display. The generated `/lantern-tests/model-review-visual/`,
+`/lantern-tests/source-host-visual/`, `/lantern-tests/scene-drawing-timing/` and
+`/lantern-tests/scan-network-visual/`
+fixtures support separately owned loopback browser review of the real React
+components, source documents/site views and anonymous stage observations.
+Their synthetic observations do not qualify household data, native authority,
+private source display or deployment. This command adds no held failure,
+revocation, replay or private-intake checks.
+
+After inspecting `frontend/lantern-tests/source-documents-reader.test.mjs`, its
+synthetic in-page transport and imported reader/numeric/PDF-budget modules, use
+Node 26.10.0 and the locked frontend dependencies for this focused healthy check:
+
+```sh
+node frontend/lantern-tests/source-documents-reader.test.mjs
+```
+
+It reads generated v2 Document lists/originals/qualified PNG bytes, preserves a
+schema-valid recorded leap second, checks normal single-reader lease replacement
+and exercises canvas-budget arithmetic without allocating a large PDF canvas.
+It opens no listener/browser and uses no native host, provider, household input,
+intake or deployment. It adds no held control/regression-suite permission.
+
+The manual fixture `/lantern-tests/source-host-visual/` mounts the actual
+LanternHost with a browser-only model chooser and native v2 source Documents in
+Library. Its Documents transport is generated in-page; other application fetches
+are unavailable. Inspect its main, synthetic-document generator and imports before
+serving it through an owned loopback Vite preview. Desktop/mobile layout, PDF page
+rendering, qualified PNG display and actual private host/source acceptance require
+separate supported-browser observations. Keep private inputs and captures outside
+Git, and stop the owned preview after the bounded review.
+
+The scan/network fixture mounts the actual LanternHost, NativeScanAtlas and
+NetworkSceneLayer through generated read-only ports. Its shared topology data
+is the existing generated topology fixture. Inspect each fixture entrypoint,
+the shared StageTimings component/CSS and their imports before serving these
+paths. With Node 26.10.0 and locked dependencies, choose an unused loopback port:
+
+```sh
+cd frontend
+./node_modules/.bin/vite --config vite.config.ts --host 127.0.0.1 --port 4310 --strictPort
+```
+
+Use the supported browser for ordinary desktop/mobile selection, source opening,
+visibility controls, pointer/keyboard interaction and visible timing observations.
+The timing tables show bounded anonymous local stages from the real components;
+fake read delays describe only the generated fixture. Stop the owned preview
+within 20 minutes. This manual review adds no workflow or ordinary CI command.
+
 ## Native geodata document first slice
 
 Inspect `backend/src/media/geodata_original.rs`,
@@ -1102,3 +1200,88 @@ The separately authorized full-profile synthetic compatibility check is
 `cargo run --offline --locked -p houseatlas-backend --example healthy-native-full-geodata-profile`.
 Its exact generated scope and limitations are in
 [the full native profile guide](../geodata/native-full-profile.md).
+
+## Selected provisional model overview positive
+
+Inspect `backend/src/config/model_overview.rs`,
+`backend/src/http/model_overview.rs`, the narrow CLI/router composition, and
+`backend/examples/healthy-model-overview-read.rs` before this exact command.
+It uses only one generated triangle publication and fresh disposable native
+state/session through the in-process router. It observes absent/selected ready
+views, descriptor and exact Media-authorized bytes, pins/headers and unchanged
+configuration/receipt/input bytes. It opens no listener, provider or household
+file and runs no denial, malformed, replay, expiry, revocation or crash probes.
+Use Rust 1.99.0 and an owned Cargo target outside the checkout:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-model-overview-read
+```
+
+This positive establishes synthetic read composition only; actual private
+publication install, device rendering and release remain separate.
+
+## Synthetic PR performance reporting
+
+The separate performance lane uses only this automatic healthy reporting check,
+from the exact accepted default-branch checkout in the read-only `workflow_run`
+resolution job. The test body and all imports come from that trusted revision;
+candidate test files never select automatic cases. The measurement job runs no
+candidate reporting test, formatter or Markdown preview after collection. Before
+the reporter workflow is installed on main, hosted PR checks collect raw records
+only. Inspect the complete local test source and imported helpers before this
+focused local command with Node 26.10.0 and Python 3's standard library:
+
+```sh
+node --test --test-concurrency=1 tools/perf/reporting/healthy-reporting.test.mjs
+```
+
+It uses valid numeric samples, valid generated archives and exact fake GitHub
+metadata for healthy comment create/update. It checks accepted unavailable and
+numeric representation states without executing adversarial, mutation/omission,
+reversal, denial or failure-injection cases. Other reporting test files retain
+held cases and are excluded from this automatic lane; listing or reading their
+source is not authorization to execute them.
+
+With the clean pinned harness checkout and its exact public lock installed,
+the same healthy test also checks the actual canonical contract:
+
+```sh
+HOUSEATLAS_PERF_CONTRACT_ROOT=/absolute/pinned/harness-checkout node --test --test-concurrency=1 tools/perf/reporting/healthy-reporting.test.mjs
+```
+
+The pin is `d03223b0669761cf92846492fe56fb9e8f9f7db9`, and the sole schema is
+`tools/perf/contract/run.schema.json`, SHA-256
+`642af28eacc14e6fdd7b9f7071979f07abc8dcb9a427773f5d74dab672b7056a`.
+The test opens no listener and calls no remote API, application service, provider
+or real account. It supplies no actual browser/GPU or full security qualification.
+The automatic job prepares that pinned fixture in its own root and supplies no
+job token to the test step. It has no measurement artifact or collector workspace.
+Deleting the test from accepted default source fails instead of becoming a legacy
+skip. Proposed reporter/test changes require inspection and this named local
+healthy verification before acceptance; the automatic suite exercises accepted
+default source and does not execute those proposals before review.
+
+The unprivileged measurement job separately installs only exact public locks
+with scripts/audit/funding disabled, then invokes this same clean harness
+sequentially against separately pinned base/head checkouts. Inspect the harness,
+selected production functions and Vite configuration first. Its fixed generated
+fixtures, resource/process bounds and exact CLI are in the harness owner's
+`tools/perf/harness/README.md`. No broad test alias or held case is run to collect
+metrics. Source Vite builds execute source code only in the isolated read-only
+PR context without user secrets, provider credentials or shared cache writes.
+
+The two reporting workflows also have this read-only YAML/expression check with
+the official actionlint 1.7.12 executable in a temporary tooling directory. Its
+Linux amd64 release archive SHA-256 is
+`8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`:
+
+```sh
+/tmp/houseatlas-actionlint-1.7.12/actionlint -shellcheck= -pyflakes= .github/workflows/performance.yml .github/workflows/performance-report.yml
+```
+
+This reporting lane is separate from ordinary CI and changes none of its
+existing checks or permissions. Only the trusted default-branch publisher job
+has the scoped ephemeral PR-comment permission. See
+[the report lane](../ci-performance.md) and
+[measurement handoff](../../tools/perf/reporting/README.md). It releases no
+application-control, provider, household, recovery, pilot or deployment gate.

@@ -129,6 +129,9 @@ export interface ReadyView {
   homes: Home[];
   entries: Entry[];
   caches: Cache[];
+  /** Optional source-owned selection; never native geometry authority. */
+  modelOverviewService?: Readonly<{ profile: 'houseatlas.model-overview-read.v1'; available: true;
+    publicationId: string; manifestSha256: string }>;
 }
 export type UnavailableStatus =
   "loading" | "unavailable" | "denied" | "expired" | "revoked";

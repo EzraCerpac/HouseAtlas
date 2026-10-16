@@ -1,0 +1,77 @@
+/* Whole-site export: same drafting stage as the model preview; the source
+   plan sits below it on its own sheet so it is never read as aligned. */
+
+.lantern-host .site-artifact .cifc-stage-head .site-return {
+  align-self: center;
+}
+
+.lantern-host .site-features {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lantern-host .site-features li {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.lantern-host .site-features p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.lantern-host .site-feature-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lantern-host .site-feature-note {
+  align-self: center;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.lantern-host .site-plan {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--hair-2);
+  border-radius: var(--r-sheet);
+  background: var(--card);
+}
+
+.lantern-host .site-plan svg {
+  width: 100%;
+  max-height: 420px;
+  aspect-ratio: 4 / 3;
+  background:
+    linear-gradient(rgba(22, 50, 79, 0.055) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, rgba(22, 50, 79, 0.055) 1px, transparent 1px) 0 0 / 24px 24px,
+    #eceee9;
+}
+
+.lantern-host .site-plan-area {
+  fill: rgba(195, 206, 214, 0.45);
+  stroke: var(--ink);
+  stroke-width: 1.25;
+}
+
+.lantern-host .site-plan-line {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+.lantern-host .site-plan-point {
+  fill: var(--ink);
+}
