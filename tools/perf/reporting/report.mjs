@@ -28,7 +28,8 @@ export function reportEvidence(identity, lines = []) {
     : identity.harnessSha ? `https://github.com/${identity.repository}/blob/${identity.harnessSha}/tools/perf/harness/README.md` : null;
   return ['<details>', '<summary>Evidence</summary>', '',
     `${link('Base', identity.baseSha)} → ${link('Head', identity.headSha)}${identity.harnessSha ? ' · ' + link('Harness', identity.harnessSha) : ''}${identity.reporterSha ? ' · ' + link('Reporter', identity.reporterSha) : ''}  `,
-    `[Measurement run ${identity.runId}, attempt ${identity.runAttempt}](https://github.com/${identity.repository}/actions/runs/${identity.runId}/attempts/${identity.runAttempt})${method ? ` · [Method / noise thresholds](${method})` : ''}`,
+    `[Measurement run ${identity.runId}, attempt ${identity.runAttempt}](https://github.com/${identity.repository}/actions/runs/${identity.runId}/attempts/${identity.runAttempt})${method ? ` · [${identity.reporterSha ? 'Method / noise thresholds' : 'Collection method'}](${method})` : ''}`,
+    ...(!identity.reporterSha && identity.harnessSha ? ['Noise: 1.4826 × MAD / median; within-noise ≤ max(5%, 2 × summed noise); timings need ≥5 samples.'] : []),
     ...lines, '', '</details>'].join('\n');
 }
 

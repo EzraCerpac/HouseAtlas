@@ -107,11 +107,12 @@ export function unsupportedBrowser(policy, result) {
   return policy.id.startsWith('browser.') && result.status === 'skipped' && !result.failed &&
     result.base === null && result.head === null && result.reason === 'base-unsupported; head-unsupported';
 }
-function resultLabel(result) {
+function resultLabel(policy, result) {
   if (result.status === 'skipped') return `⚪ ${cell(result.reason.replaceAll('-', ' '))}${result.failed ? '; ❌ failed' : ''}`;
   if (result.failed) return '❌ Budget failed';
-  return ({ improved: '✅ Improved', degraded: '❌ Regressed', unchanged: '➖ Unchanged',
+  const status = ({ improved: '✅ Improved', degraded: '❌ Regressed', unchanged: '➖ Unchanged',
     'within-noise': '➖ Within noise', 'insufficient-samples': '⚪ Too few samples' })[result.status];
+  return policy.kind === 'deterministic' ? `${status}; ${['maximum', 'minimum', 'maxRegressionPercent'].some(key => policy[key] !== undefined) ? 'budget passed' : 'no budget'}` : status;
 }
 export function renderSummary(comparisons) {
   const count = statuses => comparisons.filter(row => statuses.includes(row.status)).length;
@@ -127,7 +128,7 @@ export function renderTable(policies, comparisons) {
     if (!result) throw new Error('Missing comparison');
     if (unsupportedBrowser(policy, result)) continue;
     const absolute = value => value ? formatValue(value.value, policy.unit) : '—';
-    rows.push(`| ${cell(shortLabels.get(policy.id) ?? policy.label)} ${policy.direction === 'lower' ? '↓' : '↑'} | ${absolute(result.base)} | ${absolute(result.head)} | ${result.status === 'skipped' ? '—' : formatPercent(result.deltaPercent, result.deltaPercentStatus)} | ${resultLabel(result)} |`);
+    rows.push(`| ${cell(shortLabels.get(policy.id) ?? policy.label)} ${policy.direction === 'lower' ? '↓' : '↑'} | ${absolute(result.base)} | ${absolute(result.head)} | ${result.status === 'skipped' ? '—' : formatPercent(result.deltaPercent, result.deltaPercentStatus)} | ${resultLabel(policy, result)} |`);
   }
   return rows.length === 2 ? '' : rows.join('\n');
 }

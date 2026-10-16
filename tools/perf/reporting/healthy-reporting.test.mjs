@@ -70,6 +70,12 @@ test('compact statuses retain direction, noise and sample semantics before displ
   const table = renderTable(policies, rows);
   for (const text of ['✅ Improved', '❌ Regressed', '➖ Within noise', '➖ Unchanged', '⚪ Too few samples', '↑', '+20.0%']) assert(table.includes(text));
   assert(rows.every(row => row.failed === false));
+  const size = { ...policy, kind: 'deterministic', unit: 'bytes' };
+  const unbudgeted = compareMetric(size, { samples: [100] }, { samples: [120] });
+  assert.equal(unbudgeted.failed, false);
+  assert(renderTable([size], [unbudgeted]).includes('❌ Regressed; no budget'));
+  const budgeted = { ...size, maximum: 200 };
+  assert(renderTable([budgeted], [compareMetric(budgeted, { samples: [100] }, { samples: [120] })]).includes('❌ Regressed; budget passed'));
 });
 
 test('concise report groups only unsupported browser coverage and links essential provenance', () => {
@@ -90,6 +96,14 @@ test('concise report groups only unsupported browser coverage and links essentia
   assert(details.includes('Method / noise thresholds'));
   assert.equal((result.markdown.match(/<details>/g) ?? []).length, 1);
   assert(details.length < 1000);
+  const cliIdentity = { ...identity, harnessSha: HARNESS_SHA };
+  delete cliIdentity.reporterSha;
+  const cliReport = makeReport({ identity: cliIdentity, policies: [policy],
+    base: new Map([[policy.id, { samples: Array(9).fill(100) }]]), head: new Map([[policy.id, { samples: Array(9).fill(80) }]]) });
+  assert(cliReport.markdown.includes('[Collection method]'));
+  assert(!cliReport.markdown.includes('[Method / noise thresholds]'));
+  assert(cliReport.markdown.includes('within-noise ≤ max(5%, 2 × summed noise)'));
+  assert(cliReport.markdown.includes('timings need ≥5 samples'));
 });
 
 test('display rounding preserves exact budget outcomes, limits and machine comparisons', () => {

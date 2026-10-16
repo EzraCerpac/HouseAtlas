@@ -81,7 +81,9 @@ node tools/perf/reporting/cli.mjs --base /absolute/base.json --head /absolute/he
 
 The identity file comes from the trusted event/GitHub API and must contain
 `repository`, `prNumber`, `runId`, `runAttempt`, `baseSha`, `baseTree`, `headSha`,
-`headTree` and `harnessSha`. Its source identities are checked against both
+`headTree` and `harnessSha`. Include optional `reporterSha` for a revision-pinned
+reporting-method link; otherwise the report states its noise rule inline and
+labels the harness link as collection-only. Its source identities are checked against both
 validated measurement views. It is not supplied by a PR artifact. The CLI writes
 new files only; exit code 1 denotes a configured deterministic budget failure,
 a failed metric, invalid contract/data/identity or an unavailable output. Timing

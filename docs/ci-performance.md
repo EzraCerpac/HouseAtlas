@@ -30,7 +30,9 @@ The raw records retain exact values, p95, MAD, min/max, sample counts, fixture,
 schema and method/environment inputs. The CLI comparison JSON also retains
 unrounded deltas and derived fingerprints. Display rounding does not change
 classification, noise thresholds or budget decisions. Configured budget limits
-remain exact in Evidence.
+remain exact in Evidence. CLI identities may include `reporterSha` to link that
+revision’s reporting method; without it, Evidence labels the harness link as
+collection-only and states the comparison noise rule inline.
 
 Dispersion is `1.4826 × MAD / median`, not a confidence interval. Timing changes
 within `max(5%, 2 × (base dispersion + head dispersion))` are labeled
@@ -97,8 +99,9 @@ immutable harness pin above into a separate fixture root, installs its exact
 public lock with scripts/audit/funding disabled and optional packages omitted,
 and runs only `healthy-reporting.test.mjs` from the default checkout. Its body
 and imports therefore come from the accepted default revision, never from a PR
-filename or presence test. The six cases use valid samples/archives, fake exact
-metadata and the actual pinned canonical contract. No job token is supplied to
+filename or presence test. The eleven cases use valid samples/archives, fake exact metadata and the actual
+pinned canonical contract. They include compact rendering, direction/noise and
+budget display, browser coverage grouping and concise provenance checks. No job token is supplied to
 that test step. Held test files remain excluded. A missing default-source test
 fails; candidate additions, edits or deletions do not select automatic cases.
 
