@@ -93,16 +93,22 @@ export function NativeScanAtlas({ client }: { readonly client: NativeGeometryRea
       let floors: readonly PresentationFloor[] = selected.map((floor, index) => ({ key: floor.key,
         label: floor.exportLabel, short: String(index + 1), profile: null }));
       for (const [at, floor] of selected.entries()) {
+        // A read that loses its owner, signal or frame is withdrawn, never shown
+        // or failed; the span records only its first end.
         const floorTiming = stageSpan('scan-atlas', 'floor-read', { floor: at });
+        const withdraw = () => floorTiming({ status: 'withdrawn' });
+        controller.signal.addEventListener('abort', withdraw, { once: true });
         try {
           const profile = await readScanMesh(frame.readPort, frame.viewKey, floor, controller.signal);
+          if (!live() || !client.isCurrent(frame)) { withdraw(); return; }
           floorTiming({ status: 'shown' });
-          if (!live() || !client.isCurrent(frame)) return;
           floors = floors.map(row => row.key === floor.key ? { ...row, profile } : row);
         } catch {
+          if (!live() || !client.isCurrent(frame)) { withdraw(); return; }
           floorTiming({ status: 'failed' });
-          if (!live() || !client.isCurrent(frame)) return;
           floors = floors.map(row => row.key === floor.key ? { ...row, unavailable: 'Scan unavailable or unsupported.' } : row);
+        } finally {
+          controller.signal.removeEventListener('abort', withdraw);
         }
       }
       if (!live() || !client.isCurrent(frame)) return;

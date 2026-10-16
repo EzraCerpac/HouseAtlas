@@ -54,10 +54,13 @@ assert.deepEqual(survey.provenance.frame.extent, ['0', '0', '50', '40']);
 assert.equal(survey.provenance.url, 'https://example.invalid/synthetic/parcel-survey');
 assert.deepEqual(survey.availability, { original: 'available', preview: 'available' });
 assert.deepEqual(survey.preview.inputs, [survey.original]);
+assert.notEqual(survey.preview.asset.assetId, survey.original.assetId, 'the preview is a different asset derived from this original');
 assert.equal(outline.preview, null);
 assert.equal(outline.availability.preview, 'not-qualified');
 assert.deepEqual(outline.provenance.published, { value: '2024-02-29', precision: 'day' });
 assert.equal(second.documents[0].availability.original, 'stale');
+// An ordered 3D extent with a negative minimum keeps its exact tokens.
+assert.deepEqual(second.documents[0].provenance.frame.extent, ['0', '0', '-2', '50', '40', '12']);
 assert.equal(JSON.stringify(await reader.get(surveyId, signal)), JSON.stringify(survey));
 
 const original = await reader.openOriginal(surveyId, survey.revision, signal);

@@ -91,10 +91,20 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
 const live = (signal: AbortSignal) => { signal.throwIfAborted(); };
 
 interface Pinned { readonly sha256: string; readonly bytes: number; readonly href: string }
+const INERT_ORIGIN = 'https://scene-route.invalid';
+/** A canonical path below the exact publication prefix, unchanged by URL
+ * parsing: no query, fragment, escape, backslash, empty or dot segment. */
+function scopedRoute(href: string, prefix: string): boolean {
+  if (!href.startsWith(prefix) || /[?#%\\]/.test(href)) return false;
+  if (href.slice(prefix.length).split('/').some(segment => segment === '' || segment === '.' || segment === '..')) return false;
+  let url: URL;
+  try { url = new URL(href, INERT_ORIGIN); } catch { return false; }
+  return url.origin === INERT_ORIGIN && url.pathname === href && url.search === '' && url.hash === '';
+}
 function pinned(value: Json | undefined, what: string, prefix: string, max: number): Pinned {
   const item = row(value, ['bytes', 'href', 'sha256'], what);
   const href = text(item.href, `${what} href`, 1024);
-  need(href.startsWith(prefix), `${what}: artifact outside this publication scope`, 'scope-mismatch');
+  need(scopedRoute(href, prefix), `${what}: artifact outside this publication scope`, 'scope-mismatch');
   return { sha256: sha(item.sha256, `${what} sha256`), bytes: integer(item.bytes, `${what} bytes`, 1, max), href };
 }
 
@@ -210,6 +220,9 @@ export async function readCanonicalSceneV2(port: CanonicalScenePort, request: Sc
       const value = row(raw, ['atlasPlaceId', 'displayName', 'floorId', 'ifcBuildingStoreyGlobalId'], 'Map floor');
       return value.floorId === floor.floorId && value.ifcBuildingStoreyGlobalId === floor.storey && value.displayName === floor.label;
     })), 'Scene floors differ from the semantic map', 'artifact-mismatch');
+    // Non-null reviewed Atlas place IDs are unique across map floors and rooms.
+    const atlasPlaces = [...mapFloors.map(raw => (raw as Row).atlasPlaceId), ...rooms.map(room => room.atlasPlaceId)].filter(id => id !== null);
+    need(new Set(atlasPlaces).size === atlasPlaces.length, 'Duplicate reviewed Atlas place link');
     const floorShape = (floor: typeof sceneFloors[number]): Json => ({ elevationMm: floor.raw.elevationMm ?? null, floorId: floor.floorId,
       floorToSource: null, ifcBuildingStoreyGlobalId: floor.storey, label: floor.label });
     const semanticFloors = list(semantics.floors, SCENE_LIMITS.floors, 'Semantics floors');

@@ -3,6 +3,7 @@ import { readCanonicalSceneV2, type CanonicalAdapterResult, type CanonicalSceneP
 import { CanonicalModelViewer } from './CanonicalModelViewer';
 import type { OverlayLayer } from './model';
 import { scopedMemoryKey, type ViewerMemoryPort } from './selection';
+import { retriesFor, takeRetry, type StaleRetries } from './stale-retry';
 import './canonical-ifc.css';
 
 export interface CanonicalSceneViewerProps {
@@ -15,7 +16,6 @@ export interface CanonicalSceneViewerProps {
 }
 
 type Phase = { readonly owner: object; readonly result: CanonicalAdapterResult | null };
-const MAX_STALE_RETRIES = 2;
 const MESSAGES = {
   'not-ready': 'This building has no ready model publication.',
   'scope-mismatch': 'The model response did not match this building and publication. Nothing from it is shown.',
@@ -32,10 +32,12 @@ export function CanonicalSceneViewer({ port, request, memory = null, overlays }:
   const { workspaceId, homeId, buildingId } = request.scope;
   const [attempt, setAttempt] = useState(0);
   const [phase, setPhase] = useState<Phase | null>(null);
-  const current = useRef<object | null>(null), staleRetries = useRef(0);
+  const current = useRef<object | null>(null), staleRetries = useRef<StaleRetries | null>(null);
   const stableRequest = useMemo<SceneRequest>(() => ({ scope: { workspaceId, homeId, buildingId }, publicationId: request.publicationId, buildingLabel: request.buildingLabel }),
     [workspaceId, homeId, buildingId, request.publicationId, request.buildingLabel]);
-  const owner = useMemo(() => ({ port, request: stableRequest, attempt }), [port, stableRequest, attempt]);
+  // The retry allowance belongs to the port and request; each attempt is a new read owner.
+  const identity = useMemo(() => ({ port, request: stableRequest }), [port, stableRequest]);
+  const owner = useMemo(() => ({ identity, attempt }), [identity, attempt]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -43,14 +45,15 @@ export function CanonicalSceneViewer({ port, request, memory = null, overlays }:
     setPhase({ owner, result: null });
     readCanonicalSceneV2(port, stableRequest, controller.signal).then(result => {
       if (controller.signal.aborted || current.current !== owner) return;
-      if (result.status === 'stale' && staleRetries.current < MAX_STALE_RETRIES) { staleRetries.current++; setAttempt(value => value + 1); return; }
-      if (result.status !== 'stale') staleRetries.current = 0;
+      const budget = retriesFor(staleRetries.current, identity), next = result.status === 'stale' ? takeRetry(budget) : null;
+      if (next) { staleRetries.current = next; setAttempt(value => value + 1); return; }
+      staleRetries.current = result.status === 'stale' ? budget : null;
       if (result.status === 'revoked') memory?.remove?.(scopedMemoryKey({ workspaceId, homeId }, buildingId));
       setPhase({ owner, result });
     }, () => { if (!controller.signal.aborted && current.current === owner)
       setPhase({ owner, result: { status: 'unavailable', reason: 'source-unavailable', detail: 'Read failed' } }); });
     return () => { controller.abort(); if (current.current === owner) current.current = null; };
-  }, [owner, port, stableRequest, memory, workspaceId, homeId, buildingId]);
+  }, [owner, identity, port, stableRequest, memory, workspaceId, homeId, buildingId]);
 
   const result = phase?.owner === owner ? phase.result : null;
   // Host overlays attach to the snapshot without re-reading it; admission withholds other publications.
@@ -58,7 +61,7 @@ export function CanonicalSceneViewer({ port, request, memory = null, overlays }:
     ? { ...result.presentation, overlays: (overlays ?? []).filter(layer => layer.publicationId === result.fence.publicationId) } : null, [result, overlays]);
 
   if (presentation) return <CanonicalModelViewer presentation={presentation} memory={memory} />;
-  const retry = <button type="button" className="chip-btn" onClick={() => { staleRetries.current = 0; setAttempt(value => value + 1); }}>Check again</button>;
+  const retry = <button type="button" className="chip-btn" onClick={() => { staleRetries.current = null; setAttempt(value => value + 1); }}>Check again</button>;
   return <div className="cifc cifc-unavailable" role="status" aria-busy={result === null}>
     <h2>{request.buildingLabel}</h2>
     {result === null ? <p>Loading model publication…</p>

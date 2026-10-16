@@ -82,10 +82,13 @@ function sourceDate(value: LosslessJson | undefined): SourceDate | null {
   need(precision !== 'year' || /^[0-9]{4}$/.test(date)); need(precision !== 'day' || format('date', date));
   return Object.freeze({ value: date, precision });
 }
+/** `[min..., max...]`; each minimum <= its maximum by exact decimal order. */
 function extent(value: LosslessJson | undefined): readonly string[] | null {
   if (value === null) return null;
   need(Array.isArray(value) && (value.length === 4 || value.length === 6));
-  return Object.freeze(value.map(item => { need(isExactDecimal(item)); return item.token; }));
+  const bounds = value.map(item => { need(isExactDecimal(item)); return item; }), half = bounds.length / 2;
+  for (let axis = 0; axis < half; axis++) need(bounds[axis]!.compare(bounds[axis + half]!) <= 0);
+  return Object.freeze(bounds.map(item => item.token));
 }
 function sourceFrame(value: LosslessJson | undefined): SourceFrame {
   const row = closed(value, ['crs', 'axes', 'linearUnit', 'extent']);
@@ -127,11 +130,14 @@ function documentRead(value: LosslessJson | undefined, scope: Scope): SourceDocu
   const payload = closed(record.payload, ['profile', 'title', 'original', 'provenance', 'preview']);
   need(payload.profile === 'houseatlas.geodata-document.v2');
   const availability = closed(row.availability, ['original', 'preview']);
+  const original = pin(payload.original), preview = lineage(payload.preview);
+  // Inputs are exactly [original]; the preview output is a different asset.
+  need(preview === null || (samePin(preview.inputs[0]!, original) && preview.asset.assetId !== original.assetId));
   return Object.freeze({ scope: Object.freeze({ workspaceId: scope.workspaceId, homeId: scope.homeId }),
     documentId: uuid(record.recordId), revision: integer(record.revision, 1, MAX_REVISION),
     lifecycle: oneOf(record.lifecycle, ['active', 'tombstoned'] as const), createdAt: instant(record.createdAt),
     updatedAt: instant(record.updatedAt), lastAuditId: uuid(record.lastAuditId), title: text(payload.title),
-    original: pin(payload.original), provenance: provenance(payload.provenance), preview: lineage(payload.preview),
+    original, provenance: provenance(payload.provenance), preview,
     availability: Object.freeze({ original: oneOf(availability.original, ORIGINAL_STATES),
       preview: oneOf(availability.preview, PREVIEW_STATES) }) });
 }

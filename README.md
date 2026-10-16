@@ -95,7 +95,7 @@ contract examples, not live service behavior.
 The isolated canonical viewer has a focused synthetic check:
 
 ```sh
-node frontend/lantern-tests/canonical-ifc-viewer.test.mjs
+node frontend/lantern-tests/canonical-ifc-viewer.test.mjs --healthy
 ```
 
 It checks v2 artifact pins, occurrence selection and memory, overlay joins and

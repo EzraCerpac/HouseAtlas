@@ -49,12 +49,13 @@ export function AtlasView() {
       <button type="button" aria-pressed={shown === 'model'} onClick={() => setSource('model')}>Model file</button>
       {models.site && <button type="button" aria-pressed={shown === 'site'} onClick={() => setSource('site')}>Site</button>}
     </div>
+    {/* Keys keep each viewer's failure state with its own source. */}
     {shown === 'model'
-      ? <OptionalViewerBoundary label="The model viewer">
+      ? <OptionalViewerBoundary key="model" label="The model viewer">
         <Suspense fallback={<p className="source-model-pane" role="status">Loading model viewer…</p>}><SourceModelView port={models} /></Suspense>
       </OptionalViewerBoundary>
       : shown === 'site' && models.site
-      ? <OptionalViewerBoundary label="The site viewer">
+      ? <OptionalViewerBoundary key="site" label="The site viewer">
         <Suspense fallback={<p className="source-model-pane" role="status">Loading site viewer…</p>}>
           <div className="source-model-pane"><SiteArtifactView port={models.site} /></div></Suspense>
       </OptionalViewerBoundary>

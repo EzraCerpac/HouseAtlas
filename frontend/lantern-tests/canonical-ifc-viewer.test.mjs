@@ -2,12 +2,23 @@
 // for the canonical model viewer. Generated fixtures and the checked-in public
 // two-floor-v2 snapshot only, served through an owned in-process fake port; no
 // network, storage, browser, GPU or native host is used.
+//
+// Selection: with no argument every check runs, unchanged. `--healthy` runs only
+// the ordinary healthy cases; each rejection, malformed or mutated input,
+// exclusion and aborted-signal control is wrapped in `held(...)` and skipped.
+// Any other argument is refused, so a mistyped flag never runs held controls.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { transformWithOxc } from 'vite';
+
+const args = process.argv.slice(2);
+if (args.some(arg => arg !== '--healthy')) throw new Error(`Unknown argument; the only selection is --healthy: ${args.join(' ')}`);
+const healthy = args.includes('--healthy');
+/** Runs a held control only in the default full selection. */
+const held = async control => { if (!healthy) await control(); };
 
 const dataURL = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
 async function sourceURL(relative, lang, replacements = {}) {
@@ -36,6 +47,7 @@ const selectionURL = await sourceURL(`${base}selection.ts`, 'ts', { './model': m
 const geometryURL = await sourceURL(`${base}geometry.ts`, 'ts');
 const overlaysURL = await sourceURL(`${base}overlays.ts`, 'ts');
 const tonesURL = await sourceURL(`${base}tones.ts`, 'ts');
+const staleRetryURL = await sourceURL(`${base}stale-retry.ts`, 'ts');
 const adapterURL = await sourceURL(`${base}adapter.ts`, 'ts', { '../../numeric/decimal': decimalURL,
   '../scans/ifc-glb-profile': glbProfileURL, '../scans/mesh-profile': meshProfileURL, './model': modelURL });
 const fixturesURL = await sourceURL('./canonical-ifc-visual/synthetic-publication.ts', 'ts', { '../../src/lantern/canonical-ifc/model': modelURL });
@@ -53,10 +65,36 @@ const gltfLoaderURL = new URL('./node_modules/three/examples/jsm/loaders/GLTFLoa
 const standardURL = await sourceURL(`${base}standard-glb.ts`, 'ts', { three: threeURL, 'three/examples/jsm/loaders/GLTFLoader.js': gltfLoaderURL,
   './geometry': geometryURL, './glb-preflight': preflightURL });
 const sampleURL = await sourceURL('./canonical-ifc-visual/standard-glb-sample.ts', 'ts');
+// The rest of LocalGlbPreview's actual eager import graph: site budget, stage timing, model navigator and the
+// electrical review owners. Stylesheets are inert in Node; SourcePdf's lazy PDF viewer is never rendered here.
+const inertCss = 'data:text/javascript,';
+const siteBudgetURL = await sourceURL('../src/lantern/site-artifacts/site-budget.ts', 'ts');
+const stageTimingURL = await sourceURL('../src/lantern/observability/stage-timing.ts', 'ts');
+const navigatorURL = await sourceURL(`${base}ModelNavigator.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx });
+const electricalBase = '../src/lantern/electrical-documentary/';
+const localSourceReaderURL = await sourceURL(`${electricalBase}local-source-reader.ts`, 'ts');
+const sourceFocusURL = await sourceURL(`${electricalBase}source-focus.ts`, 'ts');
+const rendererOwnerURL = await sourceURL(`${electricalBase}renderer-owner.ts`, 'ts');
+const seenLedgerURL = await sourceURL(`${electricalBase}seen-ledger.ts`, 'ts');
+const reviewURL = await sourceURL(`${electricalBase}useElectricalReview.ts`, 'ts', { react, './local-source-reader': localSourceReaderURL,
+  './renderer-owner': rendererOwnerURL, './seen-ledger': seenLedgerURL });
+const boundaryURL = await sourceURL('../src/lantern/components/OptionalViewerBoundary.tsx', 'tsx',
+  { react, 'react/jsx-runtime': jsx, './optional-viewer.css': inertCss });
+const sourcePdfURL = await sourceURL('../src/lantern/source-documents/SourcePdf.tsx', 'tsx',
+  { react, 'react/jsx-runtime': jsx, '../components/OptionalViewerBoundary': boundaryURL });
+const sourceViewURL = await sourceURL(`${electricalBase}LocalSourceView.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx,
+  '../source-documents/SourcePdf': sourcePdfURL, './local-source-reader': localSourceReaderURL, './source-focus': sourceFocusURL,
+  './electrical-documentary.css': inertCss });
+const panelURL = await sourceURL(`${electricalBase}ElectricalDocumentaryPanel.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx,
+  '../observability/stage-timing': stageTimingURL, './source-focus': sourceFocusURL, './LocalSourceView': sourceViewURL });
+const reviewSectionURL = await sourceURL(`${electricalBase}ElectricalReviewSection.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx,
+  './ElectricalDocumentaryPanel': panelURL, './source-focus': sourceFocusURL, './electrical-documentary.css': inertCss });
 const localURL = await sourceURL(`${base}LocalGlbPreview.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx, '../components/Icon': iconURL,
   '../scans/ifc-glb-profile': glbProfileURL, '../scans/mesh-profile': meshProfileURL, './browser-manifest': manifestURL, './geometry': geometryURL,
   './glb-preflight': preflightURL, './MeshLayer': meshLayerURL, './standard-glb': standardURL, './useStageCamera': stageCameraURL,
-  './canonical-ifc.css': 'data:text/javascript,' });
+  '../site-artifacts/site-budget': siteBudgetURL, '../observability/stage-timing': stageTimingURL, './ModelNavigator': navigatorURL,
+  '../electrical-documentary/ElectricalReviewSection': reviewSectionURL, '../electrical-documentary/LocalSourceView': sourceViewURL,
+  '../electrical-documentary/useElectricalReview': reviewURL, './canonical-ifc.css': inertCss });
 
 const { admitPresentation, PresentationError, isDuplicateLabel, isSyntheticSource, selectionLabel } = await import(modelURL);
 const { reconcile, viewerReducer, encodeMemory, decodeMemory, initialState, contextOccurrences, scopedMemoryKey, memoryKey } = await import(selectionURL);
@@ -65,6 +103,7 @@ const { makeProjection, drawnBounds, floorPlanRings, prepareMeshes, pick, planPi
 const { joinOverlay } = await import(overlaysURL);
 const { badgeFill, contrast, TONE_COLOR } = await import(tonesURL);
 const { readCanonicalSceneV2, ADAPTER_ID } = await import(adapterURL);
+const { retriesFor, takeRetry, MAX_STALE_RETRIES } = await import(staleRetryURL);
 const { readLocalGlb, readLocalFiles, LocalReadError } = await import(localURL);
 const { loadStandardGlb } = await import(standardURL);
 const { buildGlb, box, SAMPLE_HOUSE, SAMPLE_HOUSE_BOUNDS, SAMPLE_REFERENCE, SAMPLE_REFERENCE_BOUNDS, sampleManifest } = await import(sampleURL);
@@ -125,8 +164,10 @@ const selected = viewerReducer(A, { ...initialState(A), overlayId: A.overlays[0]
 const text = encodeMemory(A, selected), record = decodeMemory(text);
 assert.deepEqual(Object.keys(JSON.parse(text)).sort(), ['floorId', 'occurrenceId', 'overlayId', 'publicationId', 'roomId', 'v', 'view']);
 assert.ok(!text.includes('Kitchen'), 'No label is persisted');
-assert.equal(decodeMemory(text.replace('"v":2', '"v":1')), null, 'Older records are ignored, not partially trusted');
-assert.equal(decodeMemory(JSON.stringify({ ...JSON.parse(text), label: 'Kitchen' })), null);
+await held(() => {
+  assert.equal(decodeMemory(text.replace('"v":2', '"v":1')), null, 'Older records are ignored, not partially trusted');
+  assert.equal(decodeMemory(JSON.stringify({ ...JSON.parse(text), label: 'Kitchen' })), null);
+});
 const restored = reconcile(A, record);
 assert.deepEqual(restored.state, selected, 'Same publication restores occurrence, floor, view and overlay');
 assert.equal(restored.notice, null);
@@ -148,8 +189,10 @@ assert.equal(absent.state.occurrenceId, null, 'A removed room is not revived');
 assert.equal(absent.notice.kind, 'room-absent');
 const gardenRoom = roomByLabel(B, 'Garden room')[0];
 assert.notEqual(gardenRoom.roomId, dining.roomId, 'The room occupying the same area has a new identity');
-const moved = reconcile(B, { ...record, roomId: gardenRoom.roomId });
-assert.equal(moved.state.occurrenceId, null, 'An occurrence under another room is not carried');
+await held(() => {
+  const moved = reconcile(B, { ...record, roomId: gardenRoom.roomId });
+  assert.equal(moved.state.occurrenceId, null, 'An occurrence under another room is not carried');
+});
 
 // Selection identity stays separate from the visible floor and the view.
 let state = viewerReducer(C, initialState(C), { type: 'selectOccurrence', occurrenceId: only(bedrooms[0]) });
@@ -165,7 +208,13 @@ assert.equal(viewerReducer(C, state, { type: 'selectOccurrence', occurrenceId: o
 const electrical = joinOverlay(A, A.overlays[0]);
 assert.equal(electrical.byRoom.get(kitchen.roomId).length, 2);
 assert.deepEqual(electrical.unplaced.map(row => row.atlasPlaceId === null ? 'null' : 'absent').sort(), ['absent', 'null']);
-assert.equal(joinOverlay(A, A.source.overlays.find(layer => layer.publicationId !== A.source.publication.publicationId)), null);
+await held(() => assert.equal(joinOverlay(A, A.source.overlays.find(layer => layer.publicationId !== A.source.publication.publicationId)), null));
+// Distinct reviewed places join to the same rooms whatever the room order.
+const sourceA = publicationA(), reversedA = admitPresentation({ ...sourceA, rooms: [...sourceA.rooms].reverse() });
+const joined = join => new Map([...join.byRoom].map(([roomId, rows]) => [roomId, rows.map(row => row.id)]));
+const reversedJoin = joinOverlay(reversedA, reversedA.overlays[0]);
+assert.deepEqual(joined(reversedJoin), joined(electrical));
+assert.deepEqual(reversedJoin.unplaced.map(row => row.id), electrical.unplaced.map(row => row.id));
 for (const tone of Object.keys(TONE_COLOR)) assert.ok(contrast(badgeFill(tone), '#FFFFFF') >= 4.5, `${tone} badge text contrast`);
 
 // One shared frame: no per-floor centring, scaling or spacing.
@@ -201,19 +250,21 @@ const [bx, by] = threeC.project(boxPoint.x, 2.92, boxPoint.z);
 assert.equal(pick(meshesC, threeC, { visibleFloors: visibleFloorIds(C, upperC), clipY: 2.9 + 1.2 }, bx, by).kind, 'display-only', 'An unmapped room mesh selects no room');
 
 // Unverifiable links are demoted to display-only; ambiguous identity is refused.
-const source = publicationA();
-const unlinked = admitPresentation({ ...source, meshes: source.meshes.map(mesh => mesh.occurrenceId === kitchenOcc ? { ...mesh, floorId: null } : mesh) });
-assert.equal(unlinked.issues.meshBindingsDemoted, 1);
-assert.ok(!unlinked.occurrenceMeshes.has(kitchenOcc));
-assert.throws(() => admitPresentation({ ...source, rooms: [...source.rooms, { ...source.rooms[0], label: 'Copy' }] }), PresentationError);
-const living = source.rooms.find(room => room.label === 'Living room');
-assert.throws(() => admitPresentation({ ...source, rooms: source.rooms.map(room => room === living
-  ? { ...room, occurrences: [{ ...room.occurrences[0], spaceOccurrenceId: kitchenOcc }] } : room) }), PresentationError,
-'One occurrence token in two rooms is refused');
-const coverage = generatedCoverage();
-assert.throws(() => admitPresentation({ ...coverage, rooms: coverage.rooms.map(room => room.roomId === stair.roomId
-  ? { ...room, occurrences: room.occurrences.map(row => ({ ...row, spaceOccurrenceId: stairGround })) } : room) }), PresentationError,
-'A repeated token on two floors cannot silently choose one floor');
+await held(() => {
+  const source = publicationA();
+  const unlinked = admitPresentation({ ...source, meshes: source.meshes.map(mesh => mesh.occurrenceId === kitchenOcc ? { ...mesh, floorId: null } : mesh) });
+  assert.equal(unlinked.issues.meshBindingsDemoted, 1);
+  assert.ok(!unlinked.occurrenceMeshes.has(kitchenOcc));
+  assert.throws(() => admitPresentation({ ...source, rooms: [...source.rooms, { ...source.rooms[0], label: 'Copy' }] }), PresentationError);
+  const living = source.rooms.find(room => room.label === 'Living room');
+  assert.throws(() => admitPresentation({ ...source, rooms: source.rooms.map(room => room === living
+    ? { ...room, occurrences: [{ ...room.occurrences[0], spaceOccurrenceId: kitchenOcc }] } : room) }), PresentationError,
+  'One occurrence token in two rooms is refused');
+  const coverage = generatedCoverage();
+  assert.throws(() => admitPresentation({ ...coverage, rooms: coverage.rooms.map(room => room.roomId === stair.roomId
+    ? { ...room, occurrences: room.occurrences.map(row => ({ ...row, spaceOccurrenceId: stairGround })) } : room) }), PresentationError,
+  'A repeated token on two floors cannot silently choose one floor');
+});
 
 // Precision: far-from-origin geometry projects relative to its own centre.
 const shift = 1000;
@@ -253,13 +304,15 @@ assert.equal(split.planShapes.get(kitchenOcc).length, 2);
 assert.ok(pointInShape(20.2, 1, split.planShapes.get(kitchenOcc)) && !pointInShape(21, 1, split.planShapes.get(kitchenOcc)));
 
 // Precision: unused vertices never extend drawn bounds or floor ranges.
-const stray = publicationA();
-const padded = admitPresentation({ ...stray, meshes: stray.meshes.map(mesh => mesh.occurrenceId === kitchenOcc
-  ? { ...mesh, positions: Float32Array.from([...mesh.positions, 500, 50, -500]) } : mesh) });
-assert.deepEqual(padded.floorFacts.get(groundA).yRange, A.floorFacts.get(groundA).yRange);
-const paddedKitchen = preparedOf(padded).find(mesh => mesh.occurrenceId === kitchenOcc);
-assert.ok(paddedKitchen.bounds.max[0] < 100 && paddedKitchen.yRange[1] < 1 && paddedKitchen.bounds.min[2] > -100);
-assert.deepEqual(drawnBounds(preparedOf(padded), floorPlanRings(padded, groundA), groundA), boundsA);
+await held(() => {
+  const stray = publicationA();
+  const padded = admitPresentation({ ...stray, meshes: stray.meshes.map(mesh => mesh.occurrenceId === kitchenOcc
+    ? { ...mesh, positions: Float32Array.from([...mesh.positions, 500, 50, -500]) } : mesh) });
+  assert.deepEqual(padded.floorFacts.get(groundA).yRange, A.floorFacts.get(groundA).yRange);
+  const paddedKitchen = preparedOf(padded).find(mesh => mesh.occurrenceId === kitchenOcc);
+  assert.ok(paddedKitchen.bounds.max[0] < 100 && paddedKitchen.yRange[1] < 1 && paddedKitchen.bounds.min[2] > -100);
+  assert.deepEqual(drawnBounds(preparedOf(padded), floorPlanRings(padded, groundA), groundA), boundsA);
+});
 
 // Static markup: pressed state, identity attributes and synchronized selection.
 const { ModelStage } = await import(stageURL);
@@ -320,11 +373,12 @@ const reviewed = { id: 'synthetic-v2-electrical', publicationId: PUBLICATION_ID,
   owner: 'Synthetic circuit fixture', sourceDate: null, retrievedAt: '2026-10-15T00:00:00Z', freshness: 'current',
   records: [{ id: 'synthetic-v2-e1', label: 'Circuit 1', atlasPlaceId: null, detail: null }] };
 const elsewhere = { ...reviewed, id: 'synthetic-v2-other', publicationId: '00000000-0000-4000-8000-000000000000' };
+// The other-publication layer is an exclusion input; the healthy selection supplies only the reviewed layer.
 const result = await readCanonicalSceneV2(port, request, new AbortController().signal,
-  { now: () => '2026-10-15T00:00:00Z', overlays: [reviewed, elsewhere] });
+  { now: () => '2026-10-15T00:00:00Z', overlays: healthy ? [reviewed] : [reviewed, elsewhere] });
 assert.equal(result.status, 'available', result.detail);
 assert.deepEqual(result.fence, { selectionRevision: scene.selection.revision, publicationId: PUBLICATION_ID });
-assert.deepEqual(new Set(reads), new Set(files.keys()), 'Every pinned artifact is read once through the port');
+assert.deepEqual(new Set(reads), new Set(files.keys()), 'Every pinned artifact is read once through the port at its canonical publication path');
 assert.equal(reads.length, files.size);
 const presentation = result.presentation;
 assert.deepEqual(presentation.origin, { kind: 'adapted-publication', adapter: ADAPTER_ID, transport: 'synthetic-fixture' });
@@ -351,7 +405,8 @@ assert.deepEqual(presentation.floors.map(floor => [floor.floorId, floor.label, f
 const bound = presentation.meshes.filter(mesh => mesh.occurrenceId !== null).map(mesh => [mesh.floorId, mesh.occurrenceId]);
 assert.deepEqual(bound, [[GROUND, 'synthetic-space-one'], [UPPER, 'synthetic-space-two']], 'Hashed GLB names join each floor to its own occurrence');
 assert.ok(presentation.meshes.every(mesh => mesh.meshKey === `${mesh.floorId}#${mesh.glbMeshIndex}`));
-assert.deepEqual(presentation.overlays.map(layer => layer.id), ['synthetic-v2-electrical'], 'Overlays of another publication are not adapted');
+assert.deepEqual(presentation.overlays.map(layer => layer.id), ['synthetic-v2-electrical'],
+  healthy ? 'The reviewed overlay of this publication is adapted' : 'Overlays of another publication are not adapted');
 
 const V2 = admitPresentation(presentation);
 assert.equal(selectionLabel(presentation), 'Mock selection', 'A fake-port ready state is a mock, not native publication');
@@ -374,7 +429,16 @@ assert.equal(memoryKey(V2), scopedMemoryKey(presentation.building.scope, SCOPE.b
 const v2Join = joinOverlay(V2, V2.overlays[0]);
 assert.equal(v2Join.byRoom.size, 0, 'A null Atlas link is never placed');
 assert.deepEqual(v2Join.unplaced.map(row => row.id), ['synthetic-v2-e1']);
-assert.equal(joinOverlay(V2, elsewhere), null);
+await held(() => assert.equal(joinOverlay(V2, elsewhere), null));
+
+// Stale re-reads: another attempt of one request keeps its used allowance; a replacement request starts fresh.
+const requestA = {}, requestB = {};
+let allowance = retriesFor(null, requestA);
+for (let at = 0; at < MAX_STALE_RETRIES; at++) allowance = takeRetry(retriesFor(allowance, requestA));
+assert.equal(allowance.used, MAX_STALE_RETRIES);
+assert.equal(retriesFor(allowance, requestA), allowance, 'Another attempt of the same request keeps its used allowance');
+await held(() => assert.equal(takeRetry(retriesFor(allowance, requestA)), null, 'An attempt does not refill its request allowance'));
+assert.deepEqual(retriesFor(allowance, requestB), { identity: requestB, used: 0 }, 'A replacement request has its own allowance');
 
 // Local GLB: browser-only read of a checked-in public GLB; nothing is bound.
 const glbBytes = bytesOf(files.get(`floors/${GROUND}/artifacts/glb`));
@@ -430,7 +494,7 @@ const posed = await loadStandardGlb(buildGlb({ meshes: [box([0, 0, 0], [1, 1, 1]
   nodes: [{ translation: [10, 0, 0], children: [1], extras: { posesAlreadyApplied: true } }, { mesh: 0, translation: [0, 2, 0] }] }), 'house', live());
 assert.deepEqual(flat(posed.meshes[0].bounds), [10, 2, 0, 11, 3, 1]);
 assert.equal(posed.counts.declaredTransforms, 2);
-await assert.rejects(loadStandardGlb(houseGlb, 'house', AbortSignal.abort()), { name: 'AbortError' });
+await held(() => assert.rejects(loadStandardGlb(houseGlb, 'house', AbortSignal.abort()), { name: 'AbortError' }));
 
 // Extras stay opaque: a loader-specific key such as pivot never moves geometry; core transforms still apply once.
 const pivotExtras = { posesAlreadyApplied: true, pivot: [5, 0, 0] };
@@ -448,40 +512,44 @@ assert.equal(reused.counts.triangles, 36);
 assert.deepEqual(reused.meshes.map(mesh => mesh.bounds.min[0]), [0, 2, 4]);
 
 // Missing or mismatched artifacts and closed-preflight refusals stay explicit; each failure reports what the browser read.
-const failure = async (blobs, kind) => {
-  const error = await readLocalFiles(blobs, live()).then(() => null, value => value);
-  assert.ok(error instanceof LocalReadError && error.kind === kind, `Expected ${kind}, got ${error?.kind ?? error}`);
-  return error;
-};
-const otherHouse = buildGlb({ ...SAMPLE_HOUSE, asset: { generator: 'other version' } });
-await failure([await manifestFile(), new File([otherHouse], 'house.glb')], 'pin');
-await failure([await manifestFile(), new File([referenceGlb], 'reference.glb')], 'pin');
-const external = buildGlb({ ...SAMPLE_HOUSE, patch: json => { json.buffers[0].uri = 'house.bin'; } });
-const refused = await failure([new File([external], 'external.glb')], 'preflight');
-assert.deepEqual(refused.files, [{ name: 'external.glb', bytes: external.byteLength, sha256: digest(external), role: 'glb' }]);
-await failure([new File([buildGlb({ ...SAMPLE_HOUSE, patch: json => { json.extensionsUsed = ['KHR_draco_mesh_compression']; } })], 'compressed.glb')], 'preflight');
-const patched = patch => [new File([buildGlb({ ...SAMPLE_HOUSE, patch })], 'patched.glb')];
-const because = async (blobs, kind, reason) => assert.match((await failure(blobs, kind)).message, reason);
-await because(patched(json => { json.scenes.push({ nodes: [] }); }), 'preflight', /Exactly one scene/);
-await because(patched(json => { json.materials = [{ extensions: { KHR_materials_unlit: {} } }]; }), 'preflight', /unsupported glTF extension/);
-await because(patched(json => { delete json.accessors[0].bufferView; }), 'preflight', /Accessor 0 buffer view/);
-await because(patched(json => { json.accessors[0].count += 1; }), 'preflight', /Accessor 0 reads past/);
-await because(patched(json => { json.accessors[1].normalized = true; }), 'preflight', /Indices must be unnormalized/);
+await held(async () => {
+  const failure = async (blobs, kind) => {
+    const error = await readLocalFiles(blobs, live()).then(() => null, value => value);
+    assert.ok(error instanceof LocalReadError && error.kind === kind, `Expected ${kind}, got ${error?.kind ?? error}`);
+    return error;
+  };
+  const otherHouse = buildGlb({ ...SAMPLE_HOUSE, asset: { generator: 'other version' } });
+  await failure([await manifestFile(), new File([otherHouse], 'house.glb')], 'pin');
+  await failure([await manifestFile(), new File([referenceGlb], 'reference.glb')], 'pin');
+  const external = buildGlb({ ...SAMPLE_HOUSE, patch: json => { json.buffers[0].uri = 'house.bin'; } });
+  const refused = await failure([new File([external], 'external.glb')], 'preflight');
+  assert.deepEqual(refused.files, [{ name: 'external.glb', bytes: external.byteLength, sha256: digest(external), role: 'glb' }]);
+  await failure([new File([buildGlb({ ...SAMPLE_HOUSE, patch: json => { json.extensionsUsed = ['KHR_draco_mesh_compression']; } })], 'compressed.glb')], 'preflight');
+  const patched = patch => [new File([buildGlb({ ...SAMPLE_HOUSE, patch })], 'patched.glb')];
+  const because = async (blobs, kind, reason) => assert.match((await failure(blobs, kind)).message, reason);
+  await because(patched(json => { json.scenes.push({ nodes: [] }); }), 'preflight', /Exactly one scene/);
+  await because(patched(json => { json.materials = [{ extensions: { KHR_materials_unlit: {} } }]; }), 'preflight', /unsupported glTF extension/);
+  await because(patched(json => { delete json.accessors[0].bufferView; }), 'preflight', /Accessor 0 buffer view/);
+  await because(patched(json => { json.accessors[0].count += 1; }), 'preflight', /Accessor 0 reads past/);
+  await because(patched(json => { json.accessors[1].normalized = true; }), 'preflight', /Indices must be unnormalized/);
 
-// The complete v1 manifest is validated before display, and identities are unambiguous before any lookup.
-const edited = async (edit, house = houseGlb) => {
-  const manifest = await sampleManifest(house, referenceGlb); edit(manifest);
-  return [new File([new TextEncoder().encode(JSON.stringify(manifest))], 'manifest.json'), new File([house], 'house.glb')];
-};
-await because(await edited(manifest => { delete manifest.sourceIFC; }), 'manifest', /manifest\.sourceIFC is missing/);
-await because(await edited(manifest => { delete manifest.storeyVisibleMeshBounds[0].boundsLocalENNAPMetres; }), 'manifest',
-  /storeyVisibleMeshBounds\[0\]\.boundsLocalENNAPMetres is missing/);
-await because(await edited(manifest => { manifest.format.sourceIFCSHA256 = '1'.repeat(64); }), 'manifest', /different source IFC/);
-await because(await edited(manifest => { manifest.storeyVisibleMeshBounds[1].storeyGlobalId = 'syn-storey-a'; }), 'manifest', /Storey bounds b/);
-await because(await edited(manifest => { manifest.products[1].nodeIndex = 1; }), 'manifest', /Product node 1 appears more than once/);
-await because(await edited(manifest => { manifest.products[1].globalId = 'syn-product-0001'; }), 'manifest', /Product GlobalId syn-product-0001 appears/);
-await because(await edited(manifest => { manifest.roomOccurrences[0].globalId = 'syn-product-0001'; }), 'manifest', /names different product and room occurrence/);
-const relabelled = buildGlb({ ...SAMPLE_HOUSE, nodes: SAMPLE_HOUSE.nodes.map((node, at) => at === 2 ? { ...node, extras: { globalId: 'syn-product-0003' } } : node) });
-await because(await edited(() => {}, relabelled), 'binding', /GLB node 2 declares a different identity than the manifest/);
+  // The complete v1 manifest is validated before display, and identities are unambiguous before any lookup.
+  const edited = async (edit, house = houseGlb) => {
+    const manifest = await sampleManifest(house, referenceGlb); edit(manifest);
+    return [new File([new TextEncoder().encode(JSON.stringify(manifest))], 'manifest.json'), new File([house], 'house.glb')];
+  };
+  await because(await edited(manifest => { delete manifest.sourceIFC; }), 'manifest', /manifest\.sourceIFC is missing/);
+  await because(await edited(manifest => { delete manifest.storeyVisibleMeshBounds[0].boundsLocalENNAPMetres; }), 'manifest',
+    /storeyVisibleMeshBounds\[0\]\.boundsLocalENNAPMetres is missing/);
+  await because(await edited(manifest => { manifest.format.sourceIFCSHA256 = '1'.repeat(64); }), 'manifest', /different source IFC/);
+  await because(await edited(manifest => { manifest.storeyVisibleMeshBounds[1].storeyGlobalId = 'syn-storey-a'; }), 'manifest', /Storey bounds b/);
+  await because(await edited(manifest => { manifest.products[1].nodeIndex = 1; }), 'manifest', /Product node 1 appears more than once/);
+  await because(await edited(manifest => { manifest.products[1].globalId = 'syn-product-0001'; }), 'manifest', /Product GlobalId syn-product-0001 appears/);
+  await because(await edited(manifest => { manifest.roomOccurrences[0].globalId = 'syn-product-0001'; }), 'manifest', /names different product and room occurrence/);
+  const relabelled = buildGlb({ ...SAMPLE_HOUSE, nodes: SAMPLE_HOUSE.nodes.map((node, at) => at === 2 ? { ...node, extras: { globalId: 'syn-product-0003' } } : node) });
+  await because(await edited(() => {}, relabelled), 'binding', /GLB node 2 declares a different identity than the manifest/);
+});
 
-console.log('PASS canonical viewer keeps one publication, stable occurrence identity, exact v2 pins and one frame per registration across plan and 3D; standard GLB previews keep baked poses, opaque extras, admitted instance work, complete manifests, unambiguous identities and explicit unknowns.');
+console.log(healthy
+  ? 'PASS --healthy canonical viewer: healthy synthetic cases only (identity, memory restore, publication replacement, view and floor selection, overlay join, one frame and picking, v2 fixture pins, per-request retry allowance, local and standard GLB loads). Held rejection, mutated-input, exclusion and aborted-signal controls were not run.'
+  : 'PASS canonical viewer keeps one publication, stable occurrence identity, exact v2 pins and one frame per registration across plan and 3D; standard GLB previews keep baked poses, opaque extras, admitted instance work, complete manifests, unambiguous identities and explicit unknowns.');

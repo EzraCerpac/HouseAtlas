@@ -6,7 +6,7 @@ its imports before this focused local command with Node 26.10.0 and the locked
 frontend dependencies:
 
 ```sh
-node frontend/lantern-tests/canonical-ifc-viewer.test.mjs
+node frontend/lantern-tests/canonical-ifc-viewer.test.mjs --healthy
 ```
 
 It covers artifact pins, logical rooms with multiple floor-qualified
@@ -16,6 +16,10 @@ visual fixture at `/lantern-tests/canonical-ifc-visual/` supports `?fixture=a`,
 `b`, `coverage`, `scene` and `local`. Actual browser layout and GPU checks are
 separate. This command adds no live scene service, household intake,
 application mount, deployment or held lifecycle/control-test permission.
+The `--healthy` selection excludes the script's malformed-record, duplicate
+admission, cancellation and artifact/manifest refusal controls. The default
+mixed runner is not the ordinary command; this selection grants no permission
+to execute held controls and changes no CI workflow.
 
 The retained USDZ padding compatibility check builds two tiny stored archives
 in memory, with identical local/central alignment padding or the earlier

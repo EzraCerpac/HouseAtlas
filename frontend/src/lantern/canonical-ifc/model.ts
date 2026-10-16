@@ -226,10 +226,13 @@ export function admitPresentation(source: CanonicalPresentation): AdmittedPresen
   }
   const roomsById = new Map<string, PresentationRoom>();
   const occurrences = new Map<string, { occurrence: SpaceOccurrence; room: PresentationRoom }>();
+  const atlasPlaces = new Set<string>();
   let occurrencesWithUnknownFloor = 0;
   for (const raw of source.rooms) {
     need(ID.test(raw.roomId) && !roomsById.has(raw.roomId) && !floorsById.has(raw.roomId), 'Room identity');
-    need(raw.atlasPlaceId === null || ID.test(raw.atlasPlaceId), 'Atlas link');
+    // One reviewed Atlas place names at most one logical room; overlays join by it.
+    need(raw.atlasPlaceId === null || (ID.test(raw.atlasPlaceId) && !atlasPlaces.has(raw.atlasPlaceId)), 'Atlas link');
+    if (raw.atlasPlaceId !== null) atlasPlaces.add(raw.atlasPlaceId);
     // Tokens are reserved as they are read, so a repeat within this room is
     // refused rather than silently choosing one of its floors.
     const reserved = new Set<string>();

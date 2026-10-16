@@ -23,7 +23,7 @@ export interface LocalSourceDisplay {
   readonly url: string | null;
   readonly status: 'loading' | 'shown' | 'failed';
   readonly message: string | null;
-  /** Interpretation record as formatted text; never parsed into a native payload. */
+  /** Interpretation record exactly as decoded from its UTF-8 bytes; never parsed into a native payload. */
   readonly text: string | null;
 }
 
@@ -131,8 +131,10 @@ export function createLocalSourceReader(): LocalSourceReaderStore {
     if (blob.size > LOCAL_TEXT_MAX_BYTES) { store.fail(entry.display.id, 'This record is too large to show here. Save the original to read it.'); return; }
     let text: string;
     try {
-      const decoded = new TextDecoder('utf-8', { fatal: true }).decode(await blob.arrayBuffer());
-      text = JSON.stringify(JSON.parse(decoded), null, 2);
+      text = new TextDecoder('utf-8', { fatal: true }).decode(await blob.arrayBuffer());
+      // Parsed only to confirm it is JSON; the record is shown as written, so
+      // every number keeps its exact original token.
+      JSON.parse(text);
     } catch {
       if (live(entry)) store.fail(entry.display.id, 'This record is not readable JSON. Save the original to inspect it.');
       return;
