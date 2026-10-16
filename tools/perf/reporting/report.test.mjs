@@ -22,7 +22,7 @@ function fakeApi(comments = []) {
 }
 test('report records exact commits, absolute medians, delta, noise and scope', () => {
   const { markdown, failed } = report();
-  for (const text of [identity.baseSha, identity.headSha, identity.harnessSha, '100 ms', '75 ms', '-25%', '5 / 0%', 'improved; informational', 'No household data']) assert(markdown.includes(text));
+  for (const text of [identity.baseSha, identity.headSha, identity.harnessSha, '100 ms', '75 ms', '-25.0%', '✅ Improved', 'timings informational', 'Synthetic, untrusted observations']) assert(markdown.includes(text));
   assert.equal(failed, false);
   assert.throws(() => makeReport({ identity: { ...identity, repository: 'bad\nrepo' }, policies }));
   assert.throws(() => makeReport({ identity: { ...identity, unexpected: 'raw artifact text' }, policies }));
@@ -71,7 +71,7 @@ test('comment updater rejects raw artifact Markdown and generates content from v
   assert.equal(api.writes.length, 0);
   await updateComment({ api, ...inputs(), markdown: 'ignored raw @mention ![image](https://example.com)' });
   assert.equal(api.writes.length, 1);
-  assert(api.writes[0][2].includes('-25%'));
+  assert(api.writes[0][2].includes('-25.0%'));
   assert(!api.writes[0][2].includes('ignored raw'));
 });
 test('reported source trees are checked against GitHub commit metadata before writing', async () => {

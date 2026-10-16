@@ -1,4 +1,4 @@
-import { compareMetric, renderTable } from './compare.mjs';
+import { cell, compareMetric, renderSummary, renderTable, unsupportedBrowser } from './compare.mjs';
 
 export const COMMENT_MARKER = '<!-- houseatlas-performance-v1 -->';
 const sha = value => typeof value === 'string' && /^[0-9a-f]{40}$/.test(value);
@@ -15,6 +15,23 @@ export function validateIdentity(identity) {
   return identity;
 }
 
+export function appendReportEvidence(markdown, lines) {
+  const end = '\n</details>';
+  if (!markdown.endsWith(end)) throw new Error('Missing report evidence section');
+  return markdown.slice(0, -end.length) + '\n' + lines.join('\n') + end;
+}
+
+export function reportEvidence(identity, lines = []) {
+  const link = (label, commit) => `[${label} \`${commit.slice(0, 7)}\`](https://github.com/${identity.repository}/commit/${commit})`;
+  const method = identity.reporterSha
+    ? `https://github.com/${identity.repository}/blob/${identity.reporterSha}/docs/ci-performance.md`
+    : identity.harnessSha ? `https://github.com/${identity.repository}/blob/${identity.harnessSha}/tools/perf/harness/README.md` : null;
+  return ['<details>', '<summary>Evidence</summary>', '',
+    `${link('Base', identity.baseSha)} → ${link('Head', identity.headSha)}${identity.harnessSha ? ' · ' + link('Harness', identity.harnessSha) : ''}${identity.reporterSha ? ' · ' + link('Reporter', identity.reporterSha) : ''}  `,
+    `[Measurement run ${identity.runId}, attempt ${identity.runAttempt}](https://github.com/${identity.repository}/actions/runs/${identity.runId}/attempts/${identity.runAttempt})${method ? ` · [Method / noise thresholds](${method})` : ''}`,
+    ...lines, '', '</details>'].join('\n');
+}
+
 export function makeReport({ identity, policies, base, head }) {
   validateIdentity(identity);
   if (!sha(identity.harnessSha)) throw new Error('Measurement harness identity unavailable');
@@ -27,16 +44,19 @@ export function makeReport({ identity, policies, base, head }) {
     }
   }
   const comparisons = policies.map(policy => compareMetric(policy, base?.get(policy.id), head?.get(policy.id)));
-  const runUrl = `https://github.com/${identity.repository}/actions/runs/${identity.runId}/attempts/${identity.runAttempt}`;
-  const link = commit => `[\`${commit}\`](https://github.com/${identity.repository}/commit/${commit})`;
-  const markdown = [COMMENT_MARKER, '### Synthetic performance comparison', '',
-    `Base: ${link(identity.baseSha)} (tree \`${identity.baseTree}\`)  `, `Head: ${link(identity.headSha)} (tree \`${identity.headTree}\`)  `,
-    `Harness source: ${link(identity.harnessSha)}  `,
-    ...(identity.reporterSha ? [`Reporter source: ${link(identity.reporterSha)}  `] : []),
-    `[Measurement run ${identity.runId}, attempt ${identity.runAttempt}](${runUrl})`, '',
-    renderTable(policies, comparisons), '',
-    'Delta = (head − base) / base × 100; the direction column identifies improvement. Values are medians; p95 uses the nearest rank. Noise is 1.4826 × MAD / median; it is descriptive, not a confidence interval.', '',
-    'Hosted-runner timings are informational. Changes within max(5%, 2 × summed relative MAD) are labeled within-noise; fewer than five samples are labeled insufficient-samples. Timing movement alone never fails; configured deterministic budgets and failed measurements can fail this check.', '',
-    'Scope: checked-in public or generated synthetic fixtures. No household data, credentials, provider calls or deployment. Uploaded measurements are untrusted observations.'].join('\n');
-  return { markdown, comparisons, failed: comparisons.some(row => row.failed) };
+  const visible = comparisons.filter(row => !unsupportedBrowser(policies.find(policy => policy.id === row.id), row));
+  const unsupported = comparisons.length - visible.length;
+  const failed = comparisons.some(row => row.failed);
+  const budgets = policies.filter(policy => policy.kind === 'deterministic').flatMap(policy => {
+    const limits = [policy.maximum === undefined ? '' : `max ${policy.maximum} ${cell(policy.unit)}`,
+      policy.minimum === undefined ? '' : `min ${policy.minimum} ${cell(policy.unit)}`,
+      policy.maxRegressionPercent === undefined ? '' : `regression ≤ ${policy.maxRegressionPercent}%`].filter(Boolean);
+    return limits.length ? [`Budget (${cell(policy.label)}): ${limits.join(', ')}.`] : [];
+  });
+  const markdown = [COMMENT_MARKER, '### Synthetic performance', '', renderSummary(visible),
+    ...(failed ? ['', '**❌ Budget or measurement failed.**'] : []), '',
+    renderTable(policies, comparisons), '', 'Medians · ↓ lower / ↑ higher is better · timings informational.',
+    ...(unsupported ? ['', `⚪ Browser/GPU: ${unsupported} ${unsupported === 1 ? 'metric' : 'metrics'} unsupported.`] : []), '',
+    reportEvidence(identity, [...budgets, 'Synthetic, untrusted observations.'])].join('\n');
+  return { markdown, comparisons, failed };
 }

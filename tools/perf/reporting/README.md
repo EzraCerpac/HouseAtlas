@@ -126,3 +126,10 @@ default-source test fails. Retained adversarial and mutation/omission files
 remain held and are source-reviewed rather than invoked by this lane. Proposed
 reporter changes require source inspection and the named local healthy check
 before acceptance; this automatic suite exercises accepted default code.
+
+The comment presents five columns with one-decimal percentage deltas, concise
+status symbols and a single unsupported-browser/GPU note. The short Evidence
+section links source revisions, methodology and raw p95/noise data; it does not
+repeat the full run documents. Full precision, statistics, profiles and gate
+results remain in the machine comparison and raw records. Display rounding
+never participates in comparison or budget arithmetic.

@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b8662ffbeeb74d1e693d4e568e37326042fdc64b8f39401de89573200e0bff74",
+  "sourceDigestSha256": "70bee47b952f28362414fbb7cb4ae47a91888fb13e16373d50a172b55ffc36af",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5775,8 +5775,8 @@
     {
       "path": "docs/ci-performance.md",
       "mode": "100644",
-      "bytes": 10113,
-      "sha256": "6e891f5c89a82fa166a1f1b9b4a06297fe327a08c75347258f6af5b88e76745b",
+      "bytes": 10895,
+      "sha256": "3acffe6404291c615ef09b8be0ee5bdd6f97196d502d67ba54008bcc9c145e10",
       "owner": "core-integration"
     },
     {
@@ -5845,8 +5845,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 75456,
-      "sha256": "068db1f0f493ec501e66546fdce77ec841323e0517db2a6a8d2829840226194f",
+      "bytes": 75739,
+      "sha256": "56f2efa0f1a89d816847ba1bb86d53111b860c75d1c18ff730ff79082771bb72",
       "owner": "core-integration"
     },
     {
@@ -10640,22 +10640,22 @@
     {
       "path": "tools/perf/reporting/README.md",
       "mode": "100644",
-      "bytes": 7168,
-      "sha256": "1515a8e7a55fa1794b5303d1757a98712f1fed9a8884c3e4fc81275e6c77a39f",
+      "bytes": 7611,
+      "sha256": "6b268683433ff62c0b74a0db111af438edda99fb0a187ad967278d5d23192cbc",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/reporting/adapter.mjs",
       "mode": "100644",
-      "bytes": 3372,
-      "sha256": "b40994acc41833c730d787cbbeeb513de298e43463f8677e908d3f9add9c73b9",
+      "bytes": 3080,
+      "sha256": "fbf0c7f7bb16c5cc3796b0412fd4ee645de96dd5018ef8f19e7c6ecce33cc8de",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/reporting/adapter.test.mjs",
       "mode": "100644",
-      "bytes": 5576,
-      "sha256": "b636f03b69b10419475a10f71f05a18ea8e5f8bcde9e527876a66b7d5801ba70",
+      "bytes": 5614,
+      "sha256": "7cdb51f784c0c40851f7c46e26d7a80e3770713e0937aa7e78d9b9b80b09baeb",
       "owner": "core-integration"
     },
     {
@@ -10668,15 +10668,15 @@
     {
       "path": "tools/perf/reporting/availability.mjs",
       "mode": "100644",
-      "bytes": 4055,
-      "sha256": "a262f7f748d29e8b0be44e8a33e6dc1a99e3fea46c3e23a4b14079c9ebf00d79",
+      "bytes": 3686,
+      "sha256": "e7d368f0b5b337f6c5f6f343d81e7adceb02e10a863b0f085fc897b00167733f",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/reporting/availability.test.mjs",
       "mode": "100644",
-      "bytes": 2318,
-      "sha256": "172e473aac449a16637b8ab862d138855892e093f2181b0f62b7232e84523563",
+      "bytes": 2294,
+      "sha256": "0b9475afa6dad2e395e0c93563770937ae38ff51edc7116b08cd85b09dadaaa1",
       "owner": "core-integration"
     },
     {
@@ -10689,22 +10689,22 @@
     {
       "path": "tools/perf/reporting/comment.mjs",
       "mode": "100644",
-      "bytes": 4741,
-      "sha256": "ee71e533e6e4ffbfead2fe00df635c54b72925f29fd7cb60ff08eb5e239ea1ff",
+      "bytes": 4869,
+      "sha256": "419905169808fc6b7b636755a86be400dd630afaa4e52c33636e5391395ccb14",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/reporting/compare.mjs",
       "mode": "100644",
-      "bytes": 7215,
-      "sha256": "493476bb10826cd5ece7de9263d1f974de6491ecab9d40553ab347c7bbbeee14",
+      "bytes": 8922,
+      "sha256": "30929f91888edbdb1c6be32df22fb6492012349e7ef86ad6b7c2f9365189a38d",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/reporting/compare.test.mjs",
       "mode": "100644",
-      "bytes": 5131,
-      "sha256": "a8fdf5651058af4b05a649b7319f15b68e79e8b2ee89429ebc21e14ca3312780",
+      "bytes": 5070,
+      "sha256": "443aab0b805d72f1186d8588bcf8f083387556512dcc228d3666586b5f0b69c2",
       "owner": "core-integration"
     },
     {
@@ -10731,8 +10731,8 @@
     {
       "path": "tools/perf/reporting/healthy-reporting.test.mjs",
       "mode": "100644",
-      "bytes": 5577,
-      "sha256": "2f9a2d226ee4b874e2d6741c90fa1aaa6d9168aa1bdceb3cf6640ef4e611aaf8",
+      "bytes": 10688,
+      "sha256": "fe16b1fb690dc80c74a9ed22d67f01da5b87b5974f31dba9cff022deeec59dba",
       "owner": "core-integration"
     },
     {
@@ -10745,8 +10745,8 @@
     {
       "path": "tools/perf/reporting/measurement.test.mjs",
       "mode": "100644",
-      "bytes": 6500,
-      "sha256": "ef2a4d811ab72db8fb52a2a9a490343eea4bcd5e88c2a62bc0386bb3c677a73a",
+      "bytes": 6462,
+      "sha256": "c58eb8837d6a6afd67b488206ef3d81decb260c9ddc652ae4be9b3f6ae8b730b",
       "owner": "core-integration"
     },
     {
@@ -10759,8 +10759,8 @@
     {
       "path": "tools/perf/reporting/origin.test.mjs",
       "mode": "100644",
-      "bytes": 4917,
-      "sha256": "5f1cb1fddf2648b2bd03759fc67e6f29eecb4a8e2d48a8ad6d6e28b1630d1ec5",
+      "bytes": 4899,
+      "sha256": "20ffb4a11a1ac18d6301d7bf87c9be37f34348722166f4ca979e37c9f53cb2ad",
       "owner": "core-integration"
     },
     {
@@ -10787,15 +10787,15 @@
     {
       "path": "tools/perf/reporting/report.mjs",
       "mode": "100644",
-      "bytes": 3752,
-      "sha256": "4d493a46d175d5f7dede3f70025be822187e705eaa1804cdfb14bbf40f759683",
+      "bytes": 4855,
+      "sha256": "144470e75971c51f9cdc76d0327e9835df5aff8db2728ccead924a4918c07024",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/reporting/report.test.mjs",
       "mode": "100644",
-      "bytes": 6164,
-      "sha256": "22576721fe786854d5f36dd75e0114f994884f9d47f1dd5e58d51203ec72138a",
+      "bytes": 6188,
+      "sha256": "00fa744abb1c5a6b39766a63f5b5ccf8becd83fff78bd27460a620e1f8a16ccf",
       "owner": "core-integration"
     },
     {

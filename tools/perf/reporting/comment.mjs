@@ -1,5 +1,5 @@
 // Only trusted default-branch code calls these publishers. Artifacts are data.
-import { COMMENT_MARKER, validateIdentity } from './report.mjs';
+import { appendReportEvidence, COMMENT_MARKER, validateIdentity } from './report.mjs';
 import { compareRuns } from './adapter.mjs';
 import { makeAvailabilityReport } from './availability.mjs';
 
@@ -29,10 +29,12 @@ async function writeReport({ api, identity, workflowId, render, evidence }) {
   let { markdown, failed } = render();
   if (evidence) {
     if (!Number.isSafeInteger(evidence.artifactId) || evidence.artifactId < 1 || !/^[0-9a-f]{64}$/.test(evidence.artifactSha256 ?? '')) throw new Error('Invalid artifact evidence');
-    markdown += `\n\nArtifact id: \`${evidence.artifactId}\`  \nArtifact archive SHA-256: \`${evidence.artifactSha256}\``;
+    markdown = appendReportEvidence(markdown, [
+      `[Raw measurements / p95 / noise](https://github.com/${identity.repository}/actions/runs/${identity.runId}/artifacts/${evidence.artifactId}) · archive SHA-256 \`${evidence.artifactSha256}\``,
+    ]);
   }
   if (run.conclusion !== 'success') {
-    markdown += '\n\nThe originating workflow did not complete successfully; these observations do not override its failed checks.';
+    markdown += '\n\n**❌ Originating workflow failed; these observations do not override its checks.**';
     failed = true;
   }
   if (Buffer.byteLength(markdown) > 60000) throw new Error('Invalid rendered report');

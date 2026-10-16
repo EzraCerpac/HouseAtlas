@@ -1236,7 +1236,11 @@ node --test --test-concurrency=1 tools/perf/reporting/healthy-reporting.test.mjs
 ```
 
 It uses valid numeric samples, valid generated archives and exact fake GitHub
-metadata for healthy comment create/update. It checks accepted unavailable and
+metadata for healthy comment create/update. The same named suite covers
+compact percentage/unit rendering, direction/noise status symbols, browser
+coverage grouping, concise provenance and exact numeric budget boundaries.
+These are generated valid-value rendering cases, without application failure
+injection or held controls. It checks accepted unavailable and
 numeric representation states without executing adversarial, mutation/omission,
 reversal, denial or failure-injection cases. Other reporting test files retain
 held cases and are excluded from this automatic lane; listing or reading their

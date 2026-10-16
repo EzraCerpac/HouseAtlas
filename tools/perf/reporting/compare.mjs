@@ -66,31 +66,68 @@ export function compareMetric(policy, base, head) {
   return { id: policy.id, status, base: before, head: after, deltaAbsolute, deltaPercent, deltaPercentStatus, failed };
 }
 
-const number = value => value === null ? 'n/a' : new Intl.NumberFormat('en-US', {
-  maximumSignificantDigits: 17, notation: value !== 0 && (Math.abs(value) < 1e-6 || Math.abs(value) >= 1e12) ? 'scientific' : 'standard'
+// Display rounding never changes comparisons, thresholds or machine evidence.
+const compactNumber = value => new Intl.NumberFormat('en-US', {
+  maximumSignificantDigits: 3,
+  notation: value !== 0 && (Math.abs(value) < 1e-6 || Math.abs(value) >= 1e12) ? 'scientific' : 'standard',
 }).format(value);
-const percent = (value, status) => value === null ? status === 'overflow' ? 'unavailable (overflow)' : 'n/a (zero baseline)' : `${value > 0 ? '+' : ''}${number(value)}%`;
+const percentNumber = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const largePercentNumber = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1, notation: 'scientific' });
+export function formatPercent(value, status) {
+  if (value === null) return status === 'overflow' ? 'unavailable (overflow)' : 'n/a (zero baseline)';
+  const display = (Math.abs(value) >= 1e6 ? largePercentNumber : percentNumber).format(value);
+  return display === '-0.0' || display === '0.0' ? '0.0%' : `${value > 0 ? '+' : ''}${display}%`;
+}
 // Escape all external labels, including Markdown punctuation and GitHub mentions.
 export function cell(value) {
   return String(value).replace(/[&<>|`\\\[\]*_!#@:.\r\n]/g, character => `&#${character.charCodeAt(0)};`);
 }
 
+const shortLabels = new Map([
+  ['frontend.scan.parse_ms', 'Scan parse'], ['frontend.scan.prepare_ms', 'Scan preparation'],
+  ['frontend.scan.edges_ms', 'Scan edges'], ['frontend.scan.prepared_bytes', 'Scan vertices'],
+  ['frontend.standard_glb.load_ms', 'GLB CPU load'], ['frontend.standard_glb.prepared_bytes', 'GLB vertices'],
+  ['frontend.navigation.index_ms', 'Navigation index'], ['frontend.mesh.pick_ms', 'CPU picking'],
+  ['frontend.navigator.ssr_ms', 'React static render'], ['frontend.startup_js.bytes', 'Startup JS'],
+  ['frontend.startup_js.gzip_bytes', 'Startup JS (gzip)'], ['frontend.bundle.largest_asset_bytes', 'Largest asset'],
+]);
+const sizeUnits = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
+export function formatValue(value, unit) {
+  if (value === null) return '—';
+  if (unit === 'bytes') {
+    const scale = value === 0 ? 0 : Math.min(sizeUnits.length - 1, Math.max(0, Math.floor(Math.log(value) / Math.log(1024))));
+    const scaled = value / 1024 ** scale;
+    const display = scale === 0 ? Number.isInteger(value) ? String(value) : compactNumber(value)
+      : new Intl.NumberFormat('en-US', { maximumFractionDigits: scaled >= 10 ? 1 : 2 }).format(scaled);
+    return `${display} ${sizeUnits[scale]}`;
+  }
+  return `${compactNumber(value)} ${cell(unit)}`;
+}
+export function unsupportedBrowser(policy, result) {
+  return policy.id.startsWith('browser.') && result.status === 'skipped' && !result.failed &&
+    result.base === null && result.head === null && result.reason === 'base-unsupported; head-unsupported';
+}
+function resultLabel(result) {
+  if (result.status === 'skipped') return `⚪ ${cell(result.reason.replaceAll('-', ' '))}${result.failed ? '; ❌ failed' : ''}`;
+  if (result.failed) return '❌ Budget failed';
+  return ({ improved: '✅ Improved', degraded: '❌ Regressed', unchanged: '➖ Unchanged',
+    'within-noise': '➖ Within noise', 'insufficient-samples': '⚪ Too few samples' })[result.status];
+}
+export function renderSummary(comparisons) {
+  const count = statuses => comparisons.filter(row => statuses.includes(row.status)).length;
+  const groups = [[count(['improved']), '✅', 'improved'], [count(['degraded']), '❌', 'regressed'],
+    [count(['unchanged', 'within-noise']), '➖', 'unchanged / within noise'],
+    [count(['skipped', 'insufficient-samples']), '⚪', 'unavailable']];
+  return groups.filter(([n]) => n).map(([n, icon, label]) => `${icon} ${n} ${label}`).join(' · ') || '⚪ No comparable measurements';
+}
 export function renderTable(policies, comparisons) {
-  const rows = ['| Metric | Base median / p95 | Head median / p95 | Delta | Delta % | Direction | Samples / noise (base → head) | Result / budget |',
-    '| --- | ---: | ---: | ---: | ---: | --- | --- | --- |'];
+  const rows = ['| Metric | Base | Head | Change | Result |', '| --- | ---: | ---: | ---: | --- |'];
   for (const policy of policies) {
     const result = comparisons.find(row => row.id === policy.id);
     if (!result) throw new Error('Missing comparison');
-    const direction = policy.direction === 'lower' ? '↓ lower is better' : '↑ higher is better';
-    const sample = value => value ? `${value.count} / ${value.noisePercent === null ? 'n/a' : number(value.noisePercent) + '%'}` : '—';
-    const hasBudget = ['maximum', 'minimum', 'maxRegressionPercent'].some(key => policy[key] !== undefined);
-    const budget = result.failed ? 'FAIL' : policy.kind === 'deterministic' ? result.status === 'skipped' ? 'unavailable' : hasBudget ? 'pass' : 'no budget' : 'informational';
-    const limits = policy.kind === 'deterministic' ? [policy.maximum === undefined ? '' : `max ${number(policy.maximum)} ${cell(policy.unit)}`,
-      policy.minimum === undefined ? '' : `min ${number(policy.minimum)} ${cell(policy.unit)}`,
-      policy.maxRegressionPercent === undefined ? '' : `regression ≤ ${number(policy.maxRegressionPercent)}%`].filter(Boolean).join(', ') : '';
-    const absolute = value => value ? `${number(value.value)} ${cell(policy.unit)}${policy.kind === 'timing' ? ' / ' + number(value.p95) + ' ' + cell(policy.unit) : ''}` : '—';
-    const absoluteDelta = result.deltaAbsolute === null ? '—' : `${result.deltaAbsolute > 0 ? '+' : ''}${number(result.deltaAbsolute)} ${cell(policy.unit)}`;
-    rows.push(`| ${cell(policy.label)} | ${absolute(result.base)} | ${absolute(result.head)} | ${absoluteDelta} | ${result.status === 'skipped' ? '—' : percent(result.deltaPercent, result.deltaPercentStatus)} | ${direction} | ${sample(result.base)} → ${sample(result.head)} | ${cell(result.reason ?? result.status)}; ${budget}${limits ? ' (' + limits + ')' : ''} |`);
+    if (unsupportedBrowser(policy, result)) continue;
+    const absolute = value => value ? formatValue(value.value, policy.unit) : '—';
+    rows.push(`| ${cell(shortLabels.get(policy.id) ?? policy.label)} ${policy.direction === 'lower' ? '↓' : '↑'} | ${absolute(result.base)} | ${absolute(result.head)} | ${result.status === 'skipped' ? '—' : formatPercent(result.deltaPercent, result.deltaPercentStatus)} | ${resultLabel(result)} |`);
   }
-  return rows.join('\n');
+  return rows.length === 2 ? '' : rows.join('\n');
 }

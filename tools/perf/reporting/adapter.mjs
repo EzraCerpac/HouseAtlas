@@ -40,6 +40,5 @@ export function compareRuns({ identity, baseRun, headRun, contract }) {
   const profiles = { schemaSha256: contract.schemaSha256,
     baseFixture: base.fixtureFingerprint, headFixture: head.fixtureFingerprint,
     baseComparison: base.comparisonFingerprint, headComparison: head.comparisonFingerprint };
-  result.markdown += `\n\nSchema SHA-256: \`${profiles.schemaSha256}\`  \nFixture fingerprints (base → head): \`${profiles.baseFixture}\` → \`${profiles.headFixture}\`  \nMethod/environment fingerprints (base → head): \`${profiles.baseComparison}\` → \`${profiles.headComparison}\``;
   return { ...result, profiles };
 }
