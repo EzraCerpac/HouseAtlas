@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "ce7cb0fe7d1be1847bc1aea8091ecdfbf0d976dc01cc3aa4b4a41eba46b93cc1",
+  "sourceDigestSha256": "92c46da219247433f0ef8b823c40f499d863e568ed72f1173a457680e6332dae",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -350,8 +350,8 @@
     {
       "path": "backend/examples/healthy-unified-atlas-read.rs",
       "mode": "100644",
-      "bytes": 11093,
-      "sha256": "c3928b5af0aecd5f8ff8a409396d6836687a2869838591203d175229b541e246",
+      "bytes": 11551,
+      "sha256": "bb521c828dfc1777d3a233535ca9033fc16315ed54ca251ac7795aab35539167",
       "owner": "core-integration"
     },
     {
@@ -364,8 +364,8 @@
     {
       "path": "backend/examples/support/unified_atlas_fixture.rs",
       "mode": "100644",
-      "bytes": 6537,
-      "sha256": "e89f55b14720a5db634f3c7e32f4d709c7c8d9027bfd5ec9898b1cd653b3eb68",
+      "bytes": 7231,
+      "sha256": "cbb16186331dd3d62efd0343c7807a7ede3b4fd4677bf7fcaea754426abd7a02",
       "owner": "core-integration"
     },
     {
@@ -1155,15 +1155,15 @@
     {
       "path": "backend/src/config/atlas_scene.rs",
       "mode": "100644",
-      "bytes": 25083,
-      "sha256": "1fcfbc73553df7fd4b103ffbd06a3e615e721d9546a06ec3e08599b2e9a416a4",
+      "bytes": 26220,
+      "sha256": "ec2013c28d6d612a0a5a21b508e5239033231b6e4ee2912fafbd6573636c6630",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/config/atlas_scene_glb.rs",
       "mode": "100644",
-      "bytes": 6480,
-      "sha256": "e4e69212e74cf558c0caf1bca446a8abf8d2ae36d79218d2f019ed30b19b57e8",
+      "bytes": 9609,
+      "sha256": "07608ecb81795f831b22cf95e37b976e925c65f69a0a7b5bd70d2035fbfa2627",
       "owner": "core-integration"
     },
     {
@@ -6202,8 +6202,8 @@
     {
       "path": "docs/models/unified-atlas-scene-v1.md",
       "mode": "100644",
-      "bytes": 12807,
-      "sha256": "765821586b48b824782d3a9a803dc47e5e1166a5d343d3b0a981c285274b4e55",
+      "bytes": 13700,
+      "sha256": "2f66f8dfcfcc5e39ce3f6b9a11b22cd329e78e14b8bb7e4d7dc1040431aad3b5",
       "owner": "core-integration"
     },
     {

@@ -79,6 +79,11 @@ impl Bounds {
     fn contains(&self, other: &Self) -> bool {
         (0..3).all(|i| self.min[i] <= other.min[i] && other.max[i] <= self.max[i])
     }
+    fn point_contains(&self, point: [f64; 3]) -> bool {
+        (0..3).all(|axis| {
+            point[axis] >= self.min[axis] - 0.00001 && point[axis] <= self.max[axis] + 0.00001
+        })
+    }
     fn plan_contains(&self, p: &[f64; 2]) -> bool {
         p.iter().all(|v| coordinate(*v))
             && p[0] >= self.min[0]
@@ -400,13 +405,38 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
     let mut picks = BTreeSet::new();
     for m in &p.mesh_bindings {
         let b = buildings.get(m.building_id.as_str()).ok_or_else(invalid)?;
-        let _ = b;
         need(
             m.artifact_id == "model"
                 && !m.primitive_indices.is_empty()
                 && m.primitive_indices.len() <= 8192
                 && unique(&m.level_ids, 64)
                 && ["structure", "roof", "slab", "room-pick", "context"].contains(&m.role.as_str()),
+        )?;
+        // Shared geometry is checked against the enclosing bounds of its declared
+        // levels, not their intersection; it stays at its source position.
+        let mut level_bounds: Option<Bounds> = None;
+        for id in &m.level_ids {
+            let level = levels.get(id.as_str()).ok_or_else(invalid)?;
+            need(level.building_id == m.building_id)?;
+            if let Some(bounds) = &mut level_bounds {
+                for axis in 0..3 {
+                    bounds.min[axis] = bounds.min[axis].min(level.bounds.min[axis]);
+                    bounds.max[axis] = bounds.max[axis].max(level.bounds.max[axis]);
+                }
+            } else {
+                level_bounds = Some(Bounds {
+                    min: level.bounds.min,
+                    max: level.bounds.max,
+                });
+            }
+        }
+        need(
+            nodes
+                .get(m.node_index)
+                .is_some_and(|n| n.get("weights").is_none())
+                && meshes
+                    .get(m.mesh_index)
+                    .is_some_and(|m| m.get("weights").is_none()),
         )?;
         need(
             nodes.get(m.node_index).and_then(|n| n["mesh"].as_u64()) == Some(m.mesh_index as u64),
@@ -426,22 +456,16 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
                 world,
                 &mut visited,
                 |point| {
-                    m.space_occurrence_id.as_ref().is_none_or(|id| {
-                        occurrences.get(id.as_str()).is_some_and(|o| {
-                            (0..3).all(|axis| {
-                                point[axis] >= o.bounds.min[axis] - 0.00001
-                                    && point[axis] <= o.bounds.max[axis] + 0.00001
-                            })
+                    b.bounds.point_contains(point)
+                        && level_bounds
+                            .as_ref()
+                            .is_none_or(|bounds| bounds.point_contains(point))
+                        && m.space_occurrence_id.as_ref().is_none_or(|id| {
+                            occurrences
+                                .get(id.as_str())
+                                .is_some_and(|o| o.bounds.point_contains(point))
                         })
-                    })
                 },
-            )?;
-        }
-        for id in &m.level_ids {
-            need(
-                levels
-                    .get(id.as_str())
-                    .is_some_and(|l| l.building_id == m.building_id),
             )?;
         }
         if let Some(id) = &m.space_occurrence_id {

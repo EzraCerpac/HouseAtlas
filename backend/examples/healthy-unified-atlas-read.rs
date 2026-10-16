@@ -190,6 +190,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         descriptor["occurrences"][1]["geometryBasis"]["kind"],
         "owner-estimated-pick-proxy"
     );
+    assert_eq!(descriptor["meshBindings"][3]["role"], "structure");
+    assert_eq!(
+        descriptor["meshBindings"][3]["levelIds"],
+        json!(["lower", "upper"])
+    );
+    assert!(descriptor["meshBindings"][3]["spaceOccurrenceId"].is_null());
+    assert_eq!(descriptor["meshBindings"][4]["role"], "slab");
+    assert_eq!(descriptor["meshBindings"][4]["levelIds"], json!(["lower"]));
     for _ in 0..2 {
         let response = app
             .clone()
@@ -265,7 +273,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     assert_eq!(fs::read(publication_dir.join("overview.glb"))?, glb);
     drop(lease);
     println!(
-        "PASS generated unified scene: actual native session/Read/Media; two levels, logical multi-occurrence room, explicit estimated pick geometry+matching plans; unchanged current/scoped ReadyView; exact descriptor/publication/selection; repeated original/query/hash/headers; unchanged overview/config/receipt/source bytes. No listener/provider/private household/probe."
+        "PASS generated unified scene: actual native session/Read/Media; two levels, logical multi-occurrence room, explicit estimated pick geometry+matching plans; validated normals/indices, single-level slab and shared structure; unchanged current/scoped ReadyView; exact descriptor/publication/selection; repeated original/query/hash/headers; unchanged overview/config/receipt/source bytes. No listener/provider/private household/probe."
     );
     Ok(())
 }

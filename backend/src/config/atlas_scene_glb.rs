@@ -83,6 +83,7 @@ pub(super) fn worlds(gltf: &Value) -> Result<BTreeMap<usize, Matrix>, String> {
         .get(scene)
         .and_then(|s| s["nodes"].as_array())
         .ok_or_else(invalid)?;
+    need(roots.len() <= 65_536)?;
     let mut worlds = BTreeMap::new();
     let mut pending = Vec::new();
     for root in roots {
@@ -104,14 +105,15 @@ pub(super) fn worlds(gltf: &Value) -> Result<BTreeMap<usize, Matrix>, String> {
         )?;
         worlds.insert(index, world);
         if let Some(children) = node.get("children") {
-            for child in children.as_array().ok_or_else(invalid)? {
+            let children = children.as_array().ok_or_else(invalid)?;
+            need(children.len() <= 65_536 - pending.len())?;
+            for child in children {
                 pending.push((
                     child.as_u64().ok_or_else(invalid)? as usize,
                     world,
                     depth + 1,
                 ));
             }
-            need(pending.len() <= 65_536)?;
         }
     }
     Ok(worlds)
@@ -125,22 +127,38 @@ fn integer(value: &Value, key: &str, default: Option<usize>) -> Result<usize, St
         None => default.ok_or_else(invalid),
     }
 }
-pub(super) fn positions(
+// The selected static profile admits POSITION and optional NORMAL only. Every
+// admitted accessor has a checked BIN span before any element is read.
+struct Accessor<'a> {
+    bytes: &'a [u8],
+    count: usize,
+    stride: usize,
+    component: usize,
+}
+fn accessor<'a>(
     gltf: &Value,
-    glb: &[u8],
+    glb: &'a [u8],
     json_end: usize,
-    primitive: &Value,
-    world: &Matrix,
+    index: &Value,
+    width: usize,
+    indices: bool,
     visited: &mut usize,
-    mut check: impl FnMut([f64; 3]) -> bool,
-) -> Result<(), String> {
-    let accessor = primitive["attributes"]["POSITION"]
+) -> Result<Accessor<'a>, String> {
+    let index = index
         .as_u64()
-        .ok_or_else(invalid)? as usize;
-    let a = gltf["accessors"].get(accessor).ok_or_else(invalid)?;
+        .and_then(|n| usize::try_from(n).ok())
+        .ok_or_else(invalid)?;
+    let a = gltf["accessors"].get(index).ok_or_else(invalid)?;
+    let component = integer(a, "componentType", None)?;
+    let unit = match component {
+        5121 if indices => 1,
+        5123 if indices => 2,
+        5125 if indices => 4,
+        5126 if !indices => 4,
+        _ => return Err(invalid()),
+    };
     need(
-        a["componentType"] == 5126
-            && a["type"] == "VEC3"
+        a["type"] == if indices { "SCALAR" } else { "VEC3" }
             && a.get("sparse").is_none()
             && a.get("normalized").is_none_or(|v| v == false),
     )?;
@@ -153,36 +171,114 @@ pub(super) fn positions(
     need(view["buffer"] == 0)?;
     let offset = integer(view, "byteOffset", Some(0))?;
     let size = integer(view, "byteLength", None)?;
-    let stride = integer(view, "byteStride", Some(12))?;
+    let element = unit * width;
+    let stride = integer(view, "byteStride", Some(element))?;
     let start = integer(a, "byteOffset", Some(0))?;
-    need(
-        (12..=252).contains(&stride)
-            && stride.is_multiple_of(4)
-            && start.is_multiple_of(4)
-            && offset.is_multiple_of(4),
-    )?;
+    need(start.is_multiple_of(unit) && offset.is_multiple_of(unit))?;
+    if indices {
+        need(view.get("byteStride").is_none())?;
+    } else {
+        need(
+            (element..=252).contains(&stride)
+                && stride.is_multiple_of(4)
+                && start.is_multiple_of(4)
+                && offset.is_multiple_of(4),
+        )?;
+    }
     let end = start
         .checked_add((count - 1).checked_mul(stride).ok_or_else(invalid)?)
-        .and_then(|n| n.checked_add(12))
+        .and_then(|n| n.checked_add(element))
         .ok_or_else(invalid)?;
     need(end <= size)?;
+    let declared = integer(&gltf["buffers"][0], "byteLength", None)?;
+    need(offset.checked_add(size).is_some_and(|end| end <= declared))?;
     let binary = json_end.checked_add(8).ok_or_else(invalid)?;
-    for i in 0..count {
-        let at = binary
-            .checked_add(offset)
-            .and_then(|n| n.checked_add(start))
-            .and_then(|n| n.checked_add(i * stride))
-            .ok_or_else(invalid)?;
-        let bytes = glb.get(at..at + 12).ok_or_else(invalid)?;
-        let mut p = [0.; 3];
-        for (axis, p) in p.iter_mut().enumerate() {
-            *p = f32::from_le_bytes(
-                bytes[axis * 4..axis * 4 + 4]
-                    .try_into()
-                    .map_err(|_| invalid())?,
-            ) as f64;
-            need(p.is_finite())?;
+    let first = binary
+        .checked_add(offset)
+        .and_then(|n| n.checked_add(start))
+        .ok_or_else(invalid)?;
+    let last = binary
+        .checked_add(offset)
+        .and_then(|n| n.checked_add(end))
+        .ok_or_else(invalid)?;
+    Ok(Accessor {
+        bytes: glb.get(first..last).ok_or_else(invalid)?,
+        count,
+        stride,
+        component,
+    })
+}
+fn vector(a: &Accessor<'_>, index: usize) -> Result<[f64; 3], String> {
+    let at = index * a.stride;
+    let mut point = [0.; 3];
+    for (axis, value) in point.iter_mut().enumerate() {
+        *value = f32::from_le_bytes(
+            a.bytes[at + axis * 4..at + axis * 4 + 4]
+                .try_into()
+                .map_err(|_| invalid())?,
+        ) as f64;
+        need(value.is_finite())?;
+    }
+    Ok(point)
+}
+pub(super) fn positions(
+    gltf: &Value,
+    glb: &[u8],
+    json_end: usize,
+    primitive: &Value,
+    world: &Matrix,
+    visited: &mut usize,
+    mut check: impl FnMut([f64; 3]) -> bool,
+) -> Result<(), String> {
+    need(primitive.get("targets").is_none() && integer(primitive, "mode", Some(4))? == 4)?;
+    let attributes = primitive["attributes"].as_object().ok_or_else(invalid)?;
+    need(
+        attributes
+            .keys()
+            .all(|key| matches!(key.as_str(), "POSITION" | "NORMAL")),
+    )?;
+    let position = accessor(
+        gltf,
+        glb,
+        json_end,
+        &primitive["attributes"]["POSITION"],
+        3,
+        false,
+        visited,
+    )?;
+    if let Some(normal) = attributes.get("NORMAL") {
+        let normal = accessor(gltf, glb, json_end, normal, 3, false, visited)?;
+        need(normal.count == position.count)?;
+        for i in 0..normal.count {
+            vector(&normal, i)?;
         }
+    }
+    if let Some(indices) = primitive.get("indices") {
+        let indices = accessor(gltf, glb, json_end, indices, 1, true, visited)?;
+        need(indices.count.is_multiple_of(3))?;
+        for i in 0..indices.count {
+            let at = i * indices.stride;
+            let index = match indices.component {
+                5121 => indices.bytes[at] as u32,
+                5123 => u16::from_le_bytes(
+                    indices.bytes[at..at + 2]
+                        .try_into()
+                        .map_err(|_| invalid())?,
+                ) as u32,
+                5125 => u32::from_le_bytes(
+                    indices.bytes[at..at + 4]
+                        .try_into()
+                        .map_err(|_| invalid())?,
+                ),
+                _ => return Err(invalid()),
+            };
+            need((index as u64) < position.count as u64)?;
+        }
+    } else {
+        need(position.count.is_multiple_of(3))?;
+    }
+    for i in 0..position.count {
+        let p = vector(&position, i)?;
         let point = std::array::from_fn(|r| {
             world[r] * p[0] + world[4 + r] * p[1] + world[8 + r] * p[2] + world[12 + r]
         });

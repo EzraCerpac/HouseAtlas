@@ -22,6 +22,10 @@ the existing selected overview publication/GLB. It is opt-in through paired
 `--atlas-scene-manifest` and `--atlas-scene-manifest-sha256` serve options. No
 fields are added to the existing closed overview-v1 response. The companion
 must match that overview's exact scope, publication ID, GLB SHA256 and bytes.
+The shared `publicationId` is a canonical lowercase UUID, as required by the
+existing overview-v1 reader. Source revision and semantic entity IDs keep their
+separate source-owned identity rules; changing this host publication ID does
+not require changing geometry or those source identities.
 
 ```text
 {
@@ -198,6 +202,14 @@ Reuse the existing standard GLTFLoader and its admitted no-external-resource
 profile and aggregate budgets. Target the existing 32 MiB GLB and 64 MiB prepared
 asset limits; validate the actual mounted chunk budget against the server's
 4,000,000-byte per-file ceiling. Do not broaden formats or work limits silently.
+The companion reader uses a bounded static triangle profile: selected primitives
+have regular Float32 VEC3 positions and optional normals, with checked attribute
+and unsigned scalar index layouts. Morph targets and mesh/node weights are
+unsupported. Every bound world vertex must lie within its building bounds;
+single-level bindings also lie within that level, while shared multilevel
+bindings lie within the enclosing union of their declared levels. Producer
+bounds include the physical geometry, occurrence/pick extents and matching plan
+extents; validation does not enlarge them or move geometry.
 The companion is at most 12 MiB: non-plan semantic JSON at most 4 MiB and all
 inline plan JSON at most 8 MiB combined. The complete retained publication is
 at most 64 MiB. Bound the complete scene to 128
