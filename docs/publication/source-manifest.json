@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "da5dd797cede914934b0e310eda645b390bcd98c207ce18bfe5681c192d2f414",
+  "sourceDigestSha256": "b270651094357959f4587dab9a42873f6f9202689f391ee706212ff1ed2ba492",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5731,6 +5731,13 @@
       "owner": "media"
     },
     {
+      "path": "docs/ci-performance.md",
+      "mode": "100644",
+      "bytes": 4271,
+      "sha256": "922ddc48bc3b3c43999095112c2095394b79c7914286c6d836a68cc898b0290b",
+      "owner": "core-integration"
+    },
+    {
       "path": "docs/contracts/adoption-and-open-decisions.md",
       "mode": "100644",
       "bytes": 2279,
@@ -9725,6 +9732,55 @@
       "mode": "100644",
       "bytes": 4070,
       "sha256": "9f963f128058d05cc32cf9e380ccde984cf1c98e34903b23b3b4d6e8fe583e86",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/performance-report/comment.mjs",
+      "mode": "100644",
+      "bytes": 3070,
+      "sha256": "2ffc206155688212ac50182fbbd6eb8ee8e050bc5ffb5c9f7d2dad3a138fd7ee",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/performance-report/compare.mjs",
+      "mode": "100644",
+      "bytes": 5035,
+      "sha256": "fb037fc1d075726e9b9a2e0fdd87d147c5c758c50035fabe56afdd94e287bc0c",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/performance-report/compare.test.mjs",
+      "mode": "100644",
+      "bytes": 2853,
+      "sha256": "ba328b241fb227b14a68c5d2eb8399fdb0822e09c070f53d20c51f11de38ac1c",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/performance-report/read-json.mjs",
+      "mode": "100644",
+      "bytes": 1141,
+      "sha256": "4d7f11a2402a18787bcad120c042d4cabb67af27d0f417267ca31fec037a7f03",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/performance-report/read-json.test.mjs",
+      "mode": "100644",
+      "bytes": 1429,
+      "sha256": "42965e4daf9fbc27ba8783844a872c1d8e55526ac95dedd76e364dabcbdb437f",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/performance-report/report.mjs",
+      "mode": "100644",
+      "bytes": 3058,
+      "sha256": "c63edba82058dca8a7b9f46f93ce8cba963de7cd41f405cdaef43fa2878fd752",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/performance-report/report.test.mjs",
+      "mode": "100644",
+      "bytes": 4500,
+      "sha256": "5c689f418dfad28d28d4414881894053e8a00656e83b777cf65a0453c8aa1acd",
       "owner": "core-integration"
     },
     {
