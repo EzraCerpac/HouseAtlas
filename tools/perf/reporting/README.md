@@ -4,10 +4,10 @@ Ownership is `tools/perf/harness/` and `tools/perf/contract/` for measurement;
 `tools/perf/reporting/` for reporting. This directory defines no competing JSON
 schema for `houseatlas.perf.run/1`.
 
-The proposed canonical schema path is `tools/perf/contract/run.schema.json` and
-the executable contract path expected by the report CLI is
-`tools/perf/contract/index.mjs`. The measurement owner must confirm/create these
-paths and supply the exact schema SHA-256. No schema hash is invented here.
+The canonical schema is `tools/perf/contract/run.schema.json`; its module is
+`tools/perf/contract/index.mjs`, owned by PR190 at
+`d03223b0669761cf92846492fe56fb9e8f9f7db9`. Its verified schema SHA-256 is
+`642af28eacc14e6fdd7b9f7071979f07abc8dcb9a427773f5d74dab672b7056a`.
 
 The trusted contract module must export:
 
@@ -59,7 +59,7 @@ status fails the report check. Missing feature support in the base never becomes
 a zero, percent improvement or speedup. Stage markers do not establish actual
 GPU completion; browser/GPU measurements need their own explicit method.
 
-Proposed measurement CLI, for the measurement owner to confirm:
+Owned measurement CLI:
 
 ```sh
 node tools/perf/harness/run.mjs --source-root /absolute/base-checkout --output /absolute/new/base.json
@@ -88,20 +88,34 @@ a failed metric, invalid contract/data/identity or an unavailable output. Timing
 movement alone never fails. The comparison JSON records
 `houseatlas.perf.comparison/1`, trusted identity, profile fingerprints,
 recomputed summaries, delta and the failed flag. These are report outputs, not
-an alternate input schema. The production CLI remains unavailable until the
-measurement owner's contract module exists; unit tests inject a fake adapter.
+an alternate input schema. The production CLI requires the measurement owner's
+locked dependencies and canonical module. Healthy integration checks use the
+real pinned module.
 
 The metric comment updater accepts the same trusted identity, contract and
 validated base/head records and regenerates its content internally. It has no
 raw-Markdown input. The hosting workflow must import the contract from trusted
 default-branch source and obtain identity from GitHub rather than an artifact.
 
-The installed workflow currently uses only the separate closed
-`houseatlas.perf.availability/1` record, not the missing measurement schema.
-It reports an explicit blocked row without a harness identity or numeric values.
+The unprivileged workflow collects actual base/head records sequentially with
+the immutable harness pin and uploads only that pair. It can also create a
+separate preview using real event/run identities; the privileged reporter never
+accepts its Markdown. Incomplete collection uses the separate closed
+`houseatlas.perf.availability/1` record and an explicit blocked row.
 Availability identities have `harnessSha: null` and the actual trusted
 `reporterSha`; measured identities still require a full harness commit. The
-availability publisher validates the completed originating run, actual GitHub
+publisher validates the completed originating run, actual GitHub
 commit trees, exact artifact metadata/contents and current PR before updating
 the same bot marker. The read-only resolver selects the per-PR concurrency key
 from API data. No PR number or Markdown is accepted from an artifact.
+
+The privileged publisher imports the validator and policy only from its trusted
+default-branch checkout, with the trusted harness lock installed without scripts.
+It also checks the pinned harness commit/tree and the exact trusted owned-file
+digest. Merge PR190's canonical files before PR189 for immediate metric posting;
+the reverse order safely produces contract-unavailable rows until installation.
+
+Only `healthy-reporting.test.mjs` is automatic. Retained adversarial and
+mutation/omission files remain held and are source-reviewed rather than invoked
+by this lane. Absence must be established at the trusted GitHub API merge base
+before a missing healthy check can qualify for a legacy skip.

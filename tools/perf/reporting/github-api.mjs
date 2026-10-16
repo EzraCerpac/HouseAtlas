@@ -43,12 +43,12 @@ export function createGithubApi({ token, repository, runAttempt, fetchImpl = fet
     updateComment: (id, body) => request(`/issues/comments/${id}`, 'PATCH', { body }),
     downloadArtifact: async id => {
       const response = await fetchImpl(`${base}/actions/artifacts/${id}/zip`, { headers, redirect: 'manual', signal: AbortSignal.timeout(20000) });
-      if (response.status === 200) return bounded(response, 65536);
+      if (response.status === 200) return bounded(response, 262144);
       if (response.status !== 302) throw new Error('Artifact download unavailable');
       const location = new URL(response.headers.get('location'));
       if (location.protocol !== 'https:' || location.username || location.password ||
           !['.blob.core.windows.net', '.githubusercontent.com', '.amazonaws.com'].some(suffix => location.hostname.endsWith(suffix))) throw new Error('Invalid artifact redirect');
-      return bounded(await fetchImpl(location.href, { redirect: 'error', signal: AbortSignal.timeout(20000) }), 65536);
+      return bounded(await fetchImpl(location.href, { redirect: 'error', signal: AbortSignal.timeout(20000) }), 262144);
     },
   };
 }

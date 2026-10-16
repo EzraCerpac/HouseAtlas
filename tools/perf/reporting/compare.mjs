@@ -39,17 +39,19 @@ export function compareMetric(policy, base, head) {
   const missing = [...new Set([base?.skipReason, head?.skipReason,
     !base ? 'base-metric-unavailable' : null, !head ? 'head-metric-unavailable' : null].filter(Boolean))].join('; ') || null;
   if (missing) return { id: policy.id, status: 'skipped', reason: missing,
-    base: base?.samples ? summarize(base.samples) : null, head: head?.samples ? summarize(head.samples) : null, deltaAbsolute: null, deltaPercent: null, failed: base?.failed === true || head?.failed === true };
+    base: base?.samples ? summarize(base.samples) : null, head: head?.samples ? summarize(head.samples) : null, deltaAbsolute: null, deltaPercent: null, deltaPercentStatus: 'unavailable', failed: base?.failed === true || head?.failed === true };
   const before = summarize(base.samples), after = summarize(head.samples);
   const deltaAbsolute = after.value - before.value;
-  const deltaPercent = before.value === 0 ? (after.value === 0 ? 0 : null) : 100 * deltaAbsolute / before.value;
+  const rawPercent = before.value === 0 ? null : 100 * deltaAbsolute / before.value;
+  const deltaPercentStatus = before.value === 0 ? 'zero-baseline' : Number.isFinite(rawPercent) ? 'measured' : 'overflow';
+  const deltaPercent = deltaPercentStatus === 'measured' ? rawPercent : null;
   const signedChange = (after.value - before.value) * (policy.direction === 'lower' ? 1 : -1);
   let status = signedChange === 0 ? 'unchanged' : signedChange > 0 ? 'degraded' : 'improved';
   let failed = false;
   if (policy.kind === 'deterministic') {
     if ([base.samples, head.samples].some(samples => !samples.every(value => value === samples[0]))) {
       const budgeted = ['maximum', 'minimum', 'maxRegressionPercent'].some(key => policy[key] !== undefined);
-      return { id: policy.id, status: 'skipped', reason: 'deterministic-samples-disagree', base: before, head: after, deltaAbsolute: null, deltaPercent: null, failed: budgeted };
+      return { id: policy.id, status: 'skipped', reason: 'deterministic-samples-disagree', base: before, head: after, deltaAbsolute: null, deltaPercent: null, deltaPercentStatus: 'unavailable', failed: budgeted };
     }
     failed = policy.maximum !== undefined && after.value > policy.maximum;
     failed ||= policy.minimum !== undefined && after.value < policy.minimum;
@@ -61,13 +63,13 @@ export function compareMetric(policy, base, head) {
     if (Math.min(before.count, after.count) < 5) status = 'insufficient-samples';
     else if (deltaPercent !== null && deltaPercent !== 0 && Math.abs(deltaPercent) <= noise) status = 'within-noise';
   }
-  return { id: policy.id, status, base: before, head: after, deltaAbsolute, deltaPercent, failed };
+  return { id: policy.id, status, base: before, head: after, deltaAbsolute, deltaPercent, deltaPercentStatus, failed };
 }
 
 const number = value => value === null ? 'n/a' : new Intl.NumberFormat('en-US', {
   maximumSignificantDigits: 17, notation: value !== 0 && (Math.abs(value) < 1e-6 || Math.abs(value) >= 1e12) ? 'scientific' : 'standard'
 }).format(value);
-const percent = value => value === null ? 'n/a (zero base)' : `${value > 0 ? '+' : ''}${number(value)}%`;
+const percent = (value, status) => value === null ? status === 'overflow' ? 'unavailable (overflow)' : 'n/a (zero baseline)' : `${value > 0 ? '+' : ''}${number(value)}%`;
 // Escape all external labels, including Markdown punctuation and GitHub mentions.
 export function cell(value) {
   return String(value).replace(/[&<>|`\\\[\]*_!#@:.\r\n]/g, character => `&#${character.charCodeAt(0)};`);
@@ -88,7 +90,7 @@ export function renderTable(policies, comparisons) {
       policy.maxRegressionPercent === undefined ? '' : `regression ≤ ${number(policy.maxRegressionPercent)}%`].filter(Boolean).join(', ') : '';
     const absolute = value => value ? `${number(value.value)} ${cell(policy.unit)}${policy.kind === 'timing' ? ' / ' + number(value.p95) + ' ' + cell(policy.unit) : ''}` : '—';
     const absoluteDelta = result.deltaAbsolute === null ? '—' : `${result.deltaAbsolute > 0 ? '+' : ''}${number(result.deltaAbsolute)} ${cell(policy.unit)}`;
-    rows.push(`| ${cell(policy.label)} | ${absolute(result.base)} | ${absolute(result.head)} | ${absoluteDelta} | ${result.status === 'skipped' ? '—' : percent(result.deltaPercent)} | ${direction} | ${sample(result.base)} → ${sample(result.head)} | ${cell(result.reason ?? result.status)}; ${budget}${limits ? ' (' + limits + ')' : ''} |`);
+    rows.push(`| ${cell(policy.label)} | ${absolute(result.base)} | ${absolute(result.head)} | ${absoluteDelta} | ${result.status === 'skipped' ? '—' : percent(result.deltaPercent, result.deltaPercentStatus)} | ${direction} | ${sample(result.base)} → ${sample(result.head)} | ${cell(result.reason ?? result.status)}; ${budget}${limits ? ' (' + limits + ')' : ''} |`);
   }
   return rows.join('\n');
 }

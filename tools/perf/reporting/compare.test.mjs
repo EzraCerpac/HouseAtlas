@@ -17,7 +17,7 @@ test('both directions and zero baselines have defined comparisons', () => {
   assert.equal(compareMetric(timing, base, head).status, 'improved');
   assert.equal(compareMetric({ ...timing, direction: 'higher' }, base, head).status, 'degraded');
   assert.equal(compareMetric(timing, values([0]), head).deltaPercent, null);
-  assert.equal(compareMetric(timing, values([0]), values([0])).deltaPercent, 0);
+  assert.equal(compareMetric(timing, values([0]), values([0])).deltaPercent, null);
 });
 test('timings never fail a budget and display noise and insufficient samples', () => {
   assert.equal(compareMetric(timing, values([100, 100, 100, 100, 100]), values([99, 99, 99, 99, 99])).status, 'within-noise');

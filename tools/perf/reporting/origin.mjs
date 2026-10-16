@@ -1,5 +1,7 @@
-import { WORKFLOW_PATH, eligiblePullRequest, updateAvailabilityComment } from './comment.mjs';
-import { makeAvailabilityReport, parseAvailabilityZip } from './availability.mjs';
+import { WORKFLOW_PATH, eligiblePullRequest, updateAvailabilityComment, updateComment } from './comment.mjs';
+import { validateAvailabilityRecord } from './availability.mjs';
+import { readReportZip } from './archive.mjs';
+import { loadTrustedContract, prepareMeasurements } from './measurement.mjs';
 
 const positive = value => Number.isSafeInteger(value) && value > 0;
 const sha = value => typeof value === 'string' && /^[0-9a-f]{40}$/.test(value);
@@ -41,29 +43,51 @@ export async function resolveOrigin({ api, context }) {
   return { identity, run, workflowId: workflow.id, association, fallback };
 }
 
-export async function loadAvailability({ api, origin }) {
-  if (origin.run.conclusion !== 'success') return { reason: 'origin-run-failed' };
+export async function loadReport({ api, origin }) {
+  if (!['success', 'failure'].includes(origin.run.conclusion)) return { kind: 'availability', reason: 'origin-run-failed' };
   try {
     const name = `houseatlas-perf-${origin.identity.runId}-${origin.identity.runAttempt}`;
     const matches = (await api.listArtifacts(origin.identity.runId)).filter(artifact => artifact.name === name);
-    if (matches.length === 0) return { reason: 'artifact-unavailable' };
+    if (matches.length === 0) return { kind: 'availability', reason: origin.run.conclusion === 'success' ? 'artifact-unavailable' : 'origin-run-failed' };
     if (matches.length !== 1) throw new Error();
     const artifact = matches[0];
     if (!positive(artifact.id) || artifact.expired !== false || !Number.isSafeInteger(artifact.size_in_bytes) || artifact.size_in_bytes < 1 ||
-        artifact.size_in_bytes > 65536 || artifact.workflow_run?.id !== origin.identity.runId || artifact.workflow_run?.head_sha !== origin.identity.headSha) throw new Error();
-    const availability = parseAvailabilityZip(await api.downloadArtifact(artifact.id), origin.identity);
-    return { ...availability, artifactId: artifact.id };
-  } catch { return { reason: 'artifact-invalid' }; }
+        artifact.size_in_bytes > 262144 || artifact.workflow_run?.id !== origin.identity.runId || artifact.workflow_run?.head_sha !== origin.identity.headSha) throw new Error();
+    const bytes = await api.downloadArtifact(artifact.id);
+    const report = readReportZip(bytes);
+    if (report.kind === 'availability') {
+      if (bytes.length > 65536) throw new Error();
+      return { kind: report.kind, ...validateAvailabilityRecord(report.record, origin.identity), artifactSha256: report.artifactSha256, artifactId: artifact.id };
+    }
+    if ([report.baseRun, report.headRun].some(value => value?.format !== 'houseatlas.perf.run/1' || value.synthetic !== true)) throw new Error();
+    return { ...report, artifactId: artifact.id };
+  } catch { return { kind: 'availability', reason: 'artifact-invalid' }; }
 }
 
-export async function publishOrigin({ api, context, expectedPrNumber }) {
+export async function loadAvailability(input) {
+  const { kind, ...report } = await loadReport(input);
+  return kind === 'availability' ? report : { reason: 'artifact-invalid' };
+}
+
+export async function publishOrigin({ api, context, expectedPrNumber, contractLoader = loadTrustedContract }) {
   const origin = await resolveOrigin({ api, context });
   if (!origin || !positive(expectedPrNumber) || origin.identity.prNumber !== expectedPrNumber) return { status: 'skipped', reason: 'stale-or-unassociated-origin' };
-  const availability = await loadAvailability({ api, origin });
+  const artifact = await loadReport({ api, origin });
+  let measurement, availability;
+  if (artifact.kind === 'measurements') {
+    const bundle = await contractLoader();
+    if (!bundle) availability = { reason: 'measurement-contract-unavailable', artifactId: artifact.artifactId, artifactSha256: artifact.artifactSha256 };
+    else {
+      try { measurement = await prepareMeasurements({ api, origin, artifact, bundle }); }
+      catch { availability = { reason: 'artifact-invalid', artifactId: artifact.artifactId, artifactSha256: artifact.artifactSha256 }; }
+    }
+  } else { const { kind, ...report } = artifact; availability = report; }
   const boundApi = { ...api, getRun: async id => {
     const current = await api.getRun(id);
     return origin.fallback && (current.pull_requests ?? []).length === 0 ? { ...current, pull_requests: [origin.association] } : current;
   } };
-  const result = await updateAvailabilityComment({ api: boundApi, identity: origin.identity, workflowId: origin.workflowId, availability });
-  return { ...result, ...(result.status === 'created' || result.status === 'updated' ? { markdown: makeAvailabilityReport({ identity: origin.identity, availability }).markdown } : {}) };
+  // Write failures propagate. Never turn an uncertain API write into a second create.
+  if (measurement) return updateComment({ api: boundApi, ...measurement, workflowId: origin.workflowId,
+    evidence: { artifactId: artifact.artifactId, artifactSha256: artifact.artifactSha256 } });
+  return updateAvailabilityComment({ api: boundApi, identity: origin.identity, workflowId: origin.workflowId, availability });
 }

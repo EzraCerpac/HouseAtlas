@@ -66,6 +66,14 @@ jobs:
           node-version: '26.10.0'
           check-latest: false
           package-manager-cache: false
+      - name: Prepare only the trusted default-branch contract lock when present
+        continue-on-error: true
+        env:
+          npm_config_cache: ${{ runner.temp }}/houseatlas-report-npm
+        run: |
+          if test -f tools/perf/harness/package-lock.json; then
+            npm ci --prefix tools/perf/harness --omit=optional --ignore-scripts --no-audit --no-fund
+          fi
       - name: Validate provenance and bounded data, then update one owned comment
         env:
           GH_TOKEN: ${{ github.token }}

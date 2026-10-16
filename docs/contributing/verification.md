@@ -1,41 +1,59 @@
 # HouseAtlas
 
-## Synthetic PR performance formatter
+## Synthetic PR performance reporting
 
-The requested performance-report lane has these exact focused checks. Inspect
-the complete sources in `tools/perf/reporting/` before running them with Node
-26.10.0 and Python 3's standard library. They use numeric synthetic samples,
-generated in-memory ZIP archives, fake GitHub API metadata/transports, and fresh
-disposable JSON files under the operating-system temporary directory. They
-open no listener and call no remote API, application service, provider or real
-account. They exercise report arithmetic/rendering, strict comparability,
-bounded file/archive ingestion, token-free storage redirects and comment-update logic only:
+The separate performance lane uses only this automatic healthy reporting check.
+Inspect its complete source and imported helpers before execution with Node
+26.10.0 and Python 3's standard library:
 
 ```sh
-node --test --test-concurrency=1 tools/perf/reporting/compare.test.mjs tools/perf/reporting/report.test.mjs tools/perf/reporting/read-json.test.mjs tools/perf/reporting/adapter.test.mjs tools/perf/reporting/availability.test.mjs tools/perf/reporting/origin.test.mjs tools/perf/reporting/github-api.test.mjs
+node --test --test-concurrency=1 tools/perf/reporting/healthy-reporting.test.mjs
 ```
 
+It uses valid numeric samples, valid generated archives and exact fake GitHub
+metadata for healthy comment create/update. It checks accepted unavailable and
+numeric representation states without executing adversarial, mutation/omission,
+reversal, denial or failure-injection cases. Other reporting test files retain
+held cases and are excluded from this automatic lane; listing or reading their
+source is not authorization to execute them.
+
+With the clean pinned harness checkout and its exact public lock installed,
+the same healthy test also checks the actual canonical contract:
+
+```sh
+HOUSEATLAS_PERF_CONTRACT_ROOT=/absolute/pinned/harness-checkout node --test --test-concurrency=1 tools/perf/reporting/healthy-reporting.test.mjs
+```
+
+The pin is `d03223b0669761cf92846492fe56fb9e8f9f7db9`, and the sole schema is
+`tools/perf/contract/run.schema.json`, SHA-256
+`642af28eacc14e6fdd7b9f7071979f07abc8dcb9a427773f5d74dab672b7056a`.
+The test opens no listener and calls no remote API, application service, provider
+or real account. It supplies no actual browser/GPU or full security qualification.
+
+The unprivileged measurement job separately installs only exact public locks
+with scripts/audit/funding disabled, then invokes this same clean harness
+sequentially against separately pinned base/head checkouts. Inspect the harness,
+selected production functions and Vite configuration first. Its fixed generated
+fixtures, resource/process bounds and exact CLI are in the harness owner's
+`tools/perf/harness/README.md`. No broad test alias or held case is run to collect
+metrics. Source Vite builds execute source code only in the isolated read-only
+PR context without user secrets, provider credentials or shared cache writes.
+
 The two reporting workflows also have this read-only YAML/expression check with
-the official actionlint 1.7.12 executable, retained only in a temporary tooling
-directory. Its Linux amd64 release archive SHA-256 is
-`8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`.
-This does not run workflows, install a repository dependency or execute PR code:
+the official actionlint 1.7.12 executable in a temporary tooling directory. Its
+Linux amd64 release archive SHA-256 is
+`8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`:
 
 ```sh
 /tmp/houseatlas-actionlint-1.7.12/actionlint -shellcheck= -pyflakes= .github/workflows/performance.yml .github/workflows/performance-report.yml
 ```
 
-This named formatter check runs in the separate unprivileged performance workflow,
-outside automatic ordinary CI. It adds no runtime
-alias, workflow permission or application-control scope. It establishes no
-application speedup, actual GPU completion, hosted comment permission, security
-or deployment qualification. See [the report lane](../ci-performance.md) and
-[measurement-owner handoff](../../tools/perf/reporting/README.md) for the remaining
-measurement-contract integration. The separate read-only availability workflow
-and default-branch `workflow_run` reporter emit only an explicit blocked table
-until the harness exists. Only the reporter's publish job has the separately
-scoped ephemeral PR-comment write permission; the ordinary CI workflows retain
-their original scope and permissions.
+This reporting lane is separate from ordinary CI and changes none of its
+existing checks or permissions. Only the trusted default-branch publisher job
+has the scoped ephemeral PR-comment permission. See
+[the report lane](../ci-performance.md) and
+[measurement handoff](../../tools/perf/reporting/README.md). It releases no
+application-control, provider, household, recovery, pilot or deployment gate.
 
 The retained USDZ padding compatibility check builds two tiny stored archives
 in memory, with identical local/central alignment padding or the earlier

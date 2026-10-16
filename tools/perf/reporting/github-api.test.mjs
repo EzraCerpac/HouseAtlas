@@ -18,7 +18,7 @@ test('artifact redirect receives no job token; only trusted HTTPS storage hosts 
 });
 test('artifact and metadata responses are bounded and comments use structured JSON', async () => {
   const oversized = createGithubApi({ token: 'synthetic-token', repository: 'example/HouseAtlas', runAttempt: 1,
-    fetchImpl: async () => new Response(Buffer.alloc(65537)) });
+    fetchImpl: async () => new Response(Buffer.alloc(262145)) });
   await assert.rejects(oversized.downloadArtifact(9));
   const calls = [];
   const api = createGithubApi({ token: 'synthetic-token', repository: 'example/HouseAtlas', runAttempt: 2,

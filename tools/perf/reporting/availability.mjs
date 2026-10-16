@@ -1,6 +1,4 @@
-import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { readReportZip } from './archive.mjs';
 import { COMMENT_MARKER, validateIdentity } from './report.mjs';
 
 const reasons = new Map([
@@ -8,18 +6,23 @@ const reasons = new Map([
   ['artifact-unavailable', 'The originating run did not supply the expected availability artifact.'],
   ['artifact-invalid', 'The availability artifact failed provenance, size, archive or content validation.'],
   ['origin-run-failed', 'The originating run did not complete successfully.'],
+  ['measurement-bootstrap-unavailable', 'The isolated measurement dependencies or source checkouts were unavailable.'],
+  ['measurement-contract-unavailable', 'The exact canonical measurement contract is not installed in the trusted default branch.'],
 ]);
+export function validateAvailabilityRecord(value, identity) {
+  const keys = ['format', 'repository', 'prNumber', 'baseSha', 'headSha', 'runId', 'runAttempt', 'status', 'reason'];
+  if (!value || Object.keys(value).length !== keys.length || Object.keys(value).some(key => !keys.includes(key)) ||
+      value.format !== 'houseatlas.perf.availability/1' || value.status !== 'blocked' ||
+      !['measurement-harness-unavailable', 'measurement-bootstrap-unavailable'].includes(value.reason) ||
+      ['repository', 'prNumber', 'baseSha', 'headSha', 'runId', 'runAttempt'].some(key => value[key] !== identity[key])) throw new Error('Invalid availability artifact');
+  return { reason: value.reason };
+}
 export function parseAvailabilityZip(bytes, identity) {
   try {
     if (!Buffer.isBuffer(bytes) || bytes.length > 65536) throw new Error();
-    const payload = execFileSync('python3', ['-I', fileURLToPath(new URL('./read-availability-zip.py', import.meta.url))],
-      { input: bytes, maxBuffer: 8192, timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'], env: { PATH: process.env.PATH, LANG: 'C.UTF-8' } });
-    const value = JSON.parse(payload.toString('utf8'));
-    const keys = ['format', 'repository', 'prNumber', 'baseSha', 'headSha', 'runId', 'runAttempt', 'status', 'reason'];
-    if (!value || Object.keys(value).length !== keys.length || Object.keys(value).some(key => !keys.includes(key)) ||
-        value.format !== 'houseatlas.perf.availability/1' || value.status !== 'blocked' || value.reason !== 'measurement-harness-unavailable' ||
-        ['repository', 'prNumber', 'baseSha', 'headSha', 'runId', 'runAttempt'].some(key => value[key] !== identity[key])) throw new Error();
-    return { reason: value.reason, artifactSha256: createHash('sha256').update(bytes).digest('hex') };
+    const value = readReportZip(bytes);
+    if (value.kind !== 'availability') throw new Error();
+    return { ...validateAvailabilityRecord(value.record, identity), artifactSha256: value.artifactSha256 };
   } catch { throw new Error('Invalid availability artifact'); }
 }
 

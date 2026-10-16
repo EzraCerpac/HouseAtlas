@@ -32,6 +32,7 @@ export function makeReport({ identity, policies, base, head }) {
   const markdown = [COMMENT_MARKER, '### Synthetic performance comparison', '',
     `Base: ${link(identity.baseSha)} (tree \`${identity.baseTree}\`)  `, `Head: ${link(identity.headSha)} (tree \`${identity.headTree}\`)  `,
     `Harness source: ${link(identity.harnessSha)}  `,
+    ...(identity.reporterSha ? [`Reporter source: ${link(identity.reporterSha)}  `] : []),
     `[Measurement run ${identity.runId}, attempt ${identity.runAttempt}](${runUrl})`, '',
     renderTable(policies, comparisons), '',
     'Delta = (head − base) / base × 100; the direction column identifies improvement. Values are medians; p95 uses the nearest rank. Noise is 1.4826 × MAD / median; it is descriptive, not a confidence interval.', '',

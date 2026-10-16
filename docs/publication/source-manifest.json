@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "71d063ec10bb660e9c3b1109d665cf8eab8809c2eedb465b872dad1ce33ded1b",
+  "sourceDigestSha256": "d0a12d7ca882e53e22f15155a93e700d729b923c801ec63a4738005ff5446980",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -35,15 +35,15 @@
     {
       "path": ".github/workflows/performance-report.yml",
       "mode": "100644",
-      "bytes": 2747,
-      "sha256": "82d056339a29d30823731b040d9368afdda63d1881e16f79a3afcf0005d06bfe",
+      "bytes": 3135,
+      "sha256": "a7791ede367e9bcf8a90f9021aea68f85498cad366bd052a580dd27e77a405dc",
       "owner": "core-integration"
     },
     {
       "path": ".github/workflows/performance.yml",
       "mode": "100644",
-      "bytes": 4377,
-      "sha256": "f92697307bda56293baa49198617d7226315652316ad6095b9b71b276fe1543b",
+      "bytes": 12555,
+      "sha256": "b85accdb6c7e80aaa4937ab0ea3bb796333fccab45e65b1f067da84b8d25e26f",
       "owner": "core-integration"
     },
     {
@@ -5747,8 +5747,8 @@
     {
       "path": "docs/ci-performance.md",
       "mode": "100644",
-      "bytes": 7786,
-      "sha256": "ec1e0d78fa08b8d279bcbc79ab211c9be852b739c6d357fe2dfcb049faeed26a",
+      "bytes": 9039,
+      "sha256": "bce476dca311f929f6b14a70e0e841a701ecc9e108082aac5ec9d3958fb4e84d",
       "owner": "core-integration"
     },
     {
@@ -5817,8 +5817,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 64516,
-      "sha256": "63404923bcafd5cc1d4ec8d0098c79721bdb6a508260f53cb9972064743e0f70",
+      "bytes": 65083,
+      "sha256": "efcf5b66b0d1e4079d4dc6dd201dbc6a99c9548896bf380683b294a615d6786b",
       "owner": "core-integration"
     },
     {
@@ -9751,8 +9751,8 @@
     {
       "path": "tools/perf/reporting/README.md",
       "mode": "100644",
-      "bytes": 5813,
-      "sha256": "acb2f3ea0371a6f6258adae66e5d1e3c421623827c64737c3ae633083e5526b0",
+      "bytes": 6604,
+      "sha256": "338e35950b830c59f16a731ccea72cfc24387d7d2f741b680652a8c78f4bfdf6",
       "owner": "core-integration"
     },
     {
@@ -9770,10 +9770,17 @@
       "owner": "core-integration"
     },
     {
+      "path": "tools/perf/reporting/archive.mjs",
+      "mode": "100644",
+      "bytes": 1239,
+      "sha256": "5b1457543617c95218635ec224f760e180906fb06f0ec4ab8e5b92f6c26f44cc",
+      "owner": "core-integration"
+    },
+    {
       "path": "tools/perf/reporting/availability.mjs",
       "mode": "100644",
-      "bytes": 3933,
-      "sha256": "f6f58a80f229df19516cd0b7b64b9a27b4345f03d2ea86c5db5a19454f7a4b8e",
+      "bytes": 4055,
+      "sha256": "a262f7f748d29e8b0be44e8a33e6dc1a99e3fea46c3e23a4b14079c9ebf00d79",
       "owner": "core-integration"
     },
     {
@@ -9793,36 +9800,36 @@
     {
       "path": "tools/perf/reporting/comment.mjs",
       "mode": "100644",
-      "bytes": 4182,
-      "sha256": "093dc2fbffa517622a683b6264edca5b71d37afb589cfd7f8e57f089f842e9cf",
+      "bytes": 4741,
+      "sha256": "ee71e533e6e4ffbfead2fe00df635c54b72925f29fd7cb60ff08eb5e239ea1ff",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/reporting/compare.mjs",
       "mode": "100644",
-      "bytes": 6860,
-      "sha256": "3e56b8b20ba3d68a19959bfadf18d1ab514a860cc6c9bdcba2b99c4d51fa3666",
+      "bytes": 7215,
+      "sha256": "493476bb10826cd5ece7de9263d1f974de6491ecab9d40553ab347c7bbbeee14",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/reporting/compare.test.mjs",
       "mode": "100644",
-      "bytes": 5128,
-      "sha256": "2824a7c22bca0399d1191cece0b4a941cb1ab665d9983314ae8481becb1e25db",
+      "bytes": 5131,
+      "sha256": "a8fdf5651058af4b05a649b7319f15b68e79e8b2ee89429ebc21e14ca3312780",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/reporting/github-api.mjs",
       "mode": "100644",
-      "bytes": 3533,
-      "sha256": "59e183f94686952badb1c25d670e60720beb637ce5adc23740d30deaed80f072",
+      "bytes": 3535,
+      "sha256": "4e658e6aaddcb01def28ddc376801b0319cf68f608661bae0b5f0f1d7620c6e2",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/reporting/github-api.test.mjs",
       "mode": "100644",
-      "bytes": 2185,
-      "sha256": "4a599331d08613b71a3605bbd485f3a303a7d81d311bd6af2ca3e330b3332434",
+      "bytes": 2186,
+      "sha256": "9d9c137975d8f4b7c7901257eb05e6519bec3654140822af1c5c2bcd26ee466d",
       "owner": "core-integration"
     },
     {
@@ -9833,10 +9840,31 @@
       "owner": "core-integration"
     },
     {
+      "path": "tools/perf/reporting/healthy-reporting.test.mjs",
+      "mode": "100644",
+      "bytes": 5577,
+      "sha256": "2f9a2d226ee4b874e2d6741c90fa1aaa6d9168aa1bdceb3cf6640ef4e611aaf8",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/reporting/measurement.mjs",
+      "mode": "100644",
+      "bytes": 1765,
+      "sha256": "a2f2da0f468cb17b025eea243c6f75279b405cc7baffc8a067629048aa041124",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/reporting/measurement.test.mjs",
+      "mode": "100644",
+      "bytes": 6500,
+      "sha256": "ef2a4d811ab72db8fb52a2a9a490343eea4bcd5e88c2a62bc0386bb3c677a73a",
+      "owner": "core-integration"
+    },
+    {
       "path": "tools/perf/reporting/origin.mjs",
       "mode": "100644",
-      "bytes": 5410,
-      "sha256": "7b6451073e9feb34ff980676d8be5c926ad3af4e19f529c525565a64d7500f04",
+      "bytes": 6955,
+      "sha256": "75e412a7a217d73f751f44bb831d5a01fefe22b29318151986ce5109875c9858",
       "owner": "core-integration"
     },
     {
@@ -9844,13 +9872,6 @@
       "mode": "100644",
       "bytes": 4917,
       "sha256": "5f1cb1fddf2648b2bd03759fc67e6f29eecb4a8e2d48a8ad6d6e28b1630d1ec5",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/perf/reporting/read-availability-zip.py",
-      "mode": "100644",
-      "bytes": 1178,
-      "sha256": "b9185bb04ae9425171c3b60b7a634d2b92e917abb675524a0861399d7e495f8c",
       "owner": "core-integration"
     },
     {
@@ -9868,10 +9889,17 @@
       "owner": "core-integration"
     },
     {
+      "path": "tools/perf/reporting/read-report-zip.py",
+      "mode": "100644",
+      "bytes": 1488,
+      "sha256": "65f2ed2815ea5cd06aca2b6299c5e8d0314b5dc762ba242e6971a79e7232db45",
+      "owner": "core-integration"
+    },
+    {
       "path": "tools/perf/reporting/report.mjs",
       "mode": "100644",
-      "bytes": 3661,
-      "sha256": "a8dbcebd2d527007aff4adf05a968e244a35a517d2ddec78ca7c880b6bf913cb",
+      "bytes": 3752,
+      "sha256": "4d493a46d175d5f7dede3f70025be822187e705eaa1804cdfb14bbf40f759683",
       "owner": "core-integration"
     },
     {

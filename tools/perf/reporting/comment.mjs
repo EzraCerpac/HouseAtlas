@@ -16,7 +16,7 @@ export function eligiblePullRequest({ run, pull, identity, workflowId }) {
     pull.base.sha === identity.baseSha && pull.head?.sha === identity.headSha;
 }
 
-async function writeReport({ api, identity, workflowId, render }) {
+async function writeReport({ api, identity, workflowId, render, evidence }) {
   validateIdentity(identity);
   const run = await api.getRun(identity.runId);
   let pull = await api.getPull(identity.prNumber);
@@ -26,7 +26,15 @@ async function writeReport({ api, identity, workflowId, render }) {
       headCommit.sha !== identity.headSha || headCommit.commit?.tree?.sha !== identity.headTree) return { status: 'skipped', reason: 'source-tree-mismatch' };
   // Rebuild from the trusted contract and validated data. Uploaded Markdown is
   // never accepted as comment content, even if it contains the correct marker.
-  const { markdown, failed } = render();
+  let { markdown, failed } = render();
+  if (evidence) {
+    if (!Number.isSafeInteger(evidence.artifactId) || evidence.artifactId < 1 || !/^[0-9a-f]{64}$/.test(evidence.artifactSha256 ?? '')) throw new Error('Invalid artifact evidence');
+    markdown += `\n\nArtifact id: \`${evidence.artifactId}\`  \nArtifact archive SHA-256: \`${evidence.artifactSha256}\``;
+  }
+  if (run.conclusion !== 'success') {
+    markdown += '\n\nThe originating workflow did not complete successfully; these observations do not override its failed checks.';
+    failed = true;
+  }
   if (Buffer.byteLength(markdown) > 60000) throw new Error('Invalid rendered report');
   const comments = await api.listComments(identity.prNumber);
   const owned = comments.filter(comment => comment.user?.login === 'github-actions[bot]' && comment.user?.type === 'Bot' &&
@@ -44,11 +52,11 @@ async function writeReport({ api, identity, workflowId, render }) {
   if (!eligiblePullRequest({ run, pull, identity, workflowId })) return { status: 'skipped', reason: 'stale-or-unassociated-run' };
   if (owned.length) await api.updateComment(owned[0].id, markdown);
   else await api.createComment(identity.prNumber, markdown);
-  return { status: owned.length ? 'updated' : 'created', failed };
+  return { status: owned.length ? 'updated' : 'created', failed, markdown };
 }
 
-export function updateComment({ api, identity, baseRun, headRun, contract, workflowId }) {
-  return writeReport({ api, identity, workflowId, render: () => compareRuns({ identity, baseRun, headRun, contract }) });
+export function updateComment({ api, identity, baseRun, headRun, contract, workflowId, evidence }) {
+  return writeReport({ api, identity, workflowId, evidence, render: () => compareRuns({ identity, baseRun, headRun, contract }) });
 }
 
 export function updateAvailabilityComment({ api, identity, availability, workflowId }) {
