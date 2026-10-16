@@ -19,7 +19,7 @@ test('adapter computes p95 and retains full identities and comparability fingerp
   assert.equal(result.comparisons[0].deltaPercent, -25);
   assert.equal(result.comparisons[0].deltaAbsolute, -25);
   assert.equal(result.comparisons[0].head.p95, 75);
-  for (const text of [identity.baseTree, identity.headTree, contract.schemaSha256, '1'.repeat(64), '2'.repeat(64)]) assert(result.markdown.includes(text));
+  assert.deepEqual(result.profiles, { schemaSha256: contract.schemaSha256, baseFixture: '1'.repeat(64), headFixture: '1'.repeat(64), baseComparison: '2'.repeat(64), headComparison: '2'.repeat(64) });
 });
 test('new base feature is unsupported rather than a zero or speedup', () => {
   const base = view('base');
@@ -50,7 +50,7 @@ test('failed and blocked metric statuses are explicit and absent samples are nev
     assert.equal(result.comparisons[0].reason, `head-${status}`);
     assert.equal(result.comparisons[0].head, null);
     assert.equal(result.failed, status === 'failed');
-    assert(result.markdown.includes(status === 'failed' ? 'head-failed; FAIL' : 'head-blocked; informational'));
+    assert(result.markdown.includes(status === 'failed' ? 'head failed; ❌ failed' : 'head blocked'));
   }
 });
 test('CLI writes new Markdown and machine comparison using the owner validator', () => {
@@ -60,7 +60,7 @@ test('CLI writes new Markdown and machine comparison using the owner validator',
     for (const [name, value] of [['base.json', view('base')], ['head.json', view('head')], ['identity.json', identity]]) writeFileSync(file(name), JSON.stringify(value));
     const args = ['--base', file('base.json'), '--head', file('head.json'), '--identity', file('identity.json'), '--markdown', file('report.md'), '--comparison', file('comparison.json')];
     assert.equal(runCli(args, contract), 0);
-    assert.match(readFileSync(file('report.md'), 'utf8'), /-25%/);
+    assert.match(readFileSync(file('report.md'), 'utf8'), /-25\.0%/);
     assert.equal(JSON.parse(readFileSync(file('comparison.json'))).comparisons[0].head.p95, 75);
     assert.throws(() => runCli(args, contract)); // Existing evidence is never overwritten.
   } finally { rmSync(directory, { recursive: true, force: true }); }

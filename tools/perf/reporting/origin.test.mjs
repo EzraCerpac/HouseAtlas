@@ -76,5 +76,5 @@ test('head movement before writing and failed originating runs remain explicit',
   const result = await publishOrigin({ api: other.api, context, expectedPrNumber: 7 });
   assert.equal(result.status, 'created');
   assert.equal(result.failed, true);
-  assert(result.markdown.includes('originating run did not complete successfully'));
+  assert(result.markdown.includes('Originating workflow failed'));
 });

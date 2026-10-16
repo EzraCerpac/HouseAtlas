@@ -1,5 +1,5 @@
 import { readReportZip } from './archive.mjs';
-import { COMMENT_MARKER, validateIdentity } from './report.mjs';
+import { COMMENT_MARKER, reportEvidence, validateIdentity } from './report.mjs';
 
 const reasons = new Map([
   ['measurement-harness-unavailable', 'The measurement harness and canonical run contract have not been supplied.'],
@@ -32,19 +32,16 @@ export function makeAvailabilityReport({ identity, availability }) {
       Object.keys(availability).some(key => !['reason', 'artifactId', 'artifactSha256'].includes(key)) ||
       (availability.artifactId !== undefined && (!Number.isSafeInteger(availability.artifactId) || availability.artifactId < 1)) ||
       (availability.artifactSha256 !== undefined && !/^[0-9a-f]{64}$/.test(availability.artifactSha256))) throw new Error('Invalid availability report');
-  const link = commit => `[\`${commit}\`](https://github.com/${identity.repository}/commit/${commit})`;
-  const markdown = [COMMENT_MARKER, '### Synthetic performance comparison', '',
-    `Base: ${link(identity.baseSha)} (tree \`${identity.baseTree}\`)  `,
-    `Head: ${link(identity.headSha)} (tree \`${identity.headTree}\`)  `,
-    `Reporter source: ${link(identity.reporterSha)}  `,
-    `[Measurement run ${identity.runId}, attempt ${identity.runAttempt}](https://github.com/${identity.repository}/actions/runs/${identity.runId}/attempts/${identity.runAttempt})`, '',
-    '| Metric | Base | Head | Delta | Delta % | Direction | Samples / noise | Status / reason |',
-    '| --- | ---: | ---: | ---: | ---: | --- | --- | --- |',
-    `| Synthetic benchmark suite | — | — | — | — | — | — | blocked: ${reasons.get(availability.reason)} |`, '',
-    'No performance measurements or speedup/degradation claims are available. Missing values are unavailable, never zero. The harness, fixture profile, settings and environment must be supplied and validated before comparisons can run.', '',
-    'Scope: synthetic/public PR reporting only; no household data, provider calls or deployment.',
-    ...(availability.artifactId ? ['', `Artifact id: \`${availability.artifactId}\``] : []),
-    ...(availability.artifactSha256 ? [`Artifact archive SHA-256: \`${availability.artifactSha256}\``] : []),
-  ].join('\n');
+  const labels = new Map([
+    ['measurement-harness-unavailable', 'Harness unavailable'], ['artifact-unavailable', 'Artifact unavailable'],
+    ['artifact-invalid', 'Invalid artifact'], ['origin-run-failed', 'Workflow failed'],
+    ['measurement-bootstrap-unavailable', 'Measurement setup unavailable'], ['measurement-contract-unavailable', 'Contract unavailable'],
+  ]);
+  const evidence = [reasons.get(availability.reason),
+    ...(availability.artifactId ? [`[Artifact](https://github.com/${identity.repository}/actions/runs/${identity.runId}/artifacts/${availability.artifactId})`] : []),
+    ...(availability.artifactSha256 ? [`Archive SHA-256 \`${availability.artifactSha256}\``] : [])];
+  const markdown = [COMMENT_MARKER, '### Synthetic performance', '', '⚪ No comparable measurements.', '',
+    '| Metric | Base | Head | Change | Result |', '| --- | ---: | ---: | ---: | --- |',
+    `| Benchmark suite | — | — | — | ⚪ ${labels.get(availability.reason)} |`, '', reportEvidence(identity, evidence)].join('\n');
   return { markdown, failed: ['artifact-invalid', 'origin-run-failed'].includes(availability.reason) };
 }

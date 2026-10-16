@@ -60,7 +60,7 @@ if (!ownerRoot) {
     assert.equal((await item.publish()).status, 'updated');
     assert.equal(item.state.comments.length, 1);
     const markdown = item.state.comments[0].body;
-    for (const text of [HARNESS_SHA, SCHEMA_SHA256, 'Synthetic scan profile parsing', 'base-unsupported; head-unsupported', 'Artifact archive SHA-256']) assert(markdown.includes(text));
+    for (const text of [HARNESS_SHA, 'Scan parse', 'Browser/GPU: 5 metrics unsupported', 'archive SHA-256']) assert(markdown.includes(text));
   });
   test('real canonical unsupported bases and failed heads preserve both states and failure', async () => {
     const item = fixture(), id = 'frontend.standard_glb.load_ms';
@@ -68,7 +68,7 @@ if (!ownerRoot) {
     item.headRun.metrics = item.headRun.metrics.map(row => row.id === id ? { id, status: 'failed', reason: 'execution-failed' } : row);
     const result = await item.publish();
     assert.equal(result.failed, true);
-    assert(result.markdown.includes('base-unsupported; head-failed; FAIL'));
+    assert(result.markdown.includes('base unsupported; head failed; ❌ failed'));
   });
   test('canonical fixture/environment differences skip comparison without invented speedups', async () => {
     for (const field of ['fixture', 'environment']) {
@@ -77,7 +77,7 @@ if (!ownerRoot) {
       else item.headRun.environment.host.cpu = 'Different synthetic unit host';
       const result = await item.publish();
       assert.equal(result.failed, false);
-      assert(result.markdown.includes(field === 'fixture' ? 'fixture-mismatch' : 'method-or-environment-mismatch'));
+      assert(result.markdown.includes(field === 'fixture' ? 'fixture mismatch' : 'method or environment mismatch'));
     }
   });
   test('canonical GPU claims, changed source/harness and inconsistent summaries never become posted values', async () => {
