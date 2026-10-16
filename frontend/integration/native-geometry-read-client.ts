@@ -4,7 +4,7 @@ import { IFC_GLB_MIME, IFC_GLB_PROFILE } from '../src/lantern/scans/ifc-glb-prof
 import type { ScanFloor, ScanMeshDelivery, ScanMeshReadPort } from '../src/lantern/scans/mesh-profile';
 import type {
   NativeGeometryBinding, NativeGeometryDescriptor, NativeGeometryFloor, NativeGeometryFrame,
-  NativeGeometryLicense, NativeGeometryOffer, NativeGeometryReadClient, NativeScanFloor,
+  NativeGeometryLicense, NativeGeometryLoadOptions, NativeGeometryOffer, NativeGeometryReadClient, NativeScanFloor,
 } from '../src/lantern/scans/native-read-types';
 
 export interface NativeGeometryReadOptions {
@@ -14,12 +14,18 @@ export interface NativeGeometryReadOptions {
   /** Actual browser origin, supplied by the private host. */
   origin: string;
   transport?: typeof fetch;
+  /** Opt-in page-memory reuse of verified mesh bytes; absent, every mesh is read
+   * afresh. `sessionPresent` distinguishes a home-view reload gap, which keeps
+   * the bytes, from sign-out or a session check, which drops them. */
+  retainMeshes?: { readonly sessionPresent: () => boolean };
 }
 
 export const NATIVE_GEOMETRY_READ_LIMITS = Object.freeze({
   descriptorBytes: 1024 * 1024, floors: 64, depth: 8, nodes: 4096,
   stringLength: 4096, numberLength: 20, headerBytes: 8192, chunks: 8192, requests: 2, readMs: 15000,
 });
+/** Page-memory mesh retention only: never persisted, one session/home partition. */
+export const NATIVE_GEOMETRY_RETAINED_LIMITS = Object.freeze({ entries: 6, bytes: 3 * MESH_LIMITS.bytes });
 const MESH_MIME = 'application/vnd.houseatlas.magicplan-authored-mesh+json';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const SHA = /^[0-9a-f]{64}$/;
@@ -246,10 +252,34 @@ interface LiveFrame {
   readonly descriptor: NativeGeometryDescriptor;
   readonly offers: ReadonlyMap<ScanFloor, NativeGeometryOffer>;
   readonly listeners: Set<() => void>;
+  /** Explicit refresh: read every mesh afresh, then retain the new bytes. */
+  readonly refresh: boolean;
+}
+interface RetainedPartition {
+  readonly sessionIdentity: object;
+  readonly expiresAt: string;
+  readonly workspaceId: string;
+  readonly homeId: string;
+}
+/** Exact offered derivative, independent of the home-wide view key: unrelated
+ * record changes keep it; a new floor, asset, revision, digest, type or
+ * licence does not. */
+function retainedKey(descriptor: NativeGeometryDescriptor, floor: NativeGeometryFloor): string {
+  return JSON.stringify([descriptor.scope.workspaceId, descriptor.scope.homeId, descriptor.buildingId, floor.key, floor.geometryId,
+    floor.derivativeAssetId, floor.derivativeRevision.token, floor.derivativeSha256, floor.derivativeContentType,
+    floor.derivativeLicense.status, floor.derivativeLicense.reference]);
+}
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new Uint8Array(bytes));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
 /** Passive native reads. The server authorizes each GET afresh; a local frame
- * is only a fence over this host observation and never a permission fallback. */
+ * is only a fence over this host observation and never a permission fallback.
+ * With `retainMeshes`, a freshly authorized descriptor may be served verified
+ * mesh bytes this page already read for the identical offered derivative under
+ * the same canonical session object and home. The descriptor itself is always
+ * read afresh, and nothing is persisted beyond this page's memory. */
 export function createNativeGeometryReadClient(options: NativeGeometryReadOptions): NativeGeometryReadClient {
   const parsedOrigin = new URL(options.origin);
   need((parsedOrigin.protocol === 'https:' || parsedOrigin.protocol === 'http:') && parsedOrigin.origin === options.origin
@@ -258,6 +288,46 @@ export function createNativeGeometryReadClient(options: NativeGeometryReadOption
   let owner: Owner | null = null, active: LiveFrame | null = null, generation = 0, disposed = false;
   let expiryTimer: ReturnType<typeof setTimeout> | undefined;
   const requests = new Set<AbortController>(), frames = new WeakMap<NativeGeometryFrame, LiveFrame>();
+  // Least recently used first. A home-view reload gap keeps the partition; a
+  // different session object, expiry or home, an invalid binding, a gap without
+  // a session (sign-out or session check), session expiry or dispose clears it.
+  const retention = options.retainMeshes ?? null;
+  let retainedFor: RetainedPartition | null = null, retainedBytes = 0;
+  let retainedTimer: ReturnType<typeof setTimeout> | undefined;
+  const retained = new Map<string, Uint8Array>();
+  const discardRetained = () => {
+    if (retainedTimer !== undefined) clearTimeout(retainedTimer);
+    retainedTimer = undefined; retainedFor = null; retained.clear(); retainedBytes = 0;
+  };
+  const sessionPresent = () => { try { return retention?.sessionPresent() === true; } catch { return false; } };
+  const partition = (binding: NativeGeometryBinding | null) => {
+    if (!retention) return;
+    if (!binding) {
+      if (retainedFor && (!sessionPresent() || !(Date.parse(retainedFor.expiresAt) > Date.now()))) discardRetained();
+      return;
+    }
+    if (retainedFor?.sessionIdentity === binding.sessionIdentity && retainedFor.expiresAt === binding.expiresAt
+      && retainedFor.workspaceId === binding.scope.workspaceId && retainedFor.homeId === binding.scope.homeId) return;
+    discardRetained();
+    retainedFor = Object.freeze({ sessionIdentity: binding.sessionIdentity, expiresAt: binding.expiresAt,
+      workspaceId: binding.scope.workspaceId, homeId: binding.scope.homeId });
+    // Session expiry drops the bytes even while no read observes the binding.
+    retainedTimer = setTimeout(discardRetained, Math.min(Math.max(0, Date.parse(binding.expiresAt) - Date.now()) + 1, MAX_TIMER));
+  };
+  const partitionOf = (found: Owner) => retainedFor !== null && retainedFor.sessionIdentity === found.sessionIdentity
+    && retainedFor.expiresAt === found.expiresAt && retainedFor.workspaceId === found.scope.workspaceId
+    && retainedFor.homeId === found.scope.homeId;
+  const retain = (key: string, bytes: Uint8Array) => {
+    const previous = retained.get(key);
+    if (previous) { retained.delete(key); retainedBytes -= previous.byteLength; }
+    if (bytes.byteLength > NATIVE_GEOMETRY_RETAINED_LIMITS.bytes) return;
+    for (const [oldest, value] of retained) {
+      if (retained.size < NATIVE_GEOMETRY_RETAINED_LIMITS.entries
+        && retainedBytes + bytes.byteLength <= NATIVE_GEOMETRY_RETAINED_LIMITS.bytes) break;
+      retained.delete(oldest); retainedBytes -= value.byteLength;
+    }
+    retained.set(key, new Uint8Array(bytes)); retainedBytes += bytes.byteLength;
+  };
   const notify = (callback: () => void) => { try { callback(); } catch { /* One subscriber cannot stop other invalidations. */ } };
   const invalidate = () => {
     const reservedGeneration = ++generation; const previous = active; active = null;
@@ -274,8 +344,10 @@ export function createNativeGeometryReadClient(options: NativeGeometryReadOption
     const expiry = binding ? Date.parse(binding.expiresAt) : NaN;
     if (!binding || typeof binding.sessionIdentity !== 'object' || binding.sessionIdentity === null
       || !binding.scope || !UUID.test(binding.scope.workspaceId) || !UUID.test(binding.scope.homeId) || !Number.isFinite(expiry) || expiry <= Date.now()) {
+      if (binding) discardRetained(); else partition(null);
       if (owner || active || requests.size) dropOwner(); return null;
     }
+    partition(binding);
     if (!owner || owner.sessionIdentity !== binding.sessionIdentity || owner.scopeAllocation !== binding.scope || owner.expiresAt !== binding.expiresAt
       || owner.scope.workspaceId !== binding.scope.workspaceId || owner.scope.homeId !== binding.scope.homeId) {
       dropOwner();
@@ -328,7 +400,7 @@ export function createNativeGeometryReadClient(options: NativeGeometryReadOption
     }
   };
 
-  const loadBuilding = async (buildingId: string, signal: AbortSignal): Promise<NativeGeometryFrame> => {
+  const loadBuilding = async (buildingId: string, signal: AbortSignal, read?: NativeGeometryLoadOptions): Promise<NativeGeometryFrame> => {
     const found = observe(); const expectedGeneration = invalidate(); signal.throwIfAborted();
     need(found && UUID.test(buildingId) && generation === expectedGeneration);
     const descriptor = await exchange(found, expectedGeneration, buildingPath(found.scope, buildingId), 'application/json',
@@ -340,7 +412,7 @@ export function createNativeGeometryReadClient(options: NativeGeometryReadOption
       return Object.freeze({ ...facts, originalSHA256: originalSha256, derivativeSHA256: derivativeSha256 });
     }));
     const offers = new Map<ScanFloor, NativeGeometryOffer>(floors.map((floor, index) => [floor, descriptor.floors[index]!]));
-    const live: LiveFrame = { owner: found, generation: expectedGeneration, descriptor, offers, listeners: new Set() };
+    const live: LiveFrame = { owner: found, generation: expectedGeneration, descriptor, offers, listeners: new Set(), refresh: read?.refresh === true };
     const readPort: ScanMeshReadPort = Object.freeze({
       isCurrent: (viewKey: string) => current(live) && viewKey === descriptor.viewKey,
       subscribeInvalidation: (viewKey: string, callback: () => void) => {
@@ -350,8 +422,24 @@ export function createNativeGeometryReadClient(options: NativeGeometryReadOption
         try {
           need(current(live) && viewKey === descriptor.viewKey); readSignal.throwIfAborted();
           const offer = live.offers.get(floor); need(offer);
-          const bytes = await exchange(found, expectedGeneration, offer.readPath, offer.floor.derivativeContentType, MESH_LIMITS.bytes, readSignal,
-            async (body, headerView) => { need(headerView === descriptor.viewKey); return body; });
+          // Only this fresh descriptor's exact offer selects retained bytes; an
+          // explicit refresh reads afresh and replaces them.
+          const key = retention ? retainedKey(descriptor, offer.floor) : null;
+          const kept = key !== null && !live.refresh && partitionOf(found) ? retained.get(key) : undefined;
+          let bytes: Uint8Array;
+          if (key !== null && kept) {
+            retained.delete(key); retained.set(key, kept);
+            bytes = new Uint8Array(kept);
+          } else {
+            bytes = await exchange(found, expectedGeneration, offer.readPath, offer.floor.derivativeContentType, MESH_LIMITS.bytes, readSignal,
+              async (body, headerView) => { need(headerView === descriptor.viewKey); return body; });
+            if (key !== null) {
+              const digest = await sha256Hex(bytes);
+              need(current(live)); readSignal.throwIfAborted();
+              // Unverified bytes are delivered for the reader to refuse, never retained.
+              if (digest === offer.floor.derivativeSha256 && partitionOf(found)) retain(key, bytes);
+            }
+          }
           need(current(live)); readSignal.throwIfAborted();
           return Object.freeze({ viewKey: descriptor.viewKey, floorKey: floor.key, bytes });
         } catch (error) { if (!readSignal.aborted && active === live) invalidate(); throw error; }
@@ -364,6 +452,6 @@ export function createNativeGeometryReadClient(options: NativeGeometryReadOption
   return Object.freeze({ loadBuilding,
     isCurrent: (frame: NativeGeometryFrame) => { observe(); const live = frames.get(frame); return !!live && current(live); },
     subscribeInvalidation: (frame: NativeGeometryFrame, callback: () => void) => subscribe(frames.get(frame), callback),
-    dispose: () => { if (disposed) return; disposed = true; dropOwner(); unsubscribeBinding(); },
+    dispose: () => { if (disposed) return; disposed = true; dropOwner(); discardRetained(); unsubscribeBinding(); },
   });
 }

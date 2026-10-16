@@ -69,8 +69,14 @@ export interface NativeGeometryFrame {
   readonly readPort: ScanMeshReadPort;
 }
 
+export interface NativeGeometryLoadOptions {
+  /** Explicit user refresh: no mesh bytes retained in page memory are reused. */
+  readonly refresh?: boolean;
+}
+
 export interface NativeGeometryReadClient {
-  loadBuilding(buildingId: string, signal: AbortSignal): Promise<NativeGeometryFrame>;
+  /** The descriptor is always read afresh; `options` affects mesh reuse only. */
+  loadBuilding(buildingId: string, signal: AbortSignal, options?: NativeGeometryLoadOptions): Promise<NativeGeometryFrame>;
   isCurrent(frame: NativeGeometryFrame): boolean;
   /** Stale/foreign frames notify immediately and cannot acquire a subscription. */
   subscribeInvalidation(frame: NativeGeometryFrame, invalidate: () => void): () => void;

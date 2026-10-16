@@ -243,6 +243,10 @@ const nativePlaces = createNativePlaceClient({
 });
 // Native geometry gets the original canonical session allocation and the
 // completed authorized view scope. Every replacement/gap invalidates its reads.
+// Verified mesh bytes stay in this page's memory only, for the same session
+// object and home, and are reused only for an identical derivative offered by a
+// freshly read descriptor. A home-view reload keeps them; a session check,
+// sign-out, expiry, other home or a closed page does not.
 const nativeGeometry = createNativeGeometryReadClient({
   origin: window.location.origin,
   getBinding: () => currentSession && currentQuantityScope
@@ -251,6 +255,7 @@ const nativeGeometry = createNativeGeometryReadClient({
     quantityEvents.addEventListener("changed", changed);
     return () => quantityEvents.removeEventListener("changed", changed);
   },
+  retainMeshes: { sessionPresent: () => currentSession !== null },
 });
 // Saved originals share the current canonical owner and completed view scope.
 const nativeEvidenceDocuments = createNativeEvidenceDocumentClient({
