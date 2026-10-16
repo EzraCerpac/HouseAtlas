@@ -42,7 +42,11 @@ intent correlation follows stock/digest.rs: root-only requestId/approvalReceiptI
 exclusions, raw UTF16 key order, ordered arrays, finite binary64 conversion and
 shortest ECMAScript number formatting before SHA256. This canonical digest never
 rewrites submitted bytes or manufactures a native receipt. Incorrect normal,
-retained root/inspection or child digests keep the UNKNOWN hold.
+retained root/inspection or child digests keep the UNKNOWN hold. Committed records
+must have closed public shapes, exact ordered target mapping, CAS+1/create1
+revisions, expected lifecycle and object payload; audits must be distinct UUIDs.
+Derived payload semantics stay native-owned. Native remap has three ordered
+records; validating their correlation grants no confirmation or dispatch right.
 
 Binding remap and batches containing it remain held in the shipped CLI until a
 trusted exact-impact confirmation owner is integrated. The in-process
@@ -55,10 +59,17 @@ remains an explicit integration gap.
 Native Stock HTTP intake is 1 MiB, separate from native MCP's64KiB bound. This
 adapter admits complete write envelopes up to1MiB and uses an8MiB stdio line
 bound for escaped JSON. Native read `/invoke` keeps its16KiB envelope/32KiB
-query bounds. Missing/null zero-input tool arguments normalize to an empty object;
+query bounds. The published stock schema permits4096-code-point reasons, but
+the deployed native planner deliberately holds reasons above1024 because its
+frozen Mutation/BatchMutation carrier has that bound; the adapter preserves that
+owner restriction and never truncates a reason. Missing/null zero-input tool arguments normalize to an empty object;
 initialization returns a supported version counter-offer when needed, retaining
 the standard initialized notification. JSON duplicate keys, depth>64 and excessive node counts are
-refused; no payload is truncated or silently reconstructed.
+refused; no payload is truncated or silently reconstructed. Unsupported Decimal
+exponents are sanitized parse failures. Complete malformed JSON frames receive
+-32700/null-ID responses; invalid request envelopes receive -32600/null-ID.
+Only structurally valid notifications suppress replies; a subsequent healthy
+request remains usable.
 
 ## Genuine native sessions, kept in memory
 
@@ -191,7 +202,9 @@ Separately reviewed denial/failure lane: `denial_scope_and_routes`,
 `failure_session_after_login_cleanup`, `denial_semantic_duplicate_targets`,
 `failure_intent_digest_correlation`, `failure_evidence_reference_and_pins`,
 `failure_bridge_sigquit_cleanup`, `healthy_journal_binding_order` (contains an
-actor-mismatch denial assertion, so belongs only to this regression lane).
+actor-mismatch denial assertion, so belongs only to this regression lane),
+`failure_committed_record_correlation`, `denial_decimal_exponent_frame`,
+`denial_jsonrpc_frame_response`, `denial_native_reason_bound`.
 
 Helper runner:
 `python3 -B tools/houseatlas-mcp-bridge/test_key_entry.py CASE`.

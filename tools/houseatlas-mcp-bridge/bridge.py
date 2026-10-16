@@ -3,7 +3,7 @@
 import argparse
 import base64
 import datetime
-from decimal import Decimal
+from decimal import Decimal, DecimalException
 import fcntl
 from functools import wraps
 import hashlib
@@ -89,7 +89,7 @@ def strict_json(raw, limit=MAX_JSON):
                 v.encode('utf-8')
         walk(value, 0)
         return value
-    except (ValueError, UnicodeError, RecursionError, OverflowError):
+    except (ValueError, UnicodeError, RecursionError, OverflowError, DecimalException):
         raise BridgeError('Invalid JSON') from None
 
 
@@ -427,6 +427,8 @@ class Bridge:
         uid(request.get('idempotencyKey'))
         need(isinstance(request.get('reason'), str) and 0 < len(request['reason']) <= 1024,
              'Write reason required within native bound')
+        # Stock schema permits4096, but native atlas_commands::check_reason
+        # deliberately holds >1024 to preserve frozen Mutation/BatchMutation.
         need('approvalReceiptId' in request and isinstance(request.get('preconditions'), dict)
              and 'target' in request['preconditions'] and isinstance(request['preconditions'].get('guards'), list),
              'Complete native preconditions required')
@@ -490,6 +492,21 @@ class Bridge:
         uid(result.get('operationId'))
         for audit in result['data']['auditIds']:
             uid(audit)
+        need(len(set(result['data']['auditIds'])) == len(result['data']['auditIds']),
+             'Native commit audit identities differ')
+        expected = committed_record_expectations(request)
+        records = result['data']['records']
+        need(len(records) == len(expected), 'Native committed record count differs')
+        targets = set()
+        for record, (target, revision, lifecycle) in zip(records, expected):
+            keys(record, ('target', 'revision', 'lifecycle', 'payload'))
+            keys(record['target'], ('authority', 'recordType', 'recordId'))
+            need(record['target'] == target and type(record['revision']) is int
+                 and record['revision'] == revision and record['lifecycle'] == lifecycle
+                 and isinstance(record['payload'], dict), 'Native committed record differs')
+            identity = (target['recordType'], target['recordId'])
+            need(identity not in targets, 'Native committed record targets duplicate')
+            targets.add(identity)
         return result
 
     @native_operation
@@ -664,6 +681,36 @@ class Bridge:
                 'mcpCommandsChanged': False, 'operationStatus': self.status()}
 
 
+def committed_record_expectations(request):
+    commands = request['payload']['commands'] if request['commandId'] == BATCH else [request]
+    expected = []
+    for command in commands:
+        op, target = command['commandId'], command['target']
+        keys(target, ('authority', 'recordType', 'recordId'))
+        need(op in WRITES and target['authority'] == 'atlas'
+             and target['recordType'] == op.split('.')[1], 'Native committed target unavailable')
+        uid(target['recordId'])
+        if op.endswith('.create'):
+            revision = 1
+        else:
+            prior = command['preconditions']['target']
+            need(isinstance(prior, dict) and prior.get('kind') == 'atlas'
+                 and type(prior.get('value')) is int and 1 <= prior['value'] < 9007199254740991,
+                 'Native committed revision unavailable')
+            revision = prior['value'] + 1
+        lifecycle = 'tombstoned' if op.endswith('.tombstone') else 'active'
+        expected.append((target, revision, lifecycle))
+        if op == 'atlas.binding.remap':
+            # Native derived_atlas_commands::remap has exactly three ordered
+            # entries. This correlation grants no confirmation/dispatch right.
+            payload = command['payload']
+            need(payload.get('oldBindingId') == target['recordId'], 'Native remap target differs')
+            for kind, field in (('binding', 'newBindingId'), ('reconciliation', 'journalId')):
+                expected.append(({'authority': 'atlas', 'recordType': kind,
+                                  'recordId': uid(payload.get(field))}, 1, 'active'))
+    return expected
+
+
 def ecma_number(value):
     """Finite binary64 -> shortest roundtripping decimal, ECMA fixed cutoffs.
 
@@ -805,7 +852,7 @@ class Stdio:
         if args is None:
             args = {}
         definitions = {t['name']: t for t in TOOLS}
-        need(name in definitions, 'Unknown tool')
+        need(isinstance(name, str) and name in definitions, 'Unknown tool')
         schema = definitions[name]['inputSchema']
         keys(args, schema['required'], set(schema['properties']) - set(schema['required']))
         try:
@@ -831,25 +878,29 @@ def serve(bridge, source, destination):
         if len(line) > MAX_MESSAGE or not line.endswith(b'\n'):
             raise BridgeError('MCP line exceeded bound or was incomplete')
         request_id = None
-        has_id = False
+        notification = False
+        error_code = -32700
         try:
             message = strict_json(line, MAX_MESSAGE)
-            need(isinstance(message, dict), 'JSON-RPC object required')
+            error_code = -32600
+            keys(message, ('jsonrpc', 'method'), ('id', 'params'))
+            need(message['jsonrpc'] == '2.0' and isinstance(message['method'], str), 'Invalid JSON-RPC')
             has_id = 'id' in message
-            request_id = message.get('id')
-            need(not has_id or type(request_id) in (str, int), 'JSON-RPC ID required')
-            if not has_id:
-                need(message.get('method', '').startswith('notifications/'), 'Request ID required')
+            candidate = message.get('id')
+            need(not has_id or type(candidate) in (str, int), 'JSON-RPC ID required')
+            request_id = candidate
+            notification = not has_id and message['method'].startswith('notifications/')
+            need(has_id or notification, 'Request ID required')
+            error_code = -32602
             result = session.handle(message)
-            if has_id:
-                output = {'jsonrpc': '2.0', 'id': request_id, 'result': result}
-            else:
+            if notification:
                 continue
+            output = {'jsonrpc': '2.0', 'id': request_id, 'result': result}
         except BridgeError as error:
-            if not has_id:
+            if notification:
                 continue
             output = {'jsonrpc': '2.0', 'id': request_id,
-                      'error': {'code': -32602, 'message': str(error)}}
+                      'error': {'code': error_code, 'message': str(error)}}
         destination.write((compact(output) + '\n').encode('utf-8'))
         destination.flush()
 

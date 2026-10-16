@@ -33,7 +33,7 @@ def request(op='atlas.identity.create', n=100):
     return {'schemaVersion': 3, 'requestId': uid(n), 'commandId': op, 'context': dict(SCOPE),
             'target': target, 'payload': payload, 'idempotencyKey': uid(n + 2000),
             'reason': 'Generated synthetic transport check', 'approvalReceiptId': None,
-            'preconditions': {'target': None if op.endswith('.create') else {'kind': 'atlas', 'value': 9007199254740991}, 'guards': []}}
+            'preconditions': {'target': None if op.endswith('.create') else {'kind': 'atlas', 'value': 9007199254740990}, 'guards': []}}
 
 
 class FakeOwner:
@@ -78,10 +78,13 @@ class FakeOwner:
 
     @staticmethod
     def receipt(req, operation=99):
+        expected = b.committed_record_expectations(req)
         return {'schemaVersion': 3, 'commandId': req['commandId'], 'requestId': req['requestId'],
                 'resolvedScope': SCOPE, 'status': 'committed', 'replayed': False,
                 'operationId': uid(operation), 'data': {'requestDigest': b.intent_digest(req),
-                'records': [{'target': req['target'], 'revision': 1}], 'auditIds': [uid(operation + 1)]}}
+                'records': [{'target': target, 'revision': revision, 'lifecycle': lifecycle, 'payload': {}}
+                            for target, revision, lifecycle in expected],
+                'auditIds': [uid(operation + i + 1) for i in range(len(expected))]}}
 
     def retained(self, req, children=()):
         wire = self.receipt(req)
@@ -112,10 +115,7 @@ class FakeOwner:
             if self.fail_post:
                 raise b.BridgeError('Synthetic transport failure')
             req = b.strict_json(body)
-            result = {'schemaVersion': 3, 'commandId': req['commandId'], 'requestId': req['requestId'],
-                      'resolvedScope': SCOPE, 'status': 'committed', 'replayed': False,
-                      'operationId': uid(99), 'data': {'requestDigest': b.intent_digest(req),
-                      'records': [{'target': req['target'], 'revision': 1}], 'auditIds': [uid(98)]}}
+            result = self.receipt(req)
         elif path == '/api/atlas/auth/session':
             if self.fail_post_session and self.posts:
                 raise b.BridgeError('Synthetic post-dispatch session failure')
@@ -333,6 +333,104 @@ class Cases(unittest.TestCase):
             self.assertIsNone(self.owner.cookie)
             self.assertEqual(b.signal.getsignal(b.signal.SIGQUIT), previous)
 
+    def failure_committed_record_correlation(self):
+        # Exact malformed owner-return carriers, never native writes or controls.
+        malformed = (
+            [None],
+            [{'target': {'authority': 'atlas', 'recordType': 'identity', 'recordId': uid(999)},
+              'revision': 1, 'lifecycle': 'active', 'payload': {}}],
+            [{'target': request()['target'], 'revision': 2, 'lifecycle': 'active', 'payload': {}}],
+            [{'target': request()['target'], 'revision': 1, 'lifecycle': 'tombstoned', 'payload': {}}],
+            [{'target': request()['target'], 'revision': 1, 'lifecycle': 'active', 'payload': None}],
+        )
+        for index, records in enumerate(malformed):
+            with self.subTest(index=index), tempfile.TemporaryDirectory(prefix='houseatlas-record-receipt-') as temp:
+                os.chmod(temp, 0o700)
+                owner, journal = FakeOwner(), b.Journal(temp)
+                bridge = b.Bridge(SCOPE, owner, journal)
+                req = request()
+                original = owner.exchange
+                def exchange(method, path, *args, **kwargs):
+                    headers, body = original(method, path, *args, **kwargs)
+                    if method == 'POST' and path.endswith('/commands'):
+                        result = b.strict_json(body); result['data']['records'] = records
+                        return headers, b.decimal_json(result).encode()
+                    return headers, body
+                owner.exchange = exchange
+                try:
+                    with self.assertRaises(b.BridgeError): bridge.write(b.compact(req))
+                    self.assertTrue(bridge.status()['writeBlocked'])
+                    owner.lookup_result = owner.retained(req)
+                    owner.lookup_result['committedResult']['wire']['data']['records'] = records
+                    with self.assertRaises(b.BridgeError): bridge.reconcile_operation(req['requestId'])
+                    self.assertTrue(bridge.status()['writeBlocked'])
+                    self.assertEqual(len(owner.posts), 1)
+                finally: journal.close()
+        batch = request(b.BATCH); batch['payload'] = {'commands': [request(n=200), request(n=300)]}
+        receipt = self.owner.receipt(batch)
+        receipt['data']['records'].reverse()
+        with self.assertRaises(b.BridgeError): self.bridge.commit_receipt(receipt, batch)
+        receipt = self.owner.receipt(batch); receipt['data']['records'][1] = copy.deepcopy(receipt['data']['records'][0])
+        with self.assertRaises(b.BridgeError): self.bridge.commit_receipt(receipt, batch)
+        receipt = self.owner.receipt(batch); receipt['data']['auditIds'][1] = receipt['data']['auditIds'][0]
+        with self.assertRaises(b.BridgeError): self.bridge.commit_receipt(receipt, batch)
+        remap = request('atlas.binding.remap')
+        remap['payload'] = {'oldBindingId': remap['target']['recordId'], 'newBindingId': uid(501), 'journalId': uid(502)}
+        receipt = self.owner.receipt(remap)
+        self.bridge.commit_receipt(receipt, remap)  # Pure3entry correlation, no approval/dispatch.
+        self.assertEqual([r['target']['recordType'] for r in receipt['data']['records']],
+                         ['binding', 'binding', 'reconciliation'])
+        receipt['data']['records'][1]['revision'] = 2
+        with self.assertRaises(b.BridgeError): self.bridge.commit_receipt(receipt, remap)
+        self.assertEqual(self.owner.posts, [])
+
+    def denial_decimal_exponent_frame(self):
+        invalid = b'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"n":1e9999999999999999999999999999999}}\n'
+        healthy = b'{"jsonrpc":"2.0","id":2,"method":"initialize","params":{"protocolVersion":"2025-11-25"}}\n'
+        out = io.BytesIO(); b.serve(self.bridge, io.BytesIO(invalid + healthy), out)
+        results = [b.strict_json(line) for line in out.getvalue().splitlines()]
+        self.assertEqual(results[0]['id'], None)
+        self.assertEqual(results[0]['error']['code'], -32700)
+        self.assertEqual(results[1]['id'], 2)
+        self.assertIn('result', results[1])
+        self.assertEqual(self.owner.posts, [])
+        exchange = self.owner.exchange
+        def malformed_native(method, path, *args, **kwargs):
+            headers, body = exchange(method, path, *args, **kwargs)
+            if method == 'POST' and path.endswith('/commands'):
+                return headers, b'{"n":1e9999999999999999999999999999999}'
+            return headers, body
+        self.owner.exchange = malformed_native
+        with self.assertRaises(b.BridgeError): self.bridge.write(b.compact(request()))
+        self.assertTrue(self.bridge.status()['writeBlocked'])
+        self.assertEqual(len(self.owner.posts), 1)
+
+    def denial_jsonrpc_frame_response(self):
+        messages = [b'{bad}', b'[]', b'{"jsonrpc":"1.0","method":"ping"}',
+                    b'{"jsonrpc":"2.0","id":[],"method":"ping"}',
+                    b'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}}',
+                    b'{"jsonrpc":"2.0","method":"notifications/initialized"}',
+                    b'{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":[]}}',
+                    b'{"jsonrpc":"2.0","method":"notifications/unknown"}',
+                    b'{"jsonrpc":"2.0","id":3,"method":"ping"}']
+        out = io.BytesIO(); b.serve(self.bridge, io.BytesIO(b'\n'.join(messages)+b'\n'), out)
+        results = [b.strict_json(line) for line in out.getvalue().splitlines()]
+        self.assertEqual([r['id'] for r in results], [None,None,None,None,1,2,3])
+        self.assertEqual([r['error']['code'] for r in results[:4]], [-32700,-32600,-32600,-32600])
+        self.assertEqual(results[5]['error']['code'], -32602)
+        self.assertEqual(results[-1]['result'], {})
+        self.assertEqual(self.owner.posts, [])
+
+    def denial_native_reason_bound(self):
+        # Stock4096 schema does not supersede frozen native Mutation1024.
+        req = request(); req['reason'] = '界' * 1024
+        raw = b.compact(req); self.bridge.write(raw)
+        self.assertEqual(self.owner.posts[-1][1], raw.encode())
+        req = request(n=900); req['reason'] = '界' * 1025
+        with self.assertRaises(b.BridgeError): self.bridge.write(b.compact(req))
+        self.assertEqual(len(self.owner.posts), 1)
+        self.assertFalse(self.bridge.status()['writeBlocked'])
+
     def healthy_write_forms(self):
         self.assertEqual(len(b.WRITES), 37)
         for n, op in enumerate(sorted(b.WRITES - {'atlas.binding.remap'}), 100):
@@ -544,7 +642,7 @@ HEALTHY = ('healthy_stdio', 'healthy_write_forms', 'healthy_batch', 'healthy_los
 REGRESSION = ('denial_scope_and_routes', 'denial_confirmation_and_batch', 'denial_duplicate_json',
               'denial_read_correlation', 'failure_unknown_persistence', 'failure_scene_change', 'failure_original_hash', 'failure_post_dispatch_session',
               'failure_commit_correlation', 'failure_unknown_keeps_reads', 'failure_reconcile_absence',
-              'failure_reconcile_correlation', 'denial_reconcile_byte_bound', 'failure_session_after_login_cleanup', 'denial_semantic_duplicate_targets', 'failure_intent_digest_correlation', 'failure_evidence_reference_and_pins', 'failure_bridge_sigquit_cleanup', 'healthy_journal_binding_order')
+              'failure_reconcile_correlation', 'denial_reconcile_byte_bound', 'failure_session_after_login_cleanup', 'denial_semantic_duplicate_targets', 'failure_intent_digest_correlation', 'failure_evidence_reference_and_pins', 'failure_bridge_sigquit_cleanup', 'healthy_journal_binding_order', 'failure_committed_record_correlation', 'denial_decimal_exponent_frame', 'denial_jsonrpc_frame_response', 'denial_native_reason_bound')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('case', choices=HEALTHY + REGRESSION)
