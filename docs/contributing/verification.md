@@ -1222,9 +1222,14 @@ publication install, device rendering and release remain separate.
 
 ## Synthetic PR performance reporting
 
-The separate performance lane uses only this automatic healthy reporting check.
-Inspect its complete source and imported helpers before execution with Node
-26.10.0 and Python 3's standard library:
+The separate performance lane uses only this automatic healthy reporting check,
+from the exact accepted default-branch checkout in the read-only `workflow_run`
+resolution job. The test body and all imports come from that trusted revision;
+candidate test files never select automatic cases. The measurement job runs no
+candidate reporting test, formatter or Markdown preview after collection. Before
+the reporter workflow is installed on main, hosted PR checks collect raw records
+only. Inspect the complete local test source and imported helpers before this
+focused local command with Node 26.10.0 and Python 3's standard library:
 
 ```sh
 node --test --test-concurrency=1 tools/perf/reporting/healthy-reporting.test.mjs
@@ -1249,6 +1254,12 @@ The pin is `d03223b0669761cf92846492fe56fb9e8f9f7db9`, and the sole schema is
 `642af28eacc14e6fdd7b9f7071979f07abc8dcb9a427773f5d74dab672b7056a`.
 The test opens no listener and calls no remote API, application service, provider
 or real account. It supplies no actual browser/GPU or full security qualification.
+The automatic job prepares that pinned fixture in its own root and supplies no
+job token to the test step. It has no measurement artifact or collector workspace.
+Deleting the test from accepted default source fails instead of becoming a legacy
+skip. Proposed reporter/test changes require inspection and this named local
+healthy verification before acceptance; the automatic suite exercises accepted
+default source and does not execute those proposals before review.
 
 The unprivileged measurement job separately installs only exact public locks
 with scripts/audit/funding disabled, then invokes this same clean harness

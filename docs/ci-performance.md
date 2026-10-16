@@ -66,26 +66,40 @@ complete, a closed blocked availability record is emitted instead. Records
 expire after seven days. CPU timing has three warmups and nine samples; source
 build sizes have one deterministic sample. Browser/GPU rows stay unsupported.
 
-Only `healthy-reporting.test.mjs` is automatic. It uses valid samples/archives
-and fake exact metadata, including the real canonical contract when available.
-Held adversarial and mutation/omission files are not executed. A missing healthy
-test is a legacy skip only when it was absent at the trusted API merge base;
-deleting a previously required check fails rather than silently skipping.
-
-Compatible candidates can also produce a separate unprivileged preview using
-actual event/run metadata. That Markdown is never accepted by the publisher.
-Older candidates still produce raw measurement pairs for the trusted reporter.
+The measurement job executes no candidate test, formatter or preview entrypoint.
+After collection it runs only the fixed availability writer and uploads the raw
+pair or blocked record with the pinned upload action. Candidate reporting code
+has no post-measurement execution step in which to rewrite those files. Generated
+reports come from the separate trusted reporter; the PR collector emits no
+Markdown preview. Measurement observations remain untrusted data.
+Measured production code still runs in an unprivileged process with access to
+the collector filesystem. Source/run/schema validation identifies the submitted
+records and does not prove untampered execution or authenticate a performance
+claim. This lane provides no source-code sandbox or execution attestation.
 
 `performance-report.yml` triggers through `workflow_run` after that workflow.
-Both reporter jobs check out only the platform's exact default-branch SHA, with
-credentials not persisted. They run trusted Node/Python code and install only
-the trusted default-branch harness lock (scripts/audit/funding disabled, optional
-native packages omitted). The canonical module is imported from that default
-checkout only; producer PR code is never checked out or executed in these jobs.
+Both reporter jobs check out the platform's exact default-branch SHA, with
+credentials not persisted. The read-only resolution job also checks out the
+immutable harness pin above into a separate fixture root, installs its exact
+public lock with scripts/audit/funding disabled and optional packages omitted,
+and runs only `healthy-reporting.test.mjs` from the default checkout. Its body
+and imports therefore come from the accepted default revision, never from a PR
+filename or presence test. The six cases use valid samples/archives, fake exact
+metadata and the actual pinned canonical contract. No job token is supplied to
+that test step. Held test files remain excluded. A missing default-source test
+fails; candidate additions, edits or deletions do not select automatic cases.
+
+The publish job installs only the trusted default-branch harness lock with the
+same restrictions, and imports the numerical contract from that default checkout
+only. Producer PR code is never checked out or executed in either reporter job.
 They execute no artifacts and restore no caches. The PR
 number is resolved from GitHub API metadata before the per-PR publish-job
 concurrency group is selected. The workflow must exist on the default branch
 before GitHub can trigger it; a candidate-only PR cannot prove hosted writes.
+Before installation, hosted PR checks collect raw records and ordinary source
+checks run as before. Inspected local healthy checks qualify reporter changes;
+the trusted automatic suite validates the accepted default implementation rather
+than executing proposed reporter/test changes before review.
 GitHub describes the trust boundary in its
 [workflow event reference](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run)
 and [secure use reference](https://docs.github.com/en/actions/reference/security/secure-use#mitigating-the-risks-of-untrusted-code-checkout).

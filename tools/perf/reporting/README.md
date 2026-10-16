@@ -98,9 +98,10 @@ raw-Markdown input. The hosting workflow must import the contract from trusted
 default-branch source and obtain identity from GitHub rather than an artifact.
 
 The unprivileged workflow collects actual base/head records sequentially with
-the immutable harness pin and uploads only that pair. It can also create a
-separate preview using real event/run identities; the privileged reporter never
-accepts its Markdown. Incomplete collection uses the separate closed
+the immutable harness pin and uploads only that pair. It executes no candidate
+reporting test, formatter or preview entrypoint. After collection, only the fixed
+availability writer and pinned upload action run; the raw collector emits no
+Markdown preview. Incomplete collection uses the separate closed
 `houseatlas.perf.availability/1` record and an explicit blocked row.
 Availability identities have `harnessSha: null` and the actual trusted
 `reporterSha`; measured identities still require a full harness commit. The
@@ -115,7 +116,13 @@ It also checks the pinned harness commit/tree and the exact trusted owned-file
 digest. Merge PR190's canonical files before PR189 for immediate metric posting;
 the reverse order safely produces contract-unavailable rows until installation.
 
-Only `healthy-reporting.test.mjs` is automatic. Retained adversarial and
-mutation/omission files remain held and are source-reviewed rather than invoked
-by this lane. Absence must be established at the trusted GitHub API merge base
-before a missing healthy check can qualify for a legacy skip.
+Only `healthy-reporting.test.mjs` is automatic, in the read-only `workflow_run`
+resolution job. Its complete body and imports come from the platform's exact
+default-branch checkout. Its canonical fixture source is the immutable harness
+pin, with that public lock installed without scripts. The step receives no job
+token and has no collector filesystem or measurement artifacts. Candidate test
+presence, contents and imports never select automatic cases; a missing accepted
+default-source test fails. Retained adversarial and mutation/omission files
+remain held and are source-reviewed rather than invoked by this lane. Proposed
+reporter changes require source inspection and the named local healthy check
+before acceptance; this automatic suite exercises accepted default code.

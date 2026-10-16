@@ -8,62 +8,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 jobs:
-  formatter-tests:
-    name: Synthetic reporting checks (unprivileged)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    env:
-      SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
-    steps:
-      - name: Checkout exact candidate without persistent credentials
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 1
-          fetch-tags: false
-          persist-credentials: false
-      - name: Set exact Node runtime
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: '26.10.0'
-          check-latest: false
-          package-manager-cache: false
-      - name: Determine legacy support from trusted merge-base metadata
-        id: legacy
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          test "$(node --version)" = v26.10.0
-          node --input-type=module <<'NODE'
-          import { existsSync, appendFileSync } from 'node:fs';
-          const file = 'tools/perf/reporting/healthy-reporting.test.mjs';
-          let legacy = false;
-          if (!existsSync(file)) {
-            if (process.env.GITHUB_REPOSITORY !== 'EzraCerpac/HouseAtlas' ||
-                ![process.env.BASE_SHA, process.env.SOURCE_SHA].every(value => /^[0-9a-f]{40}$/.test(value))) throw new Error('Invalid source identity');
-            const headers = { authorization: `Bearer ${process.env.GH_TOKEN}`, accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28' };
-            const get = path => fetch('https://api.github.com/repos/EzraCerpac/HouseAtlas' + path,
-              { headers, redirect: 'error', signal: AbortSignal.timeout(20000) });
-            const comparison = await get(`/compare/${process.env.BASE_SHA}...${process.env.SOURCE_SHA}?per_page=1`);
-            if (!comparison.ok) throw new Error('Trusted merge-base metadata unavailable');
-            const mergeBase = (await comparison.json()).merge_base_commit?.sha;
-            if (!/^[0-9a-f]{40}$/.test(mergeBase)) throw new Error('Invalid merge-base identity');
-            const support = await get(`/contents/${file}?ref=${mergeBase}`);
-            if (support.status === 200) throw new Error('Candidate removed a required healthy reporting check');
-            if (support.status !== 404) throw new Error('Trusted legacy metadata unavailable');
-            legacy = true;
-          }
-          appendFileSync(process.env.GITHUB_OUTPUT, `legacy=${legacy}\n`);
-          if (legacy) appendFileSync(process.env.GITHUB_STEP_SUMMARY, 'Healthy reporting check skipped: this PR predates the check at its trusted merge base. Measurements are collected separately.\n');
-          NODE
-      - name: Run only the named healthy reporting checks
-        if: steps.legacy.outputs.legacy != 'true'
-        run: |
-          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          test "$(node --version)" = v26.10.0
-          node --test --test-concurrency=1 tools/perf/reporting/healthy-reporting.test.mjs
   measurement:
     name: Synthetic base and head measurements (unprivileged)
     runs-on: ubuntu-24.04
@@ -130,14 +74,8 @@ jobs:
           node harness/tools/perf/harness/run.mjs --source-root "$GITHUB_WORKSPACE/head" --output "$RUNNER_TEMP/houseatlas-perf-data/head.json"
           perf_head_exit=$?
           test "$perf_base_exit" = 0 && test "$perf_head_exit" = 0
-      - name: Test the canonical contract against candidate reporting
-        if: always() && steps.bootstrap.outcome == 'success'
-        env:
-          HOUSEATLAS_PERF_CONTRACT_ROOT: ${{ github.workspace }}/harness
-        run: |
-          if test -f head/tools/perf/reporting/healthy-reporting.test.mjs; then
-            node --test --test-concurrency=1 head/tools/perf/reporting/healthy-reporting.test.mjs
-          fi
+      # No candidate test or formatter runs after collection. Only the fixed
+      # inline availability writer and immutable upload action touch this pair.
       - name: Prepare an explicit blocked record when measurement could not complete
         if: always()
         run: |
@@ -173,40 +111,4 @@ jobs:
             ${{ runner.temp }}/houseatlas-perf-data/head.json
             ${{ runner.temp }}/houseatlas-perf-data/availability.json
           if-no-files-found: error
-          retention-days: 7
-      - name: Build an unprivileged table preview from actual run metadata
-        if: always() && steps.bootstrap.outcome == 'success'
-        run: |
-          if test ! -f head/tools/perf/reporting/healthy-reporting.test.mjs || test ! -f "$RUNNER_TEMP/houseatlas-perf-data/base.json" || test ! -f "$RUNNER_TEMP/houseatlas-perf-data/head.json"; then
-            exit 0
-          fi
-          node --input-type=module <<'NODE'
-          import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-          import { execFileSync } from 'node:child_process';
-          import { resolve, join } from 'node:path';
-          import { pathToFileURL } from 'node:url';
-          const { runCli } = await import(pathToFileURL(resolve('head/tools/perf/reporting/cli.mjs')));
-          const contract = await import(pathToFileURL(resolve('harness/tools/perf/contract/index.mjs')));
-          const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
-          const tree = side => execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: side, encoding: 'utf8' }).trim();
-          const directory = join(process.env.RUNNER_TEMP, 'houseatlas-perf-preview');
-          mkdirSync(directory);
-          const identity = { repository: process.env.GITHUB_REPOSITORY, prNumber: event.pull_request.number,
-            baseSha: event.pull_request.base.sha, headSha: event.pull_request.head.sha, baseTree: tree('base'), headTree: tree('head'),
-            harnessSha: process.env.HARNESS_SHA, reporterSha: event.pull_request.head.sha,
-            runId: Number(process.env.GITHUB_RUN_ID), runAttempt: Number(process.env.GITHUB_RUN_ATTEMPT) };
-          writeFileSync(join(directory, 'identity.json'), JSON.stringify(identity), { flag: 'wx' });
-          const code = runCli(['--base', join(process.env.RUNNER_TEMP, 'houseatlas-perf-data/base.json'), '--head', join(process.env.RUNNER_TEMP, 'houseatlas-perf-data/head.json'),
-            '--identity', join(directory, 'identity.json'), '--markdown', join(directory, 'report.md'), '--comparison', join(directory, 'comparison.json')], contract);
-          appendFileSync(join(directory, 'report.md'), '\n\nUnprivileged CI preview: the trusted default-branch publisher regenerates its own table from raw records.\n');
-          appendFileSync(process.env.GITHUB_STEP_SUMMARY, readFileSync(join(directory, 'report.md'), 'utf8'));
-          process.exitCode = code;
-          NODE
-      - name: Upload the unprivileged preview separately
-        if: always() && steps.bootstrap.outcome == 'success'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: houseatlas-perf-preview-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/houseatlas-perf-preview/
-          if-no-files-found: ignore
           retention-days: 7
