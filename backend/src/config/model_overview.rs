@@ -53,7 +53,7 @@ pub(crate) struct Publication {
     pub original: Original,
 }
 #[derive(Clone, PartialEq, Eq)]
-struct Identity {
+pub(crate) struct Identity {
     dev: u64,
     ino: u64,
     mode: u32,
@@ -64,7 +64,7 @@ struct Identity {
     changed: (i64, i64),
 }
 impl Identity {
-    fn capture(path: &Path, directory: bool) -> Result<Self, String> {
+    pub(crate) fn capture(path: &Path, directory: bool) -> Result<Self, String> {
         let m = fs::symlink_metadata(path).map_err(|_| "Overview file unavailable")?;
         if m.file_type().is_symlink()
             || m.uid() != rustix::process::geteuid().as_raw()
@@ -91,7 +91,7 @@ impl Identity {
     }
 }
 pub struct ServerModelOverviewSelection {
-    path: PathBuf,
+    pub(crate) path: PathBuf,
     identities: [Identity; 3],
     pub(crate) manifest: Publication,
     pub(crate) manifest_sha256: String,

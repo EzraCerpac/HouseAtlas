@@ -1219,3 +1219,44 @@ cargo run --offline --locked -p houseatlas-backend --example healthy-model-overv
 
 This positive establishes synthetic read composition only; actual private
 publication install, device rendering and release remain separate.
+
+## Named generated unified Atlas read
+
+Inspect `backend/src/config/atlas_scene.rs`, its bounded standard-glTF helper,
+`backend/src/http/atlas_scene.rs`, the CLI/Host composition and
+`backend/examples/healthy-unified-atlas-read.rs` plus its generated fixture
+helper before this exact ordinary positive. It creates only disposable native
+state and a fresh actual password-free session; no listener or provider runs.
+The source has one building, two levels, a logical room occurring on both,
+three actual cube pick meshes and matching inline plans, including an explicitly
+estimated proxy. It checks authenticated current/scoped availability, exact
+publication/selection and semantic facts, repeated Media-authorized pinned GLB
+GETs/digests/headers, and unchanged overview/config/receipt/source bytes. It runs
+no malformed, omission, denial, replay, revocation, expiry or crash controls.
+Use Rust 1.99.0 and an owned external target:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-unified-atlas-read -- --fixture-output /tmp/houseatlas-unified-atlas-fixture-20261016
+```
+
+The output directory must be absent. Its four anonymous files (`overview.glb`,
+`publication.json`, `atlas-scene.json`, `scene-response.json`) are generated
+source/consumer fixtures only; no session, configuration, native database or
+credential is copied. The frontend owner can consume that exact envelope and
+model in its compiled preview. Native activation, actual publication/device
+rendering and product readiness remain separate.
+
+Focused static checks for this source lane (no test execution):
+
+```sh
+cargo clippy --offline --locked -p houseatlas-backend --lib --bin houseatlas --example healthy-unified-atlas-read --example validate-unified-atlas-publication -- -D warnings
+```
+
+`validate-unified-atlas-publication` is a source-only, read-only owner entrypoint
+for separately supplied private artifacts, not an ordinary household intake
+check. Its four required options are `--overview-manifest`,
+`--overview-manifest-sha256`, `--atlas-scene-manifest`, and
+`--atlas-scene-manifest-sha256`. It uses the identical private selection and
+semantic/GLB validators without reading native state or starting a service.
+Do not interpret source validation as current native joins, browser acceptance
+or release. No actual private source is included or exercised by this lane.

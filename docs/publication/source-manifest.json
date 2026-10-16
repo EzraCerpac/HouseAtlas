@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c2d22070c55aff64aa31be0c88a4286e9703f0c4b4b6d293c4ccdae87b38cf53",
+  "sourceDigestSha256": "ce7cb0fe7d1be1847bc1aea8091ecdfbf0d976dc01cc3aa4b4a41eba46b93cc1",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -252,8 +252,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 5503,
-      "sha256": "9ad94774bbc130279633d16cb538d441c790e389461895db1ee75be320af0831",
+      "bytes": 5713,
+      "sha256": "1f970e819a1693c63b2b6cd0e2c9ad1289422d0e20d4c6803173079f176b4f79",
       "owner": "core-integration"
     },
     {
@@ -348,10 +348,31 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/examples/healthy-unified-atlas-read.rs",
+      "mode": "100644",
+      "bytes": 11093,
+      "sha256": "c3928b5af0aecd5f8ff8a409396d6836687a2869838591203d175229b541e246",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/examples/issue-149-room-anchor-acceptance.rs",
       "mode": "100644",
       "bytes": 61003,
       "sha256": "c7c527b2ce1064041d7e26efbfb49e2d80b29100327f13ae05a938073d94a840",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/examples/support/unified_atlas_fixture.rs",
+      "mode": "100644",
+      "bytes": 6537,
+      "sha256": "e89f55b14720a5db634f3c7e32f4d709c7c8d9027bfd5ec9898b1cd653b3eb68",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/examples/validate-unified-atlas-publication.rs",
+      "mode": "100644",
+      "bytes": 1884,
+      "sha256": "8abbc0c834a26ac74f977017abd8a1b9919c2a30f76e1abb6d1d38db4c0edc52",
       "owner": "core-integration"
     },
     {
@@ -1132,6 +1153,20 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/config/atlas_scene.rs",
+      "mode": "100644",
+      "bytes": 25083,
+      "sha256": "1fcfbc73553df7fd4b103ffbd06a3e615e721d9546a06ec3e08599b2e9a416a4",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/config/atlas_scene_glb.rs",
+      "mode": "100644",
+      "bytes": 6480,
+      "sha256": "e4e69212e74cf558c0caf1bca446a8abf8d2ae36d79218d2f019ed30b19b57e8",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/config/geodata_profile.rs",
       "mode": "100644",
       "bytes": 4577,
@@ -1141,15 +1176,15 @@
     {
       "path": "backend/src/config/mod.rs",
       "mode": "100644",
-      "bytes": 3069,
-      "sha256": "a3fb2b8b1b6e1e3e5a4ff0574fb3b8742df3e4763dbcfda41fa328f3986d289c",
+      "bytes": 3112,
+      "sha256": "e26de785aa34a35e14f0b43cd3192b53ab9515e22714ab7644e9ff4f315130fd",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/config/model_overview.rs",
       "mode": "100644",
-      "bytes": 13523,
-      "sha256": "9505c5b4c65d8184d3a293fce8209ef3e9cc813d985674a77b69a4aba4dec980",
+      "bytes": 13556,
+      "sha256": "11f1a52ede5c3dc54ea36e7f44fd36a36e7f728043ca446382f970b6fec4cbdd",
       "owner": "core-integration"
     },
     {
@@ -2098,6 +2133,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/http/atlas_scene.rs",
+      "mode": "100644",
+      "bytes": 7116,
+      "sha256": "c10e271d1104c43c4f23ba9ce1e3e81b9478c56a0c599382e216c045114e051d",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/http/auth.rs",
       "mode": "100644",
       "bytes": 13308,
@@ -2198,8 +2240,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 52570,
-      "sha256": "84478f9506e43ad086cdc98898d40c175f01b5a003689d62f2e29bdfba34d5ff",
+      "bytes": 53901,
+      "sha256": "20675d4362e71b026e9fcde9036f2030059717c75a5c2d5afcb1835f597fc421",
       "owner": "core-integration"
     },
     {
@@ -2730,8 +2772,8 @@
     {
       "path": "backend/src/main.rs",
       "mode": "100644",
-      "bytes": 22325,
-      "sha256": "b5a1634302dc4a73b9fafecd43d2609b6d7402cc87dca8dd92789542421f3c70",
+      "bytes": 23047,
+      "sha256": "35e466b874f23d13d9944cc7101eaee3ccf23b8c8eac895e53ac7e0f12872154",
       "owner": "core-integration"
     },
     {
@@ -5824,8 +5866,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 71675,
-      "sha256": "1c5e721435d8f44e53969218a99ace61b79153f2f855e052c22c68c0f141ef6a",
+      "bytes": 74046,
+      "sha256": "6fa89eb5ae604ba104ad642c3ebb0ce3314514fe3b7aef1caf47fa9d7e440e80",
       "owner": "core-integration"
     },
     {
@@ -6155,6 +6197,13 @@
       "mode": "100644",
       "bytes": 3793,
       "sha256": "3cfb554519d182483d7e974061a79cd09ccd365e35abce829dc9da6d8cfaad8c",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/models/unified-atlas-scene-v1.md",
+      "mode": "100644",
+      "bytes": 12807,
+      "sha256": "765821586b48b824782d3a9a803dc47e5e1166a5d343d3b0a981c285274b4e55",
       "owner": "core-integration"
     },
     {

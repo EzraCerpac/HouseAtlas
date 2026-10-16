@@ -11,6 +11,7 @@ mod headers;
 mod homebox_pinned_discovery;
 mod homebox_pinned_files;
 pub use homebox_pinned_files::PinnedHomeBoxFileBinding;
+mod atlas_scene;
 mod capture_claim;
 mod geodata_documents;
 mod geodata_original;
@@ -108,6 +109,7 @@ pub struct Host {
     #[cfg(test)]
     quantity_tls_fixture: Option<Arc<quantity_fixture::PrivateLoopbackQuantityTls>>,
     model_overview: Option<Arc<crate::config::model_overview::ServerModelOverviewSelection>>,
+    atlas_scene: Option<Arc<crate::config::atlas_scene::ServerAtlasSceneSelection>>,
     full_geodata_identity: Option<crate::storage::FullGeodataIdentity>,
     geodata_dataset: Option<Arc<Mutex<crate::storage::geodata::GeodataStore>>>,
     loopback_local: bool,
@@ -131,6 +133,7 @@ impl Host {
             #[cfg(test)]
             quantity_tls_fixture: None,
             model_overview: None,
+            atlas_scene: None,
             full_geodata_identity: None,
             geodata_dataset: None,
             loopback_local: false,
@@ -169,7 +172,29 @@ impl Host {
                 "Overview scope is not configured",
             ));
         }
+        self.atlas_scene = None;
         self.model_overview = Some(Arc::new(selection));
+        Ok(self)
+    }
+    /// Immutable semantics for the exact already-selected model; no native imports.
+    pub fn with_atlas_scene(
+        mut self,
+        selection: crate::config::atlas_scene::ServerAtlasSceneSelection,
+    ) -> crate::storage::Result<Self> {
+        let overview = self
+            .model_overview
+            .as_ref()
+            .ok_or(crate::storage::Error::new(
+                "identity-conflict",
+                "Atlas scene requires selected overview",
+            ))?;
+        selection.verify(overview).map_err(|_| {
+            crate::storage::Error::new(
+                "identity-conflict",
+                "Atlas companion does not match selected model",
+            )
+        })?;
+        self.atlas_scene = Some(Arc::new(selection));
         Ok(self)
     }
     /// Compose Documents with native/Stock routes only on the original full
@@ -1188,6 +1213,9 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
     let base = base
         .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/overview", get(model_overview::descriptor).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/overview/{publication_id}/original", get(model_overview::original).head(auth::session_head).fallback(auth::session_head));
+    let base=base
+        .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas",get(atlas_scene::descriptor).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas/{publication_id}/artifacts/model",get(atlas_scene::model).head(auth::session_head).fallback(auth::session_head));
     let base = if host.full_geodata_identity.is_some() {
         base.merge(geodata_documents::full_routes())
     } else {

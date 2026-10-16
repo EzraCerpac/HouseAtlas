@@ -99,6 +99,12 @@ async fn run(
             &arguments,
         )
         .map_err(|error| format!("HouseAtlas model overview settings: {error}"))?;
+    let (arguments, atlas_scene) =
+        houseatlas_backend::config::atlas_scene::ServerAtlasSceneSelection::from_arguments(
+            &arguments,
+            model_overview.as_ref(),
+        )
+        .map_err(|error| format!("HouseAtlas unified Atlas settings: {error}"))?;
     let (arguments, geodata_selection) = ServerGeodataSelection::from_arguments(&arguments)
         .map_err(|error| format!("HouseAtlas full geodata settings: {error}"))?;
     let (arguments, ai_account) =
@@ -138,6 +144,7 @@ async fn run(
                     ai_account,
                     geodata_selection,
                     model_overview,
+                    atlas_scene,
                     persistent_lease,
                 )
                 .await
@@ -284,6 +291,7 @@ async fn run_persistent(
     model_overview: Option<
         houseatlas_backend::config::model_overview::ServerModelOverviewSelection,
     >,
+    atlas_scene: Option<houseatlas_backend::config::atlas_scene::ServerAtlasSceneSelection>,
     persistent_lease: &mut Option<Arc<lifecycle::persistent::ServerLease>>,
 ) -> Result<(), lifecycle::Failure> {
     if let Some(selection) = &model_overview {
@@ -302,6 +310,7 @@ async fn run_persistent(
             ai_account,
             geodata_policy,
             model_overview,
+            atlas_scene,
             persistent_lease,
         )
         .await;
@@ -326,6 +335,9 @@ async fn run_persistent(
     }
     if let Some(selection) = model_overview {
         host = host.with_model_overview(selection)?;
+    }
+    if let Some(selection) = atlas_scene {
+        host = host.with_atlas_scene(selection)?;
     }
     if !config.authentication.is_password() {
         host = host.with_loopback_local()?;
@@ -375,6 +387,7 @@ async fn run_gateway(
     model_overview: Option<
         houseatlas_backend::config::model_overview::ServerModelOverviewSelection,
     >,
+    atlas_scene: Option<houseatlas_backend::config::atlas_scene::ServerAtlasSceneSelection>,
     persistent_lease: &mut Option<Arc<lifecycle::persistent::ServerLease>>,
 ) -> Result<(), lifecycle::Failure> {
     use houseatlas_backend::{
@@ -410,6 +423,9 @@ async fn run_gateway(
     }
     if let Some(selection) = model_overview {
         host = host.with_model_overview(selection)?;
+    }
+    if let Some(selection) = atlas_scene {
+        host = host.with_atlas_scene(selection)?;
     }
     let account_selected = ai_account.is_some();
     let ai_account =
