@@ -1,0 +1,61 @@
+/* Generic local PDF reader: canvas page with its own page and zoom controls. */
+
+.lantern-host .source-pdf {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.lantern-host .source-pdf-controls,
+.lantern-host .source-pdf-controls > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.lantern-host .source-pdf-controls {
+  justify-content: space-between;
+}
+
+.lantern-host .source-pdf-controls .chip-btn {
+  min-height: 40px;
+}
+
+.lantern-host .source-pdf-note {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.lantern-host .source-pdf-page {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: min(62vh, 720px);
+  min-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--hair-2);
+  border-radius: var(--r-control);
+  background: var(--ground);
+}
+
+.lantern-host .source-pdf-page:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.lantern-host .source-pdf-page canvas {
+  display: block;
+  max-width: none;
+  margin: 12px auto;
+  background: #fff;
+}
+
+@media (max-width: 600px) {
+  .lantern-host .source-pdf-page {
+    height: 56vh;
+    min-height: 200px;
+  }
+}

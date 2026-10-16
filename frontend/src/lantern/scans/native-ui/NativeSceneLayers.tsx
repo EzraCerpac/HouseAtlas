@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { HouseScanScene } from '../presentation';
 import type { PresentationFloor, SceneLayerContext, SceneOverlay } from '../presentation/types';
 import type { NativeSceneSourceFrame } from '../native-scene-source-types';
@@ -8,6 +8,7 @@ import { ElectricityFixtureDiagram } from '../../overlays/electricity';
 import type { ElectricalFixtureSheet } from '../../overlays/electricity/fixture-types';
 import type { NativeEvidenceDocumentClient } from '../native-evidence-document-types';
 import type { BuildingModel, Location, TopologyIndex } from '../../topology/model';
+import { stageSpan } from '../../observability/stage-timing';
 import './native-scene.css';
 
 const NativeSceneDrawing = lazy(() => import('./NativeSceneDrawing').then(module => ({ default: module.NativeSceneDrawing })));
@@ -106,6 +107,16 @@ export function NativeSceneLayers({ source, floors, overlay, onOverlayChange, dr
   const [drawing, setDrawing] = useState<ElectricalFixtureSheet | null>(null);
   const [sourceActionFailure, setSourceActionFailure] = useState<{ source: NativeSceneSourceFrame; message: string } | null>(null);
   const [selectedNativePlaceId, setSelectedNativePlaceId] = useState<string | null>(null);
+  // Anonymous timing from an actual room selection to the frame after it commits.
+  const roomTiming = useRef<((end: { outcome: 'shown' | 'withdrawn' }) => void) | null>(null);
+  useEffect(() => {
+    const end = roomTiming.current;
+    if (!end) return;
+    if (roomId === null) { roomTiming.current = null; end({ outcome: 'withdrawn' }); return; }
+    const frame = requestAnimationFrame(() => { if (roomTiming.current === end) { roomTiming.current = null; end({ outcome: 'shown' }); } });
+    return () => cancelAnimationFrame(frame);
+  }, [roomId]);
+  useEffect(() => () => { roomTiming.current?.({ outcome: 'withdrawn' }); roomTiming.current = null; }, []);
   const rooms = source.rooms.status === 'available' ? source.rooms.data.rooms : [];
   const regions = source.rooms.status === 'available' ? source.rooms.data.regions : [];
   const network = source.network.status === 'available' ? source.network.data : null;
@@ -122,6 +133,10 @@ export function NativeSceneLayers({ source, floors, overlay, onOverlayChange, dr
     .find(row => row.roomId === context.selectedRoom?.id)?.selection ?? null;
   return <HouseScanScene active viewKey={source.viewKey} floors={floors} rooms={rooms} roomRegions={regions}
     selectedRoomId={roomId} onRoomSelectionChange={room => {
+      if (room && room.id !== roomId) {
+        roomTiming.current?.({ outcome: 'withdrawn' });
+        roomTiming.current = stageSpan('scan-atlas', 'room-switch', { switch: roomId !== null });
+      }
       setRoomId(room?.id ?? null); setRegionId(null); setFixtureId(null); setGroup(null); setDrawing(null); setSourceActionFailure(null);
       setNetworkSelection(null); setRecords(null); setSelectedNativePlaceId(null);
     }} overlay={overlay} onOverlayChange={value => {

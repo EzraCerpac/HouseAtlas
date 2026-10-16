@@ -1,0 +1,15 @@
+/* Atlas source switch: shown only when the browser-only model port is mounted.
+   The home atlas below it keeps its own layout. */
+.lantern-host .source-switch {
+  flex: none;
+  align-self: flex-start;
+  margin: 10px 12px 8px;
+}
+/* A failed model viewer stays below the switch; Home atlas remains available. */
+.lantern-host .source-switch ~ .viewer-unavailable { margin: 0 12px 16px; }
+
+.lantern-host.view-atlas .main > .source-model-pane {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}

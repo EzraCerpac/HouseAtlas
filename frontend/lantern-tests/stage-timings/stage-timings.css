@@ -1,0 +1,22 @@
+/* Contained timing table: the section never sets the page width, and the
+   table scrolls inside its own bounded box. */
+.stage-timings { min-width: 0; max-width: 100%; display: grid; gap: 6px; contain: inline-size; }
+.stage-timings-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.stage-timings-head h2 { margin: 0; font-size: var(--fs-m, 15px); font-weight: 700; }
+.stage-timings-head [role="status"] { font-size: var(--fs-s, 13.5px); color: var(--muted, #5a6375); }
+.stage-timings-head .chip-btn { margin-left: auto; min-height: 40px; }
+.stage-timings-scroll { max-width: 100%; max-height: min(40vh, 320px); overflow: auto; border: 1px solid var(--line, #ddd); border-radius: 8px; background: var(--card, #fcfcfa); }
+.stage-timings-scroll:focus-visible { outline: 2px solid var(--ink, #18233a); outline-offset: 2px; }
+.stage-timings table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: var(--fs-xs, 12px); font-variant-numeric: tabular-nums; }
+.stage-timings col.stage-timings-at { width: 4.75rem; }
+.stage-timings col.stage-timings-area { width: 6.5rem; }
+.stage-timings col.stage-timings-event { width: 9.5rem; }
+.stage-timings th, .stage-timings td { padding: 4px 8px; text-align: left; vertical-align: top; overflow-wrap: anywhere; border-bottom: 1px solid var(--line, #ddd); }
+.stage-timings thead th { position: sticky; top: 0; background: var(--card-2, #f0f1ec); font-weight: 650; }
+.stage-timings td:first-child { text-align: right; }
+@media (max-width: 420px) {
+  .stage-timings col.stage-timings-at { width: 4rem; }
+  .stage-timings col.stage-timings-area { width: 5rem; }
+  .stage-timings col.stage-timings-event { width: 7rem; }
+  .stage-timings th, .stage-timings td { padding: 4px 6px; }
+}

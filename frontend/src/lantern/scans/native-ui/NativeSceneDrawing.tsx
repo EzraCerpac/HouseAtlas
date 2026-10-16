@@ -6,9 +6,12 @@ import { HouseAtlasPdfBinaryDataFactory, pdfjsDecoderUrl } from 'virtual:houseat
 import type { ElectricalFixtureSheet } from '../../overlays/electricity/fixture-types';
 import type { NativeEvidenceDocumentClient, NativeEvidenceDocumentFrame } from '../native-evidence-document-types';
 import type { NativeSceneDrawingPdfReference, NativeSceneDrawingProvenance } from '../native-scene-source-types';
+import { stageMark, stageSpan } from '../../observability/stage-timing';
 
 const referencePageSize = 64;
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+/** Anonymous timing only: drawings shown in this tab, for cold or warm reads. */
+let drawingsShown = 0;
 
 /** A hash selects among current building evidence; it grants no read access.
  * Each candidate is resolved by the native document owner before any bytes paint. */
@@ -49,7 +52,9 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
   useLayoutEffect(() => {
     if (!selectedCursor && cursor) setCursor(null);
     const generation = ++generationRef.current;
-    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 10000);
+    let timedOut = false;
+    const controller = new AbortController(), timer = setTimeout(() => { timedOut = true; controller.abort(); }, 10000);
+    const timing = stageSpan('scene-drawing', 'drawing-read', { kind: reference ? 'pdf' : 'png', cache: drawingsShown > 0 ? 'warm' : 'cold', continued: pageStart > 0 });
     let held: NativeEvidenceDocumentFrame | null = null, url: string | null = null;
     let stop: (() => void) | null = null, disposed = false;
     const live = () => !disposed && !controller.signal.aborted && currentRef.current();
@@ -102,6 +107,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
           || (reference && blob.size !== reference.byteSize.toSafeInteger())) throw new Error('Drawing unavailable');
         url = URL.createObjectURL(blob);
         stop = client.subscribeInvalidation(frame, () => {
+          stageMark('scene-drawing', 'invalidated');
           const currentGeneration = !disposed && generationRef.current === generation;
           withdraw(); controller.abort();
           if (currentGeneration && !disposed && generationRef.current === generation) {
@@ -111,9 +117,11 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
         if (!live() || !client.isCurrent(frame) || held !== frame) { withdraw(); return; }
         const active = { frame, url, generation, withdraw };
         activeDrawing.current = active;
-        clearTimeout(timer); setShown({ frame, url, generation }); setStatus(''); return;
+        clearTimeout(timer); drawingsShown++; timing({ status: 'shown' });
+        setShown({ frame, url, generation }); setStatus(''); return;
       }
       clearTimeout(timer);
+      timing({ status: 'unavailable', unreadable });
       if (live()) {
         if (reference) { setStatus('The correlated reference PDF is unavailable for this current drawing. Close it and reload scans.'); return; }
         const next = pageStart + page.length;
@@ -125,8 +133,9 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
           ? 'Some saved drawing references could not be read. Close it and try again.'
           : 'No current saved PNG or qualified reference PDF is available for this drawing. Reload scans after its source is available.');
       }
-    })().catch(() => { clearTimeout(timer); withdraw(); if (live()) setStatus('The current saved drawing could not be read. Close it and try again.'); });
+    })().catch(() => { clearTimeout(timer); timing({ status: 'failed' }); withdraw(); if (live()) setStatus('The current saved drawing could not be read. Close it and try again.'); });
     const aborted = () => {
+      timing({ status: timedOut ? 'timeout' : 'withdrawn' });
       withdraw();
       if (!disposed && generationRef.current === generation) {
         setStatus('The saved drawing read did not complete. Close it and try again.');
@@ -151,6 +160,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
       return;
     }
     setPdfDocument(null); setPdfPageCount(null); setPdfStatus('Loading reference PDF…');
+    const pdfTiming = stageSpan('scene-drawing', 'pdf-load');
     let task: ReturnType<typeof pdfjs.getDocument> | null = null;
     void (async () => {
       const data = new Uint8Array(await blob.arrayBuffer());
@@ -160,11 +170,13 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
         BinaryDataFactory: HouseAtlasPdfBinaryDataFactory });
       return task.promise;
     })().then(document => {
-      if (!document || disposed || !currentRef.current() || !client.isCurrent(shown.frame)) return;
+      if (!document || disposed || !currentRef.current() || !client.isCurrent(shown.frame)) { pdfTiming({ status: 'withdrawn' }); return; }
+      pdfTiming({ status: 'shown', pages: document.numPages });
       setPdfDocument(document); setPdfPageCount(document.numPages);
       const page = Math.max(1, Math.min(document.numPages, sheet.pdfPage));
       setPdfPage(page); setPdfPageInput(String(page)); setPdfStatus('');
     }).catch(() => {
+      pdfTiming({ status: 'failed' });
       if (!disposed && currentRef.current() && client.isCurrent(shown.frame)) {
         setPdfDocument(null); setPdfPageCount(null); setPdfStatus('The saved reference PDF could not be rendered. You can still download the original.');
       }
@@ -202,13 +214,16 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
         context.setTransform(ratio, 0, 0, ratio, 0, 0);
         const rendering = pageHandle!.render({ canvas: activeCanvas, canvasContext: context, viewport });
         activePdfRender.current = rendering;
+        const paintTiming = stageSpan('scene-drawing', 'pdf-paint', { zoom });
         try {
           await rendering.promise;
+          paintTiming({ status: 'shown' });
           if (!cancelled && paintRequest === request && activePdfRender.current === rendering) {
             activeCanvas.style.visibility = 'visible';
             setPdfStatus('');
           }
         } catch (error) {
+          paintTiming({ status: 'withdrawn' });
           const wasCancelled = typeof error === 'object' && error !== null
             && 'name' in error && error.name === 'RenderingCancelledException';
           if (!cancelled && paintRequest === request && !wasCancelled)
@@ -235,7 +250,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
     setStatus('The saved PNG could not be rendered. Close it and try again.');
   };
   const keys = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key === 'Escape') { event.preventDefault(); onClose(); return; }
+    if (event.key === 'Escape') { event.preventDefault(); stageMark('scene-drawing', 'drawing-close', { input: 'keyboard' }); onClose(); return; }
     if (event.key !== 'Tab') return;
     const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), summary, [tabindex="0"]')];
     const first = controls[0], last = controls.at(-1);
@@ -245,7 +260,9 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
   return <section className="native-scene-drawing" role="dialog" aria-modal="true"
     aria-label={sheet.title} onKeyDown={keys}>
     <header><div><h3>{sheet.title}</h3><p>Historical drawing · reference PDF page {sheet.pdfPage}</p></div>
-      <button ref={closer} type="button" className="chip-btn" onClick={onClose}>Close drawing</button></header>
+      <button ref={closer} type="button" className="chip-btn" onClick={event => {
+        stageMark('scene-drawing', 'drawing-close', { input: event.detail === 0 ? 'keyboard' : 'pointer' }); onClose();
+      }}>Close drawing</button></header>
     {provenance && <details className="native-drawing-provenance" style={{ overflowWrap: 'anywhere' }}>
       <summary>Drawing source review</summary>
       <p>Room filters use the current native review. The retained historical ledger bytes are unchanged.</p>
