@@ -2,6 +2,14 @@
 use super::*;
 use serde_json::{Value, json};
 
+fn admit(snapshot: &Snapshot) {
+    use crate::storage::Contract;
+    let retained = serde_json::from_value(serde_json::to_value(snapshot).unwrap()).unwrap();
+    crate::http::contracts::NativeContracts
+        .validate_snapshot(&retained)
+        .unwrap();
+}
+
 fn authority() -> AuthorizedHome {
     AuthorizedHome {
         home: HomeSummary {
@@ -87,6 +95,10 @@ fn healthy_partition_indexes_preserve_joins_order_and_freshness() {
             }
             source_instance(&mut part, &preceding);
             part["caches"][0]["lastSuccessfulFetchAt"] = json!("2026-01-02T11:00:00Z");
+            part["caches"][0]["lastAttemptAt"] = json!("2026-01-02T11:00:00Z");
+            for entity in part["homeboxEntities"].as_array_mut().unwrap() {
+                entity["retrievedAt"] = json!("2026-01-02T11:00:00Z");
+            }
         }
         for field in fields {
             combined[field]
@@ -98,15 +110,16 @@ fn healthy_partition_indexes_preserve_joins_order_and_freshness() {
     }
     let before = combined.clone();
     let mut snapshot: Snapshot = serde_json::from_value(combined).unwrap();
-    // Same source identity in another home must not replace this home's cache.
+    // The same source identity in another workspace has independent ownership.
     let mut other_cache = snapshot.caches[0].clone();
-    other_cache.partition.scope.home_id = "00000000-0000-4000-8000-000000000099".into();
+    other_cache.partition.scope.workspace_id = "00000000-0000-4000-8000-000000000099".into();
     other_cache.last_successful_fetch_at = Some("2026-01-02T10:00:00Z".into());
     snapshot.caches.push(other_cache);
     let mut other_source = snapshot.sources[0].clone();
-    other_source.partition.scope.home_id = "00000000-0000-4000-8000-000000000099".into();
+    other_source.partition.scope.workspace_id = "00000000-0000-4000-8000-000000000099".into();
     other_source.owner = SourceOwner::Network;
     snapshot.sources.push(other_source);
+    admit(&snapshot);
     let retained = serde_json::to_value(&snapshot).unwrap();
     for now in ["2026-01-02T12:05:00Z", "2026-01-02T12:16:00Z"] {
         let actual =
@@ -151,6 +164,7 @@ fn healthy_status_owners_follow_exact_partition_order() {
     let mut cache = snapshot.caches[0].clone();
     cache.partition = network.partition.clone();
     snapshot.caches.insert(0, cache);
+    admit(&snapshot);
     let projected = serde_json::to_value(
         project_current(&snapshot, &authority(), "2026-01-02T12:05:00Z", &[]).unwrap(),
     )
