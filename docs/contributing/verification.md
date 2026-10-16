@@ -1267,9 +1267,16 @@ Inspect `frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs` before
 running this one generated positive. It exercises the actual source-only
 current-association HTTP qualifier and closed network/electricity/fixture
 parsers with an in-process GET transport and two dedicated fake native document
-owners. It checks exact current native room/package/receipt joins, retained
+owners. It checks independently host-reviewed publication/native/package room
+links against the current association, retained
 primary and historical originals, final current-head read, arbitrary-precision
-asset revision, documentary-only detail DTOs and explicit owner release. It
+asset revision, documentary-only detail DTOs, one positive bounded passive
+head refresh and explicit owner release. The owner rereads sequentially every
+10 seconds with an 8-second deadline, withdraws on change/error, accepts a head
+proof for at most 20 seconds while the original native session and source
+owners remain active. Release, context/document invalidation or native session
+end stop the monitor. This is bounded read-point freshness, not immediate
+external-write notification. It
 uses no old rendered geometry, real source, provider, listener, native mutation,
 expiry/revocation/replay/denial or other held controls. Use pinned Node 26.10.0:
 

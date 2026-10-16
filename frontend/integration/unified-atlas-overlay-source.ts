@@ -15,6 +15,15 @@ export interface UnifiedAtlasOverlayPublicationRoom {
   readonly roomId:string; readonly buildingId:string; readonly nativePlaceId:string|null;
   readonly occurrenceIds:readonly string[];
 }
+/** Independently reviewed host input, never derived from producer nativeBinding
+ * or publicationRooms. Missing review keeps runtime joins unavailable. This is
+ * documentary linkage, not an authorization capability. */
+export interface UnifiedAtlasOverlayReviewedRoomLinks {
+  readonly profile:'houseatlas.unified-atlas-room-links.v1';
+  readonly workspaceId:string; readonly homeId:string; readonly publicationId:string;
+  readonly semanticsSha256:string;
+  readonly links:readonly Readonly<{roomId:string;nativePlaceId:string;packagePlaceKey:string;packagePlaceUuid:string}>[];
+}
 /** Runtime qualification is independent of producer nativeBinding status. Use only
  * while source.isCurrent(frame) and the exact publication selection remains owned.
  * Source device/fixture IDs remain documentary IDs, never native record UUIDs. */
@@ -50,6 +59,7 @@ export interface UnifiedAtlasOverlayContext {
   readonly sceneSelection:UnifiedAtlasOverlaySceneSelection;
   readonly nativeBuildingId:string|null;
   readonly publicationRooms:readonly UnifiedAtlasOverlayPublicationRoom[];
+  readonly reviewedRoomLinks?:UnifiedAtlasOverlayReviewedRoomLinks|null;
 }
 export interface UnifiedAtlasOverlaySourceOptions {
   getContext():UnifiedAtlasOverlayContext|null;
@@ -67,6 +77,8 @@ export interface UnifiedAtlasOverlaySource {
 }
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const SHA=/^[a-f0-9]{64}$/;
+// Bounded passive read-point freshness: no instantaneous external-write claim.
+const HEAD_INTERVAL_MS=10_000, HEAD_READ_MS=8_000, HEAD_MAX_AGE_MS=20_000;
 function need(value:unknown):asserts value{if(!value)throw new Error('Current native overlay source is unavailable');}
 function row(value:LosslessJson|undefined):Record<string,LosslessJson>{need(value!==null&&typeof value==='object'&&!Array.isArray(value)&&!isExactDecimal(value));return value;}
 function text(value:LosslessJson|undefined):string{need(typeof value==='string');return value;}
@@ -77,13 +89,20 @@ function abortable<T>(work:Promise<T>,signal:AbortSignal):Promise<T>{return new 
   signal.addEventListener('abort',stop,{once:true});work.then(v=>{signal.removeEventListener('abort',stop);resolve(v);},e=>{signal.removeEventListener('abort',stop);reject(e);});if(signal.aborted)stop();
 });}
 function stamp(context:UnifiedAtlasOverlayContext):string{return JSON.stringify([context.native.session.actorId,context.native.session.csrfToken,context.native.session.expiresAt,
-  context.native.view.scope.workspaceId,context.native.view.scope.homeId,context.sceneSelection,context.nativeBuildingId,
+  context.native.view.scope.workspaceId,context.native.view.scope.homeId,context.sceneSelection,context.nativeBuildingId,context.reviewedRoomLinks,
   context.publicationRooms.map(r=>[r.roomId,r.buildingId,r.nativePlaceId,[...r.occurrenceIds]])]);}
-function roomBindings(selection:NativeSceneSourceSelection,rooms:readonly UnifiedAtlasOverlayPublicationRoom[]):readonly UnifiedAtlasOverlayRoomBinding[]{
+function roomBindings(selection:NativeSceneSourceSelection,rooms:readonly UnifiedAtlasOverlayPublicationRoom[],review:UnifiedAtlasOverlayReviewedRoomLinks):readonly UnifiedAtlasOverlayRoomBinding[]{
   need(rooms.length<=2048&&new Set(rooms.map(r=>r.roomId)).size===rooms.length);
+  need(review.links.length<=2048);
+  const reviewed=new Map<string,UnifiedAtlasOverlayReviewedRoomLinks['links'][number]>();
+  for(const link of review.links){need(typeof link.roomId==='string'&&link.roomId.length>0&&link.roomId.length<=512
+    &&UUID.test(link.nativePlaceId)&&UUID.test(link.packagePlaceUuid)&&typeof link.packagePlaceKey==='string'
+    &&link.packagePlaceKey.length>0&&link.packagePlaceKey.length<=512&&!reviewed.has(link.roomId));
+    reviewed.set(link.roomId,link);}
   const result:UnifiedAtlasOverlayRoomBinding[]=[];
-  for(const room of rooms){if(room.nativePlaceId===null)continue;need(UUID.test(room.nativePlaceId));
-    const matching=(selection.acceptedRoomMappings??[]).flatMap(mapping=>mapping.targets.filter(target=>target.atlasPlaceId===room.nativePlaceId).map(target=>({mapping,target})));
+  for(const room of rooms){const link=reviewed.get(room.roomId);
+    if(!link||room.nativePlaceId===null||room.nativePlaceId!==link.nativePlaceId)continue;need(UUID.test(room.nativePlaceId));
+    const matching=(selection.acceptedRoomMappings??[]).flatMap(mapping=>mapping.targets.filter(target=>target.atlasPlaceId===link.nativePlaceId&&target.packagePlaceKey===link.packagePlaceKey&&target.packagePlaceUuid===link.packagePlaceUuid).map(target=>({mapping,target})));
     if(!matching.length)continue;
     const targets=new Map<string,{packagePlaceKey:string;packagePlaceUuid:string;sourceAnchorIds:Set<string>}>();
     for(const {mapping,target}of matching){const key=`${target.packagePlaceKey}\0${target.packagePlaceUuid}`;let value=targets.get(key);
@@ -98,21 +117,22 @@ function roomBindings(selection:NativeSceneSourceSelection,rooms:readonly Unifie
 export function createUnifiedAtlasOverlaySource(options:UnifiedAtlasOverlaySourceOptions):UnifiedAtlasOverlaySource{
   type Owned={owner:NativeEvidenceDocumentClient;frame:NativeEvidenceDocumentFrame|null;stop:(()=>void)|null;disposed:boolean;released:WeakSet<object>};
   type Attempt={generation:number;context:UnifiedAtlasOverlayContext;stamp:string;controller:AbortController;owners:Owned[];listeners:Set<()=>void>;
-    frame:UnifiedAtlasOverlayAvailableFrame|null;stopAbort:(()=>void)|null;timer:ReturnType<typeof setTimeout>|null;retired:boolean};
+    frame:UnifiedAtlasOverlayAvailableFrame|null;headCheckedAt:number;headTimer:ReturnType<typeof setTimeout>|null;stopAbort:(()=>void)|null;timer:ReturnType<typeof setTimeout>|null;retired:boolean};
   let active:Attempt|null=null,generation=0,disposed=false;
   const transport=options.fetch??((...args:Parameters<typeof fetch>)=>fetch(...args));
   const observe=()=>{try{return options.getContext();}catch{return null;}};
   const releaseOwned=(owned:Owned,frame:NativeEvidenceDocumentFrame)=>{if(owned.released.has(frame))return;owned.released.add(frame);owned.owner.release(frame);};
   const retire=(attempt:Attempt)=>{
     if(attempt.retired)return;attempt.retired=true;if(active===attempt)active=null;
-    const callbacks=[...attempt.listeners];attempt.listeners.clear();attempt.controller.abort();attempt.stopAbort?.();if(attempt.timer)clearTimeout(attempt.timer);
+    const callbacks=[...attempt.listeners];attempt.listeners.clear();attempt.controller.abort();attempt.stopAbort?.();if(attempt.timer)clearTimeout(attempt.timer);if(attempt.headTimer)clearTimeout(attempt.headTimer);
     for(const owned of attempt.owners){owned.stop?.();owned.stop=null;if(owned.frame)releaseOwned(owned,owned.frame);if(!owned.disposed){owned.disposed=true;owned.owner.dispose();}}
     for(const changed of callbacks){try{changed();}catch{/* notify every subscriber */}}
   };
   const withdraw=()=>{generation++;const previous=active;if(previous)retire(previous);};
   const current=(attempt:Attempt):boolean=>{try{const next=observe();return !disposed&&!attempt.retired&&active===attempt&&generation===attempt.generation
     &&next!==null&&next.native.sessionIdentity===attempt.context.native.sessionIdentity&&next.sceneSelection===attempt.context.sceneSelection
-    &&next.publicationRooms===attempt.context.publicationRooms&&stamp(next)===attempt.stamp&&Date.parse(next.native.session.expiresAt)>Date.now()
+    &&next.publicationRooms===attempt.context.publicationRooms&&next.reviewedRoomLinks===attempt.context.reviewedRoomLinks
+    &&(!attempt.frame||Date.now()-attempt.headCheckedAt<=HEAD_MAX_AGE_MS)&&stamp(next)===attempt.stamp&&Date.parse(next.native.session.expiresAt)>Date.now()
     &&attempt.owners.every(o=>!o.disposed&&(!o.frame||o.owner.isCurrent(o.frame)))&&!attempt.controller.signal.aborted;}catch{return false;}};
   const guard=(attempt:Attempt)=>{attempt.controller.signal.throwIfAborted();need(current(attempt));};
   const offHost=options.subscribeContext(withdraw);
@@ -122,9 +142,12 @@ export function createUnifiedAtlasOverlaySource(options:UnifiedAtlasOverlaySourc
     const context=observe();if(!context)return Object.freeze({status:'unavailable',reason:'current-head-unread'});
     if(context.nativeBuildingId===null)return Object.freeze({status:'unavailable',reason:'no-native-building-link'});
     if(input.sceneSelection!==context.sceneSelection||input.publicationRooms!==context.publicationRooms||input.nativeBuildingId!==context.nativeBuildingId)return Object.freeze({status:'unavailable',reason:'selection-changed'});
-    const s=context.sceneSelection;need(UUID.test(s.workspaceId)&&UUID.test(s.homeId)&&UUID.test(s.publicationId)&&SHA.test(s.semanticsSha256)&&s.revision.length>0&&s.revision.length<=128
+    const s=context.sceneSelection,review=context.reviewedRoomLinks;
+    if(!review||review.profile!=='houseatlas.unified-atlas-room-links.v1'||review.workspaceId!==s.workspaceId||review.homeId!==s.homeId
+      ||review.publicationId!==s.publicationId||review.semanticsSha256!==s.semanticsSha256)return Object.freeze({status:'unavailable',reason:'room-link-not-qualified'});
+    need(UUID.test(s.workspaceId)&&UUID.test(s.homeId)&&UUID.test(s.publicationId)&&SHA.test(s.semanticsSha256)&&s.revision.length>0&&s.revision.length<=128
       &&context.native.view.scope.workspaceId===s.workspaceId&&context.native.view.scope.homeId===s.homeId&&UUID.test(input.nativeBuildingId));
-    const attempt:Attempt={generation:reserved,context,stamp:stamp(context),controller:new AbortController(),owners:[],listeners:new Set(),frame:null,stopAbort:null,timer:null,retired:false};active=attempt;
+    const attempt:Attempt={generation:reserved,context,stamp:stamp(context),controller:new AbortController(),owners:[],listeners:new Set(),frame:null,headCheckedAt:0,headTimer:null,stopAbort:null,timer:null,retired:false};active=attempt;
     const stop=()=>{if(active===attempt)withdraw();};signal.addEventListener('abort',stop,{once:true});attempt.stopAbort=()=>signal.removeEventListener('abort',stop);if(signal.aborted)stop();
     attempt.timer=setTimeout(stop,75_000);
     const pin=()=>guard(attempt);
@@ -155,12 +178,30 @@ export function createUnifiedAtlasOverlaySource(options:UnifiedAtlasOverlaySourc
           assetId:historical.frame.asset.assetId,assetRevision:historical.frame.asset.revision,originalSha256:support.originalSha256,reviewMarker:support.reviewMarker})});
       }
       const details=await readNativeOverlayDetails(selection,primary.bytes,historical.bytes,pin);pin();
-      const bindings=roomBindings(selection,input.publicationRooms);if(!bindings.length){retire(attempt);return Object.freeze({status:'unavailable',reason:'room-link-not-qualified'});}
+      const bindings=roomBindings(selection,input.publicationRooms,review);if(!bindings.length){retire(attempt);return Object.freeze({status:'unavailable',reason:'room-link-not-qualified'});}
       const final=await readNativeOverlayAssociation(context.native,input.nativeBuildingId,sourceViewKey,attempt.controller.signal,pin,transport);pin();
       need(final.status==='available'&&final.recordId===association.recordId&&final.revision.compare(association.revision)===0&&stringifyLosslessJson(final.payload)===stringifyLosslessJson(association.payload));
       const frame:UnifiedAtlasOverlayAvailableFrame=Object.freeze({status:'available',lease:Object.freeze({}),sceneSelection:Object.freeze({...s}),nativeBuildingId:input.nativeBuildingId,
         currentSource:Object.freeze({recordId:association.recordId,revision:association.revision,payload:association.payload}),sourceSelection:selection,roomBindings:bindings,...details});
-      pin();attempt.frame=frame;if(attempt.timer)clearTimeout(attempt.timer);attempt.timer=setTimeout(stop,Math.min(Date.parse(context.native.session.expiresAt)-Date.now()+1,2_147_483_647));pin();return frame;
+      const expectedPayload=stringifyLosslessJson(association.payload);
+      // Only one passive read at a time, no retry after an error or changed head.
+      // A successful reread refreshes this read-point proof, not an access grant.
+      const checkHead=async()=>{
+        const read=new AbortController(),forward=()=>read.abort();
+        attempt.controller.signal.addEventListener('abort',forward,{once:true});
+        const deadline=setTimeout(()=>read.abort(),HEAD_READ_MS);
+        try{
+          pin();const observed=await readNativeOverlayAssociation(context.native,input.nativeBuildingId,sourceViewKey,read.signal,pin,transport);
+          pin();need(observed.status==='available'&&observed.recordId===association.recordId&&observed.revision.compare(association.revision)===0
+            &&stringifyLosslessJson(observed.payload)===expectedPayload);
+          attempt.headCheckedAt=Date.now();pin();attempt.headTimer=setTimeout(()=>{void checkHead();},HEAD_INTERVAL_MS);
+        }catch{retire(attempt);}
+        finally{clearTimeout(deadline);attempt.controller.signal.removeEventListener('abort',forward);read.abort();}
+      };
+      pin();attempt.headCheckedAt=Date.now();attempt.frame=frame;
+      if(attempt.timer)clearTimeout(attempt.timer);
+      attempt.timer=setTimeout(stop,Math.min(Date.parse(context.native.session.expiresAt)-Date.now()+1,2_147_483_647));
+      attempt.headTimer=setTimeout(()=>{void checkHead();},HEAD_INTERVAL_MS);pin();return frame;
     }catch{const changed=!current(attempt);retire(attempt);signal.throwIfAborted();return Object.freeze({status:'unavailable',reason:changed?'selection-changed':'current-source-unavailable'});}
   };
   const isCurrent=(frame:UnifiedAtlasOverlayAvailableFrame)=>{const attempt=active;return attempt!==null&&attempt.frame===frame&&current(attempt);};

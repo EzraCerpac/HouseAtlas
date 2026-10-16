@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "8b90d65d4b1601e1609eabb2b8ba8e362dbd6281b379a1ef7e3ca26e5faf0033",
+  "sourceDigestSha256": "0b9dafdb1bc1e706453f77a4d7aafd793558e4c41dcccb31e2e577e688fecf4e",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5866,8 +5866,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 74894,
-      "sha256": "23a7d20d7a687eb6127610b32e32d17d747b662750aacbe28837009c90964576",
+      "bytes": 75360,
+      "sha256": "2a87afe455733bf12e8f6b56145ccbf41db267fc53d58dff805c44f9c74bd087",
       "owner": "core-integration"
     },
     {
@@ -6888,8 +6888,8 @@
     {
       "path": "frontend/integration/unified-atlas-overlay-source.ts",
       "mode": "100644",
-      "bytes": 16835,
-      "sha256": "d67b993bda91cfca360902d9aa1a0c0e5f0cd9737da6a0ef492fb70f52ad49b6",
+      "bytes": 20295,
+      "sha256": "a5baac14ba4119a31697fa1f9ee5a31c5944ca9d955ec8dc594b2162c52ce208",
       "owner": "web"
     },
     {
@@ -7518,8 +7518,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs",
       "mode": "100644",
-      "bytes": 12729,
-      "sha256": "6416b70fb1f1add86b5142aa1c259f209147249d4b2cac9086aab08c13fd7148",
+      "bytes": 13215,
+      "sha256": "c12d2a7a2f505117dda4582bd300a947dce6b3e32920467504b8c0b04b9c3874",
       "owner": "web"
     },
     {

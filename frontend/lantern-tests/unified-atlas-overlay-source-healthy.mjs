@@ -55,7 +55,8 @@ try {
   const raw=JSON.stringify({status:'available',association:record},(_,v)=>typeof v==='bigint'?'EXACT-'+v:v).replaceAll('"EXACT-9007199254740991"','9007199254740991');
   const sceneSelection=Object.freeze({workspaceId:U(1),homeId:U(2),revision:'generated-selection',publicationId:U(14),semanticsSha256:'c'.repeat(64)});
   const publicationRooms=Object.freeze([{roomId:'publication:room',buildingId:'publication:building',nativePlaceId:U(40),occurrenceIds:['occurrence:one','occurrence:two']}]);
-  const context={sceneSelection,publicationRooms,nativeBuildingId:U(3),native:{sessionIdentity:{},session:{schemaVersion:1,actorId:U(15),csrfToken:'generated-csrf',expiresAt:new Date(Date.now()+300000).toISOString()},view:{scope:{workspaceId:U(1),homeId:U(2)}},admission:null}};
+  const reviewedRoomLinks=Object.freeze({profile:'houseatlas.unified-atlas-room-links.v1',workspaceId:U(1),homeId:U(2),publicationId:U(14),semanticsSha256:'c'.repeat(64),links:[{roomId:'publication:room',nativePlaceId:U(40),packagePlaceKey:packageKey,packagePlaceUuid:packageUuid}]});
+  const context={sceneSelection,publicationRooms,reviewedRoomLinks,nativeBuildingId:U(3),native:{sessionIdentity:{},session:{schemaVersion:1,actorId:U(15),csrfToken:'generated-csrf',expiresAt:new Date(Date.now()+300000).toISOString()},view:{scope:{workspaceId:U(1),homeId:U(2)}},admission:null}};
   const counts={gets:0,opens:0,releases:0,disposes:0,subscriptions:0};
   const owners=[];
   const source=createUnifiedAtlasOverlaySource({getContext:()=>context,subscribeContext:()=>()=>{},fetch:async(url,init)=>{
@@ -70,6 +71,8 @@ try {
     assert.equal(frame.network.status,'available');assert.equal(frame.network.data.devices[0].id,'device:generated');assert.equal(frame.network.data.devices[0].place.coordinate,null);assert.equal(frame.network.data.source.status,'recorded');
     assert.equal(frame.electricity.status,'available');assert.equal(frame.electricity.data.sheets[0].roomAssociations[0].packagePlaceKey,packageKey);assert.equal(frame.electricity.data.sheets[0].roomAssociations[0].nativePlaceId,null);
     assert.equal(frame.electricalFixtures.status,'available');assert.equal(frame.electricalFixtures.data.fixtures[0].id,'socket');assert.equal(frame.electricalFixtures.data.groups[0].currentCircuitId,null);assert.equal(frame.electricalFixtures.data.groups[0].verifiedWiring,false);
+    await new Promise(resolve=>setTimeout(resolve,10_100));
+    assert.equal(counts.gets,3,'One sequential bounded positive head refresh');assert.equal(source.isCurrent(frame),true);
     assert.equal(Object.isFrozen(frame.roomBindings[0].targets),true);let notifications=0;source.subscribeInvalidation(frame,()=>notifications++);
     source.release(frame);assert.equal(notifications,1);assert.equal(counts.releases,2);assert.equal(counts.disposes,2);assert.equal(counts.subscriptions,0);
     console.log(JSON.stringify({status:'passed',profile:'healthy-unified-atlas-overlay-source.v1',sourcePins,counts,roomBindings:1,networkDevices:1,electricitySheets:1,documentaryFixtures:1,arbitraryPrecisionRevision:'9007199254740991',nativeWrites:0,realSourceRequests:0}));
