@@ -1200,6 +1200,24 @@ foreign-publication, unqualified-join and unselectable-action controls are not
 part of this ordinary runner. This adds no device cancellation, hardware failure,
 malformed/omission, denial, replay, expiry, private-intake or browser test.
 
+The separate generated interaction positives use the production reader, standard
+GLB loader, reducer, projection, pointer factory and documentary index. Inspect
+`frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs`, its
+`api.mjs` bundler and imported generated fixtures before this named local check:
+
+```sh
+node --test --test-concurrency=1 frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs
+```
+
+Its eleven CPU cases cover repeated navigation, every declared selectable
+occurrence, shared room identity, source-coordinate plans, normal overlay
+toggles and tap/drag/pinch sequences. They include no held controls, listener,
+provider, credentials or private inputs. They do not qualify DOM focus, CSS,
+animations, GPU rendering, native overlays or devices. The adjacent acceptance
+matrix retains its exact historical source attribution; browser automation is
+a separate check and gains no execution permission from this CPU command.
+This adds no workflow or ordinary CI step.
+
 The `/lantern-tests/source-host-visual/` fixture keeps its default. With
 `?atlas=generated` it also mounts the unified Atlas through the production
 reader against an in-page synthetic HTTPS transport. With

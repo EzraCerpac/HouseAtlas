@@ -57,6 +57,8 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape }: {
   const tilt = (delta: number) => setOrbit(value => ({ ...value, pitch: Math.min(PITCH_3D.max, Math.max(PITCH_3D.min, value.pitch + delta)) }));
   const zoomBy = (factor: number) => setZoom(value => Math.min(ZOOM.max, Math.max(ZOOM.min, value * factor)));
   const fit = () => { setZoom(1); setPan({ x: 0, y: 0 }); if (!top) setOrbit(DEFAULT_ORBIT); };
+  /** Zoom and pan back to the framed scope; the chosen orbit stays. */
+  const reframe = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
   const bind = {
     ...createStagePointers({ gesture: gesture.current, top, onTap, dragging: setDragging, zoom: setZoom, pan: setPan, orbit: setOrbit }),
     onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
@@ -72,5 +74,5 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape }: {
       event.preventDefault(); action();
     },
   };
-  return { size, eased, planBlend, dragging, zoom, zoomLimits: ZOOM, turn, zoomBy, fit, bind };
+  return { size, eased, planBlend, dragging, zoom, zoomLimits: ZOOM, turn, zoomBy, fit, reframe, bind };
 }

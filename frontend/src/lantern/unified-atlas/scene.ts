@@ -643,6 +643,75 @@ export function presentAtlas(model: AtlasModel, state: AtlasViewState, highlight
   return { offsets, explodeTarget: exploded ? 1 : 0, visibleLevels, hidden, clips, dims, pickable, focusLevelId };
 }
 
+// ---------------------------------------------------------------------------
+// Transitions: one section plane per building with floors, and the explode factor
+
+const highestLevel = (model: AtlasModel, levelIds: readonly string[]) =>
+  levelIds.reduce<string | null>((best, levelId) => best === null || model.levelIndex.get(levelId)! > model.levelIndex.get(best)! ? levelId : best, null);
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+/** Rest height of each building's section plane, in `floorBuildings` order:
+ * just above its drawn geometry, so it cuts nothing. */
+export function sectionCeilings(model: AtlasModel): readonly number[] {
+  const tops = new Map<string, number>();
+  for (const part of model.parts) if (part.role !== 'context' && part.mesh.triangles > 0)
+    tops.set(part.buildingId, Math.max(tops.get(part.buildingId) ?? -Infinity, part.mesh.bounds.max[1]));
+  return model.floorBuildings.map(building => (tops.get(building.buildingId) ?? building.bounds.max[1]) + .01);
+}
+
+/** Height each section plane settles at: the focus floor's section when that
+ * building is stacked or in plan, else its ceiling. */
+export function sectionTargets(model: AtlasModel, presentation: AtlasPresentation, ceilings: readonly number[]): readonly number[] {
+  const focus = presentation.focusLevelId;
+  const focusBuilding = focus === null ? null : model.levelsById.get(focus)!.buildingId;
+  return model.floorBuildings.map((building, at) => building.buildingId === focusBuilding && presentation.explodeTarget === 0
+    ? Math.min(ceilings[at]!, sectionOf(model, focus!)) : ceilings[at]!);
+}
+
+/** The presentation at eased section heights `cuts` and explode factor t.
+ * Floors above a new focus are cut away by their building's moving section
+ * instead of vanishing; exploded walls lower to their own sections as floors
+ * part, and the roof is cut away first. Hidden parts are drawn again only while
+ * their building's section or the explosion still moves, and settled values
+ * return the target presentation itself. Drawing, picking and labels use the
+ * result, so a room is never pickable where it is not drawn. */
+export function easePresentation(model: AtlasModel, presentation: AtlasPresentation, t: number,
+  cuts: readonly number[], targets: readonly number[], ceilings: readonly number[]): AtlasPresentation {
+  const exploding = t !== presentation.explodeTarget;
+  const cutting = cuts.map((cut, at) => cut !== targets[at]);
+  if (!exploding && !cutting.some(Boolean)) return presentation;
+  const index = new Map(model.floorBuildings.map((building, at) => [building.buildingId, at]));
+  const explodable = new Map<string, boolean>();
+  const hidden = new Set<string>(), clips = new Map<string, number | null>();
+  for (const part of model.parts) {
+    const key = part.mesh.meshKey, was = presentation.hidden.has(key);
+    if (part.role === 'context' || part.mesh.triangles === 0) {
+      if (was) hidden.add(key);
+      clips.set(key, presentation.clips.get(key) ?? null); continue;
+    }
+    const at = index.get(part.buildingId);
+    const cut = at === undefined || cuts[at]! >= ceilings[at]! - 1e-3 ? null : cuts[at]!;
+    if (!explodable.has(part.buildingId)) explodable.set(part.buildingId, hasExplodableLevels(model, part.buildingId));
+    let wipe: number | null = null;
+    if (t > 1e-3 && explodable.get(part.buildingId)) {
+      const [bottom, top] = part.mesh.yRange;
+      if (part.role === 'roof') wipe = lerp(top, bottom, Math.min(1, t * 2.5));
+      else {
+        const level = highestLevel(model, part.levelIds);
+        if (level !== null) wipe = lerp(top, Math.min(top, sectionOf(model, level)), t);
+      }
+    }
+    const clip = cut === null ? wipe : wipe === null ? cut : Math.min(cut, wipe);
+    let visible = !was;
+    // Room picks keep their target visibility; only their section moves.
+    if (was && part.role !== 'room-pick' && ((at !== undefined && cutting[at]) || (exploding && part.role === 'roof')))
+      visible = clip === null || part.mesh.yRange[0] < clip;
+    if (!visible) hidden.add(key);
+    clips.set(key, clip);
+  }
+  return { ...presentation, hidden, clips };
+}
+
 /** Display lift of a level at explode factor t. */
 export const levelLift = (presentation: AtlasPresentation, levelId: string | null, t: number) =>
   levelId === null ? 0 : (presentation.offsets.get(levelId) ?? 0) * t;

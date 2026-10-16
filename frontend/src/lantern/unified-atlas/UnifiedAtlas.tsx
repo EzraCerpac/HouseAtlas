@@ -1,5 +1,5 @@
 import {
-  useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent as ReactPointerEvent, type RefObject,
+  useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { Icon } from '../components/Icon';
 import { useReducedMotion, useStore } from '../state/store';
@@ -12,8 +12,8 @@ import { TONE_COLOR, badgeFill, toneTint } from '../canonical-ifc/tones';
 import { PREPARED_BYTES_PER_TRIANGLE } from '../site-artifacts/site-budget';
 import type { ModelOverviewSelection } from '../source-models/overview-types';
 import {
-  atlasReducer, bindAtlasModel, contextOccurrenceIds, focusBuildingId, frameBox, hasExplodableLevels, initialAtlasState, labelHeight, levelLift, occurrenceLiftLevel, partLifts,
-  pickOccurrence, planPickOccurrence, planPoint, presentAtlas,
+  atlasReducer, bindAtlasModel, contextOccurrenceIds, easePresentation, focusBuildingId, frameBox, hasExplodableLevels, initialAtlasState, labelHeight, levelLift,
+  occurrenceLiftLevel, partLifts, pickOccurrence, planPickOccurrence, planPoint, presentAtlas, sectionCeilings, sectionTargets,
   type AtlasAction, type AtlasModel, type AtlasViewState, type OverlayLayerIndex, type UnplacedReason,
 } from './scene';
 import { AtlasReadError, type AtlasLevel, type AtlasOccurrence, type AtlasRoom, type AtlasOverlayBinding, type AtlasReadFailure, type OverlayKind, type UnifiedAtlasPort } from './types';
@@ -25,8 +25,9 @@ import './unified-atlas.css';
 
 /** One Atlas for the selected Blender/Bonsai publication: buildings, floors,
  * rooms and the same publication's plans in one renderer, one selection and
- * one camera. Every transition re-targets eased values, so the latest action
- * always wins; reduced motion snaps. */
+ * one camera on one Lantern stage. Every transition re-targets eased values
+ * (frame, explosion, each building's section plane, camera), so the latest
+ * action always wins; reduced motion snaps. */
 
 type Outcome = { readonly status: 'ready'; readonly model: AtlasModel } | { readonly status: 'failed'; readonly reason: AtlasReadFailure };
 interface Loaded { readonly selection: ModelOverviewSelection; readonly attempt: number; readonly outcome: Outcome }
@@ -107,6 +108,8 @@ export default function UnifiedAtlas({ port, onOpenModel }: { readonly port: Uni
 // ---------------------------------------------------------------------------
 
 const RULES: DrawRules = { visibleFloors: 'all', clipY: null };
+/** Selected tag in 3D: leader length and tag centre above the anchor, in pixels. */
+const LEADER = 34, TAG_RISE = 49;
 const OVERLAY_LABEL: Record<OverlayKind, string> = { electrical: 'Electrical', network: 'Network' };
 const OVERLAY_ICON: Record<OverlayKind, 'plug' | 'wifi'> = { electrical: 'plug', network: 'wifi' };
 const UNPLACED_LABEL: Record<UnplacedReason, string> = {
@@ -159,16 +162,29 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
     return [0, 1, 2].map(axis => (min[axis]! + max[axis]!) / 2) as unknown as readonly [number, number, number];
   }, [model]);
   const frame = useMemo(() => frameBox(model, state, presentation), [model, state, presentation]);
-  const eased = useEased({
+  const frameGoal = {
     cx: (frame.min[0] + frame.max[0]) / 2 - origin[0], cy: (frame.min[1] + frame.max[1]) / 2 - origin[1], cz: (frame.min[2] + frame.max[2]) / 2 - origin[2],
     sx: frame.max[0] - frame.min[0], sy: frame.max[1] - frame.min[1], sz: frame.max[2] - frame.min[2], explode: presentation.explodeTarget,
-  }, { reduced, tau: 170 });
+  };
+  // Opening: the model settles into its frame from slightly farther away and,
+  // when it opens exploded, its floors part. Reduced motion starts settled.
+  const eased = useEased(frameGoal, { reduced, tau: 170,
+    intro: { sx: frameGoal.sx * 1.35, sy: frameGoal.sy * 1.35, sz: frameGoal.sz * 1.35, explode: 0 } });
   const t = Math.min(1, Math.max(0, eased.explode));
   const bounds = useMemo(() => {
     const c = [eased.cx + origin[0], eased.cy + origin[1], eased.cz + origin[2]], s = [eased.sx, eased.sy, eased.sz];
     return { min: [0, 1, 2].map(axis => c[axis]! - s[axis]! / 2), max: [0, 1, 2].map(axis => c[axis]! + s[axis]! / 2) } as unknown as { min: readonly [number, number, number]; max: readonly [number, number, number] };
   }, [eased, origin]);
 
+  // One section plane per building: it sweeps to the focus floor instead of
+  // floors vanishing, and the same eased clips are drawn, picked and labelled.
+  const ceilings = useMemo(() => sectionCeilings(model), [model]);
+  const sectionGoal = useMemo(() => sectionTargets(model, presentation, ceilings), [model, presentation, ceilings]);
+  const sectionEased = useEased(Object.fromEntries(sectionGoal.map((value, at) => [`s${at}`, value])), { reduced, tau: 210 });
+  const cuts = useMemo(() => sectionGoal.map((_, at) => sectionEased[`s${at}`]!), [sectionEased, sectionGoal]);
+  const shown = useMemo(() => easePresentation(model, presentation, t, cuts, sectionGoal, ceilings), [model, presentation, t, cuts, sectionGoal, ceilings]);
+
+  const [sheetOpen, setSheetOpen] = useState(false);
   const select = (occurrenceId: string | null) => dispatch({ type: 'select', occurrenceId });
   const camera = useStageCamera({ element: viewport, top: plan, reduced, onEscape: () => select(null),
     onTap: (px, py, target) => {
@@ -181,12 +197,21 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
         const levelId = presentation.focusLevelId; if (levelId === null) return;
         const [x, z] = planPoint(projection, model.floorY.get(levelId)! + levelLift(presentation, levelId, t), px, py);
         select(planPickOccurrence(model, presentation, levelId, x, z));
-      } else select(pickOccurrence(model, presentation, t, projection, px, py));
+      } else select(pickOccurrence(model, shown, t, projection, px, py));
     } });
   const { planBlend, size } = camera;
   const projection = useMemo(() => makeProjection(camera.eased, bounds, size, planBlend), [camera.eased, bounds, size, planBlend]);
   const lifts = useMemo(() => partLifts(model, presentation, t), [model, presentation, t]);
   const showCanvas = planBlend < 1 && failure === null;
+
+  // A new scope is framed whole: zoom and pan return, the chosen orbit stays.
+  const scope = `${state.buildingId}\n${state.levelId}\n${state.view}\n${state.exploded}`;
+  const framed = useRef(scope);
+  useEffect(() => {
+    if (framed.current === scope) return;
+    framed.current = scope; camera.reframe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope]);
 
   // Plan geometry relative to the fixed origin; one translate follows the eased centre.
   const planLevelId = presentation.focusLevelId;
@@ -197,10 +222,13 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
   const planShown = planBlend > 0 && planFeatures.length > 0;
 
   const lift = (occurrenceId: string) => levelLift(presentation, occurrenceLiftLevel(model, occurrenceId), t);
+  // Anchors glide from a room's top (or its section) down to its floor as the
+  // camera tips into Plan, so labels and counts never jump between views.
+  const settle = planBlend * planBlend * (3 - 2 * planBlend);
   const anchorOf = (occurrenceId: string) => {
     const point = model.labels.get(occurrenceId); if (!point) return null;
-    const y = planBlend >= .5 ? model.floorY.get(model.occurrencesById.get(occurrenceId)!.levelId)! : labelHeight(model, presentation, occurrenceId, false);
-    const [x, sy] = projection.project(point.x, y + lift(occurrenceId), point.z);
+    const floor = model.floorY.get(model.occurrencesById.get(occurrenceId)!.levelId)!, top = labelHeight(model, shown, occurrenceId, false);
+    const [x, sy] = projection.project(point.x, top + (floor - top) * settle + lift(occurrenceId), point.z);
     return { x, y: sy, clearance: point.clearance };
   };
 
@@ -215,7 +243,7 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
     }
     return rows;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layer, presentation, projection, t, planBlend, model]);
+  }, [layer, presentation, shown, projection, t, planBlend, model]);
   const markerAt = useMemo(() => new Set(markers.map(row => row.occurrenceId)), [markers]);
   const positions = useMemo(() => {
     if (!layer) return [];
@@ -227,8 +255,11 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layer, presentation, projection, t]);
 
+  // The selected room's tag stands on a leader in 3D and folds onto its floor
+  // as the camera reaches Plan: one landmark through every view.
+  const rise = Math.min(1, Math.max(0, 1 - planBlend / .6));
   const labels = useMemo(() => {
-    const rows: { id: string; text: string; x: number; y: number; tier: 'selected' | 'context' | 'plain'; clearance: number; leader: boolean }[] = [];
+    const rows: { id: string; text: string; x: number; y: number; tier: 'selected' | 'context' | 'plain'; clearance: number; rise: number }[] = [];
     for (const occurrenceId of presentation.pickable) {
       const at = anchorOf(occurrenceId); if (!at) continue;
       const tier = occurrenceId === selected ? 'selected' : context.includes(occurrenceId) ? 'context' : 'plain';
@@ -237,21 +268,32 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
         || (presentation.focusLevelId !== null && model.occurrencesById.get(occurrenceId)!.levelId !== presentation.focusLevelId))) continue;
       const lifted = markerAt.has(occurrenceId) ? 22 : 0;
       rows.push({ id: occurrenceId, text: model.roomsById.get(model.occurrencesById.get(occurrenceId)!.roomId)!.label, x: at.x, y: at.y - lifted,
-        tier, clearance: at.clearance, leader: tier === 'selected' && planBlend < .5 });
+        tier, clearance: at.clearance, rise: tier === 'selected' ? rise : 0 });
     }
     const rank = { selected: 0, context: 1, plain: 2 } as const;
     rows.sort((a, b) => rank[a.tier] - rank[b.tier] || b.clearance - a.clearance);
     const placed: { l: number; r: number; t: number; b: number }[] = [];
     return rows.filter(row => {
       const w = Math.min(220, row.text.length * 7.2 + (row.tier === 'plain' ? 14 : 26)), h = row.tier === 'plain' ? 22 : 30;
-      const top = row.leader ? row.y - 34 - h : row.y - h / 2;
-      const box = { l: row.x - w / 2, r: row.x + w / 2, t: top, b: top + h };
+      const middle = row.y - TAG_RISE * row.rise;
+      const box = { l: row.x - w / 2, r: row.x + w / 2, t: middle - h / 2, b: middle + h / 2 };
       if (row.tier !== 'selected' && (box.l < 4 || box.r > size.width - 4 || box.t < 4 || box.b > size.height - 4
         || placed.some(o => box.l < o.r && box.r > o.l && box.t < o.b && box.b > o.t))) return false;
       placed.push(box); return true;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [presentation, projection, t, planBlend, selected, context, markerAt, model, size]);
+  }, [presentation, shown, projection, t, planBlend, selected, context, markerAt, model, size]);
+
+  // The moving section, drawn only while it travels and fading as it lands.
+  const planes = useMemo(() => planBlend >= .5 ? [] : model.floorBuildings.flatMap((row, at) => {
+    const cut = cuts[at]!, away = Math.abs(cut - sectionGoal[at]!);
+    if (away < .02 || cut >= ceilings[at]! - 1e-3) return [];
+    const level = [...model.levelsByBuilding.get(row.buildingId) ?? []].reverse().find(item => model.floorY.get(item.levelId)! <= cut) ?? null;
+    const y = cut + levelLift(presentation, level?.levelId ?? null, t), b = row.bounds, m = .3;
+    const points = ([[b.min[0] - m, b.min[2] - m], [b.max[0] + m, b.min[2] - m], [b.max[0] + m, b.max[2] + m], [b.min[0] - m, b.max[2] + m]] as const)
+      .map(([x, z]) => projection.project(x, y, z)).map(([x, py]) => `${x.toFixed(1)},${py.toFixed(1)}`).join(' ');
+    return [{ key: row.buildingId, points, opacity: Math.min(1, away / .8) * (1 - planBlend * 2) }];
+  }), [planBlend, model, cuts, sectionGoal, ceilings, presentation, t, projection]);
 
   // Only buildings with floors are navigable; context-only groups stay drawn around them.
   const buildings = model.floorBuildings;
@@ -265,14 +307,19 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
   const selectionLevel = selected ? model.occurrencesById.get(selected)!.levelId : null;
   const contextLevels = new Set(context.map(key => model.occurrencesById.get(key)!.levelId));
 
-  return <section className={`ua-shell${plan ? ' is-plan' : ''}`} aria-label="Atlas">
-    <header className="ua-head">
-      {model.scene.buildings.length > 1 && buildings.length > 0 && <nav className="ua-buildings" aria-label="Buildings">
-        <button type="button" className="chip-btn" aria-pressed={state.buildingId === null} disabled={plan}
-          onClick={() => dispatch({ type: 'building', buildingId: null })}><Icon name="atlas" size={15} />All buildings</button>
-        {buildings.map(row => <button key={row.buildingId} type="button" className="chip-btn" aria-pressed={state.buildingId === row.buildingId}
-          onClick={() => dispatch({ type: 'building', buildingId: row.buildingId })}><Icon name="building" size={15} />{row.label}</button>)}
-      </nav>}
+  return <section className={`ua-shell is-stage${plan ? ' is-plan' : ''}`} aria-label="Atlas">
+    <div className="ua-stage">
+      <div className="ua-scope">
+        {model.scene.buildings.length > 1 && buildings.length > 0 && <nav className="ua-buildings" aria-label="Buildings">
+          <button type="button" className="chip-btn" aria-pressed={state.buildingId === null} disabled={plan}
+            onClick={() => dispatch({ type: 'building', buildingId: null })}><Icon name="atlas" size={15} />All buildings</button>
+          {buildings.map(row => <button key={row.buildingId} type="button" className="chip-btn" aria-pressed={state.buildingId === row.buildingId}
+            onClick={() => dispatch({ type: 'building', buildingId: row.buildingId })}><Icon name="building" size={15} />{row.label}</button>)}
+        </nav>}
+        <DatumLadder model={model} levels={ladderLevels} building={building} state={state} plan={plan} dispatch={dispatch}
+          selectionLevel={selectionLevel} contextLevels={contextLevels} />
+      </div>
+
       <div className="ua-tools">
         <div className="seg" role="group" aria-label="Atlas view">
           <button type="button" aria-pressed={!plan} onClick={() => dispatch({ type: 'view', view: '3d' })}>3D</button>
@@ -280,22 +327,17 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
         </div>
         {canExplode && <button type="button" className="ctrl-btn ctrl-wide" aria-pressed={state.exploded}
           onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}>
-          <Icon name="explode" size={17} /><span>{state.exploded ? 'Exploded' : 'Stacked'}</span></button>}
+          <Icon name="explode" size={17} /><span>Exploded</span></button>}
         <div className="ctrl-group" role="group" aria-label="Camera">
           {!plan && <>
-            <button type="button" className="ctrl-btn" aria-label="Turn left" onClick={() => camera.turn(-45)}><Icon name="rotl" size={17} /></button>
-            <button type="button" className="ctrl-btn" aria-label="Turn right" onClick={() => camera.turn(45)}><Icon name="rotr" size={17} /></button>
+            <button type="button" className="ctrl-btn ua-turn" aria-label="Turn left" onClick={() => camera.turn(-45)}><Icon name="rotl" size={17} /></button>
+            <button type="button" className="ctrl-btn ua-turn" aria-label="Turn right" onClick={() => camera.turn(45)}><Icon name="rotr" size={17} /></button>
           </>}
           <button type="button" className="ctrl-btn" aria-label="Zoom in" disabled={camera.zoom >= camera.zoomLimits.max} onClick={() => camera.zoomBy(1.3)}><Icon name="plus" size={17} /></button>
           <button type="button" className="ctrl-btn" aria-label="Zoom out" disabled={camera.zoom <= camera.zoomLimits.min} onClick={() => camera.zoomBy(1 / 1.3)}><Icon name="minus" size={17} /></button>
           <button type="button" className="ctrl-btn" aria-label="Fit view" title="Fit view" onClick={camera.fit}><Icon name="fit" size={17} /></button>
         </div>
       </div>
-    </header>
-
-    <div className="ua-body">
-      <DatumLadder model={model} levels={ladderLevels} building={building} state={state} plan={plan} dispatch={dispatch}
-        selectionLevel={selectionLevel} contextLevels={contextLevels} />
 
       <div ref={viewport} className={`cifc-viewport ua-viewport${camera.dragging ? ' is-dragging' : ''}`} tabIndex={0} role="group"
         aria-label={`${plan ? 'Plan' : '3D'} of ${scopeLabel}. Arrow keys ${plan ? 'pan' : 'turn'}, plus and minus zoom, Escape clears the room.`}
@@ -303,11 +345,13 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
         <div className="cifc-canvas-wrap" style={{ opacity: 1 - planBlend }}>
           <MeshLayer meshes={model.meshes} projection={projection} rules={RULES} currentFloorId={presentation.focusLevelId}
             selectedOccurrenceId={selected} contextOccurrenceIds={context} tints={tints} hidden={!showCanvas}
-            hiddenKeys={presentation.hidden} lifts={lifts} clips={presentation.clips} dims={presentation.dims}
+            hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims}
             onUnavailable={message => setFailure(message)} />
         </div>
         <svg className="cifc-svg" width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`} aria-hidden="true">
-          {planShown && <g className="ua-plan" style={{ opacity: planBlend }} transform={planTransform}>
+          {planes.map(row => <polygon key={row.key} className="ua-section" points={row.points} style={{ opacity: row.opacity }} />)}
+          {/* Keyed by floor: a new floor's plan fades in over the eased camera. */}
+          {planShown && <g key={planLevelId} className="ua-plan" style={{ opacity: planBlend }} transform={planTransform}>
             {planFeatures.map((feature, at) => {
               if (feature.role !== 'room') return null;
               const key = feature.spaceOccurrenceId;
@@ -325,8 +369,10 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
           </g>}
           <g className="cifc-labels">
             {labels.map(label => <g key={label.id} className={`cifc-label is-${label.tier}`} transform={`translate(${label.x.toFixed(1)} ${label.y.toFixed(1)})`}>
-              {label.leader && <><line x1={0} y1={0} x2={0} y2={-34} /><circle r={3.5} /></>}
-              <g transform={label.leader ? 'translate(0 -49)' : undefined}>
+              {/* Mounted once per selection: one ring answers the choice. */}
+              {label.tier === 'selected' && <circle className="ua-ripple" r={18} />}
+              {label.rise > .02 && <><line x1={0} y1={0} x2={0} y2={(-LEADER * label.rise).toFixed(1)} /><circle r={3.5} /></>}
+              <g transform={label.rise > 0 ? `translate(0 ${(-TAG_RISE * label.rise).toFixed(1)})` : undefined}>
                 <text className="cifc-label-halo" textAnchor="middle" dy="0.35em">{label.text}</text>
                 <text textAnchor="middle" dy="0.35em">{label.text}</text>
               </g>
@@ -334,10 +380,10 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
           </g>
         </svg>
         {labels.filter(label => {
-          const half = Math.max(44, Math.min(320, label.text.length * 7 + 12)) / 2, y = label.y - (label.leader ? 49 : 0);
+          const half = Math.max(44, Math.min(320, label.text.length * 7 + 12)) / 2, y = label.y - TAG_RISE * label.rise;
           return label.x >= half && label.x + half <= size.width && y >= 16 && y + 16 <= size.height;
         }).map(label => <button key={label.id} type="button" className="ua-label-hit" data-atlas-occurrence={label.id}
-          style={{ left: label.x, top: label.y - (label.leader ? 49 : 0), width: Math.max(44, Math.min(320, label.text.length * 7 + 12)) }}
+          style={{ left: label.x, top: label.y - TAG_RISE * label.rise, width: Math.max(44, Math.min(320, label.text.length * 7 + 12)) }}
           aria-label={`Select room: ${label.text}`} onClick={event => { if (event.detail === 0) select(label.id); }} />)}
         {layer && markers.map(row => <button key={row.key} type="button" className="ua-marker"
           style={{ left: row.x, top: row.y, '--layer': badgeFill(layer.kind) } as CSSProperties}
@@ -348,28 +394,29 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
           {focusLevel ? `No plan for ${floorLabel(focusLevel.label)} in this model.` : 'This model has no floors to show as a plan.'}</p>}
       </div>
 
-      <Inspector model={model} state={state} dispatch={dispatch} context={context} renderFailure={failure}
-        runtime={runtime.records} runtimeReason={runtime.reason} runtimeConfigured={Boolean(port.createOverlays)}
-        openDocuments={() => appDispatch({ type: 'view', view: 'library' })}
-        openNetwork={() => appDispatch({ type: 'view', view: 'network' })} />
+      <div className="ua-bottom">
+        {layer && <OverlayKey layer={layer} sourceScope={port.createOverlays && runtimeBuildingId ? model.buildingsById.get(runtimeBuildingId)!.label : null}
+          publishedOnly={!port.createOverlays} unplaced={runtime.records?.unplaced[layer.kind] ?? []} openDocuments={() => appDispatch({ type: 'view', view: 'library' })} availability={runtime.records?.[layer.kind] ?? (!port.createOverlays ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
+          openNetwork={() => appDispatch({ type: 'view', view: 'network' })} />}
+        <div className="layer-bar" role="group" aria-label="Overlay">
+          <button type="button" className="layer-chip" aria-pressed={state.overlay === null} style={{ '--layer': '#8C6A3C' } as CSSProperties}
+            onClick={() => dispatch({ type: 'overlay', overlay: null })}><span className="layer-swatch" aria-hidden="true" />Rooms</button>
+          {(['electrical', 'network'] as const).map(kind => {
+            const index = overlays.get(kind)!;
+            return <button key={kind} type="button" className="layer-chip" aria-pressed={state.overlay === kind}
+              style={{ '--layer': TONE_COLOR[kind] } as CSSProperties} onClick={() => dispatch({ type: 'overlay', overlay: kind })}>
+              <span className="layer-swatch" aria-hidden="true" />{OVERLAY_LABEL[kind]}
+              {state.overlay === kind && index.records === 0 && <span className="ua-chip-note">{!port.createOverlays || runtime.records?.[kind] === 'available' ? '0' : runtime.reason === 'loading' ? 'loading' : runtime.records?.[kind] === 'partial' ? 'partial' : 'unavailable'}</span>}</button>;
+          })}
+        </div>
+      </div>
     </div>
 
-    <footer className="ua-foot">
-      <div className="layer-bar" role="group" aria-label="Overlay">
-        <button type="button" className="layer-chip" aria-pressed={state.overlay === null} style={{ '--layer': '#8C6A3C' } as CSSProperties}
-          onClick={() => dispatch({ type: 'overlay', overlay: null })}><span className="layer-swatch" aria-hidden="true" />Rooms</button>
-        {(['electrical', 'network'] as const).map(kind => {
-          const index = overlays.get(kind)!;
-          return <button key={kind} type="button" className="layer-chip" aria-pressed={state.overlay === kind}
-            style={{ '--layer': TONE_COLOR[kind] } as CSSProperties} onClick={() => dispatch({ type: 'overlay', overlay: kind })}>
-            <span className="layer-swatch" aria-hidden="true" />{OVERLAY_LABEL[kind]}
-            {state.overlay === kind && index.records === 0 && <span className="ua-chip-note">{!port.createOverlays || runtime.records?.[kind] === 'available' ? '0' : runtime.reason === 'loading' ? 'loading' : runtime.records?.[kind] === 'partial' ? 'partial' : 'unavailable'}</span>}</button>;
-        })}
-      </div>
-      {layer && <OverlayKey layer={layer} sourceScope={port.createOverlays && runtimeBuildingId ? model.buildingsById.get(runtimeBuildingId)!.label : null}
-        publishedOnly={!port.createOverlays} unplaced={runtime.records?.unplaced[layer.kind] ?? []} openDocuments={() => appDispatch({ type: 'view', view: 'library' })} availability={runtime.records?.[layer.kind] ?? (!port.createOverlays ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
-        openNetwork={() => appDispatch({ type: 'view', view: 'network' })} />}
-    </footer>
+    <Inspector model={model} state={state} dispatch={dispatch} context={context} renderFailure={failure}
+      runtime={runtime.records} runtimeReason={runtime.reason} runtimeConfigured={Boolean(port.createOverlays)}
+      open={sheetOpen} setOpen={setSheetOpen}
+      openDocuments={() => appDispatch({ type: 'view', view: 'library' })}
+      openNetwork={() => appDispatch({ type: 'view', view: 'network' })} />
   </section>;
 }
 
@@ -378,8 +425,8 @@ const stop = (event: ReactPointerEvent) => event.stopPropagation();
 // ---------------------------------------------------------------------------
 
 /** Floors at their actual scene heights: spacing follows the lowest room
- * floor of each level, with a minimum touch gap; numerals are shown only when
- * the source records an elevation. */
+ * floor of each level, with a minimum touch gap. Each rung names its floor,
+ * its selectable rooms and whether it has a plan. */
 function DatumLadder({ model, levels, building, state, plan, dispatch, selectionLevel, contextLevels }: {
   readonly model: AtlasModel; readonly levels: readonly AtlasLevel[]; readonly building: { readonly label: string } | null;
   readonly state: AtlasViewState; readonly plan: boolean; readonly dispatch: (action: AtlasAction) => void;
@@ -388,7 +435,7 @@ function DatumLadder({ model, levels, building, state, plan, dispatch, selection
   const top = [...levels].reverse();
   const gaps = top.map((level, at) => {
     const below = top[at + 1]; if (!below) return 0;
-    return Math.max(44, (model.floorY.get(level.levelId)! - model.floorY.get(below.levelId)!) * 18);
+    return Math.max(50, (model.floorY.get(level.levelId)! - model.floorY.get(below.levelId)!) * 22);
   });
   const whole = state.levelId === null && !plan;
   return <nav className="ua-ladder" aria-label={building ? `Floors of ${building.label}` : 'Floors'}>
@@ -410,6 +457,7 @@ function DatumLadder({ model, levels, building, state, plan, dispatch, selection
             onClick={() => dispatch({ type: 'level', levelId: level.levelId })}>
             <span className="ua-rung-tick" aria-hidden="true" />
             <span className="ua-rung-name">{floorLabel(level.label)}</span>
+            <span className="ua-rung-sub">{plural(rooms, 'room')}{hasPlan ? '' : ', no plan'}</span>
             {(holds || also) && <span className={`ua-rung-mark${also ? ' is-context' : ''}`} aria-hidden="true" />}
           </button>
         </li>;
@@ -420,13 +468,24 @@ function DatumLadder({ model, levels, building, state, plan, dispatch, selection
 
 // ---------------------------------------------------------------------------
 
-function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, renderFailure, runtime, runtimeReason, runtimeConfigured }: {
+/** Floors listed for the current scope, highest first. */
+function listedLevels(model: AtlasModel, state: AtlasViewState): readonly AtlasLevel[] {
+  return state.levelId !== null ? [model.levelsById.get(state.levelId)!]
+    : model.scene.buildings.filter(row => state.buildingId === null || row.buildingId === state.buildingId)
+      .flatMap(row => [...model.levelsByBuilding.get(row.buildingId)!].reverse());
+}
+
+/** Beside the stage when there is room; otherwise a sheet over the stage's
+ * lower edge whose head (rooms or the selected room) stays in view. */
+function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen }: {
   readonly model: AtlasModel; readonly state: AtlasViewState; readonly dispatch: (action: AtlasAction) => void;
   readonly context: readonly string[]; readonly openNetwork: () => void;
   readonly renderFailure: string | null;
   readonly runtime: RuntimeRecords | null; readonly runtimeReason: string; readonly runtimeConfigured: boolean;
   readonly openDocuments: () => void;
+  readonly open: boolean; readonly setOpen: (open: boolean) => void;
 }) {
+  const bodyId = useId();
   const occurrence = state.occurrenceId === null ? null : model.occurrencesById.get(state.occurrenceId)!;
   // A choice made inside the panel replaces its content, so focus follows to the new heading.
   const heading = useRef<HTMLHeadingElement>(null);
@@ -440,11 +499,28 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
     const level = model.levelsById.get(levelId)!;
     return model.floorBuildings.length > 1 ? `${floorLabel(level.label)}, ${model.buildingsById.get(level.buildingId)!.label}` : floorLabel(level.label);
   };
+  // Shown only while the panel is a sheet.
+  const toggle = (noun: string) => <button type="button" className="ua-sheet-toggle" aria-expanded={open} aria-controls={bodyId}
+    onClick={() => setOpen(!open)}><Icon name="chevronDown" size={18} /><span>{open ? `Hide ${noun}` : `Show ${noun}`}</span></button>;
 
-  if (!occurrence) return <aside className="ua-inspector" aria-label="Rooms">
-    <RoomList model={model} state={state} choose={choose} levelName={levelName} heading={heading} />
-    <SourceDetails model={model} renderFailure={renderFailure} overlayReason={runtimeReason} runtimeSource={runtime?.sourceFacts ?? []} />
-  </aside>;
+  if (!occurrence) {
+    const levels = listedLevels(model, state);
+    const count = levels.reduce((sum, level) => sum + level.occurrenceIds.filter(key => model.selectable.has(key)).length, 0);
+    return <aside className={`ua-inspector${open ? ' is-open' : ''}`} aria-label="Rooms">
+      <div className="ua-sheet-head">
+        <div className="ua-sheet-title">
+          <h2 ref={heading} tabIndex={-1}>Rooms</h2>
+          <p className="ua-sheet-sub">{plural(count, 'room')}{levels.length === 1 ? `, ${levelName(levels[0]!.levelId)}` : ` on ${plural(levels.length, 'floor')}`}</p>
+        </div>
+        {toggle('rooms')}
+      </div>
+      <div className="ua-sheet-body" id={bodyId}>
+        {/* Choosing from the list hands the stage back to the model. */}
+        <RoomList model={model} levels={levels} choose={key => { setOpen(false); choose(key); }} levelName={levelName} />
+        <SourceDetails model={model} renderFailure={renderFailure} overlayReason={runtimeReason} runtimeSource={runtime?.sourceFacts ?? []} />
+      </div>
+    </aside>;
+  }
 
   const room = model.roomsById.get(occurrence.roomId)!;
   const basis = occurrence.geometryBasis;
@@ -452,46 +528,52 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
     const index = model.overlays.get(kind)!;
     return { kind, placement: index.placed.get(room.roomId) ?? null, unplaced: index.unplaced.filter(row => row.binding.roomId === room.roomId) };
   }).filter(row => !runtimeConfigured && (row.placement || row.unplaced.length > 0));
-  return <aside className="ua-inspector is-room" aria-label="Selected room">
-    <div className="ua-room-head">
-      <h2 ref={heading} tabIndex={-1}>{room.label}</h2>
+  return <aside className={`ua-inspector is-room${open ? ' is-open' : ''}`} aria-label="Selected room">
+    <div className="ua-sheet-head">
+      <div className="ua-sheet-title">
+        <h2 ref={heading} tabIndex={-1}>{room.label}</h2>
+        <p className="ua-room-floor">{levelName(occurrence.levelId)}</p>
+      </div>
+      {toggle('details')}
       <button type="button" className="ctrl-btn" aria-label="Clear room" onClick={() => choose(null)}><Icon name="close" size={17} /></button>
     </div>
-    <p className="ua-room-floor">{levelName(occurrence.levelId)}</p>
-    {context.length > 0 && <div className="ua-also" role="group" aria-label="Also on">
-      <span>Also on</span>
-      {context.map(key => <button key={key} type="button" className="chip-btn" onClick={() => choose(key)}>
-        {levelName(model.occurrencesById.get(key)!.levelId)}</button>)}
-    </div>}
+    {/* Keyed by room part: the new room's facts settle in. */}
+    <div className="ua-sheet-body" id={bodyId} key={occurrence.spaceOccurrenceId}>
+      {context.length > 0 && <div className="ua-also" role="group" aria-label="Also on">
+        <span>Also on</span>
+        {context.map(key => <button key={key} type="button" className="chip-btn" onClick={() => choose(key)}>
+          {levelName(model.occurrencesById.get(key)!.levelId)}</button>)}
+      </div>}
 
-    <dl className="ua-facts">
-      <div><dt>Layout</dt><dd>{basis.kind === 'owner-estimated-pick-proxy' ? 'Estimated layout' : 'From the model'}</dd></div>
-      <div><dt>Home place</dt><dd className={`ua-link is-${room.nativeBinding.status}`}>{runtime?.rooms.has(room.roomId) ? 'Linked for these sources' : room.nativeBinding.status === 'historical' ? 'Link needs review' : LINK_LABEL[room.nativeBinding.status]}</dd></div>
-    </dl>
+      <dl className="ua-facts">
+        <div><dt>Layout</dt><dd>{basis.kind === 'owner-estimated-pick-proxy' ? 'Estimated layout' : 'From the model'}</dd></div>
+        <div><dt>Home place</dt><dd className={`ua-link is-${room.nativeBinding.status}`}>{runtime?.rooms.has(room.roomId) ? 'Linked for these sources' : room.nativeBinding.status === 'historical' ? 'Link needs review' : LINK_LABEL[room.nativeBinding.status]}</dd></div>
+      </dl>
 
-    {state.overlay && runtime && <section className="ua-records" aria-label={`${OVERLAY_LABEL[state.overlay]} in this room`}>
-      <h3>{OVERLAY_LABEL[state.overlay]}</h3>
-      {!runtime.rooms.has(room.roomId) ? <p>Room source link unavailable.</p>
-        : runtime[state.overlay] === 'unavailable' ? <p>Source unavailable.</p>
-        : <DocumentaryRecords records={runtime.rooms.get(room.roomId)![state.overlay]} openDocuments={openDocuments} />}
-      {runtime[state.overlay] === 'partial' && <p>Some electrical sources are unavailable.</p>}
-    </section>}
+      {state.overlay && runtime && <section className="ua-records" aria-label={`${OVERLAY_LABEL[state.overlay]} in this room`}>
+        <h3>{OVERLAY_LABEL[state.overlay]}</h3>
+        {!runtime.rooms.has(room.roomId) ? <p>Room source link unavailable.</p>
+          : runtime[state.overlay] === 'unavailable' ? <p>Source unavailable.</p>
+          : <DocumentaryRecords records={runtime.rooms.get(room.roomId)![state.overlay]} openDocuments={openDocuments} />}
+        {runtime[state.overlay] === 'partial' && <p>Some electrical sources are unavailable.</p>}
+      </section>}
 
-    {overlays.length > 0 && <section className="ua-records" aria-label="Records in this room">
-      {overlays.map(({ kind, placement, unplaced }) => <div key={kind} className="ua-record" style={{ '--layer': TONE_COLOR[kind] } as CSSProperties}>
-        <h3><Icon name={OVERLAY_ICON[kind]} size={16} />{OVERLAY_LABEL[kind]}</h3>
-        {placement && <>
-          <p>{plural(placement.recordIds.length, 'record')}{placement.positions.length > 0 ? `, ${placement.positions.length} with a source position` : ''}</p>
-          <SourceDates bindings={placement.bindings} />
-          <details className="ua-refs"><summary>Record references</summary>
-            <ul>{placement.recordIds.map(record => <li key={record}>{record}</li>)}</ul></details>
-        </>}
-        {unplaced.length > 0 && <p className="ua-unplaced">
-          {plural(new Set(unplaced.flatMap(row => row.binding.recordIds)).size, 'record')} not placed: {[...new Set(unplaced.map(row => UNPLACED_LABEL[row.reason]))].join('; ')}.</p>}
-        {kind === 'network' && <button type="button" className="text-btn" onClick={openNetwork}>Open Network</button>}
-      </div>)}
-    </section>}
-    <SourceDetails model={model} occurrence={occurrence} room={room} renderFailure={renderFailure} overlayReason={runtimeReason} runtimeSource={runtime?.sourceFacts ?? []} />
+      {overlays.length > 0 && <section className="ua-records" aria-label="Records in this room">
+        {overlays.map(({ kind, placement, unplaced }) => <div key={kind} className="ua-record" style={{ '--layer': TONE_COLOR[kind] } as CSSProperties}>
+          <h3><Icon name={OVERLAY_ICON[kind]} size={16} />{OVERLAY_LABEL[kind]}</h3>
+          {placement && <>
+            <p>{plural(placement.recordIds.length, 'record')}{placement.positions.length > 0 ? `, ${placement.positions.length} with a source position` : ''}</p>
+            <SourceDates bindings={placement.bindings} />
+            <details className="ua-refs"><summary>Record references</summary>
+              <ul>{placement.recordIds.map(record => <li key={record}>{record}</li>)}</ul></details>
+          </>}
+          {unplaced.length > 0 && <p className="ua-unplaced">
+            {plural(new Set(unplaced.flatMap(row => row.binding.recordIds)).size, 'record')} not placed: {[...new Set(unplaced.map(row => UNPLACED_LABEL[row.reason]))].join('; ')}.</p>}
+          {kind === 'network' && <button type="button" className="text-btn" onClick={openNetwork}>Open Network</button>}
+        </div>)}
+      </section>}
+      <SourceDetails model={model} occurrence={occurrence} room={room} renderFailure={renderFailure} overlayReason={runtimeReason} runtimeSource={runtime?.sourceFacts ?? []} />
+    </div>
   </aside>;
 }
 
@@ -520,16 +602,12 @@ function SourceDates({ bindings }: { readonly bindings: readonly AtlasOverlayBin
   </ul>;
 }
 
-function RoomList({ model, state, choose, levelName, heading }: {
-  readonly model: AtlasModel; readonly state: AtlasViewState; readonly choose: (occurrenceId: string) => void;
-  readonly levelName: (levelId: string) => string; readonly heading: RefObject<HTMLHeadingElement | null>;
+function RoomList({ model, levels, choose, levelName }: {
+  readonly model: AtlasModel; readonly levels: readonly AtlasLevel[]; readonly choose: (occurrenceId: string) => void;
+  readonly levelName: (levelId: string) => string;
 }) {
-  const levels = state.levelId !== null ? [model.levelsById.get(state.levelId)!]
-    : model.scene.buildings.filter(row => state.buildingId === null || row.buildingId === state.buildingId)
-      .flatMap(row => [...model.levelsByBuilding.get(row.buildingId)!].reverse());
   const coverage = model.scene.coverage;
   return <div className="ua-rooms">
-    <h2 ref={heading} tabIndex={-1}>Rooms</h2>
     {levels.map(level => {
       const keys = level.occurrenceIds.filter(key => model.selectable.has(key));
       return <section key={level.levelId} aria-label={levelName(level.levelId)}>
@@ -584,17 +662,27 @@ function OverlayKey({ layer, openNetwork, availability, unplaced, openDocuments,
 }) {
   const reasons = new Map<UnplacedReason, number>();
   for (const row of layer.unplaced) reasons.set(row.reason, (reasons.get(row.reason) ?? 0) + row.binding.recordIds.length);
-  return <div className="ua-key" style={{ '--layer': TONE_COLOR[layer.kind] } as CSSProperties}>
-    {sourceScope && <span>{sourceScope} source records only</span>}
-    <p>{availability === 'loading' ? 'Loading room sources…' : availability === 'unavailable' ? 'Current room sources are unavailable.'
-      : availability === 'partial' ? 'Some electrical sources are unavailable.'
-      : publishedOnly && layer.records === 0 ? 'No source references in this publication.'
-      : layer.records === 0 ? 'No linked records in the available source.' : 'Counts show source records per room, not device positions.'}</p>
-    {layer.unplacedRecords > 0 && <details>
-      <summary>{plural(layer.unplacedRecords, 'record')} not placed</summary>
-      {unplaced.length > 0 ? <DocumentaryRecords records={unplaced} openDocuments={openDocuments} />
-        : <ul>{[...reasons].map(([reason, count]) => <li key={reason}>{plural(count, 'record')}: {UNPLACED_LABEL[reason]}</li>)}</ul>}
-    </details>}
-    {layer.kind === 'network' && <button type="button" className="text-btn" onClick={openNetwork}>Open Network</button>}
-  </div>;
+  const [closed, setClosed] = useState(false);
+  const bodyId = useId();
+  return <section className={`ua-key${closed ? ' is-closed' : ''}`} aria-label={`${OVERLAY_LABEL[layer.kind]} overlay`} style={{ '--layer': TONE_COLOR[layer.kind] } as CSSProperties}>
+    <button type="button" className="ua-key-head" aria-expanded={!closed} aria-controls={bodyId} onClick={() => setClosed(value => !value)}>
+      <Icon name={OVERLAY_ICON[layer.kind]} size={17} /><span>{OVERLAY_LABEL[layer.kind]}</span>
+      {/* A count only where the source answered; unavailable is not zero. */}
+      {(availability === 'available' || availability === 'partial') && <span className="ua-key-count">{plural(layer.records, 'record')}</span>}
+      <Icon name="chevronDown" size={16} />
+    </button>
+    <div className="ua-key-body" id={bodyId} hidden={closed}>
+      {sourceScope && <p className="ua-key-scope">{sourceScope} source records only</p>}
+      <p>{availability === 'loading' ? 'Loading room sources…' : availability === 'unavailable' ? 'Current room sources are unavailable.'
+        : availability === 'partial' ? 'Some electrical sources are unavailable.'
+        : publishedOnly && layer.records === 0 ? 'No source references in this publication.'
+        : layer.records === 0 ? 'No linked records in the available source.' : 'Counts show source records per room, not device positions.'}</p>
+      {layer.unplacedRecords > 0 && <details>
+        <summary>{plural(layer.unplacedRecords, 'record')} not placed</summary>
+        {unplaced.length > 0 ? <DocumentaryRecords records={unplaced} openDocuments={openDocuments} />
+          : <ul>{[...reasons].map(([reason, count]) => <li key={reason}>{plural(count, 'record')}: {UNPLACED_LABEL[reason]}</li>)}</ul>}
+      </details>}
+      {layer.kind === 'network' && <button type="button" className="text-btn" onClick={openNetwork}>Open Network</button>}
+    </div>
+  </section>;
 }
