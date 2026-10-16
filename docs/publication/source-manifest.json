@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "ad3ac33aa78b9d3966e222db3e76b605104d599aad476f4ff048cc712c14799f",
+  "sourceDigestSha256": "a043b2c22f1eaf92335c9b9deb53205e2ce2fd038438c82acc94e43695f0f1e2",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -281,8 +281,8 @@
       "path": "backend/examples/healthy-native-full-geodata-profile.rs",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 47142,
-      "sha256": "3ae0a87428c5ea4276f409d8e44f64bff94798005edf71e0528092dcf6fcb787"
+      "bytes": 48467,
+      "sha256": "5c6babed0f67a33d16003a154f7d44e342b62ac52ad310653ef4049abdf5f3a5"
     },
     {
       "path": "backend/examples/healthy-native-geodata-documents.rs",
@@ -2185,8 +2185,8 @@
       "path": "backend/src/http/mod.rs",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 47829,
-      "sha256": "7ddc843d46f5407bb60175fe993738aa3bf919306194946d0c47f1f582b0ac9d"
+      "bytes": 48945,
+      "sha256": "f2713a19c6950f45c104d38af9d9808f6ae8e079dc577b2bd837ce055a1b5b64"
     },
     {
       "path": "backend/src/http/mutations.rs",
@@ -4920,17 +4920,17 @@
     },
     {
       "path": "backend/src/storage/repository.rs",
+      "owner": "storage",
       "mode": "100644",
       "bytes": 13058,
-      "sha256": "4ac1de2059ea773beaa284ef089084410f1193381763cea91934b6b17d98546c",
-      "owner": "storage"
+      "sha256": "4ac1de2059ea773beaa284ef089084410f1193381763cea91934b6b17d98546c"
     },
     {
       "path": "backend/src/storage/snapshot_tests.rs",
+      "owner": "storage",
       "mode": "100644",
       "bytes": 11756,
-      "sha256": "5176b000f63954aaad2071a55952615c624e2ddf0c5eb5e9cbbb8acae8773e1b",
-      "owner": "storage"
+      "sha256": "5176b000f63954aaad2071a55952615c624e2ddf0c5eb5e9cbbb8acae8773e1b"
     },
     {
       "path": "backend/src/storage/stock.rs",
@@ -5123,10 +5123,10 @@
     },
     {
       "path": "backend/src/storage/store.rs",
+      "owner": "storage",
       "mode": "100644",
       "bytes": 22675,
-      "sha256": "68e4e1ef3b13250ec3cb83de7a6f3da99d7c4ca4bdf4182e0e36590fe5da8f87",
-      "owner": "storage"
+      "sha256": "68e4e1ef3b13250ec3cb83de7a6f3da99d7c4ca4bdf4182e0e36590fe5da8f87"
     },
     {
       "path": "backend/src/storage/types.rs",
@@ -5804,8 +5804,8 @@
       "path": "docs/contributing/verification.md",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 66913,
-      "sha256": "e76ee446590ca3dfa64d4d61df2f42034db7b0d3d43d5d5ff9d81870c295e30f"
+      "bytes": 70210,
+      "sha256": "a303e5eaa8af0128ab6207dad3a7b7b97a9a310ccb1de0c6c1ae1453bf68a621"
     },
     {
       "path": "docs/coordination/agent-write-amendment-proposal.md",
@@ -5930,8 +5930,8 @@
       "path": "docs/geodata/full-document-server-selection.md",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 8988,
-      "sha256": "82a74724c2fec5b1e7531be329faf0570afa3ee90e22ab4bd734b3920eb122e6"
+      "bytes": 9254,
+      "sha256": "f07c26190f7c5c01335d949ee2fba28c94ab6867eb9410eff3de466c84e02e52"
     },
     {
       "path": "docs/geodata/native-document-persistence-v2.md",
@@ -5967,6 +5967,13 @@
       "mode": "100644",
       "bytes": 4914,
       "sha256": "24ae74b6ad69aafa53e466527f3eedc367bea42095901b03195baf30b6191a22"
+    },
+    {
+      "path": "docs/geodata/source-documents-service-availability.md",
+      "owner": "core-integration",
+      "mode": "100644",
+      "bytes": 2768,
+      "sha256": "0f7d9ecdaf06fd7f3cc3df31cd175745df08e65e3183d811ff841be3b696dc0d"
     },
     {
       "path": "docs/geometry/assistant-native-place-intake.md",
@@ -6154,8 +6161,8 @@
       "path": "docs/operations/media-and-offline.md",
       "owner": "operations-policy",
       "mode": "100644",
-      "bytes": 7256,
-      "sha256": "cf1222e3de213a45fd378c415cadc78f686ae020d75afdd8550123c4b60a2896"
+      "bytes": 8090,
+      "sha256": "e966b64c106a6c4363ed0d22a857328ac15e4e1de03e6f1a0015810ae5621690"
     },
     {
       "path": "docs/operations/native-evidence-request-inspection.md",
@@ -6672,8 +6679,8 @@
       "path": "frontend/integration/main.tsx",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 33923,
-      "sha256": "b989ef7b12e281804d9fe983a08d2104f86128ccd3780960f9e1b226f49f3ace"
+      "bytes": 35006,
+      "sha256": "ec67d9fbf33f876f281f66048e741f39abd80f5b788e454fd24677837f06c458"
     },
     {
       "path": "frontend/integration/native-document-read-client.ts",
@@ -6700,8 +6707,15 @@
       "path": "frontend/integration/native-geometry-read-client.ts",
       "owner": "web",
       "mode": "100644",
-      "bytes": 24205,
-      "sha256": "c31d199326890928a8d36b8de8cd970a22feafa465a584adabaee7bb36b1a6ce"
+      "bytes": 33022,
+      "sha256": "fa077b94553373b9adaa0369f76aed50142aad492a62e978cfe65dd68c047784"
+    },
+    {
+      "path": "frontend/integration/native-geometry-scan-cache.ts",
+      "owner": "web",
+      "mode": "100644",
+      "bytes": 13102,
+      "sha256": "03e9eec52454b70cd9b507fd32e6ba0d11f4adc94e065e94f70d390c439f340e"
     },
     {
       "path": "frontend/integration/native-geometry-write-client.ts",
@@ -7005,6 +7019,41 @@
       "sha256": "9c192d208674ce4068ee61b25f41f85533d676653f222ecab7b1e4b0c8f1f757"
     },
     {
+      "path": "frontend/lantern-tests/native-geometry-persistence-budget.mjs",
+      "owner": "web",
+      "mode": "100644",
+      "bytes": 1975,
+      "sha256": "06c9152b2cea6d0cc38af913d777fcd1143437bf2d42503c2b6a087971681c27"
+    },
+    {
+      "path": "frontend/lantern-tests/native-geometry-persistence-clear.mjs",
+      "owner": "web",
+      "mode": "100644",
+      "bytes": 4909,
+      "sha256": "e789bebde361d9761eecc65b445bf602380df19c12576e5bbb8abddbc0e653e1"
+    },
+    {
+      "path": "frontend/lantern-tests/native-geometry-persistence-harness.mjs",
+      "owner": "web",
+      "mode": "100644",
+      "bytes": 9289,
+      "sha256": "4eaa95cc58f826a19a7627477d27203ec0a38da3d1802f861452b9580cceaef3"
+    },
+    {
+      "path": "frontend/lantern-tests/native-geometry-persistence-quota.mjs",
+      "owner": "web",
+      "mode": "100644",
+      "bytes": 2837,
+      "sha256": "8dfb7483f4245d9176452e0f754ba0ac7a2db9a9e11489adede20df6bdc157f9"
+    },
+    {
+      "path": "frontend/lantern-tests/native-geometry-persistence.mjs",
+      "owner": "web",
+      "mode": "100644",
+      "bytes": 7387,
+      "sha256": "4ccfe52d293576502cc06fc3a3ffba85844533156b079966542fe3f066828d32"
+    },
+    {
       "path": "frontend/lantern-tests/native-geometry-produced-read.mjs",
       "owner": "web",
       "mode": "100644",
@@ -7017,6 +7066,13 @@
       "mode": "100644",
       "bytes": 8039,
       "sha256": "1a0d6aa1fa3896aab2f48c82913b667885fc267c158b725f1da1fc41d20aca50"
+    },
+    {
+      "path": "frontend/lantern-tests/native-geometry-retention.mjs",
+      "owner": "web",
+      "mode": "100644",
+      "bytes": 12110,
+      "sha256": "fc67635654618ce468eb28125dfc17c0586c6518baca348693a57776a4dcd8a1"
     },
     {
       "path": "frontend/lantern-tests/native-geometry-write.mjs",
@@ -7243,6 +7299,27 @@
       "sha256": "662b74d39d5e6fab19ab5c84b7da01e75f028daebe6b773af5418df89a0b7472"
     },
     {
+      "path": "frontend/lantern-tests/shell-viewport/README.md",
+      "owner": "web",
+      "mode": "100644",
+      "bytes": 823,
+      "sha256": "34f907f3431b6cb3dfdf230f6aa163bc49bdf89c2d8b8fa856be719b2c50ec3b"
+    },
+    {
+      "path": "frontend/lantern-tests/shell-viewport/index.html",
+      "owner": "web",
+      "mode": "100644",
+      "bytes": 322,
+      "sha256": "88e4f6402b997aca6814e30bbd345ed38ced4458c7686f33d17786d2cf690cc2"
+    },
+    {
+      "path": "frontend/lantern-tests/shell-viewport/main.tsx",
+      "owner": "web",
+      "mode": "100644",
+      "bytes": 1751,
+      "sha256": "561d96e5e053fb48d837bc4ae0270bd4bc866f9914e7be0693c86bdafcef7d5f"
+    },
+    {
       "path": "frontend/lantern-tests/source-documents-reader.test.mjs",
       "owner": "web",
       "mode": "100644",
@@ -7297,6 +7374,13 @@
       "mode": "100644",
       "bytes": 1759,
       "sha256": "2d4a8928c49a40fd87efb6df00402517ebc7b57bd3cefae04520b27ba0b3b5c8"
+    },
+    {
+      "path": "frontend/lantern-tests/synthetic-indexeddb.mjs",
+      "owner": "web",
+      "mode": "100644",
+      "bytes": 7296,
+      "sha256": "fce89017e84fccd139b851ab87f70ad029a89aece454176505db0683843e4927"
     },
     {
       "path": "frontend/lantern-tests/topology-read.mjs",
@@ -8730,8 +8814,8 @@
       "path": "frontend/src/lantern/scans/native-read-types.ts",
       "owner": "web",
       "mode": "100644",
-      "bytes": 3409,
-      "sha256": "61eb2d0158a12bbe77d40217808888ca9c0c294e8e401836a26031d970b08360"
+      "bytes": 3792,
+      "sha256": "0a80a97ff138c86028c980392a1f004db2730c92668f8babc9caa22c96b87a3a"
     },
     {
       "path": "frontend/src/lantern/scans/native-scene-source-types.ts",
@@ -8751,8 +8835,8 @@
       "path": "frontend/src/lantern/scans/native-ui/NativeScanAtlas.tsx",
       "owner": "web",
       "mode": "100644",
-      "bytes": 13970,
-      "sha256": "a336b8248424df5b653c13b1025cc46b5dbb5f38bfece76764e867f387040805"
+      "bytes": 14263,
+      "sha256": "87f311f9a6fa0feaa0d146d6d8cf657f6ced5ad189363465f9bbbac0d75bbce1"
     },
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneAssociation.tsx",
@@ -9038,8 +9122,8 @@
       "path": "frontend/src/lantern/styles/app.css",
       "owner": "web",
       "mode": "100644",
-      "bytes": 37947,
-      "sha256": "43bdba841b8bf2edf348911ddffdfa7b7d921905697e80f274f65f010f0898b6"
+      "bytes": 38110,
+      "sha256": "6ee58b9fd3fd7583d377cfbec4228feb1481c42017816f9163b7e50d99a7dbbd"
     },
     {
       "path": "frontend/src/lantern/styles/atlas.css",
@@ -9059,8 +9143,8 @@
       "path": "frontend/src/lantern/styles/integration.css",
       "owner": "web",
       "mode": "100644",
-      "bytes": 3439,
-      "sha256": "30f987f7a66ee58860480254ac837127ff891b71fc10da89968f9e907c11361c"
+      "bytes": 3987,
+      "sha256": "4ee1f55e04278e1e0f5347366e4085f1c4b138d4062071d0b66619739ee3c2e4"
     },
     {
       "path": "frontend/src/lantern/styles/panels.css",
@@ -10338,143 +10422,143 @@
     },
     {
       "path": "tools/perf/contract/README.md",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 2317,
-      "sha256": "9172f625d6d1af9d05fb15743894542aab2dd13bbb273d763a322083b37ee7e8",
-      "owner": "core-integration"
+      "sha256": "9172f625d6d1af9d05fb15743894542aab2dd13bbb273d763a322083b37ee7e8"
     },
     {
       "path": "tools/perf/contract/index.mjs",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 4108,
-      "sha256": "3122e4503409e883c6e247f7bd6481f21d26d1471fb0a0fbf6d1ec8c6f5055c8",
-      "owner": "core-integration"
+      "sha256": "3122e4503409e883c6e247f7bd6481f21d26d1471fb0a0fbf6d1ec8c6f5055c8"
     },
     {
       "path": "tools/perf/contract/index.test.mjs",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 4866,
-      "sha256": "743605745d2da62669ae578a1832443cda9fd4c1613a2ae4387fdf91d4dd1a1c",
-      "owner": "core-integration"
+      "sha256": "743605745d2da62669ae578a1832443cda9fd4c1613a2ae4387fdf91d4dd1a1c"
     },
     {
       "path": "tools/perf/contract/policies.mjs",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 3071,
-      "sha256": "8a161bae223f9b07aae4b0aa3bc79337e2d552ab0621cb9544196d5bccd9947a",
-      "owner": "core-integration"
+      "sha256": "8a161bae223f9b07aae4b0aa3bc79337e2d552ab0621cb9544196d5bccd9947a"
     },
     {
       "path": "tools/perf/contract/run.schema.json",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 16743,
-      "sha256": "642af28eacc14e6fdd7b9f7071979f07abc8dcb9a427773f5d74dab672b7056a",
-      "owner": "core-integration"
+      "sha256": "642af28eacc14e6fdd7b9f7071979f07abc8dcb9a427773f5d74dab672b7056a"
     },
     {
       "path": "tools/perf/contract/test-fixture.mjs",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 1872,
-      "sha256": "0a8c43a0e5b57727987a96354268c0d66a036a8352d950d99ea233f67b6d2178",
-      "owner": "core-integration"
+      "sha256": "0a8c43a0e5b57727987a96354268c0d66a036a8352d950d99ea233f67b6d2178"
     },
     {
       "path": "tools/perf/harness/README.md",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 6991,
-      "sha256": "821df22b9889cb0c3ac0f0f64a454237bea0b78b9962756057963112dfe51e5e",
-      "owner": "core-integration"
+      "sha256": "821df22b9889cb0c3ac0f0f64a454237bea0b78b9962756057963112dfe51e5e"
     },
     {
       "path": "tools/perf/harness/bundle.mjs",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 3898,
-      "sha256": "65a682ce97b6e668bc9ea503df00ac5e977d15c8c3b9c2e43dfeb58bb0533743",
-      "owner": "core-integration"
+      "sha256": "65a682ce97b6e668bc9ea503df00ac5e977d15c8c3b9c2e43dfeb58bb0533743"
     },
     {
       "path": "tools/perf/harness/bundle.test.mjs",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 2271,
-      "sha256": "7a10a2ffe370bc0308ba4e5f3504f71658b2e468866ac6ddd5411dcb093d0b8b",
-      "owner": "core-integration"
+      "sha256": "7a10a2ffe370bc0308ba4e5f3504f71658b2e468866ac6ddd5411dcb093d0b8b"
     },
     {
       "path": "tools/perf/harness/cpu-worker.mjs",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 6751,
-      "sha256": "dd8c6db76b6cc4afa72a244f243dc940fd71a246e205a6433e328fcd418ad54d",
-      "owner": "core-integration"
+      "sha256": "dd8c6db76b6cc4afa72a244f243dc940fd71a246e205a6433e328fcd418ad54d"
     },
     {
       "path": "tools/perf/harness/fixtures.mjs",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 2690,
-      "sha256": "c0128437c0688169ae14df42759d9d1df6b6dfe9ae4c970f4ff84ce69a21dd9f",
-      "owner": "core-integration"
+      "sha256": "c0128437c0688169ae14df42759d9d1df6b6dfe9ae4c970f4ff84ce69a21dd9f"
     },
     {
       "path": "tools/perf/harness/load-source.mjs",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 1433,
-      "sha256": "b6288cca209d9b79f42209521777b856a8c5e50b5ac3fe1d842f2f54aa304097",
-      "owner": "core-integration"
+      "sha256": "b6288cca209d9b79f42209521777b856a8c5e50b5ac3fe1d842f2f54aa304097"
     },
     {
       "path": "tools/perf/harness/mesh-profile.fixture.json",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 18610,
-      "sha256": "567c33c8977c7c2effebb5da197107777375db158d2a3adde04c89d6b478b63e",
-      "owner": "core-integration"
+      "sha256": "567c33c8977c7c2effebb5da197107777375db158d2a3adde04c89d6b478b63e"
     },
     {
       "path": "tools/perf/harness/package-lock.json",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 28199,
-      "sha256": "06e043d2e9e8188f5f3cf0629ae55665e2a01e0aa37bac7b00cc15498036dac0",
-      "owner": "core-integration"
+      "sha256": "06e043d2e9e8188f5f3cf0629ae55665e2a01e0aa37bac7b00cc15498036dac0"
     },
     {
       "path": "tools/perf/harness/package.json",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 282,
-      "sha256": "6a8f4994c5f0aa4258f518c2a77b98c5b58a9fd25600b170de091ea663b11541",
-      "owner": "core-integration"
+      "sha256": "6a8f4994c5f0aa4258f518c2a77b98c5b58a9fd25600b170de091ea663b11541"
     },
     {
       "path": "tools/perf/harness/reporting-integration.test.mjs",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 3604,
-      "sha256": "a1f60fdc680813d16c29ca658228809668ce8aeeeebca74d921c85cd977d92f7",
-      "owner": "core-integration"
+      "sha256": "a1f60fdc680813d16c29ca658228809668ce8aeeeebca74d921c85cd977d92f7"
     },
     {
       "path": "tools/perf/harness/run.mjs",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 7074,
-      "sha256": "13e060c4a7ece3f234b32660810cb9ac461dd389f5f594a9b7c3cfa47a137a79",
-      "owner": "core-integration"
+      "sha256": "13e060c4a7ece3f234b32660810cb9ac461dd389f5f594a9b7c3cfa47a137a79"
     },
     {
       "path": "tools/perf/harness/run.test.mjs",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 4302,
-      "sha256": "60b829a58e64a223d243d047e176510cbed2f6e4626b31fe944d5907688d169a",
-      "owner": "core-integration"
+      "sha256": "60b829a58e64a223d243d047e176510cbed2f6e4626b31fe944d5907688d169a"
     },
     {
       "path": "tools/perf/harness/settings.mjs",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 558,
-      "sha256": "0344660925550506d967ed025c9179c009877e16fcedad3a5726ec8bb5d376ad",
-      "owner": "core-integration"
+      "sha256": "0344660925550506d967ed025c9179c009877e16fcedad3a5726ec8bb5d376ad"
     },
     {
       "path": "tools/perf/harness/source.mjs",
+      "owner": "core-integration",
       "mode": "100644",
       "bytes": 2241,
-      "sha256": "a1550980ec80d2b9df53eb335636febd069890ce931af41cf9d808181d5d6ef4",
-      "owner": "core-integration"
+      "sha256": "a1550980ec80d2b9df53eb335636febd069890ce931af41cf9d808181d5d6ef4"
     },
     {
       "path": "tools/publication/verify-source.mjs",

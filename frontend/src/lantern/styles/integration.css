@@ -12,6 +12,15 @@
 
 .lantern-host .sources dd code { display: block; margin-top: 4px; }
 
+/* While the app shell is shown the document never scrolls or rubber-bands;
+   the shell's sheets, rail and panels scroll internally. The viewport-sized
+   container still scrolls if an in-flow sibling, such as the sign-out choice,
+   extends past the shell, so it stays reachable. */
+html:has(.lantern-host.app), body:has(.lantern-host.app) { height: 100%; overflow: hidden; overscroll-behavior: none; }
+.lantern-integration:has(.lantern-host.app) {
+  position: fixed; inset: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: none;
+}
+
 /* Fixed overlays and session screens also stay inside standalone safe areas. */
 .lantern-integration .skip { left: max(12px, env(safe-area-inset-left)); }
 .lantern-integration .skip:focus { top: calc(10px + env(safe-area-inset-top)); }

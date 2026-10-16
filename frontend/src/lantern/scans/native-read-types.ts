@@ -6,6 +6,8 @@ import type { MESH_PROFILE } from './mesh-profile';
 /** Private host observation. This object carries no cookie, token or grant. */
 export interface NativeGeometryBinding {
   readonly sessionIdentity: object;
+  /** The canonical session's authenticated actor; absent, nothing persists. */
+  readonly actorId?: string;
   readonly expiresAt: string;
   readonly scope: Readonly<{ workspaceId: string; homeId: string }>;
 }
@@ -69,8 +71,14 @@ export interface NativeGeometryFrame {
   readonly readPort: ScanMeshReadPort;
 }
 
+export interface NativeGeometryLoadOptions {
+  /** Explicit user refresh: no retained or stored mesh bytes are reused. */
+  readonly refresh?: boolean;
+}
+
 export interface NativeGeometryReadClient {
-  loadBuilding(buildingId: string, signal: AbortSignal): Promise<NativeGeometryFrame>;
+  /** The descriptor is always read afresh; `options` affects mesh reuse only. */
+  loadBuilding(buildingId: string, signal: AbortSignal, options?: NativeGeometryLoadOptions): Promise<NativeGeometryFrame>;
   isCurrent(frame: NativeGeometryFrame): boolean;
   /** Stale/foreign frames notify immediately and cannot acquire a subscription. */
   subscribeInvalidation(frame: NativeGeometryFrame, invalidate: () => void): () => void;

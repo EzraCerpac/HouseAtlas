@@ -56,6 +56,8 @@ export function NativeScanAtlas({ client }: { readonly client: NativeGeometryRea
   const current = useRef(owner); current.current = owner;
   // Anonymous timing only: a later load in this view counts as warm.
   const completedLoads = useRef(0);
+  // The attempt an explicit Refresh scans started; it reads meshes afresh.
+  const refreshed = useRef<number | null>(null);
   useEffect(() => topology.activate(), [topology.activate]);
   useEffect(() => {
     const controller = new AbortController(); let released = false;
@@ -69,9 +71,10 @@ export function NativeScanAtlas({ client }: { readonly client: NativeGeometryRea
     const timing = stageSpan('scan-atlas', 'building-load', { cache: completedLoads.current > 0 ? 'warm' : 'cold' });
     controller.signal.addEventListener('abort', () => timing({ status: 'withdrawn' }), { once: true });
     void (async () => {
-      const frame = await client.loadBuilding(building.id, controller.signal);
+      const frame = await client.loadBuilding(building.id, controller.signal, { refresh: refreshed.current === owner.attempt });
       if (!live()) return;
       stageMark('scan-atlas', 'descriptor-read', { floors: frame.floors.length });
+      if (refreshed.current === owner.attempt) refreshed.current = null;
       if (!client.isCurrent(frame) || frame.descriptor.scope.workspaceId !== view.scope.workspaceId
         || frame.descriptor.scope.homeId !== view.scope.homeId || frame.descriptor.buildingId !== building.id) {
         timing({ status: 'unavailable' }); setOutcome({ owner, status: 'unavailable' }); controller.abort(); return;
@@ -162,7 +165,9 @@ export function NativeScanAtlas({ client }: { readonly client: NativeGeometryRea
       {buildings.length > 0 && <span className="filter-row-label" aria-hidden="true">Building</span>}
       {buildings.map(row => <button key={row.id} type="button" className="chip-btn" aria-pressed={building?.id === row.id}
         onClick={event => { stageMark('scan-atlas', 'building-switch', { input: event.detail === 0 ? 'keyboard' : 'pointer' }); topology.chooseBuilding(row.id); }}>{row.label}</button>)}
-      {building && <button type="button" className="text-btn" onClick={() => setAttempt(value => value + 1)}>Refresh scans</button>}
+      {building && <button type="button" className="text-btn" onClick={() => {
+        refreshed.current = attempt + 1; setAttempt(attempt + 1);
+      }}>Refresh scans</button>}
     </div>
     {!building ? <p role="status">{topology.status !== 'ready' ? buildingReadMessages[topology.status]
       : buildings.length ? 'Select a reviewed building to read its scans.' : 'No reviewed building available for scans.'}</p>

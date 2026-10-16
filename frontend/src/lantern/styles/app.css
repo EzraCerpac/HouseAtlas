@@ -99,7 +99,10 @@
    Wide: sidebar | sheet | inspector. Narrower: top bar + rail (or bottom bar
    on phones) around one sheet; the inspector floats as a drawer or sheet. */
 
+/* Neither border-box reset reaches the host itself; without it the safe-area
+   padding is added to 100dvh and the document scrolls. */
 .lantern-host.app {
+  box-sizing: border-box;
   height: 100dvh;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   display: grid;
