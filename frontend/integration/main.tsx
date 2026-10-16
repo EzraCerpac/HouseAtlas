@@ -25,6 +25,7 @@ import type { NativeSceneSourceSelection } from "../src/lantern/scans/native-sce
 import type { NativeSceneHost } from "../src/lantern/scans/native-ui/native-scene-host";
 import type { SourceDocumentsPort } from "../src/lantern/source-documents/types";
 import type { SourceModelPort } from "../src/lantern/source-ports";
+import type { ModelOverviewSelection } from "../src/lantern/source-models/overview-types";
 import { createNativeGeometryWriteClient } from "./native-geometry-write-client";
 import { createNativeGeometryAssociationClient } from "./native-geometry-association-client";
 import type { NativeAssociationPending, NativeAssociationPrepared } from "../src/lantern/scans/native-association-types";
@@ -345,13 +346,58 @@ const sourceDocuments: SourceDocumentsPort = {
     subscribeBinding: subscribeNativeGeometry,
   })),
 };
-// Model files are read in the browser only; no saved model or site read is live.
-// One opaque token per canonical session allocation and completed scope; any
-// change retires the local model renderer owner. No electrical bridge or
-// target provider is connected here, so electrical review stays unavailable.
+// Local files and the optional selected provisional overview have separate
+// owners. Saved reads require the current authenticated service facet and pins.
+// No electrical bridge or target provider is connected here.
 let modelReviewOwner: { readonly session: AtlasSessionInfo; readonly scope: Scope; readonly token: object } | null = null;
+let overviewSelection: ModelOverviewSelection | null = null;
+let overviewSession: AtlasSessionInfo | null = null;
+let overviewScope: Scope | null = null;
+function currentOverview(): ModelOverviewSelection | null {
+  const service = currentReadyView?.modelOverviewService;
+  if (!currentSession || !currentQuantityScope || currentReadyView?.scope !== currentQuantityScope || !service
+    || !Number.isFinite(Date.parse(currentSession.expiresAt)) || Date.parse(currentSession.expiresAt) <= Date.now()) {
+    overviewSelection = null; overviewSession = null; overviewScope = null; return null;
+  }
+  if (overviewSession !== currentSession || overviewScope !== currentQuantityScope || !overviewSelection
+    || overviewSelection.scope.workspaceId !== currentQuantityScope.workspaceId || overviewSelection.scope.homeId !== currentQuantityScope.homeId
+    || overviewSelection.expiresAt !== currentSession.expiresAt
+    || overviewSelection.publicationId !== service.publicationId || overviewSelection.manifestSha256 !== service.manifestSha256) {
+    overviewSession = currentSession;
+    overviewScope = currentQuantityScope;
+    overviewSelection = Object.freeze({ owner: Object.freeze({}), scope: Object.freeze({ ...currentQuantityScope }), expiresAt: currentSession.expiresAt,
+      publicationId: service.publicationId, manifestSha256: service.manifestSha256 });
+  }
+  return overviewSelection;
+}
+function subscribeOverview(changed: () => void): () => void {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const observe = () => {
+    if (timer !== undefined) clearTimeout(timer);
+    const selected = currentOverview();
+    if (selected) timer = setTimeout(observe, Math.min(2_147_483_647, Math.max(1, Date.parse(selected.expiresAt) - Date.now() + 1)));
+    changed();
+  };
+  const unsubscribe = subscribeNativeGeometry(observe);
+  // Schedule expiry without synthesizing an owner change on subscribe.
+  const selected = currentOverview();
+  if (selected) timer = setTimeout(observe, Math.min(2_147_483_647, Math.max(1, Date.parse(selected.expiresAt) - Date.now() + 1)));
+  return () => { unsubscribe(); if (timer !== undefined) clearTimeout(timer); };
+}
 const sourceModels: SourceModelPort = {
   localFiles: "browser-only",
+  overview: {
+    current: currentOverview, subscribe: subscribeOverview,
+    async read(selection, signal) {
+      const controller = new AbortController();
+      const unsubscribe = subscribeOverview(() => { if (currentOverview() !== selection) controller.abort(); });
+      try {
+        const reader = await import('./model-overview-reader');
+        return await reader.readModelOverview({ selection, signal: AbortSignal.any([signal, controller.signal]),
+          origin: window.location.origin, isCurrent: () => currentOverview() === selection });
+      } finally { unsubscribe(); }
+    },
+  },
   session: {
     current() {
       if (!currentSession || !currentQuantityScope) return null;

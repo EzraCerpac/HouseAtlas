@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
@@ -37,16 +38,21 @@ const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 
 const SourceModelView = lazy(() => import('../source-models/SourceModelView').then(module => ({ default: module.SourceModelView })));
 const SiteArtifactView = lazy(() => import('../site-artifacts/SiteArtifactView').then(module => ({ default: module.SiteArtifactView })));
+const noOverview = () => null;
+const noOverviewSubscription = () => () => {};
 
 export function AtlasView() {
   const { models } = useSourcePorts();
-  const [source, setSource] = useState<'home' | 'model' | 'site'>('home');
+  const selectedOverview = useSyncExternalStore(models?.overview?.subscribe ?? noOverviewSubscription,
+    models?.overview?.current ?? noOverview, noOverview);
+  const [source, setSource] = useState<'home' | 'model' | 'site' | null>(null);
   if (!models) return <HomeAtlas />;
-  const shown = source === 'site' && !models.site ? 'home' : source;
+  const preferred = source ?? (selectedOverview ? 'model' : 'home');
+  const shown = preferred === 'site' && !models.site ? 'home' : preferred;
   return <>
     <div className="seg source-switch" role="group" aria-label="Atlas source">
       <button type="button" aria-pressed={shown === 'home'} onClick={() => setSource('home')}>Home atlas</button>
-      <button type="button" aria-pressed={shown === 'model'} onClick={() => setSource('model')}>Model file</button>
+      <button type="button" aria-pressed={shown === 'model'} onClick={() => setSource('model')}>{selectedOverview ? 'Model' : 'Model file'}</button>
       {models.site && <button type="button" aria-pressed={shown === 'site'} onClick={() => setSource('site')}>Site</button>}
     </div>
     {/* Keys keep each viewer's failure state with its own source. */}

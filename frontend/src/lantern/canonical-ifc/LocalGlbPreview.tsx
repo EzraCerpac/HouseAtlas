@@ -14,6 +14,7 @@ import { ElectricalReviewSection, type ElectricalSelection } from '../electrical
 import { LocalSourceView } from '../electrical-documentary/LocalSourceView';
 import { useElectricalReview } from '../electrical-documentary/useElectricalReview';
 import type { ElectricalTargetChoice, RendererFiles } from '../electrical-documentary/types';
+import type { ModelOverviewAsset } from '../source-models/overview-types';
 import { ModelNavigator, navigationIndex, nodeLabel, SelectionFacts, useModelNavigation } from './ModelNavigator';
 import { stageSpan } from '../observability/stage-timing';
 import './canonical-ifc.css';
@@ -180,7 +181,8 @@ const yesNo = (value: boolean) => value ? 'Yes' : 'No';
 /** Previews chosen files; a new choice replaces the previous preview whole.
  * Optional review inputs connect source-owner electrical documents to the
  * exact files of a manifest-checked standard set. */
-export function LocalGlbPreview({ files, review }: { readonly files: readonly Blob[]; readonly review?: LocalModelReviewOptions | undefined }) {
+export function LocalGlbPreview({ files, review, saved }: { readonly files: readonly Blob[]; readonly review?: LocalModelReviewOptions | undefined;
+  readonly saved?: ModelOverviewAsset | undefined }) {
   const [phase, setPhase] = useState<Phase | null>(null);
   useEffect(() => {
     if (files.length === 0) return;
@@ -204,12 +206,12 @@ export function LocalGlbPreview({ files, review }: { readonly files: readonly Bl
   const current = phase?.files === files ? phase : null;
   if (files.length === 0) return null;
   if (!current || current.status === 'reading') return <div className="cifc cifc-unavailable" role="status" aria-busy="true">
-    <h2>Local preview</h2><p>Reading {files.length === 1 ? 'file' : `${files.length} files`}…</p></div>;
+    <h2>{saved ? saved.label : 'Local preview'}</h2><p>Reading {files.length === 1 ? 'file' : `${files.length} files`}…</p></div>;
   if (current.status === 'failed') return <div className="cifc cifc-unavailable" role="status">
-    <h2>Local preview unavailable</h2><p>{current.message}</p>
+    <h2>{saved ? 'Saved model unavailable' : 'Local preview unavailable'}</h2><p>{current.message}</p>
     {current.facts.length > 0 && <FileFacts files={current.facts} />}</div>;
-  return current.read.kind === 'closed-profile' ? <ClosedProfileView summary={current.read.summary} />
-    : <StandardView read={current.read} review={review} />;
+  return current.read.kind === 'closed-profile' ? <ClosedProfileView summary={current.read.summary} saved={saved} />
+    : <StandardView read={current.read} review={review} saved={saved} />;
 }
 
 function FileFacts({ files }: { readonly files: readonly LocalFileFacts[] }) {
@@ -219,6 +221,7 @@ function FileFacts({ files }: { readonly files: readonly LocalFileFacts[] }) {
 }
 
 interface StageProps {
+  readonly saved?: ModelOverviewAsset | undefined;
   readonly meshes: readonly PreparedMesh[];
   /** Separate reference layer, toggled independently and never framed as building. */
   readonly referenceKeys: ReadonlySet<string> | null;
@@ -231,7 +234,7 @@ interface StageProps {
   readonly onPick?: ((meshKey: string | null) => void) | undefined;
 }
 
-function PreviewStage({ meshes, referenceKeys, describe, subject, hiddenKeys, selectedKeys, onPick }: StageProps) {
+function PreviewStage({ meshes, referenceKeys, describe, subject, hiddenKeys, selectedKeys, onPick, saved }: StageProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<'3d' | 'top'>('3d');
   const [showReference, setShowReference] = useState(true);
@@ -280,7 +283,7 @@ function PreviewStage({ meshes, referenceKeys, describe, subject, hiddenKeys, se
       <p className="cifc-hint" role="status" aria-live="polite">{hint}</p>
     </div>
     <div className="cifc-stage-foot">
-      <div className="cifc-status"><span className="cifc-chip is-local">Local preview</span></div>
+      <div className="cifc-status"><span className="cifc-chip is-local">{saved ? 'Provisional overview' : 'Local preview'}</span></div>
       {referenceKeys && <div className="layer-bar" role="group" aria-label="Layers">
         <button type="button" className="layer-chip" aria-pressed={showReference} style={{ '--layer': '#6F8796' } as CSSProperties}
           onClick={() => { setShowReference(value => !value); setHint(null); }}><span className="layer-swatch" aria-hidden="true" />Reference surfaces</button>
@@ -289,19 +292,24 @@ function PreviewStage({ meshes, referenceKeys, describe, subject, hiddenKeys, se
   </div>;
 }
 
-function Panel({ children, version }: { readonly children: ReactNode; readonly version?: string | undefined }) {
-  return <aside className="cifc-panel" aria-label="Local file facts">
-    <header className="cifc-panel-head"><h2>Local preview</h2>
-      <p className="cifc-pub">{version ? `Manifest version ${version}. ` : ''}Read in this browser only. Not a publication.</p></header>
+function Panel({ children, version, saved }: { readonly children: ReactNode; readonly version?: string | undefined; readonly saved?: ModelOverviewAsset | undefined }) {
+  return <aside className="cifc-panel" aria-label={saved ? 'Saved model facts' : 'Local file facts'}>
+    <header className="cifc-panel-head"><h2>{saved ? saved.label : 'Local preview'}</h2>
+      <p className="cifc-pub">{saved ? 'Saved provisional overview. Native room and floor links are not established.'
+        : <>{version ? `Manifest version ${version}. ` : ''}Read in this browser only. Not a publication.</>}</p></header>
+    {saved && <details className="cifc-source"><summary>Saved source</summary>
+      <dl className="cifc-facts"><div><dt>Publication</dt><dd><code>{saved.publicationId}</code></dd></div>
+        {saved.components.map(component => <div key={component.id}><dt>{component.label}</dt><dd>{component.kind}<code>{component.id}</code></dd></div>)}
+      </dl>{saved.sourceNote && <p className="cifc-caveat">{saved.sourceNote}</p>}</details>}
     {children}
   </aside>;
 }
 
-function ClosedProfileView({ summary }: { readonly summary: LocalGlbSummary }) {
+function ClosedProfileView({ summary, saved }: { readonly summary: LocalGlbSummary; readonly saved?: ModelOverviewAsset | undefined }) {
   const { source, counts } = summary;
   return <div className="cifc cifc-preview"><div className="cifc-layout">
-    <PreviewStage meshes={summary.meshes} referenceKeys={null} describe={() => 'Room associations unavailable'} subject="local GLB" />
-    <Panel>
+    <PreviewStage meshes={summary.meshes} referenceKeys={null} describe={() => 'Room associations unavailable'} subject={saved?.label ?? 'local GLB'} saved={saved} />
+    <Panel saved={saved}>
       <section className="cifc-focus" aria-label="Associations">
         <dl className="cifc-facts">
           <div><dt>Rooms</dt><dd>Unavailable</dd></div>
@@ -335,7 +343,8 @@ const GROUPING: Readonly<Record<keyof BrowserManifest['grouping'], string>> = { 
 
 const NO_CHOICES: readonly ElectricalTargetChoice[] = [];
 
-function StandardView({ read, review: options }: { readonly read: Extract<LocalRead, { kind: 'standard' }>; readonly review: LocalModelReviewOptions | undefined }) {
+function StandardView({ read, review: options, saved }: { readonly read: Extract<LocalRead, { kind: 'standard' }>;
+  readonly review: LocalModelReviewOptions | undefined; readonly saved?: ModelOverviewAsset | undefined }) {
   const { house, reference, manifest, originals } = read;
   const meshes = useMemo(() => reference ? [...house.glb.meshes, ...reference.glb.meshes] : house.glb.meshes, [house, reference]);
   const referenceKeys = useMemo(() => reference ? new Set(reference.glb.meshes.map(mesh => mesh.meshKey)) : null, [reference]);
@@ -373,9 +382,9 @@ function StandardView({ read, review: options }: { readonly read: Extract<LocalR
   ].filter((item): item is string => typeof item === 'string') : [];
   const selectedNode = selection?.kind === 'node' ? selection.nodeIndex : null;
   return <div className="cifc cifc-preview"><div className="cifc-layout">
-    <PreviewStage meshes={meshes} referenceKeys={referenceKeys} describe={describe} subject={reference ? 'local GLB files' : 'local GLB'}
+    <PreviewStage meshes={meshes} referenceKeys={referenceKeys} describe={describe} subject={saved?.label ?? (reference ? 'local GLB files' : 'local GLB')} saved={saved}
       hiddenKeys={navigation.hiddenKeys} selectedKeys={navigation.selectedKeys} onPick={onPick} />
-    <Panel version={data?.version}>
+    <Panel version={data?.version} saved={saved}>
       {selectedNode !== null && <section className="cifc-focus has-room" aria-labelledby="cifc-selected">
         <div className="cifc-focus-head"><h3 id="cifc-selected">{nodeLabel(index, selectedNode)}</h3>
           <button type="button" className="chip-btn" onClick={() => setSelection(null)}>Clear</button></div>

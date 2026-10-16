@@ -1,5 +1,17 @@
 # HouseAtlas
 
+The selected provisional overview consumer has this healthy generated check:
+
+```sh
+node frontend/lantern-tests/model-overview-read-healthy.mjs
+```
+
+It runs the actual view decoder and bounded GET reader with generated responses,
+checks the optional service facet and exact descriptor/original frame, SHA and
+byte pins on two fresh reads. It creates no listener, credential, household
+intake, browser or deployment. Actual standard-GLB admission and browser mesh
+rendering remain separate from transport success.
+
 The isolated canonical IFC viewer check uses generated presentations, the
 checked-in two-floor v2 artifacts and a fake read port. Inspect the runner and
 its imports before this focused local command with Node 26.10.0 and the locked
