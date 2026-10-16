@@ -186,12 +186,13 @@ function roomMappings(value: LosslessJson, accepted: readonly NativeSceneAccepte
   }));
 }
 function floors(value: LosslessJson, geometry: NativeGeometryFrame | null): readonly NativeSceneFloorBinding[] {
-  const seen = new Set<string>();
+  const seen = new Set<string>(), sourceSeen = new Set<string>();
   return Object.freeze(list(value, 3).map(item => {
     const f = row(item, ['sourceFloorKey','sourceOriginalSha256','nativeFloorKey','nativeGeometryId',
       'nativeGeometryRevision','nativeOriginalAssetId','nativeOriginalSha256']);
     const nativeFloorKey = str(f.nativeFloorKey, 512), sourceFloorKey = str(f.sourceFloorKey, 512);
-    need(!seen.has(nativeFloorKey)); seen.add(nativeFloorKey);
+    need(!seen.has(nativeFloorKey) && !sourceSeen.has(sourceFloorKey));
+    seen.add(nativeFloorKey); sourceSeen.add(sourceFloorKey);
     const nativeGeometryId = uuid(f.nativeGeometryId), nativeGeometryRevision = integer(f.nativeGeometryRevision);
     const nativeOriginalAssetId = uuid(f.nativeOriginalAssetId), nativeOriginalSha256 = sha(f.nativeOriginalSha256);
     if (geometry) {

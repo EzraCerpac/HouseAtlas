@@ -172,9 +172,13 @@ export function createUnifiedAtlasOverlaySource(options:UnifiedAtlasOverlaySourc
       const primary=await retain(primaryPin),historical=await retain(historicalPin);pin();let selection=association.selection;
       const support=await readDocumentarySupport(historical.bytes,pin);pin();
       if(support&&text(payload.reviewStatement).endsWith(support.reviewMarker)&&support.originalSha256===historicalPin.originalSha256
-        &&support.pdf.workspaceId===s.workspaceId&&support.pdf.homeId===s.homeId&&support.pdf.buildingId===input.nativeBuildingId
-        &&await readNativeOverlayBuildingEvidence(context.native,input.nativeBuildingId,support.pdf.evidenceId,attempt.controller.signal,pin,transport)){
-        pin();selection=Object.freeze({...selection,drawingReferences:documentaryReferences(support,selection),drawingSupport:Object.freeze({evidenceId:historical.frame.evidenceId,evidenceRevision:historical.frame.evidenceRevision,
+        &&support.pdf.workspaceId===s.workspaceId&&support.pdf.homeId===s.homeId&&support.pdf.buildingId===input.nativeBuildingId){
+        // This extra PDF correlation is optional; its read cannot withdraw the
+        // separately qualified primary and historical documentary sources.
+        let buildingEvidence=false;
+        try{buildingEvidence=await readNativeOverlayBuildingEvidence(context.native,input.nativeBuildingId,support.pdf.evidenceId,attempt.controller.signal,pin,transport);}
+        catch{pin();}
+        pin();if(buildingEvidence)selection=Object.freeze({...selection,drawingReferences:documentaryReferences(support,selection),drawingSupport:Object.freeze({evidenceId:historical.frame.evidenceId,evidenceRevision:historical.frame.evidenceRevision,
           assetId:historical.frame.asset.assetId,assetRevision:historical.frame.asset.revision,originalSha256:support.originalSha256,reviewMarker:support.reviewMarker})});
       }
       const details=await readNativeOverlayDetails(selection,primary.bytes,historical.bytes,pin);pin();

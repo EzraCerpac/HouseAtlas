@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "6f323670cfa1088a25b8008d0ffd3dd61d14294ac0f7c669d671a877d2731c1e",
+  "sourceDigestSha256": "1bbe8517918926d2085f95ddcd3c80523afb2bd6132c910f4f42af3a8ed6142d",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -1183,8 +1183,8 @@
     {
       "path": "backend/src/config/atlas_scene.rs",
       "mode": "100644",
-      "bytes": 27635,
-      "sha256": "2cb9202929ba962fb163f57ed4a18a27bd688b8154d146aefb125939d05479db",
+      "bytes": 29420,
+      "sha256": "3b9cea9fb95e246ad8970e65f3e11c7cae41718ebfc3a036d8691e199dee0899",
       "owner": "core-integration"
     },
     {
@@ -1197,8 +1197,8 @@
     {
       "path": "backend/src/config/atlas_scene_glb.rs",
       "mode": "100644",
-      "bytes": 13799,
-      "sha256": "6b7877103ffc72d370d71011fd8eeeb9004dff6a049ec052d48628221dffc5a6",
+      "bytes": 13854,
+      "sha256": "89eaab61ae22ff968486c2789c2fc5f5a81a8c02a68ca6692daaa4d7a31c4a8c",
       "owner": "core-integration"
     },
     {
@@ -2030,8 +2030,8 @@
     {
       "path": "backend/src/domain/stock/native_scene_associations.rs",
       "mode": "100644",
-      "bytes": 10431,
-      "sha256": "b81ca5cb36b67d9def53eebfae865bd6817ac64a0ced8b48dff96b267b2891a6",
+      "bytes": 10915,
+      "sha256": "fdd699566f228babafc7671cf7de97c0eb07af8e99aeca4a9878e92b6ed56735",
       "owner": "domain"
     },
     {
@@ -6258,8 +6258,8 @@
     {
       "path": "docs/models/unified-atlas-scene-v1.md",
       "mode": "100644",
-      "bytes": 15061,
-      "sha256": "c265c8e9e2b0b4c46042f4fa23dd87b8cfa4e6bca4a00b4f9d755ce3838832c5",
+      "bytes": 15459,
+      "sha256": "90c038d21b5c0a303016fea886db29254223ea0eeab86681d486529f181cf3b5",
       "owner": "core-integration"
     },
     {
@@ -6881,8 +6881,8 @@
     {
       "path": "frontend/integration/native-scene-association-client.ts",
       "mode": "100644",
-      "bytes": 55090,
-      "sha256": "85e5cc253c33a1fba014ad5a84735e751bca6fa2b660fc860b2c8ef4617f69c9",
+      "bytes": 55193,
+      "sha256": "9a6f34994b1380859d19a4a82fa2eba85cda9c86ba8206f2f36e6cd52c9d0573",
       "owner": "web"
     },
     {
@@ -6944,8 +6944,8 @@
     {
       "path": "frontend/integration/unified-atlas-overlay-source.ts",
       "mode": "100644",
-      "bytes": 20295,
-      "sha256": "a5baac14ba4119a31697fa1f9ee5a31c5944ca9d955ec8dc594b2162c52ce208",
+      "bytes": 20550,
+      "sha256": "ddeb1eac4e2de8acfb5e7e567cf29d71701875db1aaf25aee279369e3c09d014",
       "owner": "web"
     },
     {

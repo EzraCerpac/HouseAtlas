@@ -495,6 +495,30 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
             need(m.role != "room-pick")?;
         }
     }
+    // The selected scene is loaded in full. Every reachable drawable must have
+    // exactly one binding, so no decorative primitive bypasses admission.
+    let mut remaining = selectors.len();
+    for node_index in worlds.keys() {
+        let Some(mesh_index) = nodes[*node_index].get("mesh") else {
+            continue;
+        };
+        let mesh_index = mesh_index
+            .as_u64()
+            .and_then(|n| usize::try_from(n).ok())
+            .ok_or_else(invalid)?;
+        let primitives = meshes
+            .get(mesh_index)
+            .and_then(|m| m["primitives"].as_array())
+            .ok_or_else(invalid)?;
+        // Check the whole range before iterating, using the admitted selector
+        // count as the budget instead of allocating another scene-sized set.
+        need(!primitives.is_empty() && primitives.len() <= remaining)?;
+        remaining -= primitives.len();
+        for primitive_index in 0..primitives.len() {
+            need(selectors.contains(&(*node_index, mesh_index, primitive_index)))?;
+        }
+    }
+    need(remaining == 0)?;
     let mut plan_ids = BTreeSet::new();
     let mut features = BTreeMap::new();
     let mut points = 0usize;
@@ -626,7 +650,24 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
             )?;
         }
         if let Anchor::SourcePosition { position, basis } = &overlay.anchor {
-            need(position.iter().all(|v| coordinate(*v)) && text(basis, 1024))?;
+            let building = buildings
+                .get(room.building_id.as_str())
+                .ok_or_else(invalid)?;
+            need(
+                position.iter().all(|v| coordinate(*v))
+                    && text(basis, 1024)
+                    && building.bounds.point_contains(*position),
+            )?;
+            if let Some(oid) = &overlay.space_occurrence_id {
+                let occurrence = occurrences.get(oid.as_str()).ok_or_else(invalid)?;
+                let level = levels
+                    .get(occurrence.level_id.as_str())
+                    .ok_or_else(invalid)?;
+                need(
+                    occurrence.bounds.point_contains(*position)
+                        && level.bounds.point_contains(*position),
+                )?;
+            }
         }
     }
     Ok(())

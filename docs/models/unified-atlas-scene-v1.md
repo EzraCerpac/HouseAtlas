@@ -188,6 +188,9 @@ physical position of a socket/device. Existing documentary fixture glyphs and
 historical group labels remain distinct from verified installed counts, cable
 routes and metric placement. A source-position anchor requires actual supplied
 qualification; otherwise use a room summary and preserve unknown placement.
+It must lie within its room's building bounds and, when occurrence-scoped,
+within that occurrence and its declared level bounds. No level is inferred
+for a room-summary or building-scoped position.
 
 Unmapped rooms still render and select. An unavailable overlay states its own
 reason without switching to old geometry or hiding the rest of the Atlas.
@@ -204,8 +207,11 @@ asset limits; validate the actual mounted chunk budget against the server's
 4,000,000-byte per-file ceiling. Do not broaden formats or work limits silently.
 The companion reader uses a bounded static triangle profile: selected primitives
 have regular Float32 VEC3 positions and optional normals, with checked attribute
-and unsigned scalar index layouts. Morph targets and mesh/node weights are
-unsupported. Every bound world vertex must lie within its building bounds;
+and unsigned scalar index layouts. Morph targets, mesh/node weights and node
+skin references are unsupported. Every drawable primitive reachable from the
+selected scene requires exactly one explicit binding, including decorative
+context; this does not make context a room or pick target.
+Every bound world vertex must lie within its building bounds;
 single-level bindings also lie within that level, while shared multilevel
 bindings lie within the enclosing union of their declared levels. Producer
 bounds include the physical geometry, occurrence/pick extents and matching plan

@@ -73,7 +73,7 @@ fn local(node: &Value) -> Result<Matrix, String> {
 }
 pub(super) fn worlds(gltf: &Value) -> Result<BTreeMap<usize, Matrix>, String> {
     let nodes = gltf["nodes"].as_array().ok_or_else(invalid)?;
-    need(nodes.len() <= 65_536)?;
+    need(nodes.len() <= 65_536 && nodes.iter().all(|node| node.get("skin").is_none()))?;
     let scene = gltf
         .get("scene")
         .map(|v| v.as_u64().ok_or_else(invalid))
