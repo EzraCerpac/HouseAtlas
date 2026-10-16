@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "59109dd9dac11914b303de43a28bb922094def8469cd838ab402cb2cefcdd330",
+  "sourceDigestSha256": "d0824cd3fc1edfc7397e23b943039343a95b4da62e75b7d105b947a545daab28",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5797,8 +5797,8 @@
       "path": "docs/contributing/verification.md",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 63038,
-      "sha256": "74a4911da4c992c10697476f635992173a960e43e579f5ec201b72c61c6de77a"
+      "bytes": 64030,
+      "sha256": "45b3e808a0e2a27c5482a8ffc73898536c3966f56efc9b474b13571862999474"
     },
     {
       "path": "docs/coordination/agent-write-amendment-proposal.md",
@@ -6146,8 +6146,8 @@
     {
       "path": "docs/operations/media-and-offline.md",
       "mode": "100644",
-      "bytes": 7256,
-      "sha256": "cf1222e3de213a45fd378c415cadc78f686ae020d75afdd8550123c4b60a2896",
+      "bytes": 8090,
+      "sha256": "e966b64c106a6c4363ed0d22a857328ac15e4e1de03e6f1a0015810ae5621690",
       "owner": "operations-policy"
     },
     {
@@ -6651,8 +6651,8 @@
       "path": "frontend/integration/main.tsx",
       "owner": "core-integration",
       "mode": "100644",
-      "bytes": 32572,
-      "sha256": "01291bc0e5307e3e4a320e5d685a4459d37d2f2076c1f3777c817a2fbd0156d7"
+      "bytes": 33070,
+      "sha256": "2f4738c9e42f44b2f501f4527a6273c4ab48ec879c282ab5b5a83f3d9dd133e3"
     },
     {
       "path": "frontend/integration/native-document-read-client.ts",
@@ -6679,8 +6679,15 @@
       "path": "frontend/integration/native-geometry-read-client.ts",
       "owner": "web",
       "mode": "100644",
-      "bytes": 29752,
-      "sha256": "eb9cae0d5aded1cc0e263a6bd69dc410742876d0520f42850d524a8226afac86"
+      "bytes": 31596,
+      "sha256": "46d76d691e9c1b3a695b04713934e88dd46b8c7f82a0e9c252d850f7fa17f831"
+    },
+    {
+      "path": "frontend/integration/native-geometry-scan-cache.ts",
+      "mode": "100644",
+      "bytes": 10911,
+      "sha256": "62a0fe5ac3623edb93a69bb7609526ea49489d155fb5a551f1b49de5f3c305cf",
+      "owner": "web"
     },
     {
       "path": "frontend/integration/native-geometry-write-client.ts",
@@ -6876,6 +6883,20 @@
       "mode": "100644",
       "bytes": 23447,
       "sha256": "9c192d208674ce4068ee61b25f41f85533d676653f222ecab7b1e4b0c8f1f757",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/native-geometry-persistence-harness.mjs",
+      "mode": "100644",
+      "bytes": 8868,
+      "sha256": "6b4d713c08fccc9a9365fb18f6676d89dab567d4b26ad306b3935398bc63315c",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/native-geometry-persistence.mjs",
+      "mode": "100644",
+      "bytes": 7348,
+      "sha256": "c8d6d554b0359ba65fc7a3c0db44c82178e13a0a9a178f141f993fdb6253fbc5",
       "owner": "web"
     },
     {
@@ -7100,6 +7121,13 @@
       "mode": "100644",
       "bytes": 2071,
       "sha256": "1444447a9b4be65339cfcc05d710e7e252f1f71a47a538a92df3e16a0114892b",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/synthetic-indexeddb.mjs",
+      "mode": "100644",
+      "bytes": 6994,
+      "sha256": "edab1d1d6ead56c01d68fe48896496d44c58b98eb3285af4fb09608c6246a3b9",
       "owner": "web"
     },
     {
@@ -8282,8 +8310,8 @@
       "path": "frontend/src/lantern/scans/native-read-types.ts",
       "owner": "web",
       "mode": "100644",
-      "bytes": 3688,
-      "sha256": "e319f1cc23eb2f755a9763901e8e74d32682f88ae63c8dcd4c57d70a42658adf"
+      "bytes": 3792,
+      "sha256": "0a80a97ff138c86028c980392a1f004db2730c92668f8babc9caa22c96b87a3a"
     },
     {
       "path": "frontend/src/lantern/scans/native-scene-source-types.ts",

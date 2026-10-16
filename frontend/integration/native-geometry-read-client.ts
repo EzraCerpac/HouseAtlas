@@ -2,6 +2,7 @@ import { ExactDecimal, isExactDecimal } from '../src/numeric/decimal';
 import { MESH_LIMITS, MESH_PROFILE } from '../src/lantern/scans/mesh-profile';
 import { IFC_GLB_MIME, IFC_GLB_PROFILE } from '../src/lantern/scans/ifc-glb-profile';
 import type { ScanFloor, ScanMeshDelivery, ScanMeshReadPort } from '../src/lantern/scans/mesh-profile';
+import type { NativeGeometryScanCache } from './native-geometry-scan-cache';
 import type {
   NativeGeometryBinding, NativeGeometryDescriptor, NativeGeometryFloor, NativeGeometryFrame,
   NativeGeometryLicense, NativeGeometryLoadOptions, NativeGeometryOffer, NativeGeometryReadClient, NativeScanFloor,
@@ -16,15 +17,17 @@ export interface NativeGeometryReadOptions {
   transport?: typeof fetch;
   /** Opt-in page-memory reuse of verified mesh bytes; absent, every mesh is read
    * afresh. `sessionPresent` distinguishes a home-view reload gap, which keeps
-   * the bytes, from sign-out or a session check, which drops them. */
-  retainMeshes?: { readonly sessionPresent: () => boolean };
+   * the bytes, from sign-out or a session check, which drops them. `persist`
+   * also stores verified bytes across page loads for the binding's actor and
+   * home; it is consulted only for a fresh descriptor's exact offer. */
+  retainMeshes?: { readonly sessionPresent: () => boolean; readonly persist?: NativeGeometryScanCache };
 }
 
 export const NATIVE_GEOMETRY_READ_LIMITS = Object.freeze({
   descriptorBytes: 1024 * 1024, floors: 64, depth: 8, nodes: 4096,
   stringLength: 4096, numberLength: 20, headerBytes: 8192, chunks: 8192, requests: 2, readMs: 15000,
 });
-/** Page-memory mesh retention only: never persisted, one session/home partition. */
+/** Page-memory mesh retention: one session/home partition. */
 export const NATIVE_GEOMETRY_RETAINED_LIMITS = Object.freeze({ entries: 6, bytes: 3 * MESH_LIMITS.bytes });
 const MESH_MIME = 'application/vnd.houseatlas.magicplan-authored-mesh+json';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -241,6 +244,8 @@ async function receive(response: Response, limit: number, expectedLength: number
 
 interface Owner {
   readonly sessionIdentity: object;
+  /** Authenticated actor naming the persistent partition; null persists nothing. */
+  readonly actorId: string | null;
   readonly scopeAllocation: NativeGeometryBinding['scope'];
   readonly scope: NativeGeometryBinding['scope'];
   readonly expiresAt: string;
@@ -278,8 +283,9 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
  * is only a fence over this host observation and never a permission fallback.
  * With `retainMeshes`, a freshly authorized descriptor may be served verified
  * mesh bytes this page already read for the identical offered derivative under
- * the same canonical session object and home. The descriptor itself is always
- * read afresh, and nothing is persisted beyond this page's memory. */
+ * the same canonical session object and home, or, with `persist`, bytes stored
+ * by an earlier page for the same authenticated actor and home. The descriptor
+ * itself is always read afresh and never stored. */
 export function createNativeGeometryReadClient(options: NativeGeometryReadOptions): NativeGeometryReadClient {
   const parsedOrigin = new URL(options.origin);
   need((parsedOrigin.protocol === 'https:' || parsedOrigin.protocol === 'http:') && parsedOrigin.origin === options.origin
@@ -291,7 +297,7 @@ export function createNativeGeometryReadClient(options: NativeGeometryReadOption
   // Least recently used first. A home-view reload gap keeps the partition; a
   // different session object, expiry or home, an invalid binding, a gap without
   // a session (sign-out or session check), session expiry or dispose clears it.
-  const retention = options.retainMeshes ?? null;
+  const retention = options.retainMeshes ?? null, persist = retention?.persist ?? null;
   let retainedFor: RetainedPartition | null = null, retainedBytes = 0;
   let retainedTimer: ReturnType<typeof setTimeout> | undefined;
   const retained = new Map<string, Uint8Array>();
@@ -348,10 +354,12 @@ export function createNativeGeometryReadClient(options: NativeGeometryReadOption
       if (owner || active || requests.size) dropOwner(); return null;
     }
     partition(binding);
-    if (!owner || owner.sessionIdentity !== binding.sessionIdentity || owner.scopeAllocation !== binding.scope || owner.expiresAt !== binding.expiresAt
-      || owner.scope.workspaceId !== binding.scope.workspaceId || owner.scope.homeId !== binding.scope.homeId) {
+    const actorId = typeof binding.actorId === 'string' && binding.actorId.length > 0
+      && binding.actorId.length <= NATIVE_GEOMETRY_READ_LIMITS.stringLength ? binding.actorId : null;
+    if (!owner || owner.sessionIdentity !== binding.sessionIdentity || owner.actorId !== actorId || owner.scopeAllocation !== binding.scope
+      || owner.expiresAt !== binding.expiresAt || owner.scope.workspaceId !== binding.scope.workspaceId || owner.scope.homeId !== binding.scope.homeId) {
       dropOwner();
-      owner = Object.freeze({ sessionIdentity: binding.sessionIdentity, scopeAllocation: binding.scope,
+      owner = Object.freeze({ sessionIdentity: binding.sessionIdentity, actorId, scopeAllocation: binding.scope,
         scope: Object.freeze({ workspaceId: binding.scope.workspaceId, homeId: binding.scope.homeId }), expiresAt: binding.expiresAt, expiry });
       scheduleExpiry();
     }
@@ -422,22 +430,42 @@ export function createNativeGeometryReadClient(options: NativeGeometryReadOption
         try {
           need(current(live) && viewKey === descriptor.viewKey); readSignal.throwIfAborted();
           const offer = live.offers.get(floor); need(offer);
-          // Only this fresh descriptor's exact offer selects retained bytes; an
-          // explicit refresh reads afresh and replaces them.
+          // Only this fresh descriptor's exact offer selects retained or stored
+          // bytes; an explicit refresh reads afresh and replaces them.
           const key = retention ? retainedKey(descriptor, offer.floor) : null;
-          const kept = key !== null && !live.refresh && partitionOf(found) ? retained.get(key) : undefined;
-          let bytes: Uint8Array;
-          if (key !== null && kept) {
-            retained.delete(key); retained.set(key, kept);
-            bytes = new Uint8Array(kept);
-          } else {
+          // The persistent partition is the authenticated actor and this home.
+          const place = key !== null && persist && found.actorId !== null
+            ? JSON.stringify([found.actorId, found.scope.workspaceId, found.scope.homeId]) : null;
+          let bytes: Uint8Array | null = null;
+          if (key !== null && !live.refresh) {
+            const kept = partitionOf(found) ? retained.get(key) : undefined;
+            if (kept) {
+              retained.delete(key); retained.set(key, kept);
+              bytes = new Uint8Array(kept);
+            } else if (place !== null) {
+              const stored = await persist!.read(place, key).catch(() => null);
+              need(current(live)); readSignal.throwIfAborted();
+              if (stored) {
+                // Stored bytes are used only if they still match this offer.
+                const digest = await sha256Hex(stored);
+                need(current(live)); readSignal.throwIfAborted();
+                if (digest === offer.floor.derivativeSha256 && stored.byteLength <= MESH_LIMITS.bytes) {
+                  bytes = stored; if (partitionOf(found)) retain(key, stored);
+                } else persist!.remove(place, key);
+              }
+            }
+          }
+          if (!bytes) {
             bytes = await exchange(found, expectedGeneration, offer.readPath, offer.floor.derivativeContentType, MESH_LIMITS.bytes, readSignal,
               async (body, headerView) => { need(headerView === descriptor.viewKey); return body; });
             if (key !== null) {
               const digest = await sha256Hex(bytes);
               need(current(live)); readSignal.throwIfAborted();
-              // Unverified bytes are delivered for the reader to refuse, never retained.
-              if (digest === offer.floor.derivativeSha256 && partitionOf(found)) retain(key, bytes);
+              // Unverified bytes are delivered for the reader to refuse, never kept.
+              if (digest === offer.floor.derivativeSha256) {
+                if (partitionOf(found)) retain(key, bytes);
+                if (place !== null) persist!.write(place, JSON.stringify([descriptor.buildingId, offer.floor.key]), key, bytes);
+              }
             }
           }
           need(current(live)); readSignal.throwIfAborted();

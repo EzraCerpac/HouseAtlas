@@ -6,6 +6,8 @@ import type { MESH_PROFILE } from './mesh-profile';
 /** Private host observation. This object carries no cookie, token or grant. */
 export interface NativeGeometryBinding {
   readonly sessionIdentity: object;
+  /** The canonical session's authenticated actor; absent, nothing persists. */
+  readonly actorId?: string;
   readonly expiresAt: string;
   readonly scope: Readonly<{ workspaceId: string; homeId: string }>;
 }
@@ -70,7 +72,7 @@ export interface NativeGeometryFrame {
 }
 
 export interface NativeGeometryLoadOptions {
-  /** Explicit user refresh: no mesh bytes retained in page memory are reused. */
+  /** Explicit user refresh: no retained or stored mesh bytes are reused. */
   readonly refresh?: boolean;
 }
 

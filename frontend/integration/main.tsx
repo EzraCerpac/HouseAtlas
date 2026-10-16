@@ -17,6 +17,7 @@ import { createNativePlaceClient } from "../src/api/native-place-client";
 import { createTopologyClient } from "../src/api/topology-client";
 import { createNetworkRelationsClient } from "../src/api/network-relations-client";
 import { createNativeGeometryReadClient } from "./native-geometry-read-client";
+import { openNativeGeometryScanCache } from "./native-geometry-scan-cache";
 import { createNativeEvidenceDocumentClient } from "./native-evidence-document-client";
 import { createNativeSceneAssociationClient } from "./native-scene-association-client";
 import { createNativeSceneSourceClient } from "./native-scene-source-client";
@@ -77,6 +78,9 @@ const quantityChanged = () => { currentSceneSelection = null; sceneEvents.dispat
 // Native browser support only; undefined sends no admission request and registers nothing.
 const modelContext = detectModelContext(document);
 let sessionGeneration = 0;
+// Verified scan derivative bytes only, opened on first scan read; sign-out
+// deletes them. Unavailable storage reads from the server as before.
+const scanCache = openNativeGeometryScanCache(typeof indexedDB === "undefined" ? undefined : indexedDB);
 const nativeSignOut = nativeSessions.signOut;
 const nativeLocalAccess = nativeSessions.localAccess;
 const nativeLocalSignIn = nativeLocalAccess?.signIn;
@@ -125,8 +129,9 @@ const sessions: AtlasSessionClient = {
     currentQuantityScope = null;
     currentReadyView = null;
     quantityChanged();
+    const scansCleared = scanCache.clear();
     try { await nativeSignOut(signal); }
-    finally { captureDrafts.announceSessionChange(); }
+    finally { await scansCleared; captureDrafts.announceSessionChange(); }
   } } : {}),
   // Mode is informational and writes no shared state; local and proxy sign-in
   // publish the returned session under the same fence as password sign-in.
@@ -243,19 +248,20 @@ const nativePlaces = createNativePlaceClient({
 });
 // Native geometry gets the original canonical session allocation and the
 // completed authorized view scope. Every replacement/gap invalidates its reads.
-// Verified mesh bytes stay in this page's memory only, for the same session
-// object and home, and are reused only for an identical derivative offered by a
-// freshly read descriptor. A home-view reload keeps them; a session check,
-// sign-out, expiry, other home or a closed page does not.
+// Verified mesh bytes are reused only for an identical derivative offered by a
+// freshly read descriptor: from page memory for the same session object and
+// home (a home-view reload keeps them; a session check, sign-out, expiry or
+// other home does not), and from the scan cache for the same authenticated
+// actor and home across page loads.
 const nativeGeometry = createNativeGeometryReadClient({
   origin: window.location.origin,
   getBinding: () => currentSession && currentQuantityScope
-    ? { sessionIdentity: currentSession, expiresAt: currentSession.expiresAt, scope: currentQuantityScope } : null,
+    ? { sessionIdentity: currentSession, actorId: currentSession.actorId, expiresAt: currentSession.expiresAt, scope: currentQuantityScope } : null,
   subscribeBinding: changed => {
     quantityEvents.addEventListener("changed", changed);
     return () => quantityEvents.removeEventListener("changed", changed);
   },
-  retainMeshes: { sessionPresent: () => currentSession !== null },
+  retainMeshes: { sessionPresent: () => currentSession !== null, persist: scanCache },
 });
 // Saved originals share the current canonical owner and completed view scope.
 const nativeEvidenceDocuments = createNativeEvidenceDocumentClient({
