@@ -53,26 +53,29 @@ try {
     roomMappings:[{sourceRoomId:'source:room',sourceFloorKey:floor,sourceOriginalSha256:floorHash,sourceAnchorIds:['generated:anchor'],targets:[{packagePlaceKey:packageKey,packagePlaceUuid:packageUuid,atlasPlaceId:U(40)}],unresolvedLabels:[],evidenceIds:[U(4),U(6)]}]};
   const record={schemaVersion:1,recordType:'scene-association',recordId:U(12),workspaceId:U(1),homeId:U(2),revision:1,lifecycle:'active',createdAt:'2026-10-10T12:00:00Z',updatedAt:'2026-10-10T12:00:00Z',lastAuditId:U(13),payload};
   const raw=JSON.stringify({status:'available',association:record},(_,v)=>typeof v==='bigint'?'EXACT-'+v:v).replaceAll('"EXACT-9007199254740991"','9007199254740991');
+  const headRaw=JSON.stringify({schema:'houseatlas.native-scene-head.v1',scope:{workspaceId:U(1),homeId:U(2)},buildingId:U(3),status:'available',reason:null,head:{recordId:U(12),revision:1,payloadSha256:hash(canonical(JSON.parse(raw).association.payload))}});
   const sceneSelection=Object.freeze({workspaceId:U(1),homeId:U(2),revision:'generated-selection',publicationId:U(14),semanticsSha256:'c'.repeat(64)});
   const publicationRooms=Object.freeze([{roomId:'publication:room',buildingId:'publication:building',nativePlaceId:U(40),occurrenceIds:['occurrence:one','occurrence:two']}]);
   const reviewedRoomLinks=Object.freeze({profile:'houseatlas.unified-atlas-room-links.v1',workspaceId:U(1),homeId:U(2),publicationId:U(14),semanticsSha256:'c'.repeat(64),links:[{roomId:'publication:room',nativePlaceId:U(40),packagePlaceKey:packageKey,packagePlaceUuid:packageUuid}]});
   const context={sceneSelection,publicationRooms,reviewedRoomLinks,nativeBuildingId:U(3),native:{sessionIdentity:{},session:{schemaVersion:1,actorId:U(15),csrfToken:'generated-csrf',expiresAt:new Date(Date.now()+300000).toISOString()},view:{scope:{workspaceId:U(1),homeId:U(2)}},admission:null}};
-  const counts={gets:0,opens:0,releases:0,disposes:0,subscriptions:0};
+  const counts={gets:0,currentGets:0,headGets:0,opens:0,releases:0,disposes:0,subscriptions:0};
   const owners=[];
   const source=createUnifiedAtlasOverlaySource({getContext:()=>context,subscribeContext:()=>()=>{},fetch:async(url,init)=>{
-    assert.equal(url,`/api/atlas/scene/v1/workspaces/${U(1)}/homes/${U(2)}/buildings/${U(3)}/current`);assert.equal(init.method,'GET');assert.equal(init.credentials,'same-origin');assert.equal(init.cache,'no-store');assert.equal(init.redirect,'error');assert.equal(init.signal.aborted,false);counts.gets++;
-    return new Response(raw,{headers:{'Content-Type':'application/json'}});
+    const prefix=`/api/atlas/scene/v1/workspaces/${U(1)}/homes/${U(2)}/buildings/${U(3)}`;
+    assert([`${prefix}/current`,`${prefix}/head`].includes(url));assert.equal(init.method,'GET');assert.equal(init.credentials,'same-origin');assert.equal(init.cache,'no-store');assert.equal(init.redirect,'error');assert.equal(init.signal.aborted,false);counts.gets++;
+    const isHead=url===`${prefix}/head`;counts[isHead?'headGets':'currentGets']++;
+    return new Response(isHead?headRaw:raw,{headers:{'Content-Type':'application/json'}});
   },createDocuments:()=>{let held=null;const owner={async open(id,signal){assert.equal(signal.aborted,false);const i=id===U(4)?0:1;assert.equal(id,documents[i].evidenceId);counts.opens++;held={lease:{},mode:'original-download',evidenceId:id,evidenceRevision:documents[i].evidenceRevision,asset:{assetId:documents[i].originalAssetId,revision,sha256:documents[i].originalSha256,contentType:'text/plain',byteSize:ExactDecimal.parse(String([primary,historical][i].length))}};return held;},isCurrent:f=>f===held,getBlob:f=>{assert.equal(f,held);return new Blob([f.evidenceId===U(4)?primary:historical],{type:'text/plain'});},subscribeInvalidation(f){assert.equal(f,held);counts.subscriptions++;return()=>counts.subscriptions--;},release(f){assert.equal(f,held);held=null;counts.releases++;},dispose(){assert.equal(held,null);counts.disposes++;}};owners.push(owner);return owner;}});
   try {
     const frame=await source.open({sceneSelection,nativeBuildingId:U(3),publicationRooms},new AbortController().signal);
-    assert.equal(frame.status,'available',frame.status==='unavailable'?frame.reason:'available');assert.equal(source.isCurrent(frame),true);assert.equal(counts.gets,2);assert.equal(counts.opens,2);assert.equal(counts.subscriptions,2);
+    assert.equal(frame.status,'available',frame.status==='unavailable'?frame.reason:'available');assert.equal(source.isCurrent(frame),true);assert.equal(counts.gets,2);assert.equal(counts.currentGets,2);assert.equal(counts.headGets,0);assert.equal(counts.opens,2);assert.equal(counts.subscriptions,2);
     assert.equal(frame.sourceSelection.sceneAssetRevision.toString(),'9007199254740991');
     assert.deepEqual(frame.roomBindings,[{roomId:'publication:room',nativePlaceId:U(40),spaceOccurrenceId:null,sourceRoomIds:['source:room'],targets:[{packagePlaceKey:packageKey,packagePlaceUuid:packageUuid,sourceAnchorIds:['generated:anchor']}],qualification:'current-native-room-join',anchor:{kind:'room-summary'}}]);
     assert.equal(frame.network.status,'available');assert.equal(frame.network.data.devices[0].id,'device:generated');assert.equal(frame.network.data.devices[0].place.coordinate,null);assert.equal(frame.network.data.source.status,'recorded');
     assert.equal(frame.electricity.status,'available');assert.equal(frame.electricity.data.sheets[0].roomAssociations[0].packagePlaceKey,packageKey);assert.equal(frame.electricity.data.sheets[0].roomAssociations[0].nativePlaceId,null);
     assert.equal(frame.electricalFixtures.status,'available');assert.equal(frame.electricalFixtures.data.fixtures[0].id,'socket');assert.equal(frame.electricalFixtures.data.groups[0].currentCircuitId,null);assert.equal(frame.electricalFixtures.data.groups[0].verifiedWiring,false);
     await new Promise(resolve=>setTimeout(resolve,10_100));
-    assert.equal(counts.gets,3,'One sequential bounded positive head refresh');assert.equal(source.isCurrent(frame),true);
+    assert.equal(counts.gets,3,'One sequential bounded positive head refresh');assert.equal(counts.currentGets,2);assert.equal(counts.headGets,1);assert.equal(source.isCurrent(frame),true);
     assert.equal(Object.isFrozen(frame.roomBindings[0].targets),true);let notifications=0;source.subscribeInvalidation(frame,()=>notifications++);
     source.release(frame);assert.equal(notifications,1);assert.equal(counts.releases,2);assert.equal(counts.disposes,2);assert.equal(counts.subscriptions,0);
     console.log(JSON.stringify({status:'passed',profile:'healthy-unified-atlas-overlay-source.v1',sourcePins,counts,roomBindings:1,networkDevices:1,electricitySheets:1,documentaryFixtures:1,arbitraryPrecisionRevision:'9007199254740991',nativeWrites:0,realSourceRequests:0}));

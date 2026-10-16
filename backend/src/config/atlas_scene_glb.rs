@@ -2,7 +2,7 @@
 //! This is not an IFC admission or a general renderer/mesh converter.
 use super::atlas_scene::{coordinate, invalid, need};
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 type Matrix = [f64; 16];
 const IDENTITY: Matrix = [
     1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.,
@@ -40,6 +40,10 @@ fn local(node: &Value) -> Result<Matrix, String> {
         )?;
         let m = numbers(node.get("matrix"), IDENTITY)?;
         need(m[3] == 0. && m[7] == 0. && m[11] == 0. && m[15] == 1.)?;
+        // Three decomposes matrix nodes before recomposing their world pose.
+        // Keep this static profile exact: general rotation/scale uses explicit
+        // TRS; matrix nodes may only translate an identity linear transform.
+        need((0..12).all(|i| m[i] == IDENTITY[i]))?;
         return Ok(m);
     }
     let [x, y, z, w] = numbers(node.get("rotation"), [0., 0., 0., 1.])?;
@@ -122,11 +126,64 @@ pub(super) fn worlds(gltf: &Value) -> Result<BTreeMap<usize, Matrix>, String> {
     need(worlds.len() == nodes.len())?;
     Ok(worlds)
 }
+// Match the renderer's allocation budget for every drawn primitive instance,
+// including repeated nodes that share one declared mesh/accessor.
+#[derive(Default)]
+pub(super) struct Work {
+    read: usize,
+    accessors: BTreeSet<usize>,
+    instances: usize,
+    vertices: usize,
+    indices: usize,
+}
+impl Work {
+    fn primitive(&mut self, vertices: usize, indices: usize) -> Result<(), String> {
+        self.instances = self.instances.checked_add(1).ok_or_else(invalid)?;
+        self.vertices = self.vertices.checked_add(vertices).ok_or_else(invalid)?;
+        self.indices = self.indices.checked_add(indices).ok_or_else(invalid)?;
+        need(
+            self.instances <= 20_000 && self.vertices <= 1_800_000 && self.indices <= 600_000 * 3,
+        )?;
+        // Positions, copied indices and prepared triangles, exactly as preflightGltf.
+        need(self.vertices * 12 + self.indices * 4 + self.indices / 3 * 72 <= 96 * 1024 * 1024)
+    }
+    pub(super) fn complete(&self, gltf: &Value) -> Result<(), String> {
+        // Decline unused declarations: the frontend validates every accessor,
+        // whereas this static profile reads only selected primitive attributes.
+        need(
+            gltf["accessors"]
+                .as_array()
+                .is_some_and(|a| a.len() == self.accessors.len()),
+        )?;
+        let views = gltf["bufferViews"].as_array().ok_or_else(invalid)?;
+        let declared = integer(&gltf["buffers"][0], "byteLength", None)?;
+        let mut copied = 0usize;
+        for view in views {
+            need(view["buffer"] == 0)?;
+            let offset = integer(view, "byteOffset", Some(0))?;
+            let length = integer(view, "byteLength", None)?;
+            need(
+                length > 0
+                    && offset
+                        .checked_add(length)
+                        .is_some_and(|end| end <= declared),
+            )?;
+            if view.get("byteStride").is_some() {
+                let stride = integer(view, "byteStride", None)?;
+                need((4..=252).contains(&stride) && stride.is_multiple_of(4))?;
+            }
+            copied = copied.checked_add(length).ok_or_else(invalid)?;
+            need(copied <= 32 * 1024 * 1024)?;
+        }
+        Ok(())
+    }
+}
 fn integer(value: &Value, key: &str, default: Option<usize>) -> Result<usize, String> {
     match value.get(key) {
         Some(v) => v
             .as_u64()
             .and_then(|n| usize::try_from(n).ok())
+            .filter(|n| *n <= 0x7fff_ffff)
             .ok_or_else(invalid),
         None => default.ok_or_else(invalid),
     }
@@ -146,7 +203,7 @@ fn accessor<'a>(
     index: &Value,
     width: usize,
     indices: bool,
-    visited: &mut usize,
+    work: &mut Work,
 ) -> Result<Accessor<'a>, String> {
     let index = index
         .as_u64()
@@ -167,8 +224,9 @@ fn accessor<'a>(
             && a.get("normalized").is_none_or(|v| v == false),
     )?;
     let count = integer(a, "count", None)?;
-    *visited = visited.checked_add(count).ok_or_else(invalid)?;
-    need(count > 0 && *visited <= 8_000_000)?;
+    work.accessors.insert(index);
+    work.read = work.read.checked_add(count).ok_or_else(invalid)?;
+    need(count > 0 && work.read <= 8_000_000)?;
     let view = gltf["bufferViews"]
         .get(integer(a, "bufferView", None)?)
         .ok_or_else(invalid)?;
@@ -193,7 +251,18 @@ fn accessor<'a>(
         .checked_add((count - 1).checked_mul(stride).ok_or_else(invalid)?)
         .and_then(|n| n.checked_add(element))
         .ok_or_else(invalid)?;
-    need(end <= size)?;
+    // GLTFLoader slices complete interleaved strides, including the last one.
+    let loader_end = if stride != element {
+        (start / stride)
+            .checked_add(count)
+            .and_then(|n| n.checked_mul(stride))
+            .ok_or_else(invalid)?
+    } else {
+        start
+            .checked_add(count.checked_mul(element).ok_or_else(invalid)?)
+            .ok_or_else(invalid)?
+    };
+    need(end <= size && loader_end <= size)?;
     let declared = integer(&gltf["buffers"][0], "byteLength", None)?;
     need(offset.checked_add(size).is_some_and(|end| end <= declared))?;
     let binary = json_end.checked_add(8).ok_or_else(invalid)?;
@@ -243,7 +312,10 @@ fn index(a: &Accessor<'_>, i: usize) -> Result<usize, String> {
 }
 fn transform(point: [f64; 3], world: &Matrix) -> [f64; 3] {
     std::array::from_fn(|r| {
-        world[r] * point[0] + world[4 + r] * point[1] + world[8 + r] * point[2] + world[12 + r]
+        // standard-glb.ts stores world positions in a Float32Array before
+        // prepareMeshes, bounds checks and footprint extraction consume them.
+        (world[r] * point[0] + world[4 + r] * point[1] + world[8 + r] * point[2] + world[12 + r])
+            as f32 as f64
     })
 }
 impl Geometry<'_> {
@@ -352,7 +424,7 @@ pub(super) fn positions<'a>(
     json_end: usize,
     primitive: &Value,
     world: &Matrix,
-    visited: &mut usize,
+    work: &mut Work,
     mut check: impl FnMut([f64; 3]) -> bool,
 ) -> Result<Geometry<'a>, String> {
     need(primitive.get("targets").is_none() && integer(primitive, "mode", Some(4))? == 4)?;
@@ -377,19 +449,23 @@ pub(super) fn positions<'a>(
         &primitive["attributes"]["POSITION"],
         3,
         false,
-        visited,
+        work,
+    )?;
+    let indices = primitive
+        .get("indices")
+        .map(|indices| accessor(gltf, glb, json_end, indices, 1, true, work))
+        .transpose()?;
+    work.primitive(
+        position.count,
+        indices.as_ref().map_or(position.count, |a| a.count),
     )?;
     if let Some(normal) = attributes.get("NORMAL") {
-        let normal = accessor(gltf, glb, json_end, normal, 3, false, visited)?;
+        let normal = accessor(gltf, glb, json_end, normal, 3, false, work)?;
         need(normal.count == position.count)?;
         for i in 0..normal.count {
             vector(&normal, i)?;
         }
     }
-    let indices = primitive
-        .get("indices")
-        .map(|indices| accessor(gltf, glb, json_end, indices, 1, true, visited))
-        .transpose()?;
     if let Some(indices) = &indices {
         need(indices.count.is_multiple_of(3))?;
         for i in 0..indices.count {

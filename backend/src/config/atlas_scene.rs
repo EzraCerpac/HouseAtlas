@@ -405,7 +405,7 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
     let mut work = footprint::Work::default();
     let mut supports: BTreeMap<&str, footprint::Support> = BTreeMap::new();
     let mut footprints: BTreeMap<&str, Vec<footprint::Polygon>> = BTreeMap::new();
-    let mut visited = 0usize;
+    let mut geometry_work = super::atlas_scene_glb::Work::default();
     let mut selectors = BTreeSet::new();
     let mut picks = BTreeSet::new();
     for m in &p.mesh_bindings {
@@ -459,7 +459,7 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
                 20 + json_len,
                 &primitives[*i],
                 world,
-                &mut visited,
+                &mut geometry_work,
                 |point| {
                     b.bounds.point_contains(point)
                         && level_bounds
@@ -498,6 +498,7 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
     // The selected scene is loaded in full. Every reachable drawable must have
     // exactly one binding, so no decorative primitive bypasses admission.
     let mut remaining = selectors.len();
+    let mut drawn_meshes = BTreeSet::new();
     for node_index in worlds.keys() {
         let Some(mesh_index) = nodes[*node_index].get("mesh") else {
             continue;
@@ -506,6 +507,7 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
             .as_u64()
             .and_then(|n| usize::try_from(n).ok())
             .ok_or_else(invalid)?;
+        drawn_meshes.insert(mesh_index);
         let primitives = meshes
             .get(mesh_index)
             .and_then(|m| m["primitives"].as_array())
@@ -518,7 +520,8 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
             need(selectors.contains(&(*node_index, mesh_index, primitive_index)))?;
         }
     }
-    need(remaining == 0)?;
+    need(remaining == 0 && drawn_meshes.len() == meshes.len())?;
+    geometry_work.complete(&gltf)?;
     let mut plan_ids = BTreeSet::new();
     let mut features = BTreeMap::new();
     let mut points = 0usize;

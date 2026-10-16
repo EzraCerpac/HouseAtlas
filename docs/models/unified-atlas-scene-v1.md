@@ -208,6 +208,11 @@ asset limits; validate the actual mounted chunk budget against the server's
 The companion requires exactly one scene with all declared nodes reachable
 once, at most 20,000 nodes and hierarchy depth at most 64, matching the standard
 renderer admission limits.
+Drawn primitive instances, including repeated nodes sharing a mesh, are bounded
+to 20,000 instances, 1,800,000 vertices, 600,000 triangles and 96 MiB of copied
+positions, indices and prepared triangles. Every declared mesh and accessor
+must be used by the bound scene; all buffer views are checked and their copied
+bytes total at most 32 MiB.
 The companion reader uses a bounded static triangle profile: selected primitives
 have regular Float32 VEC3 positions and optional normals, with checked attribute
 and unsigned scalar index layouts. Morph targets, mesh/node weights and node
@@ -219,6 +224,12 @@ single-level bindings also lie within that level, while shared multilevel
 bindings lie within the enclosing union of their declared levels. Producer
 bounds include the physical geometry, occurrence/pick extents and matching plan
 extents; validation does not enlarge them or move geometry.
+World positions are quantized to Float32 before bounds and footprint checks,
+matching the standard loader's prepared positions.
+General node rotation and scale use explicit glTF TRS. Matrix nodes in this
+static companion profile may only translate an identity linear transform;
+general affine matrices are unsupported because the standard loader decomposes
+and recomposes them.
 Selected materials must resolve to the admitted core color/factor profile;
 texture, image and sampler resource graphs are unsupported. Each room-pick
 primitive needs a nondegenerate transformed triangle. Plan rings are simple,

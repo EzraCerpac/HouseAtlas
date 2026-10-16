@@ -1271,12 +1271,17 @@ owners. It checks independently host-reviewed publication/native/package room
 links against the current association, retained
 primary and historical originals, final current-head read, arbitrary-precision
 asset revision, documentary-only detail DTOs, one positive bounded passive
-head refresh and explicit owner release. The owner rereads sequentially every
-10 seconds with an 8-second deadline, withdraws on change/error, accepts a head
+head refresh and explicit owner release. Initial and final qualification use
+`/current`; the sequential monitor uses the existing compact `/head` response
+(at most 4,096 bytes), comparing record ID, exact revision and canonical payload
+SHA-256. It polls every 10 seconds with an 8-second deadline, withdraws on change/error, accepts a head
 proof for at most 20 seconds while the original native session and source
 owners remain active. Release, context/document invalidation or native session
 end stop the monitor. This is bounded read-point freshness, not immediate
-external-write notification. It
+external-write notification. The compact head rechecks the accepted native
+chain, identities and source-record pins; it does not repeat old scan-descriptor
+or retained-byte validation. The dedicated original owners continue to guard
+the retained documentary sources. It
 uses no old rendered geometry, real source, provider, listener, native mutation,
 expiry/revocation/replay/denial or other held controls. Use pinned Node 26.10.0:
 

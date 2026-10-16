@@ -277,6 +277,43 @@ export async function readNativeOverlayAssociation(next:SceneAssociationContext,
   });
 }
 
+/** The closed scene payload admits only safe-integer numeric fields. The
+ * existing canonical writer checks each exact decimal before conversion, uses
+ * raw UTF16 key order and scalar strings, matching backend canonical_digest
+ * without rounding a decimal through binary floating point. */
+export async function nativeSceneAssociationPayloadDigest(payload:LosslessJson):Promise<string> {
+  return digest(encoder.encode(canonical(payload)));
+}
+export type SceneAssociationHeadRead = Readonly<{
+  status:'available'; recordId:string; revision:ExactDecimal; payloadSha256:string;
+}> | Readonly<{status:'unavailable';reason:'no-current-association'|'current-source-unavailable'}>;
+function qualifyHeadResponse(raw:LosslessJson,next:SceneAssociationContext,buildingId:string):SceneAssociationHeadRead {
+  const output=row(raw,['schema','scope','buildingId','status','reason','head']);
+  const scope=row(output.scope,['workspaceId','homeId']);
+  need(output.schema==='houseatlas.native-scene-head.v1'
+    &&uuid(scope.workspaceId)===next.view.scope.workspaceId&&uuid(scope.homeId)===next.view.scope.homeId
+    &&uuid(output.buildingId)===buildingId);
+  if(output.status==='unavailable') {
+    need(output.head===null&&(output.reason==='no-current-association'||output.reason==='current-source-unavailable'));
+    return Object.freeze({status:'unavailable',reason:output.reason});
+  }
+  need(output.status==='available'&&output.reason===null);
+  const head=row(output.head,['recordId','revision','payloadSha256']);
+  return Object.freeze({status:'available',recordId:uuid(head.recordId),revision:integer(head.revision),payloadSha256:sha(head.payloadSha256)});
+}
+/** Bounded association pins only; source custody remains with document owners
+ * and the host context. This grants no geometry or original-download access. */
+export async function readNativeOverlayAssociationHead(next:SceneAssociationContext,buildingId:string,
+  signal:AbortSignal,guard:()=>void,transport:typeof fetch=fetch):Promise<SceneAssociationHeadRead> {
+  signal.throwIfAborted();guard();
+  need(UUID.test(buildingId)&&UUID.test(next.view.scope.workspaceId)&&UUID.test(next.view.scope.homeId)
+    &&next.sessionIdentity&&Number.isFinite(Date.parse(next.session.expiresAt))&&Date.parse(next.session.expiresAt)>Date.now());
+  const response=await abortable(transport(`/api/atlas/scene/v1/workspaces/${next.view.scope.workspaceId}/homes/${next.view.scope.homeId}/buildings/${buildingId}/head`,
+    {method:'GET',headers:{Accept:'application/json'},signal,credentials:'same-origin',cache:'no-store',redirect:'error',mode:'same-origin'}),signal);
+  let raw:LosslessJson;try{raw=await responseJson(response,signal,MAX_HEAD);}catch(error){void response.body?.cancel().catch(()=>undefined);throw error;}
+  signal.throwIfAborted();guard();const result=qualifyHeadResponse(raw,next,buildingId);guard();return result;
+}
+
 export interface SceneAssociationContext {
   readonly sessionIdentity: object;
   readonly session: AtlasSessionInfo;
@@ -479,24 +516,16 @@ export function createNativeSceneAssociationClient(options: {
       const url = `/api/atlas/scene/v1/workspaces/${next.view.scope.workspaceId}/homes/${next.view.scope.homeId}/buildings/${captured.buildingId}/head`;
       const raw = await obtain(url, { method: 'GET', headers: { Accept: 'application/json' } }, signal, MAX_HEAD);
       signal.throwIfAborted(); need(current(owner, geometry));
-      const output = row(raw, ['schema','scope','buildingId','status','reason','head']);
-      const scope = row(output.scope, ['workspaceId','homeId']);
-      need(output.schema === 'houseatlas.native-scene-head.v1'
-        && uuid(scope.workspaceId) === next.view.scope.workspaceId && uuid(scope.homeId) === next.view.scope.homeId
-        && uuid(output.buildingId) === captured.buildingId);
+      const observed = qualifyHeadResponse(raw, next, captured.buildingId);
       const assertHead = (condition: unknown): void => {
         if (!condition) throw new TypeError('Native scan prior scene head changed; custody remains held');
       };
-      if (output.status === 'unavailable') {
-        need(output.head === null && (output.reason === 'no-current-association' || output.reason === 'current-source-unavailable'));
+      if (observed.status === 'unavailable') {
         assertHead(head.status === 'unavailable' && head.reason === 'no-current-association'
-          && output.reason === 'no-current-association');
+          && observed.reason === 'no-current-association');
       } else {
-        need(output.status === 'available' && output.reason === null);
-        const observed = row(output.head, ['recordId','revision','payloadSha256']);
-        const recordId = uuid(observed.recordId), revision = integer(observed.revision), payloadSha256 = sha(observed.payloadSha256);
-        assertHead(head.status === 'available' && recordId === head.recordId
-          && revision.compare(head.revision) === 0 && payloadSha256 === expectedDigest);
+        assertHead(head.status === 'available' && observed.recordId === head.recordId
+          && observed.revision.compare(head.revision) === 0 && observed.payloadSha256 === expectedDigest);
       }
       signal.throwIfAborted(); need(current(owner, geometry));
       return head;

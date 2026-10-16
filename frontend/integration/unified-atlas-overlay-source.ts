@@ -1,6 +1,6 @@
 /** Current native documentary details for one selected unified publication.
  * Producer overlay hints are not authority; no rendered old geometry is used. */
-import { readNativeOverlayAssociation, readNativeOverlayBuildingEvidence, type SceneAssociationContext, type SceneAssociationCurrent } from './native-scene-association-client';
+import { nativeSceneAssociationPayloadDigest, readNativeOverlayAssociationHead, readNativeOverlayAssociation, readNativeOverlayBuildingEvidence, type SceneAssociationContext, type SceneAssociationCurrent } from './native-scene-association-client';
 import type { NativeSceneSourceFrame, NativeSceneSourceSelection } from '../src/lantern/scans/native-scene-source-types';
 import { readNativeOverlayDetails } from './native-scene-source-client';
 import { readDocumentarySupport, documentaryReferences } from './native-scene-documentary-support';
@@ -204,7 +204,7 @@ export function createUnifiedAtlasOverlaySource(options:UnifiedAtlasOverlaySourc
       }
       const frame:UnifiedAtlasOverlayAvailableFrame=Object.freeze({status:'available',lease:Object.freeze({}),sceneSelection:Object.freeze({...s}),nativeBuildingId:input.nativeBuildingId,
         currentSource:Object.freeze({recordId:association.recordId,revision:association.revision,payload:association.payload}),sourceSelection:selection,roomBindings:bindings,...details});
-      const expectedPayload=stringifyLosslessJson(association.payload);
+      const expectedPayloadSha256=await abortable(nativeSceneAssociationPayloadDigest(association.payload),attempt.controller.signal);pin();
       // Only one passive read at a time, no retry after an error or changed head.
       // A successful reread refreshes this read-point proof, not an access grant.
       const checkHead=async()=>{
@@ -212,9 +212,9 @@ export function createUnifiedAtlasOverlaySource(options:UnifiedAtlasOverlaySourc
         attempt.controller.signal.addEventListener('abort',forward,{once:true});
         const deadline=setTimeout(()=>read.abort(),HEAD_READ_MS);
         try{
-          pin();const observed=await readNativeOverlayAssociation(context.native,input.nativeBuildingId,sourceViewKey,read.signal,pin,transport);
+          pin();const observed=await readNativeOverlayAssociationHead(context.native,input.nativeBuildingId,read.signal,pin,transport);
           pin();need(observed.status==='available'&&observed.recordId===association.recordId&&observed.revision.compare(association.revision)===0
-            &&stringifyLosslessJson(observed.payload)===expectedPayload);
+            &&observed.payloadSha256===expectedPayloadSha256);
           const checkedAt=Date.now();
           if(attempt.drawingProof){const proof=attempt.drawingProof;
             need(await readBuildingEvidence(proof.evidenceId,read.signal));pin();proof.checkedAt=Date.now();}
