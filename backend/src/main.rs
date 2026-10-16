@@ -94,6 +94,11 @@ async fn run(
         println!("{}", serde_json::to_string(&report)?);
         return Ok(());
     }
+    let (arguments, model_overview) =
+        houseatlas_backend::config::model_overview::ServerModelOverviewSelection::from_arguments(
+            &arguments,
+        )
+        .map_err(|error| format!("HouseAtlas model overview settings: {error}"))?;
     let (arguments, geodata_selection) = ServerGeodataSelection::from_arguments(&arguments)
         .map_err(|error| format!("HouseAtlas full geodata settings: {error}"))?;
     let (arguments, ai_account) =
@@ -128,7 +133,14 @@ async fn run(
                 Ok(())
             }
             ServerCommand::Serve(config) => {
-                run_persistent(config, ai_account, geodata_selection, persistent_lease).await
+                run_persistent(
+                    config,
+                    ai_account,
+                    geodata_selection,
+                    model_overview,
+                    persistent_lease,
+                )
+                .await
             }
             ServerCommand::Rebind { previous, config } => {
                 tokio::task::spawn_blocking(move || {
@@ -269,8 +281,14 @@ async fn run_persistent(
     config: houseatlas_backend::config::server::ServerConfig,
     ai_account: Option<houseatlas_backend::config::ai_account::ServerAccountSelection>,
     geodata_selection: Option<ServerGeodataSelection>,
+    model_overview: Option<
+        houseatlas_backend::config::model_overview::ServerModelOverviewSelection,
+    >,
     persistent_lease: &mut Option<Arc<lifecycle::persistent::ServerLease>>,
 ) -> Result<(), lifecycle::Failure> {
+    if let Some(selection) = &model_overview {
+        selection.validate_config(&config)?;
+    }
     use houseatlas_backend::{config::server::read_tls_files, lifecycle::persistent::ServerEvent};
     let geodata_policy = geodata_selection
         .map(|selection| selection.into_policy(&config))
@@ -279,7 +297,14 @@ async fn run_persistent(
         config.authentication,
         houseatlas_backend::config::server::ServerAuthentication::TrustedProxy { .. }
     ) {
-        return run_gateway(config, ai_account, geodata_policy, persistent_lease).await;
+        return run_gateway(
+            config,
+            ai_account,
+            geodata_policy,
+            model_overview,
+            persistent_lease,
+        )
+        .await;
     }
     let config = Arc::new(config);
     if std::fs::canonicalize(&config.frontend_directory)? != config.frontend_directory {
@@ -298,6 +323,9 @@ async fn run_persistent(
         .with_mcp_command_profile(config.command_profile());
     if full_geodata {
         host = host.with_full_geodata()?;
+    }
+    if let Some(selection) = model_overview {
+        host = host.with_model_overview(selection)?;
     }
     if !config.authentication.is_password() {
         host = host.with_loopback_local()?;
@@ -344,6 +372,9 @@ async fn run_gateway(
     config: houseatlas_backend::config::server::ServerConfig,
     ai_account: Option<houseatlas_backend::config::ai_account::ServerAccountSelection>,
     geodata_policy: Option<Arc<dyn GeodataSourcePolicy>>,
+    model_overview: Option<
+        houseatlas_backend::config::model_overview::ServerModelOverviewSelection,
+    >,
     persistent_lease: &mut Option<Arc<lifecycle::persistent::ServerLease>>,
 ) -> Result<(), lifecycle::Failure> {
     use houseatlas_backend::{
@@ -376,6 +407,9 @@ async fn run_gateway(
         .with_mcp_command_profile(config.command_profile());
     if full_geodata {
         host = host.with_full_geodata()?;
+    }
+    if let Some(selection) = model_overview {
+        host = host.with_model_overview(selection)?;
     }
     let account_selected = ai_account.is_some();
     let ai_account =
