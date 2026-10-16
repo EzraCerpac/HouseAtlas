@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c2d22070c55aff64aa31be0c88a4286e9703f0c4b4b6d293c4ccdae87b38cf53",
+  "sourceDigestSha256": "9914ea609b81c0cd0d7e603941c5f56f1aac791135cc3f818230a10cce39ecf3",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -10519,6 +10519,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "tools/perf/harness/COVERAGE.md",
+      "mode": "100644",
+      "bytes": 2446,
+      "sha256": "636077d00e580fe55144ae2643d2cd91ae5cd8d22470334a5215b6bd3b220f3a",
+      "owner": "core-integration"
+    },
+    {
       "path": "tools/perf/harness/README.md",
       "mode": "100644",
       "bytes": 6991,
@@ -10537,6 +10544,20 @@
       "mode": "100644",
       "bytes": 2271,
       "sha256": "7a10a2ffe370bc0308ba4e5f3504f71658b2e468866ac6ddd5411dcb093d0b8b",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/harness/coverage.mjs",
+      "mode": "100644",
+      "bytes": 8957,
+      "sha256": "437eaaa51947fb591ca8cf0e6adccc537d4f5261cfd4ae0d85b868d1a3394568",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/harness/coverage.test.mjs",
+      "mode": "100644",
+      "bytes": 2535,
+      "sha256": "bf90267d2f0c1f0020ff9ecec5ae9722d10e93358359647af2d3ff8992e0387a",
       "owner": "core-integration"
     },
     {
