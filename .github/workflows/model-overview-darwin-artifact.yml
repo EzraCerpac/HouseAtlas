@@ -18,6 +18,8 @@ jobs:
       MACOSX_DEPLOYMENT_TARGET: '15.0'
       RUSTUP_TOOLCHAIN: '1.99.0'
       CARGO_BUILD_JOBS: '2'
+      HOUSEATLAS_EXECUTED_WORKFLOW_SHA: ${{ github.workflow_sha }}
+      HOUSEATLAS_EXECUTED_WORKFLOW_REF: ${{ github.workflow_ref }}
     steps:
       - name: Prepare isolated Cargo paths
         shell: bash
@@ -31,10 +33,18 @@ jobs:
           fetch-depth: 1
           fetch-tags: false
           persist-credentials: false
+      - name: Check out the workflow revision GitHub executed
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: executed-workflow
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
       - name: Check out immutable public product source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: 318c87122f7b3e3de612c16bdcb4970c12f5a4dc
+          ref: 506b6b4782cf5325c1be8fb4db334ebc5aab6f06
           path: source
           fetch-depth: 1
           fetch-tags: false
@@ -44,7 +54,7 @@ jobs:
       - name: Build pinned source and inspect Intel macOS ABI
         run: >-
           python3 recipe/tools/model-overview-darwin-artifact.py
-          --source source --recipe recipe
+          --source source --recipe recipe --workflow-source executed-workflow
           --output "$RUNNER_TEMP/model-overview-artifact"
       - name: Upload binary archive and provenance
         if: always()

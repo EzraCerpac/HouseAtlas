@@ -12,8 +12,8 @@ import struct
 import subprocess
 import tarfile
 
-SOURCE = '318c87122f7b3e3de612c16bdcb4970c12f5a4dc'
-TREE = 'c408cfabfc22c055ec11e53e6920705157e470f9'
+SOURCE = '506b6b4782cf5325c1be8fb4db334ebc5aab6f06'
+TREE = 'e2bf28b3f08740c4cf2c7888910e81f893a26a94'
 LOCK = '9e7275031042b5010f12a69746ec10ef41c48e351605f4cd9ef8009bb260b1c8'
 TARGET = 'x86_64-apple-darwin'
 WORKFLOW = '.github/workflows/model-overview-darwin-artifact.yml'
@@ -93,9 +93,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', required=True, type=Path)
     parser.add_argument('--recipe', required=True, type=Path)
+    parser.add_argument('--workflow-source', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
     args = parser.parse_args()
     source, recipe, output = args.source.resolve(), args.recipe.resolve(), args.output.resolve()
+    workflow_source = args.workflow_source.resolve()
     need(platform.system() == 'Darwin' and platform.machine() == 'x86_64', 'Require Intel macOS host')
     need(os.environ.get('MACOSX_DEPLOYMENT_TARGET') == '15.0', 'Require deployment target 15.0')
     temp = Path(os.environ['RUNNER_TEMP']).resolve()
@@ -106,6 +108,19 @@ def main():
     need(not target.is_relative_to(source) and not cargo_home.is_relative_to(source), 'Cache inside product checkout')
     source_pin(source)
     recipe_hashes = {name: digest(recipe / name) for name in (WORKFLOW, SUPPORT)}
+    workflow_commit = os.environ['HOUSEATLAS_EXECUTED_WORKFLOW_SHA']
+    need(len(workflow_commit) == 40 and all(c in '0123456789abcdef' for c in workflow_commit),
+         'Require exact executed workflow commit')
+
+    def workflow_pin():
+        need(command(['git', 'rev-parse', 'HEAD'], workflow_source) == workflow_commit,
+             'Wrong executed workflow checkout')
+        need(command(['git', 'status', '--porcelain=v1', '--untracked-files=all'], workflow_source) == '',
+             'Executed workflow checkout changed')
+        need(digest(workflow_source / WORKFLOW) == recipe_hashes[WORKFLOW],
+             'Executed workflow differs from reviewed recipe workflow')
+
+    workflow_pin()
     output.mkdir(mode=0o700)
     evidence = output / 'evidence'
     evidence.mkdir(mode=0o700)
@@ -113,7 +128,7 @@ def main():
     # require canonical paths even for generated default-temp fixture data.
     # Use a fresh private runner-owned child, outside source/cache/artifacts.
     canonical_tmp = temp / 'model-overview-product-canonical-tmp'
-    for other in (source, recipe, output, cargo_home, target):
+    for other in (source, recipe, workflow_source, output, cargo_home, target):
         need(not canonical_tmp.is_relative_to(other) and not other.is_relative_to(canonical_tmp),
              'Fixture TMPDIR overlaps checkout/cache/artifacts')
     need(not canonical_tmp.exists(), 'Canonical fixture TMPDIR already exists')
@@ -173,6 +188,7 @@ def main():
         record('healthy-model-overview-read', overview_healthy_cmd, cwd=source)
     finally:
         source_pin(source)
+        workflow_pin()
         need(recipe_hashes == {name: digest(recipe / name) for name in recipe_hashes}, 'Recipe changed during build')
     binary = target / TARGET / 'release' / 'houseatlas'
     initial_hash = digest(binary)
@@ -187,6 +203,7 @@ def main():
     abi = inspect_macho(binary)
     need(digest(binary) == initial_hash, 'Binary changed during read-only inspection')
     source_pin(source)
+    workflow_pin()
     receipt = {
         'format': 'houseatlas-model-overview-darwin-build/1', 'sourceCommit': SOURCE, 'sourceTree': TREE,
         'cargoLockSha256': LOCK, 'target': TARGET, 'deploymentTarget': '15.0',
@@ -196,6 +213,9 @@ def main():
                    'GITHUB_RUN_ATTEMPT', 'GITHUB_SHA', 'GITHUB_REF', 'GITHUB_WORKFLOW')},
         'effectiveBuildEnvironment': dict(sorted(child_env.items())),
         'recipeCommit': command(['git', 'rev-parse', 'HEAD'], recipe), 'recipeFileSha256': recipe_hashes,
+        'executedWorkflow': {'commit': workflow_commit,
+                             'ref': os.environ['HOUSEATLAS_EXECUTED_WORKFLOW_REF'],
+                             'path': WORKFLOW, 'sha256': recipe_hashes[WORKFLOW]},
         'commands': commands, 'sourceCleanBeforeAndAfter': True,
         'binary': {'name': 'houseatlas', 'bytes': binary.stat().st_size, 'sha256': initial_hash, 'abi': abi},
         'limitations': ['Generated checks require the recorded canonical private TMPDIR; default /var aliases and target-host compatibility are not qualified.',

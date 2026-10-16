@@ -23,13 +23,13 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d30d582163fc6fed99edd3f127e1b57a372b907f60940a4b4b1d29e8a3d76659",
+  "sourceDigestSha256": "d90ac65c90b31f106249bf5535b7c9fbbd6600129b64170f79ac7aa4f0673a96",
   "files": [
     {
       "path": ".github/workflows/model-overview-darwin-artifact.yml",
       "mode": "100644",
-      "bytes": 2046,
-      "sha256": "b474cf7d019b50cb672a275420e7523231bcaf204153b231df82bf022b1a184f",
+      "bytes": 2530,
+      "sha256": "c98a8c0e316b30e0fa375e81a852bc1d90d6534967792bb778ab81a75e235274",
       "owner": "core-integration"
     },
     {
@@ -9828,8 +9828,8 @@
     {
       "path": "tools/model-overview-darwin-artifact.py",
       "mode": "100644",
-      "bytes": 14249,
-      "sha256": "4cb13fe6554fcfda7c5a7c460483d16883c65fcbbb9a1909aacd94e9205978fa",
+      "bytes": 15358,
+      "sha256": "650234f6bdc2b003c1c60517b975df28f78a9a8b4f84a76a7e694daec4b371a6",
       "owner": "core-integration"
     },
     {
