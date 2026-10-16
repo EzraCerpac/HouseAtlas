@@ -205,6 +205,9 @@ Reuse the existing standard GLTFLoader and its admitted no-external-resource
 profile and aggregate budgets. Target the existing 32 MiB GLB and 64 MiB prepared
 asset limits; validate the actual mounted chunk budget against the server's
 4,000,000-byte per-file ceiling. Do not broaden formats or work limits silently.
+The companion requires exactly one scene with all declared nodes reachable
+once, at most 20,000 nodes and hierarchy depth at most 64, matching the standard
+renderer admission limits.
 The companion reader uses a bounded static triangle profile: selected primitives
 have regular Float32 VEC3 positions and optional normals, with checked attribute
 and unsigned scalar index layouts. Morph targets, mesh/node weights and node

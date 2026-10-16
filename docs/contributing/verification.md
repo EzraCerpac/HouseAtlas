@@ -1284,6 +1284,14 @@ expiry/revocation/replay/denial or other held controls. Use pinned Node 26.10.0:
 node frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs
 ```
 
+When a frame advertises optional PDF correlations, the same sequential monitor
+also rechecks the exact PDF evidence membership in the native building identity
+under its shared eight-second deadline. The identity proof has its own measured
+read timestamp and twenty-second freshness bound; association reads do not
+renew it. Before publication, an unavailable or stale optional correlation is
+omitted. Once advertised, its loss retires that immutable composite frame;
+a new open can qualify base documentary sources without the optional PDF link.
+
 ### Independent unified Atlas room-link healthy read
 
 Inspect `backend/examples/healthy-unified-atlas-room-links-read.rs` and its
@@ -1324,7 +1332,11 @@ node --test --test-concurrency=1 tools/perf/reporting/healthy-reporting.test.mjs
 ```
 
 It uses valid numeric samples, valid generated archives and exact fake GitHub
-metadata for healthy comment create/update. It checks accepted unavailable and
+metadata for healthy comment create/update. The same named suite covers
+compact percentage/unit rendering, direction/noise status symbols, browser
+coverage grouping, concise provenance and exact numeric budget boundaries.
+These are generated valid-value rendering cases, without application failure
+injection or held controls. It checks accepted unavailable and
 numeric representation states without executing adversarial, mutation/omission,
 reversal, denial or failure-injection cases. Other reporting test files retain
 held cases and are excluded from this automatic lane; listing or reading their

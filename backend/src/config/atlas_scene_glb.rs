@@ -73,17 +73,20 @@ fn local(node: &Value) -> Result<Matrix, String> {
 }
 pub(super) fn worlds(gltf: &Value) -> Result<BTreeMap<usize, Matrix>, String> {
     let nodes = gltf["nodes"].as_array().ok_or_else(invalid)?;
-    need(nodes.len() <= 65_536 && nodes.iter().all(|node| node.get("skin").is_none()))?;
+    const MAX_NODES: usize = 20_000;
+    need(nodes.len() <= MAX_NODES && nodes.iter().all(|node| node.get("skin").is_none()))?;
+    let scenes = gltf["scenes"].as_array().ok_or_else(invalid)?;
+    need(scenes.len() == 1)?;
     let scene = gltf
         .get("scene")
         .map(|v| v.as_u64().ok_or_else(invalid))
         .transpose()?
         .unwrap_or(0) as usize;
-    let roots = gltf["scenes"]
+    let roots = scenes
         .get(scene)
         .and_then(|s| s["nodes"].as_array())
         .ok_or_else(invalid)?;
-    need(roots.len() <= 65_536)?;
+    need(roots.len() <= MAX_NODES)?;
     let mut worlds = BTreeMap::new();
     let mut pending = Vec::new();
     for root in roots {
@@ -94,7 +97,7 @@ pub(super) fn worlds(gltf: &Value) -> Result<BTreeMap<usize, Matrix>, String> {
         ));
     }
     while let Some((index, parent, depth)) = pending.pop() {
-        need(depth <= 256 && index < nodes.len() && !worlds.contains_key(&index))?;
+        need(depth <= 64 && index < nodes.len() && !worlds.contains_key(&index))?;
         let node = &nodes[index];
         let world = multiply(&parent, &local(node)?);
         need(
@@ -106,7 +109,7 @@ pub(super) fn worlds(gltf: &Value) -> Result<BTreeMap<usize, Matrix>, String> {
         worlds.insert(index, world);
         if let Some(children) = node.get("children") {
             let children = children.as_array().ok_or_else(invalid)?;
-            need(children.len() <= 65_536 - pending.len())?;
+            need(children.len() <= MAX_NODES - pending.len())?;
             for child in children {
                 pending.push((
                     child.as_u64().ok_or_else(invalid)? as usize,
@@ -116,6 +119,7 @@ pub(super) fn worlds(gltf: &Value) -> Result<BTreeMap<usize, Matrix>, String> {
             }
         }
     }
+    need(worlds.len() == nodes.len())?;
     Ok(worlds)
 }
 fn integer(value: &Value, key: &str, default: Option<usize>) -> Result<usize, String> {
