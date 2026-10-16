@@ -149,8 +149,29 @@ pub fn project_current(
         .caches
         .iter()
         .filter(|cache| &cache.partition.scope == scope)
-        .map(|cache| (cache.partition.clone(), cache))
+        .map(|cache| {
+            (
+                (
+                    cache.partition.source_instance_id.as_str(),
+                    cache.partition.collection_id.as_str(),
+                ),
+                cache,
+            )
+        })
         .collect();
+    // These request-local indexes join exact retained partitions in the
+    // authorized home; they grant no source access.
+    let mut source_owners = HashMap::new();
+    for source in snapshot
+        .sources
+        .iter()
+        .filter(|source| &source.partition.scope == scope)
+    {
+        // Preserve the scan's first registration if a caller supplies duplicates.
+        source_owners
+            .entry(&source.partition)
+            .or_insert(source.owner);
+    }
     let mut bindings = HashMap::new();
     let mut semantics = HashMap::new();
     for record in snapshot
@@ -183,9 +204,10 @@ pub fn project_current(
         .iter()
         .filter(|p| &p.scope == scope)
     {
-        let cache = caches
-            .values()
-            .find(|cache| cache.partition.contains(scope, &projection.source));
+        let cache = caches.get(&(
+            projection.source.source_instance_id.as_str(),
+            projection.source.collection_id.as_str(),
+        ));
         let Some(cache) = cache else { continue };
         if cache.status == CacheState::AccessRevoked
             || cache.generation_id.is_none()
@@ -264,11 +286,7 @@ pub fn project_current(
         .iter()
         .filter(|c| &c.partition.scope == scope)
         .map(|cache| {
-            let owner = snapshot
-                .sources
-                .iter()
-                .find(|s| s.partition == cache.partition)
-                .map(|s| s.owner);
+            let owner = source_owners.get(&cache.partition).copied();
             if cache.status == CacheState::AccessRevoked {
                 Ok(CurrentSourceStatus::Revoked {
                     owner,
@@ -433,3 +451,7 @@ pub fn parent_ref(entry: &CurrentEntry) -> Option<SourceRef> {
     parent.key.source_kind = SourceKind::HomeboxEntity;
     Some(parent)
 }
+
+#[cfg(test)]
+#[path = "projection_healthy.rs"]
+mod healthy;
