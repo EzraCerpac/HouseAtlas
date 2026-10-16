@@ -41,6 +41,8 @@ The separate private directory is owner-only 0700; both fixed files are regular,
 single-link, owner-only 0600 files without symlinks. It must be outside native
 state/media. Directory/file identities and exact hashes are pinned and rechecked
 with bounded reads. Manifest is at most 128 KiB and GLB at most 32 MiB.
-GLB v2 framing and self-contained JSON/BIN structure are checked; external URIs,
+GLB v2 framing and self-contained JSON/BIN structure are checked: at most one
+implicit buffer must match its BIN chunk, allowing only 0–3 zero alignment
+padding bytes; buffer views must stay within that declared buffer. External URIs,
 extensions, animations and skins are refused. This is not renderer or physical
 qualification. Frontend GLTFLoader preflight remains separate.

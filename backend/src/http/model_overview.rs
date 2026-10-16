@@ -35,7 +35,7 @@ pub(super) async fn descriptor(
     tokio::task::spawn_blocking(move || {
         let _admitted = headers.admission_permit()?;
         let scope = d::Scope { workspace_id, home_id };
-        authorized_read(&host, &headers, &uri, &method, Some(scope.clone()), false, |_, _, _| {
+        authorized_read_phased(&host, &headers, &uri, &method, (Some(scope.clone()), false), |_, _, _| Ok(()), |(), _| {
             let s = selected(&host, &scope)?;
             s.read_original().map_err(|_| failure(StatusCode::CONFLICT))?;
             if uri.query().is_some() { return Err(failure(StatusCode::NOT_FOUND)); }
@@ -71,14 +71,14 @@ pub(super) async fn original(
         };
         // Retain Read issuance through final release and separately issue the
         // native Media action against the actual same request and Access owner.
-        authorized_read(
+        authorized_read_phased(
             &host,
             &headers,
             &uri,
             &method,
-            Some(scope.clone()),
-            false,
+            (Some(scope.clone()), false),
             |core, _, _| {
+                let canonical = Arc::clone(&core.access);
                 let url = format!(
                     "{}{}",
                     host.origin,
@@ -86,7 +86,7 @@ pub(super) async fn original(
                 );
                 let observed =
                     evidence(&host.origin, &headers, &uri, &url, &method).map_err(access_error)?;
-                let access = crate::media::native::NativeMediaAccess::new(core.access.clone());
+                let access = crate::media::native::NativeMediaAccess::new(Arc::clone(&canonical));
                 let native_scope = crate::media::types::Scope {
                     workspace_id: scope.workspace_id.clone(),
                     home_id: scope.home_id.clone(),
@@ -99,6 +99,9 @@ pub(super) async fn original(
                                 .unwrap_or(StatusCode::SERVICE_UNAVAILABLE),
                         )
                     })?;
+                Ok((canonical, retained))
+            },
+            |(canonical, retained), _| {
                 let s = selected(&host, &scope)?;
                 let m = &s.manifest;
                 let expected_query = format!("expectedSha256={}", m.original.sha256);
@@ -134,8 +137,7 @@ pub(super) async fn original(
                     );
                 }
                 let request = RequestPrincipal::from_retained(retained);
-                let current = core
-                    .access
+                let current = canonical
                     .lock()
                     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
                 current
