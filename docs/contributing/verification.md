@@ -806,6 +806,15 @@ Existing stopped/unrun descriptions for these three classes record ordinary or
 historical coverage; they do not prohibit an exact case satisfying this separate
 lane. Descriptions of other held classes retain their existing force.
 
+The separately authorized native annual-session policy lane has three exact
+generated commands in [Native session policy](../operations/native-session-policy.md#bounded-generated-verification).
+They cover the approved device-count, idle retention, annual expiry/renewal,
+logout/revocation and scoped Origin/CSRF behavior, plus a bounded local gateway
+admission benchmark. Inspect their full source and imports first. They use only
+in-memory Access and a disposable private Unix peer; external WhoIs, real
+credentials, installed services and production are excluded. This narrow lane
+does not release other expiry/revocation cases or add ordinary CI entrypoints.
+
 A separately named native topology positive uses the actual disposable Store,
 Editor HTTP login and mounted MCP stock commands. It creates generic Alpha/Beta
 locations and reviewed memberships, preserves known zero and unknown elevation,

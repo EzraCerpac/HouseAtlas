@@ -44,7 +44,7 @@ before its own commit; a later check cannot undo committed records.
 deserializable. A cloned handle keeps its issued provenance. An editor's read
 handle never becomes mutation authority. `revalidate` checks the current
 persisted session, user/version, membership/version/role, restore epoch, origin,
-absolute/idle expiry and monotonic timestamps, returning the same borrowed
+absolute expiry and monotonic timestamps, returning the same borrowed
 principal. Handles from a different boundary instance cannot be used.
 
 ```rust
@@ -107,8 +107,12 @@ not establish ownership.
 `AccessBoundary::{login,session_info,rotate_session,logout}` verify exact
 configured HTTPS origins and the actual request evidence. The host cookie is
 Secure, HttpOnly, SameSite=Strict and Path=/; unsafe calls require POST, Origin
-and current CSRF. Safe requests without Origin need same-origin fetch metadata
-and Referer. Rotation retains the original absolute expiry. Request budgets use
+and current CSRF. Native sessions default to a 365-day absolute lifetime with no
+inactivity timeout or device-count eviction. Existing stored expirations remain
+authoritative. Safe requests without Origin need same-origin fetch metadata
+and Referer. Rotation retains the original absolute expiry. Explicit trusted-proxy sign-in
+can issue a fresh lifetime only after consuming fresh gateway identity proof; a
+session read never renews the lifetime. Request budgets use
 stable user IDs and persist across rotation/relogin. The synchronous component
 permits one derivation at a time per mutable boundary instance.
 
@@ -532,3 +536,6 @@ Previously stopped rejection/guard-reversal/mutation/omission/adversarial/fault/
 crash/concurrency/negative-consumer controls and legacy broad aggregates remain
 unrun. These healthy results do not qualify security, NAS locking, real browser/
 proxy behavior, live providers, recovery faults, deployment or production.
+
+The bounded policy checks and generated gateway guard benchmark are documented
+in [native session policy](../../../docs/operations/native-session-policy.md).

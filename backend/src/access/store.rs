@@ -430,19 +430,8 @@ pub(super) fn session(db: &Connection, token_hash: &str) -> AccessResult<Option<
     .transpose()
 }
 
-pub(super) fn insert_session(
-    db: &Connection,
-    session: &Session,
-    max_sessions: u32,
-    now: i64,
-) -> AccessResult<()> {
+pub(super) fn insert_session(db: &Connection, session: &Session, now: i64) -> AccessResult<()> {
     db.execute("DELETE FROM access_sessions WHERE expires_at<=?1", [now])?;
-    db.execute(
-        "DELETE FROM access_sessions WHERE token_hash IN (
-         SELECT token_hash FROM access_sessions WHERE user_id=?1
-         ORDER BY created_at DESC,token_hash DESC LIMIT -1 OFFSET ?2)",
-        params![session.user_id.as_str(), max_sessions - 1],
-    )?;
     db.execute(
         "INSERT INTO access_sessions VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",
         params![
