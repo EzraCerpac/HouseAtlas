@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "57d5a4fdb67718054597d423e3a0876810579e1693a1dce7e08ab6d822c0428f",
+  "sourceDigestSha256": "c405b5dae7f5dcc4935b79b0a9c4425ce8b30de344af9d8679b3518e99d5d458",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -8030,8 +8030,8 @@
       "path": "frontend/src/lantern/canonical-ifc/LocalGlbPreview.tsx",
       "owner": "web",
       "mode": "100644",
-      "bytes": 34422,
-      "sha256": "a23e56846d45d418c26ee80b175ec9d1540227a2d9cb31dbeab257e380d8bb29"
+      "bytes": 35274,
+      "sha256": "5936872b025ad027ad835c499f578456dfd34920bc23123e6f6aa320d1a8fd5d"
     },
     {
       "path": "frontend/src/lantern/canonical-ifc/MeshLayer.tsx",
@@ -8884,8 +8884,8 @@
       "path": "frontend/src/lantern/site-artifacts/SiteArtifactView.tsx",
       "owner": "web",
       "mode": "100644",
-      "bytes": 26514,
-      "sha256": "2b8695fd2a9c2420ecf15594f55d2a6f08663f2e961214ebbc3b76afa1f3a50d"
+      "bytes": 26829,
+      "sha256": "599cc7b14d04b271fecb86b837e1cd278501d4cc5d380ad7651d8262a490e5f0"
     },
     {
       "path": "frontend/src/lantern/site-artifacts/publication.ts",

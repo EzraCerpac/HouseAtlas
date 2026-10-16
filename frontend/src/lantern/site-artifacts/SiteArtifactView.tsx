@@ -26,7 +26,11 @@ export function SiteArtifactView({ port }: { readonly port: SiteSourcePort }) {
   if (state.status === 'invalidated') return <div className="cifc cifc-unavailable" role="status"><h2>Site cleared</h2>
     <p>{state.reason} Nothing from it is shown, and no other version is substituted.</p></div>;
   if (state.status === 'failed') return <div className="cifc cifc-unavailable" role="status"><h2>Site unavailable</h2><p>{state.message}</p></div>;
-  return <SiteScene stage={stage} publication={state.publication} assets={state.assets} />;
+  // Keyed by the pin: a fast read can commit a new publication without an
+  // intervening loading render, and its visibility defaults, selection and
+  // entry must start from that publication, never the previous one.
+  return <SiteScene key={JSON.stringify([state.publication.pin.publicationId, state.publication.pin.version])}
+    stage={stage} publication={state.publication} assets={state.assets} />;
 }
 
 interface SceneIndex {

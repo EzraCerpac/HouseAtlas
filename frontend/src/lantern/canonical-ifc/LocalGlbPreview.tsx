@@ -4,8 +4,9 @@ import { parseIfcGlbProfile, type IfcGlbProfile } from '../scans/ifc-glb-profile
 import { decodeMeshJson } from '../scans/mesh-profile';
 import { checkManifest, ManifestError, readBrowserManifest, type BrowserManifest, type ManifestCheck } from './browser-manifest';
 import { drawnBounds, makeProjection, pick, prepareMeshes, type Bounds, type DrawRules, type PreparedMesh } from './geometry';
-import { GlbFormatError, hasGlbSignature, isClosedIfcProfile, readGlbContainer, STANDARD_GLB_LIMITS, type GlbStage } from './glb-preflight';
-import { MeshLayer } from './MeshLayer';
+import { GlbFormatError, hasGlbSignature, isClosedIfcProfile, readGlbContainer, STANDARD_GLB_LIMITS, type GlbAdmission, type GlbStage } from './glb-preflight';
+import { MeshLayer, RENDER_LIMITS } from './MeshLayer';
+import { PREPARED_BYTES_PER_TRIANGLE } from '../site-artifacts/site-budget';
 import type { StandardGlb } from './standard-glb';
 import { useReducedMotionPreference, useStageCamera } from './useStageCamera';
 import type { LocalModelReviewOptions } from '../electrical-documentary/types';
@@ -96,10 +97,20 @@ export async function readLocalFiles(blobs: readonly Blob[], signal: AbortSignal
   const others = files.flatMap((file, at) => file.role === 'glb' ? [] : [at]);
   if (others.length > 1) fail('selection', 'Choose one manifest at a time. Versions are never combined.');
 
+  // House and reference are drawn together, so they share the renderer's upload
+  // limit. Each reserves its prepared geometry from its preflight counts before
+  // the loader allocates; a set that would not fit is refused, not drawn partly.
+  let prepared = 0;
+  const admitPrepared = (admission: GlbAdmission) => {
+    const bytes = admission.work.triangles * PREPARED_BYTES_PER_TRIANGLE;
+    if (prepared + bytes > RENDER_LIMITS.uploadBytes) throw new GlbFormatError('preflight', `${prepared > 0 ? 'Together with the house GLB, its' : 'Its'} geometry`
+      + ` would exceed the ${(RENDER_LIMITS.uploadBytes / 1_000_000).toLocaleString('en', { maximumFractionDigits: 1 })} MB preview limit`);
+    prepared += bytes;
+  };
   const standard = async (at: number, layer: 'house' | 'reference'): Promise<LoadedLayer> => {
     const { loadStandardGlb } = await import('./standard-glb');
     try {
-      const glb = await loadStandardGlb(contents[at]!, layer, signal);
+      const glb = await loadStandardGlb(contents[at]!, layer, signal, admitPrepared);
       return { file: files[at]!, glb, bounds: drawnBounds(glb.meshes, [], null) };
     } catch (error) {
       signal.throwIfAborted();
