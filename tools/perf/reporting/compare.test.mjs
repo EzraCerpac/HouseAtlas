@@ -1,0 +1,77 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { cell, compareMetric, median, renderTable, summarize } from './compare.mjs';
+
+const timing = { id: 'latency', label: 'Synthetic latency', unit: 'ms', kind: 'timing', direction: 'lower' };
+const values = samples => ({ samples });
+test('median and MAD report all samples without claiming confidence', () => {
+  assert.equal(median([10, 1, 4, 2]), 3);
+  assert.deepEqual(summarize([2, 2, 2, 2, 100]), { value: 2, count: 5, p95: 100, mad: 0, min: 2, max: 100, noisePercent: 0 });
+  assert.equal(summarize(Array.from({ length: 20 }, (_, i) => i + 1)).p95, 19);
+  assert.throws(() => summarize([NaN]));
+  assert.throws(() => summarize([-1]));
+  assert.throws(() => summarize([]));
+});
+test('both directions and zero baselines have defined comparisons', () => {
+  const base = values([100, 100, 100, 100, 100]), head = values([80, 80, 80, 80, 80]);
+  assert.equal(compareMetric(timing, base, head).status, 'improved');
+  assert.equal(compareMetric({ ...timing, direction: 'higher' }, base, head).status, 'degraded');
+  assert.equal(compareMetric(timing, values([0]), head).deltaPercent, null);
+  assert.equal(compareMetric(timing, values([0]), values([0])).deltaPercent, null);
+});
+test('timings never fail a budget and display noise and insufficient samples', () => {
+  assert.equal(compareMetric(timing, values([100, 100, 100, 100, 100]), values([99, 99, 99, 99, 99])).status, 'within-noise');
+  const result = compareMetric({ ...timing, maximum: 1 }, values([1]), values([100]));
+  assert.equal(result.failed, false);
+  assert.equal(result.status, 'insufficient-samples');
+});
+test('deterministic absolute and relative budgets fail independently', () => {
+  const policy = { ...timing, kind: 'deterministic', maximum: 120, maxRegressionPercent: 10 };
+  assert.equal(compareMetric(policy, values([100]), values([111])).failed, true);
+  assert.equal(compareMetric({ ...policy, maxRegressionPercent: undefined }, values([100]), values([121])).failed, true);
+  assert.equal(compareMetric(policy, values([100]), values([110])).failed, false);
+  assert.equal(compareMetric(policy, values([100, 101]), values([100])).reason, 'deterministic-samples-disagree');
+  assert.equal(compareMetric({ ...timing, kind: 'deterministic' }, values([100, 101]), values([100])).failed, false);
+});
+test('missing and skipped metrics stay visible', () => {
+  assert.equal(compareMetric(timing, null, values([1])).reason, 'base-metric-unavailable');
+  const result = compareMetric(timing, { skipReason: 'baseline-unavailable' }, values([1]));
+  assert.equal(result.status, 'skipped');
+  const table = renderTable([timing], [result]);
+  assert.match(table, /baseline unavailable/);
+  assert.match(table, /↓/);
+});
+test('different non-measured base and head statuses both remain visible', () => {
+  const result = compareMetric(timing, { skipReason: 'base-unsupported' }, { skipReason: 'head-failed', failed: true });
+  assert.equal(result.reason, 'base-unsupported; head-failed');
+  assert.equal(result.failed, true);
+  assert(renderTable([timing], [result]).includes('base unsupported; head failed; ❌ failed'));
+});
+test('decimal regression boundaries are exact and an actual excess still fails', () => {
+  const lower = { ...timing, kind: 'deterministic', maxRegressionPercent: 10 };
+  assert.equal(compareMetric(lower, values([0.3]), values([0.33])).failed, false);
+  assert.equal(compareMetric(lower, values([0.3]), values([0.330001])).failed, true);
+  assert.equal(compareMetric({ ...lower, direction: 'higher' }, values([0.3]), values([0.27])).failed, false);
+  assert.equal(compareMetric({ ...lower, maxRegressionPercent: 0 }, values([9007199254740990]), values([9007199254740991])).failed, true);
+  assert.equal(compareMetric(lower, values([3e-10]), values([3.3e-10])).failed, false);
+});
+test('Markdown cells cannot create rows, images, links or mentions', () => {
+  const external = 'x | [click](https://x) ![img](https://x) @everyone <img> `code`\nnext https://evil.example www.evil.example';
+  const escaped = cell(external);
+  for (const character of ['|', '[', ']', '!', '@', '<', '>', '`', '\n']) assert(!escaped.includes(character));
+  assert(!escaped.includes('https://'));
+  assert(!escaped.includes('www.'));
+});
+test('compact values remain nonzero and budget failures stay explicit', () => {
+  const policy = { ...timing, kind: 'deterministic', maximum: 0.0001 };
+  const result = compareMetric(policy, values([0.0001]), values([0.0002]));
+  const table = renderTable([policy], [result]);
+  assert(table.includes('0.0002 ms'));
+  assert(table.includes('❌ Budget failed'));
+  const closePolicy = { ...policy, maximum: 100.0000001 };
+  const closeTable = renderTable([closePolicy], [compareMetric(closePolicy, values([100]), values([100.0000002]))]);
+  assert(closeTable.includes('100 ms'));
+  assert(closeTable.includes('❌ Budget failed'));
+  const smallDelta = renderTable([timing], [compareMetric(timing, values([100]), values([100.0000001]))]);
+  assert(smallDelta.includes('| 0.0% |'));
+});
