@@ -1283,3 +1283,27 @@ expiry/revocation/replay/denial or other held controls. Use pinned Node 26.10.0:
 ```sh
 node frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs
 ```
+
+### Independent unified Atlas room-link healthy read
+
+Inspect `backend/examples/healthy-unified-atlas-room-links-read.rs` and its
+existing generated fixture helper before this named ordinary positive. It uses
+only disposable synthetic persistent state, a fresh actual password-free native
+session and the in-process router. It reads the optional independently supplied
+room-link JSON twice under native Read, checks exact query/selection/digest and
+private response headers, and preserves the strict scene descriptor, producer
+historical status, configuration, Atlas state, receipt and source bytes. The
+ordinary absent configuration returns authenticated 404. No native identity
+registration, current source qualification, real provider/listener/household
+input or malformed/denial/replay/revocation/expiry/crash controls run. Use Rust
+1.99.0 and the explicitly coordinated external target:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-unified-atlas-room-links-read
+```
+
+Focused static checks for this source lane:
+
+```sh
+cargo clippy --offline --locked -p houseatlas-backend --lib --bin houseatlas --example healthy-unified-atlas-room-links-read -- -D warnings
+```

@@ -11,6 +11,7 @@ mod headers;
 mod homebox_pinned_discovery;
 mod homebox_pinned_files;
 pub use homebox_pinned_files::PinnedHomeBoxFileBinding;
+mod atlas_room_links;
 mod atlas_scene;
 mod capture_claim;
 mod geodata_documents;
@@ -110,6 +111,7 @@ pub struct Host {
     quantity_tls_fixture: Option<Arc<quantity_fixture::PrivateLoopbackQuantityTls>>,
     model_overview: Option<Arc<crate::config::model_overview::ServerModelOverviewSelection>>,
     atlas_scene: Option<Arc<crate::config::atlas_scene::ServerAtlasSceneSelection>>,
+    atlas_room_links: Option<Arc<crate::config::atlas_room_links::ServerAtlasRoomLinksSelection>>,
     full_geodata_identity: Option<crate::storage::FullGeodataIdentity>,
     geodata_dataset: Option<Arc<Mutex<crate::storage::geodata::GeodataStore>>>,
     loopback_local: bool,
@@ -134,6 +136,7 @@ impl Host {
             quantity_tls_fixture: None,
             model_overview: None,
             atlas_scene: None,
+            atlas_room_links: None,
             full_geodata_identity: None,
             geodata_dataset: None,
             loopback_local: false,
@@ -173,6 +176,7 @@ impl Host {
             ));
         }
         self.atlas_scene = None;
+        self.atlas_room_links = None;
         self.model_overview = Some(Arc::new(selection));
         Ok(self)
     }
@@ -194,7 +198,33 @@ impl Host {
                 "Atlas companion does not match selected model",
             )
         })?;
+        self.atlas_room_links = None;
         self.atlas_scene = Some(Arc::new(selection));
+        Ok(self)
+    }
+    /// Independent reviewed documentary links; native qualification is separate.
+    pub fn with_atlas_room_links(
+        mut self,
+        selection: crate::config::atlas_room_links::ServerAtlasRoomLinksSelection,
+    ) -> crate::storage::Result<Self> {
+        let scene = self.atlas_scene.as_ref().ok_or(crate::storage::Error::new(
+            "identity-conflict",
+            "Room links require selected scene",
+        ))?;
+        let overview = self
+            .model_overview
+            .as_ref()
+            .ok_or(crate::storage::Error::new(
+                "identity-conflict",
+                "Room links require selected overview",
+            ))?;
+        selection.read(scene, overview).map_err(|_| {
+            crate::storage::Error::new(
+                "identity-conflict",
+                "Room links do not match selected scene",
+            )
+        })?;
+        self.atlas_room_links = Some(Arc::new(selection));
         Ok(self)
     }
     /// Compose Documents with native/Stock routes only on the original full
@@ -1215,7 +1245,8 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/overview/{publication_id}/original", get(model_overview::original).head(auth::session_head).fallback(auth::session_head));
     let base=base
         .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas",get(atlas_scene::descriptor).head(auth::session_head).fallback(auth::session_head))
-        .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas/{publication_id}/artifacts/model",get(atlas_scene::model).head(auth::session_head).fallback(auth::session_head));
+        .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas/{publication_id}/artifacts/model",get(atlas_scene::model).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas/{publication_id}/room-links",get(atlas_room_links::read).head(auth::session_head).fallback(auth::session_head));
     let base = if host.full_geodata_identity.is_some() {
         base.merge(geodata_documents::full_routes())
     } else {

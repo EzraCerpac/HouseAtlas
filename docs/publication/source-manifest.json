@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "2bb61f989b65e811120807a07c4a17bdca752304b717ebc4bfed80cb53eab2e4",
+  "sourceDigestSha256": "4f9b3d747e4539699d9503ff15ede6b9d8804a8ed861d6919e8d535e63808e85",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -252,8 +252,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 5713,
-      "sha256": "1f970e819a1693c63b2b6cd0e2c9ad1289422d0e20d4c6803173079f176b4f79",
+      "bytes": 5832,
+      "sha256": "2ff2e71efede827cb2a11e5b4640cefa2ff968df5bc85d2983fc04da14c1f6bb",
       "owner": "core-integration"
     },
     {
@@ -355,6 +355,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/examples/healthy-unified-atlas-room-links-read.rs",
+      "mode": "100644",
+      "bytes": 9227,
+      "sha256": "0d0b68281e6a15101ac99eed4d64e4c6449f6c36edb196b3b7e5eb4f09dd7b61",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/examples/issue-149-room-anchor-acceptance.rs",
       "mode": "100644",
       "bytes": 61003,
@@ -371,8 +378,8 @@
     {
       "path": "backend/examples/validate-unified-atlas-publication.rs",
       "mode": "100644",
-      "bytes": 1884,
-      "sha256": "8abbc0c834a26ac74f977017abd8a1b9919c2a30f76e1abb6d1d38db4c0edc52",
+      "bytes": 2902,
+      "sha256": "bcf314578d2504f551385854c7f700d034a908f4e007001d1e7ebd13f4b680f3",
       "owner": "core-integration"
     },
     {
@@ -1153,6 +1160,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/config/atlas_room_links.rs",
+      "mode": "100644",
+      "bytes": 6879,
+      "sha256": "113e857e1beeac42370c67fb2e8003be2098178ae6b7c813f27e2886faaad854",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/config/atlas_scene.rs",
       "mode": "100644",
       "bytes": 27635,
@@ -1183,8 +1197,8 @@
     {
       "path": "backend/src/config/mod.rs",
       "mode": "100644",
-      "bytes": 3139,
-      "sha256": "c9d504d8452eadae177a9066613021e43b8719c6851bc87acc989c74eb4e1d8a",
+      "bytes": 3166,
+      "sha256": "4f374225df0ae90463fe9ee79dc166d6ec1d34ff4aa4f6fa111d582403b8772d",
       "owner": "core-integration"
     },
     {
@@ -2140,6 +2154,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/http/atlas_room_links.rs",
+      "mode": "100644",
+      "bytes": 3275,
+      "sha256": "c842e62b2a3dfb38128047e204b18f8464d1b2bdd9d9a28f29cafd9168dfdd26",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/http/atlas_scene.rs",
       "mode": "100644",
       "bytes": 7116,
@@ -2247,8 +2268,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 53901,
-      "sha256": "20675d4362e71b026e9fcde9036f2030059717c75a5c2d5afcb1835f597fc421",
+      "bytes": 55296,
+      "sha256": "7e970cad4dcc5b6f9ba44d85d78123bf5f30e12fd54c0846d05d017da385fa35",
       "owner": "core-integration"
     },
     {
@@ -2779,8 +2800,8 @@
     {
       "path": "backend/src/main.rs",
       "mode": "100644",
-      "bytes": 23047,
-      "sha256": "35e466b874f23d13d9944cc7101eaee3ccf23b8c8eac895e53ac7e0f12872154",
+      "bytes": 23873,
+      "sha256": "db623ea8fe7d6caa81a83da4f31c75460d0fe3f2874847cdfca2f67c7303b92a",
       "owner": "core-integration"
     },
     {
@@ -5873,8 +5894,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 75360,
-      "sha256": "2a87afe455733bf12e8f6b56145ccbf41db267fc53d58dff805c44f9c74bd087",
+      "bytes": 76559,
+      "sha256": "f380792c0d81443ee1dfc5da5306eb90caf6150a888e13f85b0410569e97a906",
       "owner": "core-integration"
     },
     {
@@ -6204,6 +6225,13 @@
       "mode": "100644",
       "bytes": 3793,
       "sha256": "3cfb554519d182483d7e974061a79cd09ccd365e35abce829dc9da6d8cfaad8c",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/models/unified-atlas-room-links-v1.md",
+      "mode": "100644",
+      "bytes": 3190,
+      "sha256": "b756a75c7542a217dbefb187ae6fd1c3e2ab04e89bb906d4569f56600f61b9bd",
       "owner": "core-integration"
     },
     {
