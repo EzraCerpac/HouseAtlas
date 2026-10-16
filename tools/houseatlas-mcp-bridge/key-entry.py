@@ -72,14 +72,19 @@ def read_tty_key():
         need(not (termios.tcgetattr(fd)[3] & (termios.ECHO | termios.ECHONL | termios.ICANON)))
         os.write(fd, b'Enter HouseAtlas tunnel runtime key (hidden): ')
         value = bytearray()
+        valid = True
         while True:
             part = os.read(fd, 1024)
             need(part)
             line, separator, tail = part.partition(b'\n')
-            value.extend(line)
-            need(len(value) <= 8192 and all(33 <= c <= 126 for c in line))
+            if valid:
+                valid = len(value) + len(line) <= 8192 and all(33 <= c <= 126 for c in line)
+                if valid:
+                    value.extend(line)
+            # Discard the rest of an invalid line with noecho still enabled.
+            # Restoring ECHO before its newline could expose delayed SSH paste bytes.
             if separator:
-                need(value and not tail)
+                need(valid and value and not tail)
                 break
         os.write(fd, b'\n')
         return bytes(value)

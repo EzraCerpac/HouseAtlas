@@ -1,7 +1,20 @@
 {
   "configured": false,
   "expectedVersion": "0.0.14+0f870e50a973fa820d4c409000059e181e8d242b",
-  "argv": [],
-  "controlPlaneOrigin": null,
-  "healthContract": null
+  "argv": [
+    "run",
+    "--control-plane.base-url", "https://api.openai.com",
+    "--control-plane.tunnel-id", "REPLACE_WITH_OWNER_REGISTRATION_ID",
+    "--control-plane.api-key=env:CONTROL_PLANE_API_KEY",
+    "--mcp.command", "REPLACE_WITH_INSPECTED_PYTHON_ABSOLUTE_PATH -I -B /Users/server/.local/share/houseatlas-mcp-read-bridge/tools/houseatlas-mcp-bridge/native-session-launcher.py",
+    "--mcp.max-concurrent-requests", "1",
+    "--mcp.stdio-send-initialized-notification",
+    "--control-plane.max-inflight", "1",
+    "--health.listen-addr", "127.0.0.1:0",
+    "--health.url-file", "/Users/server/.local/state/houseatlas-mcp-read-bridge/health-url",
+    "--log.level", "info",
+    "--log.format", "json"
+  ],
+  "controlPlaneOrigin": "https://api.openai.com",
+  "healthContract": "Read validated owned loopback URL from health-url; GET /healthz and /readyz, status only. Health200 is not native authorization proof."
 }

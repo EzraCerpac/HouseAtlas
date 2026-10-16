@@ -6,15 +6,12 @@ backend configuration, authentication/session policy, memberships, or services.
 No native or provider call was made during development. Runtime installation,
 credentials, grants, gateway qualification and activation belong to the NAS owner.
 
-The source-only deployed audit was materialized privately through Library and
-verified locally: v0, 14,245 bytes, SHA256
-`da4b6b65aef664461bd92fe744c4fbcfbf52e08bb984aa53c1d36473892b111a`.
-Its deployed source pin is `506b6b4782cf5325c1be8fb4db334ebc5aab6f06`.
-The private audit and household assets are not included in this repository.
-The bridge is authored against canonical checkout
-`192dd8ed46ea6ffefddf16b11fe6b3b34560a4a5`, fast-forwarded to canonical main
-`7f56bbf4f0b68ccc63df2c57c4de8054659b2acf` before review; later source code is not evidence
-that a route or grant is installed on the deployed host.
+The reviewed deployed-source audit was materialized privately through Library
+and its local bytes matched the supplied version, size and SHA256. The private
+verification record and input artifact remain outside Git. The bridge was
+fast-forwarded to canonical main `7f56bbf4f0b68ccc63df2c57c4de8054659b2acf`
+before independent review. Later source code is not evidence that a route or
+grant is installed on the deployed host.
 
 ## Tool inventory
 
@@ -93,6 +90,11 @@ The trusted host supplies nonsecret fixed `origin` and `scope` in an owned 0600
 configuration file. Use a canonical HTTPS origin with no path, credentials,
 query or fragment. The host separately provides an inherited anonymous pipe
 (FD > 2) containing JSON `{"cookie":"<native session cookie>"}` and closes it.
+The separately reviewable `native-session-launcher.py` can read a native-owner
+provisioned 0600 `native-session.json` under the fixed private config root and
+supply that pipe to a child with a minimal environment. It does not issue or
+refresh sessions. This custody interface requires NAS/native-owner acceptance;
+no native-session file is included or created by this artifact.
 Cookie values never appear in MCP arguments, argv, logs or the journal.
 The bridge fetches genuine `/api/atlas/auth/session` CSRF before every POST and
 fences actor/expiry before and after native results. It opens ordinary verified

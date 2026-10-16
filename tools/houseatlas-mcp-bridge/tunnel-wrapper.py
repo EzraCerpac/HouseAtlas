@@ -48,13 +48,13 @@ def launch():
     need(isinstance(spec['argv'], list) and spec['argv'] and len(spec['argv']) <= 64
          and all(isinstance(a, str) and 0 < len(a) <= 2048 and '\0' not in a
                  and '\n' not in a and '\r' not in a for a in spec['argv']))
-    need(isinstance(spec['controlPlaneOrigin'], str) and spec['controlPlaneOrigin'].startswith('https://')
+    need(isinstance(spec['controlPlaneOrigin'], str) and spec['controlPlaneOrigin'] == 'https://api.openai.com'
          and isinstance(spec['healthContract'], str) and spec['healthContract'])
     need(Path(BINARY).resolve() == Path(BINARY))
     info = os.stat(BINARY)
     need(stat.S_ISREG(info.st_mode) and not (info.st_mode & 0o022) and info.st_uid == 0)
     # Version probe precedes reading the key and has a credential-free environment.
-    env = {k: v for k, v in os.environ.items() if k != 'CONTROL_PLANE_API_KEY'}
+    env = {k: v for k, v in os.environ.items() if k in ('PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR')}
     version = subprocess.run([BINARY, '--version'], env=env, stdin=subprocess.DEVNULL,
                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=5, check=True)
     need(VERSION in version.stdout.decode('ascii').strip().split())

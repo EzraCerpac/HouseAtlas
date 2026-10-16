@@ -35,9 +35,18 @@ alone is not genuine authenticated native session/admission proof.
    and demonstrate a strict-TLS canonical HTTPS native session plus scoped
    admission **read only**, without direct Unix identity headers or fabricated
    proxy proof. Confirm one existing Editor membership. No live write for testing.
-5. Supply the inspected 0.0.14 control-plane origin, exact launch argv and loopback
-   health method before making a runnable private `launch-spec.json`. The delivered
-   example has `configured:false` and null origin/health; the wrapper refuses it.
+5. Use the NAS owner's inspected 0.0.14 flags retained in
+   `launch-spec.example.json`: control-plane host root `https://api.openai.com`,
+   runtime key reference `env:CONTROL_PLANE_API_KEY`, one native request/inflight,
+   `127.0.0.1:0` health listener and private `health-url`. The example remains
+   `configured:false`; fill only the registration ID and exact inspected Python
+   executable before the NAS owner approves a runnable private launch spec.
+   The initialized-notification shim is enabled because the adapter requires
+   that MCP lifecycle notification; 0.0.14 suppresses duplicates. Do not add
+   an unadvertised process PID flag; LaunchAgent owns the process identity.
+   Health uses GET `/healthz` and `/readyz` on the validated owned loopback base
+   URL from `health-url`, recording status only. Do not use UI or metrics.
+   The wrapper refuses the delivered unconfigured spec.
    The registration ID is operational parent context, not runtime authority.
    No public health listener or service activation is provided by this artifact.
 6. After independent staging review, the user runs the stable key setter in their
@@ -78,8 +87,13 @@ qualification against the actual CLI; the cloud did not execute that binary.
   review/CI, acceptance and merge remain the coordinator's sole responsibility.
 - Actual canonical origin, one-home scope, native session-pipe custody, gateway
   read admission and Editor grant are not supplied or installed here.
-- Exact tunnel flags/control-plane origin/health method remain unconfigured.
+- Tunnel flags/origin/health method are owner-supplied; exact installed Python
+  path and accepted native-session custody interface remain unconfigured.
 - Runtime key setter/wrapper are reviewable source, not executed or NAS-qualified.
 - Exact-impact remap confirmation, generic durable Stock outcome reconciliation,
   dedicated asset upload and scene-association creation need their native owners.
 - Full document semantic parsing and PR198 unified scene features are separate.
+
+Version-matched upstream reference, read during implementation:
+[0.0.14 configuration](https://raw.githubusercontent.com/openai/tunnel-client/v0.0.14/docs/configuration.md).
+The installed NAS `run --help` remains authoritative for its supported flags.

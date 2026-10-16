@@ -8,6 +8,7 @@ import stat
 import tempfile
 import termios
 import threading
+import time
 import types
 import unittest
 from unittest.mock import patch
@@ -84,7 +85,9 @@ class Cases(unittest.TestCase):
         def typer():
             while b'(hidden): ' not in observed:
                 observed.extend(os.read(master, 1024))
-            os.write(master, b'X' * 9000 + b'\n')
+            os.write(master, b'X' * 9000)
+            time.sleep(0.05)
+            os.write(master, b'SYNTHETIC-SUFFIX-NEVER-ECHO\n')
         real_open = os.open
         def fake_open(path, flags, *args, **kwargs):
             return os.dup(slave) if path == '/dev/tty' else real_open(path, flags, *args, **kwargs)
@@ -94,8 +97,16 @@ class Cases(unittest.TestCase):
             with patch.object(entry.os, 'open', fake_open):
                 with self.assertRaises(entry.EntryError): entry.read_tty_key()
             worker.join(2)
+            self.assertFalse(worker.is_alive())
             self.assertEqual(termios.tcgetattr(slave), original)
+            os.set_blocking(master, False)
+            while True:
+                try:
+                    observed.extend(os.read(master, 4096))
+                except BlockingIOError:
+                    break
             self.assertNotIn(b'XXXXX', observed)
+            self.assertNotIn(b'SYNTHETIC-SUFFIX-NEVER-ECHO', observed)
         finally:
             os.close(master); os.close(slave)
 
@@ -131,7 +142,7 @@ class Cases(unittest.TestCase):
 
     def healthy_wrapper_environment(self):
         spec = {'configured': True, 'expectedVersion': wrapper.VERSION,
-                'argv': ['SYNTHETIC-REVIEWED-FLAGS'], 'controlPlaneOrigin': 'https://synthetic.invalid',
+                'argv': ['SYNTHETIC-REVIEWED-FLAGS'], 'controlPlaneOrigin': 'https://api.openai.com',
                 'healthContract': 'Synthetic loopback-only health contract'}
         import json
         def read(name, limit):
