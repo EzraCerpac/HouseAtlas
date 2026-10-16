@@ -1043,3 +1043,22 @@ The separately authorized full-profile synthetic compatibility check is
 `cargo run --offline --locked -p houseatlas-backend --example healthy-native-full-geodata-profile`.
 Its exact generated scope and limitations are in
 [the full native profile guide](../geodata/native-full-profile.md).
+
+## Selected provisional model overview positive
+
+Inspect `backend/src/config/model_overview.rs`,
+`backend/src/http/model_overview.rs`, the narrow CLI/router composition, and
+`backend/examples/healthy-model-overview-read.rs` before this exact command.
+It uses only one generated triangle publication and fresh disposable native
+state/session through the in-process router. It observes absent/selected ready
+views, descriptor and exact Media-authorized bytes, pins/headers and unchanged
+configuration/receipt/input bytes. It opens no listener, provider or household
+file and runs no denial, malformed, replay, expiry, revocation or crash probes.
+Use Rust 1.99.0 and an owned Cargo target outside the checkout:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-model-overview-read
+```
+
+This positive establishes synthetic read composition only; actual private
+publication install, device rendering and release remain separate.

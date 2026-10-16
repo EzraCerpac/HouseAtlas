@@ -10,7 +10,7 @@ Availability is true only for the exact configured selected home and currently
 intact immutable publication. Unavailable views carry null pins.
 
 `GET /api/atlas/models/v1/workspaces/{workspaceId}/homes/{homeId}/overview`
-returns `{profile:"houseatlas.model-overview-read.v1",scope:{workspaceId,homeId},publicationId,manifestSha256,label,qualification:"provisional-overview",frame,components,original:{contentType:"model/gltf-binary",sha256,bytes,href}}`.
+returns `{profile:"houseatlas.model-overview-read.v1",scope:{workspaceId,homeId},publicationId,manifestSha256,label,qualification:"provisional-overview",frame,components,sourceNote,original:{contentType:"model/gltf-binary",sha256,bytes,href}}`.
 `href` is the same-origin scoped route
 `/api/atlas/models/v1/workspaces/{workspaceId}/homes/{homeId}/overview/{publicationId}/original?expectedSha256={sha256}`.
 
@@ -34,8 +34,9 @@ The selected home must exist in the unchanged server configuration.
 The strict manifest is `{profile:"houseatlas.model-overview-publication.v1",scope:{workspaceId,homeId},publicationId:UUID,label,qualification:"provisional-overview",frame:{linearUnit:"m",upAxis:"Y",placement:"baked-in-asset",physicalRegistration:null},components:[{id,kind:"building"|"plot"|"context",label}],sourceNote:string|null,original:{file:"overview.glb",contentType:"model/gltf-binary",sha256,bytes}}`.
 Labels contain 1–128 characters; component IDs are 1–128 ASCII letters, digits,
 `-`, `_` or `.`. At most 256 components, unique IDs; sourceNote at most 2048
-characters. Source IDs never denote native bindings. No unknown or duplicate
-JSON fields, credentials, URLs or external references are accepted.
+printable characters without URL syntax. Source IDs never denote native bindings.
+Unknown or duplicate JSON fields are refused; there are no credential or source
+URL fields. GLB external references are refused.
 The separate private directory is owner-only 0700; both fixed files are regular,
 single-link, owner-only 0600 files without symlinks. It must be outside native
 state/media. Directory/file identities and exact hashes are pinned and rechecked

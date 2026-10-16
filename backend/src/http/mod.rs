@@ -16,6 +16,7 @@ mod geodata_documents;
 mod geodata_original;
 mod intake;
 mod media;
+mod model_overview;
 mod mutations;
 mod native_geometry;
 mod native_scene_association;
@@ -106,6 +107,7 @@ pub struct Host {
     quantity_previews: Arc<Mutex<quantity::Registry>>,
     #[cfg(test)]
     quantity_tls_fixture: Option<Arc<quantity_fixture::PrivateLoopbackQuantityTls>>,
+    model_overview: Option<Arc<crate::config::model_overview::ServerModelOverviewSelection>>,
     full_geodata_identity: Option<crate::storage::FullGeodataIdentity>,
     geodata_dataset: Option<Arc<Mutex<crate::storage::geodata::GeodataStore>>>,
     loopback_local: bool,
@@ -128,6 +130,7 @@ impl Host {
             quantity_previews: Arc::new(Mutex::new(quantity::Registry::default())),
             #[cfg(test)]
             quantity_tls_fixture: None,
+            model_overview: None,
             full_geodata_identity: None,
             geodata_dataset: None,
             loopback_local: false,
@@ -155,9 +158,20 @@ impl Host {
             )),
         })
     }
-    /// Explicit startup choice validated against the actual native local user.
-    /// Explicit exclusive dataset selection. The router serves v2 Documents and
-    /// native auth only; it never attaches Documents to the legacy core store.
+    /// Trusted immutable overview selection; all requests retain native access.
+    pub fn with_model_overview(
+        mut self,
+        selection: crate::config::model_overview::ServerModelOverviewSelection,
+    ) -> crate::storage::Result<Self> {
+        if !self.mcp_scopes.iter().any(|scope| selection.matches(scope)) {
+            return Err(crate::storage::Error::new(
+                "identity-conflict",
+                "Overview scope is not configured",
+            ));
+        }
+        self.model_overview = Some(Arc::new(selection));
+        Ok(self)
+    }
     /// Compose Documents with native/Stock routes only on the original full
     /// profile Core.store connection; no second dataset connection is accepted.
     pub fn with_full_geodata(mut self) -> crate::storage::Result<Self> {
@@ -856,7 +870,9 @@ async fn current(
             |core, principal, home| {
                 let view = query_view(core, principal, home)?;
                 let selected = source_documents_service_selected(&host, core)?;
-                Ok(json_response(browser_view(view, selected)?))
+                let mut wire = browser_view(view, selected)?;
+                wire["modelOverviewService"] = model_overview::availability(&host, &home.scope);
+                Ok(json_response(wire))
             },
         )
     })
@@ -885,7 +901,9 @@ async fn scoped(
             |core, principal, home| {
                 let view = query_view(core, principal, home)?;
                 let selected = source_documents_service_selected(&host, core)?;
-                Ok(json_response(browser_view(view, selected)?))
+                let mut wire = browser_view(view, selected)?;
+                wire["modelOverviewService"] = model_overview::availability(&host, &home.scope);
+                Ok(json_response(wire))
             },
         )
     })
@@ -1093,6 +1111,9 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         ),
         None => base,
     };
+    let base = base
+        .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/overview", get(model_overview::descriptor).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/overview/{publication_id}/original", get(model_overview::original).head(auth::session_head).fallback(auth::session_head));
     let base = if host.full_geodata_identity.is_some() {
         base.merge(geodata_documents::full_routes())
     } else {
