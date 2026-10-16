@@ -42,10 +42,10 @@ const { makeProjection, pointInShape } = await import(geometryURL);
 const { loadStandardGlb } = await import(standardURL);
 const scene = await import(sceneURL);
 const { readUnifiedAtlas } = await import(readerURL);
-const { buildSyntheticAtlas, composeAtlasEnvelope, createAtlasTransport, atlasScenePath, SYNTHETIC_ATLAS, SYNTHETIC_OCCURRENCES,
+const { buildSyntheticAtlas, buildSingleFloorBuildingsAtlas, composeAtlasEnvelope, createAtlasTransport, atlasScenePath, SYNTHETIC_ATLAS, SYNTHETIC_OCCURRENCES,
   SYNTHETIC_ATLAS_DRAWN_PRIMITIVES } = await import(syntheticURL);
 const { bindAtlasModel, presentAtlas, partLifts, levelLift, frameBox, pickOccurrence, planPoint, planPickOccurrence, labelHeight,
-  occurrenceLiftLevel, occurrenceArea, contextOccurrenceIds, atlasReducer, initialAtlasState } = scene;
+  occurrenceLiftLevel, occurrenceArea, contextOccurrenceIds, atlasReducer, initialAtlasState, hasExplodableLevels } = scene;
 
 // ---- Read: production reader, generated transport ----------------------------------------
 const scope = { workspaceId: '00000000-0000-4000-8000-000000000800', homeId: '00000000-0000-4000-8000-000000000801' };
@@ -126,6 +126,32 @@ const initial = initialAtlasState(model);
 assert.deepEqual(initial, { buildingId: null, levelId: null, occurrenceId: null, view: '3d', exploded: true, overlay: null });
 assert.deepEqual(model.floorBuildings.map(row => row.buildingId), ['syn-building-house', 'syn-building-studio']);
 assert.equal(model.defaultBuildingId, 'syn-building-house');
+assert.equal(hasExplodableLevels(model, null), true);
+assert.equal(hasExplodableLevels(model, 'syn-building-studio'), false);
+for (const part of model.parts.filter(part => part.buildingId === 'syn-building-studio' && part.role !== 'room-pick')) {
+  assert.equal(presentAtlas(model, initial, none).clips.get(part.mesh.meshKey), null, 'Exploding the house does not section the single-floor studio');
+}
+const studioWhole = reduce(initial, { type: 'building', buildingId: 'syn-building-studio' });
+assert.equal(presentAtlas(model, studioWhole, none).explodeTarget, 0);
+assert.equal(reduce(studioWhole, { type: 'select', occurrenceId: 'syn-occ-studio' }).levelId, 'syn-level-studio');
+// A second independently generated publication has two one-floor buildings,
+// complete room geometry/plans and roofs; both open whole and stacked.
+const singleInput = await buildSingleFloorBuildingsAtlas(scope);
+const singleEnvelope = await composeAtlasEnvelope(singleInput.companionBytes, singleInput.glb, SYNTHETIC_ATLAS.revision);
+const singleRead = await readUnifiedAtlas({ selection: { ...selection, publicationId: singleEnvelope.publicationId },
+  signal: new AbortController().signal, origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true,
+  transport: createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(scope), envelopeBytes: singleEnvelope.envelopeBytes,
+    href: singleEnvelope.href, glb: singleInput.glb, sha256: singleEnvelope.sha256, revision: SYNTHETIC_ATLAS.revision }) });
+const singleModel = bindAtlasModel(singleRead.scene, await loadStandardGlb(singleRead.model, 'single', new AbortController().signal));
+const singleState = initialAtlasState(singleModel), singlePresentation = presentAtlas(singleModel, singleState, none);
+assert.equal(singleModel.selectable.size, 2);
+assert.equal(singleState.exploded, false);
+assert.equal(hasExplodableLevels(singleModel, null), false);
+assert.ok(singleModel.floorBuildings.every(building => !hasExplodableLevels(singleModel, building.buildingId)));
+for (const part of singleModel.parts.filter(part => part.role === 'roof')) {
+  assert.equal(singlePresentation.hidden.has(part.mesh.meshKey), false);
+  assert.equal(singlePresentation.clips.get(part.mesh.meshKey), null);
+}
 assert.deepEqual(reduce(initial, { type: 'view', view: 'plan' }), { ...initial, view: 'plan', buildingId: 'syn-building-house', levelId: 'syn-level-ground' });
 // Feature references may use any order; the generated Split plan is intentionally reordered.
 const rawSplit = JSON.parse(new TextDecoder().decode(companionBytes)).plans.find(row => row.levelId === 'syn-level-split');

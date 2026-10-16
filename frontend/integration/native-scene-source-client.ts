@@ -821,7 +821,9 @@ export async function readNativeOverlayDetails(selection:NativeSceneSourceSelect
   const root=row(parsed,['schema','receiptCanonicalJson','rooms','network','electricity',...(parsed.schema==='houseatlas.native-scene-source.v2'?['electricalFixtures']:[])]);
   need(root.schema==='houseatlas.native-scene-source.v1'||root.schema==='houseatlas.native-scene-source.v2');
   const historicalSha=await sha256(historicalBytes);guard();
-  const literal=parse(str(root.receiptCanonicalJson,131072));
+  const canonical=str(root.receiptCanonicalJson,131072);
+  guard();need(await sha256(new TextEncoder().encode(canonical))===selection.acceptedRoomReceiptSha256);guard();
+  const literal=parse(canonical);
   need(literal!==null&&typeof literal==='object'&&!Array.isArray(literal)&&!isExactDecimal(literal)
     &&literal.sourceReceiptSha256===historicalSha);
   boundedTree(root.rooms!);boundedTree(root.network!);boundedTree(root.electricity!);

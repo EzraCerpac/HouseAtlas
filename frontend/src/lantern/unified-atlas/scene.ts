@@ -162,8 +162,11 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
     need(buildingById.has(room.buildingId as string));
     const binding = row(room.nativeBinding, ['status', 'receiptSha256']);
     need(binding.status === 'reviewed' || binding.status === 'historical' || binding.status === 'unmapped');
-    return { roomId: id(room.roomId), buildingId: room.buildingId as string, label: text(room.label, 256), nativePlaceId: nullableUuid(room.nativePlaceId),
-      nativeBinding: { status: binding.status, receiptSha256: binding.receiptSha256 === null ? null : sha(binding.receiptSha256) },
+    const nativePlaceId = nullableUuid(room.nativePlaceId);
+    const receiptSha256 = binding.receiptSha256 === null ? null : sha(binding.receiptSha256);
+    need(binding.status !== 'reviewed' || (nativePlaceId !== null && receiptSha256 !== null));
+    return { roomId: id(room.roomId), buildingId: room.buildingId as string, label: text(room.label, 256), nativePlaceId,
+      nativeBinding: { status: binding.status, receiptSha256 },
       occurrenceIds: ids(room.occurrenceIds, ATLAS_LIMITS.occurrences, true) };
   });
   const roomById = unique(rooms, item => item.roomId);
@@ -491,11 +494,17 @@ export type AtlasAction =
   | { readonly type: 'explode'; readonly exploded: boolean }
   | { readonly type: 'overlay'; readonly overlay: OverlayKind | null };
 
+/** Explosion separates levels within a building, never separate buildings. */
+export function hasExplodableLevels(model: AtlasModel, buildingId: string | null): boolean {
+  return buildingId === null ? model.floorBuildings.some(building => building.levelIds.length > 1)
+    : (model.levelsByBuilding.get(buildingId)?.length ?? 0) > 1;
+}
+
 export function initialAtlasState(model: AtlasModel): AtlasViewState {
   // One building with floors opens on itself; context-only groups stay around it.
   const single = model.floorBuildings.length === 1 ? model.floorBuildings[0]!.buildingId : null;
   return { buildingId: single, levelId: null, occurrenceId: null, view: '3d',
-    exploded: model.scene.levels.length > 1, overlay: null };
+    exploded: hasExplodableLevels(model, single), overlay: null };
 }
 
 /** The building a plan or floor list follows: the chosen one, else the selected room's, else the default. */
@@ -522,7 +531,8 @@ export function atlasReducer(model: AtlasModel, state: AtlasViewState, action: A
       const occurrence = model.occurrencesById.get(action.occurrenceId);
       if (!occurrence || !model.selectable.has(occurrence.spaceOccurrenceId)) return state;
       // An exploded whole building already shows every floor; otherwise reveal the room's own floor.
-      const keepWhole = state.view === '3d' && state.exploded && state.levelId === null && state.buildingId === occurrence.buildingId;
+      const keepWhole = state.view === '3d' && state.exploded && hasExplodableLevels(model, occurrence.buildingId)
+        && state.levelId === null && state.buildingId === occurrence.buildingId;
       return { ...state, occurrenceId: occurrence.spaceOccurrenceId, buildingId: occurrence.buildingId,
         levelId: keepWhole ? null : occurrence.levelId };
     }
@@ -584,7 +594,7 @@ const sectionOf = (model: AtlasModel, levelId: string) => model.floorY.get(level
 export function presentAtlas(model: AtlasModel, state: AtlasViewState, highlighted: ReadonlySet<string>): AtlasPresentation {
   const plan = state.view === 'plan';
   const focusLevelId = plan ? planLevelId(model, state) : state.levelId;
-  const exploded = state.exploded && !plan;
+  const exploded = state.exploded && !plan && hasExplodableLevels(model, state.buildingId);
   const offsets = new Map<string, number>();
   for (const [buildingId, levels] of model.levelsByBuilding) levels.forEach((level, at) => offsets.set(level.levelId, at * model.spread.get(buildingId)!));
   const focusIndex = focusLevelId === null ? null : model.levelIndex.get(focusLevelId)!;
@@ -599,24 +609,25 @@ export function presentAtlas(model: AtlasModel, state: AtlasViewState, highlight
   const hidden = new Set<string>(), clips = new Map<string, number | null>(), dims = new Map<string, number>();
   for (const part of model.parts) {
     const key = part.mesh.meshKey, own = focusBuilding === null || part.buildingId === focusBuilding;
+    const partExploded = exploded && hasExplodableLevels(model, part.buildingId);
     const members = part.levelIds.map(levelId => model.levelIndex.get(levelId)!);
     const highest = part.levelIds.reduce<string | null>((best, levelId) => best === null || model.levelIndex.get(levelId)! > model.levelIndex.get(best)! ? levelId : best, null);
     let visible: boolean, clip: number | null = null, dim = 0;
     if (part.role === 'context') { visible = !plan; dim = focusLevelId !== null || state.buildingId !== null ? .35 : 0; }
-    else if (!own) { visible = !plan && !(part.role === 'roof' && exploded); dim = .6; clip = exploded && highest ? sectionOf(model, highest) : null; }
-    else if (part.role === 'roof') visible = !plan && !exploded && focusLevelId === null;
+    else if (!own) { visible = !plan && !(part.role === 'roof' && partExploded); dim = .6; clip = partExploded && highest ? sectionOf(model, highest) : null; }
+    else if (part.role === 'roof') visible = !plan && !partExploded && focusLevelId === null;
     else if (plan) {
       visible = focusLevelId !== null && part.levelIds.includes(focusLevelId);
       clip = focusLevelId === null ? null : sectionOf(model, focusLevelId);
     } else if (part.levelId !== null) {
       visible = visibleLevels.has(part.levelId);
-      clip = exploded ? sectionOf(model, part.levelId) : focusLevelId !== null ? sectionOf(model, focusLevelId) : null;
+      clip = partExploded ? sectionOf(model, part.levelId) : focusLevelId !== null ? sectionOf(model, focusLevelId) : null;
       dim = focusLevelId !== null && part.levelId !== focusLevelId ? .5 : 0;
     } else {
       // Shared or level-free geometry stays at its source position.
-      visible = focusIndex === null || exploded || members.length === 0 || Math.min(...members) <= focusIndex;
-      clip = exploded ? (highest ? sectionOf(model, highest) : null) : focusLevelId !== null ? sectionOf(model, focusLevelId) : null;
-      dim = exploded ? .4 : focusLevelId !== null ? .3 : 0;
+      visible = focusIndex === null || partExploded || members.length === 0 || Math.min(...members) <= focusIndex;
+      clip = partExploded ? (highest ? sectionOf(model, highest) : null) : focusLevelId !== null ? sectionOf(model, focusLevelId) : null;
+      dim = partExploded ? .4 : focusLevelId !== null ? .3 : 0;
     }
     if (part.role === 'room-pick' && (part.occurrenceId === null || !highlighted.has(part.occurrenceId))) visible = false;
     if (!visible) hidden.add(key);

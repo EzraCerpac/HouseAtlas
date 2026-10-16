@@ -12,7 +12,7 @@ import { TONE_COLOR, badgeFill, toneTint } from '../canonical-ifc/tones';
 import { PREPARED_BYTES_PER_TRIANGLE } from '../site-artifacts/site-budget';
 import type { ModelOverviewSelection } from '../source-models/overview-types';
 import {
-  atlasReducer, bindAtlasModel, contextOccurrenceIds, focusBuildingId, frameBox, initialAtlasState, labelHeight, levelLift, occurrenceLiftLevel, partLifts,
+  atlasReducer, bindAtlasModel, contextOccurrenceIds, focusBuildingId, frameBox, hasExplodableLevels, initialAtlasState, labelHeight, levelLift, occurrenceLiftLevel, partLifts,
   pickOccurrence, planPickOccurrence, planPoint, presentAtlas,
   type AtlasAction, type AtlasModel, type AtlasViewState, type OverlayLayerIndex, type UnplacedReason,
 } from './scene';
@@ -261,7 +261,7 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
   const focusLevel = presentation.focusLevelId === null ? null : model.levelsById.get(presentation.focusLevelId)!;
   const scopeLabel = focusLevel ? `${floorLabel(focusLevel.label)}${buildings.length > 1 ? `, ${model.buildingsById.get(focusLevel.buildingId)!.label}` : ''}`
     : state.buildingId === null && model.scene.buildings.length > 1 ? 'all buildings' : building?.label ?? 'this model';
-  const canExplode = !plan && (state.buildingId === null ? model.scene.levels.length > 1 : ladderLevels.length > 1);
+  const canExplode = !plan && hasExplodableLevels(model, state.buildingId);
   const selectionLevel = selected ? model.occurrencesById.get(selected)!.levelId : null;
   const contextLevels = new Set(context.map(key => model.occurrencesById.get(key)!.levelId));
 
