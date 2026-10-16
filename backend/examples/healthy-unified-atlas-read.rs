@@ -198,6 +198,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     assert!(descriptor["meshBindings"][3]["spaceOccurrenceId"].is_null());
     assert_eq!(descriptor["meshBindings"][4]["role"], "slab");
     assert_eq!(descriptor["meshBindings"][4]["levelIds"], json!(["lower"]));
+    assert_eq!(descriptor["occurrences"].as_array().unwrap().len(), 4);
+    assert_eq!(
+        descriptor["meshBindings"][5]["spaceOccurrenceId"],
+        "courtyard-upper"
+    );
+    let courtyard = &descriptor["plans"][1]["features"][1]["polygons"][0];
+    assert_eq!(courtyard["outer"].as_array().unwrap().len(), 8);
+    assert_eq!(courtyard["holes"].as_array().unwrap().len(), 1);
     for _ in 0..2 {
         let response = app
             .clone()
@@ -273,7 +281,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     assert_eq!(fs::read(publication_dir.join("overview.glb"))?, glb);
     drop(lease);
     println!(
-        "PASS generated unified scene: actual native session/Read/Media; two levels, logical multi-occurrence room, explicit estimated pick geometry+matching plans; validated normals/indices, single-level slab and shared structure; unchanged current/scoped ReadyView; exact descriptor/publication/selection; repeated original/query/hash/headers; unchanged overview/config/receipt/source bytes. No listener/provider/private household/probe."
+        "PASS generated unified scene: actual native session/Read/Media; two levels, logical multi-occurrence room, explicit estimated pick geometry+matching plans; validated normals/indices, single-level slab and shared structure; matching concave courtyard footprint with hole, collinear subdivisions and positive sub-tolerance edges; unchanged current/scoped ReadyView; exact descriptor/publication/selection; repeated original/query/hash/headers; unchanged overview/config/receipt/source bytes. No listener/provider/private household/probe."
     );
     Ok(())
 }

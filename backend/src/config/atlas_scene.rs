@@ -1,5 +1,6 @@
 //! Bounded immutable companion for an existing private standard GLB selection.
 //! Producer joins are documentary data, never native import or read authority.
+use super::atlas_scene_footprint as footprint;
 use super::model_overview::{Identity, ServerModelOverviewSelection};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -399,7 +400,11 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
         .map_err(|_| invalid())?;
     let nodes = gltf["nodes"].as_array().ok_or_else(invalid)?;
     let meshes = gltf["meshes"].as_array().ok_or_else(invalid)?;
+    super::atlas_scene_glb::materials(&gltf)?;
     let worlds = super::atlas_scene_glb::worlds(&gltf)?;
+    let mut work = footprint::Work::default();
+    let mut supports: BTreeMap<&str, footprint::Support> = BTreeMap::new();
+    let mut footprints: BTreeMap<&str, Vec<footprint::Polygon>> = BTreeMap::new();
     let mut visited = 0usize;
     let mut selectors = BTreeSet::new();
     let mut picks = BTreeSet::new();
@@ -448,7 +453,7 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
         for i in &m.primitive_indices {
             need(*i < primitives.len() && selectors.insert((m.node_index, m.mesh_index, *i)))?;
             let world = worlds.get(&m.node_index).ok_or_else(invalid)?;
-            super::atlas_scene_glb::positions(
+            let geometry = super::atlas_scene_glb::positions(
                 &gltf,
                 glb,
                 20 + json_len,
@@ -467,6 +472,16 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
                         })
                 },
             )?;
+            if let Some(id) = &m.space_occurrence_id {
+                let support = supports.entry(id.as_str()).or_default();
+                support.begin(geometry.minimum_y);
+                let mut positive = false;
+                geometry.triangles(|triangle| {
+                    positive |= support.triangle(triangle, &mut work)?;
+                    Ok(())
+                })?;
+                need(positive)?;
+            }
         }
         if let Some(id) = &m.space_occurrence_id {
             let o = occurrences.get(id.as_str()).ok_or_else(invalid)?;
@@ -517,7 +532,9 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
             } else {
                 need(f.room_id.is_none() && f.role != "room")?;
             }
+            let mut feature_polygons = Vec::new();
             for polygon in &f.polygons {
+                let mut rings = Vec::new();
                 for ring in std::iter::once(&polygon.outer).chain(&polygon.holes) {
                     points = points.checked_add(ring.len()).ok_or_else(invalid)?;
                     need(
@@ -525,20 +542,26 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
                             && ring.len() >= 3
                             && ring.iter().all(|point| level.bounds.plan_contains(point)),
                     )?;
-                    let area = ring
-                        .iter()
-                        .zip(ring.iter().cycle().skip(1))
-                        .take(ring.len())
-                        .map(|(a, b)| a[0] * b[1] - b[0] * a[1])
-                        .sum::<f64>();
-                    need(area.is_finite() && area.abs() > 1e-12)?;
                     if let Some(oid) = &f.space_occurrence_id {
                         need(
                             ring.iter()
                                 .all(|point| occurrences[oid.as_str()].bounds.plan_contains(point)),
                         )?;
                     }
+                    rings.push(footprint::ring(ring, &mut work)?);
                 }
+                let mut rings = rings.into_iter();
+                let polygon = footprint::Polygon {
+                    outer: rings.next().ok_or_else(invalid)?,
+                    holes: rings.collect(),
+                };
+                polygon.validate(&mut work)?;
+                feature_polygons.push(polygon);
+            }
+            footprint::disjoint(&feature_polygons, &mut work)?;
+            if f.role == "room" {
+                let oid = f.space_occurrence_id.as_deref().ok_or_else(invalid)?;
+                footprints.entry(oid).or_default().extend(feature_polygons);
             }
         }
     }
@@ -574,6 +597,12 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
                     .iter()
                     .any(|fid| features.get(fid).is_some_and(|(_, f)| f.role == "room")),
         )?;
+        let polygons = footprints.get(oid.as_str()).ok_or_else(invalid)?;
+        footprint::disjoint(polygons, &mut work)?;
+        supports
+            .get(oid.as_str())
+            .ok_or_else(invalid)?
+            .matches(polygons, &mut work)?;
     }
     need(p.coverage.unselectable_occurrences.is_empty() || !p.coverage.exclusions.is_empty())?;
     for overlay in &p.overlay_bindings {

@@ -210,6 +210,25 @@ single-level bindings also lie within that level, while shared multilevel
 bindings lie within the enclosing union of their declared levels. Producer
 bounds include the physical geometry, occurrence/pick extents and matching plan
 extents; validation does not enlarge them or move geometry.
+Selected materials must resolve to the admitted core color/factor profile;
+texture, image and sampler resource graphs are unsupported. Each room-pick
+primitive needs a nondegenerate transformed triangle. Plan rings are simple,
+with strictly contained, disjoint holes and disjoint polygon components.
+Concave rings and holes are supported without a convex-hull approximation.
+
+For a selectable occurrence, the reader compares its plan with nonoverlapping
+horizontal pick-support triangles within 0.00001 m of the lowest selected
+world Y. Topology uses distinct, nonzero edges and exact shared vertices; the
+correspondence tolerance never welds vertices or discards a boundary or hole.
+Closed support cycles match plan rings one-to-one, preserving filled-side
+orientation and each hole's containing outer component. Every edge requires
+nonempty actual coverage. Their directed boundaries agree in both directions within
+0.00001 m, allowing collinear boundary subdivisions. Interior triangulation
+joins use complete shared edges; unresolved partial joins are unsupported.
+This is a bounded horizontal-support profile, not a general solid projection
+or inferred sloped-floor footprint. It stores at most 4,096 support triangles
+per occurrence and 65,536 in total, and charges at most 2,000,000 aggregate
+geometry comparisons before pair work or boundary expansion.
 The companion is at most 12 MiB: non-plan semantic JSON at most 4 MiB and all
 inline plan JSON at most 8 MiB combined. The complete retained publication is
 at most 64 MiB. Bound the complete scene to 128

@@ -25,7 +25,71 @@ pub fn generate(scope: Value, publication_id: String) -> (Vec<u8>, Vec<u8>, Vec<
     for i in indices {
         binary.extend(i.to_le_bytes());
     }
-    let mut chunk=serde_json::to_vec(&json!({"asset":{"version":"2.0","generator":"HouseAtlas anonymous unified scene fixture"},"scene":0,"scenes":[{"nodes":[0,1,2,3,4]}],"nodes":[{"mesh":0},{"mesh":0,"translation":[2,0,0]},{"mesh":0,"translation":[0,2,0]},{"mesh":0,"scale":[1,3,1]},{"mesh":0,"translation":[1,0,0]}],"meshes":[{"primitives":[{"attributes":{"POSITION":0,"NORMAL":1},"indices":2,"material":0}]}],"materials":[{"doubleSided":true,"pbrMetallicRoughness":{"baseColorFactor":[0.65,0.75,0.85,1],"metallicFactor":0,"roughnessFactor":1}}],"buffers":[{"byteLength":binary.len()}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":96},{"buffer":0,"byteOffset":96,"byteLength":96},{"buffer":0,"byteOffset":192,"byteLength":72}],"accessors":[{"bufferView":0,"componentType":5126,"count":8,"type":"VEC3","min":[0,0,0],"max":[1,1,1]},{"bufferView":1,"componentType":5126,"count":8,"type":"VEC3"},{"bufferView":2,"componentType":5123,"count":36,"type":"SCALAR"}]})).unwrap();
+    let mut document = json!({"asset":{"version":"2.0","generator":"HouseAtlas anonymous unified scene fixture"},"scene":0,"scenes":[{"nodes":[0,1,2,3,4]}],"nodes":[{"mesh":0},{"mesh":0,"translation":[2,0,0]},{"mesh":0,"translation":[0,2,0]},{"mesh":0,"scale":[1,3,1]},{"mesh":0,"translation":[1,0,0]}],"meshes":[{"primitives":[{"attributes":{"POSITION":0,"NORMAL":1},"indices":2,"material":0}]}],"materials":[{"doubleSided":true,"pbrMetallicRoughness":{"baseColorFactor":[0.65,0.75,0.85,1],"metallicFactor":0,"roughnessFactor":1}}],"buffers":[{"byteLength":binary.len()}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":96},{"buffer":0,"byteOffset":96,"byteLength":96},{"buffer":0,"byteOffset":192,"byteLength":72}],"accessors":[{"bufferView":0,"componentType":5126,"count":8,"type":"VEC3","min":[0,0,0],"max":[1,1,1]},{"bufferView":1,"componentType":5126,"count":8,"type":"VEC3"},{"bufferView":2,"componentType":5123,"count":36,"type":"SCALAR"}]});
+    // One generated concave horizontal room with an interior courtyard hole.
+    // Grid cells also exercise collinear subdivisions in the mesh boundary.
+    let axis = [0.0f32, 0.125, 0.375, 0.5, 0.500001, 1.0];
+    let mut courtyard_positions = Vec::new();
+    let mut courtyard_indices = Vec::new();
+    for x in 0..axis.len() - 1 {
+        for z in 0..axis.len() - 1 {
+            if (x >= 3 && z >= 3) || (x == 1 && z == 1) {
+                continue;
+            }
+            let first = (courtyard_positions.len() / 3) as u16;
+            for [x, z] in [
+                [axis[x], axis[z]],
+                [axis[x + 1], axis[z]],
+                [axis[x + 1], axis[z + 1]],
+                [axis[x], axis[z + 1]],
+            ] {
+                courtyard_positions.extend([x, 0., z]);
+            }
+            courtyard_indices.extend([first, first + 1, first + 2, first, first + 2, first + 3]);
+        }
+    }
+    let position_offset = binary.len();
+    for value in &courtyard_positions {
+        binary.extend(value.to_le_bytes());
+    }
+    let position_bytes = binary.len() - position_offset;
+    let normal_offset = binary.len();
+    for _ in 0..courtyard_positions.len() / 3 {
+        for value in [0.0f32, 1., 0.] {
+            binary.extend(value.to_le_bytes());
+        }
+    }
+    let index_offset = binary.len();
+    for value in &courtyard_indices {
+        binary.extend(value.to_le_bytes());
+    }
+    document["buffers"][0]["byteLength"] = json!(binary.len());
+    document["scenes"][0]["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!(5));
+    document["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"mesh":1,"translation":[2,2,0]}));
+    document["meshes"].as_array_mut().unwrap().push(
+        json!({"primitives":[{"attributes":{"POSITION":3,"NORMAL":4},"indices":5,"material":0}]}),
+    );
+    for view in [
+        json!({"buffer":0,"byteOffset":position_offset,"byteLength":position_bytes}),
+        json!({"buffer":0,"byteOffset":normal_offset,"byteLength":position_bytes}),
+        json!({"buffer":0,"byteOffset":index_offset,"byteLength":courtyard_indices.len()*2}),
+    ] {
+        document["bufferViews"].as_array_mut().unwrap().push(view);
+    }
+    for accessor in [
+        json!({"bufferView":3,"componentType":5126,"count":courtyard_positions.len()/3,"type":"VEC3","min":[0,0,0],"max":[1,0,1]}),
+        json!({"bufferView":4,"componentType":5126,"count":courtyard_positions.len()/3,"type":"VEC3"}),
+        json!({"bufferView":5,"componentType":5123,"count":courtyard_indices.len(),"type":"SCALAR"}),
+    ] {
+        document["accessors"].as_array_mut().unwrap().push(accessor);
+    }
+    let mut chunk = serde_json::to_vec(&document).unwrap();
     while !chunk.len().is_multiple_of(4) {
         chunk.push(b' ');
     }
@@ -39,7 +103,7 @@ pub fn generate(scope: Value, publication_id: String) -> (Vec<u8>, Vec<u8>, Vec<
     glb.extend((binary.len() as u32).to_le_bytes());
     glb.extend(0x004e4942u32.to_le_bytes());
     glb.extend(binary);
-    let overview = json!({"profile":"houseatlas.model-overview-publication.v1","scope":scope,"publicationId":publication_id,"label":"Generated unified Atlas","qualification":"provisional-overview","frame":{"linearUnit":"m","upAxis":"Y","placement":"baked-in-asset","physicalRegistration":null},"components":[{"id":"building-main","kind":"building","label":"Generated building"}],"sourceNote":"Three generated source pick cubes; one explicitly estimated","original":{"file":"overview.glb","contentType":"model/gltf-binary","sha256":sha(&glb),"bytes":glb.len()}});
+    let overview = json!({"profile":"houseatlas.model-overview-publication.v1","scope":scope,"publicationId":publication_id,"label":"Generated unified Atlas","qualification":"provisional-overview","frame":{"linearUnit":"m","upAxis":"Y","placement":"baked-in-asset","physicalRegistration":null},"components":[{"id":"building-main","kind":"building","label":"Generated building"}],"sourceNote":"Three generated source pick cubes and a concave courtyard surface; one cube explicitly estimated","original":{"file":"overview.glb","contentType":"model/gltf-binary","sha256":sha(&glb),"bytes":glb.len()}});
     let mut occurrences = Vec::new();
     let mut bindings = Vec::new();
     let mut plans = Vec::new();
@@ -69,7 +133,24 @@ pub fn generate(scope: Value, publication_id: String) -> (Vec<u8>, Vec<u8>, Vec<
     }
     bindings.push(json!({"artifactId":"model","nodeIndex":3,"meshIndex":0,"primitiveIndices":[0],"buildingId":"building-main","levelIds":["lower","upper"],"spaceOccurrenceId":null,"role":"structure"}));
     bindings.push(json!({"artifactId":"model","nodeIndex":4,"meshIndex":0,"primitiveIndices":[0],"buildingId":"building-main","levelIds":["lower"],"spaceOccurrenceId":null,"role":"slab"}));
-    let companion = json!({"profile":"houseatlas.unified-atlas-publication.v1","scope":scope,"publicationId":publication_id,"sourceRevisionId":"generated-source-v1","sourceSha256":sha(b"Generated anonymous source recipe v1"),"original":{"sha256":sha(&glb),"bytes":glb.len()},"frame":{"units":"m","upAxis":"Y","horizontalAxes":["X","Z"],"geometryPlacement":"gltf-world-after-node-transforms-once","physicalRegistration":null},"buildings":[{"buildingId":"building-main","label":"Generated building","nativePlaceId":null,"bounds":{"min":[0,0,0],"max":[3,3,1]},"levelIds":["lower","upper"]}],"levels":[{"levelId":"lower","buildingId":"building-main","label":"Lower","nativePlaceId":null,"sourceElevationM":0,"elevationBasis":"generated source","occurrenceIds":["hall-lower","estimated-lower"],"bounds":{"min":[0,0,0],"max":[3,1,1]}},{"levelId":"upper","buildingId":"building-main","label":"Upper","nativePlaceId":null,"sourceElevationM":2,"elevationBasis":"generated source","occurrenceIds":["hall-upper"],"bounds":{"min":[0,2,0],"max":[1,3,1]}}],"rooms":[{"roomId":"hall","buildingId":"building-main","label":"Hall","nativePlaceId":null,"nativeBinding":{"status":"unmapped","receiptSha256":null},"occurrenceIds":["hall-lower","hall-upper"]},{"roomId":"estimated-room","buildingId":"building-main","label":"Estimated room","nativePlaceId":null,"nativeBinding":{"status":"unmapped","receiptSha256":null},"occurrenceIds":["estimated-lower"]}],"occurrences":occurrences,"meshBindings":bindings,"plans":plans,"overlayBindings":[{"publicationId":publication_id,"kind":"electrical","sourceRevision":"generated-documentary-v1","sourceUpdatedAt":null,"retrievedAt":null,"roomId":"hall","spaceOccurrenceId":null,"nativePlaceId":null,"recordIds":[],"anchor":{"kind":"room-summary"}}],"coverage":{"selectableOccurrences":["hall-lower","estimated-lower","hall-upper"],"unselectableOccurrences":[],"exclusions":[]}});
+    occurrences.push(json!({"spaceOccurrenceId":"courtyard-upper","roomId":"courtyard-room","buildingId":"building-main","levelId":"upper","bounds":{"min":[2,2,0],"max":[3,2,1]},"planFeatureIds":["plan-courtyard"],"geometryBasis":{"kind":"source-model","sourceRef":null,"note":null}}));
+    bindings.push(json!({"artifactId":"model","nodeIndex":5,"meshIndex":1,"primitiveIndices":[0],"buildingId":"building-main","levelIds":["upper"],"spaceOccurrenceId":"courtyard-upper","role":"room-pick"}));
+    plans[1]["featureIds"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!("plan-courtyard"));
+    plans[1]["features"].as_array_mut().unwrap().push(json!({"featureId":"plan-courtyard","roomId":"courtyard-room","spaceOccurrenceId":"courtyard-upper","role":"room","polygons":[{"outer":[[2,0],[3,0],[3,0.499999],[3,0.5],[2.5,0.5],[2.5,1],[2,1],[2,0]],"holes":[[[2.125,0.125],[2.375,0.125],[2.375,0.375],[2.125,0.375],[2.125,0.125]]]}]}));
+    let mut companion = json!({"profile":"houseatlas.unified-atlas-publication.v1","scope":scope,"publicationId":publication_id,"sourceRevisionId":"generated-source-v1","sourceSha256":sha(b"Generated anonymous source recipe v1"),"original":{"sha256":sha(&glb),"bytes":glb.len()},"frame":{"units":"m","upAxis":"Y","horizontalAxes":["X","Z"],"geometryPlacement":"gltf-world-after-node-transforms-once","physicalRegistration":null},"buildings":[{"buildingId":"building-main","label":"Generated building","nativePlaceId":null,"bounds":{"min":[0,0,0],"max":[3,3,1]},"levelIds":["lower","upper"]}],"levels":[{"levelId":"lower","buildingId":"building-main","label":"Lower","nativePlaceId":null,"sourceElevationM":0,"elevationBasis":"generated source","occurrenceIds":["hall-lower","estimated-lower"],"bounds":{"min":[0,0,0],"max":[3,1,1]}},{"levelId":"upper","buildingId":"building-main","label":"Upper","nativePlaceId":null,"sourceElevationM":2,"elevationBasis":"generated source","occurrenceIds":["hall-upper"],"bounds":{"min":[0,2,0],"max":[1,3,1]}}],"rooms":[{"roomId":"hall","buildingId":"building-main","label":"Hall","nativePlaceId":null,"nativeBinding":{"status":"unmapped","receiptSha256":null},"occurrenceIds":["hall-lower","hall-upper"]},{"roomId":"estimated-room","buildingId":"building-main","label":"Estimated room","nativePlaceId":null,"nativeBinding":{"status":"unmapped","receiptSha256":null},"occurrenceIds":["estimated-lower"]}],"occurrences":occurrences,"meshBindings":bindings,"plans":plans,"overlayBindings":[{"publicationId":publication_id,"kind":"electrical","sourceRevision":"generated-documentary-v1","sourceUpdatedAt":null,"retrievedAt":null,"roomId":"hall","spaceOccurrenceId":null,"nativePlaceId":null,"recordIds":[],"anchor":{"kind":"room-summary"}}],"coverage":{"selectableOccurrences":["hall-lower","estimated-lower","hall-upper"],"unselectableOccurrences":[],"exclusions":[]}});
+    companion["rooms"].as_array_mut().unwrap().push(json!({"roomId":"courtyard-room","buildingId":"building-main","label":"Generated courtyard room","nativePlaceId":null,"nativeBinding":{"status":"unmapped","receiptSha256":null},"occurrenceIds":["courtyard-upper"]}));
+    companion["levels"][1]["occurrenceIds"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!("courtyard-upper"));
+    companion["levels"][1]["bounds"]["max"][0] = json!(3);
+    companion["coverage"]["selectableOccurrences"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!("courtyard-upper"));
     (
         glb,
         serde_json::to_vec(&overview).unwrap(),
