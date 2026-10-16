@@ -49,6 +49,11 @@ Stock and Documents share that store connection. Gateway identity, socket
 authority, account preparation and the lifetime of the exclusive server lease
 continue through their existing startup paths.
 
+The existing authenticated browser views advertise this selected service through
+the optional [source Document service availability](source-documents-service-availability.md)
+field. A native session or ordinary ready view alone does not establish its
+availability.
+
 This selection performs no source fetch, account provisioning, origin rebind,
 automatic schema migration or conversion. Code integration and synthetic checks
 do not authorize a service change, a release or selection of private data.

@@ -706,9 +706,25 @@ fn query_view(
         )
         .map_err(domain_error)
 }
+/// Match the installed Documents route selection to its original native owners.
+/// The caller has already authorized the current/scoped view read.
+fn source_documents_service_selected(host: &Host, core: &Core) -> Result<bool, HttpFailure> {
+    let Some(identity) = &host.full_geodata_identity else {
+        return Ok(false);
+    };
+    let store = core
+        .store
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    Ok(store.matches_full_geodata_identity(identity)
+        && store.full_geodata_belongs_to(&core.access, &core.vault))
+}
 /// Deliberate narrow projection for AT10's browser wire proposal. Unimplemented
 /// extension facts stay unknown/absent; the read-only graph excludes Network.
-fn browser_view(view: d::CurrentOutput) -> Result<Value, HttpFailure> {
+fn browser_view(
+    view: d::CurrentOutput,
+    source_documents_available: bool,
+) -> Result<Value, HttpFailure> {
     let mut v =
         serde_json::to_value(&view).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
     let entries = v["entries"]
@@ -720,6 +736,12 @@ fn browser_view(view: d::CurrentOutput) -> Result<Value, HttpFailure> {
     for (entry, original) in entries.iter_mut().zip(&view.entries) {
         browser_entry(entry, original)?;
     }
+    // Availability on this selected host, not a grant or a promise about any
+    // individual Document. Its routes retain their own current authorization.
+    v["sourceDocumentsService"] = serde_json::json!({
+        "profile": "houseatlas.geodata-document-read.v2",
+        "available": source_documents_available,
+    });
     Ok(v)
 }
 fn browser_entry(entry: &mut Value, original: &d::CurrentEntry) -> Result<(), HttpFailure> {
@@ -832,9 +854,9 @@ async fn current(
             None,
             true,
             |core, principal, home| {
-                Ok(json_response(browser_view(query_view(
-                    core, principal, home,
-                )?)?))
+                let view = query_view(core, principal, home)?;
+                let selected = source_documents_service_selected(&host, core)?;
+                Ok(json_response(browser_view(view, selected)?))
             },
         )
     })
@@ -861,9 +883,9 @@ async fn scoped(
             }),
             true,
             |core, principal, home| {
-                Ok(json_response(browser_view(query_view(
-                    core, principal, home,
-                )?)?))
+                let view = query_view(core, principal, home)?;
+                let selected = source_documents_service_selected(&host, core)?;
+                Ok(json_response(browser_view(view, selected)?))
             },
         )
     })
