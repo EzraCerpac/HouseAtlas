@@ -129,7 +129,7 @@ class Cases(unittest.TestCase):
             with self.assertRaises(OSError): entry.read_tty_key()
 
     def denial_unconfigured_wrapper(self):
-        spec = b'{"configured":false,"expectedVersion":"unused","argv":[],"controlPlaneOrigin":null,"healthContract":null}'
+        spec = b'{"configured":false,"expectedVersion":"unused","registrationId":"unconfigured"}'
         names = []
         def read(name, limit):
             names.append(name)
@@ -141,42 +141,38 @@ class Cases(unittest.TestCase):
             with self.assertRaises(wrapper.WrapperError): wrapper.launch()
         self.assertEqual(names, ['launch-spec.json'])
 
-    def healthy_launcher_pipe(self):
+    def healthy_launcher_memory_only(self):
         with tempfile.TemporaryDirectory(prefix='houseatlas-launcher-synthetic-') as temp:
             root, config, state = (Path(temp) / name for name in ('source', 'config', 'state'))
             for directory in (root, config, state): directory.mkdir(mode=0o700)
-            helper = root / 'tools/houseatlas-mcp-bridge/bridge.py'
-            helper.parent.mkdir(parents=True)
-            helper.write_bytes((HERE / 'bridge.py').read_bytes())
-            cookie = b'{"cookie":"SYNTHETIC-NATIVE-COOKIE-ONLY"}'
-            for name, value in (('native-session.json', cookie), ('bridge.json', b'{}')):
-                (config / name).write_bytes(value)
-                (config / name).chmod(0o600)
             captured = {}
-            class Child:
-                def __init__(self, argv, **kwargs):
-                    captured.update(argv=argv, kwargs=kwargs)
-                    self.fd = os.dup(kwargs['pass_fds'][0])
-                    self.done = False
-                def wait(self):
-                    captured['pipeBytes'] = os.read(self.fd, 8192)
-                    os.close(self.fd)
-                    self.done = True
-                    return 0
-                def poll(self): return 0 if self.done else None
+            def execute(binary, argv, env): captured.update(binary=binary, argv=argv, env=env)
             with patch.object(launcher, 'UID', os.getuid()), patch.object(launcher, 'ROOT', root), \
                  patch.object(launcher, 'CONFIG', config), patch.object(launcher, 'STATE', state), \
-                 patch.object(launcher.sys, 'argv', ['launcher']), patch.object(launcher.subprocess, 'Popen', Child):
-                self.assertEqual(launcher.main(), 0)
-            self.assertEqual(captured['pipeBytes'], cookie)
-            self.assertNotIn('SYNTHETIC-NATIVE-COOKIE-ONLY', ' '.join(captured['argv']))
-            self.assertNotIn('CONTROL_PLANE_API_KEY', captured['kwargs']['env'])
-            self.assertEqual(len(captured['kwargs']['pass_fds']), 1)
+                 patch.object(launcher.sys, 'argv', ['launcher']), patch.object(launcher.os, 'execve', execute):
+                launcher.main()
+            self.assertEqual(captured['binary'], launcher.PYTHON)
+            self.assertNotIn('--session-fd', captured['argv'])
+            self.assertEqual(captured['env'], {'PATH': '/usr/bin:/bin:/usr/sbin:/sbin'})
+            self.assertEqual(list(config.iterdir()), [])
+
+    def healthy_executable_contract(self):
+        with tempfile.TemporaryDirectory(prefix='houseatlas-executable-synthetic-') as temp:
+            path = Path(temp) / 'synthetic-not-executed'
+            value = b'SYNTHETIC-PINNED-BINARY-BYTES-NOT-AN-EXECUTABLE'
+            path.write_bytes(value); path.chmod(0o555)
+            wrapper.verify_executable(str(path), wrapper.hashlib.sha256(value).hexdigest(), 0o555, os.getuid())
+
+    def denial_executable_contract(self):
+        with tempfile.TemporaryDirectory(prefix='houseatlas-executable-denial-') as temp:
+            path = Path(temp) / 'synthetic-not-executed'
+            path.write_bytes(b'SYNTHETIC-ONLY'); path.chmod(0o555)
+            with self.assertRaises(wrapper.WrapperError):
+                wrapper.verify_executable(str(path), '0' * 64, 0o555, os.getuid())
 
     def healthy_wrapper_environment(self):
         spec = {'configured': True, 'expectedVersion': wrapper.VERSION,
-                'argv': ['SYNTHETIC-REVIEWED-FLAGS'], 'controlPlaneOrigin': 'https://api.openai.com',
-                'healthContract': 'Synthetic loopback-only health contract'}
+                'registrationId': 'tunnel_' + '1' * 32}
         import json
         def read(name, limit):
             return json.dumps(spec).encode() if name == 'launch-spec.json' else b'SYNTHETIC-WRAPPER-ONLY'
@@ -184,21 +180,23 @@ class Cases(unittest.TestCase):
             self.assertNotIn('CONTROL_PLANE_API_KEY', kwargs['env'])
             self.assertEqual(argv, [wrapper.BINARY, '--version'])
             return types.SimpleNamespace(stdout=wrapper.VERSION.encode())
-        captured = {}
-        def execute(binary, argv, env):
-            captured.update(binary=binary, argv=argv, env=env)
+        captured, verified = {}, []
+        def execute(binary, argv, env): captured.update(binary=binary, argv=argv, env=env)
+        def verify(*args, **kwargs): verified.append((args, kwargs))
         with patch.object(wrapper.os, 'getuid', return_value=502), patch.object(wrapper.os, 'geteuid', return_value=502), \
              patch.object(wrapper.sys, 'argv', ['wrapper']), patch.object(wrapper, 'read_private', read), \
-             patch.object(wrapper.Path, 'resolve', lambda self: self), \
-             patch.object(wrapper.os, 'stat', return_value=types.SimpleNamespace(st_mode=stat.S_IFREG | 0o755, st_uid=0)), \
+             patch.object(wrapper, 'verify_executable', verify), \
              patch.object(wrapper.subprocess, 'run', run), patch.object(wrapper.os, 'execve', execute):
             wrapper.launch()
         self.assertEqual(captured['env']['CONTROL_PLANE_API_KEY'], 'SYNTHETIC-WRAPPER-ONLY')
         self.assertNotIn('SYNTHETIC-WRAPPER-ONLY', captured['argv'])
-        self.assertEqual(captured['binary'], wrapper.BINARY)
+        self.assertEqual(captured['argv'][captured['argv'].index('--control-plane.base-url') + 1], 'https://api.openai.com')
+        self.assertEqual(captured['argv'][captured['argv'].index('--health.listen-addr') + 1], '127.0.0.1:0')
+        self.assertEqual(verified[0], ((wrapper.BINARY, wrapper.BINARY_SHA256), {'exact_mode': 0o555, 'exact_uid': 502}))
+        self.assertEqual(verified[1], ((wrapper.PYTHON, wrapper.PYTHON_SHA256), {}))
 
-HEALTHY = ('healthy_create_only_file', 'healthy_tty_noecho', 'healthy_wrapper_environment', 'healthy_launcher_pipe')
-REGRESSION = ('denial_existing_or_symlink', 'denial_no_tty_fallback', 'denial_unconfigured_wrapper', 'denial_tty_oversize')
+HEALTHY = ('healthy_create_only_file', 'healthy_tty_noecho', 'healthy_wrapper_environment', 'healthy_launcher_memory_only', 'healthy_executable_contract')
+REGRESSION = ('denial_existing_or_symlink', 'denial_no_tty_fallback', 'denial_unconfigured_wrapper', 'denial_tty_oversize', 'denial_executable_contract')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('case', choices=HEALTHY + REGRESSION)

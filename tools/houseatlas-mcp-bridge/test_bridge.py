@@ -38,6 +38,9 @@ class FakeOwner:
     origin = 'https://synthetic.invalid'
     def __init__(self):
         self.calls, self.posts = [], []
+        self.cookie = 'synthetic-session-memory-only'
+        self.lookup_result = None
+        self.lookup_calls = []
         self.fail_post, self.change_head, self.wrong_scope = False, False, False
         self.scene_reads = 0
         self.fail_post_session = False
@@ -65,8 +68,43 @@ class FakeOwner:
                      'status': 'available', 'reason': None, 'head': {'recordId': uid(6), 'revision': 7,
                      'payloadSha256': b.sha(b.scene_canonical(payload).encode())}}
 
+    def login(self):
+        self.cookie = 'synthetic-session-memory-only'
+
+    def logout(self, csrf):
+        self.cookie = None
+
+    @staticmethod
+    def receipt(req, operation=99):
+        return {'schemaVersion': 3, 'commandId': req['commandId'], 'requestId': req['requestId'],
+                'resolvedScope': SCOPE, 'status': 'committed', 'replayed': False,
+                'operationId': uid(operation), 'data': {'requestDigest': 'a' * 64,
+                'records': [{'target': req['target'], 'revision': 1}], 'auditIds': [uid(operation + 1)]}}
+
+    def retained(self, req, children=()):
+        wire = self.receipt(req)
+        if children:
+            wire['data']['records'] = [r for child in children for r in child['data']['records']]
+            wire['data']['auditIds'] = [r for child in children for r in child['data']['auditIds']]
+        return {'format': 'atlas-retained-reconciliation/1', 'lookupRequestId': req['requestId'],
+                'inspection': {'format': 'atlas-retained-intent-inspection/1', 'resolvedScope': SCOPE,
+                'coverage': 'retained-atlas-stock-only', 'outcome': 'retained-commit',
+                'retrySafety': 'not-established', 'rootOperationId': uid(99), 'operationId': uid(99),
+                'commandId': req['commandId'], 'requestDigest': 'a' * 64},
+                'committedResult': {'originalRequestId': req['requestId'], 'wire': wire, 'children': list(children),
+                                    'originalMediaRelease': 'not-established', 'originalHttpDelivery': 'not-established'}}
+
     def exchange(self, method, path, body=None, csrf=None, limit=b.MAX_JSON):
         self.calls.append((method, path))
+        if method == 'POST' and path == '/api/atlas/retained-intent':
+            self.lookup_calls.append(body)
+            result = self.lookup_result
+            if result is None:
+                req = b.strict_json(body)
+                result = self.retained(req)
+                result['inspection'].update(outcome='not-retained-at-snapshot', rootOperationId=None, operationId=None)
+                result['committedResult'] = None
+            return {'content-type': 'application/json'}, b.decimal_json(result).encode()
         if method == 'POST':
             self.posts.append((path, body, csrf))
             if self.fail_post:
@@ -205,7 +243,7 @@ class Cases(unittest.TestCase):
     def denial_duplicate_json(self):
         with self.assertRaises(b.BridgeError): self.bridge.write('{"schemaVersion":3,"schemaVersion":3}')
         with self.assertRaises(b.BridgeError): b.strict_json('{"a":NaN}')
-        self.assertEqual(self.owner.calls, [])
+        self.assertEqual(self.owner.posts, [])
 
     def denial_read_correlation(self):
         self.owner.wrong_scope = True
@@ -224,6 +262,96 @@ class Cases(unittest.TestCase):
         with self.assertRaises(b.BridgeError): self.bridge.write(b.compact(request(n=400)))
         self.assertEqual(len(self.owner.posts), 1)
         self.assertEqual(len(self.journal.pending()), 1)
+
+    def healthy_retained_reconciliation(self):
+        req = request(); raw = b.compact(req)
+        self.journal.begin(req, raw)
+        self.owner.lookup_result = self.owner.retained(req)
+        result = self.bridge.reconcile_operation(req['requestId'])
+        self.assertEqual(result['state'], 'committed-reconciled')
+        self.assertFalse(result['status']['writeBlocked'])
+        self.assertEqual(result['originalHttpDelivery'], 'not-established')
+        self.assertEqual(self.owner.lookup_calls, [raw.encode()])
+        self.assertEqual(self.owner.posts, [])
+
+    def healthy_retained_batch(self):
+        req = request(b.BATCH); req['preconditions']['target'] = None
+        req['target'] = {'authority': 'atlas', 'batchId': uid(80)}
+        commands = [request('atlas.identity.create', 200), request('atlas.circuit.create', 300)]
+        req['payload'] = {'commands': commands}
+        raw = b.compact(req); self.journal.begin(req, raw)
+        self.owner.lookup_result = self.owner.retained(req, [self.owner.receipt(c, 600 + n * 2) for n, c in enumerate(commands)])
+        result = self.bridge.reconcile_operation(req['requestId'])
+        self.assertEqual(result['state'], 'committed-reconciled')
+        self.assertEqual(self.owner.posts, [])
+
+    def failure_reconcile_absence(self):
+        req = request(); self.journal.begin(req, b.compact(req))
+        result = self.bridge.reconcile_operation(req['requestId'])
+        self.assertEqual(result['state'], 'unknown')
+        self.assertTrue(result['status']['writeBlocked'])
+        with self.assertRaises(b.BridgeError): self.bridge.write(b.compact(request(n=900)))
+        self.assertEqual(self.owner.posts, [])
+
+    def failure_reconcile_correlation(self):
+        req = request(); self.journal.begin(req, b.compact(req))
+        self.owner.lookup_result = self.owner.retained(req)
+        self.owner.lookup_result['committedResult']['originalRequestId'] = uid(999)
+        with self.assertRaises(b.BridgeError): self.bridge.reconcile_operation(req['requestId'])
+        self.assertTrue(self.bridge.status()['writeBlocked'])
+        self.assertEqual(self.owner.posts, [])
+
+    def denial_reconcile_byte_bound(self):
+        req = request(); raw = ' ' * 17000 + b.compact(req)
+        self.journal.begin(req, raw)
+        with self.assertRaises(b.BridgeError): self.bridge.reconcile_operation(req['requestId'])
+        self.assertTrue(self.bridge.status()['writeBlocked'])
+        self.assertEqual(self.owner.lookup_calls, [])
+        self.assertEqual(self.journal.operation(req['requestId'])[1], raw)
+
+    def healthy_memory_session(self):
+        owner = b.HTTPSOwner('https://synthetic.invalid')
+        calls = []
+        token = 'SYNTHETIC-COOKIE-NOT-A-CREDENTIAL'
+        def exchange(method, path, body=None, csrf=None, **kwargs):
+            calls.append((method, path, body, csrf))
+            if path.endswith('/mode'):
+                return {'content-type': 'application/json'}, b'{"schemaVersion":1,"mode":"trusted-proxy"}'
+            if path.endswith('/proxy'):
+                return {'content-type': 'application/json', 'set-cookie': '__Host-houseatlas-session=' + token + '; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=3600'}, \
+                       b.compact({'schemaVersion': 1, 'actorId': uid(9), 'csrfToken': 'synthetic-csrf', 'expiresAt': '2099-01-01T00:00:00Z'}).encode()
+            return {'content-type': 'application/json'}, b'{"schemaVersion":1,"signedOut":true}'
+        owner.exchange = exchange
+        owner.login()
+        self.assertEqual(owner.cookie, '__Host-houseatlas-session=' + token)
+        owner.login()  # Healthy native gateway reissuance, not an expiry/revocation control.
+        owner.logout('synthetic-csrf')
+        self.assertIsNone(owner.cookie)
+        self.assertEqual([p for _,p,_,_ in calls], ['/api/atlas/auth/mode', '/api/atlas/auth/proxy',
+                         '/api/atlas/auth/mode', '/api/atlas/auth/proxy', '/api/atlas/auth/logout'])
+
+    def failure_session_after_login_cleanup(self):
+        owner = b.HTTPSOwner('https://synthetic.invalid')
+        self.bridge.owner = owner
+        self.bridge.csrf = 'synthetic-old-csrf'
+        calls = []
+        def exchange(method, path, body=None, csrf=None, **kwargs):
+            calls.append((path, csrf))
+            if path.endswith('/mode'):
+                return {'content-type': 'application/json'}, b'{"schemaVersion":1,"mode":"trusted-proxy"}'
+            if path.endswith('/proxy'):
+                return {'content-type': 'application/json', 'set-cookie': '__Host-houseatlas-session=SYNTHETIC-NEW-COOKIE-ONLY; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=3600'}, \
+                       b.compact({'schemaVersion': 1, 'actorId': uid(9), 'csrfToken': 'synthetic-new-csrf', 'expiresAt': '2099-01-01T00:00:00Z'}).encode()
+            if path.endswith('/session'):
+                raise b.BridgeError('Synthetic session read failure after successful issuance')
+            return {'content-type': 'application/json'}, b'{"schemaVersion":1,"signedOut":true}'
+        owner.exchange = exchange
+        with self.assertRaises(b.BridgeError): self.bridge.prepare_session()
+        self.bridge.close_session()
+        self.assertEqual(calls[-1], ('/api/atlas/auth/logout', 'synthetic-new-csrf'))
+        self.assertIsNone(owner.cookie)
+        self.assertIsNone(owner.csrf)
+        self.assertEqual(self.owner.posts, [])
 
     def failure_post_dispatch_session(self):
         self.owner.fail_post_session = True
@@ -257,10 +385,12 @@ class Cases(unittest.TestCase):
         self.assertEqual(self.owner.posts, [])
 
 
-HEALTHY = ('healthy_stdio', 'healthy_write_forms', 'healthy_batch', 'healthy_lossless_read', 'healthy_scene_original')
+HEALTHY = ('healthy_stdio', 'healthy_write_forms', 'healthy_batch', 'healthy_lossless_read', 'healthy_scene_original', 'healthy_retained_reconciliation',
+           'healthy_retained_batch', 'healthy_memory_session')
 REGRESSION = ('denial_scope_and_routes', 'denial_confirmation_and_batch', 'denial_duplicate_json',
               'denial_read_correlation', 'failure_unknown_persistence', 'failure_scene_change', 'failure_original_hash', 'failure_post_dispatch_session',
-              'failure_commit_correlation', 'failure_unknown_keeps_reads')
+              'failure_commit_correlation', 'failure_unknown_keeps_reads', 'failure_reconcile_absence',
+              'failure_reconcile_correlation', 'denial_reconcile_byte_bound', 'failure_session_after_login_cleanup')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('case', choices=HEALTHY + REGRESSION)

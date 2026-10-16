@@ -5,12 +5,14 @@ import base64
 import datetime
 from decimal import Decimal
 import fcntl
+from functools import wraps
 import hashlib
 import http.client
 import json
 import os
 from pathlib import Path
 import re
+import signal
 import sqlite3
 import ssl
 import stat
@@ -20,7 +22,7 @@ import urllib.parse
 import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
-MAX_MESSAGE = 131072
+MAX_MESSAGE = 8 * 1024 * 1024
 MAX_JSON = 1048576
 MAX_ORIGINAL = 10 * 1024 * 1024
 UUID = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\Z")
@@ -74,7 +76,7 @@ def strict_json(raw, limit=MAX_JSON):
         def walk(v, depth):
             nonlocal nodes
             nodes += 1
-            need(depth <= 48 and nodes <= 65536, 'JSON structure bound exceeded')
+            need(depth <= 64 and nodes <= 262144, 'JSON structure bound exceeded')
             if isinstance(v, dict):
                 for k, item in v.items():
                     k.encode('utf-8')
@@ -173,8 +175,13 @@ class Journal:
             self.db.rollback()
             raise BridgeError('Request/idempotency identity already retained; inspect outcome, do not retry') from None
 
-    def finish(self, key, raw):
-        self.db.execute("UPDATE operations SET state='committed',response=? WHERE key=? AND state='unknown'", (raw, key))
+    def operation(self, request_id):
+        return self.db.execute('SELECT key,raw,sha256,state,response FROM operations WHERE request_id=?',
+                               (uid(request_id),)).fetchone()
+
+    def finish(self, key, raw, reconciled=False):
+        state = 'committed-reconciled' if reconciled else 'committed'
+        self.db.execute("UPDATE operations SET state=?,response=? WHERE key=? AND state='unknown'", (state, raw, key))
         self.db.commit()
 
     def close(self):
@@ -184,25 +191,84 @@ class Journal:
 
 class HTTPSOwner:
     """Fixed canonical TLS origin. No proxy/env routing, redirects or supplied headers."""
-    def __init__(self, origin, cookie):
+    def __init__(self, origin):
         url = urllib.parse.urlsplit(origin)
         need(url.scheme == 'https' and url.hostname and url.netloc
              and not url.username and not url.password and not url.path
              and not url.query and not url.fragment and origin == f'https://{url.netloc}',
              'Canonical HTTPS origin required')
-        need(isinstance(cookie, str) and 1 <= len(cookie) <= 8192
-             and all(32 < ord(c) < 127 for c in cookie), 'Native session cookie unavailable')
-        self.origin, self.url, self.cookie = origin, url, cookie
+        self.origin, self.url = origin, url
+        self._credentials = (None, None)
+
+    @property
+    def cookie(self):
+        return self._credentials[0]
+
+    @cookie.setter
+    def cookie(self, value):
+        self._credentials = (value, self._credentials[1] if value is not None else None)
+
+    @property
+    def csrf(self):
+        return self._credentials[1]
+
+    @csrf.setter
+    def csrf(self, value):
+        self._credentials = (self._credentials[0], value)
+
+    def login(self):
+        # Canonical HTTPS gateway performs its own actual peer/identity checks.
+        # No client-supplied Unix/proxy identity proof or account/password input.
+        _, mode = self.exchange('GET', '/api/atlas/auth/mode')
+        need(strict_json(mode) == {'schemaVersion': 1, 'mode': 'trusted-proxy'},
+             'Selected native host is not trusted-proxy mode')
+        headers, body = self.exchange('POST', '/api/atlas/auth/proxy', b'{}')
+        need(headers.get('content-type') == 'application/json', 'Native session response differs')
+        info = strict_json(body, 16384)
+        keys(info, ('schemaVersion', 'actorId', 'csrfToken', 'expiresAt'))
+        uid(info['actorId'])
+        need(type(info['schemaVersion']) is int and info['schemaVersion'] == 1
+             and isinstance(info['csrfToken'], str) and 0 < len(info['csrfToken']) <= 8192
+             and all(32 < ord(c) < 127 for c in info['csrfToken']), 'Native session issuance differs')
+        value = headers.get('set-cookie', '')
+        parts = [part.strip() for part in value.split(';')]
+        need(len(parts) == 6 and parts[0].startswith('__Host-houseatlas-session='),
+             'Native session cookie unavailable')
+        attrs = {part.lower() for part in parts[1:]}
+        need({'path=/', 'secure', 'httponly', 'samesite=strict'} <= attrs
+             and any(re.fullmatch(r'max-age=[1-9][0-9]*', item) for item in attrs),
+             'Native session cookie flags differ')
+        token = parts[0].split('=', 1)[1]
+        need(re.fullmatch(r'[A-Za-z0-9_-]{16,1024}', token), 'Native session cookie invalid')
+        # Publish cookie+CSRF as one in-memory tuple so signal cleanup never
+        # observes a newly issued cookie paired with absent/old CSRF.
+        self._credentials = (parts[0], info['csrfToken'])
+        return info['actorId']
+
+    def logout(self, csrf):
+        try:
+            headers, body = self.exchange('POST', '/api/atlas/auth/logout', b'{}', csrf)
+            need(headers.get('content-type') == 'application/json'
+                 and strict_json(body) == {'schemaVersion': 1, 'signedOut': True},
+                 'Native logout unconfirmed')
+        finally:
+            self._credentials = (None, None)
 
     def exchange(self, method, path, body=None, csrf=None, limit=MAX_JSON):
         need(method in ('GET', 'POST') and path.startswith('/api/atlas/')
              and not path.startswith('//') and '#' not in path, 'Native route unavailable')
         headers = {'Accept': 'application/json', 'Origin': self.origin,
                    'Referer': self.origin + '/', 'Sec-Fetch-Site': 'same-origin',
-                   'Cookie': self.cookie, 'Cache-Control': 'no-store', 'Accept-Encoding': 'identity'}
+                   'Cache-Control': 'no-store', 'Accept-Encoding': 'identity'}
+        if self.cookie is not None:
+            headers['Cookie'] = self.cookie
         if body is not None:
-            need(csrf and '\r' not in csrf and '\n' not in csrf, 'Current native CSRF unavailable')
-            headers.update({'Content-Type': 'application/json', 'X-Atlas-CSRF': csrf})
+            need(method == 'POST', 'Native request body requires POST')
+            need(path == '/api/atlas/auth/proxy' or csrf, 'Current native CSRF unavailable')
+            headers['Content-Type'] = 'application/json'
+            if csrf is not None:
+                need('\r' not in csrf and '\n' not in csrf, 'Current native CSRF unavailable')
+                headers['X-Atlas-CSRF'] = csrf
         conn = http.client.HTTPSConnection(self.url.hostname, self.url.port, timeout=15,
                                             context=ssl.create_default_context())
         try:
@@ -236,6 +302,19 @@ class HTTPSOwner:
             conn.close()
 
 
+def native_operation(method):
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        if self.action_depth == 0:
+            self.prepare_session()
+        self.action_depth += 1
+        try:
+            return method(self, *args, **kwargs)
+        finally:
+            self.action_depth -= 1
+    return wrapped
+
+
 class Bridge:
     def __init__(self, scope, owner, journal, approval_owner=None):
         keys(scope, ('workspaceId', 'homeId'))
@@ -243,6 +322,9 @@ class Bridge:
         self.scope, self.owner, self.journal = dict(scope), owner, journal
         self.approval_owner = approval_owner
         self.actor = None
+        self.session_expiry = None
+        self.csrf = None
+        self.action_depth = 0
         catalog = strict_json((ROOT / 'contracts/stock-wire3/agent/operation-catalog.json').read_bytes(), 2 * MAX_JSON)
         self.catalog = {row['commandId']: row for row in catalog['commands']}
         self.base = f"/api/atlas/stock/v3/workspaces/{scope['workspaceId']}/homes/{scope['homeId']}"
@@ -255,19 +337,38 @@ class Bridge:
     def get_json(self, path):
         return strict_json(self.get(path))
 
+    def prepare_session(self):
+        # Reissue only between independent tool operations, never to recover or
+        # replay a failed request. A spontaneous401 is not automatic login proof.
+        issued_actor = None
+        if self.owner.cookie is None or (self.session_expiry is not None and self.session_expiry <= time.time() + 30):
+            issued_actor = self.owner.login()
+        current = self.session()
+        need(issued_actor is None or issued_actor == current['actorId'], 'Native issued actor changed')
+
+    def close_session(self):
+        csrf = getattr(self.owner, 'csrf', None) or self.csrf
+        if self.owner.cookie is not None and csrf is not None:
+            self.owner.logout(csrf)
+
     def session(self):
         session = self.get_json('/api/atlas/auth/session')
         keys(session, ('schemaVersion', 'actorId', 'csrfToken', 'expiresAt'))
-        need(session['schemaVersion'] == 1 and isinstance(session['csrfToken'], str)
-             and 0 < len(session['csrfToken']) <= 8192, 'Native session unavailable')
+        need(type(session['schemaVersion']) is int and session['schemaVersion'] == 1 and isinstance(session['csrfToken'], str)
+             and 0 < len(session['csrfToken']) <= 8192
+             and all(32 < ord(c) < 127 for c in session['csrfToken']), 'Native session unavailable')
         actor = uid(session['actorId'])
         try:
             expires = datetime.datetime.fromisoformat(session['expiresAt'].replace('Z', '+00:00'))
-            need(expires.timestamp() > time.time(), 'Native session expired')
+            need(expires.tzinfo is not None and expires.utcoffset() is not None
+                 and expires.timestamp() > time.time(), 'Native session expired')
         except (ValueError, TypeError, AttributeError):
             raise BridgeError('Native session unavailable') from None
         need(self.actor is None or self.actor == actor, 'Native actor changed')
         self.actor = actor
+        self.session_expiry = expires.timestamp()
+        self.csrf = session['csrfToken']
+        self.owner.csrf = self.csrf
         self.journal.bind({'origin': self.owner.origin, 'scope': self.scope, 'actorId': actor})
         return session
 
@@ -283,7 +384,7 @@ class Bridge:
 
     def parse_request(self, raw):
         need(isinstance(raw, str), 'requestJson must contain complete original wire3 JSON')
-        request = strict_json(raw, 65536)
+        request = strict_json(raw, MAX_JSON)
         need(isinstance(request, dict) and request.get('schemaVersion') == 3
              and request.get('context') == self.scope, 'Wire3 scope differs')
         uid(request.get('requestId'))
@@ -297,6 +398,7 @@ class Bridge:
              and result.get('resolvedScope') == self.scope, 'Native result correlation differs')
         return result
 
+    @native_operation
     def read(self, raw):
         request = self.parse_request(raw)
         admitted = self.admission()
@@ -344,6 +446,7 @@ class Bridge:
             need(request.get('payload', {}).get('treatment') in ('block', 'download-only'),
                  'Safe rendering requires separate native Media owner')
 
+    @native_operation
     def write(self, raw):
         request = self.parse_request(raw)
         need(not self.journal.pending(), 'Unknown write outcome blocks further writes; passive reconciliation required')
@@ -360,6 +463,12 @@ class Bridge:
                                       session['csrfToken'])
         need(headers.get('content-type') == 'application/json', 'Native commit content type differs')
         result = self.correlate(strict_json(body), request)
+        self.commit_receipt(result, request)
+        self.session()
+        self.journal.finish(request['idempotencyKey'], body.decode('utf-8'))
+        return body.decode('utf-8')
+
+    def commit_receipt(self, result, request):
         need(result.get('status') == 'committed' and result.get('replayed') is False
              and isinstance(result.get('data'), dict)
              and SHA.fullmatch(result['data'].get('requestDigest', ''))
@@ -369,9 +478,70 @@ class Bridge:
         uid(result.get('operationId'))
         for audit in result['data']['auditIds']:
             uid(audit)
+        return result
+
+    @native_operation
+    def reconcile_operation(self, request_id):
+        retained = self.journal.operation(request_id)
+        need(retained is not None, 'No retained operation with this requestId')
+        key, raw, digest, state, saved = retained
+        need(sha(raw.encode('utf-8')) == digest, 'Retained intent bytes changed')
+        request = self.parse_request(raw)
+        if state != 'unknown':
+            return {'requestId': request_id, 'state': state, 'recordedCompletion': True,
+                    'retrySafety': 'not-established',
+                    'disclosure': 'Journal metadata only; use genuine native reads for record contents.',
+                    'status': self.status()}
+        need(len(raw.encode('utf-8')) <= 16384,
+             'Native retained-intent owner accepts only16384bytes; original intent retained unchanged and UNKNOWN')
+        session = self.session()
+        headers, body = self.owner.exchange('POST', '/api/atlas/retained-intent', raw.encode('utf-8'), session['csrfToken'])
+        need(headers.get('content-type') == 'application/json', 'Native reconciliation content type differs')
+        result = strict_json(body)
+        keys(result, ('format', 'lookupRequestId', 'inspection', 'committedResult'))
+        need(result['format'] == 'atlas-retained-reconciliation/1' and result['lookupRequestId'] == request_id,
+             'Native reconciliation lookup differs')
+        inspection = result['inspection']
+        keys(inspection, ('format', 'resolvedScope', 'coverage', 'outcome', 'retrySafety',
+                          'rootOperationId', 'operationId', 'commandId', 'requestDigest'))
+        need(inspection['format'] == 'atlas-retained-intent-inspection/1'
+             and inspection['resolvedScope'] == self.scope and inspection['coverage'] == 'retained-atlas-stock-only'
+             and inspection['commandId'] == request['commandId'] and inspection['retrySafety'] == 'not-established'
+             and SHA.fullmatch(inspection['requestDigest']), 'Native reconciliation inspection differs')
+        if inspection['outcome'] == 'not-retained-at-snapshot':
+            need(result['committedResult'] is None and inspection['rootOperationId'] is None
+                 and inspection['operationId'] is None, 'Native absence inspection differs')
+            self.session()
+            return {'requestId': request_id, 'state': 'unknown', 'nativeOutcome': inspection['outcome'],
+                    'retrySafety': 'not-established', 'nativeReconciliationJson': body.decode('utf-8'),
+                    'status': self.status()}
+        need(inspection['outcome'] == 'retained-commit', 'Native outcome unavailable')
+        committed = result['committedResult']
+        keys(committed, ('originalRequestId', 'wire', 'children', 'originalMediaRelease', 'originalHttpDelivery'))
+        need(committed['originalRequestId'] == request_id and committed['originalMediaRelease'] == 'not-established'
+             and committed['originalHttpDelivery'] == 'not-established', 'Original native receipt custody differs')
+        wire = self.correlate(committed['wire'], request)
+        self.commit_receipt(wire, request)
+        need(inspection['rootOperationId'] == inspection['operationId'] == wire['operationId']
+             and inspection['requestDigest'] == wire['data']['requestDigest'], 'Native retained commit identity differs')
+        children = committed['children']
+        need(isinstance(children, list), 'Native retained children unavailable')
+        expected = request['payload']['commands'] if request['commandId'] == BATCH else []
+        need(len(children) == len(expected), 'Native retained child count differs')
+        records, audits = [], []
+        for child_wire, child_request in zip(children, expected):
+            self.correlate(child_wire, child_request)
+            self.commit_receipt(child_wire, child_request)
+            records.extend(child_wire['data']['records']); audits.extend(child_wire['data']['auditIds'])
+        if expected:
+            need(records == wire['data']['records'] and audits == wire['data']['auditIds'],
+                 'Native retained batch receipt flattening differs')
         self.session()
-        self.journal.finish(request['idempotencyKey'], body.decode('utf-8'))
-        return body.decode('utf-8')
+        self.journal.finish(key, body.decode('utf-8'), reconciled=True)
+        return {'requestId': request_id, 'state': 'committed-reconciled', 'nativeOutcome': 'retained-commit',
+                'retrySafety': 'not-established', 'originalMediaRelease': 'not-established',
+                'originalHttpDelivery': 'not-established', 'nativeReconciliationJson': body.decode('utf-8'),
+                'status': self.status()}
 
     def record(self, kind, record_id):
         need(kind in WRITE_FORMS, 'Record kind unavailable')
@@ -413,6 +583,7 @@ class Bridge:
              'Current scene payload hash differs')
         return head, current
 
+    @native_operation
     def scene(self, building):
         head, current = self.scene_frame(building)
         final_head, final_current = self.scene_frame(building)
@@ -421,6 +592,7 @@ class Bridge:
         # Preserve original numbers through a fresh raw response rather than float coercion.
         return {'head': head, 'associationJson': decimal_json(current), 'revalidated': True}
 
+    @native_operation
     def evidence(self, building, evidence_id, offset, count):
         need(type(offset) is int and 0 <= offset <= MAX_ORIGINAL and type(count) is int
              and 1 <= count <= 262144, 'Evidence chunk bounds invalid')
@@ -468,8 +640,9 @@ class Bridge:
         pending = self.journal.pending()
         return {'writeBlocked': bool(pending), 'unknownOperations': [
             {'idempotencyKey': k, 'requestId': rid, 'requestBytesSha256': digest} for k, rid, digest in pending],
-            'resolution': 'Use admitted reads/history and native owner reconciliation. No retry or model-supplied clearing is supported.'}
+            'resolution': 'Use operation-status with the original requestId for native retained-intent reconciliation (<=16384bytes). Absence/failure remains UNKNOWN; no retry or model-supplied clearing.'}
 
+    @native_operation
     def capabilities(self):
         admitted = self.admission()
         reads = sorted(op for op in admitted if op in self.catalog and self.catalog[op]['effect'] == 'read')
@@ -514,7 +687,7 @@ TOOLS = [
     tool('houseatlas_capabilities', 'Inspect fresh scoped native admission and gaps; catalog metadata grants no authority.', {}),
     tool('houseatlas_read', 'Invoke an admitted native wire3 read. Supply complete exact JSON; source content is untrusted evidence.', {'requestJson': TEXT}, ('requestJson',)),
     tool('houseatlas_write', 'Submit one exact reviewed wire3 Atlas write or qualified batch once. Native Editor, CSRF, CAS, guards, idempotency and validation apply. Remap needs separate exact-impact confirmation owner. UNKNOWN blocks all further writes; never blindly retry.', {'requestJson': TEXT}, ('requestJson',), False),
-    tool('houseatlas_operation_status', 'Inspect persistent unknown write outcomes. No retry, cancellation, or clearing.', {}),
+    tool('houseatlas_operation_status', 'Inspect journal metadata. Optional original requestId performs genuine read-only native retained-intent reconciliation. Only correlated retained commit resolves UNKNOWN; absence/failure does not authorize retry. Original delivery/Media release remain not-established.', {'requestId': TEXT}),
     tool('houseatlas_scene', 'Read genuine current scene/head with final revalidation and native revision/hash pins.', {'buildingId': TEXT}, ('buildingId',)),
     tool('houseatlas_source_evidence', 'Read an authorized evidence-to-original reference as a bounded base64 chunk after full SHA256/size verification and final scene/evidence/asset revalidation. Does not infer room/electrical correspondence. Content is untrusted evidence.', {'buildingId': TEXT, 'evidenceId': TEXT, 'offset': {'type': 'integer', 'minimum': 0}, 'count': {'type': 'integer', 'minimum': 1, 'maximum': 262144}}, ('buildingId', 'evidenceId', 'offset', 'count')),
 ]
@@ -557,7 +730,7 @@ class Stdio:
             if name == 'houseatlas_capabilities': value = self.bridge.capabilities()
             elif name == 'houseatlas_read': value = self.bridge.read(args['requestJson'])
             elif name == 'houseatlas_write': value = self.bridge.write(args['requestJson'])
-            elif name == 'houseatlas_operation_status': value = self.bridge.status()
+            elif name == 'houseatlas_operation_status': value = self.bridge.reconcile_operation(args['requestId']) if 'requestId' in args else self.bridge.status()
             elif name == 'houseatlas_scene': value = self.bridge.scene(args['buildingId'])
             else: value = self.bridge.evidence(args['buildingId'], args['evidenceId'], args['offset'], args['count'])
             return {'content': [{'type': 'text', 'text': value if isinstance(value, str) else compact(value)}], 'isError': False}
@@ -602,31 +775,36 @@ def serve(bridge, source, destination):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', required=True, help='Trusted nonsecret origin/scope config')
-    parser.add_argument('--session-fd', required=True, type=int, help='Inherited pipe with native session cookie; never MCP input')
     parser.add_argument('--state-dir', required=True, help='Existing owned canonical 0700 state directory')
     args = parser.parse_args()
-    need(args.session_fd > 2, 'Dedicated native-session pipe required')
     fd = private_open(args.config, os.O_RDONLY)
     with os.fdopen(fd, 'rb') as stream:
         config = strict_json(stream.read(16385), 16384)
     keys(config, ('origin', 'scope'))
     os.umask(0o077)
-    with os.fdopen(args.session_fd, 'rb') as stream:
-        need(stat.S_ISFIFO(os.fstat(stream.fileno()).st_mode), 'Native-session anonymous pipe required')
-        secret = strict_json(stream.read(16385), 16384)
-    keys(secret, ('cookie',))
-    owner = HTTPSOwner(config['origin'], secret['cookie'])
+    owner = HTTPSOwner(config['origin'])
     journal = Journal(args.state_dir)
+    bridge = Bridge(config['scope'], owner, journal)
+    def stop(_number, _frame):
+        raise KeyboardInterrupt()
+    previous_handlers = {sig: signal.signal(sig, stop) for sig in (signal.SIGTERM, signal.SIGHUP)}
     try:
-        bridge = Bridge(config['scope'], owner, journal)
         serve(bridge, sys.stdin.buffer, sys.stdout.buffer)
     finally:
-        journal.close()
+        try:
+            bridge.close_session()
+        except (BridgeError, OSError):
+            print('Native logout unconfirmed; in-memory cookie discarded.', file=sys.stderr)
+        finally:
+            owner.cookie = None
+            journal.close()
+            for sig, handler in previous_handlers.items():
+                signal.signal(sig, handler)
 
 
 if __name__ == '__main__':
     try:
         main()
-    except (BridgeError, OSError, sqlite3.Error, KeyError, TypeError, ValueError):
+    except (BridgeError, OSError, sqlite3.Error, KeyError, TypeError, ValueError, KeyboardInterrupt):
         print('HouseAtlas bridge stopped; inspect custody/configuration and retained operation status privately.', file=sys.stderr)
         sys.exit(1)
