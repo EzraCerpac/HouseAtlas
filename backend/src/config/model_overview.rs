@@ -314,13 +314,58 @@ fn validate_glb(bytes: &[u8]) -> Result<(), String> {
     if !safe(&json) {
         return Err(invalid());
     }
-    if json_end < bytes.len() {
+    let declared = match json.get("buffers") {
+        None => None,
+        Some(serde_json::Value::Array(buffers)) if buffers.is_empty() => None,
+        Some(serde_json::Value::Array(buffers)) if buffers.len() == 1 => {
+            let length = buffers[0]
+                .get("byteLength")
+                .and_then(serde_json::Value::as_u64)
+                .filter(|length| *length > 0 && *length <= MAX_GLB)
+                .ok_or_else(invalid)?;
+            Some(usize::try_from(length).map_err(|_| invalid())?)
+        }
+        _ => return Err(invalid()),
+    };
+    let binary = if json_end < bytes.len() {
         let bin_len = word(json_end)? as usize;
+        let bin_start = json_end.checked_add(8).ok_or_else(invalid)?;
         if !bin_len.is_multiple_of(4)
             || word(json_end + 4)? != 0x004e4942
-            || json_end.checked_add(8).and_then(|n| n.checked_add(bin_len)) != Some(bytes.len())
+            || bin_start.checked_add(bin_len) != Some(bytes.len())
         {
             return Err(invalid());
+        }
+        Some(bytes.get(bin_start..).ok_or_else(invalid)?)
+    } else {
+        None
+    };
+    match (declared, binary) {
+        (None, None) => (),
+        (Some(length), Some(binary))
+            if binary.len() >= length
+                && binary.len() - length <= 3
+                && binary[length..].iter().all(|byte| *byte == 0) => {}
+        _ => return Err(invalid()),
+    }
+    if let Some(views) = json.get("bufferViews") {
+        let length = declared.ok_or_else(invalid)? as u64;
+        for view in views.as_array().ok_or_else(invalid)? {
+            if view.get("buffer").and_then(serde_json::Value::as_u64) != Some(0) {
+                return Err(invalid());
+            }
+            let offset = match view.get("byteOffset") {
+                None => 0,
+                Some(value) => value.as_u64().ok_or_else(invalid)?,
+            };
+            let size = view
+                .get("byteLength")
+                .and_then(serde_json::Value::as_u64)
+                .filter(|size| *size > 0)
+                .ok_or_else(invalid)?;
+            if offset.checked_add(size).is_none_or(|end| end > length) {
+                return Err(invalid());
+            }
         }
     }
     Ok(())

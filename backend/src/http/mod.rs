@@ -574,25 +574,17 @@ fn evidence<'a>(
         csrf: headers.csrf.as_deref(),
     })
 }
-fn authorized_read<T>(
+/// Issue exactly the existing native Read and home-choice principals.
+/// The caller holds the canonical Core only for capture and native queries.
+fn capture_read(
     host: &Host,
+    core: &Core,
     headers: &CheckedHeaders,
     uri: &Uri,
     method: &Method,
     scope: Option<d::Scope>,
     include_home_choices: bool,
-    operation: impl FnOnce(&mut Core, &RequestPrincipal, &d::HomeSummary) -> Result<T, HttpFailure>,
-) -> Result<T, HttpFailure> {
-    // Caller-selected scope syntax has the same 404 contract on every read
-    // route, before any session or data lookup. Trusted configured scopes are
-    // still checked by the access boundary in capture_homes.
-    if let Some(scope) = &scope {
-        crate::app::access_scope(scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
-    }
-    let mut core = host
-        .core
-        .lock()
-        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+) -> Result<(RequestPrincipal, d::HomeSummary), HttpFailure> {
     let url = format!(
         "{}{}",
         host.origin,
@@ -639,9 +631,86 @@ fn authorized_read<T>(
     let selected = choices.remove(selected);
     let mut principal = RequestPrincipal::new(selected.principal);
     principal.home_choices = choices;
-    let result = operation(&mut core, &principal, &selected.summary)?;
+    Ok((principal, selected.summary))
+}
+fn authorized_read<T>(
+    host: &Host,
+    headers: &CheckedHeaders,
+    uri: &Uri,
+    method: &Method,
+    scope: Option<d::Scope>,
+    include_home_choices: bool,
+    operation: impl FnOnce(&mut Core, &RequestPrincipal, &d::HomeSummary) -> Result<T, HttpFailure>,
+) -> Result<T, HttpFailure> {
+    // Preserve the existing syntax rejection before any session/data lookup.
+    if let Some(scope) = &scope {
+        crate::app::access_scope(scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
+    }
+    let mut core = host
+        .core
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    let (principal, home) = capture_read(
+        host,
+        &core,
+        headers,
+        uri,
+        method,
+        scope,
+        include_home_choices,
+    )?;
+    let result = operation(&mut core, &principal, &home)?;
     let access = core
         .access
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    principal.release(&access).map_err(access_error)?;
+    Ok(result)
+}
+/// Preserve every captured native grant through a separately unlocked finish.
+/// Only model publication I/O belongs in finish; native query work stays locked.
+fn authorized_read_phased<P, T>(
+    host: &Host,
+    headers: &CheckedHeaders,
+    uri: &Uri,
+    method: &Method,
+    selection: (Option<d::Scope>, bool),
+    prepare: impl FnOnce(&mut Core, &RequestPrincipal, &d::HomeSummary) -> Result<P, HttpFailure>,
+    finish: impl FnOnce(P, &d::Scope) -> Result<T, HttpFailure>,
+) -> Result<T, HttpFailure> {
+    if let Some(scope) = &selection.0 {
+        crate::app::access_scope(scope).map_err(|_| failure(StatusCode::NOT_FOUND))?;
+    }
+    let mut core = host
+        .core
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    let current_selection = selection.0.is_none().then(|| core.home.scope.clone());
+    let (principal, home) =
+        capture_read(host, &core, headers, uri, method, selection.0, selection.1)?;
+    let canonical = Arc::clone(&core.access);
+    let prepared = prepare(&mut core, &principal, &home)?;
+    drop(core);
+    let result = finish(prepared, &home.scope)?;
+    let core = host
+        .core
+        .lock()
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
+    if !Arc::ptr_eq(&canonical, &core.access)
+        || current_selection
+            .as_ref()
+            .is_some_and(|scope| *scope != core.home.scope)
+        || !core.homes.iter().any(|current| current.scope == home.scope)
+        || principal.home_choices.iter().any(|choice| {
+            !core
+                .homes
+                .iter()
+                .any(|current| current.scope == choice.summary.scope)
+        })
+    {
+        return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+    }
+    let access = canonical
         .lock()
         .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
     principal.release(&access).map_err(access_error)?;
@@ -860,18 +929,19 @@ async fn current(
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
         let _admitted = headers.admission_permit()?;
-        authorized_read(
+        authorized_read_phased(
             &host,
             &headers,
             &uri,
             &method,
-            None,
-            true,
+            (None, true),
             |core, principal, home| {
                 let view = query_view(core, principal, home)?;
                 let selected = source_documents_service_selected(&host, core)?;
-                let mut wire = browser_view(view, selected)?;
-                wire["modelOverviewService"] = model_overview::availability(&host, &home.scope);
+                browser_view(view, selected)
+            },
+            |mut wire, scope| {
+                wire["modelOverviewService"] = model_overview::availability(&host, scope);
                 Ok(json_response(wire))
             },
         )
@@ -888,21 +958,25 @@ async fn scoped(
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
         let _admitted = headers.admission_permit()?;
-        authorized_read(
+        authorized_read_phased(
             &host,
             &headers,
             &uri,
             &method,
-            Some(d::Scope {
-                workspace_id,
-                home_id,
-            }),
-            true,
+            (
+                Some(d::Scope {
+                    workspace_id,
+                    home_id,
+                }),
+                true,
+            ),
             |core, principal, home| {
                 let view = query_view(core, principal, home)?;
                 let selected = source_documents_service_selected(&host, core)?;
-                let mut wire = browser_view(view, selected)?;
-                wire["modelOverviewService"] = model_overview::availability(&host, &home.scope);
+                browser_view(view, selected)
+            },
+            |mut wire, scope| {
+                wire["modelOverviewService"] = model_overview::availability(&host, scope);
                 Ok(json_response(wire))
             },
         )
