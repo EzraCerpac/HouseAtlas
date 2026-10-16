@@ -17,7 +17,7 @@ identity, SQL, arbitrary file/URL access, provider execution or blind write retr
 | Tool | Behavior |
 | --- | --- |
 | `houseatlas_capabilities` | Fresh genuine session and scoped native `/admission`; reports admitted reads, write forms and explicit gaps. Metadata grants no authority. |
-| `houseatlas_read` | GET Stock `/invoke?request=...`, restricted to actual admission intersected with published read effect. Preserves original complete wire3 JSON. |
+| `houseatlas_read` | GET Stock `/invoke?request=...`, restricted to admission/read effect and the explicit bounded read profile below. Preserves original JSON and native cursors. |
 | `houseatlas_write` | POST Stock `/commands` once, for one reviewed single or qualified batch. Native Editor, Origin/CSRF, exact CAS/guards, idempotency, closed payload validation and final graph checks remain authoritative. |
 | `houseatlas_operation_status` | Without arguments, private journal status. With original `requestId`, read-only native retained-intent reconciliation of that journaled exact intent; never resubmits `/commands`. |
 | `houseatlas_scene` | Dedicated native `/head` and qualified `/current`, read twice; verifies scope/building/association/revision and native payload hash. |
@@ -70,6 +70,32 @@ exponents are sanitized parse failures. Complete malformed JSON frames receive
 -32700/null-ID responses; invalid request envelopes receive -32600/null-ID.
 Only structurally valid notifications suppress replies; a subsequent healthy
 request remains usable.
+
+## Bounded read profile
+
+Stock read responses have a separate2MiB byte budget, passed to both transport
+and strict parser; this is not the1MiB write-intake bound. Paginated requests
+must explicitly use pageSize1–8 before native invocation. The adapter never
+rewrites the supplied request, page size or cursor, slices JSON, silently truncates
+records, or retries an oversized request. The caller can author a smaller initial
+native query with cursor:null. Existing node/depth budgets still apply. The final
+encoded MCP response is bounded at8MiB; budget errors preserve the request ID
+when representable and leave the persistent session usable.
+
+This is an operational partial-read profile, not a claim that every valid native
+page fits. Native geometry mappings/evidence arrays have no finite schema size
+maximum, so even one record may exceed the budget. Larger single records,
+remaining oversized pages/history/provider payloads and fully general chunked
+Stock responses require a separately qualified streaming/chunked native owner.
+No such owner is implemented here. The dedicated source-evidence tool retains
+its separate verified-original10MiB/256KiB-chunk profile. capabilities reports
+these read bounds and the gap explicitly.
+
+Standard request params._meta is accepted only as an object and otherwise
+ignored; it grants no scope, identity, approval or progress-report capability.
+It does not alter wire3 requestJson. Unsupported request methods return -32601;
+unsupported valid notifications remain silent. Retained batch child operation
+IDs must be distinct from one another and the root, matching native stock groups.
 
 ## Genuine native sessions, kept in memory
 
@@ -188,7 +214,9 @@ Healthy: `healthy_stdio`, `healthy_write_forms`, `healthy_batch`,
 `healthy_retained_reconciliation`, `healthy_retained_batch`, `healthy_memory_session`,
 `healthy_stdio_optional_arguments`, `healthy_escaped_write_frame`,
 `healthy_empty_asset_backlinks`, `healthy_native_intent_digest`. The last case checks selected published RFC8785
-binary64 vectors, exact Unicode ordering and root-only intent exclusions.
+binary64 vectors, exact Unicode ordering and root-only intent exclusions. Also
+`healthy_stdio_request_metadata` and `healthy_large_read_page` (one generated
+Atlas geometry page above1MiB and below2MiB; exact raw response/cursor retained).
 The write-form and escaped-frame tests use invented payloads to check transport,
 including36 routes and a large escaped frame, not native
 per-form domain qualification. Batch tests verify adapter forwarding/correlation.
@@ -204,7 +232,12 @@ Separately reviewed denial/failure lane: `denial_scope_and_routes`,
 `failure_bridge_sigquit_cleanup`, `healthy_journal_binding_order` (contains an
 actor-mismatch denial assertion, so belongs only to this regression lane),
 `failure_committed_record_correlation`, `denial_decimal_exponent_frame`,
-`denial_jsonrpc_frame_response`, `denial_native_reason_bound`.
+`denial_jsonrpc_frame_response`, `denial_native_reason_bound`,
+`denial_rpc_method_codes`, `failure_retained_child_operation_ids`,
+`denial_read_profile_bounds`, `denial_stdio_output_budget`. The last uses one
+fixed valid under-input-bound large request ID with a generated large read to
+exercise output-budget failure and subsequent healthy continuation, with no
+native socket or provider.
 
 Helper runner:
 `python3 -B tools/houseatlas-mcp-bridge/test_key_entry.py CASE`.
