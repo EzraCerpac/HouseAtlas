@@ -94,7 +94,15 @@
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
   margin-left: auto;
+}
+
+/* Camera buttons wrap inside their group rather than widening the stage. */
+.lantern-host .cifc-view-ctrl .ctrl-group {
+  flex-wrap: wrap;
+  max-width: 100%;
 }
 
 .lantern-host .cifc-view-ctrl > .seg {
@@ -270,8 +278,12 @@
   left: 50%;
   bottom: 12px;
   transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 24px);
   padding: 5px 12px;
-  border-radius: 999px;
+  border-radius: 14px;
+  text-align: center;
+  overflow-wrap: anywhere;
   background: var(--chrome);
   color: var(--chrome-ink);
   font-size: var(--fs-xs);
@@ -297,6 +309,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .lantern-host .cifc-chip {
@@ -460,7 +474,9 @@
 }
 
 .lantern-host .cifc-facts dt {
+  min-width: 0;
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 .lantern-host .cifc-facts dd {
@@ -722,6 +738,33 @@
   font-weight: 650;
 }
 
+/* Local standard preview: producer unknowns stay prominent, never resolved here. */
+.lantern-host .cifc-focus.is-uncertain {
+  background: var(--warn-soft);
+  border-color: #e3c088;
+}
+
+.lantern-host .cifc-focus.is-uncertain h3,
+.lantern-host .cifc-panel .cifc-subhead {
+  font-size: var(--fs-m);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.lantern-host .cifc-unknowns {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding-left: 1.1em;
+  font-size: var(--fs-s);
+}
+
+.lantern-host .cifc-caveat {
+  margin-top: 4px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
 .lantern-host .cifc-unavailable {
   padding: 24px;
   border: 1px dashed var(--c-unknown);
@@ -832,4 +875,34 @@
   .lantern-host .cifc * {
     transition: none !important;
   }
+}
+
+/* ---------- Local navigation: declared storeys, classes, occurrences ---------- */
+
+.lantern-host .cifc-nav {
+  display: grid;
+  gap: 8px;
+}
+
+.lantern-host .cifc-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lantern-host .cifc-toggles .chip-btn {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.lantern-host .cifc-toggles .chip-btn[aria-pressed='false'] {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--faint);
+}
+
+.lantern-host .cifc-source.cifc-room-group ul {
+  margin-top: 6px;
 }

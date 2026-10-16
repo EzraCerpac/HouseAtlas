@@ -1,0 +1,100 @@
+/* Native source Documents in the Library. The source claim colour marks what
+   the retained source says about itself; nothing here is a home placement. */
+
+.lantern-host .source-docs {
+  margin-top: 36px;
+  padding-top: 18px;
+  border-top: 1px solid var(--hair-2);
+}
+
+.lantern-host .source-docs-note {
+  max-width: 62ch;
+  margin: 0 0 6px;
+  font-size: var(--fs-s);
+  color: var(--muted);
+}
+
+.lantern-host .source-docs-list .lib-thumb {
+  box-shadow: inset 3px 0 0 var(--c-source);
+}
+
+.lantern-host .source-docs-more {
+  margin-top: 12px;
+}
+
+.lantern-host .source-docs-retry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.lantern-host .source-doc-mode {
+  justify-self: start;
+  max-width: 100%;
+}
+
+.lantern-host .source-doc-view {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.lantern-host .source-doc-status {
+  margin: 0;
+  font-size: var(--fs-s);
+  color: var(--ink-2);
+}
+
+.lantern-host .source-doc-payload {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  min-width: 0;
+}
+
+.lantern-host .source-doc-payload[hidden] {
+  display: none;
+}
+
+/* The qualified preview sits on the ground colour so its own edges stay visible. */
+.lantern-host .source-doc-preview {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+}
+
+.lantern-host .source-doc-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: min(62vh, 680px);
+  margin: 0 auto;
+  object-fit: contain;
+  padding: 10px;
+  border: 1px solid var(--hair-2);
+  border-radius: var(--r-control);
+  background: var(--ground);
+}
+
+.lantern-host .source-doc-preview figcaption {
+  max-width: 70ch;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+
+.lantern-host .source-doc-facts {
+  padding-left: 12px;
+  border-left: 2px solid var(--c-source);
+}
+
+.lantern-host .source-doc-facts code {
+  display: block;
+}
+
+@media (max-width: 600px) {
+  .lantern-host .source-doc-facts > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}

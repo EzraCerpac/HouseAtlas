@@ -45,9 +45,18 @@ const stageCameraURL = await sourceURL(`${base}useStageCamera.ts`, 'ts', { react
 const meshLayerURL = await sourceURL(`${base}MeshLayer.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx, './geometry': geometryURL });
 const stageURL = await sourceURL(`${base}ModelStage.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx, '../components/Icon': iconURL,
   './geometry': geometryURL, './selection': selectionURL, './MeshLayer': meshLayerURL, './tones': tonesURL, './useStageCamera': stageCameraURL });
+const preflightURL = await sourceURL(`${base}glb-preflight.ts`, 'ts');
+const manifestURL = await sourceURL(`${base}browser-manifest.ts`, 'ts');
+// The pinned three.js GLTFLoader, loaded from the installed package as a browser bundle would.
+const threeURL = new URL('./node_modules/three/build/three.module.js', frontend).href;
+const gltfLoaderURL = new URL('./node_modules/three/examples/jsm/loaders/GLTFLoader.js', frontend).href;
+const standardURL = await sourceURL(`${base}standard-glb.ts`, 'ts', { three: threeURL, 'three/examples/jsm/loaders/GLTFLoader.js': gltfLoaderURL,
+  './geometry': geometryURL, './glb-preflight': preflightURL });
+const sampleURL = await sourceURL('./canonical-ifc-visual/standard-glb-sample.ts', 'ts');
 const localURL = await sourceURL(`${base}LocalGlbPreview.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx, '../components/Icon': iconURL,
-  '../scans/ifc-glb-profile': glbProfileURL, '../scans/mesh-profile': meshProfileURL, './geometry': geometryURL,
-  './MeshLayer': meshLayerURL, './useStageCamera': stageCameraURL, './canonical-ifc.css': 'data:text/javascript,' });
+  '../scans/ifc-glb-profile': glbProfileURL, '../scans/mesh-profile': meshProfileURL, './browser-manifest': manifestURL, './geometry': geometryURL,
+  './glb-preflight': preflightURL, './MeshLayer': meshLayerURL, './standard-glb': standardURL, './useStageCamera': stageCameraURL,
+  './canonical-ifc.css': 'data:text/javascript,' });
 
 const { admitPresentation, PresentationError, isDuplicateLabel, isSyntheticSource, selectionLabel } = await import(modelURL);
 const { reconcile, viewerReducer, encodeMemory, decodeMemory, initialState, contextOccurrences, scopedMemoryKey, memoryKey } = await import(selectionURL);
@@ -56,7 +65,9 @@ const { makeProjection, drawnBounds, floorPlanRings, prepareMeshes, pick, planPi
 const { joinOverlay } = await import(overlaysURL);
 const { badgeFill, contrast, TONE_COLOR } = await import(tonesURL);
 const { readCanonicalSceneV2, ADAPTER_ID } = await import(adapterURL);
-const { readLocalGlb } = await import(localURL);
+const { readLocalGlb, readLocalFiles, LocalReadError } = await import(localURL);
+const { loadStandardGlb } = await import(standardURL);
+const { buildGlb, box, SAMPLE_HOUSE, SAMPLE_HOUSE_BOUNDS, SAMPLE_REFERENCE, SAMPLE_REFERENCE_BOUNDS, sampleManifest } = await import(sampleURL);
 const { publicationA, publicationB, generatedCoverage } = await import(fixturesURL);
 
 const A = admitPresentation(publicationA()), B = admitPresentation(publicationB()), C = admitPresentation(generatedCoverage());
@@ -374,4 +385,103 @@ assert.equal(local.meshes.length, presentation.meshes.filter(mesh => mesh.floorI
 assert.ok(local.meshes.every((mesh, index) => mesh.meshKey === `local#${index}` && mesh.floorId === null && mesh.occurrenceId === null),
   'Local meshes stay unbound: no floor, room or occurrence is inferred');
 
-console.log('PASS canonical viewer keeps one publication, stable occurrence identity, exact v2 pins and one frame per registration across plan and 3D.');
+// Local closed-profile GLB through the multi-file reader keeps its own path.
+const routed = await readLocalFiles([new File([glbBytes], 'ground.glb')], new AbortController().signal);
+assert.equal(routed.kind, 'closed-profile');
+assert.equal(routed.summary.sha256, digest(glbBytes));
+assert.equal(routed.summary.meshes.length, local.meshes.length);
+assert.deepEqual(routed.files, [{ name: 'ground.glb', bytes: glbBytes.byteLength, sha256: digest(glbBytes), role: 'glb' }]);
+
+// Standard GLB + browser manifest, loaded by the pinned three.js GLTFLoader. Generated anonymous sample only.
+const live = () => new AbortController().signal;
+const houseGlb = buildGlb(SAMPLE_HOUSE), referenceGlb = buildGlb(SAMPLE_REFERENCE);
+const manifestFile = async (overrides = {}) =>
+  new File([new TextEncoder().encode(JSON.stringify(await sampleManifest(houseGlb, referenceGlb, overrides)))], 'manifest.json');
+const read = await readLocalFiles([await manifestFile(), new File([houseGlb], 'house.glb'), new File([referenceGlb], 'reference.glb')], live());
+assert.equal(read.kind, 'standard');
+assert.deepEqual(read.files.map(file => [file.role, file.sha256]),
+  [['manifest', read.files[0].sha256], ['house', digest(houseGlb)], ['reference', digest(referenceGlb)]]);
+const flat = bounds => [...bounds.min, ...bounds.max];
+assert.deepEqual(flat(read.house.bounds), SAMPLE_HOUSE_BOUNDS.flat(),
+  'Baked poses are drawn as stored: provenance matrices are not applied and the unused far vertex does not frame the model');
+assert.equal(read.house.glb.counts.declaredTransforms, 0);
+assert.deepEqual(read.house.glb.drawn.map(item => item.nodeIndex), [1, 2, 3]);
+assert.equal(read.house.glb.counts.triangles, 36);
+assert.equal(read.house.glb.counts.metadataOnlyNodes, 3, 'Group, room occurrence and product without geometry stay as metadata-only nodes');
+assert.deepEqual(read.house.glb.nodes.find(node => node.nodeIndex === 4).extras, SAMPLE_HOUSE.nodes[4].extras, 'Opaque extras are kept unchanged');
+assert.ok([...read.house.glb.meshes, ...read.reference.glb.meshes].every(mesh => mesh.floorId === null && mesh.occurrenceId === null),
+  'Standard meshes stay unbound: no floor, room or occurrence is inferred from names, extras or tree order');
+assert.deepEqual(read.manifest.check, { meshes: { declared: 3, loaded: 3 }, triangles: { declared: 36, loaded: 36 }, boundsDifference: 0,
+  boundsTolerance: 1e-4, geometryFreeProducts: 1, occurrencesWithFootprint: 0, identitiesInExtras: 4 });
+assert.deepEqual(read.manifest.data.sourceIFC, { file: 'synthetic.ifc', sha256: '0'.repeat(64), bytes: 0 }, 'The complete manifest keeps its source IFC pin');
+assert.deepEqual(read.manifest.data.storeys.map(storey => storey.visibleMeshes), [1, 2]);
+assert.equal(read.manifest.data.document.storeys[0].sourceToLocalENNAPMetresMatrix[0][3], 120.5, 'Provenance is retained as declared, not applied');
+assert.equal(read.manifest.data.qualifications.atticShapeKnown, false);
+assert.equal(read.manifest.data.qualifications.physicalRegistrationEstablished, false);
+assert.deepEqual(read.manifest.data.reference.groups.map(group => group.name), ['GroundSurface', 'WallSurface', 'RoofSurface']);
+assert.deepEqual(flat(read.reference.bounds), SAMPLE_REFERENCE_BOUNDS.flat().map(Math.fround), 'GLB positions are float32 as stored');
+assert.equal(read.reference.glb.copyright, SAMPLE_REFERENCE.asset.copyright, 'Reference attribution is preserved');
+assert.ok(read.reference.glb.meshes.every(mesh => mesh.meshKey.startsWith('reference#')));
+const houseOnly = await readLocalFiles([await manifestFile(), new File([houseGlb], 'house.glb')], live());
+assert.equal(houseOnly.reference, null, 'The reference layer is optional');
+
+// A glTF-declared node transform is the scene itself and is applied exactly once.
+const posed = await loadStandardGlb(buildGlb({ meshes: [box([0, 0, 0], [1, 1, 1])], roots: [0],
+  nodes: [{ translation: [10, 0, 0], children: [1], extras: { posesAlreadyApplied: true } }, { mesh: 0, translation: [0, 2, 0] }] }), 'house', live());
+assert.deepEqual(flat(posed.meshes[0].bounds), [10, 2, 0, 11, 3, 1]);
+assert.equal(posed.counts.declaredTransforms, 2);
+await assert.rejects(loadStandardGlb(houseGlb, 'house', AbortSignal.abort()), { name: 'AbortError' });
+
+// Extras stay opaque: a loader-specific key such as pivot never moves geometry; core transforms still apply once.
+const pivotExtras = { posesAlreadyApplied: true, pivot: [5, 0, 0] };
+const pivoted = await loadStandardGlb(buildGlb({ meshes: [box([0, 0, 0], [1, 1, 1])], roots: [0],
+  nodes: [{ translation: [10, 0, 0], children: [1], extras: pivotExtras }, { mesh: 0, translation: [0, 2, 0] }] }), 'house', live());
+assert.deepEqual(flat(pivoted.meshes[0].bounds), [10, 2, 0, 11, 3, 1]);
+assert.deepEqual(pivoted.nodes[0].extras, pivotExtras, 'The original extras are kept as facts');
+
+// One mesh used by three nodes is three drawn instances, counted in the admitted work before loading.
+const reused = await loadStandardGlb(buildGlb({ meshes: [box([0, 0, 0], [1, 1, 1])], roots: [0, 1, 2],
+  nodes: [{ mesh: 0 }, { mesh: 0, translation: [2, 0, 0] }, { mesh: 0, translation: [4, 0, 0] }] }), 'house', live());
+assert.deepEqual(reused.drawn.map(item => [item.nodeIndex, item.meshIndex]), [[0, 0], [1, 0], [2, 0]]);
+assert.deepEqual(reused.work, { instances: 3, vertices: 24, triangles: 36, outputBytes: 24 * 12 + 108 * 4 + 36 * 72 });
+assert.equal(reused.counts.triangles, 36);
+assert.deepEqual(reused.meshes.map(mesh => mesh.bounds.min[0]), [0, 2, 4]);
+
+// Missing or mismatched artifacts and closed-preflight refusals stay explicit; each failure reports what the browser read.
+const failure = async (blobs, kind) => {
+  const error = await readLocalFiles(blobs, live()).then(() => null, value => value);
+  assert.ok(error instanceof LocalReadError && error.kind === kind, `Expected ${kind}, got ${error?.kind ?? error}`);
+  return error;
+};
+const otherHouse = buildGlb({ ...SAMPLE_HOUSE, asset: { generator: 'other version' } });
+await failure([await manifestFile(), new File([otherHouse], 'house.glb')], 'pin');
+await failure([await manifestFile(), new File([referenceGlb], 'reference.glb')], 'pin');
+const external = buildGlb({ ...SAMPLE_HOUSE, patch: json => { json.buffers[0].uri = 'house.bin'; } });
+const refused = await failure([new File([external], 'external.glb')], 'preflight');
+assert.deepEqual(refused.files, [{ name: 'external.glb', bytes: external.byteLength, sha256: digest(external), role: 'glb' }]);
+await failure([new File([buildGlb({ ...SAMPLE_HOUSE, patch: json => { json.extensionsUsed = ['KHR_draco_mesh_compression']; } })], 'compressed.glb')], 'preflight');
+const patched = patch => [new File([buildGlb({ ...SAMPLE_HOUSE, patch })], 'patched.glb')];
+const because = async (blobs, kind, reason) => assert.match((await failure(blobs, kind)).message, reason);
+await because(patched(json => { json.scenes.push({ nodes: [] }); }), 'preflight', /Exactly one scene/);
+await because(patched(json => { json.materials = [{ extensions: { KHR_materials_unlit: {} } }]; }), 'preflight', /unsupported glTF extension/);
+await because(patched(json => { delete json.accessors[0].bufferView; }), 'preflight', /Accessor 0 buffer view/);
+await because(patched(json => { json.accessors[0].count += 1; }), 'preflight', /Accessor 0 reads past/);
+await because(patched(json => { json.accessors[1].normalized = true; }), 'preflight', /Indices must be unnormalized/);
+
+// The complete v1 manifest is validated before display, and identities are unambiguous before any lookup.
+const edited = async (edit, house = houseGlb) => {
+  const manifest = await sampleManifest(house, referenceGlb); edit(manifest);
+  return [new File([new TextEncoder().encode(JSON.stringify(manifest))], 'manifest.json'), new File([house], 'house.glb')];
+};
+await because(await edited(manifest => { delete manifest.sourceIFC; }), 'manifest', /manifest\.sourceIFC is missing/);
+await because(await edited(manifest => { delete manifest.storeyVisibleMeshBounds[0].boundsLocalENNAPMetres; }), 'manifest',
+  /storeyVisibleMeshBounds\[0\]\.boundsLocalENNAPMetres is missing/);
+await because(await edited(manifest => { manifest.format.sourceIFCSHA256 = '1'.repeat(64); }), 'manifest', /different source IFC/);
+await because(await edited(manifest => { manifest.storeyVisibleMeshBounds[1].storeyGlobalId = 'syn-storey-a'; }), 'manifest', /Storey bounds b/);
+await because(await edited(manifest => { manifest.products[1].nodeIndex = 1; }), 'manifest', /Product node 1 appears more than once/);
+await because(await edited(manifest => { manifest.products[1].globalId = 'syn-product-0001'; }), 'manifest', /Product GlobalId syn-product-0001 appears/);
+await because(await edited(manifest => { manifest.roomOccurrences[0].globalId = 'syn-product-0001'; }), 'manifest', /names different product and room occurrence/);
+const relabelled = buildGlb({ ...SAMPLE_HOUSE, nodes: SAMPLE_HOUSE.nodes.map((node, at) => at === 2 ? { ...node, extras: { globalId: 'syn-product-0003' } } : node) });
+await because(await edited(() => {}, relabelled), 'binding', /GLB node 2 declares a different identity than the manifest/);
+
+console.log('PASS canonical viewer keeps one publication, stable occurrence identity, exact v2 pins and one frame per registration across plan and 3D; standard GLB previews keep baked poses, opaque extras, admitted instance work, complete manifests, unambiguous identities and explicit unknowns.');

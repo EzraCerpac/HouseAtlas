@@ -1,0 +1,161 @@
+/* Electrical documents: drawing evidence, kept visibly apart from the model.
+   A left rule in the electrical layer colour marks documentary content. */
+
+.lantern-host .edoc-review {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lantern-host .edoc {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 12px 12px 14px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-panel);
+  background: var(--card-2);
+  box-shadow: inset 4px 0 0 var(--l-electrical);
+}
+
+.lantern-host .edoc-head h3 {
+  font-size: var(--fs-m);
+  font-weight: 700;
+}
+
+.lantern-host .edoc-head p,
+.lantern-host .edoc-caveat {
+  font-size: var(--fs-xs);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.lantern-host .edoc-status {
+  font-size: var(--fs-s);
+}
+
+.lantern-host .edoc-totals {
+  margin-top: 4px;
+}
+
+.lantern-host .edoc-record strong {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.lantern-host .edoc-record + .edoc-record {
+  padding-top: 6px;
+  border-top: 1px dotted var(--hair-2);
+}
+
+.lantern-host .edoc-source {
+  gap: 2px;
+  justify-items: start;
+}
+
+.lantern-host .edoc-source .chip-btn {
+  min-height: 36px;
+}
+
+/* ---------- Opened local source ---------- */
+
+.lantern-host .esrc {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin-top: 12px;
+  padding: 14px 16px 16px;
+  border: 1px dashed var(--ink-2);
+  border-radius: var(--r-sheet);
+  background: var(--card);
+}
+
+.lantern-host .esrc {
+  scroll-margin-top: 12px;
+}
+
+.lantern-host .esrc:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.lantern-host .edoc-source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lantern-host .esrc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lantern-host .esrc-head h3 {
+  font-size: var(--fs-l);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.lantern-host .esrc-head p {
+  font-size: var(--fs-s);
+  color: var(--muted);
+}
+
+.lantern-host .esrc-head .chip-btn {
+  flex: 0 0 auto;
+}
+
+.lantern-host .esrc-status {
+  font-size: var(--fs-s);
+}
+
+.lantern-host .esrc-body {
+  min-width: 0;
+}
+
+.lantern-host .esrc-body.is-image img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--hair);
+  background: #fff;
+}
+
+.lantern-host .esrc-body.is-text pre {
+  max-height: 28rem;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-control);
+  background: var(--card-2);
+  font-family: var(--code);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.lantern-host .esrc-body.is-text pre:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.lantern-host .esrc-foot {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  min-width: 0;
+}
+
+.lantern-host .esrc-foot .cifc-facts {
+  width: 100%;
+  margin-top: 0;
+}
+
+.lantern-host .edoc-review > h3:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

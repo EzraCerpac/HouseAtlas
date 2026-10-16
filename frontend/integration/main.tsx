@@ -22,6 +22,8 @@ import { createNativeSceneAssociationClient } from "./native-scene-association-c
 import { createNativeSceneSourceClient } from "./native-scene-source-client";
 import type { NativeSceneSourceSelection } from "../src/lantern/scans/native-scene-source-types";
 import type { NativeSceneHost } from "../src/lantern/scans/native-ui/native-scene-host";
+import type { SourceDocumentsPort } from "../src/lantern/source-documents/types";
+import type { SourceModelPort } from "../src/lantern/source-ports";
 import { createNativeGeometryWriteClient } from "./native-geometry-write-client";
 import { createNativeGeometryAssociationClient } from "./native-geometry-association-client";
 import type { NativeAssociationPending, NativeAssociationPrepared } from "../src/lantern/scans/native-association-types";
@@ -319,6 +321,33 @@ const subscribeNativeGeometry = (changed: () => void) => {
 const nativeGeometryWrite = createNativeGeometryWriteClient({
   getContext: nativeGeometryContext, subscribe: subscribeNativeGeometry,
 });
+// Native v2 source Documents: the reader loads with the Library section and
+// binds the same canonical session allocation and completed view scope.
+const sourceDocuments: SourceDocumentsPort = {
+  createReader: () => import("./native-source-document-reader").then(module => module.createNativeSourceDocumentReader({
+    origin: window.location.origin,
+    getBinding: () => currentSession && currentQuantityScope
+      ? { sessionIdentity: currentSession, expiresAt: currentSession.expiresAt, scope: currentQuantityScope } : null,
+    subscribeBinding: subscribeNativeGeometry,
+  })),
+};
+// Model files are read in the browser only; no saved model or site read is live.
+// One opaque token per canonical session allocation and completed scope; any
+// change retires the local model renderer owner. No electrical bridge or
+// target provider is connected here, so electrical review stays unavailable.
+let modelReviewOwner: { readonly session: AtlasSessionInfo; readonly scope: Scope; readonly token: object } | null = null;
+const sourceModels: SourceModelPort = {
+  localFiles: "browser-only",
+  session: {
+    current() {
+      if (!currentSession || !currentQuantityScope) return null;
+      if (modelReviewOwner?.session !== currentSession || modelReviewOwner.scope !== currentQuantityScope)
+        modelReviewOwner = { session: currentSession, scope: currentQuantityScope, token: Object.freeze({}) };
+      return modelReviewOwner.token;
+    },
+    subscribe: subscribeNativeGeometry,
+  },
+};
 const geometryAssociationCommands = ['atlas.identity.get', 'atlas.location-semantics.get', 'atlas.evidence.get', 'atlas.asset.get',
   'atlas.batch.execute', 'atlas.evidence.create', 'atlas.geometry.create', 'atlas.identity.replace'] as const;
 const nativeGeometryAssociationOwner = createNativeGeometryAssociationClient({
@@ -557,6 +586,6 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
   }, []);
   // Keep the concrete editing port stable through view/catalog refreshes.
   // Each place admission and command obtains the actual request authority.
-  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} nativeGeometry={nativeGeometry} nativeGeometryWrite={nativeGeometryWrite} nativeGeometryAssociation={nativeGeometryAssociation} nativeEvidenceDocuments={nativeEvidenceDocuments} nativeScene={nativeScene} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
+  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} nativeGeometry={nativeGeometry} nativeGeometryWrite={nativeGeometryWrite} nativeGeometryAssociation={nativeGeometryAssociation} nativeEvidenceDocuments={nativeEvidenceDocuments} nativeScene={nativeScene} sourceModels={sourceModels} sourceDocuments={sourceDocuments} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
 }
 createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);

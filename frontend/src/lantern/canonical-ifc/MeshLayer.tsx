@@ -12,6 +12,13 @@ interface Props {
   /** Occurrence token -> overlay tint (hex). */
   readonly tints: ReadonlyMap<string, string>;
   readonly hidden: boolean;
+  /** Mesh keys of a separate reference layer: drawn in a muted reference tone
+   * behind the building so coincident surfaces never cover it. */
+  readonly referenceKeys?: ReadonlySet<string> | undefined;
+  /** Mesh keys left out of the drawing (presentation only; uploads are kept). */
+  readonly hiddenKeys?: ReadonlySet<string> | undefined;
+  /** Mesh keys of an explicit selection, drawn in the lantern tone. */
+  readonly selectedKeys?: ReadonlySet<string> | undefined;
   readonly onUnavailable: (message: string) => void;
 }
 
@@ -36,6 +43,7 @@ const rgb = (hex: string): Rgb => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2
 const mix = (a: Rgb, b: Rgb, t: number) => a.map((v, i) => v + (b[i]! - v) * t) as Rgb;
 const PAPER = rgb('#ECEEE9'), WALL = rgb('#FBF9F4'), TOP = rgb('#EEE5D2'), CUT = rgb('#2B3650');
 const ROOM = rgb('#F4E8CC'), LANTERN = rgb('#FFD25E'), CONTEXT = rgb('#FCE7A6');
+const REFERENCE = rgb('#C3CED6'), REFERENCE_TOP = rgb('#D7DFE4');
 
 /** Shared-frame orthographic WebGL renderer. Draws on demand only; owns and
  * releases every GL object, listener and frame callback it creates. */
@@ -44,7 +52,7 @@ export function MeshLayer(props: Props) {
   const latest = useRef(props); latest.current = props;
   const redraw = useRef<(() => void) | null>(null);
   useLayoutEffect(() => { redraw.current?.(); },
-    [props.projection, props.rules, props.currentFloorId, props.selectedOccurrenceId, props.contextOccurrenceIds, props.tints, props.hidden]);
+    [props.projection, props.rules, props.currentFloorId, props.selectedOccurrenceId, props.contextOccurrenceIds, props.tints, props.hidden, props.referenceKeys, props.hiddenKeys, props.selectedKeys]);
   useLayoutEffect(() => {
     const element = canvas.current; if (!element || props.meshes.length === 0) return;
     const gl = element.getContext('webgl', { antialias: true, alpha: true, preserveDrawingBuffer: false });
@@ -85,13 +93,17 @@ export function MeshLayer(props: Props) {
       gl.uniform2f(uniforms.viewport!, q.viewport.width, q.viewport.height);
       gl.uniform1f(uniforms.useClip!, p.rules.clipY === null ? 0 : 1); gl.uniform1f(uniforms.clipY!, p.rules.clipY ?? 0);
       gl.enableVertexAttribArray(position); gl.enableVertexAttribArray(normal);
-      for (const bound of [false, true]) {
-        if (bound) { gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-2, -2); } else gl.disable(gl.POLYGON_OFFSET_FILL);
+      for (const pass of ['reference', 'unbound', 'bound'] as const) {
+        if (pass === 'unbound') gl.disable(gl.POLYGON_OFFSET_FILL);
+        else { gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(pass === 'bound' ? -2 : 2, pass === 'bound' ? -2 : 2); }
         for (const { mesh, buffer } of uploaded) {
-          if ((mesh.occurrenceId !== null) !== bound || !drawsFloor(p.rules, mesh.floorId)) continue;
+          const kind = p.referenceKeys?.has(mesh.meshKey) ? 'reference' : mesh.occurrenceId !== null ? 'bound' : 'unbound';
+          if (kind !== pass || !drawsFloor(p.rules, mesh.floorId) || p.hiddenKeys?.has(mesh.meshKey)) continue;
           const dim = mesh.floorId !== p.currentFloorId ? .55 : 0;
           let top: Rgb, base: Rgb, cut: Rgb;
-          if (mesh.occurrenceId !== null) {
+          if (p.selectedKeys?.has(mesh.meshKey)) { top = LANTERN; base = LANTERN; cut = mix(LANTERN, CUT, .18); }
+          else if (kind === 'reference') { top = REFERENCE_TOP; base = REFERENCE; cut = mix(REFERENCE, CUT, .3); }
+          else if (mesh.occurrenceId !== null) {
             const tint = mesh.occurrenceId === p.selectedOccurrenceId ? LANTERN : p.contextOccurrenceIds.includes(mesh.occurrenceId) ? CONTEXT
               : p.tints.has(mesh.occurrenceId) ? rgb(p.tints.get(mesh.occurrenceId)!) : ROOM;
             top = mesh.occurrenceId === p.selectedOccurrenceId ? tint : mix(tint, PAPER, dim);

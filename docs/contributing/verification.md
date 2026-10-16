@@ -1001,6 +1001,71 @@ only an authenticated correlated intake rejection proves that invocation did
 not commit. These checks do not resolve historical upload requests, prove crash
 recovery, release a resend, change ordinary CI or accept deployment.
 
+## Source Documents frontend reader and mounted host
+
+The optional local model review and source-site consumer have one focused
+healthy synthetic check. Inspect `frontend/lantern-tests/model-review-logic.test.mjs`
+and its finite renderer-owner, local-reader, publication and synthetic-fixture
+imports, then use Node 26.10.0 and the locked frontend dependencies:
+
+```sh
+node frontend/lantern-tests/model-review-logic.test.mjs
+```
+
+It checks original File-object ownership, normal renderer replacement, an
+acknowledged local JSON representation, exact synthetic site pins/2D source
+coordinates, finite shared-budget arithmetic and generated read/load ordering.
+It uses no browser, listener, native service, private input or
+external provider. A fake acknowledgement does not establish actual browser
+display. The generated `/lantern-tests/model-review-visual/`,
+`/lantern-tests/source-host-visual/`, `/lantern-tests/scene-drawing-timing/` and
+`/lantern-tests/scan-network-visual/`
+fixtures support separately owned loopback browser review of the real React
+components, source documents/site views and anonymous stage observations.
+Their synthetic observations do not qualify household data, native authority,
+private source display or deployment. This command adds no held failure,
+revocation, replay or private-intake checks.
+
+After inspecting `frontend/lantern-tests/source-documents-reader.test.mjs`, its
+synthetic in-page transport and imported reader/numeric/PDF-budget modules, use
+Node 26.10.0 and the locked frontend dependencies for this focused healthy check:
+
+```sh
+node frontend/lantern-tests/source-documents-reader.test.mjs
+```
+
+It reads generated v2 Document lists/originals/qualified PNG bytes, preserves a
+schema-valid recorded leap second, checks normal single-reader lease replacement
+and exercises canvas-budget arithmetic without allocating a large PDF canvas.
+It opens no listener/browser and uses no native host, provider, household input,
+intake or deployment. It adds no held control/regression-suite permission.
+
+The manual fixture `/lantern-tests/source-host-visual/` mounts the actual
+LanternHost with a browser-only model chooser and native v2 source Documents in
+Library. Its Documents transport is generated in-page; other application fetches
+are unavailable. Inspect its main, synthetic-document generator and imports before
+serving it through an owned loopback Vite preview. Desktop/mobile layout, PDF page
+rendering, qualified PNG display and actual private host/source acceptance require
+separate supported-browser observations. Keep private inputs and captures outside
+Git, and stop the owned preview after the bounded review.
+
+The scan/network fixture mounts the actual LanternHost, NativeScanAtlas and
+NetworkSceneLayer through generated read-only ports. Its shared topology data
+is the existing generated topology fixture. Inspect each fixture entrypoint,
+the shared StageTimings component/CSS and their imports before serving these
+paths. With Node 26.10.0 and locked dependencies, choose an unused loopback port:
+
+```sh
+cd frontend
+./node_modules/.bin/vite --config vite.config.ts --host 127.0.0.1 --port 4310 --strictPort
+```
+
+Use the supported browser for ordinary desktop/mobile selection, source opening,
+visibility controls, pointer/keyboard interaction and visible timing observations.
+The timing tables show bounded anonymous local stages from the real components;
+fake read delays describe only the generated fixture. Stop the owned preview
+within 20 minutes. This manual review adds no workflow or ordinary CI command.
+
 ## Native geodata document first slice
 
 Inspect `backend/src/media/geodata_original.rs`,

@@ -7,6 +7,7 @@ import { createRoot } from 'react-dom/client';
 import { LazyCanonicalModelViewer, LazyCanonicalSceneViewer, LazyLocalGlbPreview } from '../../src/lantern/canonical-ifc/lazy';
 import type { CanonicalScenePort, SceneRequest } from '../../src/lantern/canonical-ifc/lazy';
 import { sessionMemory } from '../../src/lantern/canonical-ifc/selection';
+import { standardGlbSampleFiles } from './standard-glb-sample';
 import { SYNTHETIC_FIXTURES, type SyntheticFixtureKey } from './synthetic-publication';
 import sceneJson from '../../../docs/canonical-ifc/fixtures/two-floor-v2/scene-read.json?raw';
 import semanticsJson from '../../../docs/canonical-ifc/fixtures/two-floor-v2/publication/semantics.json?raw';
@@ -68,7 +69,7 @@ const sceneRequest: SceneRequest = { scope: SCOPE, publicationId: null, building
 type Mode = SyntheticFixtureKey | 'scene' | 'local';
 const generatedKeys = Object.keys(SYNTHETIC_FIXTURES) as SyntheticFixtureKey[];
 const modes: readonly Mode[] = [...generatedKeys, 'scene', 'local'];
-const MODE_LABEL: Readonly<Record<'scene' | 'local', string>> = { scene: 'Two-floor scene (fake port)', local: 'Local GLB file' };
+const MODE_LABEL: Readonly<Record<'scene' | 'local', string>> = { scene: 'Two-floor scene (fake port)', local: 'Local GLB files' };
 const initialMode = (): Mode => {
   const value = new URLSearchParams(location.search).get('fixture');
   return modes.find(mode => mode === value) ?? 'a';
@@ -108,18 +109,28 @@ function GeneratedMode({ fixture }: { readonly fixture: SyntheticFixtureKey }) {
   return <LazyCanonicalModelViewer presentation={presentation} memory={memory} />;
 }
 
-/** Reads a chosen file in this tab only; nothing is uploaded or stored. */
+const NO_FILES: readonly Blob[] = [];
+
+/** Reads chosen files in this tab only; nothing is uploaded or stored. The
+ * buttons hand over in-page bytes without the file chooser, so a chooser
+ * result can be compared with the same bytes read directly. */
 function LocalMode() {
   const inputId = useId(), noteId = useId();
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<readonly Blob[]>(NO_FILES);
   return <section className="cifc-fixture-local" aria-label="Local GLB preview">
     <div className="cifc-fixture-chooser">
-      <label htmlFor={inputId}>Choose local GLB file</label>
-      <input id={inputId} type="file" accept=".glb,model/gltf-binary" aria-describedby={noteId}
-        onChange={event => setFile(event.currentTarget.files?.[0] ?? null)} />
-      <p id={noteId}>Read in this browser only. Rooms, floors and alignment stay unavailable.</p>
+      <label htmlFor={inputId}>Choose local GLB and manifest files</label>
+      <input id={inputId} type="file" multiple accept=".glb,.json,model/gltf-binary,application/json" aria-describedby={noteId}
+        onChange={event => setFiles(Array.from(event.currentTarget.files ?? []))} />
+      <p id={noteId}>One GLB, or a browser manifest with its house GLB and optional reference GLB. Read in this browser only.
+        Rooms, floors and alignment are never inferred.</p>
+      <div className="cifc-fixture-samples" role="group" aria-label="Generated inputs">
+        <button type="button" className="chip-btn" onClick={() => { void standardGlbSampleFiles().then(setFiles); }}>Load generated sample</button>
+        <button type="button" className="chip-btn" onClick={() => setFiles([new File([dataBytes(groundGlb)], 'ground-model.glb', { type: 'model/gltf-binary' })])}>
+          Load checked-in ground GLB</button>
+      </div>
     </div>
-    <LazyLocalGlbPreview file={file} />
+    <LazyLocalGlbPreview files={files} />
   </section>;
 }
 
