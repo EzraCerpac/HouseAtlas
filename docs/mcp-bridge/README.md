@@ -51,7 +51,9 @@ remains an explicit integration gap.
 Native Stock HTTP intake is 1 MiB, separate from native MCP's64KiB bound. This
 adapter admits complete write envelopes up to1MiB and uses an8MiB stdio line
 bound for escaped JSON. Native read `/invoke` keeps its16KiB envelope/32KiB
-query bounds. JSON duplicate keys, depth>64 and excessive node counts are
+query bounds. Missing/null zero-input tool arguments normalize to an empty object;
+initialization returns a supported version counter-offer when needed, retaining
+the standard initialized notification. JSON duplicate keys, depth>64 and excessive node counts are
 refused; no payload is truncated or silently reconstructed.
 
 ## Genuine native sessions, kept in memory
@@ -164,8 +166,10 @@ Run each named case separately with
 `python3 -B tools/houseatlas-mcp-bridge/test_bridge.py CASE`.
 Healthy: `healthy_stdio`, `healthy_write_forms`, `healthy_batch`,
 `healthy_lossless_read`, `healthy_scene_original`,
-`healthy_retained_reconciliation`, `healthy_retained_batch`, `healthy_memory_session`.
-The write-form test checks36 transport routes with invented payloads, not native
+`healthy_retained_reconciliation`, `healthy_retained_batch`, `healthy_memory_session`,
+`healthy_stdio_optional_arguments`, `healthy_escaped_write_frame`.
+The write-form and escaped-frame tests use invented payloads to check transport,
+including36 routes and a large escaped frame, not native
 per-form domain qualification. Batch tests verify adapter forwarding/correlation.
 
 Separately reviewed denial/failure lane: `denial_scope_and_routes`,
@@ -174,7 +178,7 @@ Separately reviewed denial/failure lane: `denial_scope_and_routes`,
 `failure_post_dispatch_session`, `failure_commit_correlation`,
 `failure_unknown_keeps_reads`, `failure_reconcile_absence`,
 `failure_reconcile_correlation`, `denial_reconcile_byte_bound`,
-`failure_session_after_login_cleanup`.
+`failure_session_after_login_cleanup`, `denial_semantic_duplicate_targets`.
 
 Helper runner:
 `python3 -B tools/houseatlas-mcp-bridge/test_key_entry.py CASE`.
@@ -182,7 +186,8 @@ Healthy: `healthy_create_only_file`, `healthy_tty_noecho`,
 `healthy_wrapper_environment`, `healthy_launcher_memory_only`,
 `healthy_executable_contract`.
 Separate denial lane: `denial_existing_or_symlink`, `denial_no_tty_fallback`,
-`denial_unconfigured_wrapper`, `denial_tty_oversize`, `denial_executable_contract`.
+`denial_unconfigured_wrapper`, `denial_tty_oversize`, `denial_executable_contract`,
+`failure_tty_sigquit_restore`.
 Use an external15-second process timeout for both TTY cases.
 
 All cases use generated strings, disposable directories/SQLite, owned PTYs,
@@ -191,3 +196,7 @@ fallback. No socket, actual NAS binary, native/provider call or household data.
 No broad discovery, held guard reversal, mutation/omission/adversarial, replay,
 expiry, revocation, populated restore, crash or live check is included. No new
 CI entrypoint is added. Existing exact-head ordinary CI remains separate.
+
+Protocol references:
+[MCP lifecycle/version negotiation](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle)
+and [tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).

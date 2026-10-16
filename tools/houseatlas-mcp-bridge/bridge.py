@@ -41,7 +41,7 @@ WRITE_FORMS = {
 }
 WRITES = frozenset(f'atlas.{kind}.{op}' for kind, ops in WRITE_FORMS.items() for op in ops)
 BATCH = 'atlas.batch.execute'
-PROTOCOLS = ('2025-11-25', '2025-06-18', '2024-11-05')
+PROTOCOLS = ('2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05')
 
 class BridgeError(Exception):
     """Public messages are constants, never raw transport/credential diagnostics."""
@@ -438,7 +438,10 @@ class Bridge:
                      and child.get('commandId') in WRITES, 'Only single Atlas children in same scope')
                 uid(child.get('requestId'))
                 self.write_requests(child, admitted)
-                target = compact(child.get('target'))
+                qualified = child.get('target')
+                need(isinstance(qualified, dict) and qualified.get('authority') == 'atlas'
+                     and isinstance(qualified.get('recordType'), str), 'Qualified Atlas child target required')
+                target = (qualified['authority'], qualified['recordType'], uid(qualified.get('recordId')))
                 need(child['idempotencyKey'] not in ids and child['requestId'] not in request_ids
                      and target not in targets, 'Batch identities/targets must be unique')
                 ids.add(child['idempotencyKey']); request_ids.add(child['requestId']); targets.add(target)
@@ -704,7 +707,8 @@ class Stdio:
         if method == 'initialize':
             need(not self.initialized and isinstance(params, dict), 'Already initialized')
             version = params.get('protocolVersion')
-            need(version in PROTOCOLS, 'Unsupported MCP protocol version')
+            need(isinstance(version, str), 'MCP protocol version required')
+            version = version if version in PROTOCOLS else PROTOCOLS[0]
             self.initialized = True
             return {'protocolVersion': version, 'capabilities': {'tools': {}},
                     'serverInfo': {'name': 'houseatlas-scoped-http-bridge', 'version': '0.1.0'},
@@ -720,8 +724,11 @@ class Stdio:
             need(params == {}, 'No pagination is supported')
             return {'tools': TOOLS}
         need(method == 'tools/call', 'Unsupported method')
-        keys(params, ('name', 'arguments'))
-        name, args = params['name'], params['arguments']
+        keys(params, ('name',), ('arguments',))
+        name = params['name']
+        args = params.get('arguments')
+        if args is None:
+            args = {}
         definitions = {t['name']: t for t in TOOLS}
         need(name in definitions, 'Unknown tool')
         schema = definitions[name]['inputSchema']

@@ -77,7 +77,8 @@ GET `/healthz` and `/readyz`, status only. No UI/metrics call is needed.
 `key-entry.py` requires UID/EUID502, canonical parents and an owned0700 config
 root. Mandatory `/dev/tty` has no stdin/getpass fallback. It switches to bounded
 noncanonical noecho input, verifies ECHO/ECHONL/ICANON are disabled, drains any
-rejected line through newline while staying noecho, then restores terminal state.
+rejected line through newline while staying noecho, then restores terminal state. SIGINT, SIGTERM, SIGHUP and SIGQUIT all use
+the restoration path.
 The raw bounded printable key is create-only O_EXCL/O_NOFOLLOW mode0600, one
 link, UID502, complete writes and file/directory fsync. No replacement, retry,
 partial-file deletion, secret/fingerprint output or service activation.

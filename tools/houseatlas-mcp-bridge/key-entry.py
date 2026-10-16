@@ -66,7 +66,7 @@ def read_tty_key():
         quiet[6][termios.VTIME] = 0
         # Require an ordinary terminal on entry, then avoid canonical line truncation.
         need(old[3] & termios.ICANON)
-        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT):
             handlers[sig] = signal.signal(sig, interrupted)
         termios.tcsetattr(fd, termios.TCSAFLUSH, quiet)
         need(not (termios.tcgetattr(fd)[3] & (termios.ECHO | termios.ECHONL | termios.ICANON)))

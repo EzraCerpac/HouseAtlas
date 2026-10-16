@@ -180,6 +180,46 @@ class Cases(unittest.TestCase):
         self.assertFalse(cap['genericAssetUpload'])
         self.assertEqual(self.owner.posts, [])
 
+    def healthy_stdio_optional_arguments(self):
+        session = b.Stdio(self.bridge)
+        result = session.handle({'jsonrpc': '2.0', 'id': 1, 'method': 'initialize',
+                                 'params': {'protocolVersion': '2099-01-01'}})
+        self.assertEqual(result['protocolVersion'], '2025-11-25')
+        session.handle({'jsonrpc': '2.0', 'method': 'notifications/initialized'})
+        result = session.handle({'jsonrpc': '2.0', 'id': 2, 'method': 'tools/call',
+                                 'params': {'name': 'houseatlas_capabilities'}})
+        self.assertFalse(result['isError'])
+        result = session.handle({'jsonrpc': '2.0', 'id': 3, 'method': 'tools/call',
+                                 'params': {'name': 'houseatlas_operation_status', 'arguments': None}})
+        self.assertFalse(result['isError'])
+        self.assertEqual(self.owner.posts, [])
+
+    def healthy_escaped_write_frame(self):
+        req = request(); req['payload']['label'] = '\\"' * 200000
+        raw = b.compact(req)
+        self.assertLess(len(raw.encode()), b.MAX_JSON)
+        messages = [
+            {'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {'protocolVersion': '2025-11-25'}},
+            {'jsonrpc': '2.0', 'method': 'notifications/initialized'},
+            {'jsonrpc': '2.0', 'id': 2, 'method': 'tools/call', 'params': {'name': 'houseatlas_write', 'arguments': {'requestJson': raw}}},
+        ]
+        data = ('\n'.join(b.compact(m) for m in messages) + '\n').encode()
+        self.assertGreater(len(data), 131072)
+        self.assertLess(len(data), b.MAX_MESSAGE)
+        out = io.BytesIO(); b.serve(self.bridge, io.BytesIO(data), out)
+        results = [b.strict_json(line) for line in out.getvalue().splitlines()]
+        self.assertFalse(results[-1]['result']['isError'])
+        self.assertEqual(self.owner.posts[0][1], raw.encode())
+
+    def denial_semantic_duplicate_targets(self):
+        req = request(b.BATCH); req['preconditions']['target'] = None
+        a, c = request('atlas.identity.create', 200), request('atlas.identity.replace', 300)
+        c['target'] = dict(reversed(list(a['target'].items())))
+        req['payload'] = {'commands': [a, c]}
+        with self.assertRaises(b.BridgeError): self.bridge.write(b.compact(req))
+        self.assertEqual(self.owner.posts, [])
+        self.assertFalse(self.bridge.status()['writeBlocked'])
+
     def healthy_write_forms(self):
         self.assertEqual(len(b.WRITES), 37)
         for n, op in enumerate(sorted(b.WRITES - {'atlas.binding.remap'}), 100):
@@ -386,11 +426,12 @@ class Cases(unittest.TestCase):
 
 
 HEALTHY = ('healthy_stdio', 'healthy_write_forms', 'healthy_batch', 'healthy_lossless_read', 'healthy_scene_original', 'healthy_retained_reconciliation',
-           'healthy_retained_batch', 'healthy_memory_session')
+           'healthy_retained_batch', 'healthy_memory_session', 'healthy_stdio_optional_arguments',
+           'healthy_escaped_write_frame')
 REGRESSION = ('denial_scope_and_routes', 'denial_confirmation_and_batch', 'denial_duplicate_json',
               'denial_read_correlation', 'failure_unknown_persistence', 'failure_scene_change', 'failure_original_hash', 'failure_post_dispatch_session',
               'failure_commit_correlation', 'failure_unknown_keeps_reads', 'failure_reconcile_absence',
-              'failure_reconcile_correlation', 'denial_reconcile_byte_bound', 'failure_session_after_login_cleanup')
+              'failure_reconcile_correlation', 'denial_reconcile_byte_bound', 'failure_session_after_login_cleanup', 'denial_semantic_duplicate_targets')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('case', choices=HEALTHY + REGRESSION)

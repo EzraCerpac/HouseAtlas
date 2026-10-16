@@ -111,6 +111,27 @@ class Cases(unittest.TestCase):
         finally:
             os.close(master); os.close(slave)
 
+    def failure_tty_sigquit_restore(self):
+        master, slave = pty.openpty()
+        original = termios.tcgetattr(slave)
+        previous = entry.signal.getsignal(entry.signal.SIGQUIT)
+        registered = {}
+        real_open, real_signal = os.open, entry.signal.signal
+        def fake_open(path, flags, *args, **kwargs):
+            return os.dup(slave) if path == '/dev/tty' else real_open(path, flags, *args, **kwargs)
+        def register(number, handler):
+            if callable(handler): registered[number] = handler
+            return real_signal(number, handler)
+        def inject(_fd, _count): registered[entry.signal.SIGQUIT](entry.signal.SIGQUIT, None)
+        try:
+            with patch.object(entry.os, 'open', fake_open), patch.object(entry.signal, 'signal', register), \
+                 patch.object(entry.os, 'read', inject):
+                with self.assertRaises(KeyboardInterrupt): entry.read_tty_key()
+            self.assertEqual(termios.tcgetattr(slave), original)
+            self.assertEqual(entry.signal.getsignal(entry.signal.SIGQUIT), previous)
+        finally:
+            os.close(master); os.close(slave)
+
     def denial_existing_or_symlink(self):
         with tempfile.TemporaryDirectory(prefix='houseatlas-key-denial-') as root:
             directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
@@ -196,7 +217,7 @@ class Cases(unittest.TestCase):
         self.assertEqual(verified[1], ((wrapper.PYTHON, wrapper.PYTHON_SHA256), {}))
 
 HEALTHY = ('healthy_create_only_file', 'healthy_tty_noecho', 'healthy_wrapper_environment', 'healthy_launcher_memory_only', 'healthy_executable_contract')
-REGRESSION = ('denial_existing_or_symlink', 'denial_no_tty_fallback', 'denial_unconfigured_wrapper', 'denial_tty_oversize', 'denial_executable_contract')
+REGRESSION = ('denial_existing_or_symlink', 'denial_no_tty_fallback', 'denial_unconfigured_wrapper', 'denial_tty_oversize', 'denial_executable_contract', 'failure_tty_sigquit_restore')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('case', choices=HEALTHY + REGRESSION)
