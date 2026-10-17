@@ -18,13 +18,14 @@ import {
   levelLift, occurrenceLiftLevel, partLifts, pickTarget, planFeaturesForLevel, planPickTarget, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
   targetAction, unplacedByReason, type AtlasAction, type AtlasLayer, type AtlasModel, type AtlasViewState, type OverlayLayerIndex, type UnplacedReason,
 } from './scene';
-import { AtlasReadError, type AtlasLevel, type AtlasOccurrence, type AtlasPlanFeature, type AtlasReadFailure, type AtlasRoom, type OverlayKind, type PlanRole, type UnifiedAtlasPort } from './types';
+import { AtlasReadError, type AtlasLevel, type AtlasOccurrence, type AtlasReadFailure, type AtlasRoom, type OverlayKind, type UnifiedAtlasPort } from './types';
 import { PublishedOverlayDetails, PublishedUnplacedBinding } from './PublishedOverlayDetails';
 import { atlasLevelName, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, labelHitWidth, visibleCountMarkers, visibleLabelHits, type CountMarker } from './labels';
 import { documentaryOverlayIndex, type BuildingCoverage, type DocumentaryRecord, type PropertyRecords, type SourceFact } from './runtime-overlays';
 import { edgeSpans, estimatedOccurrences, MEASUREMENT_BASIS, placeLabels, roomArea } from './measurements';
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
 import { NetworkGraph } from './NetworkGraph';
+import { AreaValue, PLAN_ORDER, PlanRoom, PlanTile, planTileLevels } from './plan-presentation';
 import '../canonical-ifc/canonical-ifc.css';
 import './unified-atlas.css';
 
@@ -177,7 +178,6 @@ const UNPLACED_LABEL: Record<UnplacedReason, string> = {
   'not-selectable': 'no selectable room part',
 };
 const LINK_LABEL = { reviewed: 'Linked to a home place', historical: 'Linked in an earlier review only', unmapped: 'Not linked to a home place yet' } as const;
-const PLAN_ORDER: Record<PlanRole, number> = { room: 0, stair: 1, wall: 2, opening: 3, context: 4 };
 const plural = (count: number, one: string, many = `${one}s`) => `${count.toLocaleString()} ${count === 1 ? one : many}`;
 const elevation = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(value)} m`;
 /** A UTC time as written, shortened to the minute for the stage; the exact value stays in Source. */
@@ -734,10 +734,9 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources }: {
   // One building chosen: the All buildings choice right below is the same step out, so Back would only repeat it.
   const showBack = backTo !== null && !(buildingNav && state.occurrenceId === null && state.levelId === null);
   // Other planned floors of the property as small plans beside the focus.
-  const tiles = useMemo(() => !plan ? [] : [...(ladderBuildingId === null ? [] : [ladderBuildingId]),
+  const tiles = useMemo(() => !plan ? [] : planTileLevels(model, [...(ladderBuildingId === null ? [] : [ladderBuildingId]),
     ...buildings.map(row => row.buildingId).filter(id => id !== ladderBuildingId)]
-    .flatMap(id => [...(model.levelsByBuilding.get(id) ?? [])].reverse())
-    .filter(level => model.plansByLevel.has(level.levelId) && !planned.has(level.levelId)), [plan, ladderBuildingId, buildings, model, planned]);
+    .flatMap(id => [...(model.levelsByBuilding.get(id) ?? [])].reverse()), planned), [plan, ladderBuildingId, buildings, model, planned]);
   const hasKeys = active.length > 0 || measuring;
   const keysCount = active.length + (measuring ? 1 : 0);
   // A fold whose content is gone closes, so it never reopens by itself later.
@@ -1113,63 +1112,6 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources }: {
 
 const stop = (event: ReactPointerEvent) => event.stopPropagation();
 
-function PlanRoom({ feature, path, pickable, selected, context, tints }: {
-  readonly feature: AtlasPlanFeature; readonly path: string; readonly pickable: boolean; readonly selected: string | null;
-  readonly context: readonly string[]; readonly tints: ReadonlyMap<string, string>;
-}) {
-  const key = feature.spaceOccurrenceId;
-  const tier = key === null ? ' is-display-only' : key === selected ? ' is-selected' : context.includes(key) ? ' is-context' : !pickable ? ' is-other' : '';
-  const tint = key !== null && (tier === '' || tier === ' is-other') ? tints.get(key) : undefined;
-  return <path d={path} fillRule="evenodd" vectorEffect="non-scaling-stroke"
-    className={`cifc-plan-space${tier}`} style={tint ? { fill: tint } as CSSProperties : undefined} />;
-}
-
-/** One other floor in its own frame: its authored plan, the active layers'
- * room counts and source positions on that floor only, and a way to go there. */
-function PlanTile({ model, level, layers, tints, selected, name, choose }: {
-  readonly model: AtlasModel; readonly level: AtlasLevel; readonly layers: readonly OverlayLayerIndex[];
-  readonly tints: ReadonlyMap<string, string>; readonly selected: string | null; readonly name: string; readonly choose: () => void;
-}) {
-  const W = 120, H = 84, PAD = 6;
-  const view = useMemo(() => {
-    const features = planFeaturesForLevel(model, level.levelId);
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    for (const feature of features) for (const ring of model.featureRings.get(feature.featureId)!)
-      for (const [x, z] of ring) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z); }
-    const center = [(minX + maxX) / 2, 0, (minZ + maxZ) / 2] as const;
-    const scale = Math.min((W - 2 * PAD) / Math.max(maxX - minX, 1e-3), (H - 2 * PAD) / Math.max(maxZ - minZ, 1e-3));
-    const ordered = features.map((feature, at) => ({ feature, at })).sort((a, b) => PLAN_ORDER[a.feature.role] - PLAN_ORDER[b.feature.role] || a.at - b.at);
-    return { center, scale, rows: ordered.map(({ feature }) => ({ feature, path: relativePath(model.featureRings.get(feature.featureId)!, center) })) };
-  }, [model, level.levelId]);
-  const own = new Set(level.occurrenceIds);
-  const counts = layers.map(layer => ({ kind: layer.kind, rooms: [...layer.placed.values()].filter(row => own.has(row.occurrenceId) && row.recordCount > 0) }));
-  const summary = counts.filter(row => row.rooms.length > 0)
-    .map(row => `${plural(row.rooms.reduce((sum, room) => sum + room.recordCount, 0), `${OVERLAY_LABEL[row.kind].toLowerCase()} record`)}`).join(', ');
-  const at = (x: number, z: number) => [(x - view.center[0]) * view.scale + W / 2, (z - view.center[2]) * view.scale + H / 2] as const;
-  return <button type="button" className="ua-tile" onClick={choose} aria-label={`Show ${name}${summary ? `: ${summary}` : ''}`}>
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
-      <g transform={`translate(${W / 2} ${H / 2}) scale(${view.scale})`}>
-        {view.rows.map(({ feature, path }) => feature.role === 'room'
-          ? <PlanRoom key={feature.featureId} feature={feature} path={path} pickable={false} selected={selected} context={[]} tints={tints} />
-          : <path key={feature.featureId} d={path} fillRule="evenodd" vectorEffect="non-scaling-stroke" className={`ua-plan-${feature.role}`} />)}
-      </g>
-      {counts.map(row => row.rooms.map(room => {
-        const point = model.labels.get(room.occurrenceId); if (!point) return null;
-        const [x, y] = at(point.x, point.z);
-        return <circle key={`${row.kind}:${room.occurrenceId}`} cx={x + (layers.length > 1 ? (row.kind === 'electrical' ? -3 : 3) : 0)} cy={y} r={3.5}
-          style={{ fill: badgeFill(row.kind) }} />;
-      }))}
-      {layers.map(layer => [...layer.placed.values()].flatMap(placement => placement.positions.filter(row => own.has(row.occurrenceId)).map((row, index) => {
-        const [x, y] = at(row.position[0], row.position[2]);
-        return <rect key={`${layer.kind}:${row.occurrenceId}:${index}`} x={x - 2.5} y={y - 2.5} width={5} height={5} transform={`rotate(45 ${x} ${y})`}
-          style={{ fill: TONE_COLOR[layer.kind] }} />;
-      })))}
-    </svg>
-    <span className="ua-tile-name">{name}</span>
-    {summary && <span className="ua-tile-sub">{summary}</span>}
-  </button>;
-}
-
 // ---------------------------------------------------------------------------
 
 /** Floors at their actual scene heights: spacing follows the lowest room
@@ -1304,7 +1246,7 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
       <dl className="ua-facts">
         <div><dt>Layout</dt><dd>{basis.kind === 'owner-estimated-pick-proxy' ? 'Estimated layout' : 'From the model'}</dd></div>
         <div><dt>Home place</dt><dd className={`ua-link is-${room.nativeBinding.status}`}>{runtime?.rooms.has(room.roomId) ? 'Linked for these sources' : room.nativeBinding.status === 'historical' ? 'Link needs review' : LINK_LABEL[room.nativeBinding.status]}</dd></div>
-        {state.layers.measurements && <div><dt>Area</dt><dd>{area ? `${area.text}${area.partial ? ', this part of the room' : ''}` : 'Not measured: estimated outline'}</dd></div>}
+        {state.layers.measurements && <div><dt>Area</dt><dd><AreaValue geometryBasis={basis} area={area} /></dd></div>}
       </dl>
       {state.layers.measurements && area && <section aria-label="Model outline dimensions" className="ua-records">
         <h3>Outline spans{area.partial ? ' for this room part' : ''}</h3>

@@ -1301,6 +1301,21 @@ retain both IDs/order, all rendered features, matching framing and plan picks.
 The backend owner separately confirmed this supported multiple-plan contract;
 the frontend check does not qualify backend admission of its fictional fixture.
 
+The same healthy runner statically renders the actual `NetworkGraph.tsx` and
+shared `plan-presentation.tsx` with the same locked React/ReactDOM instance.
+Generated device self-links, two owned endpoints of one device and an
+ownerless endpoint self-link retain their SVG loops and source totals; a
+record with no incident link remains in the isolated list. The CSS-only graph
+import has no server execution. An additive empty-floor publication goes
+through fresh pins, the production reader, standard loader and binder while
+retaining all existing occurrences, features, bindings and coverage. Its empty
+PlanTile renders nothing and is excluded from thumbnail counts, while the floor
+remains navigable and ordinary tiles retain their paths and overlay summaries.
+The shared AreaValue renders ordinary nullable source/estimated area values and
+numeric/partial values without changing the geometry basis. These are static
+React and CPU observations, not mounted focus, pointer, CSS, browser or device
+acceptance. They add no held control, source deletion or new verification command.
+
 The separate generated interaction positives use the production reader, standard
 GLB loader, reducer, projection, pointer factory and documentary index. Inspect
 `frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs`, its
@@ -1310,7 +1325,7 @@ GLB loader, reducer, projection, pointer factory and documentary index. Inspect
 node --test --test-concurrency=1 frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs
 ```
 
-Its twenty-three CPU cases cover repeated navigation, every declared selectable
+Its twenty-five CPU cases cover repeated navigation, every declared selectable
 occurrence, shared room identity, source-coordinate plans, normal overlay
 toggles, collapse-before-Plan selection, deterministic count touch-target
 suppression, complete label-action targets, source-qualified duplicate floor
@@ -1334,6 +1349,14 @@ release; these are simulated CPU events, not physical Mac gesture acceptance.
 Property projection positives retain distinct source identities, differing
 same-date observations and per-building coverage. These generated ordinary
 cases add no held lifecycle, malformed, denial or other control case.
+
+The interaction positives also retain an opaque foreground wall's floor target
+beside an exposed room interior. A generated CPU binding projection preserves
+the near-horizontal own-floor skin exception beyond ordinary depth tolerance
+and the floor target for an elevated opaque structure face; original source
+buffers remain unchanged. Null and unrecognized presentation entries retain
+the sole-building fallback, while a known context-only entry retains property
+scope. Existing opaque slab, underside and authored-roof cases remain in place.
 
 The `/lantern-tests/source-host-visual/` fixture keeps its default. With
 `?atlas=generated` it also mounts the unified Atlas through the production

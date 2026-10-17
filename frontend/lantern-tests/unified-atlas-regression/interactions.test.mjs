@@ -375,7 +375,46 @@ test('semantic ancestry survives every layer combination, view and explicit expl
   assert.equal(contextual.scene.buildings.length, 2);
   assert.equal(contextual.floorBuildings.length, 1);
   assert.equal(api.initialAtlasState(contextual).buildingId, 'single-building-0', 'an unconfigured entry retains the sole navigable building default');
+  assert.equal(api.initialAtlasState(contextual, null).buildingId, 'single-building-0');
+  assert.equal(api.initialAtlasState(contextual, 'generated-unrecognized-entry').buildingId, 'single-building-0', 'an unknown presentation entry retains the same sole-building default');
+  assert.equal(api.initialAtlasState(contextual, 'single-building-0').buildingId, 'single-building-0');
   assert.equal(api.initialAtlasState(contextual, 'single-context').buildingId, null, 'an admitted context-only entry retains property scope without substituting another building');
+  assert.equal(api.initialAtlasState(model, 'generated-unrecognized-entry').buildingId, null, 'multiple navigable buildings retain property scope');
+});
+
+test('a foreground wall keeps its floor target while the exposed interior remains a room', () => {
+  const state = reduce(initial(), level(G)), presentation = api.presentAtlas(model, state, empty);
+  const projection = api.makeProjection({ yaw: 0, pitch: 36, zoom: 1, panX: 0, panY: 0 },
+    api.frameBox(model, state, presentation), { width: 960, height: 640 }, 0);
+  const wall = projection.project(103.25, .6, 59);
+  assert.equal(api.pickOccurrenceHit(model, presentation, 0, projection, ...wall).occurrenceId, 'syn-occ-hall', 'the inset room proxy lies behind the drawn wall');
+  assert.deepEqual(api.pickTarget(model, presentation, state, 0, projection, ...wall), { kind: 'level', levelId: G });
+  const interior = projection.project(103.25, .6, 55);
+  assert.deepEqual(api.pickTarget(model, presentation, state, 0, projection, ...interior), { kind: 'room', occurrenceId: 'syn-occ-hall' });
+});
+
+test('a generated horizontal floor skin retains room access at its own floor height', () => {
+  // CPU binding projection, like the indexed triangle positive above. Original
+  // publication bytes and all existing source meshes remain unchanged.
+  const id = 'syn-occ-hall', floorY = model.floorY.get(G), before = model.meshes.map(mesh => mesh.vertices.slice());
+  const plane = (meshKey, y, occurrenceId) => api.prepareMeshes([{ meshKey, floorId: G, occurrenceId,
+    positions: new Float32Array([102.2, y, 52, 104.3, y, 52, 104.3, y, 58.8, 102.2, y, 58.8]),
+    indices: new Uint32Array([0, 1, 2, 0, 2, 3]) }])[0];
+  const base = model.pickParts.get(id)[0], proxy = { ...base, mesh: plane('generated-low-room', floorY, id) };
+  const state = reduce(initial(), level(G)), original = api.presentAtlas(model, state, empty);
+  const presentation = { ...original, hidden: new Set(), clips: new Map(), pickable: new Set([id]) };
+  const projection = api.makeProjection({ yaw: 0, pitch: 36, zoom: 1, panX: 0, panY: 0 },
+    api.frameBox(model, state, original), { width: 960, height: 640 }, 0);
+  for (const height of [.04, .2]) {
+    const skin = { ...base, occurrenceId: null, role: 'structure', mesh: plane(`generated-floor-skin-${height}`, floorY + height, null) };
+    const subject = { ...model, parts: [skin], pickParts: new Map([[id, [proxy]]]) };
+    const pixel = projection.project(103.25, floorY + height, 55), room = api.pickOccurrenceHit(subject, presentation, 0, projection, ...pixel);
+    assert.equal(room.occurrenceId, id);
+    assert.ok(pixel[2] - room.depth > api.PICK_DEPTH_TOLERANCE, 'the retained skin exemption is required beyond the ordinary depth tolerance');
+    assert.deepEqual(api.pickTarget(subject, presentation, state, 0, projection, ...pixel), height === .04
+      ? { kind: 'room', occurrenceId: id } : { kind: 'level', levelId: G });
+  }
+  model.meshes.forEach((mesh, at) => assert.deepEqual(mesh.vertices, before[at]));
 });
 
 test('an opaque upper slab takes its floor hit until the ordinary cutaway exposes the room beneath', () => {
