@@ -256,7 +256,7 @@ export function App() {
 
       <nav className="navrail" aria-label="Sections">
         {VIEWS.map((v) => (
-          <button key={v.id} type="button" className={`nav-btn${state.view === v.id ? ' is-current' : ''}`} aria-current={state.view === v.id ? 'page' : undefined} onClick={() => dispatch({ type: 'view', view: v.id })}>
+          <button key={v.id} type="button" className={`nav-btn${state.view === v.id ? ' is-current' : ''}`} aria-label={v.short ? v.label : undefined} aria-current={state.view === v.id ? 'page' : undefined} onClick={() => dispatch({ type: 'view', view: v.id })}>
             <Icon name={v.icon} size={20} />
             {v.short
               ? <span className="nav-label" data-short={v.short}><span className="nav-label-full">{v.label}</span></span>
