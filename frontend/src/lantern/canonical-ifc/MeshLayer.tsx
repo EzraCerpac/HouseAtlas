@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
-import { drawsFloor, type DrawRules, type PreparedMesh, type Projection } from './geometry';
+import { drawsFloor, sourceMeshColor, type DrawRules, type PreparedMesh, type Projection } from './geometry';
 
 interface Props {
   readonly meshes: readonly PreparedMesh[];
@@ -30,6 +30,9 @@ interface Props {
   readonly ghosts?: ReadonlyMap<string, number | null> | undefined;
   /** Colour overrides (hex); omitted entries keep the default tones. */
   readonly palette?: Partial<MeshPalette> | undefined;
+  /** Opt in to explicit core glTF linear base colours. Selection/overlay and
+   * cutaway presentation still take precedence; textures/PBR are not added. */
+  readonly sourceColors?: boolean | undefined;
   /** Share of the light every face keeps, 0–1; faces turned from the light get the rest by angle. */
   readonly ambient?: number | undefined;
   /** Opt-in architectural lighting of uncut back faces; other viewers retain cut tones. */
@@ -73,17 +76,20 @@ gl_Position=vec4(sx/viewport.x*2.0-1.0,1.0-sy/viewport.y*2.0,clamp(-d/frame.w,-1
 const fragmentSource = `precision highp float;
 uniform vec3 baseColor;uniform vec3 topColor;uniform vec3 cutColor;uniform float clipY;uniform float useClip;
 uniform float alpha;uniform float floorY;uniform float useFloor;uniform float ambient;uniform float twoSided;uniform vec3 shadeColor;
-uniform vec3 lightDir;uniform float usePitch;uniform vec3 pitchColor;
+uniform vec3 lightDir;uniform float usePitch;uniform vec3 pitchColor;uniform float useSourceColor;
 varying vec3 vNormal;varying float vY;
+vec3 displayColor(vec3 c){if(useSourceColor<0.5)return c;
+return mix(c*12.92,1.055*pow(max(c,vec3(0.0)),vec3(1.0/2.4))-0.055,step(vec3(0.0031308),c));}
 void main(){if(useClip>0.5&&vY>clipY)discard;if(useFloor>0.5&&vY<floorY)discard;
-if(!gl_FrontFacing&&alpha>0.99&&(twoSided<0.5||useClip>0.5)){gl_FragColor=vec4(cutColor,1.0);return;}
+if(!gl_FrontFacing&&alpha>0.99&&(twoSided<0.5||useClip>0.5)){gl_FragColor=vec4(displayColor(cutColor),1.0);return;}
 vec3 n=normalize(vNormal);if(twoSided>0.5&&!gl_FrontFacing)n=-n;
 float light=clamp(ambient+(1.0-ambient)*dot(n,lightDir),0.0,1.0);
 vec3 face=usePitch>0.5?(n.y>=0.97?topColor:mix(shadeColor,n.y>0.2?pitchColor:baseColor,light)):(n.y>0.8?topColor:mix(shadeColor,baseColor,light));
-gl_FragColor=vec4(face*alpha,alpha);}`;
+gl_FragColor=vec4(displayColor(face)*alpha,alpha);}`;
 
 type Rgb = [number, number, number];
 const rgb = (hex: string): Rgb => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255) as Rgb;
+const linearRgb = (color: Rgb): Rgb => color.map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4) as Rgb;
 const mix = (a: Rgb, b: Rgb, t: number) => a.map((v, i) => v + (b[i]! - v) * t) as Rgb;
 const REFERENCE = rgb('#C3CED6'), REFERENCE_TOP = rgb('#D7DFE4');
 const FIXED_LIGHT = ((x: number, y: number, z: number) => { const l = Math.hypot(x, y, z); return [x / l, y / l, z / l] as Rgb; })(-.45, .8, .55);
@@ -101,7 +107,7 @@ export function MeshLayer(props: Props) {
   const redraw = useRef<(() => void) | null>(null);
   useLayoutEffect(() => { redraw.current?.(); },
     [props.projection, props.rules, props.currentFloorId, props.selectedOccurrenceId, props.contextOccurrenceIds, props.tints, props.hidden, props.referenceKeys,
-      props.hiddenKeys, props.selectedKeys, props.lifts, props.clips, props.dims, props.ghosts, props.palette, props.ambient, props.twoSided, props.shade, props.light, props.pitch, props.pitchKeys, props.site, props.ghostAlpha]);
+      props.hiddenKeys, props.selectedKeys, props.lifts, props.clips, props.dims, props.ghosts, props.palette, props.sourceColors, props.ambient, props.twoSided, props.shade, props.light, props.pitch, props.pitchKeys, props.site, props.ghostAlpha]);
   useLayoutEffect(() => {
     const element = canvas.current; if (!element || props.meshes.length === 0) return;
     let creationReason = '';
@@ -176,9 +182,19 @@ export function MeshLayer(props: Props) {
           const clip = p.clips?.has(mesh.meshKey) ? p.clips.get(mesh.meshKey) ?? null : p.rules.clipY;
           gl.uniform1f(uniforms.useClip!, clip === null ? 0 : 1); gl.uniform1f(uniforms.clipY!, clip ?? 0);
           gl.uniform1f(uniforms.lift!, p.lifts?.get(mesh.meshKey) ?? 0);
+          const source = sourceMeshColor(mesh, { enabled: p.sourceColors, selected: p.selectedKeys?.has(mesh.meshKey) ?? false,
+            reference: kind === 'reference', selectedOccurrenceId: p.selectedOccurrenceId, contextOccurrenceIds: p.contextOccurrenceIds, tints: p.tints });
+          gl.uniform1f(uniforms.useSourceColor!, source ? 1 : 0);
           let top: Rgb, base: Rgb, cut: Rgb, pitch: Rgb | null = null, shade = SHADE;
           if (p.selectedKeys?.has(mesh.meshKey)) { top = LANTERN; base = LANTERN; cut = mix(LANTERN, CUT, .18); }
           else if (kind === 'reference') { top = REFERENCE_TOP; base = REFERENCE; cut = mix(REFERENCE, CUT, .3); }
+          else if (source) {
+            // Lighting and dimming stay linear; the shader encodes once at
+            // output. Authored grass/glazing/roof colours precede fallback
+            // site and pitch tones, without changing any geometry or picks.
+            top = mix([source[0], source[1], source[2]], linearRgb(PAPER), dim);
+            base = top; cut = mix(top, linearRgb(CUT), .18); shade = [0, 0, 0];
+          }
           else if (mesh.occurrenceId !== null) {
             const tint = mesh.occurrenceId === p.selectedOccurrenceId ? LANTERN : p.contextOccurrenceIds.includes(mesh.occurrenceId) ? CONTEXT
               : p.tints.has(mesh.occurrenceId) ? rgb(p.tints.get(mesh.occurrenceId)!) : ROOM;
@@ -207,7 +223,7 @@ export function MeshLayer(props: Props) {
         // An opt-in ghost opacity also keeps the ghost nearly flat, so stacked faded floors stay one quiet veil.
         const quiet = p.twoSided && p.ghostAlpha !== undefined;
         gl.uniform1f(uniforms.alpha!, quiet ? Math.min(1, Math.max(0, p.ghostAlpha!)) : GHOST_ALPHA);
-        gl.uniform1f(uniforms.useClip!, 0); gl.uniform1f(uniforms.usePitch!, 0); gl.uniform3f(uniforms.shadeColor!, ...(quiet ? mix(SHADE, GHOST, .8) : SHADE));
+        gl.uniform1f(uniforms.useClip!, 0); gl.uniform1f(uniforms.usePitch!, 0); gl.uniform1f(uniforms.useSourceColor!, 0); gl.uniform3f(uniforms.shadeColor!, ...(quiet ? mix(SHADE, GHOST, .8) : SHADE));
         gl.uniform3f(uniforms.topColor!, ...GHOST); gl.uniform3f(uniforms.baseColor!, ...GHOST); gl.uniform3f(uniforms.cutColor!, ...GHOST);
         for (const { mesh, buffer } of uploaded) {
           if (!p.ghosts.has(mesh.meshKey) || !drawsFloor(p.rules, mesh.floorId)) continue;
@@ -236,7 +252,7 @@ export function MeshLayer(props: Props) {
       gl.attachShader(program, compile(gl.VERTEX_SHADER, vertexSource)); gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragmentSource));
       gl.linkProgram(program); if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error('link');
       position = gl.getAttribLocation(program, 'position'); normal = gl.getAttribLocation(program, 'normal');
-      for (const name of ['rot', 'center', 'frame', 'viewport', 'lift', 'baseColor', 'topColor', 'cutColor', 'clipY', 'useClip', 'alpha', 'floorY', 'useFloor', 'ambient', 'twoSided', 'shadeColor', 'lightDir', 'usePitch', 'pitchColor'])
+      for (const name of ['rot', 'center', 'frame', 'viewport', 'lift', 'baseColor', 'topColor', 'cutColor', 'clipY', 'useClip', 'alpha', 'floorY', 'useFloor', 'ambient', 'twoSided', 'shadeColor', 'lightDir', 'usePitch', 'pitchColor', 'useSourceColor'])
         uniforms[name] = gl.getUniformLocation(program, name);
       if (position < 0 || normal < 0 || Object.values(uniforms).some(value => value === null)) throw new Error('inputs');
       for (const mesh of props.meshes) {

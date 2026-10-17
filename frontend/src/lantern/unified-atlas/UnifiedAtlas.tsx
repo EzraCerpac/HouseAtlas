@@ -123,17 +123,18 @@ export default function UnifiedAtlas({ port, onOpenModel, otherSources }: { read
 // ---------------------------------------------------------------------------
 
 const RULES: DrawRules = { visibleFloors: 'all', clipY: null };
-/** Lantern architecture as an axonometric drawing in four values on the birch
+/** Fallback architecture, when a primitive has no explicit source base colour,
+ * as an axonometric drawing in four values on the birch
  * board: white card walls in light, the walls turned away in warm umber, slopes
  * in a darker graphite and cuts in deep poché, with lantern-yellow selection.
  * Out-of-focus floors and neighbours step back toward a grey stone that stays
- * apart from the warm board. Presentation tones only: they tint whatever the
- * source geometry is, and a slope tone is the face's angle, never a material. */
+ * apart from the warm board. Explicit glTF colours take precedence over these
+ * presentation tones; selection and overlay highlights remain Lantern tones. */
 const ATLAS_MESH_PALETTE: Partial<MeshPalette> = {
   paper: '#BDB8AE', wall: CARD, top: '#ECDDBF', cut: '#5E5040', room: '#F3DFC0', selected: LANTERN, context: '#FBEFC8', ghost: '#E2D9C8',
 };
 const ATLAS_AMBIENT = .62, ATLAS_SHADE = '#4A3F33', ATLAS_PITCH = '#7C736C';
-/** Site terrain reads as part of the board, one flat birch tone with no
+/** Fallback terrain without an explicit source colour reads as part of the board, one flat birch tone with no
  * slope shading, so its facets never compete with the buildings; floors cut
  * away above the focus stay a faint outline. Presentation only. */
 const ATLAS_SITE = '#DCC593', ATLAS_GHOST_ALPHA = .08;
@@ -987,7 +988,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources }: {
         <div className="cifc-canvas-wrap" style={{ opacity: 1 - planBlend }}>
           <MeshLayer meshes={model.meshes} projection={projection} rules={RULES} currentFloorId={presentation.focusLevelId}
             selectedOccurrenceId={selected} contextOccurrenceIds={context} tints={tints} hidden={!showCanvas}
-            hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE} light={light} pitch={ATLAS_PITCH}
+            hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} sourceColors palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE} light={light} pitch={ATLAS_PITCH}
             pitchKeys={roofKeys} site={site} ghostAlpha={ATLAS_GHOST_ALPHA}
             onUnavailable={message => setFailure(message)} />
         </div>

@@ -46,7 +46,8 @@ const readerURL = await sourceURL('../integration/unified-atlas-reader.ts',
   { '../src/lantern/unified-atlas/scene': sceneURL, '../src/lantern/unified-atlas/types': typesURL });
 const syntheticURL = await sourceURL('./unified-atlas/synthetic-atlas.ts');
 
-const { makeProjection, pointInShape } = await import(geometryURL);
+const { makeProjection, pointInShape, sourceMeshColor } = await import(geometryURL);
+const { readGlbContainer } = await import(preflightURL);
 const { loadStandardGlb } = await import(standardURL);
 const scene = await import(sceneURL);
 const { readUnifiedAtlas } = await import(readerURL);
@@ -159,6 +160,85 @@ assert.deepEqual([0, 1, 2, 3, 4, 5].map(primitive => drawnAt(2, primitive).level
   ['syn-level-ground', 'syn-level-split', 'syn-level-upper', 'syn-level-ground', 'syn-level-ground+syn-level-upper', 'syn-level-split']);
 assert.equal(drawnAt(2, 4).levelId, null, 'the shared slab moves with no single level');
 assert.ok(model.parts.every(part => part.buildingId && Array.isArray(part.levelIds)), 'explicit building and level membership on every part');
+
+// A complete valid generated colour publication keeps the same geometry and
+// selectors, with its own model and companion pins. Reuse the generated BIN
+// unchanged while declaring opaque core materials in its glTF JSON.
+const colourFactors = [[.25, .5, .75, 1], [.625, .125, .375, 1]];
+const colourContainer = readGlbContainer(glb);
+assert.ok(colourContainer.bin);
+const colourJson = { ...colourContainer.json,
+  materials: [...colourFactors.map(baseColorFactor => ({ pbrMetallicRoughness: { baseColorFactor, metallicFactor: 0, roughnessFactor: 1 } })),
+    { pbrMetallicRoughness: { metallicFactor: 0, roughnessFactor: 1 } }],
+  meshes: colourContainer.json.meshes.map(mesh => ({ ...mesh,
+    primitives: mesh.primitives.map((primitive, at) => ({ ...primitive, material: (at + 1) % 3 })) })),
+};
+const colourJsonBefore = JSON.stringify(colourJson), colourText = new TextEncoder().encode(colourJsonBefore);
+const paddedLength = size => (size + 3) & ~3;
+const colourJsonLength = paddedLength(colourText.byteLength), colourBinLength = paddedLength(colourContainer.bin.byteLength);
+const colourGlb = new Uint8Array(28 + colourJsonLength + colourBinLength), colourView = new DataView(colourGlb.buffer);
+colourView.setUint32(0, 0x46546c67, true); colourView.setUint32(4, 2, true); colourView.setUint32(8, colourGlb.byteLength, true);
+colourView.setUint32(12, colourJsonLength, true); colourView.setUint32(16, 0x4e4f534a, true);
+colourGlb.set(colourText, 20); colourGlb.fill(0x20, 20 + colourText.byteLength, 20 + colourJsonLength);
+colourView.setUint32(20 + colourJsonLength, colourBinLength, true); colourView.setUint32(24 + colourJsonLength, 0x004e4942, true);
+colourGlb.set(colourContainer.bin, 28 + colourJsonLength);
+const colourCompanion = JSON.parse(new TextDecoder().decode(companionBytes));
+colourCompanion.original = { sha256: createHash('sha256').update(colourGlb).digest('hex'), bytes: colourGlb.byteLength };
+const colourCompanionBytes = new TextEncoder().encode(JSON.stringify(colourCompanion));
+const colourEnvelope = await composeAtlasEnvelope(colourCompanionBytes, colourGlb, SYNTHETIC_ATLAS.revision);
+const colourCalls = [], colourBytesBefore = colourGlb.slice();
+const colourRead = await readUnifiedAtlas({ selection: { ...selection, manifestSha256: colourEnvelope.manifestSha256 },
+  signal: new AbortController().signal, origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true,
+  transport: createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(scope), envelopeBytes: colourEnvelope.envelopeBytes,
+    href: colourEnvelope.href, glb: colourGlb, sha256: colourEnvelope.sha256, manifestSha256: colourEnvelope.manifestSha256,
+    revision: SYNTHETIC_ATLAS.revision, onRequest: url => colourCalls.push(url) }) });
+assert.deepEqual(colourCalls, [`${SYNTHETIC_ATLAS.origin}${atlasScenePath(scope)}?expectedManifestSha256=${colourEnvelope.manifestSha256}`,
+  `${SYNTHETIC_ATLAS.origin}${colourEnvelope.href}`], 'the colour publication reads only its exact scene and pinned model');
+assert.deepEqual(Buffer.from(colourRead.model), Buffer.from(colourGlb));
+assert.equal(colourRead.scene.publication.semanticsSha256, createHash('sha256').update(colourCompanionBytes).digest('hex'));
+assert.notEqual(colourEnvelope.sha256, composed.sha256);
+assert.notEqual(colourEnvelope.manifestSha256, composed.manifestSha256);
+const colourLoaded = await loadStandardGlb(colourRead.model, 'atlas', new AbortController().signal);
+const colourModel = bindAtlasModel(colourRead.scene, colourLoaded);
+assert.deepEqual(colourLoaded.drawn, loaded.drawn, 'authored colours retain every node/mesh/primitive selector and draw order');
+assert.deepEqual(colourLoaded.counts, loaded.counts); assert.deepEqual(colourLoaded.work, loaded.work);
+colourLoaded.meshes.forEach((mesh, at) => {
+  const expected = [colourFactors[1], undefined, colourFactors[0]][colourLoaded.drawn[at].primitiveIndex % 3];
+  assert.deepEqual(mesh.sourceBaseColor, expected, 'the exact primitive material supplies its raw linear RGBA factor');
+  if (expected) assert.equal(Object.isFrozen(mesh.sourceBaseColor), true);
+  assert.equal(loaded.meshes[at].sourceBaseColor, undefined, 'the existing no-material publication keeps its palette');
+  assert.deepEqual(mesh.vertices, loaded.meshes[at].vertices);
+  assert.deepEqual(mesh.bounds, loaded.meshes[at].bounds); assert.deepEqual(mesh.yRange, loaded.meshes[at].yRange);
+  assert.equal(mesh.triangles, loaded.meshes[at].triangles); assert.equal(mesh.vertices.byteLength, mesh.triangles * 72);
+  const part = colourModel.parts[at], original = model.parts[at];
+  assert.equal(part.mesh.sourceBaseColor, mesh.sourceBaseColor, 'the binder retains the same immutable factor');
+  assert.equal(part.mesh.vertices, mesh.vertices, 'binding does not rebuild colour or geometry buffers');
+  assert.deepEqual([part.role, part.buildingId, part.levelIds, part.levelId, part.occurrenceId],
+    [original.role, original.buildingId, original.levelIds, original.levelId, original.occurrenceId]);
+});
+const colourAt = (node, primitive) => colourModel.parts[colourLoaded.drawn.findIndex(row => row.nodeIndex === node && row.primitiveIndex === primitive)];
+assert.deepEqual([0, 1, 2, 3, 4, 5].map(primitive => colourAt(2, primitive).mesh.sourceBaseColor),
+  [colourFactors[1], undefined, colourFactors[0], colourFactors[1], undefined, colourFactors[0]]);
+assert.deepEqual([colourAt(5, 0).mesh.sourceBaseColor, colourAt(9, 0).mesh.sourceBaseColor], [colourFactors[1], colourFactors[1]],
+  'both transformed uses of the shared lamp retain its own primitive material');
+const colourState = { enabled: true, selected: false, reference: false,
+  selectedOccurrenceId: null, contextOccurrenceIds: [], tints: new Map() };
+const colourHall = colourModel.pickParts.get('syn-occ-hall')[0].mesh;
+for (const mesh of [colourHall, colourAt(3, 0).mesh, colourAt(5, 0).mesh, colourAt(10, 0).mesh]) {
+  assert.deepEqual(mesh.sourceBaseColor, colourFactors[1]);
+  assert.equal(sourceMeshColor(mesh, colourState), mesh.sourceBaseColor, 'normal room, roof and context appearance uses source colour before fallback tones');
+  for (const enabled of [false, undefined]) assert.equal(sourceMeshColor(mesh, { ...colourState, enabled }), undefined);
+  assert.equal(sourceMeshColor(mesh, { ...colourState, selected: true }), undefined, 'explicit mesh selection wins');
+  assert.equal(sourceMeshColor(mesh, { ...colourState, reference: true }), undefined, 'reference presentation wins');
+}
+assert.equal(sourceMeshColor(colourAt(2, 1).mesh, colourState), undefined, 'a valid material without an explicit factor uses the palette');
+for (const highlight of [{ selectedOccurrenceId: 'syn-occ-hall' }, { contextOccurrenceIds: ['syn-occ-hall'] },
+  { tints: new Map([['syn-occ-hall', '#5382A6']]) }])
+  assert.equal(sourceMeshColor(colourHall, { ...colourState, ...highlight }), undefined, 'selected, related and overlay room highlights each win');
+for (const elsewhere of [{ selectedOccurrenceId: 'syn-occ-living' }, { contextOccurrenceIds: ['syn-occ-living'] },
+  { tints: new Map([['syn-occ-living', '#5382A6']]) }])
+  assert.equal(sourceMeshColor(colourHall, { ...colourState, ...elsewhere }), colourHall.sourceBaseColor, 'another room highlight never suppresses this source colour');
+assert.deepEqual(colourGlb, colourBytesBefore); assert.equal(JSON.stringify(colourJson), colourJsonBefore);
 
 // Split levels in actual height order, whatever the listed order.
 assert.deepEqual(model.levelsByBuilding.get('syn-building-house').map(level => level.levelId), ['syn-level-ground', 'syn-level-split', 'syn-level-upper']);

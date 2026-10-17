@@ -33,6 +33,14 @@ admission, cancellation and artifact/manifest refusal controls. The default
 mixed runner is not the ordinary command; this selection grants no permission
 to execute held controls and changes no CI workflow.
 
+The same `--healthy` command loads valid generated opaque core glTF materials
+on a multi-primitive mesh reused by two nodes. It checks exact primitive colour
+selectors, immutable linear RGBA factors, unchanged geometry and vertex bytes,
+and palette fallback without an explicit factor. It also calls the production
+source-colour resolver with opt-out, selection and reference presentation states.
+These CPU positives do not establish shader output, GPU colour accuracy, PBR,
+textures, vertex colours or source transparency; they add no held control case.
+
 The persistent scan-cache check uses the actual native geometry reader, mesh
 parser and IndexedDB adapter with a synthetic IndexedDB model and an owned
 numeric loopback HTTP listener. Fresh module, client and cache instances stand
@@ -1237,6 +1245,18 @@ GPU, listener, native host, credentials, household input or provider. It adds
 no malformed, denial, replay, expiry, crash or private-intake case. Its
 generated geometry does not establish real publication coverage, layout,
 rendering or device behavior.
+
+The same named command reads a separately pinned valid generated source-colour
+publication through the existing fake transport, standard loader and binder.
+Distinct opaque core `baseColorFactor` values survive multi-primitive selectors
+and reused nodes as immutable linear metadata, with identical vertices, bounds,
+draw order and semantic memberships. It exercises the production `sourceMeshColor`
+resolver used by `MeshLayer`: source colours precede normal room, roof and site
+fallback tones; opt-out, explicit mesh selection, reference, selected room,
+related-room context and overlay highlights retain precedence. Other rooms'
+highlights preserve the source colour. This checks CPU data and routing only;
+shader encoding, rendered pixels, PBR and transparency remain separate evidence.
+It introduces no malformed, refusal, lifecycle or held omission case.
 
 The named `node frontend/lantern-tests/unified-atlas-healthy.mjs` also checks
 normal generated pointer tap/drag, viewport capture handoff, descendant-to-viewport
