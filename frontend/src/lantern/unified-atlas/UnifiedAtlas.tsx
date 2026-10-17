@@ -138,6 +138,10 @@ const ATLAS_AMBIENT = .62, ATLAS_SHADE = '#4A3F33', ATLAS_PITCH = '#7C736C';
  * slope shading, so its facets never compete with the buildings; floors cut
  * away above the focus stay a faint outline. Presentation only. */
 const ATLAS_SITE = '#DCC593', ATLAS_GHOST_ALPHA = .08;
+/** Authored materials step back at under half the fallback dimming: context
+ * grass stays green, the fence and glazing stay dark, and neighbours keep
+ * their own colours, while the focused building alone is at full strength. */
+const ATLAS_SOURCE_DIM = .45;
 /** The light stands to the viewer's upper left, a little toward them, and turns
  * with the camera: of the two wall planes in view one is always lit and one in
  * shade, at every orbit. Shares across, toward the viewer and up. */
@@ -988,7 +992,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources }: {
         <div className="cifc-canvas-wrap" style={{ opacity: 1 - planBlend }}>
           <MeshLayer meshes={model.meshes} projection={projection} rules={RULES} currentFloorId={presentation.focusLevelId}
             selectedOccurrenceId={selected} contextOccurrenceIds={context} tints={tints} hidden={!showCanvas}
-            hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} sourceColors palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE} light={light} pitch={ATLAS_PITCH}
+            hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} sourceColors sourceDim={ATLAS_SOURCE_DIM} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE} light={light} pitch={ATLAS_PITCH}
             pitchKeys={roofKeys} site={site} ghostAlpha={ATLAS_GHOST_ALPHA}
             onUnavailable={message => setFailure(message)} />
         </div>

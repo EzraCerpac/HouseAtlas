@@ -33,6 +33,10 @@ interface Props {
   /** Opt in to explicit core glTF linear base colours. Selection/overlay and
    * cutaway presentation still take precedence; textures/PBR are not added. */
   readonly sourceColors?: boolean | undefined;
+  /** With sourceColors only: share (0–1) of a mesh's dimming applied to its
+   * source colour, so context steps back while keeping its material hue.
+   * Default 1, the full dimming of the fallback tones. */
+  readonly sourceDim?: number | undefined;
   /** Share of the light every face keeps, 0–1; faces turned from the light get the rest by angle. */
   readonly ambient?: number | undefined;
   /** Opt-in architectural lighting of uncut back faces; other viewers retain cut tones. */
@@ -107,7 +111,7 @@ export function MeshLayer(props: Props) {
   const redraw = useRef<(() => void) | null>(null);
   useLayoutEffect(() => { redraw.current?.(); },
     [props.projection, props.rules, props.currentFloorId, props.selectedOccurrenceId, props.contextOccurrenceIds, props.tints, props.hidden, props.referenceKeys,
-      props.hiddenKeys, props.selectedKeys, props.lifts, props.clips, props.dims, props.ghosts, props.palette, props.sourceColors, props.ambient, props.twoSided, props.shade, props.light, props.pitch, props.pitchKeys, props.site, props.ghostAlpha]);
+      props.hiddenKeys, props.selectedKeys, props.lifts, props.clips, props.dims, props.ghosts, props.palette, props.sourceColors, props.sourceDim, props.ambient, props.twoSided, props.shade, props.light, props.pitch, props.pitchKeys, props.site, props.ghostAlpha]);
   useLayoutEffect(() => {
     const element = canvas.current; if (!element || props.meshes.length === 0) return;
     let creationReason = '';
@@ -172,6 +176,7 @@ export function MeshLayer(props: Props) {
       const PITCH = p.twoSided && p.pitch ? rgb(p.pitch) : null;
       const SITE = p.twoSided && p.site ? rgb(p.site.tone) : null;
       const { PAPER, WALL, TOP, CUT, ROOM, LANTERN, CONTEXT, GHOST } = tones(p.palette);
+      const SOURCE_DIM = Math.min(1, Math.max(0, p.sourceDim ?? 1));
       for (const pass of ['reference', 'unbound', 'bound'] as const) {
         if (pass === 'unbound') gl.disable(gl.POLYGON_OFFSET_FILL);
         else { gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(pass === 'bound' ? -2 : 2, pass === 'bound' ? -2 : 2); }
@@ -192,7 +197,8 @@ export function MeshLayer(props: Props) {
             // Lighting and dimming stay linear; the shader encodes once at
             // output. Authored grass/glazing/roof colours precede fallback
             // site and pitch tones, without changing any geometry or picks.
-            top = mix([source[0], source[1], source[2]], linearRgb(PAPER), dim);
+            // An opt-in share keeps dimmed context in its own hue.
+            top = mix([source[0], source[1], source[2]], linearRgb(PAPER), dim * SOURCE_DIM);
             base = top; cut = mix(top, linearRgb(CUT), .18); shade = [0, 0, 0];
           }
           else if (mesh.occurrenceId !== null) {
