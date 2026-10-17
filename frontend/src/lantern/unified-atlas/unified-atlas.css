@@ -1247,11 +1247,17 @@
   margin: 0;
 }
 
-.lantern-host .ua-facts > div,
-.lantern-host .ua-source dl > div {
+.lantern-host .ua-facts > div {
   display: grid;
   grid-template-columns: 92px minmax(0, 1fr);
   gap: 8px;
+}
+
+/* Source facts stack, label over value, so long provenance reads at the
+   panel's full width instead of a narrow ragged column. */
+.lantern-host .ua-source dl > div {
+  display: grid;
+  gap: 1px;
 }
 
 .lantern-host .ua-facts dt,
@@ -1336,12 +1342,17 @@
 
 .lantern-host .ua-source dl {
   display: grid;
-  gap: 6px;
+  gap: 10px;
   margin: 8px 0 0;
   font-size: var(--fs-xs);
+  line-height: 1.4;
 }
 
+.lantern-host .ua-source dd { color: var(--ink-2); }
 .lantern-host .ua-source ul { margin: 0; padding-left: 16px; }
+.lantern-host .ua-source li + li { margin-top: 5px; }
+/* Source identifiers stay whole and legible, one step below the values. */
+.lantern-host .ua-source dd code { color: var(--muted); }
 
 .lantern-host .ua-rooms {
   display: grid;
@@ -1427,6 +1438,61 @@
 }
 
 @keyframes ua-spin { to { transform: rotate(360deg); } }
+
+/* ---- Wide stages: quiet margins around the architecture ------------------ */
+
+/* The model is the figure; the controls are its title block and margin
+   notes. Ink marks how the model is seen (3D or Plan); lantern marks what is
+   chosen. Floating paper keeps only a contact shadow. */
+@container ua-stage (min-width: 721px) {
+  .lantern-host .ua-scope,
+  .lantern-host .ua-tools,
+  .lantern-host .ua-bottom {
+    --ua-shadow: 0 1px 2px rgba(64, 46, 16, 0.1), 0 8px 18px -14px rgba(64, 46, 16, 0.5);
+  }
+
+  /* Buildings and their floors read as one title block, property to
+     building to floor, divided by a hairline. */
+  .lantern-host .ua-buildings:has(+ .ua-ladder) {
+    border-bottom: 0;
+    border-radius: var(--r-panel) var(--r-panel) 0 0;
+    box-shadow: 0 1px 2px rgba(64, 46, 16, 0.08);
+  }
+
+  .lantern-host .ua-buildings + .ua-ladder {
+    margin-top: -8px;
+    border-top-color: var(--hair);
+    border-radius: 0 0 var(--r-panel) var(--r-panel);
+  }
+
+  /* The chosen building is lifted paper with a lantern edge, the same mark
+     as the chosen floor below it, so the path reads down the block. */
+  .lantern-host .ua-buildings .chip-btn { position: relative; }
+
+  .lantern-host .ua-buildings .chip-btn[aria-pressed='true'],
+  .lantern-host .ua-buildings .chip-btn[aria-pressed='true']:hover:not(:disabled) {
+    background: #fff;
+    color: var(--ink);
+    font-weight: 650;
+    box-shadow: inset 0 0 0 1px var(--hair-2), 0 6px 14px -10px rgba(64, 46, 16, 0.6);
+  }
+
+  .lantern-host .ua-buildings .chip-btn[aria-pressed='true']::after {
+    content: '';
+    position: absolute;
+    left: -3px;
+    top: 9px;
+    bottom: 9px;
+    width: 4px;
+    border-radius: 2px;
+    background: var(--lantern-edge);
+  }
+
+  .lantern-host .ua-buildings .chip-btn[aria-pressed='true'] > svg { color: var(--ink); }
+
+  /* Without floors to choose, "All floors" is a plain muted row, not an empty field. */
+  .lantern-host .ua-rung-all:disabled { box-shadow: none; }
+}
 
 /* ---- Room panel as a sheet ----------------------------------------------- */
 
@@ -1544,9 +1610,39 @@
   .lantern-host .ua-sheet-body { padding: 12px 16px 18px; }
   .lantern-host .ua-inspector h2 { font-size: var(--fs-l); }
 
+  /* The room's tag at the plan's scale: the same lantern mark, one size down,
+     so the sheet head does not outweigh the room it names. */
+  .lantern-host .ua-inspector.is-room h2 {
+    padding: 1px 8px;
+    margin-left: -8px;
+    font-size: 16.5px;
+    line-height: 1.25;
+    box-shadow: inset 0 -2px 0 var(--lantern-edge);
+  }
+
   /* Down to the sheet head; the narrow-stage rules below lay out its content. */
   .lantern-host .ua-bottom { bottom: calc(var(--ua-peek) + 8px); }
   .lantern-host .ua-graph { inset: 6px; }
+}
+
+/* Smallest phones: the sheet toggle is its chevron alone, its name kept for
+   assistive tech, so the room's name holds one line beside it. */
+@container ua (max-width: 360px) {
+  .lantern-host .ua-sheet-toggle {
+    position: relative;
+    justify-content: center;
+    width: 40px;
+    padding: 0;
+  }
+
+  .lantern-host .ua-sheet-toggle > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 
 /* ---- Narrow stages: controls in rows above the model ---------------------- */
@@ -1995,4 +2091,34 @@
   .lantern-host .ua-graph-open,
   .lantern-host .ua-buildings .chip-btn { transition: none; }
   .lantern-host .ua-tile:hover { transform: none; }
+}
+
+/* Forced colours drop the paper and lantern fills. The chosen building and
+   floor keep their edge bar in a system colour; keyboard focus stays a
+   separate ring drawn inside the row, so scrolling lists never clip it and
+   it never replaces the selection mark. */
+@media (forced-colors: active) {
+  .lantern-host .ua-buildings .chip-btn[aria-pressed='true'] { position: relative; }
+
+  .lantern-host .ua-buildings .chip-btn[aria-pressed='true']::after {
+    content: '';
+    position: absolute;
+    left: -3px;
+    top: 9px;
+    bottom: 9px;
+    width: 4px;
+    border-radius: 2px;
+  }
+
+  .lantern-host .ua-buildings .chip-btn[aria-pressed='true']::after,
+  .lantern-host .ua-rung.is-current::after {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+
+  .lantern-host .ua-buildings .chip-btn:focus-visible,
+  .lantern-host .ua-rung:focus-visible {
+    outline: 3px solid Highlight;
+    outline-offset: -3px;
+  }
 }

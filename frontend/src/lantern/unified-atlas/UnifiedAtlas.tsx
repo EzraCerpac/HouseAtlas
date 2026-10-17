@@ -136,8 +136,10 @@ const ATLAS_MESH_PALETTE: Partial<MeshPalette> = {
 const ATLAS_AMBIENT = .62, ATLAS_SHADE = '#4A3F33', ATLAS_PITCH = '#7C736C';
 /** Fallback terrain without an explicit source colour reads as part of the board, one flat birch tone with no
  * slope shading, so its facets never compete with the buildings; floors cut
- * away above the focus stay a faint outline. Presentation only. */
-const ATLAS_SITE = '#DCC593', ATLAS_GHOST_ALPHA = .08;
+ * away above the focus stay a faint outline; their faces add up where they
+ * overlap, so each stays light enough that stacked walls never haze the
+ * floor below. Presentation only. */
+const ATLAS_SITE = '#DCC593', ATLAS_GHOST_ALPHA = .05;
 /** Authored materials step back at under half the fallback dimming: context
  * grass stays green, the fence and glazing stay dark, and neighbours keep
  * their own colours, while the focused building alone is at full strength. */
