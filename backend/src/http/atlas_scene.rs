@@ -36,12 +36,16 @@ pub(super) async fn descriptor(
     tokio::task::spawn_blocking(move||{
         let _permit=headers.admission_permit()?;let scope=d::Scope{workspace_id,home_id};
         authorized_read_phased(&host,&headers,&uri,&method,(Some(scope.clone()),false),|_,_,_|Ok(()),|(),_|{
-            let (scene,overview)=selected(&host,&scope)?;if uri.query().is_some(){return Err(failure(StatusCode::NOT_FOUND));}
+            let (scene,overview)=selected(&host,&scope)?;
+            let manifest_sha256=overview.manifest_sha256.clone();
+            let expected_query=format!("expectedManifestSha256={manifest_sha256}");
+            if uri.query().is_some_and(|query|query!=expected_query){return Err(failure(StatusCode::CONFLICT));}
             let revision=scene.revision.clone();overview.read_original().map_err(|_|failure(StatusCode::CONFLICT))?;
             let p=&scene.value;let mut wire=json!({"profile":"houseatlas.unified-atlas-scene.v1","scope":p["scope"],"selection":{"revision":revision,"publicationId":p["publicationId"]},"publication":{"publicationId":p["publicationId"],"sourceRevisionId":p["sourceRevisionId"],"sourceSha256":p["sourceSha256"],"semanticsSha256":scene.semantics_sha256},"artifacts":[{"artifactId":"model","role":"model","contentType":"model/gltf-binary","bytes":overview.manifest.original.bytes,"sha256":overview.manifest.original.sha256,"href":format!("/api/atlas/models/v1/workspaces/{}/homes/{}/atlas/{}/artifacts/model?expectedSha256={}&expectedSelectionRevision={}",scope.workspace_id,scope.home_id,overview.manifest.publication_id,overview.manifest.original.sha256,revision)}]});
             for key in ["frame","buildings","levels","rooms","occurrences","meshBindings","plans","overlayBindings","coverage"] {wire[key]=p[key].clone();}
-            let (current,_)=selected(&host,&scope)?;if current.revision!=revision{return Err(failure(StatusCode::CONFLICT));}
-            let mut response=json_response(wire);response.headers_mut().insert("x-atlas-selection-revision",header::HeaderValue::from_str(&revision).map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE))?);Ok(response)
+            let (current,current_overview)=selected(&host,&scope)?;if current.revision!=revision||current_overview.manifest_sha256!=manifest_sha256{return Err(failure(StatusCode::CONFLICT));}
+            let mut response=json_response(wire);response.headers_mut().insert("x-atlas-selection-revision",header::HeaderValue::from_str(&revision).map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE))?);
+            response.headers_mut().insert("x-atlas-overview-manifest-sha256",header::HeaderValue::from_str(&manifest_sha256).map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE))?);Ok(response)
         })
     }).await.map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE))?
 }

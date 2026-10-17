@@ -1366,7 +1366,8 @@ state and a fresh actual password-free session; no listener or provider runs.
 The source has one building, two levels, a logical room occurring on both,
 three actual cube pick meshes and matching inline plans, including an explicitly
 estimated proxy. It checks authenticated current/scoped availability, exact
-publication/selection and semantic facts, repeated Media-authorized pinned GLB
+publication/selection and semantic facts, the expected overview-manifest query
+and checked digest echo, identical legacy no-query descriptor bytes, repeated Media-authorized pinned GLB
 GETs/digests/headers, and unchanged overview/config/receipt/source bytes. Positive
 source cases include reflected pick geometry, a nonnegative alpha cutoff above
 one and an unused indexed vertex below the drawn support plane.

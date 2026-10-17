@@ -149,10 +149,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         id(2),
         id(3)
     );
-    let response = app.clone().oneshot(get(&path)).await?;
+    let pinned_path = format!("{path}?expectedManifestSha256={}", sha(&manifest));
+    let response = app.clone().oneshot(get(&pinned_path)).await?;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()["cache-control"], "private, no-store");
     assert_eq!(response.headers()["x-content-type-options"], "nosniff");
+    assert_eq!(
+        response.headers()["x-atlas-overview-manifest-sha256"],
+        sha(&manifest)
+    );
     let revision = response.headers()["x-atlas-selection-revision"]
         .to_str()?
         .to_owned();
@@ -228,6 +233,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         );
     }
     let response = app.clone().oneshot(get(&path)).await?;
+    assert_eq!(
+        response.headers()["x-atlas-overview-manifest-sha256"],
+        sha(&manifest)
+    );
     assert_eq!(to_bytes(response.into_body(), 1024 * 1024).await?, bytes);
     let overview_path = format!(
         "/api/atlas/models/v1/workspaces/{}/homes/{}/overview",
