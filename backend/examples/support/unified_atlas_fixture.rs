@@ -26,6 +26,11 @@ pub fn generate(scope: Value, publication_id: String) -> (Vec<u8>, Vec<u8>, Vec<
         binary.extend(i.to_le_bytes());
     }
     let mut document = json!({"asset":{"version":"2.0","generator":"HouseAtlas anonymous unified scene fixture"},"scene":0,"scenes":[{"nodes":[0,1,2,3,4]}],"nodes":[{"mesh":0},{"mesh":0,"translation":[2,0,0]},{"mesh":0,"translation":[0,2,0]},{"mesh":0,"scale":[1,3,1]},{"mesh":0,"translation":[1,0,0]}],"meshes":[{"primitives":[{"attributes":{"POSITION":0,"NORMAL":1},"indices":2,"material":0}]}],"materials":[{"doubleSided":true,"pbrMetallicRoughness":{"baseColorFactor":[0.65,0.75,0.85,1],"metallicFactor":0,"roughnessFactor":1}}],"buffers":[{"byteLength":binary.len()}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":96},{"buffer":0,"byteOffset":96,"byteLength":96},{"buffer":0,"byteOffset":192,"byteLength":72}],"accessors":[{"bufferView":0,"componentType":5126,"count":8,"type":"VEC3","min":[0,0,0],"max":[1,1,1]},{"bufferView":1,"componentType":5126,"count":8,"type":"VEC3"},{"bufferView":2,"componentType":5123,"count":36,"type":"SCALAR"}]});
+    // A valid reflection retains the same [2,3] world-X footprint after the
+    // renderer's determinant-based winding correction. Cutoff above one is
+    // valid core material data and has no effect under the default OPAQUE mode.
+    document["nodes"][1] = json!({"mesh":0,"translation":[3,0,0],"scale":[-1,1,1]});
+    document["materials"][0]["alphaCutoff"] = json!(2.0);
     // One generated concave horizontal room with an interior courtyard hole.
     // Grid cells also exercise collinear subdivisions in the mesh boundary.
     let axis = [0.0f32, 0.125, 0.375, 0.5, 0.500001, 1.0];
@@ -48,6 +53,9 @@ pub fn generate(scope: Value, publication_id: String) -> (Vec<u8>, Vec<u8>, Vec<
             courtyard_indices.extend([first, first + 1, first + 2, first, first + 2, first + 3]);
         }
     }
+    // A valid unused indexed vertex is inside the declared source bounds but
+    // below the drawn support plane. Prepared geometry ignores it for yRange.
+    courtyard_positions.extend([0., -0.125, 0.]);
     let position_offset = binary.len();
     for value in &courtyard_positions {
         binary.extend(value.to_le_bytes());
@@ -83,7 +91,7 @@ pub fn generate(scope: Value, publication_id: String) -> (Vec<u8>, Vec<u8>, Vec<
         document["bufferViews"].as_array_mut().unwrap().push(view);
     }
     for accessor in [
-        json!({"bufferView":3,"componentType":5126,"count":courtyard_positions.len()/3,"type":"VEC3","min":[0,0,0],"max":[1,0,1]}),
+        json!({"bufferView":3,"componentType":5126,"count":courtyard_positions.len()/3,"type":"VEC3","min":[0,-0.125,0],"max":[1,0,1]}),
         json!({"bufferView":4,"componentType":5126,"count":courtyard_positions.len()/3,"type":"VEC3"}),
         json!({"bufferView":5,"componentType":5123,"count":courtyard_indices.len(),"type":"SCALAR"}),
     ] {
@@ -133,7 +141,7 @@ pub fn generate(scope: Value, publication_id: String) -> (Vec<u8>, Vec<u8>, Vec<
     }
     bindings.push(json!({"artifactId":"model","nodeIndex":3,"meshIndex":0,"primitiveIndices":[0],"buildingId":"building-main","levelIds":["lower","upper"],"spaceOccurrenceId":null,"role":"structure"}));
     bindings.push(json!({"artifactId":"model","nodeIndex":4,"meshIndex":0,"primitiveIndices":[0],"buildingId":"building-main","levelIds":["lower"],"spaceOccurrenceId":null,"role":"slab"}));
-    occurrences.push(json!({"spaceOccurrenceId":"courtyard-upper","roomId":"courtyard-room","buildingId":"building-main","levelId":"upper","bounds":{"min":[2,2,0],"max":[3,2,1]},"planFeatureIds":["plan-courtyard"],"geometryBasis":{"kind":"source-model","sourceRef":null,"note":null}}));
+    occurrences.push(json!({"spaceOccurrenceId":"courtyard-upper","roomId":"courtyard-room","buildingId":"building-main","levelId":"upper","bounds":{"min":[2,1.875,0],"max":[3,2,1]},"planFeatureIds":["plan-courtyard"],"geometryBasis":{"kind":"source-model","sourceRef":null,"note":null}}));
     bindings.push(json!({"artifactId":"model","nodeIndex":5,"meshIndex":1,"primitiveIndices":[0],"buildingId":"building-main","levelIds":["upper"],"spaceOccurrenceId":"courtyard-upper","role":"room-pick"}));
     plans[1]["featureIds"]
         .as_array_mut()
@@ -147,6 +155,7 @@ pub fn generate(scope: Value, publication_id: String) -> (Vec<u8>, Vec<u8>, Vec<
         .unwrap()
         .push(json!("courtyard-upper"));
     companion["levels"][1]["bounds"]["max"][0] = json!(3);
+    companion["levels"][1]["bounds"]["min"][1] = json!(1.875);
     companion["coverage"]["selectableOccurrences"]
         .as_array_mut()
         .unwrap()

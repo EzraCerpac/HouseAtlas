@@ -84,6 +84,7 @@ pub(super) fn worlds(gltf: &Value) -> Result<BTreeMap<usize, Matrix>, String> {
                 node.is_object()
                     && node.get("skin").is_none()
                     && node.get("weights").is_none()
+                    && node.get("camera").is_none()
                     && node
                         .get("extras")
                         .filter(|v| v.is_object())
@@ -93,11 +94,11 @@ pub(super) fn worlds(gltf: &Value) -> Result<BTreeMap<usize, Matrix>, String> {
                         })
             }),
     )?;
-    // The loader builds every declared camera, including unused cameras.
-    if let Some(cameras) = gltf.get("cameras") {
-        let cameras = cameras.as_array().ok_or_else(invalid)?;
-        need(cameras.len() <= MAX_NODES && cameras.iter().all(Value::is_object))?;
-    }
+    // The viewer owns its camera; source cameras are outside this static profile.
+    need(
+        gltf.get("cameras")
+            .is_none_or(|v| v.as_array().is_some_and(Vec::is_empty)),
+    )?;
     let scenes = gltf["scenes"].as_array().ok_or_else(invalid)?;
     need(scenes.len() == 1)?;
     let scene = gltf
@@ -317,6 +318,7 @@ pub(super) struct Geometry<'a> {
     position: Accessor<'a>,
     indices: Option<Accessor<'a>>,
     world: Matrix,
+    reflected: bool,
     pub minimum_y: f64,
 }
 fn index(a: &Accessor<'_>, i: usize) -> Result<usize, String> {
@@ -337,6 +339,37 @@ fn transform(point: [f64; 3], world: &Matrix) -> [f64; 3] {
             as f32 as f64
     })
 }
+// Keep the determinant operations in the same order as Three's Matrix4:
+// standard-glb.ts swaps the final two indices when this determinant is negative.
+fn determinant(m: &Matrix) -> f64 {
+    let [
+        n11,
+        n21,
+        n31,
+        n41,
+        n12,
+        n22,
+        n32,
+        n42,
+        n13,
+        n23,
+        n33,
+        n43,
+        n14,
+        n24,
+        n34,
+        n44,
+    ] = *m;
+    let t11 = n23 * n34 - n24 * n33;
+    let t12 = n22 * n34 - n24 * n32;
+    let t13 = n22 * n33 - n23 * n32;
+    let t21 = n21 * n34 - n24 * n31;
+    let t22 = n21 * n33 - n23 * n31;
+    let t23 = n21 * n32 - n22 * n31;
+    n11 * (n42 * t11 - n43 * t12 + n44 * t13) - n12 * (n41 * t11 - n43 * t21 + n44 * t22)
+        + n13 * (n41 * t12 - n42 * t21 + n44 * t23)
+        - n14 * (n41 * t13 - n42 * t22 + n43 * t23)
+}
 impl Geometry<'_> {
     pub(super) fn triangles(
         &self,
@@ -354,6 +387,9 @@ impl Geometry<'_> {
                     None => first + corner,
                 };
                 *point = transform(vector(&self.position, vertex)?, &self.world);
+            }
+            if self.reflected {
+                triangle.swap(1, 2);
             }
             visit(triangle)?;
         }
@@ -425,7 +461,9 @@ pub(super) fn materials(gltf: &Value) -> Result<(), String> {
                 scalar(pbr.get("roughnessFactor"))?;
             }
             factor(material.get("emissiveFactor"), 3)?;
-            scalar(material.get("alphaCutoff"))?;
+            if let Some(cutoff) = material.get("alphaCutoff") {
+                need(cutoff.as_f64().is_some_and(|v| v.is_finite() && v >= 0.))?;
+            }
             need(
                 material.get("alphaMode").is_none_or(|v| {
                     v.as_str()
@@ -497,12 +535,23 @@ pub(super) fn positions<'a>(
     for i in 0..position.count {
         let point = transform(vector(&position, i)?, world);
         need(point.into_iter().all(coordinate) && check(point))?;
-        minimum_y = minimum_y.min(point[1]);
+        if indices.is_none() {
+            minimum_y = minimum_y.min(point[1]);
+        }
+    }
+    // Indexed support planes follow only drawn vertices, as prepareMeshes does;
+    // unused positions retain the strict finite/range/bounds checks above.
+    if let Some(indices) = &indices {
+        for i in 0..indices.count {
+            let point = transform(vector(&position, index(indices, i)?)?, world);
+            minimum_y = minimum_y.min(point[1]);
+        }
     }
     Ok(Geometry {
         position,
         indices,
         world: *world,
+        reflected: determinant(world) < 0.,
         minimum_y,
     })
 }

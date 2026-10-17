@@ -222,14 +222,14 @@ export function createUnifiedAtlasOverlaySource(options:UnifiedAtlasOverlaySourc
           const checkedAt=Date.now();
           if(attempt.drawingProof){const proof=attempt.drawingProof;
             need(await readBuildingEvidence(proof.evidenceId,read.signal));pin();proof.checkedAt=Date.now();}
-          attempt.headCheckedAt=checkedAt;pin();attempt.headTimer=setTimeout(()=>{void checkHead();},HEAD_INTERVAL_MS);
+          attempt.headCheckedAt=checkedAt;pin();attempt.headTimer=setTimeout(()=>{void checkHead();},Math.max(0,HEAD_INTERVAL_MS-(Date.now()-checkedAt)));
         }catch{retire(attempt);}
         finally{clearTimeout(deadline);attempt.controller.signal.removeEventListener('abort',forward);read.abort();}
       };
       pin();attempt.headCheckedAt=headCheckedAt;attempt.frame=frame;
       if(attempt.timer)clearTimeout(attempt.timer);
       attempt.timer=setTimeout(stop,Math.min(Date.parse(context.native.session.expiresAt)-Date.now()+1,2_147_483_647));
-      attempt.headTimer=setTimeout(()=>{void checkHead();},HEAD_INTERVAL_MS);pin();return frame;
+      attempt.headTimer=setTimeout(()=>{void checkHead();},Math.max(0,HEAD_INTERVAL_MS-(Date.now()-headCheckedAt)));pin();return frame;
     }catch{const changed=!current(attempt);retire(attempt);signal.throwIfAborted();return Object.freeze({status:'unavailable',reason:changed?'selection-changed':'current-source-unavailable'});}
   };
   const isCurrent=(frame:UnifiedAtlasOverlayAvailableFrame)=>{const attempt=active;return attempt!==null&&attempt.frame===frame&&current(attempt);};

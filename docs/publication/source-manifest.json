@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0ebd23fbddad10b1219e70a22294cb2b4a19cbab792f27688cf7c3c8d29f60f0",
+  "sourceDigestSha256": "918ea0bbc64272e384712a8c7689e208dec5063d180cd9668f50b95d26bf548a",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -385,8 +385,8 @@
     {
       "path": "backend/examples/support/unified_atlas_fixture.rs",
       "mode": "100644",
-      "bytes": 11521,
-      "sha256": "8b0e252937a042a4cffacce20ff0aac0bcc5e5fd4bece00e03e085f61c6afd07",
+      "bytes": 12177,
+      "sha256": "93334dce6d3a4082e1f00e47c140260d17656f9711671608983565d5c6e060e5",
       "owner": "core-integration"
     },
     {
@@ -1197,8 +1197,8 @@
     {
       "path": "backend/src/config/atlas_scene_glb.rs",
       "mode": "100644",
-      "bytes": 18137,
-      "sha256": "5b65e9e820a78c2a1a1e48e95291f916afac295fb896a714cb77ee767ebf2d47",
+      "bytes": 19633,
+      "sha256": "260cc7f32fa05bac4560dc5d861bafa7b6c08db1acfe06948e630e0e45da0c18",
       "owner": "core-integration"
     },
     {
@@ -5915,8 +5915,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 81664,
-      "sha256": "a60f6410b1dc7a578d23f64aa6ef28f4e889638f9bf51bbcff7313103e336467",
+      "bytes": 81933,
+      "sha256": "e1b4b8a915743bbc8c1bdefdf38b8c782e8dad65b0c3d3aa2054c9462c440115",
       "owner": "core-integration"
     },
     {
@@ -6258,8 +6258,8 @@
     {
       "path": "docs/models/unified-atlas-scene-v1.md",
       "mode": "100644",
-      "bytes": 16574,
-      "sha256": "77a4ee4555e4a209591797f508aac7e2de522c50840728fb3cd67e12cd9d2b93",
+      "bytes": 16739,
+      "sha256": "d6ecb1d1db621a7999dd63311eb451c808d3d5571b9fcc9cc7d89e19b9580146",
       "owner": "core-integration"
     },
     {
@@ -6944,8 +6944,8 @@
     {
       "path": "frontend/integration/unified-atlas-overlay-source.ts",
       "mode": "100644",
-      "bytes": 22135,
-      "sha256": "99cfbb99cf8d4f052c932f620ee98050de45f9daba7ce2a3b50080b8179338d0",
+      "bytes": 22209,
+      "sha256": "7590c43f358e73865274b93d9adcd4ef71498d85c283c4d7f5c9a78684df60cd",
       "owner": "web"
     },
     {

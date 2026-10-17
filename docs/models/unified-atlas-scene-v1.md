@@ -210,7 +210,8 @@ once, at most 20,000 nodes and hierarchy depth at most 64, matching the standard
 renderer admission limits.
 Its GLB JSON chunk is at most 8 MiB and glTF minimum version, if declared, is
 2.0. All nodes are objects without skinning, morph weights or requests to apply
-poses again; at most 20,000 cameras may be declared.
+poses again. Cameras and node camera references are unsupported in this static
+profile; the Atlas viewport owns its camera.
 Drawn primitive instances, including repeated nodes sharing a mesh, are bounded
 to 20,000 instances, 1,800,000 vertices, 600,000 triangles and 96 MiB of copied
 positions, indices and prepared triangles. Every declared mesh and accessor
@@ -229,6 +230,7 @@ bounds include the physical geometry, occurrence/pick extents and matching plan
 extents; validation does not enlarge them or move geometry.
 World positions are quantized to Float32 before bounds and footprint checks,
 matching the standard loader's prepared positions.
+Reflected world transforms reverse triangle winding as in the standard loader.
 General node rotation and scale use explicit glTF TRS. Matrix nodes in this
 static companion profile may only translate an identity linear transform;
 general affine matrices are unsupported because the standard loader decomposes
@@ -240,8 +242,8 @@ with strictly contained, disjoint holes and disjoint polygon components.
 Concave rings and holes are supported without a convex-hull approximation.
 
 For a selectable occurrence, the reader compares its plan with nonoverlapping
-horizontal pick-support triangles within 0.00001 m of the lowest selected
-world Y. Topology uses distinct, nonzero edges and exact shared vertices; the
+horizontal pick-support triangles within 0.00001 m of the lowest drawn,
+index-referenced world Y. Topology uses distinct, nonzero edges and exact shared vertices; the
 correspondence tolerance never welds vertices or discards a boundary or hole.
 Closed support cycles match plan rings one-to-one, preserving filled-side
 orientation and each hole's containing outer component. Every edge requires

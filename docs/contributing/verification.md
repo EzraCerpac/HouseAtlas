@@ -1231,7 +1231,10 @@ The source has one building, two levels, a logical room occurring on both,
 three actual cube pick meshes and matching inline plans, including an explicitly
 estimated proxy. It checks authenticated current/scoped availability, exact
 publication/selection and semantic facts, repeated Media-authorized pinned GLB
-GETs/digests/headers, and unchanged overview/config/receipt/source bytes. It runs
+GETs/digests/headers, and unchanged overview/config/receipt/source bytes. Positive
+source cases include reflected pick geometry, a nonnegative alpha cutoff above
+one and an unused indexed vertex below the drawn support plane.
+It runs
 no malformed, omission, denial, replay, revocation, expiry or crash controls.
 Use Rust 1.99.0 and an owned external target:
 
@@ -1282,7 +1285,8 @@ end stop the monitor. This is bounded read-point freshness, not immediate
 external-write notification. The compact head rechecks the accepted native
 chain, identities and source-record pins; it does not repeat old scan-descriptor
 or retained-byte validation. The dedicated original owners continue to guard
-the retained documentary sources. It
+the retained documentary sources. Initial and subsequent timers count from the
+actual head-read timestamp, not from completion of optional PDF checks. It
 uses no old rendered geometry, real source, provider, listener, native mutation,
 expiry/revocation/replay/denial or other held controls. Use pinned Node 26.10.0:
 
