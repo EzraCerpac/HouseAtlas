@@ -1193,6 +1193,16 @@ and cleans its timers/subscriptions. No timeout, expiry, replacement or owner
 withdrawal control is exercised; these fake handlers do not qualify native
 document leases or mounted browser behavior.
 
+The existing named `node frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs`
+also exercises `unified-atlas-room-links-host.ts` through the real map reader,
+map lifetime owner and native adapter. Inspect those imports and the full runner
+first. A generated publication-wide map spans two buildings; only the selected
+building's rooms enter native qualification. The successful map/head refreshes
+retain historical producer status, documentary dates and unplaced records, then
+normal release cleans dedicated fake original-document owners. Its transport is
+entirely in process; it proves no backend authentication or browser behavior and
+adds no held control case.
+
 ## Unified Atlas healthy generated check
 
 The unified Atlas reads one `houseatlas.unified-atlas-scene.v1` envelope and its
@@ -1341,6 +1351,112 @@ cargo run --offline --locked -p houseatlas-backend --example healthy-model-overv
 
 This positive establishes synthetic read composition only; actual private
 publication install, device rendering and release remain separate.
+
+## Named generated unified Atlas read
+
+Inspect `backend/src/config/atlas_scene.rs`, its bounded standard-glTF helper,
+`backend/src/http/atlas_scene.rs`, the CLI/Host composition and
+`backend/examples/healthy-unified-atlas-read.rs` plus its generated fixture
+helper before this exact ordinary positive. It creates only disposable native
+state and a fresh actual password-free session; no listener or provider runs.
+The source has one building, two levels, a logical room occurring on both,
+three actual cube pick meshes and matching inline plans, including an explicitly
+estimated proxy. It checks authenticated current/scoped availability, exact
+publication/selection and semantic facts, repeated Media-authorized pinned GLB
+GETs/digests/headers, and unchanged overview/config/receipt/source bytes. Positive
+source cases include reflected pick geometry, a nonnegative alpha cutoff above
+one and an unused indexed vertex below the drawn support plane.
+It runs
+no malformed, omission, denial, replay, revocation, expiry or crash controls.
+Use Rust 1.99.0 and an owned external target:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-unified-atlas-read -- --fixture-output /tmp/houseatlas-unified-atlas-fixture-20261016
+```
+
+The output directory must be absent. Its four anonymous files (`overview.glb`,
+`publication.json`, `atlas-scene.json`, `scene-response.json`) are generated
+source/consumer fixtures only; no session, configuration, native database or
+credential is copied. The frontend owner can consume that exact envelope and
+model in its compiled preview. Native activation, actual publication/device
+rendering and product readiness remain separate.
+
+Focused static checks for this source lane (no test execution):
+
+```sh
+cargo clippy --offline --locked -p houseatlas-backend --lib --bin houseatlas --example healthy-unified-atlas-read --example validate-unified-atlas-publication -- -D warnings
+```
+
+`validate-unified-atlas-publication` is a source-only, read-only owner entrypoint
+for separately supplied private artifacts, not an ordinary household intake
+check. Its four required options are `--overview-manifest`,
+`--overview-manifest-sha256`, `--atlas-scene-manifest`, and
+`--atlas-scene-manifest-sha256`. It uses the identical private selection and
+semantic/GLB validators without reading native state or starting a service.
+Do not interpret source validation as current native joins, browser acceptance
+or release. No actual private source is included or exercised by this lane.
+
+### Unified Atlas native documentary overlay source healthy read
+
+Inspect `frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs` before
+running this one generated positive. It exercises the actual source-only
+current-association HTTP qualifier and closed network/electricity/fixture
+parsers with an in-process GET transport and two dedicated fake native document
+owners. It checks independently host-reviewed publication/native/package room
+links against the current association, retained
+primary and historical originals, final current-head read, arbitrary-precision
+asset revision, a valid multi-anchor target union with target-specific anchor
+provenance, documentary-only detail DTOs, one positive bounded passive
+head refresh and explicit owner release. Initial and final qualification use
+`/current`; the sequential monitor uses the existing compact `/head` response
+(at most 4,096 bytes), comparing record ID, exact revision and canonical payload
+SHA-256. It polls every 10 seconds with an 8-second deadline, withdraws on change/error, accepts a head
+proof for at most 20 seconds while the original native session and source
+owners remain active. Release, context/document invalidation or native session
+end stop the monitor. This is bounded read-point freshness, not immediate
+external-write notification. The compact head rechecks the accepted native
+chain, identities and source-record pins; it does not repeat old scan-descriptor
+or retained-byte validation. The dedicated original owners continue to guard
+the retained documentary sources. Initial and subsequent timers count from the
+actual head-read timestamp, not from completion of optional PDF checks. It
+uses no old rendered geometry, real source, provider, listener, native mutation,
+expiry/revocation/replay/denial or other held controls. Use pinned Node 26.10.0:
+
+```sh
+node frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs
+```
+
+When a frame advertises optional PDF correlations, the same sequential monitor
+also rechecks the exact PDF evidence membership in the native building identity
+under its shared eight-second deadline. The identity proof has its own measured
+read timestamp and twenty-second freshness bound; association reads do not
+renew it. Before publication, an unavailable or stale optional correlation is
+omitted. Once advertised, its loss retires that immutable composite frame;
+a new open can qualify base documentary sources without the optional PDF link.
+
+### Independent unified Atlas room-link healthy read
+
+Inspect `backend/examples/healthy-unified-atlas-room-links-read.rs` and its
+existing generated fixture helper before this named ordinary positive. It uses
+only disposable synthetic persistent state, a fresh actual password-free native
+session and the in-process router. It reads the optional independently supplied
+room-link JSON twice under native Read, checks exact query/selection/digest and
+private response headers, and preserves the strict scene descriptor, producer
+historical status, configuration, Atlas state, receipt and source bytes. The
+ordinary absent configuration returns authenticated 404. No native identity
+registration, current source qualification, real provider/listener/household
+input or malformed/denial/replay/revocation/expiry/crash controls run. Use Rust
+1.99.0 and the explicitly coordinated external target:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-unified-atlas-room-links-read
+```
+
+Focused static checks for this source lane:
+
+```sh
+cargo clippy --offline --locked -p houseatlas-backend --lib --bin houseatlas --example healthy-unified-atlas-room-links-read -- -D warnings
+```
 
 ## Synthetic PR performance reporting
 

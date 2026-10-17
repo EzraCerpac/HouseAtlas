@@ -1,6 +1,6 @@
 /** Current native documentary details for one selected unified publication.
  * Producer overlay hints are not authority; no rendered old geometry is used. */
-import { readNativeOverlayAssociation, readNativeOverlayBuildingEvidence, type SceneAssociationContext, type SceneAssociationCurrent } from './native-scene-association-client';
+import { nativeSceneAssociationPayloadDigest, readNativeOverlayAssociationHead, readNativeOverlayAssociation, readNativeOverlayBuildingEvidence, type SceneAssociationContext, type SceneAssociationCurrent } from './native-scene-association-client';
 import type { NativeSceneSourceFrame, NativeSceneSourceSelection } from '../src/lantern/scans/native-scene-source-types';
 import { readNativeOverlayDetails } from './native-scene-source-client';
 import { readDocumentarySupport, documentaryReferences } from './native-scene-documentary-support';
@@ -107,7 +107,11 @@ function roomBindings(selection:NativeSceneSourceSelection,rooms:readonly Unifie
     const targets=new Map<string,{packagePlaceKey:string;packagePlaceUuid:string;sourceAnchorIds:Set<string>}>();
     for(const {mapping,target}of matching){const key=`${target.packagePlaceKey}\0${target.packagePlaceUuid}`;let value=targets.get(key);
       if(!value){value={packagePlaceKey:target.packagePlaceKey,packagePlaceUuid:target.packagePlaceUuid,sourceAnchorIds:new Set()};targets.set(key,value);}
-      for(const id of mapping.sourceAnchorIds){const anchor=selection.acceptedRoomAnchors.find(a=>a.id===id);need(anchor&&anchor.targets.some(t=>t.packagePlaceKey===target.packagePlaceKey&&t.packagePlaceUuid===target.packagePlaceUuid));value.sourceAnchorIds.add(id);}}
+      let matchedAnchor=false;
+      for(const id of mapping.sourceAnchorIds){const anchor=selection.acceptedRoomAnchors.find(a=>a.id===id);need(anchor);
+        if(anchor.targets.some(t=>t.packagePlaceKey===target.packagePlaceKey&&t.packagePlaceUuid===target.packagePlaceUuid)){
+          value.sourceAnchorIds.add(id);matchedAnchor=true;}}
+      need(matchedAnchor);}
     result.push(Object.freeze({roomId:room.roomId,nativePlaceId:room.nativePlaceId,spaceOccurrenceId:null,sourceRoomIds:Object.freeze([...new Set(matching.map(m=>m.mapping.sourceRoomId))]),
       targets:Object.freeze([...targets.values()].map(t=>Object.freeze({packagePlaceKey:t.packagePlaceKey,packagePlaceUuid:t.packagePlaceUuid,sourceAnchorIds:Object.freeze([...t.sourceAnchorIds])}))),
       qualification:'current-native-room-join',anchor:Object.freeze({kind:'room-summary'})}));
@@ -117,7 +121,8 @@ function roomBindings(selection:NativeSceneSourceSelection,rooms:readonly Unifie
 export function createUnifiedAtlasOverlaySource(options:UnifiedAtlasOverlaySourceOptions):UnifiedAtlasOverlaySource{
   type Owned={owner:NativeEvidenceDocumentClient;frame:NativeEvidenceDocumentFrame|null;stop:(()=>void)|null;disposed:boolean;released:WeakSet<object>};
   type Attempt={generation:number;context:UnifiedAtlasOverlayContext;stamp:string;controller:AbortController;owners:Owned[];listeners:Set<()=>void>;
-    frame:UnifiedAtlasOverlayAvailableFrame|null;headCheckedAt:number;headTimer:ReturnType<typeof setTimeout>|null;stopAbort:(()=>void)|null;timer:ReturnType<typeof setTimeout>|null;retired:boolean};
+    frame:UnifiedAtlasOverlayAvailableFrame|null;headCheckedAt:number;drawingProof:{evidenceId:string;checkedAt:number}|null;
+    headTimer:ReturnType<typeof setTimeout>|null;stopAbort:(()=>void)|null;timer:ReturnType<typeof setTimeout>|null;retired:boolean};
   let active:Attempt|null=null,generation=0,disposed=false;
   const transport=options.fetch??((...args:Parameters<typeof fetch>)=>fetch(...args));
   const observe=()=>{try{return options.getContext();}catch{return null;}};
@@ -132,7 +137,9 @@ export function createUnifiedAtlasOverlaySource(options:UnifiedAtlasOverlaySourc
   const current=(attempt:Attempt):boolean=>{try{const next=observe();return !disposed&&!attempt.retired&&active===attempt&&generation===attempt.generation
     &&next!==null&&next.native.sessionIdentity===attempt.context.native.sessionIdentity&&next.sceneSelection===attempt.context.sceneSelection
     &&next.publicationRooms===attempt.context.publicationRooms&&next.reviewedRoomLinks===attempt.context.reviewedRoomLinks
-    &&(!attempt.frame||Date.now()-attempt.headCheckedAt<=HEAD_MAX_AGE_MS)&&stamp(next)===attempt.stamp&&Date.parse(next.native.session.expiresAt)>Date.now()
+    &&(!attempt.frame||(Date.now()-attempt.headCheckedAt<=HEAD_MAX_AGE_MS
+      &&(!attempt.drawingProof||Date.now()-attempt.drawingProof.checkedAt<=HEAD_MAX_AGE_MS)))
+    &&stamp(next)===attempt.stamp&&Date.parse(next.native.session.expiresAt)>Date.now()
     &&attempt.owners.every(o=>!o.disposed&&(!o.frame||o.owner.isCurrent(o.frame)))&&!attempt.controller.signal.aborted;}catch{return false;}};
   const guard=(attempt:Attempt)=>{attempt.controller.signal.throwIfAborted();need(current(attempt));};
   const offHost=options.subscribeContext(withdraw);
@@ -147,11 +154,15 @@ export function createUnifiedAtlasOverlaySource(options:UnifiedAtlasOverlaySourc
       ||review.publicationId!==s.publicationId||review.semanticsSha256!==s.semanticsSha256)return Object.freeze({status:'unavailable',reason:'room-link-not-qualified'});
     need(UUID.test(s.workspaceId)&&UUID.test(s.homeId)&&UUID.test(s.publicationId)&&SHA.test(s.semanticsSha256)&&s.revision.length>0&&s.revision.length<=128
       &&context.native.view.scope.workspaceId===s.workspaceId&&context.native.view.scope.homeId===s.homeId&&UUID.test(input.nativeBuildingId));
-    const attempt:Attempt={generation:reserved,context,stamp:stamp(context),controller:new AbortController(),owners:[],listeners:new Set(),frame:null,headCheckedAt:0,headTimer:null,stopAbort:null,timer:null,retired:false};active=attempt;
+    const attempt:Attempt={generation:reserved,context,stamp:stamp(context),controller:new AbortController(),owners:[],listeners:new Set(),frame:null,headCheckedAt:0,drawingProof:null,headTimer:null,stopAbort:null,timer:null,retired:false};active=attempt;
     const stop=()=>{if(active===attempt)withdraw();};signal.addEventListener('abort',stop,{once:true});attempt.stopAbort=()=>signal.removeEventListener('abort',stop);if(signal.aborted)stop();
     attempt.timer=setTimeout(stop,75_000);
     const pin=()=>guard(attempt);
     const sourceViewKey=`unified-overlay:${s.revision}:${input.nativeBuildingId}`;
+    const readBuildingEvidence=async(evidenceId:string,readSignal:AbortSignal)=>{
+      pin();const present=await abortable(readNativeOverlayBuildingEvidence(context.native,input.nativeBuildingId,evidenceId,readSignal,pin,transport),readSignal);
+      pin();return present;
+    };
     const retain=async(doc:Record<string,LosslessJson>):Promise<{bytes:Uint8Array;frame:NativeEvidenceDocumentFrame}>=>{
       pin();const owner=options.createDocuments();need(!attempt.owners.some(o=>o.owner===owner));
       const owned:Owned={owner,frame:null,stop:null,disposed:false,released:new WeakSet()};attempt.owners.push(owned);
@@ -169,21 +180,35 @@ export function createUnifiedAtlasOverlaySource(options:UnifiedAtlasOverlaySourc
       if(association.status!=='available'){retire(attempt);return association;}
       const payload=row(association.payload);need(Array.isArray(payload.sourceDocuments));
       const documents=payload.sourceDocuments.map(row);const primaryPin=documents.find(d=>d.role==='primary-scene')!,historicalPin=documents.find(d=>d.role==='documentary-sheet')!;
-      const primary=await retain(primaryPin),historical=await retain(historicalPin);pin();let selection=association.selection;
+      const primary=await retain(primaryPin),historical=await retain(historicalPin);pin();const baseSelection=association.selection;let selection=baseSelection;
       const support=await readDocumentarySupport(historical.bytes,pin);pin();
       if(support&&text(payload.reviewStatement).endsWith(support.reviewMarker)&&support.originalSha256===historicalPin.originalSha256
-        &&support.pdf.workspaceId===s.workspaceId&&support.pdf.homeId===s.homeId&&support.pdf.buildingId===input.nativeBuildingId
-        &&await readNativeOverlayBuildingEvidence(context.native,input.nativeBuildingId,support.pdf.evidenceId,attempt.controller.signal,pin,transport)){
-        pin();selection=Object.freeze({...selection,drawingReferences:documentaryReferences(support,selection),drawingSupport:Object.freeze({evidenceId:historical.frame.evidenceId,evidenceRevision:historical.frame.evidenceRevision,
+        &&support.pdf.workspaceId===s.workspaceId&&support.pdf.homeId===s.homeId&&support.pdf.buildingId===input.nativeBuildingId){
+        // During open, an unavailable optional correlation leaves the base
+        // documentary sources intact. An advertised proof is monitored below.
+        let buildingEvidence=false;
+        const read=new AbortController(),forward=()=>read.abort();
+        attempt.controller.signal.addEventListener('abort',forward,{once:true});
+        const deadline=setTimeout(()=>read.abort(),HEAD_READ_MS);
+        try{buildingEvidence=await readBuildingEvidence(support.pdf.evidenceId,read.signal);
+          if(buildingEvidence)attempt.drawingProof={evidenceId:support.pdf.evidenceId,checkedAt:Date.now()};}
+        catch{pin();}
+        finally{clearTimeout(deadline);attempt.controller.signal.removeEventListener('abort',forward);read.abort();}
+        pin();if(buildingEvidence)selection=Object.freeze({...selection,drawingReferences:documentaryReferences(support,selection),drawingSupport:Object.freeze({evidenceId:historical.frame.evidenceId,evidenceRevision:historical.frame.evidenceRevision,
           assetId:historical.frame.asset.assetId,assetRevision:historical.frame.asset.revision,originalSha256:support.originalSha256,reviewMarker:support.reviewMarker})});
       }
-      const details=await readNativeOverlayDetails(selection,primary.bytes,historical.bytes,pin);pin();
+      let details=await readNativeOverlayDetails(selection,primary.bytes,historical.bytes,pin);pin();
       const bindings=roomBindings(selection,input.publicationRooms,review);if(!bindings.length){retire(attempt);return Object.freeze({status:'unavailable',reason:'room-link-not-qualified'});}
       const final=await readNativeOverlayAssociation(context.native,input.nativeBuildingId,sourceViewKey,attempt.controller.signal,pin,transport);pin();
       need(final.status==='available'&&final.recordId===association.recordId&&final.revision.compare(association.revision)===0&&stringifyLosslessJson(final.payload)===stringifyLosslessJson(association.payload));
+      const headCheckedAt=Date.now();
+      if(attempt.drawingProof&&Date.now()-attempt.drawingProof.checkedAt>HEAD_MAX_AGE_MS){
+        attempt.drawingProof=null;selection=baseSelection;
+        details=await readNativeOverlayDetails(selection,primary.bytes,historical.bytes,pin);pin();
+      }
       const frame:UnifiedAtlasOverlayAvailableFrame=Object.freeze({status:'available',lease:Object.freeze({}),sceneSelection:Object.freeze({...s}),nativeBuildingId:input.nativeBuildingId,
         currentSource:Object.freeze({recordId:association.recordId,revision:association.revision,payload:association.payload}),sourceSelection:selection,roomBindings:bindings,...details});
-      const expectedPayload=stringifyLosslessJson(association.payload);
+      const expectedPayloadSha256=await abortable(nativeSceneAssociationPayloadDigest(association.payload),attempt.controller.signal);pin();
       // Only one passive read at a time, no retry after an error or changed head.
       // A successful reread refreshes this read-point proof, not an access grant.
       const checkHead=async()=>{
@@ -191,17 +216,20 @@ export function createUnifiedAtlasOverlaySource(options:UnifiedAtlasOverlaySourc
         attempt.controller.signal.addEventListener('abort',forward,{once:true});
         const deadline=setTimeout(()=>read.abort(),HEAD_READ_MS);
         try{
-          pin();const observed=await readNativeOverlayAssociation(context.native,input.nativeBuildingId,sourceViewKey,read.signal,pin,transport);
+          pin();const observed=await readNativeOverlayAssociationHead(context.native,input.nativeBuildingId,read.signal,pin,transport);
           pin();need(observed.status==='available'&&observed.recordId===association.recordId&&observed.revision.compare(association.revision)===0
-            &&stringifyLosslessJson(observed.payload)===expectedPayload);
-          attempt.headCheckedAt=Date.now();pin();attempt.headTimer=setTimeout(()=>{void checkHead();},HEAD_INTERVAL_MS);
+            &&observed.payloadSha256===expectedPayloadSha256);
+          const checkedAt=Date.now();
+          if(attempt.drawingProof){const proof=attempt.drawingProof;
+            need(await readBuildingEvidence(proof.evidenceId,read.signal));pin();proof.checkedAt=Date.now();}
+          attempt.headCheckedAt=checkedAt;pin();attempt.headTimer=setTimeout(()=>{void checkHead();},Math.max(0,HEAD_INTERVAL_MS-(Date.now()-checkedAt)));
         }catch{retire(attempt);}
         finally{clearTimeout(deadline);attempt.controller.signal.removeEventListener('abort',forward);read.abort();}
       };
-      pin();attempt.headCheckedAt=Date.now();attempt.frame=frame;
+      pin();attempt.headCheckedAt=headCheckedAt;attempt.frame=frame;
       if(attempt.timer)clearTimeout(attempt.timer);
       attempt.timer=setTimeout(stop,Math.min(Date.parse(context.native.session.expiresAt)-Date.now()+1,2_147_483_647));
-      attempt.headTimer=setTimeout(()=>{void checkHead();},HEAD_INTERVAL_MS);pin();return frame;
+      attempt.headTimer=setTimeout(()=>{void checkHead();},Math.max(0,HEAD_INTERVAL_MS-(Date.now()-headCheckedAt)));pin();return frame;
     }catch{const changed=!current(attempt);retire(attempt);signal.throwIfAborted();return Object.freeze({status:'unavailable',reason:changed?'selection-changed':'current-source-unavailable'});}
   };
   const isCurrent=(frame:UnifiedAtlasOverlayAvailableFrame)=>{const attempt=active;return attempt!==null&&attempt.frame===frame&&current(attempt);};
