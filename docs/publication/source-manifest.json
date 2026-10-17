@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "918ea0bbc64272e384712a8c7689e208dec5063d180cd9668f50b95d26bf548a",
+  "sourceDigestSha256": "b62fd39ab64ab2b9ebd01532f98864ee5175eb545a5fad5f1a687d6c44d03432",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -364,8 +364,8 @@
     {
       "path": "backend/examples/healthy-unified-atlas-read.rs",
       "mode": "100644",
-      "bytes": 12042,
-      "sha256": "a071c4ab04d7d76ad05f7e349f211999524af11b8142383a34779401df12d95b",
+      "bytes": 12352,
+      "sha256": "0588573c9a7dba298264f1f0f456f11af09f5c2dacfa4d9b65a7f46cba244137",
       "owner": "core-integration"
     },
     {
@@ -2177,8 +2177,8 @@
     {
       "path": "backend/src/http/atlas_scene.rs",
       "mode": "100644",
-      "bytes": 7116,
-      "sha256": "c10e271d1104c43c4f23ba9ce1e3e81b9478c56a0c599382e216c045114e051d",
+      "bytes": 7557,
+      "sha256": "6be4ff65f3747f49b47dcf0806d31f06c7b01ac909bcfbabf13d6e37cc72ea31",
       "owner": "core-integration"
     },
     {
@@ -5915,8 +5915,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 81933,
-      "sha256": "e1b4b8a915743bbc8c1bdefdf38b8c782e8dad65b0c3d3aa2054c9462c440115",
+      "bytes": 82039,
+      "sha256": "92c8a2fb1f363b1055ffc8be4ec8abb2488155c898d1edfa623fe6d4a0793a43",
       "owner": "core-integration"
     },
     {
@@ -6258,8 +6258,8 @@
     {
       "path": "docs/models/unified-atlas-scene-v1.md",
       "mode": "100644",
-      "bytes": 16739,
-      "sha256": "d6ecb1d1db621a7999dd63311eb451c808d3d5571b9fcc9cc7d89e19b9580146",
+      "bytes": 17314,
+      "sha256": "90f3b2b30a956fbe2da36b370862682d556c6aefb89bd6ee4b6b9db469648f1b",
       "owner": "core-integration"
     },
     {
