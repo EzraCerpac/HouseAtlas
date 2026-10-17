@@ -1546,7 +1546,19 @@
   .lantern-host .ua-tiles:not(.is-unfolded),
   .lantern-host .ua-keys:not(.is-unfolded) { display: none; }
 
+  /* The same allocation as the layer details: at most this share of the band
+     between the floor row and the folds, shrinking on short stages. Floors run
+     sideways; when the band is shorter than a tile, the panel also scrolls
+     down, so every tile and its full name stays reachable and the focused plan
+     keeps the rest. */
   .lantern-host .ua-tiles {
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: min(58%, 380px);
+    align-items: flex-start;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scroll-padding: 6px;
     gap: 6px;
     padding: 6px;
     border-radius: var(--r-panel);
@@ -1556,7 +1568,9 @@
     box-shadow: var(--ua-shadow);
   }
 
-  .lantern-host .ua-tile { width: 116px; padding: 6px; box-shadow: none; background: var(--ua-paper); }
+  .lantern-host .ua-tile { flex: none; width: 116px; padding: 6px; box-shadow: none; background: var(--ua-paper); }
+  /* Inside a scrolling panel a lifted tile would be cut at its edge. */
+  .lantern-host .ua-tile:hover { transform: none; }
   .lantern-host .ua-tile > svg { width: 100%; height: auto; }
 
   .lantern-host .ua-keys {
