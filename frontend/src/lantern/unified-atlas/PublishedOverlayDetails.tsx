@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { OverlayPlacement } from './scene';
 import type { AtlasOverlayBinding } from './types';
 
@@ -13,14 +14,15 @@ function SourceDates({ bindings }: { readonly bindings: readonly AtlasOverlayBin
 }
 
 export function PublishedOverlayDetails({ placement }: { readonly placement: OverlayPlacement }) {
+  const { recordIds, bindings } = useMemo(() => ({ recordIds: placement.recordIds, bindings: placement.bindings }), [placement]);
   // A building-scoped source position has provenance but no drawable floor.
   // Read original bindings, preserving unspecified occurrence as unspecified.
-  const positions = placement.bindings.flatMap(binding => binding.anchor.kind === 'source-position'
+  const positions = bindings.flatMap(binding => binding.anchor.kind === 'source-position'
     ? [{ occurrenceId: binding.spaceOccurrenceId, position: binding.anchor.position, basis: binding.anchor.basis }] : []);
   return <>
-    <p>{placement.recordIds.length.toLocaleString()} {placement.recordIds.length === 1 ? 'record' : 'records'}
+    <p>{placement.recordCount.toLocaleString()} {placement.recordCount === 1 ? 'record' : 'records'}
       {positions.length > 0 ? `, ${positions.length} with a source position` : ''}</p>
-    <SourceDates bindings={placement.bindings} />
+    <SourceDates bindings={bindings} />
     {positions.length > 0 && <details className="ua-refs"><summary>Source positions</summary>
       <p>Model-frame coordinates; physical registration unknown.</p>
       <dl>{positions.map((row, at) => <div key={at}>
@@ -28,8 +30,8 @@ export function PublishedOverlayDetails({ placement }: { readonly placement: Ove
         <dt>Occurrence</dt><dd>{row.occurrenceId ?? 'Unspecified'}</dd><dt>Basis</dt><dd>{row.basis}</dd>
       </div>)}</dl>
     </details>}
-    <details className="ua-refs"><summary>Record references</summary>
-      <ul>{placement.recordIds.map(record => <li key={record}>{record}</li>)}</ul>
-    </details>
+    {placement.recordCount > 0 && <details className="ua-refs"><summary>Record references</summary>
+      <ul>{recordIds.map(record => <li key={record}>{record}</li>)}</ul>
+    </details>}
   </>;
 }

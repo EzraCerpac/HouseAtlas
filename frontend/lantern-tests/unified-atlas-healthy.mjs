@@ -28,6 +28,7 @@ const frontend = new URL('../', import.meta.url);
 const { createElement } = await import(new URL('./node_modules/react/index.js', frontend).href);
 const { renderToStaticMarkup } = await import(new URL('./node_modules/react-dom/server.node.js', frontend).href);
 const detailsURL = await sourceURL('../src/lantern/unified-atlas/PublishedOverlayDetails.tsx', {
+  react: new URL('./node_modules/react/index.js', frontend).href,
   'react/jsx-runtime': new URL('./node_modules/react/jsx-runtime.js', frontend).href,
 });
 const { PublishedOverlayDetails } = await import(detailsURL);
@@ -208,6 +209,100 @@ const buildingHTML = renderToStaticMarkup(createElement(PublishedOverlayDetails,
   placement: { ...groundPlacement, positions: [], bindings: [buildingPosition] },
 }));
 assert.ok(buildingHTML.includes(buildingPosition.anchor.basis) && buildingHTML.includes('<dd>Unspecified</dd>'));
+
+// Sparse shapes the backend admits, as in its generated publication: an
+// electrical binding with no record IDs and a reviewed logical room with no
+// occurrence. Record IDs use this fixture's generated text, like the rest of it. One record shared by two reasons counts once per reason and once
+// in the total. Scene admission and binding only; the GLB is unchanged.
+const sparse = structuredClone(composed.envelope);
+const unpositionedPlace = '00000000-0000-4000-8000-0000000a71ff';
+sparse.rooms.push({ roomId: 'generated:room-unpositioned', buildingId: 'syn-building-house', label: 'Generated unpositioned room',
+  nativePlaceId: unpositionedPlace, nativeBinding: { status: 'reviewed', receiptSha256: 'c'.repeat(64) }, occurrenceIds: [] });
+const hallElectrical = sparse.overlayBindings.find(row => row.kind === 'electrical' && row.roomId === 'syn-room-hall');
+hallElectrical.recordIds = [];
+const stairsNetwork = sparse.overlayBindings.find(row => row.kind === 'network');
+const studyNetwork = { ...stairsNetwork, roomId: 'syn-room-study', nativePlaceId: null, recordIds: ['generated:shared-record'] };
+sparse.overlayBindings.push(
+  { ...stairsNetwork, roomId: 'generated:room-unpositioned', nativePlaceId: unpositionedPlace, recordIds: ['generated:shared-record', 'generated:unpositioned'] },
+  studyNetwork, { ...studyNetwork, sourceRevision: 'Generated second study revision' });
+const sparseScene = scene.admitAtlasScene(sparse, { scope, publicationId: selection.publicationId }, new TextEncoder().encode(JSON.stringify(sparse)).byteLength);
+assert.deepEqual(sparseScene.rooms.at(-1).occurrenceIds, []);
+assert.deepEqual(sparseScene.overlayBindings.find(row => row.roomId === 'syn-room-hall' && row.kind === 'electrical'), hallElectrical,
+  'the empty binding keeps its revision, dates and anchor');
+const sparseModel = bindAtlasModel(sparseScene, loaded);
+assert.deepEqual([...sparseModel.selectable].sort(), [...model.selectable].sort(), 'other rooms stay selectable');
+assert.ok(sparseModel.roomsById.has('generated:room-unpositioned'));
+const sparseElectrical = sparseModel.overlays.get('electrical'), sparseNetwork = sparseModel.overlays.get('network');
+const emptyPlacement = sparseElectrical.placed.get('syn-occ-hall');
+assert.deepEqual(emptyPlacement.recordIds, []); assert.deepEqual(emptyPlacement.bindings, [hallElectrical]);
+assert.deepEqual([sparseElectrical.records, sparseElectrical.unplacedRecords], [1, 0]);
+const emptyHTML = renderToStaticMarkup(createElement(PublishedOverlayDetails, { placement: emptyPlacement }));
+assert.ok(emptyHTML.includes(hallElectrical.sourceRevision) && emptyHTML.includes(hallElectrical.retrievedAt) && !emptyHTML.includes('Record references'));
+assert.deepEqual(sparseNetwork.unplaced.map(row => row.reason), ['no-placement', 'not-linked', 'not-linked']);
+assert.deepEqual([sparseNetwork.records, sparseNetwork.unplacedRecords], [3, 2]);
+assert.deepEqual([...scene.unplacedByReason(sparseNetwork)], [['no-placement', 2], ['not-linked', 1]]);
+
+// Admission at the host's separate capacities, beyond the former frontend-only
+// aggregates: 8,193 selectors over two bindings (admission only; the drawn
+// primitive budget is the standard loader's), and nine overlay bindings of
+// 1,024 record IDs each, joined on one room.
+const { STANDARD_GLB_LIMITS } = await import(preflightURL);
+assert.equal(scene.ATLAS_LIMITS.drawnPrimitives, STANDARD_GLB_LIMITS.primitives);
+const selectorsWide = structuredClone(composed.envelope);
+selectorsWide.meshBindings.push(...[[2000, scene.ATLAS_LIMITS.primitivesPerBinding], [2001, 1]].map(([nodeIndex, count]) => ({ artifactId: 'model',
+  nodeIndex, meshIndex: 0, primitiveIndices: Array.from({ length: count }, (_, at) => at), buildingId: 'syn-building-house', levelIds: [],
+  spaceOccurrenceId: null, role: 'context' })));
+const admittedSelectors = scene.admitAtlasScene(selectorsWide, { scope, publicationId: selection.publicationId },
+  new TextEncoder().encode(JSON.stringify(selectorsWide)).byteLength);
+assert.equal(admittedSelectors.meshBindings.reduce((sum, row) => sum + row.primitiveIndices.length, 0), read.scene.meshBindings.reduce((sum, row) => sum + row.primitiveIndices.length, 0) + 8193);
+const recordsWide = structuredClone(composed.envelope);
+const hallSource = recordsWide.overlayBindings.find(row => row.kind === 'electrical' && row.roomId === 'syn-room-hall');
+recordsWide.overlayBindings.push(...Array.from({ length: 9 }, (_, binding) => ({ ...hallSource,
+  recordIds: Array.from({ length: scene.ATLAS_LIMITS.recordsPerBinding }, (_, at) => `generated:record:${binding}:${at}`) })));
+const recordsScene = scene.admitAtlasScene(recordsWide, { scope, publicationId: selection.publicationId },
+  new TextEncoder().encode(JSON.stringify(recordsWide)).byteLength);
+const recordsLayer = bindAtlasModel(recordsScene, loaded).overlays.get('electrical');
+assert.equal(recordsLayer.placed.get('syn-occ-hall').recordIds.length, 3 + 9 * 1024);
+assert.equal(recordsLayer.records, 4 + 9 * 1024);
+
+// Successful binding with shared records, rather than a large allocation stress
+// matrix. Extra occurrences have no pick geometry and are explicitly unselectable.
+const sharedEnvelope = structuredClone(composed.envelope);
+const sharedRoom = sharedEnvelope.rooms.find(row => row.roomId === 'syn-room-hall');
+const sharedLevel = sharedEnvelope.levels.find(row => row.levelId === 'syn-level-ground');
+const hallOccurrence = sharedEnvelope.occurrences.find(row => row.spaceOccurrenceId === 'syn-occ-hall');
+const extraOccurrences = Array.from({ length: 32 }, (_, at) => `generated:shared-occ:${at}`);
+sharedRoom.occurrenceIds.push(...extraOccurrences); sharedLevel.occurrenceIds.push(...extraOccurrences);
+sharedEnvelope.occurrences.push(...extraOccurrences.map(spaceOccurrenceId => ({ ...hallOccurrence, spaceOccurrenceId, planFeatureIds: [] })));
+sharedEnvelope.coverage.unselectableOccurrences.push(...extraOccurrences);
+const commonBindings = Array.from({ length: 9 }, (_, at) => ({ ...hallSource, spaceOccurrenceId: null, anchor: { kind: 'room-summary' },
+  sourceRevision: `Generated common ${at}`, recordIds: Array.from({ length: 1024 }, (_, id) => `generated:shared:${at}:${id}`) }));
+const localBefore = { ...hallSource, spaceOccurrenceId: 'syn-occ-hall',
+  anchor: { kind: 'source-position', position: [103, 0.3, 52], basis: 'Generated occurrence-only position' },
+  sourceRevision: 'Generated local before', recordIds: ['generated:local-before', 'generated:shared:0:0'] };
+const localAfter = { ...localBefore, sourceRevision: 'Generated local after', recordIds: ['generated:local-after', 'generated:shared:0:0'] };
+const emptyCommon = { ...commonBindings[0], sourceRevision: 'Generated empty provenance', recordIds: [] };
+sharedEnvelope.overlayBindings = [localBefore, ...commonBindings, emptyCommon, localAfter];
+const sharedScene = scene.admitAtlasScene(sharedEnvelope, { scope, publicationId: selection.publicationId },
+  new TextEncoder().encode(JSON.stringify(sharedEnvelope)).byteLength);
+const sharedLayer = bindAtlasModel(sharedScene, loaded).overlays.get('electrical');
+const firstCommon = sharedLayer.placed.get(extraOccurrences[0]), mixed = sharedLayer.placed.get('syn-occ-hall');
+for (const id of extraOccurrences) {
+  const row = sharedLayer.placed.get(id);
+  assert.equal(row.recordCount, 9 * 1024);
+  assert.strictEqual(row.recordIds, firstCommon.recordIds, 'common records are one shared array');
+  assert.strictEqual(row.bindings, firstCommon.bindings, 'empty and nonempty provenance are shared too');
+  assert.deepEqual(row.positions, [], 'summary bindings do not invent occurrence positions');
+  assert.equal(Object.getOwnPropertyDescriptor(row, 'recordCount').get, undefined, 'marker counts are stored scalars');
+}
+assert.equal(mixed.recordCount, 9 * 1024 + 2);
+assert.equal(sharedLayer.records, 9 * 1024 + 2);
+assert.deepEqual(mixed.bindings, sharedScene.overlayBindings, 'selected detail bindings retain the original interleaved order');
+const expectedRecords = [...new Set(sharedScene.overlayBindings.flatMap(row => row.recordIds))];
+assert.deepEqual(mixed.recordIds, expectedRecords, 'selected detail IDs retain first source appearance');
+assert.equal(firstCommon.bindings.at(-1).sourceRevision, emptyCommon.sourceRevision);
+assert.equal(mixed.positions.length, 2);
+assert.ok(renderToStaticMarkup(createElement(PublishedOverlayDetails, { placement: mixed })).includes(emptyCommon.sourceRevision));
 
 // Owner-confirmed contract: distinct plans may share a level. Split the
 // generated source features into two authored plans without changing geometry.
@@ -663,4 +758,6 @@ console.log('PASS unified Atlas healthy: generated scene/model read through the 
   + 'Normal pointer tap, drag, capture handoff, drag-to-pinch, either-finger release and plan pan use production handlers. '
   + 'Scalar source-text bounds and the full position basis are retained; admission-only projection covers 4,096 occurrences and 16,381 features. '
   + 'Mixed-floor records, static React provenance output, bounded repeated binding indexes and multiple same-level plans retain their source scope/order. '
+  + 'An empty record binding, a room with no occurrence, per-reason distinct unplaced counts, 8,193 selectors and nine 1,024-record bindings are admitted. '
+  + 'Common records/provenance are shared across 32 unselectable occurrences; scalar counts and selected details retain source order. '
   + 'Generated data only; no renderer, browser or device acceptance.');

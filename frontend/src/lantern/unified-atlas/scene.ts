@@ -27,7 +27,13 @@ export const ATLAS_LIMITS = Object.freeze({
   modelBytes: 32 * MiB,
   aggregateBytes: 64 * MiB,
   buildings: 128, levels: 64, rooms: 2048, occurrences: 4096,
-  meshMemberships: 8192, polygonPoints: 200_000, overlayRecords: 8192,
+  /** Bindings and selectors per binding, as the host admits them. Together the
+   * selectors cannot exceed the standard loader's drawn primitive instances
+   * (STANDARD_GLB_LIMITS.primitives), since each claims exactly one. */
+  meshBindings: 8192, primitivesPerBinding: 8192, drawnPrimitives: 20_000,
+  polygonPoints: 200_000,
+  /** Overlay bindings and unique record IDs per binding; the semantic byte budget bounds their sum. */
+  overlayBindings: 8192, recordsPerBinding: 1024,
   coordinate: 1_000_000,
 });
 export const SCENE_PROFILE = 'houseatlas.unified-atlas-scene.v1';
@@ -79,9 +85,9 @@ function box(value: unknown): Box {
   const bounds = row(value, ['min', 'max']), min = vec3(bounds.min), max = vec3(bounds.max);
   need(min[0] <= max[0] && min[1] <= max[1] && min[2] <= max[2]); return { min, max };
 }
-function ids(value: unknown, max: number, nonEmpty = false): readonly string[] {
+function ids(value: unknown, max: number): readonly string[] {
   const items = list(value, max).map(id);
-  need(new Set(items).size === items.length && (!nonEmpty || items.length > 0)); return items;
+  need(new Set(items).size === items.length); return items;
 }
 function unique<T>(items: readonly T[], key: (item: T) => string): ReadonlyMap<string, T> {
   const map = new Map<string, T>();
@@ -124,10 +130,10 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
   // Aggregate counts and inline sizes before any per-member allocation. Both
   // parts are measured compactly, so producer indentation does not count.
   budget(utf8Bytes(envelope.plans) <= ATLAS_LIMITS.planBytes && utf8Bytes({ ...envelope, plans: [] }) <= ATLAS_LIMITS.semanticBytes);
-  const rawBindings = list(envelope.meshBindings, ATLAS_LIMITS.meshMemberships);
+  const rawBindings = list(envelope.meshBindings, ATLAS_LIMITS.meshBindings);
   let memberships = 0;
   for (const item of rawBindings) { need(isRow(item) && Array.isArray(item.primitiveIndices)); memberships += item.primitiveIndices.length; }
-  budget(memberships <= ATLAS_LIMITS.meshMemberships);
+  budget(memberships <= ATLAS_LIMITS.drawnPrimitives);
   const rawPlans = list(envelope.plans, ATLAS_LIMITS.levels);
   let points = 0;
   for (const plan of rawPlans) {
@@ -142,10 +148,7 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
       }
     }
   }
-  const rawOverlays = list(envelope.overlayBindings, ATLAS_LIMITS.overlayRecords);
-  let records = 0;
-  for (const item of rawOverlays) { need(isRow(item) && Array.isArray(item.recordIds)); records += item.recordIds.length; }
-  budget(records <= ATLAS_LIMITS.overlayRecords);
+  const rawOverlays = list(envelope.overlayBindings, ATLAS_LIMITS.overlayBindings);
 
   const buildings = list(envelope.buildings, ATLAS_LIMITS.buildings).map<AtlasBuilding>(item => {
     const building = row(item, ['buildingId', 'label', 'nativePlaceId', 'bounds', 'levelIds']);
@@ -175,7 +178,8 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
     need(binding.status !== 'reviewed' || (nativePlaceId !== null && receiptSha256 !== null));
     return { roomId: id(room.roomId), buildingId: room.buildingId as string, label: text(room.label, 128), nativePlaceId,
       nativeBinding: { status: binding.status, receiptSha256 },
-      occurrenceIds: ids(room.occurrenceIds, ATLAS_LIMITS.occurrences, true) };
+      // A room without occurrences keeps its unknown placement: listed, never drawn or selectable.
+      occurrenceIds: ids(room.occurrenceIds, ATLAS_LIMITS.occurrences) };
   });
   const roomById = unique(rooms, item => item.roomId);
   const occurrences = list(envelope.occurrences, ATLAS_LIMITS.occurrences).map<AtlasOccurrence>(item => {
@@ -197,7 +201,7 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
     const binding = row(item, ['artifactId', 'nodeIndex', 'meshIndex', 'primitiveIndices', 'buildingId', 'levelIds', 'spaceOccurrenceId', 'role']);
     need(binding.artifactId === 'model' && ROLES.has(binding.role as MeshRole) && buildingById.has(binding.buildingId as string));
     const nodeIndex = integer(binding.nodeIndex, 0, 0x7fffffff), meshIndex = integer(binding.meshIndex, 0, 0x7fffffff);
-    const primitiveIndices = list(binding.primitiveIndices, ATLAS_LIMITS.meshMemberships).map(value => integer(value, 0, 0x7fffffff));
+    const primitiveIndices = list(binding.primitiveIndices, ATLAS_LIMITS.primitivesPerBinding).map(value => integer(value, 0, 0x7fffffff));
     need(primitiveIndices.length > 0 && new Set(primitiveIndices).size === primitiveIndices.length);
     for (const primitive of primitiveIndices) { const key = `${nodeIndex}/${primitive}`; need(!selectors.has(key)); selectors.add(key); }
     const levelIds = ids(binding.levelIds, ATLAS_LIMITS.levels);
@@ -255,7 +259,8 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
     return { publicationId: id(binding.publicationId), kind: binding.kind, sourceRevision: text(binding.sourceRevision, 128),
       sourceUpdatedAt: nullableText(binding.sourceUpdatedAt, 64), retrievedAt: nullableText(binding.retrievedAt, 64),
       roomId: id(binding.roomId), spaceOccurrenceId: nullableId(binding.spaceOccurrenceId), nativePlaceId: nullableUuid(binding.nativePlaceId),
-      recordIds: ids(binding.recordIds, ATLAS_LIMITS.overlayRecords, true), anchor: overlayAnchor(binding.anchor) };
+      // An empty set is a valid source answer; its provenance is kept and it shows no count.
+      recordIds: ids(binding.recordIds, ATLAS_LIMITS.recordsPerBinding), anchor: overlayAnchor(binding.anchor) };
   });
 
   const coverage = admitCoverage(envelope.coverage, occurrenceById, meshBindings, plans);
@@ -335,12 +340,14 @@ export interface OverlayPlacement {
   readonly roomId: string;
   /** Exactly this occurrence; room-summary bindings are expanded separately. */
   readonly occurrenceId: string;
+  /** Available without materializing a mixed occurrence's detail arrays. */
+  readonly recordCount: number;
   readonly recordIds: readonly string[];
   /** Qualified source positions with their occurrence; never derived from a room link. */
   readonly positions: readonly { readonly occurrenceId: string; readonly position: Vec3; readonly basis: string }[];
   readonly bindings: readonly AtlasOverlayBinding[];
 }
-export type UnplacedReason = 'other-publication' | 'room-absent' | 'not-linked' | 'occurrence-mismatch';
+export type UnplacedReason = 'other-publication' | 'room-absent' | 'not-linked' | 'occurrence-mismatch' | 'no-placement';
 export interface OverlayLayerIndex {
   readonly kind: OverlayKind;
   readonly placed: ReadonlyMap<string, OverlayPlacement>; // keyed by occurrence ID
@@ -474,32 +481,90 @@ export const planFeaturesForLevel = (model: AtlasModel, levelId: string): readon
 function joinOverlays(scene: AtlasScene, rooms: ReadonlyMap<string, AtlasRoom>, occurrences: ReadonlyMap<string, AtlasOccurrence>): ReadonlyMap<OverlayKind, OverlayLayerIndex> {
   const layers = new Map<OverlayKind, OverlayLayerIndex>();
   for (const kind of ['electrical', 'network'] as const) {
-    const placed = new Map<string, { roomId: string; recordIds: Set<string>; positions: OverlayPlacement['positions'][number][]; bindings: AtlasOverlayBinding[] }>();
+    type Group = { records: Set<string>; bindings: AtlasOverlayBinding[]; positions: OverlayPlacement['positions'][number][]; recordIds: readonly string[] };
+    const common = new Map<string, Group>(), local = new Map<string, Group>();
+    const order = new Map<AtlasOverlayBinding, number>(), candidates = new Set<string>();
+    const allRecords = new Set<string>(), unplacedIds = new Set<string>();
+    const group = (): Group => ({ records: new Set(), bindings: [], positions: [], recordIds: [] });
     const unplaced: { binding: AtlasOverlayBinding; reason: UnplacedReason }[] = [];
-    for (const binding of scene.overlayBindings) {
+    for (const [ordinal, binding] of scene.overlayBindings.entries()) {
       if (binding.kind !== kind) continue;
+      order.set(binding, ordinal);
+      for (const record of binding.recordIds) allRecords.add(record);
       const room = rooms.get(binding.roomId), occurrence = binding.spaceOccurrenceId === null ? null : occurrences.get(binding.spaceOccurrenceId);
       const reason: UnplacedReason | null = binding.publicationId !== scene.publication.publicationId ? 'other-publication'
         : !room ? 'room-absent'
         : room.nativeBinding.status !== 'reviewed' || room.nativePlaceId === null || binding.nativePlaceId !== room.nativePlaceId ? 'not-linked'
-        : occurrence === undefined || (occurrence !== null && occurrence.roomId !== room.roomId) ? 'occurrence-mismatch' : null;
-      if (reason !== null || !room) { unplaced.push({ binding, reason: reason ?? 'room-absent' }); continue; }
-      for (const key of occurrence ? [occurrence.spaceOccurrenceId] : room.occurrenceIds) {
-        const entry = placed.get(key) ?? { roomId: room.roomId, recordIds: new Set<string>(), positions: [], bindings: [] };
-        for (const record of binding.recordIds) entry.recordIds.add(record);
-        // A source position needs its explicit occurrence; never expand it.
-        if (binding.anchor.kind === 'source-position' && occurrence)
-          entry.positions.push({ occurrenceId: key, position: binding.anchor.position, basis: binding.anchor.basis });
-        entry.bindings.push(binding); placed.set(key, entry);
+        : occurrence === undefined || (occurrence !== null && occurrence.roomId !== room.roomId) ? 'occurrence-mismatch'
+        : room.occurrenceIds.length === 0 ? 'no-placement' : null;
+      if (reason !== null || !room) {
+        unplaced.push({ binding, reason: reason ?? 'room-absent' });
+        for (const record of binding.recordIds) unplacedIds.add(record);
+        continue;
       }
+      const groups = occurrence ? local : common, key = occurrence ? occurrence.spaceOccurrenceId : room.roomId;
+      let own = groups.get(key);
+      if (!own) {
+        own = group(); groups.set(key, own);
+        // Expand membership once per group, never records or provenance per occurrence.
+        for (const id of occurrence ? [occurrence.spaceOccurrenceId] : room.occurrenceIds) candidates.add(id);
+      }
+      for (const record of binding.recordIds) own.records.add(record);
+      own.bindings.push(binding);
+      if (binding.anchor.kind === 'source-position' && occurrence)
+        own.positions.push({ occurrenceId: occurrence.spaceOccurrenceId, position: binding.anchor.position, basis: binding.anchor.basis });
     }
-    const rows = new Map([...placed].map(([occurrenceId, entry]) => [occurrenceId, { kind, roomId: entry.roomId, occurrenceId,
-      recordIds: [...entry.recordIds], positions: entry.positions, bindings: entry.bindings }] as const));
-    const unplacedRecords = new Set(unplaced.flatMap(item => item.binding.recordIds)).size;
+    for (const own of [...common.values(), ...local.values()]) {
+      own.recordIds = Object.freeze([...own.records]); Object.freeze(own.bindings); Object.freeze(own.positions);
+    }
+    const emptyPositions: OverlayPlacement['positions'] = Object.freeze([]);
+    const rows = new Map<string, OverlayPlacement>();
+    for (const occurrenceId of candidates) {
+      const roomId = occurrences.get(occurrenceId)!.roomId, shared = common.get(roomId), specific = local.get(occurrenceId);
+      const only = (shared ?? specific)!;
+      // Mixed details merge source entries only when requested by the selected inspector.
+      // Do not cache them on every occurrence: common records/bindings stay shared.
+      const bindings = (): readonly AtlasOverlayBinding[] => {
+        if (!shared || !specific) return only.bindings;
+        const merged: AtlasOverlayBinding[] = []; let a = 0, b = 0;
+        while (a < shared.bindings.length || b < specific.bindings.length) {
+          if (b >= specific.bindings.length || (a < shared.bindings.length && order.get(shared.bindings[a]!)! < order.get(specific.bindings[b]!)!))
+            merged.push(shared.bindings[a++]!);
+          else merged.push(specific.bindings[b++]!);
+        }
+        return merged;
+      };
+      let recordCount = only.records.size;
+      if (shared && specific) {
+        recordCount = shared.records.size;
+        for (const record of specific.records) if (!shared.records.has(record)) recordCount++;
+      }
+      rows.set(occurrenceId, { kind, roomId, occurrenceId, recordCount,
+        get recordIds() {
+          if (!shared || !specific) return only.recordIds;
+          const records = new Set<string>();
+          for (const binding of bindings()) for (const record of binding.recordIds) records.add(record);
+          return [...records];
+        },
+        get bindings() { return bindings(); },
+        positions: specific?.positions ?? emptyPositions });
+    }
     layers.set(kind, { kind, placed: rows, unplaced,
-      records: new Set([...rows.values()].flatMap(item => item.recordIds).concat(unplaced.flatMap(item => item.binding.recordIds))).size, unplacedRecords });
+      records: allRecords.size, unplacedRecords: unplacedIds.size });
   }
   return layers;
+}
+
+/** Distinct record IDs per unplaced reason, counted like the layer total. One
+ * record may have several reasons, so these need not sum to that total. */
+export function unplacedByReason(layer: OverlayLayerIndex): ReadonlyMap<UnplacedReason, number> {
+  const reasons = new Map<UnplacedReason, Set<string>>();
+  for (const row of layer.unplaced) {
+    let own = reasons.get(row.reason);
+    if (!own) { own = new Set(); reasons.set(row.reason, own); }
+    for (const record of row.binding.recordIds) own.add(record);
+  }
+  return new Map([...reasons].flatMap(([reason, records]) => records.size > 0 ? [[reason, records.size] as const] : []));
 }
 
 // ---------------------------------------------------------------------------

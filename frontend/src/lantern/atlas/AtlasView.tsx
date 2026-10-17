@@ -61,18 +61,25 @@ export function AtlasView() {
       { id: 'home' as const, label: 'Home map' },
     ];
     const open = others.find(row => row.id === other) ?? null;
+    // Other sources come first: beside the archive filter, above the stage.
     if (!open) return <>
-      <OptionalViewerBoundary key="atlas" label="The Atlas">
-        <Suspense fallback={<p className="source-model-pane" role="status">Loading Atlas…</p>}>
-          <UnifiedAtlas port={atlas} onOpenModel={() => setOther('model')} />
-        </Suspense>
-      </OptionalViewerBoundary>
-      <details className="atlas-source-details">
+      <details className="atlas-source-details" onBlur={event => {
+        if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
+      }} onKeyDown={event => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault(); event.stopPropagation(); event.currentTarget.open = false;
+        event.currentTarget.querySelector<HTMLElement>('summary')?.focus({ preventScroll: true });
+      }}>
         <summary>Other sources</summary>
         <nav className="atlas-sources" aria-label="Source inspection">
           {others.map(row => <button key={row.id} type="button" className="text-btn" onClick={() => setOther(row.id)}>{row.label}</button>)}
         </nav>
       </details>
+      <OptionalViewerBoundary key="atlas" label="The Atlas">
+        <Suspense fallback={<p className="source-model-pane" role="status">Loading Atlas…</p>}>
+          <UnifiedAtlas port={atlas} onOpenModel={() => setOther('model')} />
+        </Suspense>
+      </OptionalViewerBoundary>
     </>;
     return <>
       <div className="atlas-sources is-open">

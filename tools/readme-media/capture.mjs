@@ -145,6 +145,20 @@ try {
     : document.querySelector('.ua-viewport .cifc-stage-note')?.textContent || false);
   assert.equal(await firstDraw.jsonValue(), 'drawn', 'Unified Atlas WebGL must draw before capture');
   const frames = page => page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(done)))));
+  // Normal keyboard use of the compact disclosure, without changing source.
+  const sourceDisclosure = async () => {
+    const menu = atlas.locator('details.atlas-source-details'), summary = menu.locator(':scope > summary');
+    await summary.focus(); await summary.press('Enter');
+    assert.equal(await menu.evaluate(node => node.open), true);
+    await menu.locator('nav button').last().focus(); await atlas.keyboard.press('Tab');
+    assert.equal(await menu.evaluate(node => node.open), false, 'The menu closes before focus enters stage controls');
+    await summary.focus(); await summary.press('Enter');
+    await menu.locator('nav button').first().focus(); await atlas.keyboard.press('Escape');
+    assert.equal(await menu.evaluate(node => node.open), false);
+    assert.equal(await summary.evaluate(node => document.activeElement === node), true, 'Escape returns focus to the source summary');
+    return { closedAfterTab: true, closedAfterEscape: true, focusReturned: true };
+  };
+  const desktopDisclosure = await sourceDisclosure();
   // Zoom in, then Fit view back to the baseline pose; a draw must follow the fit.
   const settledDraw = async page => {
     await shell.getByRole('button', { name: 'Zoom in', exact: true }).click();
@@ -160,7 +174,28 @@ try {
     const pressed = selector => [...document.querySelectorAll(selector)].filter(node => node.getAttribute('aria-pressed') === 'true')
       .map(node => node.getAttribute('aria-label') ?? node.textContent.trim());
     const inspector = document.querySelector('aside.ua-inspector'), canvas = document.querySelector('.ua-viewport canvas.cifc-canvas');
+    const stageBox = document.querySelector('.ua-viewport').getBoundingClientRect();
+    // The current building and floor are each visible inside their own row and the stage.
+    const inView = selector => {
+      const row = document.querySelector(selector), current = row?.querySelector('[aria-pressed="true"]');
+      if (!current) return false;
+      const a = current.getBoundingClientRect(), b = row.getBoundingClientRect();
+      return a.left >= Math.max(b.left, stageBox.left) - 1 && a.right <= Math.min(b.right, stageBox.right) + 1 && a.top >= stageBox.top - 1 && a.bottom <= stageBox.bottom + 1;
+    };
+    // Room and count buttons on the stage, measured against every visible floating panel.
+    const visible = node => { const style = getComputedStyle(node); return style.display !== 'none' && style.visibility !== 'hidden'; };
+    const panels = [...document.querySelectorAll('.ua-tools > *, .ua-scope > *, .ua-bottom > *')].filter(visible).map(node => node.getBoundingClientRect());
+    if (getComputedStyle(inspector).position === 'absolute' && !inspector.classList.contains('is-open')) panels.push(inspector.getBoundingClientRect());
+    const covered = [...document.querySelectorAll('.ua-label-hit, .ua-marker')].filter(visible).filter(node => {
+      const a = node.getBoundingClientRect();
+      return panels.some(b => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1);
+    }).map(node => node.getAttribute('aria-label'));
+    // Count buttons that overlap one another, so one count never hides another.
+    const counts = [...document.querySelectorAll('.ua-marker')].filter(visible).map(node => [node.getAttribute('aria-label'), node.getBoundingClientRect()]);
+    const crowded = counts.flatMap(([name, a], at) => counts.slice(at + 1)
+      .filter(([, b]) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1).map(([other]) => `${name} / ${other}`));
     return {
+      buildingInView: inView('.ua-buildings'), floorInView: inView('.ua-ladder'), covered, crowded,
       stage: document.querySelector('.ua-viewport').getAttribute('aria-label'),
       view: pressed('.ua-tools .seg button'), building: pressed('.ua-buildings button'), floor: pressed('.ua-ladder button'),
       exploded: document.querySelector('.ua-tools .ctrl-wide')?.getAttribute('aria-pressed') ?? null,
@@ -195,6 +230,12 @@ try {
   assert.deepEqual([desktop.view, desktop.building, desktop.floor, desktop.exploded], [['3D'], ['Synthetic house'], ['All floors'], 'true']);
   assert.deepEqual([desktop.selectedRoom, desktop.selectedFloor, desktop.canvasHidden, desktop.stageNote], ['Living room', 'Ground floor, Synthetic house', false, null]);
   assert(desktop.labels.includes('Select room: Living room'), 'The selected room tag must be on the stage');
+  const clearOfPanels = facts => {
+    assert.deepEqual(facts.covered, [], 'No room or count button may sit under a floating panel');
+    assert.deepEqual(facts.crowded, [], 'No count button may overlap another');
+    assert.deepEqual([facts.buildingInView, facts.floorInView], [true, true], 'The current building and floor must be in view');
+  };
+  clearOfPanels(desktop);
   const desktopWebgl = await atlasWebgl();
   assert(desktopWebgl.pixels[0] > 1 && desktopWebgl.pixels[1] > 1);
   await atlas.mouse.move(1430, 10);
@@ -211,10 +252,12 @@ try {
   assert.equal(plan.stage, 'Plan of Ground floor, Synthetic house. Arrow keys pan, plus and minus zoom, Escape clears the room.');
   assert.deepEqual([plan.view, plan.overlay, plan.markers, plan.planRooms, plan.planSelected, plan.stageNote],
     [['Plan'], ['Electrical'], ['Hall: 3 electrical records', 'Living room: 1 electrical record'], 3, 1, null]);
+  clearOfPanels(plan);
   const planSvgSha256 = createHash('sha256').update(await atlas.locator('.ua-viewport svg.cifc-svg').evaluate(node => node.outerHTML)).digest('hex');
   await atlas.screenshot({ path: resolve(output, 'synthetic-unified-plan.png'), animations: 'disabled' });
   // Phone width: the same selection in 3D with the room panel as a closed sheet.
   await atlas.setViewportSize({ width: 390, height: 844 });
+  const phoneDisclosure = await sourceDisclosure();
   await atlas.evaluate(() => { window.syntheticAtlasDrawCalls = 0; });
   await shell.getByRole('group', { name: 'Atlas view' }).getByRole('button', { name: '3D', exact: true }).click();
   await atlas.waitForFunction(() => !document.querySelector('.ua-viewport canvas.cifc-canvas').hidden && window.syntheticAtlasDrawCalls > 0);
@@ -225,6 +268,10 @@ try {
   const phone = await atlasFacts();
   assert.deepEqual([phone.view, phone.overlay, phone.selectedRoom, phone.stageNote], [['3D'], ['Electrical'], 'Living room', null]);
   assert.deepEqual(phone.inspector, { label: 'Selected room', position: 'absolute', open: false });
+  assert.deepEqual([phone.building, phone.floor], [['Synthetic house'], ['Ground floor: 3 rooms, has the selected room']]);
+  // Both published counts stay on the fitted phone stage, not culled to pass the panel check.
+  assert.deepEqual(phone.markers, ['Hall: 3 electrical records', 'Living room: 1 electrical record']);
+  clearOfPanels(phone);
   const phoneWebgl = await atlasWebgl();
   await atlas.screenshot({ path: resolve(output, 'synthetic-unified-phone.png'), animations: 'disabled' });
   assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
@@ -237,7 +284,7 @@ try {
     const path = file.startsWith('docs/demo/') ? resolve(output, file.split('/').at(-1)) : resolve(root, file);
     hashes[file] = createHash('sha256').update(await readFile(path)).digest('hex');
   }
-  const unifiedSourcePaths = ['tools/readme-media/capture.mjs', 'frontend/lantern-tests/source-host-visual/index.html', 'frontend/lantern-tests/source-host-visual/main.tsx', 'frontend/lantern-tests/source-host-visual/synthetic-site.ts', 'frontend/lantern-tests/source-host-visual/synthetic-documents.ts', 'frontend/lantern-tests/unified-atlas/synthetic-atlas.ts', 'frontend/integration/unified-atlas-reader.ts', 'frontend/src/lantern/Host.tsx', 'frontend/src/lantern/atlas/AtlasView.tsx', 'frontend/src/lantern/atlas/useCamera.ts', 'frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx', 'frontend/src/lantern/unified-atlas/scene.ts', 'frontend/src/lantern/unified-atlas/unified-atlas.css', 'frontend/src/lantern/unified-atlas/PublishedOverlayDetails.tsx', 'frontend/src/lantern/unified-atlas/labels.ts', 'frontend/src/lantern/unified-atlas/types.ts', 'frontend/src/lantern/canonical-ifc/MeshLayer.tsx', 'frontend/src/lantern/canonical-ifc/geometry.ts', 'frontend/src/lantern/canonical-ifc/useStageCamera.ts', 'frontend/src/lantern/canonical-ifc/stage-pointers.ts', 'frontend/src/lantern/canonical-ifc/standard-glb.ts', 'frontend/src/lantern/canonical-ifc/glb-preflight.ts', 'frontend/src/lantern/canonical-ifc/canonical-ifc.css'];
+  const unifiedSourcePaths = ['tools/readme-media/capture.mjs', 'frontend/lantern-tests/source-host-visual/index.html', 'frontend/lantern-tests/source-host-visual/main.tsx', 'frontend/lantern-tests/source-host-visual/synthetic-site.ts', 'frontend/lantern-tests/source-host-visual/synthetic-documents.ts', 'frontend/lantern-tests/unified-atlas/synthetic-atlas.ts', 'frontend/integration/unified-atlas-reader.ts', 'frontend/src/lantern/Host.tsx', 'frontend/src/lantern/atlas/AtlasView.tsx', 'frontend/src/lantern/atlas/useCamera.ts', 'frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx', 'frontend/src/lantern/unified-atlas/scene.ts', 'frontend/src/lantern/unified-atlas/runtime-overlays.ts', 'frontend/src/lantern/unified-atlas/unified-atlas.css', 'frontend/src/lantern/unified-atlas/PublishedOverlayDetails.tsx', 'frontend/src/lantern/unified-atlas/labels.ts', 'frontend/src/lantern/unified-atlas/types.ts', 'frontend/src/lantern/canonical-ifc/MeshLayer.tsx', 'frontend/src/lantern/canonical-ifc/geometry.ts', 'frontend/src/lantern/canonical-ifc/useStageCamera.ts', 'frontend/src/lantern/canonical-ifc/stage-pointers.ts', 'frontend/src/lantern/canonical-ifc/standard-glb.ts', 'frontend/src/lantern/canonical-ifc/glb-preflight.ts', 'frontend/src/lantern/canonical-ifc/canonical-ifc.css'];
   const unifiedSourceHashes = {}, unifiedArtifactHashes = {};
   for (const file of unifiedSourcePaths) unifiedSourceHashes[file] = createHash('sha256').update(await readFile(resolve(root, file))).digest('hex');
   for (const name of unifiedNames) unifiedArtifactHashes[`docs/demo/synthetic-${name}.png`] = createHash('sha256').update(await readFile(resolve(output, `synthetic-${name}.png`))).digest('hex');
@@ -245,12 +292,13 @@ try {
     entry: unifiedEntry, renderer: 'production UnifiedAtlas in LanternHost AtlasView',
     fixture: 'generated fictional publication from synthetic-atlas.ts; production readUnifiedAtlas over an in-page fake HTTPS transport; external atlas-scene/atlas-model parameters unused',
     buildings, floors, planSvgSHA256: planSvgSha256,
+    sourceDisclosure: { desktop: desktopDisclosure, phone: phoneDisclosure },
     states: [
       { image: 'synthetic-unified-3d.png', viewport: [1440, 1000], ...desktop, webgl: desktopWebgl },
       { image: 'synthetic-unified-plan.png', viewport: [1440, 1000], ...plan },
       { image: 'synthetic-unified-phone.png', viewport: [390, 844], ...phone, webgl: phoneWebgl },
     ],
-    checks: ['Atlas section current', 'two navigable generated buildings and three house floors in height order', 'Living room selected on Ground floor through the room list', 'fresh WebGL draws after Fit view before each 3D capture', 'selected room tag on the 3D stage', 'Ground floor plan with three rooms, one selected and the canvas hidden', 'published electrical counts for Hall and Living room', 'phone width with the room panel as a closed sheet'],
+    checks: ['Atlas section current', 'two navigable generated buildings and three house floors in height order', 'Living room selected on Ground floor through the room list', 'fresh WebGL draws after Fit view before each 3D capture', 'selected room tag on the 3D stage', 'Ground floor plan with three rooms, one selected and the canvas hidden', 'published electrical counts for Hall and Living room', 'phone width with the room panel as a closed sheet', 'Hall and Living room counts on the phone stage', 'no room or count button under a floating panel', 'no count button over another', 'current building and floor in view in every state'],
     scope: ['Generated fictional data only; no household, native, backend admission or private reference', 'Reduced motion: settled states only; no animation, transition or mid-sweep evidence', 'Playwright headless Chromium; no iPhone, PWA, native document, PDF or device acceptance'],
     sourceHashes: unifiedSourceHashes, artifactHashes: unifiedArtifactHashes,
   };

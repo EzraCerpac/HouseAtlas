@@ -38,15 +38,19 @@ artifacts only, not README images:
 | --- | --- |
 | `synthetic-unified-3d.png` | Synthetic house, exploded, Living room selected. |
 | `synthetic-unified-plan.png` | Ground floor plan with electrical record counts. |
-| `synthetic-unified-phone.png` | The same room in 3D at 390 × 844, room panel closed. |
+| `synthetic-unified-phone.png` | The same room in 3D at 390 × 844, room panel closed, with the Hall and Living room electrical counts. |
 
 They mount the actual `UnifiedAtlas` through `LanternHost` at
 `/lantern-tests/source-host-visual/?atlas=generated`. The production scene
 reader reads the generated fictional publication from an in-page fake HTTPS
 transport. Its optional external file parameters are not used. Each 3D image
 requires a fresh WebGL draw after **Fit view**; if 3D is unavailable, the capture
-fails instead of recording the fallback. With reduced motion, these images show
-settled states only. They do not show transitions, private reference views,
+fails instead of recording the fallback. Every state also requires that no room
+or count button overlaps a floating panel or another count and that the current
+building and floor are visible in their rows.
+The desktop and phone checks also exercise keyboard focus leaving Other sources
+and Escape returning focus to its summary, without switching source.
+With reduced motion, these images show settled states only. They do not show transitions, private reference views,
 native documents, PDFs, iPhone, PWA or device behavior.
 
 The stale HomeBox cache and absence of reviewed geometry are part of the

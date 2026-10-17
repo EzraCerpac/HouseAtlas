@@ -5,7 +5,7 @@ import {
 import { Icon } from '../components/Icon';
 import { useReducedMotion, useStore } from '../state/store';
 import { useEased } from '../atlas/useCamera';
-import { makeProjection, relativePath, type DrawRules } from '../canonical-ifc/geometry';
+import { makeProjection, relativePath, type DrawRules, type Projection, type Viewport } from '../canonical-ifc/geometry';
 import { GlbFormatError } from '../canonical-ifc/glb-preflight';
 import { MeshLayer, RENDER_LIMITS } from '../canonical-ifc/MeshLayer';
 import { useStageCamera } from '../canonical-ifc/useStageCamera';
@@ -15,7 +15,7 @@ import type { ModelOverviewSelection } from '../source-models/overview-types';
 import {
   atlasOrigin, atlasReducer, bindAtlasModel, contextOccurrenceIds, easePresentation, focusBuildingId, frameBox, hasExplodableLevels, initialAtlasState, labelHeight,
   levelLift, occurrenceLiftLevel, partLifts, pickOccurrence, planFeaturesForLevel, planPickOccurrence, planPoint, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
-  type AtlasAction, type AtlasModel, type AtlasViewState, type OverlayLayerIndex, type UnplacedReason,
+  unplacedByReason, type AtlasAction, type AtlasModel, type AtlasViewState, type OverlayLayerIndex, type UnplacedReason,
 } from './scene';
 import { AtlasReadError, type AtlasLevel, type AtlasOccurrence, type AtlasRoom, type AtlasReadFailure, type OverlayKind, type UnifiedAtlasPort } from './types';
 import { PublishedOverlayDetails } from './PublishedOverlayDetails';
@@ -119,10 +119,89 @@ const UNPLACED_LABEL: Record<UnplacedReason, string> = {
   'room-absent': 'room not in this model',
   'other-publication': 'from another model version',
   'occurrence-mismatch': 'floor part does not belong to the room',
+  'no-placement': 'room has no position in this model',
 };
 const LINK_LABEL = { reviewed: 'Linked to a home place', historical: 'Linked in an earlier review only', unmapped: 'Not linked to a home place yet' } as const;
 const plural = (count: number, one: string, many = `${one}s`) => `${count.toLocaleString()} ${count === 1 ? one : many}`;
 const elevation = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : '±'}${Math.abs(value).toFixed(2)} m`;
+
+// ---------------------------------------------------------------------------
+// The unobscured stage: floating panels claim edge bands, and the shared camera
+// fits what is left. Drawing, picking and labels keep one mapping in stage pixels.
+
+/** Stage pixels: left, top, right, bottom. */
+type Box = { readonly l: number; readonly t: number; readonly r: number; readonly b: number };
+const NO_INSET: Box = { l: 0, t: 0, r: 0, b: 0 };
+/** Space kept between a panel and the framed model, in pixels. */
+const CLEAR = 8;
+/** Smallest framed side worth keeping; when panels leave less, the whole stage is used. */
+const MIN_FRAME = 96;
+
+const overlaps = (a: Box, b: Box) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
+const laidOut = (node: Element) => getComputedStyle(node).display !== 'none';
+const showing = (node: Element) => laidOut(node) && getComputedStyle(node).visibility !== 'hidden';
+
+/** Each panel is cleared by the edge band that costs the frame least: every
+ * assignment of panels to bands is scored by the fit it leaves. Ties keep more area. */
+function safeInsets(cover: readonly Box[], width: number, height: number, fit: (w: number, h: number) => number): Box {
+  let best = NO_INSET, score = -1, area = -1;
+  for (let pick = 0; pick < 4 ** cover.length; pick++) {
+    let l = 0, t = 0, r = 0, b = 0;
+    cover.forEach((o, at) => {
+      const band = Math.floor(pick / 4 ** at) % 4;
+      if (band === 0) l = Math.max(l, o.r + CLEAR); else if (band === 1) t = Math.max(t, o.b + CLEAR);
+      else if (band === 2) r = Math.max(r, width - o.l + CLEAR); else b = Math.max(b, height - o.t + CLEAR);
+    });
+    const w = width - l - r, h = height - t - b;
+    if (w < MIN_FRAME || h < MIN_FRAME) continue;
+    const value = fit(w, h);
+    if (value > score + 1e-9 || (value > score - 1e-9 && w * h > area)) { best = { l, t, r, b }; score = value; area = w * h; }
+  }
+  return best;
+}
+
+/** The shared camera fitted to an inset region, reported in whole-stage pixels. */
+function insetProjection(base: Projection, dx: number, dy: number, viewport: Viewport): Projection {
+  return { ...base, ox: base.ox + dx, oy: base.oy + dy, viewport,
+    project(x, y, z) { const [px, py, depth] = base.project(x, y, z); return [px + dx, py + dy, depth]; },
+    planMatrix: y => `translate(${dx} ${dy}) ${base.planMatrix(y)}` };
+}
+
+/** Panels over the stage, in stage pixels: the view tools, the building and
+ * floor rail, the overlays and the sheet head. Each container is a
+ * transparent band, so its visible children are measured within it. An open
+ * sheet counts as its head, and the overlays it hides keep their place, so
+ * opening it never moves the model while a resize still re-fits it. */
+function measureCover(root: HTMLElement, stage: HTMLElement): { readonly cover: Box[]; readonly sheet: boolean } {
+  const frame = stage.getBoundingClientRect();
+  const clip = (rect: DOMRect, within: DOMRect): Box | null => {
+    const l = Math.max(rect.left, within.left, frame.left), t = Math.max(rect.top, within.top, frame.top);
+    const r = Math.min(rect.right, within.right, frame.right), b = Math.min(rect.bottom, within.bottom, frame.bottom);
+    return r - l > 1 && b - t > 1 ? { l: Math.round(l - frame.left), t: Math.round(t - frame.top), r: Math.round(r - frame.left), b: Math.round(b - frame.top) } : null;
+  };
+  const union = (selector: string, shown = showing): Box | null => {
+    const band = root.querySelector(selector); if (!band || !shown(band)) return null;
+    const within = band.getBoundingClientRect();
+    return [...band.children].filter(shown).map(child => clip(child.getBoundingClientRect(), within))
+      .reduce<Box | null>((sum, box) => !box ? sum : !sum ? box
+        : { l: Math.min(sum.l, box.l), t: Math.min(sum.t, box.t), r: Math.max(sum.r, box.r), b: Math.max(sum.b, box.b) }, null);
+  };
+  const tools = union('.ua-tools'), scope = union('.ua-scope');
+  // Overlays stand below these rows on narrow stages, and an open sheet stops above them.
+  if (tools) root.style.setProperty('--ua-tools-end', `${tools.b}px`);
+  if (scope) root.style.setProperty('--ua-scope-end', `${Math.max(scope.b, tools?.b ?? 0)}px`);
+  // The stylesheet decides whether the panel is a sheet; its head keeps one height open or closed.
+  const panel = root.querySelector('.ua-inspector'), head = panel?.querySelector('.ua-sheet-head');
+  const style = panel ? getComputedStyle(panel) : null;
+  const sheet = style?.position === 'absolute';
+  let peek: Box | null = null;
+  if (panel && head && style && sheet) {
+    const rect = panel.getBoundingClientRect();
+    const top = rect.bottom - head.getBoundingClientRect().height - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth);
+    peek = clip(new DOMRect(rect.left, top, rect.width, rect.bottom - top), frame);
+  }
+  return { cover: [tools, scope, union('.ua-bottom', laidOut), peek].filter((box): box is Box => box !== null), sheet };
+}
 
 function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; readonly port: UnifiedAtlasPort; readonly selection: ModelOverviewSelection }) {
   const { dispatch: appDispatch } = useStore();
@@ -196,6 +275,35 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
     const observer = new ResizeObserver(measure); observer.observe(head);
     return () => { observer.disconnect(); root.style.removeProperty('--ua-peek'); };
   }, [selected]);
+
+  // Panels over the stage, re-measured when their content or size changes, with
+  // the sheet open or closed. Panels never depend on the camera, and the band
+  // offsets written here never change the measured rows, so measuring cannot
+  // feed back into itself.
+  const [cover, setCover] = useState<readonly Box[]>([]);
+  const chrome = `${plan}\n${sheetOpen}\n${state.overlay}\n${selected}\n${state.buildingId}\n${state.levelId}\n${state.exploded}`;
+  useLayoutEffect(() => {
+    const root = shell.current, stage = viewport.current;
+    if (!root || !stage) return;
+    const measure = () => {
+      const next = measureCover(root, stage);
+      setCover(value => JSON.stringify(value) === JSON.stringify(next.cover) ? value : next.cover);
+      // Beside the stage the panel is never a sheet: a wider stage closes it,
+      // so the overlays and room controls it hid return.
+      if (!next.sheet) setSheetOpen(false);
+    };
+    measure();
+    // Re-measured on the next frame, outside the observer's own delivery.
+    let pending: number | null = null;
+    const observer = new ResizeObserver(() => { if (pending === null) pending = requestAnimationFrame(() => { pending = null; measure(); }); });
+    observer.observe(stage);
+    for (const band of root.querySelectorAll('.ua-tools, .ua-scope, .ua-bottom, .ua-inspector')) {
+      observer.observe(band);
+      for (const child of band.children) observer.observe(child);
+    }
+    return () => { observer.disconnect(); if (pending !== null) cancelAnimationFrame(pending); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chrome]);
   const select = (occurrenceId: string | null) => dispatch({ type: 'select', occurrenceId });
   const camera = useStageCamera({ element: viewport, top: plan, reduced, onEscape: () => select(null),
     onTap: (px, py, target) => {
@@ -211,7 +319,15 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
       } else select(pickOccurrence(model, shown, t, projection, px, py));
     } });
   const { planBlend, size } = camera;
-  const projection = useMemo(() => makeProjection(camera.eased, bounds, size, planBlend), [camera.eased, bounds, size, planBlend]);
+  // Fitted to the stage the panels leave clear, scored for the target view: the
+  // whole model in 3D, the plan's own extent in Plan. Insets ease with the frame.
+  const safe = useMemo(() => safeInsets(cover, size.width, size.height, plan
+    ? (w, h) => Math.min(w / Math.max(frameGoal.sx, 1e-3), h / Math.max(frameGoal.sz, 1e-3)) : (w, h) => Math.min(w, h)),
+  [cover, size.width, size.height, plan, frameGoal.sx, frameGoal.sz]);
+  const inset = useEased(safe, { reduced, tau: 170 });
+  const projection = useMemo(() => insetProjection(makeProjection(camera.eased, bounds,
+    { width: Math.max(1, size.width - inset.l - inset.r), height: Math.max(1, size.height - inset.t - inset.b) }, planBlend),
+  inset.l, inset.t, size), [camera.eased, bounds, size, planBlend, inset]);
   const lifts = useMemo(() => partLifts(model, presentation, t), [model, presentation, t]);
   const showCanvas = planBlend < 1 && failure === null;
 
@@ -251,10 +367,11 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
     const rows: { key: string; occurrenceId: string; roomLabel: string; count: number; x: number; y: number }[] = [];
     for (const placement of layer.placed.values()) {
       const occurrenceId = placement.occurrenceId;
-      if (!live.has(occurrenceId)) continue;
+      // A binding with no record IDs keeps its tint and provenance but has no count to show.
+      if (placement.recordCount === 0 || !live.has(occurrenceId)) continue;
       const at = anchorOf(occurrenceId); if (!at) continue;
       rows.push({ key: `${layer.kind}:${occurrenceId}`, occurrenceId, roomLabel: model.roomsById.get(placement.roomId)!.label,
-        count: placement.recordIds.length, x: at.x, y: at.y });
+        count: placement.recordCount, x: at.x, y: at.y });
     }
     return rows;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -287,7 +404,8 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
     }
     const rank = { selected: 0, context: 1, plain: 2 } as const;
     rows.sort((a, b) => rank[a.tier] - rank[b.tier] || b.clearance - a.clearance);
-    const placed: { l: number; r: number; t: number; b: number }[] = [];
+    // Panels count as placed: a room name under one is left to the room list.
+    const placed: Box[] = [...cover];
     return rows.filter(row => {
       const w = Math.min(220, row.text.length * 7.2 + (row.tier === 'plain' ? 14 : 26)), h = row.tier === 'plain' ? 22 : 30;
       const middle = row.y - TAG_RISE * row.rise;
@@ -297,7 +415,7 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
       placed.push(box); return true;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live, presentation, shown, projection, t, planBlend, selected, context, markerAt, model, size]);
+  }, [live, presentation, shown, projection, t, planBlend, selected, context, markerAt, model, size, cover]);
 
   // The moving section, drawn only while it travels and fading as it lands.
   // One plane is true only while the building's floors stand at their source
@@ -312,19 +430,20 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
     return [{ key: row.buildingId, points, opacity: Math.min(1, away / .8) * (1 - planBlend * 2) }];
   }), [planBlend, model, cuts, sectionGoal, ceilings, t, projection]);
 
-  // Projected label buttons, only where the whole tag is inside the stage.
+  // Stage buttons exist only where the whole control is in view: inside the
+  // stage and clear of every panel. Covered rooms stay in the room list.
+  const clear = (box: Box) => box.l >= 0 && box.t >= 0 && box.r <= size.width && box.b <= size.height && !cover.some(panel => overlaps(box, panel));
   const hits = labels.filter(label => {
     const half = Math.max(44, Math.min(320, label.text.length * 7 + 12)) / 2, y = label.y - TAG_RISE * label.rise;
-    return label.x >= half && label.x + half <= size.width && y >= 16 && y + 16 <= size.height;
+    return clear({ l: label.x - half, t: y - 16, r: label.x + half, b: y + 16 });
   });
-  // Count buttons follow the same rule: a mark outside the clipped stage is not a tab stop.
   const counts = markers.filter(row => {
     const half = Math.max(28, String(row.count).length * 7 + 18) / 2;
-    return row.x >= half && row.x + half <= size.width && row.y >= 14 && row.y + 14 <= size.height;
+    return clear({ l: row.x - half, t: row.y - 14, r: row.x + half, b: row.y + 14 });
   });
-  // A focused stage control can leave the stage: its tag rises past an edge
-  // or its floor is cut away. Focus then returns to the stage itself, without
-  // scrolling, instead of falling to the page.
+  // A focused stage control can leave the stage: its tag rises past an edge,
+  // a panel grows over it or its floor is cut away. Focus then returns to the
+  // stage itself, without scrolling, instead of falling to the page.
   const stageFocus = useRef<string | null>(null);
   const stageKeys = [...hits.map(label => `label:${label.id}`), ...(layer ? counts.map(row => `marker:${row.key}`) : [])].join('\n');
   useLayoutEffect(() => {
@@ -345,6 +464,18 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
     // Focus went nowhere: kept for recovery only if the control itself was removed.
     queueMicrotask(() => { if (node.isConnected && stageFocus.current === key) stageFocus.current = null; });
   };
+
+  // Narrow stages give buildings and floors one sideways row each: the current
+  // choice is scrolled into its row, never the page.
+  useLayoutEffect(() => {
+    for (const row of shell.current?.querySelectorAll<HTMLElement>('.ua-buildings, .ua-ladder') ?? []) {
+      const current = row.querySelector<HTMLElement>('[aria-pressed="true"]');
+      if (!current || row.scrollWidth <= row.clientWidth) continue;
+      const box = current.getBoundingClientRect(), edge = row.getBoundingClientRect();
+      if (box.left < edge.left) row.scrollLeft -= edge.left - box.left + 12;
+      else if (box.right > edge.right) row.scrollLeft += box.right - edge.right + 12;
+    }
+  }, [state.buildingId, state.levelId, plan, size.width]);
 
   // Only buildings with floors are navigable; context-only groups stay drawn around them.
   const buildings = model.floorBuildings;
@@ -667,6 +798,8 @@ function SourceDetails({ model, occurrence, room, renderFailure, overlayReason, 
 }) {
   const { publication, coverage } = model.scene;
   const elevations = model.scene.levels.filter(level => level.elevationBasis !== null || level.sourceElevationM !== null);
+  // Logical rooms the publication keeps without any occurrence: placement unknown, not selectable.
+  const unpositioned = model.scene.rooms.filter(row => row.occurrenceIds.length === 0);
   return <details className="ua-source">
     <summary>Source</summary>
     <dl>
@@ -685,6 +818,9 @@ function SourceDetails({ model, occurrence, room, renderFailure, overlayReason, 
         {coverage.exclusions.map((row, at) => <li key={at}>{row.id && model.occurrencesById.has(row.id)
           ? model.roomsById.get(model.occurrencesById.get(row.id)!.roomId)!.label : row.id ?? 'Unnamed'}{row.reason ? `: ${row.reason}` : ''}</li>)}
       </ul></dd></div>}
+      {unpositioned.length > 0 && <div><dt>No model position</dt><dd><ul>
+        {unpositioned.map(row => <li key={row.roomId}>{row.label}, {model.buildingsById.get(row.buildingId)!.label}</li>)}
+      </ul></dd></div>}
     </dl>
   </details>;
 }
@@ -694,19 +830,24 @@ function OverlayKey({ layer, openNetwork, availability, unplaced, openDocuments,
   readonly publishedOnly: boolean;
   readonly sourceScope: string | null;
 }) {
-  const reasons = new Map<UnplacedReason, number>();
-  for (const row of layer.unplaced) reasons.set(row.reason, (reasons.get(row.reason) ?? 0) + row.binding.recordIds.length);
-  const [closed, setClosed] = useState(false);
+  const reasons = unplacedByReason(layer);
+  // Closed, the head keeps the layer's state in view; the explanation and
+  // unplaced records open on request, so the model keeps the stage.
+  const [closed, setClosed] = useState(true);
   const bodyId = useId();
   return <section className={`ua-key${closed ? ' is-closed' : ''}`} aria-label={`${OVERLAY_LABEL[layer.kind]} overlay`} style={{ '--layer': TONE_COLOR[layer.kind] } as CSSProperties}>
     <button type="button" className="ua-key-head" aria-expanded={!closed} aria-controls={bodyId} onClick={() => setClosed(value => !value)}>
-      <Icon name={OVERLAY_ICON[layer.kind]} size={17} /><span>{OVERLAY_LABEL[layer.kind]}</span>
+      <Icon name={OVERLAY_ICON[layer.kind]} size={17} /><span className="ua-key-label">{OVERLAY_LABEL[layer.kind]}
+        {sourceScope && <small className="ua-key-scope" title={`${sourceScope} source records only`}>{sourceScope} source records only</small>}
+      </span>
       {/* A count only where the source answered; unavailable is not zero. */}
-      {(availability === 'available' || availability === 'partial') && <span className="ua-key-count">{plural(layer.records, 'record')}</span>}
+      <span className={`ua-key-count${availability === 'unavailable' || availability === 'partial' ? ' is-warn' : ''}`}>
+        {availability === 'loading' ? 'Loading' : availability === 'unavailable' ? 'Unavailable'
+          : `${plural(layer.records, 'record')}${availability === 'partial' ? ', partial' : ''}${layer.unplacedRecords > 0 ? `, ${layer.unplacedRecords.toLocaleString()} not placed` : ''}`}
+      </span>
       <Icon name="chevronDown" size={16} />
     </button>
     <div className="ua-key-body" id={bodyId} hidden={closed}>
-      {sourceScope && <p className="ua-key-scope">{sourceScope} source records only</p>}
       <p>{availability === 'loading' ? 'Loading room sources…' : availability === 'unavailable' ? 'Current room sources are unavailable.'
         : availability === 'partial' ? 'Some electrical sources are unavailable.'
         : publishedOnly && layer.records === 0 ? 'No source references in this publication.'

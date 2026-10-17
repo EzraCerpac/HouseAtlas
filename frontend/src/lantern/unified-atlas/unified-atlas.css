@@ -8,6 +8,67 @@
   min-height: 0;
 }
 
+/* One slim row above the stage: the archive filter and the other sources,
+   which open as a menu over the stage instead of a row below it. */
+.lantern-host.view-atlas .main:has(> .ua-shell) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.lantern-host.view-atlas .main:has(> .ua-shell) > * { grid-column: 1 / -1; }
+.lantern-host.view-atlas .main:has(> .ua-shell) > .ua-shell { grid-row: 3; }
+
+.lantern-host.view-atlas .main:has(> .ua-shell) > .archive-filter,
+.lantern-host.view-atlas .main:has(> .ua-shell) > .atlas-source-details {
+  grid-row: 2;
+  margin: 0;
+  border-bottom: 1px solid var(--hair);
+  background: var(--card-2);
+  font-size: var(--fs-s);
+}
+
+.lantern-host.view-atlas .main:has(> .ua-shell) > .archive-filter {
+  grid-column: 1;
+  padding: 3px 8px 3px clamp(12px, 3vw, 24px);
+}
+
+.lantern-host.view-atlas .main:has(> .ua-shell) > .atlas-source-details {
+  grid-column: 2;
+  position: relative;
+  z-index: 8;
+  padding: 0 clamp(12px, 3vw, 24px) 0 8px;
+}
+
+.lantern-host.view-atlas .main:has(> .ua-shell):not(:has(> .archive-filter)) > .atlas-source-details {
+  grid-column: 1 / -1;
+  text-align: right;
+}
+
+.lantern-host.view-atlas .main:has(> .ua-shell) > .atlas-source-details > summary { min-height: 36px; }
+
+.lantern-host.view-atlas .main:has(> .ua-shell) > .atlas-source-details > .atlas-sources {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 180px;
+  margin: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--hair-2);
+  border-radius: var(--r-panel);
+  background: var(--card);
+  box-shadow: var(--shadow-float);
+  text-align: left;
+}
+
+@media (max-width: 720px) {
+  .lantern-host.view-atlas .main:has(> .ua-shell) > .archive-filter,
+  .lantern-host.view-atlas .main:has(> .ua-shell) > .atlas-source-details { font-size: var(--fs-xs); }
+}
+
 .lantern-host .ua-shell {
   --ua-peek: 76px;
   container: ua / inline-size;
@@ -168,14 +229,16 @@
 
 /* ---- Scope: buildings and the floor rail -------------------------------- */
 
+/* One narrow rail on the left edge: buildings stacked over their floors, so
+   the model keeps the rest of the stage. */
 .lantern-host .ua-scope {
   top: 16px;
   left: 16px;
   bottom: 72px;
-  max-width: min(46%, 440px);
+  width: 204px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 8px;
   pointer-events: none;
 }
@@ -185,8 +248,9 @@
 }
 
 .lantern-host .ua-buildings {
+  flex: none;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 6px;
 }
 
@@ -432,6 +496,27 @@
 }
 
 .lantern-host .ua-key-head > svg:first-child { color: var(--layer); }
+.lantern-host .ua-key-label { display: grid; min-width: 0; text-align: left; }
+.lantern-host .ua-key-label .ua-key-scope {
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 var(--fs-xs)/1.3 var(--text);
+}
+.lantern-host .ua-key:not(.is-closed) .ua-key-label .ua-key-scope {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Closed, the key is one line: the layer and its state. */
+.lantern-host .ua-key.is-closed {
+  align-self: flex-end;
+  width: auto;
+  max-width: 100%;
+}
+
+.lantern-host .ua-key.is-closed .ua-key-head { border-radius: var(--r-panel); }
 
 .lantern-host .ua-key-count {
   margin-left: auto;
@@ -439,6 +524,8 @@
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
+
+.lantern-host .ua-key-count.is-warn { color: var(--warn); }
 
 .lantern-host .ua-key-head > svg:last-child {
   margin-left: auto;
@@ -764,7 +851,7 @@
     right: 12px;
     bottom: 12px;
     width: min(400px, calc(100% - 24px));
-    max-height: min(72%, 560px, calc(100% - 132px));
+    max-height: min(72%, 560px, calc(100% - var(--ua-tools-end, 120px) - 12px));
     border: 1px solid var(--hair-2);
     border-radius: var(--r-sheet);
     box-shadow: var(--shadow-sheet);
@@ -773,12 +860,25 @@
 
   .lantern-host .ua-sheet-toggle { display: inline-flex; }
   .lantern-host .ua-inspector:not(.is-open) .ua-sheet-body { display: none; }
-  .lantern-host .ua-inspector:not(.is-open) .ua-sheet-head { border-bottom: 0; }
+  /* The head keeps one height open or closed, so opening never re-fits the model. */
+  .lantern-host .ua-inspector:not(.is-open) .ua-sheet-head { border-bottom-color: transparent; }
+
+  /* Name and actions share the first line; the floor line takes the full width. */
+  .lantern-host .ua-sheet-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 2px 8px;
+  }
+
+  .lantern-host .ua-sheet-title { display: contents; }
+  .lantern-host .ua-sheet-title > h2 { grid-area: 1 / 1; justify-self: start; }
+  .lantern-host .ua-sheet-title > p { grid-area: 2 / 1 / 3 / -1; }
 
   /* Overlays stand above the card head, between the view tools and the card;
      a long key scrolls inside that band. */
   .lantern-host .ua-bottom {
-    top: 120px;
+    top: calc(var(--ua-tools-end, 108px) + 12px);
     left: auto;
     right: 12px;
     bottom: calc(var(--ua-peek) + 28px);
@@ -804,18 +904,18 @@
     right: 0;
     bottom: 0;
     width: auto;
-    max-height: min(72%, calc(100% - 118px));
+    max-height: min(72%, calc(100% - var(--ua-scope-end, 150px) - 8px));
     border-width: 1px 0 0;
     border-radius: var(--r-sheet) var(--r-sheet) 0 0;
   }
 
-  .lantern-host .ua-sheet-head { padding: 12px 10px 10px 16px; }
+  .lantern-host .ua-sheet-head { padding: 10px 10px 8px 16px; }
   .lantern-host .ua-sheet-body { padding: 12px 16px 18px; }
   .lantern-host .ua-inspector h2 { font-size: var(--fs-l); }
 
   /* Between the floor row and the sheet head. */
   .lantern-host .ua-bottom {
-    top: 118px;
+    top: calc(var(--ua-scope-end, 150px) + 8px);
     left: 8px;
     right: 8px;
     bottom: calc(var(--ua-peek) + 8px);
@@ -846,23 +946,28 @@
   .lantern-host .ua-tools .ctrl-wide { padding: 0 10px; }
   .lantern-host .ua-tools .seg button { min-width: 44px; padding: 0 10px; }
 
+  /* Buildings and floors each keep their own row, so the floors are never
+     pushed out of view by a long building list. */
   .lantern-host .ua-scope {
     top: 60px;
     left: 8px;
     right: 8px;
     bottom: auto;
-    max-width: none;
-    flex-direction: row;
-    align-items: center;
+    width: auto;
+    align-items: flex-start;
     gap: 6px;
-    padding: 3px;
-    overflow-x: auto;
-    scrollbar-width: none;
-    pointer-events: auto;
   }
 
-  .lantern-host .ua-buildings { flex: none; flex-wrap: nowrap; }
-  .lantern-host .ua-buildings .chip-btn { white-space: nowrap; }
+  .lantern-host .ua-buildings,
+  .lantern-host .ua-ladder {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .lantern-host .ua-buildings { flex-direction: row; padding: 3px; }
+  .lantern-host .ua-buildings .chip-btn { flex: none; min-height: 34px; white-space: nowrap; }
 
   .lantern-host .ua-ladder {
     flex: none;
@@ -870,19 +975,20 @@
     align-items: center;
     width: auto;
     padding: 4px;
-    overflow: visible;
   }
 
-  .lantern-host .ua-rungs { flex-direction: row-reverse; gap: 2px; }
+  .lantern-host .ua-rungs { flex: none; flex-direction: row-reverse; gap: 2px; }
   .lantern-host .ua-rungs::before { display: none; }
   .lantern-host .ua-rungs > li + li { margin-top: 0; }
 
   .lantern-host .ua-rung {
     grid-template-columns: auto;
-    min-height: 40px;
-    padding: 6px 14px;
+    min-height: 36px;
+    padding: 4px 14px;
     white-space: nowrap;
   }
+
+  .lantern-host .ua-rung-all { min-height: 36px; }
 
   .lantern-host .ua-rung-tick,
   .lantern-host .ua-rung-sub { display: none; }
@@ -905,7 +1011,8 @@
     scrollbar-width: none;
   }
 
-  .lantern-host .ua-bottom .layer-chip { flex-shrink: 0; }
+  .lantern-host .ua-bottom .layer-chip { flex-shrink: 0; min-height: 36px; }
+  .lantern-host .ua-key-head { min-height: 40px; padding: 6px 12px; }
 }
 
 /* Smallest phones: the explode toggle keeps its name for assistive tech only. */

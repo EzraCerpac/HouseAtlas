@@ -162,7 +162,7 @@ export function documentaryOverlayIndex(model: AtlasModel, records: RuntimeRecor
     const selected = rows[kind]; if (!selected.length) continue;
     const occurrenceIds = model.roomsById.get(roomId)!.occurrenceIds.filter(id => model.selectable.has(id));
     const recordIds = selected.map(record => record.key); recordIds.forEach(id => all.add(id));
-    for (const occurrenceId of occurrenceIds) placed.set(occurrenceId, { kind, roomId, occurrenceId, recordIds, positions: [], bindings: [] });
+    for (const occurrenceId of occurrenceIds) placed.set(occurrenceId, { kind, roomId, occurrenceId, recordCount: recordIds.length, recordIds, positions: [], bindings: [] });
   }
   for (const record of records.unplaced[kind]) all.add(record.key);
   return { kind, placed, unplaced: [], records: all.size, unplacedRecords: records.unplaced[kind].length };
