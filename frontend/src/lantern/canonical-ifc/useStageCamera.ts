@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type RefObject } from 'react';
 import { useEased } from '../atlas/useCamera';
 import { createStagePointers, type StageGesture } from './stage-pointers';
+import { bindTrackpadGesture, createTrackpadGesture } from './trackpad-gesture';
 
 export const motionQuery = '(prefers-reduced-motion: reduce)';
 function subscribeMotion(change: () => void) {
@@ -17,13 +18,15 @@ export const DEFAULT_ORBIT = { yaw: -32, pitch: 36 } as const;
 /** Camera state and interaction shared by the canonical stage and the local
  * preview. Every change re-targets the eased pose, so navigation is always
  * interruptible; reduced motion (OS preference) snaps. */
-export function useStageCamera({ element, top, reduced, onTap, onEscape }: {
+export function useStageCamera({ element, top, reduced, onTap, onEscape, minimumZoom }: {
   readonly element: RefObject<HTMLDivElement | null>;
   /** Top-down pose (plan or top view). */
   readonly top: boolean;
   readonly reduced: boolean;
   readonly onTap: (x: number, y: number, target?: EventTarget | null) => void;
   readonly onEscape?: () => void;
+  /** Presentation fits may extend zoom-out without changing the ordinary fitted pose. */
+  readonly minimumZoom?: () => number;
 }) {
   const [size, setSize] = useState({ width: 960, height: 640 });
   const [orbit, setOrbit] = useState<{ yaw: number; pitch: number }>(DEFAULT_ORBIT);
@@ -43,24 +46,55 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape }: {
     });
     observer.observe(node); return () => observer.disconnect();
   }, [element]);
+  const live = useRef({ yaw: orbit.yaw, zoom, top, minimumZoom });
+  live.current = { yaw: orbit.yaw, zoom, top, minimumZoom };
+  // Native listeners and pointer closures read the same current floor, even
+  // while a presentation fit eases or a resize changes its magnification.
+  const zoomLimits = {
+    get min() { const value = live.current.minimumZoom?.() ?? ZOOM.min;
+      return Number.isFinite(value) && value > 0 ? Math.min(ZOOM.min, value) : ZOOM.min; },
+    max: ZOOM.max,
+  };
+  const previousMinimum = useRef(ZOOM.min);
+  useLayoutEffect(() => {
+    const minimum = zoomLimits.min;
+    if (minimum === previousMinimum.current) return;
+    previousMinimum.current = minimum;
+    setZoom(value => Math.min(ZOOM.max, Math.max(minimum, value)));
+  });
   // Pinch and ctrl/cmd + wheel zoom; an ordinary wheel keeps scrolling the page.
+  // Safari trackpad twist turns and pinch zooms through its gesture events; the
+  // ctrl-wheel WebKit sends for the same pinch is absorbed meanwhile.
   useEffect(() => {
     const node = element.current; if (!node) return;
+    const trackpad = createTrackpadGesture({
+      read: () => ({ yaw: live.current.yaw, zoom: live.current.zoom }),
+      apply: pose => {
+        setZoom(pose.zoom);
+        if (pose.yaw !== null) { const yaw = pose.yaw; setOrbit(value => ({ ...value, yaw })); }
+      },
+      rotates: () => !live.current.top,
+      zoomLimits,
+    });
     const wheel = (event: WheelEvent) => {
       if (!event.ctrlKey && !event.metaKey) return;
-      event.preventDefault(); setZoom(value => Math.min(ZOOM.max, Math.max(ZOOM.min, value * Math.exp(-event.deltaY * .004))));
+      event.preventDefault();
+      if (trackpad.active()) return;
+      setZoom(value => Math.min(zoomLimits.max, Math.max(zoomLimits.min, value * Math.exp(-event.deltaY * .004))));
     };
-    node.addEventListener('wheel', wheel, { passive: false }); return () => node.removeEventListener('wheel', wheel);
+    node.addEventListener('wheel', wheel, { passive: false });
+    const unbind = bindTrackpadGesture(node, trackpad);
+    return () => { node.removeEventListener('wheel', wheel); unbind(); };
   }, [element]);
 
   const turn = (delta: number) => setOrbit(value => ({ ...value, yaw: value.yaw + delta }));
   const tilt = (delta: number) => setOrbit(value => ({ ...value, pitch: Math.min(PITCH_3D.max, Math.max(PITCH_3D.min, value.pitch + delta)) }));
-  const zoomBy = (factor: number) => setZoom(value => Math.min(ZOOM.max, Math.max(ZOOM.min, value * factor)));
+  const zoomBy = (factor: number) => setZoom(value => Math.min(zoomLimits.max, Math.max(zoomLimits.min, value * factor)));
   const fit = () => { setZoom(1); setPan({ x: 0, y: 0 }); if (!top) setOrbit(DEFAULT_ORBIT); };
   /** Zoom and pan back to the framed scope; the chosen orbit stays. */
   const reframe = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
   const bind = {
-    ...createStagePointers({ gesture: gesture.current, top, onTap, dragging: setDragging, zoom: setZoom, pan: setPan, orbit: setOrbit }),
+    ...createStagePointers({ gesture: gesture.current, top, onTap, dragging: setDragging, zoom: setZoom, zoomLimits, pan: setPan, orbit: setOrbit }),
     onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
       if (event.target !== event.currentTarget) return;
       const step = event.shiftKey ? 4 : 1;
@@ -74,5 +108,5 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape }: {
       event.preventDefault(); action();
     },
   };
-  return { size, eased, planBlend, dragging, zoom, zoomLimits: ZOOM, turn, zoomBy, fit, reframe, bind };
+  return { size, eased, planBlend, dragging, zoom, zoomLimits, turn, zoomBy, fit, reframe, bind };
 }

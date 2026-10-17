@@ -6,7 +6,7 @@ import { adaptDocumentaryElectricity } from '../src/lantern/overlays/electricity
 import type { NativeEvidenceDocumentClient, NativeEvidenceDocumentFrame } from '../src/lantern/scans/native-evidence-document-types';
 import type { NativeGeometryReadClient, NativeGeometryFrame } from '../src/lantern/scans/native-read-types';
 import type { NativeSceneSourceClient, NativeSceneSourceFrame, NativeSceneSourceSelection, NativeSceneSubset,
-  NativeSceneFloorBinding, NativeSceneDrawingPdfReference } from '../src/lantern/scans/native-scene-source-types';
+  NativeSceneFloorBinding, NativeSceneDrawingPdfReference, DocumentaryOverlayReadPins } from '../src/lantern/scans/native-scene-source-types';
 import type { SchematicRoom, DisplayRoomRegion } from '../src/lantern/scans/presentation/types';
 import type { NetworkOverlayData, NetworkOverlayDevice, NetworkOverlayEndpoint,
   NetworkOverlayLink, NetworkPlaceAssociation, NetworkOverlaySource } from '../src/lantern/overlays/network/types';
@@ -97,7 +97,7 @@ function selectionStamp(value: NativeSceneSourceSelection): string {
 
 /** Host pins are independent of retained scene text. Invalid or ambiguous joins
  * cannot grant a PDF action; other qualified scene subsets remain usable. */
-function drawingReferences(selection: NativeSceneSourceSelection,
+function drawingReferences(selection: DocumentaryOverlayReadPins,
   fixtures: NativeSceneSubset<ElectricalFixtureData>): readonly NativeSceneDrawingPdfReference[] {
   const input = selection.drawingReferences;
   if (!input || input.length > 128 || fixtures.status !== 'available') return Object.freeze([]);
@@ -194,7 +194,7 @@ function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
 }
 type Anchor = Readonly<{ id: string; floor: string; sourceSha: string;
   targets: readonly Readonly<{ key: string; uuid: string }>[]; unresolved: readonly string[] }>;
-function receipt(selection: NativeSceneSourceSelection): ReadonlyMap<string, Anchor> {
+function receipt(selection: DocumentaryOverlayReadPins): ReadonlyMap<string, Anchor> {
   const anchors = new Map<string, Anchor>();
   if (selection.acceptedRoomReceiptId === null || selection.acceptedRoomReceiptSha256 === null) {
     need(selection.acceptedRoomReceiptId === null && selection.acceptedRoomReceiptSha256 === null
@@ -811,7 +811,7 @@ export function createNativeSceneSourceClient(options: NativeSceneSourceOptions)
 /** Closed documentary projection for a source-only current-association owner.
  * This function issues no authority/lease and never interprets old room geometry.
  * The caller retains native originals and performs the final current-head fence. */
-export async function readNativeOverlayDetails(selection:NativeSceneSourceSelection,primaryBytes:Uint8Array,
+async function readDocumentaryOverlayCore(selection:DocumentaryOverlayReadPins,primaryBytes:Uint8Array,
   historicalBytes:Uint8Array,guard:()=>void):Promise<Pick<NativeSceneSourceFrame,
     'network'|'electricity'|'electricalFixtures'|'drawingReferences'|'drawingProvenance'>> {
   guard();need(primaryBytes.length<=MAX_TEXT&&historicalBytes.length<=MAX_TEXT);
@@ -851,4 +851,27 @@ export async function readNativeOverlayDetails(selection:NativeSceneSourceSelect
     electricity:electricity(electric,selection.viewKey),electricalFixtures:currentFixtures,drawingReferences:drawingReferences(selection,currentFixtures),
     ...(support&&currentFixtures.status==='available'?{drawingProvenance:{historicalRoomMappingReceipt:{id:support.roomMapping.receiptId,sha256:support.roomMapping.originalSha256},
       fixtureLedgerSha256:support.fixtureLedgerSha256,supportOriginalSha256:support.originalSha256,currentNativeRoomReview:{id:selection.acceptedRoomReceiptId!,sha256:selection.acceptedRoomReceiptSha256!}}}:{})});
+}
+
+/** Native callers still retain genuine original leases and the final current-head
+ * fence. The closed byte-admission core below this wrapper issues no authority. */
+export async function readNativeOverlayDetails(selection: NativeSceneSourceSelection, primaryBytes: Uint8Array,
+  historicalBytes: Uint8Array, guard: () => void): Promise<Pick<NativeSceneSourceFrame,
+    'network' | 'electricity' | 'electricalFixtures' | 'drawingReferences' | 'drawingProvenance'>> {
+  return readDocumentaryOverlayCore(selection, primaryBytes, historicalBytes, guard);
+}
+
+/** Saved facts only: no NativeSceneSourceSelection, frame, lease, session or
+ * currentness callback is created. Reference metadata cannot open a native file. */
+export async function readSavedDocumentaryDetails(pins: DocumentaryOverlayReadPins, primaryBytes: Uint8Array,
+  historicalBytes: Uint8Array, guard: () => void) {
+  const { drawingProvenance, drawingReferences, ...subsets } = await readDocumentaryOverlayCore(pins, primaryBytes, historicalBytes, guard);
+  return freeze({ mode: 'saved-documentary-snapshot' as const, ...subsets,
+    drawingReferenceMetadata: drawingReferences,
+    capturedDrawingProvenance: drawingProvenance ? {
+      historicalRoomMappingReceipt: drawingProvenance.historicalRoomMappingReceipt,
+      fixtureLedgerSha256: drawingProvenance.fixtureLedgerSha256,
+      supportOriginalSha256: drawingProvenance.supportOriginalSha256,
+      capturedRoomReview: drawingProvenance.currentNativeRoomReview,
+    } : null });
 }

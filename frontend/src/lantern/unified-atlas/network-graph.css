@@ -1,0 +1,348 @@
+/* The logical network: its own drafting frame, apart from the house. Ink
+   nodes, dashed associations and no ground plate, so it never reads as a
+   place on the property. */
+
+.lantern-host .ung {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  min-width: 0;
+}
+
+.lantern-host .ung-caption {
+  display: grid;
+  gap: 2px;
+}
+
+.lantern-host .ung-caption strong {
+  font: 650 var(--fs-s)/1.3 var(--display);
+  color: var(--ink);
+}
+
+.lantern-host .ung-caption span {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A sheet of tracing paper: dotted graph field, never the birch ground. */
+.lantern-host .ung-frame {
+  border-radius: 10px;
+  border: 1px solid var(--hair);
+  background:
+    radial-gradient(circle, rgba(24, 35, 58, 0.13) 0.8px, transparent 1.2px) 0 0 / 14px 14px,
+    #fdfbf6;
+  box-shadow: inset 0 1px 0 #fff;
+  overflow: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+/* A graph wider than its panel: the frame fades where branches continue,
+   and the scrollbar stays visible as the way there. */
+.lantern-host .ung-frame.is-wide { scrollbar-width: auto; scrollbar-color: var(--hair-2) transparent; }
+
+.lantern-host .ung-frame.is-before-end {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), rgba(0, 0, 0, 0.18));
+  mask-image: linear-gradient(to right, #000 calc(100% - 36px), rgba(0, 0, 0, 0.18));
+}
+
+.lantern-host .ung-frame.is-past-start {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 36px), rgba(0, 0, 0, 0.18));
+  mask-image: linear-gradient(to left, #000 calc(100% - 36px), rgba(0, 0, 0, 0.18));
+}
+
+.lantern-host .ung-frame.is-past-start.is-before-end {
+  -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.18), #000 36px, #000 calc(100% - 36px), rgba(0, 0, 0, 0.18));
+  mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.18), #000 36px, #000 calc(100% - 36px), rgba(0, 0, 0, 0.18));
+}
+
+.lantern-host .ung-scroll-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 -4px;
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.lantern-host .ung-scroll-note::after {
+  content: '';
+  flex: none;
+  width: 18px;
+  border-top: 1.5px solid currentColor;
+  -webkit-mask-image: linear-gradient(to right, #000, transparent);
+  mask-image: linear-gradient(to right, #000, transparent);
+}
+
+/* Width is set from the graph's own size: never shrunk past legibility. */
+.lantern-host .ung-svg {
+  display: block;
+  max-width: none;
+  height: auto;
+  margin: 0 auto;
+  font-family: var(--text);
+}
+
+.lantern-host .ung-edge {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  transition: opacity 0.2s ease, stroke-width 0.2s ease;
+}
+
+.lantern-host .ung-edge.is-recorded { stroke: #8f5f00; stroke-dasharray: 6 4; }
+.lantern-host .ung-edge.is-uncertain { stroke: #c4a46a; stroke-dasharray: 3 4; }
+.lantern-host .ung-edge.is-membership { stroke: var(--faint); stroke-width: 1.1; stroke-dasharray: 1 3.5; }
+.lantern-host .ung-edge.is-hypothesis { stroke: var(--c-source); stroke-width: 1.8; stroke-dasharray: 0.5 4.5; }
+.lantern-host .ung-edge.is-unresolved { stroke: var(--c-unknown); stroke-width: 1.1; stroke-dasharray: 8 3 1 3; }
+.lantern-host .ung-edge.is-chosen { stroke-width: 3; }
+
+.lantern-host .ung-edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 12;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.lantern-host .ung-edges.is-dimmed > g:not(.is-lit) .ung-edge { opacity: 0.22; }
+.lantern-host .ung-nodes.is-dimmed > .ung-node:not(.is-lit) { opacity: 0.32; }
+.lantern-host .ung-names.is-dimmed > text:not(.is-lit) { opacity: 0.38; }
+
+.lantern-host .ung-node {
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.lantern-host .ung-hit { fill: transparent; }
+
+.lantern-host .ung-node-device {
+  fill: var(--ink);
+  stroke: #fdfbf6;
+  stroke-width: 2;
+}
+
+.lantern-host .ung-node-endpoint {
+  fill: #fdfbf6;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+}
+
+.lantern-host .ung-node-unresolved {
+  fill: #fdfbf6;
+  stroke: var(--c-unknown);
+  stroke-width: 1.4;
+  stroke-dasharray: 2 2;
+}
+
+.lantern-host .ung-halo {
+  fill: var(--lantern);
+  stroke: var(--lantern-edge);
+  stroke-width: 1.5;
+}
+
+/* Each group's hub: a lantern disc behind its node. */
+.lantern-host .ung-hub {
+  fill: var(--lantern-soft);
+  stroke: color-mix(in srgb, var(--lantern-edge) 55%, transparent);
+  stroke-width: 1;
+}
+
+/* Names on a paper halo, wrapped at spaces; the lists keep every full name. */
+.lantern-host .ung-names text {
+  font-size: 10.5px;
+  font-weight: 600;
+  fill: var(--ink-2);
+  paint-order: stroke;
+  stroke: #fdfbf6;
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.lantern-host .ung-names text.is-root {
+  font-family: var(--display);
+  font-size: 11.5px;
+  font-weight: 700;
+  fill: var(--ink);
+}
+
+.lantern-host .ung-names text.is-chosen { fill: var(--ink); font-weight: 750; }
+
+.lantern-host .ung-glyph {
+  flex: none;
+  overflow: visible;
+  vertical-align: middle;
+}
+
+.lantern-host .ung-glyph .ung-node-device { stroke-width: 1.2; }
+
+.lantern-host .ung-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}
+
+.lantern-host .ung-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.lantern-host .ung-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+/* The chosen record's facts, under the frame that shows it. */
+.lantern-host .ung-detail {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--lantern-soft);
+  border: 1px solid color-mix(in srgb, var(--lantern-edge) 45%, transparent);
+  animation: ung-in 0.2s ease-out;
+}
+
+.lantern-host .ung-detail h4 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font: 700 var(--fs-s)/1.3 var(--display);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.lantern-host .ung-detail p { margin: 0; }
+.lantern-host .ung-qual { color: var(--ink-2); font-size: var(--fs-xs); }
+
+.lantern-host .ung dl {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  font-size: var(--fs-xs);
+}
+
+.lantern-host .ung dl > div {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.lantern-host .ung dt { color: var(--muted); }
+.lantern-host .ung dd { margin: 0; overflow-wrap: anywhere; }
+.lantern-host .ung code { font-size: 11px; }
+.lantern-host .ung-detail > .text-btn { justify-self: start; }
+
+.lantern-host .ung-links,
+.lantern-host .ung-list ul,
+.lantern-host .ung-alone ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lantern-host .ung-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lantern-host .ung-item:hover { background: rgba(24, 35, 58, 0.05); }
+.lantern-host .ung-item[aria-pressed='true'] { background: var(--lantern); }
+.lantern-host .ung-item:focus-visible,
+.lantern-host .ung-chip:focus-visible { outline: 2.5px solid var(--focus); outline-offset: -2px; }
+.lantern-host .ung-item-name { min-width: 0; overflow-wrap: anywhere; }
+
+.lantern-host .ung-item-meta {
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Records without a connection are named in full, never dropped from the frame. */
+.lantern-host .ung-alone {
+  display: grid;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--hair-2);
+}
+
+.lantern-host .ung-alone-head {
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  color: var(--ink-2);
+}
+
+.lantern-host .ung-alone ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.lantern-host .ung-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 2px 10px 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--hair-2);
+  background: #fdfbf6;
+  color: var(--ink);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lantern-host .ung-chip[aria-pressed='true'] { background: var(--lantern); border-color: var(--lantern-edge); }
+
+.lantern-host .ung-list > summary {
+  font-size: var(--fs-xs);
+}
+
+.lantern-host .ung-list[open] > summary { margin-bottom: 4px; }
+.lantern-host .ung-source dl { margin-top: 4px; }
+
+@keyframes ung-in {
+  from { opacity: 0; transform: translateY(3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lantern-host .ung-detail { animation: none; }
+  .lantern-host .ung-edge,
+  .lantern-host .ung-node,
+  .lantern-host .ung-names text { transition: none; }
+}
+
+@media (pointer: coarse) {
+  .lantern-host .ung-item { min-height: 44px; }
+  .lantern-host .ung-chip { min-height: 40px; }
+}

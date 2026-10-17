@@ -77,7 +77,8 @@ export function AtlasView() {
       </details>
       <OptionalViewerBoundary key="atlas" label="The Atlas">
         <Suspense fallback={<p className="source-model-pane" role="status">Loading Atlas…</p>}>
-          <UnifiedAtlas port={atlas} onOpenModel={() => setOther('model')} />
+          <UnifiedAtlas port={atlas} onOpenModel={() => setOther('model')}
+            otherSources={others.map(row => ({ id: row.id, label: row.label, open: () => setOther(row.id) }))} />
         </Suspense>
       </OptionalViewerBoundary>
     </>;

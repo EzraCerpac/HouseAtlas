@@ -23,9 +23,10 @@ const NetworkView = lazy(() => import('./views/NetworkView').then(m => ({ defaul
 const LibraryView = lazy(() => import('./views/LibraryView').then(m => ({ default: m.LibraryView })));
 const ChangesView = lazy(() => import('./views/ChangesView').then(m => ({ default: m.ChangesView })));
 
-const VIEWS: { id: ViewId; label: string; icon: string }[] = [
+/** `short`: the phone tab bar's visible name where the full one would wrap; the full name stays the control's name. */
+const VIEWS: { id: ViewId; label: string; short?: string; icon: string }[] = [
   { id: 'atlas', label: 'Atlas', icon: 'atlas' },
-  { id: 'rooms', label: 'Rooms & places', icon: 'rooms' },
+  { id: 'rooms', label: 'Rooms & places', short: 'Rooms', icon: 'rooms' },
   { id: 'upkeep', label: 'Upkeep', icon: 'upkeep' },
   { id: 'network', label: 'Network', icon: 'network' },
   { id: 'library', label: 'Library', icon: 'library' },
@@ -255,9 +256,11 @@ export function App() {
 
       <nav className="navrail" aria-label="Sections">
         {VIEWS.map((v) => (
-          <button key={v.id} type="button" className={`nav-btn${state.view === v.id ? ' is-current' : ''}`} aria-current={state.view === v.id ? 'page' : undefined} onClick={() => dispatch({ type: 'view', view: v.id })}>
+          <button key={v.id} type="button" className={`nav-btn${state.view === v.id ? ' is-current' : ''}`} aria-label={v.short ? v.label : undefined} aria-current={state.view === v.id ? 'page' : undefined} onClick={() => dispatch({ type: 'view', view: v.id })}>
             <Icon name={v.icon} size={20} />
-            <span className="nav-label">{v.label}</span>
+            {v.short
+              ? <span className="nav-label" data-short={v.short}><span className="nav-label-full">{v.label}</span></span>
+              : <span className="nav-label">{v.label}</span>}
             {v.id === 'changes' && reviewCount > 0 && (
               <span className="nav-badge" aria-label={`${reviewCount} to review`}>
                 {reviewCount}

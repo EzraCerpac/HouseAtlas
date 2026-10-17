@@ -16,11 +16,11 @@ const hash=v=>createHash('sha256').update(v).digest('hex');
 const sourcePins=Object.fromEntries(paths.map(p=>[p,hash(readFileSync(join(root,p)))]));
 try {
   const entry=join(scratch,'entry.ts');
-  writeFileSync(entry,`export {createUnifiedAtlasReviewedOverlays} from ${JSON.stringify(join(root,paths[4]))};\nexport {ExactDecimal} from ${JSON.stringify(join(root,'frontend/src/numeric/decimal.ts'))};\nexport {documentaryNetworkIndex,documentaryRoomRecords,documentaryOverlayIndex,matchesOverlayScene} from ${JSON.stringify(join(root,paths[3]))};\n`);
+  writeFileSync(entry,`export {createUnifiedAtlasReviewedOverlays} from ${JSON.stringify(join(root,paths[4]))};\nexport {ExactDecimal} from ${JSON.stringify(join(root,'frontend/src/numeric/decimal.ts'))};\nexport {documentaryNetworkIndex,documentaryRoomRecords,documentaryOverlayIndex,matchesOverlayScene,projectDocumentaryFacts,mergeRuntimeRecords} from ${JSON.stringify(join(root,paths[3]))};\nexport {readSavedDocumentaryPreview} from ${JSON.stringify(join(root,'frontend/integration/saved-documentary-preview.ts'))};\n`);
   const built=await build({root:join(root,'frontend'),configFile:false,logLevel:'silent',build:{write:false,target:'node26',lib:{entry,formats:['es']},minify:false}});
   const output=Array.isArray(built)?built[0]:built;
   const modulePath=join(scratch,'adapter.mjs');writeFileSync(modulePath,output.output.find(o=>o.type==='chunk'&&o.isEntry).code);
-  const {createUnifiedAtlasReviewedOverlays,ExactDecimal,documentaryNetworkIndex,documentaryRoomRecords,documentaryOverlayIndex,matchesOverlayScene}=await import(pathToFileURL(modulePath).href);
+  const {createUnifiedAtlasReviewedOverlays,ExactDecimal,documentaryNetworkIndex,documentaryRoomRecords,documentaryOverlayIndex,matchesOverlayScene,projectDocumentaryFacts,mergeRuntimeRecords,readSavedDocumentaryPreview}=await import(pathToFileURL(modulePath).href);
   const U=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
   const canonical=v=>JSON.stringify(v,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
   const floor='generated:floor',floorHash='a'.repeat(64),packageKey='generated:room',packageUuid=U(21),photoHash='b'.repeat(64);
@@ -151,6 +151,45 @@ try {
       assert.deepEqual(index.placed.get('occurrence:one').positions,[]);
       assert.equal(index.records,kind==='network'?4:2);assert.equal(index.unplacedRecords,kind==='network'?3:0);
     }
+    // The same generated factual source is read as a saved snapshot WITHOUT a
+    // native selection/frame/lease. Its exact captured joins remain documentary.
+    const ownedPins = frame.sourceSelection;
+    const pins = Object.fromEntries(['workspaceId','homeId','buildingId','viewKey','sceneEvidenceId','sceneAssetId',
+      'sceneOriginalSha256','sceneEvidenceRevision','acceptedRoomReceiptId','acceptedRoomReceiptSha256',
+      'acceptedRoomAnchors','acceptedRoomMappings'].filter(key => ownedPins[key] !== undefined).map(key => [key, ownedPins[key]]));
+    pins.sceneAssetRevision = ownedPins.sceneAssetRevision.toString();
+    pins.sourceFloorBindings = ownedPins.sourceFloorBindings.map(binding => ({ ...binding, nativeGeometryRevision: binding.nativeGeometryRevision.toString() }));
+    const file = (path, bytes) => ({ path, bytes: bytes.length, sha256: hash(bytes) });
+    const snapshotManifest = { profile: 'houseatlas.saved-documentary-preview.v1', observedAt: '2026-10-10T12:00:00Z',
+      publicationId: U(14), semanticsSha256: scene.publication.semanticsSha256, modelSha256: 'e'.repeat(64),
+      entryBuildingId: building.buildingId, pins, primary: file('/review-input/primary.json', primary),
+      support: file('/review-input/support.txt', historical), roomLinks: file('/review-input/links.json', mapBytes) };
+    const savedFiles = new Map([[snapshotManifest.primary.path, primary], [snapshotManifest.support.path, historical], [snapshotManifest.roomLinks.path, mapBytes]]);
+    let savedReads = 0;
+    const saved = await readSavedDocumentaryPreview(Buffer.from(JSON.stringify(snapshotManifest)), async (path, maximum) => {
+      savedReads++; const bytes = savedFiles.get(path); assert.ok(bytes && bytes.length <= maximum); return bytes;
+    }, () => {});
+    const savedRecords = saved.records({ ...scene, model: { sha256: snapshotManifest.modelSha256 },
+      buildings: scene.buildings.map((row, at) => ({ ...row, label: `Generated building ${at}`, levelIds: [`generated:level:${at}`] })) }, new Set(['occurrence:one','occurrence:two']));
+    assert.equal(savedReads, 3); assert.equal(saved.observedAt, snapshotManifest.observedAt);
+    assert.equal(saved.entryBuildingId, building.buildingId);
+    assert.deepEqual([documentaryOverlayIndex(consumerModel, savedRecords, 'network').records,
+      documentaryOverlayIndex(consumerModel, savedRecords, 'electrical').records], [4, 2]);
+    assert.deepEqual(savedRecords.rooms.get('publication:room').network.map(row => row.id), ['device:generated']);
+    assert.equal(savedRecords.networkGraphs.length, 1);
+    assert.deepEqual(savedRecords.networkGraphs[0].data.devices.map(row => row.id), sourceData.devices.map(row => row.id));
+    assert.deepEqual(savedRecords.networkGraphs[0].data.endpoints.map(row => row.id), sourceData.endpoints.map(row => row.id));
+    assert.deepEqual(savedRecords.networkGraphs[0].data.links.map(row => row.id), sourceData.links.map(row => row.id));
+    assert.equal(savedRecords.unplaced.network.find(row => row.id === 'device:mobile').sourceDate, sourceData.source.recordedAt);
+    assert.ok(savedRecords.sourceFacts.some(fact => fact.label === 'Presentation' && fact.value.startsWith('Saved documentary')));
+    assert.equal('lease' in saved, false); assert.equal('isCurrent' in saved, false); assert.equal('sessionIdentity' in saved, false);
+    assert.ok(!JSON.stringify(savedRecords.sourceFacts).includes('currentNativeRoomReview'));
+    // Repeated building views of one primary evidence retain one inventory.
+    const propertyModel = { ...consumerModel, buildingsById: new Map([[building.buildingId, { label: 'Generated A' }], ['publication:other-building', { label: 'Generated B' }]]) };
+    const union = mergeRuntimeRecords(propertyModel, [{ buildingId: building.buildingId, reason: 'available', records },
+      { buildingId: 'publication:other-building', reason: 'available', records }]);
+    assert.equal(documentaryOverlayIndex(consumerModel, union, 'network').records, 4);
+    assert.equal(union.rooms.get('publication:room').network[0].observations, undefined);
     const refreshDeadline=Date.now()+15_000;
     while(Date.now()<refreshDeadline&&!(counts.mapGets===2&&mapSignals[1]?.aborted&&counts.headGets===1&&headSignal?.aborted))
       await new Promise(resolve=>setTimeout(resolve,25));

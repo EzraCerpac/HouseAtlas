@@ -15,7 +15,9 @@ export function createStagePointers(options: {
   readonly gesture: StageGesture; readonly top: boolean;
   readonly onTap: (x: number, y: number, target?: EventTarget | null) => void;
   readonly dragging: (value: boolean) => void;
-  readonly zoom: Update<number>; readonly pan: Update<{ x: number; y: number }>;
+  readonly zoom: Update<number>;
+  readonly zoomLimits?: Readonly<{ min: number; max: number }>;
+  readonly pan: Update<{ x: number; y: number }>;
   readonly orbit: Update<{ yaw: number; pitch: number }>;
 }) {
   const g = options.gesture;
@@ -47,7 +49,8 @@ export function createStagePointers(options: {
       if (g.pinch) {
         const from = g.pinch, to = span(); if (!to) return;
         g.pinch = to;
-        options.zoom(value => Math.min(8, Math.max(.6, value * to.distance / from.distance)));
+        const limits = options.zoomLimits ?? { min: .6, max: 8 };
+        options.zoom(value => Math.min(limits.max, Math.max(limits.min, value * to.distance / from.distance)));
         options.pan(value => ({ x: value.x + to.x - from.x, y: value.y + to.y - from.y }));
         return;
       }

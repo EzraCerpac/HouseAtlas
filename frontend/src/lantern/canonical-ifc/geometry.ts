@@ -24,6 +24,34 @@ export interface Projection {
 
 const DEG = Math.PI / 180;
 
+/** Core glTF baseColorFactor, in linear RGB. Presentation metadata only;
+ * alpha is retained, but this preview does not implement source transparency. */
+export type SourceBaseColor = readonly [number, number, number, number];
+
+/** Read only an explicit bounded factor through the exact drawn primitive.
+ * Names and extras never supply appearance or binding. Absent factors retain
+ * the existing viewer palette; no loader-default white is manufactured. */
+export function primitiveBaseColor(json: Record<string, unknown>, meshIndex: number | null, primitiveIndex: number | null): SourceBaseColor | undefined {
+  if (meshIndex === null || primitiveIndex === null || !Array.isArray(json.meshes) || !Array.isArray(json.materials)) return;
+  const materialIndex: unknown = json.meshes[meshIndex]?.primitives?.[primitiveIndex]?.material;
+  if (!Number.isInteger(materialIndex) || (materialIndex as number) < 0) return;
+  const factor: unknown = json.materials[materialIndex as number]?.pbrMetallicRoughness?.baseColorFactor;
+  if (!Array.isArray(factor) || factor.length !== 4 || !factor.every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1)) return;
+  return Object.freeze([...factor]) as unknown as SourceBaseColor;
+}
+
+/** Source appearance never displaces an explicit selection, reference or
+ * relation highlight. Other viewers opt out and keep their existing tones. */
+export function sourceMeshColor(mesh: Pick<PreparedMesh, 'sourceBaseColor' | 'occurrenceId'>, state: {
+  readonly enabled: boolean | undefined; readonly selected: boolean; readonly reference: boolean;
+  readonly selectedOccurrenceId: string | null; readonly contextOccurrenceIds: readonly string[]; readonly tints: ReadonlyMap<string, string>;
+}): SourceBaseColor | undefined {
+  if (!state.enabled || state.selected || state.reference) return;
+  const id = mesh.occurrenceId;
+  if (id !== null && (id === state.selectedOccurrenceId || state.contextOccurrenceIds.includes(id) || state.tints.has(id))) return;
+  return mesh.sourceBaseColor;
+}
+
 /** Mesh input common to canonical and local-preview geometry. */
 export interface MeshInput {
   readonly meshKey: string;
@@ -31,6 +59,7 @@ export interface MeshInput {
   readonly occurrenceId: string | null;
   readonly positions: Float32Array;
   readonly indices: Uint32Array;
+  readonly sourceBaseColor?: SourceBaseColor;
 }
 
 /** Non-indexed triangles with flat normals; only index-referenced vertices exist here. */
@@ -43,6 +72,7 @@ export interface PreparedMesh {
   readonly triangles: number;
   readonly yRange: readonly [number, number];
   readonly bounds: Bounds;
+  readonly sourceBaseColor?: SourceBaseColor;
 }
 
 export function prepareMeshes(meshes: readonly MeshInput[], binding: (mesh: MeshInput) => string | null = mesh => mesh.occurrenceId): readonly PreparedMesh[] {
@@ -65,6 +95,7 @@ export function prepareMeshes(meshes: readonly MeshInput[], binding: (mesh: Mesh
       }
     }
     return { meshKey: mesh.meshKey, floorId: mesh.floorId, occurrenceId: binding(mesh), vertices, triangles,
+      ...(mesh.sourceBaseColor ? { sourceBaseColor: mesh.sourceBaseColor } : {}),
       yRange: [min[1]!, max[1]!], bounds: { min: [min[0]!, min[1]!, min[2]!], max: [max[0]!, max[1]!, max[2]!] } };
   });
 }
@@ -118,6 +149,19 @@ export function makeProjection(pose: CameraPose, bounds: Bounds, viewport: Viewp
       return `matrix(${k * ct} ${k * st * sf} ${-k * st} ${k * ct * sf} ${ox} ${oy - k * (y - cy) * cf})`;
     },
   };
+}
+
+/** Extend zoom-out to retain the ordinary full frame when a presentation fit
+ * magnifies and recentres it. No geometry, fitted pose or maximum is changed. */
+export function frameZoomMinimum(bounds: Bounds, viewport: Viewport, pose: CameraPose, planBlend: number,
+  scale: number, shift: Readonly<{ x: number; z: number }>, minimum: number): number {
+  const centered: Bounds = {
+    min: [bounds.min[0] - Math.abs(shift.x), bounds.min[1], bounds.min[2] - Math.abs(shift.z)],
+    max: [bounds.max[0] + Math.abs(shift.x), bounds.max[1], bounds.max[2] + Math.abs(shift.z)],
+  };
+  const plain = { ...pose, zoom: 1 };
+  return minimum * (makeProjection(plain, centered, viewport, planBlend).k
+    / makeProjection(plain, bounds, viewport, planBlend).k) / Math.max(1, scale);
 }
 
 /** SVG path for rings in coordinates relative to the projection centre. */

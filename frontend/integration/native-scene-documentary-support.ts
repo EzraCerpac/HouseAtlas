@@ -144,7 +144,9 @@ export async function readDocumentarySupport(bytes: Uint8Array, guard: () => voi
     fixtureLedger: ledger.value, fixtureLedgerSha256: ledger.sha256, correlationId, correlationSha256: crosswalk.sha256,
     reviewId, reviewSha256: review.sha256, reviewMarker, pdf, references });
 }
-export function documentaryReferences(support: DocumentarySupport, selection: NativeSceneSourceSelection): readonly NativeSceneDrawingPdfReference[] {
+export function documentaryReferences(support: DocumentarySupport, selection: Pick<NativeSceneSourceSelection,
+  'workspaceId' | 'homeId' | 'buildingId' | 'viewKey' | 'sceneEvidenceId' | 'sceneAssetId' |
+  'sceneOriginalSha256' | 'sceneEvidenceRevision' | 'sceneAssetRevision'>): readonly NativeSceneDrawingPdfReference[] {
   need(support.pdf.workspaceId === selection.workspaceId && support.pdf.homeId === selection.homeId
     && support.pdf.buildingId === selection.buildingId);
   return Object.freeze(support.references.map(r => Object.freeze({ correlationId: support.correlationId,

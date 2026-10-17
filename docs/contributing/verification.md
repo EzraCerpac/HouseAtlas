@@ -33,6 +33,14 @@ admission, cancellation and artifact/manifest refusal controls. The default
 mixed runner is not the ordinary command; this selection grants no permission
 to execute held controls and changes no CI workflow.
 
+The same `--healthy` command loads valid generated opaque core glTF materials
+on a multi-primitive mesh reused by two nodes. It checks exact primitive colour
+selectors, immutable linear RGBA factors, unchanged geometry and vertex bytes,
+and palette fallback without an explicit factor. It also calls the production
+source-colour resolver with opt-out, selection and reference presentation states.
+These CPU positives do not establish shader output, GPU colour accuracy, PBR,
+textures, vertex colours or source transparency; they add no held control case.
+
 The persistent scan-cache check uses the actual native geometry reader, mesh
 parser and IndexedDB adapter with a synthetic IndexedDB model and an owned
 numeric loopback HTTP listener. Fresh module, client and cache instances stand
@@ -1164,6 +1172,12 @@ release/disposal. No listener, browser, actual native/household data, external
 provider, writes, malformed/omission, denial, replay, expiry or failure controls.
 The host still needs an independent reviewed room map and actual current native
 original/document owners; generated success does not qualify their availability.
+The same named generated check also reads these fictional factual subsets
+through the saved-documentary byte-admission path, without a native selection,
+session or lease, and retains exact captured identity joins, original dates and
+typed record totals. It checks that repeated building views of one pinned source
+are one inventory. The native owner, original guards and positive refresh/release
+checks still execute; saved success does not replace them.
 
 ## Unified Atlas reviewed room-links healthy read
 
@@ -1232,6 +1246,18 @@ no malformed, denial, replay, expiry, crash or private-intake case. Its
 generated geometry does not establish real publication coverage, layout,
 rendering or device behavior.
 
+The same named command reads a separately pinned valid generated source-colour
+publication through the existing fake transport, standard loader and binder.
+Distinct opaque core `baseColorFactor` values survive multi-primitive selectors
+and reused nodes as immutable linear metadata, with identical vertices, bounds,
+draw order and semantic memberships. It exercises the production `sourceMeshColor`
+resolver used by `MeshLayer`: source colours precede normal room, roof and site
+fallback tones; opt-out, explicit mesh selection, reference, selected room,
+related-room context and overlay highlights retain precedence. Other rooms'
+highlights preserve the source colour. This checks CPU data and routing only;
+shader encoding, rendered pixels, PBR and transparency remain separate evidence.
+It introduces no malformed, refusal, lifecycle or held omission case.
+
 The named `node frontend/lantern-tests/unified-atlas-healthy.mjs` also checks
 normal generated pointer tap/drag, viewport capture handoff, descendant-to-viewport
 capture transfer, pinch with either-finger release, and plan pan through the
@@ -1284,16 +1310,30 @@ GLB loader, reducer, projection, pointer factory and documentary index. Inspect
 node --test --test-concurrency=1 frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs
 ```
 
-Its sixteen CPU cases cover repeated navigation, every declared selectable
+Its twenty-three CPU cases cover repeated navigation, every declared selectable
 occurrence, shared room identity, source-coordinate plans, normal overlay
 toggles, collapse-before-Plan selection, deterministic count touch-target
 suppression, complete label-action targets, source-qualified duplicate floor
-names, indexed tessellated-room picks and tap/drag/pinch sequences. They include no held controls, listener,
+names, indexed tessellated-room picks and tap/drag/pinch sequences. A generated
+Plan projection also checks complete-frame zoom-out after an off-centre scale
+boost, including the shared pointer and cumulative native-gesture zoom floor. They include no held controls, listener,
 provider, credentials or private inputs. They do not qualify DOM focus, CSS,
 animations, GPU rendering, native overlays or devices. The adjacent acceptance
 matrix retains its exact historical source attribution; browser automation is
 a separate check and gains no execution permission from this CPU command.
 This adds no workflow or ordinary CI step.
+
+The same named interaction runner also checks the complete outward hierarchy
+with a single-building publication, all eight independent layer combinations,
+Plan/3D continuity, explicit explosion, an opaque upper slab during a normal
+section transition, authored roof membership and visible foreign-building
+surface targets. Measurement positives retain irregular outlines and holes,
+excluded sibling-part qualification and actual curved boundary segments.
+Native-gesture positives check cumulative rotation/scale and scoped listener
+release; these are simulated CPU events, not physical Mac gesture acceptance.
+Property projection positives retain distinct source identities, differing
+same-date observations and per-building coverage. These generated ordinary
+cases add no held lifecycle, malformed, denial or other control case.
 
 The `/lantern-tests/source-host-visual/` fixture keeps its default. With
 `?atlas=generated` it also mounts the unified Atlas through the production
@@ -1301,6 +1341,24 @@ reader against an in-page synthetic HTTPS transport. With
 `?atlas-scene=<path>&atlas-model=<path>` it reads an externally supplied
 publication companion and GLB once from the same loopback origin instead. Both
 paths are required, and they are fetched without credentials or redirects.
+An optional `atlas-entry-building` supplies an explicit presentation entry,
+validated against the admitted scene; names/order/size do not choose it.
+The named generated Atlas healthy check also exercises an absent entry header
+and a valid owner-selected `x-atlas-entry-building-id` on the same descriptor,
+retaining identical scene/model bytes. The admitted read carries this optional
+preference; it neither changes source JSON nor establishes a native room join.
+With `atlas-documentary=/review-input/<manifest>.json`, the same private fixture
+can additionally read a saved-documentary manifest and its three pinned source,
+support and captured-map files. Inspect `integration/saved-documentary-preview.ts`,
+the source client's pure documentary byte-admission core and the factual runtime
+projector first. Its bounded same-origin reads omit credentials and redirects;
+all other application fetches stay unavailable. It preserves original source
+IDs/dates, unplaced records and source qualifiers. The visible saved-snapshot
+state is separate from native sessions, frames, read leases, currentness or
+physical registration. Drawing references are metadata only. Other fixture app
+screens and actions remain generated. Use only owned private inputs and the
+same supported-browser/manual preview bounds above; this adds no native grant,
+private-intake controls, authenticated candidate acceptance or deployment.
 Keep supplied files and any captures outside Git. Follow the loopback preview
 bounds above. A fixture review does not qualify native authority, household
 data or deployment, and it adds no workflow or ordinary CI command.
