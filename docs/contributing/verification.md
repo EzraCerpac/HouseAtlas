@@ -1664,3 +1664,25 @@ are documentary fixtures for the separate frontend consumer owner. They do not
 establish offline renderer, browser, device, source placement or deployment
 acceptance. The closed v1 envelope remains; explicit model-section v2 renderer
 support is still required.
+
+## Named generated saved Atlas mounting positives
+
+Read [saved Atlas mounting](../offline/saved-atlas-mounting.md),
+[saved overlay projections](../offline/saved-atlas-overlays.md) and the fixture
+README before the exact named generated positives:
+
+```sh
+node frontend/lantern-tests/offline-atlas-presentation-healthy.mjs
+node frontend/lantern-tests/offline-atlas-overlays-healthy.mjs
+node frontend/lantern-tests/offline-atlas-mounting-healthy.mjs
+```
+
+Use pinned Node 26.10.0, exact locked dependencies and evidence output outside
+source. Only valid generated complete/partial retained copies and fake local
+resource owners run. Ordinary frontend typecheck/build, backend static asset
+compatibility and exact publication source verification are also included.
+This adds no broad alias, workflow or held malformed/denial/replay/expiry/crash,
+adversarial/private-intake or failure-injection case. Supported browser QA uses
+only the explicit Save/production-store path and owned loopback/static shell
+procedure in `frontend/lantern-tests/offline-atlas-browser/README.md`; it proves
+owned-origin unavailability only, not WAN/device/PWA/iOS acceptance.

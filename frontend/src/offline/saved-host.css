@@ -1,0 +1,24 @@
+html, body, #root { margin: 0; width: 100%; min-width: 0; height: 100%; }
+.saved-atlas-app { height: 100dvh; display: flex; flex-direction: column; color: var(--ink); background: #f4f0e8; font-family: var(--text); overflow: hidden; }
+.saved-header { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem 1rem; padding: .55rem .8rem; border-bottom: 1px solid #d9d0c1; }
+.saved-header h1 { font-size: 1rem; margin: 0; }
+.saved-header > span { font-size: .75rem; }
+.saved-header details { font-size: .75rem; }
+.saved-header details[open], .saved-coverage[open] { max-height: 30dvh; overflow: auto; }
+.saved-header code, .saved-coverage dd { overflow-wrap: anywhere; }
+.saved-header button, .saved-manager button { font: inherit; min-height: 36px; padding: .35rem .65rem; border: 1px solid #bcb2a1; border-radius: 5px; background: #fffcf6; color: inherit; cursor: pointer; }
+.saved-header button:focus-visible, .saved-manager button:focus-visible, .saved-atlas-app summary:focus-visible { outline: 3px solid #5b6c88; outline-offset: 2px; }
+.saved-manager { padding: .35rem .8rem; max-height: 20dvh; overflow: auto; flex-shrink: 0; }
+.saved-manager p { margin: .4rem 0; }
+.saved-copy { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem .7rem; font-size: .75rem; }
+.saved-copy > div { flex: 1 1 14rem; min-width: 0; }
+.saved-copy strong, .saved-copy span { display: block; overflow-wrap: anywhere; }
+.saved-copy button { font-size: .75rem; }
+.saved-coverage { font-size: .75rem; padding: .3rem .8rem; flex-shrink: 0; }
+.saved-coverage p { margin: .5rem 0; }
+.saved-coverage dl { margin: .5rem 0; }
+.saved-coverage dd { margin-left: 0; }
+.saved-stage { flex: 1; min-height: 0; position: relative; }
+.saved-stage > .ua-shell { height: 100%; }
+.saved-message { padding: .5rem .8rem; }
+@media (max-width: 420px) { .saved-header { gap: .25rem .5rem; padding: .35rem .5rem; } .saved-header h1 { font-size: .9rem; } .saved-manager, .saved-coverage { padding-left: .5rem; padding-right: .5rem; } .saved-copy > div { flex-basis: 100%; } }

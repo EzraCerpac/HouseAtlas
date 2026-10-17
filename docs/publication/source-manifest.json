@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d887788d3e5360c67094f268438dd0cf57f69405810654c34284b00887cb5d8a",
+  "sourceDigestSha256": "9146e4e4bbff8f671c96747f3954e1d1fab0f51258c62d96b79f28611df60353",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5943,8 +5943,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 99208,
-      "sha256": "eb74e5daa9514346e3b6fbcd7465d94855ba128c162f39c238bedbb73bcbe4ed",
+      "bytes": 100357,
+      "sha256": "8b267ae42167a7c54f2b58615aae518ed174027e290a942f9d3cb2e0cc128755",
       "owner": "core-integration"
     },
     {
@@ -6305,10 +6305,24 @@
       "owner": "web"
     },
     {
+      "path": "docs/offline/saved-atlas-mounting.md",
+      "mode": "100644",
+      "bytes": 4769,
+      "sha256": "1f7651ee685a6b8e1dc5188c0b9b7e5692376d966446802b4ca165a510fdee5d",
+      "owner": "web"
+    },
+    {
+      "path": "docs/offline/saved-atlas-overlays.md",
+      "mode": "100644",
+      "bytes": 3991,
+      "sha256": "7492d6f2e4df7d9ca573d191361ccc58734cc30cf57a3d9917b5997760198f54",
+      "owner": "web"
+    },
+    {
       "path": "docs/offline/saved-atlas-presentation.md",
       "mode": "100644",
-      "bytes": 5398,
-      "sha256": "59f4268df64953473497d69e8ca3de03affcc6cbb12b37650872522978edfa5b",
+      "bytes": 2628,
+      "sha256": "5326fa3a60303e79e695434c76f6d87cddb3d3024111d91052fbb21c90f6dec8",
       "owner": "web"
     },
     {
@@ -6732,6 +6746,20 @@
       "owner": "core-integration"
     },
     {
+      "path": "frontend/build/offline-shell-plugin.mjs",
+      "mode": "100644",
+      "bytes": 2807,
+      "sha256": "45476c8db242eb7569297534170392d08937439c6ade8cbd89557561695644c2",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/build/offline-worker-source.js",
+      "mode": "100644",
+      "bytes": 3275,
+      "sha256": "bd7f04c4de8f2a04641f4e57e5edd16d89fafae63f1cfd889d4bf22582e93b87",
+      "owner": "web"
+    },
+    {
       "path": "frontend/build/pdfjs-binary-data-plugin.d.mts",
       "mode": "100644",
       "bytes": 157,
@@ -6981,6 +7009,13 @@
       "mode": "100644",
       "bytes": 16842,
       "sha256": "de5b2766778a1e89002dd73a668387b18f60a5588a2ade55732a39664416cecc",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/integration/saved-main.tsx",
+      "mode": "100644",
+      "bytes": 267,
+      "sha256": "b7dd2a4cbabfa802b4d9b8dcf16dd6130c26de44d3aa789c8873240327d4a0bb",
       "owner": "web"
     },
     {
@@ -7383,10 +7418,59 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/offline-atlas-browser/README.md",
+      "mode": "100644",
+      "bytes": 4224,
+      "sha256": "e1cd1c3548cb87282a78f4c5dbe910669fdf19cd571e86c720d48ba152d49ccc",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/offline-atlas-browser/generated-pack.ts",
+      "mode": "100644",
+      "bytes": 21118,
+      "sha256": "dbad4906c08dfcd39051d3d63ad66150c4ad1bb72e14fc447faf8475e19721c3",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/offline-atlas-browser/index.html",
+      "mode": "100644",
+      "bytes": 307,
+      "sha256": "a570a517d95f3912c79d91c129d603806e2f53a33d97a79cb0e715824bb9a060",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/offline-atlas-browser/main.tsx",
+      "mode": "100644",
+      "bytes": 2467,
+      "sha256": "21ece56fbeeb6a12d88ec847b6ff3a196861054de892095df78f7fb1d70d7314",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/offline-atlas-browser/vite.config.ts",
+      "mode": "100644",
+      "bytes": 270,
+      "sha256": "0cd579214e356d9ca98cf212bb7cdd46955fbd8d25ca105c05e21030c0475c79",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/offline-atlas-mounting-healthy.mjs",
+      "mode": "100644",
+      "bytes": 2635,
+      "sha256": "72d783cb612d467e6ab8c167dbab1f92aa67cafb6558ee6ddc1cf7688e1f1014",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/offline-atlas-overlays-healthy.mjs",
+      "mode": "100644",
+      "bytes": 10685,
+      "sha256": "a0aa2d44d9be4df31201ac79c78edadb05b898bdf5cf656ea5336e5b5bfdfcfc",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/offline-atlas-presentation-healthy.mjs",
       "mode": "100644",
-      "bytes": 12950,
-      "sha256": "ace8d1c3db11bcceb599b55b64b30c08faa15fdd58528fd73cad23761c29ff49",
+      "bytes": 13015,
+      "sha256": "65dc5312d639d8772bcce30583ec87e3eea3dc1c10a3f59f206b9576c8f88c8c",
       "owner": "web"
     },
     {
@@ -7864,6 +7948,13 @@
       "bytes": 556,
       "sha256": "717558617405b4384603c555ecd8f540285d524a8edd92317aa3e3428d0ba64f",
       "owner": "core-integration"
+    },
+    {
+      "path": "frontend/saved/index.html",
+      "mode": "100644",
+      "bytes": 351,
+      "sha256": "d01186d57bb5ddfb58c927abec6e0e62c856f8b34d3ecb90692f4dfa04a4f00a",
+      "owner": "web"
     },
     {
       "path": "frontend/src/ai/AccountObservation.tsx",
@@ -9562,8 +9653,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 115725,
-      "sha256": "99fb13f297103e964bbe8f4eff1b8761cf7358aea84634435cba60c1cb9891ec",
+      "bytes": 117587,
+      "sha256": "bca10a47d5457d3eb8c25dcb53fd72b6021be585e576780a852b9b32acb84dbe",
       "owner": "web"
     },
     {
@@ -9604,8 +9695,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/types.ts",
       "mode": "100644",
-      "bytes": 6930,
-      "sha256": "c49ff1dc51241bdf8fb2b6ede26a821e6032f99a7b94cbbaf141ff1b9f8d1fa0",
+      "bytes": 8582,
+      "sha256": "9a36408bf2919c3fd8ed1a25b481125b4b0e0bc640536364c3b41561144da550",
       "owner": "web"
     },
     {
@@ -9618,8 +9709,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/useDocumentaryOverlays.ts",
       "mode": "100644",
-      "bytes": 5424,
-      "sha256": "666055999744eb45944a1820f6958b6681585becd5bf5ab2f21844e9eee0d63e",
+      "bytes": 5460,
+      "sha256": "69334ee2dee0510c4b7a6f3881f42268f56204459e313ace4ff34509b0f1d19c",
       "owner": "web"
     },
     {
@@ -9693,6 +9784,20 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/offline/SavedAtlasHost.tsx",
+      "mode": "100644",
+      "bytes": 4986,
+      "sha256": "256ef0c880366308d3c9ffefc46cdf7ad1306353577104a889bd2632c3cb5af4",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/offline/SavedHouseManager.tsx",
+      "mode": "100644",
+      "bytes": 1883,
+      "sha256": "cb5126011f862e849d1417d220e030ff52bcb2cd3c990ca94d3047e6040fc4ad",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/offline/manifest.ts",
       "mode": "100644",
       "bytes": 8195,
@@ -9707,6 +9812,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/offline/saved-atlas-overlays.ts",
+      "mode": "100644",
+      "bytes": 27528,
+      "sha256": "3dd61e03a41330490f8cd85b7cc5cb6b9cb33b3551bc63995d43381c5c5d20c0",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/offline/saved-atlas-port.ts",
       "mode": "100644",
       "bytes": 4498,
@@ -9716,8 +9828,29 @@
     {
       "path": "frontend/src/offline/saved-atlas-presentation.ts",
       "mode": "100644",
-      "bytes": 4798,
-      "sha256": "b95f697face9b21683a808c4387d6b07110022cb8dcf294773d32c5dc80bdfe0",
+      "bytes": 6467,
+      "sha256": "51366ea826121d6e1f403049e78057d27026a4682960e07c3467fa75e6f2e266",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/offline/saved-host.css",
+      "mode": "100644",
+      "bytes": 2049,
+      "sha256": "db8264422c6930430592f9abb83783cc3b921033c046cbd104818733080c16a0",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/offline/saved-pack-sections.ts",
+      "mode": "100644",
+      "bytes": 5125,
+      "sha256": "636f5bd5cef19a2d040ff99d7aecd41ea715d276c7a4e9cbdf7a35a42a6248bf",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/offline/shell.ts",
+      "mode": "100644",
+      "bytes": 3586,
+      "sha256": "de6d03e31cb13da3258461d39317db65e53a05db15ec5dda6f6234ac89466c04",
       "owner": "web"
     },
     {
@@ -9940,8 +10073,8 @@
     {
       "path": "frontend/vite.config.ts",
       "mode": "100644",
-      "bytes": 1004,
-      "sha256": "71ae80ab06dd59be5436b5b0ce8294f1033b4acef4cca4c539ce97f5652c31d6",
+      "bytes": 1262,
+      "sha256": "8859c31e8b3e0ba1049be60bee6ee13177e489a48ea963318ec476c422e2971f",
       "owner": "core-integration"
     },
     {

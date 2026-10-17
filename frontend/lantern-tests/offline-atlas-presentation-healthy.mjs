@@ -1,45 +1,34 @@
 // Generated positive facade checks; in-memory resources only. No native host,
 // provider, credentials, IndexedDB, browser, listener or held controls.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
-import { transformWithOxc } from 'vite';
+import { build } from 'vite';
 
 assert.equal(process.version, 'v26.10.0');
 assert.deepEqual(process.argv.slice(2), [], 'This runner takes no arguments');
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const buffer = bytes => Uint8Array.from(bytes).buffer;
-async function source(relative, replacements = {}) {
-  const file = new URL(relative, import.meta.url);
-  let { code } = await transformWithOxc(readFileSync(file, 'utf8'), file.pathname,
-    { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
-  for (const [specifier, url] of Object.entries(replacements)) {
-    assert(code.includes(JSON.stringify(specifier)), `Missing import ${specifier}`);
-    code = code.replaceAll(JSON.stringify(specifier), JSON.stringify(url));
-  }
-  for (const match of code.matchAll(/^\s*import\s+(?:[\w$\s{},*]+?\s+from\s+)?["']([^"']+)["']/gm))
-    assert(match[1].startsWith('data:'), `Unexpected import ${match[1]}`);
-  return `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
-}
-const decimal = await source('../src/numeric/decimal.ts');
-const lossless = await source('../src/numeric/lossless-json.ts', { './decimal': decimal });
-const storage = await source('../src/offline/store.ts');
-const manifestURL = await source('../src/offline/manifest.ts', { '../numeric/decimal': decimal,
-  '../numeric/lossless-json': lossless, './store': storage });
-const geometry = await source('../src/lantern/canonical-ifc/geometry.ts');
-const types = await source('../src/lantern/unified-atlas/types.ts');
-const sceneURL = await source('../src/lantern/unified-atlas/scene.ts', { '../canonical-ifc/geometry': geometry, './types': types });
-const modelURL = await source('../src/offline/model-v2.ts', { '../numeric/decimal': decimal,
-  '../numeric/lossless-json': lossless, '../lantern/unified-atlas/scene': sceneURL, './manifest': manifestURL });
-const adapterURL = await source('../src/offline/saved-atlas-port.ts', { './manifest': manifestURL, './model-v2': modelURL, './store': storage });
-const facadeURL = await source('../src/offline/saved-atlas-presentation.ts', {
-  './manifest': manifestURL, './saved-atlas-port': adapterURL });
-const syntheticURL = await source('./unified-atlas/synthetic-atlas.ts');
-const { openSavedAtlasPresentation, createLiveAtlasPresentationPort } = await import(facadeURL);
-const { readPackManifest, canonicalPack, PACK_LIMITS, SECTION_NAMES } = await import(manifestURL);
-const { parseLosslessJson } = await import(lossless);
-const { savedHouseKey } = await import(storage);
-const { buildSyntheticAtlas, composeAtlasEnvelope, SYNTHETIC_ATLAS } = await import(syntheticURL);
+const scratch = mkdtempSync(join(tmpdir(), 'saved-atlas-facade-positive-'));
+const entry = join(scratch, 'entry.ts');
+const root = fileURLToPath(new URL('../../', import.meta.url));
+writeFileSync(entry, [
+  ['frontend/src/offline/saved-atlas-presentation.ts', ['openSavedAtlasPresentation','createLiveAtlasPresentationPort','savedAtlasInitialState']],
+  ['frontend/src/offline/manifest.ts', ['readPackManifest','canonicalPack','PACK_LIMITS','SECTION_NAMES']],
+  ['frontend/src/numeric/lossless-json.ts', ['parseLosslessJson']],
+  ['frontend/src/offline/store.ts', ['savedHouseKey']],
+  ['frontend/lantern-tests/unified-atlas/synthetic-atlas.ts', ['buildSyntheticAtlas','composeAtlasEnvelope','SYNTHETIC_ATLAS']],
+].map(([path, names]) => `export { ${names.join(',')} } from ${JSON.stringify(join(root, path))};`).join('\n'));
+const built = await build({ root: join(root, 'frontend'), configFile: false, logLevel: 'silent', build: { write: false, target: 'node26', lib: { entry, formats: ['es'] }, rolldownOptions: { output: { codeSplitting: false } }, minify: false } });
+const output = Array.isArray(built) ? built[0] : built;
+const modulePath = join(scratch, 'positive.mjs'); writeFileSync(modulePath, output.output.find(row => row.type === 'chunk' && row.isEntry).code);
+const { openSavedAtlasPresentation, createLiveAtlasPresentationPort, savedAtlasInitialState,
+  readPackManifest, canonicalPack, PACK_LIMITS, SECTION_NAMES, parseLosslessJson, savedHouseKey,
+  buildSyntheticAtlas, composeAtlasEnvelope, SYNTHETIC_ATLAS } = await import(pathToFileURL(modulePath).href);
+rmSync(scratch, { recursive: true });
 const scope = { workspaceId: '00000000-0000-4000-8000-000000000800', homeId: '00000000-0000-4000-8000-000000000801' };
 const generated = await buildSyntheticAtlas(scope);
 const composed = await composeAtlasEnvelope(generated.companionBytes, generated.glb, SYNTHETIC_ATLAS.revision);
@@ -99,11 +88,15 @@ for (const mode of ['complete', 'partial-map', 'overview-only']) {
   const fixture = await capture(mode);
   console.log(JSON.stringify({ fixture: mode, snapshotId: fixture.house.snapshotId, localRevision: fixture.house.localRevision,
     overviewManifestSha256: composed.manifestSha256, semanticsSha256: hash(generated.companionBytes), modelSha256: composed.sha256 }));
-  const port = await openSavedAtlasPresentation(fixture.store, fixture.house, signal());
+  const openingController = new AbortController();
+  const port = await openSavedAtlasPresentation(fixture.store, fixture.house, openingController.signal);
+  openingController.abort(); // Opening signal is no longer allocation lifetime.
   if (mode === 'overview-only') {
     assert.equal(port, null); assert.equal(fixture.callbacks.size, 0); continue;
   }
   const selected = port.current();
+  assert.equal(port.current(), selected);
+  assert.equal(savedAtlasInitialState({ floorBuildings: [{ buildingId: "only" }] }).buildingId, null);
   assert.equal(selected.kind, 'saved'); assert(Object.isFrozen(selected)); assert(Object.isFrozen(selected.scope));
   assert.deepEqual(Object.keys(selected).sort(), ['kind', 'owner', 'scope', 'publicationId', 'overviewManifestSha256',
     'semanticsSha256', 'selectionRevision', 'snapshotId', 'localRevision', 'capturedAt'].sort());
@@ -141,7 +134,7 @@ for (const mode of ['complete', 'partial-map', 'overview-only']) {
   const second = await openSavedAtlasPresentation(fixture.store, fixture.house, signal());
   assert.notEqual(second.current().owner, selected.owner); second.dispose();
   let notifications = 0; const stop = port.subscribe(() => notifications++);
-  port.dispose(); assert.equal(port.current(), null); assert.equal(notifications, 1); stop();
+  port.dispose(); port.dispose(); assert.equal(port.current(), null); assert.equal(notifications, 1); stop();
   assert.equal(fixture.callbacks.size, 0);
   console.log(`PASS ${mode}: exact tagged identities, bytes, coverage; ${fixture.counts().reads} checked resource reads`);
 }
@@ -154,6 +147,8 @@ const native = { current: () => overview, subscribe: callback => { calls.push(ca
   createOverlays: async (...args) => { calls.push(args); return overlayResult; } };
 const live = createLiveAtlasPresentationPort(native), selected = live.current(), readSignal = signal();
 assert.equal(selected.kind, 'live'); assert.equal(selected.overview, overview);
+assert.equal(live.current(), selected); assert(Object.isFrozen(selected));
+assert.equal(createLiveAtlasPresentationPort(native), live);
 assert.equal(await live.read(selected, readSignal), nativeResult); assert.deepEqual(calls.pop(), [overview, readSignal]);
 const building = composed.envelope.buildings[0];
 assert.equal(await live.createOverlays(selected, nativeResult.scene, building, readSignal), overlayResult);
@@ -161,6 +156,9 @@ assert.deepEqual(calls.pop(), [overview, nativeResult.scene, building, readSigna
 const changed = () => {}; live.subscribe(changed)(); assert.deepEqual(calls, [changed, 'unsubscribed']);
 assert.equal(createLiveAtlasPresentationPort({ ...native, current: () => null }).current(), null);
 const { createOverlays: _optional, ...withoutOverlays } = native;
-assert.equal(await createLiveAtlasPresentationPort(withoutOverlays).createOverlays(selected, nativeResult.scene, building, readSignal), null);
+assert.equal(createLiveAtlasPresentationPort(withoutOverlays).createOverlays, undefined);
+const withEntry = createLiveAtlasPresentationPort({ ...native, entryBuildingId: () => 'explicit-native-entry' });
+assert.equal(withEntry.entryBuildingId(nativeResult.scene), 'explicit-native-entry');
+assert.equal((await withEntry.read(withEntry.current(), readSignal)), nativeResult);
 console.log('PASS live wrapper: unchanged native selection/read/subscription and explicit live overlay forwarding');
 console.log('PASS generated facade positives only; mounted offline, browser/storage and device acceptance remain unestablished');

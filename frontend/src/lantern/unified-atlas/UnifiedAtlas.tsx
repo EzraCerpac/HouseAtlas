@@ -12,7 +12,8 @@ import { MeshLayer, RENDER_LIMITS, type MeshPalette } from '../canonical-ifc/Mes
 import { useStageCamera } from '../canonical-ifc/useStageCamera';
 import { TONE_COLOR, badgeFill, toneTint } from '../canonical-ifc/tones';
 import { PREPARED_BYTES_PER_TRIANGLE } from '../site-artifacts/site-budget';
-import type { ModelOverviewSelection } from '../source-models/overview-types';
+import { createLiveAtlasPresentationPort, savedAtlasInitialState } from '../../offline/saved-atlas-presentation';
+import type { AtlasPresentationPort, AtlasPresentationSelection } from './types';
 import {
   atlasOrigin, atlasReducer, bindAtlasModel, contextOccurrenceIds, easePresentation, frameBox, hasExplodableLevels, initialAtlasState, labelHeight,
   levelLift, occurrenceLiftLevel, partLifts, pickTarget, planFeaturesForLevel, planPickTarget, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
@@ -37,7 +38,7 @@ import './unified-atlas.css';
 
 type Outcome = { readonly status: 'ready'; readonly model: AtlasModel; readonly entryBuildingId: string | null | undefined }
   | { readonly status: 'failed'; readonly reason: AtlasReadFailure };
-interface Loaded { readonly selection: ModelOverviewSelection; readonly attempt: number; readonly outcome: Outcome }
+interface Loaded { readonly selection: AtlasPresentationSelection; readonly attempt: number; readonly outcome: Outcome }
 
 const FAILURE: Record<AtlasReadFailure, { readonly text: string; readonly retry: string | null }> = {
   absent: { text: 'No room map is published for this model yet.', retry: null },
@@ -50,13 +51,14 @@ const FAILURE: Record<AtlasReadFailure, { readonly text: string; readonly retry:
 // View state per exact overview owner, manifest and publication revision, for this tab only.
 const memory = new Map<string, AtlasViewState>();
 const MEMORY_ENTRIES = 8;
-const overviewOwners = new WeakMap<ModelOverviewSelection, number>();
+const overviewOwners = new WeakMap<object, number>();
 let nextOverviewOwner = 0;
-const memoryKey = (model: AtlasModel, overview: ModelOverviewSelection) => {
-  let owner = overviewOwners.get(overview);
-  if (owner === undefined) { owner = ++nextOverviewOwner; overviewOwners.set(overview, owner); }
+const memoryKey = (model: AtlasModel, overview: AtlasPresentationSelection) => {
+  const identity = overview.kind === 'live' ? overview.overview : overview.owner;
+  let owner = overviewOwners.get(identity);
+  if (owner === undefined) { owner = ++nextOverviewOwner; overviewOwners.set(identity, owner); }
   const { scope, publication, selection } = model.scene;
-  return `${owner}/${overview.manifestSha256}/${scope.workspaceId}/${scope.homeId}/${publication.publicationId}/${publication.semanticsSha256}/${selection.revision}`;
+  return `${owner}/${overview.kind === 'live' ? overview.overview.manifestSha256 : `${overview.localRevision}/${overview.snapshotId}/${overview.overviewManifestSha256}`}/${scope.workspaceId}/${scope.homeId}/${publication.publicationId}/${publication.semanticsSha256}/${selection.revision}`;
 };
 function remember(key: string, state: AtlasViewState) {
   memory.delete(key); memory.set(key, state);
@@ -66,8 +68,30 @@ function remember(key: string, state: AtlasViewState) {
 /** A source the host can open in place of the Atlas; listed in the narrow-stage menu. */
 export interface OtherSource { readonly id: string; readonly label: string; readonly open: () => void }
 
-export default function UnifiedAtlas({ port, onOpenModel, otherSources }: { readonly port: UnifiedAtlasPort; readonly onOpenModel?: () => void;
-  readonly otherSources?: readonly OtherSource[] }) {
+export interface AtlasPresentationEnvironment {
+  readonly reducedMotion: boolean;
+  readonly openNetwork?: () => void;
+  readonly openDocuments?: () => void;
+  readonly archive?: { readonly included: boolean; readonly setIncluded: (included: boolean) => void };
+}
+interface AtlasProps {
+  readonly port: UnifiedAtlasPort | AtlasPresentationPort;
+  readonly onOpenModel?: () => void;
+  readonly otherSources?: readonly OtherSource[];
+  readonly environment?: AtlasPresentationEnvironment;
+}
+export default function UnifiedAtlas(props: AtlasProps) {
+  return props.environment ? <AtlasPresentation {...props} environment={props.environment} /> : <LiveAtlasPresentation {...props} />;
+}
+function LiveAtlasPresentation(props: AtlasProps) {
+  const { dispatch, actions } = useStore(), reducedMotion = useReducedMotion();
+  return <AtlasPresentation {...props} environment={{ reducedMotion,
+    openNetwork: () => dispatch({ type: 'view', view: 'network' }),
+    openDocuments: () => dispatch({ type: 'view', view: 'library' }),
+    ...(actions.archiveVisibility ? { archive: actions.archiveVisibility } : {}) }} />;
+}
+function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, environment }: AtlasProps & { readonly environment: AtlasPresentationEnvironment }) {
+  const port = useMemo(() => 'kind' in suppliedPort ? suppliedPort : createLiveAtlasPresentationPort(suppliedPort), [suppliedPort]);
   const subscribe = useCallback((changed: () => void) => port.subscribe(changed), [port]);
   const current = useCallback(() => port.current(), [port]);
   const selection = useSyncExternalStore(subscribe, current, current);
@@ -80,7 +104,8 @@ export default function UnifiedAtlas({ port, onOpenModel, otherSources }: { read
     void (async () => {
       let outcome: Outcome;
       try {
-        const read = await port.read(selection, signal);
+        const read = port.kind === 'saved' && selection.kind === 'saved' ? await port.read(selection, signal)
+          : port.kind === 'live' && selection.kind === 'live' ? await port.read(selection, signal) : (() => { throw new AtlasReadError('stale'); })();
         const { loadStandardGlb } = await import('../canonical-ifc/standard-glb');
         signal.throwIfAborted();
         // Prepared geometry is reserved from the preflight counts before the loader allocates.
@@ -118,7 +143,7 @@ export default function UnifiedAtlas({ port, onOpenModel, otherSources }: { read
     </section>;
   }
   return <AtlasStage key={memoryKey(outcome.model, selection)} model={outcome.model} port={port} selection={selection} entryBuildingId={outcome.entryBuildingId}
-    otherSources={otherSources ?? []} />;
+    otherSources={otherSources ?? []} environment={environment} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -293,14 +318,13 @@ interface StageMarker extends CountMarker {
   readonly context: boolean;
 }
 
-function AtlasStage({ model, port, selection, entryBuildingId, otherSources }: { readonly model: AtlasModel; readonly port: UnifiedAtlasPort;
-  readonly selection: ModelOverviewSelection; readonly entryBuildingId: string | null | undefined; readonly otherSources: readonly OtherSource[] }) {
-  const { dispatch: appDispatch, actions } = useStore();
-  const archive = actions.archiveVisibility;
-  const reduced = useReducedMotion();
+function AtlasStage({ model, port, selection, entryBuildingId, otherSources, environment }: { readonly model: AtlasModel; readonly port: AtlasPresentationPort;
+  readonly selection: AtlasPresentationSelection; readonly entryBuildingId: string | null | undefined; readonly otherSources: readonly OtherSource[]; readonly environment: AtlasPresentationEnvironment }) {
+  const archive = environment.archive;
+  const reduced = environment.reducedMotion;
   const key = memoryKey(model, selection);
-  const [state, setState] = useState<AtlasViewState>(() => memory.get(key) ?? initialAtlasState(model,
-    entryBuildingId === undefined ? port.entryBuildingId?.(model.scene) ?? null : entryBuildingId));
+  const [state, setState] = useState<AtlasViewState>(() => memory.get(key) ?? (port.kind === 'saved' ? savedAtlasInitialState(model) : initialAtlasState(model,
+    entryBuildingId === undefined ? port.entryBuildingId?.(model.scene) ?? null : entryBuildingId)));
   const dispatch = useCallback((action: AtlasAction) => setState(value => atlasReducer(model, value, action)), [model]);
   useEffect(() => { remember(key, state); }, [key, state]);
   const [failure, setFailure] = useState<string | null>(null);
@@ -322,7 +346,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources }: {
   const context = useMemo(() => contextOccurrenceIds(model, selected), [model, selected]);
   // Layers are property-wide at every scope; selection highlights and never filters them.
   const { electrical: electricalOn, network: networkOn } = state.layers;
-  const runtimeConfigured = Boolean(port.createOverlays || port.savedDocumentary);
+  const runtimeConfigured = Boolean(port.kind === 'saved' || port.createOverlays || port.savedDocumentary);
   const runtime = useDocumentaryOverlays(port, selection, model, electricalOn || networkOn);
   const overlays = useMemo<ReadonlyMap<OverlayKind, OverlayLayerIndex>>(() => runtime.records ? new Map(OVERLAY_KINDS.map(kind =>
     [kind, documentaryOverlayIndex(model, runtime.records!, kind)])) : runtimeConfigured
@@ -1162,9 +1186,9 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources }: {
         {hasKeys && <div id={`${foldIds}-layers`} className={`ua-keys${drawer === 'layers' ? ' is-unfolded' : ''}`}>
           {active.map(layer => <OverlayKey key={layer.kind} layer={layer} records={runtime.records}
             buildings={runtime.buildings}
-            publishedOnly={!runtimeConfigured} openDocuments={() => appDispatch({ type: 'view', view: 'library' })}
+            publishedOnly={!runtimeConfigured} openDocuments={environment.openDocuments}
             availability={runtime.records?.[layer.kind] ?? (!runtimeConfigured ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
-            openNetwork={() => appDispatch({ type: 'view', view: 'network' })}
+            openNetwork={environment.openNetwork}
             graph={layer.kind === 'network' && graphs.length > 0 ? { id: graphId, open: showGraph, toggle: toggleGraph } : null} />)}
           {measuring && <MeasurementKey estimated={estimated} shown={measured.length} />}
         </div>}
@@ -1213,8 +1237,8 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources }: {
     <Inspector model={model} state={state} dispatch={dispatch} context={context} renderFailure={failure}
       runtime={runtime.records} runtimeReason={runtime.reason} runtimeConfigured={runtimeConfigured}
       open={sheetOpen} setOpen={setSheetOpen}
-      openDocuments={() => appDispatch({ type: 'view', view: 'library' })}
-      openNetwork={() => appDispatch({ type: 'view', view: 'network' })} />
+      openDocuments={environment.openDocuments}
+      openNetwork={environment.openNetwork} />
   </section>;
 }
 
@@ -1339,10 +1363,10 @@ function listedLevels(model: AtlasModel, state: AtlasViewState): readonly AtlasL
  * lower edge whose head (rooms or the selected room) stays in view. */
 function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen }: {
   readonly model: AtlasModel; readonly state: AtlasViewState; readonly dispatch: (action: AtlasAction) => void;
-  readonly context: readonly string[]; readonly openNetwork: () => void;
+  readonly context: readonly string[]; readonly openNetwork: (() => void) | undefined;
   readonly renderFailure: string | null;
   readonly runtime: PropertyRecords | null; readonly runtimeReason: string; readonly runtimeConfigured: boolean;
-  readonly openDocuments: () => void;
+  readonly openDocuments: (() => void) | undefined;
   readonly open: boolean; readonly setOpen: (open: boolean) => void;
 }) {
   const bodyId = useId();
@@ -1434,7 +1458,7 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
           {placement && <PublishedOverlayDetails placement={placement} />}
           {unplaced.length > 0 && <p className="ua-unplaced">
             {plural(new Set(unplaced.flatMap(row => row.binding.recordIds)).size, 'record')} not placed: {[...new Set(unplaced.map(row => UNPLACED_LABEL[row.reason]))].join('; ')}.</p>}
-          {kind === 'network' && <button type="button" className="text-btn" onClick={openNetwork}>Open Network</button>}
+          {kind === 'network' && openNetwork && <button type="button" className="text-btn" onClick={openNetwork}>Open Network</button>}
         </div>)}
       </section>}
       <SourceDetails model={model} occurrence={occurrence} room={room} renderFailure={renderFailure} overlayReason={runtimeReason} runtimeSource={runtime?.sourceFacts ?? []} />
@@ -1442,14 +1466,14 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
   </aside>;
 }
 
-function DocumentaryRecords({ records, openDocuments }: { readonly records: readonly DocumentaryRecord[]; readonly openDocuments: () => void }) {
+function DocumentaryRecords({ records, openDocuments }: { readonly records: readonly DocumentaryRecord[]; readonly openDocuments: (() => void) | undefined }) {
   if (!records.length) return <p>No linked records in the available source.</p>;
   return <div>{records.map(record => <details className="ua-refs" key={record.key}>
     <summary>{record.label}</summary>
     <p>{record.category}: {record.detail}</p><p>{record.qualification}</p>
     <p>Source date: {record.sourceDate ?? 'unknown'}. Retrieved: {record.retrievedAt ?? 'unknown'}.</p>
     {record.connections.length > 0 && <ul>{record.connections.map((connection, at) => <li key={at}>{connection}</li>)}</ul>}
-    {(record.category === 'Electrical drawing' || record.category === 'Historical symbol') && <button type="button" className="text-btn" onClick={openDocuments}>Open Documents</button>}
+    {openDocuments && (record.category === 'Electrical drawing' || record.category === 'Historical symbol') && <button type="button" className="text-btn" onClick={openDocuments}>Open Documents</button>}
     <details className="ua-source"><summary>Source</summary><dl><div><dt>Source record</dt><dd>{record.id}</dd></div>
       {record.sourceFacts.map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value ?? 'unknown'}</dd></div>)}
     </dl></details>
@@ -1521,7 +1545,7 @@ function SourceDetails({ model, occurrence, room, renderFailure, overlayReason, 
 const COVERAGE_TEXT = { available: 'Available', partial: 'Partial', unavailable: 'Unavailable' } as const;
 
 function OverlayKey({ layer, openNetwork, availability, records, buildings, openDocuments, publishedOnly, graph }: {
-  readonly layer: OverlayLayerIndex; readonly openNetwork: () => void; readonly openDocuments: () => void;
+  readonly layer: OverlayLayerIndex; readonly openNetwork: (() => void) | undefined; readonly openDocuments: (() => void) | undefined;
   readonly records: PropertyRecords | null; readonly availability: 'available' | 'partial' | 'unavailable' | 'loading';
   readonly publishedOnly: boolean;
   readonly buildings: readonly BuildingCoverage[];
@@ -1570,7 +1594,7 @@ function OverlayKey({ layer, openNetwork, availability, records, buildings, open
           : <><ul>{[...reasons].map(([reason, count]) => <li key={reason}>{plural(count, 'record')}: {UNPLACED_LABEL[reason]}</li>)}</ul>
             {!closed && layer.unplaced.map((row, at) => <PublishedUnplacedBinding key={at} binding={row.binding} reason={UNPLACED_LABEL[row.reason]} />)}</>}
       </details>}
-      {layer.kind === 'network' && <button type="button" className="text-btn" onClick={openNetwork}>Open Network</button>}
+      {layer.kind === 'network' && openNetwork && <button type="button" className="text-btn" onClick={openNetwork}>Open Network</button>}
     </div>
   </section>;
 }

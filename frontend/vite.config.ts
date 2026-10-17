@@ -1,13 +1,16 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+// @ts-expect-error The bounded ESM build plugin is inspected and exercised by the production build.
+import { offlineShellPlugin } from './build/offline-shell-plugin.mjs';
 import { pdfjsBinaryDataPlugin } from './build/pdfjs-binary-data-plugin.mjs';
 import { threeNoticeBanner } from './build/three-notice-banner.mjs';
 
 export default defineConfig({
-  plugins: [react(), pdfjsBinaryDataPlugin(process.cwd())],
+  plugins: [react(), pdfjsBinaryDataPlugin(process.cwd()), offlineShellPlugin()],
   build: {
     sourcemap: false,
     rolldownOptions: {
+      input: { live: 'index.html', saved: 'saved/index.html' },
       output: {
         postBanner: threeNoticeBanner(process.cwd()),
         // React loads eagerly in its own chunk so the entry stays within the
