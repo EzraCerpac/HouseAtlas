@@ -38,6 +38,7 @@ const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 
 const SourceModelView = lazy(() => import('../source-models/SourceModelView').then(module => ({ default: module.SourceModelView })));
 const SiteArtifactView = lazy(() => import('../site-artifacts/SiteArtifactView').then(module => ({ default: module.SiteArtifactView })));
+const UnifiedAtlas = lazy(() => import('../unified-atlas/UnifiedAtlas'));
 const noOverview = () => null;
 const noOverviewSubscription = () => () => {};
 
@@ -45,8 +46,58 @@ export function AtlasView() {
   const { models } = useSourcePorts();
   const selectedOverview = useSyncExternalStore(models?.overview?.subscribe ?? noOverviewSubscription,
     models?.overview?.current ?? noOverview, noOverview);
+  const atlasSelection = useSyncExternalStore(models?.atlas?.subscribe ?? noOverviewSubscription,
+    models?.atlas?.current ?? noOverview, noOverview);
   const [source, setSource] = useState<'home' | 'model' | 'site' | null>(null);
+  const [other, setOther] = useState<'model' | 'site' | 'home' | null>(null);
   if (!models) return <HomeAtlas />;
+  // With the opt-in scene port and a selected publication, the unified Atlas is
+  // the Atlas; the other sources stay reachable through their own owners.
+  if (models.atlas && atlasSelection) {
+    const atlas = models.atlas;
+    const others = [
+      { id: 'model' as const, label: selectedOverview ? 'Model overview' : 'Model file' },
+      ...(models.site ? [{ id: 'site' as const, label: 'Site' }] : []),
+      { id: 'home' as const, label: 'Home map' },
+    ];
+    const open = others.find(row => row.id === other) ?? null;
+    // Other sources come first: beside the archive filter, above the stage.
+    if (!open) return <>
+      <details className="atlas-source-details" onBlur={event => {
+        if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
+      }} onKeyDown={event => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault(); event.stopPropagation(); event.currentTarget.open = false;
+        event.currentTarget.querySelector<HTMLElement>('summary')?.focus({ preventScroll: true });
+      }}>
+        <summary>Other sources</summary>
+        <nav className="atlas-sources" aria-label="Source inspection">
+          {others.map(row => <button key={row.id} type="button" className="text-btn" onClick={() => setOther(row.id)}>{row.label}</button>)}
+        </nav>
+      </details>
+      <OptionalViewerBoundary key="atlas" label="The Atlas">
+        <Suspense fallback={<p className="source-model-pane" role="status">Loading Atlas…</p>}>
+          <UnifiedAtlas port={atlas} onOpenModel={() => setOther('model')} />
+        </Suspense>
+      </OptionalViewerBoundary>
+    </>;
+    return <>
+      <div className="atlas-sources is-open">
+        <button type="button" className="text-btn" onClick={() => setOther(null)}><Icon name="back" size={16} />Back to Atlas</button>
+        <h2>{open.label}</h2>
+      </div>
+      {open.id === 'model'
+        ? <OptionalViewerBoundary key="model" label="The model viewer">
+          <Suspense fallback={<p className="source-model-pane" role="status">Loading model viewer…</p>}><SourceModelView port={models} /></Suspense>
+        </OptionalViewerBoundary>
+        : open.id === 'site' && models.site
+        ? <OptionalViewerBoundary key="site" label="The site viewer">
+          <Suspense fallback={<p className="source-model-pane" role="status">Loading site viewer…</p>}>
+            <div className="source-model-pane"><SiteArtifactView port={models.site} /></div></Suspense>
+        </OptionalViewerBoundary>
+        : <HomeAtlas />}
+    </>;
+  }
   const preferred = source ?? (selectedOverview ? 'model' : 'home');
   const shown = preferred === 'site' && !models.site ? 'home' : preferred;
   return <>

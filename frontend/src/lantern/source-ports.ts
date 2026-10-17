@@ -3,6 +3,7 @@ import type { SourceDocumentsPort } from './source-documents/types';
 import type { LocalModelReviewOptions } from './electrical-documentary/types';
 import type { SiteSourcePort } from './site-artifacts/types';
 import type { ModelOverviewPort } from './source-models/overview-types';
+import type { UnifiedAtlasPort } from './unified-atlas/types';
 
 /** Local model files plus optional source-owned saved overview/site readers.
  * Electrical review stays unavailable unless the composition injects a
@@ -11,6 +12,9 @@ import type { ModelOverviewPort } from './source-models/overview-types';
 export interface SourceModelPort extends LocalModelReviewOptions {
   readonly localFiles: 'browser-only';
   readonly overview?: ModelOverviewPort;
+  /** Opt-in unified Atlas read beside the selected overview; with a
+   * selection it is the default Atlas. */
+  readonly atlas?: UnifiedAtlasPort;
   /** One pinned site artifact publication; absent leaves the Site view out. */
   readonly site?: SiteSourcePort;
 }

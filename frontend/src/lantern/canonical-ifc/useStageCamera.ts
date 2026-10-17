@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent, type RefObject } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type RefObject } from 'react';
 import { useEased } from '../atlas/useCamera';
+import { createStagePointers, type StageGesture } from './stage-pointers';
 
 export const motionQuery = '(prefers-reduced-motion: reduce)';
 function subscribeMotion(change: () => void) {
@@ -21,14 +22,14 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape }: {
   /** Top-down pose (plan or top view). */
   readonly top: boolean;
   readonly reduced: boolean;
-  readonly onTap: (x: number, y: number) => void;
+  readonly onTap: (x: number, y: number, target?: EventTarget | null) => void;
   readonly onEscape?: () => void;
 }) {
   const [size, setSize] = useState({ width: 960, height: 640 });
   const [orbit, setOrbit] = useState<{ yaw: number; pitch: number }>(DEFAULT_ORBIT);
   const [zoom, setZoom] = useState(1), [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
-  const drag = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null);
+  const gesture = useRef<StageGesture>({ drag: null, pointers: new Map(), pinch: null, pinched: false });
   // Top-down returns to the source orientation by the shortest turn.
   const topYaw = Math.round(orbit.yaw / 360) * 360;
   const eased = useEased({ yaw: top ? topYaw : orbit.yaw, pitch: top ? 90 : orbit.pitch, zoom, panX: pan.x, panY: pan.y },
@@ -56,29 +57,10 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape }: {
   const tilt = (delta: number) => setOrbit(value => ({ ...value, pitch: Math.min(PITCH_3D.max, Math.max(PITCH_3D.min, value.pitch + delta)) }));
   const zoomBy = (factor: number) => setZoom(value => Math.min(ZOOM.max, Math.max(ZOOM.min, value * factor)));
   const fit = () => { setZoom(1); setPan({ x: 0, y: 0 }); if (!top) setOrbit(DEFAULT_ORBIT); };
-  const endDrag = () => { drag.current = null; setDragging(false); };
-
+  /** Zoom and pan back to the framed scope; the chosen orbit stays. */
+  const reframe = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
   const bind = {
-    onPointerDown: (event: PointerEvent<HTMLDivElement>) => {
-      if (event.button !== 0) return; drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
-    },
-    onPointerMove: (event: PointerEvent<HTMLDivElement>) => {
-      const d = drag.current; if (!d || d.id !== event.pointerId) return;
-      const dx = event.clientX - d.x, dy = event.clientY - d.y;
-      if (!d.moved && Math.hypot(dx, dy) < 5) return;
-      if (!d.moved) { event.currentTarget.setPointerCapture(event.pointerId); setDragging(true); }
-      drag.current = { ...d, x: event.clientX, y: event.clientY, moved: true };
-      if (top) setPan(value => ({ x: value.x + dx, y: value.y + dy }));
-      else setOrbit(value => ({ yaw: value.yaw + dx * .4, pitch: Math.min(PITCH_3D.max, Math.max(PITCH_3D.min, value.pitch - dy * .25)) }));
-    },
-    onPointerUp: (event: PointerEvent<HTMLDivElement>) => {
-      const d = drag.current; endDrag();
-      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-      if (!d || d.id !== event.pointerId || d.moved) return;
-      const rect = event.currentTarget.getBoundingClientRect(); onTap(event.clientX - rect.left, event.clientY - rect.top);
-    },
-    onPointerCancel: endDrag,
-    onLostPointerCapture: endDrag,
+    ...createStagePointers({ gesture: gesture.current, top, onTap, dragging: setDragging, zoom: setZoom, pan: setPan, orbit: setOrbit }),
     onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
       if (event.target !== event.currentTarget) return;
       const step = event.shiftKey ? 4 : 1;
@@ -92,5 +74,5 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape }: {
       event.preventDefault(); action();
     },
   };
-  return { size, eased, planBlend, dragging, zoom, zoomLimits: ZOOM, turn, zoomBy, fit, bind };
+  return { size, eased, planBlend, dragging, zoom, zoomLimits: ZOOM, turn, zoomBy, fit, reframe, bind };
 }

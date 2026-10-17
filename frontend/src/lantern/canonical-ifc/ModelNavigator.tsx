@@ -16,14 +16,22 @@ export interface StoreyGroup { readonly key: string; readonly label: string; rea
 export function navigationIndex(glb: StandardGlb, data: BrowserManifest | undefined) {
   const drawnNode = new Map(glb.drawn.map(item => [item.meshKey, item.nodeIndex]));
   const meshesByNode = new Map<number, string[]>();
-  for (const item of glb.drawn) if (item.nodeIndex !== null) meshesByNode.set(item.nodeIndex, [...meshesByNode.get(item.nodeIndex) ?? [], item.meshKey]);
+  for (const item of glb.drawn) if (item.nodeIndex !== null) {
+    const meshes = meshesByNode.get(item.nodeIndex);
+    if (meshes) meshes.push(item.meshKey);
+    else meshesByNode.set(item.nodeIndex, [item.meshKey]);
+  }
   const products = new Map((data?.products ?? []).map(product => [product.nodeIndex, product]));
   const occurrences = new Map((data?.roomOccurrences ?? []).map(occurrence => [occurrence.nodeIndex, occurrence]));
   const names = new Map(glb.nodes.map(node => [node.nodeIndex, node.name]));
   // Storeys exactly as declared; an undeclared key stays visible as its raw value.
   const declared = new Map((data?.storeys ?? []).map(storey => [storey.key, storey.label]));
   const groups = new Map<string, Product[]>();
-  for (const product of data?.products ?? []) groups.set(product.storey, [...groups.get(product.storey) ?? [], product]);
+  for (const product of data?.products ?? []) {
+    const group = groups.get(product.storey);
+    if (group) group.push(product);
+    else groups.set(product.storey, [product]);
+  }
   const storeys: StoreyGroup[] = [
     ...(data?.storeys ?? []).map(storey => ({ key: storey.key, label: storey.label, declared: true, products: groups.get(storey.key) ?? [] })),
     ...[...groups].filter(([key]) => !declared.has(key)).map(([key, products]) => ({ key, label: key, declared: false, products })),

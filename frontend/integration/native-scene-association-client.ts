@@ -182,7 +182,7 @@ function roomMappings(value: LosslessJson, accepted: readonly NativeSceneAccepte
     need(new Set(evidenceIds).size === evidenceIds.length && evidenceIds.length === expectedEvidenceIds.length
       && expectedEvidenceIds.every(expected => evidenceIds.includes(expected)));
     return Object.freeze({ sourceRoomId, sourceFloorKey, sourceOriginalSha256, sourceAnchorIds: Object.freeze(sourceAnchorIds),
-      evidenceIds: Object.freeze(evidenceIds), targets: Object.freeze(targets) });
+      evidenceIds: Object.freeze(evidenceIds), targets: Object.freeze(targets), unresolvedLabels: Object.freeze(unresolvedLabels) });
   }));
 }
 function floors(value: LosslessJson, geometry: NativeGeometryFrame | null): readonly NativeSceneFloorBinding[] {

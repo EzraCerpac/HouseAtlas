@@ -1141,6 +1141,170 @@ The timing tables show bounded anonymous local stages from the real components;
 fake read delays describe only the generated fixture. Stop the owned preview
 within 20 minutes. This manual review adds no workflow or ordinary CI command.
 
+## Unified Atlas native documentary source healthy check
+
+Inspect `frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs`,
+`frontend/integration/unified-atlas-overlay-source.ts` and its closed native
+association/source parser imports. With Node 26.10.0 and locked frontend
+packages, run:
+
+```sh
+node frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs
+```
+
+This one generated positive read bundles the actual adapter with Vite into an
+owned disposable temporary directory. It uses an in-process synthetic GET
+transport and two dedicated fake original-document owners. It checks exact
+source/receipt and arbitrary-precision revision retention, independently reviewed
+room links, recorded Network data, electrical drawings and historical symbols,
+a normal mobile documentary record retained without room placement, and
+the consumer’s exact room-summary projection with source IDs and historical
+producer status preserved, one normal sequential same-head refresh after ten seconds, and ordinary
+release/disposal. No listener, browser, actual native/household data, external
+provider, writes, malformed/omission, denial, replay, expiry or failure controls.
+The host still needs an independent reviewed room map and actual current native
+original/document owners; generated success does not qualify their availability.
+
+## Unified Atlas reviewed room-links healthy read
+
+Inspect `frontend/integration/unified-atlas-room-links-reader.ts`,
+`unified-atlas-room-links-owner.ts`, their type-only
+overlay/selection imports, the runtime Atlas error type and the complete named
+runner before this ordinary generated positive on Node 26.10.0:
+
+```sh
+node frontend/lantern-tests/unified-atlas-room-links-healthy.mjs
+```
+
+It uses three successful in-process responses: a publication-wide map covering
+two buildings, a valid empty map and valid 128-character source IDs. It checks
+the exact query, cookie-authenticated GET options, revision and byte digest,
+scene-room consistency, immutable output and retained unmapped rooms. Scene
+projections are generated expectations, not admitted GLB publications; no
+authentication or native authority is qualified. No real request, listener,
+browser, private input, malformed/denial/withdrawal/replay/expiry control or
+workflow runs. Mounted-host lifetime and final backend compatibility require
+separate integration evidence.
+
+The same positive also uses a fake base lease and monotonic timers for two
+successful same-map refreshes during a normal 25-second simulated native open,
+followed by ordinary release/disposal. It preserves the exact frame identity
+and cleans its timers/subscriptions. No timeout, expiry, replacement or owner
+withdrawal control is exercised; these fake handlers do not qualify native
+document leases or mounted browser behavior.
+
+The existing named `node frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs`
+also exercises `unified-atlas-room-links-host.ts` through the real map reader,
+map lifetime owner and native adapter. Inspect those imports and the full runner
+first. A generated publication-wide map spans two buildings; only the selected
+building's rooms enter native qualification. The successful map/head refreshes
+retain historical producer status, documentary dates and unplaced records, then
+normal release cleans dedicated fake original-document owners. Its transport is
+entirely in process; it proves no backend authentication or browser behavior and
+adds no held control case.
+
+## Unified Atlas healthy generated check
+
+The unified Atlas reads one `houseatlas.unified-atlas-scene.v1` envelope and its
+pinned GLB. Inspect `frontend/lantern-tests/unified-atlas-healthy.mjs`, its
+generator `frontend/lantern-tests/unified-atlas/synthetic-atlas.ts` and the
+imported reader, scene, geometry, GLB preflight and standard GLB modules. Then use
+Node 26.10.0 and the locked frontend dependencies:
+
+```sh
+node frontend/lantern-tests/unified-atlas-healthy.mjs
+```
+
+It takes no arguments. It runs the production scene reader against a generated
+in-process HTTPS transport, loads the generated GLB through the pinned
+GLTFLoader once, and checks the selected overview manifest query/response pin
+using a separate generated overview manifest digest. Model, source and semantic
+digests remain distinct. The raised and single-floor publications use their own
+manifest pins. This is generated protocol evidence, not backend admission. It checks
+nested-transform baking, per-primitive building and
+level membership, shared multi-level geometry, out-of-order and split-level
+elevations, selectable and excluded rooms, duplicate labels, qualified overlay
+joins. It also checks the shared presentation used
+for drawing, hidden room picks, explosion offsets, section clips, labels, and
+3D, stacked, focused, mid-transition and plan picking. It uses no browser,
+GPU, listener, native host, credentials, household input or provider. It adds
+no malformed, denial, replay, expiry, crash or private-intake case. Its
+generated geometry does not establish real publication coverage, layout,
+rendering or device behavior.
+
+The named `node frontend/lantern-tests/unified-atlas-healthy.mjs` also checks
+normal generated pointer tap/drag, viewport capture handoff, descendant-to-viewport
+capture transfer, pinch with either-finger release, and plan pan through the
+production pointer-handler factory. Its source fixtures cover context-first Plan
+navigation, reordered plan references, same-winding polygon holes and focused
+exploded-floor framing. Only qualified positive overlay joins are supplied;
+foreign-publication, unqualified-join and unselectable-action controls are not
+part of this ordinary runner. This adds no device cancellation, hardware failure,
+malformed/omission, denial, replay, expiry, private-intake or browser test.
+
+The same named healthy runner also checks generated section targets, current
+clip visibility during a sweep, retargeting, and exact settled/reduced-motion
+values. A coherently translated publication passes the production reader,
+standard loader and binder 100,000 m above its original source Y; it retains
+the expected room pick at a shared triangle seam. These are positive CPU
+observations, not React animation, rendered layout or browser focus evidence.
+
+It also retains generated non-BMP/combining/ZWJ source text at the backend's
+human-field scalar bounds, including 64-scalar source date text and the full
+1,024-scalar position basis. These are source text, not parsed date claims.
+A separate admission-only projection covers 4,096 occurrences and 16,381
+room/non-room/context features with reordered references and an empty
+occurrence. That projection proves frontend semantic admission only: it is not
+bound to model geometry or admitted by the backend. No invalid-text, missing
+reference, denial or other held control is added.
+
+The same named positive also statically renders the actual
+`PublishedOverlayDetails.tsx` with the locked React/ReactDOM server renderer.
+Inspect that component and its type-only scene/binding imports before execution.
+A generated two-floor room retains shared and floor-specific records, dates and
+source-position bases; structurally distinct delimiter/null date tuples remain
+visible and exact duplicate tuples are grouped. A separate 128-entry CPU
+binding projection checks append order, ring/hole grouping and frozen indexes
+using repeated prepared primitives/features. It establishes no new GLB/backend
+geometry admission, benchmark or mounted browser/device behavior. These valid
+generated projections add no malformed, denial or other held control case.
+Unspecified-occurrence position provenance remains visible without acquiring a
+floor marker. Another generated publication splits a level's original features
+across two source plans; the production reader, standard loader and binder
+retain both IDs/order, all rendered features, matching framing and plan picks.
+The backend owner separately confirmed this supported multiple-plan contract;
+the frontend check does not qualify backend admission of its fictional fixture.
+
+The separate generated interaction positives use the production reader, standard
+GLB loader, reducer, projection, pointer factory and documentary index. Inspect
+`frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs`, its
+`api.mjs` bundler and imported generated fixtures before this named local check:
+
+```sh
+node --test --test-concurrency=1 frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs
+```
+
+Its sixteen CPU cases cover repeated navigation, every declared selectable
+occurrence, shared room identity, source-coordinate plans, normal overlay
+toggles, collapse-before-Plan selection, deterministic count touch-target
+suppression, complete label-action targets, source-qualified duplicate floor
+names, indexed tessellated-room picks and tap/drag/pinch sequences. They include no held controls, listener,
+provider, credentials or private inputs. They do not qualify DOM focus, CSS,
+animations, GPU rendering, native overlays or devices. The adjacent acceptance
+matrix retains its exact historical source attribution; browser automation is
+a separate check and gains no execution permission from this CPU command.
+This adds no workflow or ordinary CI step.
+
+The `/lantern-tests/source-host-visual/` fixture keeps its default. With
+`?atlas=generated` it also mounts the unified Atlas through the production
+reader against an in-page synthetic HTTPS transport. With
+`?atlas-scene=<path>&atlas-model=<path>` it reads an externally supplied
+publication companion and GLB once from the same loopback origin instead. Both
+paths are required, and they are fetched without credentials or redirects.
+Keep supplied files and any captures outside Git. Follow the loopback preview
+bounds above. A fixture review does not qualify native authority, household
+data or deployment, and it adds no workflow or ordinary CI command.
+
 ## Native geodata document first slice
 
 Inspect `backend/src/media/geodata_original.rs`,

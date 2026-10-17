@@ -19,15 +19,21 @@ interface Props {
   readonly hiddenKeys?: ReadonlySet<string> | undefined;
   /** Mesh keys of an explicit selection, drawn in the lantern tone. */
   readonly selectedKeys?: ReadonlySet<string> | undefined;
+  /** Per-mesh display lift in metres (presentation only, such as exploded floors). */
+  readonly lifts?: ReadonlyMap<string, number> | undefined;
+  /** Per-mesh section height in the mesh's own source frame; overrides rules.clipY. */
+  readonly clips?: ReadonlyMap<string, number | null> | undefined;
+  /** Per-mesh dimming toward paper (0–1); replaces current-floor dimming when given. */
+  readonly dims?: ReadonlyMap<string, number> | undefined;
   readonly onUnavailable: (message: string) => void;
 }
 
 /** Explicit renderer bounds: drawing-buffer pixels and uploaded vertex bytes. */
 export const RENDER_LIMITS = Object.freeze({ pixels: 4_194_304, uploadBytes: 64 * 1024 * 1024 });
 const vertexSource = `attribute vec3 position;attribute vec3 normal;
-uniform vec4 rot;uniform vec3 center;uniform vec4 frame;uniform vec2 viewport;
+uniform vec4 rot;uniform vec3 center;uniform vec4 frame;uniform vec2 viewport;uniform float lift;
 varying vec3 vNormal;varying float vY;
-void main(){vec3 p=position-center;float rx=p.x*rot.x-p.z*rot.y;float rz=p.x*rot.y+p.z*rot.x;
+void main(){vec3 p=position-center;p.y+=lift;float rx=p.x*rot.x-p.z*rot.y;float rz=p.x*rot.y+p.z*rot.x;
 float sx=frame.y+frame.x*rx;float sy=frame.z+frame.x*(rz*rot.z-p.y*rot.w);float d=rz*rot.w+p.y*rot.z;
 gl_Position=vec4(sx/viewport.x*2.0-1.0,1.0-sy/viewport.y*2.0,clamp(-d/frame.w,-1.0,1.0),1.0);vNormal=normal;vY=position.y;}`;
 const fragmentSource = `precision highp float;
@@ -52,11 +58,26 @@ export function MeshLayer(props: Props) {
   const latest = useRef(props); latest.current = props;
   const redraw = useRef<(() => void) | null>(null);
   useLayoutEffect(() => { redraw.current?.(); },
-    [props.projection, props.rules, props.currentFloorId, props.selectedOccurrenceId, props.contextOccurrenceIds, props.tints, props.hidden, props.referenceKeys, props.hiddenKeys, props.selectedKeys]);
+    [props.projection, props.rules, props.currentFloorId, props.selectedOccurrenceId, props.contextOccurrenceIds, props.tints, props.hidden, props.referenceKeys,
+      props.hiddenKeys, props.selectedKeys, props.lifts, props.clips, props.dims]);
   useLayoutEffect(() => {
     const element = canvas.current; if (!element || props.meshes.length === 0) return;
-    const gl = element.getContext('webgl', { antialias: true, alpha: true, preserveDrawingBuffer: false });
-    if (!gl) { props.onUnavailable('3D rendering is unavailable in this browser.'); return; }
+    let creationReason = '';
+    const creationFailed = (event: Event) => {
+      creationReason = (event as WebGLContextEvent).statusMessage?.replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 240) ?? '';
+    };
+    element.addEventListener('webglcontextcreationerror', creationFailed);
+    let gl: WebGLRenderingContext | null;
+    try {
+      gl = element.getContext('webgl', { antialias: true, alpha: true, preserveDrawingBuffer: false });
+    } catch {
+      element.removeEventListener('webglcontextcreationerror', creationFailed);
+      props.onUnavailable('3D context creation threw an exception (context-exception).'); return;
+    }
+    element.removeEventListener('webglcontextcreationerror', creationFailed);
+    if (!gl) {
+      props.onUnavailable(`3D context creation returned no context (context-null).${creationReason ? ` ${creationReason}` : ' No browser reason was provided.'}`); return;
+    }
     let disposed = false, frame: number | null = null, program: WebGLProgram | null = null;
     const shaders: WebGLShader[] = [], uploaded: { mesh: PreparedMesh; buffer: WebGLBuffer }[] = [];
     const schedule = () => {
@@ -91,7 +112,6 @@ export function MeshLayer(props: Props) {
       gl.uniform3f(uniforms.center!, q.center[0], q.center[1], q.center[2]);
       gl.uniform4f(uniforms.frame!, q.k, q.ox, q.oy, q.depthRadius);
       gl.uniform2f(uniforms.viewport!, q.viewport.width, q.viewport.height);
-      gl.uniform1f(uniforms.useClip!, p.rules.clipY === null ? 0 : 1); gl.uniform1f(uniforms.clipY!, p.rules.clipY ?? 0);
       gl.enableVertexAttribArray(position); gl.enableVertexAttribArray(normal);
       for (const pass of ['reference', 'unbound', 'bound'] as const) {
         if (pass === 'unbound') gl.disable(gl.POLYGON_OFFSET_FILL);
@@ -99,7 +119,10 @@ export function MeshLayer(props: Props) {
         for (const { mesh, buffer } of uploaded) {
           const kind = p.referenceKeys?.has(mesh.meshKey) ? 'reference' : mesh.occurrenceId !== null ? 'bound' : 'unbound';
           if (kind !== pass || !drawsFloor(p.rules, mesh.floorId) || p.hiddenKeys?.has(mesh.meshKey)) continue;
-          const dim = mesh.floorId !== p.currentFloorId ? .55 : 0;
+          const dim = p.dims ? p.dims.get(mesh.meshKey) ?? 0 : mesh.floorId !== p.currentFloorId ? .55 : 0;
+          const clip = p.clips?.has(mesh.meshKey) ? p.clips.get(mesh.meshKey) ?? null : p.rules.clipY;
+          gl.uniform1f(uniforms.useClip!, clip === null ? 0 : 1); gl.uniform1f(uniforms.clipY!, clip ?? 0);
+          gl.uniform1f(uniforms.lift!, p.lifts?.get(mesh.meshKey) ?? 0);
           let top: Rgb, base: Rgb, cut: Rgb;
           if (p.selectedKeys?.has(mesh.meshKey)) { top = LANTERN; base = LANTERN; cut = mix(LANTERN, CUT, .18); }
           else if (kind === 'reference') { top = REFERENCE_TOP; base = REFERENCE; cut = mix(REFERENCE, CUT, .3); }
@@ -132,7 +155,7 @@ export function MeshLayer(props: Props) {
       gl.attachShader(program, compile(gl.VERTEX_SHADER, vertexSource)); gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragmentSource));
       gl.linkProgram(program); if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error('link');
       position = gl.getAttribLocation(program, 'position'); normal = gl.getAttribLocation(program, 'normal');
-      for (const name of ['rot', 'center', 'frame', 'viewport', 'baseColor', 'topColor', 'cutColor', 'clipY', 'useClip'])
+      for (const name of ['rot', 'center', 'frame', 'viewport', 'lift', 'baseColor', 'topColor', 'cutColor', 'clipY', 'useClip'])
         uniforms[name] = gl.getUniformLocation(program, name);
       if (position < 0 || normal < 0 || Object.values(uniforms).some(value => value === null)) throw new Error('inputs');
       for (const mesh of props.meshes) {

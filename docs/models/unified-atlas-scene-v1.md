@@ -132,6 +132,10 @@ additional renderer translation.
 
 ## Exact mesh membership and matching plans
 
+Multiple distinct plans may reference one level. Retain each plan's source ID
+and order; rendering, framing and picking consume every plan's features for
+that level. Do not invent a merged plan ID or union the source polygons.
+
 ```text
 MeshBinding = {artifactId:"model",nodeIndex,meshIndex,primitiveIndices:[integer],
                buildingId,levelIds:[id],spaceOccurrenceId:null|id,
@@ -264,8 +268,13 @@ geometry comparisons before pair work or boundary expansion.
 The companion is at most 12 MiB: non-plan semantic JSON at most 4 MiB and all
 inline plan JSON at most 8 MiB combined. The complete retained publication is
 at most 64 MiB. Bound the complete scene to 128
-buildings, 64 levels, 2,048 rooms, 4,096 occurrences, 8,192 mesh memberships,
-200,000 polygon points and 8,192 overlay records. Geometry, transforms, bounds
+buildings, 64 levels, 2,048 rooms, 4,096 occurrences, 8,192 mesh bindings of
+at most 8,192 primitive selectors each, 200,000 polygon points and 8,192 overlay
+bindings of at most 1,024 unique record IDs each. Selectors together stay within
+the 20,000 drawn primitive instances; record IDs together stay within the
+semantic byte budget. A room may list no occurrences and a binding may list no
+record IDs: the room keeps its unknown placement and is not selectable, and the
+binding keeps its provenance without a record count. Geometry, transforms, bounds
 and polygon values must be finite and within 1,000,000 metres of the declared
 scene origin. Validate aggregate limits before loader/plan allocations; a
 required over-budget or unresolved member makes the publication unavailable.

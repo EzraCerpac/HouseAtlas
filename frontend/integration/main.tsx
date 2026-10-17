@@ -398,6 +398,32 @@ const sourceModels: SourceModelPort = {
       } finally { unsubscribe(); }
     },
   },
+  // The unified Atlas reads the same selected publication's opt-in scene and
+  // pinned model bytes; the same owner, session and expiry fence every step.
+  atlas: {
+    current: currentOverview, subscribe: subscribeOverview,
+    async createOverlays(selection, scene, building, signal) {
+      const session = currentSession, scope = currentQuantityScope, view = currentReadyView, admission = currentStockAdmission;
+      if (!session || !scope || !view || view.scope !== scope) return null;
+      const current = () => !signal.aborted && currentOverview() === selection && currentSession === session
+        && currentQuantityScope === scope && currentReadyView === view && currentStockAdmission === admission && view.scope === scope;
+      if (!current() || building.nativePlaceId === null) return null;
+      const { createUnifiedAtlasReviewedOverlays } = await import('./unified-atlas-room-links-host');
+      if (!current()) return null;
+      return createUnifiedAtlasReviewedOverlays({ selection, scene, building, signal,
+        native: Object.freeze({ sessionIdentity: session, session, view, admission }),
+        origin: window.location.origin, isCurrent: current, subscribe: subscribeOverview, createDocuments: makeSceneDocumentOwner });
+    },
+    async read(selection, signal) {
+      const controller = new AbortController();
+      const unsubscribe = subscribeOverview(() => { if (currentOverview() !== selection) controller.abort(); });
+      try {
+        const reader = await import('./unified-atlas-reader');
+        return await reader.readUnifiedAtlas({ selection, signal: AbortSignal.any([signal, controller.signal]),
+          origin: window.location.origin, isCurrent: () => currentOverview() === selection });
+      } finally { unsubscribe(); }
+    },
+  },
   session: {
     current() {
       if (!currentSession || !currentQuantityScope) return null;
