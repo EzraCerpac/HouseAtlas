@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "edb4cf89108246364e3f7bf0995f3a08b7c9a085bea51527bf31310b36d93786",
+  "sourceDigestSha256": "98274823c7c0dd2e1392ab27252a0902261f0aebf04d4094f55d6174641e67e2",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -6305,6 +6305,13 @@
       "owner": "web"
     },
     {
+      "path": "docs/offline/saved-atlas-presentation.md",
+      "mode": "100644",
+      "bytes": 5398,
+      "sha256": "59f4268df64953473497d69e8ca3de03affcc6cbb12b37650872522978edfa5b",
+      "owner": "web"
+    },
+    {
       "path": "docs/operations/adoption-and-decisions.md",
       "mode": "100644",
       "bytes": 1244,
@@ -7366,6 +7373,13 @@
       "mode": "100644",
       "bytes": 35831,
       "sha256": "6055a2c3d5e8cb8aabe5e45044fff330ade97168c7dce347ddcd2c14bf21b58b",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/offline-atlas-presentation-healthy.mjs",
+      "mode": "100644",
+      "bytes": 12950,
+      "sha256": "ace8d1c3db11bcceb599b55b64b30c08faa15fdd58528fd73cad23761c29ff49",
       "owner": "web"
     },
     {
@@ -9662,6 +9676,13 @@
       "mode": "100644",
       "bytes": 4498,
       "sha256": "9ef14dacd9d2d2f57ee60a1f4adae81fc638e4a2eb6792a299c188face1bf327",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/offline/saved-atlas-presentation.ts",
+      "mode": "100644",
+      "bytes": 4798,
+      "sha256": "b95f697face9b21683a808c4387d6b07110022cb8dcf294773d32c5dc80bdfe0",
       "owner": "web"
     },
     {
