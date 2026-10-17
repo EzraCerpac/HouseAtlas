@@ -1,0 +1,189 @@
+/** Offline documentary registry. No transport, admission, calibration or UI. */
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
+const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const text = value => typeof value === 'string' && value.trim().length > 0;
+const kinds = ['socket', 'socket-candidate', 'light', 'appliance', 'unresolved'];
+const point = value => Array.isArray(value) && value.length === 2 && value.every(n => Number.isFinite(n) && n >= 0 && n <= 1);
+const box = value => Array.isArray(value) && value.length === 4 &&
+  value.every(n => Number.isFinite(n) && n >= 0 && n <= 1) && value[0] <= value[2] && value[1] <= value[3];
+const count = value => value === null || (Number.isSafeInteger(value) && value >= 0);
+const sameReceipt = (a, b) => a && b && a.id === b.id && a.sha256 === b.sha256;
+const pair = place => JSON.stringify([place?.packagePlaceKey, place?.packagePlaceUuid]);
+
+/** Structural consistency only; matching hashes never establish authorization. */
+export function validateLedger(data) {
+  const errors = [];
+  const check = (ok, path, reason) => { if (!ok) errors.push({ path, reason }); };
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return [{ path: '$', reason: 'Expected ledger object' }];
+  check(data.schema === 'houseatlas.documentary-electrical-fixtures.v1', 'schema', 'Unsupported documentary ledger schema');
+  check(text(data.interpretationDate), 'interpretationDate', 'Interpretation date required');
+  check(data.symbolLegend && [true, false, null].includes(data.symbolLegend.xMeansSocket) &&
+    count(data.symbolLegend.socketsPerX) && (data.symbolLegend.receiptId === null || text(data.symbolLegend.receiptId)),
+  'symbolLegend', 'Explicit symbol interpretation, source quantity and receipt or null required');
+  check(data.roomMappingReceipt === null || (text(data.roomMappingReceipt?.id) && digest(data.roomMappingReceipt?.sha256)),
+    'roomMappingReceipt', 'Expected explicit null or receipt identity and digest');
+  const tables = {};
+  for (const name of ['sheets', 'regions', 'fixtures', 'groups', 'registrationReceipts']) {
+    check(Array.isArray(data[name]) && data[name].length <= 10000, name, 'Expected bounded array (maximum 10000)');
+    tables[name] = new Map();
+    if (!Array.isArray(data[name]) || data[name].length > 10000) continue;
+    for (const [i, row] of data[name].entries()) {
+      const path = `${name}[${i}]`;
+      check(text(row?.id) && !tables[name].has(row?.id), path, 'Expected unique nonempty ID');
+      if (row && typeof row === 'object') tables[name].set(row.id, row);
+    }
+  }
+  if (errors.length) return errors;
+  const refs = (ids, table) => Array.isArray(ids) && ids.every(text) && new Set(ids).size === ids.length && ids.every(id => table.has(id));
+  for (const s of data.sheets) {
+    check(digest(s.originalPhotoSha256) && digest(s.renderedPhotoSha256), `sheets.${s.id}`, 'Source photo digests required');
+    check(Number.isSafeInteger(s.pdfPage) && s.pdfPage > 0, `sheets.${s.id}.pdfPage`, 'Expected one-based PDF page');
+    check(s.sourceDate === null || text(s.sourceDate), `sheets.${s.id}.sourceDate`, 'Preserve explicit unknown or source date');
+    check(refs(s.regionIds, tables.regions) && s.regionIds.every(id => tables.regions.get(id).sheetId === s.id),
+      `sheets.${s.id}.regionIds`, 'Region membership must agree with sheet');
+  }
+  const keys = new Map(), uuids = new Map();
+  for (const r of data.regions) {
+    const sheet = tables.sheets.get(r.sheetId);
+    check(sheet && Array.isArray(sheet.regionIds) && sheet.regionIds.includes(r.id), `regions.${r.id}.sheetId`, 'Missing reciprocal sheet membership');
+    check(r.physicalTransform === null && r.orientation === 'unregistered', `regions.${r.id}`, 'v1 preserves unknown physical transform/orientation');
+    check(box(r.sourceBounds), `regions.${r.id}.sourceBounds`, 'Expected normalized source box');
+    check(Array.isArray(r.places), `regions.${r.id}.places`, 'Explicit documentary place array required');
+    const seen = new Set();
+    for (const p of Array.isArray(r.places) ? r.places : []) {
+      check(text(p?.packagePlaceKey) && text(p?.packagePlaceUuid) && ['owner-reported', 'inferred'].includes(p?.basis),
+        `regions.${r.id}.places`, 'Expected exact package key/UUID and association basis');
+      if (!p) continue;
+      check(!seen.has(pair(p)), `regions.${r.id}.places`, 'Duplicate place pair'); seen.add(pair(p));
+      check(!keys.has(p.packagePlaceKey) || keys.get(p.packagePlaceKey) === p.packagePlaceUuid,
+        `regions.${r.id}.places`, 'Package key maps to conflicting UUIDs');
+      check(!uuids.has(p.packagePlaceUuid) || uuids.get(p.packagePlaceUuid) === p.packagePlaceKey,
+        `regions.${r.id}.places`, 'Package UUID maps to conflicting keys');
+      keys.set(p.packagePlaceKey, p.packagePlaceUuid); uuids.set(p.packagePlaceUuid, p.packagePlaceKey);
+    }
+  }
+  for (const f of data.fixtures) {
+    const r = tables.regions.get(f.regionId), s = tables.sheets.get(f.sheetId);
+    check(r && s && r.sheetId === f.sheetId, `fixtures.${f.id}`, 'Fixture sheet/region join must agree');
+    check(kinds.includes(f.kind), `fixtures.${f.id}.kind`, 'Unknown fixture kind');
+    check(f.physicalCoordinate === null && f.wireRoute === null && f.currentState === 'historic-unverified' &&
+      (f.physicalTransform === undefined || f.physicalTransform === null) &&
+      (f.currentCircuitId === undefined || f.currentCircuitId === null),
+      `fixtures.${f.id}`, 'v1 retains unknown physical placement/wiring and historical state');
+    check(count(f.glyphCount) && count(f.fixtureCount), `fixtures.${f.id}`, 'Expected nonnegative source quantities or null');
+    check(point(f.source?.normalizedPoint) && box(f.source?.normalizedBox), `fixtures.${f.id}.source`, 'Expected normalized source point and box');
+    check(s && f.source?.originalPhotoSha256 === s.originalPhotoSha256 && f.source?.renderedPhotoSha256 === s.renderedPhotoSha256,
+      `fixtures.${f.id}.source`, 'Fixture photo digests must match source sheet');
+    const g = tables.groups.get(f.group?.id);
+    check(f.group?.id === null || (g && Array.isArray(g.fixtureIds) && g.fixtureIds.includes(f.id) && g.label === f.group.label),
+      `fixtures.${f.id}.group`, 'Documentary group membership must agree');
+  }
+  for (const g of data.groups) {
+    check(g.currentCircuitId === null && g.verifiedWiring === false && g.evidenceBasis === 'historic-drawing-label',
+      `groups.${g.id}`, 'Documentary labels must not become verified circuits');
+    check(refs(g.fixtureIds, tables.fixtures) && g.fixtureIds.every(id => tables.fixtures.get(id).group?.id === g.id),
+      `groups.${g.id}.fixtureIds`, 'Fixture/group membership must agree');
+  }
+  for (const reg of data.registrationReceipts) {
+    const region = tables.regions.get(reg.regionId), sheet = tables.sheets.get(reg.sheetId);
+    check(digest(reg.sha256) && sameReceipt(reg.roomMappingReceipt, data.roomMappingReceipt), `registrationReceipts.${reg.id}`, 'Registration receipt identity must match room receipt');
+    check(['proposed', 'source-reviewed-approximate', 'owner-reviewed-approximate'].includes(reg.status) && reg.physicalTransform === null,
+      `registrationReceipts.${reg.id}`, 'Approximate registration cannot provide physical calibration');
+    check(region && sheet && region.sheetId === sheet.id && reg.originalPhotoSha256 === sheet.originalPhotoSha256 &&
+      Array.isArray(region.places) && region.places.some(p => pair(p) === pair(reg)), `registrationReceipts.${reg.id}`, 'Registration must join exact source region and place pair');
+    check(refs(reg.approvedFixtureIds, tables.fixtures) && reg.approvedFixtureIds.every(id => {
+      const f = tables.fixtures.get(id); return f.regionId === reg.regionId && f.sheetId === reg.sheetId;
+    }), `registrationReceipts.${reg.id}.approvedFixtureIds`, 'Registration fixture membership must agree');
+    check(Array.isArray(reg.sourceAnchorIds) && reg.sourceAnchorIds.length > 0 && reg.sourceAnchorIds.every(text) &&
+      new Set(reg.sourceAnchorIds).size === reg.sourceAnchorIds.length, `registrationReceipts.${reg.id}.sourceAnchorIds`, 'Explicit unique source anchors required');
+  }
+  return errors;
+}
+
+/** artifacts are explicitly supplied local bytes, never paths, URLs or native IDs. */
+export function buildRegistry(ledgerBytes, { artifacts = [], roomMappingBytes = null } = {}) {
+  if (ledgerBytes.byteLength > 16 * 1024 * 1024) throw new Error('Ledger exceeds 16 MiB');
+  const data = JSON.parse(Buffer.from(ledgerBytes).toString('utf8'));
+  const errors = validateLedger(data);
+  if (errors.length) throw new Error(`Invalid documentary ledger: ${JSON.stringify(errors)}`);
+  const retained = new Map(artifacts.map(a => [sha256(a.bytes), { label: a.label, bytes: a.bytes.byteLength }]));
+  let roomMapping = { status: 'not-supplied', receipt: data.roomMappingReceipt };
+  if (roomMappingBytes !== null) {
+    const receipt = JSON.parse(Buffer.from(roomMappingBytes).toString('utf8'));
+    if (!sameReceipt({ id: receipt.receiptId, sha256: sha256(roomMappingBytes) }, data.roomMappingReceipt)) {
+      throw new Error('Room mapping receipt ID/digest mismatch');
+    }
+    roomMapping = { status: 'retained-byte-match', receipt: data.roomMappingReceipt };
+  }
+  const source = hash => ({ sha256: hash, status: retained.has(hash) ? 'retained-byte-match' : 'not-supplied',
+    artifact: retained.get(hash) ?? null });
+  const records = data.fixtures.map(f => {
+    const region = data.regions.find(r => r.id === f.regionId);
+    const registrations = data.registrationReceipts.filter(r => r.approvedFixtureIds.includes(f.id));
+    return { fixtureId: f.id, kind: f.kind, label: f.label, glyph: f.glyph, clusterId: f.clusterId,
+      sheetId: f.sheetId, regionId: f.regionId,
+      source: structuredClone(f.source), documentaryGroup: structuredClone(f.group),
+      glyphCount: f.glyphCount, sourceFixtureCount: f.fixtureCount, uncertainty: f.uncertainty,
+      roomAssociations: structuredClone(region.places),
+      approximateRegistrations: registrations.map(r => ({ id: r.id, sha256: r.sha256, status: r.status,
+        packagePlaceKey: r.packagePlaceKey, packagePlaceUuid: r.packagePlaceUuid, sourceAnchorIds: [...r.sourceAnchorIds] })),
+      physicalCoordinate: null, physicalTransform: null, currentCircuitId: null, wireRoute: null,
+      currentState: f.currentState };
+  });
+  const summarize = rows => ({ documentaryRecords: rows.length,
+    byKind: Object.fromEntries(kinds.map(kind => [kind, rows.filter(f => f.kind === kind).length])),
+    roomAssociatedRecords: rows.filter(f => f.roomAssociations.length > 0).length,
+    roomAssociationInstances: rows.reduce((sum, f) => sum + f.roomAssociations.length, 0),
+    sourceQuantityUnknownRecords: rows.filter(f => f.sourceFixtureCount === null).length,
+    approximateRegisteredRecords: rows.filter(f => f.approximateRegistrations.some(r => r.status !== 'proposed')).length,
+    physicalLocationUnknownRecords: rows.length, currentCircuitUnknownRecords: rows.length,
+    installedFixtureCount: null });
+  const rooms = new Map();
+  for (const region of data.regions) for (const place of region.places) {
+    if (!rooms.has(pair(place))) rooms.set(pair(place), { packagePlaceKey: place.packagePlaceKey,
+      packagePlaceUuid: place.packagePlaceUuid, regionIds: [] });
+    rooms.get(pair(place)).regionIds.push(region.id);
+  }
+  return { schema: 'houseatlas.documentary-placement-registry.v1',
+    ledger: { sha256: sha256(ledgerBytes), bytes: ledgerBytes.byteLength, interpretationDate: data.interpretationDate },
+    qualification: 'offline-documentary-consistency-only', roomMapping,
+    symbolLegend: structuredClone(data.symbolLegend), documentaryGroups: structuredClone(data.groups),
+    completeness: summarize(records),
+    rooms: [...rooms.values()].map(room => {
+      const rows = records.filter(f => f.roomAssociations.some(p => pair(p) === pair(room)));
+      return { ...room, completeness: { ...summarize(rows), roomAssociationInstances: rows.length } };
+    }),
+    sheets: data.sheets.map(s => ({ sheetId: s.id, title: s.title, pdfPage: s.pdfPage, sourceDate: s.sourceDate,
+      original: source(s.originalPhotoSha256), rendered: source(s.renderedPhotoSha256),
+      completeness: summarize(records.filter(f => f.sheetId === s.id)) })),
+    regions: data.regions.map(r => ({ regionId: r.id, sheetId: r.sheetId, label: r.label,
+      roomAssociations: structuredClone(r.places), physicalTransform: null, orientation: r.orientation,
+      completeness: summarize(records.filter(f => f.regionId === r.id)) })),
+    records,
+    limitations: ['Documentary record counts are not installed fixture totals.',
+      'Room associations and approximate display registrations do not calibrate source points.',
+      'No physical locations, transforms, wiring routes or current circuit assignments are established.',
+      'Byte matches establish local availability only; no native custody, current access or active-model mapping is qualified.'] };
+}
+
+// Explicit local inputs only. Output creation is exclusive; never overwrite evidence.
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  const args = process.argv.slice(2);
+  if (args.length < 2) throw new Error('Usage: node registry.mjs LEDGER_JSON NEW_OUTPUT_JSON [--room-mapping JSON] [--artifact FILE ...]');
+  const [ledger, output, ...options] = args;
+  const artifacts = []; let roomMappingBytes = null;
+  for (let i = 0; i < options.length; i += 2) {
+    if (!options[i + 1]) throw new Error('Missing option value');
+    if (options[i] === '--artifact') artifacts.push({ label: options[i + 1], bytes: readFileSync(options[i + 1]) });
+    else if (options[i] === '--room-mapping' && roomMappingBytes === null) roomMappingBytes = readFileSync(options[i + 1]);
+    else throw new Error(`Unknown or duplicate option: ${options[i]}`);
+  }
+  const registry = buildRegistry(readFileSync(ledger), { artifacts, roomMappingBytes });
+  writeFileSync(output, `${JSON.stringify(registry, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
+  console.log(JSON.stringify({ output, ledger: registry.ledger, completeness: registry.completeness }));
+}
