@@ -17,7 +17,7 @@ export function useDocumentaryOverlays(port: UnifiedAtlasPort, selection: ModelO
     void (async () => {
       const building = buildingId === null ? null : model.buildingsById.get(buildingId);
       if (!building || !port.createOverlays) { if (!closed) setReason('source-unavailable'); return; }
-      handle = await port.createOverlays(selection, model.scene, building);
+      handle = await port.createOverlays(selection, model.scene, building, controller.signal);
       if (closed) { handle?.source.dispose(); return; }
       if (!handle) { setReason('no-native-building-link'); return; }
       const result = await handle.source.open(handle.request, controller.signal);

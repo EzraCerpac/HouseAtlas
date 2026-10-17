@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "81fe63c4d87f54112bd252d8f3a6abbefb5c898296d02da05b3902e0e3515766",
+  "sourceDigestSha256": "6537eb63809dc182d3602faca1357148bdd7ad966cadcdd23167dfb77c852f03",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5845,8 +5845,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 81235,
-      "sha256": "17b0ac6c6080260fb7ff893c42da19c2e8ab552c4f3ff07a53b406c71857f376",
+      "bytes": 82703,
+      "sha256": "2d92a2b033023df1f66dc13d22fa028d20a2c7472daed9e6954bd396668254c2",
       "owner": "core-integration"
     },
     {
@@ -6727,8 +6727,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 39933,
-      "sha256": "09dce4533bbf52648ddc5789b1c6cd2c46c47bb2dc79cab420999f9e2b415f64",
+      "bytes": 39556,
+      "sha256": "e0fddb26a22bce85eea51a9b7a09f316900c0c08aa0939e3b5bf065517f5185b",
       "owner": "core-integration"
     },
     {
@@ -6870,6 +6870,27 @@
       "bytes": 6864,
       "sha256": "113887bde1027104d0511e9a47e214949340aa2a8bb26067cf31b660912da3b7",
       "owner": "core-integration"
+    },
+    {
+      "path": "frontend/integration/unified-atlas-room-links-host.ts",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 3708,
+      "sha256": "50308cbef09482a6431aaed8e4ecca1cf8271c20a7beba9f457bb3e9d3b3ed32"
+    },
+    {
+      "path": "frontend/integration/unified-atlas-room-links-owner.ts",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 7007,
+      "sha256": "6e77fbeab48216f20a6585f5890325959e697f147ea5c3adff7fb34e5cbcbb33"
+    },
+    {
+      "path": "frontend/integration/unified-atlas-room-links-reader.ts",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 8019,
+      "sha256": "4e9d6b91b627eed4e6b7781fc30c8189b4e640f9568791f7ed8b24f81be2ae2f"
     },
     {
       "path": "frontend/integration/upload-place-evidence-client.ts",
@@ -7542,6 +7563,13 @@
       "bytes": 11761,
       "sha256": "fa67af19e695e079e9af37560648f87882618715f15ddbfa8141e4d919b7a382",
       "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/unified-atlas-room-links-healthy.mjs",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 10270,
+      "sha256": "d68fd6101ad2f59e254e3d0a39fe3ad52c859c7a0627fde622ae003b22f470c2"
     },
     {
       "path": "frontend/lantern-tests/unified-atlas/synthetic-atlas.ts",
@@ -9387,8 +9415,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/types.ts",
       "mode": "100644",
-      "bytes": 6151,
-      "sha256": "e9d55de72f98244a78f14d91a5ccf71593f25c58b9d3001889249fdd1dc97825",
+      "bytes": 6172,
+      "sha256": "6b525e1663450a8ab78375f1d54751732bcfbe40eaa43df121981d36892d049e",
       "owner": "web"
     },
     {
@@ -9401,8 +9429,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/useDocumentaryOverlays.ts",
       "mode": "100644",
-      "bytes": 3228,
-      "sha256": "3edf4bcd8f488e0ccd36267d712396f1ae9528184d4ba0dcf5fcacb1d303498d",
+      "bytes": 3247,
+      "sha256": "f14f3d45ef203ee569b12f36487e9038087283808c5dbbe0916984045e302ed4",
       "owner": "web"
     },
     {

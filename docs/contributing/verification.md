@@ -1165,6 +1165,34 @@ provider, writes, malformed/omission, denial, replay, expiry or failure controls
 The host still needs an independent reviewed room map and actual current native
 original/document owners; generated success does not qualify their availability.
 
+## Unified Atlas reviewed room-links healthy read
+
+Inspect `frontend/integration/unified-atlas-room-links-reader.ts`,
+`unified-atlas-room-links-owner.ts`, their type-only
+overlay/selection imports, the runtime Atlas error type and the complete named
+runner before this ordinary generated positive on Node 26.10.0:
+
+```sh
+node frontend/lantern-tests/unified-atlas-room-links-healthy.mjs
+```
+
+It uses three successful in-process responses: a publication-wide map covering
+two buildings, a valid empty map and valid 128-character source IDs. It checks
+the exact query, cookie-authenticated GET options, revision and byte digest,
+scene-room consistency, immutable output and retained unmapped rooms. Scene
+projections are generated expectations, not admitted GLB publications; no
+authentication or native authority is qualified. No real request, listener,
+browser, private input, malformed/denial/withdrawal/replay/expiry control or
+workflow runs. Mounted-host lifetime and final backend compatibility require
+separate integration evidence.
+
+The same positive also uses a fake base lease and monotonic timers for two
+successful same-map refreshes during a normal 25-second simulated native open,
+followed by ordinary release/disposal. It preserves the exact frame identity
+and cleans its timers/subscriptions. No timeout, expiry, replacement or owner
+withdrawal control is exercised; these fake handlers do not qualify native
+document leases or mounted browser behavior.
+
 ## Unified Atlas healthy generated check
 
 The unified Atlas reads one `houseatlas.unified-atlas-scene.v1` envelope and its

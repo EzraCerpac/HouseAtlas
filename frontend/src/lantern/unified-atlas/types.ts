@@ -132,7 +132,7 @@ export interface UnifiedAtlasPort {
   subscribe(changed: () => void): () => void;
   read(selection: ModelOverviewSelection, signal: AbortSignal): Promise<UnifiedAtlasRead>;
   /** Separate current documentary owner; never changes producer semantics. */
-  createOverlays?(selection: ModelOverviewSelection, scene: AtlasScene, building: AtlasBuilding): Promise<{
+  createOverlays?(selection: ModelOverviewSelection, scene: AtlasScene, building: AtlasBuilding, signal: AbortSignal): Promise<{
     readonly source: UnifiedAtlasOverlaySource; readonly request: UnifiedAtlasOverlayOpen;
   } | null>;
 }
