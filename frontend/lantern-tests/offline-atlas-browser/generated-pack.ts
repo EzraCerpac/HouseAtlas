@@ -4,13 +4,29 @@ import { canonicalPack, PACK_LIMITS, readPackManifest, SECTION_NAMES } from '../
 import { parseLosslessJson } from '../../src/numeric/lossless-json';
 import { savedDigest, savedHouseKey, type SavedHouse } from '../../src/offline/store';
 export const GENERATED_SCOPE = { workspaceId: '00000000-0000-4000-8000-000000000800', homeId: '00000000-0000-4000-8000-000000000801' };
-export async function generateSavedPack(mode: 'complete' | 'partial', shellBuildId: string, historical = false, tuples = false, emptyNetwork = false, twoAssociations = false, unmatchedBuilding = false) {
+export async function generateSavedPack(mode: 'complete' | 'partial', shellBuildId: string, historical = false, tuples = false, emptyNetwork = false, twoAssociations = false, unmatchedBuilding = false, finalInteraction = false) {
   const scope = GENERATED_SCOPE, generated = await buildSyntheticAtlas(scope);
+  const selectionRevision = finalInteraction ? 'generated-final-interaction-1' : SYNTHETIC_ATLAS.revision;
+  if (finalInteraction) {
+    // Explicit generated empty source level, with finite bounds inside the house.
+    // It precedes occupied levels by scene height; it implies no physical room.
+    const companion: Omit<typeof generated.companion, 'publicationId' | 'sourceRevisionId'> & { publicationId: string; sourceRevisionId: string } = generated.companion;
+    const emptyLevel = 'syn-level-featureless';
+    companion.publicationId = '00000000-0000-4000-8000-0000000a7152';
+    companion.sourceRevisionId = 'generated-final-interaction-source-1';
+    companion.sourceSha256 = await savedDigest(new TextEncoder().encode('Generated final interaction source 1').buffer);
+    for (const binding of companion.overlayBindings) { const identity: { publicationId: string } = binding; identity.publicationId = companion.publicationId; }
+    companion.buildings.find(building => building.buildingId === 'syn-building-house')!.levelIds.unshift(emptyLevel);
+    companion.levels.unshift({ levelId: emptyLevel, buildingId: 'syn-building-house', label: 'Generated featureless floor', nativePlaceId: null,
+      sourceElevationM: null, elevationBasis: null, occurrenceIds: [], bounds: { min: [102, -.2, 51], max: [107, -.1, 59] } });
+    companion.plans.unshift({ planId: 'syn-plan-featureless', buildingId: 'syn-building-house', levelId: emptyLevel,
+      coordinates: 'scene-XZ-metres', featureIds: [], features: [] });
+  }
   if (twoAssociations) {
     generated.companion.buildings.find(building => building.label === 'Synthetic studio')!.nativePlaceId = '00000000-0000-4000-8000-000000000014';
-    generated.companionBytes = new TextEncoder().encode(JSON.stringify(generated.companion));
   }
-  const composed = await composeAtlasEnvelope(generated.companionBytes, generated.glb, SYNTHETIC_ATLAS.revision);
+  if (twoAssociations || finalInteraction) generated.companionBytes = new TextEncoder().encode(JSON.stringify(generated.companion));
+  const composed = await composeAtlasEnvelope(generated.companionBytes, generated.glb, selectionRevision);
   const encode = (value: unknown) => new TextEncoder().encode(canonicalPack(parseLosslessJson(JSON.stringify(value)))).buffer;
   const resources = new Map<string, ArrayBuffer>(), descriptors: { sha256: string; bytes: number; contentType: string; section: string; role: string; record: { recordType: string; recordId: string; revision: number } | null }[] = [];
   const add = async (bytes: ArrayBuffer, contentType: string, section: string, role = 'section', record: { recordType: string; recordId: string; revision: number } | null = null) => {
@@ -49,8 +65,11 @@ export async function generateSavedPack(mode: 'complete' | 'partial', shellBuild
     kind: 'network-connection', from: { kind: 'interface', id: 'generated-port', description: 'Recorded port' }, to: { kind: 'unresolved', id: null, description: 'Unknown remote end' },
     medium: 'ethernet', sourceRevision: mode === 'complete' ? 9007199254740991 : null, sourceSnapshotAt: '2024-01-02T00:00:00Z', retrievedAt: '2024-03-04T00:00:00Z', vantage: null,
     sourceConfidence: 'tentative', evidenceBasis: 'source-report', temporalStatus: 'historical', factAt: '2020-01-02T00:00:00Z', notes: 'Logical connection only' };
-  const relations = tuples ? [{ ...relation, collectionId: 'a/b', externalId: 'c', from: { ...relation.from, id: 'd' } },
+  const relations: (Omit<typeof relation, 'to'> & { to: typeof relation.from | typeof relation.to })[] = tuples ? [{ ...relation, collectionId: 'a/b', externalId: 'c', from: { ...relation.from, id: 'd' } },
     { ...relation, collectionId: 'a', externalId: 'b/c', from: { ...relation.from, id: 'b/d' } }] : [relation];
+  if (finalInteraction) for (const name of ['Amber', 'Indigo']) relations.push({ ...relation,
+    externalId: `generated-self-loop-${name.toLowerCase()}`, to: { ...relation.from },
+    notes: `Generated ${name} self-loop — distinct captured logical relation; no physical route` });
   const network = await add(encode({ relations: emptyNetwork ? [] : relations, sources, caches }), 'application/json', 'network');
   const documentId = '00000000-0000-4000-8000-000000000906', documentAssetId = '00000000-0000-4000-8000-000000000907';
   const documentOriginal = await add(encode({ generatedDocument: 'Original documentary metadata' }), 'application/json', 'documents', 'original', { recordType: 'geodata-document', recordId: documentId, revision: 1 });
@@ -74,7 +93,7 @@ export async function generateSavedPack(mode: 'complete' | 'partial', shellBuild
   const overview = JSON.parse(new TextDecoder().decode(composed.overviewManifestBytes));
   const model = await add(encode({ profile: 'houseatlas.home-read-pack.model.v2', overview: { ...overview, profile: 'houseatlas.model-overview-read.v1',
     manifestSha256: composed.manifestSha256, original: { ...original, sha256: original.resourceSha256 } }, unifiedAtlas: { profile: 'houseatlas.home-read-pack.unified-atlas.v1', scope,
-      publicationId: composed.publicationId, selectionRevision: SYNTHETIC_ATLAS.revision, semanticsSha256: companion.resourceSha256, companion,
+      publicationId: composed.publicationId, selectionRevision, semanticsSha256: companion.resourceSha256, companion,
       originalResourceSha256: original.resourceSha256, roomLinks } }), 'application/json', 'model');
   const pins = { home, atlas, inventory, network, documents, model };
   const sections = Object.fromEntries(SECTION_NAMES.map(name => [name, { state: mode === 'partial' && name === 'network' ? 'partial' : 'complete',
