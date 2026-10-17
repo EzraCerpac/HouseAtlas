@@ -317,11 +317,16 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
     const half = Math.max(44, Math.min(320, label.text.length * 7 + 12)) / 2, y = label.y - TAG_RISE * label.rise;
     return label.x >= half && label.x + half <= size.width && y >= 16 && y + 16 <= size.height;
   });
+  // Count buttons follow the same rule: a mark outside the clipped stage is not a tab stop.
+  const counts = markers.filter(row => {
+    const half = Math.max(28, String(row.count).length * 7 + 18) / 2;
+    return row.x >= half && row.x + half <= size.width && row.y >= 14 && row.y + 14 <= size.height;
+  });
   // A focused stage control can leave the stage: its tag rises past an edge
   // or its floor is cut away. Focus then returns to the stage itself, without
   // scrolling, instead of falling to the page.
   const stageFocus = useRef<string | null>(null);
-  const stageKeys = [...hits.map(label => `label:${label.id}`), ...(layer ? markers.map(row => `marker:${row.key}`) : [])].join('\n');
+  const stageKeys = [...hits.map(label => `label:${label.id}`), ...(layer ? counts.map(row => `marker:${row.key}`) : [])].join('\n');
   useLayoutEffect(() => {
     const key = stageFocus.current;
     if (key === null || stageKeys.split('\n').includes(key)) return;
@@ -428,7 +433,7 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
         {hits.map(label => <button key={label.id} type="button" className="ua-label-hit" data-atlas-occurrence={label.id} data-stage-key={`label:${label.id}`}
           style={{ left: label.x, top: label.y - TAG_RISE * label.rise, width: Math.max(44, Math.min(320, label.text.length * 7 + 12)) }}
           aria-label={`Select room: ${label.text}`} onClick={event => { if (event.detail === 0) select(label.id); }} />)}
-        {layer && markers.map(row => <button key={row.key} type="button" className="ua-marker" data-stage-key={`marker:${row.key}`}
+        {layer && counts.map(row => <button key={row.key} type="button" className="ua-marker" data-stage-key={`marker:${row.key}`}
           style={{ left: row.x, top: row.y, '--layer': badgeFill(layer.kind) } as CSSProperties}
           aria-label={`${row.roomLabel}: ${plural(row.count, `${OVERLAY_LABEL[layer.kind].toLowerCase()} record`)}`}
           onPointerDown={stop} onPointerUp={stop} onClick={() => select(row.occurrenceId)}>{row.count}</button>)}
