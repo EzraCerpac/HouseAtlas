@@ -78,7 +78,26 @@ fn local(node: &Value) -> Result<Matrix, String> {
 pub(super) fn worlds(gltf: &Value) -> Result<BTreeMap<usize, Matrix>, String> {
     let nodes = gltf["nodes"].as_array().ok_or_else(invalid)?;
     const MAX_NODES: usize = 20_000;
-    need(nodes.len() <= MAX_NODES && nodes.iter().all(|node| node.get("skin").is_none()))?;
+    need(
+        nodes.len() <= MAX_NODES
+            && nodes.iter().all(|node| {
+                node.is_object()
+                    && node.get("skin").is_none()
+                    && node.get("weights").is_none()
+                    && node
+                        .get("extras")
+                        .filter(|v| v.is_object())
+                        .is_none_or(|extras| {
+                            extras["applyTransformAgain"] != true
+                                && extras["posesAlreadyApplied"] != false
+                        })
+            }),
+    )?;
+    // The loader builds every declared camera, including unused cameras.
+    if let Some(cameras) = gltf.get("cameras") {
+        let cameras = cameras.as_array().ok_or_else(invalid)?;
+        need(cameras.len() <= MAX_NODES && cameras.iter().all(Value::is_object))?;
+    }
     let scenes = gltf["scenes"].as_array().ok_or_else(invalid)?;
     need(scenes.len() == 1)?;
     let scene = gltf

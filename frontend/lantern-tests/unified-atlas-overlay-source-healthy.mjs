@@ -25,7 +25,8 @@ try {
   const canonical=v=>JSON.stringify(v,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
   const floor='generated:floor',floorHash='a'.repeat(64),packageKey='generated:room',packageUuid=U(21),photoHash='b'.repeat(64);
   const historical=Buffer.from('Generated historical documentary original.');
-  const anchors=[{id:'generated:anchor',sourceFloorKey:floor,sourceOriginalSha256:floorHash,targets:[{packagePlaceKey:packageKey,packagePlaceUuid:packageUuid}],unresolvedLabels:[]}];
+  const anchors=[{id:'generated:anchor',sourceFloorKey:floor,sourceOriginalSha256:floorHash,targets:[{packagePlaceKey:packageKey,packagePlaceUuid:packageUuid}],unresolvedLabels:[]},
+    {id:'generated:other-anchor',sourceFloorKey:floor,sourceOriginalSha256:floorHash,targets:[{packagePlaceKey:'generated:other-room',packagePlaceUuid:U(23)}],unresolvedLabels:[]}];
   const receipt=canonical({profile:'houseatlas.native-scene-room-review.v1',receiptId:'generated:receipt',sourceReceiptSha256:hash(historical),anchors});
   const receiptSha=hash(receipt);
   const fixtures={schema:'houseatlas.documentary-electrical-fixtures.v1',viewKey:'documentary-source',interpretationDate:'2026-10-10',
@@ -50,7 +51,7 @@ try {
   const payload={profile:'houseatlas.native-scene-association.v1',buildingId:U(3),associationVersion:1,previousAssociationId:null,reviewStatus:'accepted',reviewStatement:'Generated reviewed association',sourceDocuments:documents,
     acceptedReceipt:{receiptId:'generated:receipt',canonicalJson:receipt,canonicalSha256:receiptSha,anchors},
     sourceFloors:[{sourceFloorKey:floor,sourceOriginalSha256:floorHash,nativeFloorKey:'native:floor',nativeGeometryId:U(10),nativeGeometryRevision:1,nativeOriginalAssetId:U(11),nativeOriginalSha256:floorHash}],
-    roomMappings:[{sourceRoomId:'source:room',sourceFloorKey:floor,sourceOriginalSha256:floorHash,sourceAnchorIds:['generated:anchor'],targets:[{packagePlaceKey:packageKey,packagePlaceUuid:packageUuid,atlasPlaceId:U(40)}],unresolvedLabels:[],evidenceIds:[U(4),U(6)]}]};
+    roomMappings:[{sourceRoomId:'source:room',sourceFloorKey:floor,sourceOriginalSha256:floorHash,sourceAnchorIds:['generated:anchor','generated:other-anchor'],targets:[{packagePlaceKey:packageKey,packagePlaceUuid:packageUuid,atlasPlaceId:U(40)},{packagePlaceKey:'generated:other-room',packagePlaceUuid:U(23),atlasPlaceId:U(41)}],unresolvedLabels:[],evidenceIds:[U(4),U(6)]}]};
   const record={schemaVersion:1,recordType:'scene-association',recordId:U(12),workspaceId:U(1),homeId:U(2),revision:1,lifecycle:'active',createdAt:'2026-10-10T12:00:00Z',updatedAt:'2026-10-10T12:00:00Z',lastAuditId:U(13),payload};
   const raw=JSON.stringify({status:'available',association:record},(_,v)=>typeof v==='bigint'?'EXACT-'+v:v).replaceAll('"EXACT-9007199254740991"','9007199254740991');
   const headRaw=JSON.stringify({schema:'houseatlas.native-scene-head.v1',scope:{workspaceId:U(1),homeId:U(2)},buildingId:U(3),status:'available',reason:null,head:{recordId:U(12),revision:1,payloadSha256:hash(canonical(JSON.parse(raw).association.payload))}});

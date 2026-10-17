@@ -208,6 +208,9 @@ asset limits; validate the actual mounted chunk budget against the server's
 The companion requires exactly one scene with all declared nodes reachable
 once, at most 20,000 nodes and hierarchy depth at most 64, matching the standard
 renderer admission limits.
+Its GLB JSON chunk is at most 8 MiB and glTF minimum version, if declared, is
+2.0. All nodes are objects without skinning, morph weights or requests to apply
+poses again; at most 20,000 cameras may be declared.
 Drawn primitive instances, including repeated nodes sharing a mesh, are bounded
 to 20,000 instances, 1,800,000 vertices, 600,000 triangles and 96 MiB of copied
 positions, indices and prepared triangles. Every declared mesh and accessor

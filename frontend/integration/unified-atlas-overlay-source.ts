@@ -107,7 +107,11 @@ function roomBindings(selection:NativeSceneSourceSelection,rooms:readonly Unifie
     const targets=new Map<string,{packagePlaceKey:string;packagePlaceUuid:string;sourceAnchorIds:Set<string>}>();
     for(const {mapping,target}of matching){const key=`${target.packagePlaceKey}\0${target.packagePlaceUuid}`;let value=targets.get(key);
       if(!value){value={packagePlaceKey:target.packagePlaceKey,packagePlaceUuid:target.packagePlaceUuid,sourceAnchorIds:new Set()};targets.set(key,value);}
-      for(const id of mapping.sourceAnchorIds){const anchor=selection.acceptedRoomAnchors.find(a=>a.id===id);need(anchor&&anchor.targets.some(t=>t.packagePlaceKey===target.packagePlaceKey&&t.packagePlaceUuid===target.packagePlaceUuid));value.sourceAnchorIds.add(id);}}
+      let matchedAnchor=false;
+      for(const id of mapping.sourceAnchorIds){const anchor=selection.acceptedRoomAnchors.find(a=>a.id===id);need(anchor);
+        if(anchor.targets.some(t=>t.packagePlaceKey===target.packagePlaceKey&&t.packagePlaceUuid===target.packagePlaceUuid)){
+          value.sourceAnchorIds.add(id);matchedAnchor=true;}}
+      need(matchedAnchor);}
     result.push(Object.freeze({roomId:room.roomId,nativePlaceId:room.nativePlaceId,spaceOccurrenceId:null,sourceRoomIds:Object.freeze([...new Set(matching.map(m=>m.mapping.sourceRoomId))]),
       targets:Object.freeze([...targets.values()].map(t=>Object.freeze({packagePlaceKey:t.packagePlaceKey,packagePlaceUuid:t.packagePlaceUuid,sourceAnchorIds:Object.freeze([...t.sourceAnchorIds])}))),
       qualification:'current-native-room-join',anchor:Object.freeze({kind:'room-summary'})}));

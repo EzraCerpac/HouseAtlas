@@ -1270,7 +1270,8 @@ parsers with an in-process GET transport and two dedicated fake native document
 owners. It checks independently host-reviewed publication/native/package room
 links against the current association, retained
 primary and historical originals, final current-head read, arbitrary-precision
-asset revision, documentary-only detail DTOs, one positive bounded passive
+asset revision, a valid multi-anchor target union with target-specific anchor
+provenance, documentary-only detail DTOs, one positive bounded passive
 head refresh and explicit owner release. Initial and final qualification use
 `/current`; the sequential monitor uses the existing compact `/head` response
 (at most 4,096 bytes), comparing record ID, exact revision and canonical payload

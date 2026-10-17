@@ -279,7 +279,7 @@ fn validate_glb(bytes: &[u8]) -> Result<(), String> {
         return Err(invalid());
     }
     let json_len = word(12)? as usize;
-    if !json_len.is_multiple_of(4) || word(16)? != 0x4e4f534a {
+    if json_len > 8 * 1024 * 1024 || !json_len.is_multiple_of(4) || word(16)? != 0x4e4f534a {
         return Err(invalid());
     }
     let json_end = 20usize.checked_add(json_len).ok_or_else(invalid)?;
@@ -290,6 +290,7 @@ fn validate_glb(bytes: &[u8]) -> Result<(), String> {
             .pointer("/asset/version")
             .and_then(serde_json::Value::as_str)
             != Some("2.0")
+        || json["asset"].get("minVersion").is_some_and(|v| v != "2.0")
     {
         return Err(invalid());
     }

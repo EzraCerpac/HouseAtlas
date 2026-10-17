@@ -396,8 +396,10 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
             .try_into()
             .map_err(|_| invalid())?,
     ) as usize;
+    need(json_len <= 8 * 1024 * 1024)?;
     let gltf = crate::contracts::v2::parse_value(glb.get(20..20 + json_len).ok_or_else(invalid)?)
         .map_err(|_| invalid())?;
+    need(gltf["asset"].get("minVersion").is_none_or(|v| v == "2.0"))?;
     let nodes = gltf["nodes"].as_array().ok_or_else(invalid)?;
     let meshes = gltf["meshes"].as_array().ok_or_else(invalid)?;
     super::atlas_scene_glb::materials(&gltf)?;
