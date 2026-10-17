@@ -31,7 +31,7 @@ provider, household file, account, credential or upstream write is involved.
 | [Network](synthetic-network.png) | One explicitly loaded saved relation with original dates and exact revision token. |
 | [Collage](synthetic-collage.png) | The three unmodified screen captures, labeled SYNTHETIC. |
 
-The capture also produces six unified Atlas review images. They are workflow
+The capture also produces seven unified Atlas review images. They are workflow
 artifacts only, not README images:
 
 | Image | State |
@@ -39,7 +39,8 @@ artifacts only, not README images:
 | `synthetic-unified-3d.png` | Synthetic house, exploded, Living room selected. |
 | `synthetic-unified-collapsed.png` | The same selection collapsed before visiting Plan, with its Ground floor focused. |
 | `synthetic-unified-plan.png` | Ground floor plan with electrical record counts. |
-| `synthetic-unified-phone.png` | Living room in 3D at 390 × 844. Its selected electrical count wins a touch-target collision; the layer still has four records. |
+| `synthetic-unified-phone.png` | Living room in 3D at 390 × 844, fitted with both Hall and Living electrical counts clear. |
+| `synthetic-unified-phone-crowded.png` | Normal modified-wheel zoom creates a count-target collision. Selected Living wins while the layer retains four records. |
 | `synthetic-unified-phone-hall.png` | Hall selected through the room list at the same phone width, retaining its three records and original references. |
 | `synthetic-unified-stacked.png` | Stacked whole-building Network view, tilted and zoomed out through normal keyboard controls. One Stairs count survives without duplicating its source record. |
 
@@ -53,7 +54,7 @@ or enlarged count target overlaps a floating panel or another count and that the
 building and floor are visible in their rows.
 The desktop and phone checks also exercise keyboard focus leaving Other sources
 and Escape returning focus to its summary, without switching source.
-Resizing with Hall's count focused checks that culling returns focus to the
+Zooming with Hall's count focused checks that culling returns focus to the
 viewport without scrolling. Selecting Hall through the room list checks its
 three source record references even when its badge was suppressed for Living.
 With reduced motion, these images show settled states only. They do not show transitions, private reference views,
@@ -92,7 +93,7 @@ SHA256 digests without local paths or timestamps. Its `sourceTree` digest binds
 every tracked source file, including stylesheets and transitive components,
 and is checked unchanged across capture. The explicitly listed exclusions are
 the seven README images, their receipt and the self-referential publication
-manifest, plus the six unified Atlas image names. Both prepared floor tags must
+manifest, plus the seven unified Atlas image names. Both prepared floor tags must
 be present before the geometry capture. The `unifiedAtlas` receipt section
 records its entry, observed controls and selection, canvas and draw metadata,
 plan SVG digest, and the hashes of its own source files and images.
