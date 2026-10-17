@@ -473,3 +473,38 @@ test('property aggregation counts source entities once and retains differing sam
     { buildingId: S, reason: 'room-link-not-qualified', records: null }]);
   assert.deepEqual(unavailable.buildings.map(row => [row.buildingId, row.reason]), [[H, 'no-native-building-link'], [S, 'room-link-not-qualified']]);
 });
+
+
+test('presentation-scaled and off-centre Plan fits retain full-frame zoom-out through shared gesture limits', () => {
+  const state = reduce(initial(), level(G), view('plan'));
+  const presentation = api.presentAtlas(model, state, empty), box = api.frameBox(model, state, presentation);
+  const size = { width: 320, height: 240 }, pose = { yaw: 0, pitch: 90, zoom: 1, panX: 0, panY: 0 };
+  const scale = 4, shift = { x: (box.max[0] - box.min[0]) * .45, z: (box.max[2] - box.min[2]) * -.3 };
+  const minimum = api.frameZoomMinimum(box, size, pose, 1, scale, shift, .6);
+  assert.ok(minimum > 0 && minimum < .6 / scale, 'the floor also accommodates the off-centre drawing extent');
+  assert.equal(api.frameZoomMinimum(box, size, pose, 1, 1, { x: 0, z: 0 }, .6), .6);
+  const base = api.makeProjection({ ...pose, zoom: minimum * scale }, box, size, 1);
+  const recovered = api.makeProjection({ ...pose, zoom: minimum * scale,
+    panX: -base.k * (shift.x * base.ct - shift.z * base.st),
+    panY: -base.k * (shift.x * base.st + shift.z * base.ct) * base.sf }, box, size, 1);
+  for (const x of [box.min[0], box.max[0]]) for (const z of [box.min[2], box.max[2]]) {
+    const [px, py] = recovered.project(x, box.min[1], z);
+    assert.ok(px >= 0 && px <= size.width && py >= 0 && py <= size.height, 'every source-frame corner remains reachable without changing the fitted centre');
+  }
+  let zoom = 1, floor = minimum, taps = 0;
+  const limits = { get min() { return floor; }, max: 8 };
+  const captures = new Set(), node = { getBoundingClientRect: () => ({ left: 0, top: 0 }),
+    hasPointerCapture: id => captures.has(id), setPointerCapture: id => captures.add(id), releasePointerCapture: id => captures.delete(id) };
+  const pointer = (id, x) => ({ button: 0, pointerId: id, pointerType: 'touch', clientX: x, clientY: 10, target: node, currentTarget: node });
+  const handlers = api.createStagePointers({ gesture: { drag: null, pointers: new Map(), pinch: null, pinched: false }, top: true,
+    onTap: () => taps++, dragging: () => {}, zoom: update => { zoom = update(zoom); }, zoomLimits: limits,
+    pan: () => {}, orbit: () => {} });
+  handlers.onPointerDown(pointer(1, 10)); handlers.onPointerDown(pointer(2, 110)); handlers.onPointerMove(pointer(2, 11));
+  assert.equal(zoom, minimum); handlers.onPointerUp(pointer(1, 10)); handlers.onPointerUp(pointer(2, 11));
+  assert.equal(taps, 0); assert.equal(captures.size, 0);
+  floor = minimum * 2; zoom = 1;
+  const gesture = api.createTrackpadGesture({ read: () => ({ yaw: 0, zoom }), apply: value => { zoom = value.zoom; }, rotates: () => false, zoomLimits: limits });
+  const event = scale => ({ preventDefault: () => {}, scale, rotation: 0 });
+  gesture.start(event(1)); gesture.change(event(.01)); gesture.end(event(.01));
+  assert.equal(zoom, floor, 'native cumulative zoom reads the same current presentation floor');
+});

@@ -6,7 +6,7 @@ import { Icon } from '../components/Icon';
 import { useReducedMotion, useStore } from '../state/store';
 import { useEased } from '../atlas/useCamera';
 import { BIRCH, BIRCH_DARK, CARD, LANTERN } from '../atlas/palette';
-import { makeProjection, relativePath, type DrawRules, type Projection, type Viewport } from '../canonical-ifc/geometry';
+import { frameZoomMinimum, makeProjection, relativePath, type DrawRules, type Projection, type Viewport } from '../canonical-ifc/geometry';
 import { GlbFormatError } from '../canonical-ifc/glb-preflight';
 import { MeshLayer, RENDER_LIMITS, type MeshPalette } from '../canonical-ifc/MeshLayer';
 import { useStageCamera } from '../canonical-ifc/useStageCamera';
@@ -404,7 +404,8 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
   const select = (occurrenceId: string | null) => dispatch({ type: 'select', occurrenceId });
   // A tap resolves against what is drawn now, mid-transition included, and the
   // reducer re-targets every eased value; an empty tap moves out one level.
-  const camera = useStageCamera({ element: viewport, top: plan, reduced, onEscape: out,
+  const minimumZoom = useRef(.6);
+  const camera = useStageCamera({ element: viewport, top: plan, reduced, onEscape: out, minimumZoom: () => minimumZoom.current,
     onTap: (px, py, target) => {
       const label = target instanceof Element ? target.closest<HTMLButtonElement>('button[data-atlas-occurrence]') : null;
       if (label?.dataset.atlasOccurrence && model.selectable.has(label.dataset.atlasOccurrence)) {
@@ -449,6 +450,10 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
     return zoom <= 1.01 ? whole : { zoom, dx: (planRooms.minX + planRooms.maxX - frame.min[0] - frame.max[0]) / 2, dz: (planRooms.minZ + planRooms.maxZ - frame.min[2] - frame.max[2]) / 2 };
   }, [planRooms, frame, size.width, size.height, safe]);
   const readable = useEased(readableGoal, { reduced, tau: 170 });
+  minimumZoom.current = frameZoomMinimum(bounds,
+    { width: Math.max(1, size.width - inset.l - inset.r), height: Math.max(1, size.height - inset.t - inset.b) },
+    camera.eased, planBlend, 1 + (readable.zoom - 1) * planBlend,
+    { x: readable.dx * planBlend, z: readable.dz * planBlend }, .6);
   const projection = useMemo(() => {
     const view = { width: Math.max(1, size.width - inset.l - inset.r), height: Math.max(1, size.height - inset.t - inset.b) };
     // Applied with the plan, so the 3D view and its depth range never change.

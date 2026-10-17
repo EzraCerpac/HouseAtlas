@@ -236,9 +236,13 @@ try {
   await rooms.getByRole('button', { name: 'Living room', exact: true }).click();
   await shell.getByRole('heading', { level: 2, name: 'Living room', exact: true }).waitFor();
   await ladder.getByRole('button', { name: 'Ground floor: 3 rooms, has the selected room', exact: true }).waitFor();
+  const selected = await atlasFacts();
+  assert.deepEqual([selected.floor, selected.exploded], [['Ground floor: 3 rooms, has the selected room'], 'false'],
+    'Room selection retains its full floor ancestry and never turns on explosion');
+  await shell.getByRole('button', { name: 'Exploded', exact: true }).click();
   await settledDraw(atlas);
   const desktop = await atlasFacts();
-  assert.deepEqual([desktop.view, desktop.building, desktop.floor, desktop.exploded], [['3D'], ['Synthetic house'], ['All floors'], 'true']);
+  assert.deepEqual([desktop.view, desktop.building, desktop.floor, desktop.exploded], [['3D'], ['Synthetic house'], ['Ground floor: 3 rooms, has the selected room'], 'true']);
   assert.deepEqual([desktop.selectedRoom, desktop.selectedFloor, desktop.canvasHidden, desktop.stageNote], ['Living room', 'Ground floor, Synthetic house', false, null]);
   assert(desktop.labels.includes('Select room: Living room'), 'The selected room tag must be on the stage');
   const clearOfPanels = facts => {
@@ -253,8 +257,8 @@ try {
   await atlas.mouse.move(1430, 10);
   await frames(atlas);
   await atlas.screenshot({ path: resolve(output, 'synthetic-unified-3d.png'), animations: 'disabled' });
-  // Collapse directly from an exploded whole-building selection, before Plan
-  // has supplied a floor. The selected occurrence must remain visible.
+  // Collapse only the presentation; the selected room and its already-complete
+  // floor ancestry remain visible before Plan has been opened.
   await shell.getByRole('button', { name: 'Exploded', exact: true }).click();
   await settledDraw(atlas);
   const collapsed = await atlasFacts();
@@ -268,16 +272,18 @@ try {
   // Plan of the selected room's floor, with the published electrical counts.
   await shell.getByRole('group', { name: 'Atlas view' }).getByRole('button', { name: 'Plan', exact: true }).click();
   await atlas.waitForFunction(() => document.querySelector('.ua-shell.is-plan .ua-plan') && document.querySelector('.ua-viewport canvas.cifc-canvas').hidden);
-  await shell.getByRole('group', { name: 'Overlay' }).getByRole('button', { name: 'Electrical', exact: true }).click();
+  await shell.getByRole('group', { name: 'Layers' }).getByRole('button', { name: 'Electrical', exact: true }).click();
   await shell.getByRole('button', { name: 'Hall: 3 electrical records', exact: true }).waitFor();
   await atlas.mouse.move(1430, 10);
   await frames(atlas);
   const plan = await atlasFacts();
-  assert.equal(plan.stage, 'Plan of Ground floor, Synthetic house. Arrow keys pan, plus and minus zoom, Escape clears the room.');
+  assert.equal(plan.stage, 'Plan of Ground floor, Synthetic house. Arrow keys pan, plus and minus zoom, Escape goes back one level.');
   assert.deepEqual([plan.view, plan.overlay, plan.markers, plan.planRooms, plan.planSelected, plan.stageNote],
     [['Plan'], ['Electrical'], ['Hall: 3 electrical records', 'Living room: 1 electrical record'], 3, 1, null]);
   clearOfPanels(plan);
-  const planSvgSha256 = createHash('sha256').update(await atlas.locator('.ua-viewport svg.cifc-svg').evaluate(node => node.outerHTML)).digest('hex');
+  const planSvg = atlas.locator('.ua-viewport svg.cifc-svg:has(.ua-plan)');
+  assert.equal(await planSvg.count(), 1, 'Hash the authored plan SVG separately from the ground drawing');
+  const planSvgSha256 = createHash('sha256').update(await planSvg.evaluate(node => node.outerHTML)).digest('hex');
   await atlas.screenshot({ path: resolve(output, 'synthetic-unified-plan.png'), animations: 'disabled' });
   // Phone width: the same selection in 3D with the room panel as a closed sheet.
   await atlas.evaluate(() => { window.syntheticAtlasDrawCalls = 0; });
@@ -291,13 +297,24 @@ try {
   await shell.getByRole('button', { name: 'Show details', exact: true }).waitFor();
   await atlas.mouse.move(385, 5);
   await frames(atlas);
-  const phone = await atlasFacts();
+  let phone = await atlasFacts();
   assert.deepEqual([phone.view, phone.overlay, phone.selectedRoom, phone.stageNote], [['3D'], ['Electrical'], 'Living room', null]);
   assert.deepEqual(phone.inspector, { label: 'Selected room', position: 'absolute', open: false });
   assert.deepEqual([phone.building, phone.floor], [['Synthetic house'], ['Ground floor: 3 rooms, has the selected room']]);
   assert.deepEqual(phone.markers, ['Hall: 3 electrical records', 'Living room: 1 electrical record']);
   assert.deepEqual(phone.markerKeys, ['marker:electrical:syn-occ-hall', 'marker:electrical:syn-occ-living']);
   assert.match(phone.key, /4 records/);
+  const beforeDetails = phone;
+  const layerDetails = shell.getByRole('button', { name: /^Layer details/ });
+  await layerDetails.click();
+  assert.equal(await layerDetails.getAttribute('aria-expanded'), 'true');
+  await shell.locator('.ua-keys .ua-key-head').getByText('4 records', { exact: true }).waitFor({ state: 'visible' });
+  await layerDetails.click();
+  assert.equal(await layerDetails.getAttribute('aria-expanded'), 'false');
+  await frames(atlas);
+  phone = await atlasFacts();
+  for (const field of ['view', 'overlay', 'building', 'floor', 'selectedRoom', 'selectedFloor', 'inspector', 'markers', 'markerKeys', 'stageNote'])
+    assert.deepEqual(phone[field], beforeDetails[field], `Layer details preserves ${field}`);
   clearOfPanels(phone);
   const phoneWebgl = await atlasWebgl();
   await atlas.screenshot({ path: resolve(output, 'synthetic-unified-phone.png'), animations: 'disabled' });
@@ -349,7 +366,8 @@ try {
   await shell.getByRole('complementary', { name: 'Rooms' }).getByRole('region', { name: 'Ground floor, Synthetic house', exact: true })
     .getByRole('button', { name: 'Stairs', exact: true }).click();
   await ladder.getByRole('button', { name: 'All floors', exact: true }).click();
-  await shell.getByRole('group', { name: 'Overlay' }).getByRole('button', { name: 'Network', exact: true }).click();
+  await shell.getByRole('group', { name: 'Layers' }).getByRole('button', { name: 'Electrical', exact: true }).click();
+  await shell.getByRole('group', { name: 'Layers' }).getByRole('button', { name: 'Network', exact: true }).click();
   await settledDraw(atlas);
   await viewport.focus();
   await atlas.evaluate(() => { window.syntheticAtlasDrawCalls = 0; });
@@ -359,8 +377,8 @@ try {
   await atlas.waitForFunction(() => window.syntheticAtlasDrawCalls > 0);
   const stacked = await atlasFacts();
   assert.deepEqual([stacked.exploded, stacked.floor, stacked.selectedRoom, stacked.selectedFloor],
-    ['false', ['All floors'], 'Stairs', 'Ground floor, Synthetic house']);
-  assert.deepEqual(stacked.markers, ['Stairs: 1 network record']);
+    ['false', ['All floors'], null, null]);
+  assert.deepEqual(stacked.markers, ['Stairs: 1 network record, Ground floor, Synthetic house']);
   assert.deepEqual(stacked.markerKeys, ['marker:network:syn-occ-stairs-ground']);
   assert.match(stacked.key, /1 record/);
   clearOfPanels(stacked);
@@ -395,7 +413,7 @@ try {
       { image: 'synthetic-unified-phone-hall.png', viewport: [390, 844], ...phoneHall, webgl: phoneHallWebgl, recordReferences: ['syn-circuit-1', 'syn-outlet-1', 'syn-outlet-2'] },
       { image: 'synthetic-unified-stacked.png', viewport: [1440, 1000], ...stacked, webgl: stackedWebgl },
     ],
-    checks: ['Atlas section current', 'two navigable generated buildings and three house floors in height order', 'Living room selected on Ground floor through the room list', 'fresh WebGL draws after Fit view before 3D capture', 'collapse before Plan focuses the selected floor and retains its stage tag', 'Ground floor plan with three rooms, one selected and the canvas hidden', 'published electrical counts for Hall and Living room', 'both counts remain at fitted phone width with the room panel as a closed sheet', 'selected count wins a zoomed-out phone touch-target collision without reducing the four-record total', 'Hall remains selectable with its three original record references', 'culled focused count returns focus to the viewport without scrolling', 'stacked Network keeps one selected count and one distinct source record', 'no room or enlarged count target under a floating panel', 'no enlarged count target over another', 'current building and floor in view in every state'],
+    checks: ['Atlas section current', 'two navigable generated buildings and three house floors in height order', 'Living room selected on Ground floor through the room list', 'fresh WebGL draws after Fit view before 3D capture', 'explicit explosion and collapse preserve the selected room and its complete floor ancestry', 'Ground floor plan with three rooms, one selected and the canvas hidden', 'published electrical counts for Hall and Living room', 'both counts remain at fitted phone width with the room panel as a closed sheet', 'selected count wins a zoomed-out phone touch-target collision without reducing the four-record total', 'Hall remains selectable with its three original record references', 'culled focused count returns focus to the viewport without scrolling', 'whole-building Network deterministically retains one context-qualified count and one distinct source record', 'no room or enlarged count target under a floating panel', 'no enlarged count target over another', 'current building and floor in view in every state'],
     scope: ['Generated fictional data only; no household, native, backend admission or private reference', 'Reduced motion: settled states only; no animation, transition or mid-sweep evidence', 'Playwright headless Chromium; no iPhone, PWA, native document, PDF or device acceptance'],
     sourceHashes: unifiedSourceHashes, artifactHashes: unifiedArtifactHashes,
   };

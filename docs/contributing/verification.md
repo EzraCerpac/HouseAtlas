@@ -1290,11 +1290,13 @@ GLB loader, reducer, projection, pointer factory and documentary index. Inspect
 node --test --test-concurrency=1 frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs
 ```
 
-Its twenty-two CPU cases cover repeated navigation, every declared selectable
+Its twenty-three CPU cases cover repeated navigation, every declared selectable
 occurrence, shared room identity, source-coordinate plans, normal overlay
 toggles, collapse-before-Plan selection, deterministic count touch-target
 suppression, complete label-action targets, source-qualified duplicate floor
-names, indexed tessellated-room picks and tap/drag/pinch sequences. They include no held controls, listener,
+names, indexed tessellated-room picks and tap/drag/pinch sequences. A generated
+Plan projection also checks complete-frame zoom-out after an off-centre scale
+boost, including the shared pointer and cumulative native-gesture zoom floor. They include no held controls, listener,
 provider, credentials or private inputs. They do not qualify DOM focus, CSS,
 animations, GPU rendering, native overlays or devices. The adjacent acceptance
 matrix retains its exact historical source attribution; browser automation is

@@ -120,6 +120,19 @@ export function makeProjection(pose: CameraPose, bounds: Bounds, viewport: Viewp
   };
 }
 
+/** Extend zoom-out to retain the ordinary full frame when a presentation fit
+ * magnifies and recentres it. No geometry, fitted pose or maximum is changed. */
+export function frameZoomMinimum(bounds: Bounds, viewport: Viewport, pose: CameraPose, planBlend: number,
+  scale: number, shift: Readonly<{ x: number; z: number }>, minimum: number): number {
+  const centered: Bounds = {
+    min: [bounds.min[0] - Math.abs(shift.x), bounds.min[1], bounds.min[2] - Math.abs(shift.z)],
+    max: [bounds.max[0] + Math.abs(shift.x), bounds.max[1], bounds.max[2] + Math.abs(shift.z)],
+  };
+  const plain = { ...pose, zoom: 1 };
+  return minimum * (makeProjection(plain, centered, viewport, planBlend).k
+    / makeProjection(plain, bounds, viewport, planBlend).k) / Math.max(1, scale);
+}
+
 /** SVG path for rings in coordinates relative to the projection centre. */
 export const relativePath = (rings: readonly PlanRing[], center: readonly [number, number, number]) =>
   rings.map(ring => `M${ring.map(([x, z]) => `${x - center[0]} ${z - center[2]}`).join('L')}Z`).join('');
