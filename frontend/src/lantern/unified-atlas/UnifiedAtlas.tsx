@@ -118,21 +118,33 @@ export default function UnifiedAtlas({ port, onOpenModel }: { readonly port: Uni
 // ---------------------------------------------------------------------------
 
 const RULES: DrawRules = { visibleFloors: 'all', clipY: null };
-/** Lantern architecture: card walls on a birch board, lantern-yellow selection.
- * Faces turned from the light fall toward a warm stone shade, never grey, so
- * every wall plane reads; cut walls show a dark warm poché, never slate.
- * Out-of-focus floors and neighbours step back toward a cool paper that stays
+/** Lantern architecture as an axonometric drawing in four values on the birch
+ * board: white card walls in light, the walls turned away in warm umber, slopes
+ * in a darker graphite and cuts in deep poché, with lantern-yellow selection.
+ * Out-of-focus floors and neighbours step back toward a grey stone that stays
  * apart from the warm board. Presentation tones only: they tint whatever the
- * source geometry is. */
+ * source geometry is, and a slope tone is the face's angle, never a material. */
 const ATLAS_MESH_PALETTE: Partial<MeshPalette> = {
-  paper: '#E3E0D8', wall: CARD, top: '#ECDDBF', cut: '#76664E', room: '#F3DFC0', selected: LANTERN, context: '#FBEFC8', ghost: '#D3C8B2',
+  paper: '#BDB8AE', wall: CARD, top: '#ECDDBF', cut: '#5E5040', room: '#F3DFC0', selected: LANTERN, context: '#FBEFC8', ghost: '#D3C8B2',
 };
-const ATLAS_AMBIENT = .56, ATLAS_SHADE = '#8A7658';
+const ATLAS_AMBIENT = .62, ATLAS_SHADE = '#4A3F33', ATLAS_PITCH = '#7C736C';
+/** The light stands to the viewer's upper left, a little toward them, and turns
+ * with the camera: of the two wall planes in view one is always lit and one in
+ * shade, at every orbit. Shares across, toward the viewer and up. */
+const LIGHT = { side: .68, front: .5, up: .54 } as const;
+function viewLight(ct: number, st: number): readonly [number, number, number] {
+  const x = -LIGHT.side * ct + LIGHT.front * st, z = LIGHT.side * st + LIGHT.front * ct, l = Math.hypot(x, LIGHT.up, z);
+  return [x / l, LIGHT.up / l, z / l];
+}
 /** The birch board under the property: its thickness below the lowest floor, in metres. */
 const BOARD_DEPTH = .4;
-/** Contact shadow of each building's lowest floor on the board, away from the
- * renderer's light, in metres along the model's own x and z. */
-const SHADOW_OFFSET = [.34, -.42] as const;
+/** Contact shadow of each building's lowest floor on the board, cast away from the light, in metres. */
+const SHADOW_LENGTH = .55;
+/** Plan Fit keeps rooms at a readable drawing scale, in pixels per metre: a
+ * room part 1.5 m clear has the 18 px a plain room name needs. */
+const PLAN_READABLE = 12;
+/** Space kept around a floor's own rooms and walls when Fit frames them, in metres. */
+const PLAN_ROOM_MARGIN = 1;
 /** Selected tag in 3D: leader length and tag centre above the anchor, in pixels. */
 const LEADER = 34, TAG_RISE = LABEL_TAG_RISE;
 const OVERLAY_KINDS: readonly OverlayKind[] = ['electrical', 'network'];
@@ -409,9 +421,46 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
     ? (w, h) => Math.min(w / Math.max(frameGoal.sx, 1e-3), h / Math.max(frameGoal.sz, 1e-3)) : (w, h) => Math.min(w, h)),
   [cover, size.width, size.height, plan, frameGoal.sx, frameGoal.sz]);
   const inset = useEased(safe, { reduced, tau: 170 });
-  const projection = useMemo(() => insetProjection(makeProjection(camera.eased, bounds,
-    { width: Math.max(1, size.width - inset.l - inset.r), height: Math.max(1, size.height - inset.t - inset.b) }, planBlend),
-  inset.l, inset.t, size), [camera.eased, bounds, size, planBlend, inset]);
+  // A floor's plan on a small stage: when the floor with its site context would
+  // draw the rooms below a readable scale, Fit frames the floor's own rooms and
+  // walls instead. Context stays drawn past the frame and returns on zoom-out or
+  // pan; wide stages already draw the whole floor at that scale, so nothing moves.
+  const planRooms = useMemo(() => {
+    const levelId = presentation.focusLevelId;
+    if (!plan || levelId === null) return null;
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const feature of planFeaturesForLevel(model, levelId)) {
+      if (feature.role !== 'room' && feature.role !== 'wall' && feature.role !== 'opening') continue;
+      for (const ring of model.featureRings.get(feature.featureId)!) for (const [x, z] of ring) {
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x); minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+      }
+    }
+    return minX <= maxX && minZ <= maxZ ? { minX: minX - PLAN_ROOM_MARGIN, maxX: maxX + PLAN_ROOM_MARGIN, minZ: minZ - PLAN_ROOM_MARGIN, maxZ: maxZ + PLAN_ROOM_MARGIN } : null;
+  }, [plan, presentation.focusLevelId, model]);
+  const readableGoal = useMemo(() => {
+    const whole = { zoom: 1, dx: 0, dz: 0 };
+    if (!planRooms) return whole;
+    const view = { width: Math.max(1, size.width - safe.l - safe.r), height: Math.max(1, size.height - safe.t - safe.b) };
+    const top = { yaw: 0, pitch: 90, zoom: 1, panX: 0, panY: 0 };
+    const kWhole = makeProjection(top, frame, view, 1).k;
+    if (kWhole >= PLAN_READABLE) return whole;
+    const rooms = { min: [planRooms.minX, frame.min[1], planRooms.minZ], max: [planRooms.maxX, frame.max[1], planRooms.maxZ] } as unknown as typeof frame;
+    const zoom = Math.min(makeProjection(top, rooms, view, 1).k, PLAN_READABLE) / kWhole;
+    return zoom <= 1.01 ? whole : { zoom, dx: (planRooms.minX + planRooms.maxX - frame.min[0] - frame.max[0]) / 2, dz: (planRooms.minZ + planRooms.maxZ - frame.min[2] - frame.max[2]) / 2 };
+  }, [planRooms, frame, size.width, size.height, safe]);
+  const readable = useEased(readableGoal, { reduced, tau: 170 });
+  const projection = useMemo(() => {
+    const view = { width: Math.max(1, size.width - inset.l - inset.r), height: Math.max(1, size.height - inset.t - inset.b) };
+    // Applied with the plan, so the 3D view and its depth range never change.
+    const pose = { ...camera.eased, zoom: camera.eased.zoom * (1 + (readable.zoom - 1) * planBlend) };
+    const base = makeProjection(pose, bounds, view, planBlend);
+    const dx = readable.dx * planBlend, dz = readable.dz * planBlend;
+    const centred = dx === 0 && dz === 0 ? base : makeProjection({ ...pose,
+      panX: pose.panX - base.k * (dx * base.ct - dz * base.st), panY: pose.panY - base.k * (dx * base.st + dz * base.ct) * base.sf }, bounds, view, planBlend);
+    return insetProjection(centred, inset.l, inset.t, size);
+  }, [camera.eased, bounds, size, planBlend, inset, readable]);
+  const light = useMemo(() => viewLight(projection.ct, projection.st), [projection.ct, projection.st]);
+  const shadowOffset = [-light[0] / Math.hypot(light[0], light[2]) * SHADOW_LENGTH, -light[2] / Math.hypot(light[0], light[2]) * SHADOW_LENGTH] as const;
   const lifts = useMemo(() => partLifts(model, presentation, t), [model, presentation, t]);
   const showCanvas = planBlend < 1 && failure === null;
 
