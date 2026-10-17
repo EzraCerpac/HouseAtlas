@@ -231,3 +231,7 @@ path = "examples/validate-unified-atlas-publication.rs"
 [[example]]
 name = "healthy-unified-atlas-room-links-read"
 path = "examples/healthy-unified-atlas-room-links-read.rs"
+
+[[example]]
+name = "healthy-home-read-pack"
+path = "examples/healthy-home-read-pack.rs"

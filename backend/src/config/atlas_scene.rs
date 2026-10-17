@@ -756,6 +756,20 @@ impl ServerAtlasSceneSelection {
         selected.verify(overview)?;
         Ok(selected)
     }
+    /// Exact admitted source bytes for documentary exports, including plans.
+    /// Keep the original pin rather than reserializing the parsed publication.
+    pub(crate) fn read_companion(
+        &self,
+        overview: &ServerModelOverviewSelection,
+    ) -> Result<Vec<u8>, String> {
+        self.verify(overview)?;
+        overview.read_original()?;
+        let bytes = super::server::read_selected_file(&self.path, MAX_COMPANION, true)?;
+        need(hash(&bytes) == self.semantics_sha256)?;
+        self.verify(overview)?;
+        overview.read_original()?;
+        Ok(bytes)
+    }
     pub(crate) fn verify(&self, overview: &ServerModelOverviewSelection) -> Result<(), String> {
         need(
             self.path.parent() == overview.path.parent()

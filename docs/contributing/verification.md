@@ -1629,3 +1629,38 @@ has the scoped ephemeral PR-comment permission. See
 [the report lane](../ci-performance.md) and
 [measurement handoff](../../tools/perf/reporting/README.md). It releases no
 application-control, provider, household, recovery, pilot or deployment gate.
+
+## Named generated home read-pack check
+
+Inspect `backend/examples/healthy-home-read-pack.rs`, its generated
+`support/home_read_pack_geometry.rs` helper, the reused unified Atlas fixture,
+and the touched read-pack storage/HTTP and admitted companion accessor before
+these exact commands. This ordinary positive uses only fresh disposable native
+state and in-process HTTP. It creates an actual local password-free session,
+building/evidence records, native evidence original, and a qualified generated
+USDZ/mesh custody plus building association. No USD converter is executed.
+
+The positive checks source-policy-approved lossless JSON and PNG Documents on
+the same native dataset, a qualified PNG preview, full GLB, matching inline
+plans/documentary overlays and independently admitted historical room links.
+The valid raw companion is padded with generated JSON whitespace above 8 MiB
+and below 12 MiB, verifying exact bytes stay outside the generic section parser.
+It checks six-section manifests, complete and honest overview-only partial
+coverage, native scan original/derivative mappings, all digest/size/MIME pins,
+full-resource and 4 MiB range assembly, retained reads and source-file invariance.
+The full-profile copy prepares only this fixture; export writes no native state.
+No listener, provider, household data, denial, malformed, revocation, omission or
+crash probe runs. Use Rust 1.99.0 and an owned target outside the checkout:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-home-read-pack
+cargo run --offline --locked -p houseatlas-backend --example healthy-home-read-pack -- --fixture-output /tmp/houseatlas-home-read-pack-generated
+```
+
+The optional output directory must be absent and its parent canonical. It holds
+only generated `records`, `partial`, `unified` and `documents` manifests and
+hash-named resource bytes, with no cookies/session headers. These finite examples
+are documentary fixtures for the separate frontend consumer owner. They do not
+establish offline renderer, browser, device, source placement or deployment
+acceptance. The closed v1 envelope remains; explicit model-section v2 renderer
+support is still required.

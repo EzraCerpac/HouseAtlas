@@ -45,17 +45,35 @@ pub(crate) fn snapshot(db: &Connection) -> Result<Snapshot> {
 /// Prefilter authorized reads with the existing scope indexes before decoding.
 /// The caller still checks body scope; this is not whole-store validation.
 /// Mutation and recovery callers retain the complete `snapshot` above.
-pub(crate) fn scoped_snapshot(db: &Connection, scope: &Scope) -> Result<Snapshot> {
+pub(crate) fn scoped_snapshot_limit(
+    db: &Connection,
+    scope: &Scope,
+    bounded: bool,
+) -> Result<Snapshot> {
     fn scoped_rows<T: DeserializeOwned>(
         db: &Connection,
         sql: &str,
         scope: &Scope,
+        bounded: bool,
     ) -> Result<Vec<T>> {
+        let mut count = 0usize;
+        let mut bytes = 0usize;
         db.prepare(sql)?
             .query_map(params![scope.workspace_id, scope.home_id], |row| {
                 row.get::<_, String>(0)
             })?
-            .map(|row| Ok(serde_json::from_str(&row?)?))
+            .map(|row| {
+                let body = row?;
+                count += 1;
+                bytes = bytes.saturating_add(body.len());
+                if bounded && (count > 10_000 || bytes > 16 * 1024 * 1024) {
+                    return Err(Error::new(
+                        "export-too-large",
+                        "Home read metadata exceeds bounded capture",
+                    ));
+                }
+                Ok(serde_json::from_str(&body)?)
+            })
             .collect()
     }
     Ok(Snapshot {
@@ -63,26 +81,31 @@ pub(crate) fn scoped_snapshot(db: &Connection, scope: &Scope) -> Result<Snapshot
             db,
             "SELECT body FROM records WHERE workspace_id=?1 AND home_id=?2 ORDER BY rowid",
             scope,
+            bounded,
         )?,
         sources: scoped_rows(
             db,
             "SELECT body FROM sources WHERE workspace_id=?1 AND home_id=?2 ORDER BY rowid",
             scope,
+            bounded,
         )?,
         homebox_entities: scoped_rows(
             db,
             "SELECT body FROM projections WHERE workspace_id=?1 AND home_id=?2 ORDER BY rowid",
             scope,
+            bounded,
         )?,
         caches: scoped_rows(
             db,
             "SELECT body FROM caches WHERE workspace_id=?1 AND home_id=?2 ORDER BY rowid",
             scope,
+            bounded,
         )?,
         network_relations: scoped_rows(
             db,
             "SELECT body FROM network_relations WHERE workspace_id=?1 AND home_id=?2 ORDER BY rowid",
             scope,
+            bounded,
         )?,
         ..Snapshot::default()
     })
