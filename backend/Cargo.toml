@@ -219,3 +219,15 @@ path = "examples/healthy-native-full-geodata-profile.rs"
 [[example]]
 name = "healthy-model-overview-read"
 path = "examples/healthy-model-overview-read.rs"
+
+[[example]]
+name = "healthy-unified-atlas-read"
+path = "examples/healthy-unified-atlas-read.rs"
+
+[[example]]
+name = "validate-unified-atlas-publication"
+path = "examples/validate-unified-atlas-publication.rs"
+
+[[example]]
+name = "healthy-unified-atlas-room-links-read"
+path = "examples/healthy-unified-atlas-room-links-read.rs"

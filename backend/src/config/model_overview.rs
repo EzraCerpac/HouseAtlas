@@ -53,7 +53,7 @@ pub(crate) struct Publication {
     pub original: Original,
 }
 #[derive(Clone, PartialEq, Eq)]
-struct Identity {
+pub(crate) struct Identity {
     dev: u64,
     ino: u64,
     mode: u32,
@@ -64,7 +64,7 @@ struct Identity {
     changed: (i64, i64),
 }
 impl Identity {
-    fn capture(path: &Path, directory: bool) -> Result<Self, String> {
+    pub(crate) fn capture(path: &Path, directory: bool) -> Result<Self, String> {
         let m = fs::symlink_metadata(path).map_err(|_| "Overview file unavailable")?;
         if m.file_type().is_symlink()
             || m.uid() != rustix::process::geteuid().as_raw()
@@ -91,7 +91,7 @@ impl Identity {
     }
 }
 pub struct ServerModelOverviewSelection {
-    path: PathBuf,
+    pub(crate) path: PathBuf,
     identities: [Identity; 3],
     pub(crate) manifest: Publication,
     pub(crate) manifest_sha256: String,
@@ -279,7 +279,7 @@ fn validate_glb(bytes: &[u8]) -> Result<(), String> {
         return Err(invalid());
     }
     let json_len = word(12)? as usize;
-    if !json_len.is_multiple_of(4) || word(16)? != 0x4e4f534a {
+    if json_len > 8 * 1024 * 1024 || !json_len.is_multiple_of(4) || word(16)? != 0x4e4f534a {
         return Err(invalid());
     }
     let json_end = 20usize.checked_add(json_len).ok_or_else(invalid)?;
@@ -290,6 +290,7 @@ fn validate_glb(bytes: &[u8]) -> Result<(), String> {
             .pointer("/asset/version")
             .and_then(serde_json::Value::as_str)
             != Some("2.0")
+        || json["asset"].get("minVersion").is_some_and(|v| v != "2.0")
     {
         return Err(invalid());
     }

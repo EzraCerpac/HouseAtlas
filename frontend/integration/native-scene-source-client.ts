@@ -807,3 +807,48 @@ export function createNativeSceneSourceClient(options: NativeSceneSourceOptions)
     dispose: () => { if (disposed) return; disposed = true; withdraw(); hostUnsubscribe(); },
   });
 }
+
+/** Closed documentary projection for a source-only current-association owner.
+ * This function issues no authority/lease and never interprets old room geometry.
+ * The caller retains native originals and performs the final current-head fence. */
+export async function readNativeOverlayDetails(selection:NativeSceneSourceSelection,primaryBytes:Uint8Array,
+  historicalBytes:Uint8Array,guard:()=>void):Promise<Pick<NativeSceneSourceFrame,
+    'network'|'electricity'|'electricalFixtures'|'drawingReferences'|'drawingProvenance'>> {
+  guard();need(primaryBytes.length<=MAX_TEXT&&historicalBytes.length<=MAX_TEXT);
+  need(await sha256(primaryBytes)===selection.sceneOriginalSha256);guard();
+  const parsed=parse(new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(primaryBytes));
+  need(parsed!==null&&typeof parsed==='object'&&!Array.isArray(parsed)&&!isExactDecimal(parsed));
+  const root=row(parsed,['schema','receiptCanonicalJson','rooms','network','electricity',...(parsed.schema==='houseatlas.native-scene-source.v2'?['electricalFixtures']:[])]);
+  need(root.schema==='houseatlas.native-scene-source.v1'||root.schema==='houseatlas.native-scene-source.v2');
+  const historicalSha=await sha256(historicalBytes);guard();
+  const canonical=str(root.receiptCanonicalJson,131072);
+  guard();need(await sha256(new TextEncoder().encode(canonical))===selection.acceptedRoomReceiptSha256);guard();
+  const literal=parse(canonical);
+  need(literal!==null&&typeof literal==='object'&&!Array.isArray(literal)&&!isExactDecimal(literal)
+    &&literal.sourceReceiptSha256===historicalSha);
+  boundedTree(root.rooms!);boundedTree(root.network!);boundedTree(root.electricity!);
+  const anchors=receipt(selection);const bound=new Map<string,NativeSceneFloorBinding>();const nativeKeys=new Set<string>();
+  need(selection.sourceFloorBindings.length<=3);
+  for(const binding of selection.sourceFloorBindings){need(!bound.has(binding.sourceFloorKey)&&!nativeKeys.has(binding.nativeFloorKey)
+    &&SHA.test(binding.sourceOriginalSha256)&&SHA.test(binding.nativeOriginalSha256)&&UUID.test(binding.nativeGeometryId)&&UUID.test(binding.nativeOriginalAssetId));
+    bound.set(binding.sourceFloorKey,binding);nativeKeys.add(binding.nativeFloorKey);}
+  const roomSource=row(root.rooms,['status','reason','receiptId','receiptSha256','entries','regions']);
+  need(roomSource.receiptId===selection.acceptedRoomReceiptId&&roomSource.receiptSha256===selection.acceptedRoomReceiptSha256);
+  const net=row(root.network,['status','reason','source','devices','endpoints','links']);
+  const electric=row(root.electricity,['status','reason','documentarySource','roomRegistry','buildingPackageKey','retrievedAt']);
+  const fixtures=root.schema==='houseatlas.native-scene-source.v2'?row(root.electricalFixtures,['status','reason','documentaryFixtures']):null;
+  if(fixtures)boundedTree(root.electricalFixtures!);
+  let support:DocumentarySupport|null=null;
+  if(selection.drawingSupport){support=await readDocumentarySupport(historicalBytes,guard);guard();
+    need(support&&support.originalSha256===historicalSha&&support.reviewMarker===selection.drawingSupport.reviewMarker
+      &&fixtures?.documentaryFixtures&&sameDocumentaryValue(support.fixtureLedger,fixtures.documentaryFixtures)
+      &&sameDocumentaryValue(documentaryReferences(support,selection) as unknown as LosslessJson,selection.drawingReferences as unknown as LosslessJson));}
+  const rawFixtures=fixtures===null?unavailable('not-retained'):electricalFixtures(fixtures,selection.viewKey,
+    support?.roomMapping.receiptId??selection.acceptedRoomReceiptId,support?.roomMapping.originalSha256??selection.acceptedRoomReceiptSha256,anchors);
+  const currentFixtures=rawFixtures.status==='available'&&support?freeze({status:'available' as const,data:{...rawFixtures.data,
+    roomMappingReceipt:{id:selection.acceptedRoomReceiptId!,sha256:selection.acceptedRoomReceiptSha256!}}}):rawFixtures;
+  guard();return freeze({network:network(net,selection.viewKey,selection.acceptedRoomReceiptId,selection.acceptedRoomReceiptSha256,anchors,bound),
+    electricity:electricity(electric,selection.viewKey),electricalFixtures:currentFixtures,drawingReferences:drawingReferences(selection,currentFixtures),
+    ...(support&&currentFixtures.status==='available'?{drawingProvenance:{historicalRoomMappingReceipt:{id:support.roomMapping.receiptId,sha256:support.roomMapping.originalSha256},
+      fixtureLedgerSha256:support.fixtureLedgerSha256,supportOriginalSha256:support.originalSha256,currentNativeRoomReview:{id:selection.acceptedRoomReceiptId!,sha256:selection.acceptedRoomReceiptSha256!}}}:{})});
+}
