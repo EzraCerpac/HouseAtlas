@@ -267,6 +267,161 @@ for (const levelId of ['syn-level-ground', 'syn-level-split', 'syn-level-upper',
   assert.equal(reduce(state, { type: 'select', occurrenceId: 'syn-occ-gallery' }).occurrenceId, 'syn-occ-gallery');
 }
 
+// ---- Section transitions: one eased plane per building --------------------------------------
+// The stage eases `sectionGoals` and restores them with `sectionCuts`; these checks call the same
+// helpers and `easePresentation` with fixed intermediate values instead of animation frames.
+const { atlasOrigin, sectionCeilings, sectionTargets, sectionGoals, sectionCuts, easePresentation } = scene;
+const ceilings = sectionCeilings(model);
+near(ceilings, [5.71, 3.01], 'each building rests just above its own geometry');
+const datum = atlasOrigin(model)[1];
+const sweep = {
+  whole: initial,
+  stacked,
+  ground: reduce(stacked, { type: 'level', levelId: 'syn-level-ground' }),
+  upper: reduce(stacked, { type: 'level', levelId: 'syn-level-upper' }),
+  explodedGround: reduce(stacked, { type: 'level', levelId: 'syn-level-ground' }, { type: 'explode', exploded: true }),
+  planSplit: reduce(initial, { type: 'level', levelId: 'syn-level-split' }, { type: 'view', view: 'plan' }),
+  studio: reduce(initial, { type: 'level', levelId: 'syn-level-studio' }),
+};
+// Focused stacked floors and plans cut at their section; whole, exploded and other buildings rest uncut.
+const sweepTargets = { whole: [5.71, 3.01], stacked: [5.71, 3.01], ground: [1.2, 3.01], upper: [4, 3.01], explodedGround: [5.71, 3.01],
+  planSplit: [2.6, 3.01], studio: [5.71, 1.2] };
+for (const [name, value] of Object.entries(sweep)) {
+  const presentation = presentAtlas(model, value, none), targets = sectionTargets(model, presentation, ceilings);
+  near(targets, sweepTargets[name], `${name} section targets`);
+  assert.equal(easePresentation(model, presentation, presentation.explodeTarget, targets, targets, ceilings), presentation,
+    `${name}: settled sections are the target presentation`);
+  // Reduced motion hands the goals straight back; the restored cuts are the exact targets.
+  assert.deepEqual(sectionCuts(sectionGoals(targets, datum), targets, datum), targets, `${name}: reduced-motion cuts`);
+}
+/** A room is revealed while one of its pick parts starts at or below its current cut. */
+const revealed = (presentation, key) => model.pickParts.get(key).some(part => {
+  const clip = presentation.clips.get(part.mesh.meshKey) ?? null;
+  return clip === null || part.mesh.yRange[0] <= clip;
+});
+// Stacked Ground -> Exploded, partway: the section has risen to 2 m while floors part. Upper rooms
+// are still cut away, so their labels, overlay counts and taps must not appear yet.
+{
+  const target = presentAtlas(model, sweep.explodedGround, none), targets = sectionTargets(model, target, ceilings);
+  const t = 0.3, shown = easePresentation(model, target, t, [2, targets[1]], targets, ceilings);
+  assert.equal(target.pickable.size, 8);
+  assert.deepEqual([...shown.pickable].sort(), ['syn-occ-bedroom-split', 'syn-occ-hall', 'syn-occ-living', 'syn-occ-stairs-ground', 'syn-occ-study']);
+  for (const key of target.pickable) assert.equal(shown.pickable.has(key), revealed(shown, key), `mid-sweep control follows geometry: ${key}`);
+  assert.deepEqual(network.placed.get('syn-room-stairs').occurrenceIds.filter(key => shown.pickable.has(key)), ['syn-occ-stairs-ground'],
+    'the two-floor network count stands only on the revealed stairs part');
+  // Straight down through both stairs parts: the target alone would pick the lifted upper part;
+  // the current cut picks the revealed ground part.
+  const projection = makeProjection(pose(90), frameBox(model, sweep.explodedGround, target), VIEWPORT, 0);
+  const [x, z] = centre('syn-occ-stairs-upper');
+  const [px, py] = projection.project(x, model.floorY.get('syn-level-upper') + 0.6 + levelLift(target, 'syn-level-upper', t), z);
+  assert.equal(pickOccurrence(model, target, t, projection, px, py), 'syn-occ-stairs-upper');
+  assert.equal(pickOccurrence(model, shown, t, projection, px, py), 'syn-occ-stairs-ground');
+}
+// Stacked whole -> Ground, partway down at 3 m: floors above the new focus are cut by the moving
+// plane instead of vanishing, and the roof above it stays off.
+{
+  const target = presentAtlas(model, sweep.ground, none), targets = sectionTargets(model, target, ceilings);
+  const shown = easePresentation(model, target, 0, [3, targets[1]], targets, ceilings);
+  for (const [node, primitive] of [[2, 1], [2, 2]]) {
+    const key = drawnAt(node, primitive).mesh.meshKey;
+    assert.ok(target.hidden.has(key) && !shown.hidden.has(key), `walls ${primitive} drawn while the plane passes`);
+    assert.equal(shown.clips.get(key), 3);
+  }
+  assert.ok(shown.hidden.has(drawnAt(3, 0).mesh.meshKey), 'roof above the plane stays off');
+  assert.deepEqual([...shown.pickable].sort(), [...target.pickable].sort());
+}
+// Retargeting mid-sweep: on its way down to Ground at 2 m, the reader picks Upper. The plane turns
+// back up from 2 m, and Upper's rooms gain controls only as the cut passes their floor.
+{
+  const target = presentAtlas(model, sweep.upper, none), targets = sectionTargets(model, target, ceilings);
+  const goals = sectionGoals(targets, datum);
+  let eased = sectionGoals([2, targets[1]], datum), settled = false;
+  const cutsSeen = [], bathLive = [];
+  for (let frame = 0; frame < 240 && !settled; frame++) {
+    // An exponential approach that lands exactly on its goal, as the stage's easing does.
+    eased = Object.fromEntries(Object.entries(goals).map(([key, goal]) => {
+      const value = eased[key] + (goal - eased[key]) * 0.1;
+      return [key, Math.abs(goal - value) < 0.002 ? goal : value];
+    }));
+    const cuts = sectionCuts(eased, targets, datum), shown = easePresentation(model, target, 0, cuts, targets, ceilings);
+    for (const key of target.pickable) assert.equal(shown.pickable.has(key), revealed(shown, key), `retarget frame ${frame}: ${key}`);
+    cutsSeen.push(cuts[0]); bathLive.push(shown.pickable.has('syn-occ-bath'));
+    settled = shown === target;
+  }
+  assert.ok(settled, 'the retargeted sweep settles on the target presentation');
+  assert.ok(cutsSeen[0] > 2 && cutsSeen[0] < 2.3, 'the plane continues from its intermediate height');
+  assert.ok(cutsSeen.every((cut, at) => at === 0 || cut >= cutsSeen[at - 1]), 'and rises without a jump');
+  assert.equal(cutsSeen.at(-1), targets[0]);
+  const bathFloor = model.pickParts.get('syn-occ-bath')[0].mesh.yRange[0];
+  assert.ok(bathLive.includes(false) && bathLive.at(-1));
+  assert.deepEqual(bathLive, cutsSeen.map(cut => cut >= bathFloor), 'the bathroom becomes selectable as the cut reveals it');
+}
+// The same coherent publication 100 000 m higher in its valid source frame: targets move with it,
+// eased goals do not, and mid-sweep reveal, picks and label heights match. World positions are
+// float32 after the standard loader, spaced 1/128 m at this height.
+{
+  const RISE = 100_000, tolerance = 0.01;
+  const input = await buildSyntheticAtlas(scope, RISE);
+  const envelope = await composeAtlasEnvelope(input.companionBytes, input.glb, SYNTHETIC_ATLAS.revision);
+  const raisedRead = await readUnifiedAtlas({ selection: { ...selection, publicationId: envelope.publicationId },
+    signal: new AbortController().signal, origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true,
+    transport: createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(scope), envelopeBytes: envelope.envelopeBytes,
+      href: envelope.href, glb: input.glb, sha256: envelope.sha256, revision: SYNTHETIC_ATLAS.revision }) });
+  const raised = bindAtlasModel(raisedRead.scene, await loadStandardGlb(raisedRead.model, 'raised', new AbortController().signal));
+  const close = (a, b, label) => a.forEach((value, at) => assert.ok(Math.abs(value - b[at]) <= tolerance, `${label}: ${a} vs ${b}`));
+  assert.equal(raised.parts.length, model.parts.length);
+  assert.deepEqual([...raised.selectable].sort(), [...model.selectable].sort());
+  for (const level of model.scene.levels) {
+    const elevated = raised.levelsById.get(level.levelId).sourceElevationM;
+    if (level.sourceElevationM === null) assert.equal(elevated, null);
+    else close([elevated - RISE], [level.sourceElevationM], `raised recorded elevation ${level.levelId}`);
+  }
+  assert.deepEqual(raised.overlays.get('network').placed.get('syn-room-stairs').occurrenceIds, network.placed.get('syn-room-stairs').occurrenceIds);
+  const raisedDatum = atlasOrigin(raised)[1], raisedCeilings = sectionCeilings(raised);
+  close([raisedDatum - RISE], [datum], 'raised datum');
+  close(raisedCeilings.map(value => value - RISE), ceilings, 'raised ceilings');
+  for (const [name, value] of Object.entries(sweep)) {
+    const base = presentAtlas(model, value, none), high = presentAtlas(raised, value, none);
+    const baseTargets = sectionTargets(model, base, ceilings), highTargets = sectionTargets(raised, high, raisedCeilings);
+    close(highTargets.map(target => target - RISE), baseTargets, `${name} raised targets`);
+    // The stage eases goals relative to the datum: the same small values, so the same motion and
+    // settle tolerance, at either height.
+    const highGoals = Object.values(sectionGoals(highTargets, raisedDatum));
+    close(highGoals, Object.values(sectionGoals(baseTargets, datum)), `${name} eased goals`);
+    assert.ok(highGoals.every(goal => Math.abs(goal) < 10), `${name} goals stay within the model's own height`);
+    assert.deepEqual(sectionCuts(sectionGoals(highTargets, raisedDatum), highTargets, raisedDatum), highTargets, `${name} raised settled cuts`);
+    assert.equal(easePresentation(raised, high, high.explodeTarget, highTargets, highTargets, raisedCeilings), high, `${name} raised settled presentation`);
+    // Halfway from rest to each target while floors half part or close.
+    const baseShown = easePresentation(model, base, 0.5, baseTargets.map((target, at) => (target + ceilings[at]) / 2), baseTargets, ceilings);
+    const highShown = easePresentation(raised, high, 0.5, highTargets.map((target, at) => (target + raisedCeilings[at]) / 2), highTargets, raisedCeilings);
+    assert.deepEqual([...highShown.pickable].sort(), [...baseShown.pickable].sort(), `${name} raised reveal`);
+    model.parts.forEach((part, at) => {
+      const key = part.mesh.meshKey, highKey = raised.parts[at].mesh.meshKey;
+      assert.equal(highShown.hidden.has(highKey), baseShown.hidden.has(key), `${name} raised drawing ${at}`);
+      const baseClip = baseShown.clips.get(key) ?? null, highClip = highShown.clips.get(highKey) ?? null;
+      assert.equal(highClip === null, baseClip === null, `${name} raised clip ${at}`);
+      if (baseClip !== null) close([highClip - RISE], [baseClip], `${name} raised clip ${at}`);
+    });
+    for (const pitch of [60, 90]) {
+      const baseProjection = makeProjection(pose(pitch, 20), frameBox(model, value, base), VIEWPORT, 0);
+      const highProjection = makeProjection(pose(pitch, 20), frameBox(raised, value, high), VIEWPORT, 0);
+      for (const key of baseShown.pickable) {
+        const [x, z] = centre(key), level = model.occurrencesById.get(key).levelId;
+        const probe = (subject, presentation, projection) => projection.project(x,
+          subject.floorY.get(level) + 0.6 + levelLift(presentation, occurrenceLiftLevel(subject, key), 0.5), z);
+        assert.equal(pickOccurrence(raised, highShown, 0.5, highProjection, ...probe(raised, high, highProjection)),
+          pickOccurrence(model, baseShown, 0.5, baseProjection, ...probe(model, base, baseProjection)), `${name} raised pick ${key} at ${pitch}°`);
+        if (name === 'stacked' && key === 'syn-occ-living' && pitch === 90) {
+          assert.equal(pickOccurrence(model, baseShown, 0.5, baseProjection, ...probe(model, base, baseProjection)), 'syn-occ-bath');
+          assert.equal(pickOccurrence(raised, highShown, 0.5, highProjection, ...probe(raised, high, highProjection)), 'syn-occ-bath',
+            'the room interior remains pickable on a shared triangle seam');
+        }
+        close([labelHeight(raised, highShown, key, false) - RISE], [labelHeight(model, baseShown, key, false)], `${name} raised label ${key}`);
+      }
+    }
+  }
+}
+
 // ---- Selection continuity ----------------------------------------------------------------
 let state = reduce(initial, { type: 'select', occurrenceId: 'syn-occ-hall' });
 assert.deepEqual([state.occurrenceId, state.buildingId, state.levelId], ['syn-occ-hall', 'syn-building-house', 'syn-level-ground']);
@@ -350,5 +505,7 @@ for (const firstLift of [1, 2]) {
 console.log('PASS unified Atlas healthy: generated scene/model read through the production reader; standard loader nested, reused and '
   + 'multi-primitive transforms applied once; explicit selector binding; room picks hidden yet pickable; stacked, focused, exploded, '
   + 'mid-transition and plan picks at shared lifts; labels, duplicate names, a two-floor room, overlay joins and selection continuity. '
+  + 'Section targets, settled and reduced-motion equivalence, mid-sweep reveal agreeing across drawing, picks and room controls, '
+  + 'retargeting from an intermediate cut, and the same publication 100 000 m higher. '
   + 'Normal pointer tap, drag, capture handoff, drag-to-pinch, either-finger release and plan pan use production handlers. '
   + 'Generated data only; no renderer, browser or device acceptance.');

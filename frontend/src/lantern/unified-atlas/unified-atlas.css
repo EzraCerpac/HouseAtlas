@@ -416,6 +416,7 @@
 }
 
 .lantern-host .ua-key-head {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -752,15 +753,18 @@
 
 /* ---- Room panel as a sheet --------------------------------------------- */
 
-/* Tablets: a card over the stage's lower right; its head stays in view. */
+/* Tablets: a card over the stage's lower right; its head stays in view. The
+   right column holds the view tools, the overlays and the card; the floor rail
+   keeps the left column, so neither covers the other. */
 @container ua (max-width: 1040px) {
-  /* Out of flow, so the panel's grid track collapses and the stage fills the shell. */
+  /* Out of flow, so the panel's grid track collapses and the stage fills the shell.
+     Its top stays below the view tools, which may wrap to two rows. */
   .lantern-host .ua-inspector {
     position: absolute;
     right: 12px;
     bottom: 12px;
     width: min(400px, calc(100% - 24px));
-    max-height: min(72%, 560px);
+    max-height: min(72%, 560px, calc(100% - 132px));
     border: 1px solid var(--hair-2);
     border-radius: var(--r-sheet);
     box-shadow: var(--shadow-sheet);
@@ -770,17 +774,37 @@
   .lantern-host .ua-sheet-toggle { display: inline-flex; }
   .lantern-host .ua-inspector:not(.is-open) .ua-sheet-body { display: none; }
   .lantern-host .ua-inspector:not(.is-open) .ua-sheet-head { border-bottom: 0; }
-  .lantern-host .ua-bottom { right: calc(min(400px, 100% - 24px) + 28px); }
+
+  /* Overlays stand above the card head, between the view tools and the card;
+     a long key scrolls inside that band. */
+  .lantern-host .ua-bottom {
+    top: 120px;
+    left: auto;
+    right: 12px;
+    bottom: calc(var(--ua-peek) + 28px);
+    width: min(400px, calc(100% - 24px));
+    justify-content: flex-end;
+  }
+
+  .lantern-host .ua-key { flex: 0 1 auto; min-height: 0; max-height: none; }
+
+  /* An open card covers that band: its overlay controls step aside, out of
+     the tab order, until the card closes. */
+  .lantern-host .ua-shell.is-sheet-open .ua-bottom { visibility: hidden; }
+
+  .lantern-host .ua-shell.is-sheet-open .ua-label-hit,
+  .lantern-host .ua-shell.is-sheet-open .ua-marker { visibility: hidden; }
 }
 
 /* Phones: the sheet spans the lower edge; overlays stand just above its head. */
 @container ua (max-width: 720px) {
+  /* Never taller than the stage below the view tools and floor row. */
   .lantern-host .ua-inspector {
     left: 0;
     right: 0;
     bottom: 0;
     width: auto;
-    max-height: 72%;
+    max-height: min(72%, calc(100% - 118px));
     border-width: 1px 0 0;
     border-radius: var(--r-sheet) var(--r-sheet) 0 0;
   }
@@ -789,15 +813,19 @@
   .lantern-host .ua-sheet-body { padding: 12px 16px 18px; }
   .lantern-host .ua-inspector h2 { font-size: var(--fs-l); }
 
+  /* Between the floor row and the sheet head. */
   .lantern-host .ua-bottom {
+    top: 118px;
     left: 8px;
     right: 8px;
     bottom: calc(var(--ua-peek) + 8px);
+    width: auto;
     align-items: stretch;
     gap: 6px;
   }
 
-  .lantern-host .ua-key { width: 100%; max-height: 30vh; }
+  .lantern-host .ua-key { width: 100%; }
+
 }
 
 /* ---- Narrow stages: controls in two rows above the model ---------------- */

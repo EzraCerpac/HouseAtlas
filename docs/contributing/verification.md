@@ -1200,6 +1200,13 @@ foreign-publication, unqualified-join and unselectable-action controls are not
 part of this ordinary runner. This adds no device cancellation, hardware failure,
 malformed/omission, denial, replay, expiry, private-intake or browser test.
 
+The same named healthy runner also checks generated section targets, current
+clip visibility during a sweep, retargeting, and exact settled/reduced-motion
+values. A coherently translated publication passes the production reader,
+standard loader and binder 100,000 m above its original source Y; it retains
+the expected room pick at a shared triangle seam. These are positive CPU
+observations, not React animation, rendered layout or browser focus evidence.
+
 The separate generated interaction positives use the production reader, standard
 GLB loader, reducer, projection, pointer factory and documentary index. Inspect
 `frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs`, its

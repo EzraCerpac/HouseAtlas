@@ -1,5 +1,6 @@
 import {
-  useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent as ReactPointerEvent,
+  useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type FocusEvent,
+  type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { Icon } from '../components/Icon';
 import { useReducedMotion, useStore } from '../state/store';
@@ -12,8 +13,8 @@ import { TONE_COLOR, badgeFill, toneTint } from '../canonical-ifc/tones';
 import { PREPARED_BYTES_PER_TRIANGLE } from '../site-artifacts/site-budget';
 import type { ModelOverviewSelection } from '../source-models/overview-types';
 import {
-  atlasReducer, bindAtlasModel, contextOccurrenceIds, easePresentation, focusBuildingId, frameBox, hasExplodableLevels, initialAtlasState, labelHeight, levelLift,
-  occurrenceLiftLevel, partLifts, pickOccurrence, planPickOccurrence, planPoint, presentAtlas, sectionCeilings, sectionTargets,
+  atlasOrigin, atlasReducer, bindAtlasModel, contextOccurrenceIds, easePresentation, focusBuildingId, frameBox, hasExplodableLevels, initialAtlasState, labelHeight,
+  levelLift, occurrenceLiftLevel, partLifts, pickOccurrence, planPickOccurrence, planPoint, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
   type AtlasAction, type AtlasModel, type AtlasViewState, type OverlayLayerIndex, type UnplacedReason,
 } from './scene';
 import { AtlasReadError, type AtlasLevel, type AtlasOccurrence, type AtlasRoom, type AtlasOverlayBinding, type AtlasReadFailure, type OverlayKind, type UnifiedAtlasPort } from './types';
@@ -130,6 +131,7 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
   const dispatch = useCallback((action: AtlasAction) => setState(value => atlasReducer(model, value, action)), [model]);
   useEffect(() => { remember(key, state); }, [key, state]);
   const [failure, setFailure] = useState<string | null>(null);
+  const shell = useRef<HTMLElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const plan = state.view === 'plan';
 
@@ -154,13 +156,7 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
   const presentation = useMemo(() => presentAtlas(model, state, highlighted), [model, state, highlighted]);
 
   // One eased frame for buildings, floors and plans, relative to a fixed model origin.
-  const origin = useMemo(() => {
-    const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
-    for (const building of model.scene.buildings) for (let axis = 0; axis < 3; axis++) {
-      min[axis] = Math.min(min[axis]!, building.bounds.min[axis]!); max[axis] = Math.max(max[axis]!, building.bounds.max[axis]!);
-    }
-    return [0, 1, 2].map(axis => (min[axis]! + max[axis]!) / 2) as unknown as readonly [number, number, number];
-  }, [model]);
+  const origin = useMemo(() => atlasOrigin(model), [model]);
   const frame = useMemo(() => frameBox(model, state, presentation), [model, state, presentation]);
   const frameGoal = {
     cx: (frame.min[0] + frame.max[0]) / 2 - origin[0], cy: (frame.min[1] + frame.max[1]) / 2 - origin[1], cz: (frame.min[2] + frame.max[2]) / 2 - origin[2],
@@ -178,13 +174,27 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
 
   // One section plane per building: it sweeps to the focus floor instead of
   // floors vanishing, and the same eased clips are drawn, picked and labelled.
+  // Heights ease relative to the model's own datum, wherever the source frame puts it.
   const ceilings = useMemo(() => sectionCeilings(model), [model]);
   const sectionGoal = useMemo(() => sectionTargets(model, presentation, ceilings), [model, presentation, ceilings]);
-  const sectionEased = useEased(Object.fromEntries(sectionGoal.map((value, at) => [`s${at}`, value])), { reduced, tau: 210 });
-  const cuts = useMemo(() => sectionGoal.map((_, at) => sectionEased[`s${at}`]!), [sectionEased, sectionGoal]);
+  const sectionEased = useEased(sectionGoals(sectionGoal, origin[1]), { reduced, tau: 210 });
+  const cuts = useMemo(() => sectionCuts(sectionEased, sectionGoal, origin[1]), [sectionEased, sectionGoal, origin]);
   const shown = useMemo(() => easePresentation(model, presentation, t, cuts, sectionGoal, ceilings), [model, presentation, t, cuts, sectionGoal, ceilings]);
 
   const [sheetOpen, setSheetOpen] = useState(false);
+  // The collapsed head can wrap at narrow widths or enlarged text sizes.
+  // Keep the overlay band above its actual height rather than a fixed estimate.
+  useLayoutEffect(() => {
+    const root = shell.current, head = root?.querySelector<HTMLElement>('.ua-sheet-head');
+    if (!root || !head) return;
+    const measure = () => {
+      const height = head.getBoundingClientRect().height;
+      if (height > 0) root.style.setProperty('--ua-peek', `${Math.ceil(height)}px`);
+    };
+    measure();
+    const observer = new ResizeObserver(measure); observer.observe(head);
+    return () => { observer.disconnect(); root.style.removeProperty('--ua-peek'); };
+  }, [selected]);
   const select = (occurrenceId: string | null) => dispatch({ type: 'select', occurrenceId });
   const camera = useStageCamera({ element: viewport, top: plan, reduced, onEscape: () => select(null),
     onTap: (px, py, target) => {
@@ -232,35 +242,38 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
     return { x, y: sy, clearance: point.clearance };
   };
 
+  // Room controls follow what a tap would pick: rooms revealed by the eased
+  // section in 3D, the target floor's plan once the camera has tipped into Plan.
+  const live = planBlend >= .5 ? presentation.pickable : shown.pickable;
   const markers = useMemo(() => {
     if (!layer) return [];
     const rows: { key: string; occurrenceId: string; roomLabel: string; count: number; x: number; y: number }[] = [];
     for (const placement of layer.placed.values()) for (const occurrenceId of placement.occurrenceIds) {
-      if (!presentation.pickable.has(occurrenceId)) continue;
+      if (!live.has(occurrenceId)) continue;
       const at = anchorOf(occurrenceId); if (!at) continue;
       rows.push({ key: `${layer.kind}:${occurrenceId}`, occurrenceId, roomLabel: model.roomsById.get(placement.roomId)!.label,
         count: placement.recordIds.length, x: at.x, y: at.y });
     }
     return rows;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layer, presentation, shown, projection, t, planBlend, model]);
+  }, [layer, live, presentation, shown, projection, t, planBlend, model]);
   const markerAt = useMemo(() => new Set(markers.map(row => row.occurrenceId)), [markers]);
   const positions = useMemo(() => {
     if (!layer) return [];
     return [...layer.placed.values()].flatMap(placement => placement.positions.flatMap(row => {
-      if (!presentation.pickable.has(row.occurrenceId)) return [];
+      if (!live.has(row.occurrenceId)) return [];
       const [x, y] = projection.project(row.position[0], row.position[1] + lift(row.occurrenceId), row.position[2]);
       return [{ key: `${row.occurrenceId}:${row.position.join(',')}`, x, y }];
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layer, presentation, projection, t]);
+  }, [layer, live, presentation, projection, t]);
 
   // The selected room's tag stands on a leader in 3D and folds onto its floor
   // as the camera reaches Plan: one landmark through every view.
   const rise = Math.min(1, Math.max(0, 1 - planBlend / .6));
   const labels = useMemo(() => {
     const rows: { id: string; text: string; x: number; y: number; tier: 'selected' | 'context' | 'plain'; clearance: number; rise: number }[] = [];
-    for (const occurrenceId of presentation.pickable) {
+    for (const occurrenceId of live) {
       const at = anchorOf(occurrenceId); if (!at) continue;
       const tier = occurrenceId === selected ? 'selected' : context.includes(occurrenceId) ? 'context' : 'plain';
       // Plain labels stay on the floor in focus; lower floors seen through the section stay quiet.
@@ -282,18 +295,49 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
       placed.push(box); return true;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [presentation, shown, projection, t, planBlend, selected, context, markerAt, model, size]);
+  }, [live, presentation, shown, projection, t, planBlend, selected, context, markerAt, model, size]);
 
   // The moving section, drawn only while it travels and fading as it lands.
+  // One plane is true only while the building's floors stand at their source
+  // heights; parted floors are each cut at their own lift, so the cue stays off
+  // and the floors themselves show the cut.
   const planes = useMemo(() => planBlend >= .5 ? [] : model.floorBuildings.flatMap((row, at) => {
     const cut = cuts[at]!, away = Math.abs(cut - sectionGoal[at]!);
-    if (away < .02 || cut >= ceilings[at]! - 1e-3) return [];
-    const level = [...model.levelsByBuilding.get(row.buildingId) ?? []].reverse().find(item => model.floorY.get(item.levelId)! <= cut) ?? null;
-    const y = cut + levelLift(presentation, level?.levelId ?? null, t), b = row.bounds, m = .3;
+    if (away < .02 || cut >= ceilings[at]! - 1e-3 || (t > 0 && hasExplodableLevels(model, row.buildingId))) return [];
+    const b = row.bounds, m = .3;
     const points = ([[b.min[0] - m, b.min[2] - m], [b.max[0] + m, b.min[2] - m], [b.max[0] + m, b.max[2] + m], [b.min[0] - m, b.max[2] + m]] as const)
-      .map(([x, z]) => projection.project(x, y, z)).map(([x, py]) => `${x.toFixed(1)},${py.toFixed(1)}`).join(' ');
+      .map(([x, z]) => projection.project(x, cut, z)).map(([x, py]) => `${x.toFixed(1)},${py.toFixed(1)}`).join(' ');
     return [{ key: row.buildingId, points, opacity: Math.min(1, away / .8) * (1 - planBlend * 2) }];
-  }), [planBlend, model, cuts, sectionGoal, ceilings, presentation, t, projection]);
+  }), [planBlend, model, cuts, sectionGoal, ceilings, t, projection]);
+
+  // Projected label buttons, only where the whole tag is inside the stage.
+  const hits = labels.filter(label => {
+    const half = Math.max(44, Math.min(320, label.text.length * 7 + 12)) / 2, y = label.y - TAG_RISE * label.rise;
+    return label.x >= half && label.x + half <= size.width && y >= 16 && y + 16 <= size.height;
+  });
+  // A focused stage control can leave the stage: its tag rises past an edge
+  // or its floor is cut away. Focus then returns to the stage itself, without
+  // scrolling, instead of falling to the page.
+  const stageFocus = useRef<string | null>(null);
+  const stageKeys = [...hits.map(label => `label:${label.id}`), ...(layer ? markers.map(row => `marker:${row.key}`) : [])].join('\n');
+  useLayoutEffect(() => {
+    const key = stageFocus.current;
+    if (key === null || stageKeys.split('\n').includes(key)) return;
+    stageFocus.current = null;
+    const active = document.activeElement;
+    if (active === null || active === document.body) viewport.current?.focus({ preventScroll: true });
+  }, [stageKeys]);
+  const focusIn = (event: FocusEvent<HTMLDivElement>) => {
+    stageFocus.current = event.target instanceof HTMLElement ? event.target.dataset.stageKey ?? null : null;
+  };
+  const focusOut = (event: FocusEvent<HTMLDivElement>) => {
+    const node = event.target; if (!(node instanceof HTMLElement)) return;
+    const key = node.dataset.stageKey;
+    if (key === undefined || stageFocus.current !== key) return;
+    if (event.relatedTarget !== null) { stageFocus.current = null; return; }
+    // Focus went nowhere: kept for recovery only if the control itself was removed.
+    queueMicrotask(() => { if (node.isConnected && stageFocus.current === key) stageFocus.current = null; });
+  };
 
   // Only buildings with floors are navigable; context-only groups stay drawn around them.
   const buildings = model.floorBuildings;
@@ -307,7 +351,7 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
   const selectionLevel = selected ? model.occurrencesById.get(selected)!.levelId : null;
   const contextLevels = new Set(context.map(key => model.occurrencesById.get(key)!.levelId));
 
-  return <section className={`ua-shell is-stage${plan ? ' is-plan' : ''}`} aria-label="Atlas">
+  return <section ref={shell} className={`ua-shell is-stage${plan ? ' is-plan' : ''}${sheetOpen ? ' is-sheet-open' : ''}`} aria-label="Atlas">
     <div className="ua-stage">
       <div className="ua-scope">
         {model.scene.buildings.length > 1 && buildings.length > 0 && <nav className="ua-buildings" aria-label="Buildings">
@@ -341,7 +385,7 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
 
       <div ref={viewport} className={`cifc-viewport ua-viewport${camera.dragging ? ' is-dragging' : ''}`} tabIndex={0} role="group"
         aria-label={`${plan ? 'Plan' : '3D'} of ${scopeLabel}. Arrow keys ${plan ? 'pan' : 'turn'}, plus and minus zoom, Escape clears the room.`}
-        {...camera.bind}>
+        {...camera.bind} onFocus={focusIn} onBlur={focusOut}>
         <div className="cifc-canvas-wrap" style={{ opacity: 1 - planBlend }}>
           <MeshLayer meshes={model.meshes} projection={projection} rules={RULES} currentFloorId={presentation.focusLevelId}
             selectedOccurrenceId={selected} contextOccurrenceIds={context} tints={tints} hidden={!showCanvas}
@@ -355,9 +399,9 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
             {planFeatures.map((feature, at) => {
               if (feature.role !== 'room') return null;
               const key = feature.spaceOccurrenceId;
-              const live = key !== null && presentation.pickable.has(key);
-              const tier = !live ? ' is-display-only' : key === selected ? ' is-selected' : context.includes(key) ? ' is-context' : '';
-              const tint = live && tier === '' ? tints.get(key) : undefined;
+              const pickable = key !== null && presentation.pickable.has(key);
+              const tier = !pickable ? ' is-display-only' : key === selected ? ' is-selected' : context.includes(key) ? ' is-context' : '';
+              const tint = pickable && tier === '' ? tints.get(key) : undefined;
               return <path key={feature.featureId} d={planPaths[at]} fillRule="evenodd" vectorEffect="non-scaling-stroke"
                 className={`cifc-plan-space${tier}`} style={tint ? { fill: tint } as CSSProperties : undefined} />;
             })}
@@ -379,13 +423,10 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
             </g>)}
           </g>
         </svg>
-        {labels.filter(label => {
-          const half = Math.max(44, Math.min(320, label.text.length * 7 + 12)) / 2, y = label.y - TAG_RISE * label.rise;
-          return label.x >= half && label.x + half <= size.width && y >= 16 && y + 16 <= size.height;
-        }).map(label => <button key={label.id} type="button" className="ua-label-hit" data-atlas-occurrence={label.id}
+        {hits.map(label => <button key={label.id} type="button" className="ua-label-hit" data-atlas-occurrence={label.id} data-stage-key={`label:${label.id}`}
           style={{ left: label.x, top: label.y - TAG_RISE * label.rise, width: Math.max(44, Math.min(320, label.text.length * 7 + 12)) }}
           aria-label={`Select room: ${label.text}`} onClick={event => { if (event.detail === 0) select(label.id); }} />)}
-        {layer && markers.map(row => <button key={row.key} type="button" className="ua-marker"
+        {layer && markers.map(row => <button key={row.key} type="button" className="ua-marker" data-stage-key={`marker:${row.key}`}
           style={{ left: row.x, top: row.y, '--layer': badgeFill(layer.kind) } as CSSProperties}
           aria-label={`${row.roomLabel}: ${plural(row.count, `${OVERLAY_LABEL[layer.kind].toLowerCase()} record`)}`}
           onPointerDown={stop} onPointerUp={stop} onClick={() => select(row.occurrenceId)}>{row.count}</button>)}

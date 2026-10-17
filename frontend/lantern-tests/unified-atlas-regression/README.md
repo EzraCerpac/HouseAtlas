@@ -5,6 +5,19 @@ This is a new, test-only suite. All inputs are generated fixtures. No shared
 implementation, styles, source data, dependency locks, CI or publication
 manifests change. The frontend owner remains responsible for fixes.
 
+The observations below retain their original `abd7784` attribution. A later
+local Lantern repair based on `c6404e4` reran all eleven CPU interactions,
+typecheck, unified and canonical healthy checks, and the generated documentary
+source check successfully. Production and actual-host fixture builds passed
+the backend static policy at 49 and 35 regular files, each at most 4,000,000
+bytes. The unified healthy check now covers section targets, intermediate
+reveals, retargeting, exact settled values and a coherent publication translated
+100,000 m upward, including a room-interior pick on a shared triangle seam.
+The browser script's selectors were adapted to the new sheet and Exploded
+toggle; it has not been executed against that repair. Source review of focus,
+sheet visibility and measured header spacing does not establish rendered
+layout, browser focus ordering, native qualification or device acceptance.
+
 | Promised experience | Observed synthetic result | Browser / native acceptance |
 | --- | --- | --- |
 | One Atlas | Production reader reads one envelope and exactly its pinned GLB; interactions cause no further reads | Actual host fixture **builds**. Single-Atlas DOM assertion is authored, **not executed** |

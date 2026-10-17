@@ -136,6 +136,14 @@ try {
       await wait(50);
     };
     const selectedRoom = () => evaluate('document.querySelector(".ua-inspector.is-room h2")?.textContent ?? null');
+    // Below a 1041px Atlas the room panel is a sheet with a visible toggle; its
+    // body (room list, Also on) is shown only while open, and an open sheet sets
+    // the overlay bar aside. Wide layouts have no visible toggle.
+    const sheet = async open => {
+      const toggle = await evaluate(`(()=>{const t=document.querySelector('.ua-sheet-toggle');
+        return t&&getComputedStyle(t).display!=='none'?t.getAttribute('aria-expanded'):null;})()`);
+      if (toggle !== null && toggle !== String(open)) await click('document.querySelector(".ua-sheet-toggle")');
+    };
     const clear = async () => {
       if (await selectedRoom()) await click('document.querySelector("button[aria-label=\'Clear room\']")');
     };
@@ -159,7 +167,7 @@ try {
       assert.equal(rows.length, 10);
       for (const row of rows) {
         await clear(); await click(button('.ua-buildings button', 'All buildings'));
-        await click(roomButton(row.floor, row.label));
+        await sheet(true); await click(roomButton(row.floor, row.label));
         assert.equal(await selectedRoom(), row.label);
         assert.equal(await evaluate('document.querySelector(".ua-room-floor").textContent'), row.floor);
         assert.equal(await evaluate('document.activeElement===document.querySelector(".ua-inspector h2")'), true);
@@ -167,26 +175,29 @@ try {
     });
     await check('connected plans and stairs occurrence navigation', async () => {
       await clear(); await click(button('.ua-buildings button', 'Synthetic house'));
-      await click(roomButton('Ground floor, Synthetic house', 'Stairs'));
+      await sheet(true); await click(roomButton('Ground floor, Synthetic house', 'Stairs'));
       await click(button('[aria-label="Atlas view"] button', 'Plan'));
       await until('document.querySelectorAll(".ua-plan path").length>0', 'connected source plan');
       assert.equal(await selectedRoom(), 'Stairs');
-      await click(button('[aria-label="Also on"] button', 'Upper floor, Synthetic house'));
+      await sheet(true); await click(button('[aria-label="Also on"] button', 'Upper floor, Synthetic house'));
       assert.equal(await evaluate('document.querySelector(".ua-room-floor").textContent'), 'Upper floor, Synthetic house');
       await click(button('[aria-label="Atlas view"] button', '3D'));
       assert.equal(await selectedRoom(), 'Stairs');
     });
     await check('explode toggle and latest building transition', async () => {
       await click(button('.ua-buildings button', 'Synthetic house'));
+      // One toggle keeps the name "Exploded"; its pressed state carries stacked or exploded.
+      assert.equal(await evaluate(`(${button('.ua-tools button', 'Exploded')})?.getAttribute('aria-pressed')`), 'true');
       await click(button('.ua-tools button', 'Exploded'));
-      assert.equal(await evaluate(`(${button('.ua-tools button', 'Stacked')})?.getAttribute('aria-pressed')`), 'false');
-      await click(button('.ua-tools button', 'Stacked'));
+      assert.equal(await evaluate(`(${button('.ua-tools button', 'Exploded')})?.getAttribute('aria-pressed')`), 'false');
+      await click(button('.ua-tools button', 'Exploded'));
       for (const name of ['Synthetic studio', 'Synthetic house', 'Synthetic studio']) await click(button('.ua-buildings button', name));
       assert.equal(await selectedRoom(), null);
       assert.equal(await evaluate(`(${button('.ua-buildings button', 'Synthetic studio')}).getAttribute('aria-pressed')`), 'true');
-      assert.equal(await evaluate('Array.from(document.querySelectorAll(".ua-tools button")).some(b=>/Exploded|Stacked/.test(b.textContent))'), false);
+      assert.equal(await evaluate('Array.from(document.querySelectorAll(".ua-tools button")).some(b=>/Exploded/.test(b.textContent))'), false);
     });
     await check('overlay pointer activation, counts and two-floor network markers', async () => {
+      await sheet(false);
       await click(button('.ua-buildings button', 'Synthetic house'));
       await click(button('.layer-bar button', 'Electrical'));
       assert.equal(await evaluate('document.querySelectorAll(".ua-marker").length'), 2);

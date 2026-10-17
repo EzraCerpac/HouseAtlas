@@ -188,9 +188,15 @@ const overlay = (kind: 'electrical' | 'network', roomId: string, place: number |
   nativePlaceId: place === null ? null : PLACE(place), recordIds, anchor: { kind: 'room-summary' }, ...extra,
 });
 
-/** Producer companion for one scope; `original` pins the generated GLB. */
-export async function buildSyntheticAtlas(scope: Readonly<{ workspaceId: string; homeId: string }>) {
-  const glb = buildAtlasGlb(NODES, MESHES, [0]);
+/** Producer companion for one scope; `original` pins the generated GLB.
+ * `rise` places the same publication higher in its source frame: one parent
+ * node carries it in the GLB, and every companion height moves with it. The
+ * default output is unchanged. */
+export async function buildSyntheticAtlas(scope: Readonly<{ workspaceId: string; homeId: string }>, rise = 0) {
+  const glb = rise === 0 ? buildAtlasGlb(NODES, MESHES, [0])
+    : buildAtlasGlb([...NODES, { name: 'Datum', translation: [0, rise, 0] as Vec3, children: [0] }], MESHES, [NODES.length]);
+  const up = (point: Vec3): Vec3 => [point[0], point[1] + rise, point[2]];
+  const bounds = (min: Vec3, max: Vec3) => ({ min: up(min), max: up(max) });
   const house = 'syn-building-house', studio = 'syn-building-studio', boundary = 'syn-building-boundary';
   const meshBindings = [
     ...[['syn-level-ground'], ['syn-level-split'], ['syn-level-upper']].map((levelIds, at) =>
@@ -224,11 +230,11 @@ export async function buildSyntheticAtlas(scope: Readonly<{ workspaceId: string;
     ],
     levels: [
       // Listed out of height order: order comes from the scene heights.
-      { levelId: 'syn-level-upper', buildingId: house, label: 'Upper floor', nativePlaceId: PLACE(4), sourceElevationM: 2.8,
+      { levelId: 'syn-level-upper', buildingId: house, label: 'Upper floor', nativePlaceId: PLACE(4), sourceElevationM: 2.8 + rise,
         elevationBasis: 'Generated storey elevation', occurrenceIds: occurrenceIds('syn-level-upper'), bounds: bounds([102, 2.6, 51], [107, 5.4, 59]) },
-      { levelId: 'syn-level-ground', buildingId: house, label: 'Ground floor', nativePlaceId: PLACE(2), sourceElevationM: 0,
+      { levelId: 'syn-level-ground', buildingId: house, label: 'Ground floor', nativePlaceId: PLACE(2), sourceElevationM: rise,
         elevationBasis: 'Generated storey elevation', occurrenceIds: occurrenceIds('syn-level-ground'), bounds: bounds([102, -0.2, 51], [107, 2.8, 59]) },
-      { levelId: 'syn-level-split', buildingId: house, label: 'Split level', nativePlaceId: null, sourceElevationM: 1.4,
+      { levelId: 'syn-level-split', buildingId: house, label: 'Split level', nativePlaceId: null, sourceElevationM: 1.4 + rise,
         elevationBasis: 'Generated storey elevation', occurrenceIds: occurrenceIds('syn-level-split'), bounds: bounds([107, 1.2, 51], [112, 4, 59]) },
       { levelId: 'syn-level-studio', buildingId: studio, label: 'Studio floor', nativePlaceId: null, sourceElevationM: null,
         elevationBasis: null, occurrenceIds: occurrenceIds('syn-level-studio'), bounds: bounds([120, -0.2, 50], [126, 3, 55]) },
@@ -262,7 +268,7 @@ export async function buildSyntheticAtlas(scope: Readonly<{ workspaceId: string;
     overlayBindings: [
       overlay('electrical', 'syn-room-hall', 10, ['syn-circuit-1', 'syn-outlet-1', 'syn-outlet-2']),
       overlay('electrical', 'syn-room-living', 11, ['syn-outlet-3'], { spaceOccurrenceId: 'syn-occ-living',
-        anchor: { kind: 'source-position', position: [105.6, 0.3, 52.2], basis: 'Generated outlet position' } }),
+        anchor: { kind: 'source-position', position: up([105.6, 0.3, 52.2]), basis: 'Generated outlet position' } }),
       // Joined on both parts of the two-floor room; its source update date is unknown.
       overlay('network', 'syn-room-stairs', 12, ['syn-access-point-1'], { sourceUpdatedAt: null }),
     ],

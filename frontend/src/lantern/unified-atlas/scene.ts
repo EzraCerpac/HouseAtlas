@@ -668,13 +668,36 @@ export function sectionTargets(model: AtlasModel, presentation: AtlasPresentatio
     ? Math.min(ceilings[at]!, sectionOf(model, focus!)) : ceilings[at]!);
 }
 
+/** Centre of all building bounds: the fixed datum eased values are taken
+ * against, so their settle tolerance never depends on where the source frame
+ * places the model. */
+export function atlasOrigin(model: AtlasModel): Vec3 {
+  const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+  for (const building of model.scene.buildings) for (let axis = 0; axis < 3; axis++) {
+    min[axis] = Math.min(min[axis]!, building.bounds.min[axis]!); max[axis] = Math.max(max[axis]!, building.bounds.max[axis]!);
+  }
+  return [(min[0]! + max[0]!) / 2, (min[1]! + max[1]!) / 2, (min[2]! + max[2]!) / 2];
+}
+
+/** Section heights as easing goals, relative to the datum height. A 3 m move
+ * near source Y = 100 000 m must ease like the same move near 0 m. */
+export const sectionGoals = (targets: readonly number[], datum: number): Record<string, number> =>
+  Object.fromEntries(targets.map((target, at) => [`s${at}`, target - datum]));
+
+/** Eased goals back in source Y. A settled goal returns its exact target, so
+ * settled and reduced-motion presentations are the target presentation. */
+export const sectionCuts = (eased: Readonly<Record<string, number>>, targets: readonly number[], datum: number): readonly number[] =>
+  targets.map((target, at) => { const value = eased[`s${at}`]!; return value === target - datum ? target : value + datum; });
+
 /** The presentation at eased section heights `cuts` and explode factor t.
  * Floors above a new focus are cut away by their building's moving section
  * instead of vanishing; exploded walls lower to their own sections as floors
  * part, and the roof is cut away first. Hidden parts are drawn again only while
  * their building's section or the explosion still moves, and settled values
- * return the target presentation itself. Drawing, picking and labels use the
- * result, so a room is never pickable where it is not drawn. */
+ * return the target presentation itself. A target-pickable room stays pickable
+ * only while one of its pick parts is below its current cut, the same test the
+ * picker applies; drawing, picking, labels and markers all use the result, so
+ * no room control stands where its floor is not yet revealed. */
 export function easePresentation(model: AtlasModel, presentation: AtlasPresentation, t: number,
   cuts: readonly number[], targets: readonly number[], ceilings: readonly number[]): AtlasPresentation {
   const exploding = t !== presentation.explodeTarget;
@@ -709,7 +732,12 @@ export function easePresentation(model: AtlasModel, presentation: AtlasPresentat
     if (!visible) hidden.add(key);
     clips.set(key, clip);
   }
-  return { ...presentation, hidden, clips };
+  // Hidden room-pick drawing is not a reason to drop a pick; its cut is.
+  const pickable = new Set([...presentation.pickable].filter(occurrenceId => (model.pickParts.get(occurrenceId) ?? []).some(part => {
+    const clip = clips.get(part.mesh.meshKey) ?? null;
+    return clip === null || part.mesh.yRange[0] <= clip;
+  })));
+  return { ...presentation, hidden, clips, pickable };
 }
 
 /** Display lift of a level at explode factor t. */
@@ -774,7 +802,11 @@ export function pickOccurrence(model: AtlasModel, presentation: AtlasPresentatio
       const l1 = ((b[1] - c[1]) * (px - c[0]) + (c[0] - b[0]) * (py - c[1])) / det;
       const l2 = ((c[1] - a[1]) * (px - c[0]) + (a[0] - c[0]) * (py - c[1])) / det;
       const l3 = 1 - l1 - l2;
-      if (l1 < 0 || l2 < 0 || l3 < 0) continue;
+      // Adjacent triangles share their edges. Projection roundoff can put an
+      // interior seam a few ulps outside both triangles, especially after a
+      // large source-frame translation; retain that boundary as pickable.
+      const edgeTolerance = 1e-10;
+      if (l1 < -edgeTolerance || l2 < -edgeTolerance || l3 < -edgeTolerance) continue;
       const sourceY = l1 * data[base + 1]! + l2 * data[base + 7]! + l3 * data[base + 13]!;
       if (clip !== null && sourceY > clip) continue;
       const depth = l1 * a[2] + l2 * b[2] + l3 * c[2];
