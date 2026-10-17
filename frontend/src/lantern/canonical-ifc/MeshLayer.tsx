@@ -38,10 +38,17 @@ interface Props {
   readonly shade?: string | undefined;
   /** With twoSided only: unit direction toward the light in the model frame, replacing the fixed upper-left light. */
   readonly light?: readonly [number, number, number] | undefined;
-  /** With twoSided only: upward-sloping faces of unbound, unselected geometry
-   * (between flat tops and walls) take this tone (hex), lit like walls. A
-   * presentation tone for the face's slope, never a material. */
+  /** With twoSided and pitchKeys only: upward-sloping faces of those unbound,
+   * unselected meshes (between flat tops and walls) take this tone (hex), lit
+   * like walls. A presentation tone for the face's slope, never a material. */
   readonly pitch?: string | undefined;
+  readonly pitchKeys?: ReadonlySet<string> | undefined;
+  /** With twoSided only: unbound, unselected meshes drawn as quiet ground in
+   * `site.tone`, the same at every slope with only a trace of shading, so they
+   * stay behind the architecture. */
+  readonly site?: { readonly keys: ReadonlySet<string>; readonly tone: string } | undefined;
+  /** With twoSided only: opacity of the faded cutaway, 0–1, instead of the default. */
+  readonly ghostAlpha?: number | undefined;
   readonly onUnavailable: (message: string) => void;
 }
 export interface MeshPalette {
@@ -94,7 +101,7 @@ export function MeshLayer(props: Props) {
   const redraw = useRef<(() => void) | null>(null);
   useLayoutEffect(() => { redraw.current?.(); },
     [props.projection, props.rules, props.currentFloorId, props.selectedOccurrenceId, props.contextOccurrenceIds, props.tints, props.hidden, props.referenceKeys,
-      props.hiddenKeys, props.selectedKeys, props.lifts, props.clips, props.dims, props.ghosts, props.palette, props.ambient, props.twoSided, props.shade, props.light, props.pitch]);
+      props.hiddenKeys, props.selectedKeys, props.lifts, props.clips, props.dims, props.ghosts, props.palette, props.ambient, props.twoSided, props.shade, props.light, props.pitch, props.pitchKeys, props.site, props.ghostAlpha]);
   useLayoutEffect(() => {
     const element = canvas.current; if (!element || props.meshes.length === 0) return;
     let creationReason = '';
@@ -157,6 +164,7 @@ export function MeshLayer(props: Props) {
       gl.uniform3f(uniforms.lightDir!, ...(p.twoSided && p.light ? [...p.light] as Rgb : FIXED_LIGHT));
       gl.uniform1f(uniforms.usePitch!, 0);
       const PITCH = p.twoSided && p.pitch ? rgb(p.pitch) : null;
+      const SITE = p.twoSided && p.site ? rgb(p.site.tone) : null;
       const { PAPER, WALL, TOP, CUT, ROOM, LANTERN, CONTEXT, GHOST } = tones(p.palette);
       for (const pass of ['reference', 'unbound', 'bound'] as const) {
         if (pass === 'unbound') gl.disable(gl.POLYGON_OFFSET_FILL);
@@ -178,9 +186,12 @@ export function MeshLayer(props: Props) {
             base = top; cut = mix(top, CUT, .18);
             // With a pitch tone, a room's own faces fall toward a deeper shade of its tint, never a drab one.
             if (PITCH) shade = mix(SHADE, base, .45);
+          } else if (SITE && p.site!.keys.has(mesh.meshKey)) {
+            // Ground: one tone at every slope, barely shaded, so terrain never reads as mass.
+            top = mix(SITE, PAPER, dim * .25); base = top; pitch = top; cut = mix(top, CUT, .25); shade = mix(SHADE, top, .82);
           } else {
             top = mix(TOP, PAPER, dim); base = mix(WALL, PAPER, dim); cut = mix(CUT, PAPER, dim * .8);
-            if (PITCH) pitch = mix(PITCH, PAPER, dim);
+            if (PITCH && p.pitchKeys?.has(mesh.meshKey)) pitch = mix(PITCH, PAPER, dim);
           }
           gl.uniform3f(uniforms.topColor!, ...top); gl.uniform3f(uniforms.baseColor!, ...base); gl.uniform3f(uniforms.cutColor!, ...cut);
           gl.uniform1f(uniforms.usePitch!, pitch ? 1 : 0); gl.uniform3f(uniforms.pitchColor!, ...(pitch ?? base)); gl.uniform3f(uniforms.shadeColor!, ...shade);
@@ -193,7 +204,10 @@ export function MeshLayer(props: Props) {
       if (p.ghosts && p.ghosts.size > 0) {
         // Faded cutaway last: behind nothing opaque, writing no depth, so it never covers or blocks what is drawn.
         gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
-        gl.uniform1f(uniforms.alpha!, GHOST_ALPHA); gl.uniform1f(uniforms.useClip!, 0); gl.uniform1f(uniforms.usePitch!, 0); gl.uniform3f(uniforms.shadeColor!, ...SHADE);
+        // An opt-in ghost opacity also keeps the ghost nearly flat, so stacked faded floors stay one quiet veil.
+        const quiet = p.twoSided && p.ghostAlpha !== undefined;
+        gl.uniform1f(uniforms.alpha!, quiet ? Math.min(1, Math.max(0, p.ghostAlpha!)) : GHOST_ALPHA);
+        gl.uniform1f(uniforms.useClip!, 0); gl.uniform1f(uniforms.usePitch!, 0); gl.uniform3f(uniforms.shadeColor!, ...(quiet ? mix(SHADE, GHOST, .8) : SHADE));
         gl.uniform3f(uniforms.topColor!, ...GHOST); gl.uniform3f(uniforms.baseColor!, ...GHOST); gl.uniform3f(uniforms.cutColor!, ...GHOST);
         for (const { mesh, buffer } of uploaded) {
           if (!p.ghosts.has(mesh.meshKey) || !drawsFloor(p.rules, mesh.floorId)) continue;

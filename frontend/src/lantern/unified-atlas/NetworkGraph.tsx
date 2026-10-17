@@ -252,6 +252,24 @@ export function NetworkGraph({ graph }: { readonly graph: DocumentaryNetworkGrap
   }, [choice]);
   const label = (id: string) => built.nodes.get(id)?.label ?? id;
 
+  // A graph wider than its panel says so, and its frame fades at the side
+  // that still has branches, until the reader scrolls there.
+  const scroller = useRef<HTMLDivElement>(null);
+  const [overflow, setOverflow] = useState({ wide: false, start: true, end: true });
+  const hasFrame = view.points.size > 0;
+  useLayoutEffect(() => {
+    const node = scroller.current; if (!node) return;
+    const read = () => {
+      const next = { wide: node.scrollWidth > node.clientWidth + 1, start: node.scrollLeft <= 1, end: node.scrollLeft + node.clientWidth >= node.scrollWidth - 1 };
+      setOverflow(value => value.wide === next.wide && value.start === next.start && value.end === next.end ? value : next);
+    };
+    read();
+    const observer = new ResizeObserver(read); observer.observe(node);
+    if (node.firstElementChild) observer.observe(node.firstElementChild);
+    node.addEventListener('scroll', read, { passive: true });
+    return () => { observer.disconnect(); node.removeEventListener('scroll', read); };
+  }, [hasFrame]);
+
   // The chosen record and what touches it stay in full; the rest steps back.
   const lit = useMemo(() => {
     if (chosenEdge) return { nodes: new Set([chosenEdge.a, chosenEdge.b]), edges: new Set([chosenEdge.key]) };
@@ -296,7 +314,9 @@ export function NetworkGraph({ graph }: { readonly graph: DocumentaryNetworkGrap
         {alone.length > 0 ? `; ${alone.length.toLocaleString()} not connected to another record` : ''}</span>
     </figcaption>
 
-    {view.points.size > 0 && <div className="ung-frame">
+    {hasFrame && overflow.wide && <p className="ung-scroll-note">Wider than this panel: scroll sideways to see every branch.</p>}
+    {hasFrame && <div ref={scroller}
+      className={`ung-frame${overflow.wide ? ' is-wide' : ''}${overflow.wide && !overflow.start ? ' is-past-start' : ''}${overflow.wide && !overflow.end ? ' is-before-end' : ''}`}>
       {/* Never drawn below 80% of its logical size, so names stay legible; a wide graph scrolls in its frame. */}
       <svg className="ung-svg" viewBox={`${frame.l} ${frame.t} ${frame.r - frame.l} ${frame.b - frame.t}`} role="img"
         style={{ width: `clamp(${Math.round((frame.r - frame.l) * .8)}px, 100%, ${Math.round((frame.r - frame.l) * 1.3)}px)` }}

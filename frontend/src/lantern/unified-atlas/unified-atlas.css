@@ -70,6 +70,11 @@
   .lantern-host.view-atlas .main:has(> .ua-shell) > .atlas-source-details { font-size: var(--fs-xs); }
 }
 
+/* A compact stage carries both in its own menu, so the row gives its height
+   to the model. Included archived records keep the row, with their list. */
+.lantern-host.view-atlas .main:has(> .ua-shell.is-compact) > .atlas-source-details,
+.lantern-host.view-atlas .main:has(> .ua-shell.is-compact) > .archive-filter:not(.is-on) { display: none; }
+
 .lantern-host .ua-shell {
   --ua-peek: 76px;
   --ua-paper: #fdfbf6;
@@ -122,10 +127,11 @@
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.45s ease;
+  /* A quiet sheet: the faint rule stays behind the rooms, never beside them. */
   background:
-    linear-gradient(rgba(24, 35, 58, 0.045) 1px, transparent 1px) 0 0 / 24px 24px,
-    linear-gradient(90deg, rgba(24, 35, 58, 0.045) 1px, transparent 1px) 0 0 / 24px 24px,
-    radial-gradient(ellipse 80% 70% at 50% 45%, #fffdf8 0%, #f6f1e6 100%);
+    linear-gradient(rgba(24, 35, 58, 0.028) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, rgba(24, 35, 58, 0.028) 1px, transparent 1px) 0 0 / 24px 24px,
+    radial-gradient(ellipse 80% 70% at 50% 45%, #fffdf8 0%, #f4efe4 100%);
 }
 
 .lantern-host .ua-shell.is-plan .ua-stage::before { opacity: 1; }
@@ -631,6 +637,138 @@
 
 .lantern-host .ua-tools .ctrl-wide[aria-pressed='false'] { background: var(--ua-panel); }
 
+/* Compact stages only (rendered there): the snapshot stamped at the row's
+   end like a drawing's revision box, and the menu beside it. */
+.lantern-host .ua-stamp {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  justify-items: end;
+  margin: 0;
+  padding: 0 2px;
+  color: var(--lantern-ink);
+  font-size: 10.5px;
+  line-height: 1.25;
+  text-align: right;
+}
+
+.lantern-host .ua-stamp-kind { font-weight: 700; }
+
+.lantern-host .ua-stamp time {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.lantern-host .ua-menu {
+  position: relative;
+  flex: none;
+  margin-left: auto;
+}
+
+.lantern-host .ua-stamp + .ua-menu { margin-left: 0; }
+
+.lantern-host .ua-menu-btn {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--ua-line);
+  border-radius: 10px;
+  background: var(--ua-panel);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--ua-shadow);
+  color: var(--ink);
+}
+
+.lantern-host .ua-menu-btn circle { fill: currentColor; }
+.lantern-host .ua-menu-btn[aria-expanded='true'] { background: var(--ink); border-color: var(--ink); color: #fff; }
+.lantern-host .ua-tools:has(.ua-menu-panel:not([hidden])) { z-index: 8; }
+
+.lantern-host .ua-menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: max-content;
+  min-width: 232px;
+  max-width: calc(100cqw - 16px);
+  display: grid;
+  gap: 4px;
+  padding: 6px;
+  border-radius: var(--r-panel);
+  border: 1px solid var(--ua-line);
+  background: var(--ua-paper);
+  box-shadow: 0 1px 2px rgba(64, 46, 16, 0.1), 0 18px 36px -20px rgba(64, 46, 16, 0.6);
+  font-size: var(--fs-s);
+  animation: ua-settle 0.18s ease-out;
+}
+
+.lantern-host .ua-menu-panel[hidden] { display: none; }
+
+.lantern-host .ua-menu-camera {
+  display: flex;
+  gap: 2px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--hair);
+}
+
+.lantern-host .ua-menu-camera .ctrl-btn { width: 44px; height: 44px; }
+
+.lantern-host .ua-menu-camera .ua-menu-fit {
+  display: inline-flex;
+  gap: 6px;
+  width: auto;
+  margin-left: auto;
+  padding: 0 12px 0 10px;
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.lantern-host .ua-menu-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.lantern-host .ua-menu-check:hover { background: var(--ua-hover); }
+.lantern-host .ua-menu-check input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--chrome); }
+
+.lantern-host .ua-menu-sources {
+  display: grid;
+  padding-top: 4px;
+  border-top: 1px solid var(--hair);
+}
+
+.lantern-host .ua-menu-label {
+  margin: 0;
+  padding: 4px 8px 2px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+}
+
+.lantern-host .ua-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: 600 var(--fs-s)/1.25 var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lantern-host .ua-menu-row:hover { background: var(--ua-hover); }
+.lantern-host .ua-menu-row > svg { flex: none; color: var(--faint); }
+.lantern-host .ua-menu-row:focus-visible { outline-offset: -2px; }
+
 /* ---- Layers: plans, keys and the layer bar ---------------------------------- */
 
 /* Along the bottom, right of the floor rail: other floors' plans, the layer
@@ -770,14 +908,20 @@
   animation: ua-settle 0.24s ease-out;
 }
 
+/* The layer name never shares its line with a squeezed count: the count
+   follows on the same line when it fits and wraps below the name otherwise.
+   The glyph and chevron hold the side gutters. */
 .lantern-host .ua-key-head {
+  --key-pad: 10px;
+  position: relative;
   flex: none;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
   width: 100%;
   min-height: 42px;
-  padding: 7px 12px;
+  padding: var(--key-pad) 36px calc(var(--key-pad) - 1px) 39px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -788,8 +932,15 @@
 }
 
 .lantern-host .ua-key-head:hover { background: var(--ua-hover); }
-.lantern-host .ua-key-head > svg:first-child { flex: none; color: var(--layer); }
-.lantern-host .ua-key-label { min-width: 0; }
+
+.lantern-host .ua-key-head > svg:first-child {
+  position: absolute;
+  left: 12px;
+  top: calc(var(--key-pad) + 1px);
+  color: var(--layer);
+}
+
+.lantern-host .ua-key-label { flex: none; max-width: 100%; overflow-wrap: normal; }
 
 /* Closed, the key is one line: the layer and its state. */
 .lantern-host .ua-key.is-closed {
@@ -798,9 +949,9 @@
 }
 
 .lantern-host .ua-key-count {
-  margin-left: auto;
-  padding-left: 6px;
-  font: 600 var(--fs-xs)/1.2 var(--text);
+  flex: 0 1 auto;
+  min-width: 0;
+  font: 600 var(--fs-xs)/1.25 var(--text);
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
@@ -808,13 +959,13 @@
 .lantern-host .ua-key-count.is-warn { color: var(--warn); }
 
 .lantern-host .ua-key-head > svg:last-child {
-  flex: none;
-  margin-left: auto;
+  position: absolute;
+  right: 12px;
+  top: calc(var(--key-pad) + 2px);
   color: var(--muted);
   transition: transform 0.2s ease;
 }
 
-.lantern-host .ua-key-count + svg { margin-left: 0; }
 .lantern-host .ua-key.is-closed .ua-key-head > svg:last-child { transform: rotate(-90deg); }
 .lantern-host .ua-key-head:focus-visible { outline-offset: -3px; }
 
@@ -927,7 +1078,7 @@
   top: calc(var(--ua-tools-end, 58px) + 10px);
   right: 16px;
   bottom: 16px;
-  width: min(440px, 42%);
+  width: min(520px, 46%);
   display: flex;
   flex-direction: column;
   border-radius: var(--r-sheet);
@@ -939,7 +1090,7 @@
   animation: ua-settle 0.26s ease-out;
 }
 
-.lantern-host .ua-shell.is-graph-open .ua-bottom { right: calc(min(440px, 42%) + 32px); }
+.lantern-host .ua-shell.is-graph-open .ua-bottom { right: calc(min(520px, 46%) + 32px); }
 
 .lantern-host .ua-graph-head {
   flex: none;
@@ -1398,6 +1549,9 @@
 /* ---- Narrow stages: controls in rows above the model ---------------------- */
 
 @container ua-stage (max-width: 720px) {
+  /* Two slim rows above the model. The first is how it is seen: the view,
+     the snapshot stamp in the free width, and one menu for the camera, the
+     archive filter and the other sources. */
   .lantern-host .ua-tools {
     top: 8px;
     left: 8px;
@@ -1408,65 +1562,115 @@
     gap: 6px;
   }
 
-  .lantern-host .ua-tools .ctrl-group { margin-left: auto; }
-  .lantern-host .ua-turn { display: none; }
+  .lantern-host .ua-tools .ctrl-group { display: none; }
   .lantern-host .ua-tools .ctrl-wide { height: 42px; padding: 0 10px; }
   .lantern-host .ua-tools .seg button { min-width: 44px; padding: 0 10px; }
 
-  /* Three short rows above the model: the snapshot line, Back beside the
-     buildings, then the floors. Floors are never pushed out of view by a long
-     building list; each row scrolls sideways on its own. */
+  /* The second is where: one level out, the building, then its floors. Only
+     the floor row scrolls sideways, with the current floor kept in view. */
   .lantern-host .ua-scope {
     top: 56px;
     left: 8px;
     right: 8px;
     bottom: auto;
     width: auto;
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    justify-items: start;
+    flex-direction: row;
     align-items: center;
     gap: 6px;
   }
 
-  .lantern-host .ua-scope > * { grid-column: 1 / -1; max-width: 100%; min-width: 0; }
-  .lantern-host .ua-scope > .ua-back { grid-column: 1; max-width: 10.5rem; }
-  .lantern-host .ua-scope > .ua-back + .ua-buildings,
-  .lantern-host .ua-scope > .ua-back + .ua-ladder { grid-column: 2; }
+  .lantern-host .ua-scope > * { flex: none; min-width: 0; max-width: 100%; }
+  .lantern-host .ua-snapshot-note { display: none; }
 
-  /* One line: the kind and the time it was observed. */
-  .lantern-host .ua-snapshot-note {
-    display: flex;
-    flex-wrap: wrap;
-    column-gap: 5px;
-    padding: 3px 10px;
-    border-radius: 999px;
-    font-size: 11px;
-    line-height: 1.3;
+  /* Back is its arrow alone; its name stays the control's name. */
+  .lantern-host .ua-scope .ua-back {
+    align-self: center;
+    justify-content: center;
+    width: 42px;
+    min-height: 42px;
+    padding: 0;
   }
 
-  .lantern-host .ua-snapshot-note > svg,
-  .lantern-host .ua-snapshot-wide { display: none; }
+  .lantern-host .ua-scope .ua-back > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 
-  .lantern-host .ua-buildings,
-  .lantern-host .ua-ladder {
+  /* The building chooser: the current building by name, the list below it. */
+  .lantern-host .ua-pick {
+    flex: 0 1 auto;
+    max-width: 46%;
+    min-height: 42px;
+    padding: 0 10px 0 11px;
+    border-color: var(--ua-line);
+    background: var(--ua-panel);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--ua-shadow);
+    color: var(--ink);
+    font-weight: 650;
+  }
+
+  .lantern-host .ua-pick > svg { flex: none; color: var(--faint); }
+  .lantern-host .ua-pick > svg:last-child { color: var(--muted); transition: transform 0.2s ease; }
+  .lantern-host .ua-pick[aria-expanded='true'] { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .lantern-host .ua-pick[aria-expanded='true'] > svg { color: var(--lantern); }
+  .lantern-host .ua-pick[aria-expanded='true'] > svg:last-child { transform: rotate(180deg); }
+
+  .lantern-host .ua-pick-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .lantern-host .ua-scope:has(.ua-buildings.is-open) { z-index: 8; }
+  .lantern-host .ua-buildings:not(.is-open) { display: none; }
+
+  .lantern-host .ua-buildings.is-open {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    width: max-content;
+    min-width: min(220px, 100%);
     max-width: 100%;
+    max-height: min(320px, 55vh);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: grid;
+    gap: 2px;
+    padding: 4px;
+    background: var(--ua-paper);
+    box-shadow: 0 1px 2px rgba(64, 46, 16, 0.1), 0 18px 36px -20px rgba(64, 46, 16, 0.6);
+    animation: ua-settle 0.18s ease-out;
+  }
+
+  .lantern-host .ua-buildings .chip-btn { min-height: 42px; white-space: normal; overflow-wrap: anywhere; }
+
+  /* Floors: one row of initials; the chosen floor also shows its name. A
+     scope without floors of its own leaves the row out. */
+  .lantern-host .ua-ladder {
+    flex: 0 1 auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    padding: 3px;
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
   }
 
-  .lantern-host .ua-buildings { display: flex; flex-direction: row; padding: 3px; }
-  .lantern-host .ua-buildings .chip-btn { flex: none; min-height: 36px; white-space: nowrap; }
-  .lantern-host .ua-buildings .chip-btn[aria-pressed='true'] { box-shadow: inset 0 -3px 0 var(--lantern); }
-
-  /* Floors: one row of initials; the chosen floor also shows its name. */
-  .lantern-host .ua-ladder {
-    flex: none;
-    flex-direction: row;
-    align-items: center;
-    gap: 4px;
-    padding: 3px;
+  .lantern-host .ua-ladder:has(> .ua-rungs:empty) { display: none; }
+  .lantern-host .ua-rung-all-rest {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .lantern-host .ua-rungs { flex: none; flex-direction: row-reverse; gap: 2px; }
@@ -1527,21 +1731,29 @@
     height: 8px;
   }
 
-  .lantern-host .ua-scope .ua-back { min-height: 40px; }
-
-  /* Bottom up: the layer bar, one row of folds, and above them whichever fold
-     is open. Only that open fold can shrink, scrolling inside its own frame,
-     so nothing is pushed off the stage or clipped. */
+  /* One row below the model: the three layers, then the folds for other
+     floors and layer details as small counted buttons. Whichever fold is open
+     stands above that row; only it can shrink, scrolling inside its own frame,
+     so nothing is pushed off the stage or clipped. Where the row cannot hold
+     the folds beside the layers, they step up to their own row. */
   .lantern-host .ua-bottom,
   .lantern-host .ua-shell.is-graph-open .ua-bottom {
-    top: calc(var(--ua-scope-end, 150px) + 8px);
+    top: calc(var(--ua-scope-end, 110px) + 8px);
     left: 8px;
     right: 8px;
     width: auto;
-    align-items: stretch;
+    flex-direction: row;
+    flex-wrap: wrap-reverse;
+    align-content: flex-start;
+    align-items: flex-end;
     justify-content: flex-end;
     gap: 6px;
   }
+
+  .lantern-host .ua-bottom > .layer-bar { order: 1; flex: 1 1 auto; }
+  .lantern-host .ua-bottom > .ua-folds { order: 2; }
+  .lantern-host .ua-bottom > .ua-tiles,
+  .lantern-host .ua-bottom > .ua-keys { order: 3; flex: 1 0 100%; }
 
   .lantern-host .ua-tiles:not(.is-unfolded),
   .lantern-host .ua-keys:not(.is-unfolded) { display: none; }
@@ -1605,7 +1817,7 @@
     animation: none;
   }
 
-  .lantern-host .ua-key-head { min-height: 42px; padding: 6px 12px; }
+  .lantern-host .ua-key-head { --key-pad: 9px; min-height: 42px; }
 
   .lantern-host .ua-folds {
     flex: none;
@@ -1613,50 +1825,57 @@
     gap: 6px;
   }
 
+  /* Each fold is its symbol with a count; its name stays the control's name. */
   .lantern-host .ua-fold {
-    flex: 1 1 0;
-    min-width: 0;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 40px;
-    padding: 4px 10px;
-    border-radius: 10px;
+    position: relative;
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    width: 46px;
+    min-height: 46px;
+    padding: 0;
+    border-radius: var(--r-panel);
     border: 1px solid var(--ua-line);
     background: var(--ua-panel);
     backdrop-filter: blur(10px);
     box-shadow: var(--ua-shadow);
     color: var(--ink-2);
     font: 650 13px/1.15 var(--text);
-    text-align: left;
     cursor: pointer;
     transition: background-color 0.18s ease, color 0.18s ease;
   }
 
-  .lantern-host .ua-fold > svg:first-child { flex: none; color: var(--faint); }
+  .lantern-host .ua-bottom > .ua-folds { align-self: stretch; }
+  .lantern-host .ua-fold > svg:first-child { color: var(--ink-2); }
+
+  .lantern-host .ua-fold > span:not(.ua-fold-count) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 
   .lantern-host .ua-fold-count {
-    flex: none;
+    position: absolute;
+    top: -6px;
+    right: -6px;
     display: inline-grid;
     place-items: center;
     min-width: 20px;
     height: 20px;
-    padding: 0 6px;
+    padding: 0 5px;
     border-radius: 10px;
-    background: rgba(24, 35, 58, 0.08);
-    color: var(--ink);
+    border: 2px solid var(--ua-paper);
+    background: var(--ink-2);
+    color: #fff;
     font-size: 11px;
+    line-height: 1;
     font-variant-numeric: tabular-nums;
   }
 
-  /* The chevron points where the fold opens: up, over the stage. */
-  .lantern-host .ua-fold > svg:last-child {
-    flex: none;
-    margin-left: auto;
-    color: var(--muted);
-    transform: rotate(180deg);
-    transition: transform 0.2s ease;
-  }
+  .lantern-host .ua-fold > svg:last-child { display: none; }
 
   .lantern-host .ua-fold[aria-expanded='true'] {
     background: var(--ink);
@@ -1664,33 +1883,34 @@
     color: #fff;
   }
 
-  .lantern-host .ua-fold[aria-expanded='true'] > svg { color: var(--lantern); transform: none; }
+  .lantern-host .ua-fold[aria-expanded='true'] > svg { color: var(--lantern); }
   .lantern-host .ua-fold[aria-expanded='true'] .ua-fold-count { background: var(--lantern); color: var(--lantern-ink); }
   .lantern-host .ua-fold:focus-visible { outline-offset: 2px; }
 
-  /* Layers as three equal tabs: the hue as a bar over each full name, filled
-     when on, so all three states and names stay readable at any phone width. */
+  /* Layers as three tabs sized to their names: the hue as a bar over each
+     full name, filled when on. Names never break inside a word; a row too
+     narrow for all three lets a tab step to a second line instead. */
   .lantern-host .ua-bottom .layer-bar {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 3px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 3px;
     border-radius: var(--r-panel);
   }
 
   .lantern-host .ua-bottom .layer-chip {
+    flex: 1 1 auto;
     display: grid;
     justify-items: center;
     align-content: center;
     gap: 4px;
-    min-width: 0;
-    min-height: 44px;
-    padding: 5px 4px;
+    min-height: 40px;
+    padding: 4px 6px;
     border-radius: 9px;
-    font-size: 12.5px;
+    font-size: 12px;
     line-height: 1.15;
     text-align: center;
-    white-space: normal;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
   }
 
   .lantern-host .ua-bottom .layer-chip .layer-swatch {
@@ -1721,10 +1941,7 @@
   }
 
   .lantern-host .ua-tools .seg button { min-width: 40px; padding: 0 9px; }
-  /* The folds keep their names and counts; the leading icons step aside. */
-  .lantern-host .ua-fold > svg:first-child { display: none; }
-  .lantern-host .ua-fold { padding: 4px 8px 4px 10px; font-size: 12.5px; }
-  .lantern-host .ua-scope > .ua-back { max-width: 8.5rem; }
+  .lantern-host .ua-pick { max-width: 42%; padding: 0 8px 0 9px; }
 }
 
 /* Touch: every control keeps a full-size target. */
@@ -1737,7 +1954,17 @@
   .lantern-host .ua-fold,
   .lantern-host .ua-graph-open,
   .lantern-host .ua-graph-close,
+  .lantern-host .ua-pick,
   .lantern-host .ua-scope .ua-back { min-height: 44px; }
+
+  .lantern-host .ua-menu-btn { width: 44px; height: 44px; }
+}
+
+@container ua-stage (max-width: 720px) {
+  @media (pointer: coarse) {
+    .lantern-host .ua-scope .ua-back { width: 44px; }
+    .lantern-host .ua-bottom .layer-chip { min-height: 44px; }
+  }
 }
 
 /* Reduced motion: views and panels change in place. */
@@ -1749,7 +1976,10 @@
   .lantern-host .ua-tiles,
   .lantern-host .ua-graph,
   .lantern-host .ua-sheet-body,
+  .lantern-host .ua-menu-panel,
+  .lantern-host .ua-buildings.is-open,
   .lantern-host .cifc-label > circle.ua-ripple { animation: none; }
+  .lantern-host .ua-pick > svg { transition: none; }
   .lantern-host .ua-stage::before,
   .lantern-host .ua-marker,
   .lantern-host .ua-tile,

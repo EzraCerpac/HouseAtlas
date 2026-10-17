@@ -38,6 +38,44 @@
   scrollbar-width: thin;
 }
 
+/* A graph wider than its panel: the frame fades where branches continue,
+   and the scrollbar stays visible as the way there. */
+.lantern-host .ung-frame.is-wide { scrollbar-width: auto; scrollbar-color: var(--hair-2) transparent; }
+
+.lantern-host .ung-frame.is-before-end {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), rgba(0, 0, 0, 0.18));
+  mask-image: linear-gradient(to right, #000 calc(100% - 36px), rgba(0, 0, 0, 0.18));
+}
+
+.lantern-host .ung-frame.is-past-start {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 36px), rgba(0, 0, 0, 0.18));
+  mask-image: linear-gradient(to left, #000 calc(100% - 36px), rgba(0, 0, 0, 0.18));
+}
+
+.lantern-host .ung-frame.is-past-start.is-before-end {
+  -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.18), #000 36px, #000 calc(100% - 36px), rgba(0, 0, 0, 0.18));
+  mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.18), #000 36px, #000 calc(100% - 36px), rgba(0, 0, 0, 0.18));
+}
+
+.lantern-host .ung-scroll-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 -4px;
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.lantern-host .ung-scroll-note::after {
+  content: '';
+  flex: none;
+  width: 18px;
+  border-top: 1.5px solid currentColor;
+  -webkit-mask-image: linear-gradient(to right, #000, transparent);
+  mask-image: linear-gradient(to right, #000, transparent);
+}
+
 /* Width is set from the graph's own size: never shrunk past legibility. */
 .lantern-host .ung-svg {
   display: block;

@@ -62,7 +62,11 @@ function remember(key: string, state: AtlasViewState) {
   while (memory.size > MEMORY_ENTRIES) memory.delete(memory.keys().next().value!);
 }
 
-export default function UnifiedAtlas({ port, onOpenModel }: { readonly port: UnifiedAtlasPort; readonly onOpenModel?: () => void }) {
+/** A source the host can open in place of the Atlas; listed in the narrow-stage menu. */
+export interface OtherSource { readonly id: string; readonly label: string; readonly open: () => void }
+
+export default function UnifiedAtlas({ port, onOpenModel, otherSources }: { readonly port: UnifiedAtlasPort; readonly onOpenModel?: () => void;
+  readonly otherSources?: readonly OtherSource[] }) {
   const subscribe = useCallback((changed: () => void) => port.subscribe(changed), [port]);
   const current = useCallback(() => port.current(), [port]);
   const selection = useSyncExternalStore(subscribe, current, current);
@@ -112,7 +116,8 @@ export default function UnifiedAtlas({ port, onOpenModel }: { readonly port: Uni
       </div>
     </section>;
   }
-  return <AtlasStage key={memoryKey(outcome.model, selection)} model={outcome.model} port={port} selection={selection} entryBuildingId={outcome.entryBuildingId} />;
+  return <AtlasStage key={memoryKey(outcome.model, selection)} model={outcome.model} port={port} selection={selection} entryBuildingId={outcome.entryBuildingId}
+    otherSources={otherSources ?? []} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,9 +130,13 @@ const RULES: DrawRules = { visibleFloors: 'all', clipY: null };
  * apart from the warm board. Presentation tones only: they tint whatever the
  * source geometry is, and a slope tone is the face's angle, never a material. */
 const ATLAS_MESH_PALETTE: Partial<MeshPalette> = {
-  paper: '#BDB8AE', wall: CARD, top: '#ECDDBF', cut: '#5E5040', room: '#F3DFC0', selected: LANTERN, context: '#FBEFC8', ghost: '#D3C8B2',
+  paper: '#BDB8AE', wall: CARD, top: '#ECDDBF', cut: '#5E5040', room: '#F3DFC0', selected: LANTERN, context: '#FBEFC8', ghost: '#E2D9C8',
 };
 const ATLAS_AMBIENT = .62, ATLAS_SHADE = '#4A3F33', ATLAS_PITCH = '#7C736C';
+/** Site terrain reads as part of the board, one flat birch tone with no
+ * slope shading, so its facets never compete with the buildings; floors cut
+ * away above the focus stay a faint outline. Presentation only. */
+const ATLAS_SITE = '#DCC593', ATLAS_GHOST_ALPHA = .08;
 /** The light stands to the viewer's upper left, a little toward them, and turns
  * with the camera: of the two wall planes in view one is always lit and one in
  * shade, at every orbit. Shares across, toward the viewer and up. */
@@ -197,6 +206,8 @@ const NO_INSET: Box = { l: 0, t: 0, r: 0, b: 0 };
 const CLEAR = 8;
 /** Smallest framed side worth keeping; when panels leave less, the whole stage is used. */
 const MIN_FRAME = 96;
+/** Widest stage, in pixels, that takes the compact phone controls; matches the ua-stage container query. */
+const COMPACT_STAGE = 720;
 
 const laidOut = (node: Element) => getComputedStyle(node).display !== 'none';
 const showing = (node: Element) => laidOut(node) && getComputedStyle(node).visibility !== 'hidden';
@@ -274,9 +285,10 @@ interface StageMarker extends CountMarker {
   readonly context: boolean;
 }
 
-function AtlasStage({ model, port, selection, entryBuildingId }: { readonly model: AtlasModel; readonly port: UnifiedAtlasPort;
-  readonly selection: ModelOverviewSelection; readonly entryBuildingId: string | null | undefined }) {
-  const { dispatch: appDispatch } = useStore();
+function AtlasStage({ model, port, selection, entryBuildingId, otherSources }: { readonly model: AtlasModel; readonly port: UnifiedAtlasPort;
+  readonly selection: ModelOverviewSelection; readonly entryBuildingId: string | null | undefined; readonly otherSources: readonly OtherSource[] }) {
+  const { dispatch: appDispatch, actions } = useStore();
+  const archive = actions.archiveVisibility;
   const reduced = useReducedMotion();
   const key = memoryKey(model, selection);
   const [state, setState] = useState<AtlasViewState>(() => memory.get(key) ?? initialAtlasState(model,
@@ -376,12 +388,18 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
   const showGraph = graphOpen && graphs.length > 0;
   const [graphCovers, setGraphCovers] = useState(false);
   const [cover, setCover] = useState<readonly Box[]>([]);
+  // A phone-sized stage keeps two slim rows above the model and one below it:
+  // the camera, the archive filter and the other sources fold into one menu,
+  // the buildings into one chooser. One of them opens at a time.
+  const [compact, setCompact] = useState(false);
+  const [menu, setMenu] = useState<'view' | 'buildings' | null>(null);
   const layersKey = `${state.layers.electrical}${state.layers.network}${state.layers.measurements}`;
-  const chrome = `${plan}\n${sheetOpen}\n${layersKey}\n${selected}\n${state.buildingId}\n${state.levelId}\n${state.exploded}\n${drawer}\n${showGraph}`;
+  const chrome = `${plan}\n${sheetOpen}\n${layersKey}\n${selected}\n${state.buildingId}\n${state.levelId}\n${state.exploded}\n${drawer}\n${showGraph}\n${compact}`;
   useLayoutEffect(() => {
     const root = shell.current, stage = viewport.current;
     if (!root || !stage) return;
     const measure = () => {
+      setCompact(stage.getBoundingClientRect().width <= COMPACT_STAGE);
       const next = measureCover(root, stage);
       setCover(value => JSON.stringify(value) === JSON.stringify(next.cover) ? value : next.cover);
       setGraphCovers(next.graphCovers);
@@ -467,6 +485,9 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
   const light = useMemo(() => viewLight(projection.ct, projection.st), [projection.ct, projection.st]);
   const shadowOffset = [-light[0] / Math.hypot(light[0], light[2]) * SHADOW_LENGTH, -light[2] / Math.hypot(light[0], light[2]) * SHADOW_LENGTH] as const;
   const lifts = useMemo(() => partLifts(model, presentation, t), [model, presentation, t]);
+  // Roof slopes take the pitch tone; site terrain the flat board tone. By role only, never by name.
+  const roofKeys = useMemo(() => new Set(model.parts.filter(part => part.role === 'roof').map(part => part.mesh.meshKey)), [model]);
+  const site = useMemo(() => ({ keys: new Set(model.parts.filter(part => part.role === 'context').map(part => part.mesh.meshKey)), tone: ATLAS_SITE }), [model]);
   const showCanvas = planBlend < 1 && failure === null;
 
   // A new scope is framed whole: zoom and pan return, the chosen orbit stays.
@@ -752,9 +773,40 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
   // Over a narrow stage the graph is the whole view: what lies under it leaves the tab order.
   const underGraph = showGraph && graphCovers;
 
-  // The graph is the first Escape target across Atlas, including the viewport's camera handler.
+  // The compact menu and building chooser close on Escape, on a tap elsewhere
+  // or when focus leaves them; Escape returns focus to the control that opened them.
+  const menuButton = useRef<HTMLButtonElement>(null), pickButton = useRef<HTMLButtonElement>(null);
+  const menuIds = useId();
+  useEffect(() => { if (!compact || underGraph) setMenu(null); }, [compact, underGraph]);
+  useEffect(() => {
+    if (menu === null) return;
+    const away = (event: PointerEvent) => {
+      const owner = shell.current?.querySelector(menu === 'view' ? '.ua-menu' : '.ua-scope');
+      if (!(event.target instanceof Node) || !owner?.contains(event.target)) setMenu(null);
+    };
+    document.addEventListener('pointerdown', away, true);
+    return () => document.removeEventListener('pointerdown', away, true);
+  }, [menu]);
+  // Focus moving to another control closes it; focus lost to nothing (a control
+  // that became disabled) leaves it open, and taps elsewhere close it above.
+  const menuBlur = (which: 'view' | 'buildings') => (event: FocusEvent<HTMLElement>) => {
+    if (menu === which && event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setMenu(null);
+  };
+  const chooseBuilding = (buildingId: string | null) => {
+    dispatch({ type: 'building', buildingId });
+    if (menu === 'buildings') { setMenu(null); pickButton.current?.focus({ preventScroll: true }); }
+  };
+
+  // An open compact menu, then the graph, is the first Escape target across
+  // Atlas, including the viewport's camera handler.
   const graphEscape = (event: ReactKeyboardEvent<HTMLElement>) => {
-    if (!showGraph || event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing) return;
+    if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing) return;
+    if (menu !== null) {
+      event.preventDefault(); event.stopPropagation();
+      (menu === 'view' ? menuButton : pickButton).current?.focus({ preventScroll: true }); setMenu(null);
+      return;
+    }
+    if (!showGraph) return;
     event.preventDefault(); event.stopPropagation(); closeGraph();
   };
 
@@ -765,10 +817,11 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
     event.preventDefault(); out();
   };
 
-  return <section ref={shell} className={`ua-shell is-stage${plan ? ' is-plan' : ''}${sheetOpen ? ' is-sheet-open' : ''}${showGraph ? ' is-graph-open' : ''}${underGraph ? ' is-graph-covering' : ''}`}
+  const pickLabel = state.buildingId === null ? 'All buildings' : building?.label ?? 'All buildings';
+  return <section ref={shell} className={`ua-shell is-stage${plan ? ' is-plan' : ''}${sheetOpen ? ' is-sheet-open' : ''}${showGraph ? ' is-graph-open' : ''}${underGraph ? ' is-graph-covering' : ''}${compact ? ' is-compact' : ''}`}
     aria-label="Atlas" onKeyDownCapture={graphEscape} onKeyDown={escape}>
     <div className="ua-stage">
-      <div className="ua-scope" inert={underGraph}>
+      <div className="ua-scope" inert={underGraph} onBlur={menuBlur('buildings')}>
         {port.savedDocumentary && <p className="ua-snapshot-note" role="note">
           <Icon name="history" size={15} />
           <span className="ua-snapshot-kind">Saved <span className="ua-snapshot-wide">documentary </span>snapshot</span>
@@ -776,11 +829,17 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
         </p>}
         {showBack && <button type="button" className="chip-btn ua-back" onClick={out} aria-label={`Back to ${backTo}`}>
           <Icon name="back" size={15} /><span>{backTo}</span></button>}
-        {buildingNav && <nav className="ua-buildings" aria-label="Buildings">
+        {/* Compact: one chooser names the current building and opens the list below it. */}
+        {buildingNav && compact && <button ref={pickButton} type="button" className="chip-btn ua-pick" aria-expanded={menu === 'buildings'}
+          aria-controls={`${menuIds}-buildings`} onClick={() => setMenu(value => value === 'buildings' ? null : 'buildings')}>
+          <Icon name={state.buildingId === null ? 'atlas' : 'building'} size={15} />
+          <span className="sr-only">Building: </span><span className="ua-pick-name">{pickLabel}</span>
+          <Icon name="chevronDown" size={15} /></button>}
+        {buildingNav && <nav id={`${menuIds}-buildings`} className={`ua-buildings${menu === 'buildings' ? ' is-open' : ''}`} aria-label="Buildings">
           <button type="button" className="chip-btn" aria-pressed={state.buildingId === null}
-            onClick={() => dispatch({ type: 'building', buildingId: null })}><Icon name="atlas" size={15} />All buildings</button>
+            onClick={() => chooseBuilding(null)}><Icon name="atlas" size={15} />All buildings</button>
           {buildings.map(row => <button key={row.buildingId} type="button" className="chip-btn" aria-pressed={state.buildingId === row.buildingId}
-            onClick={() => dispatch({ type: 'building', buildingId: row.buildingId })}><Icon name="building" size={15} />{row.label}</button>)}
+            onClick={() => chooseBuilding(row.buildingId)}><Icon name="building" size={15} />{row.label}</button>)}
         </nav>}
         <DatumLadder model={model} levels={ladderLevels} building={building} state={state} dispatch={dispatch}
           shownLevel={plan ? presentation.focusLevelId : null} selectionLevel={selectionLevel} contextLevels={contextLevels} />
@@ -803,14 +862,48 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
           <button type="button" className="ctrl-btn" aria-label="Zoom out" disabled={camera.zoom <= camera.zoomLimits.min} onClick={() => camera.zoomBy(1 / 1.3)}><Icon name="minus" size={17} /></button>
           <button type="button" className="ctrl-btn" aria-label="Fit view" title="Fit view" onClick={camera.fit}><Icon name="fit" size={17} /></button>
         </div>
+        {/* Compact: the snapshot stamp takes the free width, and one menu holds
+            the camera, the archive filter and the other sources. */}
+        {compact && port.savedDocumentary && <p className="ua-stamp" role="note">
+          <span className="ua-stamp-kind">Saved snapshot</span>
+          <time dateTime={port.savedDocumentary.observedAt} title={port.savedDocumentary.observedAt}>
+            <span className="sr-only">observed </span>{stampTime(port.savedDocumentary.observedAt)}</time>
+        </p>}
+        {compact && <div className="ua-menu" onBlur={menuBlur('view')}>
+          <button ref={menuButton} type="button" className="ctrl-btn ua-menu-btn" aria-label="View and sources" title="View and sources"
+            aria-expanded={menu === 'view'} aria-controls={`${menuIds}-view`} onClick={() => setMenu(value => value === 'view' ? null : 'view')}>
+            <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden="true"><circle cx={5} cy={12} r={1.9} /><circle cx={12} cy={12} r={1.9} /><circle cx={19} cy={12} r={1.9} /></svg>
+          </button>
+          <div id={`${menuIds}-view`} className="ua-menu-panel" hidden={menu !== 'view'}>
+            <div className="ua-menu-camera" role="group" aria-label="Camera">
+              {!plan && <>
+                <button type="button" className="ctrl-btn" aria-label="Turn left" title="Turn left" onClick={() => camera.turn(-45)}><Icon name="rotl" size={18} /></button>
+                <button type="button" className="ctrl-btn" aria-label="Turn right" title="Turn right" onClick={() => camera.turn(45)}><Icon name="rotr" size={18} /></button>
+              </>}
+              <button type="button" className="ctrl-btn" aria-label="Zoom in" title="Zoom in" disabled={camera.zoom >= camera.zoomLimits.max} onClick={() => camera.zoomBy(1.3)}><Icon name="plus" size={18} /></button>
+              <button type="button" className="ctrl-btn" aria-label="Zoom out" title="Zoom out" disabled={camera.zoom <= camera.zoomLimits.min} onClick={() => camera.zoomBy(1 / 1.3)}><Icon name="minus" size={18} /></button>
+              <button type="button" className="ctrl-btn ua-menu-fit" onClick={camera.fit}><Icon name="fit" size={18} /><span>Fit view</span></button>
+            </div>
+            {archive && <label className="ua-menu-check"><input type="checkbox" checked={archive.included}
+              onChange={event => archive.setIncluded(event.currentTarget.checked)} /><span>Include archived HomeBox records</span></label>}
+            {otherSources.length > 0 && <nav className="ua-menu-sources" aria-labelledby={`${menuIds}-sources`}>
+              <p id={`${menuIds}-sources`} className="ua-menu-label">Other sources</p>
+              {otherSources.map(row => <button key={row.id} type="button" className="ua-menu-row" onClick={() => { setMenu(null); row.open(); }}>
+                <span>{row.label}</span><Icon name="chevron" size={15} /></button>)}
+            </nav>}
+          </div>
+        </div>}
       </div>
 
       <div ref={viewport} className={`cifc-viewport ua-viewport${camera.dragging ? ' is-dragging' : ''}`} tabIndex={0} role="group"
         aria-label={`${plan ? 'Plan' : '3D'} of ${scopeLabel}. Arrow keys ${plan ? 'pan' : 'turn'}, plus and minus zoom, Escape goes back one level.`}
         {...camera.bind} onFocus={focusIn} onBlur={focusOut} inert={underGraph}>
         {/* The birch board: its edge a little below the lowest floor, its top lit
-            across, and the metric grid once a metre is wide enough to read. */}
-        <svg className="cifc-svg ua-ground-svg" width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`} aria-hidden="true">
+            across, and the metric grid once a metre is wide enough to read. In
+            Plan it recedes to a faint plate under the drafting sheet, so the
+            rooms and walls lead. */}
+        <svg className="cifc-svg ua-ground-svg" width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`} aria-hidden="true"
+          style={planBlend > 0 ? { opacity: 1 - .82 * planBlend } : undefined}>
           <defs>
             <pattern id={gridId} width={1} height={1} patternUnits="userSpaceOnUse"><path d="M1 0H0V1" className="ua-grid-line" /></pattern>
             <linearGradient id={`${gridId}-board`} x1="0" y1="0" x2="1" y2="1">
@@ -823,7 +916,7 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
           <g transform={`${projection.planMatrix(ground.y)} translate(${origin[0] - projection.center[0]} ${origin[2] - projection.center[2]})`}>
             <rect className="ua-ground" x={ground.x} y={ground.z} width={ground.w} height={ground.h} rx={.6}
               fill={`url(#${gridId}-board)`} vectorEffect="non-scaling-stroke" />
-            {projection.k >= 10 && <rect className="ua-ground-grid" x={ground.x} y={ground.z} width={ground.w} height={ground.h} fill={`url(#${gridId})`} />}
+            {projection.k >= 10 && planBlend < .5 && <rect className="ua-ground-grid" x={ground.x} y={ground.z} width={ground.w} height={ground.h} fill={`url(#${gridId})`} />}
             {/* One group opacity, so overlapping rooms and walls shade the board once. */}
             {planBlend < 1 && footprints.length > 0 && <g className="ua-ground-shadow" style={{ opacity: .2 * (1 - planBlend) }}
               transform={`translate(${shadowOffset[0]} ${shadowOffset[1]})`}>
@@ -835,6 +928,7 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
           <MeshLayer meshes={model.meshes} projection={projection} rules={RULES} currentFloorId={presentation.focusLevelId}
             selectedOccurrenceId={selected} contextOccurrenceIds={context} tints={tints} hidden={!showCanvas}
             hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE} light={light} pitch={ATLAS_PITCH}
+            pitchKeys={roofKeys} site={site} ghostAlpha={ATLAS_GHOST_ALPHA}
             onUnavailable={message => setFailure(message)} />
         </div>
         <svg className="cifc-svg" width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`} aria-hidden="true">
@@ -1033,7 +1127,8 @@ function DatumLadder({ model, levels, building, state, dispatch, shownLevel, sel
   return <nav className="ua-ladder" aria-label={building ? `Floors of ${building.label}` : 'Floors'}>
     <button type="button" className={`ua-rung ua-rung-all${whole ? ' is-current' : ''}`} aria-pressed={whole} disabled={levels.length === 0}
       onClick={() => dispatch({ type: 'level', levelId: null })}>
-      <span className="ua-rung-name">All floors</span>
+      {/* Compact rows show "All" beside the floor marks; the name stays whole. */}
+      <span className="ua-rung-name">All<span className="ua-rung-all-rest"> floors</span></span>
     </button>
     <ol className="ua-rungs">
       {top.map((level, at) => {
