@@ -4,6 +4,7 @@ use rusqlite::{Connection, params};
 use serde_json::{Value, json};
 #[derive(Clone, Default)]
 pub(crate) struct Metadata {
+    pub network_omitted: bool,
     pub manifests: Vec<(RecordRef, Value)>,
     pub documents: Vec<Value>,
     pub document_assets: Vec<Value>,
@@ -14,8 +15,12 @@ pub(crate) fn capture(
     snapshot: &Snapshot,
     scope: &Scope,
     full: bool,
+    network_omitted: bool,
 ) -> Result<Metadata> {
-    let mut result = Metadata::default();
+    let mut result = Metadata {
+        network_omitted,
+        ..Metadata::default()
+    };
     for record in &snapshot.records {
         if record.record_type == RecordType::Asset {
             let target = RecordRef {
@@ -86,7 +91,7 @@ pub(crate) fn capture(
 impl Metadata {
     pub fn fingerprint(&self) -> Result<Value> {
         Ok(
-            json!({"manifests": self.manifests.iter().map(|(r,m)|json!({"record":r,"manifest":m})).collect::<Vec<_>>(),"documents":self.documents,"assets":self.document_assets,"documentManifests":self.document_manifests}),
+            json!({"networkOmitted":self.network_omitted,"manifests": self.manifests.iter().map(|(r,m)|json!({"record":r,"manifest":m})).collect::<Vec<_>>(),"documents":self.documents,"assets":self.document_assets,"documentManifests":self.document_manifests}),
         )
     }
 }

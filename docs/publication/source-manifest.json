@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "f16f7165e45c3ca6ea4d4e31cd1cc259077d0799c0ab132cd6b0954d0db4d3af",
+  "sourceDigestSha256": "c4a0a1f350e7edc76646bd72ec26968ffc604f7a42a9ef22815c5523aa74002c",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2338,8 +2338,8 @@
     {
       "path": "backend/src/http/offline_read_pack.rs",
       "mode": "100644",
-      "bytes": 38249,
-      "sha256": "aeead0e1626324bf3db78f32c5e8443e8bae4139b4b173e40b310cf64094a1b5",
+      "bytes": 38718,
+      "sha256": "4f89331d8b729270dde75071e99cd89746e0ec1973e78defbf1348ed587c7662",
       "owner": "core-integration"
     },
     {
@@ -4711,8 +4711,8 @@
     {
       "path": "backend/src/storage/home_read_pack.rs",
       "mode": "100644",
-      "bytes": 3645,
-      "sha256": "e3ce633ef9f9221f4a59a0fef83f64d048a16e723072f850543c5150affa607a",
+      "bytes": 3793,
+      "sha256": "0be829e116936ec7f852d75c19cde9c22ffdb81bf4e3026e72e0332bc855e25d",
       "owner": "storage"
     },
     {
@@ -5257,8 +5257,8 @@
     {
       "path": "backend/src/storage/store.rs",
       "mode": "100644",
-      "bytes": 23921,
-      "sha256": "d0ffe85341d097f4c17d03924716c8f13aaea7434e6c27cbe71b9e7f4150bb55",
+      "bytes": 24191,
+      "sha256": "4e5b89758cee0b803094c91f2500ea400dfb1ffdbe872f00c3d4f57ba07089cd",
       "owner": "storage"
     },
     {
@@ -6293,8 +6293,8 @@
     {
       "path": "docs/offline/home-read-pack-v1.md",
       "mode": "100644",
-      "bytes": 12190,
-      "sha256": "4175c7698337ddd4467b0d902936acfc87f0f41278c15facd1c92b8853696cdc",
+      "bytes": 12549,
+      "sha256": "1e1504079374689d6582750f3322d206f8a0666cd22899d5c8e54d585116d512",
       "owner": "storage"
     },
     {

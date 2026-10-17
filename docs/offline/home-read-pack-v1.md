@@ -104,7 +104,11 @@ its exact original bytes. Native asset and model MIME values remain explicit.
   fetch HomeBox or claim freshness beyond the retained source generation.
 - `network`: `{relations,sources,caches}` from that same local cut. Existing
   consistency, uncertainty, source generation and unresolved endpoints remain
-  explicit. No collector demand, diagnostics or network provider fetch occurs.
+  explicit. Individually withheld relations also make coverage partial, even if
+  the partition cache has no `access-revoked` status. The read cut carries only a
+  private omission flag; the pack exposes a generic `source-withheld` qualifier,
+  never omitted relation IDs or counts. No collector demand, diagnostics or
+  network provider fetch occurs.
 - `documents`: eligible active Documents only, `{profile:"houseatlas.home-read-pack.documents.v1",documents,
   originals,previews,exclusions}`. Each original/preview reference carries
   `{documentId,documentRevision,assetId,resourceSha256,availability}`; digest is
@@ -144,8 +148,9 @@ No parse-and-reserialize substitute or ordinary-GLB reclassification is used.
 The companion counts against the total payload budget, separately from generic
 section metadata. It must never pass through the generic 8 MiB section parser.
 The small v2 root still uses that existing parser and carries only references.
-Every generic section is bounded to 8 MiB; an unrepresentable section returns
-413 instead of offering metadata that the existing consumer cannot parse.
+Every generic section and the manifest are bounded to 8 MiB, and the manifest
+has at most 20,000 exclusions, matching the unchanged consumer. Unrepresentable
+metadata returns 413 instead of offering a pack that the consumer cannot parse.
 
 Independently selected raw room-links bytes (at most 1 MiB) are a separate
 `role:model` JSON resource. The existing owner admits their scope, publication,

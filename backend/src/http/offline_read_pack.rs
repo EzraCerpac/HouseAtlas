@@ -675,7 +675,15 @@ fn build(
         );
     }
     sections.insert("inventory".into(),b.section(json!({"entities":documentary(&json!(prepared.snapshot.homebox_entities)),"sources":prepared.snapshot.sources,"caches":prepared.snapshot.caches}),"inventory",inventory_complete&&source_complete)?);
-    sections.insert("network".into(),b.section(json!({"relations":prepared.snapshot.network_relations,"sources":prepared.snapshot.sources,"caches":prepared.snapshot.caches}),"network",source_complete)?);
+    let network_complete = source_complete && !prepared.metadata.network_omitted;
+    if !network_complete {
+        b.exclusion(
+            "network",
+            "source-withheld",
+            "Network coverage is limited by current source authorization",
+        );
+    }
+    sections.insert("network".into(),b.section(json!({"relations":prepared.snapshot.network_relations,"sources":prepared.snapshot.sources,"caches":prepared.snapshot.caches}),"network",network_complete)?);
     sections.insert(
         "documents".into(),
         documents(host, prepared, scope, &mut b, true)?,
@@ -683,6 +691,12 @@ fn build(
     let model = model(host, scope, &mut b)?;
     sections.insert("model".into(), model);
     let mut manifest = json!({"profile":"houseatlas.home-read-pack.v1","scope":scope,"capturedAt":time::OffsetDateTime::from(std::time::SystemTime::now()).format(&time::format_description::well_known::Rfc3339).map_err(|_|unavailable())?,"completeness":if b.exclusions.is_empty(){"complete"}else{"partial"},"limits":{"metadataBytes":METADATA,"totalBytes":TOTAL,"resources":512,"rangeBytes":RANGE},"totals":{"bytes":b.bytes,"resources":b.resources.len()},"sections":sections,"resources":b.order.iter().map(|h|b.resources[h].descriptor.clone()).collect::<Vec<_>>(),"exclusions":b.exclusions});
+    if manifest["exclusions"]
+        .as_array()
+        .is_none_or(|e| e.len() > 20_000)
+    {
+        return Err(failure(StatusCode::PAYLOAD_TOO_LARGE));
+    }
     let id = digest(&encoded(&manifest)?);
     manifest["snapshotId"] = json!(id);
     for resource in manifest["resources"]
@@ -698,7 +712,7 @@ fn build(
         ));
     }
     let manifest = encoded(&manifest)?;
-    if b.metadata + manifest.len() > METADATA {
+    if manifest.len() > SECTION || b.metadata + manifest.len() > METADATA {
         return Err(failure(StatusCode::PAYLOAD_TOO_LARGE));
     }
     Ok((

@@ -389,7 +389,9 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
             principal,
             scope,
             true,
-            |db, snapshot| crate::storage::home_read_pack::capture(db, snapshot, scope, full),
+            |db, snapshot, network_omitted| {
+                crate::storage::home_read_pack::capture(db, snapshot, scope, full, network_omitted)
+            },
         )
     }
 
@@ -425,7 +427,7 @@ fn read_snapshot<C: Contract, B: Authorization>(
         principal,
         scope,
         false,
-        |_, _| Ok(()),
+        |_, _, _| Ok(()),
     )?
     .0)
 }
@@ -436,7 +438,7 @@ fn read_snapshot_cut<C: Contract, B: Authorization, T>(
     principal: &B::Principal,
     scope: &Scope,
     bounded: bool,
-    capture: impl FnOnce(&Connection, &Snapshot) -> Result<T>,
+    capture: impl FnOnce(&Connection, &Snapshot, bool) -> Result<T>,
 ) -> Result<(Snapshot, T)> {
     let tx = db.transaction()?;
     let actor = authorize(
@@ -621,7 +623,9 @@ fn read_snapshot_cut<C: Contract, B: Authorization, T>(
         }
         Ok(())
     };
-    let captured = capture(&tx, &snapshot)?;
+    // Keep omission knowledge private to the optional documentary callback.
+    // Existing snapshot/grant semantics and the exposed relation list are unchanged.
+    let captured = capture(&tx, &snapshot, !withheld_relations.is_empty())?;
     recheck()?;
     tx.commit()?;
     recheck()?;
