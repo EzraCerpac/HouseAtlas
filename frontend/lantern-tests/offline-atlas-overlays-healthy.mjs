@@ -57,13 +57,15 @@ for (const mode of ['complete', 'partial']) {
   const savedRead = await createSavedAtlasDataAdapter(local).read(house, new AbortController().signal);
   const historical = await readSavedHistoricalFacts(checked, savedRead, new AbortController().signal);
   const result = projectSavedAtlasOverlays(checked, pack.scene, historical);
-  assert.equal(result.kind, 'saved'); assert.equal(result.state, mode); assert.equal(result.localRevision, house.localRevision);
+  assert.equal(result.kind, 'saved'); assert.equal(result.state, 'partial'); assert.equal(result.localRevision, house.localRevision);
   assert.equal(result.records.rooms.size, 0); assert.equal(result.records.unplaced.electrical.length, 4); assert.equal(result.records.unplaced.network.length, 1);
   assert(result.records.unplaced.electrical.some(row => row.id === '00000000-0000-4000-8000-000000000903' && row.detail.includes('No wiring survey')));
   assert(result.records.unplaced.electrical.some(row => row.id === '00000000-0000-4000-8000-000000000904'));
   const networkRecord = result.records.unplaced.network[0];
   assert.equal(networkRecord.sourceFacts.find(fact => fact.label === 'Source revision').value, mode === 'complete' ? '9007199254740991' : null);
-  assert.equal(result.records.electrical, 'available'); assert.equal(result.records.network, mode === 'complete' ? 'available' : 'partial');
+  assert.equal(result.records.electrical, 'partial'); assert.equal(result.records.network, 'partial');
+  assert.equal(result.records.buildings.length, 2);
+  assert(result.records.buildings.every(row => row.network === 'unavailable' && row.electrical === 'unavailable' && row.reason === 'no-captured-building-source'));
   const evidence = result.records.unplaced.electrical.find(row => row.id === '00000000-0000-4000-8000-000000000902');
   assert.equal(evidence.sourceDate, '1998-04-05T00:00:00Z'); assert.equal(evidence.retrievedAt, '2024-03-04T00:00:00Z');
   assert(evidence.detail.includes('Historical circuit association unverified'));
@@ -99,6 +101,17 @@ for (const variant of ['historical', 'tuples']) {
     assert.equal(result.records.unplaced.electrical.length, 4);
     assert.equal(result.records.unplaced.network.length, 4);
     assert.equal(result.records.networkGraphs.length, 2);
+    assert.equal(result.records.buildings.length, 2);
+    const houseCoverage = result.records.buildings.find(row => row.label === 'Synthetic house');
+    const studioCoverage = result.records.buildings.find(row => row.label === 'Synthetic studio');
+    assert.equal(houseCoverage.network, 'partial'); assert.equal(houseCoverage.electrical, 'available');
+    assert.equal(studioCoverage.network, 'unavailable'); assert.equal(studioCoverage.electrical, 'unavailable');
+    assert.equal(studioCoverage.reason, 'no-captured-building-source');
+    assert(!result.records.buildings.some(row => row.label === 'Synthetic boundary wall'));
+    assert.equal(result.records.network, 'partial'); assert.equal(result.records.electrical, 'partial');
+    assert.equal(result.records.unplaced.network.length + room.network.length, 5);
+    assert.equal(result.records.unplaced.electrical.length + room.electrical.length, 6);
+    assert(room.network[0].sourceFacts.some(fact => fact.label === 'Retained association' && fact.value === '00000000-0000-4000-8000-000000000012'));
     assert.equal(historical.facts[0].mode, 'saved-documentary-snapshot');
     assert(!('sessionIdentity' in historical.facts[0].pins));
     assert(!('expiresAt' in historical.facts[0].pins));
@@ -156,9 +169,30 @@ for (const variant of ['historical', 'tuples']) {
   assert.equal(result.records.rooms.size, 0);
   assert.equal(result.records.unplaced.network.length, 5); assert.equal(result.records.unplaced.electrical.length, 6);
   assert.equal(result.records.networkGraphs.length, 2);
-  assert.equal(result.records.buildings.length, pack.scene.buildings.length);
+  assert.equal(result.records.buildings.length, pack.scene.buildings.filter(building => building.levelIds.length > 0).length);
+  assert.equal(result.records.network, 'partial'); assert.equal(result.records.electrical, 'partial');
+  assert(result.records.buildings.every(row => row.network === 'unavailable' && row.electrical === 'unavailable'));
   assert(result.reasons.some(reason => reason.includes('not mapped in this model')));
   console.log('PASS verified source closure for an unmapped native building retains every known fact unplaced without adding or borrowing a model building');
+}
+{
+  const pack = await generateSavedPack('partial', '1'.repeat(64), true);
+  const house = { ...pack.house, localRevision: crypto.randomUUID() };
+  const local = { list: async () => [house], asset: async (_selected, id) => new Blob([pack.resources.get(id)], { type: house.resources.find(pin => pin.id === id).contentType }) };
+  const signal = new AbortController().signal, checked = await readSavedPackSections(local, house, signal); exporterShapes(checked);
+  const read = await createSavedAtlasDataAdapter(local).read(house, signal), historical = await readSavedHistoricalFacts(checked, read, signal);
+  const result = projectSavedAtlasOverlays(checked, pack.scene, historical);
+  const qualified = result.records.buildings.find(row => row.label === 'Synthetic house');
+  const other = result.records.buildings.find(row => row.label === 'Synthetic studio');
+  assert.deepEqual([qualified.electrical, qualified.network], ['available', 'partial']);
+  assert.deepEqual([other.electrical, other.network], ['unavailable', 'unavailable']);
+  assert.equal(result.records.buildings.length, 2); assert.equal(result.state, 'partial');
+  const room = [...result.records.rooms.values()].find(row => row.network.length);
+  assert.deepEqual([room.electrical.length + result.records.unplaced.electrical.length, room.network.length + result.records.unplaced.network.length], [6, 5]);
+  assert.deepEqual([result.records.unplaced.electrical.length, result.records.unplaced.network.length], [4, 4]);
+  assert(result.reasons.some(reason => reason.includes('source-withheld')));
+  assert(room.electrical.every(record => record.sourceFacts.some(fact => fact.label === 'Retained association')));
+  console.log('PASS partial global records + one qualified house preserve 6 Electrical/5 Network, unplaced 4/4 and provenance; unrelated studio unavailable, context-only boundary omitted');
 }
 const observation = { key: 'same-source-record', id: 'id', label: 'first', category: 'Recorded circuit', detail: '', qualification: '', sourceDate: null, retrievedAt: null, connections: [], sourceFacts: [] };
 const merged = mergeDocumentaryRecords([observation, { ...observation, label: 'second' }, observation]);

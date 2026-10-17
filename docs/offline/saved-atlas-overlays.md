@@ -75,3 +75,17 @@ A verified retained native building can be absent or unmapped in the model.
 Its known source records and graph remain visible unplaced; model membership
 constrains room placement only. No model building is fabricated or borrowed.
 The named positive checks this valid whole-home/exported-model combination.
+
+Building coverage is separate from property-level retained facts. Only
+floor-bearing model buildings receive coverage rows. A verified captured native
+building source qualifies only the exact matching model building; other rows say
+`no-captured-building-source` and remain unavailable. Context-only buildings do
+not receive a source-coverage row. Global unplaced circuit/network facts never
+make an unrelated building available. Missing building coverage keeps property
+coverage partial while preserving every known record/count and source qualifier.
+Genuine sources outside the model also remain counted, unplaced and part of
+property coverage. The named positive checks one qualified house beside an
+unqualified studio, including partial global source coverage, unchanged 6/5
+Electrical/Network totals, unplaced 4/4 and original association provenance.
+A complete generic pack without building sources therefore has partial property
+coverage, rather than successful coverage for every model building.

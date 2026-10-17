@@ -101,10 +101,14 @@ export function projectSavedAtlasOverlays(input: SavedPackSections, scene: Atlas
     source: { label: 'Saved network relations', revision: null, recordedAt: null, retrievedAt: null, status: 'recorded', acceptedAt: null,
       coverage: networkState === 'available' ? 'complete' : networkState === 'partial' ? 'partial' : 'unknown', notes: 'Logical topology only; captured source facts remain per relation' },
     devices: [], endpoints: [...endpoints.values()], links };
+  const coverageSources = { electrical: [electricalState], network: [networkState] };
+  const qualifiedBuildings = new Set<string>();
+  let sourceOutsideModel = false;
   const property: { -readonly [K in keyof PropertyRecords]: PropertyRecords[K] } = { rooms: new Map(), electrical: electricalState, network: networkState,
     unplaced: { electrical: mergeDocumentaryRecords(electrical), network: mergeDocumentaryRecords(network) },
     networkGraphs: links.length ? [{ key: data.viewKey, data, qualification: 'Saved logical topology; physical routes and positions unknown' }] : [],
-    buildings: scene.buildings.map(building => ({ buildingId: building.buildingId, label: building.label, reason: 'saved-unplaced-records', electrical: electricalState, network: networkState })),
+    buildings: scene.buildings.filter(building => building.levelIds.length > 0).map(building => ({ buildingId: building.buildingId, label: building.label,
+      reason: 'no-captured-building-source', electrical: 'unavailable', network: 'unavailable' })),
     sourceFacts: [{ label: 'Saved capture time', value: house.capturedAt }, { label: 'Snapshot', value: house.snapshotId },
       { label: 'Local revision', value: house.localRevision }, { label: 'Atlas sources', value: printed(roots.atlas?.sources) },
       { label: 'Atlas caches', value: printed(roots.atlas?.caches) }, { label: 'Network sources', value: printed(roots.network?.sources) },
@@ -124,8 +128,17 @@ export function projectSavedAtlasOverlays(input: SavedPackSections, scene: Atlas
     const capturedNetwork = facts.network.status === 'available' && facts.network.data.source.coverage !== 'complete' ? 'partial' : projected.network;
     const combine = (a: SourceAvailability, b: SourceAvailability): SourceAvailability => a === 'available' && b === 'available' ? 'available'
       : a === 'unavailable' && b === 'unavailable' ? 'unavailable' : 'partial';
-    property.buildings = property.buildings.map(row => scene.buildings.find(building => building.buildingId === row.buildingId)?.nativePlaceId === facts.pins.buildingId
-      ? { ...row, network: combine(row.network, capturedNetwork), electrical: combine(row.electrical, projected.electrical), reason: 'captured historical source coverage; no current native authorization' } : row);
+    coverageSources.network.push(capturedNetwork); coverageSources.electrical.push(projected.electrical);
+    const matched = property.buildings.find(row => scene.buildings.find(building => building.buildingId === row.buildingId)?.nativePlaceId === facts.pins.buildingId);
+    if (!matched) sourceOutsideModel = true;
+    else {
+      const previousSource = qualifiedBuildings.has(matched.buildingId);
+      property.buildings = property.buildings.map(row => row.buildingId === matched.buildingId ? { ...row,
+        network: previousSource ? combine(row.network, capturedNetwork) : capturedNetwork,
+        electrical: previousSource ? combine(row.electrical, projected.electrical) : projected.electrical,
+        reason: 'captured historical source coverage; no current native authorization' } : row);
+      qualifiedBuildings.add(matched.buildingId);
+    }
     property.sourceFacts = [...property.sourceFacts, ...projected.sourceFacts];
   }
   for (const kind of ['network', 'electrical'] as const) {
@@ -135,9 +148,14 @@ export function projectSavedAtlasOverlays(input: SavedPackSections, scene: Atlas
     const byKey = new Map(all.map(record => [record.key, record]));
     for (const [roomId, room] of property.rooms) (property.rooms as Map<string, typeof room>).set(roomId, { ...room, [kind]: room[kind].map(record => byKey.get(record.key)!) });
     property.unplaced = { ...property.unplaced, [kind]: all.filter(record => !placed.has(record.key)) };
-    const states = property.buildings.map(row => row[kind]);
-    property[kind] = states.every(state => state === 'available') ? 'available' : states.every(state => state === 'unavailable') ? 'unavailable' : 'partial';
+    const states = [...coverageSources[kind], ...property.buildings.map(row => row[kind])];
+    property[kind] = property.buildings.length > 0 && !sourceOutsideModel && states.every(state => state === 'available') ? 'available'
+      : states.some(state => state !== 'unavailable') || all.length > 0 ? 'partial' : 'unavailable';
   }
+  const coverageReasons = property.buildings.filter(row => !qualifiedBuildings.has(row.buildingId))
+    .map(row => `${row.label}: no captured building source; global records remain unplaced`);
+  reasons.push(...coverageReasons);
+  property.sourceFacts = [...property.sourceFacts, ...coverageReasons.map(value => ({ label: 'Saved coverage', value }))];
   const supportedStates = [property.electrical, property.network];
   return { kind: 'saved', state: supportedStates.every(state => state === 'unavailable') ? 'unavailable'
     : supportedStates.every(state => state === 'available') && unsupported === 0 && historical.reasons.length === 0 ? 'complete' : 'partial',
