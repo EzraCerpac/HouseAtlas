@@ -659,14 +659,14 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
   const foldIds = useId();
   // Choosing another floor hands a narrow stage back to the plan; focus stays on the fold that opened it.
   const chooseTile = (levelId: string) => {
-    const narrow = floorsFold.current !== null && getComputedStyle(floorsFold.current).display !== 'none';
+    const narrow = floorsFold.current !== null && floorsFold.current.getClientRects().length > 0;
     setDrawer(null); dispatch({ type: 'level', levelId });
     if (narrow) floorsFold.current?.focus({ preventScroll: true });
   };
 
   // The graph opens from the network key and returns focus there when it closes.
   const graphOpener = useRef<HTMLElement | null>(null), graphReturn = useRef<HTMLElement | null>(null);
-  const graphHeading = useRef<HTMLHeadingElement>(null);
+  const graphHeading = useRef<HTMLHeadingElement>(null), graphFocus = useRef<HTMLElement | null>(null);
   const graphId = useId();
   const closeGraph = () => { graphReturn.current = graphOpener.current ?? viewport.current; graphOpener.current = null; setGraphOpen(false); };
   const toggleGraph = () => {
@@ -678,10 +678,19 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
   useLayoutEffect(() => {
     if (showGraph) { graphHeading.current?.focus({ preventScroll: true }); return; }
     const back = graphReturn.current; graphReturn.current = null;
-    if (back) (back.isConnected ? back : viewport.current)?.focus({ preventScroll: true });
+    const removedFocus = graphFocus.current; graphFocus.current = null;
+    const lostFocus = document.activeElement === document.body && removedFocus !== null && !removedFocus.isConnected;
+    if (back || lostFocus) {
+      const available = (target: HTMLElement | null): target is HTMLElement => target !== null && target.isConnected
+        && target.getClientRects().length > 0 && !target.closest('[inert], [hidden], [aria-hidden="true"]')
+        && !target.matches(':disabled') && getComputedStyle(target).visibility === 'visible';
+      const target = back ?? graphOpener.current;
+      (available(target) ? target : viewport.current)?.focus({ preventScroll: true });
+    }
+    graphOpener.current = null;
   }, [showGraph]);
-  // With the network layer off the graph has nothing to show; it stays closed until asked again.
-  useEffect(() => { if (!networkOn) setGraphOpen(false); }, [networkOn]);
+  // With no network source the graph stays closed until asked again.
+  useEffect(() => { if (!networkOn || graphs.length === 0) setGraphOpen(false); }, [networkOn, graphs.length]);
   const graphKeys = (event: ReactKeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Escape' || event.defaultPrevented) return;
     event.preventDefault(); closeGraph();
@@ -858,6 +867,7 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
       {/* The logical network in its own frame: beside the model on wide stages,
           the whole view on narrow ones, with one way back either way. */}
       {showGraph && <section id={graphId} className="ua-graph" aria-labelledby={`${graphId}-title`} onKeyDown={graphKeys}
+        onFocusCapture={event => { graphFocus.current = event.target instanceof HTMLElement ? event.target : null; }}
         style={{ '--layer': TONE_COLOR.network } as CSSProperties}>
         <header className="ua-graph-head">
           <span className="ua-logical-swatch" aria-hidden="true" />

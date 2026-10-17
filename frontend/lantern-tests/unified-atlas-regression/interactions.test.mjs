@@ -371,6 +371,11 @@ test('semantic ancestry survives every layer combination, view and explicit expl
     if (!exploded) assert.equal(api.partLifts(subject, whole, 0).size, 0);
   }
   assert.equal(api.initialAtlasState(model, H).buildingId, H, 'an explicit admitted host entry selects its building');
+  const contextual = (await generatedModel(api, scope => api.buildSingleFloorBuildingsAtlas(scope, 1, true))).model;
+  assert.equal(contextual.scene.buildings.length, 2);
+  assert.equal(contextual.floorBuildings.length, 1);
+  assert.equal(api.initialAtlasState(contextual).buildingId, 'single-building-0', 'an unconfigured entry retains the sole navigable building default');
+  assert.equal(api.initialAtlasState(contextual, 'single-context').buildingId, null, 'an admitted context-only entry retains property scope without substituting another building');
 });
 
 test('an opaque upper slab takes its floor hit until the ordinary cutaway exposes the room beneath', () => {

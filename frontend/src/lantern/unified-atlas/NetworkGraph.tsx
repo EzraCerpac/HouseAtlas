@@ -180,12 +180,13 @@ function placeNames(view: ReturnType<typeof layoutGraph>, nodes: ReadonlyMap<str
     const lines = wrap(nodes.get(id)!.label, id === chosen ? LINE + 4 : LINE, id === chosen ? 3 : 2);
     const w = Math.max(...lines.map(line => line.length)) * (root ? ROOT_GLYPH : GLYPH), h = lines.length * LEAD;
     const c = Math.cos(p.angle), s = Math.sin(p.angle);
-    const side = c > .35 ? 'start' : c < -.35 ? 'end' : 'middle';
-    const spots: { anchor: NameTag['anchor']; x: number; top: number }[] = [
-      ...(root ? [] : [{ anchor: side, x: p.x + c * 12, top: p.y + s * 12 - h / 2 + (side === 'middle' ? (s > 0 ? h / 2 : -h / 2) : 0) }]),
+    const side: NameTag['anchor'] = c > .35 ? 'start' : c < -.35 ? 'end' : 'middle';
+    const spots: { anchor: NameTag['anchor']; x: number; top: number }[] = [];
+    if (!root) spots.push({ anchor: side, x: p.x + c * 12, top: p.y + s * 12 - h / 2 + (side === 'middle' ? (s > 0 ? h / 2 : -h / 2) : 0) });
+    spots.push(
       { anchor: 'middle', x: p.x, top: root ? p.y - 12 - h : p.y + 10 },
       { anchor: 'middle', x: p.x, top: root ? p.y + 12 : p.y - 10 - h },
-    ];
+    );
     const required = tier(id) < 2;
     for (const [at, spot] of spots.entries()) {
       const l = spot.anchor === 'start' ? spot.x : spot.anchor === 'end' ? spot.x - w : spot.x - w / 2;

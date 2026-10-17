@@ -607,14 +607,15 @@ export function hasExplodableLevels(model: AtlasModel, buildingId: string | null
     : (model.levelsByBuilding.get(buildingId)?.length ?? 0) > 1;
 }
 
-/** Opens on the host-bound entry building when it is a building with floors,
- * else on the only building with floors, else on the whole property. The entry
- * is an explicit input; names, plan order and size never choose it. Floors
+/** Opens on the host-bound entry building when it has floors; an explicit
+ * context-only entry opens the property. With no entry, opens on the only
+ * building with floors, else the property. Names, plan order and size never
+ * choose an entry. Floors
  * open in their source positions; only the explicit control separates them. */
 export function initialAtlasState(model: AtlasModel, entryBuildingId: string | null = null): AtlasViewState {
   const entry = entryBuildingId !== null && model.floorBuildings.some(building => building.buildingId === entryBuildingId) ? entryBuildingId : null;
   const single = model.floorBuildings.length === 1 ? model.floorBuildings[0]!.buildingId : null;
-  return { buildingId: entry ?? single, levelId: null, occurrenceId: null, view: '3d', exploded: false, layers: NO_LAYERS };
+  return { buildingId: entryBuildingId === null ? single : entry, levelId: null, occurrenceId: null, view: '3d', exploded: false, layers: NO_LAYERS };
 }
 
 /** The building a plan or floor list follows: the chosen one, else the selected room's, else the default. */
