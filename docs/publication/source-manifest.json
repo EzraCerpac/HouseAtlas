@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "9fc8ccc511b7f42b822ef9a57a8d040f1e1b02ecc9c1c458d05b1df902a0a68e",
+  "sourceDigestSha256": "1a77424343d34ae7e67cc2c8ac285b99b1e7c2cc664289d5eb62e04ac46e2082",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -10580,6 +10580,27 @@
       "bytes": 4309,
       "sha256": "2f7e25fd6af2a2c0aeab63f336e3c2f934e9e4bb0f996a653f6108a2c65b12a6",
       "owner": "core-integration"
+    },
+    {
+      "path": "tools/electrical_registry/README.md",
+      "mode": "100644",
+      "bytes": 3269,
+      "sha256": "cf7954a2593127b0ff9d7734b6b17bd4cbef264d8fb22c762c98c91f0c5a6ac2",
+      "owner": "media"
+    },
+    {
+      "path": "tools/electrical_registry/registry.mjs",
+      "mode": "100644",
+      "bytes": 14440,
+      "sha256": "48e03b934c9e66f8562692a80d0ec17f1c2420fa0ddffac07ce534cdf537f18a",
+      "owner": "media"
+    },
+    {
+      "path": "tools/electrical_registry/registry.test.mjs",
+      "mode": "100644",
+      "bytes": 6461,
+      "sha256": "edf19b3682f7e97a8bdce38715c97a7886d724acf285e89887312da14e8f69ef",
+      "owner": "media"
     },
     {
       "path": "tools/geometry/native-scan-import-runtime.mjs",
