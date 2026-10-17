@@ -10,7 +10,7 @@ assert.equal(process.version, 'v26.10.0');
 const root = resolve(import.meta.dirname, '../..');
 const output = resolve(process.argv[2] ?? resolve(root, 'docs/demo'));
 await mkdir(output, { recursive: true });
-const unifiedNames = ['unified-3d', 'unified-plan', 'unified-phone'];
+const unifiedNames = ['unified-3d', 'unified-collapsed', 'unified-plan', 'unified-phone', 'unified-phone-hall', 'unified-stacked'];
 const sourceTreeExclusions = ['docs/demo/capture.json', 'docs/publication/source-manifest.json', ...['house', 'mesh', 'plan', 'building', 'room', 'network', 'collage', ...unifiedNames].map(name => `docs/demo/synthetic-${name}.png`)];
 async function sourceTreeSnapshot() {
   const paths = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(path => path && !sourceTreeExclusions.includes(path)).sort();
@@ -186,12 +186,18 @@ try {
     const visible = node => { const style = getComputedStyle(node); return style.display !== 'none' && style.visibility !== 'hidden'; };
     const panels = [...document.querySelectorAll('.ua-tools > *, .ua-scope > *, .ua-bottom > *')].filter(visible).map(node => node.getBoundingClientRect());
     if (getComputedStyle(inspector).position === 'absolute' && !inspector.classList.contains('is-open')) panels.push(inspector.getBoundingClientRect());
+    // Conservatively include the nine-pixel pseudo-element extensions around
+    // each count's border box, rather than measuring only the visible badge.
+    const hitBox = node => {
+      const box = node.getBoundingClientRect(), pad = node.matches('.ua-marker') ? 9 : 0;
+      return { left: box.left - pad, right: box.right + pad, top: box.top - pad, bottom: box.bottom + pad };
+    };
     const covered = [...document.querySelectorAll('.ua-label-hit, .ua-marker')].filter(visible).filter(node => {
-      const a = node.getBoundingClientRect();
+      const a = hitBox(node);
       return panels.some(b => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1);
     }).map(node => node.getAttribute('aria-label'));
     // Count buttons that overlap one another, so one count never hides another.
-    const counts = [...document.querySelectorAll('.ua-marker')].filter(visible).map(node => [node.getAttribute('aria-label'), node.getBoundingClientRect()]);
+    const counts = [...document.querySelectorAll('.ua-marker')].filter(visible).map(node => [node.getAttribute('aria-label'), hitBox(node)]);
     const crowded = counts.flatMap(([name, a], at) => counts.slice(at + 1)
       .filter(([, b]) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1).map(([other]) => `${name} / ${other}`));
     return {
@@ -203,6 +209,7 @@ try {
       selectedRoom: text('.ua-inspector.is-room h2'), selectedFloor: text('.ua-room-floor'),
       inspector: { label: inspector.getAttribute('aria-label'), position: getComputedStyle(inspector).position, open: inspector.classList.contains('is-open') },
       labels: names('.ua-label-hit'), markers: names('.ua-marker').sort(),
+      markerKeys: [...document.querySelectorAll('.ua-marker')].filter(visible).map(node => node.dataset.stageKey).sort(),
       planRooms: document.querySelectorAll('.ua-plan .cifc-plan-space').length, planSelected: document.querySelectorAll('.ua-plan .cifc-plan-space.is-selected').length,
       canvasHidden: canvas.hidden, stageNote: text('.ua-viewport .cifc-stage-note'),
     };
@@ -241,6 +248,18 @@ try {
   await atlas.mouse.move(1430, 10);
   await frames(atlas);
   await atlas.screenshot({ path: resolve(output, 'synthetic-unified-3d.png'), animations: 'disabled' });
+  // Collapse directly from an exploded whole-building selection, before Plan
+  // has supplied a floor. The selected occurrence must remain visible.
+  await shell.getByRole('button', { name: 'Exploded', exact: true }).click();
+  await settledDraw(atlas);
+  const collapsed = await atlasFacts();
+  assert.deepEqual([collapsed.view, collapsed.exploded, collapsed.floor, collapsed.selectedRoom, collapsed.selectedFloor],
+    [['3D'], 'false', ['Ground floor: 3 rooms, has the selected room'], 'Living room', 'Ground floor, Synthetic house']);
+  assert(collapsed.labels.includes('Select room: Living room'));
+  clearOfPanels(collapsed);
+  const collapsedWebgl = await atlasWebgl();
+  await atlas.mouse.move(1430, 10);
+  await atlas.screenshot({ path: resolve(output, 'synthetic-unified-collapsed.png'), animations: 'disabled' });
   // Plan of the selected room's floor, with the published electrical counts.
   await shell.getByRole('group', { name: 'Atlas view' }).getByRole('button', { name: 'Plan', exact: true }).click();
   await atlas.waitForFunction(() => document.querySelector('.ua-shell.is-plan .ua-plan') && document.querySelector('.ua-viewport canvas.cifc-canvas').hidden);
@@ -256,11 +275,18 @@ try {
   const planSvgSha256 = createHash('sha256').update(await atlas.locator('.ua-viewport svg.cifc-svg').evaluate(node => node.outerHTML)).digest('hex');
   await atlas.screenshot({ path: resolve(output, 'synthetic-unified-plan.png'), animations: 'disabled' });
   // Phone width: the same selection in 3D with the room panel as a closed sheet.
-  await atlas.setViewportSize({ width: 390, height: 844 });
-  const phoneDisclosure = await sourceDisclosure();
   await atlas.evaluate(() => { window.syntheticAtlasDrawCalls = 0; });
   await shell.getByRole('group', { name: 'Atlas view' }).getByRole('button', { name: '3D', exact: true }).click();
   await atlas.waitForFunction(() => !document.querySelector('.ua-viewport canvas.cifc-canvas').hidden && window.syntheticAtlasDrawCalls > 0);
+  await settledDraw(atlas);
+  await shell.getByRole('button', { name: 'Hall: 3 electrical records', exact: true }).focus();
+  const scrollBefore = await atlas.evaluate(() => [scrollX, scrollY]);
+  await atlas.setViewportSize({ width: 390, height: 844 });
+  await frames(atlas);
+  await atlas.waitForFunction(() => !document.querySelector('.ua-marker[aria-label="Hall: 3 electrical records"]'));
+  assert.equal(await atlas.locator('.ua-viewport').evaluate(node => document.activeElement === node), true, 'A culled focused badge returns focus to the viewport');
+  assert.deepEqual(await atlas.evaluate(() => [scrollX, scrollY]), scrollBefore, 'Focus recovery does not scroll the page');
+  const phoneDisclosure = await sourceDisclosure();
   await settledDraw(atlas);
   await shell.getByRole('button', { name: 'Show details', exact: true }).waitFor();
   await atlas.mouse.move(385, 5);
@@ -269,11 +295,53 @@ try {
   assert.deepEqual([phone.view, phone.overlay, phone.selectedRoom, phone.stageNote], [['3D'], ['Electrical'], 'Living room', null]);
   assert.deepEqual(phone.inspector, { label: 'Selected room', position: 'absolute', open: false });
   assert.deepEqual([phone.building, phone.floor], [['Synthetic house'], ['Ground floor: 3 rooms, has the selected room']]);
-  // Both published counts stay on the fitted phone stage, not culled to pass the panel check.
-  assert.deepEqual(phone.markers, ['Hall: 3 electrical records', 'Living room: 1 electrical record']);
+  // The full touch targets collide at phone Fit. Selected Living wins; Hall's
+  // three records remain in the layer and accessible through the room list.
+  assert.deepEqual(phone.markers, ['Living room: 1 electrical record']);
+  assert.deepEqual(phone.markerKeys, ['marker:electrical:syn-occ-living']);
+  assert.match(phone.key, /4 records/);
   clearOfPanels(phone);
   const phoneWebgl = await atlasWebgl();
   await atlas.screenshot({ path: resolve(output, 'synthetic-unified-phone.png'), animations: 'disabled' });
+  await shell.getByRole('button', { name: 'Clear room', exact: true }).click();
+  await shell.getByRole('button', { name: 'Show rooms', exact: true }).click();
+  await shell.getByRole('complementary', { name: 'Rooms' }).getByRole('button', { name: 'Hall', exact: true }).click();
+  await frames(atlas);
+  const phoneHall = await atlasFacts();
+  assert.deepEqual([phoneHall.selectedRoom, phoneHall.markers], ['Hall', ['Hall: 3 electrical records']]);
+  assert.deepEqual(phoneHall.markerKeys, ['marker:electrical:syn-occ-hall']);
+  assert.match(phoneHall.key, /4 records/);
+  clearOfPanels(phoneHall);
+  const phoneHallWebgl = await atlasWebgl();
+  await atlas.screenshot({ path: resolve(output, 'synthetic-unified-phone-hall.png'), animations: 'disabled' });
+  await shell.getByRole('button', { name: 'Show details', exact: true }).click();
+  const references = shell.getByRole('complementary', { name: 'Selected room' }).locator('.ua-record').filter({ has: atlas.getByRole('heading', { name: 'Electrical', exact: true }) });
+  await references.getByText('Record references', { exact: true }).click();
+  assert.deepEqual(await references.locator('.ua-refs li').allTextContents(), ['syn-circuit-1', 'syn-outlet-1', 'syn-outlet-2']);
+  await shell.getByRole('button', { name: 'Hide details', exact: true }).click();
+  // A stacked whole-building Network view exercises the two Stairs occurrences.
+  await atlas.setViewportSize({ width: 1440, height: 1000 });
+  await shell.getByRole('button', { name: 'Clear room', exact: true }).click();
+  await shell.getByRole('complementary', { name: 'Rooms' }).getByRole('region', { name: 'Ground floor, Synthetic house', exact: true })
+    .getByRole('button', { name: 'Stairs', exact: true }).click();
+  await ladder.getByRole('button', { name: 'All floors', exact: true }).click();
+  await shell.getByRole('group', { name: 'Overlay' }).getByRole('button', { name: 'Network', exact: true }).click();
+  await settledDraw(atlas);
+  const viewport = atlas.locator('.ua-viewport');
+  await viewport.focus();
+  for (let i = 0; i < 6; i++) await viewport.press('ArrowUp');
+  for (let i = 0; i < 4; i++) await viewport.press('-');
+  await frames(atlas);
+  const stacked = await atlasFacts();
+  assert.deepEqual([stacked.exploded, stacked.floor, stacked.selectedRoom, stacked.selectedFloor],
+    ['false', ['All floors'], 'Stairs', 'Ground floor, Synthetic house']);
+  assert.deepEqual(stacked.markers, ['Stairs: 1 network record']);
+  assert.deepEqual(stacked.markerKeys, ['marker:network:syn-occ-stairs-ground']);
+  assert.match(stacked.key, /1 record/);
+  clearOfPanels(stacked);
+  const stackedWebgl = await atlasWebgl();
+  await atlas.mouse.move(1430, 10);
+  await atlas.screenshot({ path: resolve(output, 'synthetic-unified-stacked.png'), animations: 'disabled' });
   assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
   const sourceHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
   const sourceDirty = execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).trim().length > 0;
@@ -295,10 +363,13 @@ try {
     sourceDisclosure: { desktop: desktopDisclosure, phone: phoneDisclosure },
     states: [
       { image: 'synthetic-unified-3d.png', viewport: [1440, 1000], ...desktop, webgl: desktopWebgl },
+      { image: 'synthetic-unified-collapsed.png', viewport: [1440, 1000], ...collapsed, webgl: collapsedWebgl },
       { image: 'synthetic-unified-plan.png', viewport: [1440, 1000], ...plan },
       { image: 'synthetic-unified-phone.png', viewport: [390, 844], ...phone, webgl: phoneWebgl },
+      { image: 'synthetic-unified-phone-hall.png', viewport: [390, 844], ...phoneHall, webgl: phoneHallWebgl, recordReferences: ['syn-circuit-1', 'syn-outlet-1', 'syn-outlet-2'] },
+      { image: 'synthetic-unified-stacked.png', viewport: [1440, 1000], ...stacked, webgl: stackedWebgl },
     ],
-    checks: ['Atlas section current', 'two navigable generated buildings and three house floors in height order', 'Living room selected on Ground floor through the room list', 'fresh WebGL draws after Fit view before each 3D capture', 'selected room tag on the 3D stage', 'Ground floor plan with three rooms, one selected and the canvas hidden', 'published electrical counts for Hall and Living room', 'phone width with the room panel as a closed sheet', 'Hall and Living room counts on the phone stage', 'no room or count button under a floating panel', 'no count button over another', 'current building and floor in view in every state'],
+    checks: ['Atlas section current', 'two navigable generated buildings and three house floors in height order', 'Living room selected on Ground floor through the room list', 'fresh WebGL draws after Fit view before 3D capture', 'collapse before Plan focuses the selected floor and retains its stage tag', 'Ground floor plan with three rooms, one selected and the canvas hidden', 'published electrical counts for Hall and Living room', 'phone width with the room panel as a closed sheet', 'selected count wins a phone touch-target collision without reducing the four-record total', 'Hall remains selectable with its three original record references', 'culled focused count returns focus to the viewport without scrolling', 'stacked Network keeps one selected count and one distinct source record', 'no room or enlarged count target under a floating panel', 'no enlarged count target over another', 'current building and floor in view in every state'],
     scope: ['Generated fictional data only; no household, native, backend admission or private reference', 'Reduced motion: settled states only; no animation, transition or mid-sweep evidence', 'Playwright headless Chromium; no iPhone, PWA, native document, PDF or device acceptance'],
     sourceHashes: unifiedSourceHashes, artifactHashes: unifiedArtifactHashes,
   };

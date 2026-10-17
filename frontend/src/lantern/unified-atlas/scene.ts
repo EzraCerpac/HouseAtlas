@@ -654,7 +654,13 @@ export function atlasReducer(model: AtlasModel, state: AtlasViewState, action: A
       const next = { ...state, view: 'plan' as const, buildingId: focusBuildingId(model, state) };
       return { ...next, levelId: planLevelId(model, next) };
     }
-    case 'explode': return state.exploded === action.exploded ? state : { ...state, exploded: action.exploded };
+    case 'explode': {
+      if (state.exploded === action.exploded) return state;
+      const selected = state.occurrenceId === null ? undefined : model.occurrencesById.get(state.occurrenceId);
+      return !action.exploded && state.view === '3d' && selected
+        ? { ...state, exploded: false, buildingId: selected.buildingId, levelId: selected.levelId }
+        : { ...state, exploded: action.exploded };
+    }
     case 'overlay': return state.overlay === action.overlay ? state : { ...state, overlay: action.overlay };
   }
 }

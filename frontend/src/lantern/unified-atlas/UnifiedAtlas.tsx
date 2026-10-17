@@ -19,7 +19,7 @@ import {
 } from './scene';
 import { AtlasReadError, type AtlasLevel, type AtlasOccurrence, type AtlasRoom, type AtlasReadFailure, type OverlayKind, type UnifiedAtlasPort } from './types';
 import { PublishedOverlayDetails } from './PublishedOverlayDetails';
-import { floorLabel } from './labels';
+import { countMarkerWidth, floorLabel, visibleCountMarkers } from './labels';
 import { documentaryOverlayIndex, type RuntimeRecords, type DocumentaryRecord, type SourceFact } from './runtime-overlays';
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
 import '../canonical-ifc/canonical-ifc.css';
@@ -376,7 +376,8 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
     return rows;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layer, live, presentation, shown, projection, t, planBlend, model]);
-  const markerAt = useMemo(() => new Set(markers.map(row => row.occurrenceId)), [markers]);
+  const counts = useMemo(() => visibleCountMarkers(markers, size, cover, selected, context), [markers, size, cover, selected, context]);
+  const markerAt = useMemo(() => new Set(counts.map(row => row.occurrenceId)), [counts]);
   const positions = useMemo(() => {
     if (!layer) return [];
     return [...layer.placed.values()].flatMap(placement => placement.positions.flatMap((row, at) => {
@@ -436,10 +437,6 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
   const hits = labels.filter(label => {
     const half = Math.max(44, Math.min(320, label.text.length * 7 + 12)) / 2, y = label.y - TAG_RISE * label.rise;
     return clear({ l: label.x - half, t: y - 16, r: label.x + half, b: y + 16 });
-  });
-  const counts = markers.filter(row => {
-    const half = Math.max(28, String(row.count).length * 7 + 18) / 2;
-    return clear({ l: row.x - half, t: row.y - 14, r: row.x + half, b: row.y + 14 });
   });
   // A focused stage control can leave the stage: its tag rises past an edge,
   // a panel grows over it or its floor is cut away. Focus then returns to the
@@ -565,7 +562,7 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
           style={{ left: label.x, top: label.y - TAG_RISE * label.rise, width: Math.max(44, Math.min(320, label.text.length * 7 + 12)) }}
           aria-label={`Select room: ${label.text}`} onClick={event => { if (event.detail === 0) select(label.id); }} />)}
         {layer && counts.map(row => <button key={row.key} type="button" className="ua-marker" data-stage-key={`marker:${row.key}`}
-          style={{ left: row.x, top: row.y, '--layer': badgeFill(layer.kind) } as CSSProperties}
+          style={{ left: row.x, top: row.y, width: countMarkerWidth(row.count), '--layer': badgeFill(layer.kind) } as CSSProperties}
           aria-label={`${row.roomLabel}: ${plural(row.count, `${OVERLAY_LABEL[layer.kind].toLowerCase()} record`)}`}
           onPointerDown={stop} onPointerUp={stop} onClick={() => select(row.occurrenceId)}>{row.count}</button>)}
         {failure && !plan && <p className="cifc-stage-note" role="status">3D view is unavailable. Use Plan or check Source details.</p>}

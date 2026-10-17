@@ -1,5 +1,6 @@
 import type { UnifiedAtlasOverlayAvailableFrame } from '../../../integration/unified-atlas-overlay-source';
-import { networkReviewedPlaces, networkLinkLabel, endpointDeviceId } from '../overlays/network/model';
+import { networkReviewedPlaces } from '../overlays/network/model';
+import type { NetworkOverlayData, NetworkOverlayLink } from '../overlays/network/types';
 import type { AtlasScene, OverlayKind } from './types';
 import type { AtlasModel, OverlayLayerIndex, OverlayPlacement } from './scene';
 
@@ -18,6 +19,39 @@ export interface RuntimeRecords {
   readonly sourceFacts: readonly SourceFact[];
   readonly unplaced: { readonly network: readonly DocumentaryRecord[]; readonly electrical: readonly DocumentaryRecord[] };
 }
+
+/** Source-frame lookup only; this creates no room-placement authority. */
+export function documentaryNetworkIndex(data: NetworkOverlayData) {
+  const devices = new Map(data.devices.map(device => [device.id, device]));
+  const endpoints = new Map<string, { label: string; deviceId: string | null }>();
+  for (const endpoint of data.endpoints) {
+    const owner = endpoint.ownerDeviceId === null ? undefined : devices.get(endpoint.ownerDeviceId);
+    endpoints.set(endpoint.id, { label: owner ? `${owner.label} (${endpoint.label})` : endpoint.label, deviceId: endpoint.ownerDeviceId });
+  }
+  // The existing helpers resolve a device ID before an endpoint ID.
+  for (const device of data.devices) endpoints.set(device.id, { label: device.label, deviceId: device.id });
+  const incident = new Map<string, NetworkOverlayLink[]>(), labels = new Map<NetworkOverlayLink, string>();
+  const descriptions = new Map<NetworkOverlayLink, string>();
+  for (const link of data.links) {
+    const from = endpoints.get(link.fromEndpointId), to = endpoints.get(link.toEndpointId);
+    const label = `${from?.label ?? `Unresolved endpoint (${link.fromEndpointId})`} ↔ ${to?.label ?? `Unresolved endpoint (${link.toEndpointId})`}`;
+    labels.set(link, label);
+    descriptions.set(link, [label, link.medium, `Curated confidence: ${link.confidence}`, `Source confidence: ${link.sourceConfidence ?? 'unknown'}`,
+      `Recorded: ${link.recordedAt ?? 'unknown'} (${link.recordedAtPrecision ?? 'precision unknown'})`, link.temporalStatus, link.basis, link.notes].filter(Boolean).join(' · '));
+    for (const id of new Set([from?.deviceId, to?.deviceId])) {
+      if (id == null) continue;
+      let own = incident.get(id); if (!own) { own = []; incident.set(id, own); }
+      own.push(link);
+    }
+  }
+  const facts = new Map<string, string>(), connections = new Map<string, readonly string[]>();
+  for (const device of data.devices) {
+    const own = incident.get(device.id) ?? [];
+    facts.set(device.id, JSON.stringify(own));
+    connections.set(device.id, own.map(link => descriptions.get(link)!));
+  }
+  return { incident, labels, facts, connections };
+}
 export function matchesOverlayScene(frame: UnifiedAtlasOverlayAvailableFrame, scene: AtlasScene, buildingId: string): boolean {
   const s = frame.sceneSelection, p = scene.publication;
   return s.workspaceId === scene.scope.workspaceId && s.homeId === scene.scope.homeId
@@ -30,6 +64,8 @@ export function matchesOverlayScene(frame: UnifiedAtlasOverlayAvailableFrame, sc
  * Documentary IDs stay in their source namespaces, not producer/native records. */
 export function documentaryRoomRecords(scene: AtlasScene, frame: UnifiedAtlasOverlayAvailableFrame, selectable: ReadonlySet<string>): RuntimeRecords {
   const rooms = new Map<string, RuntimeRoomRecords>();
+  const networkData = frame.network.status === 'available' ? frame.network.data : null;
+  const networkIndex = networkData ? documentaryNetworkIndex(networkData) : null;
   for (const binding of frame.roomBindings) {
     const room = scene.rooms.find(row => row.roomId === binding.roomId);
     if (!room || room.nativePlaceId !== binding.nativePlaceId || binding.qualification !== 'current-native-room-join'
@@ -58,9 +94,8 @@ export function documentaryRoomRecords(scene: AtlasScene, frame: UnifiedAtlasOve
           sourceFacts: [{ label: 'Source revision', value: data.source.revision }, { label: 'Source notes', value: data.source.notes },
             { label: 'Accepted at', value: data.source.acceptedAt }, { label: 'Recorded at', value: data.source.recordedAt },
             { label: 'Retrieved at', value: data.source.retrievedAt },
-            { label: 'Connection source facts', value: JSON.stringify(data.links.filter(link => endpointDeviceId(data, link.fromEndpointId) === device.id || endpointDeviceId(data, link.toEndpointId) === device.id)) }],
-          connections: data.links.filter(link => endpointDeviceId(data, link.fromEndpointId) === device.id || endpointDeviceId(data, link.toEndpointId) === device.id)
-            .map(link => [networkLinkLabel(data, link), link.medium, `Curated confidence: ${link.confidence}`, `Source confidence: ${link.sourceConfidence ?? 'unknown'}`, `Recorded: ${link.recordedAt ?? 'unknown'} (${link.recordedAtPrecision ?? 'precision unknown'})`, link.temporalStatus, link.basis, link.notes].filter(Boolean).join(' · ')) });
+            { label: 'Connection source facts', value: networkIndex!.facts.get(device.id)! }],
+          connections: networkIndex!.connections.get(device.id)! });
       }
     }
     const matches = (place: { packagePlaceKey: string; packagePlaceUuid: string }) => targets.some(target =>
@@ -100,7 +135,6 @@ export function documentaryRoomRecords(scene: AtlasScene, frame: UnifiedAtlasOve
   }
   const placedNetwork = new Set([...rooms.values()].flatMap(row => row.network.map(record => record.key)));
   const placedElectrical = new Set([...rooms.values()].flatMap(row => row.electrical.map(record => record.key)));
-  const networkData = frame.network.status === 'available' ? frame.network.data : null;
   const unplacedNetwork: DocumentaryRecord[] = networkData ? networkData.devices
     .filter(device => !placedNetwork.has(`device:${device.id}`)).map(device => {
       const data = networkData;
@@ -109,13 +143,13 @@ export function documentaryRoomRecords(scene: AtlasScene, frame: UnifiedAtlasOve
         qualification: device.mobility === 'mobile' || device.mobility === 'nonspatial' ? 'Excluded from room placement' : 'No unambiguous reviewed room placement',
         sourceDate: data?.source.recordedAt ?? null, retrievedAt: data?.source.retrievedAt ?? null, connections: [],
         sourceFacts: [{ label: 'Recorded device', value: JSON.stringify(device) }, { label: 'Network source', value: JSON.stringify(data.source) },
-          { label: 'Connection source facts', value: JSON.stringify(data.links.filter(link => endpointDeviceId(data, link.fromEndpointId) === device.id || endpointDeviceId(data, link.toEndpointId) === device.id)) }] };
+          { label: 'Connection source facts', value: networkIndex!.facts.get(device.id)! }] };
     }) : [];
   // Topology never becomes a cable route or device position. Keep every link
   // and endpoint available even when neither end has a located device.
   if (networkData) {
     for (const link of networkData.links) unplacedNetwork.push({ key: `link:${link.id}`, id: link.id,
-      label: networkLinkLabel(networkData, link), category: 'Recorded connection',
+      label: networkIndex!.labels.get(link)!, category: 'Recorded connection',
       detail: [link.medium, link.temporalStatus, link.notes].filter(Boolean).join(' · '),
       qualification: `${networkData.source.status}; logical connection, no physical route`,
       sourceDate: link.recordedAt, retrievedAt: networkData.source.retrievedAt, connections: [],

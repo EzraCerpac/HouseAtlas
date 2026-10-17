@@ -105,6 +105,61 @@ test('single-floor studio stays whole while house explodes, including section cl
   assert.equal(api.presentAtlas(model, state, empty).explodeTarget, 0);
 });
 
+test('collapsing an exploded selection focuses its exact floor before any Plan visit', () => {
+  for (const id of ['syn-occ-living', 'syn-occ-bedroom-upper', 'syn-occ-stairs-ground', 'syn-occ-stairs-upper']) {
+    const occurrence = model.occurrencesById.get(id);
+    const state = reduce(initial(), building(H), select(id), overlay('network'));
+    assert.equal(state.levelId, null);
+    assert.equal(state.exploded, true);
+    const collapsed = reduce(state, { type: 'explode', exploded: false });
+    assert.deepEqual([collapsed.buildingId, collapsed.levelId, collapsed.occurrenceId, collapsed.overlay],
+      [occurrence.buildingId, occurrence.levelId, id, 'network']);
+    const presentation = api.presentAtlas(model, collapsed, new Set([id]));
+    assert.ok(presentation.pickable.has(id));
+    for (const part of model.parts.filter(part => part.buildingId === H && part.role === 'roof'))
+      assert.ok(presentation.hidden.has(part.mesh.meshKey));
+    const projection = api.makeProjection({ yaw: 0, pitch: 36, zoom: 1, panX: 0, panY: 0 },
+      api.frameBox(model, collapsed, presentation), { width: 960, height: 640 }, 0);
+    const [px, py] = projection.project((occurrence.bounds.min[0] + occurrence.bounds.max[0]) / 2,
+      model.floorY.get(occurrence.levelId) + .6, (occurrence.bounds.min[2] + occurrence.bounds.max[2]) / 2);
+    assert.equal(api.pickOccurrence(model, presentation, 0, projection, px, py), id);
+    assert.equal(reduce(collapsed, { type: 'explode', exploded: false }), collapsed);
+  }
+  const whole = reduce(initial(), building(H), { type: 'explode', exploded: false });
+  assert.equal(whole.levelId, null);
+  const presentation = api.presentAtlas(model, whole, empty);
+  for (const part of model.parts.filter(part => part.buildingId === H && part.role === 'roof'))
+    assert.equal(presentation.hidden.has(part.mesh.meshKey), false);
+});
+
+test('count controls retain source anchors and counts with deterministic non-overlapping touch targets', () => {
+  const marker = (key, x, y, count = 1) => ({ key, occurrenceId: key, x, y, count });
+  const size = { width: 600, height: 500 };
+  const separated = [marker('a', 80, 80), marker('b', 160, 80, 1024)];
+  assert.deepEqual(api.visibleCountMarkers(separated, size, [], null, []), separated);
+  const shared = [marker('a', 250, 250, 3), marker('b', 250, 250, 1)];
+  for (const rows of [shared, [...shared].reverse()]) {
+    assert.deepEqual(api.visibleCountMarkers(rows, size, [], 'b', []), [shared[1]]);
+    assert.deepEqual(api.visibleCountMarkers(rows, size, [], 'a', []), [shared[0]]);
+    assert.deepEqual(api.visibleCountMarkers(rows, size, [], null, ['b']), [shared[1]]);
+  }
+  // The visible 28px badges do not overlap, but their 46px touch targets do.
+  const near = [marker('hall', 113, 287, 3), marker('living', 149, 267, 1)];
+  assert.deepEqual(api.visibleCountMarkers(near, size, [], 'living', []), [near[1]]);
+  assert.deepEqual(api.visibleCountMarkers(near, size, [], 'hall', []), [near[0]]);
+  const dense = Array.from({ length: 144 }, (_, i) => marker(String(i).padStart(3, '0'), 50 + i % 12 * 30, 50 + Math.floor(i / 12) * 30));
+  const survivors = api.visibleCountMarkers(dense, size, [], null, []);
+  assert.ok(survivors.length > 1 && survivors.length < dense.length);
+  assert.deepEqual(api.visibleCountMarkers([...dense].reverse(), size, [], null, []).map(row => row.key).sort(), survivors.map(row => row.key).sort());
+  const overlaps = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
+  survivors.forEach((row, i) => {
+    assert.equal(row, dense.find(source => source.key === row.key));
+    for (const other of survivors.slice(i + 1)) assert.equal(overlaps(api.countMarkerTarget(row), api.countMarkerTarget(other)), false);
+  });
+  const panel = { l: 40, t: 40, r: 100, b: 100 };
+  assert.deepEqual(api.visibleCountMarkers(separated, size, [panel], null, []), [separated[1]]);
+});
+
 test('two independent single-floor buildings initially keep roofs and no exploded sections', async () => {
   const { model: single } = await generatedModel(api, api.buildSingleFloorBuildingsAtlas);
   const state = api.initialAtlasState(single), p = api.presentAtlas(single, state, empty);

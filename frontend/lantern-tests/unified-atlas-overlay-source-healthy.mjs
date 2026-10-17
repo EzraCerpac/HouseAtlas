@@ -16,11 +16,11 @@ const hash=v=>createHash('sha256').update(v).digest('hex');
 const sourcePins=Object.fromEntries(paths.map(p=>[p,hash(readFileSync(join(root,p)))]));
 try {
   const entry=join(scratch,'entry.ts');
-  writeFileSync(entry,`export {createUnifiedAtlasReviewedOverlays} from ${JSON.stringify(join(root,paths[4]))};\nexport {ExactDecimal} from ${JSON.stringify(join(root,'frontend/src/numeric/decimal.ts'))};\nexport {documentaryRoomRecords,documentaryOverlayIndex,matchesOverlayScene} from ${JSON.stringify(join(root,paths[3]))};\n`);
+  writeFileSync(entry,`export {createUnifiedAtlasReviewedOverlays} from ${JSON.stringify(join(root,paths[4]))};\nexport {ExactDecimal} from ${JSON.stringify(join(root,'frontend/src/numeric/decimal.ts'))};\nexport {documentaryNetworkIndex,documentaryRoomRecords,documentaryOverlayIndex,matchesOverlayScene} from ${JSON.stringify(join(root,paths[3]))};\n`);
   const built=await build({root:join(root,'frontend'),configFile:false,logLevel:'silent',build:{write:false,target:'node26',lib:{entry,formats:['es']},minify:false}});
   const output=Array.isArray(built)?built[0]:built;
   const modulePath=join(scratch,'adapter.mjs');writeFileSync(modulePath,output.output.find(o=>o.type==='chunk'&&o.isEntry).code);
-  const {createUnifiedAtlasReviewedOverlays,ExactDecimal,documentaryRoomRecords,documentaryOverlayIndex,matchesOverlayScene}=await import(pathToFileURL(modulePath).href);
+  const {createUnifiedAtlasReviewedOverlays,ExactDecimal,documentaryNetworkIndex,documentaryRoomRecords,documentaryOverlayIndex,matchesOverlayScene}=await import(pathToFileURL(modulePath).href);
   const U=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
   const canonical=v=>JSON.stringify(v,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
   const floor='generated:floor',floorHash='a'.repeat(64),packageKey='generated:room',packageUuid=U(21),photoHash='b'.repeat(64);
@@ -106,6 +106,44 @@ try {
     assert.equal(publishedRoom.nativeBinding.status,'historical');
     assert.deepEqual(records.unplaced.network.map(r=>r.id),['device:mobile','link:generated','endpoint:segment']);
     assert.equal(records.unplaced.electrical.length,0);
+    // Positive presentation graph: original source records and reviewed placement
+    // remain intact while incidence is built once, including both self-link forms.
+    const sourceData = frame.network.data;
+    const owned = ['one', 'two'].map(id => ({ ...sourceData.endpoints[0], id: `endpoint:${id}`, label: `Interface ${id}`, ownerDeviceId: 'device:generated' }));
+    const ends = [
+      ['direct', 'device:generated', 'device:mobile'],
+      ['owned', 'endpoint:one', 'device:mobile'],
+      ['self', 'device:generated', 'device:generated'],
+      ['same-owner', 'endpoint:one', 'endpoint:two'],
+      ['parallel', 'device:generated', 'device:mobile'],
+      ['ownerless', 'endpoint:segment', 'device:mobile'],
+    ];
+    const graph = { ...sourceData, endpoints: [...sourceData.endpoints, ...owned],
+      links: ends.map(([id, fromEndpointId, toEndpointId], i) => ({ ...sourceData.links[0], id: `link:${id}`, fromEndpointId, toEndpointId,
+        sourceConfidence: `Generated confidence ${i}`, recordedAtPrecision: 'day', notes: `Generated note ${i}` })) };
+    const indexed = documentaryNetworkIndex(graph);
+    const expected = new Map([
+      ['device:generated', graph.links.slice(0, 5)],
+      ['device:mobile', [graph.links[0], graph.links[1], graph.links[4], graph.links[5]]],
+    ]);
+    const labels = ['Generated device ↔ Generated phone', 'Generated device (Interface one) ↔ Generated phone',
+      'Generated device ↔ Generated device', 'Generated device (Interface one) ↔ Generated device (Interface two)',
+      'Generated device ↔ Generated phone', 'Generated shared segment ↔ Generated phone'];
+    graph.links.forEach((link, i) => assert.equal(indexed.labels.get(link), labels[i]));
+    for (const [id, links] of expected) {
+      assert.deepEqual(indexed.incident.get(id), links);
+      indexed.incident.get(id).forEach((link, i) => assert.equal(link, links[i], 'Retain the original provenance object'));
+      assert.equal(indexed.facts.get(id), JSON.stringify(links));
+      assert.deepEqual(indexed.connections.get(id), links.map(link => [labels[graph.links.indexOf(link)], link.medium,
+        `Curated confidence: ${link.confidence}`, `Source confidence: ${link.sourceConfidence}`,
+        `Recorded: ${link.recordedAt} (${link.recordedAtPrecision})`, link.temporalStatus, link.basis, link.notes].join(' · ')));
+    }
+    const projected = documentaryRoomRecords(scene, { ...frame, network: { ...frame.network, data: graph } }, new Set(['occurrence:one', 'occurrence:two']));
+    const placedDevice = projected.rooms.get('publication:room').network[0];
+    assert.equal(placedDevice.sourceFacts.find(f => f.label === 'Connection source facts').value, indexed.facts.get('device:generated'));
+    assert.deepEqual(placedDevice.connections, indexed.connections.get('device:generated'));
+    assert.deepEqual(projected.unplaced.network.map(row => row.id), ['device:mobile', ...graph.links.map(link => link.id), ...graph.endpoints.map(endpoint => endpoint.id)]);
+    assert.equal(projected.unplaced.network[0].sourceFacts.find(f => f.label === 'Connection source facts').value, indexed.facts.get('device:mobile'));
     const consumerModel={roomsById:new Map([[publishedRoom.roomId,publishedRoom]]),selectable:new Set(['occurrence:one','occurrence:two'])};
     for(const kind of ['network','electrical']){
       const index=documentaryOverlayIndex(consumerModel,records,kind);

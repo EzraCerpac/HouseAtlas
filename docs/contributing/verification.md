@@ -1284,9 +1284,10 @@ GLB loader, reducer, projection, pointer factory and documentary index. Inspect
 node --test --test-concurrency=1 frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs
 ```
 
-Its eleven CPU cases cover repeated navigation, every declared selectable
+Its thirteen CPU cases cover repeated navigation, every declared selectable
 occurrence, shared room identity, source-coordinate plans, normal overlay
-toggles and tap/drag/pinch sequences. They include no held controls, listener,
+toggles, collapse-before-Plan selection, deterministic count touch-target
+suppression and tap/drag/pinch sequences. They include no held controls, listener,
 provider, credentials or private inputs. They do not qualify DOM focus, CSS,
 animations, GPU rendering, native overlays or devices. The adjacent acceptance
 matrix retains its exact historical source attribution; browser automation is

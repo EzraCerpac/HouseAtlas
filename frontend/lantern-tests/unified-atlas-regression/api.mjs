@@ -11,6 +11,7 @@ export async function loadAPI() {
   try {
     const modules = [
       'src/lantern/unified-atlas/scene.ts',
+      'src/lantern/unified-atlas/labels.ts',
       'src/lantern/unified-atlas/runtime-overlays.ts',
       'src/lantern/canonical-ifc/geometry.ts',
       'src/lantern/canonical-ifc/standard-glb.ts',
