@@ -1321,6 +1321,10 @@ publication companion and GLB once from the same loopback origin instead. Both
 paths are required, and they are fetched without credentials or redirects.
 An optional `atlas-entry-building` supplies an explicit presentation entry,
 validated against the admitted scene; names/order/size do not choose it.
+The named generated Atlas healthy check also exercises an absent entry header
+and a valid owner-selected `x-atlas-entry-building-id` on the same descriptor,
+retaining identical scene/model bytes. The admitted read carries this optional
+preference; it neither changes source JSON nor establishes a native room join.
 With `atlas-documentary=/review-input/<manifest>.json`, the same private fixture
 can additionally read a saved-documentary manifest and its three pinned source,
 support and captured-map files. Inspect `integration/saved-documentary-preview.ts`,

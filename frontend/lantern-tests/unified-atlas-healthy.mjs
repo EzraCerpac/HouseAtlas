@@ -72,6 +72,19 @@ assert.equal(composed.manifestSha256, createHash('sha256').update(composed.overv
 assert.equal(new Set([composed.manifestSha256, composed.sha256, read.scene.publication.semanticsSha256, read.scene.publication.sourceSha256]).size, 4, 'overview manifest, model, semantics and source are separate pins');
 assert.equal(read.scene.selection.revision, SYNTHETIC_ATLAS.revision);
 assert.equal(read.scene.publication.semanticsSha256, (await import('node:crypto')).createHash('sha256').update(companionBytes).digest('hex'));
+assert.equal(read.entryBuildingId, null, 'an unconfigured descriptor has no implicit primary building');
+// Optional owner-selected presentation metadata accompanies the same verified
+// descriptor and model; it is neither source JSON nor a native room binding.
+const entryRead = await readUnifiedAtlas({ selection, signal: new AbortController().signal,
+  origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true, transport: async (...args) => {
+    const response = await transport(...args);
+    const headers = new Headers(response.headers);
+    if (headers.get('content-type') === 'application/json') headers.set('x-atlas-entry-building-id', 'syn-building-house');
+    return new Response(response.body, { status: response.status, headers });
+  } });
+assert.equal(entryRead.entryBuildingId, 'syn-building-house');
+assert.deepEqual(entryRead.scene, read.scene);
+assert.deepEqual(Buffer.from(entryRead.model), Buffer.from(read.model));
 
 // Valid scalar text at the backend's human-field bounds. These generated
 // source strings are retained exactly, not normalized or interpreted as dates.

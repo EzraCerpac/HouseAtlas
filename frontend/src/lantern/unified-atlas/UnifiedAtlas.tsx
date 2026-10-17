@@ -34,7 +34,8 @@ import './unified-atlas.css';
  * (frame, explosion, each building's section plane, camera), so the latest
  * action always wins; reduced motion snaps. */
 
-type Outcome = { readonly status: 'ready'; readonly model: AtlasModel } | { readonly status: 'failed'; readonly reason: AtlasReadFailure };
+type Outcome = { readonly status: 'ready'; readonly model: AtlasModel; readonly entryBuildingId: string | null | undefined }
+  | { readonly status: 'failed'; readonly reason: AtlasReadFailure };
 interface Loaded { readonly selection: ModelOverviewSelection; readonly attempt: number; readonly outcome: Outcome }
 
 const FAILURE: Record<AtlasReadFailure, { readonly text: string; readonly retry: string | null }> = {
@@ -45,12 +46,16 @@ const FAILURE: Record<AtlasReadFailure, { readonly text: string; readonly retry:
   'too-large': { text: 'This model is larger than the viewer supports.', retry: null },
 };
 
-// View state per exact publication and selection revision, for this tab only.
+// View state per exact overview owner, manifest and publication revision, for this tab only.
 const memory = new Map<string, AtlasViewState>();
 const MEMORY_ENTRIES = 8;
-const memoryKey = (model: AtlasModel) => {
+const overviewOwners = new WeakMap<ModelOverviewSelection, number>();
+let nextOverviewOwner = 0;
+const memoryKey = (model: AtlasModel, overview: ModelOverviewSelection) => {
+  let owner = overviewOwners.get(overview);
+  if (owner === undefined) { owner = ++nextOverviewOwner; overviewOwners.set(overview, owner); }
   const { scope, publication, selection } = model.scene;
-  return `${scope.workspaceId}/${scope.homeId}/${publication.publicationId}/${selection.revision}`;
+  return `${owner}/${overview.manifestSha256}/${scope.workspaceId}/${scope.homeId}/${publication.publicationId}/${publication.semanticsSha256}/${selection.revision}`;
 };
 function remember(key: string, state: AtlasViewState) {
   memory.delete(key); memory.set(key, state);
@@ -78,7 +83,7 @@ export default function UnifiedAtlas({ port, onOpenModel }: { readonly port: Uni
           if (admission.work.triangles * PREPARED_BYTES_PER_TRIANGLE > RENDER_LIMITS.uploadBytes) throw new AtlasReadError('too-large');
         });
         signal.throwIfAborted();
-        outcome = { status: 'ready', model: bindAtlasModel(read.scene, glb) };
+        outcome = { status: 'ready', model: bindAtlasModel(read.scene, glb), entryBuildingId: read.entryBuildingId };
       } catch (error) {
         if (signal.aborted) return;
         // A model file the standard loader refuses does not match its room map.
@@ -107,7 +112,7 @@ export default function UnifiedAtlas({ port, onOpenModel }: { readonly port: Uni
       </div>
     </section>;
   }
-  return <AtlasStage key={memoryKey(outcome.model)} model={outcome.model} port={port} selection={selection} />;
+  return <AtlasStage key={memoryKey(outcome.model, selection)} model={outcome.model} port={port} selection={selection} entryBuildingId={outcome.entryBuildingId} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -245,11 +250,13 @@ interface StageMarker extends CountMarker {
   readonly context: boolean;
 }
 
-function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; readonly port: UnifiedAtlasPort; readonly selection: ModelOverviewSelection }) {
+function AtlasStage({ model, port, selection, entryBuildingId }: { readonly model: AtlasModel; readonly port: UnifiedAtlasPort;
+  readonly selection: ModelOverviewSelection; readonly entryBuildingId: string | null | undefined }) {
   const { dispatch: appDispatch } = useStore();
   const reduced = useReducedMotion();
-  const key = memoryKey(model);
-  const [state, setState] = useState<AtlasViewState>(() => memory.get(key) ?? initialAtlasState(model, port.entryBuildingId?.(model.scene) ?? null));
+  const key = memoryKey(model, selection);
+  const [state, setState] = useState<AtlasViewState>(() => memory.get(key) ?? initialAtlasState(model,
+    entryBuildingId === undefined ? port.entryBuildingId?.(model.scene) ?? null : entryBuildingId));
   const dispatch = useCallback((action: AtlasAction) => setState(value => atlasReducer(model, value, action)), [model]);
   useEffect(() => { remember(key, state); }, [key, state]);
   const [failure, setFailure] = useState<string | null>(null);
@@ -684,7 +691,7 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
         <div className="cifc-canvas-wrap" style={{ opacity: 1 - planBlend }}>
           <MeshLayer meshes={model.meshes} projection={projection} rules={RULES} currentFloorId={presentation.focusLevelId}
             selectedOccurrenceId={selected} contextOccurrenceIds={context} tints={tints} hidden={!showCanvas}
-            hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT}
+            hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided
             onUnavailable={message => setFailure(message)} />
         </div>
         <svg className="cifc-svg" width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`} aria-hidden="true">

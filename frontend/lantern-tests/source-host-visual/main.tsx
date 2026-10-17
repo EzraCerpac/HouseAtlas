@@ -115,8 +115,13 @@ async function sourceModels(): Promise<SourceModelPort> {
     // The production reader, guards and admission against the in-page HTTPS fake.
     atlas: { current, subscribe, entryBuildingId: () => entry,
       ...(saved ? { savedDocumentary: saved } : {}),
-      read: (requested, signal) => readUnifiedAtlas({ selection: requested, signal,
-      origin: SYNTHETIC_ATLAS.origin, isCurrent: () => requested === selection, transport }) },
+      async read(requested, signal) {
+        const read = await readUnifiedAtlas({ selection: requested, signal,
+          origin: SYNTHETIC_ATLAS.origin, isCurrent: () => requested === selection, transport });
+        // This explicit local-fixture preference is presentation only; the
+        // generated transport has no authenticated native entry configuration.
+        return entry === null ? read : { ...read, entryBuildingId: entry };
+      } },
   };
 }
 

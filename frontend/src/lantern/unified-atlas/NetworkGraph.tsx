@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react';
+import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { NetworkOverlayData, NetworkOverlayDevice, NetworkOverlayEndpoint, NetworkOverlayLink } from '../overlays/network/types';
 import type { DocumentaryNetworkGraph } from './runtime-overlays';
 import './network-graph.css';
@@ -168,10 +168,24 @@ export function NetworkGraph({ graph }: { readonly graph: DocumentaryNetworkGrap
   const built = useMemo(() => buildGraph(data), [data]);
   const view = useMemo(() => layoutGraph(built.nodes, built.edges), [built]);
   const [choice, setChoice] = useState<Choice>(null);
+  const root = useRef<HTMLElement>(null), detail = useRef<HTMLDivElement>(null), title = useRef<HTMLElement>(null);
+  const focusOrigin = useRef<HTMLElement | null>(null);
   const titleId = useId();
   const chosen = choice?.kind === 'node' ? built.nodes.get(choice.id) ?? null : null;
   const chosenEdge = choice?.kind === 'link' ? built.edges.find(edge => edge.key === choice.id) ?? null : null;
-  const choose = (next: Choice) => setChoice(value => value && next && value.kind === next.kind && value.id === next.id ? null : next);
+  const select = (next: Choice, toggle = false) => {
+    const active = document.activeElement;
+    focusOrigin.current = active instanceof HTMLElement && root.current?.contains(active) ? active : null;
+    setChoice(value => toggle && value && next && value.kind === next.kind && value.id === next.id ? null : next);
+  };
+  const choose = (next: Choice) => select(next, true);
+  useLayoutEffect(() => {
+    const origin = focusOrigin.current; focusOrigin.current = null;
+    if (!origin || origin.isConnected) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && active.isConnected) return;
+    (choice ? detail.current : title.current)?.focus({ preventScroll: true });
+  }, [choice]);
   const label = (id: string) => built.nodes.get(id)?.label ?? id;
 
   // The chosen record and what touches it stay in full; the rest steps back.
@@ -210,9 +224,9 @@ export function NetworkGraph({ graph }: { readonly graph: DocumentaryNetworkGrap
       <span className="ung-item-meta">{links === 0 ? 'no connection' : plural(links, 'connection')}</span></button></li>;
   };
 
-  return <figure className="ung" aria-labelledby={titleId}>
+  return <figure className="ung" aria-labelledby={titleId} ref={root}>
     <figcaption className="ung-caption">
-      <strong id={titleId}>{graph.qualification}</strong>
+      <strong id={titleId} ref={title} tabIndex={-1}>{graph.qualification}</strong>
       <span>{plural(data.devices.length, 'device')}, {plural(data.endpoints.length, 'endpoint')}, {plural(data.links.length, 'connection')}
         {alone.length > 0 ? `; ${alone.length.toLocaleString()} not connected to another record` : ''}</span>
     </figcaption>
@@ -251,11 +265,11 @@ export function NetworkGraph({ graph }: { readonly graph: DocumentaryNetworkGrap
     </ul>
     <p className="ung-note">Positions show topology only, not places in the house. Every line is a recorded association, not a cable route.</p>
 
-    {(chosen || chosenEdge) && <div className="ung-detail" aria-live="polite">
+    {(chosen || chosenEdge) && <div className="ung-detail" aria-live="polite" ref={detail} tabIndex={-1} aria-label="Selected network record">
       {chosen && <NodeDetail node={chosen} edges={built.edges.filter(edge => edge.a === chosen.id || edge.b === chosen.id)} label={label}
-        chooseLink={key => setChoice({ kind: 'link', id: key })} />}
-      {chosenEdge && <LinkDetail edge={chosenEdge} label={label} chooseNode={id => setChoice({ kind: 'node', id })} />}
-      <button type="button" className="text-btn" onClick={() => setChoice(null)}>Clear graph selection</button>
+        chooseLink={key => select({ kind: 'link', id: key })} />}
+      {chosenEdge && <LinkDetail edge={chosenEdge} data={data} label={label} chooseNode={id => select({ kind: 'node', id })} />}
+      <button type="button" className="text-btn" onClick={() => select(null)}>Clear graph selection</button>
     </div>}
 
     {alone.length > 0 && <div className="ung-alone" role="group" aria-label="Not connected to another record">
@@ -299,7 +313,9 @@ function NodeDetail({ node, edges, label, chooseLink }: {
       {device && <div><dt>Room in source</dt><dd>{place ? `${place.roomLabel}, ${MAPPING[place.mappingStatus]}; no position in the model` : 'None recorded'}</dd></div>}
       {place?.basis && <div><dt>Room basis</dt><dd>{place.basis}</dd></div>}
       {place?.detail && <div><dt>Room detail</dt><dd>{place.detail}</dd></div>}
-      {node.ports.length > 0 && <div><dt>Endpoints</dt><dd>{node.ports.map(port => `${port.label} (${port.kind})`).join(', ')}</dd></div>}
+      {node.ports.length > 0 && <div><dt>Endpoints</dt><dd>{node.ports.map(port => <details key={port.id}>
+        <summary>{port.label} ({port.kind})</summary><EndpointFacts endpoint={port} />
+      </details>)}</dd></div>}
       {endpoint && <div><dt>Device</dt><dd>{endpoint.ownerDeviceId === null ? 'None in the source' : `Device ID not in the source: ${endpoint.ownerDeviceId}`}</dd></div>}
       {(device?.notes || endpoint?.notes) && <div><dt>Notes</dt><dd>{device?.notes || endpoint?.notes}</dd></div>}
       <div><dt>Source record</dt><dd><code>{node.sourceId}</code></dd></div>
@@ -312,7 +328,17 @@ function NodeDetail({ node, edges, label, chooseLink }: {
   </>;
 }
 
-function LinkDetail({ edge, label, chooseNode }: { readonly edge: GraphEdge; readonly label: (id: string) => string; readonly chooseNode: (id: string) => void }) {
+function EndpointFacts({ endpoint }: { readonly endpoint: NetworkOverlayEndpoint }) {
+  return <dl>
+    <div><dt>Endpoint ID</dt><dd><code>{endpoint.id}</code></dd></div>
+    <div><dt>Label</dt><dd>{endpoint.label}</dd></div>
+    <div><dt>Kind</dt><dd>{endpoint.kind}</dd></div>
+    <div><dt>Owner device ID</dt><dd>{endpoint.ownerDeviceId ?? 'None in the source'}</dd></div>
+    <div><dt>Notes</dt><dd>{endpoint.notes || 'None recorded'}</dd></div>
+  </dl>;
+}
+
+function LinkDetail({ edge, data, label, chooseNode }: { readonly edge: GraphEdge; readonly data: NetworkOverlayData; readonly label: (id: string) => string; readonly chooseNode: (id: string) => void }) {
   const { link } = edge;
   return <>
     <h4><LineSample tone={edge.tone} />
@@ -320,6 +346,10 @@ function LinkDetail({ edge, label, chooseNode }: { readonly edge: GraphEdge; rea
       <button type="button" className="text-btn inline" onClick={() => chooseNode(edge.b)}>{label(edge.b)}</button></h4>
     <p className="ung-qual">{EDGE_LABEL[edge.tone]}. No cable route is recorded.</p>
     <dl>
+      <div><dt>From endpoint ID</dt><dd><code>{link.fromEndpointId}</code>
+        {data.endpoints.filter(endpoint => endpoint.id === link.fromEndpointId).map(endpoint => <EndpointFacts key={endpoint.id} endpoint={endpoint} />)}</dd></div>
+      <div><dt>To endpoint ID</dt><dd><code>{link.toEndpointId}</code>
+        {data.endpoints.filter(endpoint => endpoint.id === link.toEndpointId).map(endpoint => <EndpointFacts key={endpoint.id} endpoint={endpoint} />)}</dd></div>
       <div><dt>Kind</dt><dd>{LINK_KIND[link.kind]}</dd></div>
       <div><dt>Medium</dt><dd>{link.medium || 'unknown'}</dd></div>
       <div><dt>Curated confidence</dt><dd>{link.confidence}</dd></div>

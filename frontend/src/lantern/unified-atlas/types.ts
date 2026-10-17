@@ -120,6 +120,9 @@ export interface AtlasScene {
 export interface UnifiedAtlasRead {
   readonly scene: AtlasScene;
   readonly model: Uint8Array<ArrayBuffer>;
+  /** Optional presentation metadata owned by this exact admitted read. Null is
+   * explicitly unconfigured; omitted local ports may supply their own callback. */
+  readonly entryBuildingId?: string | null;
 }
 export type AtlasReadFailure = 'absent' | 'stale' | 'unavailable' | 'invalid' | 'too-large';
 export class AtlasReadError extends Error {
