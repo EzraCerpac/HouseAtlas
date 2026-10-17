@@ -682,10 +682,11 @@ export function atlasReducer(model: AtlasModel, state: AtlasViewState, action: A
   }
 }
 
-/** Each building's lowest floor with a plan, in source building order: the property plan. */
+/** Each building's lowest floor with plan features, in source building order: the property plan. */
 export function sitePlanLevels(model: AtlasModel): readonly string[] {
   return model.floorBuildings.flatMap(building => {
-    const level = (model.levelsByBuilding.get(building.buildingId) ?? []).find(item => model.plansByLevel.has(item.levelId));
+    const level = (model.levelsByBuilding.get(building.buildingId) ?? []).find(item =>
+      model.plansByLevel.get(item.levelId)?.some(plan => plan.features.length > 0));
     return level ? [level.levelId] : [];
   });
 }

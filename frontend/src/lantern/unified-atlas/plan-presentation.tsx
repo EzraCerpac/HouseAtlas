@@ -1,7 +1,7 @@
 import { useMemo, type CSSProperties } from 'react';
 import { relativePath } from '../canonical-ifc/geometry';
 import { TONE_COLOR, badgeFill } from '../canonical-ifc/tones';
-import { planFeaturesForLevel, type AtlasModel, type OverlayLayerIndex } from './scene';
+import { contextOccurrenceIds, planFeaturesForLevel, type AtlasModel, type OverlayLayerIndex } from './scene';
 import type { AtlasLevel, AtlasOccurrence, AtlasPlanFeature, OverlayKind, PlanRole } from './types';
 import type { RoomArea } from './measurements';
 
@@ -39,6 +39,7 @@ export function PlanTile({ model, level, layers, tints, selected, name, choose }
   readonly tints: ReadonlyMap<string, string>; readonly selected: string | null; readonly name: string; readonly choose: () => void;
 }) {
   const W = 120, H = 84, PAD = 6;
+  const context = useMemo(() => contextOccurrenceIds(model, selected), [model, selected]);
   const view = useMemo(() => {
     const features = planFeaturesForLevel(model, level.levelId);
     if (features.length === 0) return null;
@@ -60,7 +61,7 @@ export function PlanTile({ model, level, layers, tints, selected, name, choose }
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
       <g transform={`translate(${W / 2} ${H / 2}) scale(${view.scale})`}>
         {view.rows.map(({ feature, path }) => feature.role === 'room'
-          ? <PlanRoom key={feature.featureId} feature={feature} path={path} pickable={false} selected={selected} context={[]} tints={tints} />
+          ? <PlanRoom key={feature.featureId} feature={feature} path={path} pickable={false} selected={selected} context={context} tints={tints} />
           : <path key={feature.featureId} d={path} fillRule="evenodd" vectorEffect="non-scaling-stroke" className={`ua-plan-${feature.role}`} />)}
       </g>
       {counts.map(row => row.rooms.map(room => {

@@ -19,12 +19,12 @@ writeFileSync(entry, [
   ['frontend/src/offline/manifest.ts', ['canonicalPack']],
   ['frontend/src/lantern/unified-atlas/runtime-overlays.ts', ['mergeDocumentaryRecords']],
   ['frontend/src/lantern/canonical-ifc/standard-glb.ts', ['loadStandardGlb']],
-  ['frontend/src/lantern/unified-atlas/scene.ts', ['bindAtlasModel', 'planFeaturesForLevel']],
+  ['frontend/src/lantern/unified-atlas/scene.ts', ['bindAtlasModel', 'planFeaturesForLevel', 'sitePlanLevels']],
 ].map(([path, names]) => `export { ${names.join(',')} } from ${JSON.stringify(join(root, path))};`).join('\n'));
 const built = await build({ root: join(root, 'frontend'), configFile: false, logLevel: 'silent', build: { write: false, target: 'node26', lib: { entry, formats: ['es'] }, rolldownOptions: { output: { codeSplitting: false } }, minify: false } });
 const output = Array.isArray(built) ? built[0] : built;
 const modulePath = join(scratch, 'positive.mjs'); writeFileSync(modulePath, output.output.find(row => row.type === 'chunk' && row.isEntry).code);
-const { generateSavedPack, readSavedPackSections, projectSavedAtlasOverlays, readSavedHistoricalFacts, createSavedAtlasDataAdapter, mergeDocumentaryRecords, canonicalPack, loadStandardGlb, bindAtlasModel, planFeaturesForLevel } = await import(pathToFileURL(modulePath).href);
+const { generateSavedPack, readSavedPackSections, projectSavedAtlasOverlays, readSavedHistoricalFacts, createSavedAtlasDataAdapter, mergeDocumentaryRecords, canonicalPack, loadStandardGlb, bindAtlasModel, planFeaturesForLevel, sitePlanLevels } = await import(pathToFileURL(modulePath).href);
 rmSync(scratch, { recursive: true });
 const atlasSchema = JSON.parse(readFileSync(join(root, 'packages/contracts/schemas/atlas.schema.json')));
 // The exporter intentionally strips only asset custody routing storageKey.
@@ -219,6 +219,7 @@ console.log('PASS canonical source identity dedup retains differing observations
   assert.deepEqual(levels[0].occurrenceIds, []); assert(model.plansByLevel.has(levels[0].levelId));
   assert.deepEqual(planFeaturesForLevel(model, levels[0].levelId), []);
   assert(levels.slice(1).some(level => planFeaturesForLevel(model, level.levelId).length > 0));
+  assert.equal(sitePlanLevels(model)[0], 'syn-level-ground', 'composed property Plan skips the valid featureless first candidate');
   assert.equal(savedRead.scene.publication.publicationId, '00000000-0000-4000-8000-0000000a7152');
   assert.equal(savedRead.scene.selection.revision, 'generated-final-interaction-1');
   assert.notEqual(savedRead.scene.publication.semanticsSha256, baseline.scene.publication.semanticsSha256);

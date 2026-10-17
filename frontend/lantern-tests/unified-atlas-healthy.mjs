@@ -470,12 +470,15 @@ for (const key of multipleModel.levelsById.get(authored.levelId).occurrenceIds.f
 // Actual React presentation: an additive empty floor retains navigation but
 // produces no thumbnail or non-finite coordinates. Every original feature,
 // occurrence, primitive binding and coverage record remains in the publication.
-{
-  const extra = JSON.parse(new TextDecoder().decode(companionBytes)), emptyLevel = 'syn-level-empty';
+for (const emptyFloor of [
+  { levelId: 'syn-level-empty', min: [102, 4, 51], max: [107, 5, 59] },
+  { levelId: 'syn-level-empty-below', min: [102, -.1, 51], max: [107, -.05, 59] },
+]) {
+  const extra = JSON.parse(new TextDecoder().decode(companionBytes)), emptyLevel = emptyFloor.levelId;
   extra.buildings.find(building => building.buildingId === 'syn-building-house').levelIds.push(emptyLevel);
   extra.levels.push({ levelId: emptyLevel, buildingId: 'syn-building-house', label: 'Generated empty floor', nativePlaceId: null,
-    sourceElevationM: null, elevationBasis: null, occurrenceIds: [], bounds: { min: [102, 4, 51], max: [107, 5, 59] } });
-  extra.plans.push({ planId: 'syn-plan-empty', buildingId: 'syn-building-house', levelId: emptyLevel,
+    sourceElevationM: null, elevationBasis: null, occurrenceIds: [], bounds: { min: emptyFloor.min, max: emptyFloor.max } });
+  extra.plans.push({ planId: `syn-plan-${emptyLevel}`, buildingId: 'syn-building-house', levelId: emptyLevel,
     coordinates: 'scene-XZ-metres', featureIds: [], features: [] });
   const emptyEnvelope = await composeAtlasEnvelope(new TextEncoder().encode(JSON.stringify(extra)), glb, SYNTHETIC_ATLAS.revision);
   const emptyRead = await readUnifiedAtlas({ selection: { ...selection, manifestSha256: emptyEnvelope.manifestSha256 },
@@ -491,6 +494,13 @@ for (const key of multipleModel.levelsById.get(authored.levelId).occurrenceIds.f
   assert.deepEqual(emptyModel.scene.plans.slice(0, model.scene.plans.length), model.scene.plans);
   assert.equal(emptyModel.plansByLevel.has(emptyLevel), true);
   assert.deepEqual(scene.planFeaturesForLevel(emptyModel, emptyLevel), []);
+  if (emptyFloor.min[1] < 0) assert.equal(emptyModel.levelsByBuilding.get('syn-building-house')[0].levelId, emptyLevel, 'source heights, rather than appended array order, choose the lowest floor');
+  assert.deepEqual(scene.sitePlanLevels(emptyModel), ['syn-level-ground', 'syn-level-studio']);
+  assert.deepEqual(scene.sitePlanLevels(emptyModel), scene.sitePlanLevels(model));
+  const property = { ...initialAtlasState(emptyModel), buildingId: null, view: 'plan' };
+  const propertyPlan = presentAtlas(emptyModel, property, new Set());
+  assert.deepEqual(propertyPlan.planLevels, scene.sitePlanLevels(model));
+  assert.ok(propertyPlan.planLevels.every(levelId => scene.planFeaturesForLevel(emptyModel, levelId).length > 0));
   const emptyState = atlasReducer(emptyModel, initialAtlasState(emptyModel), { type: 'level', levelId: emptyLevel });
   assert.equal(emptyState.levelId, emptyLevel, 'the floor remains available through semantic navigation');
   const props = { model: emptyModel, layers: [...emptyModel.overlays.values()], tints: new Map(), selected: null, choose() {} };
@@ -501,6 +511,25 @@ for (const key of multipleModel.levelsById.get(authored.levelId).occurrenceIds.f
   assert.match(full, /class="ua-tile"/); assert.match(full, /<path /);
   assert.ok(full.includes('Generated ground floor')); assert.ok(full.includes('4 electrical records')); assert.ok(full.includes('1 network record'));
   assert.doesNotMatch(full, /NaN|Infinity/);
+}
+
+// Actual thumbnails use the same logical-room sibling context as the stage,
+// before ordinary overlay tint, in both directions across the two room parts.
+for (const [selected, sibling, levelId, unrelated] of [
+  ['syn-occ-stairs-ground', 'syn-occ-stairs-upper', 'syn-level-upper', 'syn-occ-bath'],
+  ['syn-occ-stairs-upper', 'syn-occ-stairs-ground', 'syn-level-ground', 'syn-occ-living'],
+]) {
+  const props = { model, level: model.levelsById.get(levelId), layers: [], tints: new Map([[sibling, '#123456'], [unrelated, '#654321']]),
+    selected, name: 'Generated sibling floor', choose() {} };
+  const html = renderToStaticMarkup(createElement(PlanTile, props));
+  const contextPaths = [...html.matchAll(/<path\b[^>]*class="cifc-plan-space is-context"[^>]*>/g)];
+  assert.equal(contextPaths.length, 1);
+  assert.ok(!contextPaths[0][0].includes('style='), 'sibling context takes precedence over its ordinary layer tint');
+  assert.ok(html.includes('class="cifc-plan-space is-other" style="fill:#654321"'));
+  assert.ok(!html.includes('is-selected'));
+  const ordinary = renderToStaticMarkup(createElement(PlanTile, { ...props, selected: null }));
+  assert.ok(!ordinary.includes('is-context')); assert.ok(!ordinary.includes('is-selected'));
+  assert.ok(ordinary.includes('fill:#123456')); assert.ok(ordinary.includes('fill:#654321'));
 }
 
 // Nullable area is an ordinary presentation value, independent of the source
@@ -529,24 +558,40 @@ for (const key of multipleModel.levelsById.get(authored.levelId).occurrenceIds.f
     { name: 'owned-collapse', devices: [loop, isolated], endpoints: [port('port-a', loop.id), port('port-b', loop.id)], from: 'port-a', to: 'port-b', node: loop.label },
     { name: 'ownerless', devices: [isolated], endpoints: [port('loose', null)], from: 'loose', to: 'loose', node: 'Loop endpoint' },
   ];
-  for (const item of cases) {
-    const data = { viewKey: `generated-loop-${item.name}`, source, devices: item.devices, endpoints: item.endpoints,
-      links: [{ id: `generated-link-${item.name}`, fromEndpointId: item.from, toEndpointId: item.to, kind: 'connection', medium: 'Generated logical medium',
-        confidence: 'recorded', sourceConfidence: null, temporalStatus: '', recordedAtPrecision: null, basis: 'Generated source record', recordedAt: null, notes: '', path: null }] };
+  for (const item of cases) for (const linkCount of [1, 2, 3, 5]) {
+    const data = { viewKey: `generated-loop-${item.name}-${linkCount}`, source, devices: item.devices, endpoints: item.endpoints,
+      links: Array.from({ length: linkCount }, (_, at) => ({ id: `generated-link-${item.name}-${at}`, fromEndpointId: item.from, toEndpointId: item.to, kind: 'connection', medium: 'Generated logical medium',
+        confidence: 'recorded', sourceConfidence: null, temporalStatus: '', recordedAtPrecision: null, basis: 'Generated source record', recordedAt: null, notes: '', path: null })) };
     const before = JSON.stringify(data);
     const html = renderToStaticMarkup(createElement(NetworkGraph, { graph: { key: data.viewKey, qualification: 'Generated documentary topology', data } }));
-    assert.match(html, /<svg class="ung-svg"[^>]*role="img"/);
-    assert.equal((html.match(/<g class="ung-node"/g) ?? []).length, 1);
-    assert.equal((html.match(/class="ung-edge-hit"/g) ?? []).length, 1);
-    assert.match(html, /class="ung-edge is-recorded" d="M[^"\n]*C[^"\n]*"/);
+    const svg = html.match(/<svg class="ung-svg"[\s\S]*?<\/svg>/)?.[0];
+    assert.ok(svg, 'the actual graph drawing is mounted separately from legend/list samples');
+    assert.match(svg, /<svg class="ung-svg"[^>]*role="img"/);
+    assert.equal((svg.match(/<g class="ung-node"/g) ?? []).length, 1);
+    const paths = [...svg.matchAll(/class="ung-edge is-recorded" d="([^"]+)"/g)].map(match => match[1]);
+    const hits = [...svg.matchAll(/class="ung-edge-hit" d="([^"]+)"/g)].map(match => match[1]);
+    assert.equal(paths.length, linkCount); assert.deepEqual(hits, paths);
+    assert.equal(new Set(paths).size, linkCount, 'every parallel self-link retains a distinct pointer path');
+    assert.match(svg, /class="ung-edge is-recorded" d="M[^"\n]*C[^"\n]*"/);
     assert.doesNotMatch(html, /NaN|Infinity/);
-    assert.ok(html.includes(`${item.devices.length} ${item.devices.length === 1 ? 'device' : 'devices'}, ${item.endpoints.length} ${item.endpoints.length === 1 ? 'endpoint' : 'endpoints'}, 1 connection`));
-    assert.ok(html.includes(`Devices (${item.devices.length})`)); assert.ok(html.includes('Connections (1)'));
+    const [l, t, width, height] = svg.match(/<svg class="ung-svg" viewBox="([^"]+)"/)[1].split(' ').map(Number);
+    assert.ok(Number.isFinite(l + t + width + height) && width > 0 && height > 0);
+    for (const path of paths) {
+      const coordinates = path.match(/[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi).map(Number);
+      assert.equal(coordinates.length, 8, 'the actual self-link remains a cubic');
+      for (let at = 0; at < coordinates.length; at += 2) {
+        assert.ok(coordinates[at] >= l + 8 - 1e-8 && coordinates[at] <= l + width - 8 + 1e-8);
+        assert.ok(coordinates[at + 1] >= t + 8 - 1e-8 && coordinates[at + 1] <= t + height - 8 + 1e-8, 'the full control envelope and hit stroke stay within the frame');
+      }
+    }
+    const total = `${linkCount} ${linkCount === 1 ? 'connection' : 'connections'}`;
+    assert.ok(html.includes(`${item.devices.length} ${item.devices.length === 1 ? 'device' : 'devices'}, ${item.endpoints.length} ${item.endpoints.length === 1 ? 'endpoint' : 'endpoints'}, ${total}`));
+    assert.ok(html.includes(`Devices (${item.devices.length})`)); assert.ok(html.includes(`Connections (${linkCount})`));
     assert.ok(html.includes(`${item.node} ↔ ${item.node}`));
     const alone = html.match(/<div class="ung-alone"[^>]*>([\s\S]*?)<\/div>/)?.[1] ?? '';
     assert.match(alone, /Isolated device/); assert.doesNotMatch(alone, /Loop device|Loop endpoint/);
     assert.equal((html.match(/class="ung-chip"/g) ?? []).length, 1);
-    assert.ok(html.includes('1 connection</span>')); assert.ok(html.includes('no connection</span>'));
+    assert.ok(html.includes(`${total}</span>`)); assert.ok(html.includes('no connection</span>'));
     assert.equal(JSON.stringify(data), before);
   }
 }
@@ -989,5 +1034,5 @@ console.log('PASS unified Atlas healthy: generated scene/model read through the 
   + 'Common records/provenance are shared across two selectable Stairs parts; 32 excluded occurrences acquire no placement. '
   + 'Explicit excluded-part and wholly excluded-room bindings retain unplaced totals, original anchors, dates and inspectable source references. '
   + 'Scalar counts and selected details retain source order. '
-  + 'Actual static React graph, PlanTile and AreaValue checks retain self-links, empty-floor navigation and nullable area basis. '
+  + 'Actual static React graph, PlanTile and AreaValue checks retain distinct parallel self-links and their frames, sibling room context, empty-floor navigation and usable property plans, and nullable area basis. '
   + 'Generated data only; no mounted browser, GPU or device acceptance.');

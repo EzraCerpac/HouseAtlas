@@ -1176,7 +1176,13 @@ The same named generated check also reads these fictional factual subsets
 through the saved-documentary byte-admission path, without a native selection,
 session or lease, and retains exact captured identity joins, original dates and
 typed record totals. It checks that repeated building views of one pinned source
-are one inventory. The native owner, original guards and positive refresh/release
+are one inventory. Saved-preview coverage follows the captured native building
+identity, independent of publication building order; unrelated and unlinked
+buildings stay unavailable and the property uses the existing partial-coverage
+aggregation. Source totals, unplaced records and complete graph facts remain
+unchanged. This qualifies `integration/saved-documentary-preview.ts` only;
+the separate production saved-overlay owner needs its own checks and composed
+browser review. The native owner, original guards and positive refresh/release
 checks still execute; saved success does not replace them.
 
 ## Unified Atlas reviewed room-links healthy read
@@ -1306,15 +1312,26 @@ shared `plan-presentation.tsx` with the same locked React/ReactDOM instance.
 Generated device self-links, two owned endpoints of one device and an
 ownerless endpoint self-link retain their SVG loops and source totals; a
 record with no incident link remains in the isolated list. The CSS-only graph
-import has no server execution. An additive empty-floor publication goes
+import has no server execution. Two, three and five parallel self-links retain
+distinct drawn/hit paths and a finite frame enclosing their cubic controls and
+hit-stroke margin. These static checks do not establish exposed-arc clicking.
+Additive empty-floor publications above and below the original floors go
 through fresh pins, the production reader, standard loader and binder while
-retaining all existing occurrences, features, bindings and coverage. Its empty
+retaining all existing occurrences, features, bindings and coverage. Each empty
 PlanTile renders nothing and is excluded from thumbnail counts, while the floor
 remains navigable and ordinary tiles retain their paths and overlay summaries.
+The property Plan skips a featureless lowest floor for the next usable plan.
+Actual thumbnails retain the canonical selected room's sibling context before
+ordinary layer tint, in both directions across a generated two-floor room.
 The shared AreaValue renders ordinary nullable source/estimated area values and
 numeric/partial values without changing the geometry basis. These are static
 React and CPU observations, not mounted focus, pointer, CSS, browser or device
 acceptance. They add no held control, source deletion or new verification command.
+The graph's responsive focus handoff requires composed browser review: focus a
+camera or layer control with the side graph open, resize to a covering graph,
+then check its heading, preserved inside/outside focus, uncovering and Escape
+return without changing room ancestry or enabled layers. CPU or static React
+checks do not qualify inert-focus behavior.
 
 The separate generated interaction positives use the production reader, standard
 GLB loader, reducer, projection, pointer factory and documentary index. Inspect
