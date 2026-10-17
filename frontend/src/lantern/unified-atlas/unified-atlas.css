@@ -689,6 +689,9 @@
   width: max-content;
   min-width: 232px;
   max-width: calc(100cqw - 16px);
+  max-height: max(0px, calc(var(--ua-stage-height, 100dvh) - 72px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   display: grid;
   gap: 4px;
   padding: 6px;

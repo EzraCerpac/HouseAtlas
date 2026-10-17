@@ -399,7 +399,9 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources }: {
     const root = shell.current, stage = viewport.current;
     if (!root || !stage) return;
     const measure = () => {
-      setCompact(stage.getBoundingClientRect().width <= COMPACT_STAGE);
+      const stageRect = stage.getBoundingClientRect();
+      setCompact(stageRect.width <= COMPACT_STAGE);
+      root.style.setProperty('--ua-stage-height', `${stageRect.height}px`);
       const next = measureCover(root, stage);
       setCover(value => JSON.stringify(value) === JSON.stringify(next.cover) ? value : next.cover);
       setGraphCovers(next.graphCovers);
@@ -777,6 +779,49 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources }: {
   // or when focus leaves them; Escape returns focus to the control that opened them.
   const menuButton = useRef<HTMLButtonElement>(null), pickButton = useRef<HTMLButtonElement>(null);
   const menuIds = useId();
+  // Remember only focus in controls which can disappear across the breakpoint
+  // or when the host archive filter is unchecked. Deliberate focus moves and
+  // outside taps must not be pulled back into the Atlas.
+  const chromeFocus = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const host = shell.current?.closest('.lantern-host');
+    if (!host) return;
+    const owner = (target: HTMLElement) => target.closest('.archive-filter, .atlas-source-details, .ua-menu, .ua-pick, .ua-buildings, .ua-tools > .ctrl-group');
+    const focused = (event: globalThis.FocusEvent) => {
+      const target = event.target;
+      chromeFocus.current = target instanceof HTMLElement && host.contains(target) && owner(target) ? target : null;
+    };
+    const blurred = (event: globalThis.FocusEvent) => {
+      const target = chromeFocus.current;
+      if (event.target === target && (event.relatedTarget !== null || (target?.isConnected && target.getClientRects().length > 0))) chromeFocus.current = null;
+    };
+    const tapped = (event: PointerEvent) => {
+      const target = chromeFocus.current;
+      if (target && event.target instanceof Node && !owner(target)?.contains(event.target)) chromeFocus.current = null;
+    };
+    document.addEventListener('focusin', focused);
+    document.addEventListener('focusout', blurred);
+    document.addEventListener('pointerdown', tapped, true);
+    return () => {
+      document.removeEventListener('focusin', focused);
+      document.removeEventListener('focusout', blurred);
+      document.removeEventListener('pointerdown', tapped, true);
+    };
+  }, []);
+  useLayoutEffect(() => {
+    const origin = chromeFocus.current;
+    if (!origin) return;
+    const available = (target: HTMLElement | null): target is HTMLElement => target !== null && target.isConnected
+      && target.getClientRects().length > 0 && !target.closest('[inert], [hidden], [aria-hidden="true"]')
+      && !target.matches(':disabled') && getComputedStyle(target).visibility === 'visible';
+    const active = document.activeElement;
+    if (active !== origin && active !== document.body) { chromeFocus.current = null; return; }
+    if (available(origin)) return;
+    chromeFocus.current = null;
+    if (underGraph) return; // The graph owns its own heading and return focus.
+    const target = compact ? menuButton.current : viewport.current;
+    if (available(target)) target.focus({ preventScroll: true });
+  });
   useEffect(() => { if (!compact || underGraph) setMenu(null); }, [compact, underGraph]);
   useEffect(() => {
     if (menu === null) return;

@@ -145,8 +145,25 @@ try {
     : document.querySelector('.ua-viewport .cifc-stage-note')?.textContent || false);
   assert.equal(await firstDraw.jsonValue(), 'drawn', 'Unified Atlas WebGL must draw before capture');
   const frames = page => page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(done)))));
-  // Normal keyboard use of the compact disclosure, without changing source.
+  // Normal keyboard use of the visible source disclosure, without changing source.
   const sourceDisclosure = async () => {
+    const compactButton = shell.getByRole('button', { name: 'View and sources', exact: true });
+    if (await compactButton.isVisible()) {
+      const panel = shell.locator('.ua-menu-panel'), sources = panel.locator('.ua-menu-sources');
+      await compactButton.focus(); await compactButton.press('Enter');
+      assert.equal(await compactButton.getAttribute('aria-expanded'), 'true');
+      await panel.waitFor({ state: 'visible' });
+      assert.deepEqual((await sources.getByRole('button').allTextContents()).map(name => name.trim()), sourceNames);
+      await sources.getByRole('button').last().focus(); await atlas.keyboard.press('Tab');
+      assert.equal(await compactButton.getAttribute('aria-expanded'), 'false', 'The menu closes before focus enters stage controls');
+      await panel.waitFor({ state: 'hidden' });
+      await compactButton.focus(); await compactButton.press('Enter');
+      await sources.getByRole('button').first().focus(); await atlas.keyboard.press('Escape');
+      assert.equal(await compactButton.getAttribute('aria-expanded'), 'false');
+      await panel.waitFor({ state: 'hidden' });
+      assert.equal(await compactButton.evaluate(node => document.activeElement === node), true, 'Escape returns focus to View and sources');
+      return { control: 'view-and-sources', closedAfterTab: true, closedAfterEscape: true, focusReturned: true };
+    }
     const menu = atlas.locator('details.atlas-source-details'), summary = menu.locator(':scope > summary');
     await summary.focus(); await summary.press('Enter');
     assert.equal(await menu.evaluate(node => node.open), true);
@@ -156,17 +173,32 @@ try {
     await menu.locator('nav button').first().focus(); await atlas.keyboard.press('Escape');
     assert.equal(await menu.evaluate(node => node.open), false);
     assert.equal(await summary.evaluate(node => document.activeElement === node), true, 'Escape returns focus to the source summary');
-    return { closedAfterTab: true, closedAfterEscape: true, focusReturned: true };
+    return { control: 'source-summary', closedAfterTab: true, closedAfterEscape: true, focusReturned: true };
   };
+  const sourceNames = (await atlas.locator('details.atlas-source-details nav button').allTextContents()).map(name => name.trim());
   const desktopDisclosure = await sourceDisclosure();
   // Zoom in, then Fit view back to the baseline pose; a draw must follow the fit.
   const settledDraw = async page => {
-    await shell.getByRole('button', { name: 'Zoom in', exact: true }).click();
+    const menuButton = shell.getByRole('button', { name: 'View and sources', exact: true });
+    const compact = await menuButton.isVisible();
+    if (compact) {
+      await menuButton.click();
+      assert.equal(await menuButton.getAttribute('aria-expanded'), 'true');
+    }
+    const camera = shell.locator(compact ? '.ua-menu-camera' : '.ua-tools > .ctrl-group');
+    await camera.getByRole('button', { name: 'Zoom in', exact: true }).click();
     await frames(page);
     await page.evaluate(() => { window.syntheticAtlasDrawCalls = 0; });
-    await shell.getByRole('button', { name: 'Fit view', exact: true }).click();
+    await camera.getByRole('button', { name: 'Fit view', exact: true }).click();
     await frames(page);
     await page.waitForFunction(() => window.syntheticAtlasDrawCalls > 0);
+    if (compact) {
+      await atlas.keyboard.press('Escape');
+      assert.equal(await menuButton.getAttribute('aria-expanded'), 'false');
+      assert.equal(await menuButton.evaluate(node => document.activeElement === node), true);
+      await shell.locator('.ua-menu-panel').waitFor({ state: 'hidden' });
+      await frames(page);
+    }
   };
   const atlasFacts = () => atlas.evaluate(() => {
     const text = selector => document.querySelector(selector)?.textContent?.trim() ?? null;
@@ -176,15 +208,15 @@ try {
     const inspector = document.querySelector('aside.ua-inspector'), canvas = document.querySelector('.ua-viewport canvas.cifc-canvas');
     const stageBox = document.querySelector('.ua-viewport').getBoundingClientRect();
     // The current building and floor are each visible inside their own row and the stage.
-    const inView = selector => {
-      const row = document.querySelector(selector), current = row?.querySelector('[aria-pressed="true"]');
-      if (!current) return false;
+    const inView = (row, current = row?.querySelector('[aria-pressed="true"]')) => {
+      if (!row || !current || !visible(row) || !visible(current)) return false;
       const a = current.getBoundingClientRect(), b = row.getBoundingClientRect();
-      return a.left >= Math.max(b.left, stageBox.left) - 1 && a.right <= Math.min(b.right, stageBox.right) + 1 && a.top >= stageBox.top - 1 && a.bottom <= stageBox.bottom + 1;
+      return a.width > 0 && a.height > 0 && b.width > 0 && b.height > 0
+        && a.left >= Math.max(b.left, stageBox.left) - 1 && a.right <= Math.min(b.right, stageBox.right) + 1 && a.top >= stageBox.top - 1 && a.bottom <= stageBox.bottom + 1;
     };
     // Room and count buttons on the stage, measured against every visible floating panel.
     const visible = node => { const style = getComputedStyle(node); return style.display !== 'none' && style.visibility !== 'hidden'; };
-    const panels = [...document.querySelectorAll('.ua-tools > *, .ua-scope > *, .ua-bottom > *')].filter(visible).map(node => node.getBoundingClientRect());
+    const panels = [...document.querySelectorAll('.ua-tools > *, .ua-scope > *, .ua-bottom > *, .ua-menu-panel:not([hidden])')].filter(visible).map(node => node.getBoundingClientRect());
     if (getComputedStyle(inspector).position === 'absolute' && !inspector.classList.contains('is-open')) panels.push(inspector.getBoundingClientRect());
     // Conservatively include the nine-pixel pseudo-element extensions around
     // each count's border box, rather than measuring only the visible badge.
@@ -204,10 +236,17 @@ try {
       .map(node => [node.getAttribute('aria-label'), hitBox(node)]);
     const actionCollisions = actions.flatMap(([name, a], at) => actions.slice(at + 1)
       .filter(([, b]) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1).map(([other]) => `${name} / ${other}`));
+    const compact = document.querySelector('.ua-shell').classList.contains('is-compact');
+    const building = pressed('.ua-buildings button'), buildingLabel = text('.ua-pick-name');
     return {
-      buildingInView: inView('.ua-buildings'), floorInView: inView('.ua-ladder'), covered, crowded, actionCollisions,
+      buildingInView: compact
+        ? building.length === 1 && buildingLabel === building[0] && inView(document.querySelector('.ua-scope'), document.querySelector('.ua-pick'))
+        : inView(document.querySelector('.ua-buildings')),
+      buildingControl: { kind: compact ? 'chooser' : 'navigation', label: compact ? buildingLabel : building[0] ?? null },
+      floorInView: inView(document.querySelector('.ua-ladder')), covered, crowded, actionCollisions,
+      menusClosed: !document.querySelector('.ua-menu-btn[aria-expanded="true"], .ua-pick[aria-expanded="true"]'),
       stage: document.querySelector('.ua-viewport').getAttribute('aria-label'),
-      view: pressed('.ua-tools .seg button'), building: pressed('.ua-buildings button'), floor: pressed('.ua-ladder button'),
+      view: pressed('.ua-tools .seg button'), building, floor: pressed('.ua-ladder button'),
       exploded: document.querySelector('.ua-tools .ctrl-wide')?.getAttribute('aria-pressed') ?? null,
       overlay: pressed('.layer-bar button'), key: text('.ua-key-head'),
       selectedRoom: text('.ua-inspector.is-room h2'), selectedFloor: text('.ua-room-floor'),
@@ -246,6 +285,7 @@ try {
   assert.deepEqual([desktop.selectedRoom, desktop.selectedFloor, desktop.canvasHidden, desktop.stageNote], ['Living room', 'Ground floor, Synthetic house', false, null]);
   assert(desktop.labels.includes('Select room: Living room'), 'The selected room tag must be on the stage');
   const clearOfPanels = facts => {
+    assert.equal(facts.menusClosed, true, 'Capture the settled stage with the compact menus closed');
     assert.deepEqual(facts.covered, [], 'No room or count button may sit under a floating panel');
     assert.deepEqual(facts.crowded, [], 'No count button may overlap another');
     assert.deepEqual(facts.actionCollisions, [], 'No mounted room action may overlap another room action or enlarged count target');
@@ -292,6 +332,26 @@ try {
   await settledDraw(atlas);
   await atlas.setViewportSize({ width: 390, height: 844 });
   await frames(atlas);
+  await atlas.locator('.ua-shell.is-compact').waitFor();
+  const beforeChooser = await atlasFacts(), chooserScroll = await atlas.evaluate(() => [scrollX, scrollY]);
+  const buildingChooser = shell.getByRole('button', { name: 'Building: Synthetic house', exact: true });
+  await buildingChooser.focus(); await buildingChooser.press('Enter');
+  assert.equal(await buildingChooser.getAttribute('aria-expanded'), 'true');
+  const phoneBuildings = shell.getByRole('navigation', { name: 'Buildings', exact: true });
+  await phoneBuildings.waitFor({ state: 'visible' });
+  assert.deepEqual((await phoneBuildings.getByRole('button').allTextContents()).map(name => name.trim()), buildings);
+  const currentBuilding = phoneBuildings.getByRole('button', { name: 'Synthetic house', exact: true });
+  assert.equal(await currentBuilding.getAttribute('aria-pressed'), 'true');
+  await currentBuilding.focus(); await atlas.keyboard.press('Escape');
+  assert.equal(await buildingChooser.getAttribute('aria-expanded'), 'false');
+  await phoneBuildings.waitFor({ state: 'hidden' });
+  assert.equal(await buildingChooser.evaluate(node => document.activeElement === node), true, 'Escape returns focus to the building chooser');
+  assert.deepEqual(await atlas.evaluate(() => [scrollX, scrollY]), chooserScroll, 'Building chooser focus does not scroll the page');
+  await frames(atlas);
+  const afterChooser = await atlasFacts();
+  for (const field of ['view', 'overlay', 'building', 'floor', 'selectedRoom', 'selectedFloor', 'inspector', 'markers', 'markerKeys', 'stageNote'])
+    assert.deepEqual(afterChooser[field], beforeChooser[field], `Closing the building chooser preserves ${field}`);
+  const phoneChooser = { closedAfterEscape: true, focusReturned: true, scopePreserved: true, scrollPreserved: true };
   const phoneDisclosure = await sourceDisclosure();
   await settledDraw(atlas);
   await shell.getByRole('button', { name: 'Show details', exact: true }).waitFor();
@@ -301,6 +361,7 @@ try {
   assert.deepEqual([phone.view, phone.overlay, phone.selectedRoom, phone.stageNote], [['3D'], ['Electrical'], 'Living room', null]);
   assert.deepEqual(phone.inspector, { label: 'Selected room', position: 'absolute', open: false });
   assert.deepEqual([phone.building, phone.floor], [['Synthetic house'], ['Ground floor: 3 rooms, has the selected room']]);
+  assert.deepEqual(phone.buildingControl, { kind: 'chooser', label: 'Synthetic house' });
   assert.deepEqual(phone.markers, ['Hall: 3 electrical records', 'Living room: 1 electrical record']);
   assert.deepEqual(phone.markerKeys, ['marker:electrical:syn-occ-hall', 'marker:electrical:syn-occ-living']);
   assert.match(phone.key, /4 records/);
@@ -313,7 +374,7 @@ try {
   assert.equal(await layerDetails.getAttribute('aria-expanded'), 'false');
   await frames(atlas);
   phone = await atlasFacts();
-  for (const field of ['view', 'overlay', 'building', 'floor', 'selectedRoom', 'selectedFloor', 'inspector', 'markers', 'markerKeys', 'stageNote'])
+  for (const field of ['view', 'overlay', 'building', 'buildingControl', 'floor', 'selectedRoom', 'selectedFloor', 'inspector', 'markers', 'markerKeys', 'stageNote', 'menusClosed'])
     assert.deepEqual(phone[field], beforeDetails[field], `Layer details preserves ${field}`);
   clearOfPanels(phone);
   const phoneWebgl = await atlasWebgl();
@@ -362,6 +423,7 @@ try {
   await shell.getByRole('button', { name: 'Hide details', exact: true }).click();
   // A stacked whole-building Network view exercises the two Stairs occurrences.
   await atlas.setViewportSize({ width: 1440, height: 1000 });
+  await atlas.locator('.ua-shell:not(.is-compact)').waitFor();
   await shell.getByRole('button', { name: 'Clear room', exact: true }).click();
   await shell.getByRole('complementary', { name: 'Rooms' }).getByRole('region', { name: 'Ground floor, Synthetic house', exact: true })
     .getByRole('button', { name: 'Stairs', exact: true }).click();
@@ -404,6 +466,7 @@ try {
     fixture: 'generated fictional publication from synthetic-atlas.ts; production readUnifiedAtlas over an in-page fake HTTPS transport; external atlas-scene/atlas-model parameters unused',
     buildings, floors, planSvgSHA256: planSvgSha256,
     sourceDisclosure: { desktop: desktopDisclosure, phone: phoneDisclosure },
+    buildingChooser: { phone: phoneChooser },
     states: [
       { image: 'synthetic-unified-3d.png', viewport: [1440, 1000], ...desktop, webgl: desktopWebgl },
       { image: 'synthetic-unified-collapsed.png', viewport: [1440, 1000], ...collapsed, webgl: collapsedWebgl },
