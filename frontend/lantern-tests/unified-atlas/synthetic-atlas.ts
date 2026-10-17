@@ -347,13 +347,24 @@ export async function composeAtlasEnvelope(companionBytes: Uint8Array<ArrayBuffe
     buildings: companion.buildings, levels: companion.levels, rooms: companion.rooms, occurrences: companion.occurrences,
     meshBindings: companion.meshBindings, plans: companion.plans, overlayBindings: companion.overlayBindings, coverage: companion.coverage,
   };
-  return { envelope, envelopeBytes: new TextEncoder().encode(JSON.stringify(envelope)), href, sha256, scope, publicationId };
+  // Separate selected-overview bytes exercise the manifest pin without
+  // conflating it with model, source or semantic companion digests.
+  const overviewManifestBytes = new TextEncoder().encode(JSON.stringify({
+    profile: 'houseatlas.model-overview-publication.v1', scope, publicationId, label: 'Unified Atlas fixture',
+    qualification: 'provisional-overview', frame: { linearUnit: 'm', upAxis: 'Y', placement: 'baked-in-asset', physicalRegistration: null },
+    components: [{ id: 'fixture', kind: 'context', label: 'Fixture publication' }], sourceNote: 'In-page fixture selection; no backend admission.',
+    original: { file: 'overview.glb', contentType: 'model/gltf-binary', bytes: glb.byteLength, sha256 },
+  }));
+  const manifestSha256 = await sha256Hex(overviewManifestBytes);
+  return { envelope, envelopeBytes: new TextEncoder().encode(JSON.stringify(envelope)), href, sha256, scope, publicationId,
+    overviewManifestBytes, manifestSha256 };
 }
 
 /** Same-origin fake for the two GET routes, with the production headers. */
 export function createAtlasTransport(options: {
   readonly origin: string; readonly scenePath: string; readonly envelopeBytes: Uint8Array<ArrayBuffer>;
   readonly href: string; readonly glb: Uint8Array<ArrayBuffer>; readonly sha256: string; readonly revision: string;
+  readonly manifestSha256: string;
   readonly onRequest?: (url: string) => void;
 }): typeof fetch {
   const common = { 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' };
@@ -364,9 +375,10 @@ export function createAtlasTransport(options: {
     if (init?.method !== 'GET' || init.credentials !== 'same-origin' || init.redirect !== 'error' || init.cache !== 'no-store')
       return new Response(null, { status: 400 });
     init.signal?.throwIfAborted();
-    if (url === `${options.origin}${options.scenePath}`)
+    if (url === `${options.origin}${options.scenePath}?expectedManifestSha256=${options.manifestSha256}`)
       return new Response(options.envelopeBytes.slice(), { headers: { ...common, 'content-type': 'application/json',
-        'content-length': String(options.envelopeBytes.byteLength), 'x-atlas-selection-revision': options.revision } });
+        'content-length': String(options.envelopeBytes.byteLength), 'x-atlas-selection-revision': options.revision,
+        'x-atlas-overview-manifest-sha256': options.manifestSha256 } });
     if (url === `${options.origin}${options.href}`)
       return new Response(options.glb.slice(), { headers: { ...common, 'content-type': 'model/gltf-binary',
         'content-length': String(options.glb.byteLength), 'x-atlas-selection-revision': options.revision, 'content-digest': digest } });

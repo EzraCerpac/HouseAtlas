@@ -53,12 +53,15 @@ const { glb, companionBytes } = await buildSyntheticAtlas(scope);
 const composed = await composeAtlasEnvelope(companionBytes, glb, SYNTHETIC_ATLAS.revision);
 const calls = [];
 const transport = createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(scope), envelopeBytes: composed.envelopeBytes,
-  href: composed.href, glb, sha256: composed.sha256, revision: SYNTHETIC_ATLAS.revision, onRequest: url => calls.push(url) });
+  href: composed.href, glb, sha256: composed.sha256, manifestSha256: composed.manifestSha256, revision: SYNTHETIC_ATLAS.revision, onRequest: url => calls.push(url) });
 const selection = { owner: {}, scope, expiresAt: new Date(Date.now() + 600_000).toISOString(), publicationId: SYNTHETIC_ATLAS.publicationId,
-  manifestSha256: composed.sha256 };
+  manifestSha256: composed.manifestSha256 };
 const read = await readUnifiedAtlas({ selection, signal: new AbortController().signal, origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true, transport });
-assert.deepEqual(calls, [`${SYNTHETIC_ATLAS.origin}${atlasScenePath(scope)}`, `${SYNTHETIC_ATLAS.origin}${composed.href}`], 'scene, then its pinned model');
+assert.deepEqual(calls, [`${SYNTHETIC_ATLAS.origin}${atlasScenePath(scope)}?expectedManifestSha256=${composed.manifestSha256}`, `${SYNTHETIC_ATLAS.origin}${composed.href}`], 'scene, then its pinned model');
 assert.deepEqual(Buffer.from(read.model), Buffer.from(glb));
+const { createHash } = await import('node:crypto');
+assert.equal(composed.manifestSha256, createHash('sha256').update(composed.overviewManifestBytes).digest('hex'));
+assert.equal(new Set([composed.manifestSha256, composed.sha256, read.scene.publication.semanticsSha256, read.scene.publication.sourceSha256]).size, 4, 'overview manifest, model, semantics and source are separate pins');
 assert.equal(read.scene.selection.revision, SYNTHETIC_ATLAS.revision);
 assert.equal(read.scene.publication.semanticsSha256, (await import('node:crypto')).createHash('sha256').update(companionBytes).digest('hex'));
 
@@ -138,10 +141,10 @@ assert.equal(reduce(studioWhole, { type: 'select', occurrenceId: 'syn-occ-studio
 // complete room geometry/plans and roofs; both open whole and stacked.
 const singleInput = await buildSingleFloorBuildingsAtlas(scope);
 const singleEnvelope = await composeAtlasEnvelope(singleInput.companionBytes, singleInput.glb, SYNTHETIC_ATLAS.revision);
-const singleRead = await readUnifiedAtlas({ selection: { ...selection, publicationId: singleEnvelope.publicationId },
+const singleRead = await readUnifiedAtlas({ selection: { ...selection, publicationId: singleEnvelope.publicationId, manifestSha256: singleEnvelope.manifestSha256 },
   signal: new AbortController().signal, origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true,
   transport: createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(scope), envelopeBytes: singleEnvelope.envelopeBytes,
-    href: singleEnvelope.href, glb: singleInput.glb, sha256: singleEnvelope.sha256, revision: SYNTHETIC_ATLAS.revision }) });
+    href: singleEnvelope.href, glb: singleInput.glb, sha256: singleEnvelope.sha256, manifestSha256: singleEnvelope.manifestSha256, revision: SYNTHETIC_ATLAS.revision }) });
 const singleModel = bindAtlasModel(singleRead.scene, await loadStandardGlb(singleRead.model, 'single', new AbortController().signal));
 const singleState = initialAtlasState(singleModel), singlePresentation = presentAtlas(singleModel, singleState, none);
 assert.equal(singleModel.selectable.size, 2);
@@ -363,10 +366,10 @@ const revealed = (presentation, key) => model.pickParts.get(key).some(part => {
   const RISE = 100_000, tolerance = 0.01;
   const input = await buildSyntheticAtlas(scope, RISE);
   const envelope = await composeAtlasEnvelope(input.companionBytes, input.glb, SYNTHETIC_ATLAS.revision);
-  const raisedRead = await readUnifiedAtlas({ selection: { ...selection, publicationId: envelope.publicationId },
+  const raisedRead = await readUnifiedAtlas({ selection: { ...selection, publicationId: envelope.publicationId, manifestSha256: envelope.manifestSha256 },
     signal: new AbortController().signal, origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true,
     transport: createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(scope), envelopeBytes: envelope.envelopeBytes,
-      href: envelope.href, glb: input.glb, sha256: envelope.sha256, revision: SYNTHETIC_ATLAS.revision }) });
+      href: envelope.href, glb: input.glb, sha256: envelope.sha256, manifestSha256: envelope.manifestSha256, revision: SYNTHETIC_ATLAS.revision }) });
   const raised = bindAtlasModel(raisedRead.scene, await loadStandardGlb(raisedRead.model, 'raised', new AbortController().signal));
   const close = (a, b, label) => a.forEach((value, at) => assert.ok(Math.abs(value - b[at]) <= tolerance, `${label}: ${a} vs ${b}`));
   assert.equal(raised.parts.length, model.parts.length);

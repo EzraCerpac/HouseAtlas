@@ -69,13 +69,17 @@ export async function readUnifiedAtlas(options: {
       } catch (error) { void response.body?.cancel().catch(() => undefined); throw error; }
     };
 
-    const descriptor = await get(path, JSON_MIME);
+    const descriptor = await get(`${path}?expectedManifestSha256=${selection.manifestSha256}`, JSON_MIME);
+    const servedManifest = () => need(descriptor.headers.get('x-atlas-overview-manifest-sha256') === selection.manifestSha256, 'stale');
+    // Pin the exact overview selected by this owner, independently of the
+    // model, source and companion digests. Check before consuming its body.
+    try { servedManifest(); } catch (error) { void descriptor.body?.cancel().catch(() => undefined); throw error; }
     const envelope = await receive(descriptor, ATLAS_LIMITS.envelopeBytes, null, signal, guard);
     let json: unknown;
     try { json = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(envelope)); } catch { fail('invalid'); }
     // Every count, size and reference is admitted before the model is requested.
     const scene = admitAtlasScene(json, { scope: selection.scope, publicationId: selection.publicationId }, envelope.byteLength);
-    guard();
+    servedManifest(); guard();
     const revision = scene.selection.revision;
     // The scene was served for the selection revision it names.
     need(descriptor.headers.get('x-atlas-selection-revision') === revision, 'stale');

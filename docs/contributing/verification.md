@@ -1217,7 +1217,11 @@ node frontend/lantern-tests/unified-atlas-healthy.mjs
 
 It takes no arguments. It runs the production scene reader against a generated
 in-process HTTPS transport, loads the generated GLB through the pinned
-GLTFLoader once, and checks nested-transform baking, per-primitive building and
+GLTFLoader once, and checks the selected overview manifest query/response pin
+using a separate generated overview manifest digest. Model, source and semantic
+digests remain distinct. The raised and single-floor publications use their own
+manifest pins. This is generated protocol evidence, not backend admission. It checks
+nested-transform baking, per-primitive building and
 level membership, shared multi-level geometry, out-of-order and split-level
 elevations, selectable and excluded rooms, duplicate labels, qualified overlay
 joins. It also checks the shared presentation used

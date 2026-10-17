@@ -20,7 +20,7 @@ const G = 'syn-level-ground', U = 'syn-level-upper';
 const near = (actual, expected) => actual.forEach((n, i) => assert.ok(Math.abs(n - expected[i]) < 1e-4, `${actual} != ${expected}`));
 
 test('one scene read followed by exactly its pinned model; no extra reads during interactions', () => {
-  assert.deepEqual(calls, [`${api.SYNTHETIC_ATLAS.origin}${api.atlasScenePath(model.scene.scope)}`,
+  assert.deepEqual(calls, [`${api.SYNTHETIC_ATLAS.origin}${api.atlasScenePath(model.scene.scope)}?expectedManifestSha256=${composed.manifestSha256}`,
     `${api.SYNTHETIC_ATLAS.origin}${composed.href}`]);
   let state = initial();
   for (let n = 0; n < 12; n++) state = reduce(state, building(H), select('syn-occ-hall'), view('plan'),

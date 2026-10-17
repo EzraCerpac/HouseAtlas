@@ -37,12 +37,12 @@ export async function generatedModel(api, make = api.buildSyntheticAtlas) {
   const composed = await api.composeAtlasEnvelope(input.companionBytes, input.glb, api.SYNTHETIC_ATLAS.revision);
   const calls = [];
   const selection = { owner: {}, scope, expiresAt: '2099-01-01T00:00:00Z',
-    publicationId: composed.publicationId, manifestSha256: composed.sha256 };
+    publicationId: composed.publicationId, manifestSha256: composed.manifestSha256 };
   const read = await api.readUnifiedAtlas({ selection, origin: api.SYNTHETIC_ATLAS.origin,
     signal: new AbortController().signal, isCurrent: () => true,
     transport: api.createAtlasTransport({ origin: api.SYNTHETIC_ATLAS.origin, scenePath: api.atlasScenePath(scope),
       envelopeBytes: composed.envelopeBytes, href: composed.href, glb: input.glb,
-      sha256: composed.sha256, revision: api.SYNTHETIC_ATLAS.revision, onRequest: url => calls.push(url) }) });
+      sha256: composed.sha256, manifestSha256: composed.manifestSha256, revision: api.SYNTHETIC_ATLAS.revision, onRequest: url => calls.push(url) }) });
   const loaded = await api.loadStandardGlb(read.model, 'regression', new AbortController().signal);
   return { model: api.bindAtlasModel(read.scene, loaded), calls, composed, input };
 }

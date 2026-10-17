@@ -72,9 +72,9 @@ async function sourceModels(): Promise<SourceModelPort> {
   // The host composition the backend performs: selection revision, pins and read href.
   const composed = await composeAtlasEnvelope(input.companionBytes, input.glb, SYNTHETIC_ATLAS.revision);
   const transport = createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(composed.scope),
-    envelopeBytes: composed.envelopeBytes, href: composed.href, glb: input.glb, sha256: composed.sha256, revision: SYNTHETIC_ATLAS.revision });
+    envelopeBytes: composed.envelopeBytes, href: composed.href, glb: input.glb, sha256: composed.sha256, manifestSha256: composed.manifestSha256, revision: SYNTHETIC_ATLAS.revision });
   const selection: ModelOverviewSelection = { owner: {}, scope: composed.scope, expiresAt: '2099-01-01T00:00:00Z',
-    publicationId: composed.publicationId, manifestSha256: composed.sha256 };
+    publicationId: composed.publicationId, manifestSha256: composed.manifestSha256 };
   const current = () => selection, subscribe = () => () => {};
   return {
     ...base,
