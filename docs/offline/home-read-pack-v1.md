@@ -105,11 +105,13 @@ its exact original bytes. Native asset and model MIME values remain explicit.
 - `network`: `{relations,sources,caches}` from that same local cut. Existing
   consistency, uncertainty, source generation and unresolved endpoints remain
   explicit. No collector demand, diagnostics or network provider fetch occurs.
-- `documents`: `{profile:"houseatlas.home-read-pack.documents.v1",documents,
+- `documents`: eligible active Documents only, `{profile:"houseatlas.home-read-pack.documents.v1",documents,
   originals,previews,exclusions}`. Each original/preview reference carries
   `{documentId,documentRevision,assetId,resourceSha256,availability}`; digest is
   null when permitted retained bytes cannot be included. v2 source/license and
-  qualification facts remain documentary; no preview is invented.
+  qualification facts remain documentary; no preview is invented. A current
+  source-policy restriction yields one generic `source-withheld` coverage
+  qualifier and partial state, without disclosing withheld identities or counts.
 - `model`: the versioned section below. Its small root is always a generic
   section JSON resource; the admitted raw companion is a separate opaque resource.
 

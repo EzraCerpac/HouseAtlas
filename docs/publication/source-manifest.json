@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "ddb57c60767d739411de959d02009a8eb809b051e0b431a4ddcd25a4181ace98",
+  "sourceDigestSha256": "f16f7165e45c3ca6ea4d4e31cd1cc259077d0799c0ab132cd6b0954d0db4d3af",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2338,8 +2338,8 @@
     {
       "path": "backend/src/http/offline_read_pack.rs",
       "mode": "100644",
-      "bytes": 37613,
-      "sha256": "8813e9c6d28dcc3cc4a937f693b7c1c015aff29c84b090d2080149e140b52223",
+      "bytes": 38249,
+      "sha256": "aeead0e1626324bf3db78f32c5e8443e8bae4139b4b173e40b310cf64094a1b5",
       "owner": "core-integration"
     },
     {
@@ -6293,8 +6293,8 @@
     {
       "path": "docs/offline/home-read-pack-v1.md",
       "mode": "100644",
-      "bytes": 11993,
-      "sha256": "f629eadbb8431ea24867451ce94d1401bf1ddf91b7a0dbb39ad8d18dbb97cb2d",
+      "bytes": 12190,
+      "sha256": "4175c7698337ddd4467b0d902936acfc87f0f41278c15facd1c92b8853696cdc",
       "owner": "storage"
     },
     {

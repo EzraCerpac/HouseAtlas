@@ -402,11 +402,22 @@ fn documents(
         let mut docs=Vec::new();let mut originals=Vec::new();let mut previews=Vec::new();let mut exclusions=Vec::new();let mut complete=true;
         let budget=budget()?;
         for document in &prepared.metadata.documents {
+            if document["lifecycle"]!="active" { continue; }
             let asset=prepared.metadata.document_assets.iter().find(|a|a["recordId"]==document["payload"]["original"]["assetId"]).ok_or_else(conflict)?;
             match facet.authorize_pack_document(prepared.media.principal(),&scope_storage(scope),document,asset) {
-                Ok(())=>{},Err(e) if matches!(e.code,"not-found"|"forbidden")=>continue,Err(_)=>return Err(conflict()),
+                Ok(())=>{},
+                Err(e) if matches!(e.code,"not-found"|"forbidden")=>{
+                    complete=false;
+                    // A single generic coverage qualifier discloses neither a
+                    // withheld document identity nor the withheld record count.
+                    if !exclusions.iter().any(|e: &Value|e["code"]=="source-withheld") {
+                        let exclusion=json!({"section":"documents","code":"source-withheld","label":"Document coverage is limited by current source policy"});
+                        exclusions.push(exclusion.clone());builder.exclusions.push(exclusion);
+                    }
+                    continue;
+                },
+                Err(_)=>return Err(conflict()),
             }
-            if document["lifecycle"]!="active" { continue; }
             let mut retained=document.clone();
             // Native document payloads contain provenance, not vault paths.
             if let Some(payload)=retained.get_mut("payload").and_then(Value::as_object_mut) { payload.remove("storageKey"); }
