@@ -4,8 +4,12 @@ import { canonicalPack, PACK_LIMITS, readPackManifest, SECTION_NAMES } from '../
 import { parseLosslessJson } from '../../src/numeric/lossless-json';
 import { savedDigest, savedHouseKey, type SavedHouse } from '../../src/offline/store';
 export const GENERATED_SCOPE = { workspaceId: '00000000-0000-4000-8000-000000000800', homeId: '00000000-0000-4000-8000-000000000801' };
-export async function generateSavedPack(mode: 'complete' | 'partial', shellBuildId: string, historical = false, tuples = false, emptyNetwork = false) {
+export async function generateSavedPack(mode: 'complete' | 'partial', shellBuildId: string, historical = false, tuples = false, emptyNetwork = false, twoAssociations = false, unmatchedBuilding = false) {
   const scope = GENERATED_SCOPE, generated = await buildSyntheticAtlas(scope);
+  if (twoAssociations) {
+    generated.companion.buildings.find(building => building.label === 'Synthetic studio')!.nativePlaceId = '00000000-0000-4000-8000-000000000014';
+    generated.companionBytes = new TextEncoder().encode(JSON.stringify(generated.companion));
+  }
   const composed = await composeAtlasEnvelope(generated.companionBytes, generated.glb, SYNTHETIC_ATLAS.revision);
   const encode = (value: unknown) => new TextEncoder().encode(canonicalPack(parseLosslessJson(JSON.stringify(value)))).buffer;
   const resources = new Map<string, ArrayBuffer>(), descriptors: { sha256: string; bytes: number; contentType: string; section: string; role: string; record: { recordType: string; recordId: string; revision: number } | null }[] = [];
@@ -23,7 +27,7 @@ export async function generateSavedPack(mode: 'complete' | 'partial', shellBuild
   const provenance = { source: null, sourceRevision: 'source-17', sourceConfidence: 'uncertain', evidenceBasis: 'document', factAt: '1998-04-05T00:00:00Z',
     retrievedAt: '2024-03-04T00:00:00Z', vantage: null, uncertainty: { status: 'unknown', explanation: 'Historical circuit association unverified' } };
   const home = await add(encode({ profile: 'houseatlas.home-read-pack.home.v1', scope, label: 'Generated saved property', selection: { ...scope, buildingId: null, floorId: null, roomId: null } }), 'application/json', 'home');
-  const historicalSource = historical ? await generateHistoricalSource(scope, generated.companion, native) : null;
+  const historicalSource = historical ? await generateHistoricalSource(scope, generated.companion, native, twoAssociations, unmatchedBuilding) : null;
   if (historicalSource) {
     await add(historicalSource.primary.buffer.slice(0), 'text/plain', 'atlas', 'original', { recordType: 'asset', recordId: '00000000-0000-4000-8000-000000000005', revision: 9 });
     await add(historicalSource.support.buffer.slice(0), 'text/plain', 'atlas', 'original', { recordType: 'asset', recordId: '00000000-0000-4000-8000-000000000007', revision: 10 });
@@ -88,7 +92,7 @@ export async function generateSavedPack(mode: 'complete' | 'partial', shellBuild
 /** Genuine generated source originals and their captured factual association.
  * The producer shape matches the existing named overlay-source healthy example. */
 async function generateHistoricalSource(scope: typeof GENERATED_SCOPE, scene: Awaited<ReturnType<typeof buildSyntheticAtlas>>['companion'],
-  record: (type: string, id: string, payload: unknown, revision?: number) => { recordType: string; recordId: string; revision: number; lastAuditId: string }) {
+  record: (type: string, id: string, payload: unknown, revision?: number) => { recordType: string; recordId: string; revision: number; lastAuditId: string }, twoAssociations: boolean, unmatchedBuilding: boolean) {
   const U = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
   const hash = async (value: string | Uint8Array) => savedDigest(typeof value === 'string' ? new TextEncoder().encode(value).buffer : new Uint8Array(value).buffer);
   const canonical = (value: unknown) => canonicalPack(parseLosslessJson(JSON.stringify(value)));
@@ -116,7 +120,7 @@ async function generateHistoricalSource(scope: typeof GENERATED_SCOPE, scene: Aw
     electricalFixtures:{status:'available',reason:null,documentaryFixtures:fixtures}}));
 
   const primarySha = await hash(primary), supportSha = await hash(historical);
-  const buildingId = scene.buildings.find(building => building.nativePlaceId !== null)!.nativePlaceId!;
+  const buildingId = unmatchedBuilding ? U(14) : scene.buildings.find(building => building.nativePlaceId !== null)!.nativePlaceId!;
   const room = scene.rooms.find(room => room.nativePlaceId !== null)!;
   const documents = [
     { role: 'primary-scene', evidenceId: U(4), evidenceRevision: 7, originalAssetId: U(5), originalAssetRevision: 9, originalSha256: primarySha, contentType: 'text/plain' },
@@ -128,7 +132,7 @@ async function generateHistoricalSource(scope: typeof GENERATED_SCOPE, scene: Aw
     sourceFloors: [{ sourceFloorKey: floor, sourceOriginalSha256: floorHash, nativeFloorKey: 'native:floor', nativeGeometryId: U(10), nativeGeometryRevision: 1,
       nativeOriginalAssetId: U(11), nativeOriginalSha256: floorHash }],
     roomMappings: [{ sourceRoomId: 'source:room', sourceFloorKey: floor, sourceOriginalSha256: floorHash, sourceAnchorIds: ['generated:anchor'],
-      targets: [{ packagePlaceKey: packageKey, packagePlaceUuid: packageUuid, atlasPlaceId: room.nativePlaceId }], unresolvedLabels: [], evidenceIds: [U(4), U(6)] }] };
+      targets: [{ packagePlaceKey: packageKey, packagePlaceUuid: packageUuid, atlasPlaceId: unmatchedBuilding ? U(40) : room.nativePlaceId }], unresolvedLabels: [], evidenceIds: [U(4), U(6)] }] };
   const provenance = { source: null, sourceRevision: null, sourceConfidence: null, evidenceBasis: 'document', factAt: null,
     retrievedAt: '2026-10-10T12:00:00Z', vantage: null, uncertainty: { status: 'unknown', explanation: 'Captured documentary original' } };
   const asset = (sha256: string, bytes: number) => ({ owner: 'atlas', purpose: 'evidence-original', sha256, byteSize: bytes, contentType: 'text/plain', availability: 'available', sourceLicense: { status: 'permitted', reference: 'CC0-1.0' }, previewPolicy: 'download-only', evidenceIds: [] });
@@ -138,5 +142,9 @@ async function generateHistoricalSource(scope: typeof GENERATED_SCOPE, scene: Aw
     record('evidence', U(4), { statement: 'Generated primary source', provenance, supersedesEvidenceIds: [], references: [{ kind: 'atlas-asset', assetId: U(5) }] }, 7),
     record('evidence', U(6), { statement: 'Generated support original', provenance, supersedesEvidenceIds: [], references: [{ kind: 'atlas-asset', assetId: U(7) }] }, 8),
     record('scene-association', U(12), payload, 1),
+    ...(twoAssociations ? [
+      record('identity', U(14), { kind: 'location', evidenceIds: [U(4)] }, 1),
+      record('scene-association', U(13), { ...payload, buildingId: U(14) }, 1),
+    ] : []),
   ], scope };
 }

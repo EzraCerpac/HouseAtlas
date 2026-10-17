@@ -121,6 +121,45 @@ for (const variant of ['historical', 'tuples']) {
   assert(result.reasons.some(reason => reason.includes('source-withheld')));
   console.log('PASS source-withheld partial coverage remains explicit with zero retained visible relations');
 }
+{
+  const pack = await generateSavedPack('complete', '1'.repeat(64), true, false, false, true);
+  const house = { ...pack.house, localRevision: crypto.randomUUID() };
+  const local = { list: async () => [house], asset: async (_selected, id) => new Blob([pack.resources.get(id)], { type: house.resources.find(pin => pin.id === id).contentType }) };
+  const signal = new AbortController().signal, checked = await readSavedPackSections(local, house, signal); exporterShapes(checked);
+  const savedRead = await createSavedAtlasDataAdapter(local).read(house, signal);
+  const historical = await readSavedHistoricalFacts(checked, savedRead, signal);
+  assert.equal(historical.facts.length, 2, JSON.stringify(historical.reasons));
+  for (const facts of [historical.facts, [...historical.facts].reverse()]) {
+    const result = projectSavedAtlasOverlays(checked, pack.scene, { ...historical, facts });
+    const room = [...result.records.rooms.values()].find(room => room.network.length);
+    assert.equal(room.network.length, 1); assert.equal(room.electrical.length, 2);
+    assert.equal(result.records.unplaced.network.length, 4); assert.equal(result.records.unplaced.electrical.length, 4);
+    for (const record of [...room.network, ...room.electrical]) {
+      const observations = [record, ...(record.observations ?? [])];
+      const associations = new Set(observations.flatMap(row => row.sourceFacts.filter(fact => fact.label === 'Retained association').map(fact => fact.value)));
+      assert.deepEqual([...associations].sort(), ['00000000-0000-4000-8000-000000000012', '00000000-0000-4000-8000-000000000013']);
+      assert(observations.some(row => row.sourceFacts.some(fact => fact.label === 'Room association in this observation' && fact.value === null)));
+    }
+  }
+  console.log('PASS shared primary evidence across two captured building associations preserves placed + unplaced provenance in either source order; unique record totals unchanged');
+}
+{
+  const pack = await generateSavedPack('complete', '1'.repeat(64), true, false, false, false, true);
+  const house = { ...pack.house, localRevision: crypto.randomUUID() };
+  const local = { list: async () => [house], asset: async (_selected, id) => new Blob([pack.resources.get(id)], { type: house.resources.find(pin => pin.id === id).contentType }) };
+  const signal = new AbortController().signal, checked = await readSavedPackSections(local, house, signal); exporterShapes(checked);
+  const savedRead = await createSavedAtlasDataAdapter(local).read(house, signal);
+  const historical = await readSavedHistoricalFacts(checked, savedRead, signal);
+  assert.equal(historical.facts.length, 1, JSON.stringify(historical.reasons));
+  assert.equal(historical.facts[0].roomBindings.length, 0);
+  const result = projectSavedAtlasOverlays(checked, pack.scene, historical);
+  assert.equal(result.records.rooms.size, 0);
+  assert.equal(result.records.unplaced.network.length, 5); assert.equal(result.records.unplaced.electrical.length, 6);
+  assert.equal(result.records.networkGraphs.length, 2);
+  assert.equal(result.records.buildings.length, pack.scene.buildings.length);
+  assert(result.reasons.some(reason => reason.includes('not mapped in this model')));
+  console.log('PASS verified source closure for an unmapped native building retains every known fact unplaced without adding or borrowing a model building');
+}
 const observation = { key: 'same-source-record', id: 'id', label: 'first', category: 'Recorded circuit', detail: '', qualification: '', sourceDate: null, retrievedAt: null, connections: [], sourceFacts: [] };
 const merged = mergeDocumentaryRecords([observation, { ...observation, label: 'second' }, observation]);
 assert.equal(merged.length, 1); assert.equal(merged[0].observations.length, 1);

@@ -118,8 +118,7 @@ export function projectSavedAtlasOverlays(input: SavedPackSections, scene: Atlas
         network: mergeDocumentaryRecords([...(previous?.network ?? []), ...room.network]) });
     }
     for (const kind of ['electrical', 'network'] as const) {
-      const placed = new Set([...combinedRooms.values()].flatMap(room => room[kind].map(record => record.key)));
-      property.unplaced = { ...property.unplaced, [kind]: mergeDocumentaryRecords([...property.unplaced[kind], ...projected.unplaced[kind]]).filter(record => !placed.has(record.key)) };
+      property.unplaced = { ...property.unplaced, [kind]: [...property.unplaced[kind], ...projected.unplaced[kind]] };
     }
     property.networkGraphs = [...new Map([...(property.networkGraphs ?? []), ...(projected.networkGraphs ?? [])].map(graph => [graph.key, graph])).values()];
     const capturedNetwork = facts.network.status === 'available' && facts.network.data.source.coverage !== 'complete' ? 'partial' : projected.network;
@@ -130,10 +129,12 @@ export function projectSavedAtlasOverlays(input: SavedPackSections, scene: Atlas
     property.sourceFacts = [...property.sourceFacts, ...projected.sourceFacts];
   }
   for (const kind of ['network', 'electrical'] as const) {
+    const placed = new Set([...property.rooms.values()].flatMap(room => room[kind].map(record => record.key)));
+    // Keep every placed/unplaced observation until the complete canonical merge.
     const all = mergeDocumentaryRecords([...property.rooms.values()].flatMap(room => [...room[kind]]).concat([...property.unplaced[kind]]));
     const byKey = new Map(all.map(record => [record.key, record]));
     for (const [roomId, room] of property.rooms) (property.rooms as Map<string, typeof room>).set(roomId, { ...room, [kind]: room[kind].map(record => byKey.get(record.key)!) });
-    property.unplaced = { ...property.unplaced, [kind]: property.unplaced[kind].map(record => byKey.get(record.key)!) };
+    property.unplaced = { ...property.unplaced, [kind]: all.filter(record => !placed.has(record.key)) };
     const states = property.buildings.map(row => row[kind]);
     property[kind] = states.every(state => state === 'available') ? 'available' : states.every(state => state === 'unavailable') ? 'unavailable' : 'partial';
   }
@@ -198,7 +199,8 @@ export async function readSavedHistoricalFacts(input: SavedPackSections, read: S
       needPack(validator.validateNativeEvidenceShape('scene-association', association));
       needPack(association.workspaceId === scope.workspaceId && association.homeId === scope.homeId);
       const p = jsonRow(association.payload), buildingId = requiredText(p.buildingId);
-      const building = scene.buildings.find(row => row.nativePlaceId === buildingId); needPack(building);
+      const building = scene.buildings.find(row => row.nativePlaceId === buildingId);
+      const sourceBuildingLabel = building?.label ?? `Retained building ${buildingId} (not mapped in this model)`;
       const documents = rows(p.sourceDocuments).map(value => jsonRow(value));
       needPack(documents.length === 2);
       const primary = documents.find(row => row.role === 'primary-scene'), supportPin = documents.find(row => row.role === 'documentary-sheet');
@@ -261,7 +263,7 @@ export async function readSavedHistoricalFacts(input: SavedPackSections, read: S
             && refs.length === 1 && object(refs[0])?.kind === 'atlas-asset' && object(refs[0])?.assetId === pdf.assetId
             && buildingMembers.some(row => rows(object(row.payload)?.evidenceIds).includes(pdf.evidenceId)));
         } catch { /* Optional PDF metadata is unavailable; no native file action. */ }
-        if (!pdfRetained) reasons.push(`${building.label}: captured PDF correlation unavailable`);
+        if (!pdfRetained) reasons.push(`${sourceBuildingLabel}: captured PDF correlation unavailable`);
       }
       if (support && pdfRetained && requiredText(p.reviewStatement).endsWith(support.reviewMarker) && support.pdf.workspaceId === scope.workspaceId
         && support.pdf.homeId === scope.homeId && support.pdf.buildingId === buildingId) {
@@ -272,7 +274,7 @@ export async function readSavedHistoricalFacts(input: SavedPackSections, read: S
       }
       const details = await readSavedDocumentaryDetails(pins, primaryBytes, supportBytes, guard); guard();
       const roomBindings: DocumentaryFacts['roomBindings'] = (read.roomLinks?.data.links ?? []).flatMap(link => {
-        const room = scene.rooms.find(row => row.roomId === link.roomId && row.buildingId === building.buildingId && row.nativePlaceId === link.nativePlaceId);
+        const room = scene.rooms.find(row => row.roomId === link.roomId && row.buildingId === building?.buildingId && row.nativePlaceId === link.nativePlaceId);
         if (!room) return [];
         const matching = acceptedRoomMappings.filter(mapping => mapping.targets.some(target => target.atlasPlaceId === link.nativePlaceId
           && target.packagePlaceKey === link.packagePlaceKey && target.packagePlaceUuid === link.packagePlaceUuid));
@@ -288,7 +290,7 @@ export async function readSavedHistoricalFacts(input: SavedPackSections, read: S
         observationFacts: [{ label: 'Retained association', value: requiredText(association.recordId) },
           { label: 'Captured association revision', value: exact(association.revision) },
           { label: 'Historical source', value: 'Verified retained primary/support closure; no current native authorization' }] });
-      if (!roomBindings.length) reasons.push(`${building.label}: retained historical records have no captured room identity join`);
+      if (!roomBindings.length) reasons.push(`${sourceBuildingLabel}: retained historical records have no captured room identity join`);
     } catch (error) {
       guard(); reasons.push(`Scene association ${text(association.recordId) ?? 'unknown'}: historical primary/support closure unavailable`);
     }

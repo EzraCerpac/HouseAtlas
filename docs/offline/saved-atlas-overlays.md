@@ -64,3 +64,14 @@ closure also exercises canonical first-descriptor SHA reuse across sections.
 The valid partial positive also covers zero visible retained Network relations:
 source-withheld coverage remains partial and is never converted into a successful
 empty current source.
+
+The valid two-association positive shares one primary evidence closure across
+two captured buildings. One has a captured room join and the other does not.
+Aggregation retains both observations and association provenance before merging
+canonical records, then derives placed/unplaced totals. Reversing source order
+preserves those observations without counting the same record twice.
+
+A verified retained native building can be absent or unmapped in the model.
+Its known source records and graph remain visible unplaced; model membership
+constrains room placement only. No model building is fabricated or borrowed.
+The named positive checks this valid whole-home/exported-model combination.
