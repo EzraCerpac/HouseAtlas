@@ -37,8 +37,15 @@ not require changing geometry or those source identities.
 }
 ```
 
-The proposed current read is
-`GET /api/atlas/models/v1/workspaces/{workspaceId}/homes/{homeId}/atlas`.
+The selected current read is
+`GET /api/atlas/models/v1/workspaces/{workspaceId}/homes/{homeId}/atlas?expectedManifestSha256={overviewManifestSha256}`.
+The expected value is the captured overview selection's manifest digest, never
+the GLB, semantic companion or source digest. A mismatch returns 409. The
+`x-atlas-overview-manifest-sha256` response header echoes the selected digest;
+the consumer compares it before admitting the scene. Legacy no-query reads
+remain supported with the same closed response body and the new header.
+The model artifact's existing digest and immutable selection-revision query
+pins then preserve that descriptor binding; its URL shape is unchanged.
 It returns one `houseatlas.unified-atlas-scene.v1` envelope:
 
 ```text
