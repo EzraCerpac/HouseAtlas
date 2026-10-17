@@ -747,6 +747,12 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
   // Over a narrow stage the graph is the whole view: what lies under it leaves the tab order.
   const underGraph = showGraph && graphCovers;
 
+  // The graph is the first Escape target across Atlas, including the viewport's camera handler.
+  const graphEscape = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (!showGraph || event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing) return;
+    event.preventDefault(); event.stopPropagation(); closeGraph();
+  };
+
   const escape = (event: ReactKeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Escape' || event.defaultPrevented) return;
     const target = event.target as HTMLElement;
@@ -755,7 +761,7 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
   };
 
   return <section ref={shell} className={`ua-shell is-stage${plan ? ' is-plan' : ''}${sheetOpen ? ' is-sheet-open' : ''}${showGraph ? ' is-graph-open' : ''}${underGraph ? ' is-graph-covering' : ''}`}
-    aria-label="Atlas" onKeyDown={escape}>
+    aria-label="Atlas" onKeyDownCapture={graphEscape} onKeyDown={escape}>
     <div className="ua-stage">
       <div className="ua-scope" inert={underGraph}>
         {port.savedDocumentary && <p className="ua-snapshot-note" role="note">
@@ -815,7 +821,7 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
             {projection.k >= 10 && <rect className="ua-ground-grid" x={ground.x} y={ground.z} width={ground.w} height={ground.h} fill={`url(#${gridId})`} />}
             {/* One group opacity, so overlapping rooms and walls shade the board once. */}
             {planBlend < 1 && footprints.length > 0 && <g className="ua-ground-shadow" style={{ opacity: .2 * (1 - planBlend) }}
-              transform={`translate(${SHADOW_OFFSET[0]} ${SHADOW_OFFSET[1]})`}>
+              transform={`translate(${shadowOffset[0]} ${shadowOffset[1]})`}>
               {footprints.map(row => <path key={row.key} d={row.path} fillRule="evenodd" />)}
             </g>}
           </g>
@@ -823,7 +829,7 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
         <div className="cifc-canvas-wrap" style={{ opacity: 1 - planBlend }}>
           <MeshLayer meshes={model.meshes} projection={projection} rules={RULES} currentFloorId={presentation.focusLevelId}
             selectedOccurrenceId={selected} contextOccurrenceIds={context} tints={tints} hidden={!showCanvas}
-            hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE}
+            hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE} light={light} pitch={ATLAS_PITCH}
             onUnavailable={message => setFailure(message)} />
         </div>
         <svg className="cifc-svg" width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`} aria-hidden="true">

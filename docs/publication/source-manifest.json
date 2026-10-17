@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0cf0f84cbf24c7d4083baf0ef6bd374eb8ac247d772a38dc8315156227727e7f",
+  "sourceDigestSha256": "15f2f1f67fc274d2da7351369671b21b8d174b4fb87faafd79ba2d751a0c8756",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -8379,8 +8379,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/MeshLayer.tsx",
       "mode": "100644",
-      "bytes": 15771,
-      "sha256": "60f4c1ce087728080f601737e3a167c3f1c587aa023cb93fa505a47551b842f5",
+      "bytes": 17336,
+      "sha256": "a720edcfac4dd900e4119b537fefef574c9e2db0ada970c4b89794324e7ba270",
       "owner": "web"
     },
     {
@@ -9499,8 +9499,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 91167,
-      "sha256": "575bf02b060876bcbd04c3279fb0fb681c89b5134cb85fc59863e5326c3b3332",
+      "bytes": 95362,
+      "sha256": "ce5ce0ee2ba89c83b5dc2a7f8cb28924c96c98467f8db209f1b101513caebf0d",
       "owner": "web"
     },
     {
