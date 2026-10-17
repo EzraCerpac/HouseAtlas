@@ -690,17 +690,25 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources }: {
     queueMicrotask(() => { if (node.isConnected && stageFocus.current === key) stageFocus.current = null; });
   };
 
-  // Narrow stages give buildings and floors one sideways row each: the current
-  // choice is scrolled into its row, never the page.
+  // Keep the current choice inside its own row, never scrolling the page.
+  // The chooser and host disclosures can change that row's width independently
+  // of the viewport, including one commit after a breakpoint transition.
   useLayoutEffect(() => {
-    for (const row of shell.current?.querySelectorAll<HTMLElement>('.ua-buildings, .ua-ladder') ?? []) {
-      const current = row.querySelector<HTMLElement>('[aria-pressed="true"]');
-      if (!current || row.scrollWidth <= row.clientWidth) continue;
-      const box = current.getBoundingClientRect(), edge = row.getBoundingClientRect();
-      if (box.left < edge.left) row.scrollLeft -= edge.left - box.left + 12;
-      else if (box.right > edge.right) row.scrollLeft += box.right - edge.right + 12;
-    }
-  }, [state.buildingId, state.levelId, plan, size.width]);
+    const rows = [...(shell.current?.querySelectorAll<HTMLElement>('.ua-buildings, .ua-ladder') ?? [])];
+    const align = () => {
+      for (const row of rows) {
+        const current = row.querySelector<HTMLElement>('[aria-pressed="true"]');
+        if (!current || row.scrollWidth <= row.clientWidth || row.getClientRects().length === 0) continue;
+        const box = current.getBoundingClientRect(), edge = row.getBoundingClientRect();
+        if (box.left < edge.left) row.scrollLeft -= edge.left - box.left + 12;
+        else if (box.right > edge.right) row.scrollLeft += box.right - edge.right + 12;
+      }
+    };
+    align();
+    const observer = new ResizeObserver(align);
+    for (const row of rows) observer.observe(row);
+    return () => observer.disconnect();
+  }, [state.buildingId, state.levelId, plan, size.width, compact]);
 
   // Only buildings with floors are navigable; context-only groups stay drawn around them.
   const buildings = model.floorBuildings;
@@ -793,7 +801,14 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources }: {
     };
     const blurred = (event: globalThis.FocusEvent) => {
       const target = chromeFocus.current;
-      if (event.target === target && (event.relatedTarget !== null || (target?.isConnected && target.getClientRects().length > 0))) chromeFocus.current = null;
+      if (!target || event.target !== target) return;
+      if (event.relatedTarget !== null) { chromeFocus.current = null; return; }
+      // Chrome can dispatch blur just before removing a focused node. Wait
+      // until that commit finishes before distinguishing it from an explicit
+      // blur of a surviving control.
+      queueMicrotask(() => {
+        if (chromeFocus.current === target && target.isConnected && target.getClientRects().length > 0) chromeFocus.current = null;
+      });
     };
     const tapped = (event: PointerEvent) => {
       const target = chromeFocus.current;
