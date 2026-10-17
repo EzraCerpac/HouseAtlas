@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "42edf661afa322cb17b3bea0e91ad065b82efcc53f91b4f16938ba9d2898ef93",
+  "sourceDigestSha256": "e02c706c80c9783b318f962937857d8093ed8ef613bfa2a3ce7032aa3832542b",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -10244,6 +10244,34 @@
       "bytes": 2466,
       "sha256": "994b0e87f43f57b9edeaa8255d7d1b1a3cce5d8bfaf430ddfdd735972d6ca22e",
       "owner": "media"
+    },
+    {
+      "path": "packages/offline-operation-ledger/README.md",
+      "mode": "100644",
+      "bytes": 5277,
+      "sha256": "eff8c720d6273b4c0e80089d49375972ab9cf0d7042093e4632af72f5edf4f67",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/offline-operation-ledger/package.json",
+      "mode": "100644",
+      "bytes": 202,
+      "sha256": "4c684a8f5f11fa1124d966ceddd03352f124e3531d17d6fbccd0d161ba8c6a37",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/offline-operation-ledger/src/operation-ledger.mjs",
+      "mode": "100644",
+      "bytes": 5791,
+      "sha256": "90c9562f79538bee36fc23e06f7d6a10cef0d11ac56d50ddf443a0ce131e1c04",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/offline-operation-ledger/test/operation-ledger.test.mjs",
+      "mode": "100644",
+      "bytes": 6677,
+      "sha256": "2dc95e2af1a01c7ae31b9b1fbc4be3a51cae743eb973b332356c82eb6d0a7fd4",
+      "owner": "storage"
     },
     {
       "path": "packages/operations-policy/README.md",
