@@ -868,6 +868,10 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
           the whole view on narrow ones, with one way back either way. */}
       {showGraph && <section id={graphId} className="ua-graph" aria-labelledby={`${graphId}-title`} onKeyDown={graphKeys}
         onFocusCapture={event => { graphFocus.current = event.target instanceof HTMLElement ? event.target : null; }}
+        onBlurCapture={event => {
+          // A deliberate move outside the mounted graph is not removal loss.
+          if (!event.currentTarget.contains(event.relatedTarget) && graphFocus.current?.isConnected) graphFocus.current = null;
+        }}
         style={{ '--layer': TONE_COLOR.network } as CSSProperties}>
         <header className="ua-graph-head">
           <span className="ua-logical-swatch" aria-hidden="true" />
