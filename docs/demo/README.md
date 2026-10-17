@@ -31,6 +31,24 @@ provider, household file, account, credential or upstream write is involved.
 | [Network](synthetic-network.png) | One explicitly loaded saved relation with original dates and exact revision token. |
 | [Collage](synthetic-collage.png) | The three unmodified screen captures, labeled SYNTHETIC. |
 
+The capture also produces three unified Atlas review images. They are workflow
+artifacts only, not README images:
+
+| Image | State |
+| --- | --- |
+| `synthetic-unified-3d.png` | Synthetic house, exploded, Living room selected. |
+| `synthetic-unified-plan.png` | Ground floor plan with electrical record counts. |
+| `synthetic-unified-phone.png` | The same room in 3D at 390 × 844, room panel closed. |
+
+They mount the actual `UnifiedAtlas` through `LanternHost` at
+`/lantern-tests/source-host-visual/?atlas=generated`. The production scene
+reader reads the generated fictional publication from an in-page fake HTTPS
+transport. Its optional external file parameters are not used. Each 3D image
+requires a fresh WebGL draw after **Fit view**; if 3D is unavailable, the capture
+fails instead of recording the fallback. With reduced motion, these images show
+settled states only. They do not show transitions, private reference views,
+native documents, PDFs, iPhone, PWA or device behavior.
+
 The stale HomeBox cache and absence of reviewed geometry are part of the
 separate browsing fixture.
 These screenshots establish presentation of the named synthetic views only;
@@ -63,8 +81,11 @@ WebGL draw evidence, viewport, checks and source/image
 SHA256 digests without local paths or timestamps. Its `sourceTree` digest binds
 every tracked source file, including stylesheets and transitive components,
 and is checked unchanged across capture. The explicitly listed exclusions are
-the seven generated images, their receipt and the self-referential publication
-manifest. Both prepared floor tags must be present before the geometry capture.
+the seven README images, their receipt and the self-referential publication
+manifest, plus the three unified Atlas image names. Both prepared floor tags must
+be present before the geometry capture. The `unifiedAtlas` receipt section
+records its entry, observed controls and selection, canvas and draw metadata,
+plan SVG digest, and the hashes of its own source files and images.
 The checked-in receipt
 records the base HEAD and a modified working candidate, with the fixture,
 harness and relevant production source bytes pinned individually; workflow

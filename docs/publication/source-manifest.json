@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "27c461231c2737bce8de23c1fba6bc2311885d55085a0b9a31611cc1edc56d28",
+  "sourceDigestSha256": "61388b6ffe4c78722ec07dbcf02fd2d218132f4989af8142ac15b18ce7e2644e",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5978,8 +5978,8 @@
     {
       "path": "docs/demo/README.md",
       "mode": "100644",
-      "bytes": 5969,
-      "sha256": "4c56845679cc811d1a8718803b1d6ae5a143fb45bb04bd25bde6733d3df1c904",
+      "bytes": 7178,
+      "sha256": "a3f9b8c003d61887b167d5772f2a5dc0a3c4415ff4138abc46813c5406989973",
       "owner": "web"
     },
     {
@@ -11060,8 +11060,8 @@
     {
       "path": "tools/readme-media/capture.mjs",
       "mode": "100644",
-      "bytes": 13148,
-      "sha256": "3969e663991a338165267b7b9537eb07a8123dabd4cbefd3ba451bd02a033b14",
+      "bytes": 24907,
+      "sha256": "18b6250a0b71c0ec2d38430ecb7370cb7f76a850c233bcc64357c22dbb2dc437",
       "owner": "web"
     },
     {

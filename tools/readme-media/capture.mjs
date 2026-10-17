@@ -10,7 +10,8 @@ assert.equal(process.version, 'v26.10.0');
 const root = resolve(import.meta.dirname, '../..');
 const output = resolve(process.argv[2] ?? resolve(root, 'docs/demo'));
 await mkdir(output, { recursive: true });
-const sourceTreeExclusions = ['docs/demo/capture.json', 'docs/publication/source-manifest.json', ...['house', 'mesh', 'plan', 'building', 'room', 'network', 'collage'].map(name => `docs/demo/synthetic-${name}.png`)];
+const unifiedNames = ['unified-3d', 'unified-plan', 'unified-phone'];
+const sourceTreeExclusions = ['docs/demo/capture.json', 'docs/publication/source-manifest.json', ...['house', 'mesh', 'plan', 'building', 'room', 'network', 'collage', ...unifiedNames].map(name => `docs/demo/synthetic-${name}.png`)];
 async function sourceTreeSnapshot() {
   const paths = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(path => path && !sourceTreeExclusions.includes(path)).sort();
   const rows = [];
@@ -120,6 +121,113 @@ try {
   await illustrated.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(done)))));
   await illustrated.screenshot({ path: resolve(output, 'synthetic-plan.png'), animations: 'disabled' });
   assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
+
+  // Unified Atlas: the generated fictional publication through the production
+  // reader, LanternHost and UnifiedAtlas. The external atlas-scene/atlas-model
+  // parameters are never used here. Reduced motion captures settled states only.
+  const unifiedEntry = '/lantern-tests/source-host-visual/?atlas=generated';
+  const atlas = await context.newPage();
+  atlas.on('pageerror', error => errors.push(error.message));
+  await atlas.addInitScript(() => {
+    window.syntheticAtlasDrawCalls = 0;
+    for (const name of ['drawArrays', 'drawElements']) {
+      const original = WebGLRenderingContext.prototype[name];
+      WebGLRenderingContext.prototype[name] = function (...args) { window.syntheticAtlasDrawCalls++; return original.apply(this, args); };
+    }
+  });
+  await atlas.goto(`${origin}${unifiedEntry}`, { waitUntil: 'networkidle' });
+  await atlas.evaluate(() => document.fonts.ready);
+  assert.equal(await atlas.locator('nav.navrail .nav-btn[aria-current="page"] .nav-label').textContent(), 'Atlas');
+  const shell = atlas.locator('section.ua-shell.is-stage[aria-label="Atlas"]');
+  await shell.waitFor();
+  // Real drawing is required; the 3D-unavailable note is reported, never captured.
+  const firstDraw = await atlas.waitForFunction(() => window.syntheticAtlasDrawCalls > 0 ? 'drawn'
+    : document.querySelector('.ua-viewport .cifc-stage-note')?.textContent || false);
+  assert.equal(await firstDraw.jsonValue(), 'drawn', 'Unified Atlas WebGL must draw before capture');
+  const frames = page => page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(done)))));
+  // Zoom in, then Fit view back to the baseline pose; a draw must follow the fit.
+  const settledDraw = async page => {
+    await shell.getByRole('button', { name: 'Zoom in', exact: true }).click();
+    await frames(page);
+    await page.evaluate(() => { window.syntheticAtlasDrawCalls = 0; });
+    await shell.getByRole('button', { name: 'Fit view', exact: true }).click();
+    await frames(page);
+    await page.waitForFunction(() => window.syntheticAtlasDrawCalls > 0);
+  };
+  const atlasFacts = () => atlas.evaluate(() => {
+    const text = selector => document.querySelector(selector)?.textContent?.trim() ?? null;
+    const names = selector => [...document.querySelectorAll(selector)].map(node => node.getAttribute('aria-label') ?? node.textContent.trim());
+    const pressed = selector => [...document.querySelectorAll(selector)].filter(node => node.getAttribute('aria-pressed') === 'true')
+      .map(node => node.getAttribute('aria-label') ?? node.textContent.trim());
+    const inspector = document.querySelector('aside.ua-inspector'), canvas = document.querySelector('.ua-viewport canvas.cifc-canvas');
+    return {
+      stage: document.querySelector('.ua-viewport').getAttribute('aria-label'),
+      view: pressed('.ua-tools .seg button'), building: pressed('.ua-buildings button'), floor: pressed('.ua-ladder button'),
+      exploded: document.querySelector('.ua-tools .ctrl-wide')?.getAttribute('aria-pressed') ?? null,
+      overlay: pressed('.layer-bar button'), key: text('.ua-key-head'),
+      selectedRoom: text('.ua-inspector.is-room h2'), selectedFloor: text('.ua-room-floor'),
+      inspector: { label: inspector.getAttribute('aria-label'), position: getComputedStyle(inspector).position, open: inspector.classList.contains('is-open') },
+      labels: names('.ua-label-hit'), markers: names('.ua-marker').sort(),
+      planRooms: document.querySelectorAll('.ua-plan .cifc-plan-space').length, planSelected: document.querySelectorAll('.ua-plan .cifc-plan-space.is-selected').length,
+      canvasHidden: canvas.hidden, stageNote: text('.ua-viewport .cifc-stage-note'),
+    };
+  });
+  const atlasWebgl = () => atlas.locator('.ua-viewport canvas.cifc-canvas').evaluate(canvas => {
+    const gl = canvas.getContext('webgl');
+    return { version: gl.getParameter(gl.VERSION), drawCalls: window.syntheticAtlasDrawCalls, pixels: [canvas.width, canvas.height], cssPixels: [canvas.clientWidth, canvas.clientHeight] };
+  });
+  // Generated identity: two buildings with floors; the boundary wall is context only.
+  const buildings = (await shell.locator('nav.ua-buildings button').allTextContents()).map(name => name.trim());
+  assert.deepEqual(buildings, ['All buildings', 'Synthetic house', 'Synthetic studio']);
+  await shell.getByRole('navigation', { name: 'Buildings' }).getByRole('button', { name: 'Synthetic house', exact: true }).click();
+  const ladder = shell.getByRole('navigation', { name: 'Floors of Synthetic house' });
+  await ladder.waitFor();
+  const floors = (await ladder.locator('.ua-rung-name').allTextContents()).map(name => name.trim());
+  assert.deepEqual(floors, ['All floors', 'Upper floor', 'Split level', 'Ground floor']);
+  const rooms = shell.getByRole('complementary', { name: 'Rooms' });
+  const showRooms = rooms.getByRole('button', { name: 'Show rooms', exact: true });
+  if (await showRooms.isVisible()) await showRooms.click();
+  await rooms.getByRole('button', { name: 'Living room', exact: true }).click();
+  await shell.getByRole('heading', { level: 2, name: 'Living room', exact: true }).waitFor();
+  await ladder.getByRole('button', { name: 'Ground floor: 3 rooms, has the selected room', exact: true }).waitFor();
+  await settledDraw(atlas);
+  const desktop = await atlasFacts();
+  assert.deepEqual([desktop.view, desktop.building, desktop.floor, desktop.exploded], [['3D'], ['Synthetic house'], ['All floors'], 'true']);
+  assert.deepEqual([desktop.selectedRoom, desktop.selectedFloor, desktop.canvasHidden, desktop.stageNote], ['Living room', 'Ground floor, Synthetic house', false, null]);
+  assert(desktop.labels.includes('Select room: Living room'), 'The selected room tag must be on the stage');
+  const desktopWebgl = await atlasWebgl();
+  assert(desktopWebgl.pixels[0] > 1 && desktopWebgl.pixels[1] > 1);
+  await atlas.mouse.move(1430, 10);
+  await frames(atlas);
+  await atlas.screenshot({ path: resolve(output, 'synthetic-unified-3d.png'), animations: 'disabled' });
+  // Plan of the selected room's floor, with the published electrical counts.
+  await shell.getByRole('group', { name: 'Atlas view' }).getByRole('button', { name: 'Plan', exact: true }).click();
+  await atlas.waitForFunction(() => document.querySelector('.ua-shell.is-plan .ua-plan') && document.querySelector('.ua-viewport canvas.cifc-canvas').hidden);
+  await shell.getByRole('group', { name: 'Overlay' }).getByRole('button', { name: 'Electrical', exact: true }).click();
+  await shell.getByRole('button', { name: 'Hall: 3 electrical records', exact: true }).waitFor();
+  await atlas.mouse.move(1430, 10);
+  await frames(atlas);
+  const plan = await atlasFacts();
+  assert.equal(plan.stage, 'Plan of Ground floor, Synthetic house. Arrow keys pan, plus and minus zoom, Escape clears the room.');
+  assert.deepEqual([plan.view, plan.overlay, plan.markers, plan.planRooms, plan.planSelected, plan.stageNote],
+    [['Plan'], ['Electrical'], ['Hall: 3 electrical records', 'Living room: 1 electrical record'], 3, 1, null]);
+  const planSvgSha256 = createHash('sha256').update(await atlas.locator('.ua-viewport svg.cifc-svg').evaluate(node => node.outerHTML)).digest('hex');
+  await atlas.screenshot({ path: resolve(output, 'synthetic-unified-plan.png'), animations: 'disabled' });
+  // Phone width: the same selection in 3D with the room panel as a closed sheet.
+  await atlas.setViewportSize({ width: 390, height: 844 });
+  await atlas.evaluate(() => { window.syntheticAtlasDrawCalls = 0; });
+  await shell.getByRole('group', { name: 'Atlas view' }).getByRole('button', { name: '3D', exact: true }).click();
+  await atlas.waitForFunction(() => !document.querySelector('.ua-viewport canvas.cifc-canvas').hidden && window.syntheticAtlasDrawCalls > 0);
+  await settledDraw(atlas);
+  await shell.getByRole('button', { name: 'Show details', exact: true }).waitFor();
+  await atlas.mouse.move(385, 5);
+  await frames(atlas);
+  const phone = await atlasFacts();
+  assert.deepEqual([phone.view, phone.overlay, phone.selectedRoom, phone.stageNote], [['3D'], ['Electrical'], 'Living room', null]);
+  assert.deepEqual(phone.inspector, { label: 'Selected room', position: 'absolute', open: false });
+  const phoneWebgl = await atlasWebgl();
+  await atlas.screenshot({ path: resolve(output, 'synthetic-unified-phone.png'), animations: 'disabled' });
+  assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
   const sourceHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
   const sourceDirty = execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).trim().length > 0;
   assert.deepEqual(await sourceTreeSnapshot(), sourceTree, 'Tracked capture source must remain unchanged throughout capture');
@@ -129,8 +237,25 @@ try {
     const path = file.startsWith('docs/demo/') ? resolve(output, file.split('/').at(-1)) : resolve(root, file);
     hashes[file] = createHash('sha256').update(await readFile(path)).digest('hex');
   }
-  await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browser.version(), webgl, illustration: { renderer: 'production AtlasView/Model', fictional: true, floors: 3, selectedRoom: 'Kitchen', svgSHA256: illustrationSvgSha256, referenceArchiveSHA256: '96a884bf935e6aedfa3e5b4f415cce8be295630fe052dc66c5497f8b87b1da63' }, viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'both source floors prepared before production WebGL capture', 'original fictional three-floor illustrated house with furniture and selected Kitchen', 'illustrated ground-floor plan mode', 'zero external browser requests and renderer errors'], hashes }, null, 2) + '\n');
-  console.log('PASS synthetic React media: original illustrated house, plan, two-floor WebGL meshes, building, room, Network, collage; no provider/native acceptance');
+  const unifiedSourcePaths = ['tools/readme-media/capture.mjs', 'frontend/lantern-tests/source-host-visual/index.html', 'frontend/lantern-tests/source-host-visual/main.tsx', 'frontend/lantern-tests/source-host-visual/synthetic-site.ts', 'frontend/lantern-tests/source-host-visual/synthetic-documents.ts', 'frontend/lantern-tests/unified-atlas/synthetic-atlas.ts', 'frontend/integration/unified-atlas-reader.ts', 'frontend/src/lantern/Host.tsx', 'frontend/src/lantern/atlas/AtlasView.tsx', 'frontend/src/lantern/atlas/useCamera.ts', 'frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx', 'frontend/src/lantern/unified-atlas/scene.ts', 'frontend/src/lantern/unified-atlas/unified-atlas.css', 'frontend/src/lantern/unified-atlas/PublishedOverlayDetails.tsx', 'frontend/src/lantern/unified-atlas/labels.ts', 'frontend/src/lantern/unified-atlas/types.ts', 'frontend/src/lantern/canonical-ifc/MeshLayer.tsx', 'frontend/src/lantern/canonical-ifc/geometry.ts', 'frontend/src/lantern/canonical-ifc/useStageCamera.ts', 'frontend/src/lantern/canonical-ifc/stage-pointers.ts', 'frontend/src/lantern/canonical-ifc/standard-glb.ts', 'frontend/src/lantern/canonical-ifc/glb-preflight.ts', 'frontend/src/lantern/canonical-ifc/canonical-ifc.css'];
+  const unifiedSourceHashes = {}, unifiedArtifactHashes = {};
+  for (const file of unifiedSourcePaths) unifiedSourceHashes[file] = createHash('sha256').update(await readFile(resolve(root, file))).digest('hex');
+  for (const name of unifiedNames) unifiedArtifactHashes[`docs/demo/synthetic-${name}.png`] = createHash('sha256').update(await readFile(resolve(output, `synthetic-${name}.png`))).digest('hex');
+  const unifiedAtlas = {
+    entry: unifiedEntry, renderer: 'production UnifiedAtlas in LanternHost AtlasView',
+    fixture: 'generated fictional publication from synthetic-atlas.ts; production readUnifiedAtlas over an in-page fake HTTPS transport; external atlas-scene/atlas-model parameters unused',
+    buildings, floors, planSvgSHA256: planSvgSha256,
+    states: [
+      { image: 'synthetic-unified-3d.png', viewport: [1440, 1000], ...desktop, webgl: desktopWebgl },
+      { image: 'synthetic-unified-plan.png', viewport: [1440, 1000], ...plan },
+      { image: 'synthetic-unified-phone.png', viewport: [390, 844], ...phone, webgl: phoneWebgl },
+    ],
+    checks: ['Atlas section current', 'two navigable generated buildings and three house floors in height order', 'Living room selected on Ground floor through the room list', 'fresh WebGL draws after Fit view before each 3D capture', 'selected room tag on the 3D stage', 'Ground floor plan with three rooms, one selected and the canvas hidden', 'published electrical counts for Hall and Living room', 'phone width with the room panel as a closed sheet'],
+    scope: ['Generated fictional data only; no household, native, backend admission or private reference', 'Reduced motion: settled states only; no animation, transition or mid-sweep evidence', 'Playwright headless Chromium; no iPhone, PWA, native document, PDF or device acceptance'],
+    sourceHashes: unifiedSourceHashes, artifactHashes: unifiedArtifactHashes,
+  };
+  await writeFile(resolve(output, 'capture.json'), JSON.stringify({ format: 'houseatlas-synthetic-readme-media/1', synthetic: true, sourceHead, sourceDirty, sourceTree, node: process.version, browser: browser.version(), webgl, illustration: { renderer: 'production AtlasView/Model', fictional: true, floors: 3, selectedRoom: 'Kitchen', svgSHA256: illustrationSvgSha256, referenceArchiveSHA256: '96a884bf935e6aedfa3e5b4f415cce8be295630fe052dc66c5497f8b87b1da63' }, viewport: [1440, 1000], collage: [1800, 520], transport: 'Checked-in synthetic Responses; browser assets from owned loopback only', sandbox: 'Playwright default headless (--no-sandbox); no native sandbox qualification', checks: ['reviewed Alpha membership', 'explicit unknown elevation', 'Lower room heading', 'saved synthetic-link with exact revision token', 'both source floors prepared before production WebGL capture', 'original fictional three-floor illustrated house with furniture and selected Kitchen', 'illustrated ground-floor plan mode', 'zero external browser requests and renderer errors'], hashes, unifiedAtlas }, null, 2) + '\n');
+  console.log('PASS synthetic React media: original illustrated house, plan, two-floor WebGL meshes, building, room, Network, collage, generated unified Atlas 3D/plan/phone; no provider/native acceptance');
 } finally {
   clearTimeout(deadline);
   await browser?.close();
