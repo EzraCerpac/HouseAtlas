@@ -684,6 +684,7 @@ pub struct ServerAtlasSceneSelection {
     pub(crate) semantics_sha256: String,
     pub(crate) revision: String,
     overview_sha256: String,
+    entry_building_id: Option<String>,
 }
 impl ServerAtlasSceneSelection {
     pub fn from_arguments(
@@ -693,11 +694,13 @@ impl ServerAtlasSceneSelection {
         let mut remaining = Vec::new();
         let mut path = None;
         let mut hash = None;
+        let mut entry_building_id = None;
         let mut iter = args.iter();
         while let Some(arg) = iter.next() {
             let slot = match arg.as_str() {
                 "--atlas-scene-manifest" => Some(&mut path),
                 "--atlas-scene-manifest-sha256" => Some(&mut hash),
+                "--atlas-entry-building-id" => Some(&mut entry_building_id),
                 _ => None,
             };
             if let Some(slot) = slot {
@@ -712,7 +715,7 @@ impl ServerAtlasSceneSelection {
                 remaining.push(arg.clone());
             }
         }
-        let selected = match (path, hash) {
+        let mut selected = match (path, hash) {
             (None, None) => None,
             (Some(path), Some(hash)) => Some(Self::read_pinned(
                 Path::new(&path),
@@ -721,6 +724,11 @@ impl ServerAtlasSceneSelection {
             )?),
             _ => return Err(invalid()),
         };
+        if let Some(entry) = entry_building_id {
+            let selection = selected.as_mut().ok_or_else(invalid)?;
+            need(id(&entry) && selection.has_building(&entry))?;
+            selection.entry_building_id = Some(entry);
+        }
         Ok((remaining, selected))
     }
     pub fn read_pinned(
@@ -752,11 +760,29 @@ impl ServerAtlasSceneSelection {
             semantics_sha256: sha.into(),
             revision: hash(&random),
             overview_sha256: overview.manifest_sha256.clone(),
+            entry_building_id: None,
         };
         selected.verify(overview)?;
         Ok(selected)
     }
+    /// Explicit source-owner presentation preference within this selected
+    /// publication. This establishes no native identity or access authority.
+    pub fn entry_building_id(&self) -> Option<&str> {
+        self.entry_building_id.as_deref()
+    }
+    fn has_building(&self, building_id: &str) -> bool {
+        self.value["buildings"].as_array().is_some_and(|buildings| {
+            buildings
+                .iter()
+                .any(|building| building["buildingId"] == building_id)
+        })
+    }
     pub(crate) fn verify(&self, overview: &ServerModelOverviewSelection) -> Result<(), String> {
+        need(
+            self.entry_building_id
+                .as_ref()
+                .is_none_or(|entry| id(entry) && self.has_building(entry)),
+        )?;
         need(
             self.path.parent() == overview.path.parent()
                 && self.overview_sha256 == overview.manifest_sha256

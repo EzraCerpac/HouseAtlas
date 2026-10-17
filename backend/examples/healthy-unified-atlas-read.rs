@@ -82,7 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let (remaining, selection) = ServerModelOverviewSelection::from_arguments(&args)?;
     assert_eq!(remaining, vec!["serve"]);
     let selection = selection.unwrap();
-    let atlas_args = vec![
+    let mut atlas_args = vec![
         "serve".into(),
         "--atlas-scene-manifest".into(),
         publication_dir
@@ -93,10 +93,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         "--atlas-scene-manifest-sha256".into(),
         sha(&companion),
     ];
+    let (without_entry_args, without_entry) =
+        ServerAtlasSceneSelection::from_arguments(&atlas_args, Some(&selection))?;
+    assert_eq!(without_entry_args, vec!["serve"]);
+    assert_eq!(without_entry.unwrap().entry_building_id(), None);
+    atlas_args.extend(["--atlas-entry-building-id".into(), "building-main".into()]);
     let (remaining, atlas) =
         ServerAtlasSceneSelection::from_arguments(&atlas_args, Some(&selection))?;
     assert_eq!(remaining, vec!["serve"]);
     let atlas = atlas.unwrap();
+    assert_eq!(atlas.entry_building_id(), Some("building-main"));
     selection.validate_config(&config)?;
     let (core, lease) = persistent::reopen(&config)?;
     let host = Host::new(
@@ -154,6 +160,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()["cache-control"], "private, no-store");
     assert_eq!(response.headers()["x-content-type-options"], "nosniff");
+    assert_eq!(
+        response.headers()["x-atlas-entry-building-id"],
+        "building-main"
+    );
     assert_eq!(
         response.headers()["x-atlas-overview-manifest-sha256"],
         sha(&manifest)
@@ -290,7 +300,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     assert_eq!(fs::read(publication_dir.join("overview.glb"))?, glb);
     drop(lease);
     println!(
-        "PASS generated unified scene: actual native session/Read/Media; two levels, logical multi-occurrence room, explicit estimated pick geometry+matching plans; validated normals/indices, single-level slab and shared structure; matching concave courtyard footprint with hole, collinear subdivisions and positive sub-tolerance edges; unchanged current/scoped ReadyView; exact descriptor/publication/selection; repeated original/query/hash/headers; unchanged overview/config/receipt/source bytes. No listener/provider/private household/probe."
+        "PASS generated unified scene: actual native session/Read/Media; two levels, logical multi-occurrence room, explicit estimated pick geometry+matching plans; validated normals/indices, single-level slab and shared structure; matching concave courtyard footprint with hole, collinear subdivisions and positive sub-tolerance edges; unchanged current/scoped ReadyView; exact descriptor/publication/selection; explicit selected-building entry header and unchanged unconfigured selection; repeated original/query/hash/headers; unchanged overview/config/receipt/source bytes. No listener/provider/private household/probe."
     );
     Ok(())
 }
