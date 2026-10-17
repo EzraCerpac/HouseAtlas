@@ -1249,6 +1249,15 @@ standard loader and binder 100,000 m above its original source Y; it retains
 the expected room pick at a shared triangle seam. These are positive CPU
 observations, not React animation, rendered layout or browser focus evidence.
 
+It also retains generated non-BMP/combining/ZWJ source text at the backend's
+human-field scalar bounds, including 64-scalar source date text and the full
+1,024-scalar position basis. These are source text, not parsed date claims.
+A separate admission-only projection covers 4,096 occurrences and 16,381
+room/non-room/context features with reordered references and an empty
+occurrence. That projection proves frontend semantic admission only: it is not
+bound to model geometry or admitted by the backend. No invalid-text, missing
+reference, denial or other held control is added.
+
 The separate generated interaction positives use the production reader, standard
 GLB loader, reducer, projection, pointer factory and documentary index. Inspect
 `frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs`, its

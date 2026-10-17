@@ -45,11 +45,19 @@ function list(value: unknown, max: number): readonly unknown[] {
   need(Array.isArray(value)); budget(value.length <= max); return value;
 }
 // eslint-disable-next-line no-control-regex
-const CONTROL = /[\u0000-\u001f\u007f]/;
+const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, SHA = /^[0-9a-f]{64}$/;
 const REVISION = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 function text(value: unknown, max = 512): string {
-  need(typeof value === 'string' && value.length > 0 && value.length <= max && !CONTROL.test(value)); return value;
+  need(typeof value === 'string' && value.length > 0 && !CONTROL.test(value));
+  // Match Rust str::chars: scalar values, preserving the original source
+  // string. JSON.parse can produce lone surrogates that Rust strings cannot.
+  let count = 0;
+  for (const scalar of value) {
+    const code = scalar.codePointAt(0)!;
+    need((code < 0xd800 || code > 0xdfff) && ++count <= max);
+  }
+  return value;
 }
 const nullableText = (value: unknown, max = 2048) => value === null ? null : text(value, max);
 const id = (value: unknown) => text(value, 256);
@@ -141,7 +149,7 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
 
   const buildings = list(envelope.buildings, ATLAS_LIMITS.buildings).map<AtlasBuilding>(item => {
     const building = row(item, ['buildingId', 'label', 'nativePlaceId', 'bounds', 'levelIds']);
-    return { buildingId: id(building.buildingId), label: text(building.label, 256), nativePlaceId: nullableUuid(building.nativePlaceId),
+    return { buildingId: id(building.buildingId), label: text(building.label, 128), nativePlaceId: nullableUuid(building.nativePlaceId),
       bounds: box(building.bounds), levelIds: ids(building.levelIds, ATLAS_LIMITS.levels) };
   });
   need(buildings.length > 0);
@@ -149,9 +157,9 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
   const levels = list(envelope.levels, ATLAS_LIMITS.levels).map<AtlasLevel>(item => {
     const level = row(item, ['levelId', 'buildingId', 'label', 'nativePlaceId', 'sourceElevationM', 'elevationBasis', 'occurrenceIds', 'bounds']);
     need(buildingById.has(level.buildingId as string));
-    return { levelId: id(level.levelId), buildingId: level.buildingId as string, label: text(level.label, 256),
+    return { levelId: id(level.levelId), buildingId: level.buildingId as string, label: text(level.label, 128),
       nativePlaceId: nullableUuid(level.nativePlaceId), sourceElevationM: level.sourceElevationM === null ? null : coordinate(level.sourceElevationM),
-      elevationBasis: nullableText(level.elevationBasis, 512), occurrenceIds: ids(level.occurrenceIds, ATLAS_LIMITS.occurrences), bounds: box(level.bounds) };
+      elevationBasis: nullableText(level.elevationBasis, 256), occurrenceIds: ids(level.occurrenceIds, ATLAS_LIMITS.occurrences), bounds: box(level.bounds) };
   });
   const levelById = unique(levels, item => item.levelId);
   for (const building of buildings)
@@ -165,7 +173,7 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
     const nativePlaceId = nullableUuid(room.nativePlaceId);
     const receiptSha256 = binding.receiptSha256 === null ? null : sha(binding.receiptSha256);
     need(binding.status !== 'reviewed' || (nativePlaceId !== null && receiptSha256 !== null));
-    return { roomId: id(room.roomId), buildingId: room.buildingId as string, label: text(room.label, 256), nativePlaceId,
+    return { roomId: id(room.roomId), buildingId: room.buildingId as string, label: text(room.label, 128), nativePlaceId,
       nativeBinding: { status: binding.status, receiptSha256 },
       occurrenceIds: ids(room.occurrenceIds, ATLAS_LIMITS.occurrences, true) };
   });
@@ -178,7 +186,7 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
     need(basis.kind === 'source-model' || basis.kind === 'owner-estimated-pick-proxy');
     return { spaceOccurrenceId: id(occurrence.spaceOccurrenceId), roomId: room.roomId, buildingId: room.buildingId, levelId: level.levelId,
       bounds: box(occurrence.bounds), planFeatureIds: ids(occurrence.planFeatureIds, ATLAS_LIMITS.polygonPoints),
-      geometryBasis: { kind: basis.kind, sourceRef: nullableText(basis.sourceRef, 512), note: nullableText(basis.note, 2048) } };
+      geometryBasis: { kind: basis.kind, sourceRef: nullableText(basis.sourceRef, 256), note: nullableText(basis.note, 1024) } };
   });
   const occurrenceById = unique(occurrences, item => item.spaceOccurrenceId);
   for (const room of rooms) need(sameSet(room.occurrenceIds, occurrences.filter(item => item.roomId === room.roomId).map(item => item.spaceOccurrenceId)));
@@ -204,6 +212,7 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
   });
 
   const featureIds = new Set<string>(), planLevels = new Set<string>();
+  const featuresByOccurrence = new Map<string, string[]>();
   const plans = rawPlans.map<AtlasPlan>(item => {
     const plan = row(item, ['planId', 'buildingId', 'levelId', 'coordinates', 'featureIds', 'features']);
     const level = levelById.get(plan.levelId as string);
@@ -217,8 +226,9 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
       need(roomId === null || roomById.get(roomId)?.buildingId === level.buildingId);
       if (spaceOccurrenceId !== null) {
         const occurrence = occurrenceById.get(spaceOccurrenceId);
-        need(occurrence && occurrence.levelId === level.levelId && (roomId === null || occurrence.roomId === roomId)
-          && occurrence.planFeatureIds.includes(featureId));
+        need(occurrence && occurrence.levelId === level.levelId && (roomId === null || occurrence.roomId === roomId));
+        const own = featuresByOccurrence.get(spaceOccurrenceId);
+        if (own) own.push(featureId); else featuresByOccurrence.set(spaceOccurrenceId, [featureId]);
       }
       const polygons = (feature.polygons as unknown[]).map<AtlasPolygon>(polygon => {
         const shape = row(polygon, ['outer', 'holes']);
@@ -236,15 +246,14 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
   // Each occurrence lists exactly its own plan features.
   for (const occurrence of occurrences) for (const featureId of occurrence.planFeatureIds) need(featureIds.has(featureId));
   for (const occurrence of occurrences) {
-    const own = plans.flatMap(plan => plan.features.filter(feature => feature.spaceOccurrenceId === occurrence.spaceOccurrenceId).map(feature => feature.featureId));
-    need(sameSet(own, occurrence.planFeatureIds));
+    need(sameSet(featuresByOccurrence.get(occurrence.spaceOccurrenceId) ?? [], occurrence.planFeatureIds));
   }
 
   const overlayBindings = rawOverlays.map<AtlasOverlayBinding>(item => {
     const binding = row(item, ['publicationId', 'kind', 'sourceRevision', 'sourceUpdatedAt', 'retrievedAt', 'roomId', 'spaceOccurrenceId',
       'nativePlaceId', 'recordIds', 'anchor']);
     need(binding.kind === 'electrical' || binding.kind === 'network');
-    return { publicationId: id(binding.publicationId), kind: binding.kind, sourceRevision: text(binding.sourceRevision, 256),
+    return { publicationId: id(binding.publicationId), kind: binding.kind, sourceRevision: text(binding.sourceRevision, 128),
       sourceUpdatedAt: nullableText(binding.sourceUpdatedAt, 64), retrievedAt: nullableText(binding.retrievedAt, 64),
       roomId: id(binding.roomId), spaceOccurrenceId: nullableId(binding.spaceOccurrenceId), nativePlaceId: nullableUuid(binding.nativePlaceId),
       recordIds: ids(binding.recordIds, ATLAS_LIMITS.overlayRecords, true), anchor: overlayAnchor(binding.anchor) };
@@ -265,7 +274,7 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
 function overlayAnchor(value: unknown): OverlayAnchor {
   if (isRow(value) && value.kind === 'room-summary') { row(value, ['kind']); return { kind: 'room-summary' }; }
   const anchor = row(value, ['kind', 'position', 'basis']); need(anchor.kind === 'source-position');
-  return { kind: 'source-position', position: vec3(anchor.position), basis: text(anchor.basis, 512) };
+  return { kind: 'source-position', position: vec3(anchor.position), basis: text(anchor.basis, 1024) };
 }
 
 function ring(value: unknown): PlanRing {
@@ -297,12 +306,12 @@ function admitCoverage(value: unknown, occurrences: ReadonlyMap<string, AtlasOcc
   if (selectable.ids && unselectable.ids) need(sameSet([...selectable.ids, ...unselectable.ids], [...occurrences.keys()]));
   else need(selectable.count + unselectable.count === occurrences.size);
   const exclusions = list(coverage.exclusions, ATLAS_LIMITS.occurrences).map<AtlasExclusion>(item => {
-    if (typeof item === 'string') return { id: null, reason: text(item, 2048) };
+    if (typeof item === 'string') return { id: null, reason: text(item, 1024) };
     need(isRow(item));
     // The exclusion shape is producer text; it is shown, never interpreted.
     const reason = [item.reason, item.note, item.detail].find(part => typeof part === 'string');
     const key = [item.spaceOccurrenceId, item.occurrenceId, item.roomId, item.id].find(part => typeof part === 'string');
-    return { id: key === undefined ? null : id(key), reason: reason === undefined ? null : text(reason, 2048) };
+    return { id: key === undefined ? null : id(key), reason: reason === undefined ? null : text(reason, 1024) };
   });
   return { selectable: selectable.ids, selectableCount: selectable.count, unselectable: unselectable.ids,
     unselectableCount: unselectable.count, exclusions };

@@ -65,6 +65,62 @@ assert.equal(new Set([composed.manifestSha256, composed.sha256, read.scene.publi
 assert.equal(read.scene.selection.revision, SYNTHETIC_ATLAS.revision);
 assert.equal(read.scene.publication.semanticsSha256, (await import('node:crypto')).createHash('sha256').update(companionBytes).digest('hex'));
 
+// Valid scalar text at the backend's human-field bounds. These generated
+// source strings are retained exactly, not normalized or interpreted as dates.
+const scalarText = (prefix, count) => prefix + '🧭'.repeat(count - [...prefix].length);
+const unicode = JSON.parse(new TextDecoder().decode(companionBytes));
+const sourceLabel = scalarText('Generated e\u0301 👩‍🔬 ', 128);
+unicode.buildings[0].label = sourceLabel; unicode.levels[0].label = sourceLabel; unicode.rooms[0].label = sourceLabel;
+unicode.levels[0].elevationBasis = scalarText('Generated source elevation ', 256);
+unicode.occurrences[0].geometryBasis.sourceRef = scalarText('Generated source reference ', 256);
+unicode.occurrences[0].geometryBasis.note = scalarText('Generated source note ', 1024);
+unicode.coverage.exclusions = [scalarText('Generated exclusion ', 1024)];
+const positioned = unicode.overlayBindings.find(binding => binding.anchor.kind === 'source-position');
+positioned.anchor.basis = scalarText('Generated source position ', 1024);
+positioned.sourceRevision = scalarText('Generated revision ', 128);
+positioned.sourceUpdatedAt = scalarText('Generated source date text ', 64);
+positioned.retrievedAt = scalarText('Generated retrieval text ', 64);
+const unicodeEnvelope = await composeAtlasEnvelope(new TextEncoder().encode(JSON.stringify(unicode)), glb, SYNTHETIC_ATLAS.revision);
+const unicodeRead = await readUnifiedAtlas({ selection: { ...selection, manifestSha256: unicodeEnvelope.manifestSha256 },
+  signal: new AbortController().signal, origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true,
+  transport: createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(scope), envelopeBytes: unicodeEnvelope.envelopeBytes,
+    href: unicodeEnvelope.href, glb, sha256: unicodeEnvelope.sha256, manifestSha256: unicodeEnvelope.manifestSha256, revision: SYNTHETIC_ATLAS.revision }) });
+assert.equal(unicodeRead.scene.rooms[0].label, sourceLabel);
+assert.equal(unicodeRead.scene.buildings[0].label, sourceLabel); assert.equal(unicodeRead.scene.levels[0].label, sourceLabel);
+assert.equal(unicodeRead.scene.levels[0].elevationBasis, unicode.levels[0].elevationBasis);
+assert.deepEqual(unicodeRead.scene.occurrences[0].geometryBasis, unicode.occurrences[0].geometryBasis);
+const retainedPosition = unicodeRead.scene.overlayBindings.find(binding => binding.anchor.kind === 'source-position');
+assert.deepEqual(retainedPosition, positioned);
+assert.equal(unicodeRead.scene.coverage.exclusions[0].reason, unicode.coverage.exclusions[0]);
+assert.equal([...retainedPosition.anchor.basis].length, 1024);
+
+// Admission-only projection at the 4,096-occurrence bound: four differently
+// ordered room/non-room feature references each, plus an empty occurrence and
+// an unbound context feature. No GLB binding or backend admission is claimed.
+const wide = structuredClone(composed.envelope), extent = { min: [0, 0, 0], max: [1, 1, 1] };
+const occurrenceIds = Array.from({ length: scene.ATLAS_LIMITS.occurrences }, (_, at) => `generated:occ:${at}`);
+wide.buildings = [{ buildingId: 'generated:building', label: 'Generated building', nativePlaceId: null, bounds: extent, levelIds: ['generated:level'] }];
+wide.levels = [{ levelId: 'generated:level', buildingId: 'generated:building', label: 'Generated level', nativePlaceId: null,
+  sourceElevationM: null, elevationBasis: null, occurrenceIds, bounds: extent }];
+wide.rooms = [{ roomId: 'generated:room', buildingId: 'generated:building', label: 'Generated room', nativePlaceId: null,
+  nativeBinding: { status: 'unmapped', receiptSha256: null }, occurrenceIds }];
+wide.occurrences = occurrenceIds.map((spaceOccurrenceId, at) => ({ spaceOccurrenceId, roomId: 'generated:room', buildingId: 'generated:building',
+  levelId: 'generated:level', bounds: extent, planFeatureIds: at === occurrenceIds.length - 1 ? [] : [3, 1, 0, 2].map(part => `${spaceOccurrenceId}:feature:${part}`),
+  geometryBasis: { kind: 'source-model', sourceRef: null, note: null } }));
+const features = wide.occurrences.flatMap(occurrence => [...occurrence.planFeatureIds].sort().map((featureId, at) => ({ featureId,
+  roomId: occurrence.roomId, spaceOccurrenceId: occurrence.spaceOccurrenceId, role: ['room', 'wall', 'opening', 'stair'][at],
+  polygons: [{ outer: [[0, 0], [1, 0], [0, 1]], holes: [] }] })));
+features.push({ featureId: 'generated:context', roomId: null, spaceOccurrenceId: null, role: 'context', polygons: [{ outer: [[0, 0], [1, 0], [0, 1]], holes: [] }] });
+wide.plans = [{ planId: 'generated:plan', buildingId: 'generated:building', levelId: 'generated:level', coordinates: 'scene-XZ-metres',
+  featureIds: features.map(feature => feature.featureId).reverse(), features }];
+wide.meshBindings = []; wide.overlayBindings = [];
+wide.coverage = { selectableOccurrences: [], unselectableOccurrences: occurrenceIds, exclusions: ['Generated admission-only projection; no bound model selectors.'] };
+const admittedWide = scene.admitAtlasScene(wide, { scope, publicationId: selection.publicationId }, new TextEncoder().encode(JSON.stringify(wide)).byteLength);
+assert.equal(admittedWide.occurrences.length, 4096); assert.equal(admittedWide.plans[0].features.length, 16_381);
+assert.equal(admittedWide.occurrences.at(-1).planFeatureIds.length, 0);
+assert.deepEqual(admittedWide.occurrences[0].planFeatureIds, wide.occurrences[0].planFeatureIds);
+assert.equal(admittedWide.coverage.unselectableCount, 4096);
+
 // ---- Load and bind: standard loader transforms applied once -------------------------------
 const loaded = await loadStandardGlb(read.model, 'atlas', new AbortController().signal);
 assert.equal(loaded.drawn.length, SYNTHETIC_ATLAS_DRAWN_PRIMITIVES, 'every primitive of every node use is drawn once');
@@ -511,4 +567,5 @@ console.log('PASS unified Atlas healthy: generated scene/model read through the 
   + 'Section targets, settled and reduced-motion equivalence, mid-sweep reveal agreeing across drawing, picks and room controls, '
   + 'retargeting from an intermediate cut, and the same publication 100 000 m higher. '
   + 'Normal pointer tap, drag, capture handoff, drag-to-pinch, either-finger release and plan pan use production handlers. '
+  + 'Scalar source-text bounds and the full position basis are retained; admission-only projection covers 4,096 occurrences and 16,381 features. '
   + 'Generated data only; no renderer, browser or device acceptance.');
