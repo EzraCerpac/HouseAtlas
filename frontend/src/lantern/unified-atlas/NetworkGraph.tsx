@@ -31,11 +31,27 @@ const LINK_KIND: Record<NetworkOverlayLink['kind'], string> = {
 const MAPPING = { unmatched: 'not matched to a model room', proposed: 'proposed room match, not reviewed', accepted: 'reviewed room match' } as const;
 const KIND_ORDER: Record<NodeKind, number> = { device: 0, endpoint: 1, unresolved: 2 };
 const TONE_ORDER: readonly EdgeTone[] = ['recorded', 'uncertain', 'membership', 'hypothesis', 'unresolved'];
-/** Logical units: ring spacing, the frame's minimum width and the margin kept for names. */
-const RING = 48, WIDTH = 360, MARGIN = 40;
+/** Logical units: least ring spacing, least arc between nodes on one ring, the
+ * frame's minimum width and the margin kept around each group. */
+const RING = 56, SPACING = 34, WIDTH = 360, MARGIN = 28;
+/** Name text in logical units: characters per line, line height and average glyph widths. */
+const LINE = 16, LEAD = 12, GLYPH = 6.1, ROOT_GLYPH = 6.9;
 const HYPOTHESIS = /hypothes/i;
 const plural = (count: number, one: string, many = `${one}s`) => `${count.toLocaleString()} ${count === 1 ? one : many}`;
-const short = (text: string, max = 18) => text.length > max ? `${text.slice(0, max - 1)}…` : text;
+
+/** A name in up to `max` lines of about `width` characters, broken at spaces;
+ * only what still does not fit ends in an ellipsis. The full name stays in the lists. */
+function wrap(text: string, width: number, max: number): string[] {
+  const lines: string[] = [];
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const last = lines[lines.length - 1];
+    if (last !== undefined && last.length + 1 + word.length <= width) lines[lines.length - 1] = `${last} ${word}`; else lines.push(word);
+  }
+  const cut = (line: string) => line.length > width ? `${line.slice(0, width - 1)}…` : line;
+  const kept = lines.slice(0, max).map(cut);
+  if (lines.length > max) kept[max - 1] = `${kept[max - 1]!.replace(/…$/, '').slice(0, width - 1)}…`;
+  return kept.length > 0 ? kept : [cut(text)];
+}
 
 function toneOf(link: NetworkOverlayLink, a: string, b: string): EdgeTone {
   if (link.kind === 'hypothesis' || [link.temporalStatus, link.basis, link.notes].some(text => HYPOTHESIS.test(text ?? ''))) return 'hypothesis';
@@ -102,10 +118,15 @@ function layoutGraph(nodes: ReadonlyMap<string, GraphNode>, edges: readonly Grap
       const own = children.get(id)!;
       leaves.set(id, own.length === 0 ? 1 : own.reduce((sum, child) => sum + leaves.get(child)!, 0));
     }
+    // Each ring is wide enough for the nodes it carries, so a busy hub's neighbours never bunch.
+    const perDepth = new Map<number, number>();
+    for (const d of depth.values()) perDepth.set(d, (perDepth.get(d) ?? 0) + 1);
+    const radius = [0];
+    for (let d = 1; perDepth.has(d); d++) radius[d] = Math.max(radius[d - 1]! + RING, perDepth.get(d)! * SPACING / (2 * Math.PI));
     const spots = new Map<string, Point>();
     const place = (id: string, from: number, span: number) => {
-      const d = depth.get(id)!, angle = from + span / 2;
-      spots.set(id, { x: Math.cos(angle) * d * RING, y: Math.sin(angle) * d * RING, angle });
+      const r = radius[depth.get(id)!]!, angle = from + span / 2;
+      spots.set(id, { x: Math.cos(angle) * r, y: Math.sin(angle) * r, angle });
       let start = from;
       for (const child of children.get(id)!) { const share = span * leaves.get(child)! / leaves.get(id)!; place(child, start, share); start += share; }
     };
@@ -135,7 +156,49 @@ function layoutGraph(nodes: ReadonlyMap<string, GraphNode>, edges: readonly Grap
     }
     y += h;
   }
-  return { points, roots, depths, degree, width, height: y, alone, order };
+  return { points, roots, depths, degree, rank, width, height: y, alone, order };
+}
+
+interface NameTag { readonly x: number; readonly y: number; readonly anchor: 'start' | 'middle' | 'end'; readonly lines: readonly string[] }
+type Box = { readonly l: number; readonly t: number; readonly r: number; readonly b: number };
+
+/** Names placed by priority: the chosen record, what touches it, each group's
+ * hub, then the best-connected. A name goes outward from its node, else below
+ * or above it, and is left to the lists where it would cover another name or
+ * node. Returns the names and the frame that holds nodes and names. */
+function placeNames(view: ReturnType<typeof layoutGraph>, nodes: ReadonlyMap<string, GraphNode>, chosen: string | null, lit: ReadonlySet<string> | null) {
+  const near = (id: string): Box => { const p = view.points.get(id)!; return { l: p.x - 8, t: p.y - 8, r: p.x + 8, b: p.y + 8 }; };
+  const ids = [...view.points.keys()];
+  const tier = (id: string) => id === chosen ? 0 : lit?.has(id) ? 1 : view.roots.has(id) ? 2 : 3;
+  ids.sort((p, q) => tier(p) - tier(q) || view.degree(q) - view.degree(p) || view.depths.get(p)! - view.depths.get(q)! || view.rank.get(p)! - view.rank.get(q)!);
+  const placed: Box[] = [], tags = new Map<string, NameTag>();
+  const hits = (box: Box, own: string) => placed.some(o => box.l < o.r && box.r > o.l && box.t < o.b && box.b > o.t)
+    || ids.some(id => id !== own && (o => box.l < o.r && box.r > o.l && box.t < o.b && box.b > o.t)(near(id)));
+  let frame: Box = { l: 0, t: 0, r: view.width, b: view.height };
+  for (const id of ids) {
+    const p = view.points.get(id)!, root = view.roots.has(id);
+    const lines = wrap(nodes.get(id)!.label, id === chosen ? LINE + 4 : LINE, id === chosen ? 3 : 2);
+    const w = Math.max(...lines.map(line => line.length)) * (root ? ROOT_GLYPH : GLYPH), h = lines.length * LEAD;
+    const c = Math.cos(p.angle), s = Math.sin(p.angle);
+    const side = c > .35 ? 'start' : c < -.35 ? 'end' : 'middle';
+    const spots: { anchor: NameTag['anchor']; x: number; top: number }[] = [
+      ...(root ? [] : [{ anchor: side, x: p.x + c * 12, top: p.y + s * 12 - h / 2 + (side === 'middle' ? (s > 0 ? h / 2 : -h / 2) : 0) }]),
+      { anchor: 'middle', x: p.x, top: root ? p.y - 12 - h : p.y + 10 },
+      { anchor: 'middle', x: p.x, top: root ? p.y + 12 : p.y - 10 - h },
+    ];
+    const required = tier(id) < 2;
+    for (const [at, spot] of spots.entries()) {
+      const l = spot.anchor === 'start' ? spot.x : spot.anchor === 'end' ? spot.x - w : spot.x - w / 2;
+      const box = { l: l - 2, t: spot.top - 1, r: l + w + 2, b: spot.top + h + 1 };
+      // The chosen record and its neighbours keep a name even where nothing is free.
+      if (hits(box, id) && !(required && at === spots.length - 1)) continue;
+      placed.push(box);
+      frame = { l: Math.min(frame.l, box.l - 4), t: Math.min(frame.t, box.t - 4), r: Math.max(frame.r, box.r + 4), b: Math.max(frame.b, box.b + 4) };
+      tags.set(id, { x: spot.x, y: spot.top + LEAD - 3, anchor: spot.anchor, lines });
+      break;
+    }
+  }
+  return { tags, frame };
 }
 
 function edgePath(p: Point, q: Point, bend: number, self: boolean) {
@@ -195,6 +258,7 @@ export function NetworkGraph({ graph }: { readonly graph: DocumentaryNetworkGrap
     const edges = built.edges.filter(edge => edge.a === chosen.id || edge.b === chosen.id);
     return { nodes: new Set([chosen.id, ...edges.flatMap(edge => [edge.a, edge.b])]), edges: new Set(edges.map(edge => edge.key)) };
   }, [chosen, chosenEdge, built]);
+  const { tags: names, frame } = useMemo(() => placeNames(view, built.nodes, chosen?.id ?? null, lit?.nodes ?? null), [view, built, chosen, lit]);
 
   // Parallel links between the same two nodes bow apart instead of overlapping.
   const drawn = useMemo(() => {
@@ -232,7 +296,9 @@ export function NetworkGraph({ graph }: { readonly graph: DocumentaryNetworkGrap
     </figcaption>
 
     {view.points.size > 0 && <div className="ung-frame">
-      <svg className="ung-svg" viewBox={`0 0 ${view.width} ${view.height}`} role="img"
+      {/* Never drawn below 80% of its logical size, so names stay legible; a wide graph scrolls in its frame. */}
+      <svg className="ung-svg" viewBox={`${frame.l} ${frame.t} ${frame.r - frame.l} ${frame.b - frame.t}`} role="img"
+        style={{ width: `clamp(${Math.round((frame.r - frame.l) * .8)}px, 100%, ${Math.round((frame.r - frame.l) * 1.3)}px)` }}
         aria-label="Logical layout of the recorded network. Positions are not places in the house and lines are not cable routes.">
         <g className={`ung-edges${lit ? ' is-dimmed' : ''}`}>
           {drawn.map(({ edge, d }) => <g key={edge.key} className={lit?.edges.has(edge.key) ? 'is-lit' : undefined}>
@@ -242,19 +308,23 @@ export function NetworkGraph({ graph }: { readonly graph: DocumentaryNetworkGrap
         </g>
         <g className={`ung-nodes${lit ? ' is-dimmed' : ''}`}>
           {[...view.points].map(([id, p]) => {
-            const node = built.nodes.get(id)!, on = choice?.kind === 'node' && choice.id === id;
-            const named = on || lit?.nodes.has(id) || view.roots.has(id) || view.depths.get(id)! <= 1 || view.degree(id) >= 2;
-            const c = Math.cos(p.angle), s = Math.sin(p.angle), root = view.roots.has(id);
-            const anchor = root ? 'middle' : c > .35 ? 'start' : c < -.35 ? 'end' : 'middle';
-            const lx = root ? p.x : p.x + c * 11, ly = root ? p.y - 13 : p.y + s * 11 + (Math.abs(c) <= .35 ? (s > 0 ? 6 : -2) : 3);
+            const node = built.nodes.get(id)!, on = choice?.kind === 'node' && choice.id === id, root = view.roots.has(id);
             return <g key={id} className={`ung-node${on ? ' is-chosen' : ''}${lit?.nodes.has(id) ? ' is-lit' : ''}`}
               onClick={() => choose({ kind: 'node', id })}>
-              {on && <circle className="ung-halo" cx={p.x} cy={p.y} r={11} />}
+              <title>{node.label}</title>
+              {root && <circle className="ung-hub" cx={p.x} cy={p.y} r={12} />}
+              {on && <circle className="ung-halo" cx={p.x} cy={p.y} r={root ? 13 : 11} />}
               <circle className="ung-hit" cx={p.x} cy={p.y} r={12} />
               <Glyph kind={node.kind} x={p.x} y={p.y} r={root ? 7.5 : 6} />
-              {named && <text x={lx} y={ly} textAnchor={anchor} className={root ? 'is-root' : undefined}>{short(node.label)}</text>}
             </g>;
           })}
+        </g>
+        {/* Names above every node and line, so a line never strikes through one. */}
+        <g className={`ung-names${lit ? ' is-dimmed' : ''}`} aria-hidden="true">
+          {[...names].map(([id, tag]) => <text key={id} x={tag.x} y={tag.y} textAnchor={tag.anchor}
+            className={`${view.roots.has(id) ? 'is-root' : ''}${lit?.nodes.has(id) ? ' is-lit' : ''}${choice?.kind === 'node' && choice.id === id ? ' is-chosen' : ''}`.trim() || undefined}>
+            {tag.lines.map((line, at) => <tspan key={at} x={tag.x} dy={at === 0 ? 0 : LEAD}>{line}</tspan>)}
+          </text>)}
         </g>
       </svg>
     </div>}

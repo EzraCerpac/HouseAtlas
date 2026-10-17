@@ -87,8 +87,8 @@
   flex-direction: column;
   overflow: hidden;
   background:
-    radial-gradient(ellipse 70% 60% at 46% 40%, #fffdf7 0%, rgba(255, 252, 244, 0.7) 42%, rgba(255, 252, 244, 0) 76%),
-    linear-gradient(176deg, #f5efe3 0%, #ece3d2 100%);
+    radial-gradient(ellipse 70% 60% at 46% 40%, #fffaf0 0%, rgba(255, 250, 240, 0.6) 42%, rgba(255, 250, 240, 0) 78%),
+    linear-gradient(176deg, #f1e9da 0%, #ddd0b7 100%);
 }
 
 .lantern-host .ua-shell.is-stage {
@@ -107,9 +107,11 @@
   overflow: hidden;
   /* Focus never scrolls the stage away from the camera. */
   overflow: clip;
+  /* Lamplight pooled on the model, the room falling off to warm umber at the
+     edges, so the pale architecture stands against its surroundings. */
   background:
-    radial-gradient(ellipse 72% 64% at 46% 40%, #fffdf7 0%, rgba(255, 252, 244, 0.72) 40%, rgba(255, 252, 244, 0) 76%),
-    linear-gradient(176deg, #f5efe3 0%, #e9dfcc 100%);
+    radial-gradient(ellipse 72% 64% at 46% 40%, #fffaf0 0%, rgba(255, 250, 240, 0.6) 42%, rgba(255, 250, 240, 0) 78%),
+    linear-gradient(176deg, #f1e9da 0%, #ddd0b7 100%);
 }
 
 /* Plan lays a drafting sheet over the lamplight; it fades with the camera. */
@@ -147,22 +149,27 @@
 
 /* ---- The birch board ----------------------------------------------------- */
 
+/* Saturated birch against the paper walls: the two materials never merge. */
 .lantern-host .ua-ground {
-  stroke: rgba(122, 88, 36, 0.42);
+  stroke: rgba(110, 78, 30, 0.55);
   stroke-width: 1;
 }
 
-.lantern-host .ua-board-lit { stop-color: #f1e3c4; }
-.lantern-host .ua-board-shade { stop-color: #e0c999; }
-.lantern-host .ua-ground-edge { fill: #c4a067; }
+.lantern-host .ua-board-lit { stop-color: #ead2a0; }
+.lantern-host .ua-board-shade { stop-color: #cfae74; }
+.lantern-host .ua-ground-edge { fill: #9c7a45; }
 
 .lantern-host .ua-grid-line {
   fill: none;
-  stroke: rgba(118, 84, 34, 0.2);
+  stroke: rgba(110, 76, 28, 0.24);
   stroke-width: 0.03;
 }
 
-.lantern-host .ua-ground-grid { pointer-events: none; }
+.lantern-host .ua-ground-grid,
+.lantern-host .ua-ground-shadow { pointer-events: none; }
+
+/* Each building's lowest floor, set down on the board away from the light. */
+.lantern-host .ua-ground-shadow path { fill: #4f3712; }
 
 /* ---- Model overlays ------------------------------------------------------ */
 
@@ -698,12 +705,17 @@
   gap: 8px;
 }
 
+/* The narrow-stage folds; wider stages show what they fold. */
+.lantern-host .ua-folds { display: none; }
+
+/* Beside an open graph the bar may take two rows rather than spill. */
 .lantern-host .ua-bottom .layer-bar {
   flex: none;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 2px;
   padding: 4px;
-  border-radius: 999px;
+  border-radius: 23px;
   border-color: var(--ua-line);
   background: var(--ua-panel);
   backdrop-filter: blur(10px);
@@ -756,12 +768,6 @@
   font-size: var(--fs-s);
   overflow: hidden;
   animation: ua-settle 0.24s ease-out;
-}
-
-/* The logical network needs room to read; the house keeps the rest. */
-.lantern-host .ua-key.has-graph:not(.is-closed):has(.ua-logical-graph[open]) {
-  width: min(560px, 100%);
-  max-height: min(70vh, 720px);
 }
 
 .lantern-host .ua-key-head {
@@ -878,13 +884,98 @@
   border-top: 2px dashed var(--layer);
 }
 
-.lantern-host .ua-measure-key {
-  width: min(320px, 100%);
-  gap: 6px;
-  padding: 10px 12px;
+.lantern-host .ua-key-note { color: var(--ink-2); font-size: var(--fs-xs); }
+
+.lantern-host .ua-rule-glyph path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.lantern-host .ua-key-note { color: var(--ink-2); font-size: var(--fs-xs); }
+/* The network graph opens in its own panel, apart from the key. */
+.lantern-host .ua-graph-open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 7px 10px;
+  border: 1px solid var(--hair-2);
+  border-radius: 10px;
+  background: #fdfbf6;
+  color: var(--ink);
+  font: 650 var(--fs-s)/1.25 var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.lantern-host .ua-graph-open > span:nth-child(2) { flex: 1; min-width: 0; }
+.lantern-host .ua-graph-open > svg { flex: none; color: var(--layer); }
+.lantern-host .ua-graph-open:hover { border-color: var(--lantern-edge); }
+.lantern-host .ua-graph-open[aria-expanded='true'] { background: var(--lantern-soft); border-color: var(--lantern-edge); }
+.lantern-host .ua-graph-open .ua-logical-swatch { margin-right: 0; }
+
+/* ---- The logical network graph's own panel -------------------------------- */
+
+/* Beside the model on wide stages: the model refits to the space left of it. */
+.lantern-host .ua-graph {
+  position: absolute;
+  z-index: 7;
+  top: calc(var(--ua-tools-end, 58px) + 10px);
+  right: 16px;
+  bottom: 16px;
+  width: min(440px, 42%);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-sheet);
+  border: 1px solid var(--ua-line);
+  border-top: 3px solid var(--layer);
+  background: var(--ua-paper);
+  box-shadow: 0 1px 2px rgba(64, 46, 16, 0.1), 0 24px 48px -28px rgba(64, 46, 16, 0.6);
+  overflow: hidden;
+  animation: ua-settle 0.26s ease-out;
+}
+
+.lantern-host .ua-shell.is-graph-open .ua-bottom { right: calc(min(440px, 42%) + 32px); }
+
+.lantern-host .ua-graph-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px 10px 16px;
+  border-bottom: 1px solid var(--hair);
+}
+
+.lantern-host .ua-graph-head .ua-logical-swatch { margin-right: 0; }
+
+.lantern-host .ua-graph-head h2 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font: 700 var(--fs-m)/1.2 var(--display);
+  color: var(--ink);
+}
+
+.lantern-host .ua-graph-head h2:focus { outline: none; }
+.lantern-host .ua-graph-head h2:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
+.lantern-host .ua-graph-close { flex: none; color: var(--ink-2); font-weight: 650; }
+
+.lantern-host .ua-graph-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  align-content: start;
+  gap: 22px;
+  padding: 12px 16px 18px;
+  font-size: var(--fs-s);
+  scrollbar-width: thin;
+}
 
 /* ---- Room panel: beside the stage, or a sheet over its lower edge ---------- */
 
@@ -1232,16 +1323,20 @@
     align-items: flex-end;
   }
 
+  /* The keys scroll as one column; each key keeps its full head, never
+     squeezed to a clipped sliver. */
   .lantern-host .ua-keys {
     flex-direction: column;
     flex-wrap: nowrap;
     align-items: flex-end;
     width: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
   }
 
-  .lantern-host .ua-key { max-height: none; }
-  .lantern-host .ua-key:not(.is-closed),
-  .lantern-host .ua-key.has-graph:not(.is-closed):has(.ua-logical-graph[open]) { width: 100%; max-height: none; }
+  .lantern-host .ua-key { flex: none; max-height: none; }
+  .lantern-host .ua-key:not(.is-closed) { width: 100%; }
   .lantern-host .ua-tiles { align-self: stretch; }
 
   /* An open card covers that band: its layer controls step aside, out of
@@ -1250,6 +1345,19 @@
 
   .lantern-host .ua-shell.is-sheet-open .ua-label-hit,
   .lantern-host .ua-shell.is-sheet-open .ua-marker { visibility: hidden; }
+
+  /* The graph takes the stage, with its close control in reach; the card under it steps aside. */
+  .lantern-host .ua-graph {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+  }
+
+  /* Under a covering graph the layers keep their place, so closing it never re-fits the model. */
+  .lantern-host .ua-shell.is-graph-open .ua-bottom { right: 12px; }
+  .lantern-host .ua-shell.is-graph-covering .ua-inspector { visibility: hidden; }
 }
 
 /* Phones: the sheet spans the lower edge with a grabber; layers stand just above its head. */
@@ -1265,7 +1373,7 @@
     border-radius: var(--r-sheet) var(--r-sheet) 0 0;
   }
 
-  .lantern-host .ua-sheet-head { position: relative; padding: 14px 10px 8px 16px; }
+  .lantern-host .ua-sheet-head { position: relative; padding: 13px 10px 7px 16px; }
 
   .lantern-host .ua-sheet-head::before {
     content: '';
@@ -1282,20 +1390,9 @@
   .lantern-host .ua-sheet-body { padding: 12px 16px 18px; }
   .lantern-host .ua-inspector h2 { font-size: var(--fs-l); }
 
-  /* Between the floor row and the sheet head. */
-  .lantern-host .ua-bottom {
-    top: calc(var(--ua-scope-end, 150px) + 8px);
-    left: 8px;
-    right: 8px;
-    bottom: calc(var(--ua-peek) + 8px);
-    width: auto;
-    align-items: stretch;
-    gap: 6px;
-  }
-
-  .lantern-host .ua-keys { align-items: stretch; }
-  .lantern-host .ua-key,
-  .lantern-host .ua-key.is-closed { width: 100%; }
+  /* Down to the sheet head; the narrow-stage rules below lay out its content. */
+  .lantern-host .ua-bottom { bottom: calc(var(--ua-peek) + 8px); }
+  .lantern-host .ua-graph { inset: 6px; }
 }
 
 /* ---- Narrow stages: controls in rows above the model ---------------------- */
@@ -1316,28 +1413,40 @@
   .lantern-host .ua-tools .ctrl-wide { height: 42px; padding: 0 10px; }
   .lantern-host .ua-tools .seg button { min-width: 44px; padding: 0 10px; }
 
-  /* Snapshot, buildings and floors each keep their own row, so the floors are
-     never pushed out of view by a long building list. */
+  /* Three short rows above the model: the snapshot line, Back beside the
+     buildings, then the floors. Floors are never pushed out of view by a long
+     building list; each row scrolls sideways on its own. */
   .lantern-host .ua-scope {
-    top: 60px;
+    top: 56px;
     left: 8px;
     right: 8px;
     bottom: auto;
     width: auto;
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    justify-items: start;
+    align-items: center;
     gap: 6px;
   }
 
+  .lantern-host .ua-scope > * { grid-column: 1 / -1; max-width: 100%; min-width: 0; }
+  .lantern-host .ua-scope > .ua-back { grid-column: 1; max-width: 10.5rem; }
+  .lantern-host .ua-scope > .ua-back + .ua-buildings,
+  .lantern-host .ua-scope > .ua-back + .ua-ladder { grid-column: 2; }
+
+  /* One line: the kind and the time it was observed. */
   .lantern-host .ua-snapshot-note {
-    max-width: 100%;
-    padding: 5px 9px;
-    border-radius: 8px;
-    font-size: 11.5px;
-    line-height: 1.25;
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    line-height: 1.3;
   }
 
-  .lantern-host .ua-snapshot-note > svg { display: none; }
-  .lantern-host .ua-snapshot-note { grid-template-columns: minmax(0, 1fr); }
+  .lantern-host .ua-snapshot-note > svg,
+  .lantern-host .ua-snapshot-wide { display: none; }
 
   .lantern-host .ua-buildings,
   .lantern-host .ua-ladder {
@@ -1418,16 +1527,170 @@
     height: 8px;
   }
 
-  .lantern-host .ua-bottom .layer-bar {
-    max-width: 100%;
-    overflow-x: auto;
-    justify-content: flex-start;
-    scrollbar-width: none;
+  .lantern-host .ua-scope .ua-back { min-height: 40px; }
+
+  /* Bottom up: the layer bar, one row of folds, and above them whichever fold
+     is open. Only that open fold can shrink, scrolling inside its own frame,
+     so nothing is pushed off the stage or clipped. */
+  .lantern-host .ua-bottom,
+  .lantern-host .ua-shell.is-graph-open .ua-bottom {
+    top: calc(var(--ua-scope-end, 150px) + 8px);
+    left: 8px;
+    right: 8px;
+    width: auto;
+    align-items: stretch;
+    justify-content: flex-end;
+    gap: 6px;
   }
 
-  .lantern-host .ua-bottom .layer-chip { flex-shrink: 0; min-height: 38px; }
-  .lantern-host .ua-key-head { min-height: 40px; padding: 6px 12px; }
-  .lantern-host .ua-tile { width: 128px; }
+  .lantern-host .ua-tiles:not(.is-unfolded),
+  .lantern-host .ua-keys:not(.is-unfolded) { display: none; }
+
+  .lantern-host .ua-tiles {
+    gap: 6px;
+    padding: 6px;
+    border-radius: var(--r-panel);
+    border: 1px solid var(--ua-line);
+    background: var(--ua-panel);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--ua-shadow);
+  }
+
+  .lantern-host .ua-tile { width: 116px; padding: 6px; box-shadow: none; background: var(--ua-paper); }
+  .lantern-host .ua-tile > svg { width: 100%; height: auto; }
+
+  .lantern-host .ua-keys {
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: min(58%, 380px);
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 6px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-radius: var(--r-panel);
+    border: 1px solid var(--ua-line);
+    background: var(--ua-panel);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--ua-shadow);
+    scrollbar-width: thin;
+    animation: ua-settle 0.22s ease-out;
+  }
+
+  .lantern-host .ua-key,
+  .lantern-host .ua-key.is-closed {
+    flex: none;
+    width: 100%;
+    max-height: none;
+    box-shadow: none;
+    backdrop-filter: none;
+    background: var(--ua-paper);
+    animation: none;
+  }
+
+  .lantern-host .ua-key-head { min-height: 42px; padding: 6px 12px; }
+
+  .lantern-host .ua-folds {
+    flex: none;
+    display: flex;
+    gap: 6px;
+  }
+
+  .lantern-host .ua-fold {
+    flex: 1 1 0;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 4px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--ua-line);
+    background: var(--ua-panel);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--ua-shadow);
+    color: var(--ink-2);
+    font: 650 13px/1.15 var(--text);
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.18s ease, color 0.18s ease;
+  }
+
+  .lantern-host .ua-fold > svg:first-child { flex: none; color: var(--faint); }
+
+  .lantern-host .ua-fold-count {
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    background: rgba(24, 35, 58, 0.08);
+    color: var(--ink);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The chevron points where the fold opens: up, over the stage. */
+  .lantern-host .ua-fold > svg:last-child {
+    flex: none;
+    margin-left: auto;
+    color: var(--muted);
+    transform: rotate(180deg);
+    transition: transform 0.2s ease;
+  }
+
+  .lantern-host .ua-fold[aria-expanded='true'] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: #fff;
+  }
+
+  .lantern-host .ua-fold[aria-expanded='true'] > svg { color: var(--lantern); transform: none; }
+  .lantern-host .ua-fold[aria-expanded='true'] .ua-fold-count { background: var(--lantern); color: var(--lantern-ink); }
+  .lantern-host .ua-fold:focus-visible { outline-offset: 2px; }
+
+  /* Layers as three equal tabs: the hue as a bar over each full name, filled
+     when on, so all three states and names stay readable at any phone width. */
+  .lantern-host .ua-bottom .layer-bar {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 3px;
+    border-radius: var(--r-panel);
+  }
+
+  .lantern-host .ua-bottom .layer-chip {
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 4px;
+    min-width: 0;
+    min-height: 44px;
+    padding: 5px 4px;
+    border-radius: 9px;
+    font-size: 12.5px;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .lantern-host .ua-bottom .layer-chip .layer-swatch {
+    width: 24px;
+    height: 5px;
+    border-radius: 3px;
+    box-shadow: none;
+  }
+
+  .lantern-host .ua-bottom .layer-chip[aria-pressed='false'] .layer-swatch { box-shadow: inset 0 0 0 1.5px var(--layer); }
+  .lantern-host .ua-bottom .layer-chip .ua-chip-note { margin: 0; font-size: 10.5px; }
+
+  /* An open graph is the whole view here. */
+  .lantern-host .ua-graph { top: 6px; left: 6px; right: 6px; bottom: 6px; width: auto; }
 }
 
 /* Smallest phones: the explode toggle keeps its name for assistive tech only. */
@@ -1444,7 +1707,10 @@
   }
 
   .lantern-host .ua-tools .seg button { min-width: 40px; padding: 0 9px; }
-  .lantern-host .ua-bottom .layer-chip { padding: 0 12px 0 10px; gap: 6px; }
+  /* The folds keep their names and counts; the leading icons step aside. */
+  .lantern-host .ua-fold > svg:first-child { display: none; }
+  .lantern-host .ua-fold { padding: 4px 8px 4px 10px; font-size: 12.5px; }
+  .lantern-host .ua-scope > .ua-back { max-width: 8.5rem; }
 }
 
 /* Touch: every control keeps a full-size target. */
@@ -1453,7 +1719,11 @@
   .lantern-host .ua-rung,
   .lantern-host .ua-rung-all,
   .lantern-host .ua-bottom .layer-chip,
-  .lantern-host .ua-key-head { min-height: 44px; }
+  .lantern-host .ua-key-head,
+  .lantern-host .ua-fold,
+  .lantern-host .ua-graph-open,
+  .lantern-host .ua-graph-close,
+  .lantern-host .ua-scope .ua-back { min-height: 44px; }
 }
 
 /* Reduced motion: views and panels change in place. */
@@ -1461,7 +1731,9 @@
   .lantern-host .ua-spinner { animation: none; border-top-color: var(--hair-2); }
   .lantern-host .ua-plan,
   .lantern-host .ua-key,
+  .lantern-host .ua-keys,
   .lantern-host .ua-tiles,
+  .lantern-host .ua-graph,
   .lantern-host .ua-sheet-body,
   .lantern-host .cifc-label > circle.ua-ripple { animation: none; }
   .lantern-host .ua-stage::before,
@@ -1471,6 +1743,9 @@
   .lantern-host .ua-rung-tick,
   .lantern-host .ua-key-head > svg,
   .lantern-host .ua-bottom .layer-chip,
+  .lantern-host .ua-fold,
+  .lantern-host .ua-fold > svg,
+  .lantern-host .ua-graph-open,
   .lantern-host .ua-buildings .chip-btn { transition: none; }
   .lantern-host .ua-tile:hover { transform: none; }
 }

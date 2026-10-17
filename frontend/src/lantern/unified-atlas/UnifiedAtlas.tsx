@@ -118,14 +118,21 @@ export default function UnifiedAtlas({ port, onOpenModel }: { readonly port: Uni
 // ---------------------------------------------------------------------------
 
 const RULES: DrawRules = { visibleFloors: 'all', clipY: null };
-/** Lantern architecture: pale walls on a warm stage, lantern-yellow selection.
- * Faces turned from the light keep most of it, so walls stay paper rather than grey. */
+/** Lantern architecture: card walls on a birch board, lantern-yellow selection.
+ * Faces turned from the light fall toward a warm stone shade, never grey, so
+ * every wall plane reads; cut walls show a dark warm poché, never slate.
+ * Out-of-focus floors and neighbours step back toward a cool paper that stays
+ * apart from the warm board. Presentation tones only: they tint whatever the
+ * source geometry is. */
 const ATLAS_MESH_PALETTE: Partial<MeshPalette> = {
-  paper: '#F2EBDD', wall: CARD, top: '#F1E6CF', cut: '#59617A', room: '#F3DFC0', selected: LANTERN, context: '#FBEFC8', ghost: '#FFFFFF',
+  paper: '#E3E0D8', wall: CARD, top: '#ECDDBF', cut: '#76664E', room: '#F3DFC0', selected: LANTERN, context: '#FBEFC8', ghost: '#D3C8B2',
 };
-const ATLAS_AMBIENT = .74;
+const ATLAS_AMBIENT = .56, ATLAS_SHADE = '#8A7658';
 /** The birch board under the property: its thickness below the lowest floor, in metres. */
 const BOARD_DEPTH = .4;
+/** Contact shadow of each building's lowest floor on the board, away from the
+ * renderer's light, in metres along the model's own x and z. */
+const SHADOW_OFFSET = [.34, -.42] as const;
 /** Selected tag in 3D: leader length and tag centre above the anchor, in pixels. */
 const LEADER = 34, TAG_RISE = LABEL_TAG_RISE;
 const OVERLAY_KINDS: readonly OverlayKind[] = ['electrical', 'network'];
@@ -209,11 +216,13 @@ function insetProjection(base: Projection, dx: number, dy: number, viewport: Vie
 }
 
 /** Panels over the stage, in stage pixels: the view tools, the building and
- * floor rail, the overlays and the sheet head. Each container is a
- * transparent band, so its visible children are measured within it. An open
- * sheet counts as its head, and the overlays it hides keep their place, so
- * opening it never moves the model while a resize still re-fits it. */
-function measureCover(root: HTMLElement, stage: HTMLElement): { readonly cover: Box[]; readonly sheet: boolean } {
+ * floor rail, the overlays, the network graph and the sheet head. Each
+ * container is a transparent band, so its visible children are measured
+ * within it. An open sheet counts as its head, and the overlays it hides keep
+ * their place, so opening it never moves the model while a resize still
+ * re-fits it. The graph beside the model claims its own band; over a narrow
+ * stage it is the whole view, and the model keeps its frame behind it. */
+function measureCover(root: HTMLElement, stage: HTMLElement): { readonly cover: Box[]; readonly sheet: boolean; readonly graphCovers: boolean } {
   const frame = stage.getBoundingClientRect();
   const clip = (rect: DOMRect, within: DOMRect): Box | null => {
     const l = Math.max(rect.left, within.left, frame.left), t = Math.max(rect.top, within.top, frame.top);
@@ -241,7 +250,10 @@ function measureCover(root: HTMLElement, stage: HTMLElement): { readonly cover: 
     const top = rect.bottom - head.getBoundingClientRect().height - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth);
     peek = clip(new DOMRect(rect.left, top, rect.width, rect.bottom - top), frame);
   }
-  return { cover: [tools, scope, union('.ua-bottom', laidOut), peek].filter((box): box is Box => box !== null), sheet };
+  const graphPanel = root.querySelector('.ua-graph');
+  const graph = graphPanel && showing(graphPanel) ? clip(graphPanel.getBoundingClientRect(), frame) : null;
+  const graphCovers = graph !== null && graph.r - graph.l > frame.width * .6;
+  return { cover: [tools, scope, union('.ua-bottom', laidOut), peek, graphCovers ? null : graph].filter((box): box is Box => box !== null), sheet, graphCovers };
 }
 
 interface StageMarker extends CountMarker {
@@ -343,15 +355,24 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
   // the sheet open or closed. Panels never depend on the camera, and the band
   // offsets written here never change the measured rows, so measuring cannot
   // feed back into itself.
+  // Narrow stages fold the other floors and the layer details behind one
+  // control each, so the focus keeps the stage; one opens at a time.
+  const [drawer, setDrawer] = useState<'floors' | 'layers' | null>(null);
+  // The logical network graph: its own panel, beside the model or over a narrow stage.
+  const graphs = networkOn ? runtime.records?.networkGraphs ?? [] : [];
+  const [graphOpen, setGraphOpen] = useState(false);
+  const showGraph = graphOpen && graphs.length > 0;
+  const [graphCovers, setGraphCovers] = useState(false);
   const [cover, setCover] = useState<readonly Box[]>([]);
   const layersKey = `${state.layers.electrical}${state.layers.network}${state.layers.measurements}`;
-  const chrome = `${plan}\n${sheetOpen}\n${layersKey}\n${selected}\n${state.buildingId}\n${state.levelId}\n${state.exploded}`;
+  const chrome = `${plan}\n${sheetOpen}\n${layersKey}\n${selected}\n${state.buildingId}\n${state.levelId}\n${state.exploded}\n${drawer}\n${showGraph}`;
   useLayoutEffect(() => {
     const root = shell.current, stage = viewport.current;
     if (!root || !stage) return;
     const measure = () => {
       const next = measureCover(root, stage);
       setCover(value => JSON.stringify(value) === JSON.stringify(next.cover) ? value : next.cover);
+      setGraphCovers(next.graphCovers);
       // Beside the stage the panel is never a sheet: a wider stage closes it,
       // so the overlays and room controls it hid return.
       if (!next.sheet) setSheetOpen(false);
@@ -361,7 +382,7 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
     let pending: number | null = null;
     const observer = new ResizeObserver(() => { if (pending === null) pending = requestAnimationFrame(() => { pending = null; measure(); }); });
     observer.observe(stage);
-    for (const band of root.querySelectorAll('.ua-tools, .ua-scope, .ua-bottom, .ua-inspector')) {
+    for (const band of root.querySelectorAll('.ua-tools, .ua-scope, .ua-bottom, .ua-inspector, .ua-graph')) {
       observer.observe(band);
       for (const child of band.children) observer.observe(child);
     }
@@ -424,6 +445,12 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
     const minZ = Math.min(...b.map(row => row.bounds.min[2])), maxZ = Math.max(...b.map(row => row.bounds.max[2]));
     return { y: Math.min(...b.map(row => row.bounds.min[1])), x: minX - m - origin[0], z: minZ - m - origin[2], w: maxX - minX + 2 * m, h: maxZ - minZ + 2 * m };
   }, [model, origin]);
+  // Each building's lowest authored floor plan, as its contact shadow on the board.
+  const footprints = useMemo(() => model.floorBuildings.flatMap(row => {
+    const lowest = model.levelsByBuilding.get(row.buildingId)?.[0];
+    return !lowest ? [] : planFeaturesForLevel(model, lowest.levelId).filter(feature => feature.role === 'room' || feature.role === 'wall')
+      .map(feature => ({ key: feature.featureId, path: relativePath(model.featureRings.get(feature.featureId)!, origin) }));
+  }), [model, origin]);
   const gridId = `ua-grid-${useId().replace(/[^A-Za-z0-9_-]/g, '')}`;
 
   const lift = (occurrenceId: string) => levelLift(presentation, occurrenceLiftLevel(model, occurrenceId), t);
@@ -621,6 +648,47 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
     ...buildings.map(row => row.buildingId).filter(id => id !== ladderBuildingId)]
     .flatMap(id => [...(model.levelsByBuilding.get(id) ?? [])].reverse())
     .filter(level => model.plansByLevel.has(level.levelId) && !planned.has(level.levelId)), [plan, ladderBuildingId, buildings, model, planned]);
+  const hasKeys = active.length > 0 || measuring;
+  const keysCount = active.length + (measuring ? 1 : 0);
+  // A fold whose content is gone closes, so it never reopens by itself later.
+  useEffect(() => {
+    if ((drawer === 'floors' && tiles.length === 0) || (drawer === 'layers' && !hasKeys)) setDrawer(null);
+  }, [drawer, tiles.length, hasKeys]);
+  const fold = (which: 'floors' | 'layers') => setDrawer(value => value === which ? null : which);
+  const floorsFold = useRef<HTMLButtonElement>(null);
+  const foldIds = useId();
+  // Choosing another floor hands a narrow stage back to the plan; focus stays on the fold that opened it.
+  const chooseTile = (levelId: string) => {
+    const narrow = floorsFold.current !== null && getComputedStyle(floorsFold.current).display !== 'none';
+    setDrawer(null); dispatch({ type: 'level', levelId });
+    if (narrow) floorsFold.current?.focus({ preventScroll: true });
+  };
+
+  // The graph opens from the network key and returns focus there when it closes.
+  const graphOpener = useRef<HTMLElement | null>(null), graphReturn = useRef<HTMLElement | null>(null);
+  const graphHeading = useRef<HTMLHeadingElement>(null);
+  const graphId = useId();
+  const closeGraph = () => { graphReturn.current = graphOpener.current ?? viewport.current; graphOpener.current = null; setGraphOpen(false); };
+  const toggleGraph = () => {
+    if (showGraph) { closeGraph(); return; }
+    graphOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setGraphOpen(true);
+  };
+  // After the commit, so the controls under a covering graph are no longer inert.
+  useLayoutEffect(() => {
+    if (showGraph) { graphHeading.current?.focus({ preventScroll: true }); return; }
+    const back = graphReturn.current; graphReturn.current = null;
+    if (back) (back.isConnected ? back : viewport.current)?.focus({ preventScroll: true });
+  }, [showGraph]);
+  // With the network layer off the graph has nothing to show; it stays closed until asked again.
+  useEffect(() => { if (!networkOn) setGraphOpen(false); }, [networkOn]);
+  const graphKeys = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    event.preventDefault(); closeGraph();
+  };
+  // Over a narrow stage the graph is the whole view: what lies under it leaves the tab order.
+  const underGraph = showGraph && graphCovers;
+
   const escape = (event: ReactKeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Escape' || event.defaultPrevented) return;
     const target = event.target as HTMLElement;
@@ -628,12 +696,13 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
     event.preventDefault(); out();
   };
 
-  return <section ref={shell} className={`ua-shell is-stage${plan ? ' is-plan' : ''}${sheetOpen ? ' is-sheet-open' : ''}`} aria-label="Atlas" onKeyDown={escape}>
+  return <section ref={shell} className={`ua-shell is-stage${plan ? ' is-plan' : ''}${sheetOpen ? ' is-sheet-open' : ''}${showGraph ? ' is-graph-open' : ''}${underGraph ? ' is-graph-covering' : ''}`}
+    aria-label="Atlas" onKeyDown={escape}>
     <div className="ua-stage">
-      <div className="ua-scope">
+      <div className="ua-scope" inert={underGraph}>
         {port.savedDocumentary && <p className="ua-snapshot-note" role="note">
           <Icon name="history" size={15} />
-          <span className="ua-snapshot-kind">Saved documentary snapshot</span>
+          <span className="ua-snapshot-kind">Saved <span className="ua-snapshot-wide">documentary </span>snapshot</span>
           <time dateTime={port.savedDocumentary.observedAt} title={port.savedDocumentary.observedAt}>observed {stampTime(port.savedDocumentary.observedAt)}</time>
         </p>}
         {showBack && <button type="button" className="chip-btn ua-back" onClick={out} aria-label={`Back to ${backTo}`}>
@@ -648,7 +717,7 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
           shownLevel={plan ? presentation.focusLevelId : null} selectionLevel={selectionLevel} contextLevels={contextLevels} />
       </div>
 
-      <div className="ua-tools">
+      <div className="ua-tools" inert={underGraph}>
         <div className="seg" role="group" aria-label="Atlas view">
           <button type="button" aria-pressed={!plan} onClick={() => dispatch({ type: 'view', view: '3d' })}>3D</button>
           <button type="button" aria-pressed={plan} onClick={() => dispatch({ type: 'view', view: 'plan' })}>Plan</button>
@@ -669,7 +738,7 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
 
       <div ref={viewport} className={`cifc-viewport ua-viewport${camera.dragging ? ' is-dragging' : ''}`} tabIndex={0} role="group"
         aria-label={`${plan ? 'Plan' : '3D'} of ${scopeLabel}. Arrow keys ${plan ? 'pan' : 'turn'}, plus and minus zoom, Escape goes back one level.`}
-        {...camera.bind} onFocus={focusIn} onBlur={focusOut}>
+        {...camera.bind} onFocus={focusIn} onBlur={focusOut} inert={underGraph}>
         {/* The birch board: its edge a little below the lowest floor, its top lit
             across, and the metric grid once a metre is wide enough to read. */}
         <svg className="cifc-svg ua-ground-svg" width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`} aria-hidden="true">
@@ -686,12 +755,17 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
             <rect className="ua-ground" x={ground.x} y={ground.z} width={ground.w} height={ground.h} rx={.6}
               fill={`url(#${gridId}-board)`} vectorEffect="non-scaling-stroke" />
             {projection.k >= 10 && <rect className="ua-ground-grid" x={ground.x} y={ground.z} width={ground.w} height={ground.h} fill={`url(#${gridId})`} />}
+            {/* One group opacity, so overlapping rooms and walls shade the board once. */}
+            {planBlend < 1 && footprints.length > 0 && <g className="ua-ground-shadow" style={{ opacity: .2 * (1 - planBlend) }}
+              transform={`translate(${SHADOW_OFFSET[0]} ${SHADOW_OFFSET[1]})`}>
+              {footprints.map(row => <path key={row.key} d={row.path} fillRule="evenodd" />)}
+            </g>}
           </g>
         </svg>
         <div className="cifc-canvas-wrap" style={{ opacity: 1 - planBlend }}>
           <MeshLayer meshes={model.meshes} projection={projection} rules={RULES} currentFloorId={presentation.focusLevelId}
             selectedOccurrenceId={selected} contextOccurrenceIds={context} tints={tints} hidden={!showCanvas}
-            hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided
+            hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE}
             onUnavailable={message => setFailure(message)} />
         </div>
         <svg className="cifc-svg" width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`} aria-hidden="true">
@@ -745,18 +819,30 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
           {focusLevel ? `No plan for ${atlasLevelName(model, focusLevel.levelId)} in this model.` : 'This model has no floors to show as a plan.'}</p>}
       </div>
 
-      <div className="ua-bottom">
-        {tiles.length > 0 && <nav className="ua-tiles" aria-label="Other floors">
+      <div className="ua-bottom" inert={underGraph}>
+        {tiles.length > 0 && <nav id={`${foldIds}-floors`} className={`ua-tiles${drawer === 'floors' ? ' is-unfolded' : ''}`} aria-label="Other floors">
           {tiles.map(level => <PlanTile key={level.levelId} model={model} level={level} layers={active} tints={tints} selected={selected}
-            name={atlasLevelName(model, level.levelId, buildings.length > 1)} choose={() => dispatch({ type: 'level', levelId: level.levelId })} />)}
+            name={atlasLevelName(model, level.levelId, buildings.length > 1)} choose={() => chooseTile(level.levelId)} />)}
         </nav>}
-        {(active.length > 0 || measuring) && <div className="ua-keys">
+        {hasKeys && <div id={`${foldIds}-layers`} className={`ua-keys${drawer === 'layers' ? ' is-unfolded' : ''}`}>
           {active.map(layer => <OverlayKey key={layer.kind} layer={layer} records={runtime.records}
             buildings={runtime.buildings}
             publishedOnly={!runtimeConfigured} openDocuments={() => appDispatch({ type: 'view', view: 'library' })}
             availability={runtime.records?.[layer.kind] ?? (!runtimeConfigured ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
-            openNetwork={() => appDispatch({ type: 'view', view: 'network' })} />)}
+            openNetwork={() => appDispatch({ type: 'view', view: 'network' })}
+            graph={layer.kind === 'network' && graphs.length > 0 ? { id: graphId, open: showGraph, toggle: toggleGraph } : null} />)}
           {measuring && <MeasurementKey estimated={estimated} shown={measured.length} />}
+        </div>}
+        {/* Shown on narrow stages only: each fold opens its content just above it. */}
+        {(tiles.length > 0 || hasKeys) && <div className="ua-folds">
+          {tiles.length > 0 && <button ref={floorsFold} type="button" className="ua-fold" aria-expanded={drawer === 'floors'} aria-controls={`${foldIds}-floors`}
+            onClick={() => fold('floors')}>
+            <Icon name="layers" size={16} /><span>Other floors</span>{' '}<span className="ua-fold-count">{tiles.length.toLocaleString()}</span>
+            <Icon name="chevronDown" size={15} /></button>}
+          {hasKeys && <button type="button" className="ua-fold" aria-expanded={drawer === 'layers'} aria-controls={`${foldIds}-layers`}
+            onClick={() => fold('layers')}>
+            <Icon name="info" size={16} /><span>Layer details</span>{' '}<span className="ua-fold-count">{keysCount.toLocaleString()}</span>
+            <Icon name="chevronDown" size={15} /></button>}
         </div>}
         <div className="layer-bar" role="group" aria-label="Layers">
           {(['electrical', 'network', 'measurements'] as const).map(kind => {
@@ -768,6 +854,20 @@ function AtlasStage({ model, port, selection, entryBuildingId }: { readonly mode
           })}
         </div>
       </div>
+
+      {/* The logical network in its own frame: beside the model on wide stages,
+          the whole view on narrow ones, with one way back either way. */}
+      {showGraph && <section id={graphId} className="ua-graph" aria-labelledby={`${graphId}-title`} onKeyDown={graphKeys}
+        style={{ '--layer': TONE_COLOR.network } as CSSProperties}>
+        <header className="ua-graph-head">
+          <span className="ua-logical-swatch" aria-hidden="true" />
+          <h2 id={`${graphId}-title`} ref={graphHeading} tabIndex={-1}>Logical network graph</h2>
+          <button type="button" className="chip-btn ua-graph-close" onClick={closeGraph}><Icon name="close" size={15} /><span>Close graph</span></button>
+        </header>
+        <div className="ua-graph-body">
+          {graphs.map(graph => <NetworkGraph key={graph.key} graph={graph} />)}
+        </div>
+      </section>}
     </div>
 
     <Inspector model={model} state={state} dispatch={dispatch} context={context} renderFailure={failure}
@@ -1079,24 +1179,24 @@ function SourceDetails({ model, occurrence, room, renderFailure, overlayReason, 
 
 const COVERAGE_TEXT = { available: 'Available', partial: 'Partial', unavailable: 'Unavailable' } as const;
 
-function OverlayKey({ layer, openNetwork, availability, records, buildings, openDocuments, publishedOnly }: {
+function OverlayKey({ layer, openNetwork, availability, records, buildings, openDocuments, publishedOnly, graph }: {
   readonly layer: OverlayLayerIndex; readonly openNetwork: () => void; readonly openDocuments: () => void;
   readonly records: PropertyRecords | null; readonly availability: 'available' | 'partial' | 'unavailable' | 'loading';
   readonly publishedOnly: boolean;
   readonly buildings: readonly BuildingCoverage[];
+  /** The logical network graph's own panel, when the source has one. */
+  readonly graph: { readonly id: string; readonly open: boolean; readonly toggle: () => void } | null;
 }) {
   const reasons = unplacedByReason(layer);
   const unplaced = records?.unplaced[layer.kind] ?? [];
   // Topology stays separate from physical points: connections are logical only.
   const connections = layer.kind === 'network' ? unplaced.filter(record => record.category === 'Recorded connection') : [];
   const others = layer.kind === 'network' ? unplaced.filter(record => record.category !== 'Recorded connection') : unplaced;
-  // The whole logical source graph, in its own frame apart from the house.
-  const graphs = layer.kind === 'network' ? records?.networkGraphs ?? [] : [];
   // Closed, the head keeps the layer's state in view; the explanation and
   // unplaced records open on request, so the model keeps the stage.
   const [closed, setClosed] = useState(true);
   const bodyId = useId();
-  return <section className={`ua-key${closed ? ' is-closed' : ''}${graphs.length > 0 ? ' has-graph' : ''}`} aria-label={`${OVERLAY_LABEL[layer.kind]} layer`} style={{ '--layer': TONE_COLOR[layer.kind] } as CSSProperties}>
+  return <section className={`ua-key${closed ? ' is-closed' : ''}`} aria-label={`${OVERLAY_LABEL[layer.kind]} layer`} style={{ '--layer': TONE_COLOR[layer.kind] } as CSSProperties}>
     <button type="button" className="ua-key-head" aria-expanded={!closed} aria-controls={bodyId} onClick={() => setClosed(value => !value)}>
       <Icon name={OVERLAY_ICON[layer.kind]} size={17} /><span className="ua-key-label">{OVERLAY_LABEL[layer.kind]}</span>
       {/* A count only where the source answered; unavailable is not zero. */}
@@ -1116,10 +1216,9 @@ function OverlayKey({ layer, openNetwork, availability, records, buildings, open
           <span className="ua-coverage-name">{row.label}</span>
           <span className="ua-coverage-state">{COVERAGE_TEXT[row[layer.kind]]}{row.reason !== 'available' ? `: ${row.reason}` : ''}</span></li>)}
       </ul>}
-      {graphs.length > 0 && <details className="ua-logical ua-logical-graph">
-        <summary><span className="ua-logical-swatch" aria-hidden="true" />Logical network graph</summary>
-        {graphs.map(graph => <NetworkGraph key={graph.key} graph={graph} />)}
-      </details>}
+      {graph && <button type="button" className="ua-graph-open" aria-expanded={graph.open} aria-controls={graph.id} onClick={graph.toggle}>
+        <span className="ua-logical-swatch" aria-hidden="true" /><span>Logical network graph</span><Icon name="network" size={16} />
+      </button>}
       {connections.length > 0 && <details className="ua-logical">
         <summary><span className="ua-logical-swatch" aria-hidden="true" />{plural(connections.length, 'logical connection')}, no cable routes</summary>
         <DocumentaryRecords records={connections} openDocuments={openDocuments} />
@@ -1135,10 +1234,24 @@ function OverlayKey({ layer, openNetwork, availability, records, buildings, open
   </section>;
 }
 
+/** The measurement qualifier on one line: approximate, and how many outlines
+ * are estimated; the basis opens below it. */
 function MeasurementKey({ estimated, shown }: { readonly estimated: number; readonly shown: number }) {
-  return <section className="ua-key ua-measure-key" aria-label="Measurements layer" style={{ '--layer': BIRCH_DARK, '--plate': BIRCH } as CSSProperties}>
-    <p className="ua-key-note">{MEASUREMENT_BASIS}</p>
-    {shown === 0 && <p className="ua-key-note">Choose a floor or room to see its dimensions.</p>}
-    {estimated > 0 && <p className="ua-key-note">{plural(estimated, 'room part')} with an estimated outline not measured.</p>}
+  const [closed, setClosed] = useState(true);
+  const bodyId = useId();
+  return <section className={`ua-key ua-measure-key${closed ? ' is-closed' : ''}`} aria-label="Measurements layer"
+    style={{ '--layer': BIRCH_DARK, '--plate': BIRCH } as CSSProperties}>
+    <button type="button" className="ua-key-head" aria-expanded={!closed} aria-controls={bodyId} onClick={() => setClosed(value => !value)}>
+      <svg className="ua-rule-glyph" width={17} height={17} viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3.5 15.5 15.5 3.5l5 5-12 12Z M7 12l2 2 M10 9l2.5 2.5 M13 6l2 2" /></svg>
+      <span className="ua-key-label">Measurements</span>
+      <span className="ua-key-count">{shown === 0 ? 'Choose a floor or room' : `Approximate${estimated > 0 ? `, ${plural(estimated, 'estimated outline')}` : ''}`}</span>
+      <Icon name="chevronDown" size={16} />
+    </button>
+    <div className="ua-key-body" id={bodyId} hidden={closed}>
+      <p>{MEASUREMENT_BASIS}</p>
+      {shown === 0 && <p className="ua-key-note">Choose a floor or room to see its dimensions.</p>}
+      {estimated > 0 && <p className="ua-key-note">{plural(estimated, 'room part')} with an estimated outline not measured.</p>}
+    </div>
   </section>;
 }

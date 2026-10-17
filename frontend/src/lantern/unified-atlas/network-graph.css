@@ -33,14 +33,17 @@
     radial-gradient(circle, rgba(24, 35, 58, 0.13) 0.8px, transparent 1.2px) 0 0 / 14px 14px,
     #fdfbf6;
   box-shadow: inset 0 1px 0 #fff;
-  overflow: hidden;
+  overflow: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
 }
 
+/* Width is set from the graph's own size: never shrunk past legibility. */
 .lantern-host .ung-svg {
   display: block;
-  width: 100%;
+  max-width: none;
   height: auto;
-  max-height: 46vh;
+  margin: 0 auto;
   font-family: var(--text);
 }
 
@@ -69,6 +72,7 @@
 
 .lantern-host .ung-edges.is-dimmed > g:not(.is-lit) .ung-edge { opacity: 0.22; }
 .lantern-host .ung-nodes.is-dimmed > .ung-node:not(.is-lit) { opacity: 0.32; }
+.lantern-host .ung-names.is-dimmed > text:not(.is-lit) { opacity: 0.38; }
 
 .lantern-host .ung-node {
   cursor: pointer;
@@ -102,25 +106,34 @@
   stroke-width: 1.5;
 }
 
-.lantern-host .ung-node text {
-  font-size: 9.5px;
+/* Each group's hub: a lantern disc behind its node. */
+.lantern-host .ung-hub {
+  fill: var(--lantern-soft);
+  stroke: color-mix(in srgb, var(--lantern-edge) 55%, transparent);
+  stroke-width: 1;
+}
+
+/* Names on a paper halo, wrapped at spaces; the lists keep every full name. */
+.lantern-host .ung-names text {
+  font-size: 10.5px;
   font-weight: 600;
   fill: var(--ink-2);
   paint-order: stroke;
   stroke: #fdfbf6;
-  stroke-width: 3.5px;
+  stroke-width: 4px;
   stroke-linejoin: round;
   pointer-events: none;
+  transition: opacity 0.2s ease;
 }
 
-.lantern-host .ung-node text.is-root {
+.lantern-host .ung-names text.is-root {
   font-family: var(--display);
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 700;
   fill: var(--ink);
 }
 
-.lantern-host .ung-node.is-chosen text { fill: var(--ink); font-weight: 750; }
+.lantern-host .ung-names text.is-chosen { fill: var(--ink); font-weight: 750; }
 
 .lantern-host .ung-glyph {
   flex: none;
@@ -287,7 +300,8 @@
 @media (prefers-reduced-motion: reduce) {
   .lantern-host .ung-detail { animation: none; }
   .lantern-host .ung-edge,
-  .lantern-host .ung-node { transition: none; }
+  .lantern-host .ung-node,
+  .lantern-host .ung-names text { transition: none; }
 }
 
 @media (pointer: coarse) {
