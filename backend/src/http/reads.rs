@@ -50,6 +50,26 @@ fn source_snapshot(
     scope: &s::Scope,
     capture_graph: bool,
 ) -> Result<s::Snapshot, super::HttpFailure> {
+    Ok(source_snapshot_cut(core, host, p, scope, capture_graph, false)?.0)
+}
+
+pub(super) fn retained_pack_cut(
+    core: &mut Core,
+    host: &Host,
+    p: &RequestPrincipal,
+    scope: &s::Scope,
+) -> Result<(s::Snapshot, s::home_read_pack::Metadata), super::HttpFailure> {
+    source_snapshot_cut(core, host, p, scope, true, true)
+}
+
+fn source_snapshot_cut(
+    core: &mut Core,
+    host: &Host,
+    p: &RequestPrincipal,
+    scope: &s::Scope,
+    capture_graph: bool,
+    pack: bool,
+) -> Result<(s::Snapshot, s::home_read_pack::Metadata), super::HttpFailure> {
     let mut retained = Vec::new();
     let mut links = Vec::new();
     for binding in host.network_bindings.iter().filter(|binding| {
@@ -129,16 +149,24 @@ fn source_snapshot(
     if !Arc::ptr_eq(&base.0, &store.configured_authorization().0) {
         return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
     }
-    let snapshot = store
-        .read_snapshot_with_authorization(
-            &NetworkSnapshotAuthority {
-                base: &base,
-                links: &links,
-            },
-            p,
-            scope,
-        )
-        .map_err(|error| domain_error(crate::app::storage_error(error)))?;
+    let authority = NetworkSnapshotAuthority {
+        base: &base,
+        links: &links,
+    };
+    let (snapshot, metadata) = if pack {
+        store.read_pack_cut(&authority, p, scope)
+    } else {
+        store
+            .read_snapshot_with_authorization(&authority, p, scope)
+            .map(|s| (s, s::home_read_pack::Metadata::default()))
+    }
+    .map_err(|error| {
+        if error.code == "export-too-large" {
+            failure(StatusCode::PAYLOAD_TOO_LARGE)
+        } else {
+            domain_error(crate::app::storage_error(error))
+        }
+    })?;
     for (binding, partition, entities, before) in retained {
         let after = binding
             .runtime()
@@ -169,7 +197,7 @@ fn source_snapshot(
     if !capture_graph {
         p.seal_source_capture();
     }
-    Ok(snapshot)
+    Ok((snapshot, metadata))
 }
 
 type ScopedRecord = (String, String, String, String);

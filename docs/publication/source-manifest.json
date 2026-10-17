@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "9fc8ccc511b7f42b822ef9a57a8d040f1e1b02ecc9c1c458d05b1df902a0a68e",
+  "sourceDigestSha256": "ddb57c60767d739411de959d02009a8eb809b051e0b431a4ddcd25a4181ace98",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -266,8 +266,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 5832,
-      "sha256": "2ff2e71efede827cb2a11e5b4640cefa2ff968df5bc85d2983fc04da14c1f6bb",
+      "bytes": 5921,
+      "sha256": "1ef6a313303d3adce6d7529232b9a7009ced418db90c778da23566bf83e37f3c",
       "owner": "core-integration"
     },
     {
@@ -282,6 +282,13 @@
       "mode": "100644",
       "bytes": 10769,
       "sha256": "a5886b3b1a0a4d7f3a37b98d5fccc1d42ac9fe2f92e9870fb70624c5ff63d1db",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/examples/healthy-home-read-pack.rs",
+      "mode": "100644",
+      "bytes": 33235,
+      "sha256": "b688a7cc4ea6700b96a4249ea6c323350536d43459399623ed579168800ffa6b",
       "owner": "core-integration"
     },
     {
@@ -380,6 +387,13 @@
       "mode": "100644",
       "bytes": 61003,
       "sha256": "c7c527b2ce1064041d7e26efbfb49e2d80b29100327f13ae05a938073d94a840",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/examples/support/home_read_pack_geometry.rs",
+      "mode": "100644",
+      "bytes": 11674,
+      "sha256": "b807096ddcd016feb08858a5dc21dca4ca5a98a17511083bca21ade00baf3dc7",
       "owner": "core-integration"
     },
     {
@@ -1183,8 +1197,8 @@
     {
       "path": "backend/src/config/atlas_scene.rs",
       "mode": "100644",
-      "bytes": 29735,
-      "sha256": "b416bd90ff317c8f57a8580ad33546095c44f2fda673fc2fdae071c47755e4d2",
+      "bytes": 30327,
+      "sha256": "268af8bbf1a898f5c896929fc24e96b171b8898cd28d51137ed062079cc5bd11",
       "owner": "core-integration"
     },
     {
@@ -2282,8 +2296,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 55296,
-      "sha256": "7e970cad4dcc5b6f9ba44d85d78123bf5f30e12fd54c0846d05d017da385fa35",
+      "bytes": 56093,
+      "sha256": "3961c8de7a0e21ab0128bf6a4d636594177acdccf9badec6831cc0cf4eaa6909",
       "owner": "core-integration"
     },
     {
@@ -2319,6 +2333,13 @@
       "mode": "100644",
       "bytes": 1328,
       "sha256": "024768d17b73a74ff7357a2105a59e9da2f8ef5e56c1a66d8c501449c98a1dd4",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/http/offline_read_pack.rs",
+      "mode": "100644",
+      "bytes": 37613,
+      "sha256": "8813e9c6d28dcc3cc4a937f693b7c1c015aff29c84b090d2080149e140b52223",
       "owner": "core-integration"
     },
     {
@@ -2436,8 +2457,8 @@
     {
       "path": "backend/src/http/reads.rs",
       "mode": "100644",
-      "bytes": 18471,
-      "sha256": "fb01c96bd72338b6fc20be9ffcd065f901433f54d9f1ae16d2baf053b5fc5376",
+      "bytes": 19317,
+      "sha256": "4d046fb886ac7b5a781230e9c26eb866ac7a5adf9401919d7bd336010755667c",
       "owner": "core-integration"
     },
     {
@@ -4655,8 +4676,8 @@
     {
       "path": "backend/src/storage/geodata.rs",
       "mode": "100644",
-      "bytes": 74621,
-      "sha256": "3a36fad643eefd4582d59df59de8f9c18d5c2bdbd0b4aa4374dfc431ef8e8b27",
+      "bytes": 75349,
+      "sha256": "9fad5f67844675d0c1adeff7a46ed29b2a1afd271faf2b163fca6bcca1d1cf72",
       "owner": "storage"
     },
     {
@@ -4685,6 +4706,13 @@
       "mode": "100644",
       "bytes": 8565,
       "sha256": "797ec8f6afade7601a08cdd82cb896ba2f68679bb016f1e75b2e91bd72dae469",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/home_read_pack.rs",
+      "mode": "100644",
+      "bytes": 3645,
+      "sha256": "e3ce633ef9f9221f4a59a0fef83f64d048a16e723072f850543c5150affa607a",
       "owner": "storage"
     },
     {
@@ -4718,8 +4746,8 @@
     {
       "path": "backend/src/storage/mod.rs",
       "mode": "100644",
-      "bytes": 4238,
-      "sha256": "b89e55223f1c6b2de5c4341a85809f1da8836c7d262ab2baea1b62e83f519738",
+      "bytes": 4269,
+      "sha256": "cc7b6c4f6912aa655bcc7d3435ceb7f4ea31772151502361281affd7dc611991",
       "owner": "storage"
     },
     {
@@ -5026,8 +5054,8 @@
     {
       "path": "backend/src/storage/repository.rs",
       "mode": "100644",
-      "bytes": 13058,
-      "sha256": "4ac1de2059ea773beaa284ef089084410f1193381763cea91934b6b17d98546c",
+      "bytes": 13713,
+      "sha256": "51467b4d88d0846896e94b891d927a420a1d8cee714a6e53152114ebcbcbd3a3",
       "owner": "storage"
     },
     {
@@ -5229,8 +5257,8 @@
     {
       "path": "backend/src/storage/store.rs",
       "mode": "100644",
-      "bytes": 22675,
-      "sha256": "68e4e1ef3b13250ec3cb83de7a6f3da99d7c4ca4bdf4182e0e36590fe5da8f87",
+      "bytes": 23921,
+      "sha256": "d0ffe85341d097f4c17d03924716c8f13aaea7434e6c27cbe71b9e7f4150bb55",
       "owner": "storage"
     },
     {
@@ -5915,8 +5943,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 91968,
-      "sha256": "2b41d4aa62c55cc3f17f768571a87a6f255d821774aacf3ce019ead2a8312104",
+      "bytes": 94152,
+      "sha256": "99dcb1865d2c68d9da22fa42a4b5c9da4a9a75bee1bb41b26aa85093bd83db3f",
       "owner": "core-integration"
     },
     {
@@ -6263,6 +6291,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/offline/home-read-pack-v1.md",
+      "mode": "100644",
+      "bytes": 11993,
+      "sha256": "f629eadbb8431ea24867451ce94d1401bf1ddf91b7a0dbb39ad8d18dbb97cb2d",
+      "owner": "storage"
+    },
+    {
       "path": "docs/operations/adoption-and-decisions.md",
       "mode": "100644",
       "bytes": 1244,
@@ -6293,8 +6328,8 @@
     {
       "path": "docs/operations/media-and-offline.md",
       "mode": "100644",
-      "bytes": 8090,
-      "sha256": "e966b64c106a6c4363ed0d22a857328ac15e4e1de03e6f1a0015810ae5621690",
+      "bytes": 9672,
+      "sha256": "95d844d017cab6739d4395198e3620d0d67d4118ffa7b49bf0c88a4b7d5c3ef5",
       "owner": "operations-policy"
     },
     {

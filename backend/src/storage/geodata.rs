@@ -589,6 +589,23 @@ impl<D: GeodataConnection, U: GeodataAuthority> GeodataRepository<D, U> {
         shape("geodataDocumentRead", &value)?;
         Ok(value)
     }
+    /// Requalify an exact document and original captured in a single native read cut.
+    /// This is a read, not an import or a source-policy substitute.
+    pub(crate) fn authorize_pack_document(
+        &self,
+        principal: &a::Principal,
+        scope: &Scope,
+        expected: &Value,
+        expected_asset: &Value,
+    ) -> Result<()> {
+        self.authority.read(principal, |guard| {
+            Self::authorize(guard, scope, false)?;
+            need(self.raw_record(scope, field(expected, "recordId")?)? == *expected)?;
+            need(self.original(expected)? == *expected_asset)?;
+            self.policy.authorize(guard, expected, false)?;
+            Self::authorize(guard, scope, false)
+        })
+    }
     pub fn get(
         &self,
         principal: &a::Principal,
