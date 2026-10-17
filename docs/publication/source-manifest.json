@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "9146e4e4bbff8f671c96747f3954e1d1fab0f51258c62d96b79f28611df60353",
+  "sourceDigestSha256": "614aac1a5b35fd26fceaac3624acf62819567c77dbab98ec951fc339de6cc056",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -7420,8 +7420,8 @@
     {
       "path": "frontend/lantern-tests/offline-atlas-browser/README.md",
       "mode": "100644",
-      "bytes": 4224,
-      "sha256": "e1cd1c3548cb87282a78f4c5dbe910669fdf19cd571e86c720d48ba152d49ccc",
+      "bytes": 4197,
+      "sha256": "20d5e893554f56efc46a6dbdd324cf4c2a675f5cf836f7161e73e43f8ea93921",
       "owner": "web"
     },
     {
