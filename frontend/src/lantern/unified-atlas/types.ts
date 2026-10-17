@@ -131,6 +131,10 @@ export interface UnifiedAtlasPort {
   current(): ModelOverviewSelection | null;
   subscribe(changed: () => void): () => void;
   read(selection: ModelOverviewSelection, signal: AbortSignal): Promise<UnifiedAtlasRead>;
+  /** The building the Atlas opens on, bound by the source owner for this
+   * publication. Never inferred from names, plan order or size; an absent or
+   * unknown ID opens the only building with floors, else the whole property. */
+  entryBuildingId?(scene: AtlasScene): string | null;
   /** Separate current documentary owner; never changes producer semantics. */
   createOverlays?(selection: ModelOverviewSelection, scene: AtlasScene, building: AtlasBuilding, signal: AbortSignal): Promise<{
     readonly source: UnifiedAtlasOverlaySource; readonly request: UnifiedAtlasOverlayOpen;

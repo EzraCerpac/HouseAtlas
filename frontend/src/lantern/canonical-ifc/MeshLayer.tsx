@@ -25,8 +25,21 @@ interface Props {
   readonly clips?: ReadonlyMap<string, number | null> | undefined;
   /** Per-mesh dimming toward paper (0–1); replaces current-floor dimming when given. */
   readonly dims?: ReadonlyMap<string, number> | undefined;
+  /** Faded, depth-tested and never-written cutaway: null fades the whole mesh,
+   * a height fades only what lies above it. Drawn even when hidden by hiddenKeys. */
+  readonly ghosts?: ReadonlyMap<string, number | null> | undefined;
+  /** Colour overrides (hex); omitted entries keep the default tones. */
+  readonly palette?: Partial<MeshPalette> | undefined;
   readonly onUnavailable: (message: string) => void;
 }
+export interface MeshPalette {
+  readonly paper: string; readonly wall: string; readonly top: string; readonly cut: string;
+  readonly room: string; readonly selected: string; readonly context: string; readonly ghost: string;
+}
+export const DEFAULT_MESH_PALETTE: MeshPalette = Object.freeze({
+  paper: '#ECEEE9', wall: '#FBF9F4', top: '#EEE5D2', cut: '#2B3650', room: '#F4E8CC', selected: '#FFD25E', context: '#FCE7A6', ghost: '#FBF9F4',
+});
+const GHOST_ALPHA = .14;
 
 /** Explicit renderer bounds: drawing-buffer pixels and uploaded vertex bytes. */
 export const RENDER_LIMITS = Object.freeze({ pixels: 4_194_304, uploadBytes: 64 * 1024 * 1024 });
@@ -38,18 +51,22 @@ float sx=frame.y+frame.x*rx;float sy=frame.z+frame.x*(rz*rot.z-p.y*rot.w);float 
 gl_Position=vec4(sx/viewport.x*2.0-1.0,1.0-sy/viewport.y*2.0,clamp(-d/frame.w,-1.0,1.0),1.0);vNormal=normal;vY=position.y;}`;
 const fragmentSource = `precision highp float;
 uniform vec3 baseColor;uniform vec3 topColor;uniform vec3 cutColor;uniform float clipY;uniform float useClip;
+uniform float alpha;uniform float floorY;uniform float useFloor;
 varying vec3 vNormal;varying float vY;
-void main(){if(useClip>0.5&&vY>clipY)discard;
-if(!gl_FrontFacing){gl_FragColor=vec4(cutColor,1.0);return;}
+void main(){if(useClip>0.5&&vY>clipY)discard;if(useFloor>0.5&&vY<floorY)discard;
+if(!gl_FrontFacing&&alpha>0.99){gl_FragColor=vec4(cutColor,1.0);return;}
 vec3 n=normalize(vNormal);float light=clamp(0.6+0.4*dot(n,normalize(vec3(-0.45,0.8,0.55))),0.0,1.0);
-gl_FragColor=vec4(n.y>0.8?topColor:baseColor*light,1.0);}`;
+gl_FragColor=vec4((n.y>0.8?topColor:baseColor*light)*alpha,alpha);}`;
 
 type Rgb = [number, number, number];
 const rgb = (hex: string): Rgb => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255) as Rgb;
 const mix = (a: Rgb, b: Rgb, t: number) => a.map((v, i) => v + (b[i]! - v) * t) as Rgb;
-const PAPER = rgb('#ECEEE9'), WALL = rgb('#FBF9F4'), TOP = rgb('#EEE5D2'), CUT = rgb('#2B3650');
-const ROOM = rgb('#F4E8CC'), LANTERN = rgb('#FFD25E'), CONTEXT = rgb('#FCE7A6');
 const REFERENCE = rgb('#C3CED6'), REFERENCE_TOP = rgb('#D7DFE4');
+const tones = (palette: Partial<MeshPalette> | undefined) => {
+  const own = { ...DEFAULT_MESH_PALETTE, ...palette };
+  return { PAPER: rgb(own.paper), WALL: rgb(own.wall), TOP: rgb(own.top), CUT: rgb(own.cut), ROOM: rgb(own.room),
+    LANTERN: rgb(own.selected), CONTEXT: rgb(own.context), GHOST: rgb(own.ghost) };
+};
 
 /** Shared-frame orthographic WebGL renderer. Draws on demand only; owns and
  * releases every GL object, listener and frame callback it creates. */
@@ -59,7 +76,7 @@ export function MeshLayer(props: Props) {
   const redraw = useRef<(() => void) | null>(null);
   useLayoutEffect(() => { redraw.current?.(); },
     [props.projection, props.rules, props.currentFloorId, props.selectedOccurrenceId, props.contextOccurrenceIds, props.tints, props.hidden, props.referenceKeys,
-      props.hiddenKeys, props.selectedKeys, props.lifts, props.clips, props.dims]);
+      props.hiddenKeys, props.selectedKeys, props.lifts, props.clips, props.dims, props.ghosts, props.palette]);
   useLayoutEffect(() => {
     const element = canvas.current; if (!element || props.meshes.length === 0) return;
     let creationReason = '';
@@ -113,6 +130,8 @@ export function MeshLayer(props: Props) {
       gl.uniform4f(uniforms.frame!, q.k, q.ox, q.oy, q.depthRadius);
       gl.uniform2f(uniforms.viewport!, q.viewport.width, q.viewport.height);
       gl.enableVertexAttribArray(position); gl.enableVertexAttribArray(normal);
+      gl.uniform1f(uniforms.alpha!, 1); gl.uniform1f(uniforms.useFloor!, 0); gl.uniform1f(uniforms.floorY!, 0);
+      const { PAPER, WALL, TOP, CUT, ROOM, LANTERN, CONTEXT, GHOST } = tones(p.palette);
       for (const pass of ['reference', 'unbound', 'bound'] as const) {
         if (pass === 'unbound') gl.disable(gl.POLYGON_OFFSET_FILL);
         else { gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(pass === 'bound' ? -2 : 2, pass === 'bound' ? -2 : 2); }
@@ -139,6 +158,22 @@ export function MeshLayer(props: Props) {
         }
       }
       gl.disable(gl.POLYGON_OFFSET_FILL);
+      if (p.ghosts && p.ghosts.size > 0) {
+        // Faded cutaway last: behind nothing opaque, writing no depth, so it never covers or blocks what is drawn.
+        gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+        gl.uniform1f(uniforms.alpha!, GHOST_ALPHA); gl.uniform1f(uniforms.useClip!, 0);
+        gl.uniform3f(uniforms.topColor!, ...GHOST); gl.uniform3f(uniforms.baseColor!, ...GHOST); gl.uniform3f(uniforms.cutColor!, ...GHOST);
+        for (const { mesh, buffer } of uploaded) {
+          if (!p.ghosts.has(mesh.meshKey) || !drawsFloor(p.rules, mesh.floorId)) continue;
+          const above = p.ghosts.get(mesh.meshKey) ?? null;
+          gl.uniform1f(uniforms.useFloor!, above === null ? 0 : 1); gl.uniform1f(uniforms.floorY!, above ?? 0);
+          gl.uniform1f(uniforms.lift!, p.lifts?.get(mesh.meshKey) ?? 0);
+          gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+          gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 24, 0); gl.vertexAttribPointer(normal, 3, gl.FLOAT, false, 24, 12);
+          gl.drawArrays(gl.TRIANGLES, 0, mesh.triangles * 3);
+        }
+        gl.depthMask(true); gl.disable(gl.BLEND);
+      }
       if (gl.getError() !== gl.NO_ERROR) throw new Error('WebGL error');
     };
     element.addEventListener('webglcontextlost', lost);
@@ -155,7 +190,7 @@ export function MeshLayer(props: Props) {
       gl.attachShader(program, compile(gl.VERTEX_SHADER, vertexSource)); gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragmentSource));
       gl.linkProgram(program); if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error('link');
       position = gl.getAttribLocation(program, 'position'); normal = gl.getAttribLocation(program, 'normal');
-      for (const name of ['rot', 'center', 'frame', 'viewport', 'lift', 'baseColor', 'topColor', 'cutColor', 'clipY', 'useClip'])
+      for (const name of ['rot', 'center', 'frame', 'viewport', 'lift', 'baseColor', 'topColor', 'cutColor', 'clipY', 'useClip', 'alpha', 'floorY', 'useFloor'])
         uniforms[name] = gl.getUniformLocation(program, name);
       if (position < 0 || normal < 0 || Object.values(uniforms).some(value => value === null)) throw new Error('inputs');
       for (const mesh of props.meshes) {

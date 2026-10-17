@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type RefObject } from 'react';
 import { useEased } from '../atlas/useCamera';
 import { createStagePointers, type StageGesture } from './stage-pointers';
+import { bindTrackpadGesture, createTrackpadGesture } from './trackpad-gesture';
 
 export const motionQuery = '(prefers-reduced-motion: reduce)';
 function subscribeMotion(change: () => void) {
@@ -43,14 +44,31 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape }: {
     });
     observer.observe(node); return () => observer.disconnect();
   }, [element]);
+  const live = useRef({ yaw: orbit.yaw, zoom, top });
+  live.current = { yaw: orbit.yaw, zoom, top };
   // Pinch and ctrl/cmd + wheel zoom; an ordinary wheel keeps scrolling the page.
+  // Safari trackpad twist turns and pinch zooms through its gesture events; the
+  // ctrl-wheel WebKit sends for the same pinch is absorbed meanwhile.
   useEffect(() => {
     const node = element.current; if (!node) return;
+    const trackpad = createTrackpadGesture({
+      read: () => ({ yaw: live.current.yaw, zoom: live.current.zoom }),
+      apply: pose => {
+        setZoom(pose.zoom);
+        if (pose.yaw !== null) { const yaw = pose.yaw; setOrbit(value => ({ ...value, yaw })); }
+      },
+      rotates: () => !live.current.top,
+      zoomLimits: ZOOM,
+    });
     const wheel = (event: WheelEvent) => {
       if (!event.ctrlKey && !event.metaKey) return;
-      event.preventDefault(); setZoom(value => Math.min(ZOOM.max, Math.max(ZOOM.min, value * Math.exp(-event.deltaY * .004))));
+      event.preventDefault();
+      if (trackpad.active()) return;
+      setZoom(value => Math.min(ZOOM.max, Math.max(ZOOM.min, value * Math.exp(-event.deltaY * .004))));
     };
-    node.addEventListener('wheel', wheel, { passive: false }); return () => node.removeEventListener('wheel', wheel);
+    node.addEventListener('wheel', wheel, { passive: false });
+    const unbind = bindTrackpadGesture(node, trackpad);
+    return () => { node.removeEventListener('wheel', wheel); unbind(); };
   }, [element]);
 
   const turn = (delta: number) => setOrbit(value => ({ ...value, yaw: value.yaw + delta }));

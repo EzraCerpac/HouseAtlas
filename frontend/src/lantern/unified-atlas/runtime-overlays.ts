@@ -13,11 +13,52 @@ export interface DocumentaryRecord {
 }
 export interface SourceFact { readonly label: string; readonly value: string | null }
 export interface RuntimeRoomRecords { readonly network: readonly DocumentaryRecord[]; readonly electrical: readonly DocumentaryRecord[] }
+export type SourceAvailability = 'available' | 'partial' | 'unavailable';
 export interface RuntimeRecords {
   readonly rooms: ReadonlyMap<string, RuntimeRoomRecords>;
-  readonly network: 'available' | 'unavailable'; readonly electrical: 'available' | 'partial' | 'unavailable';
+  readonly network: SourceAvailability; readonly electrical: SourceAvailability;
   readonly sourceFacts: readonly SourceFact[];
   readonly unplaced: { readonly network: readonly DocumentaryRecord[]; readonly electrical: readonly DocumentaryRecord[] };
+}
+/** One building's documentary source state, kept per building so partial
+ * coverage is never presented as the whole property. */
+export interface BuildingCoverage {
+  readonly buildingId: string; readonly label: string;
+  /** 'available' or the source owner's reason this building has no frame. */
+  readonly reason: string;
+  readonly network: SourceAvailability; readonly electrical: SourceAvailability;
+}
+export interface PropertyRecords extends RuntimeRecords {
+  readonly buildings: readonly BuildingCoverage[];
+}
+
+const combine = (values: readonly SourceAvailability[]): SourceAvailability =>
+  values.length > 0 && values.every(value => value === 'available') ? 'available' : values.some(value => value !== 'unavailable') ? 'partial' : 'unavailable';
+
+/** Property-wide union of each building's own records. Rooms belong to one
+ * building each. A record placed in any building is not listed as unplaced;
+ * unplaced records repeat across building frames only when their source dates
+ * differ, so another source revision is never merged away. */
+export function mergeRuntimeRecords(model: AtlasModel, rows: readonly { readonly buildingId: string; readonly reason: string; readonly records: RuntimeRecords | null }[]): PropertyRecords {
+  const rooms = new Map<string, RuntimeRoomRecords>();
+  for (const row of rows) if (row.records) for (const [roomId, records] of row.records.rooms) rooms.set(roomId, records);
+  const unplaced = { network: [] as DocumentaryRecord[], electrical: [] as DocumentaryRecord[] };
+  for (const kind of ['network', 'electrical'] as const) {
+    const placed = new Set([...rooms.values()].flatMap(records => records[kind].map(record => record.key)));
+    const seen = new Set<string>();
+    for (const row of rows) for (const record of row.records?.unplaced[kind] ?? []) {
+      const key = JSON.stringify([record.key, record.sourceDate, record.retrievedAt]);
+      if (placed.has(record.key) || seen.has(key)) continue;
+      seen.add(key); unplaced[kind].push(record);
+    }
+  }
+  const buildings = rows.map<BuildingCoverage>(row => ({ buildingId: row.buildingId, label: model.buildingsById.get(row.buildingId)!.label,
+    reason: row.records ? 'available' : row.reason, network: row.records?.network ?? 'unavailable', electrical: row.records?.electrical ?? 'unavailable' }));
+  const several = rows.length > 1;
+  return { rooms, unplaced, buildings,
+    network: combine(buildings.map(row => row.network)), electrical: combine(buildings.map(row => row.electrical)),
+    sourceFacts: rows.flatMap(row => (row.records?.sourceFacts ?? []).map(fact => several
+      ? { label: `${model.buildingsById.get(row.buildingId)!.label}: ${fact.label}`, value: fact.value } : fact)) };
 }
 
 /** Source-frame lookup only; this creates no room-placement authority. */
@@ -178,7 +219,7 @@ export function documentaryRoomRecords(scene: AtlasScene, frame: UnifiedAtlasOve
         { label: 'Symbol interpretation', value: JSON.stringify(data.symbolLegend) }] });
   }
   const electricity = frame.electricity.status === 'available', fixtures = frame.electricalFixtures.status === 'available';
-  return { rooms, unplaced: { network: unplacedNetwork, electrical: unplacedElectrical }, network: frame.network.status, electrical: electricity && fixtures ? 'available' : electricity || fixtures ? 'partial' : 'unavailable',
+  return { rooms, unplaced: { network: unplacedNetwork, electrical: unplacedElectrical }, network: frame.network.status === 'available' ? 'available' : 'unavailable', electrical: electricity && fixtures ? 'available' : electricity || fixtures ? 'partial' : 'unavailable',
     sourceFacts: [{ label: 'Native association', value: frame.currentSource.recordId },
       { label: 'Native association revision', value: frame.currentSource.revision.toString() },
       { label: 'Room review receipt', value: frame.sourceSelection.acceptedRoomReceiptId },
