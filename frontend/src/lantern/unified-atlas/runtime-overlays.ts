@@ -45,6 +45,7 @@ export interface PropertyRecords extends RuntimeRecords {
 
 const combine = (values: readonly SourceAvailability[]): SourceAvailability =>
   values.length > 0 && values.every(value => value === 'available') ? 'available' : values.some(value => value !== 'unavailable') ? 'partial' : 'unavailable';
+export { combine as combineSourceAvailability };
 
 /** Same source entity counts once; differing facts and join observations survive. */
 export function mergeDocumentaryRecords(records: readonly DocumentaryRecord[]): DocumentaryRecord[] {

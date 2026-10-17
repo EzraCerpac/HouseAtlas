@@ -11,7 +11,7 @@ assert.equal(process.version,'v26.10.0');
 assert.equal(process.argv.length,2);
 const root=resolve(fileURLToPath(new URL('../../',import.meta.url)));
 const scratch=mkdtempSync(join(tmpdir(),'houseatlas-unified-overlay-healthy-'));
-const paths=['frontend/integration/unified-atlas-overlay-source.ts','frontend/integration/native-scene-association-client.ts','frontend/integration/native-scene-source-client.ts','frontend/src/lantern/unified-atlas/runtime-overlays.ts','frontend/integration/unified-atlas-room-links-host.ts','frontend/integration/unified-atlas-room-links-reader.ts','frontend/integration/unified-atlas-room-links-owner.ts'];
+const paths=['frontend/integration/unified-atlas-overlay-source.ts','frontend/integration/native-scene-association-client.ts','frontend/integration/native-scene-source-client.ts','frontend/src/lantern/unified-atlas/runtime-overlays.ts','frontend/integration/unified-atlas-room-links-host.ts','frontend/integration/unified-atlas-room-links-reader.ts','frontend/integration/unified-atlas-room-links-owner.ts','frontend/integration/saved-documentary-preview.ts'];
 const hash=v=>createHash('sha256').update(v).digest('hex');
 const sourcePins=Object.fromEntries(paths.map(p=>[p,hash(readFileSync(join(root,p)))]));
 try {
@@ -169,12 +169,27 @@ try {
     const saved = await readSavedDocumentaryPreview(Buffer.from(JSON.stringify(snapshotManifest)), async (path, maximum) => {
       savedReads++; const bytes = savedFiles.get(path); assert.ok(bytes && bytes.length <= maximum); return bytes;
     }, () => {});
-    const savedRecords = saved.records({ ...scene, model: { sha256: snapshotManifest.modelSha256 },
-      buildings: scene.buildings.map((row, at) => ({ ...row, label: `Generated building ${at}`, levelIds: [`generated:level:${at}`] })) }, new Set(['occurrence:one','occurrence:two']));
+    const savedScene = { ...scene, model: { sha256: snapshotManifest.modelSha256 },
+      buildings: scene.buildings.map((row, at) => ({ ...row, label: `Generated building ${at}`, levelIds: [`generated:level:${at}`] })) };
+    const savedSelectable = new Set(['occurrence:one','occurrence:two']);
+    const savedRecords = saved.records(savedScene, savedSelectable);
     assert.equal(savedReads, 3); assert.equal(saved.observedAt, snapshotManifest.observedAt);
     assert.equal(saved.entryBuildingId, building.buildingId);
     assert.deepEqual([documentaryOverlayIndex(consumerModel, savedRecords, 'network').records,
       documentaryOverlayIndex(consumerModel, savedRecords, 'electrical').records], [4, 2]);
+    assert.equal(documentaryOverlayIndex(consumerModel, savedRecords, 'network').unplacedRecords, 3);
+    const coverage = records => new Map(records.buildings.map(row => [row.buildingId, [row.network, row.electrical, row.reason]]));
+    assert.deepEqual(coverage(savedRecords).get(building.buildingId), ['available', 'available', 'saved room identity links; no metric positions']);
+    assert.deepEqual(coverage(savedRecords).get('publication:other-building'), ['unavailable', 'unavailable', 'no captured source for this building']);
+    assert.deepEqual([savedRecords.network, savedRecords.electrical], ['partial', 'partial']);
+    const reversed = saved.records({ ...savedScene, buildings: [...savedScene.buildings].reverse() }, savedSelectable);
+    assert.deepEqual(coverage(reversed), coverage(savedRecords), 'source ownership is independent of building array order');
+    assert.deepEqual([reversed.network, reversed.electrical], ['partial', 'partial']);
+    const unlinked = saved.records({ ...savedScene, buildings: [...savedScene.buildings, { ...savedScene.buildings[1],
+      buildingId: 'publication:unlinked-building', label: 'Generated unlinked building', nativePlaceId: null, levelIds: ['generated:unlinked-level'] }] }, savedSelectable);
+    assert.deepEqual(coverage(unlinked).get('publication:unlinked-building'), ['unavailable', 'unavailable', 'no captured source for this building']);
+    assert.deepEqual([unlinked.network, unlinked.electrical], ['partial', 'partial']);
+    assert.deepEqual(unlinked.networkGraphs, savedRecords.networkGraphs);
     assert.deepEqual(savedRecords.rooms.get('publication:room').network.map(row => row.id), ['device:generated']);
     assert.equal(savedRecords.networkGraphs.length, 1);
     assert.deepEqual(savedRecords.networkGraphs[0].data.devices.map(row => row.id), sourceData.devices.map(row => row.id));

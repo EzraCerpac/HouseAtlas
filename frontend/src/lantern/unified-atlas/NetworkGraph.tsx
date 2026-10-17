@@ -206,14 +206,26 @@ function placeNames(view: ReturnType<typeof layoutGraph>, nodes: ReadonlyMap<str
   return { tags, frame };
 }
 
+/** Convex control bounds also contain the curve. Eight logical units cover
+ * half the 12px hit stroke at the graph's minimum 80% display scale. */
+function pathGeometry(d: string, points: readonly { readonly x: number; readonly y: number }[]) {
+  const xs = points.map(point => point.x), ys = points.map(point => point.y);
+  return { d, bounds: { l: Math.min(...xs) - 8, r: Math.max(...xs) + 8, t: Math.min(...ys) - 8, b: Math.max(...ys) + 8 } };
+}
+
 function edgePath(p: Point, q: Point, bend: number, self: boolean) {
   if (self) {
-    const ux = Math.cos(p.angle) || 0, uy = Math.sin(p.angle) || 1, cx = p.x + ux * 20, cy = p.y + uy * 20;
-    return `M${p.x} ${p.y}C${cx - uy * 12} ${cy + ux * 12} ${cx + uy * 12} ${cy - ux * 12} ${p.x} ${p.y}`;
+    // Signed lanes fan in source order; equal absolute bends still have
+    // different directions, and outer loops retain exposed pointer arcs.
+    const angle = p.angle + Math.atan(bend / 12), radius = 20 + Math.abs(bend), spread = 12 + Math.abs(bend) * .35;
+    const ux = Math.cos(angle), uy = Math.sin(angle), cx = p.x + ux * radius, cy = p.y + uy * radius;
+    const a = { x: cx - uy * spread, y: cy + ux * spread }, b = { x: cx + uy * spread, y: cy - ux * spread };
+    return pathGeometry(`M${p.x} ${p.y}C${a.x} ${a.y} ${b.x} ${b.y} ${p.x} ${p.y}`, [p, a, b]);
   }
-  if (bend === 0) return `M${p.x} ${p.y}L${q.x} ${q.y}`;
+  if (bend === 0) return pathGeometry(`M${p.x} ${p.y}L${q.x} ${q.y}`, [p, q]);
   const dx = q.x - p.x, dy = q.y - p.y, l = Math.hypot(dx, dy) || 1;
-  return `M${p.x} ${p.y}Q${(p.x + q.x) / 2 - dy / l * bend} ${(p.y + q.y) / 2 + dx / l * bend} ${q.x} ${q.y}`;
+  const control = { x: (p.x + q.x) / 2 - dy / l * bend, y: (p.y + q.y) / 2 + dx / l * bend };
+  return pathGeometry(`M${p.x} ${p.y}Q${control.x} ${control.y} ${q.x} ${q.y}`, [p, control, q]);
 }
 
 function Glyph({ kind, x = 0, y = 0, r = 6 }: { readonly kind: NodeKind; readonly x?: number; readonly y?: number; readonly r?: number }) {
@@ -281,7 +293,7 @@ export function NetworkGraph({ graph }: { readonly graph: DocumentaryNetworkGrap
     const edges = built.edges.filter(edge => edge.a === chosen.id || edge.b === chosen.id);
     return { nodes: new Set([chosen.id, ...edges.flatMap(edge => [edge.a, edge.b])]), edges: new Set(edges.map(edge => edge.key)) };
   }, [chosen, chosenEdge, built]);
-  const { tags: names, frame } = useMemo(() => placeNames(view, built.nodes, chosen?.id ?? null, lit?.nodes ?? null), [view, built, chosen, lit]);
+  const { tags: names, frame: nameFrame } = useMemo(() => placeNames(view, built.nodes, chosen?.id ?? null, lit?.nodes ?? null), [view, built, chosen, lit]);
 
   // Parallel links between the same two nodes bow apart instead of overlapping.
   const drawn = useMemo(() => {
@@ -292,9 +304,11 @@ export function NetworkGraph({ graph }: { readonly graph: DocumentaryNetworkGrap
     }
     return [...pairs.values()].flatMap(own => own.map((edge, at) => {
       const p = view.points.get(edge.a)!, q = view.points.get(edge.b)!;
-      return { edge, d: edgePath(p, q, (at - (own.length - 1) / 2) * 16, edge.a === edge.b) };
+      return { edge, ...edgePath(p, q, (at - (own.length - 1) / 2) * 16, edge.a === edge.b) };
     }));
   }, [built, view]);
+  const frame = useMemo(() => drawn.reduce((box, path) => ({ l: Math.min(box.l, path.bounds.l), r: Math.max(box.r, path.bounds.r),
+    t: Math.min(box.t, path.bounds.t), b: Math.max(box.b, path.bounds.b) }), nameFrame), [drawn, nameFrame]);
 
   const tones = TONE_ORDER.filter(tone => built.edges.some(edge => edge.tone === tone));
   const kinds = (['device', 'endpoint', 'unresolved'] as const).filter(kind => view.order.some(node => node.kind === kind));

@@ -3,7 +3,7 @@
 import { ExactDecimal } from '../src/numeric/decimal';
 import type { DocumentaryOverlayReadPins } from '../src/lantern/scans/native-scene-source-types';
 import type { AtlasScene } from '../src/lantern/unified-atlas/types';
-import { projectDocumentaryFacts, type DocumentaryFacts, type PropertyRecords } from '../src/lantern/unified-atlas/runtime-overlays';
+import { combineSourceAvailability, projectDocumentaryFacts, type BuildingCoverage, type DocumentaryFacts, type PropertyRecords } from '../src/lantern/unified-atlas/runtime-overlays';
 import { readSavedDocumentaryDetails } from './native-scene-source-client';
 import { readDocumentarySupport, documentaryReferences } from './native-scene-documentary-support';
 import type { UnifiedAtlasOverlayReviewedRoomLinks } from './unified-atlas-overlay-source';
@@ -212,9 +212,15 @@ export async function readSavedDocumentaryPreview(manifestBytes: Uint8Array,
           { label: 'Persisted source observed at', value: manifest.observedAt },
           { label: 'Captured room map SHA256', value: manifest.roomLinks.sha256 },
           { label: 'Captured publication', value: manifest.publicationId }] }, selectable);
-      return { ...projected, buildings: scene.buildings.filter(building => building.levelIds.length > 0).map(building => ({
-        buildingId: building.buildingId, label: building.label, network: projected.network, electrical: projected.electrical,
-        reason: joins.some(join => scene.rooms.find(room => room.roomId === join.roomId)?.buildingId === building.buildingId)
-          ? 'saved room identity links; no metric positions' : 'no captured room identity links' })) };
+      const buildings = scene.buildings.filter(building => building.levelIds.length > 0).map<BuildingCoverage>(building => {
+        const captured = building.nativePlaceId === pins.buildingId;
+        return { buildingId: building.buildingId, label: building.label,
+          network: captured ? projected.network : 'unavailable', electrical: captured ? projected.electrical : 'unavailable',
+          reason: !captured ? 'no captured source for this building'
+            : joins.some(join => scene.rooms.find(room => room.roomId === join.roomId)?.buildingId === building.buildingId)
+              ? 'saved room identity links; no metric positions' : 'no captured room identity links' };
+      });
+      return { ...projected, buildings, network: combineSourceAvailability(buildings.map(building => building.network)),
+        electrical: combineSourceAvailability(buildings.map(building => building.electrical)) };
     } };
 }

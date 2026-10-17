@@ -392,6 +392,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources }: {
   const [graphOpen, setGraphOpen] = useState(false);
   const showGraph = graphOpen && graphs.length > 0;
   const [graphCovers, setGraphCovers] = useState(false);
+  const graphStageFocus = useRef<HTMLElement | null>(null);
   const [cover, setCover] = useState<readonly Box[]>([]);
   // A phone-sized stage keeps two slim rows above the model and one below it:
   // the camera, the archive filter and the other sources fold into one menu,
@@ -786,6 +787,22 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources }: {
   };
   // Over a narrow stage the graph is the whole view: what lies under it leaves the tab order.
   const underGraph = showGraph && graphCovers;
+  const graphCoveredBefore = useRef(false);
+  useLayoutEffect(() => {
+    const entering = underGraph && !graphCoveredBefore.current;
+    graphCoveredBefore.current = underGraph;
+    if (!entering) return;
+    const active = document.activeElement, origin = graphStageFocus.current;
+    graphStageFocus.current = null;
+    const inCoveredStage = (target: HTMLElement | null) => target !== null && target.isConnected
+      && shell.current?.contains(target) && target.closest('[inert]') !== null;
+    // Inert may either leave focus on its former control or evict it to body.
+    // Deliberate focus outside the stage, or already in the graph, stays put.
+    const removedStageControl = origin !== null && !origin.isConnected;
+    if ((active instanceof HTMLElement && inCoveredStage(active))
+      || ((active === null || active === document.body) && (inCoveredStage(origin) || removedStageControl)))
+      graphHeading.current?.focus({ preventScroll: true });
+  }, [underGraph]);
 
   // The compact menu and building chooser close on Escape, on a tap elsewhere
   // or when focus leaves them; Escape returns focus to the control that opened them.
@@ -817,6 +834,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources }: {
     const tapped = (event: PointerEvent) => {
       const target = chromeFocus.current;
       if (target && event.target instanceof Node && !owner(target)?.contains(event.target)) chromeFocus.current = null;
+      if (event.target instanceof Node && !shell.current?.contains(event.target)) graphStageFocus.current = null;
     };
     document.addEventListener('focusin', focused);
     document.addEventListener('focusout', blurred);
@@ -883,7 +901,20 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources }: {
 
   const pickLabel = state.buildingId === null ? 'All buildings' : building?.label ?? 'All buildings';
   return <section ref={shell} className={`ua-shell is-stage${plan ? ' is-plan' : ''}${sheetOpen ? ' is-sheet-open' : ''}${showGraph ? ' is-graph-open' : ''}${underGraph ? ' is-graph-covering' : ''}${compact ? ' is-compact' : ''}`}
-    aria-label="Atlas" onKeyDownCapture={graphEscape} onKeyDown={escape}>
+    aria-label="Atlas" onKeyDownCapture={graphEscape} onKeyDown={escape}
+    onFocusCapture={event => {
+      const target = event.target;
+      graphStageFocus.current = target instanceof HTMLElement && target.closest('.ua-scope, .ua-tools, .ua-viewport, .ua-bottom') ? target : null;
+    }}
+    onBlurCapture={event => {
+      const origin = graphStageFocus.current;
+      if (!origin || event.target !== origin) return;
+      if (event.relatedTarget !== null && event.relatedTarget !== document.body) { graphStageFocus.current = null; return; }
+      queueMicrotask(() => {
+        if (graphStageFocus.current === origin && origin.isConnected && origin.getClientRects().length > 0
+          && !origin.closest('[inert], [hidden], [aria-hidden="true"]') && getComputedStyle(origin).visibility === 'visible') graphStageFocus.current = null;
+      });
+    }}>
     <div className="ua-stage">
       <div className="ua-scope" inert={underGraph} onBlur={menuBlur('buildings')}>
         {port.savedDocumentary && <p className="ua-snapshot-note" role="note">
