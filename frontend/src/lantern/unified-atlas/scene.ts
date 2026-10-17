@@ -347,7 +347,7 @@ export interface OverlayPlacement {
   readonly positions: readonly { readonly occurrenceId: string; readonly position: Vec3; readonly basis: string }[];
   readonly bindings: readonly AtlasOverlayBinding[];
 }
-export type UnplacedReason = 'other-publication' | 'room-absent' | 'not-linked' | 'occurrence-mismatch' | 'no-placement';
+export type UnplacedReason = 'other-publication' | 'room-absent' | 'not-linked' | 'occurrence-mismatch' | 'no-placement' | 'not-selectable';
 export interface OverlayLayerIndex {
   readonly kind: OverlayKind;
   readonly placed: ReadonlyMap<string, OverlayPlacement>; // keyed by occurrence ID
@@ -457,6 +457,7 @@ export function bindAtlasModel(scene: AtlasScene, glb: Pick<StandardGlb, 'drawn'
     let own = pickParts.get(part.occurrenceId);
     if (!own) { own = []; pickParts.set(part.occurrenceId, own); }
     own.push(part);
+    pickTree(part.mesh);
   }
   for (const entries of shapes.values()) Object.freeze(entries);
   for (const entries of roomPolygons.values()) Object.freeze(entries);
@@ -469,7 +470,7 @@ export function bindAtlasModel(scene: AtlasScene, glb: Pick<StandardGlb, 'drawn'
   const work = { remaining: LABEL_WORK }, labels = new Map<string, LabelAnchor>();
   for (const key of selectable) { const point = labelPoint(shapes.get(key)!, work); if (point) labels.set(key, point); }
   return { scene, parts, meshes: parts.map(part => part.mesh), buildingsById, levelsById, roomsById, occurrencesById, levelsByBuilding,
-    floorBuildings, defaultBuildingId, levelIndex, floorY, spread, plansByLevel, featureRings, shapes, roomPolygons, labels, selectable, pickParts, overlays: joinOverlays(scene, roomsById, occurrencesById) };
+    floorBuildings, defaultBuildingId, levelIndex, floorY, spread, plansByLevel, featureRings, shapes, roomPolygons, labels, selectable, pickParts, overlays: joinOverlays(scene, roomsById, occurrencesById, selectable) };
 }
 
 /** Rendering and framing consume every plan for a level, in source order. */
@@ -478,7 +479,8 @@ export const planFeaturesForLevel = (model: AtlasModel, levelId: string): readon
 
 /** Joins host-qualified overlay bindings by publication, room and its reviewed
  * native place only. Labels, record text and positions never create a link. */
-function joinOverlays(scene: AtlasScene, rooms: ReadonlyMap<string, AtlasRoom>, occurrences: ReadonlyMap<string, AtlasOccurrence>): ReadonlyMap<OverlayKind, OverlayLayerIndex> {
+function joinOverlays(scene: AtlasScene, rooms: ReadonlyMap<string, AtlasRoom>, occurrences: ReadonlyMap<string, AtlasOccurrence>, selectable: ReadonlySet<string>): ReadonlyMap<OverlayKind, OverlayLayerIndex> {
+  const roomTargets = new Map([...rooms.values()].map(room => [room.roomId, room.occurrenceIds.filter(id => selectable.has(id))]));
   const layers = new Map<OverlayKind, OverlayLayerIndex>();
   for (const kind of ['electrical', 'network'] as const) {
     type Group = { records: Set<string>; bindings: AtlasOverlayBinding[]; positions: OverlayPlacement['positions'][number][]; recordIds: readonly string[] };
@@ -496,7 +498,8 @@ function joinOverlays(scene: AtlasScene, rooms: ReadonlyMap<string, AtlasRoom>, 
         : !room ? 'room-absent'
         : room.nativeBinding.status !== 'reviewed' || room.nativePlaceId === null || binding.nativePlaceId !== room.nativePlaceId ? 'not-linked'
         : occurrence === undefined || (occurrence !== null && occurrence.roomId !== room.roomId) ? 'occurrence-mismatch'
-        : room.occurrenceIds.length === 0 ? 'no-placement' : null;
+        : room.occurrenceIds.length === 0 ? 'no-placement'
+        : (occurrence !== null && !selectable.has(occurrence.spaceOccurrenceId)) || roomTargets.get(room.roomId)!.length === 0 ? 'not-selectable' : null;
       if (reason !== null || !room) {
         unplaced.push({ binding, reason: reason ?? 'room-absent' });
         for (const record of binding.recordIds) unplacedIds.add(record);
@@ -507,7 +510,7 @@ function joinOverlays(scene: AtlasScene, rooms: ReadonlyMap<string, AtlasRoom>, 
       if (!own) {
         own = group(); groups.set(key, own);
         // Expand membership once per group, never records or provenance per occurrence.
-        for (const id of occurrence ? [occurrence.spaceOccurrenceId] : room.occurrenceIds) candidates.add(id);
+        for (const id of occurrence ? [occurrence.spaceOccurrenceId] : roomTargets.get(room.roomId)!) candidates.add(id);
       }
       for (const record of binding.recordIds) own.records.add(record);
       own.bindings.push(binding);
@@ -884,6 +887,55 @@ export function frameBox(model: AtlasModel, state: AtlasViewState, presentation:
   return { min: [min[0]!, min[1]!, min[2]!], max: [max[0]!, max[1]!, max[2]!] };
 }
 
+interface PickTree {
+  readonly start: number; readonly end: number; readonly bounds: PreparedMesh['bounds'];
+  readonly left: PickTree | null; readonly right: PickTree | null;
+}
+const pickTrees = new WeakMap<PreparedMesh, PickTree>();
+/** Built once from actual prepared positions. Fixed source-order leaves avoid
+ * vertex copies and preserve the exact triangle/depth tie order. */
+function pickTree(mesh: PreparedMesh): PickTree {
+  const cached = pickTrees.get(mesh); if (cached) return cached;
+  const leaves: PickTree[] = [], data = mesh.vertices;
+  for (let start = 0; start < mesh.triangles; start += 64) {
+    const end = Math.min(start + 64, mesh.triangles);
+    const min: [number, number, number] = [Infinity, Infinity, Infinity], max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
+    for (let at = start; at < end; at++) for (const corner of [0, 6, 12]) for (const axis of [0, 1, 2] as const) {
+      const value = data[at * 18 + corner + axis]!;
+      min[axis] = Math.min(min[axis], value); max[axis] = Math.max(max[axis], value);
+    }
+    leaves.push({ start, end, bounds: { min, max }, left: null, right: null });
+  }
+  const combine = (start: number, end: number): PickTree => {
+    if (end - start === 1) return leaves[start]!;
+    const middle = Math.floor((start + end) / 2), left = combine(start, middle), right = combine(middle, end);
+    return { start: left.start, end: right.end, left, right, bounds: {
+      min: [Math.min(left.bounds.min[0], right.bounds.min[0]), Math.min(left.bounds.min[1], right.bounds.min[1]), Math.min(left.bounds.min[2], right.bounds.min[2])],
+      max: [Math.max(left.bounds.max[0], right.bounds.max[0]), Math.max(left.bounds.max[1], right.bounds.max[1]), Math.max(left.bounds.max[2], right.bounds.max[2])],
+    } };
+  };
+  const tree = combine(0, leaves.length); pickTrees.set(mesh, tree); return tree;
+}
+
+function* pickRanges(mesh: PreparedMesh, projection: Projection, lift: number, px: number, py: number): Generator<PickTree> {
+  const pending = [pickTree(mesh)];
+  while (pending.length > 0) {
+    const node = pending.pop()!, { min, max } = node.bounds;
+    let l = Infinity, r = -Infinity, top = Infinity, bottom = -Infinity;
+    for (const x of [min[0], max[0]]) for (const y of [min[1], max[1]]) for (const z of [min[2], max[2]]) {
+      const point = projection.project(x, y + lift, z);
+      l = Math.min(l, point[0]); r = Math.max(r, point[0]); top = Math.min(top, point[1]); bottom = Math.max(bottom, point[1]);
+    }
+    // Conservative for the narrow phase's 1e-10 barycentric edge allowance and
+    // projection roundoff, including large translated source coordinates.
+    const pad = 4e-10 * Math.max(1, r - l, bottom - top)
+      + 64 * Number.EPSILON * Math.max(1, Math.abs(l), Math.abs(r), Math.abs(top), Math.abs(bottom));
+    if (px < l - pad || px > r + pad || py < top - pad || py > bottom + pad) continue;
+    if (node.left && node.right) { pending.push(node.right, node.left); }
+    else yield node;
+  }
+}
+
 /** CPU pick through the renderer's projection: only room-pick geometry of
  * pickable occurrences takes part, at the same lifts and sections as drawn.
  * Structure and context never claim a room or block one. */
@@ -893,7 +945,7 @@ export function pickOccurrence(model: AtlasModel, presentation: AtlasPresentatio
     const lift = levelLift(presentation, part.levelId, t), clip = presentation.clips.get(part.mesh.meshKey) ?? null;
     if (clip !== null && part.mesh.yRange[0] > clip) continue;
     const data = part.mesh.vertices;
-    for (let at = 0; at < part.mesh.triangles; at++) {
+    for (const range of pickRanges(part.mesh, projection, lift, px, py)) for (let at = range.start; at < range.end; at++) {
       const base = at * 18;
       const a = projection.project(data[base]!, data[base + 1]! + lift, data[base + 2]!);
       const b = projection.project(data[base + 6]!, data[base + 7]! + lift, data[base + 8]!);

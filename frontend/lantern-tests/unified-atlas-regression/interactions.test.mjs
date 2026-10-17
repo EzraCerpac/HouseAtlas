@@ -160,6 +160,92 @@ test('count controls retain source anchors and counts with deterministic non-ove
   assert.deepEqual(api.visibleCountMarkers(separated, size, [panel], null, []), [separated[1]]);
 });
 
+test('label actions use their full mounted targets and reserve surviving enlarged count targets', () => {
+  const label = (id, x, text = id, tier = 'plain') => ({ id, text, x, y: 150, rise: 0, tier });
+  const size = { width: 900, height: 500 };
+  for (const rows of [[label('a', 100), label('b', 136, 'b', 'selected')],
+    [label('a', 250, 'A'.repeat(40)), label('b', 510, 'B'.repeat(40), 'selected')]]) {
+    assert.deepEqual(api.visibleLabelHits(rows, size, [], []), [rows[1]]);
+    assert.deepEqual(api.visibleLabelHits([...rows].reverse(), size, [], []), [rows[1]]);
+  }
+  const rows = [label('room', 100, 'Room', 'selected'), label('other', 300, 'Other', 'context')];
+  const count = { key: 'electrical:room', occurrenceId: 'room', x: 100, y: 172, count: 3 };
+  assert.deepEqual(api.visibleLabelHits(rows, size, [], [count]), [rows[1]], 'The SVG name may remain but its overlapping action must not mount');
+  const panel = { l: 275, r: 325, t: 125, b: 175 };
+  assert.deepEqual(api.visibleLabelHits(rows, size, [panel], []), [rows[0]]);
+  assert.equal(api.labelHitWidth('a'), 44); assert.equal(api.labelHitWidth('A'.repeat(40)), 292);
+  assert.equal(api.labelHitTarget(rows[0]).b - api.labelHitTarget(rows[0]).t, 32);
+});
+
+test('duplicate floor names use source facts and stable source-order qualifiers without changing identities', async () => {
+  for (const heights of [[0, 1.4, 2.8], [0, 0, 0], [null, null, null], [1.401, 1.404, 2.8]]) {
+    let inputLevels;
+    const { model: named } = await generatedModel(api, async scope => {
+      const input = await api.buildSyntheticAtlas(scope), companion = JSON.parse(new TextDecoder().decode(input.companionBytes));
+      let at = 0;
+      for (const level of companion.levels) {
+        level.label = 'Ground floor';
+        if (level.buildingId === H) { level.sourceElevationM = heights[at++]; level.elevationBasis = level.sourceElevationM === null ? null : 'Generated original source datum'; }
+      }
+      inputLevels = companion.levels;
+      return { ...input, companionBytes: new TextEncoder().encode(JSON.stringify(companion)) };
+    });
+    const names = api.atlasLevelNames(named), house = named.buildingsById.get(H);
+    assert.equal(new Set(house.levelIds.map(id => names.get(id))).size, house.levelIds.length);
+    assert.equal(api.atlasLevelNames(named), names, 'Names are derived once per immutable model');
+    for (const level of named.scene.levels) {
+      const original = inputLevels.find(row => row.levelId === level.levelId);
+      assert.deepEqual([level.label, level.sourceElevationM, level.elevationBasis], [original.label, original.sourceElevationM, original.elevationBasis]);
+      assert.ok(api.atlasLevelName(named, level.levelId, true).includes(named.buildingsById.get(level.buildingId).label));
+      if (level.buildingId === H) assert.ok(names.get(level.levelId).includes(level.sourceElevationM === null ? 'source elevation unknown' : `source ${level.sourceElevationM} m`));
+    }
+    if (heights.every(value => value === heights[0])) for (const id of house.levelIds) assert.ok(names.get(id).includes(`source level ${house.levelIds.indexOf(id) + 1}`));
+  }
+});
+
+test('indexed 3D picks preserve source-order depth winners with bounded work on a tessellated room', async () => {
+  const id = 'syn-occ-bedroom-upper', other = 'syn-occ-bath';
+  for (const rise of [0, 100_000]) {
+    const source = rise === 0 ? model : (await generatedModel(api, scope => api.buildSyntheticAtlas(scope, rise))).model;
+    const occurrence = source.occurrencesById.get(id), part = source.pickParts.get(id)[0], dim = 32;
+    const positions = [], indices = [], y = source.floorY.get(U) + .6;
+    const [x0, , z0] = occurrence.bounds.min, [x1, , z1] = occurrence.bounds.max;
+    for (let z = 0; z < dim; z++) for (let x = 0; x < dim; x++) {
+      const base = positions.length / 3, l = x0 + (x1 - x0) * x / dim, r = x0 + (x1 - x0) * (x + 1) / dim;
+      const top = z0 + (z1 - z0) * z / dim, bottom = z0 + (z1 - z0) * (z + 1) / dim;
+      positions.push(l, y, top, r, y, top, r, y, bottom, l, y, bottom);
+      indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    }
+    const [mesh] = api.prepareMeshes([{ meshKey: part.mesh.meshKey, floorId: U, occurrenceId: id,
+      positions: new Float32Array(positions), indices: new Uint32Array(indices) }]);
+    const indexedPart = { ...part, mesh }, picks = new Map(source.pickParts); picks.set(id, [indexedPart]);
+    const indexed = { ...source, pickParts: picks };
+    const state = api.atlasReducer(indexed, api.initialAtlasState(indexed), level(U));
+    const presentation = api.presentAtlas(indexed, state, empty);
+    for (const t of [0, .25, .5, .75, 1]) {
+      const projection = api.makeProjection({ yaw: 0, pitch: 36, zoom: 1, panX: 0, panY: 0 },
+        api.frameBox(indexed, state, presentation), { width: 960, height: 640 }, 0);
+      const [px, py] = projection.project(x0 + (x1 - x0) * .37, mesh.yRange[0] + api.levelLift(presentation, U, t), z0 + (z1 - z0) * .43);
+      let calls = 0;
+      const measured = { ...projection, project: (...args) => { calls++; return projection.project(...args); } };
+      assert.equal(api.pickOccurrence(indexed, presentation, t, measured, px, py), id);
+      assert.ok(calls < mesh.triangles, `Indexed successful tap projected ${calls} points for ${mesh.triangles} triangles`);
+      // Two actual pick parts with the same geometry retain the first source
+      // occurrence at an exact depth tie, then the higher surface wins.
+      const otherPart = { ...source.pickParts.get(other)[0], mesh: { ...mesh, meshKey: source.pickParts.get(other)[0].mesh.meshKey, occurrenceId: other } };
+      const tied = { ...indexed, pickParts: new Map(picks).set(other, [otherPart]) };
+      const both = { ...presentation, pickable: new Set([id, other]) };
+      assert.equal(api.pickOccurrence(tied, both, t, projection, px, py), id);
+      const raised = mesh.vertices.slice();
+      for (let at = 1; at < raised.length; at += 6) raised[at] += .2;
+      const higher = { ...otherPart, mesh: { ...otherPart.mesh, vertices: raised,
+        yRange: [raised[1], raised[1]], bounds: { min: [x0, raised[1], z0], max: [x1, raised[1], z1] } } };
+      const nearer = { ...indexed, pickParts: new Map(picks).set(other, [otherPart, higher]) };
+      assert.equal(api.pickOccurrence(nearer, both, t, projection, px, py), other);
+    }
+  }
+});
+
 test('two independent single-floor buildings initially keep roofs and no exploded sections', async () => {
   const { model: single } = await generatedModel(api, api.buildSingleFloorBuildingsAtlas);
   const state = api.initialAtlasState(single), p = api.presentAtlas(single, state, empty);

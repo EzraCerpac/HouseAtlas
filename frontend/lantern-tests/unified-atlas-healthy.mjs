@@ -31,7 +31,7 @@ const detailsURL = await sourceURL('../src/lantern/unified-atlas/PublishedOverla
   react: new URL('./node_modules/react/index.js', frontend).href,
   'react/jsx-runtime': new URL('./node_modules/react/jsx-runtime.js', frontend).href,
 });
-const { PublishedOverlayDetails } = await import(detailsURL);
+const { PublishedOverlayDetails, PublishedUnplacedSource } = await import(detailsURL);
 const threeURL = new URL('./node_modules/three/build/three.module.js', frontend).href;
 const gltfLoaderURL = new URL('./node_modules/three/examples/jsm/loaders/GLTFLoader.js', frontend).href;
 const pointersURL = await sourceURL('../src/lantern/canonical-ifc/stage-pointers.ts');
@@ -282,12 +282,15 @@ const localBefore = { ...hallSource, spaceOccurrenceId: 'syn-occ-hall',
   sourceRevision: 'Generated local before', recordIds: ['generated:local-before', 'generated:shared:0:0'] };
 const localAfter = { ...localBefore, sourceRevision: 'Generated local after', recordIds: ['generated:local-after', 'generated:shared:0:0'] };
 const emptyCommon = { ...commonBindings[0], sourceRevision: 'Generated empty provenance', recordIds: [] };
-sharedEnvelope.overlayBindings = [localBefore, ...commonBindings, emptyCommon, localAfter];
+const stairsNative = sharedEnvelope.rooms.find(row => row.roomId === 'syn-room-stairs').nativePlaceId;
+const stairsBindings = [...commonBindings, emptyCommon].map(binding => ({ ...binding, roomId: 'syn-room-stairs', nativePlaceId: stairsNative }));
+sharedEnvelope.overlayBindings = [localBefore, ...commonBindings, emptyCommon, localAfter, ...stairsBindings];
 const sharedScene = scene.admitAtlasScene(sharedEnvelope, { scope, publicationId: selection.publicationId },
   new TextEncoder().encode(JSON.stringify(sharedEnvelope)).byteLength);
 const sharedLayer = bindAtlasModel(sharedScene, loaded).overlays.get('electrical');
-const firstCommon = sharedLayer.placed.get(extraOccurrences[0]), mixed = sharedLayer.placed.get('syn-occ-hall');
-for (const id of extraOccurrences) {
+const firstCommon = sharedLayer.placed.get('syn-occ-stairs-ground'), mixed = sharedLayer.placed.get('syn-occ-hall');
+for (const id of extraOccurrences) assert.equal(sharedLayer.placed.has(id), false, 'Excluded occurrences never acquire an inspectable placement');
+for (const id of ['syn-occ-stairs-ground', 'syn-occ-stairs-upper']) {
   const row = sharedLayer.placed.get(id);
   assert.equal(row.recordCount, 9 * 1024);
   assert.strictEqual(row.recordIds, firstCommon.recordIds, 'common records are one shared array');
@@ -297,12 +300,39 @@ for (const id of extraOccurrences) {
 }
 assert.equal(mixed.recordCount, 9 * 1024 + 2);
 assert.equal(sharedLayer.records, 9 * 1024 + 2);
-assert.deepEqual(mixed.bindings, sharedScene.overlayBindings, 'selected detail bindings retain the original interleaved order');
-const expectedRecords = [...new Set(sharedScene.overlayBindings.flatMap(row => row.recordIds))];
+const hallBindings = sharedScene.overlayBindings.filter(binding => binding.roomId === 'syn-room-hall');
+assert.deepEqual(mixed.bindings, hallBindings, 'selected detail bindings retain the original interleaved order');
+const expectedRecords = [...new Set(hallBindings.flatMap(row => row.recordIds))];
 assert.deepEqual(mixed.recordIds, expectedRecords, 'selected detail IDs retain first source appearance');
 assert.equal(firstCommon.bindings.at(-1).sourceRevision, emptyCommon.sourceRevision);
 assert.equal(mixed.positions.length, 2);
 assert.ok(renderToStaticMarkup(createElement(PublishedOverlayDetails, { placement: mixed })).includes(emptyCommon.sourceRevision));
+
+// Known geometric parts can be explicitly excluded from selection. Their
+// original bindings remain unplaced, while a mixed room's common record is
+// still available through its selectable part.
+for (const excluded of [['syn-occ-stairs-upper'], ['syn-occ-stairs-ground', 'syn-occ-stairs-upper']]) {
+  const envelope = structuredClone(composed.envelope), common = envelope.overlayBindings.find(binding => binding.kind === 'network');
+  envelope.coverage.selectableOccurrences = envelope.coverage.selectableOccurrences.filter(id => !excluded.includes(id));
+  envelope.coverage.unselectableOccurrences.push(...excluded);
+  const explicit = { ...common, spaceOccurrenceId: 'syn-occ-stairs-upper', sourceRevision: 'Generated excluded source',
+    sourceUpdatedAt: null, recordIds: [common.recordIds[0], 'generated:excluded-record'],
+    anchor: { kind: 'source-position', position: [105.5, 3.3, 57], basis: 'Generated original excluded-part anchor' } };
+  const emptyExcluded = { ...explicit, sourceRevision: 'Generated excluded empty provenance', recordIds: [] };
+  envelope.overlayBindings = [common, explicit, emptyExcluded];
+  const admitted = scene.admitAtlasScene(envelope, { scope, publicationId: selection.publicationId }, new TextEncoder().encode(JSON.stringify(envelope)).byteLength);
+  const layer = bindAtlasModel(admitted, loaded).overlays.get('network');
+  assert.equal(layer.records, 2); assert.equal(layer.unplacedRecords, 2);
+  assert.deepEqual([...layer.placed.keys()], excluded.length === 1 ? ['syn-occ-stairs-ground'] : []);
+  assert.ok(layer.unplaced.every(row => row.reason === 'not-selectable'));
+  assert.deepEqual([...scene.unplacedByReason(layer)], [['not-selectable', 2]]);
+  const unplacedExplicit = layer.unplaced.find(row => row.binding.sourceRevision === explicit.sourceRevision).binding;
+  assert.deepEqual(unplacedExplicit.anchor, explicit.anchor);
+  assert.equal(unplacedExplicit.spaceOccurrenceId, explicit.spaceOccurrenceId);
+  const markup = renderToStaticMarkup(createElement(PublishedUnplacedSource, { binding: unplacedExplicit }));
+  for (const value of [explicit.spaceOccurrenceId, explicit.anchor.basis, 'generated:excluded-record', 'update date unknown']) assert.ok(markup.includes(value));
+  assert.ok(layer.unplaced.some(row => row.binding.sourceRevision === emptyExcluded.sourceRevision && row.binding.recordIds.length === 0));
+}
 
 // Owner-confirmed contract: distinct plans may share a level. Split the
 // generated source features into two authored plans without changing geometry.
@@ -759,5 +789,7 @@ console.log('PASS unified Atlas healthy: generated scene/model read through the 
   + 'Scalar source-text bounds and the full position basis are retained; admission-only projection covers 4,096 occurrences and 16,381 features. '
   + 'Mixed-floor records, static React provenance output, bounded repeated binding indexes and multiple same-level plans retain their source scope/order. '
   + 'An empty record binding, a room with no occurrence, per-reason distinct unplaced counts, 8,193 selectors and nine 1,024-record bindings are admitted. '
-  + 'Common records/provenance are shared across 32 unselectable occurrences; scalar counts and selected details retain source order. '
+  + 'Common records/provenance are shared across two selectable Stairs parts; 32 excluded occurrences acquire no placement. '
+  + 'Explicit excluded-part and wholly excluded-room bindings retain unplaced totals, original anchors, dates and inspectable source references. '
+  + 'Scalar counts and selected details retain source order. '
   + 'Generated data only; no renderer, browser or device acceptance.');

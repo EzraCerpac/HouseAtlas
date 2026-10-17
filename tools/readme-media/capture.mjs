@@ -200,8 +200,12 @@ try {
     const counts = [...document.querySelectorAll('.ua-marker')].filter(visible).map(node => [node.getAttribute('aria-label'), hitBox(node)]);
     const crowded = counts.flatMap(([name, a], at) => counts.slice(at + 1)
       .filter(([, b]) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1).map(([other]) => `${name} / ${other}`));
+    const actions = [...document.querySelectorAll('.ua-label-hit, .ua-marker')].filter(visible)
+      .map(node => [node.getAttribute('aria-label'), hitBox(node)]);
+    const actionCollisions = actions.flatMap(([name, a], at) => actions.slice(at + 1)
+      .filter(([, b]) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1).map(([other]) => `${name} / ${other}`));
     return {
-      buildingInView: inView('.ua-buildings'), floorInView: inView('.ua-ladder'), covered, crowded,
+      buildingInView: inView('.ua-buildings'), floorInView: inView('.ua-ladder'), covered, crowded, actionCollisions,
       stage: document.querySelector('.ua-viewport').getAttribute('aria-label'),
       view: pressed('.ua-tools .seg button'), building: pressed('.ua-buildings button'), floor: pressed('.ua-ladder button'),
       exploded: document.querySelector('.ua-tools .ctrl-wide')?.getAttribute('aria-pressed') ?? null,
@@ -240,6 +244,7 @@ try {
   const clearOfPanels = facts => {
     assert.deepEqual(facts.covered, [], 'No room or count button may sit under a floating panel');
     assert.deepEqual(facts.crowded, [], 'No count button may overlap another');
+    assert.deepEqual(facts.actionCollisions, [], 'No mounted room action may overlap another room action or enlarged count target');
     assert.deepEqual([facts.buildingInView, facts.floorInView], [true, true], 'The current building and floor must be in view');
   };
   clearOfPanels(desktop);

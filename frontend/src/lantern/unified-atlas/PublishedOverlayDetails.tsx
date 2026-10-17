@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { OverlayPlacement } from './scene';
 import type { AtlasOverlayBinding } from './types';
 
@@ -11,6 +11,28 @@ function SourceDates({ bindings }: { readonly bindings: readonly AtlasOverlayBin
     {row.sourceUpdatedAt ? <>, updated <time dateTime={row.sourceUpdatedAt}>{row.sourceUpdatedAt}</time></> : ', update date unknown'}
     {row.retrievedAt ? <>, retrieved <time dateTime={row.retrievedAt}>{row.retrievedAt}</time></> : ', retrieval date unknown'}
   </li>)}</ul>;
+}
+
+/** Retain an unplaced binding as source facts, never an invented placement. */
+export function PublishedUnplacedSource({ binding }: { readonly binding: AtlasOverlayBinding }) {
+  return <>
+    <SourceDates bindings={[binding]} />
+    <dl><div><dt>Source publication</dt><dd>{binding.publicationId}</dd></div>
+      <div><dt>Source room</dt><dd>{binding.roomId}</dd></div>
+      <div><dt>Home place</dt><dd>{binding.nativePlaceId ?? 'Unspecified'}</dd></div>
+      <div><dt>Source occurrence</dt><dd>{binding.spaceOccurrenceId ?? 'Unspecified'}</dd></div>
+      <div><dt>Source anchor</dt><dd><code>{JSON.stringify(binding.anchor)}</code></dd></div></dl>
+    {binding.anchor.kind === 'source-position' && <p>Model-frame coordinates; physical registration unknown.</p>}
+    {binding.recordIds.length > 0 && <ul>{binding.recordIds.map(id => <li key={id}>{id}</li>)}</ul>}
+  </>;
+}
+
+export function PublishedUnplacedBinding({ binding, reason }: { readonly binding: AtlasOverlayBinding; readonly reason: string }) {
+  const [open, setOpen] = useState(false);
+  return <details className="ua-refs" onToggle={event => setOpen(event.currentTarget.open)}>
+    <summary>{binding.sourceRevision}: {reason}</summary>
+    {open && <PublishedUnplacedSource binding={binding} />}
+  </details>;
 }
 
 export function PublishedOverlayDetails({ placement }: { readonly placement: OverlayPlacement }) {

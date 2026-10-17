@@ -18,8 +18,8 @@ import {
   unplacedByReason, type AtlasAction, type AtlasModel, type AtlasViewState, type OverlayLayerIndex, type UnplacedReason,
 } from './scene';
 import { AtlasReadError, type AtlasLevel, type AtlasOccurrence, type AtlasRoom, type AtlasReadFailure, type OverlayKind, type UnifiedAtlasPort } from './types';
-import { PublishedOverlayDetails } from './PublishedOverlayDetails';
-import { countMarkerWidth, floorLabel, visibleCountMarkers } from './labels';
+import { PublishedOverlayDetails, PublishedUnplacedBinding } from './PublishedOverlayDetails';
+import { atlasLevelName, countMarkerWidth, LABEL_TAG_RISE, labelHitWidth, visibleCountMarkers, visibleLabelHits } from './labels';
 import { documentaryOverlayIndex, type RuntimeRecords, type DocumentaryRecord, type SourceFact } from './runtime-overlays';
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
 import '../canonical-ifc/canonical-ifc.css';
@@ -111,7 +111,7 @@ export default function UnifiedAtlas({ port, onOpenModel }: { readonly port: Uni
 
 const RULES: DrawRules = { visibleFloors: 'all', clipY: null };
 /** Selected tag in 3D: leader length and tag centre above the anchor, in pixels. */
-const LEADER = 34, TAG_RISE = 49;
+const LEADER = 34, TAG_RISE = LABEL_TAG_RISE;
 const OVERLAY_LABEL: Record<OverlayKind, string> = { electrical: 'Electrical', network: 'Network' };
 const OVERLAY_ICON: Record<OverlayKind, 'plug' | 'wifi'> = { electrical: 'plug', network: 'wifi' };
 const UNPLACED_LABEL: Record<UnplacedReason, string> = {
@@ -120,10 +120,11 @@ const UNPLACED_LABEL: Record<UnplacedReason, string> = {
   'other-publication': 'from another model version',
   'occurrence-mismatch': 'floor part does not belong to the room',
   'no-placement': 'room has no position in this model',
+  'not-selectable': 'no selectable room part',
 };
 const LINK_LABEL = { reviewed: 'Linked to a home place', historical: 'Linked in an earlier review only', unmapped: 'Not linked to a home place yet' } as const;
 const plural = (count: number, one: string, many = `${one}s`) => `${count.toLocaleString()} ${count === 1 ? one : many}`;
-const elevation = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : '±'}${Math.abs(value).toFixed(2)} m`;
+const elevation = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(value)} m`;
 
 // ---------------------------------------------------------------------------
 // The unobscured stage: floating panels claim edge bands, and the shared camera
@@ -137,7 +138,6 @@ const CLEAR = 8;
 /** Smallest framed side worth keeping; when panels leave less, the whole stage is used. */
 const MIN_FRAME = 96;
 
-const overlaps = (a: Box, b: Box) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
 const laidOut = (node: Element) => getComputedStyle(node).display !== 'none';
 const showing = (node: Element) => laidOut(node) && getComputedStyle(node).visibility !== 'hidden';
 
@@ -433,11 +433,7 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
 
   // Stage buttons exist only where the whole control is in view: inside the
   // stage and clear of every panel. Covered rooms stay in the room list.
-  const clear = (box: Box) => box.l >= 0 && box.t >= 0 && box.r <= size.width && box.b <= size.height && !cover.some(panel => overlaps(box, panel));
-  const hits = labels.filter(label => {
-    const half = Math.max(44, Math.min(320, label.text.length * 7 + 12)) / 2, y = label.y - TAG_RISE * label.rise;
-    return clear({ l: label.x - half, t: y - 16, r: label.x + half, b: y + 16 });
-  });
+  const hits = useMemo(() => visibleLabelHits(labels, size, cover, counts), [labels, size, cover, counts]);
   // A focused stage control can leave the stage: its tag rises past an edge,
   // a panel grows over it or its floor is cut away. Focus then returns to the
   // stage itself, without scrolling, instead of falling to the page.
@@ -480,7 +476,7 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
   const ladderLevels = ladderBuildingId === null ? [] : model.levelsByBuilding.get(ladderBuildingId) ?? [];
   const building = ladderBuildingId === null ? null : model.buildingsById.get(ladderBuildingId)!;
   const focusLevel = presentation.focusLevelId === null ? null : model.levelsById.get(presentation.focusLevelId)!;
-  const scopeLabel = focusLevel ? `${floorLabel(focusLevel.label)}${buildings.length > 1 ? `, ${model.buildingsById.get(focusLevel.buildingId)!.label}` : ''}`
+  const scopeLabel = focusLevel ? atlasLevelName(model, focusLevel.levelId, buildings.length > 1)
     : state.buildingId === null && model.scene.buildings.length > 1 ? 'all buildings' : building?.label ?? 'this model';
   const canExplode = !plan && hasExplodableLevels(model, state.buildingId);
   const selectionLevel = selected ? model.occurrencesById.get(selected)!.levelId : null;
@@ -559,7 +555,7 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
           </g>
         </svg>
         {hits.map(label => <button key={label.id} type="button" className="ua-label-hit" data-atlas-occurrence={label.id} data-stage-key={`label:${label.id}`}
-          style={{ left: label.x, top: label.y - TAG_RISE * label.rise, width: Math.max(44, Math.min(320, label.text.length * 7 + 12)) }}
+          style={{ left: label.x, top: label.y - TAG_RISE * label.rise, width: labelHitWidth(label.text) }}
           aria-label={`Select room: ${label.text}`} onClick={event => { if (event.detail === 0) select(label.id); }} />)}
         {layer && counts.map(row => <button key={row.key} type="button" className="ua-marker" data-stage-key={`marker:${row.key}`}
           style={{ left: row.x, top: row.y, width: countMarkerWidth(row.count), '--layer': badgeFill(layer.kind) } as CSSProperties}
@@ -567,7 +563,7 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
           onPointerDown={stop} onPointerUp={stop} onClick={() => select(row.occurrenceId)}>{row.count}</button>)}
         {failure && !plan && <p className="cifc-stage-note" role="status">3D view is unavailable. Use Plan or check Source details.</p>}
         {plan && planBlend >= 1 && planFeatures.length === 0 && <p className="cifc-stage-note" role="status">
-          {focusLevel ? `No plan for ${floorLabel(focusLevel.label)} in this model.` : 'This model has no floors to show as a plan.'}</p>}
+          {focusLevel ? `No plan for ${atlasLevelName(model, focusLevel.levelId)} in this model.` : 'This model has no floors to show as a plan.'}</p>}
       </div>
 
       <div className="ua-bottom">
@@ -629,10 +625,10 @@ function DatumLadder({ model, levels, building, state, plan, dispatch, selection
         return <li key={level.levelId} style={at > 0 ? { '--rung-gap': `${gaps[at - 1]}px` } as CSSProperties : undefined}>
           <button type="button" className={`ua-rung${current ? ' is-current' : ''}`} aria-pressed={current}
             title={level.elevationBasis ?? undefined}
-            aria-label={`${floorLabel(level.label)}: ${plural(rooms, 'room')}${hasPlan ? '' : ', no plan'}${holds ? ', has the selected room' : also ? ', has another part of the selected room' : ''}`}
+            aria-label={`${atlasLevelName(model, level.levelId)}: ${plural(rooms, 'room')}${hasPlan ? '' : ', no plan'}${holds ? ', has the selected room' : also ? ', has another part of the selected room' : ''}`}
             onClick={() => dispatch({ type: 'level', levelId: level.levelId })}>
             <span className="ua-rung-tick" aria-hidden="true" />
-            <span className="ua-rung-name">{floorLabel(level.label)}</span>
+            <span className="ua-rung-name">{atlasLevelName(model, level.levelId)}</span>
             <span className="ua-rung-sub">{plural(rooms, 'room')}{hasPlan ? '' : ', no plan'}</span>
             {(holds || also) && <span className={`ua-rung-mark${also ? ' is-context' : ''}`} aria-hidden="true" />}
           </button>
@@ -672,8 +668,7 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
     refocus.current = false; heading.current?.focus();
   }, [state.occurrenceId]);
   const levelName = (levelId: string) => {
-    const level = model.levelsById.get(levelId)!;
-    return model.floorBuildings.length > 1 ? `${floorLabel(level.label)}, ${model.buildingsById.get(level.buildingId)!.label}` : floorLabel(level.label);
+    return atlasLevelName(model, levelId, model.floorBuildings.length > 1);
   };
   // Shown only while the panel is a sheet.
   const toggle = (noun: string) => <button type="button" className="ua-sheet-toggle" aria-expanded={open} aria-controls={bodyId}
@@ -810,7 +805,7 @@ function SourceDetails({ model, occurrence, room, renderFailure, overlayReason, 
       {occurrence?.geometryBasis.sourceRef && <div><dt>Room source</dt><dd>{occurrence.geometryBasis.sourceRef}</dd></div>}
       {room && <div><dt>Place link</dt><dd>{LINK_LABEL[room.nativeBinding.status]}</dd></div>}
       <div><dt>Position</dt><dd>Model frame only. Not aligned to the physical site.</dd></div>
-      {elevations.length > 0 && <div><dt>Source elevations</dt><dd><ul>{elevations.map(level => <li key={level.levelId}>{floorLabel(level.label)}: {level.sourceElevationM !== null ? `${elevation(level.sourceElevationM)}; ` : ''}{level.elevationBasis ?? 'Datum not specified.'}</li>)}</ul></dd></div>}
+      {elevations.length > 0 && <div><dt>Source elevations</dt><dd><ul>{elevations.map(level => <li key={level.levelId}>{atlasLevelName(model, level.levelId, model.scene.buildings.length > 1)}: {level.sourceElevationM !== null ? `${elevation(level.sourceElevationM)}; ` : ''}{level.elevationBasis ?? 'Datum not specified.'} <code>{level.levelId}</code></li>)}</ul></dd></div>}
       {coverage.exclusions.length > 0 && <div><dt>Not selectable</dt><dd><ul>
         {coverage.exclusions.map((row, at) => <li key={at}>{row.id && model.occurrencesById.has(row.id)
           ? model.roomsById.get(model.occurrencesById.get(row.id)!.roomId)!.label : row.id ?? 'Unnamed'}{row.reason ? `: ${row.reason}` : ''}</li>)}
@@ -849,10 +844,11 @@ function OverlayKey({ layer, openNetwork, availability, unplaced, openDocuments,
         : availability === 'partial' ? 'Some electrical sources are unavailable.'
         : publishedOnly && layer.records === 0 ? 'No source references in this publication.'
         : layer.records === 0 ? 'No linked records in the available source.' : 'Counts show source records per room, not device positions.'}</p>
-      {layer.unplacedRecords > 0 && <details>
-        <summary>{plural(layer.unplacedRecords, 'record')} not placed</summary>
+      {(layer.unplacedRecords > 0 || layer.unplaced.length > 0) && <details>
+        <summary>{layer.unplacedRecords > 0 ? `${plural(layer.unplacedRecords, 'record')} not placed` : 'Unplaced source bindings'}</summary>
         {unplaced.length > 0 ? <DocumentaryRecords records={unplaced} openDocuments={openDocuments} />
-          : <ul>{[...reasons].map(([reason, count]) => <li key={reason}>{plural(count, 'record')}: {UNPLACED_LABEL[reason]}</li>)}</ul>}
+          : <><ul>{[...reasons].map(([reason, count]) => <li key={reason}>{plural(count, 'record')}: {UNPLACED_LABEL[reason]}</li>)}</ul>
+            {!closed && layer.unplaced.map((row, at) => <PublishedUnplacedBinding key={at} binding={row.binding} reason={UNPLACED_LABEL[row.reason]} />)}</>}
       </details>}
       {layer.kind === 'network' && <button type="button" className="text-btn" onClick={openNetwork}>Open Network</button>}
     </div>

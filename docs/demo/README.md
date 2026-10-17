@@ -50,7 +50,8 @@ reader reads the generated fictional publication from an in-page fake HTTPS
 transport. Its optional external file parameters are not used. Each 3D image
 requires actual WebGL drawing after **Fit view** and subsequent interaction; if 3D is unavailable, the capture
 fails instead of recording the fallback. Every state also requires that no room
-or enlarged count target overlaps a floating panel or another count and that the current
+or enlarged count target overlaps a floating panel, and no mounted label action
+overlaps another label action or enlarged count target. The current
 building and floor are visible in their rows.
 The desktop and phone checks also exercise keyboard focus leaving Other sources
 and Escape returning focus to its summary, without switching source.
