@@ -347,6 +347,28 @@
   box-shadow: 0 0 0 5px rgba(255, 255, 252, 0.85);
 }
 
+/* New Plan names fade only; SVG text and its button share the resolved pose. */
+.lantern-host .ua-plan-label-new { animation: ua-fade-in 160ms ease-out both; }
+.lantern-host .ua-plan-label-leader { pointer-events: none; }
+.lantern-host .ua-plan-label-leader polyline {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 1px;
+  stroke-opacity: .75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.lantern-host .ua-plan-label-leader .ua-plan-label-leader-halo {
+  stroke: var(--paper, #fdfbf6);
+  stroke-width: 3px;
+  stroke-opacity: 1;
+}
+.lantern-host .ua-plan-label-leader circle {
+  fill: var(--paper, #fdfbf6);
+  stroke: var(--ink-2);
+  stroke-width: 1.25px;
+}
+
 /* ---- Scope: snapshot, buildings and the floor rail ------------------------- */
 
 /* One narrow rail on the left edge: buildings over their floors, so the model
@@ -2076,6 +2098,7 @@
   .lantern-host .ua-graph,
   .lantern-host .ua-sheet-body,
   .lantern-host .ua-menu-panel,
+  .lantern-host .ua-plan-label-new,
   .lantern-host .ua-buildings.is-open,
   .lantern-host .cifc-label > circle.ua-ripple { animation: none; }
   .lantern-host .ua-pick > svg { transition: none; }

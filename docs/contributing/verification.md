@@ -1310,7 +1310,7 @@ GLB loader, reducer, projection, pointer factory and documentary index. Inspect
 node --test --test-concurrency=1 frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs
 ```
 
-Its twenty-three CPU cases cover repeated navigation, every declared selectable
+Its thirty CPU cases cover repeated navigation, every declared selectable
 occurrence, shared room identity, source-coordinate plans, normal overlay
 toggles, collapse-before-Plan selection, deterministic count touch-target
 suppression, complete label-action targets, source-qualified duplicate floor
@@ -1334,6 +1334,17 @@ release; these are simulated CPU events, not physical Mac gesture acceptance.
 Property projection positives retain distinct source identities, differing
 same-date observations and per-building coverage. These generated ordinary
 cases add no held lifecycle, malformed, denial or other control case.
+
+The same interaction positives also project fictional narrow room labels along
+their authored polygon axes and onto clear paper with bounded callouts. They
+check complete rotated action rectangles, panel and count-target clearance,
+source-anchored leaders and measurement reservations, deterministic priority,
+the four-callout cap, narrow-stage room-list fallback, selected standing tags,
+full Unicode names and unchanged source buffers and floor-qualified selection.
+Ordinary horizontal names and selected tags also clear their own complete count
+targets; an occupied rotated target keeps the selected tag standing.
+These are CPU presentation observations; actual fonts, mounted pointer/focus
+behavior, animation and rendered publication layout still require browser review.
 
 The `/lantern-tests/source-host-visual/` fixture keeps its default. With
 `?atlas=generated` it also mounts the unified Atlas through the production

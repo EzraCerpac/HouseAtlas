@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "e6958ba4fa3002113ea39a81f692d449127e6a7c037cbf0b62098a0bf07abc84",
+  "sourceDigestSha256": "bfa67dfa4d40b3e9a61e936bd0e8babb2c517ef10ac22dfd712f6caefb65ebe7",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5915,8 +5915,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 96253,
-      "sha256": "866851a2c447af7ba7b4721d45c3fa61218020151fe3f5d948678692162accf7",
+      "bytes": 97024,
+      "sha256": "0c678aab7fc892cecd3e374310a4202424edf1c8ad2fdb7e4aa172fc0f4b2fd5",
       "owner": "core-integration"
     },
     {
@@ -7651,8 +7651,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs",
       "mode": "100644",
-      "bytes": 36340,
-      "sha256": "24a1e4c0b947e3cb77f7b6046f70ce649573e45aa47f2c39558c132a008292f9",
+      "bytes": 51283,
+      "sha256": "565188f6ad7c47656c40bfd82390b89ae10972be4d9bac034cc80eff02cd8678",
       "owner": "web"
     },
     {
@@ -9499,15 +9499,15 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 107017,
-      "sha256": "9fd68fe9110dd6f2fd26667eab1e2f6efb55c9d38561af39fa9e32ce4e03682a",
+      "bytes": 115725,
+      "sha256": "99fb13f297103e964bbe8f4eff1b8761cf7358aea84634435cba60c1cb9891ec",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/unified-atlas/labels.ts",
       "mode": "100644",
-      "bytes": 6174,
-      "sha256": "eec4fa2c5c3d71f9f9e469f7aac84d856415edf3c5cf4639c8d3ff1588798e62",
+      "bytes": 28761,
+      "sha256": "615057fe034bc5c521911c48acdd36c9955b920d116c3317d680d80dcbc84c6c",
       "owner": "web"
     },
     {
@@ -9548,8 +9548,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/unified-atlas.css",
       "mode": "100644",
-      "bytes": 59988,
-      "sha256": "bf7d670c140ba590165957ed564b57d4031f66cb74e7c0d1a4818d5e43ba0bf2",
+      "bytes": 60698,
+      "sha256": "c6d21ac679f251e93f508e4566e4d750b60657538d57e504f82662e4a921481d",
       "owner": "web"
     },
     {
