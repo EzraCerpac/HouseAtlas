@@ -42,6 +42,20 @@ const standardURL = await sourceURL('../src/lantern/canonical-ifc/standard-glb.t
   'three/examples/jsm/loaders/GLTFLoader.js': gltfLoaderURL, './geometry': geometryURL, './glb-preflight': preflightURL });
 const typesURL = await sourceURL('../src/lantern/unified-atlas/types.ts');
 const sceneURL = await sourceURL('../src/lantern/unified-atlas/scene.ts', { '../canonical-ifc/geometry': geometryURL, './types': typesURL });
+const tonesURL = await sourceURL('../src/lantern/canonical-ifc/tones.ts');
+const planPresentationURL = await sourceURL('../src/lantern/unified-atlas/plan-presentation.tsx', {
+  react: new URL('./node_modules/react/index.js', frontend).href,
+  'react/jsx-runtime': new URL('./node_modules/react/jsx-runtime.js', frontend).href,
+  '../canonical-ifc/geometry': geometryURL, '../canonical-ifc/tones': tonesURL, './scene': sceneURL,
+});
+const { PlanTile, AreaValue, planTileLevels } = await import(planPresentationURL);
+const graphURL = await sourceURL('../src/lantern/unified-atlas/NetworkGraph.tsx', {
+  react: new URL('./node_modules/react/index.js', frontend).href,
+  'react/jsx-runtime': new URL('./node_modules/react/jsx-runtime.js', frontend).href,
+  // CSS has no server execution; component logic and React are the actual modules.
+  './network-graph.css': dataURL(''),
+});
+const { NetworkGraph } = await import(graphURL);
 const readerURL = await sourceURL('../integration/unified-atlas-reader.ts',
   { '../src/lantern/unified-atlas/scene': sceneURL, '../src/lantern/unified-atlas/types': typesURL });
 const syntheticURL = await sourceURL('./unified-atlas/synthetic-atlas.ts');
@@ -451,6 +465,90 @@ assert.deepEqual(frameBox(multipleModel, multipleState, multiplePresentation), f
 for (const key of multipleModel.levelsById.get(authored.levelId).occurrenceIds.filter(key => multipleModel.selectable.has(key))) {
   const point = multipleModel.labels.get(key);
   assert.equal(planPickOccurrence(multipleModel, multiplePresentation, authored.levelId, point.x, point.z), key);
+}
+
+// Actual React presentation: an additive empty floor retains navigation but
+// produces no thumbnail or non-finite coordinates. Every original feature,
+// occurrence, primitive binding and coverage record remains in the publication.
+{
+  const extra = JSON.parse(new TextDecoder().decode(companionBytes)), emptyLevel = 'syn-level-empty';
+  extra.buildings.find(building => building.buildingId === 'syn-building-house').levelIds.push(emptyLevel);
+  extra.levels.push({ levelId: emptyLevel, buildingId: 'syn-building-house', label: 'Generated empty floor', nativePlaceId: null,
+    sourceElevationM: null, elevationBasis: null, occurrenceIds: [], bounds: { min: [102, 4, 51], max: [107, 5, 59] } });
+  extra.plans.push({ planId: 'syn-plan-empty', buildingId: 'syn-building-house', levelId: emptyLevel,
+    coordinates: 'scene-XZ-metres', featureIds: [], features: [] });
+  const emptyEnvelope = await composeAtlasEnvelope(new TextEncoder().encode(JSON.stringify(extra)), glb, SYNTHETIC_ATLAS.revision);
+  const emptyRead = await readUnifiedAtlas({ selection: { ...selection, manifestSha256: emptyEnvelope.manifestSha256 },
+    signal: new AbortController().signal, origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true,
+    transport: createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(scope), envelopeBytes: emptyEnvelope.envelopeBytes,
+      href: emptyEnvelope.href, glb, sha256: emptyEnvelope.sha256, manifestSha256: emptyEnvelope.manifestSha256, revision: SYNTHETIC_ATLAS.revision }) });
+  const emptyModel = bindAtlasModel(emptyRead.scene, await loadStandardGlb(emptyRead.model, 'empty-plan', new AbortController().signal));
+  assert.deepEqual(Buffer.from(emptyRead.model), Buffer.from(read.model));
+  assert.notEqual(emptyRead.scene.publication.semanticsSha256, read.scene.publication.semanticsSha256);
+  assert.deepEqual(emptyModel.scene.occurrences, model.scene.occurrences);
+  assert.deepEqual(emptyModel.scene.meshBindings, model.scene.meshBindings);
+  assert.deepEqual(emptyModel.scene.coverage, model.scene.coverage);
+  assert.deepEqual(emptyModel.scene.plans.slice(0, model.scene.plans.length), model.scene.plans);
+  assert.equal(emptyModel.plansByLevel.has(emptyLevel), true);
+  assert.deepEqual(scene.planFeaturesForLevel(emptyModel, emptyLevel), []);
+  const emptyState = atlasReducer(emptyModel, initialAtlasState(emptyModel), { type: 'level', levelId: emptyLevel });
+  assert.equal(emptyState.levelId, emptyLevel, 'the floor remains available through semantic navigation');
+  const props = { model: emptyModel, layers: [...emptyModel.overlays.values()], tints: new Map(), selected: null, choose() {} };
+  assert.equal(renderToStaticMarkup(createElement(PlanTile, { ...props, level: emptyModel.levelsById.get(emptyLevel), name: 'Generated empty floor' })), '');
+  const available = planTileLevels(emptyModel, emptyModel.levelsByBuilding.get('syn-building-house'), new Set(['syn-level-ground']));
+  assert.deepEqual(available.map(level => level.levelId), ['syn-level-split', 'syn-level-upper']);
+  const full = renderToStaticMarkup(createElement(PlanTile, { ...props, level: emptyModel.levelsById.get('syn-level-ground'), name: 'Generated ground floor' }));
+  assert.match(full, /class="ua-tile"/); assert.match(full, /<path /);
+  assert.ok(full.includes('Generated ground floor')); assert.ok(full.includes('4 electrical records')); assert.ok(full.includes('1 network record'));
+  assert.doesNotMatch(full, /NaN|Infinity/);
+}
+
+// Nullable area is an ordinary presentation value, independent of the source
+// geometry basis. No degenerate geometry or forced room selection is supplied.
+{
+  const source = { kind: 'source-model', sourceRef: 'generated-source-outline', note: null };
+  const estimated = { kind: 'owner-estimated-pick-proxy', sourceRef: null, note: 'Generated preliminary outline' };
+  const value = (geometryBasis, area) => renderToStaticMarkup(createElement(AreaValue, { geometryBasis, area }));
+  assert.equal(value(source, null), 'Area unavailable from model outline');
+  assert.equal(value(estimated, null), 'Not measured: estimated outline');
+  const area = { occurrenceId: 'syn-occ-hall', squareMetres: 12, text: '≈ 12 m²', partial: false };
+  assert.equal(value(source, area), '≈ 12 m²');
+  assert.equal(value(source, { ...area, partial: true }), '≈ 12 m², this part of the room');
+}
+
+// Actual graph SSR: self links stay in the drawing even when both source ends
+// collapse to one device. A record with no incident link remains listed apart.
+{
+  const loop = { id: 'generated-loop-device', label: 'Loop device', kind: 'Generated device', mobility: 'fixed', confidence: 'recorded', notes: '', place: null };
+  const isolated = { ...loop, id: 'generated-isolated-device', label: 'Isolated device' };
+  const port = (id, ownerDeviceId) => ({ id, label: id === 'loose' ? 'Loop endpoint' : id, kind: 'interface', ownerDeviceId, notes: '' });
+  const source = { label: 'Generated network', revision: null, recordedAt: null, retrievedAt: null, status: 'recorded',
+    acceptedAt: null, coverage: 'complete', notes: 'Fictional topology only' };
+  const cases = [
+    { name: 'direct', devices: [loop, isolated], endpoints: [], from: loop.id, to: loop.id, node: loop.label },
+    { name: 'owned-collapse', devices: [loop, isolated], endpoints: [port('port-a', loop.id), port('port-b', loop.id)], from: 'port-a', to: 'port-b', node: loop.label },
+    { name: 'ownerless', devices: [isolated], endpoints: [port('loose', null)], from: 'loose', to: 'loose', node: 'Loop endpoint' },
+  ];
+  for (const item of cases) {
+    const data = { viewKey: `generated-loop-${item.name}`, source, devices: item.devices, endpoints: item.endpoints,
+      links: [{ id: `generated-link-${item.name}`, fromEndpointId: item.from, toEndpointId: item.to, kind: 'connection', medium: 'Generated logical medium',
+        confidence: 'recorded', sourceConfidence: null, temporalStatus: '', recordedAtPrecision: null, basis: 'Generated source record', recordedAt: null, notes: '', path: null }] };
+    const before = JSON.stringify(data);
+    const html = renderToStaticMarkup(createElement(NetworkGraph, { graph: { key: data.viewKey, qualification: 'Generated documentary topology', data } }));
+    assert.match(html, /<svg class="ung-svg"[^>]*role="img"/);
+    assert.equal((html.match(/<g class="ung-node"/g) ?? []).length, 1);
+    assert.equal((html.match(/class="ung-edge-hit"/g) ?? []).length, 1);
+    assert.match(html, /class="ung-edge is-recorded" d="M[^"\n]*C[^"\n]*"/);
+    assert.doesNotMatch(html, /NaN|Infinity/);
+    assert.ok(html.includes(`${item.devices.length} ${item.devices.length === 1 ? 'device' : 'devices'}, ${item.endpoints.length} ${item.endpoints.length === 1 ? 'endpoint' : 'endpoints'}, 1 connection`));
+    assert.ok(html.includes(`Devices (${item.devices.length})`)); assert.ok(html.includes('Connections (1)'));
+    assert.ok(html.includes(`${item.node} ↔ ${item.node}`));
+    const alone = html.match(/<div class="ung-alone"[^>]*>([\s\S]*?)<\/div>/)?.[1] ?? '';
+    assert.match(alone, /Isolated device/); assert.doesNotMatch(alone, /Loop device|Loop endpoint/);
+    assert.equal((html.match(/class="ung-chip"/g) ?? []).length, 1);
+    assert.ok(html.includes('1 connection</span>')); assert.ok(html.includes('no connection</span>'));
+    assert.equal(JSON.stringify(data), before);
+  }
 }
 
 // Bounded binding-only projection: append repeated prepared primitives and
@@ -891,4 +989,5 @@ console.log('PASS unified Atlas healthy: generated scene/model read through the 
   + 'Common records/provenance are shared across two selectable Stairs parts; 32 excluded occurrences acquire no placement. '
   + 'Explicit excluded-part and wholly excluded-room bindings retain unplaced totals, original anchors, dates and inspectable source references. '
   + 'Scalar counts and selected details retain source order. '
-  + 'Generated data only; no renderer, browser or device acceptance.');
+  + 'Actual static React graph, PlanTile and AreaValue checks retain self-links, empty-floor navigation and nullable area basis. '
+  + 'Generated data only; no mounted browser, GPU or device acceptance.');

@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "3464716963a8b38e755856898650dc776c8c3d0c348a444bbf9e45097554682d",
+  "sourceDigestSha256": "6f860f789e21418070f9c8fa04ebac014cec1d236269837824fef25159f1182b",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5943,8 +5943,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 100357,
-      "sha256": "8b267ae42167a7c54f2b58615aae518ed174027e290a942f9d3cb2e0cc128755",
+      "bytes": 101988,
+      "sha256": "dce25351dc280240edf973368b1dfad955ef7531344030b4601747b935f4bd5b",
       "owner": "core-integration"
     },
     {
@@ -7756,8 +7756,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
-      "bytes": 76149,
-      "sha256": "6582ed1a471622124dc28439488503c4fef1e8ed3270abe059184a1fef9e4ed1",
+      "bytes": 84576,
+      "sha256": "9a5c9e5221b13a96cd115f5de257669f96f4fb12c7dce19a1faffe592507cda1",
       "owner": "web"
     },
     {
@@ -7798,8 +7798,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs",
       "mode": "100644",
-      "bytes": 51283,
-      "sha256": "565188f6ad7c47656c40bfd82390b89ae10972be4d9bac034cc80eff02cd8678",
+      "bytes": 54670,
+      "sha256": "9021ab3480b94f7a3e0ef98919261410da4db92125c98189f5f4fe176a75cf0f",
       "owner": "web"
     },
     {
@@ -9639,8 +9639,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/NetworkGraph.tsx",
       "mode": "100644",
-      "bytes": 30182,
-      "sha256": "aaa9ed064b48b300ea7f4326afbc65e2f2305c8798f391d5dc5bf2904e58af09",
+      "bytes": 30278,
+      "sha256": "6c13a607886d99f5f400d5162c2b9b42399fa26ce8887b0bd4e691b2e7a861bc",
       "owner": "web"
     },
     {
@@ -9653,8 +9653,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 117587,
-      "sha256": "bca10a47d5457d3eb8c25dcb53fd72b6021be585e576780a852b9b32acb84dbe",
+      "bytes": 113029,
+      "sha256": "e8c074e617fde56a54352cffb855d1bb588c088d7782c699e9013d3da06e7322",
       "owner": "web"
     },
     {
@@ -9679,6 +9679,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/unified-atlas/plan-presentation.tsx",
+      "mode": "100644",
+      "bytes": 6097,
+      "sha256": "0ed6705db04a82fef5b9beb9d266bedac48887d50605bb79399873573f098978",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/unified-atlas/runtime-overlays.ts",
       "mode": "100644",
       "bytes": 24487,
@@ -9688,8 +9695,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/scene.ts",
       "mode": "100644",
-      "bytes": 76026,
-      "sha256": "f52a0ace0bba69a51bc9233eadb81affd4aa7d9d3914cc095e15081de7f66ecc",
+      "bytes": 76843,
+      "sha256": "2bf454980555471573643d0ee92041ce87734acc9652cf4dc41d0ada8d7cb9a9",
       "owner": "web"
     },
     {

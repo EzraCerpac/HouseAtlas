@@ -86,12 +86,16 @@ function buildGraph(data: NetworkOverlayData) {
 }
 
 /** Deterministic radial trees, one per connected group, largest first and
- * packed in rows; records with no connection to another node are listed apart. */
+ * packed in rows; records with no incident link are listed apart. */
 function layoutGraph(nodes: ReadonlyMap<string, GraphNode>, edges: readonly GraphEdge[]) {
   const order = [...nodes.values()].sort((p, q) => KIND_ORDER[p.kind] - KIND_ORDER[q.kind] || p.label.localeCompare(q.label) || (p.id < q.id ? -1 : 1));
   const rank = new Map(order.map((node, at) => [node.id, at]));
   const near = new Map(order.map(node => [node.id, new Set<string>()]));
-  for (const edge of edges) if (edge.a !== edge.b) { near.get(edge.a)!.add(edge.b); near.get(edge.b)!.add(edge.a); }
+  const incident = new Set<string>();
+  for (const edge of edges) {
+    incident.add(edge.a); incident.add(edge.b);
+    if (edge.a !== edge.b) { near.get(edge.a)!.add(edge.b); near.get(edge.b)!.add(edge.a); }
+  }
   const degree = (id: string) => near.get(id)!.size;
   const weight = (p: string, q: string) => degree(q) - degree(p) || rank.get(p)! - rank.get(q)!;
 
@@ -102,8 +106,8 @@ function layoutGraph(nodes: ReadonlyMap<string, GraphNode>, edges: readonly Grap
     for (let at = 0; at < group.length; at++) for (const next of near.get(group[at]!)!) if (!seen.has(next)) { seen.add(next); group.push(next); }
     groups.push(group);
   }
-  const linked = groups.filter(group => group.length > 1).sort((p, q) => q.length - p.length || rank.get(p[0]!)! - rank.get(q[0]!)!);
-  const alone = groups.filter(group => group.length === 1).map(group => group[0]!);
+  const linked = groups.filter(group => incident.has(group[0]!)).sort((p, q) => q.length - p.length || rank.get(p[0]!)! - rank.get(q[0]!)!);
+  const alone = groups.filter(group => !incident.has(group[0]!)).map(group => group[0]!);
 
   const trees = linked.map(group => {
     const root = [...group].sort(weight)[0]!;

@@ -608,14 +608,15 @@ export function hasExplodableLevels(model: AtlasModel, buildingId: string | null
 }
 
 /** Opens on the host-bound entry building when it has floors; an explicit
- * context-only entry opens the property. With no entry, opens on the only
+ * context-only entry opens the property. With no entry or an unknown entry, opens on the only
  * building with floors, else the property. Names, plan order and size never
  * choose an entry. Floors
  * open in their source positions; only the explicit control separates them. */
 export function initialAtlasState(model: AtlasModel, entryBuildingId: string | null = null): AtlasViewState {
+  const known = entryBuildingId !== null && model.buildingsById.has(entryBuildingId);
   const entry = entryBuildingId !== null && model.floorBuildings.some(building => building.buildingId === entryBuildingId) ? entryBuildingId : null;
   const single = model.floorBuildings.length === 1 ? model.floorBuildings[0]!.buildingId : null;
-  return { buildingId: entryBuildingId === null ? single : entry, levelId: null, occurrenceId: null, view: '3d', exploded: false, layers: NO_LAYERS };
+  return { buildingId: known ? entry : single, levelId: null, occurrenceId: null, view: '3d', exploded: false, layers: NO_LAYERS };
 }
 
 /** The building a plan or floor list follows: the chosen one, else the selected room's, else the default. */
@@ -986,7 +987,7 @@ function* pickRanges(mesh: PreparedMesh, projection: Projection, lift: number, p
   }
 }
 
-interface RayHit { readonly depth: number; readonly y: number }
+interface RayHit { readonly depth: number; readonly y: number; readonly normalY: number }
 /** Nearest drawn point of one part under a pixel, at its lift and below its section. */
 function rayHit(part: AtlasPart, lift: number, clip: number | null, projection: Projection, px: number, py: number): RayHit | null {
   if (clip !== null && part.mesh.yRange[0] > clip) return null;
@@ -1010,7 +1011,13 @@ function rayHit(part: AtlasPart, lift: number, clip: number | null, projection: 
     const sourceY = l1 * data[base + 1]! + l2 * data[base + 7]! + l3 * data[base + 13]!;
     if (clip !== null && sourceY > clip) continue;
     const depth = l1 * a[2] + l2 * b[2] + l3 * c[2];
-    if (best === null || depth > best.depth) best = { depth, y: sourceY };
+    if (best === null || depth > best.depth) {
+      // Use the winning triangle's geometry, not an authored shading normal.
+      const ux = data[base + 6]! - data[base]!, uy = data[base + 7]! - data[base + 1]!, uz = data[base + 8]! - data[base + 2]!;
+      const vx = data[base + 12]! - data[base]!, vy = data[base + 13]! - data[base + 1]!, vz = data[base + 14]! - data[base + 2]!;
+      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx, length = Math.hypot(nx, ny, nz);
+      best = { depth, y: sourceY, normalY: length > 0 ? ny / length : 0 };
+    }
   }
   return best;
 }
@@ -1067,8 +1074,9 @@ export function surfaceLevel(model: AtlasModel, levelIds: readonly string[], y: 
   return tied ? null : best;
 }
 
-/** One semantic target for a 3D tap. A room proxy may pass through its own
- * floor's structure, but another floor's opaque surface or any opaque roof
+/** One semantic target for a 3D tap. A room proxy may pass through a nearly
+ * horizontal structure skin at its own floor height, but opaque walls,
+ * another floor's opaque surface or any opaque roof or slab
  * still occludes it while a cutaway transitions. Otherwise the nearest
  * visible surface selects its building from the property or from another
  * building's scope, and its floor from the building's own scope or any floor.
@@ -1080,7 +1088,9 @@ export function pickTarget(model: AtlasModel, presentation: AtlasPresentation, s
   const occurrence = room ? model.occurrencesById.get(room.occurrenceId)! : null;
   const ownFloor = surface && occurrence && surface.part.role === 'structure'
     && surface.part.buildingId === occurrence.buildingId
-    && surfaceLevel(model, surface.part.levelIds, surface.hit.y) === occurrence.levelId;
+    && surfaceLevel(model, surface.part.levelIds, surface.hit.y) === occurrence.levelId
+    && Math.abs(surface.hit.normalY) >= .99
+    && Math.abs(surface.hit.y - model.floorY.get(occurrence.levelId)!) <= PICK_DEPTH_TOLERANCE;
   if (room && (!surface || ownFloor || room.depth >= surface.hit.depth - PICK_DEPTH_TOLERANCE))
     return { kind: 'room', occurrenceId: room.occurrenceId };
   if (!surface) return null;
