@@ -80,3 +80,15 @@ SHA/size/MIME pin in the closure. Changed worker code has a distinct cache name;
 installation preserves an already verified matching cache and only removes old
 build caches after replacement activation. The named mounting positive checks
 this wiring; update failure paths receive static review only.
+
+Production entries and public shell sealing apply only when Vite's resolved root
+is the frontend directory. Existing fixture-root builds retain their own default
+`index.html` and do not seal a saved shell. The named mounting positive checks
+this root-scoped configuration. The supported source-host compatibility build,
+from `frontend`, is:
+
+```sh
+npm exec vite build -- lantern-tests/source-host-visual --config vite.config.ts --outDir /absolute/task/evidence/source-host-compat-dist --emptyOutDir
+```
+
+It compiles generated fixture UI only and opens no listener/browser/provider.

@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "6f860f789e21418070f9c8fa04ebac014cec1d236269837824fef25159f1182b",
+  "sourceDigestSha256": "1c6b0f3332394758141b659438ed3380a1aa3316e08787d12f0c82760ef643e1",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -6307,8 +6307,8 @@
     {
       "path": "docs/offline/saved-atlas-mounting.md",
       "mode": "100644",
-      "bytes": 4769,
-      "sha256": "1f7651ee685a6b8e1dc5188c0b9b7e5692376d966446802b4ca165a510fdee5d",
+      "bytes": 5352,
+      "sha256": "385c507b62c7547169404f1cc76daba2d3aa0cb8dccf01f52444e1516c35bc63",
       "owner": "web"
     },
     {
@@ -6748,8 +6748,8 @@
     {
       "path": "frontend/build/offline-shell-plugin.mjs",
       "mode": "100644",
-      "bytes": 2807,
-      "sha256": "45476c8db242eb7569297534170392d08937439c6ade8cbd89557561695644c2",
+      "bytes": 3351,
+      "sha256": "efaceb2a601389fd018fe82a2f4213e251367be0ca27e26ac33f03e2c3cee7d6",
       "owner": "web"
     },
     {
@@ -7455,8 +7455,8 @@
     {
       "path": "frontend/lantern-tests/offline-atlas-mounting-healthy.mjs",
       "mode": "100644",
-      "bytes": 2635,
-      "sha256": "72d783cb612d467e6ab8c167dbab1f92aa67cafb6558ee6ddc1cf7688e1f1014",
+      "bytes": 2922,
+      "sha256": "6ad2af754391417a543be3860ca6d402a271589f2871aa6e1004de951e71f4bd",
       "owner": "web"
     },
     {
@@ -10080,8 +10080,8 @@
     {
       "path": "frontend/vite.config.ts",
       "mode": "100644",
-      "bytes": 1262,
-      "sha256": "8859c31e8b3e0ba1049be60bee6ee13177e489a48ea963318ec476c422e2971f",
+      "bytes": 1198,
+      "sha256": "1c8028a092466d5c2598022e1929c913d2cfaa0bfcd0eb8c8b3f2a9c1b291960",
       "owner": "core-integration"
     },
     {

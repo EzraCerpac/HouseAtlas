@@ -6,10 +6,22 @@ const MIME = { html: 'text/html', js: 'text/javascript', css: 'text/css', woff2:
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 /** Seal emitted public assets only. No application/pack bytes enter this table. */
 export function offlineShellPlugin() {
-  let output;
+  const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+  let output, productionRoot = false;
   return { name: 'houseatlas-saved-public-shell', apply: 'build',
-    configResolved(config) { output = resolve(config.root, config.build.outDir); },
+    config(config) {
+      // Fixture-root builds keep Vite's own root/index.html default.
+      if (resolve(config.root ?? process.cwd()) !== frontendRoot) return;
+      return { build: { rolldownOptions: { input: {
+        live: join(frontendRoot, 'index.html'), saved: join(frontendRoot, 'saved/index.html'),
+      } } } };
+    },
+    configResolved(config) {
+      productionRoot = resolve(config.root) === frontendRoot;
+      output = resolve(config.root, config.build.outDir);
+    },
     closeBundle() {
+      if (!productionRoot) return;
       const table = [];
       function walk(directory) {
         for (const entry of readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {

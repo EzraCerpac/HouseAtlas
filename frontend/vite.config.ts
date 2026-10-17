@@ -10,7 +10,6 @@ export default defineConfig({
   build: {
     sourcemap: false,
     rolldownOptions: {
-      input: { live: 'index.html', saved: 'saved/index.html' },
       output: {
         postBanner: threeNoticeBanner(process.cwd()),
         // React loads eagerly in its own chunk so the entry stays within the
