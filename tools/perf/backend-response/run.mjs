@@ -8,7 +8,6 @@ import { fileURLToPath } from 'node:url';
 import { gitIdentity, sourceRoot } from '../harness/source.mjs';
 
 const BASE = '968a17f78979b7827387af0984333fb64c55a9f6';
-const PR200 = '7174252a67c85f8417f3646cf82a49c058f3d8d6';
 const root = sourceRoot(fileURLToPath(new URL('../../../', import.meta.url)));
 const own = fileURLToPath(new URL('./', import.meta.url));
 assert.equal(process.version, 'v26.10.0');
@@ -32,12 +31,11 @@ const observed = ['backend/src/http/mod.rs', 'backend/src/domain/model.rs', 'bac
   'tools/perf/backend-response/run.mjs', 'tools/perf/backend-response/worker.rs', 'tools/perf/backend-response/README.md'];
 const hashes = () => Object.fromEntries(observed.map(path => [path, hash(readFileSync(join(root, path)))]));
 const beforeHashes = hashes();
-// The actual PR200 fixture module supplies its sizes and repetition policy.
-// Geometry generation remains unused in this supplemental Rust lane.
-const profileSource = git(['show', `${PR200}:tools/perf/model-interaction/fixtures.mjs`]);
-const { PROFILE } = await import(`data:text/javascript;base64,${Buffer.from(profileSource).toString('base64')}`);
-const profile = { sizes: PROFILE.sizes, warmups: PROFILE.warmups, repetitions: PROFILE.repetitions,
-  allocationRepetitions: PROFILE.allocationRepetitions };
+// Fixed PR200 CPU profile, copied from the public fixture module at
+// 7174252a67c85f8417f3646cf82a49c058f3d8d6. Keep reproduction independent
+// of that unrelated historical Git object; geometry generation remains unused.
+const profile = Object.freeze({ sizes: Object.freeze([100, 1000, 5000]),
+  warmups: 3, repetitions: 9, allocationRepetitions: 3 });
 // Fail if the shared domain/fixture code diverges from the baseline: both
 // extracted functions are intentionally linked against one identical peer.
 for (const path of observed.filter(path => path.startsWith('backend/') && path !== sourcePath))
@@ -96,7 +94,9 @@ try {
   assert.deepEqual(hashes(), beforeHashes);
   const document = { format: 'houseatlas.perf.backend-response/1', synthetic: true, observedAt: new Date().toISOString(),
     baseline: { commit: BASE, tree: git(['rev-parse', `${BASE}^{tree}`]).trim(), sourceSha256: hash(baselineCode) }, source: identity, files: beforeHashes,
-    harnessReuse: { commit: PR200, profileSourceSha256: hash(profileSource), profile },
+    harnessReuse: { commit: '7174252a67c85f8417f3646cf82a49c058f3d8d6',
+      profileSourceSha256: 'b689f49d56507f7e12c20008fb5cab7f369241086519f911f7160e32eaea40c0',
+      profileSource: 'fixed-retained-values-in-run.mjs', profile },
     environment: { node: process.version, platform: process.platform, arch: process.arch, cpu: cpus()[0]?.model, logicalCpus: cpus().length,
       rustc: execFileSync(rustc, ['-Vv'], { env: environment, encoding: 'utf8' }),
       optimization: 'dev opt-level=1 debug=0 strip=none', deploymentTarget: environment.MACOSX_DEPLOYMENT_TARGET ?? null,

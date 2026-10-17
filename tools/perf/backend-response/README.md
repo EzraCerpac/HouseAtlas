@@ -3,19 +3,21 @@
 This supplemental local CPU lane compares the accepted `968a17f78979b7827387af0984333fb64c55a9f6`
 browser preparation bodies with this checkout's exact bodies. It does not change
 the existing performance contract, reporting adapter, workflow or PR200 harness.
-It imports the existing harness's Git identity helper and the actual PR200
-`PROFILE` at `7174252a67c85f8417f3646cf82a49c058f3d8d6`: 100, 1,000 and 5,000
-generated records, three warmups, nine timing samples and three allocation
-observations. It runs three fresh timing processes, alternating before/after
+It imports the existing harness's Git identity helper and retains the fixed
+PR200 CPU profile directly in `run.mjs`: 100, 1,000 and 5,000 generated records,
+three warmups, nine timing samples and three allocation observations. These
+values match the public fixture module at
+`7174252a67c85f8417f3646cf82a49c058f3d8d6`; that unrelated Git object is not a
+runtime prerequisite. It runs three fresh timing processes, alternating before/after
 order within each process, plus three allocation-counting processes. The timing
 build uses the normal allocator; instrumentation is compiled only into the
 allocation build. These are supplemental measurements, not reporting-contract
 rows or hosted CI evidence.
 
 Inspect `run.mjs`, `worker.rs`, the selected production browser functions,
-`lifecycle::fixture` and the PR200 fixture module before running. PR200's exact
-commit must already exist in the local object database. Use Node 26.10.0 and
-Rust 1.99.0. Run from a clean isolated checkout without simultaneous CPU-heavy
+`lifecycle::fixture` and the retained profile before running. The baseline
+`968a17f` must be present in the checkout's normal ancestry; no PR200 object or
+additional history fetch is required. Use Node 26.10.0 and Rust 1.99.0. Run from a clean isolated checkout without simultaneous CPU-heavy
 work. The absolute compiler path avoids mixing versions through PATH shims.
 
 ```sh
