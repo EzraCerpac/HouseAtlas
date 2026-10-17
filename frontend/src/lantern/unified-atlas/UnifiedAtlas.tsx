@@ -14,10 +14,11 @@ import { PREPARED_BYTES_PER_TRIANGLE } from '../site-artifacts/site-budget';
 import type { ModelOverviewSelection } from '../source-models/overview-types';
 import {
   atlasOrigin, atlasReducer, bindAtlasModel, contextOccurrenceIds, easePresentation, focusBuildingId, frameBox, hasExplodableLevels, initialAtlasState, labelHeight,
-  levelLift, occurrenceLiftLevel, partLifts, pickOccurrence, planPickOccurrence, planPoint, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
+  levelLift, occurrenceLiftLevel, partLifts, pickOccurrence, planFeaturesForLevel, planPickOccurrence, planPoint, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
   type AtlasAction, type AtlasModel, type AtlasViewState, type OverlayLayerIndex, type UnplacedReason,
 } from './scene';
-import { AtlasReadError, type AtlasLevel, type AtlasOccurrence, type AtlasRoom, type AtlasOverlayBinding, type AtlasReadFailure, type OverlayKind, type UnifiedAtlasPort } from './types';
+import { AtlasReadError, type AtlasLevel, type AtlasOccurrence, type AtlasRoom, type AtlasReadFailure, type OverlayKind, type UnifiedAtlasPort } from './types';
+import { PublishedOverlayDetails } from './PublishedOverlayDetails';
 import { floorLabel } from './labels';
 import { documentaryOverlayIndex, type RuntimeRecords, type DocumentaryRecord, type SourceFact } from './runtime-overlays';
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
@@ -147,7 +148,7 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
   // Overlay rooms light in the layer tint; hidden room picks become visible for them only.
   const tints = useMemo(() => {
     const map = new Map<string, string>();
-    if (layer) for (const placement of layer.placed.values()) for (const key of placement.occurrenceIds) map.set(key, toneTint(layer.kind));
+    if (layer) for (const placement of layer.placed.values()) map.set(placement.occurrenceId, toneTint(layer.kind));
     return map;
   }, [layer]);
   // Keyed by content, so an unchanged highlight set keeps the presentation stable.
@@ -225,7 +226,7 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
 
   // Plan geometry relative to the fixed origin; one translate follows the eased centre.
   const planLevelId = presentation.focusLevelId;
-  const planFeatures = useMemo(() => planLevelId === null ? [] : model.planByLevel.get(planLevelId)?.features ?? [], [model, planLevelId]);
+  const planFeatures = useMemo(() => planLevelId === null ? [] : planFeaturesForLevel(model, planLevelId), [model, planLevelId]);
   const planPaths = useMemo(() => planFeatures.map(feature => relativePath(model.featureRings.get(feature.featureId)!, origin)), [planFeatures, model, origin]);
   const planY = planLevelId === null ? 0 : model.floorY.get(planLevelId)! + levelLift(presentation, planLevelId, t);
   const planTransform = `${projection.planMatrix(planY)} translate(${origin[0] - projection.center[0]} ${origin[2] - projection.center[2]})`;
@@ -248,7 +249,8 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
   const markers = useMemo(() => {
     if (!layer) return [];
     const rows: { key: string; occurrenceId: string; roomLabel: string; count: number; x: number; y: number }[] = [];
-    for (const placement of layer.placed.values()) for (const occurrenceId of placement.occurrenceIds) {
+    for (const placement of layer.placed.values()) {
+      const occurrenceId = placement.occurrenceId;
       if (!live.has(occurrenceId)) continue;
       const at = anchorOf(occurrenceId); if (!at) continue;
       rows.push({ key: `${layer.kind}:${occurrenceId}`, occurrenceId, roomLabel: model.roomsById.get(placement.roomId)!.label,
@@ -260,10 +262,10 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
   const markerAt = useMemo(() => new Set(markers.map(row => row.occurrenceId)), [markers]);
   const positions = useMemo(() => {
     if (!layer) return [];
-    return [...layer.placed.values()].flatMap(placement => placement.positions.flatMap(row => {
+    return [...layer.placed.values()].flatMap(placement => placement.positions.flatMap((row, at) => {
       if (!live.has(row.occurrenceId)) return [];
       const [x, y] = projection.project(row.position[0], row.position[1] + lift(row.occurrenceId), row.position[2]);
-      return [{ key: `${row.occurrenceId}:${row.position.join(',')}`, x, y }];
+      return [{ key: JSON.stringify([layer.kind, row.occurrenceId, at]), x, y }];
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layer, live, presentation, projection, t]);
@@ -489,7 +491,7 @@ function DatumLadder({ model, levels, building, state, plan, dispatch, selection
         const current = state.levelId === level.levelId;
         const holds = selectionLevel === level.levelId, also = !holds && contextLevels.has(level.levelId);
         const rooms = level.occurrenceIds.filter(key => model.selectable.has(key)).length;
-        const hasPlan = model.planByLevel.has(level.levelId);
+        const hasPlan = model.plansByLevel.has(level.levelId);
         // Spacing above this floor: its height difference to the floor listed before it.
         return <li key={level.levelId} style={at > 0 ? { '--rung-gap': `${gaps[at - 1]}px` } as CSSProperties : undefined}>
           <button type="button" className={`ua-rung${current ? ' is-current' : ''}`} aria-pressed={current}
@@ -567,7 +569,9 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
   const basis = occurrence.geometryBasis;
   const overlays = (['electrical', 'network'] as const).map(kind => {
     const index = model.overlays.get(kind)!;
-    return { kind, placement: index.placed.get(room.roomId) ?? null, unplaced: index.unplaced.filter(row => row.binding.roomId === room.roomId) };
+    return { kind, placement: index.placed.get(occurrence.spaceOccurrenceId) ?? null,
+      unplaced: index.unplaced.filter(row => row.binding.roomId === room.roomId
+        && (row.binding.spaceOccurrenceId === null || row.binding.spaceOccurrenceId === occurrence.spaceOccurrenceId)) };
   }).filter(row => !runtimeConfigured && (row.placement || row.unplaced.length > 0));
   return <aside className={`ua-inspector is-room${open ? ' is-open' : ''}`} aria-label="Selected room">
     <div className="ua-sheet-head">
@@ -602,12 +606,7 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
       {overlays.length > 0 && <section className="ua-records" aria-label="Records in this room">
         {overlays.map(({ kind, placement, unplaced }) => <div key={kind} className="ua-record" style={{ '--layer': TONE_COLOR[kind] } as CSSProperties}>
           <h3><Icon name={OVERLAY_ICON[kind]} size={16} />{OVERLAY_LABEL[kind]}</h3>
-          {placement && <>
-            <p>{plural(placement.recordIds.length, 'record')}{placement.positions.length > 0 ? `, ${placement.positions.length} with a source position` : ''}</p>
-            <SourceDates bindings={placement.bindings} />
-            <details className="ua-refs"><summary>Record references</summary>
-              <ul>{placement.recordIds.map(record => <li key={record}>{record}</li>)}</ul></details>
-          </>}
+          {placement && <PublishedOverlayDetails placement={placement} />}
           {unplaced.length > 0 && <p className="ua-unplaced">
             {plural(new Set(unplaced.flatMap(row => row.binding.recordIds)).size, 'record')} not placed: {[...new Set(unplaced.map(row => UNPLACED_LABEL[row.reason]))].join('; ')}.</p>}
           {kind === 'network' && <button type="button" className="text-btn" onClick={openNetwork}>Open Network</button>}
@@ -630,17 +629,6 @@ function DocumentaryRecords({ records, openDocuments }: { readonly records: read
       {record.sourceFacts.map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value ?? 'unknown'}</dd></div>)}
     </dl></details>
   </details>)}</div>;
-}
-
-function SourceDates({ bindings }: { readonly bindings: readonly AtlasOverlayBinding[] }) {
-  const rows = [...new Map(bindings.map(row => [`${row.sourceRevision}|${row.sourceUpdatedAt}|${row.retrievedAt}`, row])).values()];
-  return <ul className="ua-dates">
-    {rows.map(row => <li key={`${row.sourceRevision}|${row.sourceUpdatedAt}|${row.retrievedAt}`}>
-      Source {row.sourceRevision}
-      {row.sourceUpdatedAt ? <>, updated <time dateTime={row.sourceUpdatedAt}>{row.sourceUpdatedAt}</time></> : ', update date unknown'}
-      {row.retrievedAt ? <>, retrieved <time dateTime={row.retrievedAt}>{row.retrievedAt}</time></> : ', retrieval date unknown'}
-    </li>)}
-  </ul>;
 }
 
 function RoomList({ model, levels, choose, levelName }: {

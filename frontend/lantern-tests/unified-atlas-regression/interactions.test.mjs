@@ -146,9 +146,9 @@ test('electrical/network/rooms toggles preserve selected room and bind only the 
   }
   const electrical = model.overlays.get('electrical'), network = model.overlays.get('network');
   assert.deepEqual([electrical.records, network.records], [4, 1]);
-  assert.deepEqual(network.placed.get('syn-room-stairs').occurrenceIds, ['syn-occ-stairs-ground', 'syn-occ-stairs-upper']);
-  assert.equal(network.placed.get('syn-room-stairs').bindings[0].sourceUpdatedAt, null);
-  assert.equal(electrical.placed.get('syn-room-living').positions[0].occurrenceId, 'syn-occ-living');
+  assert.deepEqual([...network.placed.keys()], ['syn-occ-stairs-ground', 'syn-occ-stairs-upper']);
+  assert.equal(network.placed.get('syn-occ-stairs-ground').bindings[0].sourceUpdatedAt, null);
+  assert.equal(electrical.placed.get('syn-occ-living').positions[0].occurrenceId, 'syn-occ-living');
 });
 
 test('runtime documentary summaries count records once while marking both parts of a room', () => {
@@ -159,8 +159,8 @@ test('runtime documentary summaries count records once while marking both parts 
     network: 'available', electrical: 'unavailable', sourceFacts: [], unplaced: { network: [], electrical: [] } };
   const index = api.documentaryOverlayIndex(model, records, 'network');
   assert.equal(index.records, 1);
-  assert.equal(index.placed.get('syn-room-stairs').occurrenceIds.length, 2);
-  assert.deepEqual(index.placed.get('syn-room-stairs').positions, [], 'Summary counts never invent device positions');
+  assert.deepEqual([...index.placed.keys()], ['syn-occ-stairs-ground', 'syn-occ-stairs-upper']);
+  assert.deepEqual(index.placed.get('syn-occ-stairs-ground').positions, [], 'Summary counts never invent device positions');
 });
 
 test('normal pointer tap selects through the real CPU picker; drag or pinch changes camera without selecting', () => {

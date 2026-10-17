@@ -109,8 +109,8 @@ try {
     const consumerModel={roomsById:new Map([[publishedRoom.roomId,publishedRoom]]),selectable:new Set(['occurrence:one','occurrence:two'])};
     for(const kind of ['network','electrical']){
       const index=documentaryOverlayIndex(consumerModel,records,kind);
-      assert.deepEqual(index.placed.get(publishedRoom.roomId).occurrenceIds,['occurrence:one','occurrence:two']);
-      assert.deepEqual(index.placed.get(publishedRoom.roomId).positions,[]);
+      assert.deepEqual([...index.placed.keys()],['occurrence:one','occurrence:two']);
+      assert.deepEqual(index.placed.get('occurrence:one').positions,[]);
       assert.equal(index.records,kind==='network'?4:2);assert.equal(index.unplacedRecords,kind==='network'?3:0);
     }
     const refreshDeadline=Date.now()+15_000;

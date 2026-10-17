@@ -14,7 +14,8 @@ assert.deepEqual(process.argv.slice(2), [], 'This runner takes no arguments');
 const dataURL = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
 async function sourceURL(relative, replacements = {}) {
   const file = new URL(relative, import.meta.url);
-  let { code } = await transformWithOxc(readFileSync(file, 'utf8'), file.pathname, { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
+  let { code } = await transformWithOxc(readFileSync(file, 'utf8'), file.pathname, {
+    lang: file.pathname.endsWith('.tsx') ? 'tsx' : 'ts', jsx: { runtime: 'automatic' }, target: 'esnext', tsconfig: false, sourcemap: false });
   for (const [specifier, url] of Object.entries(replacements)) {
     assert.ok(code.includes(JSON.stringify(specifier)), `Missing import ${specifier} in ${relative}`);
     code = code.replaceAll(JSON.stringify(specifier), JSON.stringify(url));
@@ -24,6 +25,12 @@ async function sourceURL(relative, replacements = {}) {
   return dataURL(code);
 }
 const frontend = new URL('../', import.meta.url);
+const { createElement } = await import(new URL('./node_modules/react/index.js', frontend).href);
+const { renderToStaticMarkup } = await import(new URL('./node_modules/react-dom/server.node.js', frontend).href);
+const detailsURL = await sourceURL('../src/lantern/unified-atlas/PublishedOverlayDetails.tsx', {
+  'react/jsx-runtime': new URL('./node_modules/react/jsx-runtime.js', frontend).href,
+});
+const { PublishedOverlayDetails } = await import(detailsURL);
 const threeURL = new URL('./node_modules/three/build/three.module.js', frontend).href;
 const gltfLoaderURL = new URL('./node_modules/three/examples/jsm/loaders/GLTFLoader.js', frontend).href;
 const pointersURL = await sourceURL('../src/lantern/canonical-ifc/stage-pointers.ts');
@@ -157,14 +164,101 @@ assert.equal(model.occurrencesById.get('syn-occ-study').geometryBasis.kind, 'own
 
 // ---- Overlay joins: publication + room + reviewed native place only -----------------------
 const electrical = model.overlays.get('electrical'), network = model.overlays.get('network');
-assert.deepEqual([...electrical.placed.keys()].sort(), ['syn-room-hall', 'syn-room-living']);
-assert.deepEqual(electrical.placed.get('syn-room-hall').occurrenceIds, ['syn-occ-hall']);
-assert.equal(electrical.placed.get('syn-room-hall').recordIds.length, 3);
-assert.deepEqual(electrical.placed.get('syn-room-living').positions.map(row => row.occurrenceId), ['syn-occ-living']);
+assert.deepEqual([...electrical.placed.keys()].sort(), ['syn-occ-hall', 'syn-occ-living']);
+assert.equal(electrical.placed.get('syn-occ-hall').occurrenceId, 'syn-occ-hall');
+assert.equal(electrical.placed.get('syn-occ-hall').recordIds.length, 3);
+assert.deepEqual(electrical.placed.get('syn-occ-living').positions.map(row => row.occurrenceId), ['syn-occ-living']);
 assert.deepEqual(electrical.unplaced, []);
-assert.deepEqual(network.placed.get('syn-room-stairs').occurrenceIds, ['syn-occ-stairs-ground', 'syn-occ-stairs-upper']);
+assert.deepEqual([...network.placed.keys()], ['syn-occ-stairs-ground', 'syn-occ-stairs-upper']);
 assert.deepEqual(network.unplaced, []);
 assert.deepEqual([electrical.records, electrical.unplacedRecords, network.records, network.unplacedRecords], [4, 0, 1, 0]);
+
+// A valid mixed-scope source projection on one logical two-floor room. Shared
+// facts fan out, explicit records/dates/positions stay on their own occurrence.
+const shared = { ...read.scene.overlayBindings.find(row => row.kind === 'network'), recordIds: ['generated:shared'],
+  sourceRevision: 'a|b', sourceUpdatedAt: 'c', retrievedAt: 'd' };
+const ground = { ...shared, recordIds: ['generated:ground'], spaceOccurrenceId: 'syn-occ-stairs-ground',
+  sourceRevision: 'a', sourceUpdatedAt: 'b|c',
+  anchor: { kind: 'source-position', position: [105, 0.3, 57], basis: positioned.anchor.basis } };
+const upper = { ...shared, recordIds: ['generated:upper'], spaceOccurrenceId: 'syn-occ-stairs-upper',
+  sourceRevision: 'Generated upper revision', sourceUpdatedAt: null, anchor: { kind: 'room-summary' } };
+const scopedScene = { ...read.scene, overlayBindings: [shared, ground, upper] };
+const scoped = bindAtlasModel(scopedScene, loaded).overlays.get('network');
+const groundPlacement = scoped.placed.get('syn-occ-stairs-ground'), upperPlacement = scoped.placed.get('syn-occ-stairs-upper');
+assert.deepEqual(groundPlacement.recordIds, ['generated:shared', 'generated:ground']);
+assert.deepEqual(upperPlacement.recordIds, ['generated:shared', 'generated:upper']);
+assert.deepEqual(groundPlacement.bindings, [shared, ground]); assert.deepEqual(upperPlacement.bindings, [shared, upper]);
+assert.deepEqual(groundPlacement.positions, [{ occurrenceId: ground.spaceOccurrenceId, position: ground.anchor.position, basis: ground.anchor.basis }]);
+assert.deepEqual(upperPlacement.positions, []); assert.equal(scoped.records, 3);
+const groundHTML = renderToStaticMarkup(createElement(PublishedOverlayDetails, { placement: groundPlacement }));
+assert.ok(groundHTML.includes(ground.anchor.basis), 'Actual React details retain the full source-position basis');
+assert.ok(groundHTML.includes('Model-frame coordinates; physical registration unknown.'));
+assert.ok(groundHTML.includes('generated:ground') && !groundHTML.includes('generated:upper'));
+assert.ok(!groundHTML.includes('Generated upper revision'), 'Another floor source date is not rendered');
+const unknownDate = { ...shared, sourceRevision: 'Generated unknown', sourceUpdatedAt: null, retrievedAt: null };
+const literalNull = { ...unknownDate, sourceUpdatedAt: 'null' };
+const datesHTML = renderToStaticMarkup(createElement(PublishedOverlayDetails, {
+  placement: { ...groundPlacement, bindings: [shared, ground, unknownDate, literalNull, shared] },
+}));
+const dateList = datesHTML.match(/<ul class="ua-dates">([\s\S]*?)<\/ul>/)[1];
+assert.equal((dateList.match(/<li>/g) ?? []).length, 4, 'Distinct delimiter/null tuples survive; only the exact repeated tuple is grouped');
+assert.ok(dateList.includes('a|b') && dateList.includes('b|c') && dateList.includes('update date unknown') && dateList.includes('>null</time>'));
+const buildingPosition = { ...shared, anchor: { kind: 'source-position', position: [105, 0.3, 57], basis: 'Generated building source position; occurrence not specified.' } };
+const buildingHTML = renderToStaticMarkup(createElement(PublishedOverlayDetails, {
+  placement: { ...groundPlacement, positions: [], bindings: [buildingPosition] },
+}));
+assert.ok(buildingHTML.includes(buildingPosition.anchor.basis) && buildingHTML.includes('<dd>Unspecified</dd>'));
+
+// Owner-confirmed contract: distinct plans may share a level. Split the
+// generated source features into two authored plans without changing geometry.
+const multiple = JSON.parse(new TextDecoder().decode(companionBytes));
+const authored = multiple.plans[0], midpoint = Math.ceil(authored.features.length / 2);
+const firstPlan = { ...authored, features: authored.features.slice(0, midpoint) };
+firstPlan.featureIds = firstPlan.features.map(row => row.featureId);
+const secondPlan = { ...authored, planId: `${authored.planId}:second`, features: authored.features.slice(midpoint) };
+secondPlan.featureIds = secondPlan.features.map(row => row.featureId);
+multiple.plans.splice(0, 1, firstPlan, secondPlan);
+const multipleEnvelope = await composeAtlasEnvelope(new TextEncoder().encode(JSON.stringify(multiple)), glb, SYNTHETIC_ATLAS.revision);
+const multipleRead = await readUnifiedAtlas({ selection: { ...selection, manifestSha256: multipleEnvelope.manifestSha256 },
+  signal: new AbortController().signal, origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true,
+  transport: createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(scope), envelopeBytes: multipleEnvelope.envelopeBytes,
+    href: multipleEnvelope.href, glb, sha256: multipleEnvelope.sha256, manifestSha256: multipleEnvelope.manifestSha256, revision: SYNTHETIC_ATLAS.revision }) });
+const multipleModel = bindAtlasModel(multipleRead.scene, await loadStandardGlb(multipleRead.model, 'multiple-plans', new AbortController().signal));
+assert.deepEqual(multipleModel.plansByLevel.get(authored.levelId).map(row => row.planId), [firstPlan.planId, secondPlan.planId]);
+assert.ok(Object.isFrozen(multipleModel.plansByLevel.get(authored.levelId)));
+assert.deepEqual(scene.planFeaturesForLevel(multipleModel, authored.levelId).map(row => row.featureId), authored.features.map(row => row.featureId));
+const multipleState = { ...initialAtlasState(multipleModel), buildingId: authored.buildingId, levelId: authored.levelId, view: 'plan' };
+const multiplePresentation = presentAtlas(multipleModel, multipleState, new Set());
+assert.deepEqual(frameBox(multipleModel, multipleState, multiplePresentation), frameBox(model, multipleState, presentAtlas(model, multipleState, new Set())));
+for (const key of multipleModel.levelsById.get(authored.levelId).occurrenceIds.filter(key => multipleModel.selectable.has(key))) {
+  const point = multipleModel.labels.get(key);
+  assert.equal(planPickOccurrence(multipleModel, multiplePresentation, authored.levelId, point.x, point.z), key);
+}
+
+// Bounded binding-only projection: append repeated prepared primitives and
+// room features, retaining original ring/hole grouping and loaded part order.
+// This is not a new GLB publication or backend geometry admission.
+const manyScene = structuredClone(read.scene), galleryId = 'syn-occ-gallery', repeats = 128;
+const galleryPlan = manyScene.plans.find(plan => plan.features.some(feature => feature.spaceOccurrenceId === galleryId));
+const galleryFeature = galleryPlan.features.find(feature => feature.spaceOccurrenceId === galleryId && feature.role === 'room');
+const originalGalleryFeatures = galleryPlan.features.filter(feature => feature.spaceOccurrenceId === galleryId && feature.role === 'room');
+const galleryOccurrence = manyScene.occurrences.find(row => row.spaceOccurrenceId === galleryId);
+const galleryBinding = manyScene.meshBindings.find(row => row.spaceOccurrenceId === galleryId && row.role === 'room-pick');
+const galleryPart = model.pickParts.get(galleryId)[0], galleryDrawn = loaded.drawn.find(row => row.meshKey === galleryPart.mesh.meshKey);
+const extraMeshes = [], extraDrawn = [];
+for (let at = 0; at < repeats; at++) {
+  const featureId = `generated:repeat-feature:${at}`, meshKey = `generated:repeat-part:${at}`, nodeIndex = 1000 + at;
+  galleryPlan.features.push({ ...galleryFeature, featureId }); galleryPlan.featureIds.push(featureId); galleryOccurrence.planFeatureIds.push(featureId);
+  manyScene.meshBindings.push({ ...galleryBinding, nodeIndex, primitiveIndices: [0] });
+  extraMeshes.push({ ...galleryPart.mesh, meshKey }); extraDrawn.push({ ...galleryDrawn, meshKey, nodeIndex, primitiveIndex: 0 });
+}
+const many = bindAtlasModel(manyScene, { meshes: [...loaded.meshes, ...extraMeshes], drawn: [...loaded.drawn, ...extraDrawn] });
+assert.equal(many.shapes.get(galleryId).length, originalGalleryFeatures.length + repeats);
+assert.equal(many.roomPolygons.get(galleryId).length, originalGalleryFeatures.reduce((n, f) => n + f.polygons.length, 0) + repeats * galleryFeature.polygons.length);
+assert.deepEqual(many.shapes.get(galleryId).at(-1), galleryFeature.polygons.flatMap(polygon => [polygon.outer, ...polygon.holes]));
+assert.equal(many.roomPolygons.get(galleryId).at(-1), galleryFeature.polygons.at(-1));
+assert.deepEqual(many.pickParts.get(galleryId).map(part => part.mesh.meshKey), [...model.pickParts.get(galleryId).map(part => part.mesh.meshKey), ...extraMeshes.map(mesh => mesh.meshKey)]);
+assert.ok(Object.isFrozen(many.shapes.get(galleryId)) && Object.isFrozen(many.roomPolygons.get(galleryId)) && Object.isFrozen(many.pickParts.get(galleryId)));
 
 // ---- Presentation, drawing and picking share one rule set ---------------------------------
 const VIEWPORT = { width: 960, height: 640 };
@@ -215,7 +309,7 @@ assert.deepEqual(reduce(initial, { type: 'view', view: 'plan' }), { ...initial, 
 // Feature references may use any order; the generated Split plan is intentionally reordered.
 const rawSplit = JSON.parse(new TextDecoder().decode(companionBytes)).plans.find(row => row.levelId === 'syn-level-split');
 assert.notDeepEqual(rawSplit.featureIds, rawSplit.features.map(row => row.featureId));
-assert.deepEqual(new Set(rawSplit.featureIds), new Set(model.planByLevel.get('syn-level-split').features.map(row => row.featureId)));
+assert.deepEqual(new Set(rawSplit.featureIds), new Set(scene.planFeaturesForLevel(model, 'syn-level-split').map(row => row.featureId)));
 // Focused exploded floors frame every displayed section, including Upper's lift.
 for (const levelId of ['syn-level-ground', 'syn-level-split']) {
   const focused = reduce(initial, { type: 'level', levelId });
@@ -294,7 +388,7 @@ for (const levelId of ['syn-level-ground', 'syn-level-split', 'syn-level-upper',
     const [x, z] = centre(key), [px, py] = projection.project(x, y, z);
     near(planPoint(projection, y, px, py), [x, z], `plan inverse ${key}`);
     assert.equal(planPickOccurrence(model, presentation, levelId, x, z), key, `plan pick ${key}`);
-    assert.ok(model.planByLevel.get(levelId).features.some(feature => feature.spaceOccurrenceId === key && feature.role === 'room'));
+    assert.ok(scene.planFeaturesForLevel(model, levelId).some(feature => feature.spaceOccurrenceId === key && feature.role === 'room'));
   }
 }
 // Mid-transition from exploded into plan: the floor keeps its display offset while the explode
@@ -366,7 +460,7 @@ const revealed = (presentation, key) => model.pickParts.get(key).some(part => {
   assert.equal(target.pickable.size, 8);
   assert.deepEqual([...shown.pickable].sort(), ['syn-occ-bedroom-split', 'syn-occ-hall', 'syn-occ-living', 'syn-occ-stairs-ground', 'syn-occ-study']);
   for (const key of target.pickable) assert.equal(shown.pickable.has(key), revealed(shown, key), `mid-sweep control follows geometry: ${key}`);
-  assert.deepEqual(network.placed.get('syn-room-stairs').occurrenceIds.filter(key => shown.pickable.has(key)), ['syn-occ-stairs-ground'],
+  assert.deepEqual([...network.placed.keys()].filter(key => shown.pickable.has(key)), ['syn-occ-stairs-ground'],
     'the two-floor network count stands only on the revealed stairs part');
   // Straight down through both stairs parts: the target alone would pick the lifted upper part;
   // the current cut picks the revealed ground part.
@@ -435,7 +529,7 @@ const revealed = (presentation, key) => model.pickParts.get(key).some(part => {
     if (level.sourceElevationM === null) assert.equal(elevated, null);
     else close([elevated - RISE], [level.sourceElevationM], `raised recorded elevation ${level.levelId}`);
   }
-  assert.deepEqual(raised.overlays.get('network').placed.get('syn-room-stairs').occurrenceIds, network.placed.get('syn-room-stairs').occurrenceIds);
+  assert.deepEqual([...raised.overlays.get('network').placed.keys()], [...network.placed.keys()]);
   const raisedDatum = atlasOrigin(raised)[1], raisedCeilings = sectionCeilings(raised);
   close([raisedDatum - RISE], [datum], 'raised datum');
   close(raisedCeilings.map(value => value - RISE), ceilings, 'raised ceilings');
@@ -568,4 +662,5 @@ console.log('PASS unified Atlas healthy: generated scene/model read through the 
   + 'retargeting from an intermediate cut, and the same publication 100 000 m higher. '
   + 'Normal pointer tap, drag, capture handoff, drag-to-pinch, either-finger release and plan pan use production handlers. '
   + 'Scalar source-text bounds and the full position basis are retained; admission-only projection covers 4,096 occurrences and 16,381 features. '
+  + 'Mixed-floor records, static React provenance output, bounded repeated binding indexes and multiple same-level plans retain their source scope/order. '
   + 'Generated data only; no renderer, browser or device acceptance.');

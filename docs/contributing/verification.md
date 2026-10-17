@@ -1258,6 +1258,23 @@ occurrence. That projection proves frontend semantic admission only: it is not
 bound to model geometry or admitted by the backend. No invalid-text, missing
 reference, denial or other held control is added.
 
+The same named positive also statically renders the actual
+`PublishedOverlayDetails.tsx` with the locked React/ReactDOM server renderer.
+Inspect that component and its type-only scene/binding imports before execution.
+A generated two-floor room retains shared and floor-specific records, dates and
+source-position bases; structurally distinct delimiter/null date tuples remain
+visible and exact duplicate tuples are grouped. A separate 128-entry CPU
+binding projection checks append order, ring/hole grouping and frozen indexes
+using repeated prepared primitives/features. It establishes no new GLB/backend
+geometry admission, benchmark or mounted browser/device behavior. These valid
+generated projections add no malformed, denial or other held control case.
+Unspecified-occurrence position provenance remains visible without acquiring a
+floor marker. Another generated publication splits a level's original features
+across two source plans; the production reader, standard loader and binder
+retain both IDs/order, all rendered features, matching framing and plan picks.
+The backend owner separately confirmed this supported multiple-plan contract;
+the frontend check does not qualify backend admission of its fictional fixture.
+
 The separate generated interaction positives use the production reader, standard
 GLB loader, reducer, projection, pointer factory and documentary index. Inspect
 `frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs`, its

@@ -132,6 +132,10 @@ additional renderer translation.
 
 ## Exact mesh membership and matching plans
 
+Multiple distinct plans may reference one level. Retain each plan's source ID
+and order; rendering, framing and picking consume every plan's features for
+that level. Do not invent a merged plan ID or union the source polygons.
+
 ```text
 MeshBinding = {artifactId:"model",nodeIndex,meshIndex,primitiveIndices:[integer],
                buildingId,levelIds:[id],spaceOccurrenceId:null|id,

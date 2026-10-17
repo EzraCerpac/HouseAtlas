@@ -211,13 +211,12 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
       spaceOccurrenceId, role: binding.role as MeshRole };
   });
 
-  const featureIds = new Set<string>(), planLevels = new Set<string>();
+  const featureIds = new Set<string>();
   const featuresByOccurrence = new Map<string, string[]>();
   const plans = rawPlans.map<AtlasPlan>(item => {
     const plan = row(item, ['planId', 'buildingId', 'levelId', 'coordinates', 'featureIds', 'features']);
     const level = levelById.get(plan.levelId as string);
-    need(level && level.buildingId === plan.buildingId && plan.coordinates === 'scene-XZ-metres' && !planLevels.has(level.levelId));
-    planLevels.add(level.levelId);
+    need(level && level.buildingId === plan.buildingId && plan.coordinates === 'scene-XZ-metres');
     const features = (plan.features as unknown[]).map<AtlasPlanFeature>(value => {
       const feature = row(value, ['featureId', 'roomId', 'spaceOccurrenceId', 'role', 'polygons']);
       const featureId = id(feature.featureId); need(!featureIds.has(featureId)); featureIds.add(featureId);
@@ -334,8 +333,8 @@ export interface LabelAnchor { readonly x: number; readonly z: number; readonly 
 export interface OverlayPlacement {
   readonly kind: OverlayKind;
   readonly roomId: string;
-  /** Occurrences carrying the marker: the bound one, or every occurrence of the room. */
-  readonly occurrenceIds: readonly string[];
+  /** Exactly this occurrence; room-summary bindings are expanded separately. */
+  readonly occurrenceId: string;
   readonly recordIds: readonly string[];
   /** Qualified source positions with their occurrence; never derived from a room link. */
   readonly positions: readonly { readonly occurrenceId: string; readonly position: Vec3; readonly basis: string }[];
@@ -344,7 +343,7 @@ export interface OverlayPlacement {
 export type UnplacedReason = 'other-publication' | 'room-absent' | 'not-linked' | 'occurrence-mismatch';
 export interface OverlayLayerIndex {
   readonly kind: OverlayKind;
-  readonly placed: ReadonlyMap<string, OverlayPlacement>;
+  readonly placed: ReadonlyMap<string, OverlayPlacement>; // keyed by occurrence ID
   readonly unplaced: readonly { readonly binding: AtlasOverlayBinding; readonly reason: UnplacedReason }[];
   readonly records: number;
   readonly unplacedRecords: number;
@@ -368,7 +367,8 @@ export interface AtlasModel {
   readonly floorY: ReadonlyMap<string, number>;
   /** Display gap per building for exploded floors. */
   readonly spread: ReadonlyMap<string, number>;
-  readonly planByLevel: ReadonlyMap<string, AtlasPlan>;
+  /** All authored plans for each level, preserving source order and IDs. */
+  readonly plansByLevel: ReadonlyMap<string, readonly AtlasPlan[]>;
   readonly featureRings: ReadonlyMap<string, readonly PlanRing[]>;
   /** Room plan shape of each occurrence: its own features only. */
   readonly shapes: ReadonlyMap<string, PlanShape>;
@@ -427,17 +427,33 @@ export function bindAtlasModel(scene: AtlasScene, glb: Pick<StandardGlb, 'drawn'
     const heights = sorted.map(level => level.bounds.max[1] - level.bounds.min[1]).filter(height => height > 0);
     spread.set(building.buildingId, Math.min(6, Math.max(2, median(heights) || building.bounds.max[1] - building.bounds.min[1])));
   }
-  const planByLevel = new Map(scene.plans.map(plan => [plan.levelId, plan]));
+  const plansByLevel = new Map<string, AtlasPlan[]>();
+  for (const plan of scene.plans) {
+    let own = plansByLevel.get(plan.levelId);
+    if (!own) { own = []; plansByLevel.set(plan.levelId, own); }
+    own.push(plan);
+  }
+  for (const own of plansByLevel.values()) Object.freeze(own);
   const floorBuildings = scene.buildings.filter(building => building.levelIds.length > 0);
-  const defaultBuildingId = (floorBuildings.find(building => building.levelIds.some(levelId => planByLevel.has(levelId))) ?? floorBuildings[0])?.buildingId ?? null;
+  const defaultBuildingId = (floorBuildings.find(building => building.levelIds.some(levelId => plansByLevel.has(levelId))) ?? floorBuildings[0])?.buildingId ?? null;
   const featureRings = new Map(scene.plans.flatMap(plan => plan.features.map(feature => [feature.featureId, ringRings(feature)] as const)));
-  const shapes = new Map<string, PlanShape>(), roomPolygons = new Map<string, readonly AtlasPolygon[]>();
+  const shapes = new Map<string, PlanShape[number][]>(), roomPolygons = new Map<string, AtlasPolygon[]>();
   for (const plan of scene.plans) for (const feature of plan.features) if (feature.role === 'room' && feature.spaceOccurrenceId !== null) {
-    shapes.set(feature.spaceOccurrenceId, [...(shapes.get(feature.spaceOccurrenceId) ?? []), featureRings.get(feature.featureId)!]);
-    roomPolygons.set(feature.spaceOccurrenceId, [...(roomPolygons.get(feature.spaceOccurrenceId) ?? []), ...feature.polygons]);
+    let shape = shapes.get(feature.spaceOccurrenceId), polygons = roomPolygons.get(feature.spaceOccurrenceId);
+    if (!shape) { shape = []; shapes.set(feature.spaceOccurrenceId, shape); }
+    if (!polygons) { polygons = []; roomPolygons.set(feature.spaceOccurrenceId, polygons); }
+    shape.push(featureRings.get(feature.featureId)!);
+    for (const polygon of feature.polygons) polygons.push(polygon);
   }
   const pickParts = new Map<string, AtlasPart[]>();
-  for (const part of parts) if (part.occurrenceId !== null && part.mesh.triangles > 0) pickParts.set(part.occurrenceId, [...(pickParts.get(part.occurrenceId) ?? []), part]);
+  for (const part of parts) if (part.occurrenceId !== null && part.mesh.triangles > 0) {
+    let own = pickParts.get(part.occurrenceId);
+    if (!own) { own = []; pickParts.set(part.occurrenceId, own); }
+    own.push(part);
+  }
+  for (const entries of shapes.values()) Object.freeze(entries);
+  for (const entries of roomPolygons.values()) Object.freeze(entries);
+  for (const entries of pickParts.values()) Object.freeze(entries);
   const listed = scene.coverage.selectable ?? scene.occurrences.map(item => item.spaceOccurrenceId);
   const selectable = new Set(listed.filter(key => pickParts.has(key) && shapes.has(key)));
   // Listed coverage must survive binding to the actual primitives.
@@ -446,15 +462,19 @@ export function bindAtlasModel(scene: AtlasScene, glb: Pick<StandardGlb, 'drawn'
   const work = { remaining: LABEL_WORK }, labels = new Map<string, LabelAnchor>();
   for (const key of selectable) { const point = labelPoint(shapes.get(key)!, work); if (point) labels.set(key, point); }
   return { scene, parts, meshes: parts.map(part => part.mesh), buildingsById, levelsById, roomsById, occurrencesById, levelsByBuilding,
-    floorBuildings, defaultBuildingId, levelIndex, floorY, spread, planByLevel, featureRings, shapes, roomPolygons, labels, selectable, pickParts, overlays: joinOverlays(scene, roomsById, occurrencesById) };
+    floorBuildings, defaultBuildingId, levelIndex, floorY, spread, plansByLevel, featureRings, shapes, roomPolygons, labels, selectable, pickParts, overlays: joinOverlays(scene, roomsById, occurrencesById) };
 }
+
+/** Rendering and framing consume every plan for a level, in source order. */
+export const planFeaturesForLevel = (model: AtlasModel, levelId: string): readonly AtlasPlanFeature[] =>
+  model.plansByLevel.get(levelId)?.flatMap(plan => plan.features) ?? [];
 
 /** Joins host-qualified overlay bindings by publication, room and its reviewed
  * native place only. Labels, record text and positions never create a link. */
 function joinOverlays(scene: AtlasScene, rooms: ReadonlyMap<string, AtlasRoom>, occurrences: ReadonlyMap<string, AtlasOccurrence>): ReadonlyMap<OverlayKind, OverlayLayerIndex> {
   const layers = new Map<OverlayKind, OverlayLayerIndex>();
   for (const kind of ['electrical', 'network'] as const) {
-    const placed = new Map<string, { occurrenceIds: Set<string>; recordIds: Set<string>; positions: OverlayPlacement['positions'][number][]; bindings: AtlasOverlayBinding[] }>();
+    const placed = new Map<string, { roomId: string; recordIds: Set<string>; positions: OverlayPlacement['positions'][number][]; bindings: AtlasOverlayBinding[] }>();
     const unplaced: { binding: AtlasOverlayBinding; reason: UnplacedReason }[] = [];
     for (const binding of scene.overlayBindings) {
       if (binding.kind !== kind) continue;
@@ -464,19 +484,20 @@ function joinOverlays(scene: AtlasScene, rooms: ReadonlyMap<string, AtlasRoom>, 
         : room.nativeBinding.status !== 'reviewed' || room.nativePlaceId === null || binding.nativePlaceId !== room.nativePlaceId ? 'not-linked'
         : occurrence === undefined || (occurrence !== null && occurrence.roomId !== room.roomId) ? 'occurrence-mismatch' : null;
       if (reason !== null || !room) { unplaced.push({ binding, reason: reason ?? 'room-absent' }); continue; }
-      const entry = placed.get(room.roomId) ?? { occurrenceIds: new Set<string>(), recordIds: new Set<string>(), positions: [], bindings: [] };
-      for (const key of occurrence ? [occurrence.spaceOccurrenceId] : room.occurrenceIds) entry.occurrenceIds.add(key);
-      for (const record of binding.recordIds) entry.recordIds.add(record);
-      // A source position needs its occurrence to know which floor it moves with.
-      if (binding.anchor.kind === 'source-position' && occurrence)
-        entry.positions.push({ occurrenceId: occurrence.spaceOccurrenceId, position: binding.anchor.position, basis: binding.anchor.basis });
-      entry.bindings.push(binding);
-      placed.set(room.roomId, entry);
+      for (const key of occurrence ? [occurrence.spaceOccurrenceId] : room.occurrenceIds) {
+        const entry = placed.get(key) ?? { roomId: room.roomId, recordIds: new Set<string>(), positions: [], bindings: [] };
+        for (const record of binding.recordIds) entry.recordIds.add(record);
+        // A source position needs its explicit occurrence; never expand it.
+        if (binding.anchor.kind === 'source-position' && occurrence)
+          entry.positions.push({ occurrenceId: key, position: binding.anchor.position, basis: binding.anchor.basis });
+        entry.bindings.push(binding); placed.set(key, entry);
+      }
     }
-    const rows = new Map([...placed].map(([roomId, entry]) => [roomId, { kind, roomId, occurrenceIds: [...entry.occurrenceIds],
+    const rows = new Map([...placed].map(([occurrenceId, entry]) => [occurrenceId, { kind, roomId: entry.roomId, occurrenceId,
       recordIds: [...entry.recordIds], positions: entry.positions, bindings: entry.bindings }] as const));
     const unplacedRecords = new Set(unplaced.flatMap(item => item.binding.recordIds)).size;
-    layers.set(kind, { kind, placed: rows, unplaced, records: new Set([...rows.values()].flatMap(item => item.recordIds)).size + unplacedRecords, unplacedRecords });
+    layers.set(kind, { kind, placed: rows, unplaced,
+      records: new Set([...rows.values()].flatMap(item => item.recordIds).concat(unplaced.flatMap(item => item.binding.recordIds))).size, unplacedRecords });
   }
   return layers;
 }
@@ -530,7 +551,7 @@ export function planLevelId(model: AtlasModel, state: AtlasViewState): string | 
   if (buildingId === null) return null;
   if (selected && selected.buildingId === buildingId) return selected.levelId;
   const levels = model.levelsByBuilding.get(buildingId) ?? [];
-  return (levels.find(level => model.planByLevel.has(level.levelId)) ?? levels[0])?.levelId ?? null;
+  return (levels.find(level => model.plansByLevel.has(level.levelId)) ?? levels[0])?.levelId ?? null;
 }
 
 export function atlasReducer(model: AtlasModel, state: AtlasViewState, action: AtlasAction): AtlasViewState {
@@ -771,7 +792,7 @@ export function frameBox(model: AtlasModel, state: AtlasViewState, presentation:
   const t = presentation.explodeTarget, focus = presentation.focusLevelId;
   if (state.view === 'plan' && focus !== null) {
     const y = model.floorY.get(focus)!;
-    for (const feature of model.planByLevel.get(focus)?.features ?? [])
+    for (const feature of planFeaturesForLevel(model, focus))
       for (const ring of model.featureRings.get(feature.featureId)!) for (const [x, z] of ring) add(x, y, z);
     for (const key of model.levelsById.get(focus)!.occurrenceIds) { const b = model.occurrencesById.get(key)!.bounds; add(b.min[0], y, b.min[2]); add(b.max[0], y, b.max[2]); }
   } else {
