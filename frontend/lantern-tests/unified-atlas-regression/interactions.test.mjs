@@ -74,6 +74,15 @@ test('building transitions clear foreign selection, preserve overlay and choose 
   state = reduce(state, building(H), view('plan'));
   assert.equal(state.occurrenceId, null);
   assert.equal(state.levelId, null);
+  // An authored opening outside the room polygon still belongs to its floor.
+  for (const scoped of [reduce(initial(), view('plan')), state, reduce(state, level(G))]) {
+    const presentation = api.presentAtlas(model, scoped, empty);
+    const projection = api.makeProjection({ yaw: 0, pitch: 90, zoom: 1, panX: 0, panY: 0 },
+      api.frameBox(model, scoped, presentation), { width: 960, height: 640 }, 0);
+    const pixel = projection.project(103.5, model.floorY.get(G), 50.975);
+    assert.deepEqual(api.planPickTarget(model, presentation, scoped, 0, projection, ...pixel),
+      scoped.buildingId === null ? { kind: 'building', buildingId: H } : { kind: 'level', levelId: G });
+  }
 });
 
 test('explosion lifts drawing and CPU picks together throughout transition without modifying geometry', () => {
@@ -320,7 +329,7 @@ test('normal pointer tap selects through the real CPU picker; drag or pinch chan
     gesture: { drag: null, pointers: new Map(), pinch: null, pinched: false }, dragging() {},
     orbit: update => { orbit = update(orbit); }, pan: update => { pan = update(pan); }, zoom: update => { zoom = update(zoom); },
     onTap: (px, py) => { taps++; const target = api.pickTarget(model, presentation, state, 0, projection, px, py);
-      if (target) state = reduce(state, api.targetAction(target)); } });
+      state = reduce(state, api.targetAction(target)); } });
   const pointer = (id, px, py, type = 'mouse') => ({ button: 0, pointerId: id, pointerType: type,
     clientX: px + 10, clientY: py + 20, target: viewport, currentTarget: viewport });
   handlers.onPointerDown(pointer(1, x, y)); handlers.onPointerUp(pointer(1, x, y));
@@ -334,6 +343,8 @@ test('normal pointer tap selects through the real CPU picker; drag or pinch chan
   assert.equal(zoom, 2); assert.equal(pan.x, 10); assert.equal(taps, 1);
   assert.equal(state.occurrenceId, 'syn-occ-hall');
   assert.equal(captures.size, 0);
+  handlers.onPointerDown(pointer(5, -10000, -10000)); handlers.onPointerUp(pointer(5, -10000, -10000));
+  assert.deepEqual([state.buildingId, state.levelId, state.occurrenceId], [H, G, null], 'an empty tap moves one level outward');
 });
 
 test('semantic ancestry survives every layer combination, view and explicit explosion, including a single building', async () => {

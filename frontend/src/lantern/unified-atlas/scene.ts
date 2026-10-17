@@ -1099,9 +1099,13 @@ export function planPickTarget(model: AtlasModel, presentation: AtlasPresentatio
       const shape = model.shapes.get(key);
       return model.selectable.has(key) && shape && pointInShape(x, z, shape) ? [{ key, area: occurrenceArea(model, key) }] : [];
     }).sort((a, b) => a.area - b.area)[0]?.key;
-    if (hit === undefined) continue;
+    const structure = hit === undefined && planFeaturesForLevel(model, levelId).some(feature =>
+      (feature.role === 'wall' || feature.role === 'opening' || feature.role === 'stair')
+      && pointInShape(x, z, feature.polygons.map(polygon => [polygon.outer, ...polygon.holes])));
+    if (hit === undefined && !structure) continue;
     if (presentation.focusLevelId === null) return { kind: 'building', buildingId: model.levelsById.get(levelId)!.buildingId };
-    return state.levelId === levelId || selected?.levelId === levelId ? { kind: 'room', occurrenceId: hit } : { kind: 'level', levelId };
+    return hit !== undefined && (state.levelId === levelId || selected?.levelId === levelId)
+      ? { kind: 'room', occurrenceId: hit } : { kind: 'level', levelId };
   }
   return null;
 }
