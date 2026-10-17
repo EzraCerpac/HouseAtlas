@@ -1,4 +1,5 @@
-import type { UnifiedAtlasOverlayAvailableFrame } from '../../../integration/unified-atlas-overlay-source';
+import type { UnifiedAtlasOverlayAvailableFrame, UnifiedAtlasOverlayRoomBinding } from '../../../integration/unified-atlas-overlay-source';
+import type { DocumentaryOverlayReadPins } from '../scans/native-scene-source-types';
 import { networkReviewedPlaces } from '../overlays/network/model';
 import type { NetworkOverlayData, NetworkOverlayLink } from '../overlays/network/types';
 import type { AtlasScene, OverlayKind } from './types';
@@ -10,7 +11,10 @@ export interface DocumentaryRecord {
   readonly sourceDate: string | null; readonly retrievedAt: string | null;
   readonly connections: readonly string[];
   readonly sourceFacts: readonly SourceFact[];
+  /** Other retained observations of this same source entity, not extra devices. */
+  readonly observations?: readonly DocumentaryObservation[];
 }
+export type DocumentaryObservation = Omit<DocumentaryRecord, 'observations'>;
 export interface SourceFact { readonly label: string; readonly value: string | null }
 export interface RuntimeRoomRecords { readonly network: readonly DocumentaryRecord[]; readonly electrical: readonly DocumentaryRecord[] }
 export type SourceAvailability = 'available' | 'partial' | 'unavailable';
@@ -19,6 +23,13 @@ export interface RuntimeRecords {
   readonly network: SourceAvailability; readonly electrical: SourceAvailability;
   readonly sourceFacts: readonly SourceFact[];
   readonly unplaced: { readonly network: readonly DocumentaryRecord[]; readonly electrical: readonly DocumentaryRecord[] };
+  /** Complete source graph; layout never supplies physical coordinates/routes. */
+  readonly networkGraphs?: readonly DocumentaryNetworkGraph[];
+}
+export interface DocumentaryNetworkGraph {
+  readonly key: string;
+  readonly data: NetworkOverlayData;
+  readonly qualification: string;
 }
 /** One building's documentary source state, kept per building so partial
  * coverage is never presented as the whole property. */
@@ -35,27 +46,44 @@ export interface PropertyRecords extends RuntimeRecords {
 const combine = (values: readonly SourceAvailability[]): SourceAvailability =>
   values.length > 0 && values.every(value => value === 'available') ? 'available' : values.some(value => value !== 'unavailable') ? 'partial' : 'unavailable';
 
-/** Property-wide union of each building's own records. Rooms belong to one
- * building each. A record placed in any building is not listed as unplaced;
- * unplaced records repeat across building frames only when their source dates
- * differ, so another source revision is never merged away. */
+/** Same source entity counts once; differing facts and join observations survive. */
+export function mergeDocumentaryRecords(records: readonly DocumentaryRecord[]): DocumentaryRecord[] {
+  const entities = new Map<string, Map<string, DocumentaryObservation>>();
+  for (const record of records) {
+    const { observations, ...first } = record;
+    let own = entities.get(record.key); if (!own) { own = new Map(); entities.set(record.key, own); }
+    for (const observation of [first, ...(observations ?? [])]) own.set(JSON.stringify(observation), observation);
+  }
+  return [...entities.values()].map(own => {
+    const [first, ...observations] = [...own.values()];
+    return observations.length ? { ...first!, observations } : first!;
+  });
+}
+
+/** Property-wide union. Entity identity excludes building/focus; all differing
+ * content and placement observations remain inspectable beneath that entity. */
 export function mergeRuntimeRecords(model: AtlasModel, rows: readonly { readonly buildingId: string; readonly reason: string; readonly records: RuntimeRecords | null }[]): PropertyRecords {
   const rooms = new Map<string, RuntimeRoomRecords>();
-  for (const row of rows) if (row.records) for (const [roomId, records] of row.records.rooms) rooms.set(roomId, records);
+  for (const row of rows) if (row.records) for (const [roomId, records] of row.records.rooms) {
+    const previous = rooms.get(roomId);
+    rooms.set(roomId, { network: mergeDocumentaryRecords([...(previous?.network ?? []), ...records.network]),
+      electrical: mergeDocumentaryRecords([...(previous?.electrical ?? []), ...records.electrical]) });
+  }
   const unplaced = { network: [] as DocumentaryRecord[], electrical: [] as DocumentaryRecord[] };
   for (const kind of ['network', 'electrical'] as const) {
     const placed = new Set([...rooms.values()].flatMap(records => records[kind].map(record => record.key)));
-    const seen = new Set<string>();
-    for (const row of rows) for (const record of row.records?.unplaced[kind] ?? []) {
-      const key = JSON.stringify([record.key, record.sourceDate, record.retrievedAt]);
-      if (placed.has(record.key) || seen.has(key)) continue;
-      seen.add(key); unplaced[kind].push(record);
-    }
+    const all = mergeDocumentaryRecords([...rooms.values()].flatMap(records => [...records[kind]])
+      .concat(rows.flatMap(row => [...(row.records?.unplaced[kind] ?? [])])));
+    const byKey = new Map(all.map(record => [record.key, record]));
+    for (const [roomId, records] of rooms) rooms.set(roomId, { ...records,
+      [kind]: records[kind].map(record => byKey.get(record.key)!) });
+    unplaced[kind] = all.filter(record => !placed.has(record.key));
   }
   const buildings = rows.map<BuildingCoverage>(row => ({ buildingId: row.buildingId, label: model.buildingsById.get(row.buildingId)!.label,
     reason: row.records ? 'available' : row.reason, network: row.records?.network ?? 'unavailable', electrical: row.records?.electrical ?? 'unavailable' }));
   const several = rows.length > 1;
   return { rooms, unplaced, buildings,
+    networkGraphs: [...new Map(rows.flatMap(row => (row.records?.networkGraphs ?? []).map(graph => [graph.key, graph] as const))).values()],
     network: combine(buildings.map(row => row.network)), electrical: combine(buildings.map(row => row.electrical)),
     sourceFacts: rows.flatMap(row => (row.records?.sourceFacts ?? []).map(fact => several
       ? { label: `${model.buildingsById.get(row.buildingId)!.label}: ${fact.label}`, value: fact.value } : fact)) };
@@ -100,32 +128,54 @@ export function matchesOverlayScene(frame: UnifiedAtlasOverlayAvailableFrame, sc
     && scene.buildings.some(building => building.buildingId === buildingId && building.nativePlaceId === frame.nativeBuildingId);
 }
 
-/** Call only with the current source owner's frame. Joins use its independently
- * reviewed package/native mappings; immutable producer status is never upgraded.
- * Documentary IDs stay in their source namespaces, not producer/native records. */
+/** Plain source facts shared by native and explicitly saved presentation.
+ * No field can confer a frame, session, lease or currentness. */
+export interface DocumentaryFacts {
+  readonly mode: 'current-native' | 'saved-documentary-snapshot';
+  readonly pins: DocumentaryOverlayReadPins;
+  readonly roomBindings: readonly (Omit<UnifiedAtlasOverlayRoomBinding, 'qualification'> & {
+    readonly qualification: 'current-native-room-join' | 'captured-room-identity-join';
+  })[];
+  readonly network: UnifiedAtlasOverlayAvailableFrame['network'];
+  readonly electricity: UnifiedAtlasOverlayAvailableFrame['electricity'];
+  readonly electricalFixtures: UnifiedAtlasOverlayAvailableFrame['electricalFixtures'];
+  readonly drawingProvenance?: unknown;
+  readonly observationFacts: readonly SourceFact[];
+}
+
+/** Call only while the genuine source owner's current frame remains owned. */
 export function documentaryRoomRecords(scene: AtlasScene, frame: UnifiedAtlasOverlayAvailableFrame, selectable: ReadonlySet<string>): RuntimeRecords {
+  return projectDocumentaryFacts(scene, { mode: 'current-native', pins: frame.sourceSelection,
+    roomBindings: frame.roomBindings, network: frame.network, electricity: frame.electricity,
+    electricalFixtures: frame.electricalFixtures, drawingProvenance: frame.drawingProvenance,
+    observationFacts: [{ label: 'Native association', value: frame.currentSource.recordId },
+      { label: 'Native association revision', value: frame.currentSource.revision.toString() }] }, selectable);
+}
+
+/** Pure documentary projection; saved identity evidence never becomes a native grant. */
+export function projectDocumentaryFacts(scene: AtlasScene, facts: DocumentaryFacts, selectable: ReadonlySet<string>): RuntimeRecords {
   const rooms = new Map<string, RuntimeRoomRecords>();
-  const networkData = frame.network.status === 'available' ? frame.network.data : null;
+  const networkData = facts.network.status === 'available' ? facts.network.data : null;
   const networkIndex = networkData ? documentaryNetworkIndex(networkData) : null;
-  for (const binding of frame.roomBindings) {
+  for (const binding of facts.roomBindings) {
     const room = scene.rooms.find(row => row.roomId === binding.roomId);
-    if (!room || room.nativePlaceId !== binding.nativePlaceId || binding.qualification !== 'current-native-room-join'
+    if (!room || room.nativePlaceId !== binding.nativePlaceId || binding.qualification !== (facts.mode === 'current-native' ? 'current-native-room-join' : 'captured-room-identity-join')
       || !room.occurrenceIds.some(id => selectable.has(id))) continue;
-    const receiptId = frame.sourceSelection.acceptedRoomReceiptId, receiptSha256 = frame.sourceSelection.acceptedRoomReceiptSha256;
+    const receiptId = facts.pins.acceptedRoomReceiptId, receiptSha256 = facts.pins.acceptedRoomReceiptSha256;
     if (receiptId === null || receiptSha256 === null) continue;
     const targets = binding.targets;
     const sourceAnchorIds = [...new Set(targets.flatMap(target => target.sourceAnchorIds))];
-    const anchors = frame.sourceSelection.acceptedRoomAnchors.filter(anchor => sourceAnchorIds.includes(anchor.id));
+    const anchors = facts.pins.acceptedRoomAnchors.filter(anchor => sourceAnchorIds.includes(anchor.id));
     const unresolvedLabels = [...new Set([...anchors.flatMap(anchor => anchor.unresolvedLabels),
-      ...(frame.sourceSelection.acceptedRoomMappings ?? []).filter(mapping => binding.sourceRoomIds.includes(mapping.sourceRoomId)).flatMap(mapping => mapping.unresolvedLabels ?? [])])];
+      ...(facts.pins.acceptedRoomMappings ?? []).filter(mapping => binding.sourceRoomIds.includes(mapping.sourceRoomId)).flatMap(mapping => mapping.unresolvedLabels ?? [])])];
     // A mixed or unresolved source component cannot be partially located. Its
     // original documentary records remain in the unplaced list below.
     if (unresolvedLabels.length || anchors.some(anchor => anchor.targets.length !== 1)) continue;
     const context = { status: 'accepted' as const, receiptId, receiptSha256,
       sourceAnchorIds, targets, unresolvedLabels };
     const network: DocumentaryRecord[] = [], electrical: DocumentaryRecord[] = [];
-    if (frame.network.status === 'available') {
-      const data = frame.network.data;
+    if (facts.network.status === 'available') {
+      const data = facts.network.data;
       for (const device of networkReviewedPlaces(data, { ...context, viewKey: data.viewKey })?.devices ?? []) {
         if (device.mobility !== 'fixed') continue;
         network.push({ key: `device:${device.id}`, id: device.id, label: device.label, category: 'Recorded device',
@@ -141,7 +191,7 @@ export function documentaryRoomRecords(scene: AtlasScene, frame: UnifiedAtlasOve
     }
     const matches = (place: { packagePlaceKey: string; packagePlaceUuid: string }) => targets.some(target =>
       target.packagePlaceKey === place.packagePlaceKey && target.packagePlaceUuid === place.packagePlaceUuid);
-    if (frame.electricity.status === 'available') for (const sheet of frame.electricity.data.sheets) {
+    if (facts.electricity.status === 'available') for (const sheet of facts.electricity.data.sheets) {
       if (!sheet.roomAssociations.some(matches)) continue;
       electrical.push({ key: `sheet:${sheet.id}`, id: sheet.id, label: sheet.titleAsRead, category: 'Electrical drawing',
         detail: [`Page ${sheet.source.pdfPage}`, sheet.directReading.text, sheet.drawingAssociation.text, sheet.openUncertainty].filter(Boolean).join(' · '),
@@ -152,8 +202,8 @@ export function documentaryRoomRecords(scene: AtlasScene, frame: UnifiedAtlasOve
           { label: 'Direct reading', value: JSON.stringify(sheet.directReading) }, { label: 'Drawing association', value: JSON.stringify(sheet.drawingAssociation) },
           { label: 'Room associations', value: JSON.stringify(sheet.roomAssociations) }] });
     }
-    if (frame.electricalFixtures.status === 'available') {
-      const data = frame.electricalFixtures.data;
+    if (facts.electricalFixtures.status === 'available') {
+      const data = facts.electricalFixtures.data;
       if (data.roomMappingReceipt?.id === receiptId && data.roomMappingReceipt.sha256 === receiptSha256) {
         const regions = new Set(data.regions.filter(region => region.places.some(matches)).map(region => region.id));
         for (const fixture of data.fixtures) if (regions.has(fixture.regionId)) {
@@ -202,32 +252,51 @@ export function documentaryRoomRecords(scene: AtlasScene, frame: UnifiedAtlasOve
       sourceFacts: [{ label: 'Endpoint source facts', value: JSON.stringify(endpoint) }, { label: 'Network source', value: JSON.stringify(networkData.source) }] });
   }
   const unplacedElectrical: DocumentaryRecord[] = [];
-  if (frame.electricity.status === 'available') for (const sheet of frame.electricity.data.sheets) {
+  if (facts.electricity.status === 'available') for (const sheet of facts.electricity.data.sheets) {
     if (placedElectrical.has(`sheet:${sheet.id}`)) continue;
     unplacedElectrical.push({ key: `sheet:${sheet.id}`, id: sheet.id, label: sheet.titleAsRead, category: 'Electrical drawing',
       detail: `Page ${sheet.source.pdfPage}`, qualification: 'No unambiguous reviewed room placement; documentary evidence only',
       sourceDate: sheet.source.sourceDate, retrievedAt: sheet.source.retrievedAt, connections: [],
       sourceFacts: [{ label: 'Drawing and source facts', value: JSON.stringify(sheet) }] });
   }
-  if (frame.electricalFixtures.status === 'available') for (const fixture of frame.electricalFixtures.data.fixtures) {
+  if (facts.electricalFixtures.status === 'available') for (const fixture of facts.electricalFixtures.data.fixtures) {
     if (placedElectrical.has(`symbol:${fixture.id}`)) continue;
-    const data = frame.electricalFixtures.data;
+    const data = facts.electricalFixtures.data;
     unplacedElectrical.push({ key: `symbol:${fixture.id}`, id: fixture.id, label: fixture.label, category: 'Historical symbol',
       detail: fixture.source.placementDescription, qualification: 'No unambiguous reviewed room placement; historic and unverified',
       sourceDate: data.sheets.find(sheet => sheet.id === fixture.sheetId)?.sourceDate ?? null, retrievedAt: null, connections: [],
       sourceFacts: [{ label: 'Source symbol', value: JSON.stringify(fixture) }, { label: 'Interpretation date', value: data.interpretationDate },
         { label: 'Symbol interpretation', value: JSON.stringify(data.symbolLegend) }] });
   }
-  const electricity = frame.electricity.status === 'available', fixtures = frame.electricalFixtures.status === 'available';
-  return { rooms, unplaced: { network: unplacedNetwork, electrical: unplacedElectrical }, network: frame.network.status === 'available' ? 'available' : 'unavailable', electrical: electricity && fixtures ? 'available' : electricity || fixtures ? 'partial' : 'unavailable',
-    sourceFacts: [{ label: 'Native association', value: frame.currentSource.recordId },
-      { label: 'Native association revision', value: frame.currentSource.revision.toString() },
-      { label: 'Room review receipt', value: frame.sourceSelection.acceptedRoomReceiptId },
-      { label: 'Room review SHA256', value: frame.sourceSelection.acceptedRoomReceiptSha256 },
+  const electricity = facts.electricity.status === 'available', fixtures = facts.electricalFixtures.status === 'available';
+  const source = facts.pins;
+  const stamp = (record: DocumentaryRecord, roomId: string | null): DocumentaryRecord => ({ ...record,
+    key: JSON.stringify(['houseatlas-documentary-record.v1', source.workspaceId, source.homeId, 'primary-scene',
+      source.sceneEvidenceId, record.key.slice(0, record.key.indexOf(':')), record.id]),
+    sourceFacts: [...record.sourceFacts,
+      { label: 'Source evidence', value: source.sceneEvidenceId },
+      { label: 'Source evidence revision', value: String(source.sceneEvidenceRevision) },
+      { label: 'Source original SHA256', value: source.sceneOriginalSha256 },
+      { label: 'Source asset', value: source.sceneAssetId },
+      { label: 'Source asset revision', value: source.sceneAssetRevision.toString() },
+      ...facts.observationFacts,
+      { label: 'Room review receipt', value: source.acceptedRoomReceiptId },
+      { label: 'Room review SHA256', value: source.acceptedRoomReceiptSha256 },
+      { label: 'Room association in this observation', value: roomId },
+      { label: 'Drawing provenance', value: facts.drawingProvenance ? JSON.stringify(facts.drawingProvenance) : null }] });
+  const stampedRooms = new Map([...rooms].map(([roomId, records]) => [roomId, {
+    network: records.network.map(record => stamp(record, roomId)), electrical: records.electrical.map(record => stamp(record, roomId)) }]));
+  return { rooms: stampedRooms, unplaced: { network: unplacedNetwork.map(record => stamp(record, null)), electrical: unplacedElectrical.map(record => stamp(record, null)) }, network: facts.network.status === 'available' ? 'available' : 'unavailable', electrical: electricity && fixtures ? 'available' : electricity || fixtures ? 'partial' : 'unavailable',
+    networkGraphs: networkData ? [{ key: JSON.stringify([source.workspaceId, source.homeId, source.sceneEvidenceId, source.sceneOriginalSha256]),
+      data: networkData, qualification: facts.mode === 'saved-documentary-snapshot'
+        ? 'Saved logical network; no physical routes or current authorization' : 'Recorded logical network; no physical routes' }] : [],
+    sourceFacts: [...facts.observationFacts,
+      { label: 'Room review receipt', value: facts.pins.acceptedRoomReceiptId },
+      { label: 'Room review SHA256', value: facts.pins.acceptedRoomReceiptSha256 },
       { label: 'Unresolved source components', value: JSON.stringify([...new Set([
-        ...frame.sourceSelection.acceptedRoomAnchors.flatMap(anchor => anchor.unresolvedLabels),
-        ...(frame.sourceSelection.acceptedRoomMappings ?? []).flatMap(mapping => mapping.unresolvedLabels ?? [])])]) },
-      { label: 'Drawing provenance', value: frame.drawingProvenance ? JSON.stringify(frame.drawingProvenance) : null }] };
+        ...facts.pins.acceptedRoomAnchors.flatMap(anchor => anchor.unresolvedLabels),
+        ...(facts.pins.acceptedRoomMappings ?? []).flatMap(mapping => mapping.unresolvedLabels ?? [])])]) },
+      { label: 'Drawing provenance', value: facts.drawingProvenance ? JSON.stringify(facts.drawingProvenance) : null }] };
 }
 
 /** Room-summary markers use existing room occurrences, never source-image positions. */
@@ -236,9 +305,9 @@ export function documentaryOverlayIndex(model: AtlasModel, records: RuntimeRecor
   for (const [roomId, rows] of records.rooms) {
     const selected = rows[kind]; if (!selected.length) continue;
     const occurrenceIds = model.roomsById.get(roomId)!.occurrenceIds.filter(id => model.selectable.has(id));
-    const recordIds = selected.map(record => record.key); recordIds.forEach(id => all.add(id));
+    const recordIds = [...new Set(selected.map(record => record.key))]; recordIds.forEach(id => all.add(id));
     for (const occurrenceId of occurrenceIds) placed.set(occurrenceId, { kind, roomId, occurrenceId, recordCount: recordIds.length, recordIds, positions: [], bindings: [] });
   }
   for (const record of records.unplaced[kind]) all.add(record.key);
-  return { kind, placed, unplaced: [], records: all.size, unplacedRecords: records.unplaced[kind].length };
+  return { kind, placed, unplaced: [], records: all.size, unplacedRecords: new Set(records.unplaced[kind].map(record => record.key)).size };
 }

@@ -9,8 +9,6 @@ import { occurrenceArea, type AtlasModel } from './scene';
 export const MEASUREMENT_BASIS = 'Approximate model dimensions from the room outlines, not measured on site.';
 /** Shorter runs are left unlabelled: they are mostly wall returns and reveals. */
 export const MIN_SPAN_M = .8;
-/** Directions within this sine are one straight run. */
-const COLLINEAR = Math.sin(Math.PI / 180);
 
 export interface RoomArea {
   readonly occurrenceId: string;
@@ -49,7 +47,7 @@ export function roomArea(model: AtlasModel, occurrenceId: string): RoomArea | nu
   if (!(squareMetres > 0)) return null;
   const room = model.roomsById.get(model.occurrencesById.get(occurrenceId)!.roomId)!;
   return { occurrenceId, squareMetres, text: areaText(squareMetres),
-    partial: room.occurrenceIds.filter(key => model.selectable.has(key)).length > 1 };
+    partial: room.occurrenceIds.length > 1 };
 }
 
 const signedArea = (ring: PlanRing) => {
@@ -60,19 +58,28 @@ const signedArea = (ring: PlanRing) => {
 /** Straight runs of one outer ring: consecutive collinear segments merge, so a
  * split vertex on a straight wall never halves its span. */
 export function ringRuns(ring: PlanRing): readonly { readonly a: readonly [number, number]; readonly b: readonly [number, number] }[] {
-  const points = ring.filter((point, at) => { const next = ring[(at + 1) % ring.length]!; return Math.hypot(next[0] - point[0], next[1] - point[1]) > 1e-9; });
+  const maxCoordinate = ring.reduce((maximum, point) => Math.max(maximum, Math.abs(point[0]), Math.abs(point[1])), 1);
+  const tolerance = Math.max(1e-9, 64 * Number.EPSILON * maxCoordinate);
+  const points = ring.filter((point, at) => { const next = ring[(at + 1) % ring.length]!; return Math.hypot(next[0] - point[0], next[1] - point[1]) > tolerance; });
   const n = points.length; if (n < 3) return [];
-  const direction = (at: number) => {
-    const a = points[at % n]!, b = points[(at + 1) % n]!, length = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    return [(b[0] - a[0]) / length, (b[1] - a[1]) / length] as const;
+  const onRun = (a: readonly number[], b: readonly number[], point: readonly number[]) => {
+    const dx = b[0]! - a[0]!, dz = b[1]! - a[1]!, length = Math.hypot(dx, dz);
+    if (length <= tolerance) return false;
+    const px = point[0]! - a[0]!, pz = point[1]! - a[1]!;
+    const along = (px * dx + pz * dz) / length;
+    return Math.abs(px * dz - pz * dx) / length <= tolerance && along >= -tolerance && along <= length + tolerance;
   };
-  const straight = (at: number) => {
-    const d0 = direction((at + n - 1) % n), d1 = direction(at);
-    return Math.abs(d0[0] * d1[1] - d0[1] * d1[0]) < COLLINEAR && d0[0] * d1[0] + d0[1] * d1[1] > 0;
-  };
-  const corners = [...Array(n).keys()].filter(at => !straight(at));
-  if (corners.length < 2) return [];
-  return corners.map((start, at) => ({ a: points[start]!, b: points[corners[(at + 1) % corners.length]!]! }));
+  const corners = [...Array(n).keys()].filter(at => !onRun(points[(at + n - 1) % n]!, points[(at + 1) % n]!, points[at]!));
+  if (corners.length < 2) return points.map((a, at) => ({ a, b: points[(at + 1) % n]! }));
+  return corners.flatMap((start, at) => {
+    const end = corners[(at + 1) % corners.length]!, indices = [start];
+    for (let i = (start + 1) % n; i !== end; i = (i + 1) % n) indices.push(i);
+    indices.push(end);
+    const a = points[start]!, b = points[end]!;
+    // Validate the complete run against one line, not consecutive small turns.
+    if (indices.every(i => onRun(a, b, points[i]!))) return [{ a, b }];
+    return indices.slice(0, -1).map((i, j) => ({ a: points[i]!, b: points[indices[j + 1]!]! }));
+  });
 }
 
 export function edgeSpans(model: AtlasModel, occurrenceId: string): readonly EdgeSpan[] {

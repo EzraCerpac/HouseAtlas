@@ -1164,6 +1164,12 @@ release/disposal. No listener, browser, actual native/household data, external
 provider, writes, malformed/omission, denial, replay, expiry or failure controls.
 The host still needs an independent reviewed room map and actual current native
 original/document owners; generated success does not qualify their availability.
+The same named generated check also reads these fictional factual subsets
+through the saved-documentary byte-admission path, without a native selection,
+session or lease, and retains exact captured identity joins, original dates and
+typed record totals. It checks that repeated building views of one pinned source
+are one inventory. The native owner, original guards and positive refresh/release
+checks still execute; saved success does not replace them.
 
 ## Unified Atlas reviewed room-links healthy read
 
@@ -1284,7 +1290,7 @@ GLB loader, reducer, projection, pointer factory and documentary index. Inspect
 node --test --test-concurrency=1 frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs
 ```
 
-Its sixteen CPU cases cover repeated navigation, every declared selectable
+Its twenty-two CPU cases cover repeated navigation, every declared selectable
 occurrence, shared room identity, source-coordinate plans, normal overlay
 toggles, collapse-before-Plan selection, deterministic count touch-target
 suppression, complete label-action targets, source-qualified duplicate floor
@@ -1295,12 +1301,38 @@ matrix retains its exact historical source attribution; browser automation is
 a separate check and gains no execution permission from this CPU command.
 This adds no workflow or ordinary CI step.
 
+The same named interaction runner also checks the complete outward hierarchy
+with a single-building publication, all eight independent layer combinations,
+Plan/3D continuity, explicit explosion, an opaque upper slab during a normal
+section transition, authored roof membership and visible foreign-building
+surface targets. Measurement positives retain irregular outlines and holes,
+excluded sibling-part qualification and actual curved boundary segments.
+Native-gesture positives check cumulative rotation/scale and scoped listener
+release; these are simulated CPU events, not physical Mac gesture acceptance.
+Property projection positives retain distinct source identities, differing
+same-date observations and per-building coverage. These generated ordinary
+cases add no held lifecycle, malformed, denial or other control case.
+
 The `/lantern-tests/source-host-visual/` fixture keeps its default. With
 `?atlas=generated` it also mounts the unified Atlas through the production
 reader against an in-page synthetic HTTPS transport. With
 `?atlas-scene=<path>&atlas-model=<path>` it reads an externally supplied
 publication companion and GLB once from the same loopback origin instead. Both
 paths are required, and they are fetched without credentials or redirects.
+An optional `atlas-entry-building` supplies an explicit presentation entry,
+validated against the admitted scene; names/order/size do not choose it.
+With `atlas-documentary=/review-input/<manifest>.json`, the same private fixture
+can additionally read a saved-documentary manifest and its three pinned source,
+support and captured-map files. Inspect `integration/saved-documentary-preview.ts`,
+the source client's pure documentary byte-admission core and the factual runtime
+projector first. Its bounded same-origin reads omit credentials and redirects;
+all other application fetches stay unavailable. It preserves original source
+IDs/dates, unplaced records and source qualifiers. The visible saved-snapshot
+state is separate from native sessions, frames, read leases, currentness or
+physical registration. Drawing references are metadata only. Other fixture app
+screens and actions remain generated. Use only owned private inputs and the
+same supported-browser/manual preview bounds above; this adds no native grant,
+private-intake controls, authenticated candidate acceptance or deployment.
 Keep supplied files and any captures outside Git. Follow the loopback preview
 bounds above. A fixture review does not qualify native authority, household
 data or deployment, and it adds no workflow or ordinary CI command.

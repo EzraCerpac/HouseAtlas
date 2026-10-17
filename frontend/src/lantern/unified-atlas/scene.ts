@@ -617,10 +617,6 @@ export function initialAtlasState(model: AtlasModel, entryBuildingId: string | n
   return { buildingId: entry ?? single, levelId: null, occurrenceId: null, view: '3d', exploded: false, layers: NO_LAYERS };
 }
 
-/** An exploded whole building already shows every floor, so a room there keeps the building scope. */
-const keepsWhole = (model: AtlasModel, state: AtlasViewState, buildingId: string) =>
-  state.view === '3d' && state.exploded && hasExplodableLevels(model, buildingId);
-
 /** The building a plan or floor list follows: the chosen one, else the selected room's, else the default. */
 export function focusBuildingId(model: AtlasModel, state: AtlasViewState): string | null {
   const selected = state.occurrenceId === null ? undefined : model.occurrencesById.get(state.occurrenceId);
@@ -644,24 +640,20 @@ export function atlasReducer(model: AtlasModel, state: AtlasViewState, action: A
       if (action.occurrenceId === null) return state.occurrenceId === null ? state : { ...state, occurrenceId: null };
       const occurrence = model.occurrencesById.get(action.occurrenceId);
       if (!occurrence || !model.selectable.has(occurrence.spaceOccurrenceId)) return state;
-      // Otherwise reveal the room's own floor, so its whole footprint is exposed.
-      const keepWhole = keepsWhole(model, state, occurrence.buildingId) && state.levelId === null && state.buildingId === occurrence.buildingId;
+      // Semantic ancestry stays complete even when Exploded displays every floor.
       return { ...state, occurrenceId: occurrence.spaceOccurrenceId, buildingId: occurrence.buildingId,
-        levelId: keepWhole ? null : occurrence.levelId };
+        levelId: occurrence.levelId };
     }
     case 'building': {
       if (action.buildingId !== null && !model.floorBuildings.some(row => row.buildingId === action.buildingId)) return state;
-      const selected = state.occurrenceId === null ? undefined : model.occurrencesById.get(state.occurrenceId);
-      const keep = action.buildingId !== null && selected?.buildingId === action.buildingId && keepsWhole(model, state, action.buildingId);
-      if (action.buildingId === state.buildingId && state.levelId === null && (state.occurrenceId === null || keep)) return state;
-      return { ...state, buildingId: action.buildingId, levelId: null, occurrenceId: keep ? state.occurrenceId : null };
+      if (action.buildingId === state.buildingId && state.levelId === null && state.occurrenceId === null) return state;
+      return { ...state, buildingId: action.buildingId, levelId: null, occurrenceId: null };
     }
     case 'level': {
       const selected = state.occurrenceId === null ? undefined : model.occurrencesById.get(state.occurrenceId);
       if (action.levelId === null) {
-        const keep = selected !== undefined && keepsWhole(model, state, selected.buildingId);
-        if (state.levelId === null && (state.occurrenceId === null || keep)) return state;
-        return { ...state, levelId: null, occurrenceId: keep ? state.occurrenceId : null };
+        if (state.levelId === null && state.occurrenceId === null) return state;
+        return { ...state, levelId: null, occurrenceId: null };
       }
       const level = model.levelsById.get(action.levelId);
       if (!level) return state;
@@ -673,19 +665,16 @@ export function atlasReducer(model: AtlasModel, state: AtlasViewState, action: A
     }
     // Plan and 3D show the same building, floor, room and layers.
     case 'view': return action.view === state.view ? state : { ...state, view: action.view };
-    case 'explode': {
-      if (state.exploded === action.exploded) return state;
-      const selected = state.occurrenceId === null ? undefined : model.occurrencesById.get(state.occurrenceId);
-      return !action.exploded && state.view === '3d' && selected
-        ? { ...state, exploded: false, buildingId: selected.buildingId, levelId: selected.levelId }
-        : { ...state, exploded: action.exploded };
-    }
+    case 'explode': return state.exploded === action.exploded ? state : { ...state, exploded: action.exploded };
     case 'layer': return state.layers[action.layer] === action.on ? state : { ...state, layers: { ...state.layers, [action.layer]: action.on } };
     case 'out': {
-      if (state.occurrenceId !== null) return { ...state, occurrenceId: null };
+      if (state.occurrenceId !== null) {
+        const occurrence = model.occurrencesById.get(state.occurrenceId);
+        return { ...state, occurrenceId: null, buildingId: occurrence?.buildingId ?? state.buildingId,
+          levelId: occurrence?.levelId ?? state.levelId };
+      }
       if (state.levelId !== null) return { ...state, levelId: null };
-      // With one building there is no wider scope to show.
-      if (state.buildingId !== null && model.floorBuildings.length > 1) return { ...state, buildingId: null };
+      if (state.buildingId !== null) return { ...state, buildingId: null };
       return state;
     }
   }
@@ -1077,8 +1066,9 @@ export function surfaceLevel(model: AtlasModel, levelIds: readonly string[], y: 
   return tied ? null : best;
 }
 
-/** One semantic target for a 3D tap. A pickable room wins unless a visible
- * surface of another building lies in front of it. Otherwise the nearest
+/** One semantic target for a 3D tap. A room proxy may pass through its own
+ * floor's structure, but another floor's opaque surface or any opaque roof
+ * still occludes it while a cutaway transitions. Otherwise the nearest
  * visible surface selects its building from the property or from another
  * building's scope, and its floor from the building's own scope or any floor.
  * Context geometry never takes a pick; null means nothing semantic was hit. */
@@ -1086,11 +1076,15 @@ export function pickTarget(model: AtlasModel, presentation: AtlasPresentation, s
   projection: Projection, px: number, py: number): AtlasTarget | null {
   const room = pickOccurrenceHit(model, presentation, t, projection, px, py);
   const surface = pickSurface(model, presentation, t, projection, px, py);
-  if (room && (!surface || surface.part.buildingId === model.occurrencesById.get(room.occurrenceId)!.buildingId
-    || room.depth >= surface.hit.depth - PICK_DEPTH_TOLERANCE)) return { kind: 'room', occurrenceId: room.occurrenceId };
+  const occurrence = room ? model.occurrencesById.get(room.occurrenceId)! : null;
+  const ownFloor = surface && occurrence && surface.part.role === 'structure'
+    && surface.part.buildingId === occurrence.buildingId
+    && surfaceLevel(model, surface.part.levelIds, surface.hit.y) === occurrence.levelId;
+  if (room && (!surface || ownFloor || room.depth >= surface.hit.depth - PICK_DEPTH_TOLERANCE))
+    return { kind: 'room', occurrenceId: room.occurrenceId };
   if (!surface) return null;
   const buildingId = surface.part.buildingId, levelId = surfaceLevel(model, surface.part.levelIds, surface.hit.y);
-  const deep = state.buildingId !== null && (buildingId === state.buildingId || state.levelId !== null);
+  const deep = buildingId === state.buildingId;
   return deep && levelId !== null ? { kind: 'level', levelId } : { kind: 'building', buildingId };
 }
 

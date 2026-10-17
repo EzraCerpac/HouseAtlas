@@ -135,6 +135,11 @@ export interface UnifiedAtlasPort {
    * publication. Never inferred from names, plan order or size; an absent or
    * unknown ID opens the only building with floors, else the whole property. */
   entryBuildingId?(scene: AtlasScene): string | null;
+  /** Explicit saved presentation, not a native source frame or current lease. */
+  readonly savedDocumentary?: {
+    readonly observedAt: string;
+    records(scene: AtlasScene, selectable: ReadonlySet<string>): import('./runtime-overlays').PropertyRecords;
+  };
   /** Separate current documentary owner; never changes producer semantics. */
   createOverlays?(selection: ModelOverviewSelection, scene: AtlasScene, building: AtlasBuilding, signal: AbortSignal): Promise<{
     readonly source: UnifiedAtlasOverlaySource; readonly request: UnifiedAtlasOverlayOpen;

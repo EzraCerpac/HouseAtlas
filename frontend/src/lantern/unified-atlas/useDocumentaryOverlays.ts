@@ -17,8 +17,9 @@ const NO_FRAMES: Frames = new Map();
 export function useDocumentaryOverlays(port: UnifiedAtlasPort, selection: ModelOverviewSelection, model: AtlasModel, active: boolean) {
   const [owned, setOwned] = useState<{ readonly model: AtlasModel; readonly rows: ReadonlyMap<string, Owned> } | null>(null);
   const [reasons, setReasons] = useState<ReadonlyMap<string, string>>(new Map());
+  const saved = useMemo(() => port.savedDocumentary?.records(model.scene, model.selectable) ?? null, [port, model]);
   useEffect(() => {
-    if (!active) return;
+    if (!active || saved) return;
     let closed = false;
     const controller = new AbortController(), rows = new Map<string, Owned>(), handles: Handle[] = [];
     const note = (buildingId: string, reason: string) => { if (!closed) setReasons(value => new Map(value).set(buildingId, reason)); };
@@ -42,7 +43,7 @@ export function useDocumentaryOverlays(port: UnifiedAtlasPort, selection: ModelO
       for (const row of rows.values()) row.handle.source.release(row.frame);
       for (const handle of handles) handle.source.dispose();
     };
-  }, [port, selection, model, active]);
+  }, [port, selection, model, active, saved]);
   const subscribe = useCallback((changed: () => void) => {
     const stops = [...(owned?.rows.values() ?? [])].map(row => row.handle.source.subscribeInvalidation(row.frame, changed));
     return () => { for (const stop of stops) stop(); };
@@ -58,14 +59,15 @@ export function useDocumentaryOverlays(port: UnifiedAtlasPort, selection: ModelO
     last.current = frames.size === 0 ? NO_FRAMES : frames; return last.current;
   }, [active, owned, model, port, selection]);
   const frames = useSyncExternalStore(subscribe, snapshot, () => NO_FRAMES);
-  const records = useMemo(() => frames.size === 0 ? null : mergeRuntimeRecords(model, model.floorBuildings.map(building => {
+  const aggregate = useMemo(() => mergeRuntimeRecords(model, model.floorBuildings.map(building => {
     const frame = frames.get(building.buildingId);
     const reason = reasons.get(building.buildingId);
     return { buildingId: building.buildingId, reason: frame ? 'available' : reason === 'available' ? 'selection-changed' : reason ?? 'not-loaded',
       records: frame ? documentaryRoomRecords(model.scene, frame, model.selectable) : null };
   })), [frames, model, reasons]);
+  const records = !active ? null : saved ?? (frames.size === 0 ? null : aggregate);
   const pending = [...reasons.values()].some(reason => reason === 'loading');
-  const reason = !active ? 'not-loaded' : frames.size > 0 ? 'available' : pending ? 'loading'
+  const reason = !active ? 'not-loaded' : saved ? 'saved-documentary-snapshot' : frames.size > 0 ? 'available' : pending ? 'loading'
     : [...new Set([...reasons.values()].map(value => value === 'available' ? 'selection-changed' : value))].join(', ') || 'source-unavailable';
-  return { records, reason };
+  return { records, reason, buildings: saved?.buildings ?? aggregate.buildings };
 }

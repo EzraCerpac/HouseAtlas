@@ -284,14 +284,14 @@ export async function buildSyntheticAtlas(scope: Readonly<{ workspaceId: string;
 // ---------------------------------------------------------------------------
 /** Two complete independent one-floor buildings, with their own rooms/plans
  * and roofs. Multiple buildings alone provide no levels to separate. */
-export async function buildSingleFloorBuildingsAtlas(scope: Readonly<{ workspaceId: string; homeId: string }>) {
-  const buildings = [0, 1].map(at => ({ at, x: at * 8, buildingId: `single-building-${at}`,
+export async function buildSingleFloorBuildingsAtlas(scope: Readonly<{ workspaceId: string; homeId: string }>, count: 1 | 2 = 2) {
+  const buildings = Array.from({ length: count }, (_, at) => ({ at, x: at * 8, buildingId: `single-building-${at}`,
     levelId: `single-level-${at}`, roomId: `single-room-${at}`, occurrenceId: `single-occ-${at}`, featureId: `single-feature-${at}` }));
   const nodes = buildings.flatMap(({ at, x }) => [
     { name: `Single room ${at}`, mesh: 0, translation: [x, 0, 0] as Vec3 },
     { name: `Single roof ${at}`, mesh: 1, translation: [x, 0, 0] as Vec3 },
   ]);
-  const glb = buildAtlasGlb(nodes, [[box([0, 0, 0], [3, 2, 3])], [box([-.2, 2, -.2], [3.2, 2.2, 3.2])]], [0, 1, 2, 3]);
+  const glb = buildAtlasGlb(nodes, [[box([0, 0, 0], [3, 2, 3])], [box([-.2, 2, -.2], [3.2, 2.2, 3.2])]], nodes.map((_, at) => at));
   const companion = {
     profile: 'houseatlas.unified-atlas-publication.v1', scope,
     publicationId: '00000000-0000-4000-8000-0000000a7151', sourceRevisionId: 'syn-single-floor-buildings', sourceSha256: 'e'.repeat(64),

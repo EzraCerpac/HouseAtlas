@@ -232,17 +232,27 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
   const shell = useRef<HTMLElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const plan = state.view === 'plan';
-  const out = useCallback(() => dispatch({ type: 'out' }), [dispatch]);
+  const outwardFocus = useRef<Element | null>(null);
+  const out = useCallback(() => {
+    outwardFocus.current = document.activeElement;
+    dispatch({ type: 'out' });
+  }, [dispatch]);
+  useLayoutEffect(() => {
+    const origin = outwardFocus.current; outwardFocus.current = null;
+    if (origin && !origin.isConnected && (document.activeElement === document.body || document.activeElement === null))
+      viewport.current?.focus({ preventScroll: true });
+  }, [state.buildingId, state.levelId, state.occurrenceId]);
 
   const selected = state.occurrenceId;
   const context = useMemo(() => contextOccurrenceIds(model, selected), [model, selected]);
   // Layers are property-wide at every scope; selection highlights and never filters them.
   const { electrical: electricalOn, network: networkOn } = state.layers;
+  const runtimeConfigured = Boolean(port.createOverlays || port.savedDocumentary);
   const runtime = useDocumentaryOverlays(port, selection, model, electricalOn || networkOn);
   const overlays = useMemo<ReadonlyMap<OverlayKind, OverlayLayerIndex>>(() => runtime.records ? new Map(OVERLAY_KINDS.map(kind =>
-    [kind, documentaryOverlayIndex(model, runtime.records!, kind)])) : port.createOverlays
+    [kind, documentaryOverlayIndex(model, runtime.records!, kind)])) : runtimeConfigured
       ? new Map(OVERLAY_KINDS.map(kind => [kind, { kind, placed: new Map(), unplaced: [], records: 0, unplacedRecords: 0 } satisfies OverlayLayerIndex]))
-      : model.overlays, [runtime.records, port, model]);
+      : model.overlays, [runtime.records, runtimeConfigured, model]);
   const active = useMemo(() => OVERLAY_KINDS.filter(kind => kind === 'electrical' ? electricalOn : networkOn).map(kind => overlays.get(kind)!),
     [overlays, electricalOn, networkOn]);
   // Rooms with records light in the first active layer's tint; hidden room picks become visible for them only.
@@ -571,7 +581,7 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
   // One level out, named for where it leads.
   const backTo = state.occurrenceId !== null ? (state.levelId !== null ? atlasLevelName(model, state.levelId) : building?.label ?? null)
     : state.levelId !== null ? building?.label ?? null
-    : state.buildingId !== null && buildings.length > 1 ? 'All buildings' : null;
+    : state.buildingId !== null ? 'All buildings' : null;
   // Other planned floors of the property as small plans beside the focus.
   const tiles = useMemo(() => !plan ? [] : [...(ladderBuildingId === null ? [] : [ladderBuildingId]),
     ...buildings.map(row => row.buildingId).filter(id => id !== ladderBuildingId)]
@@ -587,6 +597,7 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
   return <section ref={shell} className={`ua-shell is-stage${plan ? ' is-plan' : ''}${sheetOpen ? ' is-sheet-open' : ''}`} aria-label="Atlas" onKeyDown={escape}>
     <div className="ua-stage">
       <div className="ua-scope">
+        {port.savedDocumentary && <p className="ua-snapshot-note" role="note">Saved documentary snapshot · observed {port.savedDocumentary.observedAt}</p>}
         {backTo !== null && <button type="button" className="chip-btn ua-back" onClick={out} aria-label={`Back to ${backTo}`}>
           <Icon name="back" size={15} /><span>{backTo}</span></button>}
         {model.scene.buildings.length > 1 && buildings.length > 0 && <nav className="ua-buildings" aria-label="Buildings">
@@ -691,8 +702,9 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
             name={atlasLevelName(model, level.levelId, buildings.length > 1)} choose={() => dispatch({ type: 'level', levelId: level.levelId })} />)}
         </nav>}
         {active.map(layer => <OverlayKey key={layer.kind} layer={layer} records={runtime.records}
-          publishedOnly={!port.createOverlays} openDocuments={() => appDispatch({ type: 'view', view: 'library' })}
-          availability={runtime.records?.[layer.kind] ?? (!port.createOverlays ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
+          buildings={runtime.buildings}
+          publishedOnly={!runtimeConfigured} openDocuments={() => appDispatch({ type: 'view', view: 'library' })}
+          availability={runtime.records?.[layer.kind] ?? (!runtimeConfigured ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
           openNetwork={() => appDispatch({ type: 'view', view: 'network' })} />)}
         {measuring && <MeasurementKey estimated={estimated} shown={measured.length} />}
         <div className="layer-bar" role="group" aria-label="Layers">
@@ -701,14 +713,14 @@ function AtlasStage({ model, port, selection }: { readonly model: AtlasModel; re
             return <button key={kind} type="button" className="layer-chip" aria-pressed={on}
               style={{ '--layer': LAYER_TONE[kind] } as CSSProperties} onClick={() => dispatch({ type: 'layer', layer: kind, on: !on })}>
               <span className="layer-swatch" aria-hidden="true" />{LAYER_LABEL[kind]}
-              {on && kind !== 'measurements' && index!.records === 0 && <span className="ua-chip-note">{!port.createOverlays || runtime.records?.[kind] === 'available' ? '0' : runtime.reason === 'loading' ? 'loading' : runtime.records?.[kind] === 'partial' ? 'partial' : 'unavailable'}</span>}</button>;
+              {on && kind !== 'measurements' && index!.records === 0 && <span className="ua-chip-note">{!runtimeConfigured || runtime.records?.[kind] === 'available' ? '0' : runtime.reason === 'loading' ? 'loading' : runtime.records?.[kind] === 'partial' ? 'partial' : 'unavailable'}</span>}</button>;
           })}
         </div>
       </div>
     </div>
 
     <Inspector model={model} state={state} dispatch={dispatch} context={context} renderFailure={failure}
-      runtime={runtime.records} runtimeReason={runtime.reason} runtimeConfigured={Boolean(port.createOverlays)}
+      runtime={runtime.records} runtimeReason={runtime.reason} runtimeConfigured={runtimeConfigured}
       open={sheetOpen} setOpen={setSheetOpen}
       openDocuments={() => appDispatch({ type: 'view', view: 'library' })}
       openNetwork={() => appDispatch({ type: 'view', view: 'network' })} />
@@ -908,6 +920,12 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
         <div><dt>Home place</dt><dd className={`ua-link is-${room.nativeBinding.status}`}>{runtime?.rooms.has(room.roomId) ? 'Linked for these sources' : room.nativeBinding.status === 'historical' ? 'Link needs review' : LINK_LABEL[room.nativeBinding.status]}</dd></div>
         {state.layers.measurements && <div><dt>Area</dt><dd>{area ? `${area.text}${area.partial ? ', this part of the room' : ''}` : 'Not measured: estimated outline'}</dd></div>}
       </dl>
+      {state.layers.measurements && area && <section aria-label="Model outline dimensions" className="ua-records">
+        <h3>Outline spans{area.partial ? ' for this room part' : ''}</h3>
+        <p>{MEASUREMENT_BASIS}</p>
+        <dl className="ua-facts">{edgeSpans(model, occurrence.spaceOccurrenceId).map((span, at) =>
+          <div key={span.key}><dt>Outline span {at + 1}</dt><dd>{span.text}</dd></div>)}</dl>
+      </section>}
 
       {runtime && kinds.map(kind => <section key={kind} className="ua-records" aria-label={`${OVERLAY_LABEL[kind]} in this room`}>
         <h3>{OVERLAY_LABEL[kind]}</h3>
@@ -942,6 +960,10 @@ function DocumentaryRecords({ records, openDocuments }: { readonly records: read
     <details className="ua-source"><summary>Source</summary><dl><div><dt>Source record</dt><dd>{record.id}</dd></div>
       {record.sourceFacts.map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value ?? 'unknown'}</dd></div>)}
     </dl></details>
+    {record.observations && record.observations.length > 0 && <details className="ua-source">
+      <summary>Other source observations ({record.observations.length})</summary>
+      <DocumentaryRecords records={record.observations} openDocuments={openDocuments} />
+    </details>}
   </details>)}</div>;
 }
 
@@ -1005,10 +1027,11 @@ function SourceDetails({ model, occurrence, room, renderFailure, overlayReason, 
 
 const COVERAGE_TEXT = { available: 'Available', partial: 'Partial', unavailable: 'Unavailable' } as const;
 
-function OverlayKey({ layer, openNetwork, availability, records, openDocuments, publishedOnly }: {
+function OverlayKey({ layer, openNetwork, availability, records, buildings, openDocuments, publishedOnly }: {
   readonly layer: OverlayLayerIndex; readonly openNetwork: () => void; readonly openDocuments: () => void;
   readonly records: PropertyRecords | null; readonly availability: 'available' | 'partial' | 'unavailable' | 'loading';
   readonly publishedOnly: boolean;
+  readonly buildings: readonly BuildingCoverage[];
 }) {
   const reasons = unplacedByReason(layer);
   const unplaced = records?.unplaced[layer.kind] ?? [];
@@ -1034,8 +1057,8 @@ function OverlayKey({ layer, openNetwork, availability, records, openDocuments, 
         : availability === 'partial' ? 'Some buildings or sources are unavailable; their records are not counted.'
         : publishedOnly && layer.records === 0 ? 'No source references in this publication.'
         : layer.records === 0 ? 'No linked records in the available source.' : 'Counts show source records per room across the property, not device positions.'}</p>
-      {records && records.buildings.length > 0 && <ul className="ua-coverage-list" aria-label="Coverage by building">
-        {records.buildings.map((row: BuildingCoverage) => <li key={row.buildingId} className={`is-${row[layer.kind]}`}>
+      {buildings.length > 0 && <ul className="ua-coverage-list" aria-label="Coverage by building">
+        {buildings.map((row: BuildingCoverage) => <li key={row.buildingId} className={`is-${row[layer.kind]}`}>
           <span>{row.label}</span><span>{COVERAGE_TEXT[row[layer.kind]]}{row.reason !== 'available' ? `: ${row.reason}` : ''}</span></li>)}
       </ul>}
       {connections.length > 0 && <details className="ua-logical">

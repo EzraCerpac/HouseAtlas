@@ -401,7 +401,9 @@ function pickAt(state, t, key, pitch) {
 }
 const reduce = (state, ...actions) => actions.reduce((value, action) => atlasReducer(model, value, action), state);
 const initial = initialAtlasState(model);
-assert.deepEqual(initial, { buildingId: null, levelId: null, occurrenceId: null, view: '3d', exploded: true, overlay: null });
+assert.deepEqual(initial, { buildingId: null, levelId: null, occurrenceId: null, view: '3d', exploded: false,
+  layers: { electrical: false, network: false, measurements: false } });
+const explicitExploded = reduce(initial, { type: 'explode', exploded: true });
 assert.deepEqual(model.floorBuildings.map(row => row.buildingId), ['syn-building-house', 'syn-building-studio']);
 assert.equal(model.defaultBuildingId, 'syn-building-house');
 assert.equal(hasExplodableLevels(model, null), true);
@@ -430,14 +432,14 @@ for (const part of singleModel.parts.filter(part => part.role === 'roof')) {
   assert.equal(singlePresentation.hidden.has(part.mesh.meshKey), false);
   assert.equal(singlePresentation.clips.get(part.mesh.meshKey), null);
 }
-assert.deepEqual(reduce(initial, { type: 'view', view: 'plan' }), { ...initial, view: 'plan', buildingId: 'syn-building-house', levelId: 'syn-level-ground' });
+assert.deepEqual(reduce(initial, { type: 'view', view: 'plan' }), { ...initial, view: 'plan' });
 // Feature references may use any order; the generated Split plan is intentionally reordered.
 const rawSplit = JSON.parse(new TextDecoder().decode(companionBytes)).plans.find(row => row.levelId === 'syn-level-split');
 assert.notDeepEqual(rawSplit.featureIds, rawSplit.features.map(row => row.featureId));
 assert.deepEqual(new Set(rawSplit.featureIds), new Set(scene.planFeaturesForLevel(model, 'syn-level-split').map(row => row.featureId)));
 // Focused exploded floors frame every displayed section, including Upper's lift.
 for (const levelId of ['syn-level-ground', 'syn-level-split']) {
-  const focused = reduce(initial, { type: 'level', levelId });
+  const focused = reduce(explicitExploded, { type: 'level', levelId });
   const bounds = frameBox(model, focused, presentAtlas(model, focused, none));
   near(bounds.min, [102, -0.2, 51], 'focused exploded min');
   near(bounds.max, [112, 9.6, 59], 'focused exploded max');
@@ -445,13 +447,13 @@ for (const levelId of ['syn-level-ground', 'syn-level-split']) {
 
 
 // Room picks are never drawn unless highlighted, yet remain pickable.
-const exploded = presentAtlas(model, initial, none);
+const exploded = presentAtlas(model, explicitExploded, none);
 const pickKeys = model.parts.filter(part => part.role === 'room-pick').map(part => part.mesh.meshKey);
 assert.equal(pickKeys.length, 10);
 assert.ok(pickKeys.every(key => exploded.hidden.has(key)));
 assert.equal(exploded.pickable.size, 10);
 assert.ok(!exploded.hidden.has(drawnAt(2, 0).mesh.meshKey) && exploded.hidden.has(drawnAt(3, 0).mesh.meshKey), 'structure drawn, roof hidden when exploded');
-const highlighted = presentAtlas(model, initial, new Set(['syn-occ-hall']));
+const highlighted = presentAtlas(model, explicitExploded, new Set(['syn-occ-hall']));
 assert.ok(!highlighted.hidden.has(hallPick.mesh.meshKey) && highlighted.pickable.has('syn-occ-hall'));
 
 // Exploded: display offsets from the actual level order; shared and level-free parts stay put.
@@ -469,16 +471,16 @@ assert.equal(partLifts(model, exploded, 0).size, 0);
 near(hallPick.mesh.bounds.min, [102.1, 0.02, 51.1], 'hall pick after presentation');
 
 const everyRoom = SYNTHETIC_OCCURRENCES.filter(row => row.selectable !== false && !row.hole).map(row => row.id);
-for (const key of everyRoom) assert.equal(pickAt(initial, 1, key, 36), key, `exploded pick ${key}`);
+for (const key of everyRoom) assert.equal(pickAt(explicitExploded, 1, key, 36), key, `exploded pick ${key}`);
 // Mid-transition: lifted floors pick at the same half lift they are drawn with.
 for (const key of ['syn-occ-bedroom-split', 'syn-occ-study', 'syn-occ-bedroom-upper', 'syn-occ-bath', 'syn-occ-stairs-upper'])
-  assert.equal(pickAt(initial, 0.5, key, 36), key, `transition pick ${key}`);
+  assert.equal(pickAt(explicitExploded, 0.5, key, 36), key, `transition pick ${key}`);
 
 // Labels: anchor height and lift come from the same presentation and pick back to their room.
 // Non-overlapping anchor rays return their own room. Overlapping proxies use
 // nearest geometry; visible label buttons instead select their explicit occurrence ID.
 for (const key of ['syn-occ-hall', 'syn-occ-bedroom-split', 'syn-occ-bedroom-upper']) {
-  const projection = makeProjection(pose(36), frameBox(model, initial, exploded), VIEWPORT, 0);
+  const projection = makeProjection(pose(36), frameBox(model, explicitExploded, exploded), VIEWPORT, 0);
   const anchor = model.labels.get(key);
   assert.ok(pointInShape(anchor.x, anchor.z, model.shapes.get(key)));
   assert.equal(labelHeight(model, exploded, key, false), model.floorY.get(model.occurrencesById.get(key).levelId) + 1.2, 'label at the section cut');
@@ -486,12 +488,16 @@ for (const key of ['syn-occ-hall', 'syn-occ-bedroom-split', 'syn-occ-bedroom-upp
   assert.equal(pickOccurrence(model, exploded, 1, projection, px, py), key, `label pick ${key}`);
 }
 
-// Stacked whole building: the topmost room at each point wins; structure and roof never claim a room.
-const stacked = reduce(initial, { type: 'building', buildingId: 'syn-building-house' }, { type: 'explode', exploded: false });
-assert.ok(!presentAtlas(model, stacked, none).hidden.has(drawnAt(3, 0).mesh.meshKey), 'roof drawn when stacked');
-for (const key of ['syn-occ-bedroom-upper', 'syn-occ-bath', 'syn-occ-stairs-upper', 'syn-occ-bedroom-split', 'syn-occ-study'])
-  assert.equal(pickAt(stacked, 0, key, 60), key, `stacked pick ${key}`);
-assert.equal(pickAt(stacked, 0, 'syn-occ-hall', 60), 'syn-occ-bedroom-upper', 'the upper room is above the hall');
+// Normal whole-building navigation selects authored surfaces before rooms.
+const stacked = reduce(initial, { type: 'building', buildingId: 'syn-building-house' });
+const stackedPresentation = presentAtlas(model, stacked, none);
+assert.ok(!stackedPresentation.hidden.has(drawnAt(3, 0).mesh.meshKey), 'roof drawn when stacked');
+assert.equal(stackedPresentation.pickable.size, 0, 'building scope does not jump straight to room details');
+assert.equal(partLifts(model, stackedPresentation, stackedPresentation.explodeTarget).size, 0, 'settled normal navigation never separates floors');
+const stackedProjection = makeProjection(pose(90, 0), frameBox(model, stacked, stackedPresentation), VIEWPORT, 0);
+const roofPixel = stackedProjection.project(103.25, 5, 55);
+assert.deepEqual(scene.pickTarget(model, stackedPresentation, stacked, 0, stackedProjection, ...roofPixel),
+  { kind: 'building', buildingId: 'syn-building-house' }, 'this fixture roof has no authored floor, so it retains building scope');
 // Stacked with one floor in focus: lower floors only, cut at the focus section.
 for (const [levelId, keys] of [['syn-level-ground', ['syn-occ-hall', 'syn-occ-living', 'syn-occ-stairs-ground']],
   ['syn-level-upper', ['syn-occ-bedroom-upper', 'syn-occ-bath', 'syn-occ-stairs-upper']]]) {
@@ -553,7 +559,7 @@ const ceilings = sectionCeilings(model);
 near(ceilings, [5.71, 3.01], 'each building rests just above its own geometry');
 const datum = atlasOrigin(model)[1];
 const sweep = {
-  whole: initial,
+  whole: explicitExploded,
   stacked,
   ground: reduce(stacked, { type: 'level', levelId: 'syn-level-ground' }),
   upper: reduce(stacked, { type: 'level', levelId: 'syn-level-upper' }),
@@ -689,7 +695,7 @@ const revealed = (presentation, key) => model.pickParts.get(key).some(part => {
           subject.floorY.get(level) + 0.6 + levelLift(presentation, occurrenceLiftLevel(subject, key), 0.5), z);
         assert.equal(pickOccurrence(raised, highShown, 0.5, highProjection, ...probe(raised, high, highProjection)),
           pickOccurrence(model, baseShown, 0.5, baseProjection, ...probe(model, base, baseProjection)), `${name} raised pick ${key} at ${pitch}°`);
-        if (name === 'stacked' && key === 'syn-occ-living' && pitch === 90) {
+        if (name === 'whole' && key === 'syn-occ-living' && pitch === 90) {
           assert.equal(pickOccurrence(model, baseShown, 0.5, baseProjection, ...probe(model, base, baseProjection)), 'syn-occ-bath');
           assert.equal(pickOccurrence(raised, highShown, 0.5, highProjection, ...probe(raised, high, highProjection)), 'syn-occ-bath',
             'the room interior remains pickable on a shared triangle seam');
@@ -705,19 +711,19 @@ let state = reduce(initial, { type: 'select', occurrenceId: 'syn-occ-hall' });
 assert.deepEqual([state.occurrenceId, state.buildingId, state.levelId], ['syn-occ-hall', 'syn-building-house', 'syn-level-ground']);
 state = reduce(state, { type: 'level', levelId: null });
 state = reduce(state, { type: 'select', occurrenceId: 'syn-occ-living' });
-assert.equal(state.levelId, null, 'an exploded whole building keeps every floor in view');
+assert.equal(state.levelId, 'syn-level-ground', 'a room retains its semantic floor regardless of presentation');
 state = reduce(state, { type: 'view', view: 'plan' });
 assert.deepEqual([state.view, state.occurrenceId, state.levelId], ['plan', 'syn-occ-living', 'syn-level-ground']);
 state = reduce(state, { type: 'select', occurrenceId: 'syn-occ-study' });
 assert.deepEqual([state.occurrenceId, state.levelId], ['syn-occ-study', 'syn-level-split'], 'the plan follows the room to its floor');
-state = reduce(state, { type: 'overlay', overlay: 'electrical' }, { type: 'view', view: '3d' }, { type: 'explode', exploded: false });
-assert.deepEqual([state.occurrenceId, state.overlay, state.view, state.exploded], ['syn-occ-study', 'electrical', '3d', false]);
+state = reduce(state, { type: 'layer', layer: 'electrical', on: true }, { type: 'view', view: '3d' }, { type: 'explode', exploded: false });
+assert.deepEqual([state.occurrenceId, state.layers.electrical, state.view, state.exploded], ['syn-occ-study', true, '3d', false]);
 state = reduce(state, { type: 'select', occurrenceId: 'syn-occ-stairs-ground' }, { type: 'select', occurrenceId: 'syn-occ-stairs-upper' });
 assert.deepEqual([state.occurrenceId, state.levelId], ['syn-occ-stairs-upper', 'syn-level-upper']);
 state = reduce(state, { type: 'building', buildingId: 'syn-building-studio' });
 assert.deepEqual([state.occurrenceId, state.buildingId, state.levelId], [null, 'syn-building-studio', null], 'another building clears the room');
 state = reduce(state, { type: 'select', occurrenceId: 'syn-occ-studio' }, { type: 'building', buildingId: null });
-assert.equal(state.occurrenceId, 'syn-occ-studio', 'all buildings keep the room');
+assert.deepEqual([state.occurrenceId, state.levelId, state.buildingId], [null, null, null], 'property scope clears the complete child path');
 
 // Normal pointer sequences through the same production handlers used by the hook.
 const { createStagePointers } = await import(pointersURL);

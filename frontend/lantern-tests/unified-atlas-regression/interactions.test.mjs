@@ -14,7 +14,7 @@ const select = occurrenceId => ({ type: 'select', occurrenceId });
 const view = view => ({ type: 'view', view });
 const building = buildingId => ({ type: 'building', buildingId });
 const level = levelId => ({ type: 'level', levelId });
-const overlay = overlay => ({ type: 'overlay', overlay });
+const layer = (layer, on = true) => ({ type: 'layer', layer, on });
 const H = 'syn-building-house', S = 'syn-building-studio';
 const G = 'syn-level-ground', U = 'syn-level-upper';
 const near = (actual, expected) => actual.forEach((n, i) => assert.ok(Math.abs(n - expected[i]) < 1e-4, `${actual} != ${expected}`));
@@ -24,7 +24,7 @@ test('one scene read followed by exactly its pinned model; no extra reads during
     `${api.SYNTHETIC_ATLAS.origin}${composed.href}`]);
   let state = initial();
   for (let n = 0; n < 12; n++) state = reduce(state, building(H), select('syn-occ-hall'), view('plan'),
-    overlay('electrical'), view('3d'), building(S), select('syn-occ-studio'), overlay('network'));
+    layer('electrical'), view('3d'), building(S), select('syn-occ-studio'), layer('network'));
   assert.equal(state.occurrenceId, 'syn-occ-studio');
   assert.equal(calls.length, 2);
 });
@@ -33,7 +33,7 @@ test('each of ten declared selectable occurrences is individually selectable acr
   assert.equal(model.selectable.size, 10);
   for (const id of model.selectable) {
     const occurrence = model.occurrencesById.get(id);
-    let state = reduce(initial(), select(id), overlay('electrical'), view('plan'));
+    let state = reduce(initial(), select(id), layer('electrical'), view('plan'));
     assert.equal(state.occurrenceId, id);
     assert.equal(state.buildingId, occurrence.buildingId);
     assert.equal(state.levelId, occurrence.levelId);
@@ -41,7 +41,7 @@ test('each of ten declared selectable occurrences is individually selectable acr
     assert.ok(presentation.pickable.has(id));
     state = reduce(state, view('3d'));
     assert.equal(state.occurrenceId, id);
-    assert.equal(state.overlay, 'electrical');
+    assert.equal(state.layers.electrical, true);
   }
 });
 
@@ -63,22 +63,22 @@ test('two Bedrooms preserve distinct IDs and floors; stairs preserve a logical r
 });
 
 test('building transitions clear foreign selection, preserve overlay and choose that building’s plan', () => {
-  let state = reduce(initial(), building(H), select('syn-occ-hall'), overlay('network'), view('plan'), building(S));
+  let state = reduce(initial(), building(H), select('syn-occ-hall'), layer('network'), view('plan'), building(S));
   assert.equal(state.occurrenceId, null);
-  assert.equal(state.levelId, 'syn-level-studio');
-  assert.equal(state.overlay, 'network');
-  assert.deepEqual([...api.presentAtlas(model, state, empty).pickable].sort(), ['syn-occ-gallery', 'syn-occ-studio']);
+  assert.equal(state.levelId, null);
+  assert.equal(state.layers.network, true);
+  assert.equal(api.presentAtlas(model, state, empty).focusLevelId, 'syn-level-studio');
   state = reduce(state, select('syn-occ-studio'), building(null));
-  assert.equal(state.view, '3d');
-  assert.equal(state.occurrenceId, 'syn-occ-studio');
+  assert.equal(state.view, 'plan');
+  assert.equal(state.occurrenceId, null);
   state = reduce(state, building(H), view('plan'));
   assert.equal(state.occurrenceId, null);
-  assert.equal(state.levelId, G);
+  assert.equal(state.levelId, null);
 });
 
 test('explosion lifts drawing and CPU picks together throughout transition without modifying geometry', () => {
   const before = model.meshes.map(mesh => mesh.vertices.slice());
-  const state = reduce(initial(), building(H));
+  const state = reduce(initial(), building(H), { type: 'explode', exploded: true });
   const p = api.presentAtlas(model, state, empty);
   for (const t of [0, .25, .5, .75, 1]) {
     const lifts = api.partLifts(model, p, t);
@@ -108,12 +108,12 @@ test('single-floor studio stays whole while house explodes, including section cl
 test('collapsing an exploded selection focuses its exact floor before any Plan visit', () => {
   for (const id of ['syn-occ-living', 'syn-occ-bedroom-upper', 'syn-occ-stairs-ground', 'syn-occ-stairs-upper']) {
     const occurrence = model.occurrencesById.get(id);
-    const state = reduce(initial(), building(H), select(id), overlay('network'));
-    assert.equal(state.levelId, null);
+    const state = reduce(initial(), building(H), { type: 'explode', exploded: true }, select(id), layer('network'));
+    assert.equal(state.levelId, occurrence.levelId);
     assert.equal(state.exploded, true);
     const collapsed = reduce(state, { type: 'explode', exploded: false });
-    assert.deepEqual([collapsed.buildingId, collapsed.levelId, collapsed.occurrenceId, collapsed.overlay],
-      [occurrence.buildingId, occurrence.levelId, id, 'network']);
+    assert.deepEqual([collapsed.buildingId, collapsed.levelId, collapsed.occurrenceId, collapsed.layers.network],
+      [occurrence.buildingId, occurrence.levelId, id, true]);
     const presentation = api.presentAtlas(model, collapsed, new Set([id]));
     assert.ok(presentation.pickable.has(id));
     for (const part of model.parts.filter(part => part.buildingId === H && part.role === 'roof'))
@@ -280,8 +280,9 @@ test('each plan uses its own source X/Z and room IDs at different yaw/zoom/pan v
 
 test('electrical/network/rooms toggles preserve selected room and bind only the declared records', () => {
   let state = reduce(initial(), select('syn-occ-stairs-ground'), view('plan'));
-  for (const kind of ['electrical', 'network', null, 'network']) {
-    state = reduce(state, overlay(kind));
+  for (const [kind, on] of [['electrical', true], ['network', true], ['electrical', false], ['network', false]]) {
+    state = reduce(state, layer(kind, on));
+    assert.equal(state.layers[kind], on);
     assert.equal(state.occurrenceId, 'syn-occ-stairs-ground');
     assert.equal(state.levelId, G);
   }
@@ -305,7 +306,7 @@ test('runtime documentary summaries count records once while marking both parts 
 });
 
 test('normal pointer tap selects through the real CPU picker; drag or pinch changes camera without selecting', () => {
-  let state = reduce(initial(), building(H));
+  let state = reduce(initial(), level(G));
   const presentation = api.presentAtlas(model, state, empty);
   const projection = api.makeProjection({ yaw: 0, pitch: 36, zoom: 1, panX: 0, panY: 0 },
     api.frameBox(model, state, presentation), { width: 960, height: 640 }, 0);
@@ -318,7 +319,8 @@ test('normal pointer tap selects through the real CPU picker; drag or pinch chan
   const handlers = api.createStagePointers({ top: false,
     gesture: { drag: null, pointers: new Map(), pinch: null, pinched: false }, dragging() {},
     orbit: update => { orbit = update(orbit); }, pan: update => { pan = update(pan); }, zoom: update => { zoom = update(zoom); },
-    onTap: (px, py) => { taps++; state = reduce(state, select(api.pickOccurrence(model, presentation, 1, projection, px, py))); } });
+    onTap: (px, py) => { taps++; const target = api.pickTarget(model, presentation, state, 0, projection, px, py);
+      if (target) state = reduce(state, api.targetAction(target)); } });
   const pointer = (id, px, py, type = 'mouse') => ({ button: 0, pointerId: id, pointerType: type,
     clientX: px + 10, clientY: py + 20, target: viewport, currentTarget: viewport });
   handlers.onPointerDown(pointer(1, x, y)); handlers.onPointerUp(pointer(1, x, y));
@@ -332,4 +334,126 @@ test('normal pointer tap selects through the real CPU picker; drag or pinch chan
   assert.equal(zoom, 2); assert.equal(pan.x, 10); assert.equal(taps, 1);
   assert.equal(state.occurrenceId, 'syn-occ-hall');
   assert.equal(captures.size, 0);
+});
+
+test('semantic ancestry survives every layer combination, view and explicit explosion, including a single building', async () => {
+  const single = (await generatedModel(api, scope => api.buildSingleFloorBuildingsAtlas(scope, 1))).model;
+  for (const subject of [model, single]) for (const exploded of [false, true]) for (let mask = 0; mask < 8; mask++) {
+    const id = subject === model ? 'syn-occ-hall' : 'single-occ-0';
+    const occurrence = subject.occurrencesById.get(id);
+    const reduceSubject = (state, action) => api.atlasReducer(subject, state, action);
+    let state = reduceSubject(api.initialAtlasState(subject), { type: 'explode', exploded });
+    ['electrical', 'network', 'measurements'].forEach((kind, at) => { state = reduceSubject(state, layer(kind, Boolean(mask & 1 << at))); });
+    state = reduceSubject(state, select(id));
+    const layers = state.layers;
+    for (const mode of ['plan', '3d']) {
+      const before = state; state = reduceSubject(state, view(mode));
+      assert.deepEqual({ ...state, view: before.view }, before, 'view changes no semantic or layer state');
+    }
+    const expected = [[occurrence.buildingId, occurrence.levelId, null], [occurrence.buildingId, null, null], [null, null, null]];
+    for (const path of expected) {
+      state = reduceSubject(state, { type: 'out' });
+      assert.deepEqual([state.buildingId, state.levelId, state.occurrenceId], path);
+      assert.equal(state.layers, layers); assert.equal(state.exploded, exploded); assert.equal(state.view, '3d');
+    }
+    const whole = api.presentAtlas(subject, state, empty);
+    if (!exploded) assert.equal(api.partLifts(subject, whole, 0).size, 0);
+  }
+  assert.equal(api.initialAtlasState(model, H).buildingId, H, 'an explicit admitted host entry selects its building');
+});
+
+test('an opaque upper slab takes its floor hit until the ordinary cutaway exposes the room beneath', () => {
+  const state = reduce(initial(), level(G));
+  const target = api.presentAtlas(model, state, empty), ceilings = api.sectionCeilings(model);
+  const targets = api.sectionTargets(model, target, ceilings);
+  const projection = api.makeProjection({ yaw: 0, pitch: 90, zoom: 1, panX: 0, panY: 0 },
+    api.frameBox(model, state, target), { width: 960, height: 640 }, 0);
+  const pixel = projection.project(103.25, 0, 55);
+  const shown = api.easePresentation(model, target, 0, [3, ceilings[1]], targets, ceilings);
+  const opaque = api.pickTarget(model, shown, state, 0, projection, ...pixel);
+  assert.deepEqual(opaque, { kind: 'level', levelId: U });
+  // During the cut, the upper face is gone but its opaque underside remains.
+  // Shared floor membership must not let the room pass through that slab.
+  const underside = api.easePresentation(model, target, 0, [2.7, ceilings[1]], targets, ceilings);
+  assert.deepEqual(api.pickTarget(model, underside, state, 0, projection, ...pixel), { kind: 'level', levelId: G });
+  assert.deepEqual(api.pickTarget(model, target, state, 0, projection, ...pixel), { kind: 'room', occurrenceId: 'syn-occ-hall' });
+  // Retarget from the current visible hit, repeat it, then return before settling.
+  const upper = reduce(state, api.targetAction(opaque));
+  assert.equal(reduce(upper, api.targetAction(opaque)), upper);
+  const back = reduce(upper, level(G));
+  assert.equal(back.levelId, G); assert.equal(back.exploded, false);
+});
+
+test('authored roof membership selects a floor while visible foreign surfaces select their building', async () => {
+  const { model: authored } = await generatedModel(api, async scope => {
+    const input = await api.buildSyntheticAtlas(scope), companion = JSON.parse(new TextDecoder().decode(input.companionBytes));
+    for (const binding of companion.meshBindings) if (binding.nodeIndex === 3 && binding.role === 'roof') binding.levelIds = [U];
+    return { ...input, companionBytes: new TextEncoder().encode(JSON.stringify(companion)) };
+  });
+  const own = api.atlasReducer(authored, api.initialAtlasState(authored), building(H));
+  const p = api.presentAtlas(authored, own, empty);
+  const projection = api.makeProjection({ yaw: 0, pitch: 90, zoom: 1, panX: 0, panY: 0 },
+    api.frameBox(authored, own, p), { width: 960, height: 640 }, 0);
+  const pixel = projection.project(103.25, 5, 55);
+  assert.deepEqual(api.pickTarget(authored, p, own, 0, projection, ...pixel), { kind: 'level', levelId: U });
+  const foreign = api.atlasReducer(authored, own, level('syn-level-studio'));
+  const foreignPresentation = api.presentAtlas(authored, foreign, empty);
+  assert.deepEqual(api.pickTarget(authored, foreignPresentation, foreign, 0, projection, ...pixel), { kind: 'building', buildingId: H });
+});
+
+test('measurement spans retain irregular outlines and holes without turning a curved boundary into a chord', () => {
+  const ring = [[0, 0], [2, 0], [4, 0], [4, 1], [1, 1], [1, 3], [0, 3], [0, 0]];
+  const lengths = points => api.ringRuns(points).map(run => Math.hypot(run.b[0] - run.a[0], run.b[1] - run.a[1])).sort((a, b) => a - b);
+  assert.deepEqual(lengths(ring), [1, 1, 2, 3, 3, 4]);
+  assert.deepEqual(lengths([...ring].reverse()), lengths(ring));
+  const open = ring.slice(0, -1); assert.deepEqual(lengths([...open.slice(3), ...open.slice(0, 3)]), lengths(ring));
+  const arc = Array.from({ length: 181 }, (_, at) => [5 * Math.cos(at * Math.PI / 360), 5 * Math.sin(at * Math.PI / 360)]);
+  const long = api.ringRuns(arc).filter(run => Math.hypot(run.b[0] - run.a[0], run.b[1] - run.a[1]) >= api.MIN_SPAN_M);
+  assert.equal(long.length, 1, 'only the actual closing diagonal qualifies, once');
+  assert.ok(Math.abs(Math.hypot(long[0].b[0] - long[0].a[0], long[0].b[1] - long[0].a[1]) - Math.sqrt(50)) < 1e-9);
+  const occurrenceId = 'syn-occ-hall', occurrence = model.occurrencesById.get(occurrenceId), room = model.roomsById.get(occurrence.roomId);
+  const polygon = { outer: ring, holes: [[[.1, .1], [.6, .1], [.6, .6], [.1, .6]]] };
+  const subject = { ...model, roomPolygons: new Map(model.roomPolygons).set(occurrenceId, [polygon]),
+    shapes: new Map(model.shapes).set(occurrenceId, [[ring, ...polygon.holes]]),
+    roomsById: new Map(model.roomsById).set(room.roomId, { ...room, occurrenceIds: [occurrenceId, 'generated-excluded-sibling'] }) };
+  assert.equal(api.roomArea(subject, occurrenceId).partial, true);
+  assert.equal(api.roomArea(subject, occurrenceId).squareMetres, 5.75);
+  assert.equal(api.edgeSpans(subject, occurrenceId).length, 6);
+  assert.equal(api.roomArea(model, 'syn-occ-study'), null, 'estimated proxies never acquire measured dimensions');
+});
+
+test('native trackpad rotation and scale use cumulative start values and scoped listeners release normally', () => {
+  let pose = { yaw: 30, zoom: 2 }, rotates = true, prevented = 0;
+  const gesture = api.createTrackpadGesture({ read: () => pose, apply: value => { pose = { yaw: value.yaw ?? pose.yaw, zoom: value.zoom }; },
+    rotates: () => rotates, zoomLimits: { min: .5, max: 8 } });
+  const event = (rotation, scale) => ({ rotation, scale, preventDefault() { prevented++; } });
+  const listeners = new Map();
+  const node = { addEventListener(name, handler, options) { assert.equal(options.passive, false); listeners.set(name, handler); },
+    removeEventListener(name, handler) { assert.equal(listeners.get(name), handler); listeners.delete(name); } };
+  const stop = api.bindTrackpadGesture(node, gesture);
+  listeners.get('gesturestart')(event(0, 1)); assert.equal(gesture.active(), true);
+  listeners.get('gesturechange')(event(10, 1.2)); assert.deepEqual(pose, { yaw: 40, zoom: 2.4 });
+  listeners.get('gesturechange')(event(20, 1.5)); assert.deepEqual(pose, { yaw: 50, zoom: 3 });
+  listeners.get('gestureend')(event(20, 1.5)); assert.equal(gesture.active(), false);
+  rotates = false; gesture.start(event(0, 1)); gesture.change(event(45, 2));
+  assert.deepEqual(pose, { yaw: 50, zoom: 6 }, 'Plan keeps its yaw while pinch still scales'); gesture.end(event(45, 2));
+  stop(); assert.equal(listeners.size, 0); assert.equal(prevented, 7);
+});
+
+test('property aggregation counts source entities once and retains differing same-date observations and building coverage', () => {
+  const record = (key, detail) => ({ key, id: 'ap-1', label: 'Generated AP', category: 'Recorded device', detail,
+    qualification: 'Generated documentary fact', sourceDate: null, retrievedAt: null, connections: [], sourceFacts: [] });
+  const one = record('generated-source-A/device/ap-1', 'First observation'), next = record(one.key, 'Later source revision');
+  const distinct = record('generated-source-B/device/ap-1', 'Another source package');
+  const records = (placed, unplaced) => ({ rooms: new Map(placed ? [['syn-room-hall', { network: [placed], electrical: [] }]] : []),
+    network: 'available', electrical: 'unavailable', sourceFacts: [], unplaced: { network: unplaced, electrical: [] } });
+  const merged = api.mergeRuntimeRecords(model, [{ buildingId: H, reason: 'available', records: records(one, []) },
+    { buildingId: S, reason: 'available', records: records(null, [next, distinct]) }]);
+  const index = api.documentaryOverlayIndex(model, merged, 'network');
+  assert.deepEqual([index.records, index.unplacedRecords], [2, 1]);
+  assert.equal(merged.rooms.get('syn-room-hall').network[0].observations[0].detail, next.detail);
+  assert.equal(merged.unplaced.network[0].key, distinct.key);
+  const unavailable = api.mergeRuntimeRecords(model, [{ buildingId: H, reason: 'no-native-building-link', records: null },
+    { buildingId: S, reason: 'room-link-not-qualified', records: null }]);
+  assert.deepEqual(unavailable.buildings.map(row => [row.buildingId, row.reason]), [[H, 'no-native-building-link'], [S, 'room-link-not-qualified']]);
 });
