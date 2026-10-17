@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c7e6f1640b1719b132eadc08166e5e525e8ac5dc16a944a201c100662cc84c95",
+  "sourceDigestSha256": "7d0e094c3265aac809fc08cb16fe97bf593668fb5058621aa032465f3965b3ac",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2177,8 +2177,8 @@
     {
       "path": "backend/src/http/atlas_scene.rs",
       "mode": "100644",
-      "bytes": 7557,
-      "sha256": "6be4ff65f3747f49b47dcf0806d31f06c7b01ac909bcfbabf13d6e37cc72ea31",
+      "bytes": 7646,
+      "sha256": "c878820a799a85fdc0d0b977cedea3ceee63b80928f6af2d59324dbc91ae87f8",
       "owner": "core-integration"
     },
     {
