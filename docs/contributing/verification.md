@@ -1823,3 +1823,89 @@ keyboard or browser checks. No global fetch replacement, socket, browser, native
 real IndexedDB/provider, held denial/foreign-token/expiry/revocation/crash/fault,
 guard-reversal or broad alias is included. This check establishes no genuine
 offline/device/PWA or deployment acceptance and adds no workflow.
+
+## Generated software release bundle check
+
+Read [software release bundles](../operations/release-bundles.md), then inspect
+`tools/release/bundle.py`, `fixtures.py`, `workflow.py` and `test_bundle.py`
+before this exact focused command:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/release -p test_bundle.py -v
+```
+
+Seven generated happy-path cases check deterministic software-only packaging,
+exact file closure, the retained-component/storage declarations, producer
+identity and a fake local draft/upload/download/publish sequence. They open no
+listener, execute no native binary and use no actual GitHub write, credential,
+household data or runtime. Held crash, replay, expiry, adversarial and rollback
+controls remain separate. The release workflow validates scoped PRs; actual
+main build and promotion are explicit manual operations with separate reviewed
+native-profile, storage-compatibility, producer and publication gates. Source
+checks do not qualify a NAS binary, updater transaction, deployment or device.
+
+The two reviewed packaging repairs additionally have this explicitly selected,
+separate generated regression command:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 tools/release/test_bundle.py --repair-regressions
+```
+
+Exactly three cases use fake subprocesses with simulated transfer durations and
+disposable generated USTAR paths. They check the three transfer ceilings versus
+the short inspection timeout, valid filename/prefix boundaries, and pre-output
+rejection of unencodable paths in producer and manifest admission. They run no
+network, wall-clock timeout, native binary, credential, provider or household
+operation. These cases remain excluded from ordinary seven-test discovery and
+add no CI step or broader control permission.
+
+## Named generated updater source checks
+
+Read [the updater source contract](../operations/houseatlas-updater.md), then
+inspect its modules, `tests/synthetic.py` and the selected test bodies. From
+`tools/houseatlas-updater`, the exact generated happy-path commands are:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_happy.GeneratedHappyPaths.test_check_generated_full_bundle tests.test_happy.GeneratedHappyPaths.test_apply_generated_full_bundle_preserves_native_state tests.test_happy.GeneratedHappyPaths.test_apply_frontend_only_retains_exact_backend tests.test_happy.GeneratedHappyPaths.test_cli_json_check_and_durable_status
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_packaging.PackagingHappyPaths.test_pinned_packaging_fixture_schema tests.test_packaging.PackagingHappyPaths.test_packaging_generated_bundle_apply
+```
+
+These six cases use fresh disposable directories, generated archives and
+non-executable Mach-O header specimens, tiny synthetic SQLite files and fake
+in-process acquisition/publication/launcher/health ports. The two contract
+cases consume the pinned packaging schema and helpers from the composed tree.
+No socket, subprocess, credential, actual GitHub/native request, service action
+or user data is used. This adds no workflow execution or broad test discovery;
+failure, denial, concurrency, replay, expiry, crash and rollback controls stay
+outside this release. The results establish source/generated behavior only,
+not native acquisition, launchd, storage compatibility, recovery or deployment.
+
+The separately authorized updater JSON-input regression lane has three exact
+memory-only cases. Inspect `tests/test_json_input.py`, `validation.py` and
+`cli.py`, then run from `tools/houseatlas-updater`:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_json_input.JsonInputRegression.test_nonfinite_constants_are_rejected_at_all_depths tests.test_json_input.JsonInputRegression.test_cli_nonfinite_status_selector_never_reads_latest tests.test_json_input.JsonInputRegression.test_valid_json_and_null_status_selector_are_preserved
+```
+
+Only generated JSON bytes and a recording status fake are used. These cases
+cover the exact non-finite-to-null defect and ordinary null/UUID selectors;
+they add no transport, filesystem, service action, broad control alias or
+failure/rollback/crash qualification.
+
+## Named generated GitHub acquisition adapter checks
+
+Read [the acquisition source contract](../operations/houseatlas-updater-acquisition.md)
+and inspect the adapter, selected test bodies and pinned packaging helpers.
+From `tools/houseatlas-updater-adapters`, run only the two named positives:
+
+```sh
+HOUSEATLAS_PACKAGING_SOURCE=../release PYTHONPATH=../houseatlas-updater PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_github_release_happy.GitHubReleaseHappyPaths.test_published_release_exact_build_and_bytes tests.test_github_release_happy.GitHubReleaseHappyPaths.test_annotated_prerelease_bounded_asset_redirects -v
+```
+
+Both cases use finite in-process HTTP replies and generated software payloads,
+checking exact producer/asset bytes, tag resolution, partial reads, shared
+deadline/header bounds and ordinary asset redirects. They perform no actual
+GitHub request, socket, credential, native process, controller transaction or
+runtime installation. Real HTTPS-port, acquisition and target qualification
+remain separate; no broad control discovery or new held case is released.

@@ -1,0 +1,168 @@
+name: Release software bundle
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - tools/release/**
+      - .github/workflows/release-bundle.yml
+      - docs/operations/release-bundles.md
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Validate source, build once, or promote an approved existing build
+        type: choice
+        options: [validate, build, promote]
+        default: validate
+      version:
+        description: Exact release version without the v prefix (build or promote)
+        type: string
+        default: ''
+      artifact_storage_checked:
+        description: Available artifact storage allowance checked for this bounded build
+        type: boolean
+        default: false
+      build_run_id:
+        description: Exact successful main build run to promote (no rebuilding)
+        type: string
+        default: ''
+      build_attempt:
+        description: Exact build attempt to promote
+        type: string
+        default: '1'
+      manifest_sha256:
+        description: Independently reviewed manifest SHA256 to promote
+        type: string
+        default: ''
+permissions:
+  contents: read
+concurrency:
+  group: houseatlas-release-${{ github.event.pull_request.number || 'main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  BUNDLE_OPERATION: ${{ inputs.operation }}
+  BUNDLE_VERSION: ${{ inputs.version }}
+  ARTIFACT_STORAGE_CHECKED: ${{ inputs.artifact_storage_checked }}
+jobs:
+  validate:
+    if: github.repository == 'EzraCerpac/HouseAtlas' && github.event.repository.private == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact source without persistent credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Verify exact revision and dispatch scope
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          python3 tools/release/workflow.py validate-dispatch
+      - name: Generated local packaging checks
+        run: python3 -m unittest discover -s tools/release -p test_bundle.py -v
+  build:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.operation == 'build'
+    needs: validate
+    runs-on: macos-15-intel
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      actions: read
+    env:
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - name: Checkout exact main without persistent credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Select owned temporary build directories
+        run: |
+          printf '%s\n' "CARGO_TARGET_DIR=$RUNNER_TEMP/houseatlas-release-target" >> "$GITHUB_ENV"
+          printf '%s\n' "npm_config_cache=$RUNNER_TEMP/houseatlas-release-npm" >> "$GITHUB_ENV"
+      # This fails before dependency installation while the checked-in native
+      # profile is unqualified. No Linux/ARM substitute or inferred NAS support.
+      - name: Require reviewed exact Intel builder and native source profile
+        run: python3 tools/release/workflow.py preflight
+      - name: Require public repository and exact successful existing main CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/release/workflow.py prior-ci
+      - name: Set existing exact Node runtime
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '26.10.0'
+          check-latest: false
+          package-manager-cache: false
+      - name: Verify source and install existing locked frontend dependencies
+        run: |
+          test "$(node --version)" = v26.10.0
+          test "$(npm --version)" = 11.19.1
+          node tools/publication/verify-source.mjs
+          rustup toolchain install 1.99.0 --profile minimal
+          rustup target add x86_64-apple-darwin --toolchain 1.99.0
+          test "$(rustc --version | cut -d ' ' -f 2)" = 1.99.0
+          npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+      - name: Build exact Intel backend and matching production React once
+        run: |
+          cargo build --locked --release --target x86_64-apple-darwin -p houseatlas-backend --bin houseatlas
+          npm --prefix frontend run typecheck
+          npm --prefix frontend run build
+          npm --prefix frontend run check:backend-frontend-compat
+          node tools/publication/verify-source.mjs
+      - name: Inspect native ABI and stage software-only closure
+        run: |
+          python3 tools/release/workflow.py metadata --binary "$CARGO_TARGET_DIR/x86_64-apple-darwin/release/houseatlas" --version "$BUNDLE_VERSION" --output "$RUNNER_TEMP/release-metadata.json"
+          python3 tools/release/workflow.py stage --binary "$CARGO_TARGET_DIR/x86_64-apple-darwin/release/houseatlas" --output "$RUNNER_TEMP/release-payload"
+      - name: Package and verify exact built bytes
+        run: |
+          python3 tools/release/bundle.py pack --payload "$RUNNER_TEMP/release-payload" --metadata "$RUNNER_TEMP/release-metadata.json" --output "$RUNNER_TEMP/release-bundle"
+          python3 - <<'PY'
+          import hashlib, os
+          from pathlib import Path
+          path = Path(os.environ['RUNNER_TEMP']) / 'release-bundle/manifest.json'
+          pin = hashlib.sha256(path.read_bytes()).hexdigest()
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
+              stream.write(f'Manifest SHA256: `{pin}`\n\nSoftware only; runtime qualification not established.\n')
+          PY
+      # Public standard runners are free. Artifact storage is separately checked
+      # by the dispatching owner; no caches, matrix or repeated per-edit builds.
+      - name: Retain one bounded review bundle for one day
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-bundle-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-bundle/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+  promote:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.operation == 'promote'
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      BUILD_RUN_ID: ${{ inputs.build_run_id }}
+      BUILD_ATTEMPT: ${{ inputs.build_attempt }}
+      MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+    steps:
+      - name: Checkout trusted current promotion code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      # The short-lived built-in token exists only in this publication step.
+      # No OIDC/attestation grants, signing tokens or repository-setting changes.
+      - name: Verify producer and approved assets then attach draft and publish last
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/release/workflow.py promote --run-id "$BUILD_RUN_ID" --attempt "$BUILD_ATTEMPT" --manifest-sha256 "$MANIFEST_SHA256" --version "$BUNDLE_VERSION"
