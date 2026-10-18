@@ -26,6 +26,21 @@ const openssl = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-n
 assert.equal(openssl.status, 0, 'Disposable certificate creation');
 let service, browser, cdp, serviceOutput = '', serviceError = '';
 const observedUrls = [], responses = [], runtimeErrors = [];
+let phase = 'bootstrap';
+const requestPhases = new Map();
+function assertOrdinaryResponses(label, origin) {
+  const unexpected = responses.filter(r => r.status !== 200 && !(r.status === 204 && r.url === origin + '/favicon.ico'));
+  if (unexpected.length) {
+    // Only generated route shapes and status/phase metadata: no origin, query,
+    // fragment, headers, cookies, request/response bodies or source records.
+    const routes = unexpected.slice(0, 20).map(({ url, status, method, requestPhase, responsePhase }) => ({
+      route: new URL(url).pathname.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b|\b[0-9a-f]{64}\b/gi, ':id'),
+      status, method, requestPhase, responsePhase,
+    }));
+    console.error(JSON.stringify({ ordinaryResponseFailure: { phase, observed: responses.length, unexpected: unexpected.length, routes } }));
+  }
+  assert.equal(unexpected.length, 0, label);
+}
 class Pipe {
   next = 0; pending = new Map(); buffer = Buffer.alloc(0);
   constructor(process) {
@@ -41,8 +56,15 @@ class Pipe {
           const pending = this.pending.get(message.id); if (!pending) continue;
           this.pending.delete(message.id); clearTimeout(pending.timer);
           message.error ? pending.reject(new Error(message.error.message)) : pending.resolve(message.result);
-        } else if (message.method === 'Network.requestWillBeSent') observedUrls.push(message.params.request.url);
-        else if (message.method === 'Network.responseReceived') responses.push({ url: message.params.response.url, status: message.params.response.status });
+        } else if (message.method === 'Network.requestWillBeSent') {
+          observedUrls.push(message.params.request.url);
+          requestPhases.set(message.params.requestId, { method: message.params.request.method, requestPhase: phase });
+        } else if (message.method === 'Network.responseReceived') {
+          const request = requestPhases.get(message.params.requestId);
+          responses.push({ url: message.params.response.url, status: message.params.response.status,
+            method: request?.method ?? 'unknown', requestPhase: request?.requestPhase ?? 'unknown', responsePhase: phase });
+          requestPhases.delete(message.params.requestId);
+        }
         else if (message.method === 'Runtime.exceptionThrown') runtimeErrors.push(message.params.exceptionDetails.text);
       }
     });
@@ -135,7 +157,8 @@ try {
   assert.equal(result.status, 200); assert.deepEqual(result.body.scope, view.scope);
   assert.equal(runtimeErrors.length, 0, 'No browser runtime exceptions in healthy flow');
   assert(observedUrls.every(url => url.startsWith(origin + '/')), 'Observed page requests stay on loopback');
-  assert(responses.every(r => r.status === 200 || (r.status === 204 && r.url === origin + '/favicon.ico')), 'Observed healthy page responses');
+  assertOrdinaryResponses('Observed healthy page responses', origin);
+  phase = 'initial-core-reads';
   const prefix = '/api/atlas/v1/workspaces/' + view.scope.workspaceId + '/homes/' + view.scope.homeId;
   const coreReads = await evaluate(`(async () => {
     const prefix=${JSON.stringify(prefix)}, results=[];
@@ -149,6 +172,7 @@ try {
   assert.equal(coreReads.recordCount,6); assert.equal(coreReads.uniqueRecords,6);
   assert.equal(coreReads.entityCount,2); assert.equal(coreReads.networkCount,0);
   assert.equal(coreReads.recordMatches,true); assert.equal(coreReads.historyCount,0); assert.equal(coreReads.viewReady,true);
+  phase = 'logout';
   await evaluate("location.hash='#settings'");
   await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Sign out'), 'Actual session Settings');
   await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Sign out').click()");
@@ -159,6 +183,7 @@ try {
   assert.equal(await evaluate('document.activeElement?.id'), 'atlas-username');
   // The component stays mounted while signed out. No unauthenticated session
   // request or rejected request is made between successful logout and login.
+  phase = 'viewer-login';
   await evaluate(`document.getElementById('atlas-username').value=${JSON.stringify(login.username)}; document.getElementById('atlas-password').value=${JSON.stringify(login.password)}; document.querySelector('.session-form').requestSubmit()`);
   assert.equal(await evaluate("document.getElementById('atlas-password')?.value ?? ''"), '');
   await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'Actual successful HTTP login and React home');
@@ -172,6 +197,7 @@ try {
   // Fresh local-only commands, each submitted once. The browser's real editor
   // login replaces its viewer session; every write carries freshly issued CSRF.
   // This is not a provider operation, replay, stale guard or rejected request.
+  phase = 'editor-writes';
   const writes = await evaluate(`(async () => {
     const prefix=${JSON.stringify(prefix)}, login=${JSON.stringify(editorLogin)}, results=[];
     const request=async(path,body,csrf)=>{const response=await fetch(path,{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',redirect:'error',headers:body?{'content-type':'application/json',...(csrf?{'x-atlas-csrf':csrf}:{})}:{},...(body?{body:JSON.stringify(body)}:{})}); const value=await response.json(); results.push({path,status:response.status});if(response.status!==200)throw new Error('Ordinary fresh local write/read failed');return value;};
@@ -197,6 +223,7 @@ try {
   // Two public synthetic originals were prepared in the actual immutable
   // vault. Only these fresh HTTP commands commit availability and manifests;
   // the actual NativeMediaRuntime reopens bytes and proves durability at commit.
+  phase = 'owned-media';
   const media = await evaluate(`(async () => {
     const prefix=${JSON.stringify(prefix)}, rows=${JSON.stringify(preparedMedia)}, scope=${JSON.stringify(view.scope)}, results=[],assets=[];
     const json=async(path,body,csrf)=>{const r=await fetch(path,{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',redirect:'error',headers:body?{'content-type':'application/json','x-atlas-csrf':csrf}:{},...(body?{body:JSON.stringify(body)}:{})});results.push({path,status:r.status});const value=await r.json();if(r.status!==200)throw new Error('Ordinary owned asset command/read failed');return value;};
@@ -232,7 +259,7 @@ try {
   assert.equal(png.previewPolicy,'safe-rendered');assert.equal(text.previewPolicy,'download-only');assert.equal(text.preview,null);
   assert.deepEqual(png.preview.signature,[137,80,78,71,13,10,26,10]);assert.deepEqual(png.preview.kinds,['IHDR','IDAT','IEND']);assert.equal(png.preview.length,png.preview.actualLength);assert.equal(png.preview.type,'image/png');assert.equal(png.preview.disposition,'inline; filename="preview.png"');assert.equal(png.preview.csp,"default-src 'none'; sandbox");
   assert(observedUrls.every(url=>url.startsWith(origin+'/')), 'All ordinary core/media requests stay on loopback');
-  assert(responses.every(r=>r.status===200 || (r.status===204 && r.url===origin+'/favicon.ico')), 'All observed core flows remain successful ordinary responses');
+  assertOrdinaryResponses('All observed core flows remain successful ordinary responses', origin);
   assert.equal(runtimeErrors.length,0);
   const sql = [
     'import sqlite3,json,sys', 'from pathlib import Path', 'root=Path(sys.argv[1])',
