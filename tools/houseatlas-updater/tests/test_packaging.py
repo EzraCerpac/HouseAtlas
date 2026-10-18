@@ -49,7 +49,7 @@ class PackagingHappyPaths(unittest.TestCase):
         self.assertEqual(sha256(schema_bytes), SCHEMA_SHA256)
         # These exact source pins were reviewed before importing the helper.
         self.assertEqual(sha256((source / "bundle.py").read_bytes()),
-                         "e195ec5f4857e52e0bc8ac96300b4a22b3e7f2538b6fe186828ee052695abde6")
+                         "b215dac5ef4ef37607d2883cfb38c82f94d7cab3f6007e96679902ae35a535c4")
         self.assertEqual(sha256((source / "fixtures.py").read_bytes()),
                          "73cb43a2e183a5c6137d068cda43b24c471e2df2e38ade7a7089a12c7a8be8dc")
         packaging = load_source(source / "bundle.py", "houseatlas_reviewed_packaging")

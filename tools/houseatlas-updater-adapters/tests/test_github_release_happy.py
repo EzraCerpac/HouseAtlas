@@ -29,7 +29,7 @@ def load_source(path, name):
 def reviewed_packaging(test):
     source = Path(os.environ.get("HOUSEATLAS_PACKAGING_SOURCE",
                                 str(Path(__file__).resolve().parents[2] / "release")))
-    pins = {"bundle.py": "e195ec5f4857e52e0bc8ac96300b4a22b3e7f2538b6fe186828ee052695abde6",
+    pins = {"bundle.py": "b215dac5ef4ef37607d2883cfb38c82f94d7cab3f6007e96679902ae35a535c4",
             "fixtures.py": "73cb43a2e183a5c6137d068cda43b24c471e2df2e38ade7a7089a12c7a8be8dc",
             "bundle.schema.json": SCHEMA_SHA256,
             "fixtures/bundle.manifest.json": FIXTURE_SHA256}

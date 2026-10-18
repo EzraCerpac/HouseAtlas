@@ -108,6 +108,13 @@ def safe_path(name):
     need(type(name) is str and len(name) <= 180 and re.fullmatch(r"[A-Za-z0-9._/-]+", name), "Unsafe payload path")
     need(not name.startswith("/") and all(part not in ("", ".", "..") and not part.startswith(".")
                                         for part in name.split("/")), "Unsafe payload component")
+    # The overall schema length does not guarantee a representable USTAR
+    # prefix/name split. Use the selected encoder here so both producer scans
+    # and manifest validation reject unencodable paths before output creation.
+    try:
+        tarfile.TarInfo(name).tobuf(format=tarfile.USTAR_FORMAT, encoding="ascii", errors="strict")
+    except ValueError as error:
+        raise ValueError("Payload path cannot be encoded as USTAR") from error
     path = PurePosixPath(name)
     if name == "bin/houseatlas":
         return "0755"

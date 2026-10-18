@@ -13,10 +13,11 @@ from bundle import HERE, MAX_ARCHIVE, canonical, check_compatibility, closure, d
 ROOT = HERE.parent.parent
 REPOSITORY = "EzraCerpac/HouseAtlas"
 WORKFLOW = ".github/workflows/release-bundle.yml"
+TRANSFER_TIMEOUT_SECONDS = 600  # The existing promotion job bounds the whole operation to ten minutes.
 
 
-def command(args, cwd=ROOT):
-    return subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True, timeout=120).stdout.strip()
+def command(args, cwd=ROOT, *, timeout=120):
+    return subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True, timeout=timeout).stdout.strip()
 
 
 def api(path):
@@ -149,7 +150,8 @@ def promote(run_id, attempt, expected_digest, version):
     need(len(selected) == 1 and selected[0]["size_in_bytes"] <= MAX_ARCHIVE + 1_048_576, "Exact bounded build artifact required")
     with tempfile.TemporaryDirectory(prefix="houseatlas-promote-", dir=os.environ["RUNNER_TEMP"]) as scratch:
         directory = Path(scratch) / "bundle"
-        command(["gh", "run", "download", run_id, "--repo", REPOSITORY, "--name", artifact_name, "--dir", str(directory)])
+        command(["gh", "run", "download", run_id, "--repo", REPOSITORY, "--name", artifact_name, "--dir", str(directory)],
+                timeout=TRANSFER_TIMEOUT_SECONDS)
         manifest = verify_bundle(directory, expected_digest)
         need(manifest["build"]["kind"] == "github-actions" and manifest["version"] == version, "Release version/producer differs")
         verify_run(run, commit=manifest["source"]["commit"], run_id=manifest["build"]["runId"],
@@ -178,14 +180,16 @@ def promote(run_id, attempt, expected_digest, version):
             create.append("--prerelease")
         command(create)
         assets = [directory / manifest["archive"]["name"], directory / "manifest.json", directory / "SHA256SUMS"]
-        command(["gh", "release", "upload", tag, *map(str, assets), "--repo", REPOSITORY])
+        command(["gh", "release", "upload", tag, *map(str, assets), "--repo", REPOSITORY],
+                timeout=TRANSFER_TIMEOUT_SECONDS)
         release = api(f"releases/tags/{tag}")
         need(release["draft"] and {a["name"] for a in release["assets"]} == {p.name for p in assets}, "Draft asset closure differs")
         need(all(a["size"] == (directory / a["name"]).stat().st_size and
                  a["digest"] == "sha256:" + file_digest(directory / a["name"]) for a in release["assets"]),
              "Uploaded asset digests differ")
         remote = Path(scratch) / "roundtrip"
-        command(["gh", "release", "download", tag, "--repo", REPOSITORY, "--dir", str(remote)])
+        command(["gh", "release", "download", tag, "--repo", REPOSITORY, "--dir", str(remote)],
+                timeout=TRANSFER_TIMEOUT_SECONDS)
         verify_bundle(remote, expected_digest)
         need(tag_commit(tag) == manifest["source"]["commit"], "Tag drift before publication")
         command(["gh", "release", "edit", tag, "--repo", REPOSITORY, "--draft=false", "--latest=false"])
