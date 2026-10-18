@@ -107,12 +107,12 @@ Actual authenticated GET/session reads can update Access `last_seen`; this is
 separate from the SELECT-only compiled native validator. No target action is
 authorized by this source.
 
-## Proposed generated check, pending independent review
+## Generated check
 
-The integration owner must inspect the full three-file checkpoint, its imported
-runtime/core sources and the actual source contracts above before releasing
-this exact single ordinary positive. This leaf does not register or execute it.
-From the repository root:
+The integration owner inspected the three-file checkpoint, its imported
+runtime/core sources and the actual source contracts above. Independent source
+review accepted it; the shared verification guide registers this exact single
+ordinary generated positive. From the repository root:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tools/houseatlas-updater:tools/houseatlas-updater-runtime python3 tools/houseatlas-updater-runtime/tests/test_application_readiness_happy.py ApplicationReadinessHappyPaths.test_established_scope_model_scene_and_room_links -v
