@@ -127,7 +127,9 @@ export function validateLedger(data) {
     placeMemberships += Array.isArray(r.places) ? r.places.length : 0;
     const seen = new Set();
     for (const p of Array.isArray(r.places) ? r.places : []) {
-      check(named(p?.packagePlaceKey) && uuid(p?.packagePlaceUuid) && named(p?.label, 512) && ['owner-reported', 'inferred'].includes(p?.basis),
+      check(p && typeof p === 'object' && !Array.isArray(p) && Object.keys(p).length === 4 &&
+        ['packagePlaceKey', 'packagePlaceUuid', 'label', 'basis'].every(key => Object.hasOwn(p, key)) &&
+        named(p.packagePlaceKey) && uuid(p.packagePlaceUuid) && named(p.label, 512) && ['owner-reported', 'inferred'].includes(p.basis),
         `regions.${r.id}.places`, 'Expected exact package key/UUID and association basis');
       if (!p) continue;
       check(!seen.has(pair(p)), `regions.${r.id}.places`, 'Duplicate place pair'); seen.add(pair(p));
