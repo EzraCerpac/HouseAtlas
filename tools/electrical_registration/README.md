@@ -65,7 +65,11 @@ an input binding and a current occurrence. Required context pins cannot be null
 or absent. Incomplete input bindings remain unsupported rather than acting as
 wildcards. Referenced target feature IDs must still belong to that current plan.
 Registration IDs must be explicit and unique across assessments; output retains
-the registration review-evidence pin, target-feature IDs and full target pins.
+the registration review-evidence pin, exact dated layout qualification,
+uncertainty basis and tolerances, target-feature IDs and full target pins.
+An accepted assessment missing its layout qualification cannot yield a scene
+placement. The generic approximate-alignment label does not replace the source's
+historical-change and layout-limitations review.
 The top-level output also carries the independently supplied current frame.
 Points outside the fitted control hull remain unsupported. There is no
 room-centre fallback or fallback from an older publication to stable room UUIDs.

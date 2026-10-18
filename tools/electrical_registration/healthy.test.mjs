@@ -27,7 +27,7 @@ test('healthy overdetermined approximate fit reports actual residual and scale r
   assert.ok(a.maxCheckResidual>0);assert.ok(a.fit.anisotropy>1);
 });
 test('healthy property inventory retains registered, unresolved and uncovered source marks across selections',()=>{
-  const a=assessRegistration(example(),context);
+  const proposal=example(),a=assessRegistration(proposal,context);
   const rows=[{...source,fixtureId:'one',sourcePoint:[0.5,0.5],sourceToleranceXY:[0.02,0.03],bindings:[binding],sourceMeaning:'socket',installedCount:null},
     {...source,fixtureId:'two',sourcePoint:[0.5,0.5],bindings:[],sourceMeaning:'unresolved',installedCount:null},
     {...source,fixtureId:'three',sourcePoint:[1.2,0.5],bindings:[binding],sourceMeaning:'light',installedCount:null}];
@@ -40,6 +40,9 @@ test('healthy property inventory retains registered, unresolved and uncovered so
   assert.equal(all.records[1].sourceMeaning,'unresolved');assert.ok(all.records[2].unsupported.length>0);
   assert.deepEqual(rows,before);assert.ok(all.records.every(r=>r.physicalCoordinate===null&&r.currentCircuitId===null));
   assert.deepEqual(all.currentFrame,frame);assert.deepEqual(all.records[0].placements[0].registrationReviewEvidence,evidence);
+  assert.equal(a.layoutQualification,proposal.layoutQualification);
+  assert.equal(all.records[0].placements[0].layoutQualification,proposal.layoutQualification);
+  assert.deepEqual(all.records[0].placements[0].registrationUncertainty,proposal.uncertainty);
   // A second fully pinned current publication has its own freshly assessed fit,
   // even while logical room/occurrence IDs remain stable.
   const nextFrame={...frame,publicationId:'publication-two',semanticsSha256:'2'.repeat(64),modelSha256:'3'.repeat(64),coordinateFrameId:'world-two-once'};
