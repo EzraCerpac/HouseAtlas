@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "465e27df54df84c7585e1acb5d7c8ec664ea8738f48039fde8b02a9a67dfb61a",
+  "sourceDigestSha256": "382d9dc2deefdcfd7303944f3d03ed2a11ebdcc1afdbb78b5bbe13db44f58b03",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -98,8 +98,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 4157,
-      "sha256": "a65f8ff567c3b3d46bb55b8d058959d81e557bed291a07af82207fa461e395e3",
+      "bytes": 4848,
+      "sha256": "78fa23f8a9f17128512301ebec90b9fa7b977f479fa5a7414d15b06d881cea77",
       "owner": "core-integration"
     },
     {
