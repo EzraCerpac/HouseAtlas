@@ -39,11 +39,12 @@ try {
   const sheet={document_id:'generated:sheet',bundle_id:'generated:bundle',title_as_read:'Generated sheet',source_photo:'originals/generated.svg',source_sha256:photoHash,rendered_photo:'rendered/generated.svg',pdf_page:2,factAt:'2026-10-09',interpretation_date:'2026-10-10',documentary_group_labels:['L1'],direct_reading:statement('document'),drawing_association:statement('inference'),open_uncertainty:'Historical only',native_atlas_identity_ids:[],owner_confirmed_room_mapping:null,owner_confirmed_layout_mapping:null,
     provisional_diagram:{coordinate_space:'normalized-upright-photo',geometry_status:'unmeasured',metric_units:null,scale:null,transform:null,region_xyxy:[.1,.1,.9,.9],source_date:null},
     package_room_associations:[{package_room_id:packageKey,stable_package_uuid:packageUuid,current_circuit_binding:null,native_atlas_identity_id:null,status:'inferred-name-or-context-match',evidenceBasis:'inference'}]};
+  sheet.package_room_associations.push({ ...sheet.package_room_associations[0], package_room_id: 'generated:other-room', stable_package_uuid: U(23) });
   const primary=Buffer.from(JSON.stringify({schema:'houseatlas.native-scene-source.v2',receiptCanonicalJson:receipt,
     rooms:{status:'available',reason:null,receiptId:'generated:receipt',receiptSha256:receiptSha,entries:[],regions:[]},
     network:{status:'available',reason:null,source:{label:'Generated recorded network',revision:'source-1',recordedAt:'2026-10-10',retrievedAt:null,status:'recorded',acceptedAt:null,coverage:'partial',notes:''},
       devices:[{id:'device:generated',label:'Generated device',kind:'switch',mobility:'fixed',confidence:'recorded',notes:'',place:{sourceRoomId:'source:room',sourcePlaceId:packageKey,sourcePlaceUUID:packageUuid,planAssociations:[{sourceAnchorId:'generated:anchor',sourceFloorKey:floor,sourceFloorLabel:'Generated floor',sourceReference:'Generated documentary reference',sourceHandle:'generated:handle',sourceSHA256:floorHash}],roomLabel:'Generated room',detail:'',confidence:'recorded',basis:'Reviewed source association',sourceFloorKey:floor,mappingStatus:'accepted',coordinate:null}},{id:'device:mobile',label:'Generated phone',kind:'phone',mobility:'mobile',confidence:'recorded',notes:'Moves between rooms',place:null}],endpoints:[{id:'endpoint:segment',label:'Generated shared segment',kind:'segment',ownerDeviceId:null,notes:'No physical location'}],links:[{id:'link:generated',fromEndpointId:'device:generated',toEndpointId:'device:mobile',kind:'connection',medium:'wireless',confidence:'recorded',sourceConfidence:'uncertain source note',temporalStatus:'recorded-past',recordedAtPrecision:'day',basis:'Generated documentary connection',recordedAt:'2026-10-09',notes:'No physical route',path:null}]},
-    electricity:{status:'available',reason:null,documentarySource:{schema:'private-documentary-records/v1',status:'documentary',native_import_receipt:null,records:[sheet]},roomRegistry:{schema:'private-houseatlas-room-registry/v1',entities:[{id:'generated:building',stable_uuid:U(22),display_name:'Generated building',aliases:[],source_refs:['generated']},{id:packageKey,stable_uuid:packageUuid,display_name:'Generated room',aliases:[],source_refs:['generated']}]},buildingPackageKey:'generated:building',retrievedAt:null},
+    electricity:{status:'available',reason:null,documentarySource:{schema:'private-documentary-records/v1',status:'documentary',native_import_receipt:null,records:[sheet]},roomRegistry:{schema:'private-houseatlas-room-registry/v1',entities:[{id:'generated:building',stable_uuid:U(22),display_name:'Generated building',aliases:[],source_refs:['generated']},{id:packageKey,stable_uuid:packageUuid,display_name:'Generated room',aliases:[],source_refs:['generated']},{id:'generated:other-room',stable_uuid:U(23),display_name:'Generated foreign room',aliases:[],source_refs:['generated']}]},buildingPackageKey:'generated:building',retrievedAt:null},
     electricalFixtures:{status:'available',reason:null,documentaryFixtures:fixtures}}));
   const revision=ExactDecimal.parse('9007199254740991');
   const documents=[{role:'primary-scene',evidenceId:U(4),evidenceRevision:7,originalAssetId:U(5),originalAssetRevision:9007199254740991n,originalSha256:hash(primary),contentType:'text/plain'},
@@ -171,8 +172,29 @@ try {
     }, () => {});
     const savedScene = { ...scene, model: { sha256: snapshotManifest.modelSha256 },
       buildings: scene.buildings.map((row, at) => ({ ...row, label: `Generated building ${at}`, levelIds: [`generated:level:${at}`] })) };
-    const savedSelectable = new Set(['occurrence:one','occurrence:two']);
+    // An ordinary selectable foreign room has a valid captured mapping, but
+    // ownership still follows the exact native building identity.
+    savedScene.rooms = savedScene.rooms.map(room => room.roomId === 'publication:other-room'
+      ? { ...room, occurrenceIds: ['occurrence:foreign'] } : room);
+    const savedSelectable = new Set(['occurrence:one','occurrence:two','occurrence:foreign']);
     const savedRecords = saved.records(savedScene, savedSelectable);
+    assert.ok(frame.electricity.data.sheets[0].roomAssociations.some(row => row.packagePlaceKey === 'generated:other-room'), 'the foreign mapping has a real retained documentary fact');
+    assert.equal(savedRecords.rooms.has('publication:other-room'), false, 'valid foreign mappings cannot place records in another building');
+    const reverseMapBytes = Buffer.from(JSON.stringify({ ...reviewedRoomLinks, links: [...reviewedRoomLinks.links].reverse() }));
+    const reverseManifest = { ...snapshotManifest, roomLinks: file('/review-input/reversed-links.json', reverseMapBytes) };
+    const reverseSaved = await readSavedDocumentaryPreview(Buffer.from(JSON.stringify(reverseManifest)), async path =>
+      path === reverseManifest.roomLinks.path ? reverseMapBytes : savedFiles.get(path), () => {});
+    const reverseRecords = reverseSaved.records({ ...savedScene, buildings: [...savedScene.buildings].reverse() }, savedSelectable);
+    const withReversedMapPin = record => ({ ...record, sourceFacts: record.sourceFacts.map(fact =>
+      fact.label === 'Captured room map SHA256' ? { ...fact, value: hash(reverseMapBytes) } : fact) });
+    assert.deepEqual([...reverseRecords.rooms], [...savedRecords.rooms].map(([roomId, rows]) => [roomId, {
+      network: rows.network.map(withReversedMapPin), electrical: rows.electrical.map(withReversedMapPin) }]));
+    const noNativeScene = { ...savedScene, buildings: savedScene.buildings.map(row => ({ ...row, nativePlaceId: null })) };
+    const noNative = saved.records(noNativeScene, savedSelectable);
+    assert.equal(noNative.rooms.size, 0);
+    assert.deepEqual([noNative.unplaced.network.length, noNative.unplaced.electrical.length], [4, 2]);
+    assert.deepEqual(noNative.networkGraphs, savedRecords.networkGraphs, 'known topology remains available without an invented room');
+    assert.deepEqual([noNative.network, noNative.electrical], ['unavailable', 'unavailable']);
     assert.equal(savedReads, 3); assert.equal(saved.observedAt, snapshotManifest.observedAt);
     assert.equal(saved.entryBuildingId, building.buildingId);
     assert.deepEqual([documentaryOverlayIndex(consumerModel, savedRecords, 'network').records,

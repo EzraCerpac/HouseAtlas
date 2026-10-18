@@ -1105,14 +1105,15 @@ export function pickTarget(model: AtlasModel, presentation: AtlasPresentation, s
 export function planPickTarget(model: AtlasModel, presentation: AtlasPresentation, state: AtlasViewState, t: number,
   projection: Projection, px: number, py: number): AtlasTarget | null {
   const selected = state.occurrenceId === null ? undefined : model.occurrencesById.get(state.occurrenceId);
-  for (const levelId of presentation.planLevels) {
+  for (let at = presentation.planLevels.length - 1; at >= 0; at--) {
+    const levelId = presentation.planLevels[at]!;
     const [x, z] = planPoint(projection, model.floorY.get(levelId)! + levelLift(presentation, levelId, t), px, py);
     const hit = (model.levelsById.get(levelId)?.occurrenceIds ?? []).flatMap(key => {
       const shape = model.shapes.get(key);
       return model.selectable.has(key) && shape && pointInShape(x, z, shape) ? [{ key, area: occurrenceArea(model, key) }] : [];
     }).sort((a, b) => a.area - b.area)[0]?.key;
     const structure = hit === undefined && planFeaturesForLevel(model, levelId).some(feature =>
-      (feature.role === 'wall' || feature.role === 'opening' || feature.role === 'stair')
+      feature.role !== 'context'
       && pointInShape(x, z, feature.polygons.map(polygon => [polygon.outer, ...polygon.holes])));
     if (hit === undefined && !structure) continue;
     if (presentation.focusLevelId === null) return { kind: 'building', buildingId: model.levelsById.get(levelId)!.buildingId };

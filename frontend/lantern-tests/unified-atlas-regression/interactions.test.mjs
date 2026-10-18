@@ -85,6 +85,77 @@ test('building transitions clear foreign selection, preserve overlay and choose 
   }
 });
 
+test('Plan picks follow topmost filled groups and display-only rooms retain hierarchy targets', async () => {
+  const { model: subject } = await generatedModel(api, async scope => {
+    const input = await api.buildSingleFloorBuildingsAtlas(scope, 2);
+    const source = JSON.parse(new TextDecoder().decode(input.companionBytes));
+    const rect = (x0, z0, x1, z1) => [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
+    const add = (plan, feature) => { plan.features.push(feature); plan.featureIds.push(feature.featureId); };
+    const feature = (id, role, outer, holes = []) => ({ featureId: id, role, roomId: null, spaceOccurrenceId: null, polygons: [{ outer, holes }] });
+    // Later source group adds an authored display-only band overlapping the
+    // first building. Its hole exposes the original selectable room beneath.
+    add(source.plans[1], feature('generated:overlapping-room', 'room', rect(0, 0, 3, 3), [rect(1, 1, 2, 2)]));
+    for (const [at, role] of ['room', 'wall', 'opening', 'stair', 'context'].entries())
+      add(source.plans[0], feature(`generated:surface-${role}`, role, rect(4 + at, 0, 4.8 + at, .8)));
+    add(source.plans[1], feature('generated:overlapping-context', 'context', rect(4, 0, 4.8, .8)));
+    source.plans[0].features[0].roomId = null; // explicit occurrence remains selectable without a feature room/native ID
+    source.buildings[1].bounds.min[0] = 0; source.levels[1].bounds.min[0] = 0;
+    return { ...input, companionBytes: new TextEncoder().encode(JSON.stringify(source)) };
+  });
+  const initial = api.atlasReducer(subject, api.initialAtlasState(subject), view('plan'));
+  const firstBuilding = api.atlasReducer(subject, initial, building('single-building-0'));
+  const chosenFloor = api.atlasReducer(subject, firstBuilding, level('single-level-0'));
+  const pick = (state, point, presentationOverride) => {
+    const presentation = presentationOverride ?? api.presentAtlas(subject, state, empty);
+    const projection = api.makeProjection({ yaw: 17, pitch: 76, zoom: 1, panX: 0, panY: 0 }, api.frameBox(subject, state, presentation), { width: 960, height: 640 }, 0);
+    const levelId = presentation.planLevels.at(-1);
+    const y = subject.floorY.get(levelId) + api.levelLift(presentation, levelId, .5);
+    const pixel = projection.project(point[0], y, point[1]);
+    return api.planPickTarget(subject, presentation, state, .5, projection, ...pixel);
+  };
+  const originalOrder = [...api.presentAtlas(subject, initial, empty).planLevels];
+  const sourcePlans = JSON.stringify(subject.scene.plans), sourceVertices = subject.meshes.map(mesh => mesh.vertices.slice());
+  assert.deepEqual(pick(initial, [.5, .5]), { kind: 'building', buildingId: 'single-building-1' });
+  assert.deepEqual(pick(initial, [1.5, 1.5]), { kind: 'building', buildingId: 'single-building-0' }, 'later hole reveals the earlier filled group');
+  assert.deepEqual(pick(initial, [9, 1]), { kind: 'building', buildingId: 'single-building-1' }, 'nonoverlapping authored room remains accessible');
+  assert.deepEqual(pick(initial, [4.4, .4]), { kind: 'building', buildingId: 'single-building-0' }, 'later context fill cannot intercept a floor');
+  for (const x of [4.4, 5.4, 6.4, 7.4]) {
+    assert.deepEqual(pick(firstBuilding, [x, .4]), { kind: 'level', levelId: 'single-level-0' });
+    assert.deepEqual(pick(chosenFloor, [x, .4]), { kind: 'level', levelId: 'single-level-0' }, 'display-only surfaces do not become selected rooms');
+  }
+  assert.equal(pick(firstBuilding, [8.4, .4]), null, 'context alone remains empty paper');
+  assert.deepEqual(pick(chosenFloor, [1.5, 1.5]), { kind: 'room', occurrenceId: 'single-occ-0' });
+  assert.deepEqual(api.presentAtlas(subject, initial, empty).planLevels, originalOrder);
+  // Different authored planes/lifts use each group's own inverse projection.
+  const p = api.presentAtlas(subject, initial, empty), shifted = { ...subject, floorY: new Map(subject.floorY).set('single-level-1', 4) };
+  const projected = { ...p, offsets: new Map(p.offsets).set('single-level-1', 3) };
+  const projection = api.makeProjection({ yaw: 0, pitch: 60, zoom: 1, panX: 0, panY: 0 }, api.frameBox(subject, initial, p), { width: 960, height: 640 }, 0);
+  const pixel = projection.project(.5, 4 + api.levelLift(projected, 'single-level-1', .5), .5);
+  assert.deepEqual(api.planPickTarget(shifted, projected, initial, .5, projection, ...pixel), { kind: 'building', buildingId: 'single-building-1' });
+  assert.equal(JSON.stringify(subject.scene.plans), sourcePlans);
+  subject.meshes.forEach((mesh, at) => assert.deepEqual(mesh.vertices, sourceVertices[at]));
+});
+
+test('authored room fill with an explicitly unselectable occurrence selects only its floor', async () => {
+  const { model: subject } = await generatedModel(api, async scope => {
+    const input = await api.buildSyntheticAtlas(scope), source = JSON.parse(new TextDecoder().decode(input.companionBytes));
+    const feature = { featureId: 'generated:display-only-void', roomId: 'syn-room-void', spaceOccurrenceId: 'syn-occ-void', role: 'room',
+      polygons: [{ outer: [[108, 56], [109, 56], [109, 57], [108, 57]], holes: [] }] };
+    const plan = source.plans.find(plan => plan.levelId === U); plan.features.push(feature); plan.featureIds.push(feature.featureId);
+    source.occurrences.find(row => row.spaceOccurrenceId === 'syn-occ-void').planFeatureIds.push(feature.featureId);
+    source.coverage.exclusions.find(row => row.spaceOccurrenceId === 'syn-occ-void').reason = 'Display-only source occurrence without pick geometry.';
+    return { ...input, companionBytes: new TextEncoder().encode(JSON.stringify(source)) };
+  });
+  const state = api.atlasReducer(subject, api.atlasReducer(subject, api.initialAtlasState(subject), level(U)), view('plan'));
+  const p = api.presentAtlas(subject, state, empty), projection = api.makeProjection({ yaw: 0, pitch: 90, zoom: 1, panX: 0, panY: 0 }, api.frameBox(subject, state, p), { width: 960, height: 640 }, 0);
+  const pixel = projection.project(108.5, subject.floorY.get(U), 56.5);
+  const target = api.planPickTarget(subject, p, state, 0, projection, ...pixel);
+  assert.equal(subject.selectable.has('syn-occ-void'), false);
+  assert.deepEqual(target, { kind: 'level', levelId: U });
+  const next = api.atlasReducer(subject, state, api.targetAction(target));
+  assert.equal(next.levelId, U); assert.equal(next.occurrenceId, null);
+});
+
 test('explosion lifts drawing and CPU picks together throughout transition without modifying geometry', () => {
   const before = model.meshes.map(mesh => mesh.vertices.slice());
   const state = reduce(initial(), building(H), { type: 'explode', exploded: true });
@@ -511,6 +582,29 @@ test('property aggregation counts source entities once and retains differing sam
   const unavailable = api.mergeRuntimeRecords(model, [{ buildingId: H, reason: 'no-native-building-link', records: null },
     { buildingId: S, reason: 'room-link-not-qualified', records: null }]);
   assert.deepEqual(unavailable.buildings.map(row => [row.buildingId, row.reason]), [[H, 'no-native-building-link'], [S, 'room-link-not-qualified']]);
+});
+
+
+test('shared documentary entities retain each room’s whole local primary observation', () => {
+  const local = (room, sourceDate) => ({ key: 'generated-source/sheet/shared', id: 'shared', label: 'Shared sheet', category: 'Electrical drawing',
+    detail: `Observed in ${room}`, qualification: 'Documentary only', sourceDate, retrievedAt: `${sourceDate}T12:00:00Z`,
+    connections: [`Connection observed in ${room}`], sourceFacts: [{ label: 'Room association in this observation', value: room }] });
+  const hall = local('Hall', '2026-10-01'), stairs = local('Stairs', '2026-10-02'), unplaced = local('Unplaced source observation', '2026-10-03');
+  const distinct = { ...hall, key: 'another-source/sheet/shared', detail: 'Distinct source with reused raw ID' };
+  const records = { rooms: new Map([['syn-room-hall', { network: [], electrical: [hall] }], ['syn-room-stairs', { network: [], electrical: [stairs] }]]),
+    network: 'unavailable', electrical: 'available', sourceFacts: [], unplaced: { network: [], electrical: [unplaced, distinct] } };
+  const before = JSON.stringify([...records.rooms]);
+  const merged = api.mergeRuntimeRecords(model, [{ buildingId: H, reason: 'available', records }]);
+  for (const [roomId, expected] of [['syn-room-hall', hall], ['syn-room-stairs', stairs]]) {
+    const { observations, ...primary } = merged.rooms.get(roomId).electrical[0];
+    assert.deepEqual(primary, expected, 'all primary dates, connections and association facts remain room-local');
+    assert.equal(observations.length, 2);
+    assert.deepEqual(new Set([primary, ...observations].map(row => row.detail)), new Set([hall.detail, stairs.detail, unplaced.detail]));
+  }
+  const index = api.documentaryOverlayIndex(model, merged, 'electrical');
+  assert.deepEqual([index.records, index.unplacedRecords], [2, 1]);
+  assert.equal(merged.unplaced.electrical[0].key, distinct.key);
+  assert.equal(JSON.stringify([...records.rooms]), before);
 });
 
 
