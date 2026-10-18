@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "7e85a5a558fe40068a762254dd258dac4510d92229298fc88add3fd4404b542e",
+  "sourceDigestSha256": "d1d253e6bf3ce1afa9c409251e7a37636cbd6468116549f1805d985da3268190",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -9730,8 +9730,8 @@
     {
       "path": "frontend/src/lantern/styles/app.css",
       "mode": "100644",
-      "bytes": 42535,
-      "sha256": "7dac056baf445de6f09505234466f743e8c5335346e3484ff5b6216c164cc6a0",
+      "bytes": 42551,
+      "sha256": "9f9d2a6a797a52e41819422d0e45cd211c7e758b1de75eb3ea9e5aebf5640423",
       "owner": "web"
     },
     {
