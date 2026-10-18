@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "bcdb67789efc76ecc7fc85801b7f9294915629246d5ddb50991d11be04c34cd8",
+  "sourceDigestSha256": "4cdc77e0bc9f5bd289330506cbf26704b4b390ab9ca52b033a3b09db27d3cc4a",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2282,8 +2282,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 55296,
-      "sha256": "7e970cad4dcc5b6f9ba44d85d78123bf5f30e12fd54c0846d05d017da385fa35",
+      "bytes": 55502,
+      "sha256": "eee2e51efc5ed4238fcb41de288c7c077b6040120f2490b32ea2282cd810da72",
       "owner": "core-integration"
     },
     {
@@ -10246,6 +10246,34 @@
       "owner": "media"
     },
     {
+      "path": "packages/offline-operation-ledger/README.md",
+      "mode": "100644",
+      "bytes": 5277,
+      "sha256": "eff8c720d6273b4c0e80089d49375972ab9cf0d7042093e4632af72f5edf4f67",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/offline-operation-ledger/package.json",
+      "mode": "100644",
+      "bytes": 202,
+      "sha256": "4c684a8f5f11fa1124d966ceddd03352f124e3531d17d6fbccd0d161ba8c6a37",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/offline-operation-ledger/src/operation-ledger.mjs",
+      "mode": "100644",
+      "bytes": 5791,
+      "sha256": "90c9562f79538bee36fc23e06f7d6a10cef0d11ac56d50ddf443a0ce131e1c04",
+      "owner": "storage"
+    },
+    {
+      "path": "packages/offline-operation-ledger/test/operation-ledger.test.mjs",
+      "mode": "100644",
+      "bytes": 6677,
+      "sha256": "2dc95e2af1a01c7ae31b9b1fbc4be3a51cae743eb973b332356c82eb6d0a7fd4",
+      "owner": "storage"
+    },
+    {
       "path": "packages/operations-policy/README.md",
       "mode": "100644",
       "bytes": 951,
@@ -10740,6 +10768,27 @@
       "mode": "100644",
       "bytes": 4070,
       "sha256": "9f963f128058d05cc32cf9e380ccde984cf1c98e34903b23b3b4d6e8fe583e86",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/backend-response/README.md",
+      "mode": "100644",
+      "bytes": 3901,
+      "sha256": "ab011f10e43bd73daed6a7220bf41ee0d15b9d8f692ee24b4c90b9e346a07ec7",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/backend-response/run.mjs",
+      "mode": "100644",
+      "bytes": 9052,
+      "sha256": "5a9d13573163c1e211706fdfdc11dd0919afc33a0169d8faec2cb29b7f54a5e5",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/backend-response/worker.rs",
+      "mode": "100644",
+      "bytes": 11167,
+      "sha256": "18fec1bf90e782543170c789edef74f25180b17d3e86b22d30fe8b324b590df7",
       "owner": "core-integration"
     },
     {
