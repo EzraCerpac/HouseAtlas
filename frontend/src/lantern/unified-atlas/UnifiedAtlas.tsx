@@ -1506,13 +1506,20 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
           <div key={span.key}><dt>Outline span {at + 1}</dt><dd>{span.text}</dd></div>)}</dl>
       </section>}
 
-      {runtime && kinds.map(kind => <section key={kind} className="ua-records" aria-label={`${OVERLAY_LABEL[kind]} in this room`}>
-        <h3>{OVERLAY_LABEL[kind]}</h3>
-        {!runtime.rooms.has(room.roomId) ? <p>Room source link unavailable.</p>
-          : runtime[kind] === 'unavailable' ? <p>Source unavailable.</p>
-          : <DocumentaryRecords records={runtime.rooms.get(room.roomId)![kind]} openDocuments={openDocuments} />}
-        {runtime[kind] === 'partial' && <p>{kind === 'electrical' ? 'Some electrical sources or buildings are unavailable.' : 'The network source is unavailable for some buildings.'}</p>}
-      </section>)}
+      {/* One group per layer that is on: its glyph, name and how many records
+          this room's source supplies, the source state before the rows, then
+          the records in source order. */}
+      {runtime && kinds.map(kind => {
+        const records = runtime.rooms.has(room.roomId) && runtime[kind] !== 'unavailable' ? runtime.rooms.get(room.roomId)![kind] : null;
+        return <section key={kind} className="ua-records" aria-label={`${OVERLAY_LABEL[kind]} in this room`}>
+          <h3 className="ua-records-head"><Icon name={OVERLAY_ICON[kind]} size={16} />{OVERLAY_LABEL[kind]}
+            {records && records.length > 0 && <span className="ua-records-count">{plural(records.length, 'record')}</span>}</h3>
+          {runtime[kind] === 'partial' && <p className="ua-records-state">{kind === 'electrical' ? 'Some electrical sources or buildings are unavailable.' : 'The network source is unavailable for some buildings.'}</p>}
+          {!runtime.rooms.has(room.roomId) ? <p className="ua-records-state">Room source link unavailable.</p>
+            : runtime[kind] === 'unavailable' ? <p className="ua-records-state">Source unavailable.</p>
+            : <DocumentaryRecords records={records!} openDocuments={openDocuments} />}
+        </section>;
+      })}
 
       {overlays.length > 0 && <section className="ua-records" aria-label="Records in this room">
         {overlays.map(({ kind, placement, unplaced }) => <div key={kind} className="ua-record" style={{ '--layer': TONE_COLOR[kind] } as CSSProperties}>
@@ -1529,21 +1536,42 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
 }
 
 function DocumentaryRecords({ records, openDocuments }: { readonly records: readonly DocumentaryRecord[]; readonly openDocuments: (() => void) | undefined }) {
+  // Short type names and glyphs for the categories the source names; any other
+  // category shows its original string. The full category stays in the details.
+  const types: Readonly<Record<string, { readonly short: string; readonly icon: string }>> = {
+    'Electrical drawing': { short: 'Drawing', icon: 'file' },
+    'Historical symbol': { short: 'Historic symbol', icon: 'symbol' },
+    'Recorded device': { short: 'Device', icon: 'box' },
+    'Recorded connection': { short: 'Connection', icon: 'link' },
+    'Network endpoint': { short: 'Endpoint', icon: 'network' },
+  };
   if (!records.length) return <p>No linked records in the available source.</p>;
-  return <div>{records.map(record => <details className="ua-refs" key={record.key}>
-    <summary>{record.label}</summary>
-    <p>{record.category}: {record.detail}</p><p>{record.qualification}</p>
-    <p>Source date: {record.sourceDate ?? 'unknown'}. Retrieved: {record.retrievedAt ?? 'unknown'}.</p>
-    {record.connections.length > 0 && <ul>{record.connections.map((connection, at) => <li key={at}>{connection}</li>)}</ul>}
-    {openDocuments && (record.category === 'Electrical drawing' || record.category === 'Historical symbol') && <button type="button" className="text-btn" onClick={openDocuments}>Open Documents</button>}
-    <details className="ua-source"><summary>Source</summary><dl><div><dt>Source record</dt><dd>{record.id}</dd></div>
-      {record.sourceFacts.map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value ?? 'unknown'}</dd></div>)}
-    </dl></details>
-    {record.observations && record.observations.length > 0 && <details className="ua-source">
-      <summary>Other source observations ({record.observations.length})</summary>
-      <DocumentaryRecords records={record.observations} openDocuments={openDocuments} />
-    </details>}
-  </details>)}</div>;
+  // Collapsed, each row names the record, its type and its qualification;
+  // opened, its category and detail, dates, connections and sources.
+  return <div className="ua-docs">{records.map(record => {
+    const type = Object.prototype.hasOwnProperty.call(types, record.category) ? types[record.category]! : null;
+    return <details className="ua-refs ua-doc" key={record.key}>
+      <summary>
+        <Icon name={type?.icon ?? 'record'} size={16} className="ua-doc-glyph" />
+        <span className="ua-doc-head">
+          <span className="ua-doc-label">{record.label}</span>
+          <span className="ua-doc-type">{type?.short ?? record.category}</span>
+        </span>
+        <span className="ua-doc-qual">{record.qualification}</span>
+      </summary>
+      <p>{record.category}: {record.detail}</p>
+      <p>Source date: {record.sourceDate ?? 'unknown'}. Retrieved: {record.retrievedAt ?? 'unknown'}.</p>
+      {record.connections.length > 0 && <ul>{record.connections.map((connection, at) => <li key={at}>{connection}</li>)}</ul>}
+      {openDocuments && (record.category === 'Electrical drawing' || record.category === 'Historical symbol') && <button type="button" className="text-btn" onClick={openDocuments}>Open Documents</button>}
+      <details className="ua-source"><summary>Source</summary><dl><div><dt>Source record</dt><dd>{record.id}</dd></div>
+        {record.sourceFacts.map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value ?? 'unknown'}</dd></div>)}
+      </dl></details>
+      {record.observations && record.observations.length > 0 && <details className="ua-source">
+        <summary>Other source observations ({record.observations.length})</summary>
+        <DocumentaryRecords records={record.observations} openDocuments={openDocuments} />
+      </details>}
+    </details>;
+  })}</div>;
 }
 
 function RoomList({ model, levels, choose, levelName }: {

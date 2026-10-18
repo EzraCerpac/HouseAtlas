@@ -40,6 +40,10 @@ const PATHS: Record<string, string> = {
   layers: 'M12 4 20 8.5 12 13 4 8.5Z M4 13l8 4.5 8-4.5',
   building: 'M5 20.5V9.5L12 4l7 5.5v11 M9.5 20.5v-5.5h5v5.5 M3 20.5h18',
   tools: 'M4 9.5h16v9.5H4Z M9 9.5V6.5h6v3 M4 13.5h16 M10.5 13.5v2h3v-2',
+  // A drawn plan symbol, as read from a document; not an installed fixture.
+  symbol: 'M12 18.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Z M7.5 7.5l9 9',
+  // A source record of a type with no glyph of its own.
+  record: 'M6.5 5.5h11v13h-11Z M9.5 9.5h5 M9.5 13h5',
 };
 
 export type IconName = keyof typeof PATHS;
