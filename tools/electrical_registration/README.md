@@ -35,9 +35,13 @@ physical registration and false native qualification. The proposal contains:
 - `target`: workspace/home/publication, semantics/model SHA-256, coordinate-frame
   ID, units `m`, horizontal axes `['X','Z']`, room/occurrence/building/level/plan IDs.
 - `controls` and `checks`: explicit finite pairs, unique landmark IDs,
-  `targetFeatureId`, `reviewStatus: 'reviewed-correspondence'`, and
+  unique `targetLandmarkId`, `targetFeatureId`, `reviewStatus:
+  'reviewed-correspondence'`, and
   `sourceEvidence`, `targetEvidence`, `reviewEvidence` (`sha256` and `locator`).
-  At least two held-out checks must use independent identities and locations.
+  At least two held-out checks must use independent source and target identities
+  and locations, separate from fitted controls. Distinct endpoints on one plan
+  feature may be independently reviewed target landmarks; sharing a feature ID
+  does not make a reused target location an independent check.
 - `reviewStatus: 'reviewed-approximate'`, pinned `reviewEvidence` and nonempty
   dated `layoutQualification` describing historical changes and source limitations.
 - `uncertainty`: source normalized `sourceXY`, `targetMetres`,
@@ -50,13 +54,28 @@ string alone does not verify bytes. The source reader/adapter remains responsibl
 for artifact digest checking, landmark evidence review and contextual truth;
 this pure helper is not an adversarial or native authorization boundary.
 
-`projectInventory(records, assessments, selection)` consumes those assessments
-in the same offline context. Each input row has `fixtureId`, the source tuple,
+`projectInventory(records, assessments, currentContext, selection)` requires a
+fresh explicit current context at projection time. Each input row has `fixtureId`, the source tuple,
 `sourcePoint`, optional `sourceToleranceXY`, and explicit `bindings` containing
-room/occurrence IDs plus optional building/level IDs. Additional documentary
-fields are retained. Only reviewed approximate alignments whose exact source
-and occurrence tuples match can supply `scenePointXZ`. Points outside the
-fitted control hull remain unsupported. There is no room-centre fallback.
+all five room/occurrence/building/level/plan IDs. Additional documentary fields
+are retained. An assessment can supply `scenePointXZ` only when its complete
+publication/model/frame pins equal `currentContext.frame`, its exact source tuple
+is still in `currentContext.sources`, and its complete target tuple matches both
+an input binding and a current occurrence. Required context pins cannot be null
+or absent. Incomplete input bindings remain unsupported rather than acting as
+wildcards. Referenced target feature IDs must still belong to that current plan.
+Registration IDs must be explicit and unique across assessments; output retains
+the registration review-evidence pin, target-feature IDs and full target pins.
+The top-level output also carries the independently supplied current frame.
+Points outside the fitted control hull remain unsupported. There is no
+room-centre fallback or fallback from an older publication to stable room UUIDs.
+
+The registration ID identifies the reviewed affine transform within its exact
+source/frame/occurrence context. Source byte identity is the original/rendered
+SHA tuple plus sheet and region IDs; these are not native asset grants. No
+additional native asset ID or registration receipt is inferred. The caller owns
+byte verification and review-evidence custody; the projector itself performs
+the complete context comparison before emitting reusable scene coordinates.
 
 Tolerance uses absolute affine coefficients times the larger source/row axis
 tolerances, plus maximum fitted/held-out residual, target tolerance and declared
