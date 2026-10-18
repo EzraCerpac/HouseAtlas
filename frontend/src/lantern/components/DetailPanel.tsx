@@ -257,8 +257,10 @@ export function Sources({ house: _house, outage: _outage }: { house: HouseData; 
 // ---------------- Room ----------------
 
 function SpaceDetail({ space }: { space: Space }) {
-  const { house } = useStore();
+  const { house, projection } = useStore();
   const c = roomContents(house, space.id);
+  const entry = projection.entries.get(space.id);
+  const mappings = projection.geometryMappings.get(space.id) ?? [];
   const looseItems = c.items.filter((i) => !i.containerId);
   const byCircuit = new Map<string, Outlet[]>();
   for (const o of c.outlets) {
@@ -274,20 +276,22 @@ function SpaceDetail({ space }: { space: Space }) {
       lead={
         <>
           {space.note && <p className="lead">{space.note}</p>}
-          <ul className="tally" aria-label="Related records">
-            <li>
-              <strong>{c.items.length}</strong> belongings
-            </li>
-            <li>
-              <strong>{c.docs.length}</strong> documents
-            </li>
-            <li>
-              <strong>{scheduled.length}</strong> upkeep due
-            </li>
-            <li>
-              <strong>{c.outlets.length + c.valves.length + c.panels.length}</strong> fixtures
-            </li>
-          </ul>
+          {/* What the place holds, counted; a kind with none is listed under
+              None listed below rather than shown as a zero here. */}
+          {(() => {
+            const counts: [number, string, string][] = [
+              [c.items.length, 'belonging', 'belongings'],
+              [c.docs.length, 'document', 'documents'],
+              [scheduled.length, 'upkeep due', 'upkeep due'],
+              [c.outlets.length + c.valves.length + c.panels.length, 'fixture', 'fixtures'],
+            ];
+            const shown = counts.filter(([count]) => count > 0);
+            return shown.length > 0 && <ul className="tally space-tally" aria-label="Related records">
+              {shown.map(([count, one, many]) => <li key={many}>
+                <strong>{count}</strong> {count === 1 ? one : many}
+              </li>)}
+            </ul>;
+          })()}
         </>
       }
     >
@@ -399,7 +403,13 @@ function SpaceDetail({ space }: { space: Space }) {
           id={space.id}
           rows={[
             ['HomeBox location', space.homeboxRef ? space.homeboxRef : 'Not bound'],
+            // Context the rooms list no longer repeats on every row: the
+            // source state even when normal (its exceptions also show there),
+            // a missing classification, and every geometry mapping as read.
+            ...(entry ? [['Source state', entry.sourceState]] as [string, string][] : [['Classification', 'Unknown']] as [string, string][]),
             ['Shape', space.geometry === 'reviewed' ? `Reviewed, from ${nameOf(house, space.geometrySourceId ?? '')}` : 'No reviewed shape'],
+            ...(mappings.map(({ record, mapping }, at) => [`Geometry mapping ${at + 1}`,
+              `${record.payload.producer}: ${mapping.reviewStatus}; version ${record.payload.geometryVersion}; producer room ${mapping.producerRoomId}`]) as [string, string][]),
             ...((space.formerNames ?? []).map((f) => ['Former name', `${f.name}, until ${fmtDate(f.until)}`]) as [string, string][]),
           ]}
         />
@@ -860,6 +870,8 @@ function DocDetail({ d }: { d: Doc }) {
       <Section title="Provenance">
         <Facts
           rows={[
+            // The document's own kind, as supplied; search results leave it here.
+            ['Kind', d.kind],
             ['Source', d.source],
             ['Added', d.addedAt ? `${fmtDateTime(d.addedAt)} by ${d.addedBy}` : 'Unknown'],
             ['Captured', d.capturedAt ? fmtDateTime(d.capturedAt) : undefined],

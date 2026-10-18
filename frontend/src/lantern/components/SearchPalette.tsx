@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { SEARCH_GROUPS, locate, search, type SearchHit } from '../data/query';
+import { SEARCH_GROUPS, dueState, locate, nameOf, search, type SearchHit } from '../data/query';
+import type { HouseData } from '../data/types';
+import { fmtDate } from '../data/time';
 import { useSelect, useStore, type ViewId } from '../state/store';
 import { Icon } from './Icon';
 import { KIND_ICON } from './ui';
@@ -7,6 +9,46 @@ import { KIND_LABEL } from '../data/query';
 import { isArchivedEntry } from '../../app/model';
 
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+
+/** A group's heading names its kind when it holds only one, so its results
+ * need no kind of their own; a group that holds several keeps each result's. */
+function groupMixesKinds(label: string): boolean {
+  return (SEARCH_GROUPS.find((group) => group.label === label)?.kinds.length ?? 2) > 1;
+}
+
+/** The line under a result's title: what tells it apart at a glance.
+ * A document says what it is for, and that it is only an external link;
+ * its kind and storage stay on the document itself. An upkeep task says
+ * what it is for and where it stands, reading its own status before any
+ * date. Every other result keeps the location the search supplied. */
+function hitSubtitle(house: HouseData, hit: SearchHit): { readonly text: string; readonly alert?: boolean } {
+  if (hit.kind === 'doc') {
+    const doc = house.docs.find((d) => d.id === hit.id);
+    if (!doc) return { text: hit.context };
+    const parts = [doc.linkedTo.length > 0 ? `For ${doc.linkedTo.map((id) => nameOf(house, id)).join(', ')}` : null,
+      doc.storage === 'link' ? 'External link' : null].filter(Boolean);
+    return { text: parts.join(' · ') };
+  }
+  if (hit.kind === 'task') {
+    const task = house.tasks.find((t) => t.id === hit.id);
+    if (!task) return { text: hit.context };
+    const target = nameOf(house, task.targetId);
+    const date = task.due ? fmtDate(task.due) : null;
+    let state: string, alert = false;
+    if (task.status === 'done') state = task.completedAt && fmtDate(task.completedAt) !== 'Unknown' ? `Done ${fmtDate(task.completedAt)}` : 'Done';
+    else if (task.status !== 'scheduled') state = date ? `Status not supplied, date ${date}` : 'Status not supplied';
+    else if (!date) state = 'No date supplied';
+    else if (date === 'Unknown') state = 'Due date unreadable';
+    else {
+      const due = dueState(task, house.displayNow);
+      if (due === 'overdue') { state = `Overdue, was due ${date}`; alert = true; }
+      else if (due === 'soon') state = `Due soon, ${date}`;
+      else state = `Due ${date}`;
+    }
+    return { text: `${target} · ${state}`, alert };
+  }
+  return { text: hit.context };
+}
 
 /** Keep retained records reachable without a filter strip on every page. */
 function ArchiveFilter({ choose }: { choose: (hit: Pick<SearchHit, 'id' | 'kind'>) => void }) {
@@ -178,12 +220,15 @@ export function SearchPalette() {
                 No matches for “{q.trim()}” in this home.
               </p>
             )}
-            {grouped.map((g) => (
+            {grouped.map((g) => {
+              const mixed = groupMixesKinds(g.label);
+              return (
               <div key={g.label} className="palette-group" role="group" aria-label={g.label}>
                 <p className="palette-group-label">{g.label}</p>
                 {g.hits.map((h) => {
                   index += 1;
                   const i = index;
+                  const sub = hitSubtitle(house, h);
                   return (
                     <div
                       key={h.id}
@@ -197,13 +242,14 @@ export function SearchPalette() {
                     >
                       <Icon name={KIND_ICON[h.kind]} size={17} />
                       <span className="hit-title">{h.title}</span>
-                      <span className="hit-context">{h.context}</span>
-                      <span className="hit-kind">{KIND_LABEL[h.kind]}</span>
+                      {sub.text && <span className={`hit-context${sub.alert ? ' is-alert' : ''}`}>{sub.text}</span>}
+                      {mixed && <span className="hit-kind">{KIND_LABEL[h.kind]}</span>}
                     </div>
                   );
                 })}
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
         <p className="palette-foot">Arrow keys to move, Enter to open, Esc to close.</p>

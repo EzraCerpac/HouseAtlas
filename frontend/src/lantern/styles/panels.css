@@ -1050,7 +1050,7 @@
 
 .lantern-host .ledger-main {
   display: grid;
-  grid-template-columns: 6px minmax(130px, 1.2fr) minmax(80px, 0.6fr) minmax(0, 2fr) auto;
+  grid-template-columns: 6px minmax(130px, 1fr) minmax(0, 2fr) auto;
   align-items: center;
   gap: 14px;
   width: 100%;
@@ -1085,11 +1085,6 @@
   overflow-wrap: anywhere;
 }
 
-.lantern-host .ledger-kind {
-  font-size: var(--fs-s);
-  color: var(--muted);
-}
-
 .lantern-host .ledger-facts {
   display: flex;
   flex-wrap: wrap;
@@ -1110,13 +1105,41 @@
   background: var(--hair-2);
 }
 
-.lantern-host .ledger-shape {
-  font-size: var(--fs-xs);
-  font-weight: 650;
-  color: var(--c-confirmed);
+/* What a place holds: a glyph and a count, no bullet. */
+.lantern-host .ledger-facts > .ledger-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
-.lantern-host .ledger-shape.is-none {
+.lantern-host .ledger-facts > .ledger-count::before { display: none; }
+.lantern-host .ledger-count > .icon { flex: none; color: var(--muted); }
+.lantern-host .ledger-count.tone-alert > .icon { color: currentColor; }
+
+/* Only what changes a decision now stands at the row's end: an archived
+   record, a source or cache that is not normal, a place with no shape. */
+.lantern-host .ledger-flags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
+}
+
+.lantern-host .ledger-flag {
+  max-width: 100%;
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.lantern-host .ledger-flag.is-quiet {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--hair-2);
   color: var(--c-unknown);
 }
 
@@ -2230,10 +2253,11 @@
 
 @media (max-width: 900px) {
   .lantern-host .ledger-main {
-    grid-template-columns: 6px minmax(0, 1fr) auto;
+    grid-template-columns: 6px minmax(0, 1fr);
     grid-template-areas:
-      'sw name shape'
-      'sw facts facts';
+      'sw name'
+      'sw facts'
+      'sw flags';
     row-gap: 4px;
   }
 
@@ -2246,16 +2270,17 @@
     grid-area: name;
   }
 
-  .lantern-host .ledger-kind {
-    display: none;
-  }
-
   .lantern-host .ledger-facts {
     grid-area: facts;
   }
 
-  .lantern-host .ledger-shape {
-    grid-area: shape;
+  .lantern-host .ledger-main:not(.topology-row) > .ledger-facts:empty {
+    display: none;
+  }
+
+  .lantern-host .ledger-flags {
+    grid-area: flags;
+    justify-content: flex-start;
   }
 
   .lantern-host .tl-columns,
@@ -2281,6 +2306,12 @@
 
   .lantern-host .ledger-facts {
     flex-direction: column;
+  }
+
+  /* A room's counts are short; they wrap in a row rather than a column. */
+  .lantern-host .ledger-main:not(.topology-row) > .ledger-facts {
+    flex-direction: row;
+    gap: 2px 12px;
   }
 
   .lantern-host .ledger-floor {
