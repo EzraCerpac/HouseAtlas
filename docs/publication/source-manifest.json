@@ -23,8 +23,15 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "2b5b2477be9a4c0e3df5152339f274b0c2e9d41067abd656ca818086f1f96473",
+  "sourceDigestSha256": "ff56be5734ee84e766887708918d5d5135f396f66cf19ecb868b0a7c59985e4b",
   "files": [
+    {
+      "path": ".github/workflows/model-overview-darwin-artifact.yml",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 2528,
+      "sha256": "67f34d0e99f0147e1e5e00bb0b29a121afe12f553437cc15633371a57a0d943b"
+    },
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
@@ -10811,6 +10818,13 @@
       "bytes": 4070,
       "sha256": "9f963f128058d05cc32cf9e380ccde984cf1c98e34903b23b3b4d6e8fe583e86",
       "owner": "core-integration"
+    },
+    {
+      "path": "tools/model-overview-darwin-artifact.py",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 15949,
+      "sha256": "972faebba0c4ebccd8db74456e9968644c0086c5004e032f903e6c08dccac8a1"
     },
     {
       "path": "tools/perf/backend-response/README.md",
