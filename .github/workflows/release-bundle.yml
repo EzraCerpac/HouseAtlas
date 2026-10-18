@@ -73,8 +73,6 @@ jobs:
       actions: read
     env:
       CARGO_INCREMENTAL: '0'
-      CARGO_TARGET_DIR: ${{ runner.temp }}/houseatlas-release-target
-      npm_config_cache: ${{ runner.temp }}/houseatlas-release-npm
     steps:
       - name: Checkout exact main without persistent credentials
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -83,6 +81,10 @@ jobs:
           fetch-depth: 1
           fetch-tags: false
           persist-credentials: false
+      - name: Select owned temporary build directories
+        run: |
+          printf '%s\n' "CARGO_TARGET_DIR=$RUNNER_TEMP/houseatlas-release-target" >> "$GITHUB_ENV"
+          printf '%s\n' "npm_config_cache=$RUNNER_TEMP/houseatlas-release-npm" >> "$GITHUB_ENV"
       # This fails before dependency installation while the checked-in native
       # profile is unqualified. No Linux/ARM substitute or inferred NAS support.
       - name: Require reviewed exact Intel builder and native source profile
