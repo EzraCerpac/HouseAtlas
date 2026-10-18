@@ -219,6 +219,69 @@ for (const entry of view.entries) {
   const source = [...projected.entries.values()].find(e => e === entry);
   assert.equal(source, entry === archivedDrawer ? undefined : entry);
 }
+
+// Render the actual Search palette and store with the saved synthetic view.
+// Only import paths are adapted; effects, browser input and transport stay idle.
+const reactUrl = new URL('../node_modules/react/index.js', import.meta.url).href;
+const jsxUrl = new URL('../node_modules/react/jsx-runtime.js', import.meta.url).href;
+const { createElement } = await import(reactUrl);
+const { renderToStaticMarkup } = await import(new URL('../node_modules/react-dom/server.node.js', import.meta.url).href);
+async function searchJsx(path, imports) {
+  const file = new URL(path, import.meta.url);
+  let { code } = await transformWithOxc(readFileSync(file, 'utf8'), file.pathname,
+    { lang: 'tsx', jsx: { runtime: 'automatic' }, target: 'esnext', tsconfig: false, sourcemap: false });
+  for (const [specifier, url] of Object.entries(imports)) {
+    assert(code.includes(JSON.stringify(specifier)), `Missing search import ${specifier}`);
+    code = code.replaceAll(JSON.stringify(specifier), JSON.stringify(url));
+  }
+  for (const match of code.matchAll(/^\s*import\s+(?:[\w$\s{},*]+?\s+from\s+)?["']([^"']+)["']/gm))
+    assert(match[1].startsWith('data:') || match[1].startsWith('file:'), `Unexpected search import ${match[1]}`);
+  return `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
+}
+const searchTime = await quantityModule('../src/lantern/data/time.ts', [
+  ['ajv-formats/dist/formats.js', new URL('../node_modules/ajv-formats/dist/formats.js', import.meta.url).href],
+]);
+const searchQuery = await quantityModule('../src/lantern/data/query.ts', [['./time', searchTime]]);
+const searchStore = await searchJsx('../src/lantern/state/store.tsx', {
+  react: reactUrl, 'react/jsx-runtime': jsxUrl, '../data/query': searchQuery,
+});
+const searchIcon = await searchJsx('../src/lantern/components/Icon.tsx', { 'react/jsx-runtime': jsxUrl });
+const searchUi = await searchJsx('../src/lantern/components/ui.tsx', {
+  'react/jsx-runtime': jsxUrl, '../data/query': searchQuery, '../state/store': searchStore, './Icon': searchIcon,
+});
+const searchPalette = await searchJsx('../src/lantern/components/SearchPalette.tsx', {
+  react: reactUrl, 'react/jsx-runtime': jsxUrl, '../data/query': searchQuery,
+  '../state/store': searchStore, './Icon': searchIcon, './ui': searchUi, '../../app/model': quantityModelModule,
+});
+const { StoreProvider } = await import(searchStore);
+const { SearchPalette } = await import(searchPalette);
+const { search } = await import(searchQuery);
+const renderSearch = (savedView, included) => {
+  const projection = projectView(savedView, undefined, undefined, null, included);
+  const actions = { reload: async () => true, switchHome() {}, nativeContent: null,
+    archiveVisibility: { included, setIncluded() {} } };
+  return { projection, markup: renderToStaticMarkup(createElement(StoreProvider, { projection, actions }, createElement(SearchPalette))) };
+};
+const archiveOff = renderSearch(view, false);
+assert(archiveOff.markup.includes('Include archived records'));
+assert(archiveOff.markup.includes('aria-label="Search names, models or documents"'));
+const archiveOn = renderSearch(view, true);
+assert(archiveOn.markup.includes('Archived records (1)'));
+assert(archiveOn.markup.includes(archivedDrawer.entity.name));
+assert(archiveOn.markup.includes(`Source: ${archivedDrawer.sourceState}; cache: ${archivedDrawer.cacheStatus}`));
+const archiveHit = search(archiveOn.projection.house, archivedDrawer.entity.name).find(hit => hit.title === archivedDrawer.entity.name);
+assert(archiveHit);
+assert.equal(archiveOn.projection.entries.get(archiveHit.id), archivedDrawer);
+assert.equal(archiveOn.projection.view, view);
+const retainedStateView = { ...view, entries: [{ ...archivedDrawer,
+  entity: { ...archivedDrawer.entity, archived: false }, sourceState: 'archived' }] };
+const retainedStateSearch = renderSearch(retainedStateView, true);
+assert(retainedStateSearch.markup.includes('Archived records (1)'));
+assert(retainedStateSearch.markup.includes('Entity archived: no · Source: archived'));
+assert.equal(retainedStateSearch.projection.entries.get(archiveHit.id), retainedStateView.entries[0]);
+const activeView = { ...view, entries: view.entries.filter(entry => !entry.entity.archived) };
+assert(!renderSearch(activeView, false).markup.includes('Include archived records'));
+assert.equal(JSON.stringify(view), quantityOriginalView);
 assert(projected.house.docs.every(d => d.addedAt === '' && d.preview === 'none' && d.version === 0));
 const radio = view.entries.find(e => e.entity.name === 'Portable radio');
 assert(radio);
@@ -789,4 +852,4 @@ for (const [path, expected] of Object.entries(hashes)) {
   assert.equal(result.status, 0);
   assert.equal(digest(result.stdout), expected, path);
 }
-console.log('PASS synthetic scoped projection, geometry, linked active/tombstoned evidence, operation history and original retained-intent reads, opaque sequential pagination, arbitrary place kinds, unknown placement, retained source metadata, actual document handles, source dates, maintenance, and 44 unchanged authored reference hashes');
+console.log('PASS synthetic scoped projection, contextual archived-record search markup and identity, geometry, linked active/tombstoned evidence, operation history and original retained-intent reads, opaque sequential pagination, arbitrary place kinds, unknown placement, retained source metadata, actual document handles, source dates, maintenance, and 44 unchanged authored reference hashes');

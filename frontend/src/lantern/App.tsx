@@ -1,6 +1,5 @@
 import { lazy, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useReducedMotion, useSelect, useStore, type ViewId } from './state/store';
-import { fmtDateTime } from './data/time';
+import { useReducedMotion, useStore, type ViewId } from './state/store';
 import { Icon } from './components/Icon';
 import { AtlasView } from './atlas/AtlasView';
 import { RoomsView } from './views/RoomsView';
@@ -15,7 +14,6 @@ import { Modal } from './components/Modal';
 import { ShellMenu } from './components/ShellMenu';
 import { attentionCount } from './components/DetailPanel';
 import { AiActivityStatus } from '../ai/host/index.js';
-import { isArchivedEntry } from '../app/model';
 
 // Keep the default Atlas/Rooms path and shared providers eager. These modules
 // load only when selected; no background prefetch or source reads are added.
@@ -44,39 +42,23 @@ function Mark() {
   );
 }
 
-/** The shell's one entry to the home overview: source freshness and attention. */
+/** The shell's entry to the home overview and contextual source details. */
 function OverviewToggle({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
-  const { projection, house } = useStore();
-  const caches = projection.view.caches.filter(c => c.owner === 'homebox');
-  const warning = !caches.length || caches.some(c => c.displayStatus !== 'fresh');
+  const { house } = useStore();
   const attention = attentionCount(house);
-  const text = caches.length ? caches.map(c => {
-    const source = c.status === 'access-revoked' || c.displayStatus === 'access-revoked'
-      ? 'HomeBox'
-      : `HomeBox source instance ${c.sourceInstanceId ?? 'unknown'}, collection ${c.collectionId ?? 'unknown'}`;
-    return `${source} ${c.displayStatus}, last successful update ${c.lastSuccessfulFetchAt ? fmtDateTime(c.lastSuccessfulFetchAt) : 'unknown'}`;
-  }).join('; ') : 'HomeBox cache unavailable';
-  const states = [...new Set(caches.map(c => c.displayStatus))].join(' / ');
   return (
     <button
       type="button"
-      className={`source-status${warning ? ' is-warn' : ''}`}
-      title={text}
+      className="source-status"
       onClick={onToggle}
       aria-expanded={expanded}
       aria-controls="details"
-      aria-label={`Overview: ${text}. ${attention} need attention.`}
+      aria-label={`Overview${attention > 0 ? `: ${attention} need attention` : ''}`}
     >
-      <span className="sync-dot" aria-hidden="true" />
+      <Icon name="info" size={18} />
       <span className="source-status-main" aria-hidden="true">
-        <span className="source-status-name">HomeBox</span>
-        <span className="source-status-state">{caches.length ? states : 'cache unavailable'}</span>
+        <span className="source-status-name">Overview</span>
       </span>
-      {caches.length > 0 && <span className="source-status-detail" aria-hidden="true">
-        {caches.map((c, index) => <span key={index}>
-          {`Last successful update ${c.lastSuccessfulFetchAt ? fmtDateTime(c.lastSuccessfulFetchAt) : 'unknown'}`}
-        </span>)}
-      </span>}
       {attention > 0 && <span className="source-status-count" aria-hidden="true">{attention}</span>}
     </button>
   );
@@ -105,28 +87,6 @@ function HomePicker({ onClose }: { onClose: () => void }) {
       </fieldset>
     </Modal>
   );
-}
-
-function ArchiveFilter() {
-  const { actions, projection } = useStore();
-  const select = useSelect();
-  const visibility = actions.archiveVisibility;
-  if (!visibility) return null;
-  const archived = [...projection.house.spaces, ...projection.house.items].flatMap(record => {
-    const entry = projection.entries.get(record.id);
-    return entry && isArchivedEntry(entry) ? [{ record, entry }] : [];
-  });
-  return <section className={`archive-filter${visibility.included ? ' is-on' : ''}`} aria-label="Filter retained HomeBox records">
-    <label className="archive-toggle"><input type="checkbox" checked={visibility.included}
-      onChange={event => visibility.setIncluded(event.currentTarget.checked)} /> Include archived HomeBox records</label>
-    {visibility.included && <details>
-      <summary>Archived HomeBox records in this saved view ({archived.length})</summary>
-      {archived.length ? <ul className="rows">{archived.map(({ record, entry }) => <li key={record.id}>
-        <button type="button" className="row-title" onClick={() => select(record.id)}>{record.name || 'Unnamed source record'}</button>
-        <span className="row-meta">Entity archived: {entry.entity.archived ? 'yes' : 'no'} · Source: {entry.sourceState}; cache: {entry.cacheStatus}</span>
-      </li>)}</ul> : <p className="empty">No archived HomeBox records in this saved view.</p>}
-    </details>}
-  </section>;
 }
 
 function Toasts() {
@@ -306,7 +266,6 @@ export function App() {
             <AiActivityStatus onOpenSettings={() => dispatch({ type: 'settingsOpen', open: true })} />
           </div>
         )}
-        <ArchiveFilter />
         {view}
       </main>
 

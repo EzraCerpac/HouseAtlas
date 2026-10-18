@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "711206d3de1beef5eb5d9ad58f19c58e95a5c06ee6367ef09236d21799bbfa7f",
+  "sourceDigestSha256": "d1d253e6bf3ce1afa9c409251e7a37636cbd6468116549f1805d985da3268190",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5964,8 +5964,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 126936,
-      "sha256": "21e711253885269527be86abcfe2e5381f12de796a7cf221cc7373ef0cee31e7",
+      "bytes": 128192,
+      "sha256": "a3726006d06c4f4b29504e2624f7900b8e5cb31080b5c3cd4df89b069359c505",
       "owner": "core-integration"
     },
     {
@@ -7336,8 +7336,8 @@
     {
       "path": "frontend/lantern-tests/healthy-read.mjs",
       "mode": "100644",
-      "bytes": 49249,
-      "sha256": "81dafa804a5093e969bc1343d2fdf131a9118a8bb8ecb772c75539acd5ea325b",
+      "bytes": 53681,
+      "sha256": "f153845ff2ad6627f3393ca9be1094db6111cd5db6e39ba0f895b38c3c43f568",
       "owner": "web"
     },
     {
@@ -8589,8 +8589,8 @@
     {
       "path": "frontend/src/lantern/App.tsx",
       "mode": "100644",
-      "bytes": 16879,
-      "sha256": "66efe3fe7199f185a04423b9ab7e13bbb89a809a2fb6e81c47200d690d408f23",
+      "bytes": 14194,
+      "sha256": "acf5646be97230cfb19c9d33a66fb9579d2938b820fa6c604c5c99c658c2ec89",
       "owner": "web"
     },
     {
@@ -8624,8 +8624,8 @@
     {
       "path": "frontend/src/lantern/atlas/AtlasView.tsx",
       "mode": "100644",
-      "bytes": 25021,
-      "sha256": "8c6d7a3f526dbe3ba00a4060f47701357078423e551fa94167d8d9631f9b4e69",
+      "bytes": 24987,
+      "sha256": "02224f2459ffda46695647414cdd1508ac254a00437c6254ee564857a59e4118",
       "owner": "web"
     },
     {
@@ -8932,8 +8932,8 @@
     {
       "path": "frontend/src/lantern/components/SearchPalette.tsx",
       "mode": "100644",
-      "bytes": 7414,
-      "sha256": "379d151b138f8d6071f7c9fcc02975f0024cde63d20f1601585d3f076ba940b1",
+      "bytes": 9469,
+      "sha256": "f69335e38d69078442cf816328aa091865b89a3a10c0c737926515d02c9743ca",
       "owner": "web"
     },
     {
@@ -9730,8 +9730,8 @@
     {
       "path": "frontend/src/lantern/styles/app.css",
       "mode": "100644",
-      "bytes": 42535,
-      "sha256": "7dac056baf445de6f09505234466f743e8c5335346e3484ff5b6216c164cc6a0",
+      "bytes": 42551,
+      "sha256": "9f9d2a6a797a52e41819422d0e45cd211c7e758b1de75eb3ea9e5aebf5640423",
       "owner": "web"
     },
     {
