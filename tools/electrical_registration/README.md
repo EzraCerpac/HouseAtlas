@@ -100,3 +100,13 @@ The host must explicitly project scene XZ through its current plan/display frame
 carry evidence qualifications, and withdraw stale publication/model bindings.
 No reusable source mapper, historical association promotion, source media URL,
 accepted registration receipt, physical placement or circuit colour is created.
+
+The same inspected four healthy examples may also be invoked directly on pinned
+Node 26.10.0 to retain their individual names when a test subprocess reports
+only a file-level result:
+
+```sh
+node tools/electrical_registration/healthy.test.mjs
+```
+
+This changes no test body, fixture or scope; record each invocation separately.

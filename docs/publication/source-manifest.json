@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "3cf17e57bf496df33ab4fca5547577cfa36f7a97259dc741515b226d3e99df60",
+  "sourceDigestSha256": "0e8e40b760fbc9a52d307bbefafa9c5c3ae1749ee1e3a72fbbf030f61b5e903b",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5957,8 +5957,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 115098,
-      "sha256": "bf2831688d50b15ba524f08ac970e8b6edeeb58a3bbcbd796f1807406db14537",
+      "bytes": 116274,
+      "sha256": "1048255c73a58e47cdad9443c4207ea5af13b5cb375bf8cb8768c238c99ed6fc",
       "owner": "core-integration"
     },
     {
@@ -10993,6 +10993,27 @@
       "bytes": 4309,
       "sha256": "2f7e25fd6af2a2c0aeab63f336e3c2f934e9e4bb0f996a653f6108a2c65b12a6",
       "owner": "core-integration"
+    },
+    {
+      "path": "tools/electrical_registration/README.md",
+      "mode": "100644",
+      "bytes": 7048,
+      "sha256": "0af37323bc871ecee3b6a026dc2a1430433eb9948037b550900bcb551d8a9d14",
+      "owner": "media"
+    },
+    {
+      "path": "tools/electrical_registration/healthy.test.mjs",
+      "mode": "100644",
+      "bytes": 6240,
+      "sha256": "2a8261774207f3fcfa14a4e4a7f6fa72e78b18e9e44e53cf3b18234689518eaa",
+      "owner": "media"
+    },
+    {
+      "path": "tools/electrical_registration/registration.mjs",
+      "mode": "100644",
+      "bytes": 13645,
+      "sha256": "958aa0fc6fa3dd6cef16c0461a536e2e5d37e677138b9b9f7d0ee6363d0df98c",
+      "owner": "media"
     },
     {
       "path": "tools/electrical_registry/README.md",
