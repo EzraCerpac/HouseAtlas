@@ -309,6 +309,10 @@ export function decodeAtlasView(value: unknown): AtlasView {
     && typeof selected.manifestSha256 === 'string' && /^[0-9a-f]{64}$/.test(selected.manifestSha256)
     ? { profile: 'houseatlas.model-overview-read.v1' as const, available: true as const,
       publicationId: selected.publicationId, manifestSha256: selected.manifestSha256 } : undefined;
+  const documents = o.sourceDocumentsService;
+  const documentService = documents && typeof documents === 'object' && !Array.isArray(documents) ? documents as ObjectValue : null;
+  const sourceDocumentsService = documentService?.profile === 'houseatlas.geodata-document-read.v2' && documentService.available === true
+    ? { profile: 'houseatlas.geodata-document-read.v2' as const, available: true as const } : undefined;
   return {
     status,
     scope: currentScope,
@@ -318,6 +322,7 @@ export function decodeAtlasView(value: unknown): AtlasView {
     entries,
     homes,
     caches: list(o.caches, cache),
+    ...(sourceDocumentsService ? { sourceDocumentsService } : {}),
     ...(modelOverviewService ? { modelOverviewService } : {}),
   };
 }

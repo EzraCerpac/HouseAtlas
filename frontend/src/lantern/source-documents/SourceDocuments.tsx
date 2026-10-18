@@ -46,7 +46,7 @@ export function SourceDocuments({ port }: { readonly port: SourceDocumentsPort }
     <p className="source-docs-note">Retained source files with their recorded origin, licence and dates.
       Their metadata does not place anything in a building, floor or room.</p>
     {!current ? <p role="status">Reading source documents…</p>
-      : !current.reader ? <Empty>Source documents are not available in this browser.</Empty>
+      : !current.reader ? <Empty>Source documents are unavailable for the current view.</Empty>
       : <SourceDocumentList reader={current.reader} />}
   </section>;
 }
