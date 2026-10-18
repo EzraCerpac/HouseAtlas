@@ -1996,3 +1996,60 @@ node tools/electrical_registration/healthy.test.mjs
 ```
 
 This changes no test body, fixture or scope; record each invocation separately.
+
+
+## Named generated updater transport/runtime/MCP positives
+
+Read the [HTTPS transport](../operations/houseatlas-updater-transport.md),
+[runtime adapters](../operations/houseatlas-updater-runtime.md) and
+[optional MCP composition](../operations/houseatlas-updater-mcp.md), then inspect
+the exact selected source and generated fixture bodies. From
+`tools/houseatlas-updater-adapters`, run:
+
+```sh
+PYTHONPATH=../houseatlas-updater PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_https_partial_reads_shared_deadline_and_closure tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_explicit_asset_redirect_then_chunked_body tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_fixed_dispatch_uses_existing_cli_once_per_request tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_authorized_maintenance_catalog_and_exact_requests -v
+```
+
+From `tools/houseatlas-updater-runtime`, run:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../houseatlas-updater:. python3 -m unittest tests.test_runtime_happy.RuntimeHappyPaths.test_generated_full_and_frontend_apply_with_journal_coherence -v
+```
+
+From `tools/houseatlas-mcp-bridge`, run:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../houseatlas-updater:../houseatlas-updater-adapters:../houseatlas-updater-runtime python3 -m unittest test_maintenance_happy.MaintenanceHappyPath.test_mcp_generated_check_apply_and_retained_status -v
+```
+
+The four transport/dispatch cases use only finite generated HTTP/TLS/readiness
+fixtures and a recording controller. The runtime case uses disposable software
+closures, a generated multichunk model and actual local journal with synthetic
+platform/native owners. The MCP case composes the actual controller/CLI and concrete runtime adapters
+with that existing generated platform/native owner, including the preserving
+verifier and typed application-readiness contract. No external socket, DNS, native binary or NAS
+request/service action, credentials, real maintenance grant or deployment occurs.
+The installed bridge default remains without maintenance tools. No failure,
+denial, replay, crash or rollback case is added or run, and no broad alias or CI
+step is introduced. Real native/launch/CAS/readiness bindings and safe onboarding
+remain separate owner qualifications.
+
+
+## Named generated frontend asset-retention producer positive
+
+Read [the frontend asset-retention producer contract](../operations/frontend-asset-retention.md),
+then inspect `tools/release/frontend_retention.py`, the selected generated case,
+its existing packaging fixture helpers and `bundle.py`. From the repository root:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tools/release python3 tools/release/tests/test_frontend_retention_happy.py FrontendRetentionHappyPaths.test_generated_prior_assets_union_pack_and_verify -v
+```
+
+This one positive prepares a new disposable frontend from generated current
+assets and a separately pinned, generated prior release, then packages and
+verifies the exact declared union through the existing producer. It retains
+current entrypoints and prior immutable assets with distinct public provenance.
+No actual release, network, native binary, service, private input, denial,
+rollback or failure-injection case is used. Runtime publication never adds
+undeclared files; genuine producer approval and native update qualification
+remain separate. This adds no workflow or deployment authority.
