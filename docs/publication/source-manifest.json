@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "ff09a35d71d1f48610425090babdfaa51fddc2c304cf9451f6b00a200708705c",
+  "sourceDigestSha256": "21dc67ad2ce4944199f9d95526d449614eb1213ee9721a6fd15c75d692ac826f",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -6489,8 +6489,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 45307,
-      "sha256": "1227e83c47a7777b2a47cf077b00b1beb5dc4a1cc69ce55bbdafad0de1e9155b",
+      "bytes": 45686,
+      "sha256": "92042276d66d0e71f82598240342f8c440286de1e7861b741a256daf551d2e0b",
       "owner": "core-integration"
     },
     {
@@ -11683,8 +11683,8 @@
     {
       "path": "tools/rust-integration/healthy-media-loopback.mjs",
       "mode": "100644",
-      "bytes": 26812,
-      "sha256": "5cb31c38388bef6d64a1a4caa71460d1ba9ec1134b9f939cd3be7450997d15c1",
+      "bytes": 28124,
+      "sha256": "e354a2cd9e349bfc721cd46f1468c835fefb3a5d320d04161733ee32c6af57ef",
       "owner": "core-integration"
     },
     {
