@@ -15,6 +15,52 @@ const count = value => value === null || (Number.isSafeInteger(value) && value >
 const sameReceipt = (a, b) => a && b && a.id === b.id && a.sha256 === b.sha256;
 const pair = place => JSON.stringify([place?.packagePlaceKey, place?.packagePlaceUuid]);
 
+/** Preflight decoded object keys before JSON.parse can discard conflicting evidence.
+ * Same lexical approach as native-scene-documentary-support, without UI imports. */
+function parseEvidenceJson(bytes) {
+  if (bytes.byteLength > 16 * 1024 * 1024) throw new Error('Evidence JSON exceeds 16 MiB');
+  const input = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+  let i = 0, members = 0;
+  const need = ok => { if (!ok) throw new SyntaxError('Invalid or excessive evidence JSON'); };
+  const space = () => { while (i < input.length && /[\x20\t\r\n]/.test(input[i])) i++; };
+  const quoted = () => {
+    need(input[i] === '"'); const start = i++;
+    for (; i < input.length; i++) {
+      if (input[i] === '\\') { i++; continue; }
+      if (input[i] === '"') { i++; return JSON.parse(input.slice(start, i)); }
+    }
+    throw new SyntaxError('Unterminated evidence JSON string');
+  };
+  const scan = depth => {
+    need(depth <= 64); space();
+    if (input[i] === '{') {
+      i++; space(); const seen = new Set();
+      if (input[i] === '}') { i++; return; }
+      for (;;) {
+        const key = quoted(); need(++members <= 1000000);
+        if (seen.has(key)) throw new SyntaxError('Duplicate decoded evidence JSON key');
+        seen.add(key); space(); need(input[i++] === ':'); scan(depth + 1); space();
+        if (input[i] === '}') { i++; return; }
+        need(input[i++] === ','); space();
+      }
+    }
+    if (input[i] === '[') {
+      i++; space(); if (input[i] === ']') { i++; return; }
+      for (;;) {
+        need(++members <= 1000000); scan(depth + 1); space();
+        if (input[i] === ']') { i++; return; }
+        need(input[i++] === ',');
+      }
+    }
+    if (input[i] === '"') { quoted(); return; }
+    const start = i;
+    while (i < input.length && !/[\x20\t\r\n,\]}]/.test(input[i])) i++;
+    need(i > start);
+  };
+  scan(0); space(); need(i === input.length);
+  return JSON.parse(input); // Full JSON grammar validation after the key preflight.
+}
+
 /** Structural consistency only; matching hashes never establish authorization. */
 export function validateLedger(data) {
   const errors = [];
@@ -76,7 +122,14 @@ export function validateLedger(data) {
       (f.currentCircuitId === undefined || f.currentCircuitId === null),
       `fixtures.${f.id}`, 'v1 retains unknown physical placement/wiring and historical state');
     check(count(f.glyphCount) && count(f.fixtureCount), `fixtures.${f.id}`, 'Expected nonnegative source quantities or null');
+    check(Object.hasOwn(f, 'uncertainty') && (f.uncertainty === null || text(f.uncertainty)),
+      `fixtures.${f.id}.uncertainty`, 'Expected explicit null or nonempty uncertainty text');
     check(point(f.source?.normalizedPoint) && box(f.source?.normalizedBox), `fixtures.${f.id}.source`, 'Expected normalized source point and box');
+    if (point(f.source?.normalizedPoint) && box(f.source?.normalizedBox)) {
+      const [x, y] = f.source.normalizedPoint, [left, top, right, bottom] = f.source.normalizedBox;
+      check(x >= left && x <= right && y >= top && y <= bottom,
+        `fixtures.${f.id}.source.normalizedPoint`, 'Source point must lie inside its normalized box');
+    }
     check(s && f.source?.originalPhotoSha256 === s.originalPhotoSha256 && f.source?.renderedPhotoSha256 === s.renderedPhotoSha256,
       `fixtures.${f.id}.source`, 'Fixture photo digests must match source sheet');
     const g = tables.groups.get(f.group?.id);
@@ -94,6 +147,8 @@ export function validateLedger(data) {
     check(digest(reg.sha256) && sameReceipt(reg.roomMappingReceipt, data.roomMappingReceipt), `registrationReceipts.${reg.id}`, 'Registration receipt identity must match room receipt');
     check(['proposed', 'source-reviewed-approximate', 'owner-reviewed-approximate'].includes(reg.status) && reg.physicalTransform === null,
       `registrationReceipts.${reg.id}`, 'Approximate registration cannot provide physical calibration');
+    check(text(reg.basis) && text(reg.reviewQualification), `registrationReceipts.${reg.id}`,
+      'Registration basis and review qualification must be nonempty text');
     check(region && sheet && region.sheetId === sheet.id && reg.originalPhotoSha256 === sheet.originalPhotoSha256 &&
       Array.isArray(region.places) && region.places.some(p => pair(p) === pair(reg)), `registrationReceipts.${reg.id}`, 'Registration must join exact source region and place pair');
     check(refs(reg.approvedFixtureIds, tables.fixtures) && reg.approvedFixtureIds.every(id => {
@@ -107,14 +162,13 @@ export function validateLedger(data) {
 
 /** artifacts are explicitly supplied local bytes, never paths, URLs or native IDs. */
 export function buildRegistry(ledgerBytes, { artifacts = [], roomMappingBytes = null } = {}) {
-  if (ledgerBytes.byteLength > 16 * 1024 * 1024) throw new Error('Ledger exceeds 16 MiB');
-  const data = JSON.parse(Buffer.from(ledgerBytes).toString('utf8'));
+  const data = parseEvidenceJson(ledgerBytes);
   const errors = validateLedger(data);
   if (errors.length) throw new Error(`Invalid documentary ledger: ${JSON.stringify(errors)}`);
   const retained = new Map(artifacts.map(a => [sha256(a.bytes), { label: a.label, bytes: a.bytes.byteLength }]));
   let roomMapping = { status: 'not-supplied', receipt: data.roomMappingReceipt };
   if (roomMappingBytes !== null) {
-    const receipt = JSON.parse(Buffer.from(roomMappingBytes).toString('utf8'));
+    const receipt = parseEvidenceJson(roomMappingBytes);
     if (!sameReceipt({ id: receipt.receiptId, sha256: sha256(roomMappingBytes) }, data.roomMappingReceipt)) {
       throw new Error('Room mapping receipt ID/digest mismatch');
     }
@@ -131,16 +185,18 @@ export function buildRegistry(ledgerBytes, { artifacts = [], roomMappingBytes = 
       glyphCount: f.glyphCount, sourceFixtureCount: f.fixtureCount, uncertainty: f.uncertainty,
       roomAssociations: structuredClone(region.places),
       approximateRegistrations: registrations.map(r => ({ id: r.id, sha256: r.sha256, status: r.status,
+        basis: r.basis, reviewQualification: r.reviewQualification,
         packagePlaceKey: r.packagePlaceKey, packagePlaceUuid: r.packagePlaceUuid, sourceAnchorIds: [...r.sourceAnchorIds] })),
       physicalCoordinate: null, physicalTransform: null, currentCircuitId: null, wireRoute: null,
       currentState: f.currentState };
   });
-  const summarize = rows => ({ documentaryRecords: rows.length,
+  const summarize = (rows, room = null) => ({ documentaryRecords: rows.length,
     byKind: Object.fromEntries(kinds.map(kind => [kind, rows.filter(f => f.kind === kind).length])),
     roomAssociatedRecords: rows.filter(f => f.roomAssociations.length > 0).length,
     roomAssociationInstances: rows.reduce((sum, f) => sum + f.roomAssociations.length, 0),
     sourceQuantityUnknownRecords: rows.filter(f => f.sourceFixtureCount === null).length,
-    approximateRegisteredRecords: rows.filter(f => f.approximateRegistrations.some(r => r.status !== 'proposed')).length,
+    approximateRegisteredRecords: rows.filter(f => f.approximateRegistrations.some(r =>
+      r.status !== 'proposed' && (room === null || pair(r) === pair(room)))).length,
     physicalLocationUnknownRecords: rows.length, currentCircuitUnknownRecords: rows.length,
     installedFixtureCount: null });
   const rooms = new Map();
@@ -156,7 +212,7 @@ export function buildRegistry(ledgerBytes, { artifacts = [], roomMappingBytes = 
     completeness: summarize(records),
     rooms: [...rooms.values()].map(room => {
       const rows = records.filter(f => f.roomAssociations.some(p => pair(p) === pair(room)));
-      return { ...room, completeness: { ...summarize(rows), roomAssociationInstances: rows.length } };
+      return { ...room, completeness: { ...summarize(rows, room), roomAssociationInstances: rows.length } };
     }),
     sheets: data.sheets.map(s => ({ sheetId: s.id, title: s.title, pdfPage: s.pdfPage, sourceDate: s.sourceDate,
       original: source(s.originalPhotoSha256), rendered: source(s.renderedPhotoSha256),

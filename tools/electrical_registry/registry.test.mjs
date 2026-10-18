@@ -1,4 +1,5 @@
-// Generated positive data only. No provider, listener, household files or writes.
+// Generated positive data and the five specifically requested review regressions.
+// No provider, listener, household files, native actions or persistent writes.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
@@ -85,11 +86,19 @@ test('healthy approximate and proposed registrations remain nonphysical', () => 
     roomMappingReceipt: data.roomMappingReceipt, regionId: 'region', sheetId: 'sheet',
     originalPhotoSha256: hash(original), packagePlaceKey: 'room:a', packagePlaceUuid: 'uuid-a',
     sourceAnchorIds: ['anchor:a'], approvedFixtureIds: [i === 0 ? 'light' : 'socket'], physicalTransform: null,
+    basis: 'Generated matching source landmarks', reviewQualification: 'Approximate display only; not measured or current wiring',
   }));
   const result = buildRegistry(bytes(data));
   assert.equal(result.completeness.approximateRegisteredRecords, 1);
   assert.equal(result.completeness.physicalLocationUnknownRecords, 3);
   assert.equal(result.records[1].approximateRegistrations[0].status, 'proposed');
+  for (const record of result.records.filter(r => r.approximateRegistrations.length)) {
+    const projected = record.approximateRegistrations[0];
+    const source = data.registrationReceipts.find(r => r.id === projected.id);
+    assert.equal(projected.basis, source.basis);
+    assert.equal(projected.reviewQualification, source.reviewQualification);
+  }
+  assert.deepEqual(result.rooms.map(r => r.completeness.approximateRegisteredRecords), [1, 0]);
   assert.equal(result.records[0].physicalCoordinate, null);
 });
 
@@ -101,4 +110,78 @@ test('healthy empty documentary inventory has zero records and unknown installed
   assert.equal(result.completeness.documentaryRecords, 0);
   assert.equal(result.completeness.installedFixtureCount, null);
   assert.deepEqual(result.records, []);
+});
+
+test('review regression: uncertainty stays explicit through validation and JSON output', () => {
+  for (const uncertainty of [null, ' Source interpretation uncertain. ']) {
+    const data = fixture(); data.fixtures[0].uncertainty = uncertainty;
+    const row = JSON.parse(JSON.stringify(buildRegistry(bytes(data)))).records[0];
+    assert(Object.hasOwn(row, 'uncertainty'));
+    assert.equal(row.uncertainty, uncertainty);
+  }
+  for (const uncertainty of [undefined, '', '   ', 1]) {
+    const data = fixture(); data.fixtures[0].uncertainty = uncertainty;
+    assert(validateLedger(data).some(e => e.path === 'fixtures.socket.uncertainty'));
+    assert.throws(() => buildRegistry(bytes(data)), /explicit null or nonempty uncertainty/);
+  }
+});
+
+test('review regression: point containment includes box edges and excludes each outside side', () => {
+  for (const normalizedPoint of [[.1,.1], [.8,.1], [.1,.8], [.8,.8], [.1,.5], [.8,.5], [.5,.1], [.5,.8]]) {
+    const data = fixture(); data.fixtures[0].source.normalizedPoint = normalizedPoint;
+    assert.deepEqual(buildRegistry(bytes(data)).records[0].source.normalizedPoint, normalizedPoint);
+  }
+  for (const normalizedPoint of [[.09,.5], [.81,.5], [.5,.09], [.5,.81]]) {
+    const data = fixture(); data.fixtures[0].source.normalizedPoint = normalizedPoint;
+    assert.throws(() => buildRegistry(bytes(data)), /Source point must lie inside/);
+  }
+});
+
+test('review regression: conflicting plain and escaped decoded keys never become an unknown location', () => {
+  const input = bytes(fixture()).toString('utf8');
+  for (const key of ['"physicalCoordinate"', String.raw`"physical\u0043oordinate"`]) {
+    const duplicate = input.replace('"physicalCoordinate":null', `"physicalCoordinate":[1,2,3],${key}:null`);
+    assert.throws(() => buildRegistry(Buffer.from(duplicate)), /Duplicate decoded evidence JSON key/);
+  }
+  const duplicateReceipt = Buffer.from('{"receiptId":"other","receiptId":"generated-room-receipt"}');
+  const data = fixture(); data.roomMappingReceipt.sha256 = hash(duplicateReceipt);
+  assert.throws(() => buildRegistry(bytes(data), { roomMappingBytes: duplicateReceipt }), /Duplicate decoded evidence JSON key/);
+  const healthy = fixture();
+  healthy.fixtures[0].source.placementDescription = String.raw`Literal text {"key":1,"key":2}, escaped quote \" and backslash \\`;
+  assert.equal(buildRegistry(bytes(healthy)).records[0].source.placementDescription, healthy.fixtures[0].source.placementDescription);
+});
+
+test('review regression: registration provenance is required and preserved for reviewed and proposed receipts', () => {
+  const data = fixture();
+  const registration = { id: 'reviewed-a', sha256: hash(Buffer.from('reviewed-a')), status: 'owner-reviewed-approximate',
+    roomMappingReceipt: data.roomMappingReceipt, regionId: 'region', sheetId: 'sheet', originalPhotoSha256: hash(original),
+    packagePlaceKey: 'room:a', packagePlaceUuid: 'uuid-a', sourceAnchorIds: ['anchor:a'], approvedFixtureIds: ['socket'],
+    physicalTransform: null, basis: 'Two generated documentary landmarks', reviewQualification: 'Approximate historical display; calibration and installation unknown' };
+  data.registrationReceipts = [registration];
+  const projected = JSON.parse(JSON.stringify(buildRegistry(bytes(data)))).records[0].approximateRegistrations[0];
+  assert.equal(projected.basis, registration.basis);
+  assert.equal(projected.reviewQualification, registration.reviewQualification);
+  for (const field of ['basis', 'reviewQualification']) for (const invalid of [undefined, '', '  ']) {
+    const candidate = structuredClone(data); candidate.registrationReceipts[0][field] = invalid;
+    assert.throws(() => buildRegistry(bytes(candidate)), /basis and review qualification/);
+  }
+});
+
+test('review regression: each room counts only registrations for its exact key and UUID pair', () => {
+  const data = fixture();
+  const registration = (id, key, uuid, status, approvedFixtureIds) => ({ id, sha256: hash(Buffer.from(id)), status,
+    roomMappingReceipt: data.roomMappingReceipt, regionId: 'region', sheetId: 'sheet', originalPhotoSha256: hash(original),
+    packagePlaceKey: key, packagePlaceUuid: uuid, sourceAnchorIds: ['anchor:a'], approvedFixtureIds,
+    physicalTransform: null, basis: 'Generated documentary landmarks', reviewQualification: 'Approximate only' });
+  data.registrationReceipts = [registration('a-reviewed', 'room:a', 'uuid-a', 'source-reviewed-approximate', ['socket', 'light']),
+    registration('b-proposed', 'room:b', 'uuid-b', 'proposed', ['socket'])];
+  let result = buildRegistry(bytes(data));
+  assert.equal(result.completeness.approximateRegisteredRecords, 2);
+  assert.deepEqual(result.rooms.map(r => r.completeness.approximateRegisteredRecords), [2, 0]);
+  assert.deepEqual(result.rooms.map(r => r.completeness.documentaryRecords), [2, 2]);
+  data.registrationReceipts.push(registration('b-reviewed', 'room:b', 'uuid-b', 'owner-reviewed-approximate', ['socket']));
+  result = buildRegistry(bytes(data));
+  assert.equal(result.completeness.approximateRegisteredRecords, 2); // Distinct records, not receipts.
+  assert.deepEqual(result.rooms.map(r => r.completeness.approximateRegisteredRecords), [2, 1]);
+  assert(result.records.every(r => r.physicalCoordinate === null && r.currentCircuitId === null));
 });

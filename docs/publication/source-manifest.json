@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "9d87b619d8b0d4cb1a2adce4e9719ac604f9040eee54841095c016d02890dd7a",
+  "sourceDigestSha256": "c8a074a3627d1534a49f93141177988fce1f1e5b145f1649f58fbbfaf10f7f6b",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -10612,22 +10612,22 @@
     {
       "path": "tools/electrical_registry/README.md",
       "mode": "100644",
-      "bytes": 3269,
-      "sha256": "cf7954a2593127b0ff9d7734b6b17bd4cbef264d8fb22c762c98c91f0c5a6ac2",
+      "bytes": 4256,
+      "sha256": "27b0d9dff865dfbf22f5fd2a3ee89d3bc8ad918adee0e3415993927859497199",
       "owner": "media"
     },
     {
       "path": "tools/electrical_registry/registry.mjs",
       "mode": "100644",
-      "bytes": 14440,
-      "sha256": "48e03b934c9e66f8562692a80d0ec17f1c2420fa0ddffac07ce534cdf537f18a",
+      "bytes": 17150,
+      "sha256": "6efb3409e4eb5a48a35a5aa7196c509b8b56871bc2e0224c83cb9c200158e91c",
       "owner": "media"
     },
     {
       "path": "tools/electrical_registry/registry.test.mjs",
       "mode": "100644",
-      "bytes": 6461,
-      "sha256": "edf19b3682f7e97a8bdce38715c97a7886d724acf285e89887312da14e8f69ef",
+      "bytes": 12443,
+      "sha256": "b86a8f75a034e048a9c64d3f2c2c2d0c44ff184f5e1dba2d16606c64d80f5153",
       "owner": "media"
     },
     {
