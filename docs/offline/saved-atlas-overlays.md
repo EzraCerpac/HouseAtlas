@@ -99,3 +99,13 @@ unqualified studio, including partial global source coverage, unchanged 6/5
 Electrical/Network totals, unplaced 4/4 and original association provenance.
 A complete generic pack without building sources therefore has partial property
 coverage, rather than successful coverage for every model building.
+
+The fifth explicit browser Save variant exposes the valid shared-source two-room
+case through real IndexedDB and the normal production saved host. Its own
+publication/revision pins both Hall and Living room to the retained package
+identity; the additional native building remains outside the model. Each room
+keeps its full primary plus both other observations. The same named overlay
+positive checks the actual PlanTile's floor union (2 Electrical/1 Network),
+property unique totals 6/5, unplaced 4/4 and three distinct category keys sharing
+one raw ID, while preserving all four earlier fixture snapshot pins. Browser
+acceptance remains separate; see the fixture README for exact UI observations.

@@ -4,9 +4,18 @@ import { canonicalPack, PACK_LIMITS, readPackManifest, SECTION_NAMES } from '../
 import { parseLosslessJson } from '../../src/numeric/lossless-json';
 import { savedDigest, savedHouseKey, type SavedHouse } from '../../src/offline/store';
 export const GENERATED_SCOPE = { workspaceId: '00000000-0000-4000-8000-000000000800', homeId: '00000000-0000-4000-8000-000000000801' };
-export async function generateSavedPack(mode: 'complete' | 'partial', shellBuildId: string, historical = false, tuples = false, emptyNetwork = false, twoAssociations = false, unmatchedBuilding = false, finalInteraction = false) {
+export async function generateSavedPack(mode: 'complete' | 'partial', shellBuildId: string, historical = false, tuples = false, emptyNetwork = false, twoAssociations = false, unmatchedBuilding = false, finalInteraction = false, sharedRoomObservations = false) {
   const scope = GENERATED_SCOPE, generated = await buildSyntheticAtlas(scope);
-  const selectionRevision = finalInteraction ? 'generated-final-interaction-1' : SYNTHETIC_ATLAS.revision;
+  twoAssociations ||= sharedRoomObservations;
+  historical ||= sharedRoomObservations;
+  const selectionRevision = sharedRoomObservations ? 'generated-shared-room-observations-1' : finalInteraction ? 'generated-final-interaction-1' : SYNTHETIC_ATLAS.revision;
+  if (sharedRoomObservations) {
+    const identity: { publicationId: string; sourceRevisionId: string; sourceSha256: string } = generated.companion;
+    identity.publicationId = '00000000-0000-4000-8000-0000000a7153';
+    identity.sourceRevisionId = 'generated-shared-room-observations-source-1';
+    identity.sourceSha256 = await savedDigest(new TextEncoder().encode('Generated shared room observations source 1').buffer);
+    for (const binding of generated.companion.overlayBindings) { const pin: { publicationId: string } = binding; pin.publicationId = identity.publicationId; }
+  }
   if (finalInteraction) {
     // Explicit generated empty source level, with finite bounds inside the house.
     // It precedes occupied levels by scene height; it implies no physical room.
@@ -22,10 +31,10 @@ export async function generateSavedPack(mode: 'complete' | 'partial', shellBuild
     companion.plans.unshift({ planId: 'syn-plan-featureless', buildingId: 'syn-building-house', levelId: emptyLevel,
       coordinates: 'scene-XZ-metres', featureIds: [], features: [] });
   }
-  if (twoAssociations) {
+  if (twoAssociations && !sharedRoomObservations) {
     generated.companion.buildings.find(building => building.label === 'Synthetic studio')!.nativePlaceId = '00000000-0000-4000-8000-000000000014';
   }
-  if (twoAssociations || finalInteraction) generated.companionBytes = new TextEncoder().encode(JSON.stringify(generated.companion));
+  if (twoAssociations || finalInteraction || sharedRoomObservations) generated.companionBytes = new TextEncoder().encode(JSON.stringify(generated.companion));
   const composed = await composeAtlasEnvelope(generated.companionBytes, generated.glb, selectionRevision);
   const encode = (value: unknown) => new TextEncoder().encode(canonicalPack(parseLosslessJson(JSON.stringify(value)))).buffer;
   const resources = new Map<string, ArrayBuffer>(), descriptors: { sha256: string; bytes: number; contentType: string; section: string; role: string; record: { recordType: string; recordId: string; revision: number } | null }[] = [];
@@ -43,7 +52,7 @@ export async function generateSavedPack(mode: 'complete' | 'partial', shellBuild
   const provenance = { source: null, sourceRevision: 'source-17', sourceConfidence: 'uncertain', evidenceBasis: 'document', factAt: '1998-04-05T00:00:00Z',
     retrievedAt: '2024-03-04T00:00:00Z', vantage: null, uncertainty: { status: 'unknown', explanation: 'Historical circuit association unverified' } };
   const home = await add(encode({ profile: 'houseatlas.home-read-pack.home.v1', scope, label: 'Generated saved property', selection: { ...scope, buildingId: null, floorId: null, roomId: null } }), 'application/json', 'home');
-  const historicalSource = historical ? await generateHistoricalSource(scope, generated.companion, native, twoAssociations, unmatchedBuilding) : null;
+  const historicalSource = historical ? await generateHistoricalSource(scope, generated.companion, native, twoAssociations, unmatchedBuilding, sharedRoomObservations) : null;
   if (historicalSource) {
     await add(historicalSource.primary.buffer.slice(0), 'text/plain', 'atlas', 'original', { recordType: 'asset', recordId: '00000000-0000-4000-8000-000000000005', revision: 9 });
     await add(historicalSource.support.buffer.slice(0), 'text/plain', 'atlas', 'original', { recordType: 'asset', recordId: '00000000-0000-4000-8000-000000000007', revision: 10 });
@@ -87,9 +96,10 @@ export async function generateSavedPack(mode: 'complete' | 'partial', shellBuild
   const original = await add(generated.glb.buffer.slice(0), 'model/gltf-binary', 'model', 'model');
   const companion = await add(generated.companionBytes.buffer.slice(0), 'application/json', 'model', 'original');
   const room = generated.companion.rooms.find(room => room.nativePlaceId !== null)!;
+  const linkedRooms = sharedRoomObservations ? [room, generated.companion.rooms.find(row => row.roomId === 'syn-room-living')!] : [room];
   const roomLinks = await add(encode({ profile: 'houseatlas.unified-atlas-room-links.v1', ...scope, publicationId: composed.publicationId,
-    semanticsSha256: composed.envelope.publication.semanticsSha256, links: [{ roomId: room.roomId, nativePlaceId: room.nativePlaceId,
-      packagePlaceKey: 'generated:room', packagePlaceUuid: '00000000-0000-4000-8000-000000000021' }] }), 'application/json', 'model', 'original');
+    semanticsSha256: composed.envelope.publication.semanticsSha256, links: linkedRooms.map(room => ({ roomId: room.roomId, nativePlaceId: room.nativePlaceId,
+      packagePlaceKey: 'generated:room', packagePlaceUuid: '00000000-0000-4000-8000-000000000021' })) }), 'application/json', 'model', 'original');
   const overview = JSON.parse(new TextDecoder().decode(composed.overviewManifestBytes));
   const model = await add(encode({ profile: 'houseatlas.home-read-pack.model.v2', overview: { ...overview, profile: 'houseatlas.model-overview-read.v1',
     manifestSha256: composed.manifestSha256, original: { ...original, sha256: original.resourceSha256 } }, unifiedAtlas: { profile: 'houseatlas.home-read-pack.unified-atlas.v1', scope,
@@ -111,7 +121,7 @@ export async function generateSavedPack(mode: 'complete' | 'partial', shellBuild
 /** Genuine generated source originals and their captured factual association.
  * The producer shape matches the existing named overlay-source healthy example. */
 async function generateHistoricalSource(scope: typeof GENERATED_SCOPE, scene: Awaited<ReturnType<typeof buildSyntheticAtlas>>['companion'],
-  record: (type: string, id: string, payload: unknown, revision?: number) => { recordType: string; recordId: string; revision: number; lastAuditId: string }, twoAssociations: boolean, unmatchedBuilding: boolean) {
+  record: (type: string, id: string, payload: unknown, revision?: number) => { recordType: string; recordId: string; revision: number; lastAuditId: string }, twoAssociations: boolean, unmatchedBuilding: boolean, sharedRoomObservations: boolean) {
   const U = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
   const hash = async (value: string | Uint8Array) => savedDigest(typeof value === 'string' ? new TextEncoder().encode(value).buffer : new Uint8Array(value).buffer);
   const canonical = (value: unknown) => canonicalPack(parseLosslessJson(JSON.stringify(value)));
@@ -121,14 +131,15 @@ async function generateHistoricalSource(scope: typeof GENERATED_SCOPE, scene: Aw
     {id:'generated:other-anchor',sourceFloorKey:floor,sourceOriginalSha256:floorHash,targets:[{packagePlaceKey:'generated:other-room',packagePlaceUuid:U(23)}],unresolvedLabels:[]}];
   const receipt=canonical({profile:'houseatlas.native-scene-room-review.v1',receiptId:'generated:receipt',sourceReceiptSha256:await hash(historical),anchors});
   const receiptSha=await hash(receipt);
+  const symbolId = sharedRoomObservations ? U(901) : 'socket';
   const fixtures={schema:'houseatlas.documentary-electrical-fixtures.v1',viewKey:'documentary-source',interpretationDate:'2026-10-10',
     symbolLegend:{xMeansSocket:true,socketsPerX:1,receiptId:'generated:symbol-review'},roomMappingReceipt:{id:'generated:receipt',sha256:receiptSha},registrationReceipts:[],
     sheets:[{id:'sheet',title:'Generated sheet',pdfPage:2,originalPhoto:'originals/generated.svg',originalPhotoSha256:photoHash,renderedPhotoSha256:photoHash,sourceDate:null,regionIds:['region']}],
-    groups:[{id:'group',label:'L1',fixtureIds:['socket'],evidenceBasis:'historic-drawing-label',currentCircuitId:null,verifiedWiring:false}],
+    groups:[{id:'group',label:'L1',fixtureIds:[symbolId],evidenceBasis:'historic-drawing-label',currentCircuitId:null,verifiedWiring:false}],
     regions:[{id:'region',sheetId:'sheet',label:'Generated room',sourceOutline:[],outlineClosed:false,sourceBounds:[.1,.1,.9,.9],outlineBasis:'untraced',places:[{packagePlaceKey:packageKey,packagePlaceUuid:packageUuid,label:'Generated room',basis:'owner-reported'}],orientation:'unregistered',physicalTransform:null}],
-    fixtures:[{id:'socket',sheetId:'sheet',regionId:'region',clusterId:null,kind:'socket',label:'Generated socket',glyph:'X',source:{symbolKey:'generated:symbol',originalPhotoSha256:photoHash,renderedPhotoSha256:photoHash,normalizedBox:[.3,.3,.4,.4],normalizedPoint:[.35,.35],literalLabels:['L1'],placementDescription:'Generated symbol'},group:{id:'group',label:'L1',basis:'label-adjacent',note:'Historical label'},glyphCount:1,fixtureCount:1,uncertainty:null,currentState:'historic-unverified',physicalCoordinate:null,wireRoute:null}]};
+    fixtures:[{id:symbolId,sheetId:'sheet',regionId:'region',clusterId:null,kind:'socket',label:'Generated socket',glyph:'X',source:{symbolKey:'generated:symbol',originalPhotoSha256:photoHash,renderedPhotoSha256:photoHash,normalizedBox:[.3,.3,.4,.4],normalizedPoint:[.35,.35],literalLabels:['L1'],placementDescription:'Generated symbol'},group:{id:'group',label:'L1',basis:'label-adjacent',note:'Historical label'},glyphCount:1,fixtureCount:1,uncertainty:null,currentState:'historic-unverified',physicalCoordinate:null,wireRoute:null}]};
   const statement=(basis: string)=>({statement:'Generated documentary statement',evidenceBasis:basis,uncertainty:{status:'unmeasured',explanation:'Documentary only'}});
-  const sheet={document_id:'generated:sheet',bundle_id:'generated:bundle',title_as_read:'Generated sheet',source_photo:'originals/generated.svg',source_sha256:photoHash,rendered_photo:'rendered/generated.svg',pdf_page:2,factAt:'2026-10-09',interpretation_date:'2026-10-10',documentary_group_labels:['L1'],direct_reading:statement('document'),drawing_association:statement('inference'),open_uncertainty:'Historical only',native_atlas_identity_ids:[],owner_confirmed_room_mapping:null,owner_confirmed_layout_mapping:null,
+  const sheet={document_id:sharedRoomObservations ? U(901) : 'generated:sheet',bundle_id:'generated:bundle',title_as_read:'Generated sheet',source_photo:'originals/generated.svg',source_sha256:photoHash,rendered_photo:'rendered/generated.svg',pdf_page:2,factAt:'2026-10-09',interpretation_date:'2026-10-10',documentary_group_labels:['L1'],direct_reading:statement('document'),drawing_association:statement('inference'),open_uncertainty:'Historical only',native_atlas_identity_ids:[],owner_confirmed_room_mapping:null,owner_confirmed_layout_mapping:null,
     provisional_diagram:{coordinate_space:'normalized-upright-photo',geometry_status:'unmeasured',metric_units:null,scale:null,transform:null,region_xyxy:[.1,.1,.9,.9],source_date:null},
     package_room_associations:[{package_room_id:packageKey,stable_package_uuid:packageUuid,current_circuit_binding:null,native_atlas_identity_id:null,status:'inferred-name-or-context-match',evidenceBasis:'inference'}]};
   const primary=new TextEncoder().encode(JSON.stringify({schema:'houseatlas.native-scene-source.v2',receiptCanonicalJson:receipt,
@@ -141,6 +152,7 @@ async function generateHistoricalSource(scope: typeof GENERATED_SCOPE, scene: Aw
   const primarySha = await hash(primary), supportSha = await hash(historical);
   const buildingId = unmatchedBuilding ? U(14) : scene.buildings.find(building => building.nativePlaceId !== null)!.nativePlaceId!;
   const room = scene.rooms.find(room => room.nativePlaceId !== null)!;
+  const mappedRooms = sharedRoomObservations ? [room, scene.rooms.find(row => row.roomId === 'syn-room-living')!] : [room];
   const documents = [
     { role: 'primary-scene', evidenceId: U(4), evidenceRevision: 7, originalAssetId: U(5), originalAssetRevision: 9, originalSha256: primarySha, contentType: 'text/plain' },
     { role: 'documentary-sheet', evidenceId: U(6), evidenceRevision: 8, originalAssetId: U(7), originalAssetRevision: 10, originalSha256: supportSha, contentType: 'text/plain' },
@@ -151,7 +163,7 @@ async function generateHistoricalSource(scope: typeof GENERATED_SCOPE, scene: Aw
     sourceFloors: [{ sourceFloorKey: floor, sourceOriginalSha256: floorHash, nativeFloorKey: 'native:floor', nativeGeometryId: U(10), nativeGeometryRevision: 1,
       nativeOriginalAssetId: U(11), nativeOriginalSha256: floorHash }],
     roomMappings: [{ sourceRoomId: 'source:room', sourceFloorKey: floor, sourceOriginalSha256: floorHash, sourceAnchorIds: ['generated:anchor'],
-      targets: [{ packagePlaceKey: packageKey, packagePlaceUuid: packageUuid, atlasPlaceId: unmatchedBuilding ? U(40) : room.nativePlaceId }], unresolvedLabels: [], evidenceIds: [U(4), U(6)] }] };
+      targets: mappedRooms.map(room => ({ packagePlaceKey: packageKey, packagePlaceUuid: packageUuid, atlasPlaceId: unmatchedBuilding ? U(40) : room.nativePlaceId })), unresolvedLabels: [], evidenceIds: [U(4), U(6)] }] };
   const provenance = { source: null, sourceRevision: null, sourceConfidence: null, evidenceBasis: 'document', factAt: null,
     retrievedAt: '2026-10-10T12:00:00Z', vantage: null, uncertainty: { status: 'unknown', explanation: 'Captured documentary original' } };
   const asset = (sha256: string, bytes: number) => ({ owner: 'atlas', purpose: 'evidence-original', sha256, byteSize: bytes, contentType: 'text/plain', availability: 'available', sourceLicense: { status: 'permitted', reference: 'CC0-1.0' }, previewPolicy: 'download-only', evidenceIds: [] });

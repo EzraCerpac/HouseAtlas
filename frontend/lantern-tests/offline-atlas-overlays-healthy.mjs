@@ -19,15 +19,20 @@ writeFileSync(entry, [
   ['frontend/src/offline/manifest.ts', ['canonicalPack', 'readPackManifest']],
   ['frontend/src/offline/store.ts', ['savedDigest']],
   ['frontend/src/numeric/lossless-json.ts', ['parseLosslessJson']],
-  ['frontend/src/lantern/unified-atlas/runtime-overlays.ts', ['mergeDocumentaryRecords', 'projectDocumentaryFacts']],
+  ['frontend/src/lantern/unified-atlas/runtime-overlays.ts', ['mergeDocumentaryRecords', 'projectDocumentaryFacts', 'documentaryOverlayIndex']],
   ['frontend/src/lantern/canonical-ifc/standard-glb.ts', ['loadStandardGlb']],
   ['frontend/src/lantern/unified-atlas/scene.ts', ['bindAtlasModel', 'planFeaturesForLevel', 'sitePlanLevels']],
+  ['frontend/src/lantern/unified-atlas/plan-presentation.tsx', ['PlanTile']],
 ].map(([path, names]) => `export { ${names.join(',')} } from ${JSON.stringify(join(root, path))};`).join('\n'));
-const built = await build({ root: join(root, 'frontend'), configFile: false, logLevel: 'silent', build: { write: false, target: 'node26', lib: { entry, formats: ['es'] }, rolldownOptions: { output: { codeSplitting: false } }, minify: false } });
+const built = await build({ root: join(root, 'frontend'), configFile: false, logLevel: 'silent', build: { write: false, target: 'node26', lib: { entry, formats: ['es'] }, rolldownOptions: { external: ['react', 'react/jsx-runtime'], output: { codeSplitting: false } }, minify: false } });
 const output = Array.isArray(built) ? built[0] : built;
-const modulePath = join(scratch, 'positive.mjs'); writeFileSync(modulePath, output.output.find(row => row.type === 'chunk' && row.isEntry).code);
-const { generateSavedPack, readSavedPackSections, projectSavedAtlasOverlays, readSavedHistoricalFacts, createSavedAtlasDataAdapter, mergeDocumentaryRecords, projectDocumentaryFacts, canonicalPack, readPackManifest, savedDigest, parseLosslessJson, loadStandardGlb, bindAtlasModel, planFeaturesForLevel, sitePlanLevels } = await import(pathToFileURL(modulePath).href);
+const modulePath = join(scratch, 'positive.mjs'); writeFileSync(modulePath, output.output.find(row => row.type === 'chunk' && row.isEntry).code
+  .replaceAll(JSON.stringify('react'), JSON.stringify(new URL('../node_modules/react/index.js', import.meta.url).href))
+  .replaceAll(JSON.stringify('react/jsx-runtime'), JSON.stringify(new URL('../node_modules/react/jsx-runtime.js', import.meta.url).href)));
+const { generateSavedPack, readSavedPackSections, projectSavedAtlasOverlays, readSavedHistoricalFacts, createSavedAtlasDataAdapter, mergeDocumentaryRecords, projectDocumentaryFacts, documentaryOverlayIndex, PlanTile, canonicalPack, readPackManifest, savedDigest, parseLosslessJson, loadStandardGlb, bindAtlasModel, planFeaturesForLevel, sitePlanLevels } = await import(pathToFileURL(modulePath).href);
 rmSync(scratch, { recursive: true });
+const { createElement } = await import(new URL('../node_modules/react/index.js', import.meta.url).href);
+const { renderToStaticMarkup } = await import(new URL('../node_modules/react-dom/server.node.js', import.meta.url).href);
 const atlasSchema = JSON.parse(readFileSync(join(root, 'packages/contracts/schemas/atlas.schema.json')));
 // The exporter intentionally strips only asset custody routing storageKey.
 atlasSchema.$defs.assetPayload.required = atlasSchema.$defs.assetPayload.required.filter(key => key !== 'storageKey');
@@ -296,6 +301,7 @@ console.log('PASS canonical source identity dedup retains differing observations
 {
   const baseline = await generateSavedPack('complete', '1'.repeat(64), true);
   const pack = await generateSavedPack('complete', '1'.repeat(64), true, false, false, false, false, true);
+  assert.equal(pack.house.snapshotId, 'ec4ec181adbb2d4b9b0abe7d482799098f4829f4d486382545544bb8cd7c119f', 'fourth UI variant retains its exact snapshot pin');
   const house = { ...pack.house, localRevision: crypto.randomUUID() };
   const local = { list: async () => [house], asset: async (_selected, id) => new Blob([pack.resources.get(id)], { type: house.resources.find(pin => pin.id === id).contentType }) };
   const signal = new AbortController().signal, checked = await readSavedPackSections(local, house, signal); exporterShapes(checked);
@@ -340,4 +346,70 @@ console.log('PASS canonical source identity dedup retains differing observations
     assert(loops.some(row => row.notes.includes(`Generated ${name} self-loop`) && row.path === null));
   }
   console.log(`PASS final interaction variant: valid first featureless floor, unchanged GLB/room memberships, genuine historical closure, 2 distinct shared-endpoint self-loops; Electrical 6 (4 unplaced), Network 7 (6 unplaced); snapshot ${house.snapshotId}; semantics ${savedRead.scene.publication.semanticsSha256}`);
+}
+
+// Fifth explicit Save cut: actual retained native closure and actual PlanTile.
+{
+  const pack = await generateSavedPack('complete', '1'.repeat(64), true, false, false, false, false, false, true);
+  assert.equal(pack.house.snapshotId, 'fb77e65a0c7072aadfec9e0c3ea15ee5c69b2baa603b9c178dc84b725a17bae2');
+  const baseline = await generateSavedPack('complete', '1'.repeat(64));
+  assert.deepEqual(pack.scene.artifacts.map(row => [row.sha256, row.bytes]), baseline.scene.artifacts.map(row => [row.sha256, row.bytes]));
+  assert.deepEqual(pack.scene.occurrences, baseline.scene.occurrences);
+  assert.deepEqual(pack.scene.meshBindings, baseline.scene.meshBindings);
+  const house = { ...pack.house, localRevision: crypto.randomUUID() };
+  const local = { list: async () => [house], asset: async (selected, id) => {
+    assert.equal(selected.localRevision, house.localRevision);
+    return new Blob([pack.resources.get(id)], { type: house.resources.find(pin => pin.id === id).contentType });
+  } };
+  const signal = new AbortController().signal, checked = await readSavedPackSections(local, house, signal); exporterShapes(checked);
+  const read = await createSavedAtlasDataAdapter(local).read(house, signal);
+  assert.equal(read.scene.publication.publicationId, '00000000-0000-4000-8000-0000000a7153');
+  assert.equal(read.scene.selection.revision, 'generated-shared-room-observations-1');
+  assert(read.scene.overlayBindings.every(binding => binding.publicationId === read.scene.publication.publicationId));
+  assert.equal(read.roomLinks.data.publicationId, read.scene.publication.publicationId);
+  assert.equal(read.roomLinks.data.semanticsSha256, read.scene.publication.semanticsSha256);
+  const historical = await readSavedHistoricalFacts(checked, read, signal);
+  assert.equal(historical.facts.length, 2, JSON.stringify(historical.reasons));
+  assert.deepEqual(read.roomLinks.data.links.map(row => row.roomId), ['syn-room-hall', 'syn-room-living']);
+  const unmappedId = '00000000-0000-4000-8000-000000000014';
+  assert(!read.scene.buildings.some(row => row.nativePlaceId === unmappedId));
+  assert.deepEqual(historical.facts.find(facts => facts.pins.buildingId === unmappedId).roomBindings, []);
+  const model = bindAtlasModel(read.scene, await loadStandardGlb(read.model, 'saved-shared-rooms', signal));
+  for (const facts of [historical.facts, [...historical.facts].reverse()]) {
+    const history = { ...historical, facts }, joined = facts.find(facts => facts.roomBindings.length === 2);
+    const expected = projectDocumentaryFacts(read.scene, joined, model.selectable);
+    const result = projectSavedAtlasOverlays(checked, read.scene, history, model.selectable);
+    assert.equal(result.records.rooms.size, 2);
+    for (const roomId of ['syn-room-hall', 'syn-room-living']) {
+      const room = result.records.rooms.get(roomId); assert.deepEqual([room.electrical.length, room.network.length], [2, 1]);
+      for (const kind of ['electrical', 'network']) for (const own of expected.rooms.get(roomId)[kind]) {
+        const record = room[kind].find(row => row.key === own.key), { observations, ...primary } = record;
+        assert.deepEqual(primary, own, 'whole room-local observation remains primary');
+        assert.equal(primary.sourceFacts.find(fact => fact.label === 'Room association in this observation').value, roomId);
+        assert.equal(observations.length, 2);
+        const all = [primary, ...observations];
+        assert.deepEqual(new Set(all.flatMap(row => row.sourceFacts.filter(fact => fact.label === 'Room association in this observation').map(fact => fact.value))), new Set(['syn-room-hall', 'syn-room-living', null]));
+        assert.deepEqual(new Set(all.flatMap(row => row.sourceFacts.filter(fact => fact.label === 'Retained association').map(fact => fact.value))), new Set(['00000000-0000-4000-8000-000000000012', '00000000-0000-4000-8000-000000000013']));
+      }
+    }
+    const layers = ['electrical', 'network'].map(kind => documentaryOverlayIndex(model, result.records, kind));
+    assert.deepEqual(layers.map(layer => [layer.records, layer.unplacedRecords]), [[6, 4], [5, 4]]);
+    const tile = renderToStaticMarkup(createElement(PlanTile, { model, level: model.levelsById.get('syn-level-ground'), layers,
+      tints: new Map(), selected: null, name: 'Generated shared ground floor', choose() {} }));
+    assert(tile.includes('2 electrical records, 1 network record'), 'actual floor tile unions shared source entities');
+    assert(!tile.includes('4 electrical records, 2 network records'));
+    assert.equal((tile.match(/<circle /g) ?? []).length, 4, 'both room/layer markers remain');
+    const id = '00000000-0000-4000-8000-000000000901';
+    const reused = [...result.records.rooms.values()].flatMap(room => room.electrical).concat(result.records.unplaced.electrical).filter(row => row.id === id);
+    assert.equal(new Set(reused.map(row => row.key)).size, 3);
+    assert.equal(result.records.networkGraphs.length, 2);
+    assert.equal(result.records.buildings.find(row => row.label === 'Synthetic studio').network, 'unavailable');
+    if (facts === historical.facts) console.log(JSON.stringify({ profile: 'generated-fifth-save-contract.v1', snapshotId: house.snapshotId,
+      publication: read.scene.publication, selection: read.scene.selection, overviewManifestSha256: read.saved.descriptor.overviewManifestSha256,
+      modelSha256: read.scene.model.sha256, roomLinksSha256: read.roomLinks.resource.sha256,
+      retainedResources: house.resources.map(row => ({ sha256: row.sha256, bytes: row.bytes, contentType: row.contentType, role: row.role })),
+      rooms: [...result.records.rooms].map(([roomId, records]) => ({ roomId, records })),
+      unplaced: result.records.unplaced, propertyCounts: layers.map(layer => ({ kind: layer.kind, records: layer.records, unplacedRecords: layer.unplacedRecords })) }));
+  }
+  console.log(`PASS fifth explicit Save: genuine shared two-room/unmapped-building closure, local primary +2 other observations, typed raw IDs, actual tile union2E/1N, property6E/5N unplaced4/4; snapshot ${house.snapshotId}; semantics ${read.scene.publication.semanticsSha256}`);
 }
