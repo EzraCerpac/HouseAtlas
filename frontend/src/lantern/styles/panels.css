@@ -1,11 +1,14 @@
-/* ---------------- Detail panel ---------------- */
+/* ---------------- Record sheet ----------------
+   The overview and every record share one sheet: a head ruled off like a
+   title block (kind, name, where it is, actions), then sections divided by
+   hairlines. The Atlas room panel draws its head and sections the same way. */
 
 .lantern-host .detail-head {
-  padding: 20px 24px 18px;
-  border-bottom: 1px solid var(--hair);
+  padding: 18px 22px 16px;
+  border-bottom: 1px solid var(--hair-2);
   display: grid;
   gap: 10px;
-  background: var(--card);
+  background: var(--sheet);
 }
 
 .lantern-host .detail-kicker {
@@ -24,10 +27,10 @@
 }
 
 .lantern-host .detail-title {
-  font-size: var(--fs-3xl);
+  font-size: 30px;
   font-weight: 720;
-  line-height: 1.05;
-  letter-spacing: -0.03em;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
   overflow-wrap: anywhere;
 }
 
@@ -46,7 +49,7 @@
 }
 
 .lantern-host .overview-title {
-  font-size: var(--fs-3xl);
+  font-size: 30px;
 }
 
 .lantern-host .overview-tag {
@@ -80,11 +83,11 @@
 }
 
 .lantern-host .detail-body {
-  padding: 2px 24px 36px;
+  padding: 2px 22px 36px;
 }
 
 .lantern-host .section {
-  padding: 16px 0 8px;
+  padding: 16px 0 10px;
   border-bottom: 1px solid var(--hair);
 }
 
@@ -916,16 +919,20 @@
   max-width: 1120px;
 }
 
+/* Each section is a schedule sheet: its title ruled off in ink, as on a
+   drawing, with its facts and actions on the same block. */
 .lantern-host .view-head {
-  margin-bottom: 26px;
+  margin-bottom: 24px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--ink);
   max-width: none;
 }
 
 .lantern-host .view-head h1 {
-  font-size: var(--fs-4xl);
-  font-weight: 760;
-  letter-spacing: -0.035em;
-  line-height: 1;
+  font-size: var(--fs-3xl);
+  font-weight: 740;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
 }
 
 .lantern-host .view-head-row {
