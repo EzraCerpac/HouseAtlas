@@ -2150,3 +2150,32 @@ records, inventory/files/upkeep, query semantics and verified native links are
 unchanged. Removing the HomeBox integration itself is outside this change.
 Browser focus, scrolling and affected responsive presentation need fresh generated
 or installed observations; static success does not qualify provider availability.
+
+## Generated room-sheet presentation
+
+The [room UX visual fixture](../../frontend/lantern-tests/room-ux-visual/README.md)
+mounts the actual App and DetailPanel with the original fictional Alder house.
+It provides populated room, empty-container and empty-section examples without
+a native reader, session, acquisition port or admitted write. Geometry and
+operation-history availability are explicitly unavailable. The fixture-specific
+TypeScript configuration inherits the complete production configuration:
+
+```sh
+cd frontend
+./node_modules/.bin/tsc --project lantern-tests/room-ux-visual/tsconfig.json
+```
+
+Use the existing generated source-host fixture separately for retained-record
+Search and archive disclosure, and the existing saved Atlas fixture for
+native-shaped historical room records. Supplied room-record counts and source
+availability remain distinct; with both documentary layers off, the existing
+reader omits the contents overview. Empty sections preserve their original
+explanations and empty-container links. Record qualifiers, dates, unknowns and
+retained observations stay inspectable.
+
+The existing frontend typecheck, healthy read, Unified Atlas healthy and named
+interaction checks, production build and backend asset compatibility check
+remain the relevant ordinary checks. Manual desktop and phone review must
+distinguish opening motion from settled pixels and verify focus through actual
+invoking controls. Generated presentation does not establish native admission,
+current source authorization, physical accuracy, deployment or device behavior.
