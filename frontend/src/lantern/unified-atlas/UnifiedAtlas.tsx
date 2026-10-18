@@ -27,6 +27,8 @@ import { documentaryOverlayIndex, type BuildingCoverage, type DocumentaryRecord,
 import { edgeSpans, estimatedOccurrences, MEASUREMENT_BASIS, placeLabels, roomArea } from './measurements';
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
 import { NetworkGraph } from './NetworkGraph';
+import { NetworkStageConnections, networkRoomConnections } from './NetworkStageConnections';
+import type { NetworkConnections } from './network-connections';
 import { AreaValue, PLAN_ORDER, PlanRoom, PlanTile, planTileLevels } from './plan-presentation';
 import '../canonical-ifc/canonical-ifc.css';
 import './unified-atlas.css';
@@ -639,6 +641,18 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [active, live, presentation, projection, t, planned, planBlend]);
 
+  // The whole property's qualified room associations, independent of focus or
+  // count-label collision suppression. These are logical summaries, not routes.
+  const networkConnections = useMemo(() => networkRoomConnections(networkOn ? runtime.records : null,
+    networkOn && runtime.records ? [...runtime.records.rooms.keys()].flatMap(roomId =>
+      (model.roomsById.get(roomId)?.occurrenceIds ?? []).flatMap(occurrenceId => {
+        if (!model.selectable.has(occurrenceId)) return [];
+        const at = anchorOf(occurrenceId); if (!at) return [];
+        return [{ roomId, occurrenceId, point: [at.x + (active.length > 1 ? MARKER_SPREAD : 0), at.y] as const }];
+      })) : []),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [networkOn, runtime.records, model, projection, presentation, shown, t, planBlend, active.length]);
+
   // The selected room's tag stands on a leader in 3D and folds onto its floor
   // as the camera reaches Plan: one landmark through every view.
   const foldedRise = Math.min(1, Math.max(0, 1 - planBlend / .6));
@@ -1235,6 +1249,9 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
           {siteNames.length > 0 && <g className="ua-site-names" style={{ opacity: planBlend }}>
             {siteNames.map(row => <text key={row.key} x={row.x} y={row.y} textAnchor="middle">{row.text}</text>)}
           </g>}
+          {networkOn && planBlend < 1 && <g opacity={1 - planBlend}>
+            <NetworkStageConnections connections={networkConnections} selected={selected} />
+          </g>}
           {positions.length > 0 && <g className="ua-positions">
             {positions.map(row => <rect key={row.key} className={row.context ? 'is-context' : undefined} style={{ '--layer': TONE_COLOR[row.kind] } as CSSProperties}
               x={row.x - 4} y={row.y - 4} width={8} height={8} transform={`rotate(45 ${row.x} ${row.y})`} />)}
@@ -1299,6 +1316,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
             floors strip sits just before the fold that opens it. */}
         {hasKeys && <div ref={keysDock} id={`${foldIds}-layers`} className={`ua-keys${drawer === 'layers' ? ' is-unfolded' : ''}`}>
           {active.map(layer => <OverlayKey key={layer.kind} layer={layer} records={runtime.records}
+            connectionCoverage={layer.kind === 'network' ? networkConnections.coverage : null}
             buildings={runtime.buildings}
             publishedOnly={!runtimeConfigured} openDocuments={environment.openDocuments}
             availability={runtime.records?.[layer.kind] ?? (!runtimeConfigured ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
@@ -1606,11 +1624,12 @@ function SourceDetails({ model, occurrence, room, renderFailure, overlayReason, 
 
 const COVERAGE_TEXT = { available: 'Available', partial: 'Partial', unavailable: 'Unavailable' } as const;
 
-function OverlayKey({ layer, openNetwork, availability, records, buildings, openDocuments, publishedOnly, graph }: {
+function OverlayKey({ layer, openNetwork, availability, records, buildings, openDocuments, publishedOnly, graph, connectionCoverage }: {
   readonly layer: OverlayLayerIndex; readonly openNetwork: (() => void) | undefined; readonly openDocuments: (() => void) | undefined;
   readonly records: PropertyRecords | null; readonly availability: 'available' | 'partial' | 'unavailable' | 'loading';
   readonly publishedOnly: boolean;
   readonly buildings: readonly BuildingCoverage[];
+  readonly connectionCoverage: NetworkConnections['coverage'] | null;
   /** The logical network graph's own panel, when the source has one. */
   readonly graph: { readonly id: string; readonly open: boolean; readonly toggle: () => void } | null;
 }) {
@@ -1646,6 +1665,9 @@ function OverlayKey({ layer, openNetwork, availability, records, buildings, open
       {graph && <button type="button" className="ua-graph-open" aria-expanded={graph.open} aria-controls={graph.id} onClick={graph.toggle}>
         <span className="ua-logical-swatch" aria-hidden="true" /><span>Logical network graph</span><Icon name="network" size={16} />
       </button>}
+      {connectionCoverage && <p>3D lines show {connectionCoverage.links.anchored} of {connectionCoverage.links.total} logical connections at reviewed room summaries;
+        {' '}{connectionCoverage.links.unplaced} have no complete room association. They do not show device positions or cable routes.
+        {connectionCoverage.sharedMediumAssociations.anchored > 0 && ` ${connectionCoverage.sharedMediumAssociations.anchored} shared-medium associations are shown separately.`}</p>}
       {connections.length > 0 && <details className="ua-logical">
         <summary><span className="ua-logical-swatch" aria-hidden="true" />{plural(connections.length, 'logical connection')}, no cable routes</summary>
         <DocumentaryRecords records={connections} openDocuments={openDocuments} />

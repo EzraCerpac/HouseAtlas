@@ -30,6 +30,9 @@ export interface DocumentaryNetworkGraph {
   readonly key: string;
   readonly data: NetworkOverlayData;
   readonly qualification: string;
+  /** Exact parser-owned entity identity; names and raw IDs never join sources. */
+  readonly deviceRecordKeys?: ReadonlyMap<string, string>;
+  readonly sourceOriginalSha256?: string;
 }
 /** One building's documentary source state, kept per building so partial
  * coverage is never presented as the whole property. */
@@ -271,9 +274,10 @@ export function projectDocumentaryFacts(scene: AtlasScene, facts: DocumentaryFac
   }
   const electricity = facts.electricity.status === 'available', fixtures = facts.electricalFixtures.status === 'available';
   const source = facts.pins;
+  const recordKey = (kind: string, id: string) => JSON.stringify(['houseatlas-documentary-record.v1', source.workspaceId,
+    source.homeId, 'primary-scene', source.sceneEvidenceId, kind, id]);
   const stamp = (record: DocumentaryRecord, roomId: string | null): DocumentaryRecord => ({ ...record,
-    key: JSON.stringify(['houseatlas-documentary-record.v1', source.workspaceId, source.homeId, 'primary-scene',
-      source.sceneEvidenceId, record.key.slice(0, record.key.indexOf(':')), record.id]),
+    key: recordKey(record.key.slice(0, record.key.indexOf(':')), record.id),
     sourceFacts: [...record.sourceFacts,
       { label: 'Source evidence', value: source.sceneEvidenceId },
       { label: 'Source evidence revision', value: String(source.sceneEvidenceRevision) },
@@ -289,6 +293,8 @@ export function projectDocumentaryFacts(scene: AtlasScene, facts: DocumentaryFac
     network: records.network.map(record => stamp(record, roomId)), electrical: records.electrical.map(record => stamp(record, roomId)) }]));
   return { rooms: stampedRooms, unplaced: { network: unplacedNetwork.map(record => stamp(record, null)), electrical: unplacedElectrical.map(record => stamp(record, null)) }, network: facts.network.status === 'available' ? 'available' : 'unavailable', electrical: electricity && fixtures ? 'available' : electricity || fixtures ? 'partial' : 'unavailable',
     networkGraphs: networkData ? [{ key: JSON.stringify([source.workspaceId, source.homeId, source.sceneEvidenceId, source.sceneOriginalSha256]),
+      deviceRecordKeys: new Map(networkData.devices.map(device => [device.id, recordKey('device', device.id)])),
+      sourceOriginalSha256: source.sceneOriginalSha256,
       data: networkData, qualification: facts.mode === 'saved-documentary-snapshot'
         ? 'Saved logical network; no physical routes or current authorization' : 'Recorded logical network; no physical routes' }] : [],
     sourceFacts: [...facts.observationFacts,

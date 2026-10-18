@@ -62,3 +62,22 @@ within-room associations, separately counted shared media and source-qualified
 coverage. It uses no native host, browser, provider, household data or external
 transport. Ordinary success does not qualify actual source admission, physical
 registration, current network state or runtime rendering.
+
+The shared live/saved factual projector now supplies its own exact device record
+keys and original-source SHA. `NetworkStageConnections` admits only a matching
+room observation from that same source before using the existing occurrence
+summary. It does not borrow a room from another observation or graph. The 3D
+SVG decoration uses those camera-projected summaries, preserves every admitted
+occurrence pair across the property, and keeps pointer events with the existing
+stage controls. A coincident pair draws a loop; selection changes emphasis only.
+Plan retains the separate logical graph. The layer key reports rendered original
+connections and missing room associations separately from derived shared media.
+Physical unplaced record accounting remains unchanged.
+
+The existing `unified-atlas-overlay-source-healthy.mjs` positive additionally
+passes the actual generated decoder/projector result through this join, checking
+source-stamped keys, explicit endpoint owners, both self-link forms, complete
+occurrence pairs and retained missing associations. Native lease/expiry and saved
+identity admission remain with their existing owners. Current-household source
+coverage and rendered browser pixels require their own retained evidence; these
+generated checks establish neither.
