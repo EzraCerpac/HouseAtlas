@@ -1512,16 +1512,25 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
           {levelName(model.occurrencesById.get(key)!.levelId)}</button>)}
       </div>}
 
-      <dl className="ua-facts">
+      {/* The room's standing facts: one line of labelled chips under the head. */}
+      <dl className="ua-facts ua-room-facts">
         <div><dt>Layout</dt><dd>{basis.kind === 'owner-estimated-pick-proxy' ? 'Estimated layout' : 'From the model'}</dd></div>
         <div><dt>Home place</dt><dd className={`ua-link is-${room.nativeBinding.status}`}>{runtime?.rooms.has(room.roomId) ? 'Linked for these sources' : room.nativeBinding.status === 'historical' ? 'Link needs review' : LINK_LABEL[room.nativeBinding.status]}</dd></div>
         {state.layers.measurements && <div><dt>Area</dt><dd><AreaValue geometryBasis={basis} area={area} /></dd></div>}
       </dl>
-      {state.layers.measurements && area && <section aria-label="Model outline dimensions" className="ua-records">
-        <h3>Outline spans{area.partial ? ' for this room part' : ''}</h3>
-        <p>{MEASUREMENT_BASIS}</p>
-        <dl className="ua-facts">{edgeSpans(model, occurrence.spaceOccurrenceId).map((span, at) =>
-          <div key={span.key}><dt>Outline span {at + 1}</dt><dd>{span.text}</dd></div>)}</dl>
+
+      {runtime && <RoomContentsSummary runtime={runtime} roomId={room.roomId} layers={state.layers} />}
+
+      {/* Open while Measurements is on; it folds away when a long list of
+          spans would push the records down. */}
+      {state.layers.measurements && area && <section aria-label="Model outline dimensions" className="ua-records ua-spans-section">
+        <details className="ua-spans" open>
+          <summary><Icon name="ruler" size={16} className="ua-spans-glyph" />
+            <span className="ua-spans-title">Outline spans{area.partial ? ' for this room part' : ''}</span></summary>
+          <p>{MEASUREMENT_BASIS}</p>
+          <dl className="ua-facts">{edgeSpans(model, occurrence.spaceOccurrenceId).map((span, at) =>
+            <div key={span.key}><dt>Outline span {at + 1}</dt><dd>{span.text}</dd></div>)}</dl>
+        </details>
       </section>}
 
       {/* One group per layer that is on: its glyph, name and how many records
@@ -1553,6 +1562,31 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
   </aside>;
 }
 
+/** What the loaded sources hold for this room, one line per layer: the
+ * supplied list's length and the source's own state, or why there is none.
+ * A layer that is off still lists what is already loaded, marked off; nothing
+ * here toggles a layer, fetches or counts beyond the supplied list. */
+function RoomContentsSummary({ runtime, roomId, layers }: {
+  readonly runtime: PropertyRecords; readonly roomId: string; readonly layers: AtlasViewState['layers'];
+}) {
+  const linked = runtime.rooms.get(roomId);
+  return <section className="ua-contents" aria-label="In this room">
+    <h3 className="ua-contents-title">In this room</h3>
+    <ul>{OVERLAY_KINDS.map(kind => {
+      const records = linked && runtime[kind] !== 'unavailable' ? linked[kind] : null;
+      const source = !linked ? 'Room source link unavailable' : runtime[kind] === 'unavailable' ? 'Source unavailable'
+        : runtime[kind] === 'partial' ? 'Partial source' : null;
+      return <li key={kind} className={`ua-contents-row${layers[kind] ? '' : ' is-off'}${source ? ' is-qualified' : ''}`}>
+        <Icon name={OVERLAY_ICON[kind]} size={16} />
+        <span className="ua-contents-name">{OVERLAY_LABEL[kind]}</span>
+        {records && <span className="ua-contents-count">{plural(records.length, 'record')}</span>}
+        {source && <span className="ua-contents-state">{source}</span>}
+        {!layers[kind] && <span className="ua-contents-off">Layer off</span>}
+      </li>;
+    })}</ul>
+  </section>;
+}
+
 function DocumentaryRecords({ records, openDocuments }: { readonly records: readonly DocumentaryRecord[]; readonly openDocuments: (() => void) | undefined }) {
   // Short type names and glyphs for the categories the source names; any other
   // category shows its original string. The full category stays in the details.
@@ -1577,9 +1611,14 @@ function DocumentaryRecords({ records, openDocuments }: { readonly records: read
         </span>
         <span className="ua-doc-qual">{record.qualification}</span>
       </summary>
-      <p>{record.category}: {record.detail}</p>
-      <p>Source date: {record.sourceDate ?? 'unknown'}. Retrieved: {record.retrievedAt ?? 'unknown'}.</p>
-      {record.connections.length > 0 && <ul>{record.connections.map((connection, at) => <li key={at}>{connection}</li>)}</ul>}
+      {/* Opened: the record's own facts, labelled, with every connection. */}
+      <dl className="ua-doc-facts">
+        <div><dt>Category</dt><dd>{record.category}</dd></div>
+        {record.detail && <div><dt>Detail</dt><dd>{record.detail}</dd></div>}
+        <div><dt>Source date</dt><dd>{record.sourceDate ?? 'unknown'}</dd></div>
+        <div><dt>Retrieved</dt><dd>{record.retrievedAt ?? 'unknown'}</dd></div>
+        {record.connections.length > 0 && <div><dt>Connections</dt><dd><ul>{record.connections.map((connection, at) => <li key={at}>{connection}</li>)}</ul></dd></div>}
+      </dl>
       {openDocuments && (record.category === 'Electrical drawing' || record.category === 'Historical symbol') && <button type="button" className="text-btn" onClick={openDocuments}>Open Documents</button>}
       <details className="ua-source"><summary>Source</summary><dl><div><dt>Source record</dt><dd>{record.id}</dd></div>
         {record.sourceFacts.map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value ?? 'unknown'}</dd></div>)}

@@ -175,6 +175,30 @@
   padding: 2px 0 8px;
 }
 
+/* A place's sections with nothing listed, folded into one block: each keeps
+   its name, its zero and its own sentence, on two compact lines. */
+.lantern-host .empty-sections {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lantern-host .empty-sections > li {
+  display: grid;
+  gap: 1px;
+}
+
+.lantern-host .empty-sections-name {
+  font-size: var(--fs-s);
+  font-weight: 650;
+  color: var(--ink-2);
+}
+
+.lantern-host .empty-sections-name > .section-count { margin-left: 2px; font-size: var(--fs-xs); }
+.lantern-host .empty-sections .empty { padding: 0; font-size: var(--fs-xs); }
+
 .lantern-host .note {
   display: flex;
   gap: 9px;

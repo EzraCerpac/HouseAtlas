@@ -1311,6 +1311,119 @@
 .lantern-host .ua-link.is-historical { color: var(--c-disputed); }
 .lantern-host .ua-link.is-unmapped { color: var(--c-unknown); }
 
+/* The room's standing facts: labelled chips on one wrapping line, so the
+   contents below start high in the sheet. Each chip keeps its label. */
+.lantern-host .ua-room-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lantern-host .ua-room-facts > div {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+  max-width: 100%;
+  padding: 3px 9px;
+  border: 1px solid var(--hair-2);
+  border-radius: 6px;
+  background: var(--card);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+}
+
+.lantern-host .ua-room-facts dd { min-width: 0; font-weight: 600; }
+.lantern-host .ua-room-facts dd:not(.ua-link) { color: var(--ink); }
+
+/* In this room: one line per layer with what its loaded source supplies and
+   that source's state. A layer that is off is marked so, never hidden; the
+   summary is read, not operated. */
+.lantern-host .ua-contents {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px 11px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-panel);
+  background: var(--card);
+}
+
+.lantern-host .ua-contents .ua-contents-title {
+  font: 650 var(--fs-xs)/1.3 var(--text);
+  letter-spacing: 0;
+  color: var(--muted);
+}
+
+.lantern-host .ua-contents ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lantern-host .ua-contents-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  min-height: 26px;
+}
+
+.lantern-host .ua-contents-row > .icon { flex: none; color: var(--ink-2); }
+.lantern-host .ua-contents-name { font-weight: 650; color: var(--ink); }
+.lantern-host .ua-contents-count { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.lantern-host .ua-contents-state { color: var(--warn); font-size: var(--fs-xs); font-weight: 600; overflow-wrap: anywhere; }
+
+.lantern-host .ua-contents-off {
+  padding: 0 6px;
+  border: 1px dashed var(--hair-2);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.lantern-host .ua-contents-row.is-off > .icon,
+.lantern-host .ua-contents-row.is-off .ua-contents-name { color: var(--muted); }
+
+/* Outline spans: a disclosure, open while Measurements is on, named in the
+   display face like the other sections and folding a long list away. */
+.lantern-host .ua-spans { display: grid; gap: 8px; }
+
+.lantern-host .ua-spans > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin: -10px 0 -4px;
+  list-style: none;
+  cursor: pointer;
+  border-radius: 6px;
+  color: var(--ink);
+  font: 680 var(--fs-m)/1.3 var(--display);
+}
+
+.lantern-host .ua-spans > summary::-webkit-details-marker { display: none; }
+.lantern-host .ua-spans > summary:focus-visible { outline-offset: -2px; }
+.lantern-host .ua-spans-glyph { flex: none; color: var(--muted); }
+.lantern-host .ua-spans-title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+.lantern-host .ua-spans > summary::after {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-right: 3px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  color: var(--muted);
+  transform: rotate(-45deg);
+}
+
+.lantern-host .ua-spans[open] > summary::after { transform: rotate(45deg); }
+.lantern-host .ua-spans > p { margin: 0; color: var(--ink-2); }
+
 .lantern-host .ua-records {
   display: grid;
   gap: 10px;
@@ -1472,6 +1585,25 @@
 
 .lantern-host .ua-doc[open] { padding-bottom: 10px; }
 .lantern-host .ua-doc[open] > :not(summary) { margin-left: 29px; }
+
+/* An opened record's own facts: label beside value, every value wrapping. */
+.lantern-host .ua-doc-facts {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+}
+
+.lantern-host .ua-doc-facts > div {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.lantern-host .ua-doc-facts dt { color: var(--muted); }
+.lantern-host .ua-doc-facts dd { min-width: 0; margin: 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.lantern-host .ua-doc-facts dd ul { margin: 0; padding-left: 16px; }
 
 .lantern-host .ua-source {
   padding-top: 10px;

@@ -44,6 +44,8 @@ const PATHS: Record<string, string> = {
   symbol: 'M12 18.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Z M7.5 7.5l9 9',
   // A source record of a type with no glyph of its own.
   record: 'M6.5 5.5h11v13h-11Z M9.5 9.5h5 M9.5 13h5',
+  // A rule with graduations, for model outline dimensions.
+  ruler: 'M3.5 15.5 15.5 3.5l5 5-12 12Z M7 12l2 2 M10 9l2.5 2.5 M13 6l2 2',
 };
 
 export type IconName = keyof typeof PATHS;

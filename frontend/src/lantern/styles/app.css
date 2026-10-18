@@ -1504,6 +1504,7 @@
     'icon ctx kind';
   column-gap: 12px;
   align-items: center;
+  min-height: 44px;
   padding: 8px 10px;
   border-radius: 9px;
   cursor: pointer;
@@ -1524,13 +1525,14 @@
   font-weight: 600;
 }
 
+/* A result's location wraps rather than being cut: it is where the record is. */
 .lantern-host .hit-context {
   grid-area: ctx;
+  min-width: 0;
   font-size: var(--fs-s);
+  line-height: 1.35;
   color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .lantern-host .hit-kind {
@@ -1544,6 +1546,51 @@
   font-size: var(--fs-xs);
   color: var(--muted);
   border-top: 1px solid var(--hair);
+}
+
+/* Touch: results take a full finger's height; the archived records filter
+   sits as one compact panel inside the results instead of a full-bleed
+   band; the keyboard guide stays, on a tighter line, for attached keyboards. */
+@media (pointer: coarse) {
+  .lantern-host .palette-hit {
+    min-height: 48px;
+    padding: 9px 10px;
+  }
+}
+
+@media (max-width: 759px) {
+  .lantern-host .palette-results .archive-filter {
+    gap: 2px 12px;
+    margin: 2px 2px 8px;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: var(--r-control);
+    font-size: var(--fs-xs);
+  }
+
+  .lantern-host .palette-results .archive-filter .archive-toggle {
+    min-height: 44px;
+    font-size: var(--fs-s);
+  }
+
+  /* Stays a list item, so the native open/closed triangle remains; the
+     padding and line height make the full 44px target around it. */
+  .lantern-host .palette-results .archive-filter summary {
+    display: list-item;
+    min-height: 44px;
+    padding: 12px 0;
+    line-height: 20px;
+  }
+
+  .lantern-host .palette-results .archive-filter .row-meta {
+    font-size: var(--fs-xs);
+    overflow-wrap: anywhere;
+  }
+
+  .lantern-host .palette-foot {
+    padding: 6px 12px calc(6px + env(safe-area-inset-bottom));
+    line-height: 1.35;
+  }
 }
 
 /* ---------------- Toasts ---------------- */

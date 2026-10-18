@@ -292,7 +292,9 @@ function SpaceDetail({ space }: { space: Space }) {
       }
     >
       {space.geometry === 'none' && <Note>No reviewed shape projection is available.</Note>}
-      <Section title="Belongings" count={c.items.length}>
+      {/* Sections with records lead in their usual order; the ones with
+          none fold into one block below them, each keeping its own words. */}
+      {(c.items.length > 0 || c.containers.length > 0) && <Section title="Belongings" count={c.items.length}>
         {c.items.length === 0 && <Empty>No reviewed item placements are supplied for this place.</Empty>}
         <ul className="rows">
           {looseItems.map((i) => (
@@ -318,7 +320,7 @@ function SpaceDetail({ space }: { space: Space }) {
             </div>
           );
         })}
-      </Section>
+      </Section>}
       {(c.outlets.length > 0 || c.panels.length > 0) && (
         <Section title="Electrical" count={c.outlets.length + c.panels.length}>
           {c.panels.map((p) => (
@@ -370,12 +372,28 @@ function SpaceDetail({ space }: { space: Space }) {
           </ul>
         </Section>
       )}
-      <Section title="Documents and photos" count={c.docs.length}>
+      {c.docs.length > 0 && <Section title="Documents and photos" count={c.docs.length}>
         <DocList docs={c.docs} showLinked />
-      </Section>
-      <Section title="Upkeep" count={c.tasks.length}>
+      </Section>}
+      {c.tasks.length > 0 && <Section title="Upkeep" count={c.tasks.length}>
         <TaskList tasks={c.tasks} showTarget />
-      </Section>
+      </Section>}
+      {(c.items.length + c.containers.length === 0 || c.docs.length === 0 || c.tasks.length === 0) && <Section title="None listed">
+        <ul className="empty-sections">
+          {c.items.length + c.containers.length === 0 && <li>
+            <span className="empty-sections-name">Belongings <span className="section-count">0</span></span>
+            <Empty>No reviewed item placements are supplied for this place.</Empty>
+          </li>}
+          {c.docs.length === 0 && <li>
+            <span className="empty-sections-name">Documents and photos <span className="section-count">0</span></span>
+            <DocList docs={c.docs} showLinked />
+          </li>}
+          {c.tasks.length === 0 && <li>
+            <span className="empty-sections-name">Upkeep <span className="section-count">0</span></span>
+            <TaskList tasks={c.tasks} showTarget />
+          </li>}
+        </ul>
+      </Section>}
       <Section title="Identity and sources">
         <IdentityBlock
           id={space.id}
