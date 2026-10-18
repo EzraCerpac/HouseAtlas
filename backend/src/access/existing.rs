@@ -1,4 +1,4 @@
-//! Read-only schema validation before opening existing access state for use.
+//! Compiled Access catalogue/meta/epoch validation, separately from normal use.
 
 use std::{fs, path::Path, time::Duration};
 
@@ -20,11 +20,7 @@ pub(super) fn open(path: &Path) -> AccessResult<Connection> {
         return Err(AccessError::InvalidInput);
     }
 
-    // The reference is private in-memory metadata only. No initialization SQL
-    // is ever sent to the selected persistence, including the validation path.
-    let reference = Connection::open_in_memory()?;
-    reference.execute_batch(include_str!("schema.sql"))?;
-    let expected = catalogue(&reference)?;
+    let expected = compiled_catalogue()?;
     let flags = OpenFlags::SQLITE_OPEN_NOFOLLOW;
     let mut validation =
         Connection::open_with_flags(path, flags | OpenFlags::SQLITE_OPEN_READ_ONLY)?;
@@ -41,9 +37,38 @@ pub(super) fn open(path: &Path) -> AccessResult<Connection> {
     Ok(db)
 }
 
+pub(super) fn validate_closed_read_only(path: &Path) -> AccessResult<()> {
+    // The caller owns trusted path selection and a coherent closed-state fence.
+    // READ_ONLY SQL is not a guarantee against live WAL/SHM filesystem effects.
+    let metadata = fs::symlink_metadata(path).map_err(|_| AccessError::Unavailable)?;
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
+        return Err(AccessError::InvalidInput);
+    }
+    let expected = compiled_catalogue()?;
+    let mut db = Connection::open_with_flags(
+        path,
+        OpenFlags::SQLITE_OPEN_NOFOLLOW | OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )?;
+    db.busy_timeout(Duration::from_millis(5000))?;
+    validate(&mut db, &expected)
+}
+
+pub(super) fn validate_current_read_only(db: &mut Connection) -> AccessResult<()> {
+    // Retain the owner's original connection and its connection-local policy.
+    validate(db, &compiled_catalogue()?)
+}
+
+fn compiled_catalogue() -> AccessResult<Vec<SchemaEntry>> {
+    // The reference is private in-memory metadata only. No initialization SQL
+    // is ever sent to the selected persistence, including the validation path.
+    let reference = Connection::open_in_memory()?;
+    reference.execute_batch(include_str!("schema.sql"))?;
+    catalogue(&reference)
+}
+
 fn validate(db: &mut Connection, expected: &[SchemaEntry]) -> AccessResult<()> {
-    // Catalogue and metadata share one read snapshot. Both connections perform
-    // only SELECT/connection-local work; no persistent PRAGMA or writes occur.
+    // Catalogue and metadata share one deferred read snapshot. The selected
+    // connection executes no DML, DDL, persistent PRAGMA or session operation.
     let tx = db.transaction_with_behavior(TransactionBehavior::Deferred)?;
     if catalogue(&tx)? != expected {
         return Err(AccessError::Unavailable);
