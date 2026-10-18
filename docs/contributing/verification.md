@@ -1918,3 +1918,27 @@ deadline/header bounds and ordinary asset redirects. They perform no actual
 GitHub request, socket, credential, native process, controller transaction or
 runtime installation. Real HTTPS-port, acquisition and target qualification
 remain separate; no broad control discovery or new held case is released.
+
+
+## Named generated root and saved offline-entry lifecycle positive
+
+Read [root offline entry](../offline/root-offline-entry.md), then inspect
+`frontend/build/root-offline-worker-source.js`, the existing saved worker,
+`offline-shell-plugin.mjs`, `frontend/src/offline/shell.ts` and this generated
+lifecycle script. With pinned Node26.10.0, from the repository root:
+
+```sh
+node frontend/lantern-tests/offline-root-entry-healthy.mjs
+```
+
+The exact generated positive exercises the actual worker sources and shell
+registration lifecycle with bounded in-process public resources and fake browser
+owners. It covers normal online root response, network-unavailable root handoff
+to the verified saved entry, root navigation-only ownership with unchanged live
+asset requests, public resource closure, ordinary worker update and exact
+owned-build cleanup. It uses no native session, authenticated data,
+real service worker/profile, network, listener, browser or runtime state. No
+private application/API/auth response is cached. A generated offline response
+is not genuine device/PWA/WAN acceptance; exact current bytes still need bounded
+supported-browser observations after source review and independent deployment
+authority. No broader control suite or production action is released.

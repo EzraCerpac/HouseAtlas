@@ -33,7 +33,8 @@ self.addEventListener('install', event => event.waitUntil((async () => {
 })()));
 self.addEventListener('activate', event => event.waitUntil((async () => {
   if (!await ready()) throw Error('Public shell is not verified');
-  for (const name of await caches.keys()) if (name.startsWith(PREFIX) && name !== NAME) await caches.delete(name);
+  // Other builds may still serve an active root or Saved registration.
+  // Only explicit build-qualified owner cleanup removes a retained cache.
   await self.clients.claim();
 })()));
 self.addEventListener('message', event => {
@@ -44,6 +45,9 @@ self.addEventListener('message', event => {
   })());
 });
 self.addEventListener('fetch', event => {
+  // The root wrapper imports verification/lifecycle code, never Saved fetch
+  // ownership. Only the narrower /saved/ registration serves public bytes.
+  if (typeof ROOT_BUILD !== 'undefined') return;
   const request = event.request, url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin || url.search || url.hash) return;
   // No API, auth, native media, arbitrary route or query interception.

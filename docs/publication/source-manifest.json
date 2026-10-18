@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "3cf17e57bf496df33ab4fca5547577cfa36f7a97259dc741515b226d3e99df60",
+  "sourceDigestSha256": "4181b3b23f5f7769d3896fa1a2cfd3b7854b2adb0c4d184b676d54940b84c9e5",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5957,8 +5957,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 115098,
-      "sha256": "bf2831688d50b15ba524f08ac970e8b6edeeb58a3bbcbd796f1807406db14537",
+      "bytes": 116378,
+      "sha256": "58e9af8e73c6c785e74428ccd07012775359609a3abf078fa930e40f6ff01c7d",
       "owner": "core-integration"
     },
     {
@@ -6330,6 +6330,13 @@
       "mode": "100644",
       "bytes": 6655,
       "sha256": "cf4c4d64688c79769eec4ec3cdc60c139b2ff484433c5fdb5cf30f87fc2a2d21",
+      "owner": "web"
+    },
+    {
+      "path": "docs/offline/root-offline-entry.md",
+      "mode": "100644",
+      "bytes": 6608,
+      "sha256": "73c1abde17675fe75a473e7c173bed2df64ec4e585107cf6b1614355425a7612",
       "owner": "web"
     },
     {
@@ -6804,15 +6811,15 @@
     {
       "path": "frontend/build/offline-shell-plugin.mjs",
       "mode": "100644",
-      "bytes": 3351,
-      "sha256": "efaceb2a601389fd018fe82a2f4213e251367be0ca27e26ac33f03e2c3cee7d6",
+      "bytes": 3845,
+      "sha256": "c405c39f2ee7189cb4be153a214ae4855a3257c29631bcfbadfad3e846f74af0",
       "owner": "web"
     },
     {
       "path": "frontend/build/offline-worker-source.js",
       "mode": "100644",
-      "bytes": 3275,
-      "sha256": "bd7f04c4de8f2a04641f4e57e5edd16d89fafae63f1cfd889d4bf22582e93b87",
+      "bytes": 3509,
+      "sha256": "e97f3dc81119c52a0c8d67b450236179caab286ab09f9ff639b0567902388389",
       "owner": "web"
     },
     {
@@ -6827,6 +6834,13 @@
       "mode": "100644",
       "bytes": 2198,
       "sha256": "0c99749821ecb8b032a562b12aa32d8835d8410322815f695b29484f9e0a5721",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/build/root-offline-worker-source.js",
+      "mode": "100644",
+      "bytes": 1274,
+      "sha256": "b2a37b860becc07683298ca553ef2efc1c2ca1df1eaa55518b896ca7a6383be7",
       "owner": "web"
     },
     {
@@ -7525,8 +7539,8 @@
     {
       "path": "frontend/lantern-tests/offline-atlas-mounting-healthy.mjs",
       "mode": "100644",
-      "bytes": 2922,
-      "sha256": "6ad2af754391417a543be3860ca6d402a271589f2871aa6e1004de951e71f4bd",
+      "bytes": 3052,
+      "sha256": "181df96d9c108ae754682fc90f65b6e76c07b725f477469512d3bd3a0bfa6ddf",
       "owner": "web"
     },
     {
@@ -7555,6 +7569,13 @@
       "mode": "100644",
       "bytes": 13276,
       "sha256": "c60993c00ed94fd910cb46ffa28a6604eed9ceaa33f7dddde5ae49e05e41e3a2",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/offline-root-entry-healthy.mjs",
+      "mode": "100644",
+      "bytes": 19354,
+      "sha256": "d6f31253403727c82dd1ae87901df132a457ae21a86fc150779c9027a1d7d087",
       "owner": "web"
     },
     {
@@ -9968,8 +9989,8 @@
     {
       "path": "frontend/src/offline/shell.ts",
       "mode": "100644",
-      "bytes": 3586,
-      "sha256": "de6d03e31cb13da3258461d39317db65e53a05db15ec5dda6f6234ac89466c04",
+      "bytes": 6822,
+      "sha256": "bee1f0a9ca35317f44e792cd6526997549293e9372e0577860727c3416eec72a",
       "owner": "web"
     },
     {
