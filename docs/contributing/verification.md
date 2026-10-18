@@ -1864,3 +1864,16 @@ or user data is used. This adds no workflow execution or broad test discovery;
 failure, denial, concurrency, replay, expiry, crash and rollback controls stay
 outside this release. The results establish source/generated behavior only,
 not native acquisition, launchd, storage compatibility, recovery or deployment.
+
+The separately authorized updater JSON-input regression lane has three exact
+memory-only cases. Inspect `tests/test_json_input.py`, `validation.py` and
+`cli.py`, then run from `tools/houseatlas-updater`:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_json_input.JsonInputRegression.test_nonfinite_constants_are_rejected_at_all_depths tests.test_json_input.JsonInputRegression.test_cli_nonfinite_status_selector_never_reads_latest tests.test_json_input.JsonInputRegression.test_valid_json_and_null_status_selector_are_preserved
+```
+
+Only generated JSON bytes and a recording status fake are used. These cases
+cover the exact non-finite-to-null defect and ordinary null/UUID selectors;
+they add no transport, filesystem, service action, broad control alias or
+failure/rollback/crash qualification.
