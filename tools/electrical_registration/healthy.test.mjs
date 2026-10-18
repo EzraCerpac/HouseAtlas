@@ -60,3 +60,22 @@ test('healthy documentary-only intake explicitly enumerates pending landmark evi
   const r=projectInventory([{...source,fixtureId:'documentary',sourcePoint:[0.3,0.7],bindings:[binding]}],[a],context);
   assert.equal(r.counts.inventory,1);assert.equal(r.records[0].placements.length,0);assert.equal(r.counts.withoutApproximateScenePlacement,1);
 });
+
+test('healthy reviewed nomination withdrawal retains provenance and inventory without fitting the withdrawn association',()=>{
+  const p=example(),otherSource={...source,regionId:'other-region'},other=example();other.id='other-registration';other.source=otherSource;
+  const base={...context,sources:[source,otherSource]},prior=assessRegistration(p,base),unrelated=assessRegistration(other,base);
+  const withdrawal={id:'withdrawal',status:'invalid-nomination',source,target:{...frame,...binding},targetFeatureIds:['feature'],
+    reason:'Generated reviewed correction: nominated opening does not belong to this room',evidence:{sha256:'4'.repeat(64),locator:'/generated/withdrawal-review'}};
+  const current={...base,withdrawnNominations:[withdrawal]},before=structuredClone(current),proposalBefore=structuredClone(p);
+  const withdrawn=assessRegistration(p,current);
+  assert.equal(withdrawn.status,'withdrawn-invalid-nomination');assert.equal(withdrawn.fit,null);assert.deepEqual(withdrawn.checks,[]);
+  assert.deepEqual(withdrawn.withdrawnNominations,[withdrawal]);assert.deepEqual(withdrawn.source,p.source);assert.deepEqual(withdrawn.target,p.target);
+  assert.deepEqual(withdrawn.layoutQualification,p.layoutQualification);assert.deepEqual(withdrawn.uncertainty,p.uncertainty);
+  const rows=[{...source,fixtureId:'withdrawn-record',sourcePoint:[0.5,0.5],bindings:[binding],sourceMeaning:'socket'},
+    {...otherSource,fixtureId:'unrelated-record',sourcePoint:[0.5,0.5],bindings:[binding],sourceMeaning:'light'}];
+  const rowsBefore=structuredClone(rows),r=projectInventory(rows,[prior,unrelated],current);
+  assert.deepEqual(r.counts,{inventory:2,withApproximateScenePlacement:1,withoutApproximateScenePlacement:1,surveyedPhysicalPoints:0,currentCircuits:0});
+  assert.equal(r.records[0].placements.length,0);assert.equal(r.records[1].placements[0].registrationId,other.id);
+  assert.equal(projectInventory(rows,[withdrawn,unrelated],current).records[0].placements.length,0);
+  assert.deepEqual(rows,rowsBefore);assert.deepEqual(current,before);assert.deepEqual(p,proposalBefore);
+});
