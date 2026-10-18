@@ -132,6 +132,30 @@ export function createSavedHouseStore(factory: IDBFactory = indexedDB) {
         };
       });
     },
+    async discardStage(stage: { readonly key: string; readonly token: string; readonly epoch: string }): Promise<void> {
+      const selected = { key: stage.key, token: stage.token, epoch: stage.epoch };
+      await completed<void>(await database(), ['houses', 'stages', 'assets', 'control'], 'readwrite', (tx, answer) => {
+        const control = tx.objectStore('control').get('epoch/' + selected.key);
+        control.onsuccess = () => {
+          if ((control.result as { value: string } | undefined)?.value !== selected.epoch) { answer(undefined); return; }
+          const current = tx.objectStore('stages').get(selected.key);
+          current.onsuccess = () => {
+            const pending = current.result as Stage | undefined;
+            if (pending?.token !== selected.token || pending.epoch !== selected.epoch) { answer(undefined); return; }
+            const active = tx.objectStore('houses').get(selected.key);
+            active.onsuccess = () => {
+              const house = active.result as SavedHouse | undefined;
+              for (const resource of pending.resources) {
+                if (!house?.resources.some(item => item.sha256 === resource.sha256))
+                  tx.objectStore('assets').delete(assetKey(selected.key, resource.sha256));
+                deleteRanges(tx, selected.key, resource);
+              }
+              tx.objectStore('stages').delete(selected.key); answer(undefined);
+            };
+          };
+        };
+      });
+    },
     async retained(stage: Stage, resource: SavedResource): Promise<ArrayBuffer | null> {
       const current = await read<Stage>('stages', stage.key);
       need(current?.token === stage.token);

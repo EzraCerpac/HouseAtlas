@@ -20,6 +20,16 @@ source facts and unsupported historical joins remain visible. General inventory,
 Documents/PDF navigation, editing, installed PWA/iOS and native authorization are
 outside this Atlas-only entry.
 
+`discardStage({ key, token, epoch })` discards only the matching pending Save
+allocation, after checking its durable token/epoch and current control epoch in
+one readwrite transaction. It removes that allocation's uncommitted full and
+range bytes, preserving full bytes referenced by the currently committed house.
+Pending ranges are removed even when their full asset is retained. A completed,
+removed or normally superseded allocation is a harmless no-op. Cleanup leaves
+the committed house/revision, other allocations/scopes, control epoch and public
+shell/caches unchanged, and resolves only on transaction completion. Pending-only
+cleanup sends no committed-house notification.
+
 The worker scope is exactly `/saved/`. The build plugin seals emitted public
 frontend assets (including lazy chunks, fonts and PDF support) plus the exact
 saved HTML with SHA256, byte count and MIME. It commits readiness only after all
@@ -37,14 +47,24 @@ the exact public lock. Run only these named commands from the repository root:
 node frontend/lantern-tests/offline-atlas-presentation-healthy.mjs
 node frontend/lantern-tests/offline-atlas-overlays-healthy.mjs
 node frontend/lantern-tests/offline-atlas-mounting-healthy.mjs
+node frontend/lantern-tests/offline-stage-discard-healthy.mjs
 ```
 
-They use generated valid complete/partial packages, fake local resource owners,
+The three Atlas positives use generated valid complete/partial packages, fake local resource owners,
 and no browser/listener/provider/credentials. They observe stable live snapshot
 identity/forwarding, tagged saved identities, exact reads/disposal, unplaced
 circuit/electrical-relation/evidence/network records, dates, uncertainty, metadata and partial
 source coverage. No broad aliases, malformed/denial/replay/expiry/crash,
 adversarial/private-intake or failure-injection cases run.
+
+The stage-discard positive executes the production store with generated valid
+house/resource types and a minimal asynchronous memory simulation of the IDB API.
+It checks canceled new/replacement Saves, late cleanup after activation, normal
+second-begin supersession and shared-digest retention, including exact bytes and
+transaction-completion boundaries. Parser/exporter qualification is outside this
+positive. This is simulated IDB/source qualification;
+genuine browser-IDB persistence, actual Save/persisted reopen, genuine offline and
+native acceptance remain separate gates.
 
 From `frontend`, the ordinary compatibility commands are:
 

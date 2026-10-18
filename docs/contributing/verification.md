@@ -1780,6 +1780,7 @@ README before the exact named generated positives:
 node frontend/lantern-tests/offline-atlas-presentation-healthy.mjs
 node frontend/lantern-tests/offline-atlas-overlays-healthy.mjs
 node frontend/lantern-tests/offline-atlas-mounting-healthy.mjs
+node frontend/lantern-tests/offline-stage-discard-healthy.mjs
 ```
 
 Use pinned Node 26.10.0, exact locked dependencies and evidence output outside
@@ -1791,6 +1792,14 @@ adversarial/private-intake or failure-injection case. Supported browser QA uses
 only the explicit Save/production-store path and owned loopback/static shell
 procedure in `frontend/lantern-tests/offline-atlas-browser/README.md`; it proves
 owned-origin unavailability only, not WAN/device/PWA/iOS acceptance.
+
+The stage-discard command separately exercises the actual production store with
+five ordinary generated lifecycle cases through a finite asynchronous IDB API
+simulation: canceled new and replacement Saves, cleanup after commit, normal
+stage supersession and shared-digest retention. It verifies transaction completion
+and preservation of the committed copy. This is source/simulated-storage evidence;
+it does not establish genuine browser persistence, native acquisition or offline
+device availability.
 
 ## Named generated native house acquisition check
 
