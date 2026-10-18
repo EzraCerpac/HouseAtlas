@@ -2,13 +2,17 @@
 
 import importlib.util
 import hashlib
+import base64
+import gzip
+import io
 import json
 import os
 import sqlite3
 import tempfile
+import tarfile
 import time
 import unittest
-from dataclasses import replace
+from dataclasses import asdict, replace
 from pathlib import Path
 
 from houseatlas_updater.controller import Controller
@@ -17,6 +21,8 @@ from houseatlas_updater_runtime import (
     ArtifactPin, CodeStore, ExitProof, HealthProbe, Launcher, NativeInspector, NativePolicy,
     NativeValidation, PlatformOperations, Process, Publication, Readiness,
 )
+from houseatlas_updater_runtime.publication import PreservingManifestVerifier
+from houseatlas_updater_runtime.runtime import ApplicationExpectations, NativeReadiness
 
 
 # Import only the inspected generated artifact helper, without colliding with
@@ -25,6 +31,49 @@ _path = Path(__file__).resolve().parents[2] / "houseatlas-updater/tests/syntheti
 _spec = importlib.util.spec_from_file_location("runtime_generated_artifacts", _path)
 generated = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(generated)
+
+
+_base_artifact = generated.artifact
+
+
+def runtime_artifact(version, number, previous=None):
+    """Extend only the private generated helper with a real root and declared legacy assets."""
+    original = _base_artifact(version, number, previous)
+    manifest = json.loads(original.manifest)
+    with tarfile.open(fileobj=io.BytesIO(original.archive), mode="r:gz") as archive:
+        payload = {row["path"]: archive.extractfile(row["path"]).read() for row in manifest["files"]}
+    payload["frontend/index.html"] = payload["frontend/index.html"].replace(
+        b"<body>", b'<body><div id="root"></div>', 1)
+    payload["frontend/assets/legacy-deadbeef.js"] = b"/* Generated prior lazy chunk; retained by manifest. */"
+    manifest["files"] = [asdict(generated.FileSpec(path, len(data), sha256(data),
+                          0o755 if path.startswith("backend/") else 0o644))
+                         for path, data in sorted(payload.items())]
+    identity = sha256(canonical({path: sha256(data) for path, data in payload.items()
+                                 if path.startswith("frontend/")}))
+    manifest["frontend_identity"] = identity
+    next(part for part in manifest["components"] if part["name"] == "frontend")["identity"] = identity
+    raw = canonical(manifest)
+    output = io.BytesIO()
+    with gzip.GzipFile(fileobj=output, mode="wb", mtime=0, filename="") as compressed:
+        with tarfile.open(fileobj=compressed, mode="w|", format=tarfile.USTAR_FORMAT) as archive:
+            for path, data in sorted({**payload, "manifest.json": raw}.items()):
+                entry = tarfile.TarInfo(path)
+                entry.mode, entry.size, entry.mtime = (0o755 if path.startswith("backend/") else 0o644), len(data), 0
+                archive.addfile(entry, io.BytesIO(data))
+    return replace(original, manifest=raw, archive=output.getvalue(),
+                   selection=replace(original.selection, manifest_sha256=sha256(raw),
+                                     archive_sha256=sha256(output.getvalue())))
+
+
+# This privately imported fixture module has no other consumers. Its World must
+# start with the same realistic generated artifact profile as later replacements.
+generated.artifact = runtime_artifact
+
+# Read the actual backend's fixed replacement literal for the fake wire response,
+# independently of the adapter constant. No backend code or native binary runs.
+_backend = Path(__file__).resolve().parents[3] / "backend/src/main.rs"
+_line = next(line.strip() for line in _backend.read_text().splitlines() if "bytes = html.replace(" in line)
+_served_root = json.loads(_line.split(", ", 1)[1].split(").into_bytes()", 1)[0]).encode()
 
 
 class GeneratedOwner:
@@ -51,6 +100,25 @@ class GeneratedOwner:
                 output.write(chunk)
                 model_hash.update(chunk)
                 remaining -= len(chunk)
+        self.model = model
+        self.overview = data / "models/publication.fixture"
+        self.scene = data / "models/scene.fixture"
+        self.room_links = data / "models/room-links.fixture"
+        overview = {"scope": ["00000000-0000-4000-8000-000000000101", "00000000-0000-4000-8000-000000000102"],
+                    "publicationId": "00000000-0000-4000-8000-000000000103",
+                    "modelSha256": model_hash.hexdigest(), "modelBytes": model_size}
+        scene = {"sourceRevisionId": "generated-source-revision", "sourceSha256": sha256(b"generated source")}
+        self.overview.write_bytes(canonical(overview))
+        self.scene.write_bytes(canonical(scene))
+        self.room_links.write_bytes(canonical({"profile": "generated-room-links", "links": []}))
+        for path in (self.overview, self.scene, self.room_links):
+            os.chmod(path, 0o600)
+        self.application = ApplicationExpectations(
+            scope=tuple(overview["scope"]), model_configured=True, scene_configured=True, room_links_configured=True,
+            publication_id=overview["publicationId"], overview_manifest_sha256=sha256(self.overview.read_bytes()),
+            model_sha256=model_hash.hexdigest(), model_bytes=model_size, source_revision_id=scene["sourceRevisionId"],
+            source_sha256=scene["sourceSha256"], semantics_sha256=sha256(self.scene.read_bytes()),
+            room_links_sha256=sha256(self.room_links.read_bytes()))
         tls = []
         for name in ("certificate.fixture", "private-key.fixture"):
             path = data / name
@@ -84,6 +152,9 @@ class GeneratedOwner:
                                       self.arguments, generated.STORAGE,
                                       (ArtifactPin("generated-model", model, model_size,
                                                    model_hash.hexdigest(), 32 * 1024 * 1024),
+                                       *(ArtifactPin("generated-" + path.stem, path, path.stat().st_size,
+                                                     sha256(path.read_bytes()), 65536)
+                                         for path in (self.overview, self.scene, self.room_links)),
                                        *(ArtifactPin("generated-tls-" + str(number), path, path.stat().st_size,
                                                      sha256(path.read_bytes()), 65536)
                                          for number, path in enumerate(tls))))
@@ -96,8 +167,9 @@ class GeneratedOwner:
         self.launcher = Launcher(self.store, self.inspector, self.platform,
                                  self.read_installed, self.service)
         self.publisher = Publication(self.launcher, self.store, self.activate)
-        self.controller = Controller(world.policy, world, world.fixture_manifest,
-                                     self.launcher, self.publisher, HealthProbe(self.launcher))
+        verifier = PreservingManifestVerifier(world.fixture_manifest, self.launcher, self.store)
+        self.controller = Controller(world.policy, world, verifier,
+                                     self.launcher, self.publisher, HealthProbe(self.launcher, self.application))
 
     def new_process(self, installed):
         self.birth += 1
@@ -189,10 +261,28 @@ class GeneratedOwner:
         self.calls.append("start-existing")
         return self.running
 
-    def readiness(self, process, deadline):
-        require(self.running == process, "health-failed")
+    def readiness(self, request, deadline):
+        process = request.process
+        require(self.running == process and time.monotonic() < deadline, "health-failed")
         self.calls.append("service-readiness")
-        return Readiness(process, True, (self.world.installed.frontend / "index.html").read_bytes())
+        # Generated in-process response specimens only: no real HTTP, session,
+        # native service or model parser qualification is represented here.
+        overview, scene = json.loads(self.overview.read_bytes()), json.loads(self.scene.read_bytes())
+        with self.model.open("rb") as source:
+            model_hash = hashlib.file_digest(source, "sha256").hexdigest()
+        revision = sha256(process.birth)
+        application = NativeReadiness(
+            request=request, scope=tuple(overview["scope"]), model_configured=True, scene_configured=True,
+            room_links_configured=True, publication_id=overview["publicationId"],
+            overview_manifest_sha256=sha256(self.overview.read_bytes()), model_sha256=model_hash,
+            model_bytes=self.model.stat().st_size, model_content_type="model/gltf-binary",
+            model_content_digest="sha-256=:" + base64.b64encode(bytes.fromhex(model_hash)).decode() + ":",
+            source_revision_id=scene["sourceRevisionId"], source_sha256=scene["sourceSha256"],
+            semantics_sha256=sha256(self.scene.read_bytes()), room_links_sha256=sha256(self.room_links.read_bytes()),
+            selection_revision=revision, model_selection_revision=revision, source_selection_revision=revision,
+            room_links_selection_revision=revision)
+        raw = (self.world.installed.frontend / "index.html").read_bytes()
+        return Readiness(process, raw.replace(b'id="root"', _served_root), application)
 
 
 class RuntimeHappyPaths(unittest.TestCase):
@@ -220,6 +310,8 @@ class RuntimeHappyPaths(unittest.TestCase):
                                  str(owner.world.installed.frontend))
                 self.assertEqual(owner.world.installed.binary == before.binary, frontend_only)
                 self.assertNotEqual(owner.world.installed.frontend, before.frontend)
+                self.assertEqual((owner.world.installed.frontend / "assets/legacy-deadbeef.js").read_bytes(),
+                                 (original.frontend / "assets/legacy-deadbeef.js").read_bytes())
                 self.assertEqual(list(owner.world.policy.staging_parent.iterdir()), [])
                 owner.store.verify(original, time.monotonic() + 30)
                 owner.store.verify(owner.world.installed, time.monotonic() + 30)
