@@ -7,7 +7,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from houseatlas_updater.controller import Controller
 from maintenance_owner import MaintenanceOwner
 
 
@@ -22,16 +21,20 @@ def source_module(name, path):
 
 
 bridge = source_module('generated_maintenance_bridge', ROOT / 'tools/houseatlas-mcp-bridge/bridge.py')
-generated = source_module('generated_updater_world', ROOT / 'tools/houseatlas-updater/tests/synthetic.py')
+runtime_fixture = source_module(
+    'generated_runtime_owner', ROOT / 'tools/houseatlas-updater-runtime/tests/test_runtime_happy.py')
+generated = runtime_fixture.generated
 
 
 class MaintenanceHappyPath(unittest.TestCase):
     def test_mcp_generated_check_apply_and_retained_status(self):
         with tempfile.TemporaryDirectory(prefix='houseatlas-mcp-maintenance-generated-') as name:
-            world = generated.World(Path(name))
-            controller = Controller(world.policy, world, world.fixture_manifest, world, world, world)
+            runtime = runtime_fixture.GeneratedOwner(Path(name))
+            world, controller = runtime.world, runtime.controller
             before, native = world.installed, generated.native_cut(world.root / 'native')
-            selected = world.add(generated.artifact('0.2.0', 2))
+            artifact = generated.artifact('0.2.0', 2)
+            runtime.catalog[artifact.selection.manifest_sha256] = artifact
+            selected = world.add(artifact)
             approved = []
 
             def authorize(command, raw):
@@ -68,10 +71,8 @@ class MaintenanceHappyPath(unittest.TestCase):
             self.assertTrue(results[1]['status']['healthVerified'])
             self.assertEqual(results[1]['status'], results[2]['status'])
             self.assertEqual(approved, requests)
-            self.assertEqual(world.calls.count('stop'), 1)
-            self.assertEqual(world.calls.count('publish'), 1)
-            self.assertEqual(world.calls.count('start'), 1)
-            self.assertEqual(world.calls.count('health'), 1)
+            self.assertEqual(runtime.calls, ['fence', 'stop-full-birth', 'prove-exit', 'lease', 'exact-cas',
+                                             'release-lease', 'start-existing', 'service-readiness'])
             self.assertEqual(generated.native_cut(world.root / 'native'), native)
             self.assertTrue(before.binary.is_file())
             self.assertTrue(before.frontend.is_dir())

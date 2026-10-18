@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "796fe8042eaa1d813486721dc0ef6ae48b5667cf9df8216fe031244a11d9a78e",
+  "sourceDigestSha256": "daf21b6ade6dde946651a7d3a0abb26d04a783cc02e6572aa7f0aad740609792",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5957,8 +5957,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 117306,
-      "sha256": "05d48f2b3cb24764043d882113a2888288a4dce33860cb6ad53837f2d7be3bde",
+      "bytes": 118586,
+      "sha256": "5b092f692fad4fa7a4f0c6ef754f36e646a96374b7ea2b1f424fba2b19dbbb0e",
       "owner": "core-integration"
     },
     {
@@ -6382,6 +6382,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/operations/frontend-asset-retention.md",
+      "mode": "100644",
+      "bytes": 8425,
+      "sha256": "42eb5a37cfa9dcf83c4757c1ab5bdf262b008f5312b1baf86573a8badacaefe0",
+      "owner": "core-integration"
+    },
+    {
       "path": "docs/operations/houseatlas-updater-acquisition.md",
       "mode": "100644",
       "bytes": 7616,
@@ -6391,15 +6398,15 @@
     {
       "path": "docs/operations/houseatlas-updater-mcp.md",
       "mode": "100644",
-      "bytes": 3213,
-      "sha256": "6838cb9f95f838601c65a92c69484a8413fba1e5c2a14e0680130fe2513d3407",
+      "bytes": 4027,
+      "sha256": "7b294fb48b2ec38267a701c4417516fedacc3070c588633292db209b0449e423",
       "owner": "mcp"
     },
     {
       "path": "docs/operations/houseatlas-updater-runtime.md",
       "mode": "100644",
-      "bytes": 14817,
-      "sha256": "e7345ef005a20d376e0b7866527479a23f04f869df6707ce922d42dbeeafa5de",
+      "bytes": 21165,
+      "sha256": "1d4990bc9d910b662a8d210d79ba51ce696f7e2c1bfd7ea7a933d925ff29e00a",
       "owner": "core-integration"
     },
     {
@@ -11123,8 +11130,8 @@
     {
       "path": "tools/houseatlas-mcp-bridge/test_maintenance_happy.py",
       "mode": "100644",
-      "bytes": 4341,
-      "sha256": "4b38d51755e45c52f1ac9fc0d56dd27c5770ffe1bcb4f04c871e1548db82d31f",
+      "bytes": 4411,
+      "sha256": "bc54895af31f884698bab4034f567d714aa806409e77a93b0c7f6afdb2d97f72",
       "owner": "mcp"
     },
     {
@@ -11186,8 +11193,8 @@
     {
       "path": "tools/houseatlas-updater-runtime/houseatlas_updater_runtime/__init__.py",
       "mode": "100644",
-      "bytes": 515,
-      "sha256": "b8cd6e569f7e3f8787ff10118ae8a173b0763efb18ed9a6c80ff60b80c67dd89",
+      "bytes": 723,
+      "sha256": "5f2cb668be30955d82b0eb162517d92296f56527e4845cd916c8ad9b4aa6722e",
       "owner": "core-integration"
     },
     {
@@ -11200,15 +11207,15 @@
     {
       "path": "tools/houseatlas-updater-runtime/houseatlas_updater_runtime/publication.py",
       "mode": "100644",
-      "bytes": 15007,
-      "sha256": "02ef3c5b397a5c3f6fdad5a93bd76a969a1e07bf2b821cc31481d701de9f604c",
+      "bytes": 18760,
+      "sha256": "665f05769b9581afd39425db82cee0edae1b5b6d11a621661adb0f44607e9923",
       "owner": "core-integration"
     },
     {
       "path": "tools/houseatlas-updater-runtime/houseatlas_updater_runtime/runtime.py",
       "mode": "100644",
-      "bytes": 11569,
-      "sha256": "d2cf281ad29fec8622720ac97c57d6e3cce4305a109de1fe792fc1fb7e384081",
+      "bytes": 18932,
+      "sha256": "cbf62b062ec8bf6def105bef0ede856f8bc22ad3529eae916fe6ebe8d5e5bed6",
       "owner": "core-integration"
     },
     {
@@ -11221,8 +11228,8 @@
     {
       "path": "tools/houseatlas-updater-runtime/tests/test_runtime_happy.py",
       "mode": "100644",
-      "bytes": 12963,
-      "sha256": "cdf91c3fad31336a5a3b784f850df7cfe2cf684d3c379fed8d4daedeac16d5ae",
+      "bytes": 19353,
+      "sha256": "73fc4897efc0a10bc89aeac1fb8b007a2c54a01c8c166a366bc62bb701296e86",
       "owner": "core-integration"
     },
     {
@@ -11835,6 +11842,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "tools/release/frontend_retention.py",
+      "mode": "100644",
+      "bytes": 16906,
+      "sha256": "a4744a1347c7521eee48459cc1300bc30fe896f5b40a04fc5ca0b9cf94dbe588",
+      "owner": "core-integration"
+    },
+    {
       "path": "tools/release/release-profile.json",
       "mode": "100644",
       "bytes": 582,
@@ -11846,6 +11860,13 @@
       "mode": "100644",
       "bytes": 13837,
       "sha256": "de634d5de2874fec3baec50be77829eb8e8150103a2af70e340d9428daf508e9",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/release/tests/test_frontend_retention_happy.py",
+      "mode": "100644",
+      "bytes": 6498,
+      "sha256": "fdbe475b5e517253d6969c01f9fef25046bf36e2c9cfae4c2321079326b48f51",
       "owner": "core-integration"
     },
     {

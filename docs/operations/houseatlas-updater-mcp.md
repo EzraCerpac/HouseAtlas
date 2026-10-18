@@ -8,7 +8,11 @@ native-scope configuration still create no such owner. This source does not
 install a command or grant maintenance authority to an Atlas Editor.
 
 The trusted host composes the same updater `Controller`, acquisition/verifier,
-runtime/publication/health adapters and journal used by other callers. It then
+runtime/publication/health adapters and journal used by other callers.
+The manifest port must be `PreservingManifestVerifier(trusted_verifier, launcher,
+store)`, and health must use `HealthProbe(launcher, owner_application_expectations)`.
+These enforce declared legacy assets and actual owner-qualified application reads;
+no generic readiness boolean or raw-index hash substitutes for those checks. It then
 constructs `MaintenanceOwner(controller, authorize=...)` and passes it to
 `serve(..., maintenance=owner)`. The separate maintenance authorizer must bind
 the exact command, request bytes, selected release, target and action-time
@@ -28,19 +32,25 @@ health and any recovery attempt before installing this synchronous adapter.
 ## Exact generated positive
 
 Inspect `bridge.py`, `test_maintenance_happy.py`, the imported updater controller,
-CLI, maintenance owner/dispatcher and existing `tests/synthetic.py`. From
+CLI, maintenance owner/dispatcher, the runtime package and its generated
+`tests/test_runtime_happy.py` owner (which imports existing core `tests/synthetic.py`). From
 `tools/houseatlas-mcp-bridge`, run:
 
 ```sh
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../houseatlas-updater:../houseatlas-updater-adapters python3 -m unittest test_maintenance_happy.MaintenanceHappyPath.test_mcp_generated_check_apply_and_retained_status -v
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../houseatlas-updater:../houseatlas-updater-adapters:../houseatlas-updater-runtime python3 -m unittest test_maintenance_happy.MaintenanceHappyPath.test_mcp_generated_check_apply_and_retained_status -v
 ```
 
 One generated in-process MCP stream initializes, lists the optional tools,
 checks a generated bundle, applies it once through the real controller, then
-reads its durable result. The fake native/world owner creates only disposable
+reads its durable result. This composes the concrete source runtime inspector,
+asset-preserving verifier, immutable publication, launcher and typed health
+adapters with the actual core; their platform/native-read callbacks are generated.
+The fake native/world owner creates only disposable
 local files and a nonexecutable Mach-O header specimen. Assertions cover exact
 authorization bytes, the existing default capability boundary, a single
-stop/publish/start/health sequence, unchanged native fixtures and prior code.
+full-birth stop/lease/CAS/start/application-read sequence, unchanged native
+fixtures and prior code. The generated HTTP index uses the inspected backend
+bootstrap transformation, and the manifest retains an original legacy asset.
 No socket, external request, real build/native binary, NAS, native login, service,
 credential, denial/failure/replay/crash/rollback control or broad suite runs.
 
