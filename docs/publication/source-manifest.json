@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "fcab4ee75a8902dee0eaa2dbbf47993581ca3a946dcc4d0ff936e6caedc0272f",
+  "sourceDigestSha256": "a51357767cd655e96405afd2e7c7462ab53e8152d43c3b4246e91edffebba55d",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -266,8 +266,8 @@
     {
       "path": "backend/Cargo.toml",
       "mode": "100644",
-      "bytes": 5921,
-      "sha256": "1ef6a313303d3adce6d7529232b9a7009ced418db90c778da23566bf83e37f3c",
+      "bytes": 6040,
+      "sha256": "963f990444ba090183b6408805d8af11e156759673fab8e11f0d815c95c52361",
       "owner": "core-integration"
     },
     {
@@ -359,6 +359,13 @@
       "mode": "100644",
       "bytes": 47722,
       "sha256": "550aadd46257126452c1ac1599b5ed1bee278642534fc0bb0cae734a872d8a54",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/examples/healthy-offline-intent-reconciliation.rs",
+      "mode": "100644",
+      "bytes": 16160,
+      "sha256": "ed4fe987e33daeda15c2a4ef32182d5ed016887ef5407e6e2bbc58093a7e798d",
       "owner": "core-integration"
     },
     {
@@ -5943,8 +5950,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 104854,
-      "sha256": "e884ca1c9a94e4fe737245cf2e89b40f13f1d2e5591907af0fc23f0358948d7f",
+      "bytes": 106330,
+      "sha256": "085d39e8ae6318d0200dab3fc56e9ee9410443fa5d210cb235298a553219a4c4",
       "owner": "core-integration"
     },
     {

@@ -1728,6 +1728,32 @@ establish offline renderer, browser, device, source placement or deployment
 acceptance. The closed v1 envelope remains; explicit model-section v2 renderer
 support is still required.
 
+## Bounded generated offline intent reconciliation qualification
+
+Inspect `backend/examples/healthy-offline-intent-reconciliation.rs` before this
+separately released synthetic qualification. It uses the existing in-process
+Axum router, Access owner and SQLite Store in a fresh disposable directory.
+One generated Stock command commits; subsequent POSTs only inspect its retained
+outcome. It starts no listener and does not resend the command or use the Node
+ledger. Use Rust 1.99.0 and an owned target outside the checkout:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-offline-intent-reconciliation
+```
+
+The bounded cases cover seven-table successful commit coherence, repeated
+lookup and original receipt preservation, an alternate lookup request ID,
+changed-payload conflict, viewer-actor absence, unconfigured workspace/home
+absence, unchanged Atlas DB/WAL bytes and an actual Store close/reopen. They
+also check the existing 16,384-byte lookup input boundary and the consumer's
+exact/one-byte-short response reader bound. This is a separate generated
+qualification, not a new ordinary workflow step or a blanket regression release.
+
+An absent outcome retains `retrySafety: not-established`. These checks do not
+establish replay safety, injected rollback, crash or process recovery, concurrent
+writers, two authorized-home collision isolation, a server response-size ceiling,
+offline editing/sync, production access or deployment readiness.
+
 ## Named generated saved Atlas mounting positives
 
 Read [saved Atlas mounting](../offline/saved-atlas-mounting.md),
