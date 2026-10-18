@@ -200,8 +200,16 @@ fn assert_receipt(value: &Value, intent: &Value, committed: &Value) {
     assert_eq!(saved["originalHttpDelivery"], "not-established");
 }
 
-fn assert_absent(value: &Value, intent: &Value) {
+fn assert_absent(value: &Value, intent: &Value, request_digest: &str) {
+    assert_eq!(value["format"], "atlas-retained-reconciliation/1");
     assert_eq!(value["lookupRequestId"], intent["requestId"]);
+    assert_eq!(
+        value["inspection"]["format"],
+        "atlas-retained-intent-inspection/1"
+    );
+    assert_eq!(value["inspection"]["coverage"], "retained-atlas-stock-only");
+    assert_eq!(value["inspection"]["commandId"], intent["commandId"]);
+    assert_eq!(value["inspection"]["requestDigest"], request_digest);
     assert_eq!(value["inspection"]["resolvedScope"], intent["context"]);
     assert_eq!(value["inspection"]["outcome"], "not-retained-at-snapshot");
     assert_eq!(value["inspection"]["retrySafety"], "not-established");
@@ -298,10 +306,19 @@ async fn qualify() -> Result<(), Failure> {
     let response = post(&app, LOOKUP, serde_json::to_vec(&conflict)?, &editor).await?;
     assert_eq!(response.status(), StatusCode::CONFLICT);
     let _ = to_bytes(response.into_body(), RESPONSE_BYTES).await?;
-    assert_absent(&inspect(&app, &intent, &viewer).await?, &intent);
+    assert_absent(
+        &inspect(&app, &intent, &viewer).await?,
+        &intent,
+        parsed.intent_digest(),
+    );
     let mut missing = intent.clone();
     missing["idempotencyKey"] = json!(id(924));
-    assert_absent(&inspect(&app, &missing, &editor).await?, &missing);
+    let missing_request = wire::StockRequest::parse(&contracts, missing.clone())?;
+    assert_absent(
+        &inspect(&app, &missing, &editor).await?,
+        &missing,
+        missing_request.intent_digest(),
+    );
     for field in ["workspaceId", "homeId"] {
         let mut other = intent.clone();
         other["context"][field] = json!(id(925));
@@ -411,7 +428,7 @@ async fn qualify() -> Result<(), Failure> {
             "stockWrites":1, "replayedWrites":0, "listeners":0,
             "checks":["coherent-seven-table-native-commit", "repeated-read-only-outcome",
                 "original-receipt-and-alternate-lookup-id", "conflicting-payload-lookup",
-                "actor-workspace-home-isolation", "absence-does-not-authorize-retry",
+                "actor-miss-and-unconfigured-scope-rejection", "absence-does-not-authorize-retry",
                 "unchanged-atlas-db-and-wal", "clean-store-reopen",
                 "lookup-input-16384-accepted-16385-rejected", "exact-and-short-response-reader"],
             "responseReaderBytes":exact_response_bytes,
