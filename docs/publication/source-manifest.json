@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "33a8dfb8654f3aad585970107c0ccfd41ea5f504ea51dcdb30356a62627c24b7",
+  "sourceDigestSha256": "711206d3de1beef5eb5d9ad58f19c58e95a5c06ee6367ef09236d21799bbfa7f",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5964,8 +5964,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 125314,
-      "sha256": "f62d7fc0d683d9a749f31768386af91aba43eeea78787d09771114e459bcb30c",
+      "bytes": 126936,
+      "sha256": "21e711253885269527be86abcfe2e5381f12de796a7cf221cc7373ef0cee31e7",
       "owner": "core-integration"
     },
     {
@@ -6527,6 +6527,13 @@
       "bytes": 1694,
       "sha256": "4d14aeaec726de3e319d866aba05c0fcda96f363648ea0bcd1c1d257122b6307",
       "owner": "operations-policy"
+    },
+    {
+      "path": "docs/operations/updater-application-readiness.md",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 8572,
+      "sha256": "1bd79acafdd9f8c2fbf9b6138709eb8309b12ea2b4b52860d5965a9bc370a86f"
     },
     {
       "path": "docs/operations/updater-established-native-transport.md",
@@ -11282,6 +11289,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "tools/houseatlas-updater-runtime/houseatlas_updater_runtime/application_readiness.py",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 30345,
+      "sha256": "42f6bcd9e1ed4d49f189c6e3d28501d9dd7e7e1561574fa32b75e56714c4ad05"
+    },
+    {
       "path": "tools/houseatlas-updater-runtime/houseatlas_updater_runtime/established_native_http.py",
       "mode": "100644",
       "owner": "core-integration",
@@ -11315,6 +11329,13 @@
       "bytes": 78,
       "sha256": "84488858cf6c6361a6b1ab8b0fd0d83069538864ca4c6f4dca7df61e0f93ed11",
       "owner": "core-integration"
+    },
+    {
+      "path": "tools/houseatlas-updater-runtime/tests/test_application_readiness_happy.py",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 17626,
+      "sha256": "085b88ac72aae95637f575f45d822b8a772bc5d9a18f81e7db71e5ab88cebf55"
     },
     {
       "path": "tools/houseatlas-updater-runtime/tests/test_established_native_http_happy.py",

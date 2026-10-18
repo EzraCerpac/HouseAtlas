@@ -2103,3 +2103,30 @@ closure; it opens no socket, loads no trust material and calls no native/session
 owner. No malformed, denial, failure, expiry, concurrency, replay, crash or broader
 suite is released. This is source behavior, not application readiness, native
 coherence, qualified peer/TLS/grants, maintenance authority or deployment.
+
+
+## Established application readiness generated positive
+
+After inspecting the concrete reader, its fixed-route transport, existing
+`HealthProbe` contract and actual backend DTO/model/map schemas, the integration
+owner releases this single ordinary generated successful case:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tools/houseatlas-updater:tools/houseatlas-updater-runtime python3 tools/houseatlas-updater-runtime/tests/test_application_readiness_happy.py ApplicationReadinessHappyPaths.test_established_scope_model_scene_and_room_links -v
+```
+
+The case runs the actual `EstablishedApplicationReadiness` over the concrete
+transport with finite in-process socket/TLS-wrap/clock fixtures. It checks ten
+fixed requests under one absolute budget, exact pinned descriptor projections,
+model/map digests, a documentary room join, stale-view qualifiers, unchanged
+established-owner fields and original request/process/nonce retention. The
+existing `HealthProbe` typed-evidence contract is exercised without native or
+platform verification. All documents, model bytes and session facts are generated;
+no real socket, TLS trust query, native/provider read or credential is used.
+
+This releases no malformed, omission, denial, expiry, mutation, concurrency,
+failure-injection, retry, replay, crash, rollback, network, server, MCP, session,
+maintenance, target or broad-suite execution. Runtime binding, actual peer/TLS
+and process custody, compiled configuration admission, coherent full-profile
+validation and deployment remain separate owner gates. See the
+[reader contract](../operations/updater-application-readiness.md).
