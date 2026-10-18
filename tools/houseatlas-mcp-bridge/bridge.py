@@ -890,8 +890,17 @@ TOOLS = [
 
 
 class Stdio:
-    def __init__(self, bridge):
+    def __init__(self, bridge, maintenance=None):
         self.bridge, self.initialized, self.ready = bridge, False, False
+        # Optional in-process binding supplied only by the maintenance owner.
+        # The normal native bridge config/main installs none and grants none.
+        self.maintenance = maintenance
+        self.maintenance_tools = [] if maintenance is None else maintenance.catalog()
+        if maintenance is not None:
+            need(len(self.maintenance_tools) == 3 and
+                 {row['name'] for row in self.maintenance_tools} ==
+                 {'houseatlas_update_check', 'houseatlas_update_apply', 'houseatlas_update_status'},
+                 'Maintenance owner unavailable')
 
     def handle(self, message):
         keys(message, ('jsonrpc', 'method'), ('id', 'params'))
@@ -922,17 +931,22 @@ class Stdio:
         need(self.ready, 'Initialization notification required')
         if method == 'tools/list':
             need(params == {}, 'No pagination is supported')
-            return {'tools': TOOLS}
+            return {'tools': [*TOOLS, *self.maintenance_tools]}
         need(method == 'tools/call', 'Unsupported method')
         keys(params, ('name',), ('arguments',))
         name = params['name']
         args = params.get('arguments')
         if args is None:
             args = {}
-        definitions = {t['name']: t for t in TOOLS}
+        definitions = {t['name']: t for t in [*TOOLS, *self.maintenance_tools]}
         need(isinstance(name, str) and name in definitions, 'Unknown tool')
         schema = definitions[name]['inputSchema']
         keys(args, schema['required'], set(schema['properties']) - set(schema['required']))
+        if self.maintenance is not None and any(row['name'] == name for row in self.maintenance_tools):
+            # This does not call native login/Editor/write admission. The bound
+            # owner separately authorizes the exact request before dispatch.
+            value = self.maintenance.call(name, args)
+            return {'content': [{'type': 'text', 'text': decimal_json(value)}], 'isError': not value['ok']}
         try:
             if name == 'houseatlas_capabilities': value = self.bridge.capabilities()
             elif name == 'houseatlas_read': value = self.bridge.read(args['requestJson'])
@@ -982,8 +996,8 @@ def initialize_diagnostics(config, destination):
     return InitializeDiagnostics(destination) if enabled else None
 
 
-def serve(bridge, source, destination, diagnostics=None):
-    session = Stdio(bridge)
+def serve(bridge, source, destination, diagnostics=None, *, maintenance=None):
+    session = Stdio(bridge, maintenance)
     while True:
         line = source.readline(MAX_MESSAGE + 1)
         if not line:
