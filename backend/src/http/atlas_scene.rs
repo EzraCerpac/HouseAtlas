@@ -46,7 +46,9 @@ pub(super) async fn descriptor(
             let (current,current_overview)=selected(&host,&scope)?;if current.revision!=revision||current_overview.manifest_sha256!=manifest_sha256{return Err(failure(StatusCode::CONFLICT));}
             current_overview.read_original().map_err(|_|failure(StatusCode::CONFLICT))?;
             let mut response=json_response(wire);response.headers_mut().insert("x-atlas-selection-revision",header::HeaderValue::from_str(&revision).map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE))?);
-            response.headers_mut().insert("x-atlas-overview-manifest-sha256",header::HeaderValue::from_str(&manifest_sha256).map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE))?);Ok(response)
+            response.headers_mut().insert("x-atlas-overview-manifest-sha256",header::HeaderValue::from_str(&manifest_sha256).map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE))?);
+            if let Some(entry)=current.entry_building_id(){response.headers_mut().insert("x-atlas-entry-building-id",header::HeaderValue::from_str(entry).map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE))?);}
+            Ok(response)
         })
     }).await.map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE))?
 }
