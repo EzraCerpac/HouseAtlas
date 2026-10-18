@@ -2130,3 +2130,23 @@ maintenance, target or broad-suite execution. Runtime binding, actual peer/TLS
 and process custody, compiled configuration admission, coherent full-profile
 validation and deployment remain separate owner gates. See the
 [reader contract](../operations/updater-application-readiness.md).
+
+
+## Contextual retained-record search presentation
+
+The existing `node frontend/lantern-tests/healthy-read.mjs` positive also renders
+actual SearchPalette/StoreProvider markup with generated retained views. It checks
+archive opt-in only when scoped retained records exist, original archived-record
+identity through the real search/projector, entity and retained source archive
+qualifiers, and an ordinary home without archived records. Import paths alone
+are adapted for static React rendering; no browser effect, transport or provider
+is invoked. Existing typecheck and production build commands apply unchanged.
+
+The shell Overview control is neutral; the existing overview Sources and selected
+record details retain actual cache states and dates. The former global HomeBox
+archive strip is removed, with generic archive access retained inside Search.
+This is presentation only: Host archive defaults/lifetimes, read adapters, source
+records, inventory/files/upkeep, query semantics and verified native links are
+unchanged. Removing the HomeBox integration itself is outside this change.
+Browser focus, scrolling and affected responsive presentation need fresh generated
+or installed observations; static success does not qualify provider availability.
