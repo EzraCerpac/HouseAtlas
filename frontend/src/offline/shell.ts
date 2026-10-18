@@ -1,4 +1,50 @@
 export interface SavedShellStatus { readonly ready: boolean; readonly buildId: string | null }
+const SAVED_SCRIPT = '/saved/service-worker.js', ROOT_SCRIPT = '/offline-entry-worker.js';
+function workers(registration: ServiceWorkerRegistration): ServiceWorker[] {
+  return [...new Set([registration.installing, registration.waiting, registration.active].filter((worker): worker is ServiceWorker => worker !== null))];
+}
+function owned(registration: ServiceWorkerRegistration, script: string): boolean {
+  const entries = workers(registration);
+  return entries.length > 0 && entries.every(worker => worker.scriptURL === new URL(script, location.origin).href);
+}
+async function activated(registration: ServiceWorkerRegistration): Promise<ServiceWorker | null> {
+  const worker = registration.installing ?? registration.waiting ?? registration.active;
+  if (!worker) return null;
+  if (worker.state !== 'activated') await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => { worker.removeEventListener('statechange', changed); reject(new Error('Public shell verification did not finish')); }, 60_000);
+    const changed = () => {
+      if (worker.state === 'activated' || worker.state === 'redundant') {
+        clearTimeout(timer); worker.removeEventListener('statechange', changed);
+        if (worker.state === 'activated') resolve(); else reject(new Error('Public shell unavailable'));
+      }
+    };
+    worker.addEventListener('statechange', changed); changed();
+  });
+  return worker;
+}
+async function status(worker: ServiceWorker, message: string): Promise<SavedShellStatus> {
+  return new Promise((resolve, reject) => {
+    const channel = new MessageChannel(), timer = setTimeout(() => { channel.port1.close(); reject(new Error('Public shell status unavailable')); }, 60_000);
+    channel.port1.onmessage = event => {
+      clearTimeout(timer); channel.port1.close(); const value: unknown = event.data;
+      if (value && typeof value === 'object' && 'ready' in value && 'buildId' in value
+        && typeof value.ready === 'boolean' && typeof value.buildId === 'string' && /^[a-f0-9]{64}$/.test(value.buildId))
+        resolve({ ready: value.ready, buildId: value.buildId });
+      else resolve({ ready: false, buildId: null });
+    };
+    worker.postMessage(message, [channel.port2]);
+  });
+}
+async function prepareRootEntry(expectedBuild: string): Promise<void> {
+  const prior = await navigator.serviceWorker.getRegistration('/');
+  if (prior?.scope === new URL('/', location.origin).href && !owned(prior, ROOT_SCRIPT)) return;
+  const registration = await navigator.serviceWorker.register(ROOT_SCRIPT, { scope: '/', updateViaCache: 'none' });
+  try { await registration.update(); } catch { /* Existing installed build is checked below. */ }
+  const worker = await activated(registration);
+  if (!worker || !owned(registration, ROOT_SCRIPT)) return;
+  const result = await status(worker, 'root-entry-status');
+  if (!result.ready || result.buildId !== expectedBuild) throw new Error('Root entry build unavailable');
+}
 /** Registration is not readiness: the scoped worker verifies the full committed
  * public closure before answering. No online/session/storage permission probe. */
 export async function verifySavedShell(): Promise<SavedShellStatus> {
@@ -13,37 +59,38 @@ export async function verifySavedShell(): Promise<SavedShellStatus> {
     expectedBuild = new TextDecoder().decode(bytes).match(/name="houseatlas-saved-shell-build" content="([a-f0-9]{64})"/)?.[1];
   }
   if (!expectedBuild || !/^[a-f0-9]{64}$/.test(expectedBuild)) return { ready: false, buildId: null };
+  const prior = await navigator.serviceWorker.getRegistration('/saved/');
+  if (prior?.scope === new URL('/saved/', location.origin).href && !owned(prior, SAVED_SCRIPT)) return { ready: false, buildId: null };
   const registration = await navigator.serviceWorker.register('/saved/service-worker.js', { scope: '/saved/', updateViaCache: 'none' });
   // An updated page cannot stamp a new Save with a retained old shell.
   try { await registration.update(); } catch { /* Expected build is still checked below. */ }
-  const worker = registration.installing ?? registration.waiting ?? registration.active;
-  if (!worker) return { ready: false, buildId: null };
-  if (worker.state !== 'activated') await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => { worker.removeEventListener('statechange', changed); reject(new Error('Public shell verification did not finish')); }, 60_000);
-    const changed = () => {
-      if (worker.state === 'activated' || worker.state === 'redundant') {
-        clearTimeout(timer); worker.removeEventListener('statechange', changed);
-        if (worker.state === 'activated') resolve(); else reject(new Error('Public shell unavailable'));
-      }
-    };
-    worker.addEventListener('statechange', changed); changed();
-  });
-  return new Promise((resolve, reject) => {
-    const channel = new MessageChannel(), timer = setTimeout(() => { channel.port1.close(); reject(new Error('Public shell status unavailable')); }, 60_000);
-    channel.port1.onmessage = event => {
-      clearTimeout(timer); channel.port1.close(); const value: unknown = event.data;
-      if (value && typeof value === 'object' && 'ready' in value && value.ready === true && 'buildId' in value
-        && typeof value.buildId === 'string' && value.buildId === expectedBuild) resolve({ ready: true, buildId: value.buildId });
-      else resolve({ ready: false, buildId: null });
-    };
-    worker.postMessage('saved-shell-status', [channel.port2]);
-  });
+  const worker = await activated(registration);
+  if (!worker || !owned(registration, SAVED_SCRIPT)) return { ready: false, buildId: null };
+  const value = await status(worker, 'saved-shell-status');
+  if (!value.ready || value.buildId !== expectedBuild) return { ready: false, buildId: null };
+  // Intentional Saved entry and explicit Prepare both reach this verified
+  // public-shell path; neither needs a new private capture to enable root entry.
+  // Native startup/login do not call this helper. Root availability is not
+  // part of the Saved receipt/status.
+  try { await prepareRootEntry(expectedBuild); } catch { /* Saved closure remains independently verified. */ }
+  return { ready: true, buildId: value.buildId };
 }
 
-/** Explicit local cleanup of only this verified saved build and exact scope. */
+/** Explicit local cleanup of only this displayed build's owned registrations. */
 export async function removeSavedShell(buildId: string): Promise<void> {
   if (!/^[a-f0-9]{64}$/.test(buildId)) throw new Error('Saved shell identity missing');
-  const registration = await navigator.serviceWorker.getRegistration('/saved/');
-  if (registration?.scope === new URL('/saved/', location.origin).href) await registration.unregister();
+  for (const [scope, script, message] of [['/', ROOT_SCRIPT, 'root-entry-status'], ['/saved/', SAVED_SCRIPT, 'saved-shell-status']] as const) {
+    const registration = await navigator.serviceWorker.getRegistration(scope);
+    if (registration?.scope !== new URL(scope, location.origin).href || !owned(registration, script)) continue;
+    const entries = workers(registration);
+    // Never unregister a newer build, a worker still installing, or a foreign
+    // registration. Status verifies identity even if its cache was removed.
+    if (!entries.every(worker => worker.state === 'activated')) continue;
+    const states = await Promise.all(entries.map(worker => status(worker, message)));
+    if (!states.every(value => value.buildId === buildId)) continue;
+    const current = workers(registration);
+    if (current.length !== entries.length || !current.every(worker => entries.includes(worker)) || !owned(registration, script)) continue;
+    await registration.unregister();
+  }
   await caches.delete('houseatlas-saved-public-' + buildId);
 }

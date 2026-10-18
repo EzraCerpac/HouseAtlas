@@ -33,7 +33,8 @@ self.addEventListener('install', event => event.waitUntil((async () => {
 })()));
 self.addEventListener('activate', event => event.waitUntil((async () => {
   if (!await ready()) throw Error('Public shell is not verified');
-  for (const name of await caches.keys()) if (name.startsWith(PREFIX) && name !== NAME) await caches.delete(name);
+  // Other builds may still serve an active root or Saved registration.
+  // Only explicit build-qualified owner cleanup removes a retained cache.
   await self.clients.claim();
 })()));
 self.addEventListener('message', event => {
