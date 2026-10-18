@@ -251,6 +251,7 @@ const searchUi = await searchJsx('../src/lantern/components/ui.tsx', {
 });
 const searchPalette = await searchJsx('../src/lantern/components/SearchPalette.tsx', {
   react: reactUrl, 'react/jsx-runtime': jsxUrl, '../data/query': searchQuery,
+  '../data/time': searchTime,
   '../state/store': searchStore, './Icon': searchIcon, './ui': searchUi, '../../app/model': quantityModelModule,
 });
 const { StoreProvider } = await import(searchStore);

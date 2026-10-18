@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "73706f7c842dc0dc2335ec86441988459432a56b234ded3ae22fd1115ad65ffb",
+  "sourceDigestSha256": "4d9baa6ede9ba9ea17366a0eb236007521ad8729132fbad07932ba0e0dcc63a6",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5964,8 +5964,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 129848,
-      "sha256": "edf4294c2086c5df3b8a3dbc743340f73b611d5a3913d241c5d2184b190c9be1",
+      "bytes": 130931,
+      "sha256": "b001f8c42540ec86e2e037d813e780c50d59481e1bd7264911ec2d5956082f22",
       "owner": "core-integration"
     },
     {
@@ -7336,8 +7336,8 @@
     {
       "path": "frontend/lantern-tests/healthy-read.mjs",
       "mode": "100644",
-      "bytes": 53681,
-      "sha256": "f153845ff2ad6627f3393ca9be1094db6111cd5db6e39ba0f895b38c3c43f568",
+      "bytes": 53711,
+      "sha256": "a783df215bf7a9fb8ec5017d9d34df496c433af55074ff30cf5168aedad61db8",
       "owner": "web"
     },
     {
@@ -8876,8 +8876,8 @@
     {
       "path": "frontend/src/lantern/components/DetailPanel.tsx",
       "mode": "100644",
-      "bytes": 37999,
-      "sha256": "0260aee3f73f3b3242886acaa7e5f9cf0a520e72374ebe649a31b6d4ef99d126",
+      "bytes": 39259,
+      "sha256": "1dbc9ec6077541854845b5b81351cc0afba62ce1b19df22bc1487ea1e25aad7e",
       "owner": "web"
     },
     {
@@ -8960,8 +8960,8 @@
     {
       "path": "frontend/src/lantern/components/SearchPalette.tsx",
       "mode": "100644",
-      "bytes": 9469,
-      "sha256": "f69335e38d69078442cf816328aa091865b89a3a10c0c737926515d02c9743ca",
+      "bytes": 11901,
+      "sha256": "77e118ff84e2f47ab6ba8c2ab8d83422c2aa832d0b30ad428247e8399b1c0135",
       "owner": "web"
     },
     {
@@ -9758,8 +9758,8 @@
     {
       "path": "frontend/src/lantern/styles/app.css",
       "mode": "100644",
-      "bytes": 43883,
-      "sha256": "fea4408d1b337c23e25293db91b76c5b2324a218cdf4e9acac77e11afe6d98cb",
+      "bytes": 44904,
+      "sha256": "b7e4a425136dde322e6aeb0cbcd68f121b72c8559bf9df5122562cae369c5d14",
       "owner": "web"
     },
     {
@@ -9786,8 +9786,8 @@
     {
       "path": "frontend/src/lantern/styles/panels.css",
       "mode": "100644",
-      "bytes": 42802,
-      "sha256": "73d67c83b87e79b48ab2e81bbd0c31e9e9cdc8fcc8be5777c2db3716eac1c371",
+      "bytes": 43805,
+      "sha256": "480b9f76ed9527a59801c8382a87921b7e24df21020ea3fddc71bc6cf2a31978",
       "owner": "web"
     },
     {
@@ -9961,8 +9961,8 @@
     {
       "path": "frontend/src/lantern/views/RoomsView.tsx",
       "mode": "100644",
-      "bytes": 13170,
-      "sha256": "72f5e46e2505a245d9a868213c3c948011eb5e3d2bffd58d60a02c793cb8a6cd",
+      "bytes": 14107,
+      "sha256": "bdc816644fb605d64c76e2e1533c273c9a1bb6d0125801dc4e9dcc5015d747c6",
       "owner": "web"
     },
     {

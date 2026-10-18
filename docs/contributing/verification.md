@@ -2180,3 +2180,19 @@ remain the relevant ordinary checks. Manual desktop and phone review must
 distinguish opening motion from settled pixels and verify focus through actual
 invoking controls. Generated presentation does not establish native admission,
 current source authorization, physical accuracy, deployment or device behavior.
+
+Search first-glance text uses linked document names and recorded upkeep status
+and dates. Homogeneous groups omit repeated kind labels; mixed groups retain
+them. Document kind remains in its provenance details. Room rows show supplied
+contents and exceptional archive/source/cache/no-shape states; normal source
+state and every geometry mapping remain in contextual details. Storage type
+does not establish file access, and an unknown upkeep status does not establish
+an overdue task. A stored document without links may have a title-only result.
+
+For this presentation, inspect both opening and settled Search and room sheets.
+The Search scrim animates background color; foreground and record-sheet entry
+animate transforms without opacity fading. Review the ancestor as well as the
+foreground, ordinary keyboard selection and Close focus return, and the actual
+contextual metadata destinations. Use the original supplied examples; source
+review covers combinations absent from a generated fixture. These observations
+do not qualify every source-state combination or frame timing.
