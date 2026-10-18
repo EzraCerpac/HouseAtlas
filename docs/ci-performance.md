@@ -46,6 +46,11 @@ has a null percentage with `deltaPercentStatus: zero-baseline`. A derived
 percentage overflow has a null value with the distinct `overflow` status and
 an explicit table label. Neither becomes zero or an invented infinite speedup.
 The initial owned policy configures no new deterministic budget.
+An absolute maximum/minimum still applies to a valid measured head when the
+base is explicitly unsupported. The comparison remains skipped with null
+deltas; a head outside its absolute limit sets the report's failed flag.
+Relative regression budgets require both sides and are not invented from an
+unavailable baseline. An unavailable head supplies no absolute observation.
 Inconsistent deterministic samples skip an unbudgeted metric; with a configured
 budget they fail because the proposed budget cannot be evaluated reliably.
 Relative deterministic budgets compare the numeric inputs' shortest round-trip

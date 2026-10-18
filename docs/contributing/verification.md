@@ -1676,6 +1676,21 @@ cargo clippy --offline --locked -p houseatlas-backend --lib --bin houseatlas --e
 
 ## Synthetic PR performance reporting
 
+For the separately scoped valid-value absolute-head-budget comparison, inspect
+`tools/perf/reporting/head-budget-healthy.test.mjs` and its pure reporting imports,
+then run on Node 26.10.0:
+
+```sh
+node tools/perf/reporting/head-budget-healthy.test.mjs
+```
+
+Four generated numeric cases retain a valid unsupported baseline while checking
+the measured head's configured absolute maximum/minimum, exact boundaries,
+unavailable relative comparisons and truthful report failure. All metric states
+are valid; no measurement collection, process, API, malformed input, omission,
+mutation, denial, security or application failure injection is involved. This
+manual local check adds no workflow step or permission for held reporting files.
+
 The separate performance lane uses only this automatic healthy reporting check,
 from the exact accepted default-branch checkout in the read-only `workflow_run`
 resolution job. The test body and all imports come from that trusted revision;
@@ -1688,6 +1703,15 @@ focused local command with Node 26.10.0 and Python 3's standard library:
 ```sh
 node --test --test-concurrency=1 tools/perf/reporting/healthy-reporting.test.mjs
 ```
+
+The identical inspected healthy file may be invoked directly for individual-case
+diagnostics when a test subprocess reports only a file-level result:
+
+```sh
+node tools/perf/reporting/healthy-reporting.test.mjs
+```
+
+This changes no test body, fixture or scope; retain each invocation separately.
 
 It uses valid numeric samples, valid generated archives and exact fake GitHub
 metadata for healthy comment create/update. The same named suite covers

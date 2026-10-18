@@ -35,11 +35,22 @@ function exceedsRegression(base, head, limit) {
   return before.n === 0n || absolute * 100n * budget.d > after.d * before.n * budget.n;
 }
 
+// Absolute limits describe the measured head, independently of comparability.
+function failsAbsoluteBudget(policy, summary) {
+  return policy.kind === 'deterministic' && summary !== null &&
+    (policy.maximum !== undefined && summary.value > policy.maximum ||
+     policy.minimum !== undefined && summary.value < policy.minimum);
+}
+
 export function compareMetric(policy, base, head) {
   const missing = [...new Set([base?.skipReason, head?.skipReason,
     !base ? 'base-metric-unavailable' : null, !head ? 'head-metric-unavailable' : null].filter(Boolean))].join('; ') || null;
-  if (missing) return { id: policy.id, status: 'skipped', reason: missing,
-    base: base?.samples ? summarize(base.samples) : null, head: head?.samples ? summarize(head.samples) : null, deltaAbsolute: null, deltaPercent: null, deltaPercentStatus: 'unavailable', failed: base?.failed === true || head?.failed === true };
+  if (missing) {
+    const before = base?.samples ? summarize(base.samples) : null, after = head?.samples ? summarize(head.samples) : null;
+    return { id: policy.id, status: 'skipped', reason: missing,
+      base: before, head: after, deltaAbsolute: null, deltaPercent: null, deltaPercentStatus: 'unavailable',
+      failed: base?.failed === true || head?.failed === true || failsAbsoluteBudget(policy, after) };
+  }
   const before = summarize(base.samples), after = summarize(head.samples);
   const deltaAbsolute = after.value - before.value;
   const rawPercent = before.value === 0 ? null : 100 * deltaAbsolute / before.value;
@@ -53,8 +64,7 @@ export function compareMetric(policy, base, head) {
       const budgeted = ['maximum', 'minimum', 'maxRegressionPercent'].some(key => policy[key] !== undefined);
       return { id: policy.id, status: 'skipped', reason: 'deterministic-samples-disagree', base: before, head: after, deltaAbsolute: null, deltaPercent: null, deltaPercentStatus: 'unavailable', failed: budgeted };
     }
-    failed = policy.maximum !== undefined && after.value > policy.maximum;
-    failed ||= policy.minimum !== undefined && after.value < policy.minimum;
+    failed = failsAbsoluteBudget(policy, after);
     failed ||= policy.maxRegressionPercent !== undefined && signedChange > 0 &&
       exceedsRegression(before.value, after.value, policy.maxRegressionPercent);
   } else {
