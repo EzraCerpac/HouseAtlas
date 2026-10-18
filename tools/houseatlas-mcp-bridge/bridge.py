@@ -966,12 +966,16 @@ def serve(bridge, source, destination):
             candidate = message.get('id')
             need(not has_id or type(candidate) in (str, int), 'JSON-RPC ID required')
             request_id = candidate
-            notification = not has_id and message['method'].startswith('notifications/')
-            need(has_id or notification, 'Request ID required')
+            notification = not has_id
             error_code = -32602
-            result = session.handle(message)
             if notification:
+                # Only an explicitly recognized lifecycle notification acts.
+                # Request methods without IDs must never dispatch tools, native
+                # reads/writes or handshake initialization silently.
+                if message['method'] == 'notifications/initialized':
+                    session.handle(message)
                 continue
+            result = session.handle(message)
             output = {'jsonrpc': '2.0', 'id': request_id, 'result': result}
         except BridgeError as error:
             if notification:

@@ -133,6 +133,15 @@ It does not alter wire3 requestJson. Unsupported request methods return -32601;
 unsupported valid notifications remain silent. Retained batch child operation
 IDs must be distinct from one another and the root, matching native stock groups.
 
+Every structurally valid id-less method message is a notification regardless of
+its name and receives no reply. Ordinary id-less methods, including initialize,
+ping, extensions and tools/call, are dropped before tool/native dispatch. Only
+the recognized notifications/initialized handler can change lifecycle state,
+under its existing initialization and params guards. Invalid JSON/envelopes and
+ID-bearing requests retain their existing error/correlation behavior. No silent
+write, read, reconciliation or handshake initialization occurs through id-less
+request methods; UNKNOWN journal state and original intent bytes are untouched.
+
 ## Genuine native sessions, kept in memory
 
 The trusted host supplies only an owned0600 nonsecret configuration file with
@@ -301,6 +310,15 @@ byte border, not a claim about the native serializer. Duplicate launch propertie
 are refused before binary inspection, key access or launch. These are focused
 checks of the three reviewed findings and adjacent numeric/size carriers; they
 release no replay, fault/crash, expiry, credential, native request or deployment.
+
+Focused notification repair: `healthy_idless_notifications` checks silent ping,
+unsupported extension and initialize messages plus subsequent correlated requests.
+Separate denial lane: `denial_idless_initialized_guards` preserves recognized
+lifecycle guards; `denial_idless_tool_dispatch` uses in-memory input and forbidden
+bridge-method spies for all six tools, preserving a synthetic UNKNOWN intent.
+The existing `denial_jsonrpc_frame_response` and `denial_rpc_method_codes` cases
+remain the adjacent malformed-envelope/error-code checks. These execute no
+network, native command, tunnel, credential or unrelated held control.
 
 All cases use generated strings, disposable directories/SQLite, owned PTYs,
 mocked processes or deterministic fake native exchanges with no external

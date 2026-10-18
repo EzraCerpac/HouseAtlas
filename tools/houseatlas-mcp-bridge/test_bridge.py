@@ -651,6 +651,77 @@ class Cases(unittest.TestCase):
         self.assertEqual(results[-1]['result'], {})
         self.assertEqual(self.owner.posts, [])
 
+    def notification_frames(self, messages):
+        source = io.BytesIO(('\n'.join(b.compact(m) for m in messages) + '\n').encode())
+        output = io.BytesIO(); b.serve(self.bridge, source, output)
+        return [b.strict_json(line, b.MAX_OUTPUT) for line in output.getvalue().splitlines()]
+
+    def healthy_idless_notifications(self):
+        initialize = {'jsonrpc': '2.0', 'method': 'initialize',
+                      'params': {'protocolVersion': '2025-11-25'}}
+        messages = [initialize, {'jsonrpc': '2.0', 'method': 'ping'},
+                    {'jsonrpc': '2.0', 'method': 'extension/unsupported', 'params': {}},
+                    {**initialize, 'id': 1},
+                    {'jsonrpc': '2.0', 'method': 'notifications/initialized'},
+                    {'jsonrpc': '2.0', 'method': 'ping'},
+                    {'jsonrpc': '2.0', 'method': 'extension/unsupported', 'params': {}},
+                    initialize,
+                    {'jsonrpc': '2.0', 'id': 2, 'method': 'tools/list'},
+                    {'jsonrpc': '2.0', 'id': 3, 'method': 'ping'}]
+        result = self.notification_frames(messages)
+        self.assertEqual([r['id'] for r in result], [1, 2, 3])
+        self.assertIn('serverInfo', result[0]['result'])
+        self.assertEqual(len(result[1]['result']['tools']), 6)
+        self.assertEqual(result[2]['result'], {})
+        self.assertEqual(self.owner.calls, [])
+
+    def denial_idless_initialized_guards(self):
+        messages = [
+            {'jsonrpc': '2.0', 'method': 'notifications/initialized'},
+            {'jsonrpc': '2.0', 'method': 'initialize', 'params': {'protocolVersion': '2025-11-25'}},
+            {'jsonrpc': '2.0', 'id': 1, 'method': 'ping'},
+            {'jsonrpc': '2.0', 'id': 2, 'method': 'initialize', 'params': {'protocolVersion': '2025-11-25'}},
+            {'jsonrpc': '2.0', 'method': 'notifications/initialized', 'params': []},
+            {'jsonrpc': '2.0', 'id': 3, 'method': 'tools/list'},
+            {'jsonrpc': '2.0', 'method': 'notifications/initialized', 'params': {}},
+            {'jsonrpc': '2.0', 'id': 4, 'method': 'tools/list'}]
+        result = self.notification_frames(messages)
+        self.assertEqual([r['id'] for r in result], [1, 2, 3, 4])
+        self.assertEqual(result[0]['error']['code'], -32602)
+        self.assertIn('serverInfo', result[1]['result'])
+        self.assertEqual(result[2]['error']['code'], -32602)
+        self.assertEqual(len(result[3]['result']['tools']), 6)
+        self.assertEqual(self.owner.calls, [])
+
+    def denial_idless_tool_dispatch(self):
+        retained = request(n=2100); raw = b.compact(retained)
+        self.journal.begin(retained, raw)
+        before = self.journal.operation(retained['requestId'])
+        arguments = [
+            ('houseatlas_capabilities', {}),
+            ('houseatlas_read', {'requestJson': b.compact(request('atlas.identity.get', 2200))}),
+            ('houseatlas_write', {'requestJson': b.compact(request(n=2300))}),
+            ('houseatlas_operation_status', {}),
+            ('houseatlas_operation_status', {'requestId': retained['requestId']}),
+            ('houseatlas_scene', {'buildingId': BUILDING}),
+            ('houseatlas_source_evidence', {'buildingId': BUILDING, 'evidenceId': EVIDENCE,
+                                            'offset': 0, 'count': 12})]
+        messages = [
+            {'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {'protocolVersion': '2025-11-25'}},
+            {'jsonrpc': '2.0', 'method': 'notifications/initialized'},
+            *[{'jsonrpc': '2.0', 'method': 'tools/call', 'params': {'name': name, 'arguments': args}}
+              for name, args in arguments],
+            {'jsonrpc': '2.0', 'id': 2, 'method': 'ping'}]
+        def forbidden(*_args, **_kwargs): raise AssertionError('Id-less tool/native dispatch')
+        with patch.multiple(self.bridge, capabilities=forbidden, read=forbidden, write=forbidden,
+                            status=forbidden, reconcile_operation=forbidden, scene=forbidden, evidence=forbidden):
+            result = self.notification_frames(messages)
+        self.assertEqual([r['id'] for r in result], [1, 2])
+        self.assertEqual(result[-1]['result'], {})
+        self.assertEqual(self.owner.calls, [])
+        self.assertEqual(self.journal.operation(retained['requestId']), before)
+        self.assertTrue(self.bridge.status()['writeBlocked'])
+
     def denial_native_reason_bound(self):
         # Stock4096 schema does not supersede frozen native Mutation1024.
         req = request(); req['reason'] = '界' * 1024
@@ -993,6 +1064,8 @@ HEALTHY += ('healthy_integral_revisions', 'healthy_integral_read_carriers', 'hea
             'healthy_large_commit_receipt', 'healthy_commit_response_boundary', 'healthy_large_retained_receipt',
             'healthy_bounded_reconciliation_output')
 REGRESSION += ('denial_integral_revision_bounds', 'denial_commit_receipt_profile', 'denial_receipt_parser_borders')
+HEALTHY += ('healthy_idless_notifications',)
+REGRESSION += ('denial_idless_initialized_guards', 'denial_idless_tool_dispatch')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('case', choices=HEALTHY + REGRESSION)
