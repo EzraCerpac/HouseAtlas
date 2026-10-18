@@ -1843,3 +1843,24 @@ controls remain separate. The release workflow validates scoped PRs; actual
 main build and promotion are explicit manual operations with separate reviewed
 native-profile, storage-compatibility, producer and publication gates. Source
 checks do not qualify a NAS binary, updater transaction, deployment or device.
+
+## Named generated updater source checks
+
+Read [the updater source contract](../operations/houseatlas-updater.md), then
+inspect its modules, `tests/synthetic.py` and the selected test bodies. From
+`tools/houseatlas-updater`, the exact generated happy-path commands are:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_happy.GeneratedHappyPaths.test_check_generated_full_bundle tests.test_happy.GeneratedHappyPaths.test_apply_generated_full_bundle_preserves_native_state tests.test_happy.GeneratedHappyPaths.test_apply_frontend_only_retains_exact_backend tests.test_happy.GeneratedHappyPaths.test_cli_json_check_and_durable_status
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_packaging.PackagingHappyPaths.test_pinned_packaging_fixture_schema tests.test_packaging.PackagingHappyPaths.test_packaging_generated_bundle_apply
+```
+
+These six cases use fresh disposable directories, generated archives and
+non-executable Mach-O header specimens, tiny synthetic SQLite files and fake
+in-process acquisition/publication/launcher/health ports. The two contract
+cases consume the pinned packaging schema and helpers from the composed tree.
+No socket, subprocess, credential, actual GitHub/native request, service action
+or user data is used. This adds no workflow execution or broad test discovery;
+failure, denial, concurrency, replay, expiry, crash and rollback controls stay
+outside this release. The results establish source/generated behavior only,
+not native acquisition, launchd, storage compatibility, recovery or deployment.
