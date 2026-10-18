@@ -1780,6 +1780,7 @@ README before the exact named generated positives:
 node frontend/lantern-tests/offline-atlas-presentation-healthy.mjs
 node frontend/lantern-tests/offline-atlas-overlays-healthy.mjs
 node frontend/lantern-tests/offline-atlas-mounting-healthy.mjs
+node frontend/lantern-tests/offline-stage-discard-healthy.mjs
 ```
 
 Use pinned Node 26.10.0, exact locked dependencies and evidence output outside
@@ -1791,3 +1792,34 @@ adversarial/private-intake or failure-injection case. Supported browser QA uses
 only the explicit Save/production-store path and owned loopback/static shell
 procedure in `frontend/lantern-tests/offline-atlas-browser/README.md`; it proves
 owned-origin unavailability only, not WAN/device/PWA/iOS acceptance.
+
+The stage-discard command separately exercises the actual production store with
+five ordinary generated lifecycle cases through a finite asynchronous IDB API
+simulation: canceled new and replacement Saves, cleanup after commit, normal
+stage supersession and shared-digest retention. It verifies transaction completion
+and preservation of the committed copy. This is source/simulated-storage evidence;
+it does not establish genuine browser persistence, native acquisition or offline
+device availability.
+
+## Named generated native house acquisition check
+
+Read [native house acquisition](../offline/native-house-acquisition.md) and the
+complete runner/imports before this exact Node 26.10.0 command with locked
+frontend dependencies. The argument is the retained generated handoff containing
+`QUALIFICATION.json` and its four `fixtures` directories; no fixture data is
+copied into the repository.
+
+```sh
+node frontend/lantern-tests/offline-house-acquisition-healthy.mjs /absolute/retained-generated-handoff
+```
+
+Only four valid generated exports and focused ordinary explicit Save/Replace,
+Cancel, unchanged-owner/view-replacement and late-commit lifecycle cases run,
+using injected finite GET responses, a valid public shell result and an in-memory
+staging owner. Seven valid static React presentation states additionally check
+passive rendering, Prepare/Save and capture labels, coverage/exclusions before
+confirmation, Cancel wording and exact receipt pins. These are not layout,
+keyboard or browser checks. No global fetch replacement, socket, browser, native state,
+real IndexedDB/provider, held denial/foreign-token/expiry/revocation/crash/fault,
+guard-reversal or broad alias is included. This check establishes no genuine
+offline/device/PWA or deployment acceptance and adds no workflow.

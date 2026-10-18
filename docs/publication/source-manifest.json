@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b27281f7c4cf06196d1d2a8e4f549a768c9b8af809004cb995f87580d47ffa73",
+  "sourceDigestSha256": "ff09a35d71d1f48610425090babdfaa51fddc2c304cf9451f6b00a200708705c",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5950,8 +5950,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 107426,
-      "sha256": "977416d0791aeb89a6153fc541415c10bf12bbe86b1473f61d296dd7411bfde9",
+      "bytes": 109284,
+      "sha256": "763d1155dd092c419ebc4af77d4419127cbf6d68908df91d66e9429808f60028",
       "owner": "core-integration"
     },
     {
@@ -6305,6 +6305,13 @@
       "owner": "storage"
     },
     {
+      "path": "docs/offline/native-house-acquisition.md",
+      "mode": "100644",
+      "bytes": 6655,
+      "sha256": "cf4c4d64688c79769eec4ec3cdc60c139b2ff484433c5fdb5cf30f87fc2a2d21",
+      "owner": "web"
+    },
+    {
       "path": "docs/offline/saved-atlas-consumer-v2.md",
       "mode": "100644",
       "bytes": 5773,
@@ -6314,8 +6321,8 @@
     {
       "path": "docs/offline/saved-atlas-mounting.md",
       "mode": "100644",
-      "bytes": 5352,
-      "sha256": "385c507b62c7547169404f1cc76daba2d3aa0cb8dccf01f52444e1516c35bc63",
+      "bytes": 6700,
+      "sha256": "920eaeff8730eac3afa07aac8c93268b5b72043d6d1d885573b6f659602946a9",
       "owner": "web"
     },
     {
@@ -6895,8 +6902,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 39332,
-      "sha256": "d13391c7229538c60e70c2b54c77cc1e172ec4d8de12294a7be578c5cb9f2fc4",
+      "bytes": 39672,
+      "sha256": "40276ac6119b7126f6b30e92389d3c92f446774bdd52376b8211ad2b2670979c",
       "owner": "core-integration"
     },
     {
@@ -6996,6 +7003,13 @@
       "bytes": 31036,
       "sha256": "9bc0c3446f7ab83f7629e764f7957a3161dbe6259dc1ab7b84388d878c83d0d7",
       "owner": "web"
+    },
+    {
+      "path": "frontend/integration/offline-house-acquisition.ts",
+      "mode": "100644",
+      "bytes": 8443,
+      "sha256": "4efda2f452a9e74bc587aaed3e4594b8af03583c600eaab1d77162cfad31b155",
+      "owner": "core-integration"
     },
     {
       "path": "frontend/integration/pinned-file-client.ts",
@@ -7488,10 +7502,24 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/offline-house-acquisition-healthy.mjs",
+      "mode": "100644",
+      "bytes": 21093,
+      "sha256": "513a69c46be68333f9bf30306b3898a0bb436162057ebfb457545b5fabe7614d",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/offline-model-v2-healthy.mjs",
       "mode": "100644",
       "bytes": 13276,
       "sha256": "c60993c00ed94fd910cb46ffa28a6604eed9ceaa33f7dddde5ae49e05e41e3a2",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/offline-stage-discard-healthy.mjs",
+      "mode": "100644",
+      "bytes": 14518,
+      "sha256": "b7599c52b89f0297dc4cb2c320e8df44d3ae3a99fb66ce92fa9338bc6f82dc8a",
       "owner": "web"
     },
     {
@@ -8449,8 +8477,8 @@
     {
       "path": "frontend/src/lantern/Host.tsx",
       "mode": "100644",
-      "bytes": 9139,
-      "sha256": "8342b8ceeb32d9acf1be50becba2a0ca6eaa06565825ab45574d943c19d0745e",
+      "bytes": 9435,
+      "sha256": "f84c30811eeaf4ab4d2835219d9326c787a961aaf9ca48189639a377469c3b9b",
       "owner": "web"
     },
     {
@@ -9805,6 +9833,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/offline/SaveHouseCopy.tsx",
+      "mode": "100644",
+      "bytes": 3219,
+      "sha256": "a4fcaa48bb9d2fee729aaee1292d468f95bb9ff6a4a2c6f27b9c688e0483f2f7",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/offline/SavedAtlasHost.tsx",
       "mode": "100644",
       "bytes": 4986,
@@ -9816,6 +9851,20 @@
       "mode": "100644",
       "bytes": 1883,
       "sha256": "cb5126011f862e849d1417d220e030ff52bcb2cd3c990ca94d3047e6040fc4ad",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/offline/acquire-house.ts",
+      "mode": "100644",
+      "bytes": 11037,
+      "sha256": "b50a208c6e88fae364ca2ca1b37e7ce13da648ee56b82143e8bad0f114fb3f5b",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/offline/acquisition-types.ts",
+      "mode": "100644",
+      "bytes": 1335,
+      "sha256": "8dee6dca99df461a01a6055c6fce0c17cc6cec3308c4a766eb5e221e11a89545",
       "owner": "web"
     },
     {
@@ -9877,8 +9926,8 @@
     {
       "path": "frontend/src/offline/store.ts",
       "mode": "100644",
-      "bytes": 18559,
-      "sha256": "9f6291d581a29b04d2956f1c95bd615f068b18d809bd5f22bd62c9db86f38642",
+      "bytes": 20036,
+      "sha256": "71e6f2ceb7bb0081ae2e6ca35bb278ece4c4513e2720d42c4a50318790bbeb20",
       "owner": "web"
     },
     {
