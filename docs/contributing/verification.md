@@ -1391,6 +1391,16 @@ targets; an occupied rotated target keeps the selected tag standing.
 These are CPU presentation observations; actual fonts, mounted pointer/focus
 behavior, animation and rendered publication layout still require browser review.
 
+Wide-stage layer keys share the floor rail's margin, while **Other floors**
+opens the optional preview strip. These layout changes use the existing
+presentation and interaction checks above; those CPU checks do not mount CSS
+or certify panel clearance. Browser review must separately check desktop and
+intermediate stages with the graph closed and open, floor-strip selection and
+Escape/focus return, key scrolling on short stages, and focus recovery across
+the 720px stage breakpoint. Compare the unchanged 390px and 320px controls,
+drawers and graph using matching selection, layers and Fit states. Preserve
+source coverage, unplaced facts and measurement qualifiers throughout.
+
 The interaction positives also retain an opaque foreground wall's floor target
 beside an exposed room interior. A generated CPU binding projection preserves
 the near-horizontal own-floor skin exception beyond ordinary depth tolerance
