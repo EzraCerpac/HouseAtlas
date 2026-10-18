@@ -1383,6 +1383,32 @@ matrix retains its exact historical source attribution; browser automation is
 a separate check and gains no execution permission from this CPU command.
 This adds no workflow or ordinary CI step.
 
+Before claiming all thirty-five ran, retain their individual names and a
+thirty-five-test summary. A file-only successful result establishes neither.
+For an environment whose test subprocess reports only the file, the same
+inspected healthy module may be run directly on pinned Node 26.10.0:
+
+```sh
+node frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs
+```
+
+This changes no assertion, fixture, loader or scope. Record which invocation
+actually emitted the thirty-five names; do not attribute it to the file-only run.
+
+The separate property-network association positive is documented in
+[the architecture contract](../architecture/property-network-connections.md).
+After inspecting its pure projector, stage join and generated test body, run:
+
+```sh
+node frontend/lantern-tests/unified-atlas-network-connections-healthy.mjs
+```
+
+It retains original, reversed and parallel links, explicit endpoint ownership,
+within-room loops, complete property occurrences and separately counted shared
+media. The existing overlay-source healthy check also passes its actual generated
+decoder/projector output through the source-qualified stage join. Neither check
+establishes device coordinates, cable routes, native authority or browser pixels.
+
 The same named interaction runner also checks the complete outward hierarchy
 with a single-building publication, all eight independent layer combinations,
 Plan/3D continuity, explicit explosion, an opaque upper slab during a normal
@@ -1918,3 +1944,144 @@ deadline/header bounds and ordinary asset redirects. They perform no actual
 GitHub request, socket, credential, native process, controller transaction or
 runtime installation. Real HTTPS-port, acquisition and target qualification
 remain separate; no broad control discovery or new held case is released.
+
+
+## Named generated root and saved offline-entry lifecycle positive
+
+Read [root offline entry](../offline/root-offline-entry.md), then inspect
+`frontend/build/root-offline-worker-source.js`, the existing saved worker,
+`offline-shell-plugin.mjs`, `frontend/src/offline/shell.ts` and this generated
+lifecycle script. With pinned Node26.10.0, from the repository root:
+
+```sh
+node frontend/lantern-tests/offline-root-entry-healthy.mjs
+```
+
+The exact generated positive exercises the actual worker sources and shell
+registration lifecycle with bounded in-process public resources and fake browser
+owners. It covers normal online root response, network-unavailable root handoff
+to the verified saved entry, root navigation-only ownership with unchanged live
+asset requests, public resource closure, ordinary worker update and exact
+owned-build cleanup. It uses no native session, authenticated data,
+real service worker/profile, network, listener, browser or runtime state. No
+private application/API/auth response is cached. A generated offline response
+is not genuine device/PWA/WAN acceptance; exact current bytes still need bounded
+supported-browser observations after source review and independent deployment
+authority. No broader control suite or production action is released.
+
+
+## Named generated electrical registration positive
+
+Read `tools/electrical_registration/README.md`, its pure registration module and
+the generated healthy fixture before this exact command on pinned Node 26.10.0:
+
+```sh
+node --test --test-concurrency=1 tools/electrical_registration/healthy.test.mjs
+```
+
+Four ordinary generated cases cover source-to-page arithmetic, independently
+reviewed metric controls, exact current publication/model/frame/occurrence pins,
+uncertainty propagation and complete inventory with selection-only highlighting.
+They create no native receipt or placement authority. Unsupported rows remain
+explicit; source pixels alone do not establish metric points, surveyed positions
+or current circuits. No browser, actual source, provider, failure/denial/replay/
+expiry/crash control, broad suite or deployment is involved.
+
+The same inspected four healthy examples may also be invoked directly on pinned
+Node 26.10.0 to retain their individual names when a test subprocess reports
+only a file-level result:
+
+```sh
+node tools/electrical_registration/healthy.test.mjs
+```
+
+This changes no test body, fixture or scope; record each invocation separately.
+
+
+## Named generated updater transport/runtime/MCP positives
+
+Read the [HTTPS transport](../operations/houseatlas-updater-transport.md),
+[runtime adapters](../operations/houseatlas-updater-runtime.md) and
+[optional MCP composition](../operations/houseatlas-updater-mcp.md), then inspect
+the exact selected source and generated fixture bodies. From
+`tools/houseatlas-updater-adapters`, run:
+
+```sh
+PYTHONPATH=../houseatlas-updater PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_https_partial_reads_shared_deadline_and_closure tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_explicit_asset_redirect_then_chunked_body tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_fixed_dispatch_uses_existing_cli_once_per_request tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_authorized_maintenance_catalog_and_exact_requests -v
+```
+
+From `tools/houseatlas-updater-runtime`, run:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../houseatlas-updater:. python3 -m unittest tests.test_runtime_happy.RuntimeHappyPaths.test_generated_full_and_frontend_apply_with_journal_coherence -v
+```
+
+From `tools/houseatlas-mcp-bridge`, run:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../houseatlas-updater:../houseatlas-updater-adapters:../houseatlas-updater-runtime python3 -m unittest test_maintenance_happy.MaintenanceHappyPath.test_mcp_generated_check_apply_and_retained_status -v
+```
+
+The four transport/dispatch cases use only finite generated HTTP/TLS/readiness
+fixtures and a recording controller. The runtime case uses disposable software
+closures, a generated multichunk model and actual local journal with synthetic
+platform/native owners. The MCP case composes the actual controller/CLI and concrete runtime adapters
+with that existing generated platform/native owner, including the preserving
+verifier and typed application-readiness contract. No external socket, DNS, native binary or NAS
+request/service action, credentials, real maintenance grant or deployment occurs.
+The installed bridge default remains without maintenance tools. No failure,
+denial, replay, crash or rollback case is added or run, and no broad alias or CI
+step is introduced. Real native/launch/CAS/readiness bindings and safe onboarding
+remain separate owner qualifications.
+
+
+## Named generated frontend asset-retention producer positive
+
+Read [the frontend asset-retention producer contract](../operations/frontend-asset-retention.md),
+then inspect `tools/release/frontend_retention.py`, the selected generated case,
+its existing packaging fixture helpers and `bundle.py`. From the repository root:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tools/release python3 tools/release/tests/test_frontend_retention_happy.py FrontendRetentionHappyPaths.test_generated_prior_assets_union_pack_and_verify -v
+```
+
+This one positive prepares a new disposable frontend from generated current
+assets and a separately pinned, generated prior release, then packages and
+verifies the exact declared union through the existing producer. It retains
+current entrypoints and prior immutable assets with distinct public provenance.
+No actual release, network, native binary, service, private input, denial,
+rollback or failure-injection case is used. Runtime publication never adds
+undeclared files; genuine producer approval and native update qualification
+remain separate. This adds no workflow or deployment authority.
+
+## Named generated native Access read-only validation positive
+
+Read [the native Access validation contract](../operations/updater-native-validation.md),
+then inspect the two additive methods, shared compiled validator and the existing
+`healthy_persistent_session_checkpoint` body before this exact command in the
+pinned Rust 1.99.0 environment with an owned disposable Cargo target:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib access::healthy::healthy_persistent_session_checkpoint -- --exact --test-threads=1
+```
+
+The generated persistent-session positive checks original-connection and closed
+Access catalogue/meta/epoch validation without an authorization/session refresh,
+preserves database bytes and stored session fields, then uses the original
+session normally. It does not establish whole-Core/profile inspection, live
+WAL/SHM filesystem immutability, an updater deadline, service fencing, maintenance
+authority or native application readiness. No runtime route, real credentials,
+service, network, failure/denial/replay/crash case or broader suite is released.
+
+### Generated property Network associations
+
+The existing saved-Atlas browser fixture now has a sixth, separately labelled
+`Save network associations generated copy` case. Its existing actual-reader
+positive, fixture typecheck/build commands, exact pins and finite visual checks
+are documented in `frontend/lantern-tests/offline-atlas-browser/README.md`.
+It exercises two captured building joins, three room summaries, five anchored
+original connections, five incomplete connections and one separately derived
+shared-medium association. The five earlier snapshot pins stay unchanged.
+Room-summary lines are logical associations, not surveyed device positions or
+physical cable routes. Generated source/build checks do not accept pixels,
+native authority, installation or offline/device behavior.

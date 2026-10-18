@@ -113,3 +113,49 @@ fixture adds no native browser acquisition. The unchanged live overview interfac
 requires an expiry; a generated live browser transition without manufactured
 expiry remains unsupported under this qualification's authority. No ReadyView,
 session, global fetch replacement or runtime API workaround is introduced.
+
+**Save network associations generated copy** adds a sixth explicit variant with
+its own publication and selection revision. The five earlier variants retain
+their exact snapshot pins. This copy uses the same generated GLB, occurrences,
+plans and mesh bindings. Its Studio alone gains fictional historical identity
+metadata so the captured source can join three distinct documentary places:
+Hall, the Upper floor Bedroom, and Studio. It creates no native frame, live
+authorization, device coordinate or cable route.
+
+The archived source has 4 devices, 5 endpoints and 9 original links. Three fixed
+devices have distinct reviewed room summaries; one mobile device has no fixed
+room. Three ports have explicit owners; the abstract segment and unresolved end
+have no position. Original links include a direct/reversed/parallel trio between
+Hall and Upper, a within-Hall association, an Upper-to-Studio connection, two
+memberships in an abstract shared medium and two missing-room connections.
+The two memberships also yield one separately counted Hall-to-Studio
+shared-medium association. A shared medium is not a direct cable or a measured
+physical segment.
+
+Through the normal fixture Save and production saved Open, enable Network.
+The layer key should report **5 of 10 logical connections**, **5** without a
+complete room association and **1** separately shown shared-medium association.
+The tenth original connection is the inherited generic unplaced relation; its
+separate source graph remains present. Property totals are **Electrical 6
+(4 unplaced)** and **Network 19 (16 unplaced)**. Hall has 2 Electrical/1 Network,
+Upper Bedroom and Studio each have 1 Network. The source graph retains all
+devices/endpoints/links and their dates, confidence, uncertainty and original
+membership records. Physical unplaced accounting is unchanged by drawing lines.
+
+For a separately authorized current-build browser review, inspect the three
+distinct direct/reversed/parallel paths, the visible within-Hall loop, the
+cross-floor and cross-building associations and the separately described shared
+medium. Select each building, floor and room: emphasis may change while all
+property associations remain. Check independent E/N/M switches, 3D/Plan/3D,
+normal stage picking and pointer gestures, keyboard focus and details at desktop
+and exactly 390/320 CSS pixels. Plan retains the separate logical graph. Capture
+the actual snapshot/local revision/capture/shell stamps; no earlier screenshot
+accepts this sixth fixture or a new composed build.
+
+The same documented overlay positive above now validates this sixth closed
+saved-data path, real generated GLB binding, source-qualified stage join and
+rendered SVG paths, including the loop and separate shared-medium count. It also
+retains every earlier variant's snapshot assertions. The focused fixture
+TypeScript check and separate production/fixture builds above apply. Generated
+CPU and build success do not establish browser pixels, actual native admission,
+household coverage, wireless coverage, electrical wiring or offline/device use.

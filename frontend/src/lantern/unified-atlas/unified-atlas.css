@@ -1337,6 +1337,29 @@
 
 .lantern-host .ua-unplaced { color: var(--warn); }
 
+/* A layer's group in the room: its glyph and name, then how many records the
+   room's source supplies; an unavailable or partial source stands before the
+   rows it qualifies. */
+.lantern-host .ua-records-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 7px;
+}
+
+.lantern-host .ua-records-head > .icon { flex: none; color: var(--muted); }
+
+.lantern-host .ua-records-count {
+  margin-left: 2px;
+  font: 600 var(--fs-xs)/1.2 var(--text);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.lantern-host .ua-records > p.ua-records-state { color: var(--warn); font-size: var(--fs-s); }
+
+.lantern-host .ua-published-count { font-weight: 600; color: var(--ink); }
+
 /* Documentary records: each one opens to its facts, dates and source. */
 .lantern-host .ua-refs {
   padding: 6px 0;
@@ -1370,6 +1393,85 @@
 }
 
 .lantern-host .ua-refs > .text-btn { justify-self: start; }
+
+/* A documentary record row. Collapsed: a glyph beside the full source label
+   and a short type, the full qualification under them, and a disclosure mark.
+   Every line wraps, so nothing is cut at narrow widths. Opened: its facts
+   align under the label. The glyph only helps the eye; the text names it. */
+.lantern-host .ua-docs { display: grid; }
+
+.lantern-host .ua-doc { padding: 0; }
+
+.lantern-host .ua-doc > summary {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 10px;
+  grid-template-areas:
+    'glyph head mark'
+    '. qual .';
+  align-items: start;
+  gap: 2px 9px;
+  min-height: 44px;
+  padding: 8px 2px;
+  list-style: none;
+  border-radius: 6px;
+}
+
+.lantern-host .ua-doc > summary::-webkit-details-marker { display: none; }
+.lantern-host .ua-doc > summary:hover { background: var(--ua-hover); }
+.lantern-host .ua-doc > summary:focus-visible { outline-offset: -2px; }
+
+.lantern-host .ua-doc-glyph { grid-area: glyph; margin-top: 2px; color: var(--muted); }
+
+.lantern-host .ua-doc-head {
+  grid-area: head;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  min-width: 0;
+}
+
+.lantern-host .ua-doc-label { min-width: 0; color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+
+.lantern-host .ua-doc-type {
+  max-width: 100%;
+  padding: 0 6px;
+  border: 1px solid var(--hair-2);
+  border-radius: 5px;
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.lantern-host .ua-doc-qual {
+  grid-area: qual;
+  min-width: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* The disclosure mark: points right when closed, down when open. */
+.lantern-host .ua-doc > summary::after {
+  content: '';
+  grid-area: mark;
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  color: var(--muted);
+  transform: rotate(-45deg);
+}
+
+.lantern-host .ua-doc[open] > summary::after { transform: rotate(45deg); }
+
+.lantern-host .ua-doc[open] { padding-bottom: 10px; }
+.lantern-host .ua-doc[open] > :not(summary) { margin-left: 29px; }
 
 .lantern-host .ua-source {
   padding-top: 10px;

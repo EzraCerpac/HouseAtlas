@@ -39,10 +39,13 @@ export function offlineShellPlugin() {
       }
       walk(output); table.sort((a, b) => a.path.localeCompare(b.path));
       if (!table.some(row => row.path === '/saved/index.html')) throw Error('Saved entry missing');
-      const workerSource = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'offline-worker-source.js'), 'utf8');
+      const sourceDirectory = dirname(fileURLToPath(import.meta.url));
+      const workerSource = readFileSync(join(sourceDirectory, 'offline-worker-source.js'), 'utf8');
+      const rootWorkerSource = readFileSync(join(sourceDirectory, 'root-offline-worker-source.js'), 'utf8');
       // Build identity binds unmarked entry, assets and worker implementation.
       // The final marked HTML receives a separate exact SHA in the closure.
-      const build = hash(JSON.stringify(table) + workerSource);
+      const savedBuild = hash(JSON.stringify(table) + workerSource);
+      const build = hash(savedBuild + rootWorkerSource);
       const savedPath = join(output, 'saved/index.html');
       const markedHtml = readFileSync(savedPath, 'utf8').replace('</head>', `<meta name="houseatlas-saved-shell-build" content="${build}"></head>`);
       writeFileSync(savedPath, markedHtml);
@@ -51,6 +54,9 @@ export function offlineShellPlugin() {
       const worker = `const BUILD=${JSON.stringify(build)}, TABLE=${JSON.stringify(table)};\n` + workerSource;
       if (Buffer.byteLength(worker) > 4_000_000) throw Error('Public shell worker exceeds backend budget');
       writeFileSync(join(output, 'saved/service-worker.js'), worker);
+      const rootWorker = `const ROOT_BUILD=${JSON.stringify(build)};\n` + rootWorkerSource;
+      if (Buffer.byteLength(rootWorker) > 4_000_000) throw Error('Root entry worker exceeds backend budget');
+      writeFileSync(join(output, 'offline-entry-worker.js'), rootWorker);
     },
   };
 }

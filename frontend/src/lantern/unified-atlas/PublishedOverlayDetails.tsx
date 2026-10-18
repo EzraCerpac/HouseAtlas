@@ -42,7 +42,7 @@ export function PublishedOverlayDetails({ placement }: { readonly placement: Ove
   const positions = bindings.flatMap(binding => binding.anchor.kind === 'source-position'
     ? [{ occurrenceId: binding.spaceOccurrenceId, position: binding.anchor.position, basis: binding.anchor.basis }] : []);
   return <>
-    <p>{placement.recordCount.toLocaleString()} {placement.recordCount === 1 ? 'record' : 'records'}
+    <p className="ua-published-count">{placement.recordCount.toLocaleString()} {placement.recordCount === 1 ? 'record' : 'records'}
       {positions.length > 0 ? `, ${positions.length} with a source position` : ''}</p>
     <SourceDates bindings={bindings} />
     {positions.length > 0 && <details className="ua-refs"><summary>Source positions</summary>

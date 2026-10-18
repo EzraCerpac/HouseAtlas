@@ -27,6 +27,8 @@ import { documentaryOverlayIndex, type BuildingCoverage, type DocumentaryRecord,
 import { edgeSpans, estimatedOccurrences, MEASUREMENT_BASIS, placeLabels, roomArea } from './measurements';
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
 import { NetworkGraph } from './NetworkGraph';
+import { NetworkStageConnections, networkRoomConnections } from './NetworkStageConnections';
+import type { NetworkConnections } from './network-connections';
 import { AreaValue, PLAN_ORDER, PlanRoom, PlanTile, planTileLevels } from './plan-presentation';
 import '../canonical-ifc/canonical-ifc.css';
 import './unified-atlas.css';
@@ -639,6 +641,18 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [active, live, presentation, projection, t, planned, planBlend]);
 
+  // The whole property's qualified room associations, independent of focus or
+  // count-label collision suppression. These are logical summaries, not routes.
+  const networkConnections = useMemo(() => networkRoomConnections(networkOn ? runtime.records : null,
+    networkOn && runtime.records ? [...runtime.records.rooms.keys()].flatMap(roomId =>
+      (model.roomsById.get(roomId)?.occurrenceIds ?? []).flatMap(occurrenceId => {
+        if (!model.selectable.has(occurrenceId)) return [];
+        const at = anchorOf(occurrenceId); if (!at) return [];
+        return [{ roomId, occurrenceId, point: [at.x + (active.length > 1 ? MARKER_SPREAD : 0), at.y] as const }];
+      })) : []),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [networkOn, runtime.records, model, projection, presentation, shown, t, planBlend, active.length]);
+
   // The selected room's tag stands on a leader in 3D and folds onto its floor
   // as the camera reaches Plan: one landmark through every view.
   const foldedRise = Math.min(1, Math.max(0, 1 - planBlend / .6));
@@ -1235,6 +1249,9 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
           {siteNames.length > 0 && <g className="ua-site-names" style={{ opacity: planBlend }}>
             {siteNames.map(row => <text key={row.key} x={row.x} y={row.y} textAnchor="middle">{row.text}</text>)}
           </g>}
+          {networkOn && planBlend < 1 && <g opacity={1 - planBlend}>
+            <NetworkStageConnections connections={networkConnections} selected={selected} />
+          </g>}
           {positions.length > 0 && <g className="ua-positions">
             {positions.map(row => <rect key={row.key} className={row.context ? 'is-context' : undefined} style={{ '--layer': TONE_COLOR[row.kind] } as CSSProperties}
               x={row.x - 4} y={row.y - 4} width={8} height={8} transform={`rotate(45 ${row.x} ${row.y})`} />)}
@@ -1299,6 +1316,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
             floors strip sits just before the fold that opens it. */}
         {hasKeys && <div ref={keysDock} id={`${foldIds}-layers`} className={`ua-keys${drawer === 'layers' ? ' is-unfolded' : ''}`}>
           {active.map(layer => <OverlayKey key={layer.kind} layer={layer} records={runtime.records}
+            connectionCoverage={layer.kind === 'network' ? networkConnections.coverage : null}
             buildings={runtime.buildings}
             publishedOnly={!runtimeConfigured} openDocuments={environment.openDocuments}
             availability={runtime.records?.[layer.kind] ?? (!runtimeConfigured ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
@@ -1506,13 +1524,20 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
           <div key={span.key}><dt>Outline span {at + 1}</dt><dd>{span.text}</dd></div>)}</dl>
       </section>}
 
-      {runtime && kinds.map(kind => <section key={kind} className="ua-records" aria-label={`${OVERLAY_LABEL[kind]} in this room`}>
-        <h3>{OVERLAY_LABEL[kind]}</h3>
-        {!runtime.rooms.has(room.roomId) ? <p>Room source link unavailable.</p>
-          : runtime[kind] === 'unavailable' ? <p>Source unavailable.</p>
-          : <DocumentaryRecords records={runtime.rooms.get(room.roomId)![kind]} openDocuments={openDocuments} />}
-        {runtime[kind] === 'partial' && <p>{kind === 'electrical' ? 'Some electrical sources or buildings are unavailable.' : 'The network source is unavailable for some buildings.'}</p>}
-      </section>)}
+      {/* One group per layer that is on: its glyph, name and how many records
+          this room's source supplies, the source state before the rows, then
+          the records in source order. */}
+      {runtime && kinds.map(kind => {
+        const records = runtime.rooms.has(room.roomId) && runtime[kind] !== 'unavailable' ? runtime.rooms.get(room.roomId)![kind] : null;
+        return <section key={kind} className="ua-records" aria-label={`${OVERLAY_LABEL[kind]} in this room`}>
+          <h3 className="ua-records-head"><Icon name={OVERLAY_ICON[kind]} size={16} />{OVERLAY_LABEL[kind]}
+            {records && records.length > 0 && <span className="ua-records-count">{plural(records.length, 'record')}</span>}</h3>
+          {runtime[kind] === 'partial' && <p className="ua-records-state">{kind === 'electrical' ? 'Some electrical sources or buildings are unavailable.' : 'The network source is unavailable for some buildings.'}</p>}
+          {!runtime.rooms.has(room.roomId) ? <p className="ua-records-state">Room source link unavailable.</p>
+            : runtime[kind] === 'unavailable' ? <p className="ua-records-state">Source unavailable.</p>
+            : <DocumentaryRecords records={records!} openDocuments={openDocuments} />}
+        </section>;
+      })}
 
       {overlays.length > 0 && <section className="ua-records" aria-label="Records in this room">
         {overlays.map(({ kind, placement, unplaced }) => <div key={kind} className="ua-record" style={{ '--layer': TONE_COLOR[kind] } as CSSProperties}>
@@ -1529,21 +1554,42 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
 }
 
 function DocumentaryRecords({ records, openDocuments }: { readonly records: readonly DocumentaryRecord[]; readonly openDocuments: (() => void) | undefined }) {
+  // Short type names and glyphs for the categories the source names; any other
+  // category shows its original string. The full category stays in the details.
+  const types: Readonly<Record<string, { readonly short: string; readonly icon: string }>> = {
+    'Electrical drawing': { short: 'Drawing', icon: 'file' },
+    'Historical symbol': { short: 'Historic symbol', icon: 'symbol' },
+    'Recorded device': { short: 'Device', icon: 'box' },
+    'Recorded connection': { short: 'Connection', icon: 'link' },
+    'Network endpoint': { short: 'Endpoint', icon: 'network' },
+  };
   if (!records.length) return <p>No linked records in the available source.</p>;
-  return <div>{records.map(record => <details className="ua-refs" key={record.key}>
-    <summary>{record.label}</summary>
-    <p>{record.category}: {record.detail}</p><p>{record.qualification}</p>
-    <p>Source date: {record.sourceDate ?? 'unknown'}. Retrieved: {record.retrievedAt ?? 'unknown'}.</p>
-    {record.connections.length > 0 && <ul>{record.connections.map((connection, at) => <li key={at}>{connection}</li>)}</ul>}
-    {openDocuments && (record.category === 'Electrical drawing' || record.category === 'Historical symbol') && <button type="button" className="text-btn" onClick={openDocuments}>Open Documents</button>}
-    <details className="ua-source"><summary>Source</summary><dl><div><dt>Source record</dt><dd>{record.id}</dd></div>
-      {record.sourceFacts.map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value ?? 'unknown'}</dd></div>)}
-    </dl></details>
-    {record.observations && record.observations.length > 0 && <details className="ua-source">
-      <summary>Other source observations ({record.observations.length})</summary>
-      <DocumentaryRecords records={record.observations} openDocuments={openDocuments} />
-    </details>}
-  </details>)}</div>;
+  // Collapsed, each row names the record, its type and its qualification;
+  // opened, its category and detail, dates, connections and sources.
+  return <div className="ua-docs">{records.map(record => {
+    const type = Object.prototype.hasOwnProperty.call(types, record.category) ? types[record.category]! : null;
+    return <details className="ua-refs ua-doc" key={record.key}>
+      <summary>
+        <Icon name={type?.icon ?? 'record'} size={16} className="ua-doc-glyph" />
+        <span className="ua-doc-head">
+          <span className="ua-doc-label">{record.label}</span>
+          <span className="ua-doc-type">{type?.short ?? record.category}</span>
+        </span>
+        <span className="ua-doc-qual">{record.qualification}</span>
+      </summary>
+      <p>{record.category}: {record.detail}</p>
+      <p>Source date: {record.sourceDate ?? 'unknown'}. Retrieved: {record.retrievedAt ?? 'unknown'}.</p>
+      {record.connections.length > 0 && <ul>{record.connections.map((connection, at) => <li key={at}>{connection}</li>)}</ul>}
+      {openDocuments && (record.category === 'Electrical drawing' || record.category === 'Historical symbol') && <button type="button" className="text-btn" onClick={openDocuments}>Open Documents</button>}
+      <details className="ua-source"><summary>Source</summary><dl><div><dt>Source record</dt><dd>{record.id}</dd></div>
+        {record.sourceFacts.map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value ?? 'unknown'}</dd></div>)}
+      </dl></details>
+      {record.observations && record.observations.length > 0 && <details className="ua-source">
+        <summary>Other source observations ({record.observations.length})</summary>
+        <DocumentaryRecords records={record.observations} openDocuments={openDocuments} />
+      </details>}
+    </details>;
+  })}</div>;
 }
 
 function RoomList({ model, levels, choose, levelName }: {
@@ -1606,11 +1652,12 @@ function SourceDetails({ model, occurrence, room, renderFailure, overlayReason, 
 
 const COVERAGE_TEXT = { available: 'Available', partial: 'Partial', unavailable: 'Unavailable' } as const;
 
-function OverlayKey({ layer, openNetwork, availability, records, buildings, openDocuments, publishedOnly, graph }: {
+function OverlayKey({ layer, openNetwork, availability, records, buildings, openDocuments, publishedOnly, graph, connectionCoverage }: {
   readonly layer: OverlayLayerIndex; readonly openNetwork: (() => void) | undefined; readonly openDocuments: (() => void) | undefined;
   readonly records: PropertyRecords | null; readonly availability: 'available' | 'partial' | 'unavailable' | 'loading';
   readonly publishedOnly: boolean;
   readonly buildings: readonly BuildingCoverage[];
+  readonly connectionCoverage: NetworkConnections['coverage'] | null;
   /** The logical network graph's own panel, when the source has one. */
   readonly graph: { readonly id: string; readonly open: boolean; readonly toggle: () => void } | null;
 }) {
@@ -1646,6 +1693,9 @@ function OverlayKey({ layer, openNetwork, availability, records, buildings, open
       {graph && <button type="button" className="ua-graph-open" aria-expanded={graph.open} aria-controls={graph.id} onClick={graph.toggle}>
         <span className="ua-logical-swatch" aria-hidden="true" /><span>Logical network graph</span><Icon name="network" size={16} />
       </button>}
+      {connectionCoverage && <p>3D lines show {connectionCoverage.links.anchored} of {connectionCoverage.links.total} logical connections at reviewed room summaries;
+        {' '}{connectionCoverage.links.unplaced} have no complete room association. They do not show device positions or cable routes.
+        {connectionCoverage.sharedMediumAssociations.anchored > 0 && ` ${connectionCoverage.sharedMediumAssociations.anchored} shared-medium associations are shown separately.`}</p>}
       {connections.length > 0 && <details className="ua-logical">
         <summary><span className="ua-logical-swatch" aria-hidden="true" />{plural(connections.length, 'logical connection')}, no cable routes</summary>
         <DocumentaryRecords records={connections} openDocuments={openDocuments} />

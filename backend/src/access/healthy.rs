@@ -544,7 +544,51 @@ fn healthy_persistent_session_checkpoint() {
         .set_membership(&id(6), &scope(), Role::Editor, true)
         .unwrap();
     let session = login(&mut boundary, "synthetic-editor");
+    let snapshot = |db: &Connection| {
+        let session: (String, String, String, i64, String, String, i64, i64, i64) = db
+            .query_row(
+                "SELECT token_hash,csrf_hash,user_id,user_version,epoch,origin,\
+                 created_at,last_seen,expires_at FROM access_sessions",
+                [],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                        row.get(6)?,
+                        row.get(7)?,
+                        row.get(8)?,
+                    ))
+                },
+            )
+            .unwrap();
+        (
+            std::fs::read(&path).unwrap(),
+            super::store::epoch(db).unwrap().0,
+            session,
+        )
+    };
+    let before_validation = snapshot(&boundary.store.db);
+    let changes = boundary.store.db.total_changes();
+    boundary.validate_current_read_only().unwrap();
+    assert_eq!(snapshot(&boundary.store.db), before_validation);
+    assert_eq!(boundary.store.db.total_changes(), changes);
     drop(boundary);
+
+    // This fixture is closed and has no concurrent writer or replacement.
+    AccessBoundary::validate_closed_existing_read_only(&path).unwrap();
+    let inspected = Connection::open_with_flags(
+        &path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NOFOLLOW,
+    )
+    .unwrap();
+    assert_eq!(snapshot(&inspected), before_validation);
+    assert_eq!(inspected.total_changes(), 0);
+    drop(inspected);
+
     let mut reopened = AccessBoundary::open(&path, config()).unwrap();
     let principal = reopened
         .authorize(
