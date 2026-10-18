@@ -2072,3 +2072,16 @@ session normally. It does not establish whole-Core/profile inspection, live
 WAL/SHM filesystem immutability, an updater deadline, service fencing, maintenance
 authority or native application readiness. No runtime route, real credentials,
 service, network, failure/denial/replay/crash case or broader suite is released.
+
+### Generated property Network associations
+
+The existing saved-Atlas browser fixture now has a sixth, separately labelled
+`Save network associations generated copy` case. Its existing actual-reader
+positive, fixture typecheck/build commands, exact pins and finite visual checks
+are documented in `frontend/lantern-tests/offline-atlas-browser/README.md`.
+It exercises two captured building joins, three room summaries, five anchored
+original connections, five incomplete connections and one separately derived
+shared-medium association. The five earlier snapshot pins stay unchanged.
+Room-summary lines are logical associations, not surveyed device positions or
+physical cable routes. Generated source/build checks do not accept pixels,
+native authority, installation or offline/device behavior.
