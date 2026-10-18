@@ -1383,6 +1383,32 @@ matrix retains its exact historical source attribution; browser automation is
 a separate check and gains no execution permission from this CPU command.
 This adds no workflow or ordinary CI step.
 
+Before claiming all thirty-five ran, retain their individual names and a
+thirty-five-test summary. A file-only successful result establishes neither.
+For an environment whose test subprocess reports only the file, the same
+inspected healthy module may be run directly on pinned Node 26.10.0:
+
+```sh
+node frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs
+```
+
+This changes no assertion, fixture, loader or scope. Record which invocation
+actually emitted the thirty-five names; do not attribute it to the file-only run.
+
+The separate property-network association positive is documented in
+[the architecture contract](../architecture/property-network-connections.md).
+After inspecting its pure projector, stage join and generated test body, run:
+
+```sh
+node frontend/lantern-tests/unified-atlas-network-connections-healthy.mjs
+```
+
+It retains original, reversed and parallel links, explicit endpoint ownership,
+within-room loops, complete property occurrences and separately counted shared
+media. The existing overlay-source healthy check also passes its actual generated
+decoder/projector output through the source-qualified stage join. Neither check
+establishes device coordinates, cable routes, native authority or browser pixels.
+
 The same named interaction runner also checks the complete outward hierarchy
 with a single-building publication, all eight independent layer combinations,
 Plan/3D continuity, explicit explosion, an opaque upper slab during a normal
