@@ -47,7 +47,7 @@ class _Budget:
         self.remaining()
         require(not exceptional and bool(writable if write else readable), "acquisition-failed")
 
-    def call(self, stream, action):
+    def call(self, stream, action, *, write=False):
         while True:
             self.remaining()
             try:
@@ -55,8 +55,11 @@ class _Budget:
             except ssl.SSLWantReadError:
                 self.ready(stream)
                 continue
-            except (ssl.SSLWantWriteError, BlockingIOError):
+            except ssl.SSLWantWriteError:
                 self.ready(stream, write=True)
+                continue
+            except BlockingIOError:
+                self.ready(stream, write=write)
                 continue
             self.remaining()
             return result
@@ -239,7 +242,7 @@ class BoundedHttps:
             offset = 0
             view = memoryview(request)
             while offset < len(view):
-                count = budget.call(stream, lambda: stream.send(view[offset:]))
+                count = budget.call(stream, lambda: stream.send(view[offset:]), write=True)
                 require(type(count) is int and 0 < count <= len(view) - offset, "acquisition-failed")
                 offset += count
             response = _Response(stream, budget, max_header_bytes)

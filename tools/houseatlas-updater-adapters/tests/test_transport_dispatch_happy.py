@@ -8,6 +8,7 @@ import unittest
 
 from bounded_http import BoundedHttps, HEADER_LIMIT
 from maintenance_dispatch import dispatch
+from maintenance_owner import MaintenanceOwner
 from houseatlas_updater.validation import request
 
 
@@ -27,6 +28,8 @@ class GeneratedSocket:
         self.reads = []
         self.closed = False
         self.handshakes = 0
+        self.send_pending = self.read_pending = True
+        self.wait_modes = []
 
     def setblocking(self, value):
         assert value is False
@@ -51,11 +54,17 @@ class GeneratedSocket:
         return "http/1.1"
 
     def send(self, data):
+        if self.send_pending:
+            self.send_pending = False
+            raise BlockingIOError(errno.EAGAIN, "generated send readiness")
         count = min(len(data), 17)
         self.sent.extend(data[:count])
         return count
 
     def recv(self, size):
+        if self.read_pending:
+            self.read_pending = False
+            raise BlockingIOError(errno.EAGAIN, "generated read readiness")
         self.reads.append(size)
         end = min(self.offset + size, self.offset + 3, len(self.wire))
         data = self.wire[self.offset:end]
@@ -95,6 +104,7 @@ class TransportDispatchHappyPaths(unittest.TestCase):
             self.assertGreater(timeout, 0)
             self.assertLess(timeout, 60)
             waits.append(timeout)
+            (writers or readers)[0].wait_modes.append("write" if writers else "read")
             clock.now += 0.001
             return readers, writers, []
 
@@ -130,6 +140,7 @@ class TransportDispatchHappyPaths(unittest.TestCase):
         self.assertEqual(stream.endpoint, ("192.0.2.1", 443))
         self.assertEqual(tls.hosts, ["api.github.com"])
         self.assertTrue(stream.closed)
+        self.assertEqual(stream.wait_modes, ["write", "read", "write", "write", "read"])
         self.assertTrue(all(size <= 5 for size in stream.reads))
         self.assertEqual(waits, sorted(waits, reverse=True))
         self.assertLess(clock.now, deadline)
@@ -161,6 +172,8 @@ class TransportDispatchHappyPaths(unittest.TestCase):
         self.assertEqual(streams[1].endpoint, ("2001:db8::1", 443, 0, 0))
         self.assertEqual(tls.hosts, ["api.github.com", "release-assets.githubusercontent.com"])
         self.assertTrue(all(stream.closed for stream in streams))
+        self.assertTrue(all(stream.wait_modes == ["write", "read", "write", "write", "read"]
+                            for stream in streams))
         self.assertEqual(waits, sorted(waits, reverse=True))
 
     def test_fixed_dispatch_uses_existing_cli_once_per_request(self):
@@ -198,3 +211,52 @@ class TransportDispatchHappyPaths(unittest.TestCase):
             self.assertTrue(dispatch(controller, "status", raw)["ok"])
             self.assertEqual(controller.calls[-1], ("status", identifier))
         self.assertEqual(len(controller.calls), 4)
+
+    def test_authorized_maintenance_catalog_and_exact_requests(self):
+        events = []
+
+        class ControllerPort:
+            def execute(self, raw):
+                packet, selected = request(raw)
+                command = packet["format"].split(".")[-2]
+                events.append(("execute", command, raw))
+                return {"phase": "checked" if command == "check" else "succeeded",
+                        "code": "none", "healthVerified": command == "apply", "recoveryNeeded": False}
+
+            def status(self, identifier):
+                events.append(("status", identifier))
+                return None
+
+        def authorize(command, raw):
+            events.append(("authorize", command, raw))
+            return True  # Generated exact authorization; never a runtime grant.
+
+        owner = MaintenanceOwner(ControllerPort(), authorize=authorize)
+        catalog = owner.catalog()
+        self.assertEqual([entry["name"] for entry in catalog],
+                         ["houseatlas_update_check", "houseatlas_update_apply", "houseatlas_update_status"])
+        self.assertTrue(all(entry["inputSchema"]["additionalProperties"] is False for entry in catalog))
+        self.assertTrue(all(entry["inputSchema"]["required"] == ["requestJson"] for entry in catalog))
+        self.assertEqual([entry["annotations"]["readOnlyHint"] for entry in catalog], [False, False, True])
+        self.assertIsNot(owner.catalog()[0], catalog[0])
+        release = {"version": "1.2.3", "commit": "1" * 40, "tree": "2" * 40,
+                   "releaseId": 10, "assetId": 20,
+                   "assetName": "houseatlas-1.2.3-x86_64-apple-darwin.tar.gz",
+                   "archiveSha256": "3" * 64, "manifestSha256": "4" * 64}
+        for index, command in enumerate(("check", "apply"), start=1):
+            packet = {"format": f"houseatlas.updater.{command}.v1",
+                      "operationId": f"00000000-0000-4000-8000-{index:012d}",
+                      "expectedInstalledRevision": "5" * 64, "release": release}
+            text = json.dumps(packet, indent=1)  # Authorization binds exact whitespace too.
+            result = owner.call("houseatlas_update_" + command, {"requestJson": text})
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["status"]["phase"], "checked" if command == "check" else "succeeded")
+            self.assertEqual(result["status"]["healthVerified"], command == "apply")
+            self.assertEqual(events[-2:], [("authorize", command, text.encode()),
+                                          ("execute", command, text.encode())])
+        text = json.dumps({"format": "houseatlas.updater.status-request.v1", "operationId": None})
+        self.assertEqual(owner.call("houseatlas_update_status", {"requestJson": text}),
+                         {"format": "houseatlas.updater.result.v1", "ok": True,
+                          "code": "none", "status": None})
+        self.assertEqual(events[-2:], [("authorize", "status", text.encode()), ("status", None)])
+        self.assertEqual(len(events), 6)

@@ -37,8 +37,9 @@ The request uses GET, a mandatory Host field derived from the fixed TLS origin,
 and exactly the supplied allowed fields: accept, accept-encoding, user-agent,
 and the API version field on the API origin. The Host field is the necessary
 HTTP routing exception to the acquisition protocol's “exactly supplied headers”
-wording; the current acquisition adapter does not supply it. The parent/source
-owner must acknowledge this explicit contract interpretation at integration.
+wording; the current acquisition adapter does not supply it. The integration
+owner has acknowledged this HTTP routing interpretation; no authentication
+fields or other ambient headers are added.
 No proxy, cookies, authentication, ambient credentials, decompression, redirects,
 retries or background reads are added. HTTPS userinfo, ports, fragments and
 other origins are refused. Redirect status/location is exposed to acquisition,
@@ -78,26 +79,56 @@ arrival deadlines remain the existing bridge owner's responsibilities. The
 dispatcher adds no listener, service, subprocess, dynamic imports, provider,
 path or URL selection. `ok=true` means the CLI handled the request; inspect
 `status.phase`, `code`, `healthVerified` and `recoveryNeeded` for the outcome.
-No bridge integration or NAS action is performed by this donor.
+No NAS action is performed by this donor.
+
+`maintenance_owner.MaintenanceOwner(controller, authorize=callback)` supplies the
+optional MCP catalog/call seam. Its `catalog()` returns fresh definitions for
+exactly `houseatlas_update_check`, `houseatlas_update_apply` and
+`houseatlas_update_status`. Its `call(name, arguments)` returns the existing
+updater result dict, ready for the bridge's MCP content envelope. Arguments are
+closed to one `requestJson` string of at most 4096 UTF-8 bytes; its protocol
+format must match the named command. No caller selects paths, URLs, shell,
+provider, configuration or a controller. Check stages privately and is marked
+as a mutation; only status has the read-only hint.
+
+The required trusted callback receives `(command, exact_raw_request_bytes)`
+immediately before dispatch and must return literal `True` for that one call.
+It binds the separate NAS maintenance policy, target and current action-time
+approval; native Editor/Atlas write grants do not imply maintenance authority.
+There is no default allow, cached grant or authorization argument in MCP input.
+Authorization refusal/errors use the fixed updater `boundary-failed` result;
+unknown error messages, callback details and controller diagnostics never enter
+the result. The external authorizer's actual policy remains an owner
+qualification, not a permission fabricated by this adapter.
+
+The existing bridge's composition owner alone supplies this optional object and
+adds its catalog/routes. Without that explicit injection, no updater tools are
+advertised. This source does not change deployed main configuration, install an
+endpoint, or grant access. Actual advertisement/installation remains absent
+until runtime binding and the relevant owner approvals are complete.
 
 ## Exact generated successful checks
 
-Inspect `bounded_http.py`, `maintenance_dispatch.py`,
+Inspect `bounded_http.py`, `maintenance_dispatch.py`, `maintenance_owner.py`,
 `tests/test_transport_dispatch_happy.py` and the imported updater CLI,
 validation, model and journal modules before this exact command from
 `tools/houseatlas-updater-adapters`:
 
 ```sh
-PYTHONPATH=../houseatlas-updater PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_https_partial_reads_shared_deadline_and_closure tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_explicit_asset_redirect_then_chunked_body tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_fixed_dispatch_uses_existing_cli_once_per_request -v
+PYTHONPATH=../houseatlas-updater PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_https_partial_reads_shared_deadline_and_closure tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_explicit_asset_redirect_then_chunked_body tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_fixed_dispatch_uses_existing_cli_once_per_request tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_authorized_maintenance_catalog_and_exact_requests -v
 ```
 
 The first two cases use finite generated HTTP bytes and injected socket, TLS,
 clock and readiness fixtures. They exercise successful partial sends/reads,
-ordinary nonblocking TLS readiness, explicit redirect exposure, bounded chunked
-decoding, IPv4/IPv6 numeric endpoints, hostname/trust settings and response
+ordinary nonblocking TLS and EAGAIN read/write readiness, explicit redirect
+exposure, bounded chunked decoding, IPv4/IPv6 numeric endpoints, hostname/trust settings and response
 closure. They never open a socket or perform DNS/TLS queries. The third calls
 the real CLI and strict protocol parser with a recording controller port for
-check/apply/status; it performs no transaction, staging or activation. These
+check/apply/status; it performs no transaction, staging or activation. The fourth
+checks the exact three-tool catalog and uses a recording authorizer/controller
+through the real dispatcher/CLI/parser, proving authorization sees the original
+UTF-8 bytes before one dispatch and preserves handled/phase/health distinctions.
+It makes no native or real MCP request. These
 tests do not qualify actual TLS certificates, native execution or deployment.
 No failure, denial, crash, replay, broad suite or CI scope is added or executed.
 The transport's fail-closed branches remain source-reviewed, unexecuted here.
