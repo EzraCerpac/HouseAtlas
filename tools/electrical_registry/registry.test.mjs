@@ -21,13 +21,13 @@ function fixture() {
     regions: ['region', 'unassigned'].map(id => ({ id, sheetId: 'sheet', label: id,
       sourceBounds: [0, 0, 1, 1], physicalTransform: null, orientation: 'unregistered',
       places: id === 'unassigned' ? [] : [
-        { packagePlaceKey: 'room:a', packagePlaceUuid: 'uuid-a', label: 'Same label', basis: 'owner-reported' },
-        { packagePlaceKey: 'room:b', packagePlaceUuid: 'uuid-b', label: 'Same label', basis: 'inferred' }] })),
+        { packagePlaceKey: 'room:a', packagePlaceUuid: '00000000-0000-0000-0000-00000000000a', label: 'Same label', basis: 'owner-reported' },
+        { packagePlaceKey: 'room:b', packagePlaceUuid: '00000000-0000-0000-0000-00000000000b', label: 'Same label', basis: 'inferred' }] })),
     groups: [{ id: 'group', label: 'L7', fixtureIds: ['socket', 'light'],
       evidenceBasis: 'historic-drawing-label', currentCircuitId: null, verifiedWiring: false }],
-    fixtures: ['socket', 'light', 'unresolved'].map((kind, i) => ({ id: kind, kind, label: `Generated ${kind}`, glyph: kind === 'socket' ? 'X' : '', sheetId: 'sheet',
+    fixtures: ['socket', 'light', 'unresolved'].map((kind, i) => ({ id: kind, kind, clusterId: null, label: `Generated ${kind}`, glyph: kind === 'socket' ? 'X' : '', sheetId: 'sheet',
       regionId: kind === 'unresolved' ? 'unassigned' : 'region',
-      source: { originalPhotoSha256: hash(original), renderedPhotoSha256: hash(rendered),
+      source: { symbolKey: `generated-${kind}`, originalPhotoSha256: hash(original), renderedPhotoSha256: hash(rendered),
         normalizedPoint: [0.25 + i / 10, 0.5], normalizedBox: [0.1, 0.1, 0.8, 0.8],
         literalLabels: ['L7'], placementDescription: 'Generated source mark' },
       group: { id: kind === 'unresolved' ? null : 'group', label: kind === 'unresolved' ? null : 'L7', basis: 'label-adjacent', note: '' },
@@ -60,17 +60,28 @@ test('healthy source marks retain exact joins, unknowns and distinct same-label 
   for (const [i, row] of JSON.parse(JSON.stringify(result)).records.entries()) {
     assert.equal(row.label, data.fixtures[i].label);
     assert.equal(row.glyph, data.fixtures[i].glyph);
+    assert.equal(row.clusterId, null);
+    assert.equal(row.source.symbolKey, data.fixtures[i].source.symbolKey);
     assert.deepEqual(row.documentaryGroup, data.fixtures[i].group);
   }
   for (const row of result.records) {
     assert.equal(row.physicalCoordinate, null); assert.equal(row.physicalTransform, null);
     assert.equal(row.currentCircuitId, null); assert.equal(row.wireRoute, null);
   }
-  assert.deepEqual(result.records[0].roomAssociations.map(p => p.packagePlaceUuid), ['uuid-a', 'uuid-b']);
+  assert.deepEqual(result.records[0].roomAssociations.map(p => p.packagePlaceUuid), ['00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-00000000000b']);
   assert.equal(result.rooms.length, 2);
   assert.deepEqual(result.rooms.map(r => r.completeness.documentaryRecords), [2, 2]);
   assert.deepEqual(result.rooms.map(r => r.completeness.roomAssociationInstances), [2, 2]);
   assert.deepEqual(result.symbolLegend, data.symbolLegend);
+  assert.equal(new Set(result.records.map(row => row.source.symbolKey)).size, 3);
+  const boundaries = fixture();
+  boundaries.symbolLegend.socketsPerX = 10000; boundaries.fixtures[0].glyphCount = 10000;
+  boundaries.fixtures[0].fixtureCount = 10000; boundaries.sheets[0].pdfPage = 10000;
+  const scientific = bytes(boundaries).toString().replaceAll(':10000', ':1e4').replaceAll(':1,', ':1e0,');
+  const bounded = buildRegistry(Buffer.from(scientific));
+  assert.equal(bounded.records[0].glyphCount, 10000);
+  assert.equal(bounded.sheets[0].pdfPage, 10000);
+  assert.equal(bounded.symbolLegend.socketsPerX, 10000);
   result.records[0].source.normalizedPoint[0] = 0;
   assert.deepEqual(data, before);
 });
@@ -89,7 +100,7 @@ test('healthy approximate and proposed registrations remain nonphysical', () => 
   data.registrationReceipts = ['proposed', 'source-reviewed-approximate'].map((status, i) => ({
     id: `registration-${i}`, sha256: hash(Buffer.from(status)), status,
     roomMappingReceipt: data.roomMappingReceipt, regionId: 'region', sheetId: 'sheet',
-    originalPhotoSha256: hash(original), packagePlaceKey: 'room:a', packagePlaceUuid: 'uuid-a',
+    originalPhotoSha256: hash(original), packagePlaceKey: 'room:a', packagePlaceUuid: '00000000-0000-0000-0000-00000000000a',
     sourceAnchorIds: ['anchor:a'], approvedFixtureIds: [i === 0 ? 'light' : 'socket'], physicalTransform: null,
     basis: 'Generated matching source landmarks', reviewQualification: 'Approximate display only; not measured or current wiring',
   }));
@@ -166,7 +177,7 @@ test('review regression: registration provenance is required and preserved for r
   const data = fixture();
   const registration = { id: 'reviewed-a', sha256: hash(Buffer.from('reviewed-a')), status: 'owner-reviewed-approximate',
     roomMappingReceipt: data.roomMappingReceipt, regionId: 'region', sheetId: 'sheet', originalPhotoSha256: hash(original),
-    packagePlaceKey: 'room:a', packagePlaceUuid: 'uuid-a', sourceAnchorIds: ['anchor:a'], approvedFixtureIds: ['socket'],
+    packagePlaceKey: 'room:a', packagePlaceUuid: '00000000-0000-0000-0000-00000000000a', sourceAnchorIds: ['anchor:a'], approvedFixtureIds: ['socket'],
     physicalTransform: null, basis: 'Two generated documentary landmarks', reviewQualification: 'Approximate historical display; calibration and installation unknown' };
   data.registrationReceipts = [registration];
   const projected = JSON.parse(JSON.stringify(buildRegistry(bytes(data)))).records[0].approximateRegistrations[0];
@@ -184,13 +195,13 @@ test('review regression: each room counts only registrations for its exact key a
     roomMappingReceipt: data.roomMappingReceipt, regionId: 'region', sheetId: 'sheet', originalPhotoSha256: hash(original),
     packagePlaceKey: key, packagePlaceUuid: uuid, sourceAnchorIds: ['anchor:a'], approvedFixtureIds,
     physicalTransform: null, basis: 'Generated documentary landmarks', reviewQualification: 'Approximate only' });
-  data.registrationReceipts = [registration('a-reviewed', 'room:a', 'uuid-a', 'source-reviewed-approximate', ['socket', 'light']),
-    registration('b-proposed', 'room:b', 'uuid-b', 'proposed', ['socket'])];
+  data.registrationReceipts = [registration('a-reviewed', 'room:a', '00000000-0000-0000-0000-00000000000a', 'source-reviewed-approximate', ['socket', 'light']),
+    registration('b-proposed', 'room:b', '00000000-0000-0000-0000-00000000000b', 'proposed', ['socket'])];
   let result = buildRegistry(bytes(data));
   assert.equal(result.completeness.approximateRegisteredRecords, 2);
   assert.deepEqual(result.rooms.map(r => r.completeness.approximateRegisteredRecords), [2, 0]);
   assert.deepEqual(result.rooms.map(r => r.completeness.documentaryRecords), [2, 2]);
-  data.registrationReceipts.push(registration('b-reviewed', 'room:b', 'uuid-b', 'owner-reviewed-approximate', ['socket']));
+  data.registrationReceipts.push(registration('b-reviewed', 'room:b', '00000000-0000-0000-0000-00000000000b', 'owner-reviewed-approximate', ['socket']));
   result = buildRegistry(bytes(data));
   assert.equal(result.completeness.approximateRegisteredRecords, 2); // Distinct records, not receipts.
   assert.deepEqual(result.rooms.map(r => r.completeness.approximateRegisteredRecords), [2, 1]);
