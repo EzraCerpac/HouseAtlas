@@ -64,13 +64,13 @@ class _Lease:
 
 class Launcher:
     def __init__(self, store, inspector, operations: PlatformOperations,
-                 read_installed: Callable[[], Installed], service_identity: bytes,
+                 read_installed: Callable[[float], Installed], service_identity: bytes,
                  *, operation_timeout_seconds: int = 30, claim_seconds: int = 5):
         require(type(service_identity) is bytes and bool(service_identity) and 1 <= operation_timeout_seconds <= 120 and
                 1 <= claim_seconds <= 30, "layout-invalid")
         native_policy = inspector.policy
         for path in (native_policy.data_directory, native_policy.original_config,
-                     native_policy.effective_config, *(path for _, path, _ in native_policy.artifacts)):
+                     native_policy.effective_config, *(item.path for item in native_policy.artifacts)):
             require(any(path == protected or protected in path.parents
                         for protected in store.policy.protected_roots), "layout-invalid")
         self.store, self.inspector, self.operations = store, inspector, operations
@@ -84,9 +84,12 @@ class Launcher:
     def check_deadline(self, deadline):
         require(self.clock() < deadline, "boundary-failed")
 
-    def read_installed(self):
-        installed = self._read_installed()
-        self.store.verify(installed)
+    def read_installed(self, deadline):
+        self.check_deadline(deadline)
+        installed = self._read_installed(deadline)
+        self.check_deadline(deadline)
+        self.store.verify(installed, deadline)
+        self.check_deadline(deadline)
         return installed
 
     def _process(self, process, installed):
@@ -108,7 +111,7 @@ class Launcher:
 
     def observe(self):
         deadline = self.deadline()
-        installed = self.read_installed()
+        installed = self.read_installed(deadline)
         if self._stopped is None:
             process = self.operations.process(deadline)
             self._process(process, installed)
@@ -117,7 +120,7 @@ class Launcher:
             process = None
             native = self._held(self._stopped, deadline).native
         runtime = self.inspector.inspect(installed, native, deadline)
-        require(self.read_installed() == installed and
+        require(self.read_installed(deadline) == installed and
                 self.operations.process(deadline) == process, "installed-changed")
         if self._stopped is not None:
             self._held(self._stopped, deadline)
@@ -131,7 +134,7 @@ class Launcher:
     def stop(self):
         require(self._stopped is None, "state-incompatible")
         deadline = self.deadline()
-        installed = self.read_installed()
+        installed = self.read_installed(deadline)
         process = self.operations.process(deadline)
         self._process(process, installed)
         fence = self.operations.fence(deadline)
@@ -150,29 +153,34 @@ class Launcher:
         stopped = Stopped(runtime, _Lease(self._owner, native, fence, exited))
         self._stopped, self._fresh = stopped, None
         self._held(stopped, deadline)
-        require(self.read_installed() == installed, "installed-changed")
+        require(self.read_installed(deadline) == installed, "installed-changed")
         return stopped
 
-    def inspect_stopped(self, stopped):
-        deadline = self.deadline()
+    def inspect_stopped(self, stopped, deadline=None):
+        # The core protocol starts a new boundary call without a deadline;
+        # nested adapter calls preserve their existing absolute budget.
+        if deadline is None:
+            deadline = self.deadline()
         lease = self._held(stopped, deadline)
-        installed = self.read_installed()
+        installed = self.read_installed(deadline)
         current = self.inspector.inspect(installed, lease.native, deadline)
-        require(current == stopped.runtime and self.read_installed() == installed, "state-incompatible")
+        require(current == stopped.runtime and self.read_installed(deadline) == installed, "state-incompatible")
         self._held(stopped, deadline)
         return current
 
-    def consume(self, fresh, expected, stopped):
+    def consume(self, fresh, expected, stopped, deadline):
         retained, self._fresh = self._fresh, None  # Consume even if a later check fails.
         require(retained is not None and retained[0] is fresh and
                 0 <= self.clock() - retained[1] < self.claim_seconds and
-                fresh.installed == expected == self.read_installed() and
-                fresh.runtime == self.inspect_stopped(stopped), "installed-changed")
+                fresh.installed == expected == self.read_installed(deadline) and
+                fresh.runtime == self.inspect_stopped(stopped, deadline), "installed-changed")
+        self.check_deadline(deadline)
 
     def start(self, stopped, installed):
         deadline = self.deadline()
         lease = self._held(stopped, deadline)
-        require(self.read_installed() == installed and self.inspect_stopped(stopped) == stopped.runtime,
+        require(self.read_installed(deadline) == installed and
+                self.inspect_stopped(stopped, deadline) == stopped.runtime,
                 "state-incompatible")
         self.check_deadline(deadline)
         self.operations.release_native(lease.native, deadline)
@@ -198,7 +206,7 @@ class HealthProbe:
         require(type(timeout_seconds) is int and 1 <= timeout_seconds <= 120 and
                 launcher._stopped is None, "health-failed")
         deadline = launcher.clock() + timeout_seconds
-        require(launcher.read_installed() == installed, "health-failed")
+        require(launcher.read_installed(deadline) == installed, "health-failed")
         process = launcher.operations.process(deadline)
         launcher._process(process, installed)
         runtime = launcher.inspector.inspect(installed, None, deadline)
@@ -209,14 +217,14 @@ class HealthProbe:
         require(isinstance(evidence, Readiness) and evidence.ready is True and evidence.process == process and
                 type(evidence.frontend_index) is bytes and len(evidence.frontend_index) <= 4_000_000,
                 "health-failed")
-        index, _ = read_file(installed.frontend / "index.html", 4_000_000, 0o644)
+        index, _ = read_file(installed.frontend / "index.html", 4_000_000, 0o644, deadline)
         require(sha256(evidence.frontend_index) == sha256(index), "health-failed")
         if installed.shell_identity is not None:
-            saved, _ = read_file(installed.frontend / "saved/index.html", 4_000_000, 0o644)
+            saved, _ = read_file(installed.frontend / "saved/index.html", 4_000_000, 0o644, deadline)
             require(type(evidence.saved_index) is bytes and len(evidence.saved_index) <= 4_000_000 and
                     sha256(saved) == sha256(evidence.saved_index), "health-failed")
         require(launcher.operations.process(deadline) == process and
-                launcher.read_installed() == installed and
+                launcher.read_installed(deadline) == installed and
                 launcher.inspector.inspect(installed, None, deadline) == runtime, "health-failed")
         launcher.check_deadline(deadline)
         return Health(True, installed.revision, installed.selection, installed.frontend_identity,

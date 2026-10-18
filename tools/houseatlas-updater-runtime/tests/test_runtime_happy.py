@@ -1,6 +1,7 @@
 """Only generated successful apply/coherence; no rollback/failure/platform execution."""
 
 import importlib.util
+import hashlib
 import json
 import os
 import sqlite3
@@ -13,7 +14,7 @@ from pathlib import Path
 from houseatlas_updater.controller import Controller
 from houseatlas_updater.validation import canonical, require, sha256
 from houseatlas_updater_runtime import (
-    CodeStore, ExitProof, HealthProbe, Launcher, NativeInspector, NativePolicy,
+    ArtifactPin, CodeStore, ExitProof, HealthProbe, Launcher, NativeInspector, NativePolicy,
     NativeValidation, PlatformOperations, Process, Publication, Readiness,
 )
 
@@ -37,6 +38,19 @@ class GeneratedOwner:
         for path in (data / "server.lock", data / "logs/server.events.jsonl"):
             path.write_bytes(b"generated stable private file")
             os.chmod(path, 0o600)
+        # Generated custody specimen exceeds the former implicit 4MiB limit.
+        # Its exact size and reviewed 32MiB model cap are explicit owner policy;
+        # source inspection/verification must hash it without materializing it.
+        model = data / "models/model.fixture"
+        remaining = 5 * 1024 * 1024 + 17
+        model_size, model_hash = remaining, hashlib.sha256()
+        block = b"generated-model!" * 4096
+        with model.open("wb") as output:
+            while remaining:
+                chunk = block[:min(remaining, len(block))]
+                output.write(chunk)
+                model_hash.update(chunk)
+                remaining -= len(chunk)
         tls = []
         for name in ("certificate.fixture", "private-key.fixture"):
             path = data / name
@@ -68,9 +82,10 @@ class GeneratedOwner:
         self.catalog = {world.installed.selection.manifest_sha256: generated.artifact("0.1.0", 1)}
         native_policy = NativePolicy(data, original, sha256(original.read_bytes()), self.effective,
                                       self.arguments, generated.STORAGE,
-                                      (("generated-model", data / "models/model.fixture",
-                                        sha256((data / "models/model.fixture").read_bytes())),
-                                       *(("generated-tls-" + str(number), path, sha256(path.read_bytes()))
+                                      (ArtifactPin("generated-model", model, model_size,
+                                                   model_hash.hexdigest(), 32 * 1024 * 1024),
+                                       *(ArtifactPin("generated-tls-" + str(number), path, path.stat().st_size,
+                                                     sha256(path.read_bytes()), 65536)
                                          for number, path in enumerate(tls))))
         self.inspector = NativeInspector(native_policy, self.validate_generated)
         self.store = CodeStore(world.policy, self.parse_manifest)
@@ -79,7 +94,7 @@ class GeneratedOwner:
             self.acquire_native, self.native_lease_held, self.release_native,
             self.start_existing, self.readiness)
         self.launcher = Launcher(self.store, self.inspector, self.platform,
-                                 lambda: world.installed, self.service)
+                                 self.read_installed, self.service)
         self.publisher = Publication(self.launcher, self.store, self.activate)
         self.controller = Controller(world.policy, world, world.fixture_manifest,
                                      self.launcher, self.publisher, HealthProbe(self.launcher))
@@ -89,7 +104,12 @@ class GeneratedOwner:
         return Process(123, b"generated-full-birth-" + str(self.birth).encode(), installed.binary,
                        (str(installed.binary), *self.arguments), self.service)
 
-    def parse_manifest(self, raw):
+    def read_installed(self, deadline):
+        require(time.monotonic() < deadline, "boundary-failed")
+        return self.world.installed
+
+    def parse_manifest(self, raw, deadline):
+        require(time.monotonic() < deadline, "boundary-failed")
         acquired = self.catalog[sha256(raw)]
         require(acquired.manifest == raw, "manifest-invalid")
         return self.world.fixture_manifest.verify(acquired, self.world.policy)
@@ -201,12 +221,12 @@ class RuntimeHappyPaths(unittest.TestCase):
                 self.assertEqual(owner.world.installed.binary == before.binary, frontend_only)
                 self.assertNotEqual(owner.world.installed.frontend, before.frontend)
                 self.assertEqual(list(owner.world.policy.staging_parent.iterdir()), [])
-                owner.store.verify(original)
-                owner.store.verify(owner.world.installed)
+                owner.store.verify(original, time.monotonic() + 30)
+                owner.store.verify(owner.world.installed, time.monotonic() + 30)
             # Reconstruct source adapters over durable release manifests/records;
             # reading retained closure/journal does not run a second activation.
             reopened = CodeStore(owner.world.policy, owner.parse_manifest)
-            reopened.verify(owner.world.installed)
+            reopened.verify(owner.world.installed, time.monotonic() + 30)
             self.assertEqual(owner.calls, ["fence", "stop-full-birth", "prove-exit", "lease", "exact-cas",
                                           "release-lease", "start-existing", "service-readiness"] * 2)
             raw_status = canonical(owner.controller.status())

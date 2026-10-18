@@ -13,7 +13,8 @@ Caller requests retain the existing closed code-release selection protocol.
 `CodeStore(policy, parse_manifest)` verifies the digest-selected stored manifest,
 all-and-only code files, canonical paths, single-link file identities, modes and
 hashes, and any frontend shell identity. `parse_manifest` is the owner's pinned
-packaging normalizer with retained trusted release/producer context; it must not
+packaging normalizer `parse_manifest(raw_bytes, absolute_deadline)` with retained
+trusted release/producer context; it must enforce that supplied deadline and must not
 turn unchecked manifest strings into trusted evidence. Retained components are
 resolved through their original immutable release and reverified recursively.
 New closures are exclusively reserved at `publication_root/manifestSha256`;
@@ -60,7 +61,16 @@ except `frontendDirectory`, and binds the effective canonical frontend separatel
 to the installed release. Original argv after the executable remains exact,
 including a stable effective `--server-config` path. Its private invariant binds
 all remaining configuration, original bytes, argv and owner-declared custody
-artifacts. Effective configuration replacement may change only that frontend
+artifacts. Each `NativePolicy.artifacts` entry is an explicit owner-bound
+`ArtifactPin(name, path, byte_size, sha256, maximum_bytes)`: the exact recorded
+size and digest are independent of its reviewed per-artifact maximum. The latter
+must be positive and no greater than the reviewed 32 MiB model ceiling; smaller
+TLS/config/source artifacts retain their own smaller declared bounds. These
+values are never caller protocol inputs. Artifact inspection uses 64 KiB reads,
+incremental hashing and exact size checks without accumulating the model bytes,
+then rechecks the same descriptor's metadata and the named path's identity and
+metadata. Both private captures must agree around native validation. Effective
+configuration replacement may change only that frontend
 selection; source does not write any real configuration. TLS, source/model/AI,
 shell and other external selected artifacts require a complete owner inventory
 with custody pins. Every native directory/file/SQLite sidecar, including unknown
@@ -84,10 +94,16 @@ exact argv/canonical frontend, actual served frontend index bytes (also saved
 shell index for a shell-bearing release), native state and successful actual
 native-service readiness. It repeats process/native/installed verification after
 the service probe. A fixed absolute monotonic deadline spans the whole health
-attempt. Every injected operation receives the same deadline and **must enforce
+attempt, including `read_installed(absolute_deadline)`, release-manifest parsing,
+recursive immutable closure verification, native scanning and bounded file reads.
+Nested stopped/publication checks preserve the outer operation's absolute budget
+instead of starting another budget. Every injected operation receives the same deadline and **must enforce
 it internally**, including bounded response streaming and cancellation; Python
 cannot preempt a blocking arbitrary callback. Adapters reject elapsed deadlines
-between operations. No unbounded background timeout thread is used.
+before and after local bounded chunks, scan entries and operations. Those checks
+cannot preempt blocking filesystem calls or guarantee hard real-time completion;
+the existing bounded core shell-marker helper is checked before and after its
+bounded call as well. No unbounded background timeout thread is used.
 
 ## Required native owner bindings and onboarding
 
@@ -137,7 +153,8 @@ job with the selected pair. It creates no service or lock replacement. The
 readiness binding must validate the real selected native readiness route and
 bounded actual frontend responses for that full process birth; a listening port,
 disk read or manifest assertion is insufficient. The owner-bound
-`read_installed()` and exact activation CAS must read and use the real qualified
+`read_installed(absolute_deadline)` and exact activation CAS must enforce their
+supplied deadlines and read and use the real qualified
 leaf mechanism, not a fake activation record or a new `current` symlink.
 
 The repository has legacy software trees (including `frontend/`) and the
@@ -153,7 +170,12 @@ exact. Do not point `frontendDirectory` through `current`, rewrite original
 private configuration, relocate native data, add a service, or infer onboarding
 authority from this source. Model/source/AI/shell artifacts must all be enumerated,
 and transient sidecar/socket inventory must have an owner-reviewed coherent cut.
-The source intentionally supplies no target adoption command.
+The source intentionally supplies no target adoption command. Compiled native
+read-validator, existing launchd/fence/lease, real readiness and guarded activation
+CAS bindings remain absent. Runtime qualification remains open: this source is
+not evidence that a Mac-independent real target update has been achieved.
+Sidecar/socket lifecycle changes are never silently omitted or normalized; the
+source admits only an already qualified coherent inventory cut.
 
 Before any real action, the NAS owner needs the exact reviewed source checkpoint,
 target/platform/native build/storage profiles, service/account/domain identity,
@@ -176,7 +198,9 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../houseatlas-updater:. python3 -m unittest
 ```
 
 The case creates a fresh `TemporaryDirectory`, generated nonexecutable Mach-O
-headers, code/frontend files, tiny synthetic SQLite catalogs, private-text/native
+headers, code/frontend files, tiny synthetic SQLite catalogs, a generated
+5 MiB + 17 byte model specimen with exact custody and a reviewed 32 MiB limit,
+smaller explicitly bounded artifact pins, private-text/native
 fixtures and deterministic in-process owner callbacks. It applies one full
 release, then a frontend-only release retaining the exact backend. It verifies
 immutable prior closures, actual paired selections within the fake service,
