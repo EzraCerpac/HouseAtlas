@@ -1823,3 +1823,23 @@ keyboard or browser checks. No global fetch replacement, socket, browser, native
 real IndexedDB/provider, held denial/foreign-token/expiry/revocation/crash/fault,
 guard-reversal or broad alias is included. This check establishes no genuine
 offline/device/PWA or deployment acceptance and adds no workflow.
+
+## Generated software release bundle check
+
+Read [software release bundles](../operations/release-bundles.md), then inspect
+`tools/release/bundle.py`, `fixtures.py`, `workflow.py` and `test_bundle.py`
+before this exact focused command:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/release -p test_bundle.py -v
+```
+
+Seven generated happy-path cases check deterministic software-only packaging,
+exact file closure, the retained-component/storage declarations, producer
+identity and a fake local draft/upload/download/publish sequence. They open no
+listener, execute no native binary and use no actual GitHub write, credential,
+household data or runtime. Held crash, replay, expiry, adversarial and rollback
+controls remain separate. The release workflow validates scoped PRs; actual
+main build and promotion are explicit manual operations with separate reviewed
+native-profile, storage-compatibility, producer and publication gates. Source
+checks do not qualify a NAS binary, updater transaction, deployment or device.

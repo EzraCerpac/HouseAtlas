@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "59bdff22d7591d9a2648e96ef137fe9c84dac4c7cc3cba62f4f260355a278dc5",
+  "sourceDigestSha256": "a41243dad326533adb40bbf98fd27f8ce791f9101ca32cf236d8a33b29c3b702",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -44,6 +44,13 @@
       "mode": "100644",
       "bytes": 6207,
       "sha256": "5c55911d6cde95179488e012a4e85eb4ff935ff5490a9c8e9a6be1ab1adbdb9f",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".github/workflows/release-bundle.yml",
+      "mode": "100644",
+      "bytes": 7502,
+      "sha256": "ed69f420a96b4b16acb41ae761e58ac4e4ad265e403e0fcdb535b9337de33f3a",
       "owner": "core-integration"
     },
     {
@@ -5950,8 +5957,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 109284,
-      "sha256": "763d1155dd092c419ebc4af77d4419127cbf6d68908df91d66e9429808f60028",
+      "bytes": 110328,
+      "sha256": "02996d1ac155e578139d2126d7ea95239d8e069f293b5879bdd63ce438ece994",
       "owner": "core-integration"
     },
     {
@@ -6443,6 +6450,13 @@
       "bytes": 1756,
       "sha256": "2f7543cda851fd24fa742c2ce0a3e1afde9244036738f86b1a2450284df688ef",
       "owner": "operations-policy"
+    },
+    {
+      "path": "docs/operations/release-bundles.md",
+      "mode": "100644",
+      "bytes": 10171,
+      "sha256": "019c6135713751351d6e25aba3404516c417b095a0ecd245d1d8cd8026513a36",
+      "owner": "core-integration"
     },
     {
       "path": "docs/operations/scenario-validation.md",
@@ -11546,6 +11560,55 @@
       "bytes": 179,
       "sha256": "adbf8ae50840c4689efb7a6763ef0df7d375420b2f416e41966f143bd1e5e00c",
       "owner": "web"
+    },
+    {
+      "path": "tools/release/bundle.py",
+      "mode": "100644",
+      "bytes": 16535,
+      "sha256": "e195ec5f4857e52e0bc8ac96300b4a22b3e7f2538b6fe186828ee052695abde6",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/release/bundle.schema.json",
+      "mode": "100644",
+      "bytes": 12478,
+      "sha256": "421ce99daf71e45df1580cafcc1eb146be1561023059075825fc6b77b2700a0f",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/release/fixtures.py",
+      "mode": "100644",
+      "bytes": 1982,
+      "sha256": "73cb43a2e183a5c6137d068cda43b24c471e2df2e38ade7a7089a12c7a8be8dc",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/release/fixtures/bundle.manifest.json",
+      "mode": "100644",
+      "bytes": 3433,
+      "sha256": "8073e8a088c9976e50659bd7828881d4898da81a47f6e5b8777320de3b193635",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/release/release-profile.json",
+      "mode": "100644",
+      "bytes": 582,
+      "sha256": "6c52ef91dc8de19f0f01200a011975948407764f8d4ae43ea32f85dc654a5d58",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/release/test_bundle.py",
+      "mode": "100644",
+      "bytes": 9084,
+      "sha256": "62e935dbda4dc5e46aac14d1b4c582b228b161469c69e0e3c3bf86f1f61e8a9a",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/release/workflow.py",
+      "mode": "100644",
+      "bytes": 14585,
+      "sha256": "7bb129bc4a2291557353580afbd226cb78fdc03eb9d85e5f5a2b71d1b8fc9617",
+      "owner": "core-integration"
     },
     {
       "path": "tools/rust-baseline/check-contracts.mjs",
