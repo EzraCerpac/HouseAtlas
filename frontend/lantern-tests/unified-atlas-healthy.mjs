@@ -42,11 +42,26 @@ const standardURL = await sourceURL('../src/lantern/canonical-ifc/standard-glb.t
   'three/examples/jsm/loaders/GLTFLoader.js': gltfLoaderURL, './geometry': geometryURL, './glb-preflight': preflightURL });
 const typesURL = await sourceURL('../src/lantern/unified-atlas/types.ts');
 const sceneURL = await sourceURL('../src/lantern/unified-atlas/scene.ts', { '../canonical-ifc/geometry': geometryURL, './types': typesURL });
+const tonesURL = await sourceURL('../src/lantern/canonical-ifc/tones.ts');
+const planPresentationURL = await sourceURL('../src/lantern/unified-atlas/plan-presentation.tsx', {
+  react: new URL('./node_modules/react/index.js', frontend).href,
+  'react/jsx-runtime': new URL('./node_modules/react/jsx-runtime.js', frontend).href,
+  '../canonical-ifc/geometry': geometryURL, '../canonical-ifc/tones': tonesURL, './scene': sceneURL,
+});
+const { PlanTile, AreaValue, planTileLevels } = await import(planPresentationURL);
+const graphURL = await sourceURL('../src/lantern/unified-atlas/NetworkGraph.tsx', {
+  react: new URL('./node_modules/react/index.js', frontend).href,
+  'react/jsx-runtime': new URL('./node_modules/react/jsx-runtime.js', frontend).href,
+  // CSS has no server execution; component logic and React are the actual modules.
+  './network-graph.css': dataURL(''),
+});
+const { NetworkGraph } = await import(graphURL);
 const readerURL = await sourceURL('../integration/unified-atlas-reader.ts',
   { '../src/lantern/unified-atlas/scene': sceneURL, '../src/lantern/unified-atlas/types': typesURL });
 const syntheticURL = await sourceURL('./unified-atlas/synthetic-atlas.ts');
 
-const { makeProjection, pointInShape } = await import(geometryURL);
+const { makeProjection, pointInShape, sourceMeshColor } = await import(geometryURL);
+const { readGlbContainer } = await import(preflightURL);
 const { loadStandardGlb } = await import(standardURL);
 const scene = await import(sceneURL);
 const { readUnifiedAtlas } = await import(readerURL);
@@ -72,6 +87,19 @@ assert.equal(composed.manifestSha256, createHash('sha256').update(composed.overv
 assert.equal(new Set([composed.manifestSha256, composed.sha256, read.scene.publication.semanticsSha256, read.scene.publication.sourceSha256]).size, 4, 'overview manifest, model, semantics and source are separate pins');
 assert.equal(read.scene.selection.revision, SYNTHETIC_ATLAS.revision);
 assert.equal(read.scene.publication.semanticsSha256, (await import('node:crypto')).createHash('sha256').update(companionBytes).digest('hex'));
+assert.equal(read.entryBuildingId, null, 'an unconfigured descriptor has no implicit primary building');
+// Optional owner-selected presentation metadata accompanies the same verified
+// descriptor and model; it is neither source JSON nor a native room binding.
+const entryRead = await readUnifiedAtlas({ selection, signal: new AbortController().signal,
+  origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true, transport: async (...args) => {
+    const response = await transport(...args);
+    const headers = new Headers(response.headers);
+    if (headers.get('content-type') === 'application/json') headers.set('x-atlas-entry-building-id', 'syn-building-house');
+    return new Response(response.body, { status: response.status, headers });
+  } });
+assert.equal(entryRead.entryBuildingId, 'syn-building-house');
+assert.deepEqual(entryRead.scene, read.scene);
+assert.deepEqual(Buffer.from(entryRead.model), Buffer.from(read.model));
 
 // Valid scalar text at the backend's human-field bounds. These generated
 // source strings are retained exactly, not normalized or interpreted as dates.
@@ -146,6 +174,85 @@ assert.deepEqual([0, 1, 2, 3, 4, 5].map(primitive => drawnAt(2, primitive).level
   ['syn-level-ground', 'syn-level-split', 'syn-level-upper', 'syn-level-ground', 'syn-level-ground+syn-level-upper', 'syn-level-split']);
 assert.equal(drawnAt(2, 4).levelId, null, 'the shared slab moves with no single level');
 assert.ok(model.parts.every(part => part.buildingId && Array.isArray(part.levelIds)), 'explicit building and level membership on every part');
+
+// A complete valid generated colour publication keeps the same geometry and
+// selectors, with its own model and companion pins. Reuse the generated BIN
+// unchanged while declaring opaque core materials in its glTF JSON.
+const colourFactors = [[.25, .5, .75, 1], [.625, .125, .375, 1]];
+const colourContainer = readGlbContainer(glb);
+assert.ok(colourContainer.bin);
+const colourJson = { ...colourContainer.json,
+  materials: [...colourFactors.map(baseColorFactor => ({ pbrMetallicRoughness: { baseColorFactor, metallicFactor: 0, roughnessFactor: 1 } })),
+    { pbrMetallicRoughness: { metallicFactor: 0, roughnessFactor: 1 } }],
+  meshes: colourContainer.json.meshes.map(mesh => ({ ...mesh,
+    primitives: mesh.primitives.map((primitive, at) => ({ ...primitive, material: (at + 1) % 3 })) })),
+};
+const colourJsonBefore = JSON.stringify(colourJson), colourText = new TextEncoder().encode(colourJsonBefore);
+const paddedLength = size => (size + 3) & ~3;
+const colourJsonLength = paddedLength(colourText.byteLength), colourBinLength = paddedLength(colourContainer.bin.byteLength);
+const colourGlb = new Uint8Array(28 + colourJsonLength + colourBinLength), colourView = new DataView(colourGlb.buffer);
+colourView.setUint32(0, 0x46546c67, true); colourView.setUint32(4, 2, true); colourView.setUint32(8, colourGlb.byteLength, true);
+colourView.setUint32(12, colourJsonLength, true); colourView.setUint32(16, 0x4e4f534a, true);
+colourGlb.set(colourText, 20); colourGlb.fill(0x20, 20 + colourText.byteLength, 20 + colourJsonLength);
+colourView.setUint32(20 + colourJsonLength, colourBinLength, true); colourView.setUint32(24 + colourJsonLength, 0x004e4942, true);
+colourGlb.set(colourContainer.bin, 28 + colourJsonLength);
+const colourCompanion = JSON.parse(new TextDecoder().decode(companionBytes));
+colourCompanion.original = { sha256: createHash('sha256').update(colourGlb).digest('hex'), bytes: colourGlb.byteLength };
+const colourCompanionBytes = new TextEncoder().encode(JSON.stringify(colourCompanion));
+const colourEnvelope = await composeAtlasEnvelope(colourCompanionBytes, colourGlb, SYNTHETIC_ATLAS.revision);
+const colourCalls = [], colourBytesBefore = colourGlb.slice();
+const colourRead = await readUnifiedAtlas({ selection: { ...selection, manifestSha256: colourEnvelope.manifestSha256 },
+  signal: new AbortController().signal, origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true,
+  transport: createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(scope), envelopeBytes: colourEnvelope.envelopeBytes,
+    href: colourEnvelope.href, glb: colourGlb, sha256: colourEnvelope.sha256, manifestSha256: colourEnvelope.manifestSha256,
+    revision: SYNTHETIC_ATLAS.revision, onRequest: url => colourCalls.push(url) }) });
+assert.deepEqual(colourCalls, [`${SYNTHETIC_ATLAS.origin}${atlasScenePath(scope)}?expectedManifestSha256=${colourEnvelope.manifestSha256}`,
+  `${SYNTHETIC_ATLAS.origin}${colourEnvelope.href}`], 'the colour publication reads only its exact scene and pinned model');
+assert.deepEqual(Buffer.from(colourRead.model), Buffer.from(colourGlb));
+assert.equal(colourRead.scene.publication.semanticsSha256, createHash('sha256').update(colourCompanionBytes).digest('hex'));
+assert.notEqual(colourEnvelope.sha256, composed.sha256);
+assert.notEqual(colourEnvelope.manifestSha256, composed.manifestSha256);
+const colourLoaded = await loadStandardGlb(colourRead.model, 'atlas', new AbortController().signal);
+const colourModel = bindAtlasModel(colourRead.scene, colourLoaded);
+assert.deepEqual(colourLoaded.drawn, loaded.drawn, 'authored colours retain every node/mesh/primitive selector and draw order');
+assert.deepEqual(colourLoaded.counts, loaded.counts); assert.deepEqual(colourLoaded.work, loaded.work);
+colourLoaded.meshes.forEach((mesh, at) => {
+  const expected = [colourFactors[1], undefined, colourFactors[0]][colourLoaded.drawn[at].primitiveIndex % 3];
+  assert.deepEqual(mesh.sourceBaseColor, expected, 'the exact primitive material supplies its raw linear RGBA factor');
+  if (expected) assert.equal(Object.isFrozen(mesh.sourceBaseColor), true);
+  assert.equal(loaded.meshes[at].sourceBaseColor, undefined, 'the existing no-material publication keeps its palette');
+  assert.deepEqual(mesh.vertices, loaded.meshes[at].vertices);
+  assert.deepEqual(mesh.bounds, loaded.meshes[at].bounds); assert.deepEqual(mesh.yRange, loaded.meshes[at].yRange);
+  assert.equal(mesh.triangles, loaded.meshes[at].triangles); assert.equal(mesh.vertices.byteLength, mesh.triangles * 72);
+  const part = colourModel.parts[at], original = model.parts[at];
+  assert.equal(part.mesh.sourceBaseColor, mesh.sourceBaseColor, 'the binder retains the same immutable factor');
+  assert.equal(part.mesh.vertices, mesh.vertices, 'binding does not rebuild colour or geometry buffers');
+  assert.deepEqual([part.role, part.buildingId, part.levelIds, part.levelId, part.occurrenceId],
+    [original.role, original.buildingId, original.levelIds, original.levelId, original.occurrenceId]);
+});
+const colourAt = (node, primitive) => colourModel.parts[colourLoaded.drawn.findIndex(row => row.nodeIndex === node && row.primitiveIndex === primitive)];
+assert.deepEqual([0, 1, 2, 3, 4, 5].map(primitive => colourAt(2, primitive).mesh.sourceBaseColor),
+  [colourFactors[1], undefined, colourFactors[0], colourFactors[1], undefined, colourFactors[0]]);
+assert.deepEqual([colourAt(5, 0).mesh.sourceBaseColor, colourAt(9, 0).mesh.sourceBaseColor], [colourFactors[1], colourFactors[1]],
+  'both transformed uses of the shared lamp retain its own primitive material');
+const colourState = { enabled: true, selected: false, reference: false,
+  selectedOccurrenceId: null, contextOccurrenceIds: [], tints: new Map() };
+const colourHall = colourModel.pickParts.get('syn-occ-hall')[0].mesh;
+for (const mesh of [colourHall, colourAt(3, 0).mesh, colourAt(5, 0).mesh, colourAt(10, 0).mesh]) {
+  assert.deepEqual(mesh.sourceBaseColor, colourFactors[1]);
+  assert.equal(sourceMeshColor(mesh, colourState), mesh.sourceBaseColor, 'normal room, roof and context appearance uses source colour before fallback tones');
+  for (const enabled of [false, undefined]) assert.equal(sourceMeshColor(mesh, { ...colourState, enabled }), undefined);
+  assert.equal(sourceMeshColor(mesh, { ...colourState, selected: true }), undefined, 'explicit mesh selection wins');
+  assert.equal(sourceMeshColor(mesh, { ...colourState, reference: true }), undefined, 'reference presentation wins');
+}
+assert.equal(sourceMeshColor(colourAt(2, 1).mesh, colourState), undefined, 'a valid material without an explicit factor uses the palette');
+for (const highlight of [{ selectedOccurrenceId: 'syn-occ-hall' }, { contextOccurrenceIds: ['syn-occ-hall'] },
+  { tints: new Map([['syn-occ-hall', '#5382A6']]) }])
+  assert.equal(sourceMeshColor(colourHall, { ...colourState, ...highlight }), undefined, 'selected, related and overlay room highlights each win');
+for (const elsewhere of [{ selectedOccurrenceId: 'syn-occ-living' }, { contextOccurrenceIds: ['syn-occ-living'] },
+  { tints: new Map([['syn-occ-living', '#5382A6']]) }])
+  assert.equal(sourceMeshColor(colourHall, { ...colourState, ...elsewhere }), colourHall.sourceBaseColor, 'another room highlight never suppresses this source colour');
+assert.deepEqual(colourGlb, colourBytesBefore); assert.equal(JSON.stringify(colourJson), colourJsonBefore);
 
 // Split levels in actual height order, whatever the listed order.
 assert.deepEqual(model.levelsByBuilding.get('syn-building-house').map(level => level.levelId), ['syn-level-ground', 'syn-level-split', 'syn-level-upper']);
@@ -287,7 +394,8 @@ const stairsBindings = [...commonBindings, emptyCommon].map(binding => ({ ...bin
 sharedEnvelope.overlayBindings = [localBefore, ...commonBindings, emptyCommon, localAfter, ...stairsBindings];
 const sharedScene = scene.admitAtlasScene(sharedEnvelope, { scope, publicationId: selection.publicationId },
   new TextEncoder().encode(JSON.stringify(sharedEnvelope)).byteLength);
-const sharedLayer = bindAtlasModel(sharedScene, loaded).overlays.get('electrical');
+const sharedModel = bindAtlasModel(sharedScene, loaded);
+const sharedLayer = sharedModel.overlays.get('electrical');
 const firstCommon = sharedLayer.placed.get('syn-occ-stairs-ground'), mixed = sharedLayer.placed.get('syn-occ-hall');
 for (const id of extraOccurrences) assert.equal(sharedLayer.placed.has(id), false, 'Excluded occurrences never acquire an inspectable placement');
 for (const id of ['syn-occ-stairs-ground', 'syn-occ-stairs-upper']) {
@@ -305,6 +413,56 @@ assert.deepEqual(mixed.bindings, hallBindings, 'selected detail bindings retain 
 const expectedRecords = [...new Set(hallBindings.flatMap(row => row.recordIds))];
 assert.deepEqual(mixed.recordIds, expectedRecords, 'selected detail IDs retain first source appearance');
 assert.equal(firstCommon.bindings.at(-1).sourceRevision, emptyCommon.sourceRevision);
+// Actual tile summaries count source entities once per floor/layer, while all
+// original per-occurrence counts and shared lazy record arrays stay intact.
+for (const [levelId, expected] of [['syn-level-ground', 9218], ['syn-level-upper', 9216]]) {
+  const html = renderToStaticMarkup(createElement(PlanTile, { model: sharedModel, level: sharedModel.levelsById.get(levelId),
+    layers: [sharedLayer], tints: new Map(), selected: null, name: levelId, choose() {} }));
+  assert.ok(html.includes(`${expected.toLocaleString()} electrical records`));
+  assert.equal((html.match(/<circle /g) ?? []).length, levelId === 'syn-level-ground' ? 2 : 1);
+}
+{
+  // Binding-only projection: a second selectable part of the same logical room
+  // on one floor, using a repeated prepared primitive (no new GLB admission).
+  const projected = structuredClone(read.scene), sourceId = 'syn-occ-stairs-ground', extraId = 'generated:second-stairs-part';
+  const occurrence = projected.occurrences.find(row => row.spaceOccurrenceId === sourceId);
+  const originalFeature = projected.plans.flatMap(plan => plan.features).find(feature => feature.spaceOccurrenceId === sourceId && feature.role === 'room');
+  const feature = { ...originalFeature, featureId: 'generated:second-stairs-feature', spaceOccurrenceId: extraId };
+  const plan = projected.plans.find(plan => plan.levelId === occurrence.levelId);
+  plan.features.push(feature); plan.featureIds.push(feature.featureId);
+  projected.occurrences.push({ ...occurrence, spaceOccurrenceId: extraId, planFeatureIds: [feature.featureId] });
+  projected.rooms.find(room => room.roomId === occurrence.roomId).occurrenceIds.push(extraId);
+  projected.levels.find(level => level.levelId === occurrence.levelId).occurrenceIds.push(extraId);
+  projected.coverage.selectable.push(extraId); projected.coverage.selectableCount++;
+  const part = model.pickParts.get(sourceId)[0], drawn = loaded.drawn.find(row => row.meshKey === part.mesh.meshKey);
+  const meshKey = 'generated:second-stairs-mesh', nodeIndex = 2500;
+  const binding = projected.meshBindings.find(binding => binding.spaceOccurrenceId === sourceId && binding.role === 'room-pick');
+  projected.meshBindings.push({ ...binding, nodeIndex, primitiveIndices: [0] });
+  projected.meshBindings.at(-1).spaceOccurrenceId = extraId;
+  projected.rooms.push({ ...projected.rooms.find(room => room.roomId === 'syn-room-hall'), roomId: 'generated:unlocated-room', occurrenceIds: [] });
+  const forRoom = (roomId, kind, recordIds, spaceOccurrenceId = null) => ({ ...hallSource, kind, roomId,
+    nativePlaceId: projected.rooms.find(room => room.roomId === roomId).nativePlaceId, spaceOccurrenceId,
+    anchor: { kind: 'room-summary' }, recordIds });
+  projected.overlayBindings = [forRoom('syn-room-stairs', 'electrical', ['source-A/sheet/reused', 'source-A/symbol/reused']),
+    forRoom('syn-room-hall', 'electrical', ['source-A/sheet/reused', 'source-B/sheet/reused']),
+    forRoom('syn-room-stairs', 'network', ['source-A/sheet/reused']),
+    forRoom('syn-room-hall', 'network', ['network/device/reused']),
+    forRoom('generated:unlocated-room', 'electrical', ['unplaced-source/sheet/reused'])];
+  const bound = bindAtlasModel(projected, { meshes: [...loaded.meshes, { ...part.mesh, meshKey }],
+    drawn: [...loaded.drawn, { ...drawn, meshKey, nodeIndex, primitiveIndex: 0 }] });
+  const layers = [...bound.overlays.values()];
+  const ground = renderToStaticMarkup(createElement(PlanTile, { model: bound, level: bound.levelsById.get('syn-level-ground'),
+    layers, tints: new Map(), selected: null, name: 'Generated shared floor', choose() {} }));
+  assert.ok(ground.includes('3 electrical records, 2 network records'));
+  assert.equal((ground.match(/<circle /g) ?? []).length, 6, 'per-room/layer markers remain per occurrence');
+  const upper = renderToStaticMarkup(createElement(PlanTile, { model: bound, level: bound.levelsById.get('syn-level-upper'),
+    layers, tints: new Map(), selected: null, name: 'Generated upper floor', choose() {} }));
+  assert.ok(upper.includes('2 electrical records, 1 network record'));
+  assert.equal(bound.overlays.get('electrical').records, 4);
+  assert.equal(bound.overlays.get('electrical').unplacedRecords, 1, 'unplaced source entities stay out of every tile');
+  assert.strictEqual(bound.overlays.get('electrical').placed.get(sourceId).recordIds, bound.overlays.get('electrical').placed.get(extraId).recordIds);
+}
+
 assert.equal(mixed.positions.length, 2);
 assert.ok(renderToStaticMarkup(createElement(PublishedOverlayDetails, { placement: mixed })).includes(emptyCommon.sourceRevision));
 
@@ -360,6 +518,186 @@ for (const key of multipleModel.levelsById.get(authored.levelId).occurrenceIds.f
   assert.equal(planPickOccurrence(multipleModel, multiplePresentation, authored.levelId, point.x, point.z), key);
 }
 
+// Actual React presentation: an additive empty floor retains navigation but
+// produces no thumbnail or non-finite coordinates. Every original feature,
+// occurrence, primitive binding and coverage record remains in the publication.
+for (const emptyFloor of [
+  { levelId: 'syn-level-empty', min: [102, 4, 51], max: [107, 5, 59] },
+  { levelId: 'syn-level-empty-below', min: [102, -.1, 51], max: [107, -.05, 59] },
+]) {
+  const extra = JSON.parse(new TextDecoder().decode(companionBytes)), emptyLevel = emptyFloor.levelId;
+  extra.buildings.find(building => building.buildingId === 'syn-building-house').levelIds.push(emptyLevel);
+  extra.levels.push({ levelId: emptyLevel, buildingId: 'syn-building-house', label: 'Generated empty floor', nativePlaceId: null,
+    sourceElevationM: null, elevationBasis: null, occurrenceIds: [], bounds: { min: emptyFloor.min, max: emptyFloor.max } });
+  extra.plans.push({ planId: `syn-plan-${emptyLevel}`, buildingId: 'syn-building-house', levelId: emptyLevel,
+    coordinates: 'scene-XZ-metres', featureIds: [], features: [] });
+  const emptyEnvelope = await composeAtlasEnvelope(new TextEncoder().encode(JSON.stringify(extra)), glb, SYNTHETIC_ATLAS.revision);
+  const emptyRead = await readUnifiedAtlas({ selection: { ...selection, manifestSha256: emptyEnvelope.manifestSha256 },
+    signal: new AbortController().signal, origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true,
+    transport: createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(scope), envelopeBytes: emptyEnvelope.envelopeBytes,
+      href: emptyEnvelope.href, glb, sha256: emptyEnvelope.sha256, manifestSha256: emptyEnvelope.manifestSha256, revision: SYNTHETIC_ATLAS.revision }) });
+  const emptyModel = bindAtlasModel(emptyRead.scene, await loadStandardGlb(emptyRead.model, 'empty-plan', new AbortController().signal));
+  assert.deepEqual(Buffer.from(emptyRead.model), Buffer.from(read.model));
+  assert.notEqual(emptyRead.scene.publication.semanticsSha256, read.scene.publication.semanticsSha256);
+  assert.deepEqual(emptyModel.scene.occurrences, model.scene.occurrences);
+  assert.deepEqual(emptyModel.scene.meshBindings, model.scene.meshBindings);
+  assert.deepEqual(emptyModel.scene.coverage, model.scene.coverage);
+  assert.deepEqual(emptyModel.scene.plans.slice(0, model.scene.plans.length), model.scene.plans);
+  assert.equal(emptyModel.plansByLevel.has(emptyLevel), true);
+  assert.deepEqual(scene.planFeaturesForLevel(emptyModel, emptyLevel), []);
+  if (emptyFloor.min[1] < 0) assert.equal(emptyModel.levelsByBuilding.get('syn-building-house')[0].levelId, emptyLevel, 'source heights, rather than appended array order, choose the lowest floor');
+  assert.deepEqual(scene.sitePlanLevels(emptyModel), ['syn-level-ground', 'syn-level-studio']);
+  assert.deepEqual(scene.sitePlanLevels(emptyModel), scene.sitePlanLevels(model));
+  const property = { ...initialAtlasState(emptyModel), buildingId: null, view: 'plan' };
+  const propertyPlan = presentAtlas(emptyModel, property, new Set());
+  assert.deepEqual(propertyPlan.planLevels, scene.sitePlanLevels(model));
+  assert.ok(propertyPlan.planLevels.every(levelId => scene.planFeaturesForLevel(emptyModel, levelId).length > 0));
+  const emptyState = atlasReducer(emptyModel, initialAtlasState(emptyModel), { type: 'level', levelId: emptyLevel });
+  assert.equal(emptyState.levelId, emptyLevel, 'the floor remains available through semantic navigation');
+  const props = { model: emptyModel, layers: [...emptyModel.overlays.values()], tints: new Map(), selected: null, choose() {} };
+  assert.equal(renderToStaticMarkup(createElement(PlanTile, { ...props, level: emptyModel.levelsById.get(emptyLevel), name: 'Generated empty floor' })), '');
+  const available = planTileLevels(emptyModel, emptyModel.levelsByBuilding.get('syn-building-house'), new Set(['syn-level-ground']));
+  assert.deepEqual(available.map(level => level.levelId), ['syn-level-split', 'syn-level-upper']);
+  const full = renderToStaticMarkup(createElement(PlanTile, { ...props, level: emptyModel.levelsById.get('syn-level-ground'), name: 'Generated ground floor' }));
+  assert.match(full, /class="ua-tile"/); assert.match(full, /<path /);
+  assert.ok(full.includes('Generated ground floor')); assert.ok(full.includes('4 electrical records')); assert.ok(full.includes('1 network record'));
+  assert.doesNotMatch(full, /NaN|Infinity/);
+}
+
+// Actual thumbnails use the same logical-room sibling context as the stage,
+// before ordinary overlay tint, in both directions across the two room parts.
+for (const [selected, sibling, levelId, unrelated] of [
+  ['syn-occ-stairs-ground', 'syn-occ-stairs-upper', 'syn-level-upper', 'syn-occ-bath'],
+  ['syn-occ-stairs-upper', 'syn-occ-stairs-ground', 'syn-level-ground', 'syn-occ-living'],
+]) {
+  const props = { model, level: model.levelsById.get(levelId), layers: [], tints: new Map([[sibling, '#123456'], [unrelated, '#654321']]),
+    selected, name: 'Generated sibling floor', choose() {} };
+  const html = renderToStaticMarkup(createElement(PlanTile, props));
+  const contextPaths = [...html.matchAll(/<path\b[^>]*class="cifc-plan-space is-context"[^>]*>/g)];
+  assert.equal(contextPaths.length, 1);
+  assert.ok(!contextPaths[0][0].includes('style='), 'sibling context takes precedence over its ordinary layer tint');
+  assert.ok(html.includes('class="cifc-plan-space is-other" style="fill:#654321"'));
+  assert.ok(!html.includes('is-selected'));
+  const ordinary = renderToStaticMarkup(createElement(PlanTile, { ...props, selected: null }));
+  assert.ok(!ordinary.includes('is-context')); assert.ok(!ordinary.includes('is-selected'));
+  assert.ok(ordinary.includes('fill:#123456')); assert.ok(ordinary.includes('fill:#654321'));
+}
+
+// Nullable area is an ordinary presentation value, independent of the source
+// geometry basis. No degenerate geometry or forced room selection is supplied.
+{
+  const source = { kind: 'source-model', sourceRef: 'generated-source-outline', note: null };
+  const estimated = { kind: 'owner-estimated-pick-proxy', sourceRef: null, note: 'Generated preliminary outline' };
+  const value = (geometryBasis, area) => renderToStaticMarkup(createElement(AreaValue, { geometryBasis, area }));
+  assert.equal(value(source, null), 'Area unavailable from model outline');
+  assert.equal(value(estimated, null), 'Not measured: estimated outline');
+  const area = { occurrenceId: 'syn-occ-hall', squareMetres: 12, text: '≈ 12 m²', partial: false };
+  assert.equal(value(source, area), '≈ 12 m²');
+  assert.equal(value(source, { ...area, partial: true }), '≈ 12 m², this part of the room');
+}
+
+// Actual graph SSR: self links stay in the drawing even when both source ends
+// collapse to one device. A record with no incident link remains listed apart.
+{
+  const loop = { id: 'generated-loop-device', label: 'Loop device', kind: 'Generated device', mobility: 'fixed', confidence: 'recorded', notes: '', place: null };
+  const isolated = { ...loop, id: 'generated-isolated-device', label: 'Isolated device' };
+  const port = (id, ownerDeviceId) => ({ id, label: id === 'loose' ? 'Loop endpoint' : id, kind: 'interface', ownerDeviceId, notes: '' });
+  const source = { label: 'Generated network', revision: null, recordedAt: null, retrievedAt: null, status: 'recorded',
+    acceptedAt: null, coverage: 'complete', notes: 'Fictional topology only' };
+  const cases = [
+    { name: 'direct', devices: [loop, isolated], endpoints: [], from: loop.id, to: loop.id, node: loop.label },
+    { name: 'owned-collapse', devices: [loop, isolated], endpoints: [port('port-a', loop.id), port('port-b', loop.id)], from: 'port-a', to: 'port-b', node: loop.label },
+    { name: 'ownerless', devices: [isolated], endpoints: [port('loose', null)], from: 'loose', to: 'loose', node: 'Loop endpoint' },
+  ];
+  for (const item of cases) for (const linkCount of [1, 2, 3, 5]) {
+    const data = { viewKey: `generated-loop-${item.name}-${linkCount}`, source, devices: item.devices, endpoints: item.endpoints,
+      links: Array.from({ length: linkCount }, (_, at) => ({ id: `generated-link-${item.name}-${at}`, fromEndpointId: at % 2 ? item.to : item.from, toEndpointId: at % 2 ? item.from : item.to, kind: 'connection', medium: 'Generated logical medium',
+        confidence: 'recorded', sourceConfidence: null, temporalStatus: '', recordedAtPrecision: null, basis: 'Generated source record', recordedAt: null, notes: '', path: null })) };
+    const before = JSON.stringify(data);
+    const html = renderToStaticMarkup(createElement(NetworkGraph, { graph: { key: data.viewKey, qualification: 'Generated documentary topology', data } }));
+    const svg = html.match(/<svg class="ung-svg"[\s\S]*?<\/svg>/)?.[0];
+    assert.ok(svg, 'the actual graph drawing is mounted separately from legend/list samples');
+    assert.match(svg, /<svg class="ung-svg"[^>]*role="img"/);
+    assert.equal((svg.match(/<g class="ung-node"/g) ?? []).length, 1);
+    const paths = [...svg.matchAll(/class="ung-edge is-recorded" d="([^"]+)"/g)].map(match => match[1]);
+    const hits = [...svg.matchAll(/class="ung-edge-hit" d="([^"]+)"/g)].map(match => match[1]);
+    assert.equal(paths.length, linkCount); assert.deepEqual(hits, paths);
+    assert.equal(new Set(paths).size, linkCount, 'every parallel self-link retains a distinct pointer path');
+    assert.match(svg, /class="ung-edge is-recorded" d="M[^"\n]*C[^"\n]*"/);
+    assert.doesNotMatch(html, /NaN|Infinity/);
+    const [l, t, width, height] = svg.match(/<svg class="ung-svg" viewBox="([^"]+)"/)[1].split(' ').map(Number);
+    assert.ok(Number.isFinite(l + t + width + height) && width > 0 && height > 0);
+    for (const path of paths) {
+      const coordinates = path.match(/[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi).map(Number);
+      assert.equal(coordinates.length, 8, 'the actual self-link remains a cubic');
+      for (let at = 0; at < coordinates.length; at += 2) {
+        assert.ok(coordinates[at] >= l + 8 - 1e-8 && coordinates[at] <= l + width - 8 + 1e-8);
+        assert.ok(coordinates[at + 1] >= t + 8 - 1e-8 && coordinates[at + 1] <= t + height - 8 + 1e-8, 'the full control envelope and hit stroke stay within the frame');
+      }
+    }
+    const total = `${linkCount} ${linkCount === 1 ? 'connection' : 'connections'}`;
+    assert.ok(html.includes(`${item.devices.length} ${item.devices.length === 1 ? 'device' : 'devices'}, ${item.endpoints.length} ${item.endpoints.length === 1 ? 'endpoint' : 'endpoints'}, ${total}`));
+    assert.ok(html.includes(`Devices (${item.devices.length})`)); assert.ok(html.includes(`Connections (${linkCount})`));
+    assert.ok(html.includes(`${item.node} ↔ ${item.node}`));
+    const alone = html.match(/<div class="ung-alone"[^>]*>([\s\S]*?)<\/div>/)?.[1] ?? '';
+    assert.match(alone, /Isolated device/); assert.doesNotMatch(alone, /Loop device|Loop endpoint/);
+    assert.equal((html.match(/class="ung-chip"/g) ?? []).length, 1);
+    assert.ok(html.includes(`${total}</span>`)); assert.ok(html.includes('no connection</span>'));
+    assert.equal(JSON.stringify(data), before);
+  }
+}
+
+// Actual graph drawing: mixed source directions cannot cancel parallel lanes.
+{
+  const device = id => ({ id, label: id, kind: 'Generated device', mobility: 'fixed', confidence: 'recorded', notes: '', place: null });
+  const port = (id, ownerDeviceId) => ({ id, label: id, kind: 'interface', ownerDeviceId, notes: '' });
+  const source = { label: 'Generated network', revision: null, recordedAt: null, retrievedAt: null, status: 'recorded', acceptedAt: null, coverage: 'complete', notes: 'Generated source note' };
+  const cases = [
+    { name: 'devices', devices: [device('A'), device('B')], endpoints: [], ends: [['A', 'B'], ['B', 'A']], labels: [['A', 'B'], ['B', 'A']] },
+    { name: 'owned-aliases', devices: [device('A'), device('B')], endpoints: [port('pa', 'A'), port('pb', 'B')], ends: [['pa', 'B'], ['pb', 'A'], ['A', 'pb']], labels: [['A', 'B'], ['B', 'A'], ['A', 'B']] },
+    { name: 'ownerless', devices: [], endpoints: [port('A', null), port('B', null)], ends: [['A', 'B'], ['B', 'A']], labels: [['A', 'B'], ['B', 'A']] },
+  ];
+  const numbers = path => path.match(/[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi).map(Number);
+  // Normalize only traversal of the emitted path; do not duplicate lane math.
+  const geometry = path => { const n = numbers(path); return n[0] < n.at(-2) || (n[0] === n.at(-2) && n[1] <= n.at(-1))
+    ? n : n.length === 6 ? [n[4], n[5], n[2], n[3], n[0], n[1]] : [n[2], n[3], n[0], n[1]]; };
+  for (const item of cases) for (const count of [2, 3, 5]) {
+    const data = { viewKey: `generated-mixed-${item.name}-${count}`, source, devices: [...item.devices, device('Isolated')], endpoints: item.endpoints,
+      links: Array.from({ length: count }, (_, at) => ({ id: `mixed-${at}`, fromEndpointId: item.ends[at % item.ends.length][0], toEndpointId: item.ends[at % item.ends.length][1],
+        kind: 'connection', medium: '', confidence: 'recorded', sourceConfidence: null, temporalStatus: '', recordedAtPrecision: null, basis: 'Generated source', recordedAt: null, notes: `Source note ${at}`, path: null })) };
+    const before = JSON.stringify(data);
+    const draw = (value, reversed = false) => {
+      const html = renderToStaticMarkup(createElement(NetworkGraph, { graph: { key: value.viewKey, qualification: 'Generated topology', data: value } }));
+      const svg = html.match(/<svg class="ung-svg"[\s\S]*?<\/svg>/)[0];
+      const paths = [...svg.matchAll(/class="ung-edge is-recorded" d="([^"]+)"/g)].map(match => match[1]);
+      assert.equal(paths.length, count);
+      assert.deepEqual([...svg.matchAll(/class="ung-edge-hit" d="([^"]+)"/g)].map(match => match[1]), paths);
+      assert.equal((svg.match(/<g class="ung-node"/g) ?? []).length, 2);
+      const [l, t, width, height] = svg.match(/viewBox="([^"]+)"/)[1].split(' ').map(Number);
+      for (const path of paths) { const n = numbers(path); for (let at = 0; at < n.length; at += 2) {
+        assert.ok(n[at] >= l + 8 - 1e-8 && n[at] <= l + width - 8 + 1e-8);
+        assert.ok(n[at + 1] >= t + 8 - 1e-8 && n[at + 1] <= t + height - 8 + 1e-8);
+      } }
+      assert.ok(html.includes(source.notes), 'source notes remain visible; individual link notes remain intact in the unchanged source data');
+      assert.ok(html.includes(`Connections (${count})`)); assert.ok(html.includes(`Devices (${value.devices.length})`));
+      const list = html.match(/<details class="ung-list"><summary>Connections \([^<]*<\/summary>([\s\S]*?)<\/details>/)[1];
+      const names = [...list.matchAll(/class="ung-item-name">([^<]*)<\/span>/g)].map(match => match[1]);
+      assert.deepEqual(names, value.links.map((_, at) => { const pair = item.labels[at % item.labels.length]; return (reversed ? [...pair].reverse() : pair).join(' ↔ '); }), 'source endpoint order remains visible in the connection list');
+      assert.ok(html.includes(`${value.endpoints.length} ${value.endpoints.length === 1 ? 'endpoint' : 'endpoints'}`));
+      assert.match(html.match(/<div class="ung-alone"[^>]*>([\s\S]*?)<\/div>/)[1], /Isolated/);
+      assert.doesNotMatch(html, /NaN|Infinity/);
+      return paths.map(geometry);
+    };
+    const original = draw(data);
+    for (let a = 0; a < count; a++) for (let b = a + 1; b < count; b++) {
+      assert.ok(original[a].some((value, at) => Math.abs(value - original[b][at]) > 1e-6), 'parallel curves differ geometrically even modulo traversal reversal');
+    }
+    const reversed = draw({ ...data, links: data.links.map(link => ({ ...link, fromEndpointId: link.toEndpointId, toEndpointId: link.fromEndpointId })) }, true);
+    original.forEach((curve, at) => curve.forEach((value, coordinate) => assert.ok(Math.abs(value - reversed[at][coordinate]) < 1e-8)));
+    assert.equal(JSON.stringify(data), before);
+  }
+}
+
 // Bounded binding-only projection: append repeated prepared primitives and
 // room features, retaining original ring/hole grouping and loaded part order.
 // This is not a new GLB publication or backend geometry admission.
@@ -401,7 +739,9 @@ function pickAt(state, t, key, pitch) {
 }
 const reduce = (state, ...actions) => actions.reduce((value, action) => atlasReducer(model, value, action), state);
 const initial = initialAtlasState(model);
-assert.deepEqual(initial, { buildingId: null, levelId: null, occurrenceId: null, view: '3d', exploded: true, overlay: null });
+assert.deepEqual(initial, { buildingId: null, levelId: null, occurrenceId: null, view: '3d', exploded: false,
+  layers: { electrical: false, network: false, measurements: false } });
+const explicitExploded = reduce(initial, { type: 'explode', exploded: true });
 assert.deepEqual(model.floorBuildings.map(row => row.buildingId), ['syn-building-house', 'syn-building-studio']);
 assert.equal(model.defaultBuildingId, 'syn-building-house');
 assert.equal(hasExplodableLevels(model, null), true);
@@ -430,14 +770,14 @@ for (const part of singleModel.parts.filter(part => part.role === 'roof')) {
   assert.equal(singlePresentation.hidden.has(part.mesh.meshKey), false);
   assert.equal(singlePresentation.clips.get(part.mesh.meshKey), null);
 }
-assert.deepEqual(reduce(initial, { type: 'view', view: 'plan' }), { ...initial, view: 'plan', buildingId: 'syn-building-house', levelId: 'syn-level-ground' });
+assert.deepEqual(reduce(initial, { type: 'view', view: 'plan' }), { ...initial, view: 'plan' });
 // Feature references may use any order; the generated Split plan is intentionally reordered.
 const rawSplit = JSON.parse(new TextDecoder().decode(companionBytes)).plans.find(row => row.levelId === 'syn-level-split');
 assert.notDeepEqual(rawSplit.featureIds, rawSplit.features.map(row => row.featureId));
 assert.deepEqual(new Set(rawSplit.featureIds), new Set(scene.planFeaturesForLevel(model, 'syn-level-split').map(row => row.featureId)));
 // Focused exploded floors frame every displayed section, including Upper's lift.
 for (const levelId of ['syn-level-ground', 'syn-level-split']) {
-  const focused = reduce(initial, { type: 'level', levelId });
+  const focused = reduce(explicitExploded, { type: 'level', levelId });
   const bounds = frameBox(model, focused, presentAtlas(model, focused, none));
   near(bounds.min, [102, -0.2, 51], 'focused exploded min');
   near(bounds.max, [112, 9.6, 59], 'focused exploded max');
@@ -445,13 +785,13 @@ for (const levelId of ['syn-level-ground', 'syn-level-split']) {
 
 
 // Room picks are never drawn unless highlighted, yet remain pickable.
-const exploded = presentAtlas(model, initial, none);
+const exploded = presentAtlas(model, explicitExploded, none);
 const pickKeys = model.parts.filter(part => part.role === 'room-pick').map(part => part.mesh.meshKey);
 assert.equal(pickKeys.length, 10);
 assert.ok(pickKeys.every(key => exploded.hidden.has(key)));
 assert.equal(exploded.pickable.size, 10);
 assert.ok(!exploded.hidden.has(drawnAt(2, 0).mesh.meshKey) && exploded.hidden.has(drawnAt(3, 0).mesh.meshKey), 'structure drawn, roof hidden when exploded');
-const highlighted = presentAtlas(model, initial, new Set(['syn-occ-hall']));
+const highlighted = presentAtlas(model, explicitExploded, new Set(['syn-occ-hall']));
 assert.ok(!highlighted.hidden.has(hallPick.mesh.meshKey) && highlighted.pickable.has('syn-occ-hall'));
 
 // Exploded: display offsets from the actual level order; shared and level-free parts stay put.
@@ -469,16 +809,16 @@ assert.equal(partLifts(model, exploded, 0).size, 0);
 near(hallPick.mesh.bounds.min, [102.1, 0.02, 51.1], 'hall pick after presentation');
 
 const everyRoom = SYNTHETIC_OCCURRENCES.filter(row => row.selectable !== false && !row.hole).map(row => row.id);
-for (const key of everyRoom) assert.equal(pickAt(initial, 1, key, 36), key, `exploded pick ${key}`);
+for (const key of everyRoom) assert.equal(pickAt(explicitExploded, 1, key, 36), key, `exploded pick ${key}`);
 // Mid-transition: lifted floors pick at the same half lift they are drawn with.
 for (const key of ['syn-occ-bedroom-split', 'syn-occ-study', 'syn-occ-bedroom-upper', 'syn-occ-bath', 'syn-occ-stairs-upper'])
-  assert.equal(pickAt(initial, 0.5, key, 36), key, `transition pick ${key}`);
+  assert.equal(pickAt(explicitExploded, 0.5, key, 36), key, `transition pick ${key}`);
 
 // Labels: anchor height and lift come from the same presentation and pick back to their room.
 // Non-overlapping anchor rays return their own room. Overlapping proxies use
 // nearest geometry; visible label buttons instead select their explicit occurrence ID.
 for (const key of ['syn-occ-hall', 'syn-occ-bedroom-split', 'syn-occ-bedroom-upper']) {
-  const projection = makeProjection(pose(36), frameBox(model, initial, exploded), VIEWPORT, 0);
+  const projection = makeProjection(pose(36), frameBox(model, explicitExploded, exploded), VIEWPORT, 0);
   const anchor = model.labels.get(key);
   assert.ok(pointInShape(anchor.x, anchor.z, model.shapes.get(key)));
   assert.equal(labelHeight(model, exploded, key, false), model.floorY.get(model.occurrencesById.get(key).levelId) + 1.2, 'label at the section cut');
@@ -486,12 +826,16 @@ for (const key of ['syn-occ-hall', 'syn-occ-bedroom-split', 'syn-occ-bedroom-upp
   assert.equal(pickOccurrence(model, exploded, 1, projection, px, py), key, `label pick ${key}`);
 }
 
-// Stacked whole building: the topmost room at each point wins; structure and roof never claim a room.
-const stacked = reduce(initial, { type: 'building', buildingId: 'syn-building-house' }, { type: 'explode', exploded: false });
-assert.ok(!presentAtlas(model, stacked, none).hidden.has(drawnAt(3, 0).mesh.meshKey), 'roof drawn when stacked');
-for (const key of ['syn-occ-bedroom-upper', 'syn-occ-bath', 'syn-occ-stairs-upper', 'syn-occ-bedroom-split', 'syn-occ-study'])
-  assert.equal(pickAt(stacked, 0, key, 60), key, `stacked pick ${key}`);
-assert.equal(pickAt(stacked, 0, 'syn-occ-hall', 60), 'syn-occ-bedroom-upper', 'the upper room is above the hall');
+// Normal whole-building navigation selects authored surfaces before rooms.
+const stacked = reduce(initial, { type: 'building', buildingId: 'syn-building-house' });
+const stackedPresentation = presentAtlas(model, stacked, none);
+assert.ok(!stackedPresentation.hidden.has(drawnAt(3, 0).mesh.meshKey), 'roof drawn when stacked');
+assert.equal(stackedPresentation.pickable.size, 0, 'building scope does not jump straight to room details');
+assert.equal(partLifts(model, stackedPresentation, stackedPresentation.explodeTarget).size, 0, 'settled normal navigation never separates floors');
+const stackedProjection = makeProjection(pose(90, 0), frameBox(model, stacked, stackedPresentation), VIEWPORT, 0);
+const roofPixel = stackedProjection.project(103.25, 5, 55);
+assert.deepEqual(scene.pickTarget(model, stackedPresentation, stacked, 0, stackedProjection, ...roofPixel),
+  { kind: 'building', buildingId: 'syn-building-house' }, 'this fixture roof has no authored floor, so it retains building scope');
 // Stacked with one floor in focus: lower floors only, cut at the focus section.
 for (const [levelId, keys] of [['syn-level-ground', ['syn-occ-hall', 'syn-occ-living', 'syn-occ-stairs-ground']],
   ['syn-level-upper', ['syn-occ-bedroom-upper', 'syn-occ-bath', 'syn-occ-stairs-upper']]]) {
@@ -553,7 +897,7 @@ const ceilings = sectionCeilings(model);
 near(ceilings, [5.71, 3.01], 'each building rests just above its own geometry');
 const datum = atlasOrigin(model)[1];
 const sweep = {
-  whole: initial,
+  whole: explicitExploded,
   stacked,
   ground: reduce(stacked, { type: 'level', levelId: 'syn-level-ground' }),
   upper: reduce(stacked, { type: 'level', levelId: 'syn-level-upper' }),
@@ -689,7 +1033,7 @@ const revealed = (presentation, key) => model.pickParts.get(key).some(part => {
           subject.floorY.get(level) + 0.6 + levelLift(presentation, occurrenceLiftLevel(subject, key), 0.5), z);
         assert.equal(pickOccurrence(raised, highShown, 0.5, highProjection, ...probe(raised, high, highProjection)),
           pickOccurrence(model, baseShown, 0.5, baseProjection, ...probe(model, base, baseProjection)), `${name} raised pick ${key} at ${pitch}°`);
-        if (name === 'stacked' && key === 'syn-occ-living' && pitch === 90) {
+        if (name === 'whole' && key === 'syn-occ-living' && pitch === 90) {
           assert.equal(pickOccurrence(model, baseShown, 0.5, baseProjection, ...probe(model, base, baseProjection)), 'syn-occ-bath');
           assert.equal(pickOccurrence(raised, highShown, 0.5, highProjection, ...probe(raised, high, highProjection)), 'syn-occ-bath',
             'the room interior remains pickable on a shared triangle seam');
@@ -705,19 +1049,19 @@ let state = reduce(initial, { type: 'select', occurrenceId: 'syn-occ-hall' });
 assert.deepEqual([state.occurrenceId, state.buildingId, state.levelId], ['syn-occ-hall', 'syn-building-house', 'syn-level-ground']);
 state = reduce(state, { type: 'level', levelId: null });
 state = reduce(state, { type: 'select', occurrenceId: 'syn-occ-living' });
-assert.equal(state.levelId, null, 'an exploded whole building keeps every floor in view');
+assert.equal(state.levelId, 'syn-level-ground', 'a room retains its semantic floor regardless of presentation');
 state = reduce(state, { type: 'view', view: 'plan' });
 assert.deepEqual([state.view, state.occurrenceId, state.levelId], ['plan', 'syn-occ-living', 'syn-level-ground']);
 state = reduce(state, { type: 'select', occurrenceId: 'syn-occ-study' });
 assert.deepEqual([state.occurrenceId, state.levelId], ['syn-occ-study', 'syn-level-split'], 'the plan follows the room to its floor');
-state = reduce(state, { type: 'overlay', overlay: 'electrical' }, { type: 'view', view: '3d' }, { type: 'explode', exploded: false });
-assert.deepEqual([state.occurrenceId, state.overlay, state.view, state.exploded], ['syn-occ-study', 'electrical', '3d', false]);
+state = reduce(state, { type: 'layer', layer: 'electrical', on: true }, { type: 'view', view: '3d' }, { type: 'explode', exploded: false });
+assert.deepEqual([state.occurrenceId, state.layers.electrical, state.view, state.exploded], ['syn-occ-study', true, '3d', false]);
 state = reduce(state, { type: 'select', occurrenceId: 'syn-occ-stairs-ground' }, { type: 'select', occurrenceId: 'syn-occ-stairs-upper' });
 assert.deepEqual([state.occurrenceId, state.levelId], ['syn-occ-stairs-upper', 'syn-level-upper']);
 state = reduce(state, { type: 'building', buildingId: 'syn-building-studio' });
 assert.deepEqual([state.occurrenceId, state.buildingId, state.levelId], [null, 'syn-building-studio', null], 'another building clears the room');
 state = reduce(state, { type: 'select', occurrenceId: 'syn-occ-studio' }, { type: 'building', buildingId: null });
-assert.equal(state.occurrenceId, 'syn-occ-studio', 'all buildings keep the room');
+assert.deepEqual([state.occurrenceId, state.levelId, state.buildingId], [null, null, null], 'property scope clears the complete child path');
 
 // Normal pointer sequences through the same production handlers used by the hook.
 const { createStagePointers } = await import(pointersURL);
@@ -792,4 +1136,5 @@ console.log('PASS unified Atlas healthy: generated scene/model read through the 
   + 'Common records/provenance are shared across two selectable Stairs parts; 32 excluded occurrences acquire no placement. '
   + 'Explicit excluded-part and wholly excluded-room bindings retain unplaced totals, original anchors, dates and inspectable source references. '
   + 'Scalar counts and selected details retain source order. '
-  + 'Generated data only; no renderer, browser or device acceptance.');
+  + 'Actual static React graph, PlanTile and AreaValue checks retain distinct parallel self-links and mixed-direction lanes with enclosing frames, distinct floor record summaries, sibling room context, empty-floor navigation and usable property plans, and nullable area basis. '
+  + 'Generated data only; no mounted browser, GPU or device acceptance.');

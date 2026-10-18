@@ -1,7 +1,8 @@
-/* Unified Atlas: one Lantern stage. The model stands under the spotlight on
-   the metric drafting grid; floors, view, overlays and the room panel float
-   on paper around it. The one bold element is lantern yellow: the section
-   plane that sweeps to a chosen floor and the selected room's tag. */
+/* Unified Atlas: one Lantern stage. The property stands on a birch board in
+   warm lamplight; floors, view, layers and the room panel float on paper
+   around it in indigo ink. The one bold element is lantern yellow: the
+   selected room, its tag and the section plane that sweeps to a floor.
+   Navigation choices are ink; layer hues stay with their records. */
 
 .lantern-host.view-atlas .main > .ua-shell {
   flex: 1;
@@ -24,7 +25,7 @@
   grid-row: 2;
   margin: 0;
   border-bottom: 1px solid var(--hair);
-  background: var(--card-2);
+  background: #f8f4ec;
   font-size: var(--fs-s);
 }
 
@@ -69,8 +70,19 @@
   .lantern-host.view-atlas .main:has(> .ua-shell) > .atlas-source-details { font-size: var(--fs-xs); }
 }
 
+/* A compact stage carries both in its own menu, so the row gives its height
+   to the model. Included archived records keep the row, with their list. */
+.lantern-host.view-atlas .main:has(> .ua-shell.is-compact) > .atlas-source-details,
+.lantern-host.view-atlas .main:has(> .ua-shell.is-compact) > .archive-filter:not(.is-on) { display: none; }
+
 .lantern-host .ua-shell {
   --ua-peek: 76px;
+  --ua-paper: #fdfbf6;
+  --ua-panel: rgba(253, 251, 246, 0.95);
+  --ua-line: rgba(60, 46, 22, 0.14);
+  --ua-shadow: 0 1px 2px rgba(64, 46, 16, 0.08), 0 14px 30px -18px rgba(64, 46, 16, 0.5);
+  --ua-hover: rgba(24, 35, 58, 0.055);
+  --ua-rail: 224px;
   container: ua / inline-size;
   position: relative;
   flex: 1;
@@ -80,20 +92,17 @@
   flex-direction: column;
   overflow: hidden;
   background:
-    radial-gradient(ellipse 62% 56% at 52% 46%, rgba(255, 255, 252, 0.95) 0%, rgba(255, 255, 252, 0.6) 42%, rgba(255, 255, 252, 0) 74%),
-    linear-gradient(rgba(22, 50, 79, 0.055) 1px, transparent 1px) 0 0 / 32px 32px,
-    linear-gradient(90deg, rgba(22, 50, 79, 0.055) 1px, transparent 1px) 0 0 / 32px 32px,
-    #eceee9;
+    radial-gradient(ellipse 70% 60% at 46% 40%, #fffaf0 0%, rgba(255, 250, 240, 0.6) 42%, rgba(255, 250, 240, 0) 78%),
+    linear-gradient(176deg, #f1e9da 0%, #ddd0b7 100%);
 }
 
 .lantern-host .ua-shell.is-stage {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-rows: minmax(0, 1fr);
-  background: var(--ground);
 }
 
-/* ---- Stage ------------------------------------------------------------- */
+/* ---- Stage: lamplight on paper ------------------------------------------ */
 
 .lantern-host .ua-stage {
   container: ua-stage / inline-size;
@@ -103,12 +112,29 @@
   overflow: hidden;
   /* Focus never scrolls the stage away from the camera. */
   overflow: clip;
+  /* Lamplight pooled on the model, the room falling off to warm umber at the
+     edges, so the pale architecture stands against its surroundings. */
   background:
-    radial-gradient(ellipse 62% 56% at 52% 46%, rgba(255, 255, 252, 0.95) 0%, rgba(255, 255, 252, 0.6) 42%, rgba(255, 255, 252, 0) 74%),
-    linear-gradient(rgba(22, 50, 79, 0.055) 1px, transparent 1px) 0 0 / 32px 32px,
-    linear-gradient(90deg, rgba(22, 50, 79, 0.055) 1px, transparent 1px) 0 0 / 32px 32px,
-    #eceee9;
+    radial-gradient(ellipse 72% 64% at 46% 40%, #fffaf0 0%, rgba(255, 250, 240, 0.6) 42%, rgba(255, 250, 240, 0) 78%),
+    linear-gradient(176deg, #f1e9da 0%, #ddd0b7 100%);
 }
+
+/* Plan lays a drafting sheet over the lamplight; it fades with the camera. */
+.lantern-host .ua-stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  /* A quiet sheet: the faint rule stays behind the rooms, never beside them. */
+  background:
+    linear-gradient(rgba(24, 35, 58, 0.028) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, rgba(24, 35, 58, 0.028) 1px, transparent 1px) 0 0 / 24px 24px,
+    radial-gradient(ellipse 80% 70% at 50% 45%, #fffdf8 0%, #f4efe4 100%);
+}
+
+.lantern-host .ua-shell.is-plan .ua-stage::before { opacity: 1; }
 
 .lantern-host .cifc-viewport.ua-viewport {
   position: absolute;
@@ -127,6 +153,32 @@
   z-index: 5;
 }
 
+/* ---- The birch board ----------------------------------------------------- */
+
+/* Saturated birch against the paper walls: the two materials never merge. */
+.lantern-host .ua-ground {
+  stroke: rgba(110, 78, 30, 0.55);
+  stroke-width: 1;
+}
+
+.lantern-host .ua-board-lit { stop-color: #ead2a0; }
+.lantern-host .ua-board-shade { stop-color: #cfae74; }
+.lantern-host .ua-ground-edge { fill: #9c7a45; }
+
+.lantern-host .ua-grid-line {
+  fill: none;
+  stroke: rgba(110, 76, 28, 0.24);
+  stroke-width: 0.03;
+}
+
+.lantern-host .ua-ground-grid,
+.lantern-host .ua-ground-shadow { pointer-events: none; }
+
+/* Each building's lowest floor, set down on the board away from the light. */
+.lantern-host .ua-ground-shadow path { fill: #4f3712; }
+
+/* ---- Model overlays ------------------------------------------------------ */
+
 /* The moving section: lantern glass at the cut, only while it travels. */
 .lantern-host .ua-section {
   fill: rgba(255, 209, 92, 0.18);
@@ -139,13 +191,25 @@
   animation: ua-fade-in 0.32s ease-out;
 }
 
-.lantern-host .ua-plan .cifc-plan-space {
+/* Rooms on warm paper, walls in ink, openings left as paper gaps; only what
+   the plan authors is drawn. */
+.lantern-host .ua-plan .cifc-plan-space,
+.lantern-host .ua-tile .cifc-plan-space {
+  fill: #fbf4e4;
+  stroke: rgba(24, 35, 58, 0.24);
   transition: fill 0.2s ease, stroke 0.2s ease;
 }
 
+.lantern-host .ua-plan .cifc-plan-space.is-other { fill: #f3ede1; }
+.lantern-host .ua-plan .cifc-plan-space.is-display-only,
+.lantern-host .ua-tile .cifc-plan-space.is-display-only { fill: #efebe2; stroke: var(--c-unknown); stroke-dasharray: 4 3; }
+.lantern-host .ua-plan .cifc-plan-space.is-context { fill: var(--lantern-soft); stroke: var(--lantern-edge); stroke-width: 1.5; stroke-dasharray: 6 3; }
+.lantern-host .ua-plan .cifc-plan-space.is-selected,
+.lantern-host .ua-tile .cifc-plan-space.is-selected { fill: var(--lantern); stroke: var(--lantern-edge); stroke-width: 2.5; }
+
 .lantern-host .ua-plan-wall { fill: var(--ink); }
-.lantern-host .ua-plan-opening { fill: #fdfcf8; stroke: var(--ink-2); stroke-width: 1; }
-.lantern-host .ua-plan-stair { fill: rgba(216, 190, 142, 0.35); stroke: var(--birch-dark); stroke-width: 1; }
+.lantern-host .ua-plan-opening { fill: #fdfbf6; stroke: var(--ink-2); stroke-width: 0.8; }
+.lantern-host .ua-plan-stair { fill: rgba(216, 190, 142, 0.42); stroke: var(--birch-dark); stroke-width: 1; }
 .lantern-host .ua-plan-context { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
 
 /* One ring from the selected room's anchor when it is chosen. */
@@ -172,14 +236,59 @@
   from { opacity: 0; transform: translateY(6px); }
 }
 
-/* Qualified source positions: small diamonds in the layer hue. */
+/* Building names on the property plan, set like a drawing's titles. */
+.lantern-host .ua-site-names text {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  fill: var(--ink);
+  paint-order: stroke;
+  stroke: rgba(253, 251, 246, 0.94);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+/* Calibrated source positions: small diamonds in the layer hue. Outside the
+   chosen scope they keep their place, hollow. */
 .lantern-host .ua-positions rect {
   fill: var(--layer);
   stroke: #fff;
   stroke-width: 1.5;
 }
 
-/* Room-summary count: one per room part, at its label point. */
+.lantern-host .ua-positions rect.is-context {
+  fill: #fffdf8;
+  stroke: var(--layer);
+  opacity: 0.8;
+}
+
+/* Model outline dimensions: birch rule lines with their values beside them. */
+.lantern-host .ua-measure line {
+  stroke: var(--birch-dark);
+  stroke-width: 1.25;
+  stroke-linecap: round;
+}
+
+.lantern-host .ua-measure text {
+  font-family: var(--text);
+  font-size: 11px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  fill: #6a4c18;
+}
+
+.lantern-host .ua-measure .ua-measure-halo {
+  fill: none;
+  stroke: rgba(253, 251, 246, 0.95);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.lantern-host .ua-measure-area text { font-size: 11.5px; font-weight: 700; }
+.lantern-host .ua-measure-area text:not(.ua-measure-halo) { fill: var(--ink-2); }
+
+/* Room-summary count: one per room part at its label point; a summary, never a device position. */
 .lantern-host .ua-marker {
   position: absolute;
   z-index: 3;
@@ -193,8 +302,19 @@
   color: #fff;
   font: 700 12px/1 var(--text);
   font-variant-numeric: tabular-nums;
-  box-shadow: var(--shadow-float);
+  box-shadow: 0 1px 1px rgba(24, 35, 58, 0.16), 0 8px 16px -10px rgba(24, 35, 58, 0.7);
   cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.lantern-host .ua-marker:hover { transform: translate(-50%, -50%) scale(1.08); }
+
+/* Outside the chosen building or floor: kept visible as property context. */
+.lantern-host .ua-marker.is-context {
+  border: 1.5px dashed var(--layer);
+  background: #fffdf8;
+  color: var(--layer);
+  box-shadow: 0 6px 14px -10px rgba(24, 35, 58, 0.6);
 }
 
 /* Larger touch target without a larger mark. */
@@ -227,15 +347,15 @@
   box-shadow: 0 0 0 5px rgba(255, 255, 252, 0.85);
 }
 
-/* ---- Scope: buildings and the floor rail -------------------------------- */
+/* ---- Scope: snapshot, buildings and the floor rail ------------------------- */
 
-/* One narrow rail on the left edge: buildings stacked over their floors, so
-   the model keeps the rest of the stage. */
+/* One narrow rail on the left edge: buildings over their floors, so the model
+   keeps the rest of the stage. */
 .lantern-host .ua-scope {
   top: 16px;
   left: 16px;
-  bottom: 72px;
-  width: 204px;
+  bottom: 16px;
+  width: var(--ua-rail);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -247,30 +367,99 @@
   pointer-events: auto;
 }
 
+/* The source this stage shows, stamped like a drawing's revision box. */
+.lantern-host .ua-snapshot-note {
+  flex: none;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 8px;
+  margin: 0;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px dashed rgba(169, 134, 79, 0.65);
+  background: rgba(255, 248, 230, 0.94);
+  color: var(--lantern-ink);
+  font-size: var(--fs-xs);
+  line-height: 1.3;
+}
+
+.lantern-host .ua-snapshot-note > svg { grid-row: 1 / 3; color: var(--birch-dark); }
+.lantern-host .ua-snapshot-kind { font-weight: 700; }
+
+.lantern-host .ua-snapshot-note time {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* One level out, named for where it leads. */
+.lantern-host .ua-scope .ua-back {
+  flex: none;
+  align-self: flex-start;
+  max-width: 100%;
+  min-height: 34px;
+  padding: 3px 13px 3px 8px;
+  border-color: var(--ua-line);
+  background: var(--ua-panel);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--ua-shadow);
+  color: var(--ink-2);
+  font-weight: 650;
+}
+
+.lantern-host .ua-scope .ua-back > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lantern-host .ua-buildings,
+.lantern-host .ua-ladder {
+  border-radius: var(--r-panel);
+  border: 1px solid var(--ua-line);
+  background: var(--ua-panel);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--ua-shadow);
+  color: var(--ink);
+}
+
+/* Buildings: one card of rows; the chosen building in ink. */
 .lantern-host .ua-buildings {
   flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: grid;
+  gap: 2px;
+  padding: 4px;
 }
 
 .lantern-host .ua-buildings .chip-btn {
-  min-height: 38px;
-  border-radius: 10px;
-  background: rgba(251, 251, 248, 0.94);
-  backdrop-filter: blur(8px);
-  box-shadow: var(--shadow-float);
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 34px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-2);
   font-weight: 600;
+  transition: background-color 0.18s ease, color 0.18s ease;
 }
+
+.lantern-host .ua-buildings .chip-btn > svg { flex: none; color: var(--faint); }
+.lantern-host .ua-buildings .chip-btn:hover:not(:disabled) { background: var(--ua-hover); }
 
 .lantern-host .ua-buildings .chip-btn[aria-pressed='true'] {
-  background: var(--chrome);
-  border-color: var(--chrome);
+  background: var(--ink);
   color: #fff;
-  box-shadow: inset 0 -3px 0 var(--lantern), var(--shadow-float);
+  box-shadow: inset 3px 0 0 var(--lantern);
 }
 
-/* Floors hang from one datum line at their actual relative heights. */
+.lantern-host .ua-buildings .chip-btn[aria-pressed='true'] > svg { color: var(--lantern); }
+.lantern-host .ua-buildings .chip-btn:focus-visible { outline-offset: -2px; }
+
+/* Floors hang from one datum line at their actual relative heights; each
+   carries its initials as a large mark, like an elevation drawing. */
 .lantern-host .ua-ladder {
   flex: 0 1 auto;
   min-height: 0;
@@ -279,14 +468,8 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  width: 204px;
   padding: 6px;
-  border-radius: var(--r-panel);
-  background: rgba(251, 251, 248, 0.92);
-  backdrop-filter: blur(8px);
-  border: 1px solid var(--hair);
-  box-shadow: var(--shadow-float);
-  color: var(--ink);
+  scrollbar-width: thin;
 }
 
 .lantern-host .ua-rungs {
@@ -301,12 +484,10 @@
 .lantern-host .ua-rungs::before {
   content: '';
   position: absolute;
-  left: 15px;
-  top: 22px;
-  bottom: 22px;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--hair-2);
+  left: 22px;
+  top: 24px;
+  bottom: 24px;
+  border-left: 1.5px dotted var(--hair-2);
 }
 
 .lantern-host .ua-rungs > li + li {
@@ -316,36 +497,40 @@
 .lantern-host .ua-rung {
   position: relative;
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) 10px;
+  grid-template-columns: 36px minmax(0, 1fr) 10px;
   grid-template-rows: auto auto;
   align-items: center;
   column-gap: 8px;
   width: 100%;
   min-height: 48px;
-  padding: 5px 8px 5px 4px;
+  padding: 5px 8px 5px 5px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 9px;
   background: transparent;
   color: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
 }
 
-.lantern-host .ua-rung:hover:not(:disabled) { background: rgba(27, 35, 48, 0.05); }
+.lantern-host .ua-rung:hover:not(:disabled) { background: var(--ua-hover); }
 .lantern-host .ua-rung:disabled { opacity: 0.45; cursor: default; }
 .lantern-host .ua-rung:focus-visible { outline-offset: -2px; }
 
 .lantern-host .ua-rung-tick {
   grid-row: 1 / 3;
   justify-self: center;
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
-  border: 2px solid var(--faint);
-  background: var(--card);
-  transform: rotate(45deg);
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  display: grid;
+  place-items: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 2px;
+  border-radius: 8px;
+  background: var(--ua-paper);
+  color: var(--faint);
+  font: 750 18px/1 var(--display);
+  letter-spacing: -0.03em;
+  transition: color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .lantern-host .ua-rung-name {
@@ -363,25 +548,41 @@
 
 .lantern-host .ua-rung-all {
   grid-template-columns: minmax(0, 1fr);
-  min-height: 40px;
-  padding-left: 10px;
-  box-shadow: inset 0 0 0 1px var(--hair-2);
+  min-height: 36px;
+  padding-left: 12px;
+  box-shadow: inset 0 0 0 1px var(--ua-line);
 }
 
 .lantern-host .ua-rung-all .ua-rung-name { grid-column: 1; }
 
+/* The chosen floor: a lifted paper row with a lantern edge; its mark in ink. */
 .lantern-host .ua-rung.is-current {
-  background: var(--lantern);
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--hair-2), 0 6px 14px -10px rgba(64, 46, 16, 0.6);
   color: var(--ink);
 }
 
-.lantern-host .ua-rung.is-current .ua-rung-tick {
-  border-color: var(--ink);
-  background: var(--ink);
+.lantern-host .ua-rung.is-current::after {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 10px;
+  bottom: 10px;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--lantern-edge);
 }
 
-.lantern-host .ua-rung.is-current .ua-rung-sub { color: var(--lantern-ink); }
-.lantern-host .ua-rung-all.is-current { box-shadow: inset 0 0 0 1px var(--lantern-edge); }
+.lantern-host .ua-rung.is-current .ua-rung-tick {
+  background: var(--ink);
+  color: #fff;
+}
+
+.lantern-host .ua-rung.is-current .ua-rung-sub { color: var(--ink-2); }
+
+/* The floor Plan draws for a whole building. */
+.lantern-host .ua-rung.is-shown { box-shadow: inset 0 0 0 1.5px var(--lantern-edge); }
+.lantern-host .ua-rung.is-shown .ua-rung-tick { color: var(--ink); background: var(--lantern-soft); }
 
 /* The floor holding the selected room; dashed for its other parts. */
 .lantern-host .ua-rung-mark {
@@ -394,19 +595,17 @@
   border: 2px solid var(--lantern-edge);
 }
 
-.lantern-host .ua-rung.is-current .ua-rung-mark { background: var(--card); border-color: var(--ink); }
-
 .lantern-host .ua-rung-mark.is-context {
   background: var(--lantern-soft);
   border-style: dashed;
 }
 
-/* ---- View tools --------------------------------------------------------- */
+/* ---- View tools ----------------------------------------------------------- */
 
 .lantern-host .ua-tools {
   top: 16px;
   right: 16px;
-  max-width: calc(100% - 260px);
+  max-width: calc(100% - var(--ua-rail) - 48px);
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -414,47 +613,275 @@
   gap: 8px;
 }
 
-.lantern-host .ua-tools > .seg {
-  background: rgba(251, 251, 248, 0.94);
-  backdrop-filter: blur(8px);
-  box-shadow: var(--shadow-float);
+.lantern-host .ua-tools > .seg,
+.lantern-host .ua-tools .ctrl-group {
+  padding: 3px;
+  border-color: var(--ua-line);
+  background: var(--ua-panel);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--ua-shadow);
 }
 
 .lantern-host .ua-tools .seg button {
-  min-height: 36px;
+  min-height: 34px;
   min-width: 52px;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .lantern-host .ua-tools .ctrl-wide {
-  height: 44px;
+  height: 42px;
+  border-color: var(--ua-line);
+  box-shadow: var(--ua-shadow);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-/* ---- Overlays: key and layer bar ---------------------------------------- */
+.lantern-host .ua-tools .ctrl-wide[aria-pressed='false'] { background: var(--ua-panel); }
 
-/* Bottom right, under the view tools: the floor rail keeps the left edge. */
+/* Compact stages only (rendered there): the snapshot stamped at the row's
+   end like a drawing's revision box, and the menu beside it. */
+.lantern-host .ua-stamp {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  justify-items: end;
+  margin: 0;
+  padding: 0 2px;
+  color: var(--lantern-ink);
+  font-size: 10.5px;
+  line-height: 1.25;
+  text-align: right;
+}
+
+.lantern-host .ua-stamp-kind { font-weight: 700; }
+
+.lantern-host .ua-stamp time {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.lantern-host .ua-menu {
+  position: relative;
+  flex: none;
+  margin-left: auto;
+}
+
+.lantern-host .ua-stamp + .ua-menu { margin-left: 0; }
+
+.lantern-host .ua-menu-btn {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--ua-line);
+  border-radius: 10px;
+  background: var(--ua-panel);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--ua-shadow);
+  color: var(--ink);
+}
+
+.lantern-host .ua-menu-btn circle { fill: currentColor; }
+.lantern-host .ua-menu-btn[aria-expanded='true'] { background: var(--ink); border-color: var(--ink); color: #fff; }
+.lantern-host .ua-tools:has(.ua-menu-panel:not([hidden])) { z-index: 8; }
+
+.lantern-host .ua-menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: max-content;
+  min-width: 232px;
+  max-width: calc(100cqw - 16px);
+  max-height: max(0px, calc(var(--ua-stage-height, 100dvh) - 72px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  gap: 4px;
+  padding: 6px;
+  border-radius: var(--r-panel);
+  border: 1px solid var(--ua-line);
+  background: var(--ua-paper);
+  box-shadow: 0 1px 2px rgba(64, 46, 16, 0.1), 0 18px 36px -20px rgba(64, 46, 16, 0.6);
+  font-size: var(--fs-s);
+  animation: ua-settle 0.18s ease-out;
+}
+
+.lantern-host .ua-menu-panel[hidden] { display: none; }
+
+.lantern-host .ua-menu-camera {
+  display: flex;
+  gap: 2px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--hair);
+}
+
+.lantern-host .ua-menu-camera .ctrl-btn { width: 44px; height: 44px; }
+
+.lantern-host .ua-menu-camera .ua-menu-fit {
+  display: inline-flex;
+  gap: 6px;
+  width: auto;
+  margin-left: auto;
+  padding: 0 12px 0 10px;
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.lantern-host .ua-menu-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.lantern-host .ua-menu-check:hover { background: var(--ua-hover); }
+.lantern-host .ua-menu-check input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--chrome); }
+
+.lantern-host .ua-menu-sources {
+  display: grid;
+  padding-top: 4px;
+  border-top: 1px solid var(--hair);
+}
+
+.lantern-host .ua-menu-label {
+  margin: 0;
+  padding: 4px 8px 2px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+}
+
+.lantern-host .ua-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: 600 var(--fs-s)/1.25 var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lantern-host .ua-menu-row:hover { background: var(--ua-hover); }
+.lantern-host .ua-menu-row > svg { flex: none; color: var(--faint); }
+.lantern-host .ua-menu-row:focus-visible { outline-offset: -2px; }
+
+/* ---- Layers: plans, keys and the layer bar ---------------------------------- */
+
+/* Along the bottom, right of the floor rail: other floors' plans, the layer
+   keys, then the layer bar. */
 .lantern-host .ua-bottom {
-  left: 16px;
+  left: calc(var(--ua-rail) + 32px);
   right: 16px;
   bottom: 16px;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   gap: 8px;
   pointer-events: none;
 }
 
 .lantern-host .ua-bottom > * {
   pointer-events: auto;
+  max-width: 100%;
+}
+
+/* Other floors in their own small frames, never flattened onto this plan. */
+.lantern-host .ua-tiles {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 2px 2px 6px;
+  scrollbar-width: thin;
+  animation: ua-settle 0.28s ease-out;
+}
+
+.lantern-host .ua-tile {
+  flex: none;
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  width: 140px;
+  padding: 8px 8px 7px;
+  border-radius: var(--r-panel);
+  border: 1px solid var(--ua-line);
+  background: var(--ua-panel);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--ua-shadow);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, transform 0.18s ease;
+}
+
+.lantern-host .ua-tile > svg {
+  display: block;
+  justify-self: center;
+  margin-bottom: 3px;
+  border-radius: 8px;
+  background: #f7f0e1;
+  box-shadow: inset 0 0 0 1px rgba(60, 46, 22, 0.1);
+}
+
+.lantern-host .ua-tile:hover { border-color: var(--lantern-edge); transform: translateY(-2px); }
+.lantern-host .ua-tile:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 2px; }
+.lantern-host .ua-tile-name { font: 650 var(--fs-xs)/1.25 var(--display); overflow-wrap: anywhere; }
+.lantern-host .ua-tile-sub { font-size: 11px; line-height: 1.3; color: var(--muted); }
+
+.lantern-host .ua-keys {
+  flex: 0 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+/* The narrow-stage folds; wider stages show what they fold. */
+.lantern-host .ua-folds { display: none; }
+
+/* Beside an open graph the bar may take two rows rather than spill. */
+.lantern-host .ua-bottom .layer-bar {
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 23px;
+  border-color: var(--ua-line);
+  background: var(--ua-panel);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--ua-shadow);
 }
 
 .lantern-host .ua-bottom .layer-chip {
-  min-height: 40px;
+  height: auto;
+  min-height: 38px;
+  padding: 0 15px 0 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
 }
 
-.lantern-host .layer-chip[aria-pressed='true'] {
-  background: color-mix(in srgb, var(--layer) 14%, #fff);
-  border-color: color-mix(in srgb, var(--layer) 60%, #fff);
-  box-shadow: inset 0 -3px 0 var(--layer);
+/* Off, a layer's swatch is an empty frame; on, it is filled. */
+.lantern-host .ua-bottom .layer-chip[aria-pressed='false'] .layer-swatch {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--layer);
+}
+
+.lantern-host .ua-bottom .layer-chip[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--layer) 12%, #fff);
+  border-color: transparent;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--layer) 65%, #fff);
   color: var(--ink);
 }
 
@@ -464,63 +891,70 @@
   color: var(--muted);
 }
 
+/* A layer's key: closed, one line with its state; open, the explanation,
+   coverage by building and every record not placed. */
 .lantern-host .ua-key {
-  width: min(340px, 100%);
-  max-height: min(46vh, 420px);
+  flex: 0 1 auto;
+  width: min(360px, 100%);
+  min-height: 0;
+  max-height: min(52vh, 560px);
   display: flex;
   flex-direction: column;
   border-radius: var(--r-panel);
-  background: rgba(251, 251, 248, 0.96);
-  backdrop-filter: blur(8px);
-  border: 1px solid var(--hair-2);
+  border: 1px solid var(--ua-line);
   border-top: 3px solid var(--layer);
-  box-shadow: var(--shadow-float);
+  background: var(--ua-panel);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--ua-shadow);
   font-size: var(--fs-s);
+  overflow: hidden;
   animation: ua-settle 0.24s ease-out;
 }
 
+/* The layer name never shares its line with a squeezed count: the count
+   follows on the same line when it fits and wraps below the name otherwise.
+   The glyph and chevron hold the side gutters. */
 .lantern-host .ua-key-head {
+  --key-pad: 10px;
+  position: relative;
   flex: none;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
   width: 100%;
-  min-height: 44px;
-  padding: 8px 12px;
+  min-height: 42px;
+  padding: var(--key-pad) 36px calc(var(--key-pad) - 1px) 39px;
   border: 0;
-  border-radius: var(--r-panel) var(--r-panel) 0 0;
+  border-radius: 0;
   background: transparent;
   color: var(--ink);
   font: 650 var(--fs-m)/1.2 var(--display);
   text-align: left;
+  cursor: pointer;
 }
 
-.lantern-host .ua-key-head > svg:first-child { color: var(--layer); }
-.lantern-host .ua-key-label { display: grid; min-width: 0; text-align: left; }
-.lantern-host .ua-key-label .ua-key-scope {
-  max-width: 28ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font: 500 var(--fs-xs)/1.3 var(--text);
+.lantern-host .ua-key-head:hover { background: var(--ua-hover); }
+
+.lantern-host .ua-key-head > svg:first-child {
+  position: absolute;
+  left: 12px;
+  top: calc(var(--key-pad) + 1px);
+  color: var(--layer);
 }
-.lantern-host .ua-key:not(.is-closed) .ua-key-label .ua-key-scope {
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
+
+.lantern-host .ua-key-label { flex: none; max-width: 100%; overflow-wrap: normal; }
 
 /* Closed, the key is one line: the layer and its state. */
 .lantern-host .ua-key.is-closed {
-  align-self: flex-end;
   width: auto;
   max-width: 100%;
 }
 
-.lantern-host .ua-key.is-closed .ua-key-head { border-radius: var(--r-panel); }
-
 .lantern-host .ua-key-count {
-  margin-left: auto;
-  font: 600 var(--fs-xs)/1.2 var(--text);
+  flex: 0 1 auto;
+  min-width: 0;
+  font: 600 var(--fs-xs)/1.25 var(--text);
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
@@ -528,29 +962,176 @@
 .lantern-host .ua-key-count.is-warn { color: var(--warn); }
 
 .lantern-host .ua-key-head > svg:last-child {
-  margin-left: auto;
+  position: absolute;
+  right: 12px;
+  top: calc(var(--key-pad) + 2px);
   color: var(--muted);
   transition: transform 0.2s ease;
 }
 
-.lantern-host .ua-key-count + svg { margin-left: 0; }
 .lantern-host .ua-key.is-closed .ua-key-head > svg:last-child { transform: rotate(-90deg); }
 .lantern-host .ua-key-head:focus-visible { outline-offset: -3px; }
 
 .lantern-host .ua-key-body {
   display: grid;
-  gap: 8px;
+  align-content: start;
+  gap: 10px;
   min-height: 0;
   overflow: auto;
-  padding: 0 12px 12px;
+  overscroll-behavior: contain;
+  padding: 2px 12px 12px;
+  scrollbar-width: thin;
 }
 
 .lantern-host .ua-key-body[hidden] { display: none; }
 .lantern-host .ua-key p { margin: 0; }
-.lantern-host .ua-key-scope { color: var(--muted); font-size: var(--fs-xs); }
-.lantern-host .ua-key ul { margin: 4px 0 0; padding-left: 18px; }
+.lantern-host .ua-key-body > p:first-child { color: var(--ink-2); }
+.lantern-host .ua-key-body > details > ul { margin: 6px 0 0; padding-left: 18px; }
 
-/* ---- Room panel: beside the stage, or a sheet over its lower edge -------- */
+.lantern-host .ua-key-body > details {
+  padding-top: 8px;
+  border-top: 1px solid var(--hair);
+}
+
+.lantern-host .ua-key-body > details > summary { font-size: var(--fs-s); }
+.lantern-host .ua-key-body > details[open] > summary { margin-bottom: 6px; }
+
+/* Coverage by building: name over its state, a dot for available, partial or none. */
+.lantern-host .ua-key .ua-coverage-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--hair);
+}
+
+.lantern-host .ua-coverage-list > li {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr);
+  column-gap: 9px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--hair);
+}
+
+.lantern-host .ua-coverage-list > li::before {
+  content: '';
+  grid-row: 1 / 3;
+  align-self: start;
+  width: 9px;
+  height: 9px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.lantern-host .ua-coverage-list > li.is-partial::before { background: var(--lantern-edge); }
+.lantern-host .ua-coverage-list > li.is-unavailable::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--faint); }
+.lantern-host .ua-coverage-name { font-weight: 650; color: var(--ink); overflow-wrap: anywhere; }
+.lantern-host .ua-coverage-state { font-size: var(--fs-xs); color: var(--muted); overflow-wrap: anywhere; }
+
+/* Logical connections: a dashed rule, never a drawn route. */
+.lantern-host .ua-logical-swatch {
+  display: inline-block;
+  width: 22px;
+  margin-right: 8px;
+  vertical-align: middle;
+  border-top: 2px dashed var(--layer);
+}
+
+.lantern-host .ua-key-note { color: var(--ink-2); font-size: var(--fs-xs); }
+
+.lantern-host .ua-rule-glyph path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The network graph opens in its own panel, apart from the key. */
+.lantern-host .ua-graph-open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 7px 10px;
+  border: 1px solid var(--hair-2);
+  border-radius: 10px;
+  background: #fdfbf6;
+  color: var(--ink);
+  font: 650 var(--fs-s)/1.25 var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.lantern-host .ua-graph-open > span:nth-child(2) { flex: 1; min-width: 0; }
+.lantern-host .ua-graph-open > svg { flex: none; color: var(--layer); }
+.lantern-host .ua-graph-open:hover { border-color: var(--lantern-edge); }
+.lantern-host .ua-graph-open[aria-expanded='true'] { background: var(--lantern-soft); border-color: var(--lantern-edge); }
+.lantern-host .ua-graph-open .ua-logical-swatch { margin-right: 0; }
+
+/* ---- The logical network graph's own panel -------------------------------- */
+
+/* Beside the model on wide stages: the model refits to the space left of it. */
+.lantern-host .ua-graph {
+  position: absolute;
+  z-index: 7;
+  top: calc(var(--ua-tools-end, 58px) + 10px);
+  right: 16px;
+  bottom: 16px;
+  width: min(520px, 46%);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-sheet);
+  border: 1px solid var(--ua-line);
+  border-top: 3px solid var(--layer);
+  background: var(--ua-paper);
+  box-shadow: 0 1px 2px rgba(64, 46, 16, 0.1), 0 24px 48px -28px rgba(64, 46, 16, 0.6);
+  overflow: hidden;
+  animation: ua-settle 0.26s ease-out;
+}
+
+.lantern-host .ua-shell.is-graph-open .ua-bottom { right: calc(min(520px, 46%) + 32px); }
+
+.lantern-host .ua-graph-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px 10px 16px;
+  border-bottom: 1px solid var(--hair);
+}
+
+.lantern-host .ua-graph-head .ua-logical-swatch { margin-right: 0; }
+
+.lantern-host .ua-graph-head h2 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font: 700 var(--fs-m)/1.2 var(--display);
+  color: var(--ink);
+}
+
+.lantern-host .ua-graph-head h2:focus { outline: none; }
+.lantern-host .ua-graph-head h2:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
+.lantern-host .ua-graph-close { flex: none; color: var(--ink-2); font-weight: 650; }
+
+.lantern-host .ua-graph-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  align-content: start;
+  gap: 22px;
+  padding: 12px 16px 18px;
+  font-size: var(--fs-s);
+  scrollbar-width: thin;
+}
+
+/* ---- Room panel: beside the stage, or a sheet over its lower edge ---------- */
 
 .lantern-host .ua-inspector {
   position: relative;
@@ -559,8 +1140,8 @@
   flex-direction: column;
   width: clamp(300px, 28vw, 352px);
   min-height: 0;
-  background: var(--card);
-  border-left: 1px solid var(--hair);
+  background: var(--ua-paper);
+  border-left: 1px solid var(--ua-line);
   font-size: var(--fs-s);
 }
 
@@ -637,6 +1218,7 @@
   gap: 14px;
   padding: 14px 18px 20px;
   animation: ua-settle 0.24s ease-out;
+  scrollbar-width: thin;
 }
 
 .lantern-host .ua-inspector h3 {
@@ -693,13 +1275,14 @@
 }
 
 .lantern-host .ua-records p { margin: 0; }
+.lantern-host .ua-records > p:first-of-type { color: var(--ink-2); }
 
 .lantern-host .ua-record {
   display: grid;
   gap: 4px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: var(--card-2);
+  background: #f6f1e7;
   border-left: 4px solid var(--layer);
 }
 
@@ -712,13 +1295,18 @@
 
 .lantern-host .ua-unplaced { color: var(--warn); }
 
-.lantern-host .ua-dates {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: var(--muted);
-  font-size: var(--fs-xs);
+/* Documentary records: each one opens to its facts, dates and source. */
+.lantern-host .ua-refs {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--hair);
 }
+
+.lantern-host .ua-refs[open] {
+  display: grid;
+  gap: 4px;
+}
+
+.lantern-host .ua-refs > p { color: var(--ink-2); font-size: var(--fs-xs); }
 
 .lantern-host .ua-refs summary,
 .lantern-host .ua-source summary,
@@ -728,6 +1316,9 @@
   font-weight: 600;
 }
 
+.lantern-host .ua-refs > summary { color: var(--ink); }
+.lantern-host .ua-refs > summary::marker { color: var(--faint); }
+
 .lantern-host .ua-refs ul {
   margin: 4px 0 0;
   padding-left: 18px;
@@ -735,6 +1326,8 @@
   font-size: var(--fs-xs);
   overflow-wrap: anywhere;
 }
+
+.lantern-host .ua-refs > .text-btn { justify-self: start; }
 
 .lantern-host .ua-source {
   padding-top: 10px;
@@ -798,7 +1391,7 @@
 .lantern-host .ua-empty,
 .lantern-host .ua-coverage { margin: 0; color: var(--muted); }
 
-/* ---- States ------------------------------------------------------------ */
+/* ---- States -------------------------------------------------------------- */
 
 .lantern-host .ua-state {
   align-self: center;
@@ -809,8 +1402,9 @@
   max-width: 44ch;
   padding: 18px 20px;
   border-radius: var(--r-panel);
-  background: var(--card);
-  box-shadow: var(--shadow-float);
+  border: 1px solid var(--ua-line);
+  background: var(--ua-paper);
+  box-shadow: var(--ua-shadow);
   text-align: center;
 }
 
@@ -834,14 +1428,10 @@
 
 @keyframes ua-spin { to { transform: rotate(360deg); } }
 
-@media (prefers-reduced-motion: reduce) {
-  .lantern-host .ua-spinner { animation: none; border-top-color: var(--hair-2); }
-}
-
-/* ---- Room panel as a sheet --------------------------------------------- */
+/* ---- Room panel as a sheet ----------------------------------------------- */
 
 /* Tablets: a card over the stage's lower right; its head stays in view. The
-   right column holds the view tools, the overlays and the card; the floor rail
+   right column holds the view tools, the layers and the card; the floor rail
    keeps the left column, so neither covers the other. */
 @container ua (max-width: 1040px) {
   /* Out of flow, so the panel's grid track collapses and the stage fills the shell.
@@ -852,9 +1442,9 @@
     bottom: 12px;
     width: min(400px, calc(100% - 24px));
     max-height: min(72%, 560px, calc(100% - var(--ua-tools-end, 120px) - 12px));
-    border: 1px solid var(--hair-2);
+    border: 1px solid var(--ua-line);
     border-radius: var(--r-sheet);
-    box-shadow: var(--shadow-sheet);
+    box-shadow: 0 1px 2px rgba(64, 46, 16, 0.1), 0 24px 48px -28px rgba(64, 46, 16, 0.6);
     overflow: hidden;
   }
 
@@ -875,7 +1465,7 @@
   .lantern-host .ua-sheet-title > h2 { grid-area: 1 / 1; justify-self: start; }
   .lantern-host .ua-sheet-title > p { grid-area: 2 / 1 / 3 / -1; }
 
-  /* Overlays stand above the card head, between the view tools and the card;
+  /* Layers stand above the card head, between the view tools and the card;
      a long key scrolls inside that band. */
   .lantern-host .ua-bottom {
     top: calc(var(--ua-tools-end, 108px) + 12px);
@@ -884,19 +1474,47 @@
     bottom: calc(var(--ua-peek) + 28px);
     width: min(400px, calc(100% - 24px));
     justify-content: flex-end;
+    align-items: flex-end;
   }
 
-  .lantern-host .ua-key { flex: 0 1 auto; min-height: 0; max-height: none; }
+  /* The keys scroll as one column; each key keeps its full head, never
+     squeezed to a clipped sliver. */
+  .lantern-host .ua-keys {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    width: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
 
-  /* An open card covers that band: its overlay controls step aside, out of
+  .lantern-host .ua-key { flex: none; max-height: none; }
+  .lantern-host .ua-key:not(.is-closed) { width: 100%; }
+  .lantern-host .ua-tiles { align-self: stretch; }
+
+  /* An open card covers that band: its layer controls step aside, out of
      the tab order, until the card closes. */
   .lantern-host .ua-shell.is-sheet-open .ua-bottom { visibility: hidden; }
 
   .lantern-host .ua-shell.is-sheet-open .ua-label-hit,
   .lantern-host .ua-shell.is-sheet-open .ua-marker { visibility: hidden; }
+
+  /* The graph takes the stage, with its close control in reach; the card under it steps aside. */
+  .lantern-host .ua-graph {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+  }
+
+  /* Under a covering graph the layers keep their place, so closing it never re-fits the model. */
+  .lantern-host .ua-shell.is-graph-open .ua-bottom { right: 12px; }
+  .lantern-host .ua-shell.is-graph-covering .ua-inspector { visibility: hidden; }
 }
 
-/* Phones: the sheet spans the lower edge; overlays stand just above its head. */
+/* Phones: the sheet spans the lower edge with a grabber; layers stand just above its head. */
 @container ua (max-width: 720px) {
   /* Never taller than the stage below the view tools and floor row. */
   .lantern-host .ua-inspector {
@@ -909,28 +1527,34 @@
     border-radius: var(--r-sheet) var(--r-sheet) 0 0;
   }
 
-  .lantern-host .ua-sheet-head { padding: 10px 10px 8px 16px; }
+  .lantern-host .ua-sheet-head { position: relative; padding: 13px 10px 7px 16px; }
+
+  .lantern-host .ua-sheet-head::before {
+    content: '';
+    position: absolute;
+    top: 5px;
+    left: 50%;
+    width: 36px;
+    height: 4px;
+    margin-left: -18px;
+    border-radius: 2px;
+    background: var(--hair-2);
+  }
+
   .lantern-host .ua-sheet-body { padding: 12px 16px 18px; }
   .lantern-host .ua-inspector h2 { font-size: var(--fs-l); }
 
-  /* Between the floor row and the sheet head. */
-  .lantern-host .ua-bottom {
-    top: calc(var(--ua-scope-end, 150px) + 8px);
-    left: 8px;
-    right: 8px;
-    bottom: calc(var(--ua-peek) + 8px);
-    width: auto;
-    align-items: stretch;
-    gap: 6px;
-  }
-
-  .lantern-host .ua-key { width: 100%; }
-
+  /* Down to the sheet head; the narrow-stage rules below lay out its content. */
+  .lantern-host .ua-bottom { bottom: calc(var(--ua-peek) + 8px); }
+  .lantern-host .ua-graph { inset: 6px; }
 }
 
-/* ---- Narrow stages: controls in two rows above the model ---------------- */
+/* ---- Narrow stages: controls in rows above the model ---------------------- */
 
 @container ua-stage (max-width: 720px) {
+  /* Two slim rows above the model. The first is how it is seen: the view,
+     the snapshot stamp in the free width, and one menu for the camera, the
+     archive filter and the other sources. */
   .lantern-host .ua-tools {
     top: 8px;
     left: 8px;
@@ -941,40 +1565,115 @@
     gap: 6px;
   }
 
-  .lantern-host .ua-tools .ctrl-group { margin-left: auto; }
-  .lantern-host .ua-turn { display: none; }
-  .lantern-host .ua-tools .ctrl-wide { padding: 0 10px; }
+  .lantern-host .ua-tools .ctrl-group { display: none; }
+  .lantern-host .ua-tools .ctrl-wide { height: 42px; padding: 0 10px; }
   .lantern-host .ua-tools .seg button { min-width: 44px; padding: 0 10px; }
 
-  /* Buildings and floors each keep their own row, so the floors are never
-     pushed out of view by a long building list. */
+  /* The second is where: one level out, the building, then its floors. Only
+     the floor row scrolls sideways, with the current floor kept in view. */
   .lantern-host .ua-scope {
-    top: 60px;
+    top: 56px;
     left: 8px;
     right: 8px;
     bottom: auto;
     width: auto;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
     gap: 6px;
   }
 
-  .lantern-host .ua-buildings,
-  .lantern-host .ua-ladder {
+  .lantern-host .ua-scope > * { flex: none; min-width: 0; max-width: 100%; }
+  .lantern-host .ua-snapshot-note { display: none; }
+
+  /* Back is its arrow alone; its name stays the control's name. */
+  .lantern-host .ua-scope .ua-back {
+    align-self: center;
+    justify-content: center;
+    width: 42px;
+    min-height: 42px;
+    padding: 0;
+  }
+
+  .lantern-host .ua-scope .ua-back > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* The building chooser: the current building by name, the list below it. */
+  .lantern-host .ua-pick {
+    flex: 0 1 auto;
+    max-width: 46%;
+    min-height: 42px;
+    padding: 0 10px 0 11px;
+    border-color: var(--ua-line);
+    background: var(--ua-panel);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--ua-shadow);
+    color: var(--ink);
+    font-weight: 650;
+  }
+
+  .lantern-host .ua-pick > svg { flex: none; color: var(--faint); }
+  .lantern-host .ua-pick > svg:last-child { color: var(--muted); transition: transform 0.2s ease; }
+  .lantern-host .ua-pick[aria-expanded='true'] { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .lantern-host .ua-pick[aria-expanded='true'] > svg { color: var(--lantern); }
+  .lantern-host .ua-pick[aria-expanded='true'] > svg:last-child { transform: rotate(180deg); }
+
+  .lantern-host .ua-pick-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .lantern-host .ua-scope:has(.ua-buildings.is-open) { z-index: 8; }
+  .lantern-host .ua-buildings:not(.is-open) { display: none; }
+
+  .lantern-host .ua-buildings.is-open {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    width: max-content;
+    min-width: min(220px, 100%);
     max-width: 100%;
+    max-height: min(320px, 55vh);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: grid;
+    gap: 2px;
+    padding: 4px;
+    background: var(--ua-paper);
+    box-shadow: 0 1px 2px rgba(64, 46, 16, 0.1), 0 18px 36px -20px rgba(64, 46, 16, 0.6);
+    animation: ua-settle 0.18s ease-out;
+  }
+
+  .lantern-host .ua-buildings .chip-btn { min-height: 42px; white-space: normal; overflow-wrap: anywhere; }
+
+  /* Floors: one row of initials; the chosen floor also shows its name. A
+     scope without floors of its own leaves the row out. */
+  .lantern-host .ua-ladder {
+    flex: 0 1 auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    padding: 3px;
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
   }
 
-  .lantern-host .ua-buildings { flex-direction: row; padding: 3px; }
-  .lantern-host .ua-buildings .chip-btn { flex: none; min-height: 34px; white-space: nowrap; }
-
-  .lantern-host .ua-ladder {
-    flex: none;
-    flex-direction: row;
-    align-items: center;
-    width: auto;
-    padding: 4px;
+  .lantern-host .ua-ladder:has(> .ua-rungs:empty) { display: none; }
+  .lantern-host .ua-rung-all-rest {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .lantern-host .ua-rungs { flex: none; flex-direction: row-reverse; gap: 2px; }
@@ -982,37 +1681,253 @@
   .lantern-host .ua-rungs > li + li { margin-top: 0; }
 
   .lantern-host .ua-rung {
-    grid-template-columns: auto;
-    min-height: 36px;
-    padding: 4px 14px;
+    grid-template-columns: auto auto;
+    grid-template-rows: auto;
+    column-gap: 6px;
+    min-height: 40px;
+    padding: 3px 4px;
     white-space: nowrap;
   }
 
-  .lantern-host .ua-rung-all { min-height: 36px; }
+  .lantern-host .ua-rung.is-current { padding-right: 12px; }
 
-  .lantern-host .ua-rung-tick,
+  .lantern-host .ua-rung-tick {
+    grid-row: 1;
+    min-width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+
+  .lantern-host .ua-rung-name { grid-row: 1; }
   .lantern-host .ua-rung-sub { display: none; }
-  .lantern-host .ua-rung-name { grid-column: 1; }
-  .lantern-host .ua-rung-all { flex: none; width: auto; white-space: nowrap; }
+
+  .lantern-host .ua-rung:not(.is-current):not(.ua-rung-all) .ua-rung-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .lantern-host .ua-rung-all {
+    flex: none;
+    width: auto;
+    min-height: 40px;
+    padding: 3px 12px;
+    white-space: nowrap;
+  }
+
+  .lantern-host .ua-rung.is-current::after {
+    left: 10px;
+    right: 10px;
+    top: auto;
+    bottom: -2px;
+    width: auto;
+    height: 3px;
+  }
 
   .lantern-host .ua-rung-mark {
     position: absolute;
-    top: 4px;
-    right: 4px;
+    top: 3px;
+    right: 3px;
     width: 8px;
     height: 8px;
   }
 
-  .lantern-host .ua-bottom .layer-bar {
-    flex-wrap: nowrap;
-    max-width: 100%;
-    overflow-x: auto;
-    justify-content: flex-start;
-    scrollbar-width: none;
+  /* One row below the model: the three layers, then the folds for other
+     floors and layer details as small counted buttons. Whichever fold is open
+     stands above that row; only it can shrink, scrolling inside its own frame,
+     so nothing is pushed off the stage or clipped. Where the row cannot hold
+     the folds beside the layers, they step up to their own row. */
+  .lantern-host .ua-bottom,
+  .lantern-host .ua-shell.is-graph-open .ua-bottom {
+    top: calc(var(--ua-scope-end, 110px) + 8px);
+    left: 8px;
+    right: 8px;
+    width: auto;
+    flex-direction: row;
+    flex-wrap: wrap-reverse;
+    align-content: flex-start;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 6px;
   }
 
-  .lantern-host .ua-bottom .layer-chip { flex-shrink: 0; min-height: 36px; }
-  .lantern-host .ua-key-head { min-height: 40px; padding: 6px 12px; }
+  .lantern-host .ua-bottom > .layer-bar { order: 1; flex: 1 1 auto; }
+  .lantern-host .ua-bottom > .ua-folds { order: 2; }
+  .lantern-host .ua-bottom > .ua-tiles,
+  .lantern-host .ua-bottom > .ua-keys { order: 3; flex: 1 0 100%; }
+
+  .lantern-host .ua-tiles:not(.is-unfolded),
+  .lantern-host .ua-keys:not(.is-unfolded) { display: none; }
+
+  /* The same allocation as the layer details: at most this share of the band
+     between the floor row and the folds, shrinking on short stages. Floors run
+     sideways; when the band is shorter than a tile, the panel also scrolls
+     down, so every tile and its full name stays reachable and the focused plan
+     keeps the rest. */
+  .lantern-host .ua-tiles {
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: min(58%, 380px);
+    align-items: flex-start;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scroll-padding: 6px;
+    gap: 6px;
+    padding: 6px;
+    border-radius: var(--r-panel);
+    border: 1px solid var(--ua-line);
+    background: var(--ua-panel);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--ua-shadow);
+  }
+
+  .lantern-host .ua-tile { flex: none; width: 116px; padding: 6px; box-shadow: none; background: var(--ua-paper); }
+  /* Inside a scrolling panel a lifted tile would be cut at its edge. */
+  .lantern-host .ua-tile:hover { transform: none; }
+  .lantern-host .ua-tile > svg { width: 100%; height: auto; }
+
+  .lantern-host .ua-keys {
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: min(58%, 380px);
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 6px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-radius: var(--r-panel);
+    border: 1px solid var(--ua-line);
+    background: var(--ua-panel);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--ua-shadow);
+    scrollbar-width: thin;
+    animation: ua-settle 0.22s ease-out;
+  }
+
+  .lantern-host .ua-key,
+  .lantern-host .ua-key.is-closed {
+    flex: none;
+    width: 100%;
+    max-height: none;
+    box-shadow: none;
+    backdrop-filter: none;
+    background: var(--ua-paper);
+    animation: none;
+  }
+
+  .lantern-host .ua-key-head { --key-pad: 9px; min-height: 42px; }
+
+  .lantern-host .ua-folds {
+    flex: none;
+    display: flex;
+    gap: 6px;
+  }
+
+  /* Each fold is its symbol with a count; its name stays the control's name. */
+  .lantern-host .ua-fold {
+    position: relative;
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    width: 46px;
+    min-height: 46px;
+    padding: 0;
+    border-radius: var(--r-panel);
+    border: 1px solid var(--ua-line);
+    background: var(--ua-panel);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--ua-shadow);
+    color: var(--ink-2);
+    font: 650 13px/1.15 var(--text);
+    cursor: pointer;
+    transition: background-color 0.18s ease, color 0.18s ease;
+  }
+
+  .lantern-host .ua-bottom > .ua-folds { align-self: stretch; }
+  .lantern-host .ua-fold > svg:first-child { color: var(--ink-2); }
+
+  .lantern-host .ua-fold > span:not(.ua-fold-count) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .lantern-host .ua-fold-count {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    display: inline-grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 10px;
+    border: 2px solid var(--ua-paper);
+    background: var(--ink-2);
+    color: #fff;
+    font-size: 11px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .lantern-host .ua-fold > svg:last-child { display: none; }
+
+  .lantern-host .ua-fold[aria-expanded='true'] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: #fff;
+  }
+
+  .lantern-host .ua-fold[aria-expanded='true'] > svg { color: var(--lantern); }
+  .lantern-host .ua-fold[aria-expanded='true'] .ua-fold-count { background: var(--lantern); color: var(--lantern-ink); }
+  .lantern-host .ua-fold:focus-visible { outline-offset: 2px; }
+
+  /* Layers as three tabs sized to their names: the hue as a bar over each
+     full name, filled when on. Names never break inside a word; a row too
+     narrow for all three lets a tab step to a second line instead. */
+  .lantern-host .ua-bottom .layer-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 3px;
+    border-radius: var(--r-panel);
+  }
+
+  .lantern-host .ua-bottom .layer-chip {
+    flex: 1 1 auto;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 4px;
+    min-height: 40px;
+    padding: 4px 6px;
+    border-radius: 9px;
+    font-size: 12px;
+    line-height: 1.15;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .lantern-host .ua-bottom .layer-chip .layer-swatch {
+    width: 24px;
+    height: 5px;
+    border-radius: 3px;
+    box-shadow: none;
+  }
+
+  .lantern-host .ua-bottom .layer-chip[aria-pressed='false'] .layer-swatch { box-shadow: inset 0 0 0 1.5px var(--layer); }
+  .lantern-host .ua-bottom .layer-chip .ua-chip-note { margin: 0; font-size: 10.5px; }
+
+  /* An open graph is the whole view here. */
+  .lantern-host .ua-graph { top: 6px; left: 6px; right: 6px; bottom: 6px; width: auto; }
 }
 
 /* Smallest phones: the explode toggle keeps its name for assistive tech only. */
@@ -1027,4 +1942,57 @@
     clip-path: inset(50%);
     white-space: nowrap;
   }
+
+  .lantern-host .ua-tools .seg button { min-width: 40px; padding: 0 9px; }
+  .lantern-host .ua-pick { max-width: 42%; padding: 0 8px 0 9px; }
+}
+
+/* Touch: every control keeps a full-size target. */
+@media (pointer: coarse) {
+  .lantern-host .ua-buildings .chip-btn,
+  .lantern-host .ua-rung,
+  .lantern-host .ua-rung-all,
+  .lantern-host .ua-bottom .layer-chip,
+  .lantern-host .ua-key-head,
+  .lantern-host .ua-fold,
+  .lantern-host .ua-graph-open,
+  .lantern-host .ua-graph-close,
+  .lantern-host .ua-pick,
+  .lantern-host .ua-scope .ua-back { min-height: 44px; }
+
+  .lantern-host .ua-menu-btn { width: 44px; height: 44px; }
+}
+
+@container ua-stage (max-width: 720px) {
+  @media (pointer: coarse) {
+    .lantern-host .ua-scope .ua-back { width: 44px; }
+    .lantern-host .ua-bottom .layer-chip { min-height: 44px; }
+  }
+}
+
+/* Reduced motion: views and panels change in place. */
+@media (prefers-reduced-motion: reduce) {
+  .lantern-host .ua-spinner { animation: none; border-top-color: var(--hair-2); }
+  .lantern-host .ua-plan,
+  .lantern-host .ua-key,
+  .lantern-host .ua-keys,
+  .lantern-host .ua-tiles,
+  .lantern-host .ua-graph,
+  .lantern-host .ua-sheet-body,
+  .lantern-host .ua-menu-panel,
+  .lantern-host .ua-buildings.is-open,
+  .lantern-host .cifc-label > circle.ua-ripple { animation: none; }
+  .lantern-host .ua-pick > svg { transition: none; }
+  .lantern-host .ua-stage::before,
+  .lantern-host .ua-marker,
+  .lantern-host .ua-tile,
+  .lantern-host .ua-rung,
+  .lantern-host .ua-rung-tick,
+  .lantern-host .ua-key-head > svg,
+  .lantern-host .ua-bottom .layer-chip,
+  .lantern-host .ua-fold,
+  .lantern-host .ua-fold > svg,
+  .lantern-host .ua-graph-open,
+  .lantern-host .ua-buildings .chip-btn { transition: none; }
+  .lantern-host .ua-tile:hover { transform: none; }
 }

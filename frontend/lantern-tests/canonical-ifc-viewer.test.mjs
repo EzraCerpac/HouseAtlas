@@ -54,7 +54,9 @@ const fixturesURL = await sourceURL('./canonical-ifc-visual/synthetic-publicatio
 const iconURL = await sourceURL('../src/lantern/components/Icon.tsx', 'tsx', { 'react/jsx-runtime': jsx });
 const cameraURL = await sourceURL('../src/lantern/atlas/useCamera.ts', 'ts', { react });
 const pointersURL = await sourceURL(`${base}stage-pointers.ts`, 'ts');
-const stageCameraURL = await sourceURL(`${base}useStageCamera.ts`, 'ts', { react, '../atlas/useCamera': cameraURL, './stage-pointers': pointersURL });
+const trackpadURL = await sourceURL(`${base}trackpad-gesture.ts`, 'ts');
+const stageCameraURL = await sourceURL(`${base}useStageCamera.ts`, 'ts', { react, '../atlas/useCamera': cameraURL,
+  './stage-pointers': pointersURL, './trackpad-gesture': trackpadURL });
 const meshLayerURL = await sourceURL(`${base}MeshLayer.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx, './geometry': geometryURL });
 const stageURL = await sourceURL(`${base}ModelStage.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx, '../components/Icon': iconURL,
   './geometry': geometryURL, './selection': selectionURL, './MeshLayer': meshLayerURL, './tones': tonesURL, './useStageCamera': stageCameraURL });
@@ -100,7 +102,7 @@ const localURL = await sourceURL(`${base}LocalGlbPreview.tsx`, 'tsx', { react, '
 const { admitPresentation, PresentationError, isDuplicateLabel, isSyntheticSource, selectionLabel } = await import(modelURL);
 const { reconcile, viewerReducer, encodeMemory, decodeMemory, initialState, contextOccurrences, scopedMemoryKey, memoryKey } = await import(selectionURL);
 const { makeProjection, drawnBounds, floorPlanRings, prepareMeshes, pick, planPick, labelPoint, LABEL_WORK, pointInShape, relativePath,
-  visibleFloorIds, occurrenceTops } = await import(geometryURL);
+  visibleFloorIds, occurrenceTops, sourceMeshColor } = await import(geometryURL);
 const { joinOverlay } = await import(overlaysURL);
 const { badgeFill, contrast, TONE_COLOR } = await import(tonesURL);
 const { readCanonicalSceneV2, ADAPTER_ID } = await import(adapterURL);
@@ -529,6 +531,52 @@ assert.deepEqual(reused.drawn.map(item => [item.nodeIndex, item.meshIndex]), [[0
 assert.deepEqual(reused.work, { instances: 3, vertices: 24, triangles: 36, outputBytes: 24 * 12 + 108 * 4 + 36 * 72 });
 assert.equal(reused.counts.triangles, 36);
 assert.deepEqual(reused.meshes.map(mesh => mesh.bounds.min[0]), [0, 2, 4]);
+
+// Valid opaque core materials on a multi-primitive mesh reused by two nodes.
+// The factors are linear source metadata, independent of names and geometry;
+// a material without an explicit factor retains the viewer's palette fallback.
+const sourceFactors = [[.25, .5, .75, 1], [.625, .125, .375, 1]];
+const materialSample = withFactors => buildGlb({
+  meshes: [box([0, 0, 0], [1, 1, 1]), box([0, 1, 0], [1, 2, 1]), box([0, 0, 2], [1, 1, 3])],
+  roots: [0, 1, 2], nodes: [{ name: 'Shared source', mesh: 0 },
+    { name: 'Shared source again', mesh: 0, translation: [4, 0, 0] }, { name: 'Palette fallback', mesh: 1 }],
+  patch: json => {
+    const [first, second, fallback] = json.meshes;
+    json.meshes = [{ primitives: [{ ...first.primitives[0], material: 1 }, { ...second.primitives[0], material: 0 }] },
+      { primitives: [{ ...fallback.primitives[0], material: 2 }] }];
+    json.materials = [...sourceFactors.map(factor => ({ pbrMetallicRoughness: {
+      ...(withFactors ? { baseColorFactor: factor } : {}), metallicFactor: 0, roughnessFactor: 1 } })),
+      { pbrMetallicRoughness: { metallicFactor: 0, roughnessFactor: 1 } }];
+  },
+});
+const materialBytes = materialSample(true), materialBytesBefore = materialBytes.slice();
+const materialLoaded = await loadStandardGlb(materialBytes, 'source-colours', live());
+const paletteLoaded = await loadStandardGlb(materialSample(false), 'source-colours', live());
+assert.deepEqual(materialLoaded.drawn.map(({ nodeIndex, meshIndex, primitiveIndex }) => [nodeIndex, meshIndex, primitiveIndex]),
+  [[0, 0, 0], [0, 0, 1], [1, 0, 0], [1, 0, 1], [2, 1, 0]], 'material lookup follows exact primitive selectors across reused nodes');
+assert.deepEqual(materialLoaded.meshes.map(mesh => mesh.sourceBaseColor),
+  [sourceFactors[1], sourceFactors[0], sourceFactors[1], sourceFactors[0], undefined]);
+assert.deepEqual(materialLoaded.drawn, paletteLoaded.drawn);
+assert.deepEqual(materialLoaded.counts, paletteLoaded.counts);
+assert.deepEqual(materialLoaded.work, paletteLoaded.work);
+assert.equal(materialLoaded.counts.triangles, 60);
+const sourceState = { enabled: true, selected: false, reference: false,
+  selectedOccurrenceId: null, contextOccurrenceIds: [], tints: new Map() };
+materialLoaded.meshes.forEach((mesh, at) => {
+  const plain = paletteLoaded.meshes[at];
+  assert.deepEqual(mesh.vertices, plain.vertices, 'source colours never alter positions or normals');
+  assert.deepEqual(mesh.bounds, plain.bounds); assert.deepEqual(mesh.yRange, plain.yRange);
+  assert.equal(mesh.triangles, plain.triangles); assert.equal(mesh.vertices.byteLength, mesh.triangles * 72);
+  assert.equal(mesh.floorId, null); assert.equal(mesh.occurrenceId, null);
+  assert.equal(plain.sourceBaseColor, undefined, 'no loader-default white is manufactured');
+  if (mesh.sourceBaseColor) assert.equal(Object.isFrozen(mesh.sourceBaseColor), true, 'source factors remain immutable');
+  assert.equal(sourceMeshColor(mesh, sourceState), mesh.sourceBaseColor, 'the production renderer resolver returns the linear source factor');
+  assert.equal(sourceMeshColor(mesh, { ...sourceState, enabled: false }), undefined, 'other viewers can retain their palette');
+  assert.equal(sourceMeshColor(mesh, { ...sourceState, enabled: undefined }), undefined);
+  assert.equal(sourceMeshColor(mesh, { ...sourceState, selected: true }), undefined);
+  assert.equal(sourceMeshColor(mesh, { ...sourceState, reference: true }), undefined);
+});
+assert.deepEqual(materialBytes, materialBytesBefore, 'loading and colour routing preserve the original generated bytes');
 
 // Missing or mismatched artifacts and closed-preflight refusals stay explicit; each failure reports what the browser read.
 await held(async () => {
