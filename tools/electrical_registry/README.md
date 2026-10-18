@@ -37,7 +37,11 @@ node tools/electrical_registry/registry.mjs /private/ledger.json /private/new-re
 Output is created exclusively with mode 0600; an existing output is never
 overwritten. Only supplied files are read. Each JSON input is bounded to 16 MiB,
 64 nesting levels and 1,000,000 object/array members; each ledger table has at
-most 10,000 rows and each region has at most 64 place associations. Identity and
+most 10,000 rows and each region has at most 64 place associations. Total source
+place memberships, expanded fixture-room memberships and fixture-registration
+memberships are each capped at 10,000 before projection. Each receipt has at most
+32 source anchors, retained once in the canonical receipt table rather than
+copied into every fixture registration. Identity and
 documentary text use the v1 field bounds; source quantities and PDF pages range
 from 1 through 10,000 (quantities may be explicitly null). Numeric tokens are at
 most 128 characters and must retain their exact decimal value through JavaScript

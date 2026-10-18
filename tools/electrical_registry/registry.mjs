@@ -116,7 +116,7 @@ export function validateLedger(data) {
     check(refs(s.regionIds, tables.regions) && s.regionIds.every(id => tables.regions.get(id).sheetId === s.id),
       `sheets.${s.id}.regionIds`, 'Region membership must agree with sheet');
   }
-  const keys = new Map(), uuids = new Map();
+  const keys = new Map(), uuids = new Map(); let placeMemberships = 0;
   for (const r of data.regions) {
     check(named(r.label, 512), `regions.${r.id}.label`, 'Bounded region label required');
     const sheet = tables.sheets.get(r.sheetId);
@@ -124,6 +124,7 @@ export function validateLedger(data) {
     check(r.physicalTransform === null && r.orientation === 'unregistered', `regions.${r.id}`, 'v1 preserves unknown physical transform/orientation');
     check(box(r.sourceBounds), `regions.${r.id}.sourceBounds`, 'Expected normalized source box');
     check(Array.isArray(r.places) && r.places.length <= 64, `regions.${r.id}.places`, 'Explicit documentary place array required (maximum 64)');
+    placeMemberships += Array.isArray(r.places) ? r.places.length : 0;
     const seen = new Set();
     for (const p of Array.isArray(r.places) ? r.places : []) {
       check(named(p?.packagePlaceKey) && uuid(p?.packagePlaceUuid) && named(p?.label, 512) && ['owner-reported', 'inferred'].includes(p?.basis),
@@ -137,10 +138,12 @@ export function validateLedger(data) {
       keys.set(p.packagePlaceKey, p.packagePlaceUuid); uuids.set(p.packagePlaceUuid, p.packagePlaceKey);
     }
   }
-  const symbolKeys = new Set();
+  check(placeMemberships <= 10000, 'regions.places', 'Maximum 10000 source-place memberships');
+  const symbolKeys = new Set(); let fixtureRoomMemberships = 0;
   for (const f of data.fixtures) {
     const r = tables.regions.get(f.regionId), s = tables.sheets.get(f.sheetId);
     check(r && s && r.sheetId === f.sheetId, `fixtures.${f.id}`, 'Fixture sheet/region join must agree');
+    fixtureRoomMemberships += Array.isArray(r?.places) ? r.places.length : 0;
     check(kinds.includes(f.kind), `fixtures.${f.id}.kind`, 'Unknown fixture kind');
     check(named(f.label, 512) && plain(f.glyph, 512) && (f.clusterId === null || named(f.clusterId, 512)), `fixtures.${f.id}`,
       'Fixture label, glyph text and explicit cluster ID required (glyph may be blank)');
@@ -173,6 +176,7 @@ export function validateLedger(data) {
     check(f.group?.id === null || (g && groupFixtures.get(g.id).has(f.id) && g.label === f.group.label),
       `fixtures.${f.id}.group`, 'Documentary group membership must agree');
   }
+  check(fixtureRoomMemberships <= 10000, 'fixtures.roomAssociations', 'Maximum 10000 expanded fixture-room memberships');
   for (const g of data.groups) {
     check(named(g.label, 512), `groups.${g.id}.label`, 'Bounded documentary group label required');
     check(g.currentCircuitId === null && g.verifiedWiring === false && g.evidenceBasis === 'historic-drawing-label',
@@ -180,7 +184,9 @@ export function validateLedger(data) {
     check(refs(g.fixtureIds, tables.fixtures) && g.fixtureIds.every(id => tables.fixtures.get(id).group?.id === g.id),
       `groups.${g.id}.fixtureIds`, 'Fixture/group membership must agree');
   }
+  let registrationMemberships = 0;
   for (const reg of data.registrationReceipts) {
+    registrationMemberships += Array.isArray(reg.approvedFixtureIds) ? reg.approvedFixtureIds.length : 0;
     const region = tables.regions.get(reg.regionId), sheet = tables.sheets.get(reg.sheetId);
     check(digest(reg.sha256) && sameReceipt(reg.roomMappingReceipt, data.roomMappingReceipt), `registrationReceipts.${reg.id}`, 'Registration receipt identity must match room receipt');
     check(['proposed', 'source-reviewed-approximate', 'owner-reviewed-approximate'].includes(reg.status) && reg.physicalTransform === null,
@@ -192,9 +198,10 @@ export function validateLedger(data) {
     check(refs(reg.approvedFixtureIds, tables.fixtures) && reg.approvedFixtureIds.every(id => {
       const f = tables.fixtures.get(id); return f.regionId === reg.regionId && f.sheetId === reg.sheetId;
     }), `registrationReceipts.${reg.id}.approvedFixtureIds`, 'Registration fixture membership must agree');
-    check(Array.isArray(reg.sourceAnchorIds) && reg.sourceAnchorIds.length > 0 && reg.sourceAnchorIds.length <= 10000 && reg.sourceAnchorIds.every(id => named(id)) &&
+    check(Array.isArray(reg.sourceAnchorIds) && reg.sourceAnchorIds.length > 0 && reg.sourceAnchorIds.length <= 32 && reg.sourceAnchorIds.every(id => named(id)) &&
       new Set(reg.sourceAnchorIds).size === reg.sourceAnchorIds.length, `registrationReceipts.${reg.id}.sourceAnchorIds`, 'Explicit unique source anchors required');
   }
+  check(registrationMemberships <= 10000, 'registrationReceipts.approvedFixtureIds', 'Maximum 10000 expanded fixture-registration memberships');
   return errors;
 }
 
@@ -234,7 +241,7 @@ export function buildRegistry(ledgerBytes, { artifacts = [], roomMappingBytes = 
       roomAssociations: structuredClone(region.places),
       approximateRegistrations: registrations.map(r => ({ id: r.id, sha256: r.sha256, status: r.status,
         basis: r.basis, reviewQualification: r.reviewQualification,
-        packagePlaceKey: r.packagePlaceKey, packagePlaceUuid: r.packagePlaceUuid, sourceAnchorIds: [...r.sourceAnchorIds] })),
+        packagePlaceKey: r.packagePlaceKey, packagePlaceUuid: r.packagePlaceUuid })),
       physicalCoordinate: null, physicalTransform: null, currentCircuitId: null, wireRoute: null,
       currentState: f.currentState };
   });

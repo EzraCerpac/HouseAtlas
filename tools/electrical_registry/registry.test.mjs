@@ -106,10 +106,13 @@ test('healthy approximate and proposed registrations remain nonphysical', () => 
   }));
   data.registrationReceipts.push({ ...data.registrationReceipts[0], id: 'empty-review',
     sha256: hash(Buffer.from('empty-review')), approvedFixtureIds: [] });
+  const anchors = Array.from({ length: 32 }, (_, i) => `anchor:${i}`);
+  for (const registration of data.registrationReceipts) registration.sourceAnchorIds = [...anchors];
   const result = buildRegistry(bytes(data));
   assert.deepEqual(JSON.parse(JSON.stringify(result)).registrationReceipts, data.registrationReceipts);
   result.registrationReceipts[2].sourceAnchorIds.push('registry-copy-only');
-  assert.deepEqual(data.registrationReceipts[2].sourceAnchorIds, ['anchor:a']);
+  assert.deepEqual(data.registrationReceipts[2].sourceAnchorIds, anchors);
+  assert(result.records.every(row => row.approximateRegistrations.every(reg => !Object.hasOwn(reg, 'sourceAnchorIds'))));
   assert(result.records.every(row => row.approximateRegistrations.every(reg => reg.id !== 'empty-review')));
   assert.equal(result.completeness.approximateRegisteredRecords, 1);
   assert.equal(result.completeness.physicalLocationUnknownRecords, 3);
