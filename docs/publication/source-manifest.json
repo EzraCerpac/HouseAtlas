@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0f118b945058098c5c2048831b006e4a80ba235d12899c8699fe69e3e715febf",
+  "sourceDigestSha256": "9d378190d0aced94d935af6c252e70c103c0cbc8b67bf7e4aaa18ae1e4e69ee4",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -504,8 +504,8 @@
     {
       "path": "backend/src/access/boundary.rs",
       "mode": "100644",
-      "bytes": 39319,
-      "sha256": "4a25201a7a4783e37cc9cb50ad84cdaf24db401086430189080b283b38d84695",
+      "bytes": 40365,
+      "sha256": "0114881ed8caa6231e19ed2907c02109656c6279ab2e47cc94dcfbb27c5daec7",
       "owner": "access"
     },
     {
@@ -525,15 +525,15 @@
     {
       "path": "backend/src/access/existing.rs",
       "mode": "100644",
-      "bytes": 4659,
-      "sha256": "130d72fc5549df8bf8b56a03774a88ea44b7419931754cc64289e81c7daa78ff",
+      "bytes": 5669,
+      "sha256": "f7f6e7c0c1b665d30cd3ef2954ed9d10500eb79a372af6291ee5824770d6de55",
       "owner": "access"
     },
     {
       "path": "backend/src/access/healthy.rs",
       "mode": "100644",
-      "bytes": 20136,
-      "sha256": "3cfe93c1e0025bd3333d6748cd750246c860d8beedeb29c83802680fb560b16d",
+      "bytes": 21801,
+      "sha256": "f2aeb0bd6355dd2b0b056f0392ac6c08019812010e814bc11bfbb9e253c6fc72",
       "owner": "access"
     },
     {
@@ -5964,8 +5964,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 122294,
-      "sha256": "25b7b118e819bc004ac69c50954944cd6b2db8d1ac2c7dc14524ede2b976b6a9",
+      "bytes": 123387,
+      "sha256": "f00f2c15cb7a533a31fe1ea250a3783922518cb91448a7498e807c399357f50a",
       "owner": "core-integration"
     },
     {
@@ -6527,6 +6527,13 @@
       "bytes": 1694,
       "sha256": "4d14aeaec726de3e319d866aba05c0fcda96f363648ea0bcd1c1d257122b6307",
       "owner": "operations-policy"
+    },
+    {
+      "path": "docs/operations/updater-native-validation.md",
+      "mode": "100644",
+      "bytes": 3757,
+      "sha256": "d1d4a141bf99a9a7c79287212499ef79841c067c076d566850313ea89b0fd695",
+      "owner": "access"
     },
     {
       "path": "docs/publication/provenance.md",

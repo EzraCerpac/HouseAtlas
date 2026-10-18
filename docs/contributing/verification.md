@@ -2053,3 +2053,22 @@ No actual release, network, native binary, service, private input, denial,
 rollback or failure-injection case is used. Runtime publication never adds
 undeclared files; genuine producer approval and native update qualification
 remain separate. This adds no workflow or deployment authority.
+
+## Named generated native Access read-only validation positive
+
+Read [the native Access validation contract](../operations/updater-native-validation.md),
+then inspect the two additive methods, shared compiled validator and the existing
+`healthy_persistent_session_checkpoint` body before this exact command in the
+pinned Rust 1.99.0 environment with an owned disposable Cargo target:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib access::healthy::healthy_persistent_session_checkpoint -- --exact --test-threads=1
+```
+
+The generated persistent-session positive checks original-connection and closed
+Access catalogue/meta/epoch validation without an authorization/session refresh,
+preserves database bytes and stored session fields, then uses the original
+session normally. It does not establish whole-Core/profile inspection, live
+WAL/SHM filesystem immutability, an updater deadline, service fencing, maintenance
+authority or native application readiness. No runtime route, real credentials,
+service, network, failure/denial/replay/crash case or broader suite is released.

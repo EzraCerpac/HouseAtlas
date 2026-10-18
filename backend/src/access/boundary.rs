@@ -392,6 +392,23 @@ impl AccessBoundary {
         Self::from_store(Store::open_existing(path.as_ref())?, config)
     }
 
+    /// Administrative compiled catalogue/meta/epoch check of trusted closed state.
+    /// The owner must fence writers and replacement and supply a coherent closed
+    /// cut. Opens only READ_ONLY; creates no boundary, config, session or epoch.
+    /// SQL read-only does not prove filesystem no-write for a live WAL/SHM cut.
+    /// This is neither whole-profile validation nor application readiness.
+    pub fn validate_closed_existing_read_only(path: impl AsRef<Path>) -> AccessResult<()> {
+        super::existing::validate_closed_read_only(path.as_ref())
+    }
+
+    /// Administrative SELECT validation on this boundary's original connection.
+    /// Uses one deferred read transaction without authorization, session refresh
+    /// or last_seen updates. The caller owns whole-Core observation coherence;
+    /// this Access-only snapshot confers no authority or readiness qualification.
+    pub fn validate_current_read_only(&mut self) -> AccessResult<()> {
+        super::existing::validate_current_read_only(&mut self.store.db)
+    }
+
     fn from_store(store: Store, config: AccessConfig) -> AccessResult<Self> {
         Ok(Self {
             store,
