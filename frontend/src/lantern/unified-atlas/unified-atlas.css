@@ -868,7 +868,7 @@
   gap: 8px;
 }
 
-/* The narrow-stage folds; wider stages show what they fold. */
+/* The folds; each stage width below shows the ones it uses. */
 .lantern-host .ua-folds { display: none; }
 
 /* Beside an open graph the bar may take two rows rather than spill. */
@@ -1664,6 +1664,249 @@
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+}
+
+/* ---- Wide stages: layer keys docked under the floor rail ----------------- */
+
+/* The plan and its chosen room hold the centre. The layer keys stand as one
+   column of rows at the foot of the floor rail, in the margin it already
+   claims; the layer bar keeps the lower edge, with the other floors folded
+   beside it and opening as one strip above it. The band spans the stage left
+   of an open graph as a grid: the dock in the rail's column, the bar and the
+   strip in the rest. The band is its own width query, so what is left beside
+   the graph and the room panel decides the arrangement, and every control
+   stays inside the band: never under the graph. */
+@container ua-stage (min-width: 721px) {
+  .lantern-host .ua-bottom {
+    container: ua-band / inline-size;
+    top: auto;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    width: auto;
+    display: grid;
+    grid-template-columns: calc(var(--ua-rail) + 16px) minmax(0, 1fr) auto auto minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto auto auto;
+    align-items: end;
+    gap: 0;
+  }
+
+  /* The rail ends above the dock and is never taller than its content. Its
+     floor list shrinks first, down to its first whole rows; past that the
+     rail scrolls as one column, so every building and floor stays reachable
+     and a focused row is shown whole. The padding keeps edge marks, shadows
+     and focus rings inside its scroll frame. */
+  .lantern-host .ua-scope {
+    bottom: auto;
+    width: calc(var(--ua-rail) + 12px);
+    max-height: max(56px, calc(100% - var(--ua-dock, 8px) - 16px));
+    margin: -4px -6px;
+    padding: 4px 6px;
+    overflow: hidden auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    /* A scrollbar appearing never rewraps the rail and so re-measures it. */
+    scrollbar-gutter: stable;
+    pointer-events: auto;
+  }
+
+  .lantern-host .ua-scope > .ua-ladder { min-height: var(--ua-ladder-floor, 0px); }
+
+  /* The dock takes what the rail leaves (measured), at most half the stage;
+     a short stage still shows a key row whole, scrolling the rest. */
+  .lantern-host .ua-bottom > .ua-keys {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    justify-self: start;
+    align-self: end;
+    width: var(--ua-rail);
+    max-height: max(96px, min(calc(var(--ua-stage-height, 640px) * 0.5), 460px, var(--ua-dock-room, 460px)));
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    border-radius: var(--r-panel);
+    border: 1px solid var(--ua-line);
+    background: var(--ua-panel);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--ua-shadow);
+  }
+
+  /* Each key is a row of the dock: its hue as an edge, a hairline between. */
+  .lantern-host .ua-keys > .ua-key,
+  .lantern-host .ua-keys > .ua-key.is-closed {
+    flex: none;
+    width: 100%;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    backdrop-filter: none;
+    box-shadow: inset 3px 0 0 var(--layer);
+    animation: none;
+  }
+
+  .lantern-host .ua-keys > .ua-key + .ua-key { border-top: 1px solid var(--hair); }
+
+  .lantern-host .ua-bottom > .layer-bar { grid-column: 4; grid-row: 4; }
+
+  /* Other floors: one counted control beside the layer bar, at its own height. */
+  .lantern-host .ua-bottom > .ua-folds {
+    grid-column: 3;
+    grid-row: 4;
+    align-self: center;
+    display: flex;
+    margin: 0 8px 0 0;
+  }
+
+  .lantern-host .ua-bottom > .ua-folds:not(:has(> .ua-fold-floors)),
+  .lantern-host .ua-folds > .ua-fold-layers { display: none; }
+
+  .lantern-host .ua-fold {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 40px;
+    padding: 0 13px 0 14px;
+    border-radius: 23px;
+    border: 1px solid var(--ua-line);
+    background: var(--ua-panel);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--ua-shadow);
+    color: var(--ink-2);
+    font: 650 var(--fs-s)/1.2 var(--text);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 0.18s ease, color 0.18s ease;
+  }
+
+  .lantern-host .ua-fold:not([aria-expanded='true']):hover { background: #fff; color: var(--ink); }
+
+  .lantern-host .ua-fold-count {
+    display: inline-grid;
+    place-items: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 11px;
+    background: var(--hair);
+    color: var(--ink-2);
+    font-size: 12px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The strip opens upward; open, the chevron points back down. */
+  .lantern-host .ua-fold > svg:last-child {
+    color: var(--muted);
+    transform: rotate(180deg);
+    transition: transform 0.2s ease;
+  }
+
+  .lantern-host .ua-fold[aria-expanded='true'] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: #fff;
+  }
+
+  .lantern-host .ua-fold[aria-expanded='true'] > svg { color: var(--lantern); }
+  .lantern-host .ua-fold[aria-expanded='true'] > svg:last-child { transform: none; }
+  .lantern-host .ua-fold[aria-expanded='true'] .ua-fold-count { background: var(--lantern); color: var(--lantern-ink); }
+  .lantern-host .ua-fold:focus-visible { outline-offset: 2px; }
+
+  /* Open, the other floors run as one strip above the bar: each plan small
+     beside its name and records, scrolling sideways when they outrun it. */
+  .lantern-host .ua-bottom > .ua-tiles {
+    grid-column: 2 / -1;
+    grid-row: 3;
+    justify-self: center;
+    align-self: end;
+    min-width: 0;
+    margin-bottom: 8px;
+    gap: 6px;
+    padding: 6px;
+    scroll-padding: 6px;
+    border-radius: var(--r-panel);
+    border: 1px solid var(--ua-line);
+    background: var(--ua-panel);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--ua-shadow);
+  }
+
+  .lantern-host .ua-tiles:not(.is-unfolded) { display: none; }
+
+  .lantern-host .ua-tile {
+    width: 208px;
+    grid-template-columns: 76px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-content: center;
+    gap: 2px 9px;
+    padding: 5px 10px 5px 5px;
+    background: var(--ua-paper);
+    box-shadow: none;
+  }
+
+  .lantern-host .ua-tile > svg { grid-row: 1 / 3; align-self: center; width: 76px; height: auto; margin: 0; }
+  .lantern-host .ua-tile-name { align-self: end; }
+  .lantern-host .ua-tile-sub { align-self: start; }
+  .lantern-host .ua-tile-name:last-child { grid-row: 1 / 3; align-self: center; }
+  /* Inside a scrolling strip a lifted tile would be cut at its edge. */
+  .lantern-host .ua-tile:hover { transform: none; }
+
+  /* Too narrow for the fold beside the bar: each stands on its own row in
+     the centre, the strip above them. */
+  @container ua-band (max-width: 799px) {
+    .lantern-host .ua-bottom > .ua-tiles { grid-row: 2; }
+
+    .lantern-host .ua-bottom > .ua-folds {
+      grid-column: 2 / -1;
+      grid-row: 3;
+      justify-self: center;
+      margin: 0 0 8px;
+    }
+
+    .lantern-host .ua-bottom > .layer-bar { grid-column: 2 / -1; justify-self: center; }
+  }
+
+  /* Too narrow for a centre column beside the dock: the fold and the bar
+     continue the rail's column below the dock, and the strip opens across
+     the whole band between them. */
+  @container ua-band (max-width: 599px) {
+    /* The measured room already stands above the strip, fold and bar rows. */
+    .lantern-host .ua-bottom > .ua-keys {
+      grid-column: 1 / -1;
+      grid-row: 1;
+      margin-bottom: 8px;
+    }
+
+    .lantern-host .ua-bottom > .ua-tiles,
+    .lantern-host .ua-bottom > .ua-folds,
+    .lantern-host .ua-bottom > .layer-bar { grid-column: 1 / -1; justify-self: start; }
+  }
+
+  /* Beside a room card the bar and the floors fold stand above its head at
+     the right, as before; the dock keeps the rail's foot, clear of the card,
+     and stays in reach while the card is open. The graph covers the stage
+     here, so the band always has its full width. */
+  @container ua (max-width: 1040px) {
+    .lantern-host .ua-bottom {
+      right: 12px;
+      padding-bottom: calc(var(--ua-peek) + 12px);
+      grid-template-columns: calc(var(--ua-rail) + 16px) minmax(0, 1fr) auto auto 0;
+    }
+
+    .lantern-host .ua-bottom > .ua-keys { margin-bottom: calc(-12px - var(--ua-peek)); }
+
+    .lantern-host .ua-bottom > .ua-tiles,
+    .lantern-host .ua-bottom > .ua-folds,
+    .lantern-host .ua-bottom > .layer-bar { justify-self: end; }
+
+    .lantern-host .ua-shell.is-sheet-open .ua-bottom > .ua-keys { visibility: visible; }
   }
 }
 

@@ -241,6 +241,8 @@ const CLEAR = 8;
 const MIN_FRAME = 96;
 /** Widest stage, in pixels, that takes the compact phone controls; matches the ua-stage container query. */
 const COMPACT_STAGE = 720;
+/** Least height, in pixels, of the floor list beside a docked key column: All floors and one whole floor row. */
+const LADDER_FLOOR = 112;
 
 const laidOut = (node: Element) => getComputedStyle(node).display !== 'none';
 const showing = (node: Element) => laidOut(node) && getComputedStyle(node).visibility !== 'hidden';
@@ -277,7 +279,11 @@ function insetProjection(base: Projection, dx: number, dy: number, viewport: Vie
  * within it. An open sheet counts as its head, and the overlays it hides keep
  * their place, so opening it never moves the model while a resize still
  * re-fits it. The graph beside the model claims its own band; over a narrow
- * stage it is the whole view, and the model keeps its frame behind it. */
+ * stage it is the whole view, and the model keeps its frame behind it.
+ * Wide stages dock the layer keys under the floor rail: the dock counts with
+ * the rail it continues, never as one span across to the layer bar, so
+ * opening or closing a key leaves the model's frame where it is. A short
+ * rail scrolls inside its own frame, so its rows count only where they show. */
 function measureCover(root: HTMLElement, stage: HTMLElement): { readonly cover: Box[]; readonly sheet: boolean; readonly graphCovers: boolean } {
   const frame = stage.getBoundingClientRect();
   const clip = (rect: DOMRect, within: DOMRect): Box | null => {
@@ -285,13 +291,36 @@ function measureCover(root: HTMLElement, stage: HTMLElement): { readonly cover: 
     const r = Math.min(rect.right, within.right, frame.right), b = Math.min(rect.bottom, within.bottom, frame.bottom);
     return r - l > 1 && b - t > 1 ? { l: Math.round(l - frame.left), t: Math.round(t - frame.top), r: Math.round(r - frame.left), b: Math.round(b - frame.top) } : null;
   };
-  const union = (selector: string, shown = showing): Box | null => {
+  const join = (sum: Box | null, box: Box | null): Box | null => !box ? sum : !sum ? box
+    : { l: Math.min(sum.l, box.l), t: Math.min(sum.t, box.t), r: Math.max(sum.r, box.r), b: Math.max(sum.b, box.b) };
+  const union = (selector: string, shown = showing, apart: Element | null = null): Box | null => {
     const band = root.querySelector(selector); if (!band || !shown(band)) return null;
     const within = band.getBoundingClientRect();
-    return [...band.children].filter(shown).map(child => clip(child.getBoundingClientRect(), within))
-      .reduce<Box | null>((sum, box) => !box ? sum : !sum ? box
-        : { l: Math.min(sum.l, box.l), t: Math.min(sum.t, box.t), r: Math.max(sum.r, box.r), b: Math.max(sum.b, box.b) }, null);
+    return [...band.children].filter(child => child !== apart && shown(child)).map(child => clip(child.getBoundingClientRect(), within)).reduce(join, null);
   };
+  // The floor list never shrinks below its first rows, so the current floor
+  // stays a usable target; past that the whole rail scrolls.
+  const rail = root.querySelector<HTMLElement>('.ua-scope');
+  const ladder = rail?.querySelector<HTMLElement>(':scope > .ua-ladder') ?? null;
+  const floor = ladder && laidOut(ladder) ? Math.min(ladder.scrollHeight + ladder.offsetHeight - ladder.clientHeight, LADDER_FLOOR) : null;
+  if (floor !== null) root.style.setProperty('--ua-ladder-floor', `${floor}px`);
+  else root.style.removeProperty('--ua-ladder-floor');
+  // The stylesheet decides whether the keys are docked: the layer band becomes a grid.
+  const bottom = root.querySelector('.ua-bottom');
+  const dock = bottom && laidOut(bottom) && getComputedStyle(bottom).display === 'grid' ? bottom.querySelector(':scope > .ua-keys') : null;
+  // The dock takes only the height the rail leaves: below its fixed rows and
+  // the floor list's first rows, measured in layout, so the rail's own scroll
+  // never changes it. The dock's foot does not depend on its height.
+  if (dock && rail && laidOut(dock)) {
+    const top = rail.getBoundingClientRect().top;
+    const end = ladder && floor !== null ? ladder.offsetTop + floor
+      : [...rail.children].filter(laidOut).reduce((most, child) => Math.max(most, (child as HTMLElement).offsetTop + (child as HTMLElement).offsetHeight), 0);
+    root.style.setProperty('--ua-dock-room', `${Math.floor(dock.getBoundingClientRect().bottom - top - end - CLEAR)}px`);
+  } else root.style.removeProperty('--ua-dock-room');
+  const docked = dock && laidOut(dock) ? clip(dock.getBoundingClientRect(), frame) : null;
+  // The rail stops above the dock.
+  if (docked) root.style.setProperty('--ua-dock', `${Math.round(frame.height) - docked.t}px`);
+  else root.style.removeProperty('--ua-dock');
   const tools = union('.ua-tools'), scope = union('.ua-scope');
   // Overlays stand below these rows on narrow stages, and an open sheet stops above them.
   if (tools) root.style.setProperty('--ua-tools-end', `${tools.b}px`);
@@ -309,7 +338,7 @@ function measureCover(root: HTMLElement, stage: HTMLElement): { readonly cover: 
   const graphPanel = root.querySelector('.ua-graph');
   const graph = graphPanel && showing(graphPanel) ? clip(graphPanel.getBoundingClientRect(), frame) : null;
   const graphCovers = graph !== null && graph.r - graph.l > frame.width * .6;
-  return { cover: [tools, scope, union('.ua-bottom', laidOut), peek, graphCovers ? null : graph].filter((box): box is Box => box !== null), sheet, graphCovers };
+  return { cover: [tools, join(scope, docked), union('.ua-bottom', laidOut, dock), peek, graphCovers ? null : graph].filter((box): box is Box => box !== null), sheet, graphCovers };
 }
 
 interface StageMarker extends CountMarker {
@@ -412,7 +441,8 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   // offsets written here never change the measured rows, so measuring cannot
   // feed back into itself.
   // Narrow stages fold the other floors and the layer details behind one
-  // control each, so the focus keeps the stage; one opens at a time.
+  // control each, so the focus keeps the stage; one opens at a time. Wide
+  // stages dock the layer details under the rail and fold only the floors.
   const [drawer, setDrawer] = useState<'floors' | 'layers' | null>(null);
   // The logical network graph: its own panel, beside the model or over a narrow stage.
   const graphs = networkOn ? runtime.records?.networkGraphs ?? [] : [];
@@ -809,9 +839,17 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
 
   // Keep the current choice inside its own row, never scrolling the page.
   // The chooser and host disclosures can change that row's width independently
-  // of the viewport, including one commit after a breakpoint transition.
+  // of the viewport, including one commit after a breakpoint transition. On a
+  // wide stage a floor list cut short beside the docked keys keeps a floor in
+  // view: the focused one, through the scrolling rail too, else the current one.
   useLayoutEffect(() => {
     const rows = [...(shell.current?.querySelectorAll<HTMLElement>('.ua-buildings, .ua-ladder') ?? [])];
+    const ladders = compact ? [] : rows.filter(row => row.classList.contains('ua-ladder'));
+    const reveal = (frame: HTMLElement, target: HTMLElement) => {
+      const box = target.getBoundingClientRect(), edge = frame.getBoundingClientRect();
+      if (box.top < edge.top) frame.scrollTop -= edge.top - box.top + 6;
+      else if (box.bottom > edge.bottom) frame.scrollTop += box.bottom - edge.bottom + 6;
+    };
     const align = () => {
       for (const row of rows) {
         const current = row.querySelector<HTMLElement>('[aria-pressed="true"]');
@@ -820,10 +858,23 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
         if (box.left < edge.left) row.scrollLeft -= edge.left - box.left + 12;
         else if (box.right > edge.right) row.scrollLeft += box.right - edge.right + 12;
       }
+      for (const row of ladders) {
+        if (row.getClientRects().length === 0) continue;
+        const active = document.activeElement;
+        const focused = active instanceof HTMLElement && active !== row && row.contains(active) ? active : null;
+        const target = focused ?? row.querySelector<HTMLElement>('[aria-pressed="true"]');
+        if (!target) continue;
+        if (row.scrollHeight > row.clientHeight) reveal(row, target);
+        // Only a focused floor moves the rail itself, so a rail scrolled by hand stays put otherwise.
+        const rail = row.closest<HTMLElement>('.ua-scope');
+        if (focused && rail && rail.scrollHeight > rail.clientHeight) reveal(rail, focused);
+      }
     };
     align();
     const observer = new ResizeObserver(align);
     for (const row of rows) observer.observe(row);
+    // The rail can shorten while its floor list keeps its least height.
+    for (const row of ladders) { const rail = row.closest('.ua-scope'); if (rail) observer.observe(rail); }
     return () => observer.disconnect();
   }, [state.buildingId, state.levelId, plan, size.width, compact]);
 
@@ -856,14 +907,49 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
     if ((drawer === 'floors' && tiles.length === 0) || (drawer === 'layers' && !hasKeys)) setDrawer(null);
   }, [drawer, tiles.length, hasKeys]);
   const fold = (which: 'floors' | 'layers') => setDrawer(value => value === which ? null : which);
-  const floorsFold = useRef<HTMLButtonElement>(null);
+  const floorsFold = useRef<HTMLButtonElement>(null), layersFold = useRef<HTMLButtonElement>(null);
+  const keysDock = useRef<HTMLDivElement>(null);
   const foldIds = useId();
-  // Choosing another floor hands a narrow stage back to the plan; focus stays on the fold that opened it.
+  // Choosing another floor hands the stage back to the plan; focus stays on the fold that opened it.
   const chooseTile = (levelId: string) => {
     const narrow = floorsFold.current !== null && floorsFold.current.getClientRects().length > 0;
     setDrawer(null); dispatch({ type: 'level', levelId });
     if (narrow) floorsFold.current?.focus({ preventScroll: true });
   };
+  // On a wide stage an open floors strip is the next Escape target anywhere on
+  // the stage, after the menu and the graph and before the camera or a step
+  // out: it folds back and focus returns to its opener. The compact folds
+  // keep their own behaviour.
+  const stripEscape = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing || compact || drawer !== 'floors') return;
+    if ((event.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]')) return;
+    // A strip stepped aside under an open card is not the target.
+    const strip = shell.current?.querySelector('.ua-tiles.is-unfolded');
+    if (!strip || strip.getClientRects().length === 0 || getComputedStyle(strip).visibility !== 'visible') return;
+    event.preventDefault(); event.stopPropagation();
+    setDrawer(null); floorsFold.current?.focus({ preventScroll: true });
+  };
+  // A change of stage mode never leaves focus in a part the new mode hides:
+  // keys focused in the dock unfold on a narrow stage, and the layer details
+  // fold, hidden on a wide stage, hands focus to the docked keys. Focus the
+  // browser already dropped is found where the stage guard kept it.
+  const modeFocus = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const active = document.activeElement;
+    const origin = active instanceof HTMLElement && active !== document.body ? active : graphStageFocus.current;
+    if (!origin) return;
+    const keys = keysDock.current;
+    if (compact && keys?.contains(origin) && keys.getClientRects().length === 0) { modeFocus.current = origin; setDrawer('layers'); }
+    else if (!compact && origin === layersFold.current) {
+      setDrawer(value => value === 'layers' ? null : value);
+      keysDock.current?.querySelector<HTMLElement>('.ua-key-head')?.focus({ preventScroll: true });
+    }
+  }, [compact]);
+  useLayoutEffect(() => {
+    const target = modeFocus.current; modeFocus.current = null;
+    const lost = document.activeElement === null || document.activeElement === document.body;
+    if (target && lost && target.isConnected && target.getClientRects().length > 0) target.focus({ preventScroll: true });
+  }, [drawer]);
 
   // The graph opens from the network key and returns focus there when it closes.
   const graphOpener = useRef<HTMLElement | null>(null), graphReturn = useRef<HTMLElement | null>(null);
@@ -1026,7 +1112,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
           && !origin.closest('[inert], [hidden], [aria-hidden="true"]') && getComputedStyle(origin).visibility === 'visible') graphStageFocus.current = null;
       });
     }}>
-    <div className="ua-stage">
+    <div className="ua-stage" onKeyDownCapture={stripEscape}>
       <div className="ua-scope" inert={underGraph} onBlur={menuBlur('buildings')}>
         {port.savedDocumentary && <p className="ua-snapshot-note" role="note">
           <Icon name="history" size={15} />
@@ -1209,11 +1295,9 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
       </div>
 
       <div className="ua-bottom" inert={underGraph}>
-        {tiles.length > 0 && <nav id={`${foldIds}-floors`} className={`ua-tiles${drawer === 'floors' ? ' is-unfolded' : ''}`} aria-label="Other floors">
-          {tiles.map(level => <PlanTile key={level.levelId} model={model} level={level} layers={active} tints={tints} selected={selected}
-            name={atlasLevelName(model, level.levelId, buildings.length > 1)} choose={() => chooseTile(level.levelId)} />)}
-        </nav>}
-        {hasKeys && <div id={`${foldIds}-layers`} className={`ua-keys${drawer === 'layers' ? ' is-unfolded' : ''}`}>
+        {/* The keys come first: on a wide stage they are the dock, and the
+            floors strip sits just before the fold that opens it. */}
+        {hasKeys && <div ref={keysDock} id={`${foldIds}-layers`} className={`ua-keys${drawer === 'layers' ? ' is-unfolded' : ''}`}>
           {active.map(layer => <OverlayKey key={layer.kind} layer={layer} records={runtime.records}
             buildings={runtime.buildings}
             publishedOnly={!runtimeConfigured} openDocuments={environment.openDocuments}
@@ -1222,13 +1306,18 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
             graph={layer.kind === 'network' && graphs.length > 0 ? { id: graphId, open: showGraph, toggle: toggleGraph } : null} />)}
           {measuring && <MeasurementKey estimated={estimated} shown={measured.length} />}
         </div>}
-        {/* Shown on narrow stages only: each fold opens its content just above it. */}
+        {tiles.length > 0 && <nav id={`${foldIds}-floors`} className={`ua-tiles${drawer === 'floors' ? ' is-unfolded' : ''}`} aria-label="Other floors">
+          {tiles.map(level => <PlanTile key={level.levelId} model={model} level={level} layers={active} tints={tints} selected={selected}
+            name={atlasLevelName(model, level.levelId, buildings.length > 1)} choose={() => chooseTile(level.levelId)} />)}
+        </nav>}
+        {/* Each fold opens its content just above it. Wide stages keep only
+            the floors fold, beside the layer bar; the keys stay docked. */}
         {(tiles.length > 0 || hasKeys) && <div className="ua-folds">
-          {tiles.length > 0 && <button ref={floorsFold} type="button" className="ua-fold" aria-expanded={drawer === 'floors'} aria-controls={`${foldIds}-floors`}
+          {tiles.length > 0 && <button ref={floorsFold} type="button" className="ua-fold ua-fold-floors" aria-expanded={drawer === 'floors'} aria-controls={`${foldIds}-floors`}
             onClick={() => fold('floors')}>
             <Icon name="layers" size={16} /><span>Other floors</span>{' '}<span className="ua-fold-count">{tiles.length.toLocaleString()}</span>
             <Icon name="chevronDown" size={15} /></button>}
-          {hasKeys && <button type="button" className="ua-fold" aria-expanded={drawer === 'layers'} aria-controls={`${foldIds}-layers`}
+          {hasKeys && <button ref={layersFold} type="button" className="ua-fold ua-fold-layers" aria-expanded={drawer === 'layers'} aria-controls={`${foldIds}-layers`}
             onClick={() => fold('layers')}>
             <Icon name="info" size={16} /><span>Layer details</span>{' '}<span className="ua-fold-count">{keysCount.toLocaleString()}</span>
             <Icon name="chevronDown" size={15} /></button>}
