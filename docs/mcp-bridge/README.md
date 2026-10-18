@@ -142,10 +142,41 @@ ID-bearing requests retain their existing error/correlation behavior. No silent
 write, read, reconciliation or handshake initialization occurs through id-less
 request methods; UNKNOWN journal state and original intent bytes are untouched.
 
+## Bounded initialize diagnostic
+
+The protected bridge config optionally accepts `initializeDiagnostics`, strictly
+a boolean. Absent or false disables it. Only a separately approved installation
+owner may enable it for a bounded observation; source delivery enables nothing.
+It changes no initialization rule, native authority, tool schema or response.
+
+When true, an ID-bearing initialize rejection with code -32602 and one of four
+exact source messages may emit a JSON line to stderr containing only `ordinal`
+and `category`. The ordinal is 1 or 2; at most two emission attempts occur during
+the process lifetime. A write/flush failure disables further diagnostic attempts
+without changing stdout responses or lifecycle state. There is no timer, retry,
+native call, raw trace or new log file. Unknown errors, malformed envelopes,
+id-less messages and other methods emit no diagnostic.
+
+| Exact source message | Fixed category |
+| --- | --- |
+| Already initialized | `already_initialized` |
+| MCP protocol version required | `protocol_version_required` |
+| MCP params object required | `params_object_required` |
+| MCP request metadata object required | `request_metadata_object_required` |
+
+For example: `{"ordinal":1,"category":"already_initialized"}`. No original
+message text, request ID, params, protocol version, headers, native data, key or
+credential is emitted. Tool/native errors never enter this diagnostic. Child
+stderr is already forwarded by the pinned tunnel client; no broader logging is
+required. After the separately authorized observation, the installation owner
+must restore absent/false; a source diagnostic is not a lifecycle correction or
+authorization for another attempt. The category distinguishes the guard, not the
+reason an upstream caller supplied those frames or their retry safety.
+
 ## Genuine native sessions, kept in memory
 
 The trusted host supplies only an owned0600 nonsecret configuration file with
-fixed `origin` and `scope`. Origin is canonical HTTPS with no path, credentials,
+fixed `origin` and `scope`, plus the optional diagnostic boolean above. Origin is canonical HTTPS with no path, credentials,
 query or fragment. Normal verified HTTPS to `/api/atlas/auth/mode` must report
 trusted-proxy mode; `/api/atlas/auth/proxy` then receives `{}` through the real
 canonical gateway. The gateway/native owner checks its genuine peer/identity
@@ -319,6 +350,14 @@ bridge-method spies for all six tools, preserving a synthetic UNKNOWN intent.
 The existing `denial_jsonrpc_frame_response` and `denial_rpc_method_codes` cases
 remain the adjacent malformed-envelope/error-code checks. These execute no
 network, native command, tunnel, credential or unrelated held control.
+
+Focused initialize diagnostic checks (individually):
+`healthy_initialize_diagnostic_categories`, `healthy_initialize_diagnostic_config`,
+`denial_initialize_diagnostic_filter_and_bound`, `denial_initialize_diagnostic_sink`.
+They use generated in-memory frames, prohibit native/socket access and compare
+enabled/disabled stdout byte for byte, including recovery/lifecycle state and
+stderr failure. They cover all four categories, strict opt-in/default silence,
+nonmatching/idless/malformed exclusions and the two-attempt process budget.
 
 All cases use generated strings, disposable directories/SQLite, owned PTYs,
 mocked processes or deterministic fake native exchanges with no external

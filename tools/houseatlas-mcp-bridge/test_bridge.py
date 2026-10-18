@@ -656,6 +656,102 @@ class Cases(unittest.TestCase):
         output = io.BytesIO(); b.serve(self.bridge, source, output)
         return [b.strict_json(line, b.MAX_OUTPUT) for line in output.getvalue().splitlines()]
 
+    def diagnostic_frames(self, messages, diagnostics=None):
+        class NoNative:
+            def __getattr__(self, name):
+                raise AssertionError('Diagnostic fixture invoked native/tool owner: ' + name)
+        source = io.BytesIO(('\n'.join(b.compact(m) for m in messages) + '\n').encode())
+        output = io.BytesIO()
+        with patch('socket.socket', side_effect=AssertionError('Socket forbidden')), \
+             patch('socket.create_connection', side_effect=AssertionError('Socket forbidden')):
+            b.serve(NoNative(), source, output, diagnostics)
+        return output.getvalue()
+
+    def healthy_initialize_diagnostic_categories(self):
+        valid = {'protocolVersion': '2025-11-25'}
+        initialize = lambda n, params: {'jsonrpc': '2.0', 'id': n, 'method': 'initialize', 'params': params}
+        ready = {'jsonrpc': '2.0', 'method': 'notifications/initialized'}
+        cases = [
+            ([initialize(1, valid), ready], valid, 'already_initialized'),
+            ([], {}, 'protocol_version_required'),
+            ([], None, 'params_object_required'),
+            ([], {**valid, '_meta': None}, 'request_metadata_object_required'),
+        ]
+        for prefix, params, category in cases:
+            with self.subTest(category=category):
+                messages = [*prefix, {'jsonrpc': '2.0', 'id': 2, 'method': 'server/discover'},
+                            initialize(3, params), initialize(4, params)]
+                if not prefix:
+                    messages += [initialize(5, valid), ready]
+                messages += [{'jsonrpc': '2.0', 'id': 6, 'method': 'ping'},
+                             {'jsonrpc': '2.0', 'id': 7, 'method': 'tools/list'}]
+                baseline = self.diagnostic_frames(messages)
+                stderr = io.StringIO()
+                actual = self.diagnostic_frames(messages, b.InitializeDiagnostics(stderr))
+                self.assertEqual(actual, baseline)
+                self.assertEqual([json.loads(line) for line in stderr.getvalue().splitlines()],
+                                 [{'ordinal': 1, 'category': category}, {'ordinal': 2, 'category': category}])
+                self.assertLessEqual(len(stderr.getvalue().encode()), 160)
+                self.assertEqual(len(json.loads(actual.splitlines()[-1])['result']['tools']), 6)
+
+    def denial_initialize_diagnostic_filter_and_bound(self):
+        marker = 'SYNTHETIC-DO-NOT-LOG'
+        message = lambda method, params: {'jsonrpc': '2.0', 'id': marker, 'method': method, 'params': params}
+        messages = [message('server/discover', {'arbitrary': marker}),
+                    message('ping', None),
+                    {'jsonrpc': '2.0', 'method': 'initialize', 'params': None},
+                    {**message('initialize', None), 'jsonrpc': 'invalid'},
+                    message('initialize', {'protocolVersion': None, '_meta': {'arbitrary': marker}}),
+                    message('initialize', {'protocolVersion': marker, '_meta': marker}),
+                    *[message('initialize', None) for _ in range(8)]]
+        stderr = io.StringIO(); diagnostic = b.InitializeDiagnostics(stderr)
+        actual = self.diagnostic_frames(messages, diagnostic)
+        self.assertEqual(actual, self.diagnostic_frames(messages))
+        self.assertEqual(stderr.getvalue(),
+                         '{"ordinal":1,"category":"protocol_version_required"}\n'
+                         '{"ordinal":2,"category":"request_metadata_object_required"}\n')
+        self.assertNotIn(marker, stderr.getvalue())
+        self.assertNotIn('MCP ', stderr.getvalue())
+        ignored = io.StringIO(); b.InitializeDiagnostics(ignored).rejection(b.BridgeError(marker))
+        self.assertEqual(ignored.getvalue(), '')
+
+    def denial_initialize_diagnostic_sink(self):
+        messages = [{'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {}},
+                    {'jsonrpc': '2.0', 'id': 2, 'method': 'initialize', 'params': {}},
+                    {'jsonrpc': '2.0', 'id': 3, 'method': 'initialize',
+                     'params': {'protocolVersion': '2025-11-25'}},
+                    {'jsonrpc': '2.0', 'method': 'notifications/initialized'},
+                    {'jsonrpc': '2.0', 'id': 4, 'method': 'tools/list'}]
+        baseline = self.diagnostic_frames(messages)
+        for failing_operation in ('write', 'flush'):
+            with self.subTest(failing_operation=failing_operation):
+                class Sink:
+                    attempts = 0
+                    def write(self, _value):
+                        self.attempts += 1
+                        if failing_operation == 'write': raise OSError('SYNTHETIC-SINK-DETAIL-NEVER-LOG')
+                    def flush(self):
+                        raise ValueError('SYNTHETIC-CLOSED-SINK-DETAIL-NEVER-LOG')
+                sink = Sink(); diagnostic = b.InitializeDiagnostics(sink)
+                self.assertEqual(self.diagnostic_frames(messages, diagnostic), baseline)
+                self.assertEqual(sink.attempts, 1)
+                self.assertEqual(diagnostic.ordinal, diagnostic.LIMIT)
+
+    def healthy_initialize_diagnostic_config(self):
+        config = {'origin': 'https://synthetic.invalid', 'scope': SCOPE}
+        stderr = io.StringIO()
+        self.assertIsNone(b.initialize_diagnostics(config, stderr))
+        self.assertIsNone(b.initialize_diagnostics({**config, 'initializeDiagnostics': False}, stderr))
+        self.assertIsInstance(b.initialize_diagnostics({**config, 'initializeDiagnostics': True}, stderr),
+                              b.InitializeDiagnostics)
+        messages = [{'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {}}]
+        for settings in (config, {**config, 'initializeDiagnostics': False}):
+            self.diagnostic_frames(messages, b.initialize_diagnostics(settings, stderr))
+        self.assertEqual(stderr.getvalue(), '')
+        for invalid in (None, 0, 1, 'true', [], {}):
+            with self.assertRaises(b.BridgeError):
+                b.initialize_diagnostics({**config, 'initializeDiagnostics': invalid}, stderr)
+
     def healthy_idless_notifications(self):
         initialize = {'jsonrpc': '2.0', 'method': 'initialize',
                       'params': {'protocolVersion': '2025-11-25'}}
@@ -1065,6 +1161,8 @@ HEALTHY += ('healthy_integral_revisions', 'healthy_integral_read_carriers', 'hea
             'healthy_bounded_reconciliation_output')
 REGRESSION += ('denial_integral_revision_bounds', 'denial_commit_receipt_profile', 'denial_receipt_parser_borders')
 HEALTHY += ('healthy_idless_notifications',)
+HEALTHY += ('healthy_initialize_diagnostic_categories', 'healthy_initialize_diagnostic_config')
+REGRESSION += ('denial_initialize_diagnostic_filter_and_bound', 'denial_initialize_diagnostic_sink')
 REGRESSION += ('denial_idless_initialized_guards', 'denial_idless_tool_dispatch')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)

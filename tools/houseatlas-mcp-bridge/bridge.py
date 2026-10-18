@@ -946,7 +946,42 @@ class Stdio:
             return {'content': [{'type': 'text', 'text': str(error)}], 'isError': True}
 
 
-def serve(bridge, source, destination):
+class InitializeDiagnostics:
+    """Opt-in fixed categories only; at most two stderr lines per process."""
+    CATEGORIES = {
+        'Already initialized': 'already_initialized',
+        'MCP protocol version required': 'protocol_version_required',
+        'MCP params object required': 'params_object_required',
+        'MCP request metadata object required': 'request_metadata_object_required',
+    }
+    LIMIT = 2
+
+    def __init__(self, destination):
+        self.destination, self.ordinal = destination, 0
+
+    def rejection(self, error):
+        if self.ordinal >= self.LIMIT:
+            return
+        category = self.CATEGORIES.get(str(error))
+        if category is None:
+            return
+        self.ordinal += 1
+        try:
+            self.destination.write(compact({'ordinal': self.ordinal, 'category': category}) + '\n')
+            self.destination.flush()
+        except (OSError, ValueError):
+            # Diagnostic failure must not change the protocol or keep retrying.
+            self.ordinal = self.LIMIT
+
+
+def initialize_diagnostics(config, destination):
+    keys(config, ('origin', 'scope'), ('initializeDiagnostics',))
+    enabled = config.get('initializeDiagnostics', False)
+    need(type(enabled) is bool, 'Initialize diagnostic setting must be boolean')
+    return InitializeDiagnostics(destination) if enabled else None
+
+
+def serve(bridge, source, destination, diagnostics=None):
     session = Stdio(bridge)
     while True:
         line = source.readline(MAX_MESSAGE + 1)
@@ -955,6 +990,7 @@ def serve(bridge, source, destination):
         if len(line) > MAX_MESSAGE or not line.endswith(b'\n'):
             raise BridgeError('MCP line exceeded bound or was incomplete')
         request_id = None
+        method = None
         notification = False
         error_code = -32700
         try:
@@ -962,6 +998,7 @@ def serve(bridge, source, destination):
             error_code = -32600
             keys(message, ('jsonrpc', 'method'), ('id', 'params'))
             need(message['jsonrpc'] == '2.0' and isinstance(message['method'], str), 'Invalid JSON-RPC')
+            method = message['method']
             has_id = 'id' in message
             candidate = message.get('id')
             need(not has_id or type(candidate) in (str, int), 'JSON-RPC ID required')
@@ -980,6 +1017,8 @@ def serve(bridge, source, destination):
         except BridgeError as error:
             if notification:
                 continue
+            if diagnostics is not None and method == 'initialize' and error_code == -32602:
+                diagnostics.rejection(error)
             output = {'jsonrpc': '2.0', 'id': request_id,
                       'error': {'code': -32601 if isinstance(error, MethodNotFound) else error_code,
                                 'message': str(error)}}
@@ -1003,7 +1042,7 @@ def main():
     fd = private_open(args.config, os.O_RDONLY)
     with os.fdopen(fd, 'rb') as stream:
         config = strict_json(stream.read(16385), 16384)
-    keys(config, ('origin', 'scope'))
+    diagnostics = initialize_diagnostics(config, sys.stderr)
     os.umask(0o077)
     owner = HTTPSOwner(config['origin'])
     journal = Journal(args.state_dir)
@@ -1012,7 +1051,7 @@ def main():
         raise KeyboardInterrupt()
     previous_handlers = {sig: signal.signal(sig, stop) for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT)}
     try:
-        serve(bridge, sys.stdin.buffer, sys.stdout.buffer)
+        serve(bridge, sys.stdin.buffer, sys.stdout.buffer, diagnostics)
     finally:
         try:
             bridge.close_session()
