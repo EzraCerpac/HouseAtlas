@@ -1968,3 +1968,31 @@ private application/API/auth response is cached. A generated offline response
 is not genuine device/PWA/WAN acceptance; exact current bytes still need bounded
 supported-browser observations after source review and independent deployment
 authority. No broader control suite or production action is released.
+
+
+## Named generated electrical registration positive
+
+Read `tools/electrical_registration/README.md`, its pure registration module and
+the generated healthy fixture before this exact command on pinned Node 26.10.0:
+
+```sh
+node --test --test-concurrency=1 tools/electrical_registration/healthy.test.mjs
+```
+
+Four ordinary generated cases cover source-to-page arithmetic, independently
+reviewed metric controls, exact current publication/model/frame/occurrence pins,
+uncertainty propagation and complete inventory with selection-only highlighting.
+They create no native receipt or placement authority. Unsupported rows remain
+explicit; source pixels alone do not establish metric points, surveyed positions
+or current circuits. No browser, actual source, provider, failure/denial/replay/
+expiry/crash control, broad suite or deployment is involved.
+
+The same inspected four healthy examples may also be invoked directly on pinned
+Node 26.10.0 to retain their individual names when a test subprocess reports
+only a file-level result:
+
+```sh
+node tools/electrical_registration/healthy.test.mjs
+```
+
+This changes no test body, fixture or scope; record each invocation separately.
