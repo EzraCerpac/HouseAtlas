@@ -95,6 +95,88 @@ reader.dispose();
 assert.deepEqual(disposedOwners, [null], 'ordinary cleanup notifies once; a subscriber cannot recreate a disposed owner');
 assert.equal(reader.owner(), null);
 
+// Current authenticated view service selection uses the actual production
+// decoder and host binding, with the same generated GET transport as above.
+const modelURL = await sourceURL('../src/app/model.ts');
+const { decodeAtlasView } = await import(await sourceURL('../src/app/decode.ts', { './model': modelURL }));
+const { createSourceDocumentsService } = await import(await sourceURL('../integration/source-documents-service.ts'));
+const readyDTO = { status: 'ready', scope, homeLabel: 'Generated home', now: '2026-10-18T00:00:00Z',
+  canEdit: true, homes: [{ ...scope, label: 'Generated home' }], entries: [], caches: [] };
+const serviceFacet = { profile: 'houseatlas.geodata-document-read.v2', available: true };
+let state = { session, scope, view: null };
+let factories = 0, requests = 0, load = async () => ({ createNativeSourceDocumentReader(options) {
+  factories++;
+  return createNativeSourceDocumentReader({ ...options, transport: async (...args) => {
+    requests++; return server.transport(...args);
+  } });
+} });
+const consumer = createSourceDocumentsService({ state: () => state, origin: server.origin, loadReader: () => load() });
+for (const facet of [undefined, { ...serviceFacet, available: false }, { ...serviceFacet, profile: 'future-profile' }]) {
+  const view = decodeAtlasView({ ...readyDTO, ...(facet ? { sourceDocumentsService: facet } : {}) });
+  assert.equal(view.status, 'ready');
+  assert.equal(view.sourceDocumentsService, undefined);
+  state = { session, scope: view.scope, view };
+  consumer.refresh();
+  await assert.rejects(consumer.current().createReader(), /current view/);
+}
+assert.equal(factories, 0);
+assert.equal(requests, 0, 'ordinary hosts without the selected service do not request document metadata');
+const view = decodeAtlasView({ ...readyDTO, sourceDocumentsService: serviceFacet });
+assert.deepEqual(view.sourceDocumentsService, serviceFacet);
+state = { session, scope: view.scope, view: null };
+consumer.refresh();
+await assert.rejects(consumer.current().createReader(), /current view/, 'scope publication alone is not a completed view');
+state = { ...state, view };
+consumer.refresh();
+const port = consumer.current(), admittedReader = await port.createReader();
+const admittedOwner = admittedReader.owner();
+assert.ok(admittedOwner);
+assert.deepEqual((await admittedReader.list(null, signal)).documents.map(document => document.documentId), [surveyId, outlineId]);
+const admittedFrame = await admittedReader.openOriginal(surveyId, survey.revision, signal);
+const stableRequests = requests;
+consumer.refresh(); consumer.refresh();
+assert.equal(consumer.current(), port);
+assert.equal(admittedReader.owner(), admittedOwner);
+assert.ok(admittedReader.isCurrent(admittedFrame));
+assert.equal(requests, stableRequests, 'unrelated host notifications preserve the list and current payload');
+
+// Ordinary view replacement receives a fresh port even with reused scope and
+// session allocations, and synchronously withdraws the previous leased bytes.
+state = { ...state, view: { ...view } };
+consumer.refresh();
+assert.notEqual(consumer.current(), port);
+assert.equal(admittedReader.owner(), null);
+assert.equal(admittedReader.getBlob(admittedFrame), null);
+admittedReader.dispose();
+const nextReader = await consumer.current().createReader();
+assert.ok(nextReader.owner());
+state = { ...state, view: null };
+consumer.refresh();
+assert.equal(nextReader.owner(), null);
+nextReader.dispose();
+
+// A section awaiting its lazy module during ordinary navigation cannot create
+// a reader for the replacement view when that module finishes loading.
+state = { session, scope: view.scope, view };
+consumer.refresh();
+let finishLoad;
+const loaded = load;
+load = () => new Promise(resolve => { finishLoad = resolve; });
+const pending = consumer.current().createReader();
+state = { ...state, view: { ...view } };
+consumer.refresh();
+const beforeFinish = factories;
+finishLoad(await loaded());
+await assert.rejects(pending, /current view/);
+assert.equal(factories, beforeFinish);
+load = loaded;
+const finalReader = await consumer.current().createReader();
+assert.ok(finalReader.owner());
+state = { session: { ...session }, scope: view.scope, view: state.view };
+consumer.refresh();
+assert.equal(finalReader.owner(), null, 'normal session replacement withdraws the old reader synchronously');
+finalReader.dispose();
+
 // Canvas budget arithmetic: an ordinary page is untouched; a tall page fits the budget.
 assert.deepEqual(fitPdfCanvas(595, 842, 1.5, 2), { cssScale: 1.5, ratio: 2, width: 1785, height: 2526, reduced: false });
 const tall = fitPdfCanvas(595, 60000, 1.5, 2);

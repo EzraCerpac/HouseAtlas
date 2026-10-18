@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "18ea771dbc603103f0babbe7e8973bb5106930da276870d532f5b8abf0fa4cf5",
+  "sourceDigestSha256": "b27281f7c4cf06196d1d2a8e4f549a768c9b8af809004cb995f87580d47ffa73",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5950,8 +5950,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 107012,
-      "sha256": "abbf8c1ed8da55c6a1592b26341302c98250cf2da2111e77bad1a64c31e9b49b",
+      "bytes": 107426,
+      "sha256": "977416d0791aeb89a6153fc541415c10bf12bbe86b1473f61d296dd7411bfde9",
       "owner": "core-integration"
     },
     {
@@ -6118,8 +6118,8 @@
     {
       "path": "docs/geodata/source-documents-service-availability.md",
       "mode": "100644",
-      "bytes": 2768,
-      "sha256": "0f7d9ecdaf06fd7f3cc3df31cd175745df08e65e3183d811ff841be3b696dc0d",
+      "bytes": 3542,
+      "sha256": "bc713d0478b704a83e6eca70195684c574a835f13a5024b14502a3cd5470725e",
       "owner": "core-integration"
     },
     {
@@ -6895,8 +6895,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 39556,
-      "sha256": "e0fddb26a22bce85eea51a9b7a09f316900c0c08aa0939e3b5bf065517f5185b",
+      "bytes": 39332,
+      "sha256": "d13391c7229538c60e70c2b54c77cc1e172ec4d8de12294a7be578c5cb9f2fc4",
       "owner": "core-integration"
     },
     {
@@ -7024,6 +7024,13 @@
       "bytes": 267,
       "sha256": "b7dd2a4cbabfa802b4d9b8dcf16dd6130c26de44d3aa789c8873240327d4a0bb",
       "owner": "web"
+    },
+    {
+      "path": "frontend/integration/source-documents-service.ts",
+      "mode": "100644",
+      "bytes": 2958,
+      "sha256": "8b9835dfc7b89bd62c2413ce04b352f5ded6e33b62832896ec485b641cb9b3dd",
+      "owner": "core-integration"
     },
     {
       "path": "frontend/integration/stock-dispatch.ts",
@@ -7665,8 +7672,8 @@
     {
       "path": "frontend/lantern-tests/source-documents-reader.test.mjs",
       "mode": "100644",
-      "bytes": 6692,
-      "sha256": "769b23e756a86a0fa4796cb5bed36c3eea2d03b5a136bd8392236e4f9087b335",
+      "bytes": 11041,
+      "sha256": "fb6ae8835d930731f244d549dcaa8f1fe0f56d7f02315c946b8de4816a1e506e",
       "owner": "web"
     },
     {
@@ -8281,8 +8288,8 @@
     {
       "path": "frontend/src/app/decode.ts",
       "mode": "100644",
-      "bytes": 11329,
-      "sha256": "1a578687e2ef21f21277455e51e81473c19facd2112d4874f0eb6576f0910f2a",
+      "bytes": 11818,
+      "sha256": "d94126a726c81906abd14df8cdc97b1785a123e60b4833c227efc27a64b0da38",
       "owner": "web"
     },
     {
@@ -8351,8 +8358,8 @@
     {
       "path": "frontend/src/app/types.ts",
       "mode": "100644",
-      "bytes": 4235,
-      "sha256": "a6d5b626b04818e408cf8e4693e651dd59f0540199725001f43c55e4219b947a",
+      "bytes": 4430,
+      "sha256": "b8eb7f65fafbcb819ab578ecf73ceae5ae5844bef52558d404fa3e89ec36328d",
       "owner": "web"
     },
     {
@@ -9450,8 +9457,8 @@
     {
       "path": "frontend/src/lantern/source-documents/SourceDocuments.tsx",
       "mode": "100644",
-      "bytes": 15868,
-      "sha256": "b554b766680769f8149274aa81012133bb6e3f74607e3ba335ea92f6a4d9522e",
+      "bytes": 15871,
+      "sha256": "b9f18f4e7c682f0b70f3af8553b0b425574a8e28e396875c6badf5cf69534555",
       "owner": "web"
     },
     {

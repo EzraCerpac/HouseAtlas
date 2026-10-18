@@ -1110,7 +1110,8 @@ private source display or deployment. This command adds no held failure,
 revocation, replay or private-intake checks.
 
 After inspecting `frontend/lantern-tests/source-documents-reader.test.mjs`, its
-synthetic in-page transport and imported reader/numeric/PDF-budget modules, use
+synthetic in-page transport and imported reader/numeric/PDF-budget modules,
+production view decoder/model and source-service binding helper, use
 Node 26.10.0 and the locked frontend dependencies for this focused healthy check:
 
 ```sh
@@ -1120,6 +1121,11 @@ node frontend/lantern-tests/source-documents-reader.test.mjs
 It reads generated v2 Document lists/originals/qualified PNG bytes, preserves a
 schema-valid recorded leap second, checks normal single-reader lease replacement
 and exercises canvas-budget arithmetic without allocating a large PDF canvas.
+The same check decodes current-view service selection and exercises the actual
+production Documents binding with generated GET responses: selected-service
+listing, unchanged-binding stability, and normal view/session navigation and
+lazy-module completion. These lifecycle cases use no held replay, expiry,
+revocation or injected transport failures.
 It opens no listener/browser and uses no native host, provider, household input,
 intake or deployment. It adds no held control/regression-suite permission.
 
