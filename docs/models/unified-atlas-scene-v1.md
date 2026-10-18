@@ -48,6 +48,24 @@ The model artifact's existing digest and immutable selection-revision query
 pins then preserve that descriptor binding; its URL shape is unchanged.
 It returns one `houseatlas.unified-atlas-scene.v1` envelope:
 
+The source owner may optionally set `--atlas-entry-building-id <buildingId>`
+beside the paired scene options. The bounded source ID must occur in the exact
+selected companion. This is an explicit presentation preference; it establishes
+no native join, physical placement or access capability. It is not inferred from
+labels, dimensions, array order or the documentary room map. Keep populated
+household values in private release inputs, never generic product code.
+The authenticated descriptor returns it as `x-atlas-entry-building-id` only when
+configured, after the same final selection/original-byte revalidation. Without
+the option, the header is absent and there is no implicit primary building.
+The JSON envelope and original source bytes are unchanged.
+Consumers validate an offered entry ID against the admitted building IDs and
+retain it with that exact overview owner, manifest/semantics pins and selection
+revision. A replaced/expired session or selection clears it. The host can then
+supply its generic entry callback from that owned observation; it must not use
+a global last-seen value, override deliberate navigation on every render, or
+carry an entry designation across publications. This optional header adds no
+endpoint, fetch, ReadyView facet or source-schema field.
+
 ```text
 {
   profile, scope:{workspaceId,homeId},
