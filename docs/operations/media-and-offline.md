@@ -60,6 +60,30 @@ The candidate's synthetic reopen counts are documented in
 [verification](../contributing/verification.md); browser/PWA acceptance remains
 pending and those counts do not establish installed-iOS behavior.
 
+## Opt-in documentary home read packs
+
+The explicitly authorized [home read pack v1](../offline/home-read-pack-v1.md)
+adds a bounded saved copy for whole-home reading. Existing authenticated Read,
+Media and source scopes authorize capture and every online continuation. The
+consumer deliberately retains verified section JSON, permitted originals and
+previews, and the complete selected model. Its saved-at date, source freshness,
+coverage exclusions and incomplete bytes stay visible. This narrow opt-in
+amendment permits documentary retained copies beyond the earlier scan cache;
+it does not change the default `private, no-store` server response policy.
+
+A retained copy is readable documentary material, never a session, grant,
+authorization cache, native record or disconnected edit. It contains no token,
+cookie, CSRF value, owner configuration or native vault path. Already saved
+bytes cannot reliably be recalled remotely; device storage and deletion belong
+to the explicit local-save choice. External HomeBox attachment references are
+not backed-up bytes. No upstream fetch, background mirroring, outbox, automatic
+replay, new account, permission screen or access-window mechanism is added.
+The earlier disconnected guarantee limitations continue for an unsaved home;
+a complete local save requires every listed resource verified by digest, type
+and size. A fully downloaded partial pack still has partial coverage. Explicit model v2
+frontend presentation support, browser and device acceptance remain separate;
+the exporter alone does not establish full offline viewing.
+
 ## Availability cases
 
 | Case | First-release expectation | Acceptance evidence |

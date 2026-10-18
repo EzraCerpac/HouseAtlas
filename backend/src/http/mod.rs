@@ -23,6 +23,7 @@ mod mutations;
 mod native_geometry;
 mod native_scene_association;
 mod native_upload_admission;
+mod offline_read_pack;
 mod operation_events;
 mod pages;
 pub mod providers;
@@ -110,6 +111,7 @@ pub struct Host {
     #[cfg(test)]
     quantity_tls_fixture: Option<Arc<quantity_fixture::PrivateLoopbackQuantityTls>>,
     model_overview: Option<Arc<crate::config::model_overview::ServerModelOverviewSelection>>,
+    offline_packs: Arc<Mutex<offline_read_pack::Registry>>,
     atlas_scene: Option<Arc<crate::config::atlas_scene::ServerAtlasSceneSelection>>,
     atlas_room_links: Option<Arc<crate::config::atlas_room_links::ServerAtlasRoomLinksSelection>>,
     full_geodata_identity: Option<crate::storage::FullGeodataIdentity>,
@@ -135,6 +137,7 @@ impl Host {
             #[cfg(test)]
             quantity_tls_fixture: None,
             model_overview: None,
+            offline_packs: Arc::new(Mutex::new(offline_read_pack::Registry::default())),
             atlas_scene: None,
             atlas_room_links: None,
             full_geodata_identity: None,
@@ -1249,6 +1252,10 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas",get(atlas_scene::descriptor).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas/{publication_id}/artifacts/model",get(atlas_scene::model).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas/{publication_id}/room-links",get(atlas_room_links::read).head(auth::session_head).fallback(auth::session_head));
+    let base = base
+        .route("/api/atlas/offline/v1/workspaces/{workspace_id}/homes/{home_id}/manifest", get(offline_read_pack::manifest).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/offline/v1/workspaces/{workspace_id}/homes/{home_id}/snapshots/{snapshot_id}/manifest", get(offline_read_pack::retained_manifest).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/offline/v1/workspaces/{workspace_id}/homes/{home_id}/snapshots/{snapshot_id}/resources/{sha256}", get(offline_read_pack::resource).head(auth::session_head).fallback(auth::session_head));
     let base = if host.full_geodata_identity.is_some() {
         base.merge(geodata_documents::full_routes())
     } else {

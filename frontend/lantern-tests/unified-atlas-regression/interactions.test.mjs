@@ -641,3 +641,179 @@ test('presentation-scaled and off-centre Plan fits retain full-frame zoom-out th
   gesture.start(event(1)); gesture.change(event(.01)); gesture.end(event(.01));
   assert.equal(zoom, floor, 'native cumulative zoom reads the same current presentation floor');
 });
+
+// Fictional screen-space floor outlines and supplied painted-text metrics.
+// These are presentation positives, not household or physical measurements.
+const labelRectangle = (l, t, r, b) => ({ outer: [[l, t], [r, t], [r, b], [l, b]], holes: [] });
+const labelFrame = api.planLabelFrame((x, _y, z) => [x, z], 0);
+const labelInput = (id, polygon, text, width, tier = 'plain', anchor) => {
+  const xs = polygon.outer.map(p => p[0]), ys = polygon.outer.map(p => p[1]);
+  const x = anchor?.[0] ?? (Math.min(...xs) + Math.max(...xs)) / 2, y = anchor?.[1] ?? (Math.min(...ys) + Math.max(...ys)) / 2;
+  return { id, text, tier, x, y, anchorX: x, anchorY: y, rise: 0, clearance: Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) / 2,
+    shape: api.preparePlanLabelShape([polygon]), metrics: { width, height: 18 } };
+};
+const labelOverlap = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
+
+test('settled Plan keeps horizontal names and turns a fictional narrow name inside its own source outline', () => {
+  const strip = labelRectangle(300, 240, 320, 360), spacious = labelRectangle(500, 220, 660, 380);
+  const rows = [labelInput('syn-occ-hall', strip, 'Linen', 50), labelInput('syn-occ-living', spacious, 'Craft room', 76)];
+  const before = JSON.stringify(rows), paper = api.preparePlanLabelPaper([{ role: 'room', polygons: [strip, spacious] }]);
+  const resolved = api.placePlanRoomLabels(rows, { width: 960, height: 640 }, [], [], labelFrame, paper);
+  assert.deepEqual(resolved.map(row => [row.id, row.plan.mode]), [['syn-occ-living', 'horizontal'], ['syn-occ-hall', 'rotated']]);
+  const along = resolved[1];
+  assert.deepEqual([along.plan.x, along.plan.y, along.plan.angle], [310, 300, -90]);
+  assert.equal(along.plan.width, 50); assert.equal(along.plan.height, 32);
+  assert.equal(Math.round(along.plan.box.r - along.plan.box.l), 32, 'the complete rotated hit AABB can be wider than the narrow visual outline');
+  assert.deepEqual(api.visibleLabelHits(resolved, { width: 960, height: 640 }, [], []), resolved);
+  for (const row of resolved) {
+    const state = reduce(initial(), view('plan'), select(row.id));
+    assert.equal(state.occurrenceId, row.id);
+    assert.equal(state.levelId, model.occurrencesById.get(row.id).levelId);
+    assert.equal(state.buildingId, model.occurrencesById.get(row.id).buildingId);
+  }
+  assert.deepEqual(api.placePlanRoomLabels([...rows].reverse(), { width: 960, height: 640 }, [], [], labelFrame, paper), resolved);
+  assert.equal(JSON.stringify(rows), before, 'source anchors and polygons are unchanged');
+  const covered = api.placePlanRoomLabels(rows, { width: 960, height: 640 }, [along.plan.box], [], labelFrame, paper);
+  assert.deepEqual(covered.map(row => row.id), ['syn-occ-living'], 'a collision alone does not turn an inside name into a callout');
+  const holed = { ...strip, holes: [labelRectangle(305, 292, 315, 300).outer] };
+  const crossingHole = labelInput('generated-holed-strip', holed, 'Linen', 50, 'plain', [310, 280]);
+  const aroundHole = api.placePlanRoomLabels([crossingHole], { width: 960, height: 640 }, [], [], labelFrame,
+    api.preparePlanLabelPaper([{ role: 'room', polygons: [holed] }]));
+  assert.ok(aroundHole.every(row => row.plan.mode !== 'rotated'), 'a visual rectangle cannot bridge an authored hole even with all four corners inside');
+});
+
+test('wide Plan callouts clear authored features and full controls while the owned count and source anchor stay fixed', () => {
+  const strip = labelRectangle(393, 280, 407, 380), floor = labelRectangle(260, 260, 540, 400);
+  const row = labelInput('generated-textile-strip', strip, 'Textile store', 80);
+  const count = { key: 'network:generated-textile-strip', occurrenceId: row.id, count: 3, x: row.anchorX, y: row.anchorY };
+  const other = { key: 'electrical:other', occurrenceId: 'other', count: 1, x: 550, y: 210 };
+  const cover = [{ l: 0, t: 0, r: 160, b: 640 }], size = { width: 960, height: 640 };
+  // A context outline covers the whole stage but is intentionally clear paper.
+  const paper = api.preparePlanLabelPaper([{ role: 'room', polygons: [floor] }, { role: 'context', polygons: [labelRectangle(0, 0, 960, 640)] }]);
+  const before = JSON.stringify({ row, count, other });
+  const resolved = api.placePlanRoomLabels([row], size, cover, [count, other], labelFrame, paper);
+  assert.equal(resolved.length, 1); const callout = resolved[0], pose = callout.plan;
+  assert.equal(pose.mode, 'callout'); assert.equal(pose.leader.dot, false);
+  assert.deepEqual([callout.anchorX, callout.anchorY], [row.anchorX, row.anchorY]);
+  for (const box of [...cover, api.countMarkerTarget(count), api.countMarkerTarget(other), { l: 260, t: 260, r: 540, b: 400 }])
+    assert.equal(labelOverlap(pose.box, box), false);
+  const own = api.countMarkerTarget(count), start = pose.leader.points[0];
+  assert.ok(start[0] >= own.l && start[0] <= own.r && start[1] >= own.t && start[1] <= own.b);
+  assert.ok([Math.abs(start[0] - own.l), Math.abs(start[0] - own.r), Math.abs(start[1] - own.t), Math.abs(start[1] - own.b)].some(n => n < 1e-8));
+  const leaderLength = pose.leader.points.slice(1).reduce((sum, p, i) => sum + Math.hypot(p[0] - pose.leader.points[i][0], p[1] - pose.leader.points[i][1]), 0);
+  assert.ok(leaderLength <= 160);
+  const obstacles = api.planLabelObstacles(callout), end = pose.leader.points.at(-1);
+  assert.ok(obstacles.length > 2);
+  assert.deepEqual(api.placeLabels([{ x: end[0], y: end[1], w: 30, h: 16 }], obstacles, size), [], 'measurement text gives way to the complete connector');
+  assert.deepEqual(api.visibleLabelHits(resolved, size, cover, [count, other]), resolved);
+  const remembered = new Map([[row.id, pose.direction]]);
+  assert.equal(api.placePlanRoomLabels([row], size, cover, [count, other], labelFrame, paper, remembered)[0].plan.direction, pose.direction);
+  assert.equal(JSON.stringify({ row, count, other }), before);
+  assert.deepEqual(api.placePlanRoomLabels([row], { width: 720, height: 640 }, [], [], labelFrame, paper), [], 'narrow stages keep unselected external names in the room list');
+});
+
+test('callouts have stable context priority and a four-name cap; an occupied valid floor retains list fallback', () => {
+  const rows = Array.from({ length: 6 }, (_, at) => labelInput(`generated-strip-${at}`, labelRectangle(133 + at * 150, 250, 147 + at * 150, 370), `Store ${at}`, 58,
+    at === 5 ? 'context' : 'plain'));
+  const paper = api.preparePlanLabelPaper(rows.map(row => ({ role: 'room', polygons: row.shape.polygons }))), size = { width: 1200, height: 640 };
+  const resolved = api.placePlanRoomLabels(rows, size, [], [], labelFrame, paper);
+  assert.equal(resolved.length, 4); assert.equal(resolved[0].id, 'generated-strip-5');
+  assert.ok(resolved.every(row => row.plan.mode === 'callout' && row.plan.leader.dot));
+  assert.deepEqual(api.placePlanRoomLabels([...rows].reverse(), size, [], [], labelFrame, paper), resolved);
+  resolved.forEach((row, i) => {
+    assert.deepEqual(row.plan.leader.points[0], [row.anchorX, row.anchorY]);
+    for (const other of resolved.slice(i + 1)) assert.equal(labelOverlap(row.plan.box, other.plan.box), false);
+  });
+  const occupied = api.preparePlanLabelPaper([{ role: 'wall', polygons: [labelRectangle(0, 0, 1200, 640)] }]);
+  assert.deepEqual(api.placePlanRoomLabels(rows, size, [], [], labelFrame, occupied), []);
+  assert.deepEqual(rows.map(row => row.text), ['Store 0', 'Store 1', 'Store 2', 'Store 3', 'Store 4', 'Store 5']);
+});
+
+test('selected narrow Plan names keep the standing tag and full target; full Unicode names stay intact or remain in the list', () => {
+  const strip = labelRectangle(393, 280, 407, 380), row = { ...labelInput('generated-selected-strip', strip, 'Tool store', 95, 'selected'), rise: 1,
+    metrics: { width: 95, height: 36 } };
+  const size = { width: 640, height: 640 }, paper = api.preparePlanLabelPaper([{ role: 'room', polygons: [strip] }]);
+  assert.equal(api.planRoomLabelFits(row, labelFrame), false);
+  const [resolved] = api.placePlanRoomLabels([row], size, [], [], labelFrame, paper);
+  assert.equal(resolved.plan.mode, 'standing');
+  assert.equal(resolved.plan.y, row.anchorY - api.LABEL_TAG_RISE);
+  assert.deepEqual(resolved.plan.leader.points[0], [row.anchorX, row.anchorY]);
+  assert.ok(api.planLabelObstacles(resolved).length > 2);
+  const wide = labelRectangle(200, 140, 600, 260), full = '工房 / WWW 👩‍🔧 é', long = full.repeat(60);
+  const normal = labelInput('generated-unicode', wide, full, 180), extended = labelInput('generated-long-unicode', wide, long, 2200);
+  const names = api.placePlanRoomLabels([normal, extended], size, [], [], labelFrame, paper);
+  assert.deepEqual(names.map(row => row.text), [full]);
+  assert.equal(extended.text, long, 'a full name that exceeds the available frame is not truncated or compressed');
+  const tall = labelRectangle(140, 60, 160, 580), tallName = labelInput('generated-tall-name', tall, full.repeat(3), 400);
+  const tallNames = api.placePlanRoomLabels([tallName], { width: 320, height: 640 }, [], [], labelFrame,
+    api.preparePlanLabelPaper([{ role: 'room', polygons: [tall] }]));
+  assert.equal(tallNames[0].plan.mode, 'rotated', 'a complete vertical name may use the stage height instead of being capped to its width');
+  assert.equal(tallNames[0].text, tallName.text);
+});
+
+test('Plan label projections across source floors and yaw preserve all model buffers, anchors and polygon coordinates', () => {
+  const vertices = model.meshes.map(mesh => mesh.vertices.slice()), shapes = JSON.stringify([...model.shapes]), anchors = JSON.stringify([...model.labels]);
+  for (const floor of model.scene.levels) for (const yaw of [0, 45, 135]) {
+    const state = reduce(initial(), level(floor.levelId), view('plan')), presentation = api.presentAtlas(model, state, empty), size = { width: 960, height: 640 };
+    const projection = api.makeProjection({ yaw, pitch: 90, zoom: 1.4, panX: 12, panY: -8 }, api.frameBox(model, state, presentation), size, 1);
+    const y = model.floorY.get(floor.levelId), frame = api.planLabelFrame(projection.project, y);
+    const rows = [...presentation.pickable].map(id => {
+      const anchor = model.labels.get(id), [x, sy] = projection.project(anchor.x, y, anchor.z);
+      return { id, text: model.roomsById.get(model.occurrencesById.get(id).roomId).label, tier: 'plain', x, y: sy, anchorX: x, anchorY: sy,
+        rise: 0, clearance: anchor.clearance, shape: api.preparePlanLabelShape(model.roomPolygons.get(id)), metrics: { width: 60, height: 18 } };
+    });
+    const paper = api.preparePlanLabelPaper(api.planFeaturesForLevel(model, floor.levelId));
+    const resolved = api.placePlanRoomLabels(rows, size, [], [], frame, paper);
+    assert.ok(resolved.length > 0);
+    for (const row of resolved) {
+      const source = rows.find(source => source.id === row.id);
+      assert.deepEqual([row.anchorX, row.anchorY], [source.x, source.y]);
+    }
+  }
+  model.meshes.forEach((mesh, at) => assert.deepEqual(mesh.vertices, vertices[at]));
+  assert.equal(JSON.stringify([...model.shapes]), shapes); assert.equal(JSON.stringify([...model.labels]), anchors);
+  assert.equal(api.roomArea(model, 'syn-occ-study'), null, 'the estimated source proxy remains outside dimensions and areas');
+});
+
+test('a long full-name callout can clear a fictional strip while its centre exceeds the leader bound', () => {
+  const strip = labelRectangle(592, 100, 608, 500), row = labelInput('generated-long-strip', strip, 'Materials and instrument storage', 300);
+  const size = { width: 1200, height: 640 }, paper = api.preparePlanLabelPaper([{ role: 'room', polygons: [strip] }]);
+  const [resolved] = api.placePlanRoomLabels([row], size, [], [], labelFrame, paper);
+  assert.equal(resolved.plan.mode, 'callout');
+  assert.equal(resolved.text, row.text);
+  assert.ok(Math.hypot(resolved.plan.x - row.anchorX, resolved.plan.y - row.anchorY) > 160);
+  const points = resolved.plan.leader.points;
+  const length = points.slice(1).reduce((sum, point, at) => sum + Math.hypot(point[0] - points[at][0], point[1] - points[at][1]), 0);
+  assert.ok(length > 0 && length <= 160);
+  assert.equal(labelOverlap(resolved.plan.box, { l: 592, t: 100, r: 608, b: 500 }), false);
+});
+
+test('ordinary horizontal Plan names and selected tags clear their own complete count targets without moving source anchors', () => {
+  const selected = { ...labelInput('generated-selected-workroom', labelRectangle(200, 100, 400, 400), 'Workroom', 120, 'selected'),
+    metrics: { width: 120, height: 36 } };
+  const plain = labelInput('generated-plain-workroom', labelRectangle(500, 100, 700, 400), 'Materials', 76);
+  const rows = [plain, selected], counts = rows.map(row => ({ key: `network:${row.id}`, occurrenceId: row.id, count: 3, x: row.anchorX, y: row.anchorY }));
+  const before = JSON.stringify({ rows, counts }), size = { width: 960, height: 640 };
+  const paper = api.preparePlanLabelPaper(rows.map(row => ({ role: 'room', polygons: row.shape.polygons })));
+  assert.equal(api.planRoomLabelFits(selected, labelFrame, counts), true, 'a spacious selected room can fold its tag above its count');
+  const resolved = api.placePlanRoomLabels(rows, size, [], counts, labelFrame, paper);
+  assert.deepEqual(resolved.map(row => [row.id, row.plan.mode]), [[selected.id, 'horizontal'], [plain.id, 'horizontal']]);
+  assert.deepEqual(api.visibleLabelHits(resolved, size, [], counts), resolved);
+  for (const row of resolved) {
+    const own = api.countMarkerTarget(counts.find(count => count.occurrenceId === row.id)), source = rows.find(source => source.id === row.id);
+    assert.equal(row.plan.box.b, own.t - 2);
+    assert.deepEqual([row.anchorX, row.anchorY], [source.anchorX, source.anchorY]);
+    assert.equal(row.plan.y, api.countClearedLabelY(source, counts));
+    assert.deepEqual(api.planLabelObstacles(row)[0], row.plan.box);
+  }
+  const narrow = { ...labelInput('generated-counted-strip', labelRectangle(300, 240, 320, 360), 'Linen', 50, 'selected'), rise: 1 };
+  const narrowCount = { key: `electrical:${narrow.id}`, occurrenceId: narrow.id, count: 2, x: narrow.anchorX, y: narrow.anchorY };
+  assert.equal(api.planRoomLabelFits(narrow, labelFrame), true, 'the short name fits along this source strip without a badge');
+  assert.equal(api.planRoomLabelFits(narrow, labelFrame, [narrowCount]), false, 'an owned badge occupies the rotated target at the fixed anchor');
+  const [standing] = api.placePlanRoomLabels([narrow], size, [], [narrowCount], labelFrame,
+    api.preparePlanLabelPaper([{ role: 'room', polygons: narrow.shape.polygons }]));
+  assert.equal(standing.plan.mode, 'standing'); assert.equal(standing.plan.leader.dot, false);
+  assert.equal(labelOverlap(standing.plan.box, api.countMarkerTarget(narrowCount)), false);
+  assert.deepEqual(api.visibleLabelHits([standing], size, [], [narrowCount]), [standing]);
+  assert.equal(JSON.stringify({ rows, counts }), before);
+});

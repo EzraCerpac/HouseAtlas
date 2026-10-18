@@ -12,6 +12,7 @@ pub(crate) use existing_validation::validate_existing_receipt_schema;
 pub mod geodata;
 pub mod geodata_full;
 pub mod geodata_policy;
+pub(crate) mod home_read_pack;
 mod homebox_stock_history_types;
 mod migrations;
 mod native;

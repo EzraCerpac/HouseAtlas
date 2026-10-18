@@ -148,3 +148,31 @@ export interface UnifiedAtlasPort {
     readonly source: UnifiedAtlasOverlaySource; readonly request: UnifiedAtlasOverlayOpen;
   } | null>;
 }
+
+/** Presentation ownership is separate from the unchanged native read contract. */
+export interface LiveAtlasSelection { readonly kind: 'live'; readonly overview: ModelOverviewSelection }
+export interface SavedAtlasSelection {
+  readonly kind: 'saved'; readonly owner: object;
+  readonly scope: Readonly<{ workspaceId: string; homeId: string }>;
+  readonly publicationId: string; readonly overviewManifestSha256: string; readonly semanticsSha256: string;
+  readonly selectionRevision: string; readonly snapshotId: string; readonly localRevision: string; readonly capturedAt: string;
+}
+export type AtlasPresentationSelection = LiveAtlasSelection | SavedAtlasSelection;
+export interface LiveAtlasPresentationPort {
+  readonly kind: 'live';
+  current(): LiveAtlasSelection | null;
+  subscribe(changed: () => void): () => void;
+  read(selection: LiveAtlasSelection, signal: AbortSignal): Promise<UnifiedAtlasRead>;
+  entryBuildingId?(scene: AtlasScene): string | null;
+  readonly savedDocumentary?: UnifiedAtlasPort['savedDocumentary'];
+  createOverlays?(selection: LiveAtlasSelection, scene: AtlasScene, building: AtlasBuilding, signal: AbortSignal): ReturnType<NonNullable<UnifiedAtlasPort['createOverlays']>>;
+}
+export interface SavedAtlasPresentationPort {
+  readonly kind: 'saved';
+  current(): SavedAtlasSelection | null;
+  subscribe(changed: () => void): () => void;
+  read(selection: SavedAtlasSelection, signal: AbortSignal): Promise<UnifiedAtlasRead>;
+  readonly savedDocumentary: NonNullable<UnifiedAtlasPort['savedDocumentary']>;
+  dispose(): void;
+}
+export type AtlasPresentationPort = LiveAtlasPresentationPort | SavedAtlasPresentationPort;

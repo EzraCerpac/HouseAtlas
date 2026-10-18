@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { UnifiedAtlasOverlayAvailableFrame } from '../../../integration/unified-atlas-overlay-source';
-import type { ModelOverviewSelection } from '../source-models/overview-types';
 import type { AtlasModel } from './scene';
-import type { UnifiedAtlasPort } from './types';
+import type { UnifiedAtlasPort, AtlasPresentationPort, AtlasPresentationSelection } from './types';
 import { documentaryRoomRecords, matchesOverlayScene, mergeRuntimeRecords } from './runtime-overlays';
 
 type Handle = NonNullable<Awaited<ReturnType<NonNullable<UnifiedAtlasPort['createOverlays']>>>>;
@@ -14,12 +13,12 @@ const NO_FRAMES: Frames = new Map();
  * layers are property-wide whatever the selection, while native qualification
  * stays building-scoped in the source owner. A building without a frame keeps
  * its own reason; the others still show. */
-export function useDocumentaryOverlays(port: UnifiedAtlasPort, selection: ModelOverviewSelection, model: AtlasModel, active: boolean) {
+export function useDocumentaryOverlays(port: AtlasPresentationPort, selection: AtlasPresentationSelection, model: AtlasModel, active: boolean) {
   const [owned, setOwned] = useState<{ readonly model: AtlasModel; readonly rows: ReadonlyMap<string, Owned> } | null>(null);
   const [reasons, setReasons] = useState<ReadonlyMap<string, string>>(new Map());
   const saved = useMemo(() => port.savedDocumentary?.records(model.scene, model.selectable) ?? null, [port, model]);
   useEffect(() => {
-    if (!active || saved) return;
+    if (!active || port.kind === 'saved' || selection.kind === 'saved' || saved) return;
     let closed = false;
     const controller = new AbortController(), rows = new Map<string, Owned>(), handles: Handle[] = [];
     const note = (buildingId: string, reason: string) => { if (!closed) setReasons(value => new Map(value).set(buildingId, reason)); };

@@ -1355,7 +1355,7 @@ GLB loader, reducer, projection, pointer factory and documentary index. Inspect
 node --test --test-concurrency=1 frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs
 ```
 
-Its twenty-eight CPU cases cover repeated navigation, every declared selectable
+Its thirty-five CPU cases cover repeated navigation, every declared selectable
 occurrence, shared room identity, source-coordinate plans, normal overlay
 toggles, collapse-before-Plan selection, deterministic count touch-target
 suppression, complete label-action targets, source-qualified duplicate floor
@@ -1379,6 +1379,17 @@ release; these are simulated CPU events, not physical Mac gesture acceptance.
 Property projection positives retain distinct source identities, differing
 same-date observations and per-building coverage. These generated ordinary
 cases add no held lifecycle, malformed, denial or other control case.
+
+The same interaction positives also project fictional narrow room labels along
+their authored polygon axes and onto clear paper with bounded callouts. They
+check complete rotated action rectangles, panel and count-target clearance,
+source-anchored leaders and measurement reservations, deterministic priority,
+the four-callout cap, narrow-stage room-list fallback, selected standing tags,
+full Unicode names and unchanged source buffers and floor-qualified selection.
+Ordinary horizontal names and selected tags also clear their own complete count
+targets; an occupied rotated target keeps the selected tag standing.
+These are CPU presentation observations; actual fonts, mounted pointer/focus
+behavior, animation and rendered publication layout still require browser review.
 
 The interaction positives also retain an opaque foreground wall's floor target
 beside an exposed room interior. A generated CPU binding projection preserves
@@ -1681,3 +1692,60 @@ has the scoped ephemeral PR-comment permission. See
 [the report lane](../ci-performance.md) and
 [measurement handoff](../../tools/perf/reporting/README.md). It releases no
 application-control, provider, household, recovery, pilot or deployment gate.
+
+## Named generated home read-pack check
+
+Inspect `backend/examples/healthy-home-read-pack.rs`, its generated
+`support/home_read_pack_geometry.rs` helper, the reused unified Atlas fixture,
+and the touched read-pack storage/HTTP and admitted companion accessor before
+these exact commands. This ordinary positive uses only fresh disposable native
+state and in-process HTTP. It creates an actual local password-free session,
+building/evidence records, native evidence original, and a qualified generated
+USDZ/mesh custody plus building association. No USD converter is executed.
+
+The positive checks source-policy-approved lossless JSON and PNG Documents on
+the same native dataset, a qualified PNG preview, full GLB, matching inline
+plans/documentary overlays and independently admitted historical room links.
+The valid raw companion is padded with generated JSON whitespace above 8 MiB
+and below 12 MiB, verifying exact bytes stay outside the generic section parser.
+It checks six-section manifests, complete and honest overview-only partial
+coverage, native scan original/derivative mappings, all digest/size/MIME pins,
+full-resource and 4 MiB range assembly, retained reads and source-file invariance.
+The full-profile copy prepares only this fixture; export writes no native state.
+No listener, provider, household data, denial, malformed, revocation, omission or
+crash probe runs. Use Rust 1.99.0 and an owned target outside the checkout:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-home-read-pack
+cargo run --offline --locked -p houseatlas-backend --example healthy-home-read-pack -- --fixture-output /tmp/houseatlas-home-read-pack-generated
+```
+
+The optional output directory must be absent and its parent canonical. It holds
+only generated `records`, `partial`, `unified` and `documents` manifests and
+hash-named resource bytes, with no cookies/session headers. These finite examples
+are documentary fixtures for the separate frontend consumer owner. They do not
+establish offline renderer, browser, device, source placement or deployment
+acceptance. The closed v1 envelope remains; explicit model-section v2 renderer
+support is still required.
+
+## Named generated saved Atlas mounting positives
+
+Read [saved Atlas mounting](../offline/saved-atlas-mounting.md),
+[saved overlay projections](../offline/saved-atlas-overlays.md) and the fixture
+README before the exact named generated positives:
+
+```sh
+node frontend/lantern-tests/offline-atlas-presentation-healthy.mjs
+node frontend/lantern-tests/offline-atlas-overlays-healthy.mjs
+node frontend/lantern-tests/offline-atlas-mounting-healthy.mjs
+```
+
+Use pinned Node 26.10.0, exact locked dependencies and evidence output outside
+source. Only valid generated complete/partial retained copies and fake local
+resource owners run. Ordinary frontend typecheck/build, backend static asset
+compatibility and exact publication source verification are also included.
+This adds no broad alias, workflow or held malformed/denial/replay/expiry/crash,
+adversarial/private-intake or failure-injection case. Supported browser QA uses
+only the explicit Save/production-store path and owned loopback/static shell
+procedure in `frontend/lantern-tests/offline-atlas-browser/README.md`; it proves
+owned-origin unavailability only, not WAN/device/PWA/iOS acceptance.

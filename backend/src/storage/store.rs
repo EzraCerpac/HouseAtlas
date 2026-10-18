@@ -373,6 +373,28 @@ impl<C: Contract, A: Authorization, R: Runtime> AtlasStore<C, A, R> {
         )
     }
 
+    /// A bounded read-only cut; metadata callback runs on the same transaction.
+    /// Callers retain the original native authority and must revalidate before release.
+    pub(crate) fn read_pack_cut<B: Authorization>(
+        &mut self,
+        authorization: &B,
+        principal: &B::Principal,
+        scope: &Scope,
+    ) -> Result<(Snapshot, crate::storage::home_read_pack::Metadata)> {
+        let full = self.full_geodata.is_some();
+        read_snapshot_cut(
+            &mut self.db,
+            &self.contract,
+            authorization,
+            principal,
+            scope,
+            true,
+            |db, snapshot, network_omitted| {
+                crate::storage::home_read_pack::capture(db, snapshot, scope, full, network_omitted)
+            },
+        )
+    }
+
     /// Same-store snapshot read using an original per-call authority fence.
     /// Private network-link selectors require a host-owned typed link adapter;
     /// they are not frozen SourceKind values or generation-membership proof.
@@ -398,6 +420,26 @@ fn read_snapshot<C: Contract, B: Authorization>(
     principal: &B::Principal,
     scope: &Scope,
 ) -> Result<Snapshot> {
+    Ok(read_snapshot_cut(
+        db,
+        contract,
+        authorization,
+        principal,
+        scope,
+        false,
+        |_, _, _| Ok(()),
+    )?
+    .0)
+}
+fn read_snapshot_cut<C: Contract, B: Authorization, T>(
+    db: &mut Connection,
+    contract: &C,
+    authorization: &B,
+    principal: &B::Principal,
+    scope: &Scope,
+    bounded: bool,
+    capture: impl FnOnce(&Connection, &Snapshot, bool) -> Result<T>,
+) -> Result<(Snapshot, T)> {
     let tx = db.transaction()?;
     let actor = authorize(
         contract,
@@ -405,7 +447,7 @@ fn read_snapshot<C: Contract, B: Authorization>(
         principal,
         read_request(scope, Capability::Read, &[]),
     )?;
-    let mut snapshot = repo::scoped_snapshot(&tx, scope)?.scoped(scope);
+    let mut snapshot = repo::scoped_snapshot_limit(&tx, scope, bounded)?.scoped(scope);
     let partition_key = |p: &SourcePartition| {
         (
             p.workspace_id.clone(),
@@ -581,10 +623,13 @@ fn read_snapshot<C: Contract, B: Authorization>(
         }
         Ok(())
     };
+    // Keep omission knowledge private to the optional documentary callback.
+    // Existing snapshot/grant semantics and the exposed relation list are unchanged.
+    let captured = capture(&tx, &snapshot, !withheld_relations.is_empty())?;
     recheck()?;
     tx.commit()?;
     recheck()?;
-    Ok(snapshot)
+    Ok((snapshot, captured))
 }
 
 fn shape<C: Contract, T: Serialize>(contract: &C, name: &str, value: &T) -> Result<()> {
