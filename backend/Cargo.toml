@@ -235,3 +235,7 @@ path = "examples/healthy-unified-atlas-room-links-read.rs"
 [[example]]
 name = "healthy-home-read-pack"
 path = "examples/healthy-home-read-pack.rs"
+
+[[example]]
+name = "healthy-offline-intent-reconciliation"
+path = "examples/healthy-offline-intent-reconciliation.rs"
