@@ -149,13 +149,16 @@ a boolean. Absent or false disables it. Only a separately approved installation
 owner may enable it for a bounded observation; source delivery enables nothing.
 It changes no initialization rule, native authority, tool schema or response.
 
-When true, an ID-bearing initialize rejection with code -32602 and one of four
-exact source messages may emit a JSON line to stderr containing only `ordinal`
-and `category`. The ordinal is 1 or 2; at most two emission attempts occur during
+When true, an ID-bearing initialize rejection may emit a JSON line to stderr
+only when its final selected response retains code -32602 after output-budget
+handling and its message matches one of the four exact source messages.
+The line contains only `ordinal` and `category`. The ordinal is 1 or 2; at most two emission attempts occur during
 the process lifetime. A write/flush failure disables further diagnostic attempts
 without changing stdout responses or lifecycle state. There is no timer, retry,
 native call, raw trace or new log file. Unknown errors, malformed envelopes,
 id-less messages and other methods emit no diagnostic.
+An oversized provisional response replaced by -32000 emits no category and
+consumes no diagnostic ordinal, including when the fallback must null its ID.
 
 | Exact source message | Fixed category |
 | --- | --- |
@@ -354,6 +357,9 @@ network, native command, tunnel, credential or unrelated held control.
 Focused initialize diagnostic checks (individually):
 `healthy_initialize_diagnostic_categories`, `healthy_initialize_diagnostic_config`,
 `denial_initialize_diagnostic_filter_and_bound`, `denial_initialize_diagnostic_sink`.
+`denial_initialize_diagnostic_final_response` adds a valid frame at the actual
+8 MiB input limit: output-budget replacement emits no category or ordinal, two
+later ordinary initialize errors retain ordinals1/2, and tools-list remains usable.
 They use generated in-memory frames, prohibit native/socket access and compare
 enabled/disabled stdout byte for byte, including recovery/lifecycle state and
 stderr failure. They cover all four categories, strict opt-in/default silence,

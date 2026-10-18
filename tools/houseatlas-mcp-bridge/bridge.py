@@ -1017,8 +1017,6 @@ def serve(bridge, source, destination, diagnostics=None):
         except BridgeError as error:
             if notification:
                 continue
-            if diagnostics is not None and method == 'initialize' and error_code == -32602:
-                diagnostics.rejection(error)
             output = {'jsonrpc': '2.0', 'id': request_id,
                       'error': {'code': -32601 if isinstance(error, MethodNotFound) else error_code,
                                 'message': str(error)}}
@@ -1030,6 +1028,9 @@ def serve(bridge, source, destination, diagnostics=None):
             if len(encoded) > MAX_OUTPUT:
                 output['id'] = None
                 encoded = (compact(output) + '\n').encode('utf-8')
+        if (diagnostics is not None and method == 'initialize' and not notification
+                and output.get('error', {}).get('code') == -32602):
+            diagnostics.rejection(output['error']['message'])
         destination.write(encoded)
         destination.flush()
 

@@ -737,6 +737,31 @@ class Cases(unittest.TestCase):
                 self.assertEqual(sink.attempts, 1)
                 self.assertEqual(diagnostic.ordinal, diagnostic.LIMIT)
 
+    def denial_initialize_diagnostic_final_response(self):
+        large = {'jsonrpc': '2.0', 'id': '', 'method': 'initialize', 'params': {}}
+        overhead = len((b.compact(large) + '\n').encode())
+        large['id'] = 'Z' * (b.MAX_MESSAGE - overhead)
+        self.assertEqual(len((b.compact(large) + '\n').encode()), b.MAX_MESSAGE)
+        messages = [large,
+                    {'jsonrpc': '2.0', 'id': 2, 'method': 'initialize', 'params': {}},
+                    {'jsonrpc': '2.0', 'id': 3, 'method': 'initialize', 'params': None},
+                    {'jsonrpc': '2.0', 'id': 4, 'method': 'initialize',
+                     'params': {'protocolVersion': '2025-11-25'}},
+                    {'jsonrpc': '2.0', 'method': 'notifications/initialized'},
+                    {'jsonrpc': '2.0', 'id': 5, 'method': 'tools/list'}]
+        stderr = io.StringIO(); diagnostic = b.InitializeDiagnostics(stderr)
+        actual = self.diagnostic_frames(messages, diagnostic)
+        self.assertEqual(actual, self.diagnostic_frames(messages))
+        results = [json.loads(line) for line in actual.splitlines()]
+        self.assertEqual(results[0]['error']['code'], -32000)
+        self.assertIsNone(results[0]['id'])
+        self.assertEqual([r['error']['code'] for r in results[1:3]], [-32602, -32602])
+        self.assertEqual(stderr.getvalue(),
+                         '{"ordinal":1,"category":"protocol_version_required"}\n'
+                         '{"ordinal":2,"category":"params_object_required"}\n')
+        self.assertEqual(diagnostic.ordinal, 2)
+        self.assertEqual(len(results[-1]['result']['tools']), 6)
+
     def healthy_initialize_diagnostic_config(self):
         config = {'origin': 'https://synthetic.invalid', 'scope': SCOPE}
         stderr = io.StringIO()
@@ -1163,6 +1188,7 @@ REGRESSION += ('denial_integral_revision_bounds', 'denial_commit_receipt_profile
 HEALTHY += ('healthy_idless_notifications',)
 HEALTHY += ('healthy_initialize_diagnostic_categories', 'healthy_initialize_diagnostic_config')
 REGRESSION += ('denial_initialize_diagnostic_filter_and_bound', 'denial_initialize_diagnostic_sink')
+REGRESSION += ('denial_initialize_diagnostic_final_response',)
 REGRESSION += ('denial_idless_initialized_guards', 'denial_idless_tool_dispatch')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
