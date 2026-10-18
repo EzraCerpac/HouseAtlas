@@ -16,11 +16,11 @@ const hash=v=>createHash('sha256').update(v).digest('hex');
 const sourcePins=Object.fromEntries(paths.map(p=>[p,hash(readFileSync(join(root,p)))]));
 try {
   const entry=join(scratch,'entry.ts');
-  writeFileSync(entry,`export {createUnifiedAtlasReviewedOverlays} from ${JSON.stringify(join(root,paths[4]))};\nexport {ExactDecimal} from ${JSON.stringify(join(root,'frontend/src/numeric/decimal.ts'))};\nexport {documentaryNetworkIndex,documentaryRoomRecords,documentaryOverlayIndex,matchesOverlayScene,projectDocumentaryFacts,mergeRuntimeRecords} from ${JSON.stringify(join(root,paths[3]))};\nexport {readSavedDocumentaryPreview} from ${JSON.stringify(join(root,'frontend/integration/saved-documentary-preview.ts'))};\n`);
+  writeFileSync(entry,`export {createUnifiedAtlasReviewedOverlays} from ${JSON.stringify(join(root,paths[4]))};\nexport {ExactDecimal} from ${JSON.stringify(join(root,'frontend/src/numeric/decimal.ts'))};\nexport {documentaryNetworkIndex,documentaryRoomRecords,documentaryOverlayIndex,matchesOverlayScene,projectDocumentaryFacts,mergeRuntimeRecords} from ${JSON.stringify(join(root,paths[3]))};\nexport {readSavedDocumentaryPreview} from ${JSON.stringify(join(root,'frontend/integration/saved-documentary-preview.ts'))};\nexport {networkRoomConnections} from ${JSON.stringify(join(root,'frontend/src/lantern/unified-atlas/NetworkStageConnections.tsx'))};\n`);
   const built=await build({root:join(root,'frontend'),configFile:false,logLevel:'silent',build:{write:false,target:'node26',lib:{entry,formats:['es']},minify:false}});
   const output=Array.isArray(built)?built[0]:built;
   const modulePath=join(scratch,'adapter.mjs');writeFileSync(modulePath,output.output.find(o=>o.type==='chunk'&&o.isEntry).code);
-  const {createUnifiedAtlasReviewedOverlays,ExactDecimal,documentaryNetworkIndex,documentaryRoomRecords,documentaryOverlayIndex,matchesOverlayScene,projectDocumentaryFacts,mergeRuntimeRecords,readSavedDocumentaryPreview}=await import(pathToFileURL(modulePath).href);
+  const {createUnifiedAtlasReviewedOverlays,ExactDecimal,documentaryNetworkIndex,documentaryRoomRecords,documentaryOverlayIndex,matchesOverlayScene,projectDocumentaryFacts,mergeRuntimeRecords,readSavedDocumentaryPreview,networkRoomConnections}=await import(pathToFileURL(modulePath).href);
   const U=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
   const canonical=v=>JSON.stringify(v,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
   const floor='generated:floor',floorHash='a'.repeat(64),packageKey='generated:room',packageUuid=U(21),photoHash='b'.repeat(64);
@@ -140,6 +140,16 @@ try {
         `Recorded: ${link.recordedAt} (${link.recordedAtPrecision})`, link.temporalStatus, link.basis, link.notes].join(' · ')));
     }
     const projected = documentaryRoomRecords(scene, { ...frame, network: { ...frame.network, data: graph } }, new Set(['occurrence:one', 'occurrence:two']));
+    const stageConnections = networkRoomConnections(projected, [
+      {roomId: 'publication:room', occurrenceId: 'occurrence:one', point: [20, 40]},
+      {roomId: 'publication:room', occurrenceId: 'occurrence:two', point: [60, 90]},
+    ]);
+    assert.deepEqual(stageConnections.coverage.links, {total: 6, anchored: 2, unplaced: 4});
+    assert.deepEqual(stageConnections.connections.filter(row => row.renderable).map(row => row.link.id), ['link:self', 'link:same-owner']);
+    assert.equal(stageConnections.connections[2].placements.length, 4, 'Every admitted occurrence pair survives independently of focused building/floor/room');
+    assert.equal(stageConnections.connections[2].link, graph.links[2]);
+    assert.equal(stageConnections.connections[0].to.placementReason, 'no-admitted-anchor');
+    assert.equal(projected.networkGraphs[0].deviceRecordKeys.get('device:generated'), projected.rooms.get('publication:room').network[0].key);
     const placedDevice = projected.rooms.get('publication:room').network[0];
     assert.equal(placedDevice.sourceFacts.find(f => f.label === 'Connection source facts').value, indexed.facts.get('device:generated'));
     assert.deepEqual(placedDevice.connections, indexed.connections.get('device:generated'));
