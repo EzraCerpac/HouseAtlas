@@ -23,13 +23,15 @@ writeFileSync(entry, [
   ['frontend/src/lantern/canonical-ifc/standard-glb.ts', ['loadStandardGlb']],
   ['frontend/src/lantern/unified-atlas/scene.ts', ['bindAtlasModel', 'planFeaturesForLevel', 'sitePlanLevels']],
   ['frontend/src/lantern/unified-atlas/plan-presentation.tsx', ['PlanTile']],
+  ['frontend/src/lantern/unified-atlas/NetworkStageConnections.tsx', ['networkRoomConnections', 'NetworkStageConnections']],
+  ['frontend/src/lantern/canonical-ifc/geometry.ts', ['makeProjection', 'drawnBounds']],
 ].map(([path, names]) => `export { ${names.join(',')} } from ${JSON.stringify(join(root, path))};`).join('\n'));
 const built = await build({ root: join(root, 'frontend'), configFile: false, logLevel: 'silent', build: { write: false, target: 'node26', lib: { entry, formats: ['es'] }, rolldownOptions: { external: ['react', 'react/jsx-runtime'], output: { codeSplitting: false } }, minify: false } });
 const output = Array.isArray(built) ? built[0] : built;
 const modulePath = join(scratch, 'positive.mjs'); writeFileSync(modulePath, output.output.find(row => row.type === 'chunk' && row.isEntry).code
   .replaceAll(JSON.stringify('react'), JSON.stringify(new URL('../node_modules/react/index.js', import.meta.url).href))
   .replaceAll(JSON.stringify('react/jsx-runtime'), JSON.stringify(new URL('../node_modules/react/jsx-runtime.js', import.meta.url).href)));
-const { generateSavedPack, readSavedPackSections, projectSavedAtlasOverlays, readSavedHistoricalFacts, createSavedAtlasDataAdapter, mergeDocumentaryRecords, projectDocumentaryFacts, documentaryOverlayIndex, PlanTile, canonicalPack, readPackManifest, savedDigest, parseLosslessJson, loadStandardGlb, bindAtlasModel, planFeaturesForLevel, sitePlanLevels } = await import(pathToFileURL(modulePath).href);
+const { generateSavedPack, readSavedPackSections, projectSavedAtlasOverlays, readSavedHistoricalFacts, createSavedAtlasDataAdapter, mergeDocumentaryRecords, projectDocumentaryFacts, documentaryOverlayIndex, PlanTile, canonicalPack, readPackManifest, savedDigest, parseLosslessJson, loadStandardGlb, bindAtlasModel, planFeaturesForLevel, sitePlanLevels, networkRoomConnections, NetworkStageConnections, makeProjection, drawnBounds } = await import(pathToFileURL(modulePath).href);
 rmSync(scratch, { recursive: true });
 const { createElement } = await import(new URL('../node_modules/react/index.js', import.meta.url).href);
 const { renderToStaticMarkup } = await import(new URL('../node_modules/react-dom/server.node.js', import.meta.url).href);
@@ -412,4 +414,91 @@ console.log('PASS canonical source identity dedup retains differing observations
       unplaced: result.records.unplaced, propertyCounts: layers.map(layer => ({ kind: layer.kind, records: layer.records, unplacedRecords: layer.unplacedRecords })) }));
   }
   console.log(`PASS fifth explicit Save: genuine shared two-room/unmapped-building closure, local primary +2 other observations, typed raw IDs, actual tile union2E/1N, property6E/5N unplaced4/4; snapshot ${house.snapshotId}; semantics ${read.scene.publication.semanticsSha256}`);
+}
+
+// Sixth explicit Save: fictional archived topology across existing geometry.
+// No native source frame/session, device position or physical route is created.
+{
+  const pack = await generateSavedPack('complete', '1'.repeat(64), true, false, false, false, false, false, false, true);
+  assert.equal(pack.house.snapshotId, 'e61a318cc8608f69cd643daf93e82d5347c6e57fd49c6ed4dc1e402281675e8e', 'Sixth explicit Save retains its own closed graph snapshot pin');
+  const baseline = await generateSavedPack('complete', '1'.repeat(64), true);
+  assert.notEqual(pack.house.snapshotId, baseline.house.snapshotId);
+  assert.deepEqual(pack.scene.artifacts.map(row => [row.sha256, row.bytes]), baseline.scene.artifacts.map(row => [row.sha256, row.bytes]));
+  for (const key of ['occurrences', 'meshBindings', 'plans', 'levels']) assert.deepEqual(pack.scene[key], baseline.scene[key], `Sixth fixture preserves ${key}`);
+  assert.equal(pack.scene.frame.physicalRegistration, null);
+  const house = { ...pack.house, localRevision: crypto.randomUUID() };
+  const local = { list: async () => [house], asset: async (selected, id) => {
+    assert.equal(selected.localRevision, house.localRevision);
+    return new Blob([pack.resources.get(id)], { type: house.resources.find(pin => pin.id === id).contentType });
+  } };
+  const signal = new AbortController().signal, checked = await readSavedPackSections(local, house, signal); exporterShapes(checked);
+  const read = await createSavedAtlasDataAdapter(local).read(house, signal);
+  assert.equal(read.scene.publication.publicationId, '00000000-0000-4000-8000-0000000a7154');
+  assert.equal(read.scene.selection.revision, 'generated-network-associations-1');
+  assert.equal(read.roomLinks.data.publicationId, read.scene.publication.publicationId);
+  assert.equal(read.roomLinks.data.semanticsSha256, read.scene.publication.semanticsSha256);
+  const roomIds = ['syn-room-hall', 'syn-room-bedroom-b', 'syn-room-studio'];
+  assert.deepEqual(read.roomLinks.data.links.map(row => row.roomId), roomIds);
+  assert.equal(new Set(read.roomLinks.data.links.map(row => row.packagePlaceKey)).size, 3);
+  const historical = await readSavedHistoricalFacts(checked, read, signal);
+  assert.equal(historical.facts.length, 2, JSON.stringify(historical.reasons));
+  assert.deepEqual(historical.facts.map(facts => facts.roomBindings.length), [2, 1]);
+  for (const facts of historical.facts) {
+    assert.equal(facts.mode, 'saved-documentary-snapshot'); assert.equal(facts.network.status, 'available');
+    assert(!('sessionIdentity' in facts.pins)); assert(!('expiresAt' in facts.pins)); assert(!('lease' in facts));
+    assert.deepEqual([facts.network.data.devices.length, facts.network.data.endpoints.length, facts.network.data.links.length], [4, 5, 9]);
+    assert(facts.network.data.devices.every(device => device.place === null || device.place.coordinate === null));
+    assert(facts.network.data.links.every(link => link.path === null));
+  }
+  const model = bindAtlasModel(read.scene, await loadStandardGlb(read.model, 'saved-network-associations', signal));
+  const result = projectSavedAtlasOverlays(checked, read.scene, historical, model.selectable);
+  assert.deepEqual([...result.records.rooms.keys()], roomIds);
+  const layers = ['electrical', 'network'].map(kind => documentaryOverlayIndex(model, result.records, kind));
+  assert.deepEqual(layers.map(layer => [layer.records, layer.unplacedRecords]), [[6, 4], [19, 16]]);
+  assert.deepEqual(roomIds.map(id => result.records.rooms.get(id).network.map(record => record.id)), [['device:generated'], ['device:upper'], ['device:studio']]);
+  assert.equal(result.records.networkGraphs.length, 2, 'One generic unplaced graph and one deduplicated archived graph');
+  assert(result.records.unplaced.network.some(record => record.id === 'generated-link' && record.category === 'Recorded connection'));
+  const graph = result.records.networkGraphs.find(row => row.data.devices.length === 4);
+  const projection = makeProjection({ yaw: 30, pitch: 35, zoom: 1, panX: 0, panY: 0 }, drawnBounds(model.meshes, [], null), { width: 1280, height: 900 }, 0);
+  const anchors = roomIds.flatMap(roomId => model.roomsById.get(roomId).occurrenceIds.map(occurrenceId => {
+    const label = model.labels.get(occurrenceId), occurrence = model.occurrencesById.get(occurrenceId);
+    const [x, y] = projection.project(label.x, model.floorY.get(occurrence.levelId), label.z);
+    assert(Number.isFinite(x) && Number.isFinite(y), 'Existing camera projects finite generated room summaries');
+    return { roomId, occurrenceId, point: [x, y] };
+  }));
+  const connections = networkRoomConnections(result.records, anchors);
+  assert.deepEqual(connections.coverage, {
+    devices: { total: 4, anchored: 3, unplaced: 1 }, endpoints: { total: 7, anchored: 3, unplaced: 4 },
+    links: { total: 10, anchored: 5, unplaced: 5 }, sharedMediumAssociations: { total: 1, anchored: 1, unplaced: 0 },
+  });
+  const original = connections.connections.filter(row => row.graphKey === graph.key);
+  assert.deepEqual(original.filter(row => row.renderable).map(row => row.link.id), [
+    'generated:direct', 'generated:reverse', 'generated:parallel', 'generated:within-room', 'generated:cross-building',
+  ]);
+  original.forEach((row, at) => { assert.equal(row.link, graph.data.links[at]); assert.equal(row.source, graph.data.source); });
+  assert.equal(new Set(original.map(row => row.key)).size, 9);
+  assert.equal(original[3].placements.length, 1); assert.equal(original[3].placements[0].coincident, true);
+  assert.equal(original[0].from.placementReason, 'explicit-owner-anchor');
+  assert.equal(original[7].to.placementReason, 'no-admitted-anchor');
+  assert.equal(original[8].to.placementReason, 'owner-not-recorded');
+  const acrossBuildings = original[4].placements[0];
+  assert.notEqual(model.roomsById.get(acrossBuildings.from.roomId).buildingId, model.roomsById.get(acrossBuildings.to.roomId).buildingId);
+  const shared = connections.sharedMediumAssociations[0];
+  assert.equal(shared.segment.id, 'endpoint:network-medium'); assert.equal(shared.medium, 'powerline');
+  assert.deepEqual(shared.memberships.map(link => link.id), ['generated:member-hall', 'generated:member-studio']);
+  assert.equal(shared.memberships[0], graph.data.links[5]); assert.equal(shared.memberships[1], graph.data.links[6]);
+  const markup = renderToStaticMarkup(createElement('svg', null, createElement(NetworkStageConnections, { connections, selected: null })));
+  assert.equal((markup.match(/<path /g) ?? []).length, 6, 'Five original paths and one separately derived shared-medium path');
+  assert(markup.includes(' c '), 'Actual stage component renders the coincident association as a loop');
+  assert(markup.includes('pointer-events="none"')); assert(markup.includes('no cable route'));
+  console.log(JSON.stringify({ profile: 'generated-sixth-network-associations-contract.v1', snapshotId: house.snapshotId,
+    publication: read.scene.publication, selection: read.scene.selection, overviewManifestSha256: read.saved.descriptor.overviewManifestSha256,
+    modelSha256: read.scene.model.sha256, roomLinksSha256: read.roomLinks.resource.sha256,
+    retainedResources: house.resources.map(row => ({ sha256: row.sha256, bytes: row.bytes, contentType: row.contentType, role: row.role })),
+    rooms: roomIds.map(roomId => ({ roomId, network: result.records.rooms.get(roomId).network.map(record => ({ key: record.key, id: record.id })) })),
+    propertyCounts: layers.map(layer => ({ kind: layer.kind, records: layer.records, unplacedRecords: layer.unplacedRecords })),
+    connectionCoverage: connections.coverage, renderedOriginalIds: original.filter(row => row.renderable).map(row => row.link.id),
+    derivedAssociationIds: connections.sharedMediumAssociations.map(row => row.key),
+  }));
+  console.log(`PASS sixth explicit Save: captured two-building/three-room closure, 5 original 3D associations +1 separate shared medium, retained generic unplaced graph, unchanged geometry; Electrical 6 (4 unplaced), Network 19 (16 unplaced); snapshot ${house.snapshotId}`);
 }
