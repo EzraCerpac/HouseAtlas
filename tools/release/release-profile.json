@@ -1,0 +1,22 @@
+{
+  "format": "houseatlas.release-profile.v1",
+  "native": {
+    "status": "unqualified",
+    "runner": "macos-15-intel",
+    "target": "x86_64-apple-darwin",
+    "minimumMacos": null,
+    "sourceInputsSha256": null,
+    "allowedDylibs": [],
+    "runnerImage": null,
+    "sdkVersion": null,
+    "xcodeBuild": null
+  },
+  "compatibility": {
+    "status": "unqualified",
+    "backendFrontend": "same-source",
+    "storagePolicy": "preserve-no-migration",
+    "requiredStorageContractSha256": null,
+    "resultingStorageContractSha256": null,
+    "codeRollbackCompatible": false
+  }
+}
