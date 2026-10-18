@@ -147,12 +147,14 @@ function capturedBindings(scene: AtlasScene, pins: DocumentaryOverlayReadPins, m
   need(map.profile === 'houseatlas.unified-atlas-room-links.v1' && map.workspaceId === scene.scope.workspaceId
     && map.homeId === scene.scope.homeId && map.publicationId === scene.publication.publicationId
     && map.semanticsSha256 === scene.publication.semanticsSha256 && Array.isArray(map.links) && map.links.length <= 2048);
+  const capturedBuildings = new Set(scene.buildings.filter(building => building.nativePlaceId === pins.buildingId).map(building => building.buildingId));
   const seen = new Set<string>();
   return map.links.flatMap(link => {
     need(typeof link.roomId === 'string' && !seen.has(link.roomId) && UUID.test(link.nativePlaceId)
       && typeof link.packagePlaceKey === 'string' && UUID.test(link.packagePlaceUuid)); seen.add(link.roomId);
     const room = scene.rooms.find(room => room.roomId === link.roomId);
     need(room && room.nativePlaceId === link.nativePlaceId);
+    if (!capturedBuildings.has(room.buildingId)) return [];
     const matching = (pins.acceptedRoomMappings ?? []).filter(mapping => mapping.targets.some(target =>
       target.atlasPlaceId === link.nativePlaceId && target.packagePlaceKey === link.packagePlaceKey && target.packagePlaceUuid === link.packagePlaceUuid));
     if (!matching.length) return [];

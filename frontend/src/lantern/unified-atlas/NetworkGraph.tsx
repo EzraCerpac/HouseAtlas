@@ -303,7 +303,8 @@ export function NetworkGraph({ graph }: { readonly graph: DocumentaryNetworkGrap
       const pair = [edge.a, edge.b].sort().join('\n'); const own = pairs.get(pair) ?? []; own.push(edge); pairs.set(pair, own);
     }
     return [...pairs.values()].flatMap(own => own.map((edge, at) => {
-      const p = view.points.get(edge.a)!, q = view.points.get(edge.b)!;
+      const [a, b] = edge.a <= edge.b ? [edge.a, edge.b] : [edge.b, edge.a];
+      const p = view.points.get(a)!, q = view.points.get(b)!;
       return { edge, ...edgePath(p, q, (at - (own.length - 1) / 2) * 16, edge.a === edge.b) };
     }));
   }, [built, view]);

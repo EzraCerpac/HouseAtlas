@@ -946,14 +946,16 @@ fn browser_entry(entry: &mut Value, original: &d::CurrentEntry) -> Result<(), Ht
         .as_ref()
         .map(|number| Value::String(number.to_string()))
         .unwrap_or(Value::Null);
+    // Serialize the same ordered source tuple without allocating an intermediate
+    // Value array or copying its strings for every browser entry.
     entry["key"] = Value::String(
-        json!([
-            entry["source"]["sourceInstanceId"],
-            entry["source"]["collectionId"],
-            entry["source"]["sourceKind"],
-            entry["source"]["externalId"]
-        ])
-        .to_string(),
+        serde_json::to_string(&(
+            &original.source.source_instance_id,
+            &original.source.collection_id,
+            original.source.source_kind,
+            &original.source.external_id,
+        ))
+        .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
     );
     entry["aliases"] = json!([]);
     entry["mobility"] = json!("unknown");

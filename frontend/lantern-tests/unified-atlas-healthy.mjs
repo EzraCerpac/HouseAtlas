@@ -394,7 +394,8 @@ const stairsBindings = [...commonBindings, emptyCommon].map(binding => ({ ...bin
 sharedEnvelope.overlayBindings = [localBefore, ...commonBindings, emptyCommon, localAfter, ...stairsBindings];
 const sharedScene = scene.admitAtlasScene(sharedEnvelope, { scope, publicationId: selection.publicationId },
   new TextEncoder().encode(JSON.stringify(sharedEnvelope)).byteLength);
-const sharedLayer = bindAtlasModel(sharedScene, loaded).overlays.get('electrical');
+const sharedModel = bindAtlasModel(sharedScene, loaded);
+const sharedLayer = sharedModel.overlays.get('electrical');
 const firstCommon = sharedLayer.placed.get('syn-occ-stairs-ground'), mixed = sharedLayer.placed.get('syn-occ-hall');
 for (const id of extraOccurrences) assert.equal(sharedLayer.placed.has(id), false, 'Excluded occurrences never acquire an inspectable placement');
 for (const id of ['syn-occ-stairs-ground', 'syn-occ-stairs-upper']) {
@@ -412,6 +413,56 @@ assert.deepEqual(mixed.bindings, hallBindings, 'selected detail bindings retain 
 const expectedRecords = [...new Set(hallBindings.flatMap(row => row.recordIds))];
 assert.deepEqual(mixed.recordIds, expectedRecords, 'selected detail IDs retain first source appearance');
 assert.equal(firstCommon.bindings.at(-1).sourceRevision, emptyCommon.sourceRevision);
+// Actual tile summaries count source entities once per floor/layer, while all
+// original per-occurrence counts and shared lazy record arrays stay intact.
+for (const [levelId, expected] of [['syn-level-ground', 9218], ['syn-level-upper', 9216]]) {
+  const html = renderToStaticMarkup(createElement(PlanTile, { model: sharedModel, level: sharedModel.levelsById.get(levelId),
+    layers: [sharedLayer], tints: new Map(), selected: null, name: levelId, choose() {} }));
+  assert.ok(html.includes(`${expected.toLocaleString()} electrical records`));
+  assert.equal((html.match(/<circle /g) ?? []).length, levelId === 'syn-level-ground' ? 2 : 1);
+}
+{
+  // Binding-only projection: a second selectable part of the same logical room
+  // on one floor, using a repeated prepared primitive (no new GLB admission).
+  const projected = structuredClone(read.scene), sourceId = 'syn-occ-stairs-ground', extraId = 'generated:second-stairs-part';
+  const occurrence = projected.occurrences.find(row => row.spaceOccurrenceId === sourceId);
+  const originalFeature = projected.plans.flatMap(plan => plan.features).find(feature => feature.spaceOccurrenceId === sourceId && feature.role === 'room');
+  const feature = { ...originalFeature, featureId: 'generated:second-stairs-feature', spaceOccurrenceId: extraId };
+  const plan = projected.plans.find(plan => plan.levelId === occurrence.levelId);
+  plan.features.push(feature); plan.featureIds.push(feature.featureId);
+  projected.occurrences.push({ ...occurrence, spaceOccurrenceId: extraId, planFeatureIds: [feature.featureId] });
+  projected.rooms.find(room => room.roomId === occurrence.roomId).occurrenceIds.push(extraId);
+  projected.levels.find(level => level.levelId === occurrence.levelId).occurrenceIds.push(extraId);
+  projected.coverage.selectable.push(extraId); projected.coverage.selectableCount++;
+  const part = model.pickParts.get(sourceId)[0], drawn = loaded.drawn.find(row => row.meshKey === part.mesh.meshKey);
+  const meshKey = 'generated:second-stairs-mesh', nodeIndex = 2500;
+  const binding = projected.meshBindings.find(binding => binding.spaceOccurrenceId === sourceId && binding.role === 'room-pick');
+  projected.meshBindings.push({ ...binding, nodeIndex, primitiveIndices: [0] });
+  projected.meshBindings.at(-1).spaceOccurrenceId = extraId;
+  projected.rooms.push({ ...projected.rooms.find(room => room.roomId === 'syn-room-hall'), roomId: 'generated:unlocated-room', occurrenceIds: [] });
+  const forRoom = (roomId, kind, recordIds, spaceOccurrenceId = null) => ({ ...hallSource, kind, roomId,
+    nativePlaceId: projected.rooms.find(room => room.roomId === roomId).nativePlaceId, spaceOccurrenceId,
+    anchor: { kind: 'room-summary' }, recordIds });
+  projected.overlayBindings = [forRoom('syn-room-stairs', 'electrical', ['source-A/sheet/reused', 'source-A/symbol/reused']),
+    forRoom('syn-room-hall', 'electrical', ['source-A/sheet/reused', 'source-B/sheet/reused']),
+    forRoom('syn-room-stairs', 'network', ['source-A/sheet/reused']),
+    forRoom('syn-room-hall', 'network', ['network/device/reused']),
+    forRoom('generated:unlocated-room', 'electrical', ['unplaced-source/sheet/reused'])];
+  const bound = bindAtlasModel(projected, { meshes: [...loaded.meshes, { ...part.mesh, meshKey }],
+    drawn: [...loaded.drawn, { ...drawn, meshKey, nodeIndex, primitiveIndex: 0 }] });
+  const layers = [...bound.overlays.values()];
+  const ground = renderToStaticMarkup(createElement(PlanTile, { model: bound, level: bound.levelsById.get('syn-level-ground'),
+    layers, tints: new Map(), selected: null, name: 'Generated shared floor', choose() {} }));
+  assert.ok(ground.includes('3 electrical records, 2 network records'));
+  assert.equal((ground.match(/<circle /g) ?? []).length, 6, 'per-room/layer markers remain per occurrence');
+  const upper = renderToStaticMarkup(createElement(PlanTile, { model: bound, level: bound.levelsById.get('syn-level-upper'),
+    layers, tints: new Map(), selected: null, name: 'Generated upper floor', choose() {} }));
+  assert.ok(upper.includes('2 electrical records, 1 network record'));
+  assert.equal(bound.overlays.get('electrical').records, 4);
+  assert.equal(bound.overlays.get('electrical').unplacedRecords, 1, 'unplaced source entities stay out of every tile');
+  assert.strictEqual(bound.overlays.get('electrical').placed.get(sourceId).recordIds, bound.overlays.get('electrical').placed.get(extraId).recordIds);
+}
+
 assert.equal(mixed.positions.length, 2);
 assert.ok(renderToStaticMarkup(createElement(PublishedOverlayDetails, { placement: mixed })).includes(emptyCommon.sourceRevision));
 
@@ -560,7 +611,7 @@ for (const [selected, sibling, levelId, unrelated] of [
   ];
   for (const item of cases) for (const linkCount of [1, 2, 3, 5]) {
     const data = { viewKey: `generated-loop-${item.name}-${linkCount}`, source, devices: item.devices, endpoints: item.endpoints,
-      links: Array.from({ length: linkCount }, (_, at) => ({ id: `generated-link-${item.name}-${at}`, fromEndpointId: item.from, toEndpointId: item.to, kind: 'connection', medium: 'Generated logical medium',
+      links: Array.from({ length: linkCount }, (_, at) => ({ id: `generated-link-${item.name}-${at}`, fromEndpointId: at % 2 ? item.to : item.from, toEndpointId: at % 2 ? item.from : item.to, kind: 'connection', medium: 'Generated logical medium',
         confidence: 'recorded', sourceConfidence: null, temporalStatus: '', recordedAtPrecision: null, basis: 'Generated source record', recordedAt: null, notes: '', path: null })) };
     const before = JSON.stringify(data);
     const html = renderToStaticMarkup(createElement(NetworkGraph, { graph: { key: data.viewKey, qualification: 'Generated documentary topology', data } }));
@@ -592,6 +643,57 @@ for (const [selected, sibling, levelId, unrelated] of [
     assert.match(alone, /Isolated device/); assert.doesNotMatch(alone, /Loop device|Loop endpoint/);
     assert.equal((html.match(/class="ung-chip"/g) ?? []).length, 1);
     assert.ok(html.includes(`${total}</span>`)); assert.ok(html.includes('no connection</span>'));
+    assert.equal(JSON.stringify(data), before);
+  }
+}
+
+// Actual graph drawing: mixed source directions cannot cancel parallel lanes.
+{
+  const device = id => ({ id, label: id, kind: 'Generated device', mobility: 'fixed', confidence: 'recorded', notes: '', place: null });
+  const port = (id, ownerDeviceId) => ({ id, label: id, kind: 'interface', ownerDeviceId, notes: '' });
+  const source = { label: 'Generated network', revision: null, recordedAt: null, retrievedAt: null, status: 'recorded', acceptedAt: null, coverage: 'complete', notes: 'Generated source note' };
+  const cases = [
+    { name: 'devices', devices: [device('A'), device('B')], endpoints: [], ends: [['A', 'B'], ['B', 'A']], labels: [['A', 'B'], ['B', 'A']] },
+    { name: 'owned-aliases', devices: [device('A'), device('B')], endpoints: [port('pa', 'A'), port('pb', 'B')], ends: [['pa', 'B'], ['pb', 'A'], ['A', 'pb']], labels: [['A', 'B'], ['B', 'A'], ['A', 'B']] },
+    { name: 'ownerless', devices: [], endpoints: [port('A', null), port('B', null)], ends: [['A', 'B'], ['B', 'A']], labels: [['A', 'B'], ['B', 'A']] },
+  ];
+  const numbers = path => path.match(/[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi).map(Number);
+  // Normalize only traversal of the emitted path; do not duplicate lane math.
+  const geometry = path => { const n = numbers(path); return n[0] < n.at(-2) || (n[0] === n.at(-2) && n[1] <= n.at(-1))
+    ? n : n.length === 6 ? [n[4], n[5], n[2], n[3], n[0], n[1]] : [n[2], n[3], n[0], n[1]]; };
+  for (const item of cases) for (const count of [2, 3, 5]) {
+    const data = { viewKey: `generated-mixed-${item.name}-${count}`, source, devices: [...item.devices, device('Isolated')], endpoints: item.endpoints,
+      links: Array.from({ length: count }, (_, at) => ({ id: `mixed-${at}`, fromEndpointId: item.ends[at % item.ends.length][0], toEndpointId: item.ends[at % item.ends.length][1],
+        kind: 'connection', medium: '', confidence: 'recorded', sourceConfidence: null, temporalStatus: '', recordedAtPrecision: null, basis: 'Generated source', recordedAt: null, notes: `Source note ${at}`, path: null })) };
+    const before = JSON.stringify(data);
+    const draw = (value, reversed = false) => {
+      const html = renderToStaticMarkup(createElement(NetworkGraph, { graph: { key: value.viewKey, qualification: 'Generated topology', data: value } }));
+      const svg = html.match(/<svg class="ung-svg"[\s\S]*?<\/svg>/)[0];
+      const paths = [...svg.matchAll(/class="ung-edge is-recorded" d="([^"]+)"/g)].map(match => match[1]);
+      assert.equal(paths.length, count);
+      assert.deepEqual([...svg.matchAll(/class="ung-edge-hit" d="([^"]+)"/g)].map(match => match[1]), paths);
+      assert.equal((svg.match(/<g class="ung-node"/g) ?? []).length, 2);
+      const [l, t, width, height] = svg.match(/viewBox="([^"]+)"/)[1].split(' ').map(Number);
+      for (const path of paths) { const n = numbers(path); for (let at = 0; at < n.length; at += 2) {
+        assert.ok(n[at] >= l + 8 - 1e-8 && n[at] <= l + width - 8 + 1e-8);
+        assert.ok(n[at + 1] >= t + 8 - 1e-8 && n[at + 1] <= t + height - 8 + 1e-8);
+      } }
+      assert.ok(html.includes(source.notes), 'source notes remain visible; individual link notes remain intact in the unchanged source data');
+      assert.ok(html.includes(`Connections (${count})`)); assert.ok(html.includes(`Devices (${value.devices.length})`));
+      const list = html.match(/<details class="ung-list"><summary>Connections \([^<]*<\/summary>([\s\S]*?)<\/details>/)[1];
+      const names = [...list.matchAll(/class="ung-item-name">([^<]*)<\/span>/g)].map(match => match[1]);
+      assert.deepEqual(names, value.links.map((_, at) => { const pair = item.labels[at % item.labels.length]; return (reversed ? [...pair].reverse() : pair).join(' ↔ '); }), 'source endpoint order remains visible in the connection list');
+      assert.ok(html.includes(`${value.endpoints.length} ${value.endpoints.length === 1 ? 'endpoint' : 'endpoints'}`));
+      assert.match(html.match(/<div class="ung-alone"[^>]*>([\s\S]*?)<\/div>/)[1], /Isolated/);
+      assert.doesNotMatch(html, /NaN|Infinity/);
+      return paths.map(geometry);
+    };
+    const original = draw(data);
+    for (let a = 0; a < count; a++) for (let b = a + 1; b < count; b++) {
+      assert.ok(original[a].some((value, at) => Math.abs(value - original[b][at]) > 1e-6), 'parallel curves differ geometrically even modulo traversal reversal');
+    }
+    const reversed = draw({ ...data, links: data.links.map(link => ({ ...link, fromEndpointId: link.toEndpointId, toEndpointId: link.fromEndpointId })) }, true);
+    original.forEach((curve, at) => curve.forEach((value, coordinate) => assert.ok(Math.abs(value - reversed[at][coordinate]) < 1e-8)));
     assert.equal(JSON.stringify(data), before);
   }
 }
@@ -1034,5 +1136,5 @@ console.log('PASS unified Atlas healthy: generated scene/model read through the 
   + 'Common records/provenance are shared across two selectable Stairs parts; 32 excluded occurrences acquire no placement. '
   + 'Explicit excluded-part and wholly excluded-room bindings retain unplaced totals, original anchors, dates and inspectable source references. '
   + 'Scalar counts and selected details retain source order. '
-  + 'Actual static React graph, PlanTile and AreaValue checks retain distinct parallel self-links and their frames, sibling room context, empty-floor navigation and usable property plans, and nullable area basis. '
+  + 'Actual static React graph, PlanTile and AreaValue checks retain distinct parallel self-links and mixed-direction lanes with enclosing frames, distinct floor record summaries, sibling room context, empty-floor navigation and usable property plans, and nullable area basis. '
   + 'Generated data only; no mounted browser, GPU or device acceptance.');

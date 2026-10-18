@@ -77,7 +77,7 @@ export function mergeRuntimeRecords(model: AtlasModel, rows: readonly { readonly
       .concat(rows.flatMap(row => [...(row.records?.unplaced[kind] ?? [])])));
     const byKey = new Map(all.map(record => [record.key, record]));
     for (const [roomId, records] of rooms) rooms.set(roomId, { ...records,
-      [kind]: records[kind].map(record => byKey.get(record.key)!) });
+      [kind]: records[kind].map(record => mergeDocumentaryRecords([record, byKey.get(record.key)!])[0]!) });
     unplaced[kind] = all.filter(record => !placed.has(record.key));
   }
   const buildings = rows.map<BuildingCoverage>(row => ({ buildingId: row.buildingId, label: model.buildingsById.get(row.buildingId)!.label,

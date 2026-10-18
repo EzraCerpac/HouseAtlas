@@ -54,8 +54,11 @@ export function PlanTile({ model, level, layers, tints, selected, name, choose }
   if (view === null) return null;
   const own = new Set(level.occurrenceIds);
   const counts = layers.map(layer => ({ kind: layer.kind, rooms: [...layer.placed.values()].filter(row => own.has(row.occurrenceId) && row.recordCount > 0) }));
-  const summary = counts.filter(row => row.rooms.length > 0)
-    .map(row => `${plural(row.rooms.reduce((sum, room) => sum + room.recordCount, 0), `${OVERLAY_LABEL[row.kind].toLowerCase()} record`)}`).join(', ');
+  const summary = counts.filter(row => row.rooms.length > 0).map(row => {
+    const records = new Set<string>();
+    for (const room of row.rooms) for (const id of room.recordIds) records.add(id);
+    return plural(records.size, `${OVERLAY_LABEL[row.kind].toLowerCase()} record`);
+  }).join(', ');
   const at = (x: number, z: number) => [(x - view.center[0]) * view.scale + W / 2, (z - view.center[2]) * view.scale + H / 2] as const;
   return <button type="button" className="ua-tile" onClick={choose} aria-label={`Show ${name}${summary ? `: ${summary}` : ''}`}>
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">

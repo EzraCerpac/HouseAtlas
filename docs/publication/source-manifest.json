@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d4f3ac7455d39a63375b89360ac2016461e11a362661db2855c249e0915e5489",
+  "sourceDigestSha256": "05f72b9b06ef031fd0ddb347256b592c2da63433a49da80f994d1a68d844e1aa",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -371,8 +371,8 @@
     {
       "path": "backend/examples/healthy-unified-atlas-read.rs",
       "mode": "100644",
-      "bytes": 12352,
-      "sha256": "0588573c9a7dba298264f1f0f456f11af09f5c2dacfa4d9b65a7f46cba244137",
+      "bytes": 12935,
+      "sha256": "a184d05dfadd10082a45c6f90af6237c60347863a78221034da48a48f4538936",
       "owner": "core-integration"
     },
     {
@@ -1197,8 +1197,8 @@
     {
       "path": "backend/src/config/atlas_scene.rs",
       "mode": "100644",
-      "bytes": 30327,
-      "sha256": "268af8bbf1a898f5c896929fc24e96b171b8898cd28d51137ed062079cc5bd11",
+      "bytes": 31450,
+      "sha256": "08dc7d4579557ebe71db05134499c5ad0ba94d79f57712058afef57104c6e067",
       "owner": "core-integration"
     },
     {
@@ -2191,8 +2191,8 @@
     {
       "path": "backend/src/http/atlas_scene.rs",
       "mode": "100644",
-      "bytes": 7646,
-      "sha256": "c878820a799a85fdc0d0b977cedea3ceee63b80928f6af2d59324dbc91ae87f8",
+      "bytes": 7870,
+      "sha256": "4e9474696cd604a2adaea8f5acb07384d443e4b5d43bc6a30acf9cffa5b5d405",
       "owner": "core-integration"
     },
     {
@@ -2296,8 +2296,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 56093,
-      "sha256": "3961c8de7a0e21ab0128bf6a4d636594177acdccf9badec6831cc0cf4eaa6909",
+      "bytes": 56299,
+      "sha256": "48b7a8a57b58902b96cd76d897993784987e589ed1bc94e106639636cd9a903d",
       "owner": "core-integration"
     },
     {
@@ -5943,8 +5943,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 103272,
-      "sha256": "5dcaf6d675e99d62e9fc00c90f94eef55a1bf375ecd0a9eeca4e1cd6949ea0f7",
+      "bytes": 104854,
+      "sha256": "e884ca1c9a94e4fe737245cf2e89b40f13f1d2e5591907af0fc23f0358948d7f",
       "owner": "core-integration"
     },
     {
@@ -6286,8 +6286,8 @@
     {
       "path": "docs/models/unified-atlas-scene-v1.md",
       "mode": "100644",
-      "bytes": 17939,
-      "sha256": "e1c3f4af53dc1393ece16e53fdb4b358b511d1675379d8d38517e6ebf65ed77b",
+      "bytes": 19226,
+      "sha256": "2e739dfcba6e3a29dbf1edbca6638af83eb3239c0ecd864c71a762b950496108",
       "owner": "core-integration"
     },
     {
@@ -7007,8 +7007,8 @@
     {
       "path": "frontend/integration/saved-documentary-preview.ts",
       "mode": "100644",
-      "bytes": 17330,
-      "sha256": "bd8b6fd08ea2f5074a97da45d4fe782592b875ea679f7c27e37395a8d6e6e60c",
+      "bytes": 17544,
+      "sha256": "6e196431971e0609e9250d9c1b9df29ec71d7eb276a66273a573634135f96835",
       "owner": "web"
     },
     {
@@ -7756,15 +7756,15 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
-      "bytes": 88331,
-      "sha256": "16849cf157cab2ac91b4cd5bc3b56d5155d93538b4af08adbfde9d3652a3295a",
+      "bytes": 97627,
+      "sha256": "02b9cb5fff11f68a3fa6bf8b85dec75a7f21b6389e723a73445ac1a2c83a3085",
       "owner": "web"
     },
     {
       "path": "frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs",
       "mode": "100644",
-      "bytes": 29098,
-      "sha256": "338c7ec320fd9213aac11674dd4a3a949eb63262f6261ab6510dd3b899dc0300",
+      "bytes": 31618,
+      "sha256": "e9f2b68745286c54d90d97dfe118028e6e89c5715a4d6eeea8772f3c33cd37f8",
       "owner": "web"
     },
     {
@@ -7798,8 +7798,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs",
       "mode": "100644",
-      "bytes": 54670,
-      "sha256": "9021ab3480b94f7a3e0ef98919261410da4db92125c98189f5f4fe176a75cf0f",
+      "bytes": 63003,
+      "sha256": "8afd4b5bc34929b1067f3ce449f48332aad84805c046ba39560925dfebdb15df",
       "owner": "web"
     },
     {
@@ -9639,8 +9639,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/NetworkGraph.tsx",
       "mode": "100644",
-      "bytes": 31441,
-      "sha256": "fd8740c1c5b85ed8805413fd81478445c0f09b955adce49b4fd19f5d12a60c70",
+      "bytes": 31508,
+      "sha256": "63faae45dcb1a8373e16c772236dc5ff00d7eb34754bc62d840f0a4e2a61795d",
       "owner": "web"
     },
     {
@@ -9681,22 +9681,22 @@
     {
       "path": "frontend/src/lantern/unified-atlas/plan-presentation.tsx",
       "mode": "100644",
-      "bytes": 6215,
-      "sha256": "8d67ad78aa3c6736f2a157b0c649b7003f8256b21a12ac59a7ea53d72236de5e",
+      "bytes": 6300,
+      "sha256": "aebeb3638918ea08b555304308a4b5b5388182ee57d884b140b6c6465432472d",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/unified-atlas/runtime-overlays.ts",
       "mode": "100644",
-      "bytes": 24536,
-      "sha256": "66699c733c48b89b8be8dea8fe528e7de8fcfac619dae50282cb636cd420b431",
+      "bytes": 24575,
+      "sha256": "c022623ad4b86a558adb2253cdf6dc42148bd7de9e91cac6fea6af08465e6d8f",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/unified-atlas/scene.ts",
       "mode": "100644",
-      "bytes": 76896,
-      "sha256": "54305f5dd0d1acaa32c0728dbc682900d262edb23803dae7131338d603606813",
+      "bytes": 76907,
+      "sha256": "48ff90fe9ab8d7a7bdfa581d53f1cc910c31b3f1cd931f88b69d9aa6eab27a5d",
       "owner": "web"
     },
     {
@@ -11041,6 +11041,27 @@
       "mode": "100644",
       "bytes": 4070,
       "sha256": "9f963f128058d05cc32cf9e380ccde984cf1c98e34903b23b3b4d6e8fe583e86",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/backend-response/README.md",
+      "mode": "100644",
+      "bytes": 3901,
+      "sha256": "ab011f10e43bd73daed6a7220bf41ee0d15b9d8f692ee24b4c90b9e346a07ec7",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/backend-response/run.mjs",
+      "mode": "100644",
+      "bytes": 9052,
+      "sha256": "5a9d13573163c1e211706fdfdc11dd0919afc33a0169d8faec2cb29b7f54a5e5",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/backend-response/worker.rs",
+      "mode": "100644",
+      "bytes": 11167,
+      "sha256": "18fec1bf90e782543170c789edef74f25180b17d3e86b22d30fe8b324b590df7",
       "owner": "core-integration"
     },
     {
