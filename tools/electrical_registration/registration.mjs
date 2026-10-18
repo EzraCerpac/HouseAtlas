@@ -91,7 +91,7 @@ export function assessRegistration(proposal, context) {
   const maxCheckResidual=checks.length?Math.max(...checks.map(c=>c.distance)):null;
   if(fit && uncertainty && finite(uncertainty.residualLimitMetres) && Math.max(fit.maxResidual,maxCheckResidual??0)>uncertainty.residualLimitMetres)add('Observed fitted/held-out residual exceeds declared tolerance');
   return {id:proposal.id,status:reasons.length?'withheld':'reviewed-approximate-scene-registration',reasons:[...new Set(reasons)],source:copy(proposal.source),target:copy(proposal.target),
-    reviewEvidence:copy(proposal.reviewEvidence??null),targetFeatureIds:[...new Set(all.map(c=>c.targetFeatureId))],
+    reviewEvidence:copy(proposal.reviewEvidence??null),layoutQualification:copy(proposal.layoutQualification??null),targetFeatureIds:[...new Set(all.map(c=>c.targetFeatureId))],
     targetLandmarkIds:all.map(c=>c.targetLandmarkId),fit,checks,maxCheckResidual,uncertainty:copy(uncertainty??null),physicalRegistration:null,nativeQualified:false};
 }
 /** Preserve every inventory row; selection only adds highlight state. No circuit,
@@ -107,7 +107,7 @@ export function projectInventory(records, assessments, currentContext, selection
     const matches=assessments.filter(a=>{
       if(a.status!=='reviewed-approximate-scene-registration'||!sameFrame(a.target,currentContext.frame)||!sameSource(a.source,row)||!currentContext.sources.some(s=>sameSource(s,a.source)))return false;
       const occurrence=currentContext.occurrences.find(o=>sameBinding(o,a.target));
-      return occurrence && evidence(a.reviewEvidence) && Array.isArray(a.targetFeatureIds) && a.targetFeatureIds.every(id=>occurrence.featureIds.includes(id))
+      return occurrence && evidence(a.reviewEvidence) && text(a.layoutQualification) && Array.isArray(a.targetFeatureIds) && a.targetFeatureIds.every(id=>occurrence.featureIds.includes(id))
         && row.bindings.some(b=>sameBinding(a.target,b));
     });
     const placements=[], unsupported=[];
@@ -118,7 +118,7 @@ export function projectInventory(records, assessments, currentContext, selection
       const sourceTolerance=point(row.sourceToleranceXY)?row.sourceToleranceXY:u.sourceXY;
       need(sourceTolerance.every(n=>n>=0),'Nonnegative source annotation tolerance required');
       const tolerance=sourceTolerance.map((n,i)=>Math.max(n,u.sourceXY[i]));
-      placements.push({registrationId:a.id,registrationReviewEvidence:copy(a.reviewEvidence),target:copy(a.target),targetFeatureIds:copy(a.targetFeatureIds),scenePointXZ:applyAffine(a.fit.matrix,row.sourcePoint),
+      placements.push({registrationId:a.id,registrationReviewEvidence:copy(a.reviewEvidence),layoutQualification:copy(a.layoutQualification),registrationUncertainty:copy(a.uncertainty),target:copy(a.target),targetFeatureIds:copy(a.targetFeatureIds),scenePointXZ:applyAffine(a.fit.matrix,row.sourcePoint),
         annotationToleranceXZ:[Math.abs(aa)*tolerance[0]+Math.abs(c)*tolerance[1]+extra,Math.abs(b)*tolerance[0]+Math.abs(d)*tolerance[1]+extra],
         qualification:'reviewed approximate source alignment; tolerance is not surveyed accuracy',physicalCoordinate:null});
     }
