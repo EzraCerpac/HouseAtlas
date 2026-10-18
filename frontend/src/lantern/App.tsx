@@ -12,6 +12,7 @@ import { SourceDetails } from './components/SourceDetails';
 import { SearchPalette } from './components/SearchPalette';
 import { SettingsDialog } from './components/SettingsDialog';
 import { Modal } from './components/Modal';
+import { ShellMenu } from './components/ShellMenu';
 import { attentionCount } from './components/DetailPanel';
 import { AiActivityStatus } from '../ai/host/index.js';
 import { isArchivedEntry } from '../app/model';
@@ -153,6 +154,9 @@ export function App() {
   const { state, dispatch, house } = useStore();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [homesOpen, setHomesOpen] = useState(false);
+  // The strip's own tools, where the phone menu hands focus when it is hidden.
+  const toolsButton = useRef<HTMLButtonElement>(null);
+  const settingsButton = useRef<HTMLButtonElement>(null);
   const reduced = useReducedMotion();
   const reviewCount = house.writes.filter((w) => w.status === 'conflict' || w.status === 'uncertain').length;
 
@@ -226,6 +230,8 @@ export function App() {
     if (active && active !== document.body && !details?.contains(active)) return;
     (target?.isConnected && target.getClientRects().length && !details?.contains(target) ? target : document.getElementById('main'))?.focus();
   }, [sheetExpanded]);
+  const openTools = () => dispatch({ type: 'nativeOpen', open: true });
+  const openSettings = () => dispatch({ type: 'settingsOpen', open: true });
   const toggleOverview = () => {
     if (state.selection) {
       dispatch({ type: 'select', sel: null });
@@ -238,13 +244,18 @@ export function App() {
       <a className="skip" href="#main">
         Skip to content
       </a>
+      {/* The title block: what the set is, which home it draws and the way to
+          find anything in it. Its tools stand at the right end of the strip. */}
       <header className="topbar">
         <div className="brand">
           <Mark />
           <span className="brand-name">HouseAtlas</span>
         </div>
         <button type="button" className="house-btn" onClick={() => setHomesOpen(true)} aria-haspopup="dialog" aria-label={`Home: ${house.name}. Choose home.`}>
-          <span className="house-name">{house.name}</span>
+          <span className="house-field">
+            <span className="house-label" aria-hidden="true">Home</span>
+            <span className="house-name">{house.name}</span>
+          </span>
           <Icon name="chevronDown" size={15} />
         </button>
         <button type="button" className="search-trigger" aria-label="Search rooms, belongings, manuals" onClick={() => dispatch({ type: 'search', open: true })}>
@@ -272,13 +283,21 @@ export function App() {
 
       <div className="shell-tools">
         <OverviewToggle expanded={sheetExpanded && !state.selection} onToggle={toggleOverview} />
+        {/* Atlas tools holds the saved house copy and the native tools; on
+            phones it shares one menu with Settings. */}
+        <button ref={toolsButton} type="button" className="tools-btn" aria-haspopup="dialog" onClick={openTools}>
+          <Icon name="tools" size={18} />
+          <span className="tools-label">Atlas tools</span>
+        </button>
         <button type="button" aria-label="Ask" className={`ask-btn${state.askOpen ? ' is-on' : ''}`} aria-pressed={state.askOpen} onClick={() => dispatch({ type: 'ask', open: !state.askOpen })}>
           <Icon name="ask" size={18} />
           <span>Ask</span>
         </button>
-        <button type="button" className="icon-btn tool-settings" aria-label="Settings" onClick={() => dispatch({ type: 'settingsOpen', open: true })}>
+        <button ref={settingsButton} type="button" className="icon-btn tool-settings" aria-label="Settings" onClick={openSettings}>
           <Icon name="settings" size={20} />
         </button>
+        <ShellMenu items={[{ label: 'Atlas tools', icon: 'tools', open: openTools, equivalent: toolsButton },
+          { label: 'Settings', icon: 'settings', open: openSettings, equivalent: settingsButton }]} />
       </div>
 
       <main id="main" className="main" tabIndex={-1}>

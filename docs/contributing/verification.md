@@ -1138,6 +1138,15 @@ rendering, qualified PNG display and actual private host/source acceptance requi
 separate supported-browser observations. Keep private inputs and captures outside
 Git, and stop the owned preview after the bounded review.
 
+The generated Host fixture's HTML gives both the Host and separate StageTimings
+mount nodes one shared `.lantern-integration` ancestor matching production.
+This supports presentation review of scoped styles, including Atlas tools
+placement, while keeping the bounded anonymous timing harness visible. The timing
+harness is fixture UI; it is not a product table or native acquisition surface.
+The Host's `nativeContent={null}` supplies no native acquisition authority or
+controls; generated presentation coverage does not establish native acquisition
+or household acceptance.
+
 The scan/network fixture mounts the actual LanternHost, NativeScanAtlas and
 NetworkSceneLayer through generated read-only ports. Its shared topology data
 is the existing generated topology fixture. Inspect each fixture entrypoint,

@@ -61,7 +61,13 @@ export function Modal({
     document.addEventListener('keydown', onKey, true);
     return () => {
       document.removeEventListener('keydown', onKey, true);
-      if (prev?.isConnected) prev.focus();
+      // Focus that already moved outside the dialog was put there on purpose.
+      const active = document.activeElement;
+      if (active && active !== document.body && !el?.contains(active)) return;
+      // The opener may have been hidden meanwhile, such as the phone menu
+      // when the screen widens; the main sheet then takes focus instead.
+      const shown = prev?.isConnected && prev.getClientRects().length > 0 && !prev.closest('[inert]');
+      (shown ? prev : document.getElementById('main'))?.focus();
     };
   }, []);
 

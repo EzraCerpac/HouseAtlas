@@ -1,24 +1,55 @@
+/* The saved viewer is the same drawing set, stamped as a saved capture: a
+   title strip with its shell state and scope, the copies kept in this
+   browser, the capture's coverage, then the Atlas sheet. */
 html, body, #root { margin: 0; width: 100%; min-width: 0; height: 100%; }
-.saved-atlas-app { height: 100dvh; display: flex; flex-direction: column; color: var(--ink); background: #f4f0e8; font-family: var(--text); overflow: hidden; }
-.saved-header { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem 1rem; padding: .55rem .8rem; border-bottom: 1px solid #d9d0c1; }
-.saved-header h1 { font-size: 1rem; margin: 0; }
-.saved-header > span { font-size: .75rem; }
-.saved-header details { font-size: .75rem; }
-.saved-header details[open], .saved-coverage[open] { max-height: 30dvh; overflow: auto; }
+.saved-atlas-app { height: 100dvh; display: flex; flex-direction: column; color: var(--ink); background: var(--frame); font-family: var(--text); font-size: var(--fs-s); line-height: 1.45; overflow: hidden; }
+
+.saved-header { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; min-height: 56px; padding: 6px 16px; flex-shrink: 0; }
+.saved-header h1 { margin: 0; font-family: var(--display); font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
+.saved-header > span { padding: 3px 10px; border: 1px solid var(--frame-line); border-radius: 999px; background: var(--sheet); font-size: var(--fs-xs); font-weight: 600; color: var(--ink-2); }
+.saved-header details { position: relative; font-size: var(--fs-xs); }
+.saved-header details > summary { display: inline-flex; align-items: center; min-height: 36px; padding: 0 4px; font-weight: 650; color: var(--ink-2); }
+.saved-header details[open] { flex-basis: 100%; max-height: 30dvh; overflow: auto; padding: 4px 0 8px; }
+.saved-header details p { margin: 4px 0; max-width: 70ch; }
 .saved-header code, .saved-coverage dd { overflow-wrap: anywhere; }
-.saved-header button, .saved-manager button { font: inherit; min-height: 36px; padding: .35rem .65rem; border: 1px solid #bcb2a1; border-radius: 5px; background: #fffcf6; color: inherit; cursor: pointer; }
-.saved-header button:focus-visible, .saved-manager button:focus-visible, .saved-atlas-app summary:focus-visible { outline: 3px solid #5b6c88; outline-offset: 2px; }
-.saved-manager { padding: .35rem .8rem; max-height: 20dvh; overflow: auto; flex-shrink: 0; }
-.saved-manager p { margin: .4rem 0; }
-.saved-copy { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem .7rem; font-size: .75rem; }
+
+.saved-header button, .saved-manager button { font: inherit; font-weight: 650; min-height: 36px; padding: 0 12px; border: 1px solid var(--frame-line); border-radius: var(--r-control); background: var(--sheet); color: var(--ink); cursor: pointer; }
+.saved-header button:hover, .saved-manager button:hover { border-color: var(--ink-2); }
+.saved-manager button[aria-pressed='true'] { background: var(--chrome); border-color: var(--chrome); color: #fff; }
+.saved-header button:focus-visible, .saved-manager button:focus-visible, .saved-atlas-app summary:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 2px; }
+
+/* Copies kept in this browser: one ruled row each. */
+.saved-manager { display: grid; gap: 6px; padding: 0 16px 8px; max-height: 20dvh; overflow: auto; flex-shrink: 0; }
+.saved-manager p { margin: 0; color: var(--ink-2); }
+.saved-copy { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 8px 10px; border: 1px solid var(--frame-line); border-radius: var(--r-panel); background: var(--card); }
 .saved-copy > div { flex: 1 1 14rem; min-width: 0; }
 .saved-copy strong, .saved-copy span { display: block; overflow-wrap: anywhere; }
-.saved-copy button { font-size: .75rem; }
-.saved-coverage { font-size: .75rem; padding: .3rem .8rem; flex-shrink: 0; }
+.saved-copy strong { font-family: var(--display); font-size: var(--fs-m); font-weight: 680; }
+.saved-copy span { font-size: var(--fs-xs); color: var(--muted); }
+
+.saved-coverage { font-size: var(--fs-xs); margin: 0 16px 8px; padding: 6px 12px; border-left: 3px solid var(--lantern-edge); border-radius: 0 var(--r-control) var(--r-control) 0; background: var(--warn-soft); color: #4a3200; flex-shrink: 0; }
+.saved-coverage > summary { min-height: 32px; display: flex; align-items: center; font-weight: 650; }
+.saved-coverage[open] { max-height: 30dvh; overflow: auto; }
 .saved-coverage p { margin: .5rem 0; }
-.saved-coverage dl { margin: .5rem 0; }
-.saved-coverage dd { margin-left: 0; }
-.saved-stage { flex: 1; min-height: 0; position: relative; }
+/* Each fact group spans the note; inside it the label stands beside its
+   value, and long revision or snapshot IDs wrap within their own column. */
+.saved-coverage dl { display: grid; gap: 4px; margin: .5rem 0; }
+.saved-coverage dl > div { display: grid; grid-template-columns: minmax(5.5rem, max-content) minmax(0, 1fr); gap: 2px 12px; min-width: 0; }
+.saved-coverage dt { min-width: 0; }
+.saved-coverage dd { min-width: 0; margin: 0; font-family: var(--code); }
+
+/* The Atlas sheet itself, laid on the table like the live app's work sheet. */
+.saved-stage { flex: 1; min-height: 0; position: relative; margin: 0 10px 10px; border-radius: var(--r-sheet); overflow: hidden; box-shadow: var(--shadow-sheet); }
 .saved-stage > .ua-shell { height: 100%; }
-.saved-message { padding: .5rem .8rem; }
-@media (max-width: 420px) { .saved-header { gap: .25rem .5rem; padding: .35rem .5rem; } .saved-header h1 { font-size: .9rem; } .saved-manager, .saved-coverage { padding-left: .5rem; padding-right: .5rem; } .saved-copy > div { flex-basis: 100%; } }
+.saved-message { margin: 0 16px 8px; padding: 8px 12px; border-radius: var(--r-control); background: var(--card); color: var(--ink-2); }
+.saved-message[role='alert'] { background: var(--alert-soft); color: var(--alert); font-weight: 600; }
+
+@media (max-width: 420px) {
+  .saved-header { gap: 4px 8px; padding: 6px 10px; }
+  .saved-header h1 { font-size: 17px; }
+  .saved-manager { padding: 0 10px 6px; }
+  .saved-coverage, .saved-message { margin-left: 10px; margin-right: 10px; }
+  .saved-copy > div { flex-basis: 100%; }
+  .saved-coverage dl > div { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .saved-stage { margin: 0; border-radius: var(--r-sheet) var(--r-sheet) 0 0; }
+}

@@ -94,10 +94,12 @@
 }
 
 /* ---------------- Shell ----------------
-   An indigo-ink frame holds paper sheets: the work surface and, only while
-   something is selected or the overview is open, the inspector.
-   Wide: sidebar | sheet | inspector. Narrower: top bar + rail (or bottom bar
-   on phones) around one sheet; the inspector floats as a drawer or sheet. */
+   The drawing set. A vellum table holds the sheets: the title strip runs
+   across the top, the section tabs down the left edge, the work sheet in the
+   middle and, while a record or the overview is open, the record sheet
+   beside it. The current tab is cut from the sheet's own paper and joins it.
+   Phones: the strip on top, the tabs along the bottom, one sheet between;
+   the record sheet rises from the bottom edge. */
 
 /* Neither border-box reset reaches the host itself; without it the safe-area
    padding is added to 100dvh and the document scrolls. */
@@ -107,39 +109,36 @@
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   display: grid;
   grid-template-columns: var(--side) minmax(0, 1fr) auto;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: var(--topbar) minmax(0, 1fr);
   grid-template-areas:
-    'top main main'
-    'nav main main'
-    'tools main main';
+    'top top tools'
+    'nav main main';
   overflow: hidden;
-  background: var(--chrome);
+  background: var(--frame);
 }
 
 .lantern-host.app.has-detail {
   grid-template-areas:
-    'top main detail'
-    'nav main detail'
-    'tools main detail';
+    'top top tools'
+    'nav main detail';
 }
 
 .lantern-host .topbar,
 .lantern-host .navrail,
 .lantern-host .shell-tools {
-  --focus: var(--lantern);
-  background: var(--chrome);
-  color: var(--chrome-ink);
   position: relative;
   z-index: 20;
+  color: var(--ink);
 }
 
+/* One strip, ruled off from the sheets below it like a title block. */
 .lantern-host .topbar {
   grid-area: top;
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 10px;
-  padding: 18px 12px 14px 14px;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 0 12px 0 18px;
 }
 
 .lantern-host .navrail {
@@ -147,25 +146,31 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 8px 12px 8px 14px;
   min-height: 0;
+  /* The first tab starts below the sheet's rounded corner, so it meets a
+     straight edge. */
+  padding: calc(var(--r-sheet) + 2px) 0 12px 10px;
   overflow-y: auto;
+  scrollbar-width: none;
 }
 
 .lantern-host .shell-tools {
   grid-area: tools;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 8px;
-  padding: 12px 12px 16px 14px;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 calc(var(--gap) + 2px) 0 8px;
 }
 
+/* The work sheet: vellum on the table, a hairline edge and a short shadow. */
 .lantern-host .main {
   grid-area: main;
   min-width: 0;
   min-height: 0;
-  margin: var(--gap) var(--gap) var(--gap) 0;
+  margin: 0 var(--gap) var(--gap) 0;
   border-radius: var(--r-sheet);
   overflow: auto;
   position: relative;
@@ -182,7 +187,7 @@
 }
 
 .lantern-host .main:focus-visible {
-  outline: 2.5px solid var(--lantern);
+  outline: 2.5px solid var(--focus);
   outline-offset: -2.5px;
 }
 
@@ -210,14 +215,15 @@
   overflow: auto;
 }
 
+/* The record sheet: the overview or one record, laid beside the work sheet. */
 .lantern-host .detail-col {
   grid-area: detail;
   width: var(--detail);
   min-height: 0;
-  margin: var(--gap);
+  margin: 0 var(--gap) var(--gap);
   border-radius: var(--r-sheet);
   overflow: hidden;
-  background: var(--card);
+  background: var(--sheet);
   display: none;
   flex-direction: column;
   z-index: 15;
@@ -226,6 +232,7 @@
 
 .lantern-host .detail-col.is-expanded {
   display: flex;
+  animation: drawer-in 0.22s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
 .lantern-host .detail-scroll {
@@ -241,12 +248,17 @@
 
 /* ---------------- Brand, home and search ---------------- */
 
+/* The set's mark spans the tab column on wide tables, so the home's name
+   starts over the sheet's edge. */
 .lantern-host .brand {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
-  padding: 0 4px 8px;
+  /* The strip's left padding and gap are taken out, so the field's rule
+     lines up with the sheet's edge. */
+  width: calc(var(--side) - 32px);
+  min-width: max-content;
 }
 
 .lantern-host .mark {
@@ -261,35 +273,46 @@
   font-size: 19px;
   letter-spacing: -0.02em;
   white-space: nowrap;
-  color: #fff;
+  color: var(--ink);
 }
 
+/* A title-block field: its label over the home's name. */
 .lantern-host .house-btn {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
-  height: 40px;
-  padding: 0 10px 0 12px;
-  border: 1px solid var(--chrome-line);
-  border-radius: var(--r-control);
-  background: var(--chrome-2);
-  color: #fff;
-  font-family: var(--display);
-  font-size: 16px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  max-width: 320px;
+  height: 46px;
+  padding: 0 10px 0 14px;
+  border: 0;
+  border-left: 1px solid var(--frame-line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
   text-align: left;
+  transition: background-color 0.18s ease;
 }
 
 .lantern-host .house-btn:hover {
-  border-color: var(--chrome-muted);
+  background: rgba(60, 46, 22, 0.06);
 }
 
 .lantern-host .house-btn .icon {
   flex-shrink: 0;
-  color: var(--chrome-muted);
+  color: var(--muted);
+}
+
+.lantern-host .house-field {
+  display: grid;
+  min-width: 0;
+}
+
+.lantern-host .house-label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--muted);
 }
 
 .lantern-host .house-name {
@@ -297,25 +320,33 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--display);
+  font-size: 17px;
+  font-weight: 680;
+  line-height: 1.2;
+  letter-spacing: -0.012em;
 }
 
 .lantern-host .search-trigger {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 0 1 340px;
   min-width: 0;
   height: 40px;
+  margin-left: auto;
   padding: 0 8px 0 12px;
-  border: 1px solid transparent;
+  border: 1px solid var(--frame-line);
   border-radius: var(--r-control);
-  background: rgba(255, 255, 255, 0.07);
-  color: var(--chrome-muted);
+  background: var(--sheet);
+  color: var(--muted);
   text-align: left;
+  transition: border-color 0.18s ease;
 }
 
 .lantern-host .search-trigger:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  border-color: var(--ink-2);
+  color: var(--ink);
 }
 
 .lantern-host .search-label {
@@ -337,55 +368,72 @@
 }
 
 .lantern-host .search-trigger kbd {
-  border-color: var(--chrome-line);
-  background: transparent;
-  color: var(--chrome-muted);
+  border-color: var(--frame-line);
+  background: var(--card-2);
 }
 
-/* ---------------- Navigation ---------------- */
+/* ---------------- Section tabs ----------------
+   Each section is a tab on the set. The current one is cut from the work
+   sheet's paper and meets its edge, with a lantern mark on its spine. */
 
 .lantern-host .nav-btn {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 42px;
+  gap: 11px;
+  min-height: 44px;
+  margin-right: var(--gap);
   padding: 0 12px;
   border: 0;
   border-radius: var(--r-control);
   background: transparent;
-  color: var(--chrome-muted);
+  color: var(--ink-2);
   font-size: var(--fs-m);
-  font-weight: 550;
+  font-weight: 560;
   text-align: left;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.lantern-host .nav-btn .icon {
+  color: var(--muted);
 }
 
 .lantern-host .nav-btn:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  background: rgba(60, 46, 22, 0.06);
 }
 
 .lantern-host .nav-btn.is-current {
-  color: #fff;
-  font-weight: 650;
-  background: rgba(255, 255, 255, 0.09);
+  margin-right: 0;
+  border-radius: var(--r-control) 0 0 var(--r-control);
+  background: var(--ground);
+  color: var(--ink);
+  font-weight: 680;
+  box-shadow: inset 0 1px 0 var(--frame-line), inset 0 -1px 0 var(--frame-line), inset 1px 0 0 var(--frame-line);
+}
+
+/* The Atlas sheet is lamplit vellum; its tab takes the same paper. */
+.lantern-host.view-atlas .nav-btn.is-current {
+  background: var(--card-2);
 }
 
 .lantern-host .nav-btn.is-current .icon {
-  color: var(--lantern);
+  color: var(--ink);
 }
 
-/* The lit edge: the one place the frame itself glows. */
 .lantern-host .nav-btn.is-current::before {
   content: '';
   position: absolute;
-  left: -14px;
-  top: 9px;
-  bottom: 9px;
-  width: 4px;
-  border-radius: 0 4px 4px 0;
-  background: var(--lantern);
-  box-shadow: 0 0 14px rgba(255, 209, 92, 0.75);
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--lantern-edge);
+}
+
+.lantern-host .nav-btn:focus-visible {
+  outline-offset: -3px;
 }
 
 .lantern-host .nav-badge {
@@ -402,46 +450,54 @@
   text-align: center;
 }
 
-/* ---------------- Overview toggle and tools ---------------- */
+/* ---------------- Title strip tools ----------------
+   The source field (HomeBox state, its last successful update and what
+   needs attention) opens the overview; then the tools, each a paper key. */
 
 .lantern-host .source-status {
   position: relative;
-  flex: 1 1 100%;
+  flex: 0 1 auto;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, auto) auto;
   align-items: center;
   column-gap: 9px;
-  row-gap: 2px;
+  row-gap: 0;
   min-width: 0;
-  padding: 10px 11px;
-  border: 1px solid var(--chrome-line);
-  border-radius: var(--r-control);
+  height: 46px;
+  padding: 0 12px;
+  border: 0;
+  border-left: 1px solid var(--frame-line);
+  border-right: 1px solid var(--frame-line);
+  border-radius: 0;
   background: transparent;
-  color: var(--chrome-ink);
+  color: var(--ink);
   text-align: left;
   font-size: var(--fs-s);
+  line-height: 1.25;
+  transition: background-color 0.18s ease;
 }
 
 .lantern-host .source-status:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(60, 46, 22, 0.06);
 }
 
 .lantern-host .source-status[aria-expanded='true'] {
-  border-color: var(--lantern);
-  background: rgba(255, 209, 92, 0.1);
+  background: var(--lantern-soft);
+  box-shadow: inset 0 -3px 0 var(--lantern-edge);
 }
 
 .lantern-host .sync-dot {
+  grid-row: 1 / 3;
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #6fd197;
-  box-shadow: 0 0 0 3px rgba(111, 209, 151, 0.18);
+  background: var(--ok);
+  box-shadow: 0 0 0 3px rgba(33, 122, 69, 0.16);
 }
 
 .lantern-host .source-status.is-warn .sync-dot {
-  background: #ffc25c;
-  box-shadow: 0 0 0 3px rgba(255, 194, 92, 0.2);
+  background: var(--lantern-edge);
+  box-shadow: 0 0 0 3px rgba(220, 159, 11, 0.2);
 }
 
 .lantern-host .source-status-main {
@@ -452,25 +508,30 @@
 }
 
 .lantern-host .source-status-name {
-  font-weight: 650;
-  color: #fff;
+  font-weight: 680;
+  color: var(--ink);
+}
+
+.lantern-host .source-status-state {
+  color: var(--ink-2);
 }
 
 .lantern-host .source-status.is-warn .source-status-state {
-  color: #ffd27f;
+  color: var(--warn);
   font-weight: 600;
 }
 
 .lantern-host .source-status-detail {
-  grid-column: 2 / 4;
+  grid-column: 2;
   display: grid;
   font-size: var(--fs-xs);
-  color: var(--chrome-muted);
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 .lantern-host .source-status-count {
   grid-column: 3;
-  grid-row: 1;
+  grid-row: 1 / 3;
   min-width: 22px;
   height: 22px;
   padding: 0 7px;
@@ -483,29 +544,87 @@
   text-align: center;
 }
 
+.lantern-host .tools-btn,
 .lantern-host .ask-btn {
-  flex: 1;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 38px;
-  padding: 0 14px;
+  height: 40px;
+  padding: 0 14px 0 12px;
   border-radius: var(--r-control);
-  border: 1px solid var(--chrome-line);
-  background: var(--chrome-2);
-  color: #fff;
+  border: 1px solid var(--frame-line);
+  background: var(--sheet);
+  color: var(--ink);
+  font-size: var(--fs-s);
   font-weight: 650;
+  white-space: nowrap;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
 }
 
+.lantern-host .tools-btn:hover,
 .lantern-host .ask-btn:hover {
-  border-color: var(--chrome-muted);
+  border-color: var(--ink-2);
 }
 
 .lantern-host .ask-btn.is-on {
   background: var(--lantern);
-  border-color: var(--lantern);
+  border-color: var(--lantern-edge);
   color: var(--ink);
+}
+
+/* Phones: Atlas tools and Settings share one menu. */
+.lantern-host .shell-menu {
+  position: relative;
+  display: none;
+}
+
+.lantern-host .shell-menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 2px;
+  min-width: 200px;
+  padding: 5px;
+  border: 1px solid var(--hair-2);
+  border-radius: var(--r-panel);
+  background: var(--card);
+  box-shadow: var(--shadow-float);
+  animation: rise-in 0.16s ease-out;
+}
+
+.lantern-host .shell-menu-panel[hidden] {
+  display: none;
+}
+
+.lantern-host .shell-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--fs-s);
+  font-weight: 600;
+  text-align: left;
+}
+
+.lantern-host .shell-menu-row:hover {
+  background: rgba(60, 46, 22, 0.06);
+}
+
+.lantern-host .shell-menu-row .icon {
+  color: var(--muted);
+}
+
+.lantern-host .shell-menu-row:focus-visible {
+  outline-offset: -3px;
 }
 
 .lantern-host .icon-btn {
@@ -525,14 +644,22 @@
 }
 
 .lantern-host .shell-tools .icon-btn {
-  width: 38px;
-  height: 38px;
-  color: var(--chrome-ink);
-  border-color: var(--chrome-line);
+  width: 40px;
+  height: 40px;
+  color: var(--ink);
+  border-color: var(--frame-line);
+  background: var(--sheet);
 }
 
 .lantern-host .shell-tools .icon-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--ink-2);
+  background: var(--sheet);
+}
+
+.lantern-host .shell-tools .shell-menu-btn[aria-expanded='true'] {
+  background: var(--chrome);
+  border-color: var(--chrome);
+  color: #fff;
 }
 
 /* ---------------- Archive filter ---------------- */
@@ -1239,18 +1366,19 @@
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgba(22, 50, 79, 0.42);
+  background: rgba(32, 30, 26, 0.38);
   animation: fade-in 0.18s ease-out;
 }
 
+/* A dialog is one more sheet laid on the set, ruled across its head. */
 .lantern-host .modal {
   width: min(560px, 100%);
   max-height: min(860px, calc(100dvh - 40px));
   display: flex;
   flex-direction: column;
-  background: var(--card);
-  border-radius: 14px;
-  border-top: 4px solid var(--chrome);
+  background: var(--sheet);
+  border-radius: var(--r-sheet);
+  border-top: 3px solid var(--ink);
   box-shadow: var(--shadow-modal);
   animation: rise-in 0.22s ease-out;
 }
@@ -1293,7 +1421,7 @@
   padding: 12px 22px;
   border-top: 1px solid var(--hair);
   background: var(--card-2);
-  border-radius: 0 0 14px 14px;
+  border-radius: 0 0 var(--r-sheet) var(--r-sheet);
 }
 
 .lantern-host .sim-note {
@@ -1496,90 +1624,32 @@
 
 /* ---------------- Responsive shell ---------------- */
 
-/* Laptop: ink top bar and rail; inspector stays a docked sheet. */
+/* Wide tables show the source field's last successful update under its
+   state; a second source keeps its date in the field's name and title. */
+@media (min-width: 1440px) {
+  .lantern-host .source-status:has(> .source-status-detail > span:nth-child(2)) .source-status-detail {
+    display: none;
+  }
+}
+
+/* Laptop: the tabs become a rail of icons over their names; the record
+   sheet stays docked beside the work sheet. */
 @media (max-width: 1439px) {
   .lantern-host.app {
     grid-template-columns: var(--nav) minmax(0, 1fr) auto;
-    grid-template-rows: var(--topbar) minmax(0, 1fr);
-    grid-template-areas:
-      'top top tools'
-      'nav main main';
-  }
-
-  .lantern-host.app.has-detail {
-    grid-template-areas:
-      'top top tools'
-      'nav main detail';
-  }
-
-  .lantern-host .main {
-    margin-top: 0;
-  }
-
-  .lantern-host .detail-col {
-    margin-top: 0;
-  }
-
-  .lantern-host .topbar {
-    flex-direction: row;
-    align-items: center;
-    gap: 12px;
-    padding: 0 12px 0 18px;
   }
 
   .lantern-host .brand {
-    padding: 0 6px 0 0;
-  }
-
-  .lantern-host .house-btn {
-    flex: 0 1 auto;
-    max-width: 260px;
-    height: 36px;
-  }
-
-  .lantern-host .search-trigger {
-    flex: 0 1 300px;
-    height: 36px;
-  }
-
-  .lantern-host .shell-tools {
-    flex-wrap: nowrap;
-    justify-content: flex-end;
-    gap: 6px;
-    padding: 0 12px 0 8px;
-  }
-
-  .lantern-host .source-status {
-    flex: 0 1 auto;
-    grid-template-columns: auto auto auto;
-    padding: 0 8px 0 11px;
-    height: 36px;
+    width: auto;
   }
 
   .lantern-host .source-status-detail {
     display: none;
   }
 
-  .lantern-host .source-status-count {
-    min-width: 20px;
-    height: 20px;
-    line-height: 20px;
-    padding: 0 6px;
-  }
-
-  .lantern-host .ask-btn {
-    flex: 0 0 auto;
-    height: 36px;
-  }
-
-  .lantern-host .shell-tools .icon-btn {
-    width: 36px;
-    height: 36px;
-  }
-
   .lantern-host .navrail {
     align-items: stretch;
-    padding: 4px 6px 10px;
+    padding-left: 8px;
     gap: 4px;
   }
 
@@ -1587,17 +1657,16 @@
     flex-direction: column;
     justify-content: center;
     gap: 4px;
-    min-height: 58px;
-    padding: 7px 2px 6px;
-    font-size: 11.5px;
+    min-height: 60px;
+    padding: 8px 2px 7px;
+    font-size: var(--fs-xs);
     line-height: 1.15;
     text-align: center;
   }
 
   .lantern-host .nav-btn.is-current::before {
-    left: -6px;
-    top: 12px;
-    bottom: 12px;
+    top: 14px;
+    bottom: 14px;
   }
 
   .lantern-host .nav-badge {
@@ -1611,7 +1680,7 @@
   }
 }
 
-/* Tablet: inspector becomes a drawer over the sheet. */
+/* Tablet: the record sheet lies over the work sheet's right edge. */
 @media (max-width: 1179px) {
   .lantern-host.app,
   .lantern-host.app.has-detail {
@@ -1630,11 +1699,26 @@
     display: none;
   }
 
+  /* Its name stays the control's name. */
+  .lantern-host .tools-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
   .lantern-host .search-trigger {
     flex: 0 0 auto;
     width: 40px;
     padding: 0;
     justify-content: center;
+  }
+
+  .lantern-host .tools-btn {
+    width: 40px;
+    padding: 0;
   }
 
   .lantern-host .detail-col.is-expanded {
@@ -1673,8 +1757,9 @@
   }
 }
 
-/* Phone: ink top and bottom bars; one full-width sheet; the inspector is a
-   bottom sheet opened by a selection or the overview button. */
+/* Phone: the strip on top and the tabs along the bottom hold one full-width
+   sheet; the record sheet rises from the bottom, opened by a selection or
+   the source field. */
 @media (max-width: 759px) {
   .lantern-host.app,
   .lantern-host.app.has-detail {
@@ -1692,16 +1777,12 @@
   .lantern-host.has-detail .main {
     margin: 0;
     border-radius: var(--r-sheet) var(--r-sheet) 0 0;
-    box-shadow: none;
+    box-shadow: 0 0 0 1px var(--frame-line);
   }
 
   .lantern-host .topbar {
-    gap: 8px;
-    padding: 0 4px 0 12px;
-  }
-
-  .lantern-host .brand {
-    padding: 0;
+    gap: 6px;
+    padding: 0 2px 0 10px;
   }
 
   .lantern-host .brand-name {
@@ -1716,14 +1797,18 @@
   .lantern-host .house-btn {
     flex: 1 1 auto;
     max-width: none;
-    padding: 0 8px 0 10px;
-    border-color: transparent;
-    background: transparent;
-    font-size: 17px;
+    height: 44px;
+    padding: 0 6px 0 10px;
+  }
+
+  .lantern-host .house-label {
+    display: none;
   }
 
   .lantern-host .search-trigger {
-    width: 38px;
+    width: 40px;
+    margin-left: 0;
+    border-color: transparent;
     background: transparent;
   }
 
@@ -1733,13 +1818,23 @@
   }
 
   .lantern-host .source-status {
+    height: 44px;
     padding: 0 9px;
-    border-color: transparent;
+    border: 0;
+  }
+
+  .lantern-host .tools-btn,
+  .lantern-host .tool-settings {
+    display: none;
+  }
+
+  .lantern-host .shell-menu {
+    display: block;
   }
 
   .lantern-host .ask-btn,
   .lantern-host .shell-tools .icon-btn {
-    width: 38px;
+    width: 40px;
     padding: 0;
     border-color: transparent;
     background: transparent;
@@ -1759,14 +1854,21 @@
     gap: 0;
     padding: 4px 4px calc(2px + env(safe-area-inset-bottom));
     overflow: visible;
+    background: var(--card);
+    box-shadow: inset 0 1px 0 var(--frame-line);
   }
 
-  .lantern-host .nav-btn {
+  .lantern-host .nav-btn,
+  .lantern-host .nav-btn.is-current {
     flex: 1 1 0;
     min-width: 0;
     min-height: 52px;
+    margin: 0;
     padding: 5px 1px 3px;
-    font-size: 10.5px;
+    border-radius: var(--r-control);
+    font-size: var(--fs-xs);
+    letter-spacing: -0.01em;
+    box-shadow: none;
   }
 
   /* Every tab name on one line, so none is cut by the screen edge. A name too
@@ -1793,13 +1895,13 @@
     content: attr(data-short) / '';
   }
 
-  .lantern-host .nav-btn.is-current {
+  .lantern-host .navrail .nav-btn.is-current {
     background: transparent;
   }
 
   .lantern-host .nav-btn.is-current::before {
-    left: 26%;
-    right: 26%;
+    left: 24%;
+    right: 24%;
     top: -4px;
     bottom: auto;
     width: auto;
@@ -1821,7 +1923,7 @@
     height: min(80dvh, calc(100dvh - var(--topbar) - 70px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
     border: 0;
     border-radius: 18px 18px 0 0;
-    box-shadow: 0 -18px 40px -18px rgba(4, 12, 28, 0.55);
+    box-shadow: 0 0 0 1px var(--frame-line), 0 -18px 40px -18px rgba(40, 30, 14, 0.45);
     animation: sheet-in 0.24s ease-out;
   }
 
@@ -1876,7 +1978,22 @@
   }
 }
 
+/* Small phones: the home's name takes the strip; the source field keeps its
+   dot and count, its full state in its name. */
 @media (max-width: 419px) {
+  .lantern-host .brand {
+    display: none;
+  }
+
+  .lantern-host .house-btn {
+    padding-left: 4px;
+    border-left: 0;
+  }
+
+  .lantern-host .house-name {
+    font-size: 16px;
+  }
+
   .lantern-host .source-status-main {
     display: none;
   }

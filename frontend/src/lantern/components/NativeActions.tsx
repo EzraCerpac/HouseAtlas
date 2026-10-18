@@ -60,8 +60,13 @@ export function NativeActions() {
       (previous?.isConnected && previous.getClientRects().length ? previous : document.getElementById('main'))?.focus();
     };
   }, [state.nativeOpen]);
-  return <div ref={panel} className="native-actions-panel" hidden={!state.nativeOpen} role="dialog" aria-modal={state.nativeOpen ? true : undefined} aria-label="Atlas tools" tabIndex={-1}>
-    <button type="button" onClick={() => dispatch({ type: 'nativeOpen', open: false })}>Close Atlas tools</button>
-    {actions.nativeContent}
+  // One more sheet of the set: a ruled head with its name and the way back,
+  // then the saved house copy and the native tools as they are authored.
+  return <div ref={panel} className="native-actions-panel lantern-tokens" hidden={!state.nativeOpen} role="dialog" aria-modal={state.nativeOpen ? true : undefined} aria-label="Atlas tools" tabIndex={-1}>
+    <header className="native-actions-head">
+      <button type="button" className="native-actions-close" onClick={() => dispatch({ type: 'nativeOpen', open: false })}>Close Atlas tools</button>
+      <h2 className="native-actions-title">Atlas tools</h2>
+    </header>
+    <div className="native-actions-body">{actions.nativeContent}</div>
   </div>;
 }
