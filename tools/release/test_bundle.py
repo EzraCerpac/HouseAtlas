@@ -5,7 +5,10 @@ import io
 import os
 from pathlib import Path
 import shutil
+import subprocess
+import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -113,7 +116,10 @@ class HappyWorkflow(unittest.TestCase):
                                                        for name, data in uploaded.items()]}
                 self.fail("Unexpected fake API read")
 
-            def fake_command(args, cwd=workflow.ROOT):
+            def fake_command(args, cwd=workflow.ROOT, *, timeout=120):
+                boundary = getattr(self, "command_boundary", None)
+                if boundary is not None:
+                    boundary(args, cwd=cwd, timeout=timeout)
                 calls.append(args)
                 if args[:3] == ["gh", "run", "download"]:
                     shutil.copytree(root / "built", Path(args[args.index("--dir") + 1]))
@@ -150,5 +156,75 @@ class HappyWorkflow(unittest.TestCase):
             self.assertIn("--draft=false", calls[-1])
 
 
+def repair_regression_suite():
+    """Explicitly selected review regressions; excluded from ordinary discovery."""
+    class PackagingRepairRegression(unittest.TestCase):
+        def test_slow_transfers_use_job_budget_and_inspections_keep_short_timeout(self):
+            calls = []
+            transfer_prefixes = {("gh", "run", "download"), ("gh", "release", "upload"), ("gh", "release", "download")}
+
+            def fake_run(args, **kwargs):
+                timeout = kwargs["timeout"]
+                # Simulated duration only: no wall-clock wait and no process.
+                simulated_seconds = 150 if tuple(args[:3]) in transfer_prefixes else 1
+                if timeout < simulated_seconds:
+                    raise subprocess.TimeoutExpired(args, timeout)
+                calls.append((tuple(args[:3]), timeout))
+                return SimpleNamespace(stdout="generated result\n")
+
+            original_command = workflow.command
+            case = HappyWorkflow("test_fake_local_publication_preserves_built_bytes_and_publishes_last")
+            case.command_boundary = original_command
+            with patch.object(workflow.subprocess, "run", side_effect=fake_run):
+                self.assertEqual(original_command(["git", "rev-parse", "HEAD"]), "generated result")
+                case.test_fake_local_publication_preserves_built_bytes_and_publishes_last()
+            transfers = [(prefix, timeout) for prefix, timeout in calls if prefix in transfer_prefixes]
+            self.assertEqual([prefix for prefix, _ in transfers],
+                             [("gh", "run", "download"), ("gh", "release", "upload"), ("gh", "release", "download")])
+            self.assertTrue(all(timeout == 600 for _, timeout in transfers))
+            self.assertTrue(all(timeout == 120 for prefix, timeout in calls if prefix not in transfer_prefixes))
+
+        def test_ustar_name_and_prefix_boundaries_roundtrip(self):
+            # A 100-byte final name and a 155-byte prefix both remain valid;
+            # reject unencodable paths without unnecessarily shortening all paths.
+            names = ["frontend/" + "a" * 97 + ".js", "frontend/" + "a" * 146 + "/" + "b" * 21 + ".js"]
+            with tempfile.TemporaryDirectory(prefix="houseatlas-ustar-boundary-") as scratch:
+                root = Path(scratch)
+                source = payload(root / "payload")
+                for name in names:
+                    path = source / name
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(b"generated boundary asset\n")
+                manifest = pack(source, metadata(), root / "bundle")
+                verified = verify_bundle(root / "bundle", file_digest(root / "bundle/manifest.json"))
+                self.assertEqual(verified, manifest)
+                self.assertTrue(set(names) <= {row["path"] for row in manifest["files"]})
+
+        def test_unencodable_ustar_paths_rejected_before_output_and_by_manifest(self):
+            names = ["frontend/" + "a" * 157 + ".js", "frontend/" + "a" * 147 + "/" + "b" * 20 + ".js"]
+            for name in names:
+                with self.subTest(path_bytes=len(name)), tempfile.TemporaryDirectory(prefix="houseatlas-ustar-repair-") as scratch:
+                    root = Path(scratch)
+                    source = payload(root / "payload")
+                    path = source / name
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(b"generated unencodable asset\n")
+                    with self.assertRaisesRegex(ValueError, "cannot be encoded as USTAR"):
+                        pack(source, metadata(), root / "bundle")
+                    self.assertFalse((root / "bundle").exists())
+                    manifest = copy.deepcopy(read_json(HERE / "fixtures/bundle.manifest.json"))
+                    asset = next(row for row in manifest["files"] if row["path"] == "frontend/assets/application.js")
+                    asset["path"] = name
+                    manifest["files"].sort(key=lambda row: row["path"])
+                    with self.assertRaisesRegex(ValueError, "cannot be encoded as USTAR"):
+                        validate_manifest(manifest)
+
+    return unittest.defaultTestLoader.loadTestsFromTestCase(PackagingRepairRegression)
+
+
 if __name__ == "__main__":
-    unittest.main()
+    if sys.argv[1:] == ["--repair-regressions"]:
+        result = unittest.TextTestRunner(verbosity=2).run(repair_regression_suite())
+        sys.exit(0 if result.wasSuccessful() else 1)
+    else:
+        unittest.main()

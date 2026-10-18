@@ -1843,3 +1843,18 @@ controls remain separate. The release workflow validates scoped PRs; actual
 main build and promotion are explicit manual operations with separate reviewed
 native-profile, storage-compatibility, producer and publication gates. Source
 checks do not qualify a NAS binary, updater transaction, deployment or device.
+
+The two reviewed packaging repairs additionally have this explicitly selected,
+separate generated regression command:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 tools/release/test_bundle.py --repair-regressions
+```
+
+Exactly three cases use fake subprocesses with simulated transfer durations and
+disposable generated USTAR paths. They check the three transfer ceilings versus
+the short inspection timeout, valid filename/prefix boundaries, and pre-output
+rejection of unencodable paths in producer and manifest admission. They run no
+network, wall-clock timeout, native binary, credential, provider or household
+operation. These cases remain excluded from ordinary seven-test discovery and
+add no CI step or broader control permission.
