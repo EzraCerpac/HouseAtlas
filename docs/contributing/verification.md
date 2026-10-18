@@ -2085,3 +2085,21 @@ shared-medium association. The five earlier snapshot pins stay unchanged.
 Room-summary lines are logical associations, not surveyed device positions or
 physical cable routes. Generated source/build checks do not accept pixels,
 native authority, installation or offline/device behavior.
+
+### Established-session bounded native HTTP transport
+
+Read `docs/operations/updater-established-native-transport.md`, the concrete
+`established_native_http.py` source and complete named test body first. The
+separately released ordinary generated positive, from the repository root, is:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tools/houseatlas-updater:tools/houseatlas-updater-runtime python3 tools/houseatlas-updater-runtime/tests/test_established_native_http_happy.py EstablishedNativeHttpHappyPaths.test_existing_session_fixed_get_partial_io_and_deadline -v
+```
+
+One finite existing-owner fixture exercises all nine fixed GET routes through
+actual transport parsing and shared-deadline logic with generated socket/TLS/clock
+ports. It checks normal partial I/O, chunk framing, original session fields and
+closure; it opens no socket, loads no trust material and calls no native/session
+owner. No malformed, denial, failure, expiry, concurrency, replay, crash or broader
+suite is released. This is source behavior, not application readiness, native
+coherence, qualified peer/TLS/grants, maintenance authority or deployment.
