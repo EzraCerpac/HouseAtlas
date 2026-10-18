@@ -146,7 +146,7 @@ export function projectSavedAtlasOverlays(input: SavedPackSections, scene: Atlas
     // Keep every placed/unplaced observation until the complete canonical merge.
     const all = mergeDocumentaryRecords([...property.rooms.values()].flatMap(room => [...room[kind]]).concat([...property.unplaced[kind]]));
     const byKey = new Map(all.map(record => [record.key, record]));
-    for (const [roomId, room] of property.rooms) (property.rooms as Map<string, typeof room>).set(roomId, { ...room, [kind]: room[kind].map(record => byKey.get(record.key)!) });
+    for (const [roomId, room] of property.rooms) (property.rooms as Map<string, typeof room>).set(roomId, { ...room, [kind]: room[kind].map(record => mergeDocumentaryRecords([record, byKey.get(record.key)!])[0]!) });
     property.unplaced = { ...property.unplaced, [kind]: all.filter(record => !placed.has(record.key)) };
     const states = [...coverageSources[kind], ...property.buildings.map(row => row[kind])];
     property[kind] = property.buildings.length > 0 && !sourceOutsideModel && states.every(state => state === 'available') ? 'available'

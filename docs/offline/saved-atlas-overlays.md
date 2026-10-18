@@ -69,7 +69,17 @@ The valid two-association positive shares one primary evidence closure across
 two captured buildings. One has a captured room join and the other does not.
 Aggregation retains both observations and association provenance before merging
 canonical records, then derives placed/unplaced totals. Reversing source order
-preserves those observations without counting the same record twice.
+preserves those observations without counting the same record twice. Each room
+keeps its complete local observation primary when global observations are
+attached, including its original dates, connections and captured association.
+The same named positive adds an explicitly shared retained source entity in two
+rooms through re-pinned valid resources and the actual retained readers/store
+interfaces. Reversing room, map, association and source order preserves each
+local primary and both room observations plus an unplaced observation, without
+adding an unplaced entity for an already placed record. Reused raw IDs across
+generic source, historical sheet and symbol categories stay distinct; unique
+Electrical/Network totals remain 6/5 and unplaced totals remain 4/4. This is CPU
+projection evidence only; earlier browser pixels do not qualify corrected bytes.
 
 A verified retained native building can be absent or unmapped in the model.
 Its known source records and graph remain visible unplaced; model membership

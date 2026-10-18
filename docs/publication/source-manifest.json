@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "485c5f7c96cf9ff038dded4fd4f2275b63190f6008b5ec8be631e79194a20fbe",
+  "sourceDigestSha256": "d4f3ac7455d39a63375b89360ac2016461e11a362661db2855c249e0915e5489",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -6314,8 +6314,8 @@
     {
       "path": "docs/offline/saved-atlas-overlays.md",
       "mode": "100644",
-      "bytes": 5686,
-      "sha256": "4aa900d351a74c92ce1788db92839647ec00baad1d3b963d591089c583cc98a4",
+      "bytes": 6479,
+      "sha256": "850053fde451e247ec38d72d01dac274e416e3a74ae27034270418eb54e036da",
       "owner": "web"
     },
     {
@@ -7462,8 +7462,8 @@
     {
       "path": "frontend/lantern-tests/offline-atlas-overlays-healthy.mjs",
       "mode": "100644",
-      "bytes": 22470,
-      "sha256": "e7d5182404f26028fe95e992b559f9359cada610e582525c386db2f8dbd41e43",
+      "bytes": 30463,
+      "sha256": "cebf74160340a38e7913a062229c32a30c5cbc5f0a469f53c694d559e14327d9",
       "owner": "web"
     },
     {
@@ -9821,8 +9821,8 @@
     {
       "path": "frontend/src/offline/saved-atlas-overlays.ts",
       "mode": "100644",
-      "bytes": 28799,
-      "sha256": "83d8a9e3c153b9fa7646189e2744d27676b9c34b34264e98e7203e3ff44cecdc",
+      "bytes": 28838,
+      "sha256": "2901cceb78e1707403d59f3420fae969a448b4f5a9285bb1d7522f090d011318",
       "owner": "web"
     },
     {

@@ -16,15 +16,17 @@ writeFileSync(entry, [
   ['frontend/src/offline/saved-pack-sections.ts', ['readSavedPackSections']],
   ['frontend/src/offline/saved-atlas-overlays.ts', ['projectSavedAtlasOverlays','readSavedHistoricalFacts']],
   ['frontend/src/offline/saved-atlas-port.ts', ['createSavedAtlasDataAdapter']],
-  ['frontend/src/offline/manifest.ts', ['canonicalPack']],
-  ['frontend/src/lantern/unified-atlas/runtime-overlays.ts', ['mergeDocumentaryRecords']],
+  ['frontend/src/offline/manifest.ts', ['canonicalPack', 'readPackManifest']],
+  ['frontend/src/offline/store.ts', ['savedDigest']],
+  ['frontend/src/numeric/lossless-json.ts', ['parseLosslessJson']],
+  ['frontend/src/lantern/unified-atlas/runtime-overlays.ts', ['mergeDocumentaryRecords', 'projectDocumentaryFacts']],
   ['frontend/src/lantern/canonical-ifc/standard-glb.ts', ['loadStandardGlb']],
   ['frontend/src/lantern/unified-atlas/scene.ts', ['bindAtlasModel', 'planFeaturesForLevel', 'sitePlanLevels']],
 ].map(([path, names]) => `export { ${names.join(',')} } from ${JSON.stringify(join(root, path))};`).join('\n'));
 const built = await build({ root: join(root, 'frontend'), configFile: false, logLevel: 'silent', build: { write: false, target: 'node26', lib: { entry, formats: ['es'] }, rolldownOptions: { output: { codeSplitting: false } }, minify: false } });
 const output = Array.isArray(built) ? built[0] : built;
 const modulePath = join(scratch, 'positive.mjs'); writeFileSync(modulePath, output.output.find(row => row.type === 'chunk' && row.isEntry).code);
-const { generateSavedPack, readSavedPackSections, projectSavedAtlasOverlays, readSavedHistoricalFacts, createSavedAtlasDataAdapter, mergeDocumentaryRecords, canonicalPack, loadStandardGlb, bindAtlasModel, planFeaturesForLevel, sitePlanLevels } = await import(pathToFileURL(modulePath).href);
+const { generateSavedPack, readSavedPackSections, projectSavedAtlasOverlays, readSavedHistoricalFacts, createSavedAtlasDataAdapter, mergeDocumentaryRecords, projectDocumentaryFacts, canonicalPack, readPackManifest, savedDigest, parseLosslessJson, loadStandardGlb, bindAtlasModel, planFeaturesForLevel, sitePlanLevels } = await import(pathToFileURL(modulePath).href);
 rmSync(scratch, { recursive: true });
 const atlasSchema = JSON.parse(readFileSync(join(root, 'packages/contracts/schemas/atlas.schema.json')));
 // The exporter intentionally strips only asset custody routing storageKey.
@@ -159,6 +161,94 @@ for (const variant of ['historical', 'tuples']) {
     }
   }
   console.log('PASS shared primary evidence across two captured building associations preserves placed + unplaced provenance in either source order; unique record totals unchanged');
+}
+// Genuine retained source bytes with a reviewed shared-entity join to two rooms.
+// Re-pin every changed resource/section before the actual retained readers run;
+// original generator variants and their historical snapshot pins stay unchanged.
+for (const reversed of [false, true]) {
+  const original = await generateSavedPack('complete', '1'.repeat(64), true, false, false, true);
+  const manifest = JSON.parse(new TextDecoder().decode(original.house.manifest)); delete manifest.snapshotId;
+  const resources = new Map(original.resources);
+  const decode = sha => JSON.parse(new TextDecoder().decode(resources.get(sha)));
+  const encode = value => new TextEncoder().encode(canonicalPack(parseLosslessJson(JSON.stringify(value)))).buffer;
+  const repin = async (oldSha, value) => {
+    const bytes = encode(value), sha = await savedDigest(bytes), descriptor = manifest.resources.find(row => row.sha256 === oldSha);
+    descriptor.sha256 = sha; descriptor.bytes = bytes.byteLength; resources.delete(oldSha); resources.set(sha, bytes);
+    return { resourceSha256: sha, bytes: bytes.byteLength, contentType: descriptor.contentType };
+  };
+  const atlas = decode(manifest.sections.atlas.resourceSha256), modelSection = decode(manifest.sections.model.resourceSha256);
+  const links = decode(modelSection.unifiedAtlas.roomLinks.resourceSha256), firstLink = links.links[0];
+  const firstRoom = original.scene.rooms.find(room => room.roomId === firstLink.roomId);
+  const secondRoom = original.scene.rooms.find(room => room.buildingId === firstRoom.buildingId && room.nativePlaceId !== null
+    && room.nativePlaceId !== firstRoom.nativePlaceId && room.occurrenceIds.length > 0);
+  assert(secondRoom);
+  links.links.push({ ...firstLink, roomId: secondRoom.roomId, nativePlaceId: secondRoom.nativePlaceId });
+  const ownBuilding = original.scene.buildings.find(row => row.buildingId === firstRoom.buildingId);
+  const association = atlas.records.find(row => row.recordType === 'scene-association' && row.payload.buildingId === ownBuilding.nativePlaceId);
+  association.payload.roomMappings[0].targets.push({ ...association.payload.roomMappings[0].targets[0], atlasPlaceId: secondRoom.nativePlaceId });
+  // A source-owned raw ID can be reused by another category and by a generic
+  // native source. Identity still consists of the complete opaque record key.
+  const primarySha = association.payload.sourceDocuments.find(row => row.role === 'primary-scene').originalSha256;
+  const primary = decode(primarySha), reusedId = '00000000-0000-4000-8000-000000000901';
+  primary.electricity.documentarySource.records[0].document_id = reusedId;
+  primary.electricalFixtures.documentaryFixtures.fixtures[0].id = reusedId;
+  primary.electricalFixtures.documentaryFixtures.groups[0].fixtureIds = [reusedId];
+  if (reversed) {
+    links.links.reverse(); association.payload.roomMappings[0].targets.reverse();
+    primary.network.devices.reverse(); primary.network.endpoints.reverse(); primary.network.links.reverse();
+  }
+  const primaryPin = await repin(primarySha, primary);
+  for (const row of atlas.records) {
+    if (row.recordType === 'asset' && row.payload.sha256 === primarySha) { row.payload.sha256 = primaryPin.resourceSha256; row.payload.byteSize = primaryPin.bytes; }
+    if (row.recordType === 'scene-association') for (const pin of row.payload.sourceDocuments)
+      if (pin.originalSha256 === primarySha) pin.originalSha256 = primaryPin.resourceSha256;
+  }
+  if (reversed) { atlas.records.reverse(); atlas.revisions.reverse(); }
+  modelSection.unifiedAtlas.roomLinks = await repin(modelSection.unifiedAtlas.roomLinks.resourceSha256, links);
+  manifest.sections.atlas.resourceSha256 = (await repin(manifest.sections.atlas.resourceSha256, atlas)).resourceSha256;
+  manifest.sections.model.resourceSha256 = (await repin(manifest.sections.model.resourceSha256, modelSection)).resourceSha256;
+  manifest.totals = { bytes: manifest.resources.reduce((sum, row) => sum + row.bytes, 0), resources: manifest.resources.length };
+  const snapshotId = await savedDigest(encode(manifest));
+  const admitted = await readPackManifest(encode({ ...manifest, snapshotId }), original.house.scope, true);
+  const house = { ...original.house, localRevision: crypto.randomUUID(), snapshotId, manifest: admitted.localBytes, resources: admitted.resources };
+  const local = { list: async () => [house], asset: async (selected, id) => {
+    assert.equal(selected.localRevision, house.localRevision);
+    return new Blob([resources.get(id)], { type: house.resources.find(pin => pin.id === id).contentType });
+  } };
+  const signal = new AbortController().signal, checked = await readSavedPackSections(local, house, signal); exporterShapes(checked);
+  const read = await createSavedAtlasDataAdapter(local).read(house, signal);
+  const scene = reversed ? { ...read.scene, rooms: [...read.scene.rooms].reverse() } : read.scene;
+  const historical = await readSavedHistoricalFacts(checked, { ...read, scene }, signal);
+  assert.equal(historical.facts.length, 2, JSON.stringify(historical.reasons));
+  const joined = historical.facts.find(facts => facts.roomBindings.length === 2);
+  assert(joined, 'the genuine retained association has both captured room bindings');
+  const selectable = new Set(scene.coverage.selectable);
+  const expected = projectDocumentaryFacts(scene, joined, selectable);
+  const result = projectSavedAtlasOverlays(checked, scene, historical, selectable);
+  assert.equal(result.records.rooms.size, 2);
+  for (const [roomId, local] of expected.rooms) for (const kind of ['network', 'electrical']) {
+    const actual = result.records.rooms.get(roomId)[kind];
+    assert.equal(actual.length, local[kind].length);
+    for (const own of local[kind]) {
+      const record = actual.find(record => record.key === own.key), { observations, ...primary } = record;
+      assert.deepEqual(primary, own, 'whole room-local dates, connections, source facts and association remain primary');
+      assert.equal(record.sourceFacts.find(fact => fact.label === 'Room association in this observation').value, roomId);
+      const all = [primary, ...observations];
+      const associations = new Set(all.flatMap(row => row.sourceFacts.filter(fact => fact.label === 'Retained association').map(fact => fact.value)));
+      assert.deepEqual([...associations].sort(), ['00000000-0000-4000-8000-000000000012', '00000000-0000-4000-8000-000000000013']);
+      const rooms = new Set(all.flatMap(row => row.sourceFacts.filter(fact => fact.label === 'Room association in this observation').map(fact => fact.value)));
+      assert.deepEqual(rooms, new Set([firstRoom.roomId, secondRoom.roomId, null]), 'unplaced observation stays retained beside both room observations');
+    }
+  }
+  for (const [kind, total, unplaced] of [['electrical', 6, 4], ['network', 5, 4]]) {
+    const keys = new Set([...result.records.rooms.values()].flatMap(room => room[kind].map(record => record.key))
+      .concat(result.records.unplaced[kind].map(record => record.key)));
+    assert.equal(keys.size, total); assert.equal(result.records.unplaced[kind].length, unplaced);
+  }
+  const sameRawId = [...result.records.rooms.values()].flatMap(room => room.electrical).concat(result.records.unplaced.electrical).filter(record => record.id === reusedId);
+  assert.equal(new Set(sameRawId.map(record => record.key)).size, 3, 'generic source, historical sheet and symbol keep distinct identities despite raw ID reuse');
+  assert.equal(result.records.networkGraphs.length, 2);
+  console.log(`PASS shared retained entity in two rooms (${reversed ? 'reversed' : 'original'} room/map/association/source order): full local primary, all placed/unplaced observations, Electrical6/Network5 unique entities and unplaced4/4`);
 }
 {
   const pack = await generateSavedPack('complete', '1'.repeat(64), true, false, false, false, true);
