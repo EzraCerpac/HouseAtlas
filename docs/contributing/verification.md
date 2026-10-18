@@ -1816,7 +1816,10 @@ node frontend/lantern-tests/offline-house-acquisition-healthy.mjs /absolute/reta
 Only four valid generated exports and focused ordinary explicit Save/Replace,
 Cancel, unchanged-owner/view-replacement and late-commit lifecycle cases run,
 using injected finite GET responses, a valid public shell result and an in-memory
-staging owner. No global fetch replacement, socket, browser, native state,
+staging owner. Seven valid static React presentation states additionally check
+passive rendering, Prepare/Save and capture labels, coverage/exclusions before
+confirmation, Cancel wording and exact receipt pins. These are not layout,
+keyboard or browser checks. No global fetch replacement, socket, browser, native state,
 real IndexedDB/provider, held denial/foreign-token/expiry/revocation/crash/fault,
 guard-reversal or broad alias is included. This check establishes no genuine
 offline/device/PWA or deployment acceptance and adds no workflow.

@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "23269849f5ca1069cdf2ad30507dce04f27328f25e9621fbf789fda797bdb480",
+  "sourceDigestSha256": "ff09a35d71d1f48610425090babdfaa51fddc2c304cf9451f6b00a200708705c",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5950,8 +5950,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 109038,
-      "sha256": "a648d40c2a2891c6c22c775f319323c7247f882c7c7a4b498418a4f62662b741",
+      "bytes": 109284,
+      "sha256": "763d1155dd092c419ebc4af77d4419127cbf6d68908df91d66e9429808f60028",
       "owner": "core-integration"
     },
     {
@@ -6307,8 +6307,8 @@
     {
       "path": "docs/offline/native-house-acquisition.md",
       "mode": "100644",
-      "bytes": 5987,
-      "sha256": "01df92f21bf75d62243c12446768de85a2d35003051893a6a3f1f6e37b70f97c",
+      "bytes": 6655,
+      "sha256": "cf4c4d64688c79769eec4ec3cdc60c139b2ff484433c5fdb5cf30f87fc2a2d21",
       "owner": "web"
     },
     {
@@ -7504,8 +7504,8 @@
     {
       "path": "frontend/lantern-tests/offline-house-acquisition-healthy.mjs",
       "mode": "100644",
-      "bytes": 16821,
-      "sha256": "c7a3138c2fc0949502006c191967321e4e6f1a3703cbef01c6dc5828407a69cf",
+      "bytes": 21093,
+      "sha256": "513a69c46be68333f9bf30306b3898a0bb436162057ebfb457545b5fabe7614d",
       "owner": "web"
     },
     {
@@ -9835,8 +9835,8 @@
     {
       "path": "frontend/src/offline/SaveHouseCopy.tsx",
       "mode": "100644",
-      "bytes": 3062,
-      "sha256": "bcd139b5d5cbf90d81de3d4bdf96a97adc22690204e41838e46fb887ae3a5629",
+      "bytes": 3219,
+      "sha256": "a4fcaa48bb9d2fee729aaee1292d468f95bb9ff6a4a2c6f27b9c688e0483f2f7",
       "owner": "web"
     },
     {

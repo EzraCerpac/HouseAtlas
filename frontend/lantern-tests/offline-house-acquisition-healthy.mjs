@@ -13,13 +13,13 @@ const buffer = bytes => Uint8Array.from(bytes).buffer;
 async function source(relative, replacements = {}) {
   const file = new URL(relative, import.meta.url);
   let { code } = await transformWithOxc(readFileSync(file, 'utf8'), file.pathname,
-    { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
+    { lang: file.pathname.endsWith('.tsx') ? 'tsx' : 'ts', jsx: { runtime: 'automatic' }, target: 'esnext', tsconfig: false, sourcemap: false });
   for (const [specifier, url] of Object.entries(replacements)) {
     assert(code.includes(JSON.stringify(specifier)), `Missing import ${specifier}`);
     code = code.replaceAll(JSON.stringify(specifier), JSON.stringify(url));
   }
   for (const match of code.matchAll(/^\s*import\s+(?:[\w$\s{},*]+?\s+from\s+)?["']([^"']+)["']/gm))
-    assert(match[1].startsWith('data:'), `Unexpected import ${match[1]}`);
+    assert(match[1].startsWith('data:') || (match[1].startsWith('file:') && Object.values(replacements).includes(match[1])), `Unexpected import ${match[1]}`);
   return `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
 }
 const decimal = await source('../src/numeric/decimal.ts');
@@ -40,6 +40,13 @@ const { createOfflineHouseAcquisition } = await import(serviceURL);
 const { readPackManifest, packPrefix } = await import(manifestURL);
 const { readSavedAtlasModel } = await import(modelURL);
 const { validateSavedHouse, savedDigest } = await import(storage);
+const { createElement } = await import(new URL('../node_modules/react/index.js', import.meta.url).href);
+const { renderToStaticMarkup } = await import(new URL('../node_modules/react-dom/server.node.js', import.meta.url).href);
+const copyURL = await source('../src/offline/SaveHouseCopy.tsx', {
+  react: new URL('../node_modules/react/index.js', import.meta.url).href,
+  'react/jsx-runtime': new URL('../node_modules/react/jsx-runtime.js', import.meta.url).href,
+});
+const { SaveHouseCopy } = await import(copyURL);
 const pins = { records: 'de82fe13d91ba79cc195deb2e9b8c871bd200455d9e0062633c4b41ddf1f6f03',
   partial: 'b78f542a2070f91f34b8e273907e9d411b1eb6e932946bf56bbd2d553be7ff2b',
   unified: '53de1b25f27284acc343f450c8ff649317d105973a32b113d11f1631ce2c38ba',
@@ -109,6 +116,7 @@ function transportFor(fixture, hooks = {}) {
 }
 const shellBuildId = 'a'.repeat(64);
 let resources = 0, ranges = 0;
+const captures = new Map();
 for (const [name, fixture] of fixtures) {
   const store = memoryStore(), transport = transportFor(fixture), progress = [];
   const core = createHouseAcquisition({ scope: fixture.manifest.scope, label: 'Generated whole house', store,
@@ -117,6 +125,7 @@ for (const [name, fixture] of fixtures) {
   assert.equal(transport.calls.length, 0); assert.equal(store.begins(), 0);
   const preparation = await core.prepare(); assert.equal(preparation.prior, null); assert.equal(store.begins(), 0);
   const receipt = await core.save(preparation); validateSavedHouse(receipt.house);
+  captures.set(name, { preparation, receipt });
   assert.equal(receipt.house.shellBuildId, shellBuildId); assert.equal(receipt.house.snapshotId, fixture.manifest.snapshotId);
   assert.equal(receipt.completeness, fixture.manifest.completeness); assert.deepEqual(receipt.exclusions, fixture.manifest.exclusions);
   const local = await readPackManifest(receipt.house.manifest, fixture.manifest.scope, true);
@@ -133,6 +142,53 @@ for (const [name, fixture] of fixtures) {
   resources += store.assets.size; ranges += transport.calls.length - 1; await core.close(); assert.equal(store.closes(), 1);
 }
 assert.equal(resources, 42); assert.equal(ranges, 46);
+
+// Actual static React presentation of valid ordinary states. Rendering must
+// remain passive; byte counts, capture dates and source exclusions stay intact.
+function renderCopy(state) {
+  let actions = 0;
+  const port = { getState: () => state, subscribe: () => () => {},
+    async prepare() { actions++; }, async save() { actions++; }, cancel() { actions++; } };
+  const html = renderToStaticMarkup(createElement(SaveHouseCopy, { port }));
+  assert.equal(actions, 0);
+  assert(html.includes('<summary tabindex="0">Saved house copy</summary>'));
+  assert(html.includes('unencrypted in this browser profile and remains after sign-out'));
+  assert(html.includes('browser persistence is not guaranteed'));
+  assert(html.includes('href="/saved/index.html"'));
+  return html;
+}
+const idleHTML = renderCopy({ status: 'idle' });
+assert(idleHTML.includes('>Prepare house copy</button>'));
+const { preparation: newCapture, receipt: priorCapture } = captures.get('records');
+const readyHTML = renderCopy({ status: 'ready', preparation: newCapture });
+assert(readyHTML.includes(`New capture: ${newCapture.capturedAt}`));
+assert(readyHTML.includes(`Coverage: ${newCapture.completeness}`));
+assert(readyHTML.includes('>Save house copy</button>'));
+const replaceHTML = renderCopy({ status: 'ready', preparation: { ...newCapture, prior: priorCapture.house } });
+assert(replaceHTML.includes(`Currently saved: captured ${priorCapture.house.capturedAt} · revision ${priorCapture.house.localRevision}. Saving will replace it.`));
+assert(replaceHTML.includes('>Replace saved copy</button>'));
+assert(replaceHTML.indexOf('Currently saved:') < replaceHTML.indexOf('>Replace saved copy</button>'));
+assert(replaceHTML.includes('>Cancel</button>'));
+const partialCapture = [...captures.values()].find(value => value.preparation.exclusions.length > 0);
+assert(partialCapture);
+const partialHTML = renderCopy({ status: 'ready', preparation: partialCapture.preparation });
+assert(partialHTML.includes('Not included in this copy:'));
+assert(partialHTML.indexOf('Not included in this copy:') < partialHTML.indexOf('>Save house copy</button>'));
+assert(partialHTML.includes(`Coverage: ${partialCapture.preparation.completeness}`));
+for (const item of partialCapture.preparation.exclusions)
+  assert(partialHTML.includes(renderToStaticMarkup(createElement('li', null, `${item.section}: ${item.label} (${item.code})`))));
+const preparingHTML = renderCopy({ status: 'preparing', progress: { phase: 'app', done: 0, total: 0 } });
+assert(preparingHTML.includes('Preparing house copy…')); assert(preparingHTML.includes('>Cancel</button>'));
+const savingHTML = renderCopy({ status: 'saving', preparation: newCapture,
+  progress: { phase: 'house', done: 1, total: newCapture.totalBytes } });
+assert(savingHTML.includes('>Stop saving</button>'));
+const savedHTML = renderCopy({ status: 'saved', receipt: partialCapture.receipt });
+assert(savedHTML.includes('Not included in this copy:'));
+assert(savedHTML.includes(`Coverage: ${partialCapture.receipt.completeness}`));
+for (const item of partialCapture.receipt.exclusions)
+  assert(savedHTML.includes(renderToStaticMarkup(createElement('li', null, `${item.section}: ${item.label} (${item.code})`))));
+for (const value of [partialCapture.receipt.house.snapshotId, partialCapture.receipt.house.localRevision,
+  partialCapture.receipt.house.shellBuildId]) assert(savedHTML.includes(value));
 
 // Actual native owner service: passive observation, unchanged refresh, explicit
 // Save/Replace, ordinary view replacement, Cancel and a late committed receipt.
@@ -220,4 +276,5 @@ function serviceWith(store, hooks = {}) {
   assert.equal(owner.service.port.getState().status, 'saved'); owner.retire();
 }
 console.log(JSON.stringify({ result: 'healthy', variants: 4, resources, ranges,
+  presentation: ['idle-prepare', 'ready-new', 'ready-replace', 'ready-partial', 'preparing', 'saving', 'saved-partial'],
   lifecycle: ['passive', 'unchanged-owner', 'explicit-save', 'explicit-replace', 'view-replacement', 'cancel-after-begin', 'cancel-range', 'late-commit', 'cancel-during-committed-close'] }));

@@ -3,7 +3,7 @@
 Atlas tools exposes **Saved house copy** as an optional native Host control.
 Opening the tools, expanding the control, observing its state and rendering the
 home perform no acquisition, shell verification or local-store inspection.
-The disclosure precedes **Save this house for offline viewing**: retained data and permitted
+The disclosure precedes **Prepare house copy**: retained data and permitted
 originals are unencrypted in this browser profile and survive sign-out. The
 saved viewer supports Atlas; general inventory, Documents/PDF navigation and
 editing remain unavailable offline. Quota estimates are advisory; acquisition requests no quota estimate or
@@ -16,7 +16,10 @@ app closure using `verifySavedShell()` and reads the bounded native manifest.
 No service facet, synthetic native authority or selected building/floor/room is
 used to narrow the house. Save remains a separate explicit action. A prior copy
 shows its capture and revision and requires **Replace saved copy** with
-that exact revision. A further exact prior-revision read immediately before
+that exact revision. The preview distinguishes **New capture** from **Currently
+saved**, labels coverage separately and identifies any content not included in
+the copy before confirmation. Cancel is available while preparing or reviewing;
+**Stop saving** invokes the same cancellation owner during Save. A further exact prior-revision read immediately before
 `begin` catches ordinary stale confirmation; the store has no compare-and-swap
 contract, so this is not a cross-tab replacement guarantee.
 
@@ -80,6 +83,11 @@ companion, all listed partial bytes, exact local manifests, passive observation,
 unchanged owner refresh, explicit Save/Replace, ordinary view replacement,
 Cancel during range work and after `begin`, and late successful commit receipts (including Cancel while a committed
 operation finishes its normal store close).
+The same check statically renders the actual React control in seven valid idle,
+prepared, replacement, partial, preparing, saving and receipt states. It checks
+passive rendering, the separate Prepare/Save labels, new/current capture labels,
+coverage/exclusions before confirmation, Cancel wording and exact receipt pins.
+This is source/static-render evidence, not keyboard, layout or browser evidence.
 It does not run denial, foreign-token, expiry, revocation, crash, fault,
 guard-reversal or broad aliases. It opens no socket, browser, real IndexedDB,
 service, native state or provider. The fake staging owner checks the acquisition
