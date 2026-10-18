@@ -36,6 +36,14 @@ export interface NativeSceneSourceSelection {
     assetRevision: ExactDecimal; originalSha256: string; reviewMarker: string }>;
 }
 
+/** Factual byte-admission pins only. These values confer no session, lease or
+ * currentness; saved documentary readers may retain them as captured evidence. */
+export type DocumentaryOverlayReadPins = Pick<NativeSceneSourceSelection,
+  'workspaceId' | 'homeId' | 'buildingId' | 'viewKey' | 'sceneEvidenceId' | 'sceneAssetId' |
+  'sceneOriginalSha256' | 'sceneEvidenceRevision' | 'sceneAssetRevision' |
+  'acceptedRoomReceiptId' | 'acceptedRoomReceiptSha256' | 'acceptedRoomAnchors' |
+  'acceptedRoomMappings' | 'sourceFloorBindings' | 'drawingReferences' | 'drawingSupport'>;
+
 /** View-only provenance. These pins describe unchanged historical bytes and
  * the separate current native review used by room filters; no stored ledger is rewritten. */
 export interface NativeSceneDrawingProvenance {

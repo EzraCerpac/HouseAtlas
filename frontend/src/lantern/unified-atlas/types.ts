@@ -120,6 +120,9 @@ export interface AtlasScene {
 export interface UnifiedAtlasRead {
   readonly scene: AtlasScene;
   readonly model: Uint8Array<ArrayBuffer>;
+  /** Optional presentation metadata owned by this exact admitted read. Null is
+   * explicitly unconfigured; omitted local ports may supply their own callback. */
+  readonly entryBuildingId?: string | null;
 }
 export type AtlasReadFailure = 'absent' | 'stale' | 'unavailable' | 'invalid' | 'too-large';
 export class AtlasReadError extends Error {
@@ -131,6 +134,15 @@ export interface UnifiedAtlasPort {
   current(): ModelOverviewSelection | null;
   subscribe(changed: () => void): () => void;
   read(selection: ModelOverviewSelection, signal: AbortSignal): Promise<UnifiedAtlasRead>;
+  /** The building the Atlas opens on, bound by the source owner for this
+   * publication. Never inferred from names, plan order or size; an absent or
+   * unknown ID opens the only building with floors, else the whole property. */
+  entryBuildingId?(scene: AtlasScene): string | null;
+  /** Explicit saved presentation, not a native source frame or current lease. */
+  readonly savedDocumentary?: {
+    readonly observedAt: string;
+    records(scene: AtlasScene, selectable: ReadonlySet<string>): import('./runtime-overlays').PropertyRecords;
+  };
   /** Separate current documentary owner; never changes producer semantics. */
   createOverlays?(selection: ModelOverviewSelection, scene: AtlasScene, building: AtlasBuilding, signal: AbortSignal): Promise<{
     readonly source: UnifiedAtlasOverlaySource; readonly request: UnifiedAtlasOverlayOpen;

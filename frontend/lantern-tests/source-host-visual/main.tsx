@@ -15,6 +15,7 @@ import type { ReadyView } from '../../src/app/types';
 import type { SourceDocumentsPort } from '../../src/lantern/source-documents/types';
 import { createNativeSourceDocumentReader } from '../../integration/native-source-document-reader';
 import { readUnifiedAtlas } from '../../integration/unified-atlas-reader';
+import { readSavedDocumentaryPreview, savedDocumentaryInputPath } from '../../integration/saved-documentary-preview';
 import fixture from '../core-read-visual/fixture.json';
 import { createSyntheticDocumentServer } from './synthetic-documents';
 import { createSyntheticSitePort } from './synthetic-site';
@@ -41,6 +42,29 @@ const sourceDocuments: SourceDocumentsPort = {
     origin: server.origin, transport: server.transport, getBinding: () => binding, subscribeBinding: () => () => {},
   })),
 };
+
+async function readPrivateInput(path: string, maximum: number): Promise<Uint8Array<ArrayBuffer>> {
+  const url = new URL(savedDocumentaryInputPath(path), location.href);
+  if (url.origin !== location.origin) throw new Error('Fixture inputs must be on this origin.');
+  const response = await pageFetch(url, { cache: 'no-store', redirect: 'error', credentials: 'omit' });
+  if (!response.ok) throw new Error(`Fixture input unavailable: ${url.pathname}`);
+  const declared = response.headers.get('content-length');
+  if (declared !== null && Number(declared) > maximum) throw new Error('Fixture input is too large.');
+  const chunks: Uint8Array[] = []; let length = 0;
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('Fixture input has no body.');
+  try {
+    for (;;) {
+      const next = await reader.read(); if (next.done) break;
+      length += next.value.byteLength;
+      if (length > maximum) throw new Error('Fixture input is too large.');
+      chunks.push(next.value);
+    }
+  } finally { await reader.cancel(); reader.releaseLock(); }
+  const bytes = new Uint8Array(length); let at = 0;
+  for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.byteLength; }
+  return bytes;
+}
 
 /** Optional unified Atlas source: generated, or an explicit same-origin pair. */
 async function atlasInput(): Promise<{ readonly companionBytes: Uint8Array<ArrayBuffer>; readonly glb: Uint8Array<ArrayBuffer> } | null> {
@@ -69,6 +93,11 @@ async function sourceModels(): Promise<SourceModelPort> {
   const base: SourceModelPort = { localFiles: 'browser-only', site: createSyntheticSitePort() };
   const input = await atlasInput();
   if (!input) return base;
+  const documentaryPath = new URLSearchParams(location.search).get('atlas-documentary');
+  if (documentaryPath !== null) savedDocumentaryInputPath(documentaryPath);
+  const saved = documentaryPath === null ? null : await readSavedDocumentaryPreview(
+    await readPrivateInput(documentaryPath, 1024 * 1024), readPrivateInput, () => {});
+  const entry = saved?.entryBuildingId ?? new URLSearchParams(location.search).get('atlas-entry-building');
   // The host composition the backend performs: selection revision, pins and read href.
   const composed = await composeAtlasEnvelope(input.companionBytes, input.glb, SYNTHETIC_ATLAS.revision);
   const transport = createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(composed.scope),
@@ -84,8 +113,15 @@ async function sourceModels(): Promise<SourceModelPort> {
         publicationId: selection.publicationId, sourceNote: 'Generated fixture model.', components: [] };
     } },
     // The production reader, guards and admission against the in-page HTTPS fake.
-    atlas: { current, subscribe, read: (requested, signal) => readUnifiedAtlas({ selection: requested, signal,
-      origin: SYNTHETIC_ATLAS.origin, isCurrent: () => requested === selection, transport }) },
+    atlas: { current, subscribe, entryBuildingId: () => entry,
+      ...(saved ? { savedDocumentary: saved } : {}),
+      async read(requested, signal) {
+        const read = await readUnifiedAtlas({ selection: requested, signal,
+          origin: SYNTHETIC_ATLAS.origin, isCurrent: () => requested === selection, transport });
+        // This explicit local-fixture preference is presentation only; the
+        // generated transport has no authenticated native entry configuration.
+        return entry === null ? read : { ...read, entryBuildingId: entry };
+      } },
   };
 }
 

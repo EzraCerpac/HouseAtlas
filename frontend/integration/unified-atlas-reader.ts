@@ -79,6 +79,8 @@ export async function readUnifiedAtlas(options: {
     try { json = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(envelope)); } catch { fail('invalid'); }
     // Every count, size and reference is admitted before the model is requested.
     const scene = admitAtlasScene(json, { scope: selection.scope, publicationId: selection.publicationId }, envelope.byteLength);
+    const entryBuildingId = descriptor.headers.get('x-atlas-entry-building-id');
+    need(entryBuildingId === null || scene.buildings.some(building => building.buildingId === entryBuildingId), 'invalid');
     servedManifest(); guard();
     const revision = scene.selection.revision;
     // The scene was served for the selection revision it names.
@@ -94,7 +96,7 @@ export async function readUnifiedAtlas(options: {
       const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); guard();
       need(hex(digest) === scene.model.sha256 && body.headers.get('content-digest') === `sha-256=:${base64(digest)}:`, 'invalid');
       served(); guard();
-      return { scene, model: bytes };
+      return { scene, model: bytes, entryBuildingId };
     } catch (error) { void body.body?.cancel().catch(() => undefined); throw error; }
   } catch (error) {
     if (error instanceof AtlasReadError) throw error;
