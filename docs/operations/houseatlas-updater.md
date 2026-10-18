@@ -220,6 +220,23 @@ declarations, then verifies license, frontend shell, closure and native
 preservation through the same controller. It creates no real producer proof or
 native compatibility qualification.
 
+The separate narrow JSON-input regression lane covers rejection of `NaN`,
+`Infinity` and `-Infinity` without normalizing them into null. It checks direct,
+nested-object and nested-array inputs, verifies malformed status selectors never
+call the controller, and preserves ordinary finite values, literal strings,
+explicit null/latest and UUID status selection. Inspect
+`tests/test_json_input.py`, `validation.py` and `cli.py` before running these
+three exact cases from `tools/houseatlas-updater`:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_json_input.JsonInputRegression.test_nonfinite_constants_are_rejected_at_all_depths tests.test_json_input.JsonInputRegression.test_cli_nonfinite_status_selector_never_reads_latest tests.test_json_input.JsonInputRegression.test_valid_json_and_null_status_selector_are_preserved
+```
+
+These are bounded in-memory generated inputs and one recording status fake;
+there is no filesystem state, transport, credentials, service or target action.
+This scope adds no broader denial/adversarial, failure-injection, rollback,
+replay, expiry or crash qualification and no ordinary CI entrypoint.
+
 Independent review must pin the exact source after corrections and report the
 exact commands/outcomes. Publication manifest, verification registration, CI,
 workflow, app/MCP/dots adapters, runtime bindings and final source composition

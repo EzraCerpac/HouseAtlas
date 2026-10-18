@@ -33,8 +33,11 @@ def json_object(data: bytes, limit: int) -> dict:
             result[key] = value
         return result
 
+    def reject_constant(_):
+        raise UpdateError("invalid-request")
+
     try:
-        result = json.loads(data, object_pairs_hook=unique, parse_constant=lambda _: None)
+        result = json.loads(data, object_pairs_hook=unique, parse_constant=reject_constant)
     except (ValueError, UnicodeError, RecursionError):
         raise UpdateError("invalid-request") from None
     require(type(result) is dict, "invalid-request")
