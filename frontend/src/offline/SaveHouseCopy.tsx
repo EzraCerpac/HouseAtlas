@@ -8,7 +8,7 @@ export function SaveHouseCopy({ port }: { readonly port: HouseAcquisitionPort })
   const preparation = state.status === 'ready' ? state.preparation : undefined;
   const receipt = state.receipt;
   return <details>
-    <summary>Saved house copy</summary>
+    <summary tabIndex={0}>Saved house copy</summary>
     <p>Save the whole current house for the saved Atlas viewer, including allowed source originals. Data is unencrypted in this browser profile and remains after sign-out.</p>
     <p>The saved viewer supports Atlas only. General inventory, Documents and PDF navigation, and editing are unavailable offline. Storage estimates are advisory; browser persistence is not guaranteed.</p>
     {!busy && !preparation && <button type="button" onClick={() => { void port.prepare(); }}>Save this house for offline viewing</button>}

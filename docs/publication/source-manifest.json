@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "db8a64bd2e9543f5c07465624e9b6310cfddc5c839fad51b8f85e08743867a1c",
+  "sourceDigestSha256": "23269849f5ca1069cdf2ad30507dce04f27328f25e9621fbf789fda797bdb480",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -9835,8 +9835,8 @@
     {
       "path": "frontend/src/offline/SaveHouseCopy.tsx",
       "mode": "100644",
-      "bytes": 3049,
-      "sha256": "32a259a63c8e9d27cab5e236be75af3c207cea86f3fec31656d626f9161c0d39",
+      "bytes": 3062,
+      "sha256": "bcd139b5d5cbf90d81de3d4bdf96a97adc22690204e41838e46fb887ae3a5629",
       "owner": "web"
     },
     {
