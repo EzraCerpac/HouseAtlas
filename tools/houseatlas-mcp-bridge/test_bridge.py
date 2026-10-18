@@ -166,6 +166,235 @@ class Cases(unittest.TestCase):
         self.journal.close()
         self.tmp.cleanup()
 
+    def healthy_integral_revisions(self):
+        self.assertEqual(b.decimal_json(b.strict_json('{"revision":10e-1}')), '{"revision":10e-1}')
+        original = self.owner.exchange
+        def exchange(method, path, *args, **kwargs):
+            headers, body = original(method, path, *args, **kwargs)
+            if method == 'POST' and path.endswith('/commands'):
+                result = b.strict_json(body)
+                for record in result['data']['records']:
+                    record['revision'] = b.Decimal(str(record['revision']) + '.0')
+                body = b.decimal_json(result).encode()
+            return headers, body
+        self.owner.exchange = exchange
+        for index, (token, expected) in enumerate((('1.0', 2), ('1e0', 2), ('10e-1', 2),
+                                                  ('9007199254740990.0', 9007199254740991))):
+            req = request('atlas.identity.replace', 1200 + index)
+            raw = b.compact(req).replace('9007199254740990', token)
+            result = b.strict_json(self.bridge.write(raw), b.MAX_COMMIT)
+            self.assertEqual(result['data']['records'][0]['revision'], expected)
+            self.assertEqual(self.owner.posts[-1][1], raw.encode())
+            retained = self.journal.operation(req['requestId'])
+            self.assertEqual(retained[1], raw)
+            self.assertEqual(retained[3], 'committed')
+        # Ordered batch children use the same exact CAS semantics and bytes.
+        req = request(b.BATCH, 1300); req['preconditions']['target'] = None
+        req['target'] = {'authority': 'atlas', 'batchId': uid(1301)}
+        req['payload'] = {'commands': [request('atlas.identity.replace', 1400),
+                                      request('atlas.circuit.restore', 1500)]}
+        raw = b.compact(req).replace('9007199254740990', '1e0')
+        result = b.strict_json(self.bridge.write(raw), b.MAX_COMMIT)
+        self.assertEqual([r['revision'] for r in result['data']['records']], [2, 2])
+        self.assertEqual(self.owner.posts[-1][1], raw.encode())
+
+    def denial_integral_revision_bounds(self):
+        tokens = ('1.01', '9007199254740990.999999999999999', '9007199254740991',
+                  '9007199254740992', 'true', '-0.0', '1e-4096', '0e4097', '"1"')
+        for token in tokens:
+            raw = b.compact(request('atlas.identity.replace')).replace('9007199254740990', token)
+            with self.assertRaises(b.BridgeError): self.bridge.write(raw)
+        self.assertEqual(self.owner.posts, [])
+        self.assertEqual(self.journal.pending(), [])
+        # Native lexical work bounds are checked before conversion, not rounded.
+        valid = '1.' + '0' * 4094
+        self.assertEqual(b.native_integer(b.strict_json(valid)), 1)
+        for token in (valid + '0', '0e4097', '0.0e-4096'):
+            with self.assertRaises(b.BridgeError): b.native_integer(b.strict_json(token))
+        self.assertEqual(b.native_integer(b.strict_json('0e4096')), 0)
+
+    def healthy_integral_read_carriers(self):
+        for row in self.owner.records.values(): row['revision'] = b.Decimal('9007199254740991.0')
+        self.owner.records[('asset', ASSET)]['payload']['byteSize'] = b.Decimal(str(len(self.owner.original)) + '.0')
+        self.owner.head['head']['revision'] = b.Decimal('7.0')
+        self.owner.current['association']['revision'] = b.Decimal('7e0')
+        payload = self.owner.current['association']['payload']
+        payload['associationVersion'] = b.Decimal('1.0')
+        for doc in payload['sourceDocuments']:
+            doc['evidenceRevision'] = doc['originalAssetRevision'] = b.Decimal('9007199254740991.0')
+        self.owner.head['head']['payloadSha256'] = b.sha(b.scene_canonical(payload).encode())
+        session = b.Stdio(self.bridge)
+        session.handle({'jsonrpc': '2.0', 'id': 1, 'method': 'initialize',
+                        'params': {'protocolVersion': '2025-11-25'}})
+        session.handle({'jsonrpc': '2.0', 'method': 'notifications/initialized'})
+        result = session.handle({'jsonrpc': '2.0', 'id': 2, 'method': 'tools/call', 'params': {
+            'name': 'houseatlas_source_evidence', 'arguments': {'buildingId': BUILDING,
+            'evidenceId': EVIDENCE, 'offset': b.Decimal('0.0'), 'count': b.Decimal('12e0')}}})
+        self.assertFalse(result['isError'])
+        value = b.strict_json(result['content'][0]['text'])
+        self.assertEqual(value['bytesReturned'], 12)
+        self.assertEqual(value['evidenceRevision'], 9007199254740991)
+        self.assertTrue(value['revalidated'])
+        self.assertEqual(self.owner.posts, [])
+
+    def healthy_integral_page_size(self):
+        req, body, limits = self.large_page_fixture()
+        raw = b.compact(req).replace('"pageSize":1', '"pageSize":1e0')
+        self.assertIn('"pageSize":1e0', raw)
+        self.assertEqual(self.bridge.read(raw), body.decode())
+        self.assertEqual(limits, [b.MAX_READ])
+        self.assertEqual(self.owner.posts, [])
+
+    def large_receipt_fixture(self, count=280, fill='x'):
+        # Existing reviewed geometry shape; schema mappings have no maxItems.
+        _, page, _ = self.large_page_fixture()
+        payload = b.strict_json(page, b.MAX_READ)['data']['records'][0]['payload']
+        payload['mappings'] = [{'producerRoomId': (str(n) + fill * 4096)[:4096],
+                                'atlasId': uid(1000 + n), 'homeboxEntity': None,
+                                'reviewStatus': 'accepted', 'evidenceIds': [EVIDENCE]}
+                               for n in range(count)]
+        req = request('atlas.geometry.tombstone', 1600)
+        req['payload'] = {}; req['preconditions']['target']['value'] = 1
+        receipt = self.owner.receipt(req)
+        receipt['data']['records'][0]['payload'] = payload
+        return req, receipt
+
+    def receipt_transport(self, responses):
+        # Run the real bounded HTTPS reader against an in-memory connection.
+        # No HTTP socket, native request, credential or executable can escape.
+        original = self.owner.exchange
+        transport = b.HTTPSOwner(self.owner.origin)
+        calls = []
+        class Connection:
+            def request(_self, method, path, body=None, headers=None):
+                kind = 'retained' if path == '/api/atlas/retained-intent' else 'commands'
+                _self.raw = responses[kind]
+                calls.append((kind, body))
+            def getresponse(_self):
+                raw = _self.raw
+                return type('Response', (), {'status': 200,
+                    'getheaders': lambda _: [('Content-Type', 'application/json'), ('Content-Length', str(len(raw)))],
+                    'read1': io.BytesIO(raw).read1})()
+            def close(_self): pass
+        def exchange(method, path, body=None, csrf=None, limit=b.MAX_JSON):
+            if method == 'POST' and (path.endswith('/commands') or path == '/api/atlas/retained-intent'):
+                if path.endswith('/commands'): self.owner.posts.append((path, body, csrf))
+                else: self.owner.lookup_calls.append(body)
+                calls.append(('limit', limit))
+                return transport.exchange(method, path, body, csrf, limit)
+            return original(method, path, body, csrf, limit)
+        self.owner.exchange = exchange
+        return calls, patch.object(b.http.client, 'HTTPSConnection', return_value=Connection())
+
+    def tool_stdio(self, name, arguments):
+        messages = [
+            {'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {'protocolVersion': '2025-11-25'}},
+            {'jsonrpc': '2.0', 'method': 'notifications/initialized'},
+            {'jsonrpc': '2.0', 'id': 2, 'method': 'tools/call', 'params': {'name': name, 'arguments': arguments}},
+            {'jsonrpc': '2.0', 'id': 3, 'method': 'ping'}]
+        source = io.BytesIO(('\n'.join(b.compact(m) for m in messages) + '\n').encode())
+        output = io.BytesIO(); b.serve(self.bridge, source, output)
+        lines = output.getvalue().splitlines()
+        self.assertTrue(all(len(line) + 1 <= b.MAX_OUTPUT for line in lines))
+        values = [b.strict_json(line, b.MAX_OUTPUT) for line in lines]
+        self.assertEqual(values[-1]['result'], {})
+        self.assertFalse(values[1]['result']['isError'])
+        return values[1]['result']['content'][0]['text']
+
+    def healthy_large_commit_receipt(self):
+        req, receipt = self.large_receipt_fixture()
+        raw, body = b.compact(req), b.decimal_json(receipt).encode()
+        self.assertGreater(len(body), b.MAX_JSON); self.assertLess(len(body), b.MAX_COMMIT)
+        calls, transport = self.receipt_transport({'commands': body})
+        with transport:
+            result = self.tool_stdio('houseatlas_write', {'requestJson': raw})
+        self.assertEqual(result.encode(), body)
+        retained = self.journal.operation(req['requestId'])
+        self.assertEqual((retained[1], retained[3], retained[4]), (raw, 'committed', body.decode()))
+        self.assertIn(('limit', b.MAX_COMMIT), calls)
+        self.assertEqual(len(self.owner.posts), 1)
+
+    def retained_receipt_fixture(self, count=280, fill='x'):
+        child, receipt = self.large_receipt_fixture(count, fill)
+        receipt['operationId'] = uid(600); receipt['data']['auditIds'] = [uid(601)]
+        req = request(b.BATCH, 1700); req['preconditions']['target'] = None
+        req['target'] = {'authority': 'atlas', 'batchId': uid(1701)}
+        other = request('atlas.identity.create', 1800)
+        req['payload'] = {'commands': [child, other]}
+        result = self.owner.retained(req, [receipt, self.owner.receipt(other, 602)])
+        raw, body = b.compact(req), b.decimal_json(result).encode()
+        self.assertLess(len(raw), 16384)
+        self.assertGreater(len(body), b.MAX_COMMIT); self.assertLess(len(body), b.MAX_RETAINED)
+        self.journal.begin(req, raw)
+        return req, raw, body
+
+    def healthy_commit_response_boundary(self):
+        req = request(); raw = b.compact(req)
+        # Valid JSON response whitespace makes the transport byte border exact;
+        # no claim that the native serializer adds this optional whitespace.
+        body = b.decimal_json(self.owner.receipt(req)).encode().ljust(b.MAX_COMMIT, b' ')
+        _, transport = self.receipt_transport({'commands': body})
+        with transport:
+            self.assertEqual(self.bridge.write(raw).encode(), body)
+        self.assertEqual(self.journal.operation(req['requestId'])[4].encode(), body)
+
+    def denial_receipt_parser_borders(self):
+        # Pure JSON processing borders, not native domain/payload qualification.
+        for nodes, limit, depth in ((b.MAX_NODES, b.MAX_COMMIT, 64),
+                                     (b.MAX_RETAINED_NODES, b.MAX_RETAINED, 68)):
+            raw = ('[' + ','.join('0' for _ in range(nodes - 1)) + ']').encode()
+            self.assertLess(len(raw), limit)
+            self.assertEqual(len(b.strict_json(raw, limit, nodes, depth)), nodes - 1)
+            with self.assertRaises(b.BridgeError): b.strict_json(raw[:-1] + b',0]', limit, nodes, depth)
+            exact = ('[' * depth + '0' + ']' * depth).encode()
+            b.strict_json(exact, limit, nodes, depth)
+            with self.assertRaises(b.BridgeError): b.strict_json(b'[' + exact + b']', limit, nodes, depth)
+        self.assertEqual(self.owner.posts, [])
+
+    def healthy_large_retained_receipt(self):
+        req, raw, body = self.retained_receipt_fixture()
+        calls, transport = self.receipt_transport({'retained': body})
+        with transport:
+            value = b.strict_json(self.tool_stdio('houseatlas_operation_status', {'requestId': req['requestId']}), b.MAX_OUTPUT)
+        self.assertEqual(value['state'], 'committed-reconciled')
+        self.assertEqual(value['nativeReconciliationJson'].encode(), body)
+        self.assertEqual(self.journal.operation(req['requestId'])[4].encode(), body)
+        self.assertIn(('limit', b.MAX_RETAINED), calls)
+        self.assertEqual(self.owner.lookup_calls, [raw.encode()])
+        self.assertEqual(self.owner.posts, [])
+
+    def healthy_bounded_reconciliation_output(self):
+        req, raw, body = self.retained_receipt_fixture(160, '\\')
+        _, transport = self.receipt_transport({'retained': body})
+        with transport:
+            value = b.strict_json(self.tool_stdio('houseatlas_operation_status', {'requestId': req['requestId']}))
+        self.assertEqual(value['state'], 'committed-reconciled')
+        self.assertNotIn('nativeReconciliationJson', value)
+        self.assertIn('MCP result budget', value['nativeReconciliationOmitted'])
+        self.assertEqual(value['nativeReconciliationSha256'], b.sha(body))
+        self.assertEqual(value['nativeReconciliationBytes'], len(body))
+        self.assertEqual(self.journal.operation(req['requestId'])[4].encode(), body)
+        self.assertFalse(value['status']['writeBlocked'])
+        self.assertEqual(self.owner.posts, [])
+
+    def denial_commit_receipt_profile(self):
+        req, receipt = self.large_receipt_fixture(520)
+        raw, body = b.compact(req), b.decimal_json(receipt).encode()
+        self.assertGreater(len(body), b.MAX_COMMIT)
+        retained = self.owner.retained(req); retained['committedResult']['wire'] = receipt
+        reconciliation = b.decimal_json(retained).encode()
+        self.assertLess(len(reconciliation), b.MAX_RETAINED)
+        calls, transport = self.receipt_transport({'commands': body, 'retained': reconciliation})
+        with transport:
+            with self.assertRaises(b.BridgeError): self.bridge.write(raw)
+            with self.assertRaises(b.BridgeError): self.bridge.reconcile_operation(req['requestId'])
+            with self.assertRaises(b.BridgeError): self.bridge.write(b.compact(request(n=1900)))
+        saved = self.journal.operation(req['requestId'])
+        self.assertEqual((saved[1], saved[3], saved[4]), (raw, 'unknown', None))
+        self.assertEqual(len(self.owner.posts), 1)
+        self.assertEqual(self.owner.lookup_calls, [raw.encode()])
+        self.assertEqual([v for kind, v in calls if kind == 'limit'], [b.MAX_COMMIT, b.MAX_RETAINED])
+
     def healthy_stdio(self):
         messages = [
             {'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {'protocolVersion': '2025-11-25', 'capabilities': {}, 'clientInfo': {'name': 'synthetic', 'version': '1'}}},
@@ -760,6 +989,10 @@ REGRESSION = ('denial_scope_and_routes', 'denial_confirmation_and_batch', 'denia
               'denial_read_correlation', 'failure_unknown_persistence', 'failure_scene_change', 'failure_original_hash', 'failure_post_dispatch_session',
               'failure_commit_correlation', 'failure_unknown_keeps_reads', 'failure_reconcile_absence',
               'failure_reconcile_correlation', 'denial_reconcile_byte_bound', 'failure_session_after_login_cleanup', 'denial_semantic_duplicate_targets', 'failure_intent_digest_correlation', 'failure_evidence_reference_and_pins', 'failure_bridge_sigquit_cleanup', 'healthy_journal_binding_order', 'failure_committed_record_correlation', 'denial_decimal_exponent_frame', 'denial_jsonrpc_frame_response', 'denial_native_reason_bound', 'denial_rpc_method_codes', 'failure_retained_child_operation_ids', 'denial_read_profile_bounds', 'denial_stdio_output_budget')
+HEALTHY += ('healthy_integral_revisions', 'healthy_integral_read_carriers', 'healthy_integral_page_size',
+            'healthy_large_commit_receipt', 'healthy_commit_response_boundary', 'healthy_large_retained_receipt',
+            'healthy_bounded_reconciliation_output')
+REGRESSION += ('denial_integral_revision_bounds', 'denial_commit_receipt_profile', 'denial_receipt_parser_borders')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('case', choices=HEALTHY + REGRESSION)

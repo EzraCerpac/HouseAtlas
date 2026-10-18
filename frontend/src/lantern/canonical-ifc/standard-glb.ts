@@ -1,6 +1,6 @@
 import { LoadingManager, Matrix4, Vector3, type Material, type Mesh, type Object3D, type Texture } from 'three';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { prepareMeshes, type PreparedMesh } from './geometry';
+import { prepareMeshes, primitiveBaseColor, type MeshInput, type PreparedMesh } from './geometry';
 import { GlbFormatError, preflightGltf, readGlbContainer, STANDARD_GLB_LIMITS, type GlbAdmission, type GlbContainer } from './glb-preflight';
 
 /** Standard glTF 2.0 binary preview loading through three.js GLTFLoader.
@@ -8,7 +8,8 @@ import { GlbFormatError, preflightGltf, readGlbContainer, STANDARD_GLB_LIMITS, t
  * The closed preflight runs first and admits a bounded amount of work; the
  * loader then parses an owned copy in memory. Its resource resolver refuses
  * every URL, so nothing is fetched or resolved by path, and textures are
- * declined because the preview draws geometry in Lantern tones. The loader
+ * declined; explicit core base colours are retained as presentation metadata.
+ * Viewers may opt in to those colours without acquiring textures or PBR. The loader
  * never sees extras: they stay opaque facts from the original JSON, so no
  * loader-specific extras key (such as `pivot`) can move geometry. Positions are
  * glTF right-handed Y-up metres; the loader's scene graph applies glTF core
@@ -80,14 +81,14 @@ export async function loadStandardGlb(bytes: Uint8Array, keyPrefix: string, sign
       throw new GlbFormatError('load', 'The standard glTF loader could not read this file');
     }
     signal.throwIfAborted();
-    return { ...admission, ...extract(gltf, admission, keyPrefix) };
+    return { ...admission, ...extract(gltf, admission, keyPrefix, container.json) };
   } finally {
     if (gltf) disposeGltf(gltf);
   }
 }
 
 const IDENTITY = new Matrix4();
-function extract(gltf: GLTF, admission: GlbAdmission, keyPrefix: string): Pick<StandardGlb, 'drawn' | 'meshes' | 'counts'> {
+function extract(gltf: GLTF, admission: GlbAdmission, keyPrefix: string, json: GlbContainer['json']): Pick<StandardGlb, 'drawn' | 'meshes' | 'counts'> {
   const { associations } = gltf.parser;
   const nodeOf = (object: Object3D): number | null => {
     for (let at: Object3D | null = object; at; at = at.parent) { const node = associations.get(at)?.nodes; if (node !== undefined) return node; }
@@ -95,7 +96,7 @@ function extract(gltf: GLTF, admission: GlbAdmission, keyPrefix: string): Pick<S
   };
   const { work } = admission;
   gltf.scene.updateMatrixWorld(true);
-  const inputs: { meshKey: string; floorId: null; occurrenceId: null; positions: Float32Array; indices: Uint32Array }[] = [];
+  const inputs: MeshInput[] = [];
   const drawn: DrawnPrimitive[] = [];
   let triangles = 0, vertices = 0, failure: GlbFormatError | null = null;
   const point = new Vector3();
@@ -128,7 +129,8 @@ function extract(gltf: GLTF, admission: GlbAdmission, keyPrefix: string): Pick<S
       triangles += indices.length / 3; vertices += items;
       const reference = associations.get(object), nodeIndex = nodeOf(object);
       const meshKey = `${keyPrefix}#${drawn.length}`;
-      inputs.push({ meshKey, floorId: null, occurrenceId: null, positions, indices });
+      const sourceBaseColor = primitiveBaseColor(json, reference?.meshes ?? null, reference?.primitives ?? null);
+      inputs.push({ meshKey, floorId: null, occurrenceId: null, positions, indices, ...(sourceBaseColor ? { sourceBaseColor } : {}) });
       drawn.push({ meshKey, nodeIndex, meshIndex: reference?.meshes ?? null, primitiveIndex: reference?.primitives ?? null });
     } catch (error) { failure = error instanceof GlbFormatError ? error : new GlbFormatError('load', 'A drawn primitive could not be read'); }
   });

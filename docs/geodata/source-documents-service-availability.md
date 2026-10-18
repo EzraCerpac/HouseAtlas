@@ -46,5 +46,18 @@ generated healthy check do not establish any installed production capability.
 The named generated full-profile example exercises both authenticated view
 paths with an ordinary-profile false advertisement, a selected full-profile true
 advertisement and a true advertisement after strict persistent full reopen.
-It uses only its existing disposable synthetic data and native owners. Frontend
-decoding and conditional mounting are separate consumer changes.
+It uses only its existing disposable synthetic data and native owners.
+
+The browser decoder admits only the exact true facet. Its Documents port belongs
+to the completed view, canonical session and scope allocations. Ordinary host
+notifications preserve that port while the binding is unchanged; view/session
+replacement or a loading gap synchronously withdraws the previous reader and
+leased bytes. A lazy module finishing after replacement cannot adopt the new
+view. Unavailable service selection is shown as current-view unavailability,
+without claiming that the home has no documents.
+
+The focused generated reader check also uses this production decoder and host
+binding with the existing in-process GET transport. It checks selected-service
+listing, unchanged-binding stability and ordinary view/session replacement and
+lazy-load cleanup. This does not establish actual browser rendering or service
+installation.

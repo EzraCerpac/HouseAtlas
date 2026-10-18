@@ -33,6 +33,14 @@ admission, cancellation and artifact/manifest refusal controls. The default
 mixed runner is not the ordinary command; this selection grants no permission
 to execute held controls and changes no CI workflow.
 
+The same `--healthy` command loads valid generated opaque core glTF materials
+on a multi-primitive mesh reused by two nodes. It checks exact primitive colour
+selectors, immutable linear RGBA factors, unchanged geometry and vertex bytes,
+and palette fallback without an explicit factor. It also calls the production
+source-colour resolver with opt-out, selection and reference presentation states.
+These CPU positives do not establish shader output, GPU colour accuracy, PBR,
+textures, vertex colours or source transparency; they add no held control case.
+
 The persistent scan-cache check uses the actual native geometry reader, mesh
 parser and IndexedDB adapter with a synthetic IndexedDB model and an owned
 numeric loopback HTTP listener. Fresh module, client and cache instances stand
@@ -1102,7 +1110,8 @@ private source display or deployment. This command adds no held failure,
 revocation, replay or private-intake checks.
 
 After inspecting `frontend/lantern-tests/source-documents-reader.test.mjs`, its
-synthetic in-page transport and imported reader/numeric/PDF-budget modules, use
+synthetic in-page transport and imported reader/numeric/PDF-budget modules,
+production view decoder/model and source-service binding helper, use
 Node 26.10.0 and the locked frontend dependencies for this focused healthy check:
 
 ```sh
@@ -1112,6 +1121,11 @@ node frontend/lantern-tests/source-documents-reader.test.mjs
 It reads generated v2 Document lists/originals/qualified PNG bytes, preserves a
 schema-valid recorded leap second, checks normal single-reader lease replacement
 and exercises canvas-budget arithmetic without allocating a large PDF canvas.
+The same check decodes current-view service selection and exercises the actual
+production Documents binding with generated GET responses: selected-service
+listing, unchanged-binding stability, and normal view/session navigation and
+lazy-module completion. These lifecycle cases use no held replay, expiry,
+revocation or injected transport failures.
 It opens no listener/browser and uses no native host, provider, household input,
 intake or deployment. It adds no held control/regression-suite permission.
 
@@ -1140,6 +1154,304 @@ visibility controls, pointer/keyboard interaction and visible timing observation
 The timing tables show bounded anonymous local stages from the real components;
 fake read delays describe only the generated fixture. Stop the owned preview
 within 20 minutes. This manual review adds no workflow or ordinary CI command.
+
+## Unified Atlas native documentary source healthy check
+
+Inspect `frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs`,
+`frontend/integration/unified-atlas-overlay-source.ts` and its closed native
+association/source parser imports. With Node 26.10.0 and locked frontend
+packages, run:
+
+```sh
+node frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs
+```
+
+This one generated positive read bundles the actual adapter with Vite into an
+owned disposable temporary directory. It uses an in-process synthetic GET
+transport and two dedicated fake original-document owners. It checks exact
+source/receipt and arbitrary-precision revision retention, independently reviewed
+room links, recorded Network data, electrical drawings and historical symbols,
+a normal mobile documentary record retained without room placement, and
+the consumer’s exact room-summary projection with source IDs and historical
+producer status preserved, one normal sequential same-head refresh after ten seconds, and ordinary
+release/disposal. No listener, browser, actual native/household data, external
+provider, writes, malformed/omission, denial, replay, expiry or failure controls.
+The host still needs an independent reviewed room map and actual current native
+original/document owners; generated success does not qualify their availability.
+The same named generated check also reads these fictional factual subsets
+through the saved-documentary byte-admission path, without a native selection,
+session or lease, and retains exact captured identity joins, original dates and
+typed record totals. It checks that repeated building views of one pinned source
+are one inventory. Saved-preview coverage follows the captured native building
+identity, independent of publication building order; unrelated and unlinked
+buildings stay unavailable and the property uses the existing partial-coverage
+aggregation. A valid selectable foreign room with an accepted source mapping
+receives no captured binding; reversing building/map order preserves the result.
+Without a matching native building, known records and the complete graph remain
+unplaced. Source totals, unplaced records and complete graph facts remain
+unchanged. This qualifies `integration/saved-documentary-preview.ts` only;
+the separate production saved-overlay owner needs its own checks and composed
+browser review. The native owner, original guards and positive refresh/release
+checks still execute; saved success does not replace them.
+
+## Unified Atlas reviewed room-links healthy read
+
+Inspect `frontend/integration/unified-atlas-room-links-reader.ts`,
+`unified-atlas-room-links-owner.ts`, their type-only
+overlay/selection imports, the runtime Atlas error type and the complete named
+runner before this ordinary generated positive on Node 26.10.0:
+
+```sh
+node frontend/lantern-tests/unified-atlas-room-links-healthy.mjs
+```
+
+It uses three successful in-process responses: a publication-wide map covering
+two buildings, a valid empty map and valid 128-character source IDs. It checks
+the exact query, cookie-authenticated GET options, revision and byte digest,
+scene-room consistency, immutable output and retained unmapped rooms. Scene
+projections are generated expectations, not admitted GLB publications; no
+authentication or native authority is qualified. No real request, listener,
+browser, private input, malformed/denial/withdrawal/replay/expiry control or
+workflow runs. Mounted-host lifetime and final backend compatibility require
+separate integration evidence.
+
+The same positive also uses a fake base lease and monotonic timers for two
+successful same-map refreshes during a normal 25-second simulated native open,
+followed by ordinary release/disposal. It preserves the exact frame identity
+and cleans its timers/subscriptions. No timeout, expiry, replacement or owner
+withdrawal control is exercised; these fake handlers do not qualify native
+document leases or mounted browser behavior.
+
+The existing named `node frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs`
+also exercises `unified-atlas-room-links-host.ts` through the real map reader,
+map lifetime owner and native adapter. Inspect those imports and the full runner
+first. A generated publication-wide map spans two buildings; only the selected
+building's rooms enter native qualification. The successful map/head refreshes
+retain historical producer status, documentary dates and unplaced records, then
+normal release cleans dedicated fake original-document owners. Its transport is
+entirely in process; it proves no backend authentication or browser behavior and
+adds no held control case.
+
+## Unified Atlas healthy generated check
+
+The unified Atlas reads one `houseatlas.unified-atlas-scene.v1` envelope and its
+pinned GLB. Inspect `frontend/lantern-tests/unified-atlas-healthy.mjs`, its
+generator `frontend/lantern-tests/unified-atlas/synthetic-atlas.ts` and the
+imported reader, scene, geometry, GLB preflight and standard GLB modules. Then use
+Node 26.10.0 and the locked frontend dependencies:
+
+```sh
+node frontend/lantern-tests/unified-atlas-healthy.mjs
+```
+
+It takes no arguments. It runs the production scene reader against a generated
+in-process HTTPS transport, loads the generated GLB through the pinned
+GLTFLoader once, and checks the selected overview manifest query/response pin
+using a separate generated overview manifest digest. Model, source and semantic
+digests remain distinct. The raised and single-floor publications use their own
+manifest pins. This is generated protocol evidence, not backend admission. It checks
+nested-transform baking, per-primitive building and
+level membership, shared multi-level geometry, out-of-order and split-level
+elevations, selectable and excluded rooms, duplicate labels, qualified overlay
+joins. It also checks the shared presentation used
+for drawing, hidden room picks, explosion offsets, section clips, labels, and
+3D, stacked, focused, mid-transition and plan picking. It uses no browser,
+GPU, listener, native host, credentials, household input or provider. It adds
+no malformed, denial, replay, expiry, crash or private-intake case. Its
+generated geometry does not establish real publication coverage, layout,
+rendering or device behavior.
+
+The same named command reads a separately pinned valid generated source-colour
+publication through the existing fake transport, standard loader and binder.
+Distinct opaque core `baseColorFactor` values survive multi-primitive selectors
+and reused nodes as immutable linear metadata, with identical vertices, bounds,
+draw order and semantic memberships. It exercises the production `sourceMeshColor`
+resolver used by `MeshLayer`: source colours precede normal room, roof and site
+fallback tones; opt-out, explicit mesh selection, reference, selected room,
+related-room context and overlay highlights retain precedence. Other rooms'
+highlights preserve the source colour. This checks CPU data and routing only;
+shader encoding, rendered pixels, PBR and transparency remain separate evidence.
+It introduces no malformed, refusal, lifecycle or held omission case.
+
+The named `node frontend/lantern-tests/unified-atlas-healthy.mjs` also checks
+normal generated pointer tap/drag, viewport capture handoff, descendant-to-viewport
+capture transfer, pinch with either-finger release, and plan pan through the
+production pointer-handler factory. Its source fixtures cover context-first Plan
+navigation, reordered plan references, same-winding polygon holes and focused
+exploded-floor framing. Only qualified positive overlay joins are supplied;
+foreign-publication, unqualified-join and unselectable-action controls are not
+part of this ordinary runner. This adds no device cancellation, hardware failure,
+malformed/omission, denial, replay, expiry, private-intake or browser test.
+
+The same named healthy runner also checks generated section targets, current
+clip visibility during a sweep, retargeting, and exact settled/reduced-motion
+values. A coherently translated publication passes the production reader,
+standard loader and binder 100,000 m above its original source Y; it retains
+the expected room pick at a shared triangle seam. These are positive CPU
+observations, not React animation, rendered layout or browser focus evidence.
+
+It also retains generated non-BMP/combining/ZWJ source text at the backend's
+human-field scalar bounds, including 64-scalar source date text and the full
+1,024-scalar position basis. These are source text, not parsed date claims.
+A separate admission-only projection covers 4,096 occurrences and 16,381
+room/non-room/context features with reordered references and an empty
+occurrence. That projection proves frontend semantic admission only: it is not
+bound to model geometry or admitted by the backend. No invalid-text, missing
+reference, denial or other held control is added.
+
+The same named positive also statically renders the actual
+`PublishedOverlayDetails.tsx` with the locked React/ReactDOM server renderer.
+Inspect that component and its type-only scene/binding imports before execution.
+A generated two-floor room retains shared and floor-specific records, dates and
+source-position bases; structurally distinct delimiter/null date tuples remain
+visible and exact duplicate tuples are grouped. A separate 128-entry CPU
+binding projection checks append order, ring/hole grouping and frozen indexes
+using repeated prepared primitives/features. It establishes no new GLB/backend
+geometry admission, benchmark or mounted browser/device behavior. These valid
+generated projections add no malformed, denial or other held control case.
+Unspecified-occurrence position provenance remains visible without acquiring a
+floor marker. Another generated publication splits a level's original features
+across two source plans; the production reader, standard loader and binder
+retain both IDs/order, all rendered features, matching framing and plan picks.
+The backend owner separately confirmed this supported multiple-plan contract;
+the frontend check does not qualify backend admission of its fictional fixture.
+
+The same healthy runner statically renders the actual `NetworkGraph.tsx` and
+shared `plan-presentation.tsx` with the same locked React/ReactDOM instance.
+Generated device self-links, two owned endpoints of one device and an
+ownerless endpoint self-link retain their SVG loops and source totals; a
+record with no incident link remains in the isolated list. The CSS-only graph
+import has no server execution. Two, three and five parallel self-links retain
+distinct drawn/hit paths and a finite frame enclosing their cubic controls and
+hit-stroke margin. These static checks do not establish exposed-arc clicking.
+Additive empty-floor publications above and below the original floors go
+through fresh pins, the production reader, standard loader and binder while
+retaining all existing occurrences, features, bindings and coverage. Each empty
+PlanTile renders nothing and is excluded from thumbnail counts, while the floor
+remains navigable and ordinary tiles retain their paths and overlay summaries.
+The property Plan skips a featureless lowest floor for the next usable plan.
+Actual thumbnails retain the canonical selected room's sibling context before
+ordinary layer tint, in both directions across a generated two-floor room.
+The shared AreaValue renders ordinary nullable source/estimated area values and
+numeric/partial values without changing the geometry basis. These are static
+React and CPU observations, not mounted focus, pointer, CSS, browser or device
+acceptance. They add no held control, source deletion or new verification command.
+The same named healthy runner also renders mixed-direction parallel device,
+owned-port and ownerless-endpoint links. Emitted quadratic geometry is compared
+modulo traversal reversal, reversing every source link preserves each source
+lane, and source notes, counts, isolated nodes and the control-envelope margin
+remain intact. Floor tile summaries union exact record IDs independently per
+layer, including shared and partly overlapping records, repeated room parts and
+cross-floor occurrences; per-occurrence markers and shared record arrays remain
+unchanged. These are static React and binding-only generated projections, not
+mounted hit-path interaction or additional GLB/backend admission.
+
+The graph's responsive focus handoff requires composed browser review: focus a
+camera or layer control with the side graph open, resize to a covering graph,
+then check its heading, preserved inside/outside focus, uncovering and Escape
+return without changing room ancestry or enabled layers. CPU or static React
+checks do not qualify inert-focus behavior.
+
+The separate generated interaction positives use the production reader, standard
+GLB loader, reducer, projection, pointer factory and documentary index. Inspect
+`frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs`, its
+`api.mjs` bundler and imported generated fixtures before this named local check:
+
+```sh
+node --test --test-concurrency=1 frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs
+```
+
+Its thirty-five CPU cases cover repeated navigation, every declared selectable
+occurrence, shared room identity, source-coordinate plans, normal overlay
+toggles, collapse-before-Plan selection, deterministic count touch-target
+suppression, complete label-action targets, source-qualified duplicate floor
+names, indexed tessellated-room picks and tap/drag/pinch sequences. A generated
+Plan projection also checks complete-frame zoom-out after an off-centre scale
+boost, including the shared pointer and cumulative native-gesture zoom floor. They include no held controls, listener,
+provider, credentials or private inputs. They do not qualify DOM focus, CSS,
+animations, GPU rendering, native overlays or devices. The adjacent acceptance
+matrix retains its exact historical source attribution; browser automation is
+a separate check and gains no execution permission from this CPU command.
+This adds no workflow or ordinary CI step.
+
+The same named interaction runner also checks the complete outward hierarchy
+with a single-building publication, all eight independent layer combinations,
+Plan/3D continuity, explicit explosion, an opaque upper slab during a normal
+section transition, authored roof membership and visible foreign-building
+surface targets. Measurement positives retain irregular outlines and holes,
+excluded sibling-part qualification and actual curved boundary segments.
+Native-gesture positives check cumulative rotation/scale and scoped listener
+release; these are simulated CPU events, not physical Mac gesture acceptance.
+Property projection positives retain distinct source identities, differing
+same-date observations and per-building coverage. These generated ordinary
+cases add no held lifecycle, malformed, denial or other control case.
+
+The same interaction positives also project fictional narrow room labels along
+their authored polygon axes and onto clear paper with bounded callouts. They
+check complete rotated action rectangles, panel and count-target clearance,
+source-anchored leaders and measurement reservations, deterministic priority,
+the four-callout cap, narrow-stage room-list fallback, selected standing tags,
+full Unicode names and unchanged source buffers and floor-qualified selection.
+Ordinary horizontal names and selected tags also clear their own complete count
+targets; an occupied rotated target keeps the selected tag standing.
+These are CPU presentation observations; actual fonts, mounted pointer/focus
+behavior, animation and rendered publication layout still require browser review.
+
+Wide-stage layer keys share the floor rail's margin, while **Other floors**
+opens the optional preview strip. These layout changes use the existing
+presentation and interaction checks above; those CPU checks do not mount CSS
+or certify panel clearance. Browser review must separately check desktop and
+intermediate stages with the graph closed and open, floor-strip selection and
+Escape/focus return, key scrolling on short stages, and focus recovery across
+the 720px stage breakpoint. Compare the unchanged 390px and 320px controls,
+drawers and graph using matching selection, layers and Fit states. Preserve
+source coverage, unplaced facts and measurement qualifiers throughout.
+
+The interaction positives also retain an opaque foreground wall's floor target
+beside an exposed room interior. A generated CPU binding projection preserves
+the near-horizontal own-floor skin exception beyond ordinary depth tolerance
+and the floor target for an elevated opaque structure face; original source
+buffers remain unchanged. Null and unrecognized presentation entries retain
+the sole-building fallback, while a known context-only entry retains property
+scope. Existing opaque slab, underside and authored-roof cases remain in place.
+
+The named interaction positives additionally retain each room's complete local
+primary documentary observation while keeping other observations and distinct
+source entities. Additive valid generated plan publications check reverse group
+paint order, a later display-only room band with a hole revealing the earlier
+group, non-context floor fallback, explicit unselectable room fill, and selectable
+occurrences without feature/native room IDs. They preserve original geometry,
+coverage and the existing smallest-containing-room policy; generated floor/lift
+projections check each group's own source plane. No malformed or denial control
+is introduced.
+
+The `/lantern-tests/source-host-visual/` fixture keeps its default. With
+`?atlas=generated` it also mounts the unified Atlas through the production
+reader against an in-page synthetic HTTPS transport. With
+`?atlas-scene=<path>&atlas-model=<path>` it reads an externally supplied
+publication companion and GLB once from the same loopback origin instead. Both
+paths are required, and they are fetched without credentials or redirects.
+An optional `atlas-entry-building` supplies an explicit presentation entry,
+validated against the admitted scene; names/order/size do not choose it.
+The named generated Atlas healthy check also exercises an absent entry header
+and a valid owner-selected `x-atlas-entry-building-id` on the same descriptor,
+retaining identical scene/model bytes. The admitted read carries this optional
+preference; it neither changes source JSON nor establishes a native room join.
+With `atlas-documentary=/review-input/<manifest>.json`, the same private fixture
+can additionally read a saved-documentary manifest and its three pinned source,
+support and captured-map files. Inspect `integration/saved-documentary-preview.ts`,
+the source client's pure documentary byte-admission core and the factual runtime
+projector first. Its bounded same-origin reads omit credentials and redirects;
+all other application fetches stay unavailable. It preserves original source
+IDs/dates, unplaced records and source qualifiers. The visible saved-snapshot
+state is separate from native sessions, frames, read leases, currentness or
+physical registration. Drawing references are metadata only. Other fixture app
+screens and actions remain generated. Use only owned private inputs and the
+same supported-browser/manual preview bounds above; this adds no native grant,
+private-intake controls, authenticated candidate acceptance or deployment.
+Keep supplied files and any captures outside Git. Follow the loopback preview
+bounds above. A fixture review does not qualify native authority, household
+data or deployment, and it adds no workflow or ordinary CI command.
 
 ## Native geodata document first slice
 
@@ -1220,6 +1532,113 @@ cargo run --offline --locked -p houseatlas-backend --example healthy-model-overv
 This positive establishes synthetic read composition only; actual private
 publication install, device rendering and release remain separate.
 
+## Named generated unified Atlas read
+
+Inspect `backend/src/config/atlas_scene.rs`, its bounded standard-glTF helper,
+`backend/src/http/atlas_scene.rs`, the CLI/Host composition and
+`backend/examples/healthy-unified-atlas-read.rs` plus its generated fixture
+helper before this exact ordinary positive. It creates only disposable native
+state and a fresh actual password-free session; no listener or provider runs.
+The source has one building, two levels, a logical room occurring on both,
+three actual cube pick meshes and matching inline plans, including an explicitly
+estimated proxy. It checks authenticated current/scoped availability, exact
+publication/selection and semantic facts, the expected overview-manifest query
+and checked digest echo, identical legacy no-query descriptor bytes, repeated Media-authorized pinned GLB
+GETs/digests/headers, and unchanged overview/config/receipt/source bytes. Positive
+source cases include reflected pick geometry, a nonnegative alpha cutoff above
+one and an unused indexed vertex below the drawn support plane.
+It runs
+no malformed, omission, denial, replay, revocation, expiry or crash controls.
+Use Rust 1.99.0 and an owned external target:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-unified-atlas-read -- --fixture-output /tmp/houseatlas-unified-atlas-fixture-20261016
+```
+
+The output directory must be absent. Its four anonymous files (`overview.glb`,
+`publication.json`, `atlas-scene.json`, `scene-response.json`) are generated
+source/consumer fixtures only; no session, configuration, native database or
+credential is copied. The frontend owner can consume that exact envelope and
+model in its compiled preview. Native activation, actual publication/device
+rendering and product readiness remain separate.
+
+Focused static checks for this source lane (no test execution):
+
+```sh
+cargo clippy --offline --locked -p houseatlas-backend --lib --bin houseatlas --example healthy-unified-atlas-read --example validate-unified-atlas-publication -- -D warnings
+```
+
+`validate-unified-atlas-publication` is a source-only, read-only owner entrypoint
+for separately supplied private artifacts, not an ordinary household intake
+check. Its four required options are `--overview-manifest`,
+`--overview-manifest-sha256`, `--atlas-scene-manifest`, and
+`--atlas-scene-manifest-sha256`. It uses the identical private selection and
+semantic/GLB validators without reading native state or starting a service.
+Do not interpret source validation as current native joins, browser acceptance
+or release. No actual private source is included or exercised by this lane.
+
+### Unified Atlas native documentary overlay source healthy read
+
+Inspect `frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs` before
+running this one generated positive. It exercises the actual source-only
+current-association HTTP qualifier and closed network/electricity/fixture
+parsers with an in-process GET transport and two dedicated fake native document
+owners. It checks independently host-reviewed publication/native/package room
+links against the current association, retained
+primary and historical originals, final current-head read, arbitrary-precision
+asset revision, a valid multi-anchor target union with target-specific anchor
+provenance, documentary-only detail DTOs, one positive bounded passive
+head refresh and explicit owner release. Initial and final qualification use
+`/current`; the sequential monitor uses the existing compact `/head` response
+(at most 4,096 bytes), comparing record ID, exact revision and canonical payload
+SHA-256. It polls every 10 seconds with an 8-second deadline, withdraws on change/error, accepts a head
+proof for at most 20 seconds while the original native session and source
+owners remain active. Release, context/document invalidation or native session
+end stop the monitor. This is bounded read-point freshness, not immediate
+external-write notification. The compact head rechecks the accepted native
+chain, identities and source-record pins; it does not repeat old scan-descriptor
+or retained-byte validation. The dedicated original owners continue to guard
+the retained documentary sources. Initial and subsequent timers count from the
+actual head-read timestamp, not from completion of optional PDF checks. It
+uses no old rendered geometry, real source, provider, listener, native mutation,
+expiry/revocation/replay/denial or other held controls. Use pinned Node 26.10.0:
+
+```sh
+node frontend/lantern-tests/unified-atlas-overlay-source-healthy.mjs
+```
+
+When a frame advertises optional PDF correlations, the same sequential monitor
+also rechecks the exact PDF evidence membership in the native building identity
+under its shared eight-second deadline. The identity proof has its own measured
+read timestamp and twenty-second freshness bound; association reads do not
+renew it. Before publication, an unavailable or stale optional correlation is
+omitted. Once advertised, its loss retires that immutable composite frame;
+a new open can qualify base documentary sources without the optional PDF link.
+
+### Independent unified Atlas room-link healthy read
+
+Inspect `backend/examples/healthy-unified-atlas-room-links-read.rs` and its
+existing generated fixture helper before this named ordinary positive. It uses
+only disposable synthetic persistent state, a fresh actual password-free native
+session and the in-process router. It reads the optional independently supplied
+room-link JSON twice under native Read, checks exact query/selection/digest and
+private response headers, and preserves the strict scene descriptor, producer
+historical status, configuration, Atlas state, receipt and source bytes. The
+ordinary absent configuration returns authenticated 404. No native identity
+registration, current source qualification, real provider/listener/household
+input or malformed/denial/replay/revocation/expiry/crash controls run. Use Rust
+1.99.0 and the explicitly coordinated external target:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-unified-atlas-room-links-read
+```
+
+Focused static checks for this source lane:
+
+```sh
+cargo clippy --offline --locked -p houseatlas-backend --lib --bin houseatlas --example healthy-unified-atlas-room-links-read -- -D warnings
+```
+
 ## Synthetic PR performance reporting
 
 The separate performance lane uses only this automatic healthy reporting check,
@@ -1289,3 +1708,118 @@ has the scoped ephemeral PR-comment permission. See
 [the report lane](../ci-performance.md) and
 [measurement handoff](../../tools/perf/reporting/README.md). It releases no
 application-control, provider, household, recovery, pilot or deployment gate.
+
+## Named generated home read-pack check
+
+Inspect `backend/examples/healthy-home-read-pack.rs`, its generated
+`support/home_read_pack_geometry.rs` helper, the reused unified Atlas fixture,
+and the touched read-pack storage/HTTP and admitted companion accessor before
+these exact commands. This ordinary positive uses only fresh disposable native
+state and in-process HTTP. It creates an actual local password-free session,
+building/evidence records, native evidence original, and a qualified generated
+USDZ/mesh custody plus building association. No USD converter is executed.
+
+The positive checks source-policy-approved lossless JSON and PNG Documents on
+the same native dataset, a qualified PNG preview, full GLB, matching inline
+plans/documentary overlays and independently admitted historical room links.
+The valid raw companion is padded with generated JSON whitespace above 8 MiB
+and below 12 MiB, verifying exact bytes stay outside the generic section parser.
+It checks six-section manifests, complete and honest overview-only partial
+coverage, native scan original/derivative mappings, all digest/size/MIME pins,
+full-resource and 4 MiB range assembly, retained reads and source-file invariance.
+The full-profile copy prepares only this fixture; export writes no native state.
+No listener, provider, household data, denial, malformed, revocation, omission or
+crash probe runs. Use Rust 1.99.0 and an owned target outside the checkout:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-home-read-pack
+cargo run --offline --locked -p houseatlas-backend --example healthy-home-read-pack -- --fixture-output /tmp/houseatlas-home-read-pack-generated
+```
+
+The optional output directory must be absent and its parent canonical. It holds
+only generated `records`, `partial`, `unified` and `documents` manifests and
+hash-named resource bytes, with no cookies/session headers. These finite examples
+are documentary fixtures for the separate frontend consumer owner. They do not
+establish offline renderer, browser, device, source placement or deployment
+acceptance. The closed v1 envelope remains; explicit model-section v2 renderer
+support is still required.
+
+## Bounded generated offline intent reconciliation qualification
+
+Inspect `backend/examples/healthy-offline-intent-reconciliation.rs` before this
+separately released synthetic qualification. It uses the existing in-process
+Axum router, Access owner and SQLite Store in a fresh disposable directory.
+One generated Stock command commits; subsequent POSTs only inspect its retained
+outcome. It starts no listener and does not resend the command or use the Node
+ledger. Use Rust 1.99.0 and an owned target outside the checkout:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-offline-intent-reconciliation
+```
+
+The bounded cases cover seven-table successful commit coherence, repeated
+lookup and original receipt preservation, an alternate lookup request ID,
+changed-payload conflict, viewer-actor absence, unconfigured workspace/home
+absence, unchanged Atlas DB/WAL bytes and an actual Store close/reopen. They
+also check the existing 16,384-byte lookup input boundary and the consumer's
+exact/one-byte-short response reader bound. This is a separate generated
+qualification, not a new ordinary workflow step or a blanket regression release.
+
+An absent outcome retains `retrySafety: not-established`. These checks do not
+establish replay safety, injected rollback, crash or process recovery, concurrent
+writers, two authorized-home collision isolation, a server response-size ceiling,
+offline editing/sync, production access or deployment readiness.
+
+## Named generated saved Atlas mounting positives
+
+Read [saved Atlas mounting](../offline/saved-atlas-mounting.md),
+[saved overlay projections](../offline/saved-atlas-overlays.md) and the fixture
+README before the exact named generated positives:
+
+```sh
+node frontend/lantern-tests/offline-atlas-presentation-healthy.mjs
+node frontend/lantern-tests/offline-atlas-overlays-healthy.mjs
+node frontend/lantern-tests/offline-atlas-mounting-healthy.mjs
+node frontend/lantern-tests/offline-stage-discard-healthy.mjs
+```
+
+Use pinned Node 26.10.0, exact locked dependencies and evidence output outside
+source. Only valid generated complete/partial retained copies and fake local
+resource owners run. Ordinary frontend typecheck/build, backend static asset
+compatibility and exact publication source verification are also included.
+This adds no broad alias, workflow or held malformed/denial/replay/expiry/crash,
+adversarial/private-intake or failure-injection case. Supported browser QA uses
+only the explicit Save/production-store path and owned loopback/static shell
+procedure in `frontend/lantern-tests/offline-atlas-browser/README.md`; it proves
+owned-origin unavailability only, not WAN/device/PWA/iOS acceptance.
+
+The stage-discard command separately exercises the actual production store with
+five ordinary generated lifecycle cases through a finite asynchronous IDB API
+simulation: canceled new and replacement Saves, cleanup after commit, normal
+stage supersession and shared-digest retention. It verifies transaction completion
+and preservation of the committed copy. This is source/simulated-storage evidence;
+it does not establish genuine browser persistence, native acquisition or offline
+device availability.
+
+## Named generated native house acquisition check
+
+Read [native house acquisition](../offline/native-house-acquisition.md) and the
+complete runner/imports before this exact Node 26.10.0 command with locked
+frontend dependencies. The argument is the retained generated handoff containing
+`QUALIFICATION.json` and its four `fixtures` directories; no fixture data is
+copied into the repository.
+
+```sh
+node frontend/lantern-tests/offline-house-acquisition-healthy.mjs /absolute/retained-generated-handoff
+```
+
+Only four valid generated exports and focused ordinary explicit Save/Replace,
+Cancel, unchanged-owner/view-replacement and late-commit lifecycle cases run,
+using injected finite GET responses, a valid public shell result and an in-memory
+staging owner. Seven valid static React presentation states additionally check
+passive rendering, Prepare/Save and capture labels, coverage/exclusions before
+confirmation, Cancel wording and exact receipt pins. These are not layout,
+keyboard or browser checks. No global fetch replacement, socket, browser, native state,
+real IndexedDB/provider, held denial/foreign-token/expiry/revocation/crash/fault,
+guard-reversal or broad alias is included. This check establishes no genuine
+offline/device/PWA or deployment acceptance and adds no workflow.

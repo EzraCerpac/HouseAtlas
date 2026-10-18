@@ -1,19 +1,31 @@
 /** Generic source-only host demo for the mounted source ports: the actual
  * LanternHost with the browser-only model chooser in Atlas and native v2 source
  * Documents in Library. The production Documents reader runs unchanged against
- * a synthetic in-page transport; every other application fetch is unavailable. */
+ * a synthetic in-page transport; every other application fetch is unavailable.
+ *
+ * `?atlas=generated` adds the unified Atlas: the production scene reader runs
+ * against a synthetic in-page HTTPS transport serving the generated
+ * publication. `?atlas-scene=<path>&atlas-model=<path>` uses an externally
+ * supplied companion and its GLB instead; both paths must be same-origin and
+ * are read once before the stub below. Nothing is written or kept. */
 import { createRoot } from 'react-dom/client';
 import { LanternHost } from '../../src/lantern/Host';
 import type { AtlasSessionInfo } from '../../src/app/session';
 import type { ReadyView } from '../../src/app/types';
 import type { SourceDocumentsPort } from '../../src/lantern/source-documents/types';
 import { createNativeSourceDocumentReader } from '../../integration/native-source-document-reader';
+import { readUnifiedAtlas } from '../../integration/unified-atlas-reader';
+import { readSavedDocumentaryPreview, savedDocumentaryInputPath } from '../../integration/saved-documentary-preview';
 import fixture from '../core-read-visual/fixture.json';
 import { createSyntheticDocumentServer } from './synthetic-documents';
 import { createSyntheticSitePort } from './synthetic-site';
+import { atlasScenePath, buildSyntheticAtlas, composeAtlasEnvelope, createAtlasTransport, SYNTHETIC_ATLAS } from '../unified-atlas/synthetic-atlas';
 import type { SourceModelPort } from '../../src/lantern/source-ports';
+import type { ModelOverviewSelection } from '../../src/lantern/source-models/overview-types';
 import { StageTimings } from '../stage-timings/StageTimings';
 
+// Kept only for the explicit same-origin fixture paths below.
+const pageFetch = globalThis.fetch.bind(globalThis);
 // No real session, account, native transport, cookies or provider is consulted.
 globalThis.fetch = async () => new Response(null, { status: 404 });
 const session: AtlasSessionInfo = {
@@ -31,15 +43,94 @@ const sourceDocuments: SourceDocumentsPort = {
   })),
 };
 
-// Browser-only model files with no electrical provider, plus one fictional
-// site publication through an in-page fake port.
-const sourceModels: SourceModelPort = { localFiles: 'browser-only', site: createSyntheticSitePort() };
+async function readPrivateInput(path: string, maximum: number): Promise<Uint8Array<ArrayBuffer>> {
+  const url = new URL(savedDocumentaryInputPath(path), location.href);
+  if (url.origin !== location.origin) throw new Error('Fixture inputs must be on this origin.');
+  const response = await pageFetch(url, { cache: 'no-store', redirect: 'error', credentials: 'omit' });
+  if (!response.ok) throw new Error(`Fixture input unavailable: ${url.pathname}`);
+  const declared = response.headers.get('content-length');
+  if (declared !== null && Number(declared) > maximum) throw new Error('Fixture input is too large.');
+  const chunks: Uint8Array[] = []; let length = 0;
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('Fixture input has no body.');
+  try {
+    for (;;) {
+      const next = await reader.read(); if (next.done) break;
+      length += next.value.byteLength;
+      if (length > maximum) throw new Error('Fixture input is too large.');
+      chunks.push(next.value);
+    }
+  } finally { await reader.cancel(); reader.releaseLock(); }
+  const bytes = new Uint8Array(length); let at = 0;
+  for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.byteLength; }
+  return bytes;
+}
+
+/** Optional unified Atlas source: generated, or an explicit same-origin pair. */
+async function atlasInput(): Promise<{ readonly companionBytes: Uint8Array<ArrayBuffer>; readonly glb: Uint8Array<ArrayBuffer> } | null> {
+  const params = new URLSearchParams(location.search);
+  const scenePath = params.get('atlas-scene'), modelPath = params.get('atlas-model');
+  if ((scenePath === null) !== (modelPath === null)) throw new Error('Give both atlas-scene and atlas-model, or neither.');
+  if (scenePath !== null && modelPath !== null) {
+    const read = async (path: string) => {
+      const url = new URL(path, location.href);
+      if (url.origin !== location.origin) throw new Error('Atlas fixture paths must be on this origin.');
+      const response = await pageFetch(url, { cache: 'no-store', redirect: 'error', credentials: 'omit' });
+      if (!response.ok) throw new Error(`Atlas fixture path unavailable: ${url.pathname}`);
+      return new Uint8Array(await response.arrayBuffer());
+    };
+    const [companionBytes, glb] = await Promise.all([read(scenePath), read(modelPath)]);
+    return { companionBytes, glb };
+  }
+  if (params.get('atlas') !== 'generated') return null;
+  const generated = await buildSyntheticAtlas(scope);
+  return { companionBytes: generated.companionBytes, glb: generated.glb };
+}
+
+async function sourceModels(): Promise<SourceModelPort> {
+  // Browser-only model files with no electrical provider, plus one fictional
+  // site publication through an in-page fake port.
+  const base: SourceModelPort = { localFiles: 'browser-only', site: createSyntheticSitePort() };
+  const input = await atlasInput();
+  if (!input) return base;
+  const documentaryPath = new URLSearchParams(location.search).get('atlas-documentary');
+  if (documentaryPath !== null) savedDocumentaryInputPath(documentaryPath);
+  const saved = documentaryPath === null ? null : await readSavedDocumentaryPreview(
+    await readPrivateInput(documentaryPath, 1024 * 1024), readPrivateInput, () => {});
+  const entry = saved?.entryBuildingId ?? new URLSearchParams(location.search).get('atlas-entry-building');
+  // The host composition the backend performs: selection revision, pins and read href.
+  const composed = await composeAtlasEnvelope(input.companionBytes, input.glb, SYNTHETIC_ATLAS.revision);
+  const transport = createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(composed.scope),
+    envelopeBytes: composed.envelopeBytes, href: composed.href, glb: input.glb, sha256: composed.sha256, manifestSha256: composed.manifestSha256, revision: SYNTHETIC_ATLAS.revision });
+  const selection: ModelOverviewSelection = { owner: {}, scope: composed.scope, expiresAt: '2099-01-01T00:00:00Z',
+    publicationId: composed.publicationId, manifestSha256: composed.manifestSha256 };
+  const current = () => selection, subscribe = () => () => {};
+  return {
+    ...base,
+    overview: { current, subscribe, async read(_selection, signal) {
+      signal.throwIfAborted();
+      return { blob: new Blob([input.glb], { type: 'model/gltf-binary' }), label: 'Synthetic unified model',
+        publicationId: selection.publicationId, sourceNote: 'Generated fixture model.', components: [] };
+    } },
+    // The production reader, guards and admission against the in-page HTTPS fake.
+    atlas: { current, subscribe, entryBuildingId: () => entry,
+      ...(saved ? { savedDocumentary: saved } : {}),
+      async read(requested, signal) {
+        const read = await readUnifiedAtlas({ selection: requested, signal,
+          origin: SYNTHETIC_ATLAS.origin, isCurrent: () => requested === selection, transport });
+        // This explicit local-fixture preference is presentation only; the
+        // generated transport has no authenticated native entry configuration.
+        return entry === null ? read : { ...read, entryBuildingId: entry };
+      } },
+  };
+}
 
 const root = createRoot(document.getElementById('root')!);
-root.render(<LanternHost view={fixture.view as ReadyView}
+void sourceModels().then(models => root.render(<LanternHost view={fixture.view as ReadyView}
   actions={{ reload: async () => true, switchHome: () => {}, busy: false, notice: '',
     session: { ...session, signOut: async () => {} } }}
-  nativeContent={null} sourceModels={sourceModels} sourceDocuments={sourceDocuments} />);
+  nativeContent={null} sourceModels={models} sourceDocuments={sourceDocuments} />),
+error => root.render(<p role="alert">{error instanceof Error ? error.message : 'The Atlas fixture could not start.'}</p>));
 // Anonymous site and model stage timings, below the host and bounded.
 const timings = createRoot(document.getElementById('timings')!);
 timings.render(<div className="lantern-host" style={{ height: 'auto', padding: 16 }}><StageTimings areas={['site', 'model']} /></div>);

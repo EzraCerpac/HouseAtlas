@@ -264,6 +264,12 @@ Inspect script bodies first; use Rust 1.99.0, Node 26.10.0 and npm 11.19.1.
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-upload-loopback.mjs
     HOUSEATLAS_BINARY="$CARGO_TARGET_DIR/debug/houseatlas" node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs
 
+The owned-media loopback check retains its cumulative HTTP 200 (or favicon
+204) requirement. On failure it logs at most twenty unexpected route shapes,
+statuses, methods and request/response phases, omitting origins, queries,
+fragments, UUIDs, SHA-256 values, headers and bodies. Phases describe test
+actions, not elapsed time. This diagnostic adds no retry or accepted status.
+
 The Atlas-list browser flow is a separately named local healthy check, outside
 ordinary CI. Inspect its complete body and use its exact scoped permission
 before execution; it has no automatic workflow entrypoint:

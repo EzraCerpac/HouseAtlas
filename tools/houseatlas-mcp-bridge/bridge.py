@@ -29,6 +29,14 @@ MAX_READ = 2 * 1024 * 1024
 MAX_READ_PAGE = 8
 MAX_OUTPUT = 8 * 1024 * 1024
 MAX_ORIGINAL = 10 * 1024 * 1024
+MAX_COMMIT = MAX_READ
+# Native retained results repeat root records/audits in up to100 child wires.
+# Two bounded receipt copies plus bounded envelope/group metadata, not a
+# schema-wide maximum: native record arrays remain unbounded.
+MAX_RETAINED = 2 * MAX_COMMIT + 256 * 1024
+MAX_NODES = 262144
+MAX_RETAINED_NODES = 2 * MAX_NODES + 16384
+MAX_SAFE_INTEGER = 9007199254740991
 UUID = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\Z")
 SHA = re.compile(r"[0-9a-f]{64}\Z")
 WRITE_FORMS = {
@@ -65,7 +73,33 @@ def uid(value):
     return value
 
 
-def strict_json(raw, limit=MAX_JSON):
+class ExactDecimal(Decimal):
+    def __new__(cls, literal):
+        value = super().__new__(cls, literal)
+        value.literal = literal
+        return value
+
+
+def native_integer(value, minimum=0, maximum=MAX_SAFE_INTEGER):
+    """Exact native checked integer value; never round through binary64."""
+    need(type(value) is int or isinstance(value, Decimal), 'Native bounded integer required')
+    if isinstance(value, Decimal):
+        literal = getattr(value, 'literal', str(value))
+        # contracts/numeric.rs bounds the token, exponent and decimal shift.
+        need(len(literal) <= 4096, 'Native integer token exceeded bound')
+        match = re.fullmatch(r'-?(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?', literal)
+        need(match is not None, 'Native integer token invalid')
+        exponent = int(match[3] or '0')
+        need(abs(exponent) <= 4096 and abs(exponent - len(match[2] or '')) <= 4096,
+             'Native integer exponent exceeded bound')
+        need(value.is_finite() and minimum <= value <= maximum
+             and value == value.to_integral_value(), 'Native bounded integer required')
+        return int(value)
+    need(minimum <= value <= maximum, 'Native bounded integer required')
+    return value
+
+
+def strict_json(raw, limit=MAX_JSON, max_nodes=MAX_NODES, max_depth=64):
     if isinstance(raw, str):
         raw = raw.encode('utf-8')
     need(len(raw) <= limit, 'JSON byte bound exceeded')
@@ -79,12 +113,12 @@ def strict_json(raw, limit=MAX_JSON):
         raise BridgeError('Nonfinite JSON number')
     try:
         value = json.loads(raw.decode('utf-8'), object_pairs_hook=pairs,
-                           parse_float=Decimal, parse_constant=constant)
+                           parse_float=ExactDecimal, parse_constant=constant)
         nodes = 0
         def walk(v, depth):
             nonlocal nodes
             nodes += 1
-            need(depth <= 64 and nodes <= 262144, 'JSON structure bound exceeded')
+            need(depth <= max_depth and nodes <= max_nodes, 'JSON structure bound exceeded')
             if isinstance(v, dict):
                 for k, item in v.items():
                     k.encode('utf-8')
@@ -242,7 +276,7 @@ class HTTPSOwner:
         info = strict_json(body, 16384)
         keys(info, ('schemaVersion', 'actorId', 'csrfToken', 'expiresAt'))
         uid(info['actorId'])
-        need(type(info['schemaVersion']) is int and info['schemaVersion'] == 1
+        need(native_integer(info['schemaVersion']) == 1
              and isinstance(info['csrfToken'], str) and 0 < len(info['csrfToken']) <= 8192
              and all(32 < ord(c) < 127 for c in info['csrfToken']), 'Native session issuance differs')
         value = headers.get('set-cookie', '')
@@ -370,7 +404,7 @@ class Bridge:
     def session(self):
         session = self.get_json('/api/atlas/auth/session')
         keys(session, ('schemaVersion', 'actorId', 'csrfToken', 'expiresAt'))
-        need(type(session['schemaVersion']) is int and session['schemaVersion'] == 1 and isinstance(session['csrfToken'], str)
+        need(native_integer(session['schemaVersion']) == 1 and isinstance(session['csrfToken'], str)
              and 0 < len(session['csrfToken']) <= 8192
              and all(32 < ord(c) < 127 for c in session['csrfToken']), 'Native session unavailable')
         actor = uid(session['actorId'])
@@ -422,8 +456,7 @@ class Bridge:
              'Read command is not currently admitted')
         payload = request.get('payload')
         if isinstance(payload, dict) and 'pageSize' in payload:
-            need(type(payload['pageSize']) is int and 1 <= payload['pageSize'] <= MAX_READ_PAGE,
-                 'Bridge read pages require1–8rows; caller must author a smaller initial query, never rewrite a retained cursor')
+            native_integer(payload['pageSize'], 1, MAX_READ_PAGE)
         need(len(raw.encode('utf-8')) <= 16384, 'Native read envelope exceeded bound')
         path = self.base + '/invoke?' + urllib.parse.urlencode({'request': raw})
         need(len(path.split('?', 1)[1]) <= 32768, 'Native read query exceeded bound')
@@ -448,9 +481,9 @@ class Bridge:
         if op.endswith('.create') or op == BATCH:
             need(expected is None, 'Create/batch target must be absent')
         else:
-            need(isinstance(expected, dict) and expected.get('kind') == 'atlas'
-                 and type(expected.get('value')) is int and 1 <= expected['value'] <= 9007199254740991,
+            need(isinstance(expected, dict) and expected.get('kind') == 'atlas',
                  'Exact current Atlas revision required')
+            native_integer(expected.get('value'), 1, MAX_SAFE_INTEGER - 1)
         if op == BATCH:
             commands = request.get('payload', {}).get('commands')
             need(isinstance(commands, list) and 1 <= len(commands) <= 100, 'Qualified batch size required')
@@ -477,6 +510,7 @@ class Bridge:
         need(not self.journal.pending(), 'Unknown write outcome blocks further writes; passive reconciliation required')
         admitted = self.admission()
         self.write_requests(request, admitted)
+        committed_record_expectations(request)
         intent_digest(request)  # Reject unrepresentable native numbers before dispatch.
         commands = request['payload']['commands'] if request['commandId'] == BATCH else [request]
         if any(c['commandId'] == 'atlas.binding.remap' for c in commands):
@@ -486,15 +520,18 @@ class Bridge:
         # Persistent UNKNOWN is committed before any POST. No rejection/timeout clears it.
         self.journal.begin(request, raw)
         headers, body = self.owner.exchange('POST', self.base + '/commands', raw.encode('utf-8'),
-                                      session['csrfToken'])
+                                      session['csrfToken'], limit=MAX_COMMIT)
         need(headers.get('content-type') == 'application/json', 'Native commit content type differs')
-        result = self.correlate(strict_json(body), request)
+        result = self.correlate(strict_json(body, MAX_COMMIT), request)
         self.commit_receipt(result, request)
         self.session()
         self.journal.finish(request['idempotencyKey'], body.decode('utf-8'))
         return body.decode('utf-8')
 
     def commit_receipt(self, result, request):
+        # Apply the same per-receipt byte/node/depth profile to retained root
+        # and child wires as to normal command output. No JSON is truncated.
+        strict_json(decimal_json(result), MAX_COMMIT)
         need(result.get('status') == 'committed' and result.get('replayed') is False
              and isinstance(result.get('data'), dict)
              and result['data'].get('requestDigest') == intent_digest(request)
@@ -513,8 +550,8 @@ class Bridge:
         for record, (target, revision, lifecycle) in zip(records, expected):
             keys(record, ('target', 'revision', 'lifecycle', 'payload'))
             keys(record['target'], ('authority', 'recordType', 'recordId'))
-            need(record['target'] == target and type(record['revision']) is int
-                 and record['revision'] == revision and record['lifecycle'] == lifecycle
+            need(record['target'] == target and native_integer(record['revision'], 1) == revision
+                 and record['lifecycle'] == lifecycle
                  and isinstance(record['payload'], dict), 'Native committed record differs')
             identity = (target['recordType'], target['recordId'])
             need(identity not in targets, 'Native committed record targets duplicate')
@@ -536,9 +573,10 @@ class Bridge:
         need(len(raw.encode('utf-8')) <= 16384,
              'Native retained-intent owner accepts only16384bytes; original intent retained unchanged and UNKNOWN')
         session = self.session()
-        headers, body = self.owner.exchange('POST', '/api/atlas/retained-intent', raw.encode('utf-8'), session['csrfToken'])
+        headers, body = self.owner.exchange('POST', '/api/atlas/retained-intent', raw.encode('utf-8'),
+                                            session['csrfToken'], limit=MAX_RETAINED)
         need(headers.get('content-type') == 'application/json', 'Native reconciliation content type differs')
-        result = strict_json(body)
+        result = strict_json(body, MAX_RETAINED, MAX_RETAINED_NODES, 68)
         keys(result, ('format', 'lookupRequestId', 'inspection', 'committedResult'))
         need(result['format'] == 'atlas-retained-reconciliation/1' and result['lookupRequestId'] == request_id,
              'Native reconciliation lookup differs')
@@ -581,10 +619,20 @@ class Bridge:
                  'Native retained batch receipt flattening differs')
         self.session()
         self.journal.finish(key, body.decode('utf-8'), reconciled=True)
-        return {'requestId': request_id, 'state': 'committed-reconciled', 'nativeOutcome': 'retained-commit',
+        output = {'requestId': request_id, 'state': 'committed-reconciled', 'nativeOutcome': 'retained-commit',
                 'retrySafety': 'not-established', 'originalMediaRelease': 'not-established',
                 'originalHttpDelivery': 'not-established', 'nativeReconciliationJson': body.decode('utf-8'),
                 'status': self.status()}
+        # Native root+children repeat records. A doubly escaped MCP text result
+        # need not fit even though each receipt does. Preserve the exact full
+        # response in the journal; return explicit metadata rather than a
+        # sliced receipt or a fabricated UNKNOWN/redispatch permission.
+        text = decimal_json(output)
+        if len(compact({'content': [{'type': 'text', 'text': text}], 'isError': False}).encode()) > MAX_OUTPUT // 2:
+            output.pop('nativeReconciliationJson')
+            output.update(nativeReconciliationOmitted='MCP result budget; exact response retained in private journal',
+                          nativeReconciliationBytes=len(body), nativeReconciliationSha256=sha(body))
+        return output
 
     def record(self, kind, record_id):
         need(kind in WRITE_FORMS, 'Record kind unavailable')
@@ -598,8 +646,8 @@ class Bridge:
              and isinstance(records, list) and len(records) == 1, 'Current record unavailable')
         row = records[0]
         need(row.get('target') == {'authority': 'atlas', 'recordType': kind, 'recordId': record_id}
-             and row.get('lifecycle') == 'active' and type(row.get('revision')) is int
-             and 1 <= row['revision'] <= 9007199254740991, 'Current record identity differs')
+             and row.get('lifecycle') == 'active', 'Current record identity differs')
+        native_integer(row.get('revision'), 1)
         return row
 
     def scene_path(self, building, suffix):
@@ -612,12 +660,13 @@ class Bridge:
              and head.get('buildingId') == building and head.get('status') == 'available', 'Current scene head unavailable')
         pin = head.get('head')
         need(isinstance(pin, dict) and UUID.fullmatch(pin.get('recordId', ''))
-             and type(pin.get('revision')) is int and pin['revision'] > 0
              and SHA.fullmatch(pin.get('payloadSha256', '')), 'Current scene head invalid')
+        native_integer(pin.get('revision'), 1)
         current = self.get_json(self.scene_path(building, 'current'))
         need(current.get('status') == 'available' and isinstance(current.get('association'), dict), 'Qualified current scene unavailable')
         row = current['association']
-        need(row.get('recordId') == pin['recordId'] and row.get('revision') == pin['revision']
+        need(row.get('recordId') == pin['recordId']
+             and native_integer(row.get('revision'), 1) == native_integer(pin['revision'], 1)
              and row.get('payload', {}).get('buildingId') == building
              and row.get('workspaceId') == self.scope['workspaceId'] and row.get('homeId') == self.scope['homeId']
              and row.get('recordType') == 'scene-association'
@@ -637,8 +686,7 @@ class Bridge:
 
     @native_operation
     def evidence(self, building, evidence_id, offset, count):
-        need(type(offset) is int and 0 <= offset <= MAX_ORIGINAL and type(count) is int
-             and 1 <= count <= 262144, 'Evidence chunk bounds invalid')
+        offset, count = native_integer(offset, 0, MAX_ORIGINAL), native_integer(count, 1, 262144)
         head, current = self.scene_frame(building)
         evidence = self.record('evidence', uid(evidence_id))
         refs = evidence.get('payload', {}).get('references')
@@ -651,8 +699,8 @@ class Bridge:
         need(p.get('owner') == 'atlas' and p.get('purpose') == 'evidence-original'
              and p.get('availability') == 'available' and p.get('previewPolicy') in ('safe-rendered', 'download-only')
              and SHA.fullmatch(digest or '')
-             and type(size) is int and 0 <= size <= MAX_ORIGINAL
              and mime in ('text/plain', 'application/pdf', 'image/png', 'image/jpeg'), 'Native original unavailable')
+        size = native_integer(size, 0, MAX_ORIGINAL)
         descriptor = compact({'assetId': asset_id, 'kind': 'atlas-asset'}).encode('utf-8')
         path = f"/api/atlas/media/{self.scope['workspaceId']}/{self.scope['homeId']}/{sha(descriptor)}/download"
         raw = self.get(path, MAX_ORIGINAL, mime)
@@ -667,9 +715,10 @@ class Bridge:
         docs = current['association']['payload'].get('sourceDocuments', [])
         matching = [doc for doc in docs if doc.get('evidenceId') == evidence_id]
         if matching:
-            need(len(matching) == 1 and matching[0].get('evidenceRevision') == evidence['revision']
+            need(len(matching) == 1
+                 and native_integer(matching[0].get('evidenceRevision'), 1) == native_integer(evidence['revision'], 1)
                  and matching[0].get('originalAssetId') == asset_id
-                 and matching[0].get('originalAssetRevision') == asset['revision']
+                 and native_integer(matching[0].get('originalAssetRevision'), 1) == native_integer(asset['revision'], 1)
                  and matching[0].get('originalSha256') == digest, 'Scene source document pins differ')
         return {'evidenceId': evidence_id, 'evidenceRevision': evidence['revision'], 'assetId': asset_id,
                 'assetRevision': asset['revision'], 'sha256': digest, 'byteSize': size, 'contentType': mime,
@@ -692,6 +741,10 @@ class Bridge:
         return {'scope': self.scope, 'admittedReads': reads, 'admittedWriteForms': sorted(admitted & WRITES),
                 'batchAdmitted': BATCH in admitted, 'exactImpactConfirmationAvailable': self.approval_owner is not None,
                 'genericAssetUpload': False, 'genericSceneAssociationCreate': False,
+                'writeResultProfile': {'maxCommitBytes': MAX_COMMIT, 'maxReceiptNodes': MAX_NODES,
+                                       'maxRetainedBytes': MAX_RETAINED, 'maxRetainedNodes': MAX_RETAINED_NODES,
+                                       'unboundedNativeResultComplete': False,
+                                       'oversizeOutcome': 'UNKNOWN; no retry; separately qualified native owner required'},
                 'readProfile': {'maxResponseBytes': MAX_READ, 'maxPageSize': MAX_READ_PAGE,
                                 'maxJsonNodes': 262144, 'maxStdioResponseBytes': MAX_OUTPUT,
                                 'unboundedNativeReadComplete': False,
@@ -712,10 +765,9 @@ def committed_record_expectations(request):
             revision = 1
         else:
             prior = command['preconditions']['target']
-            need(isinstance(prior, dict) and prior.get('kind') == 'atlas'
-                 and type(prior.get('value')) is int and 1 <= prior['value'] < 9007199254740991,
+            need(isinstance(prior, dict) and prior.get('kind') == 'atlas',
                  'Native committed revision unavailable')
-            revision = prior['value'] + 1
+            revision = native_integer(prior.get('value'), 1, MAX_SAFE_INTEGER - 1) + 1
         lifecycle = 'tombstoned' if op.endswith('.tombstone') else 'active'
         expected.append((target, revision, lifecycle))
         if op == 'atlas.binding.remap':
@@ -803,8 +855,9 @@ def scene_canonical(value):
                               for k in sorted(value, key=lambda k: k.encode('utf-16be'))) + '}'
     if isinstance(value, list):
         return '[' + ','.join(scene_canonical(v) for v in value) + ']'
-    need(value is None or type(value) in (str, bool, int), 'Scene canonical profile differs')
-    need(type(value) is not int or abs(value) <= 9007199254740991, 'Scene integer exceeded exact bound')
+    if type(value) is int or isinstance(value, Decimal):
+        return compact(native_integer(value, -MAX_SAFE_INTEGER))
+    need(value is None or type(value) in (str, bool), 'Scene canonical profile differs')
     return compact(value)
 
 
@@ -812,7 +865,7 @@ def decimal_json(value):
     """Lossless serializer for native response evidence, with exact Decimal tokens."""
     if isinstance(value, Decimal):
         need(value.is_finite(), 'Nonfinite native JSON')
-        return str(value)
+        return getattr(value, 'literal', str(value))
     if isinstance(value, dict):
         return '{' + ','.join(compact(k) + ':' + decimal_json(v) for k, v in value.items()) + '}'
     if isinstance(value, list):
@@ -886,7 +939,7 @@ class Stdio:
             elif name == 'houseatlas_operation_status': value = self.bridge.reconcile_operation(args['requestId']) if 'requestId' in args else self.bridge.status()
             elif name == 'houseatlas_scene': value = self.bridge.scene(args['buildingId'])
             else: value = self.bridge.evidence(args['buildingId'], args['evidenceId'], args['offset'], args['count'])
-            return {'content': [{'type': 'text', 'text': value if isinstance(value, str) else compact(value)}], 'isError': False}
+            return {'content': [{'type': 'text', 'text': value if isinstance(value, str) else decimal_json(value)}], 'isError': False}
         except (KeyError, TypeError, AttributeError, ValueError, sqlite3.Error):
             return {'content': [{'type': 'text', 'text': 'Native operation unavailable; inspect retained operation status before any further write'}], 'isError': True}
         except BridgeError as error:

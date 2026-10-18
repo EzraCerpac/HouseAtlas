@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
-import { drawsFloor, type DrawRules, type PreparedMesh, type Projection } from './geometry';
+import { drawsFloor, sourceMeshColor, type DrawRules, type PreparedMesh, type Projection } from './geometry';
 
 interface Props {
   readonly meshes: readonly PreparedMesh[];
@@ -19,31 +19,89 @@ interface Props {
   readonly hiddenKeys?: ReadonlySet<string> | undefined;
   /** Mesh keys of an explicit selection, drawn in the lantern tone. */
   readonly selectedKeys?: ReadonlySet<string> | undefined;
+  /** Per-mesh display lift in metres (presentation only, such as exploded floors). */
+  readonly lifts?: ReadonlyMap<string, number> | undefined;
+  /** Per-mesh section height in the mesh's own source frame; overrides rules.clipY. */
+  readonly clips?: ReadonlyMap<string, number | null> | undefined;
+  /** Per-mesh dimming toward paper (0–1); replaces current-floor dimming when given. */
+  readonly dims?: ReadonlyMap<string, number> | undefined;
+  /** Faded, depth-tested and never-written cutaway: null fades the whole mesh,
+   * a height fades only what lies above it. Drawn even when hidden by hiddenKeys. */
+  readonly ghosts?: ReadonlyMap<string, number | null> | undefined;
+  /** Colour overrides (hex); omitted entries keep the default tones. */
+  readonly palette?: Partial<MeshPalette> | undefined;
+  /** Opt in to explicit core glTF linear base colours. Selection/overlay and
+   * cutaway presentation still take precedence; textures/PBR are not added. */
+  readonly sourceColors?: boolean | undefined;
+  /** With sourceColors only: share (0–1) of a mesh's dimming applied to its
+   * source colour, so context steps back while keeping its material hue.
+   * Default 1, the full dimming of the fallback tones. */
+  readonly sourceDim?: number | undefined;
+  /** Share of the light every face keeps, 0–1; faces turned from the light get the rest by angle. */
+  readonly ambient?: number | undefined;
+  /** Opt-in architectural lighting of uncut back faces; other viewers retain cut tones. */
+  readonly twoSided?: boolean | undefined;
+  /** With twoSided only: faces turned from the light fall toward this tone (hex) instead of black. */
+  readonly shade?: string | undefined;
+  /** With twoSided only: unit direction toward the light in the model frame, replacing the fixed upper-left light. */
+  readonly light?: readonly [number, number, number] | undefined;
+  /** With twoSided and pitchKeys only: upward-sloping faces of those unbound,
+   * unselected meshes (between flat tops and walls) take this tone (hex), lit
+   * like walls. A presentation tone for the face's slope, never a material. */
+  readonly pitch?: string | undefined;
+  readonly pitchKeys?: ReadonlySet<string> | undefined;
+  /** With twoSided only: unbound, unselected meshes drawn as quiet ground in
+   * `site.tone`, the same at every slope with only a trace of shading, so they
+   * stay behind the architecture. */
+  readonly site?: { readonly keys: ReadonlySet<string>; readonly tone: string } | undefined;
+  /** With twoSided only: opacity of the faded cutaway, 0–1, instead of the default. */
+  readonly ghostAlpha?: number | undefined;
   readonly onUnavailable: (message: string) => void;
 }
+export interface MeshPalette {
+  readonly paper: string; readonly wall: string; readonly top: string; readonly cut: string;
+  readonly room: string; readonly selected: string; readonly context: string; readonly ghost: string;
+}
+export const DEFAULT_MESH_PALETTE: MeshPalette = Object.freeze({
+  paper: '#ECEEE9', wall: '#FBF9F4', top: '#EEE5D2', cut: '#2B3650', room: '#F4E8CC', selected: '#FFD25E', context: '#FCE7A6', ghost: '#FBF9F4',
+});
+const GHOST_ALPHA = .14, DEFAULT_AMBIENT = .6;
 
 /** Explicit renderer bounds: drawing-buffer pixels and uploaded vertex bytes. */
 export const RENDER_LIMITS = Object.freeze({ pixels: 4_194_304, uploadBytes: 64 * 1024 * 1024 });
 const vertexSource = `attribute vec3 position;attribute vec3 normal;
-uniform vec4 rot;uniform vec3 center;uniform vec4 frame;uniform vec2 viewport;
+uniform vec4 rot;uniform vec3 center;uniform vec4 frame;uniform vec2 viewport;uniform float lift;
 varying vec3 vNormal;varying float vY;
-void main(){vec3 p=position-center;float rx=p.x*rot.x-p.z*rot.y;float rz=p.x*rot.y+p.z*rot.x;
+void main(){vec3 p=position-center;p.y+=lift;float rx=p.x*rot.x-p.z*rot.y;float rz=p.x*rot.y+p.z*rot.x;
 float sx=frame.y+frame.x*rx;float sy=frame.z+frame.x*(rz*rot.z-p.y*rot.w);float d=rz*rot.w+p.y*rot.z;
 gl_Position=vec4(sx/viewport.x*2.0-1.0,1.0-sy/viewport.y*2.0,clamp(-d/frame.w,-1.0,1.0),1.0);vNormal=normal;vY=position.y;}`;
+// Architectural two-sided lighting is opt-in. Other callers keep the original
+// opaque back-face cut colour and normal handling.
 const fragmentSource = `precision highp float;
 uniform vec3 baseColor;uniform vec3 topColor;uniform vec3 cutColor;uniform float clipY;uniform float useClip;
+uniform float alpha;uniform float floorY;uniform float useFloor;uniform float ambient;uniform float twoSided;uniform vec3 shadeColor;
+uniform vec3 lightDir;uniform float usePitch;uniform vec3 pitchColor;uniform float useSourceColor;
 varying vec3 vNormal;varying float vY;
-void main(){if(useClip>0.5&&vY>clipY)discard;
-if(!gl_FrontFacing){gl_FragColor=vec4(cutColor,1.0);return;}
-vec3 n=normalize(vNormal);float light=clamp(0.6+0.4*dot(n,normalize(vec3(-0.45,0.8,0.55))),0.0,1.0);
-gl_FragColor=vec4(n.y>0.8?topColor:baseColor*light,1.0);}`;
+vec3 displayColor(vec3 c){if(useSourceColor<0.5)return c;
+return mix(c*12.92,1.055*pow(max(c,vec3(0.0)),vec3(1.0/2.4))-0.055,step(vec3(0.0031308),c));}
+void main(){if(useClip>0.5&&vY>clipY)discard;if(useFloor>0.5&&vY<floorY)discard;
+if(!gl_FrontFacing&&alpha>0.99&&(twoSided<0.5||useClip>0.5)){gl_FragColor=vec4(displayColor(cutColor),1.0);return;}
+vec3 n=normalize(vNormal);if(twoSided>0.5&&!gl_FrontFacing)n=-n;
+float light=clamp(ambient+(1.0-ambient)*dot(n,lightDir),0.0,1.0);
+vec3 face=usePitch>0.5?(n.y>=0.97?topColor:mix(shadeColor,n.y>0.2?pitchColor:baseColor,light)):(n.y>0.8?topColor:mix(shadeColor,baseColor,light));
+gl_FragColor=vec4(displayColor(face)*alpha,alpha);}`;
 
 type Rgb = [number, number, number];
 const rgb = (hex: string): Rgb => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255) as Rgb;
+const linearRgb = (color: Rgb): Rgb => color.map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4) as Rgb;
 const mix = (a: Rgb, b: Rgb, t: number) => a.map((v, i) => v + (b[i]! - v) * t) as Rgb;
-const PAPER = rgb('#ECEEE9'), WALL = rgb('#FBF9F4'), TOP = rgb('#EEE5D2'), CUT = rgb('#2B3650');
-const ROOM = rgb('#F4E8CC'), LANTERN = rgb('#FFD25E'), CONTEXT = rgb('#FCE7A6');
 const REFERENCE = rgb('#C3CED6'), REFERENCE_TOP = rgb('#D7DFE4');
+const FIXED_LIGHT = ((x: number, y: number, z: number) => { const l = Math.hypot(x, y, z); return [x / l, y / l, z / l] as Rgb; })(-.45, .8, .55);
+const tones = (palette: Partial<MeshPalette> | undefined) => {
+  const own = { ...DEFAULT_MESH_PALETTE, ...palette };
+  return { PAPER: rgb(own.paper), WALL: rgb(own.wall), TOP: rgb(own.top), CUT: rgb(own.cut), ROOM: rgb(own.room),
+    LANTERN: rgb(own.selected), CONTEXT: rgb(own.context), GHOST: rgb(own.ghost) };
+};
 
 /** Shared-frame orthographic WebGL renderer. Draws on demand only; owns and
  * releases every GL object, listener and frame callback it creates. */
@@ -52,11 +110,26 @@ export function MeshLayer(props: Props) {
   const latest = useRef(props); latest.current = props;
   const redraw = useRef<(() => void) | null>(null);
   useLayoutEffect(() => { redraw.current?.(); },
-    [props.projection, props.rules, props.currentFloorId, props.selectedOccurrenceId, props.contextOccurrenceIds, props.tints, props.hidden, props.referenceKeys, props.hiddenKeys, props.selectedKeys]);
+    [props.projection, props.rules, props.currentFloorId, props.selectedOccurrenceId, props.contextOccurrenceIds, props.tints, props.hidden, props.referenceKeys,
+      props.hiddenKeys, props.selectedKeys, props.lifts, props.clips, props.dims, props.ghosts, props.palette, props.sourceColors, props.sourceDim, props.ambient, props.twoSided, props.shade, props.light, props.pitch, props.pitchKeys, props.site, props.ghostAlpha]);
   useLayoutEffect(() => {
     const element = canvas.current; if (!element || props.meshes.length === 0) return;
-    const gl = element.getContext('webgl', { antialias: true, alpha: true, preserveDrawingBuffer: false });
-    if (!gl) { props.onUnavailable('3D rendering is unavailable in this browser.'); return; }
+    let creationReason = '';
+    const creationFailed = (event: Event) => {
+      creationReason = (event as WebGLContextEvent).statusMessage?.replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 240) ?? '';
+    };
+    element.addEventListener('webglcontextcreationerror', creationFailed);
+    let gl: WebGLRenderingContext | null;
+    try {
+      gl = element.getContext('webgl', { antialias: true, alpha: true, preserveDrawingBuffer: false });
+    } catch {
+      element.removeEventListener('webglcontextcreationerror', creationFailed);
+      props.onUnavailable('3D context creation threw an exception (context-exception).'); return;
+    }
+    element.removeEventListener('webglcontextcreationerror', creationFailed);
+    if (!gl) {
+      props.onUnavailable(`3D context creation returned no context (context-null).${creationReason ? ` ${creationReason}` : ' No browser reason was provided.'}`); return;
+    }
     let disposed = false, frame: number | null = null, program: WebGLProgram | null = null;
     const shaders: WebGLShader[] = [], uploaded: { mesh: PreparedMesh; buffer: WebGLBuffer }[] = [];
     const schedule = () => {
@@ -91,31 +164,84 @@ export function MeshLayer(props: Props) {
       gl.uniform3f(uniforms.center!, q.center[0], q.center[1], q.center[2]);
       gl.uniform4f(uniforms.frame!, q.k, q.ox, q.oy, q.depthRadius);
       gl.uniform2f(uniforms.viewport!, q.viewport.width, q.viewport.height);
-      gl.uniform1f(uniforms.useClip!, p.rules.clipY === null ? 0 : 1); gl.uniform1f(uniforms.clipY!, p.rules.clipY ?? 0);
       gl.enableVertexAttribArray(position); gl.enableVertexAttribArray(normal);
+      gl.uniform1f(uniforms.alpha!, 1); gl.uniform1f(uniforms.useFloor!, 0); gl.uniform1f(uniforms.floorY!, 0);
+      gl.uniform1f(uniforms.ambient!, Math.min(1, Math.max(0, p.ambient ?? DEFAULT_AMBIENT)));
+      gl.uniform1f(uniforms.twoSided!, p.twoSided ? 1 : 0);
+      // Black shade is the plain lit tone (base × light); a shade tone is Atlas lighting only.
+      const SHADE: Rgb = p.twoSided && p.shade ? rgb(p.shade) : [0, 0, 0];
+      gl.uniform3f(uniforms.shadeColor!, ...SHADE);
+      gl.uniform3f(uniforms.lightDir!, ...(p.twoSided && p.light ? [...p.light] as Rgb : FIXED_LIGHT));
+      gl.uniform1f(uniforms.usePitch!, 0);
+      const PITCH = p.twoSided && p.pitch ? rgb(p.pitch) : null;
+      const SITE = p.twoSided && p.site ? rgb(p.site.tone) : null;
+      const { PAPER, WALL, TOP, CUT, ROOM, LANTERN, CONTEXT, GHOST } = tones(p.palette);
+      const SOURCE_DIM = Math.min(1, Math.max(0, p.sourceDim ?? 1));
       for (const pass of ['reference', 'unbound', 'bound'] as const) {
         if (pass === 'unbound') gl.disable(gl.POLYGON_OFFSET_FILL);
         else { gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(pass === 'bound' ? -2 : 2, pass === 'bound' ? -2 : 2); }
         for (const { mesh, buffer } of uploaded) {
           const kind = p.referenceKeys?.has(mesh.meshKey) ? 'reference' : mesh.occurrenceId !== null ? 'bound' : 'unbound';
           if (kind !== pass || !drawsFloor(p.rules, mesh.floorId) || p.hiddenKeys?.has(mesh.meshKey)) continue;
-          const dim = mesh.floorId !== p.currentFloorId ? .55 : 0;
-          let top: Rgb, base: Rgb, cut: Rgb;
+          const dim = p.dims ? p.dims.get(mesh.meshKey) ?? 0 : mesh.floorId !== p.currentFloorId ? .55 : 0;
+          const clip = p.clips?.has(mesh.meshKey) ? p.clips.get(mesh.meshKey) ?? null : p.rules.clipY;
+          gl.uniform1f(uniforms.useClip!, clip === null ? 0 : 1); gl.uniform1f(uniforms.clipY!, clip ?? 0);
+          gl.uniform1f(uniforms.lift!, p.lifts?.get(mesh.meshKey) ?? 0);
+          const source = sourceMeshColor(mesh, { enabled: p.sourceColors, selected: p.selectedKeys?.has(mesh.meshKey) ?? false,
+            reference: kind === 'reference', selectedOccurrenceId: p.selectedOccurrenceId, contextOccurrenceIds: p.contextOccurrenceIds, tints: p.tints });
+          gl.uniform1f(uniforms.useSourceColor!, source ? 1 : 0);
+          let top: Rgb, base: Rgb, cut: Rgb, pitch: Rgb | null = null, shade = SHADE;
           if (p.selectedKeys?.has(mesh.meshKey)) { top = LANTERN; base = LANTERN; cut = mix(LANTERN, CUT, .18); }
           else if (kind === 'reference') { top = REFERENCE_TOP; base = REFERENCE; cut = mix(REFERENCE, CUT, .3); }
+          else if (source) {
+            // Lighting and dimming stay linear; the shader encodes once at
+            // output. Authored grass/glazing/roof colours precede fallback
+            // site and pitch tones, without changing any geometry or picks.
+            // An opt-in share keeps dimmed context in its own hue.
+            top = mix([source[0], source[1], source[2]], linearRgb(PAPER), dim * SOURCE_DIM);
+            base = top; cut = mix(top, linearRgb(CUT), .18); shade = [0, 0, 0];
+          }
           else if (mesh.occurrenceId !== null) {
             const tint = mesh.occurrenceId === p.selectedOccurrenceId ? LANTERN : p.contextOccurrenceIds.includes(mesh.occurrenceId) ? CONTEXT
               : p.tints.has(mesh.occurrenceId) ? rgb(p.tints.get(mesh.occurrenceId)!) : ROOM;
             top = mesh.occurrenceId === p.selectedOccurrenceId ? tint : mix(tint, PAPER, dim);
             base = top; cut = mix(top, CUT, .18);
-          } else { top = mix(TOP, PAPER, dim); base = mix(WALL, PAPER, dim); cut = mix(CUT, PAPER, dim * .8); }
+            // With a pitch tone, a room's own faces fall toward a deeper shade of its tint, never a drab one.
+            if (PITCH) shade = mix(SHADE, base, .45);
+          } else if (SITE && p.site!.keys.has(mesh.meshKey)) {
+            // Ground: one tone at every slope, barely shaded, so terrain never reads as mass.
+            top = mix(SITE, PAPER, dim * .25); base = top; pitch = top; cut = mix(top, CUT, .25); shade = mix(SHADE, top, .82);
+          } else {
+            top = mix(TOP, PAPER, dim); base = mix(WALL, PAPER, dim); cut = mix(CUT, PAPER, dim * .8);
+            if (PITCH && p.pitchKeys?.has(mesh.meshKey)) pitch = mix(PITCH, PAPER, dim);
+          }
           gl.uniform3f(uniforms.topColor!, ...top); gl.uniform3f(uniforms.baseColor!, ...base); gl.uniform3f(uniforms.cutColor!, ...cut);
+          gl.uniform1f(uniforms.usePitch!, pitch ? 1 : 0); gl.uniform3f(uniforms.pitchColor!, ...(pitch ?? base)); gl.uniform3f(uniforms.shadeColor!, ...shade);
           gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
           gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 24, 0); gl.vertexAttribPointer(normal, 3, gl.FLOAT, false, 24, 12);
           gl.drawArrays(gl.TRIANGLES, 0, mesh.triangles * 3);
         }
       }
       gl.disable(gl.POLYGON_OFFSET_FILL);
+      if (p.ghosts && p.ghosts.size > 0) {
+        // Faded cutaway last: behind nothing opaque, writing no depth, so it never covers or blocks what is drawn.
+        gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+        // An opt-in ghost opacity also keeps the ghost nearly flat, so stacked faded floors stay one quiet veil.
+        const quiet = p.twoSided && p.ghostAlpha !== undefined;
+        gl.uniform1f(uniforms.alpha!, quiet ? Math.min(1, Math.max(0, p.ghostAlpha!)) : GHOST_ALPHA);
+        gl.uniform1f(uniforms.useClip!, 0); gl.uniform1f(uniforms.usePitch!, 0); gl.uniform1f(uniforms.useSourceColor!, 0); gl.uniform3f(uniforms.shadeColor!, ...(quiet ? mix(SHADE, GHOST, .8) : SHADE));
+        gl.uniform3f(uniforms.topColor!, ...GHOST); gl.uniform3f(uniforms.baseColor!, ...GHOST); gl.uniform3f(uniforms.cutColor!, ...GHOST);
+        for (const { mesh, buffer } of uploaded) {
+          if (!p.ghosts.has(mesh.meshKey) || !drawsFloor(p.rules, mesh.floorId)) continue;
+          const above = p.ghosts.get(mesh.meshKey) ?? null;
+          gl.uniform1f(uniforms.useFloor!, above === null ? 0 : 1); gl.uniform1f(uniforms.floorY!, above ?? 0);
+          gl.uniform1f(uniforms.lift!, p.lifts?.get(mesh.meshKey) ?? 0);
+          gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+          gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 24, 0); gl.vertexAttribPointer(normal, 3, gl.FLOAT, false, 24, 12);
+          gl.drawArrays(gl.TRIANGLES, 0, mesh.triangles * 3);
+        }
+        gl.depthMask(true); gl.disable(gl.BLEND);
+      }
       if (gl.getError() !== gl.NO_ERROR) throw new Error('WebGL error');
     };
     element.addEventListener('webglcontextlost', lost);
@@ -132,7 +258,7 @@ export function MeshLayer(props: Props) {
       gl.attachShader(program, compile(gl.VERTEX_SHADER, vertexSource)); gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragmentSource));
       gl.linkProgram(program); if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error('link');
       position = gl.getAttribLocation(program, 'position'); normal = gl.getAttribLocation(program, 'normal');
-      for (const name of ['rot', 'center', 'frame', 'viewport', 'baseColor', 'topColor', 'cutColor', 'clipY', 'useClip'])
+      for (const name of ['rot', 'center', 'frame', 'viewport', 'lift', 'baseColor', 'topColor', 'cutColor', 'clipY', 'useClip', 'alpha', 'floorY', 'useFloor', 'ambient', 'twoSided', 'shadeColor', 'lightDir', 'usePitch', 'pitchColor', 'useSourceColor'])
         uniforms[name] = gl.getUniformLocation(program, name);
       if (position < 0 || normal < 0 || Object.values(uniforms).some(value => value === null)) throw new Error('inputs');
       for (const mesh of props.meshes) {

@@ -6,6 +6,15 @@ network configuration, compile on Mac/NAS or activate a service. Preserve all
 existing services. Original artifacts/source freezes remain unchanged; any source
 change needs a new artifact, hashes, exact-head review and CI record.
 
+The revised source rejects duplicate launch-spec properties before command
+construction, executable inspection or runtime-key access. Exact native integral
+revision spellings are supported without changing request bytes. Commit/retained
+results have the explicit bounded profile in README.md; oversized/unrepresentable
+results still require separate native custody and keep UNKNOWN. A confirmed large
+retained response may return explicit metadata in MCP while its complete bytes
+remain in the private journal. These source changes do not qualify or activate an
+existing installation; any earlier NAS evidence stays pinned to its own source.
+
 ## Private deployment contract
 
 Target account paths, UID, executable paths/versions/hashes/modes and registration

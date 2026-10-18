@@ -182,24 +182,136 @@ function roomMappings(value: LosslessJson, accepted: readonly NativeSceneAccepte
     need(new Set(evidenceIds).size === evidenceIds.length && evidenceIds.length === expectedEvidenceIds.length
       && expectedEvidenceIds.every(expected => evidenceIds.includes(expected)));
     return Object.freeze({ sourceRoomId, sourceFloorKey, sourceOriginalSha256, sourceAnchorIds: Object.freeze(sourceAnchorIds),
-      evidenceIds: Object.freeze(evidenceIds), targets: Object.freeze(targets) });
+      evidenceIds: Object.freeze(evidenceIds), targets: Object.freeze(targets), unresolvedLabels: Object.freeze(unresolvedLabels) });
   }));
 }
-function floors(value: LosslessJson, geometry: NativeGeometryFrame): readonly NativeSceneFloorBinding[] {
-  const seen = new Set<string>();
+function floors(value: LosslessJson, geometry: NativeGeometryFrame | null): readonly NativeSceneFloorBinding[] {
+  const seen = new Set<string>(), sourceSeen = new Set<string>();
   return Object.freeze(list(value, 3).map(item => {
     const f = row(item, ['sourceFloorKey','sourceOriginalSha256','nativeFloorKey','nativeGeometryId',
       'nativeGeometryRevision','nativeOriginalAssetId','nativeOriginalSha256']);
     const nativeFloorKey = str(f.nativeFloorKey, 512), sourceFloorKey = str(f.sourceFloorKey, 512);
-    need(!seen.has(nativeFloorKey)); seen.add(nativeFloorKey);
+    need(!seen.has(nativeFloorKey) && !sourceSeen.has(sourceFloorKey));
+    seen.add(nativeFloorKey); sourceSeen.add(sourceFloorKey);
     const nativeGeometryId = uuid(f.nativeGeometryId), nativeGeometryRevision = integer(f.nativeGeometryRevision);
     const nativeOriginalAssetId = uuid(f.nativeOriginalAssetId), nativeOriginalSha256 = sha(f.nativeOriginalSha256);
+    if (geometry) {
     const match = geometry.floors.find(floor => floor.key === nativeFloorKey);
     need(match && match.geometryId === nativeGeometryId && match.geometryRevision.compare(nativeGeometryRevision) === 0
       && match.originalAssetId === nativeOriginalAssetId && match.originalSHA256 === nativeOriginalSha256);
+    }
     return Object.freeze({ sourceFloorKey, sourceOriginalSha256: sha(f.sourceOriginalSha256), nativeFloorKey,
       nativeGeometryId, nativeGeometryRevision, nativeOriginalAssetId, nativeOriginalSha256 });
   }));
+}
+
+async function qualifyCurrentResponse(raw:LosslessJson,next:SceneAssociationContext,buildingId:string,viewKey:string,
+  geometry:NativeGeometryFrame|null,validator:ReturnType<typeof createExactStockResultValidator>):Promise<SceneAssociationRead> {
+  const output = row(raw);
+      if (output.status === 'unavailable') {
+        row(raw, ['status','reason','association']);
+        need(output.association === null && (output.reason === 'no-current-association' || output.reason === 'current-source-unavailable'));
+        return Object.freeze({ status: 'unavailable' as const,
+          reason: output.reason as 'no-current-association' | 'current-source-unavailable' });
+      }
+      row(raw, ['status','association']); need(output.status === 'available');
+      // Root registers the exact closed Stock3 Atlas record root. The current
+      // route returns a raw stored record, not a Stock atlasReceipt envelope.
+      need(validator.validateNativeEvidenceShape('scene-association', output.association!));
+      const record = row(output.association, ['schemaVersion','recordType','recordId','workspaceId','homeId','revision',
+        'lifecycle','createdAt','updatedAt','lastAuditId','payload']);
+      need(integer(record.schemaVersion).compare(ONE) === 0 && record.recordType === 'scene-association'
+        && record.lifecycle === 'active' && record.workspaceId === next.view.scope.workspaceId
+        && record.homeId === next.view.scope.homeId);
+      const recordId = uuid(record.recordId), revision = integer(record.revision);
+      const p = row(record.payload, ['profile','buildingId','associationVersion','previousAssociationId',
+        'reviewStatus','reviewStatement','sourceDocuments','acceptedReceipt','sourceFloors','roomMappings']);
+      need(p.profile === 'houseatlas.native-scene-association.v1' && p.buildingId === buildingId
+        && p.reviewStatus === 'accepted' && integer(p.associationVersion));
+      const docs = list(p.sourceDocuments, 2); need(docs.length === 2);
+      const documents = docs.map(item => row(item, ['role','evidenceId','evidenceRevision','originalAssetId',
+        'originalAssetRevision','originalSha256','contentType']));
+      const primary = documents.find(doc => doc.role === 'primary-scene');
+      const historical = documents.find(doc => doc.role === 'documentary-sheet');
+      need(primary && historical && documents.filter(doc => doc.role === 'primary-scene').length === 1
+        && documents.filter(doc => doc.role === 'documentary-sheet').length === 1
+        && primary.contentType === 'text/plain' && historical.contentType === 'text/plain'
+        && primary.originalAssetId !== historical.originalAssetId);
+      for (const doc of documents) { uuid(doc.evidenceId); uuid(doc.originalAssetId);
+        integer(doc.evidenceRevision); integer(doc.originalAssetRevision); sha(doc.originalSha256); }
+      const receipt = row(p.acceptedReceipt, ['receiptId','canonicalJson','canonicalSha256','anchors']);
+      const literal = str(receipt.canonicalJson, 131072);
+      const parsed = row(parse(literal), ['profile','receiptId','sourceReceiptSha256','anchors']);
+      need(parsed.profile === 'houseatlas.native-scene-room-review.v1' && canonical(parsed) === literal
+        && parsed.receiptId === receipt.receiptId && parsed.sourceReceiptSha256 === historical.originalSha256
+        && await digest(encoder.encode(literal)) === receipt.canonicalSha256
+        && equal(parsed.anchors!, receipt.anchors!));
+      need(receipt.anchors !== undefined);
+      const acceptedRoomAnchors = anchors(receipt.anchors);
+      const expectedEvidenceIds = documents.map(doc => uuid(doc.evidenceId));
+      const acceptedRoomMappings = roomMappings(p.roomMappings!, acceptedRoomAnchors, expectedEvidenceIds);
+      const sourceFloorBindings = floors(p.sourceFloors!, geometry);
+      const selection: NativeSceneSourceSelection = Object.freeze({ sessionIdentity: next.sessionIdentity,
+        workspaceId: next.view.scope.workspaceId, homeId: next.view.scope.homeId,
+        expiresAt: next.session.expiresAt, buildingId, viewKey,
+        sceneEvidenceId: uuid(primary.evidenceId), historicalSceneEvidenceId: uuid(historical.evidenceId), sceneAssetId: uuid(primary.originalAssetId),
+        sceneOriginalSha256: sha(primary.originalSha256),
+        sceneEvidenceRevision: exactStockSafeInteger(integer(primary.evidenceRevision)),
+        sceneAssetRevision: integer(primary.originalAssetRevision),
+        acceptedRoomReceiptId: str(receipt.receiptId, 256), acceptedRoomReceiptSha256: sha(receipt.canonicalSha256),
+        acceptedRoomAnchors, acceptedRoomMappings, sourceFloorBindings });
+  return Object.freeze({status:'available',recordId,revision,payload:record.payload!,selection});
+}
+
+/** Source-only current read. The actual authenticated endpoint qualifies native
+ * floor references; it does not require a displayed legacy geometry frame.
+ * guard is the owning host's exact publication/session/current-attempt fence. */
+export async function readNativeOverlayAssociation(next:SceneAssociationContext,buildingId:string,viewKey:string,
+  signal:AbortSignal,guard:()=>void,transport:typeof fetch=fetch):Promise<SceneAssociationRead> {
+  guard();need(UUID.test(buildingId)&&next.sessionIdentity&&Number.isFinite(Date.parse(next.session.expiresAt))&&Date.parse(next.session.expiresAt)>Date.now());
+  return bounded(signal,async signal=>{
+    guard();const response=await transport(`/api/atlas/scene/v1/workspaces/${next.view.scope.workspaceId}/homes/${next.view.scope.homeId}/buildings/${buildingId}/current`,
+      {method:'GET',headers:{Accept:'application/json'},signal,credentials:'same-origin',cache:'no-store',redirect:'error',mode:'same-origin'});
+    let raw:LosslessJson;try{raw=await responseJson(response,signal);}catch(error){void response.body?.cancel().catch(()=>undefined);throw error;}
+    guard();const result=await qualifyCurrentResponse(raw,next,buildingId,viewKey,null,createExactStockResultValidator());guard();return result;
+  });
+}
+
+/** The closed scene payload admits only safe-integer numeric fields. The
+ * existing canonical writer checks each exact decimal before conversion, uses
+ * raw UTF16 key order and scalar strings, matching backend canonical_digest
+ * without rounding a decimal through binary floating point. */
+export async function nativeSceneAssociationPayloadDigest(payload:LosslessJson):Promise<string> {
+  return digest(encoder.encode(canonical(payload)));
+}
+export type SceneAssociationHeadRead = Readonly<{
+  status:'available'; recordId:string; revision:ExactDecimal; payloadSha256:string;
+}> | Readonly<{status:'unavailable';reason:'no-current-association'|'current-source-unavailable'}>;
+function qualifyHeadResponse(raw:LosslessJson,next:SceneAssociationContext,buildingId:string):SceneAssociationHeadRead {
+  const output=row(raw,['schema','scope','buildingId','status','reason','head']);
+  const scope=row(output.scope,['workspaceId','homeId']);
+  need(output.schema==='houseatlas.native-scene-head.v1'
+    &&uuid(scope.workspaceId)===next.view.scope.workspaceId&&uuid(scope.homeId)===next.view.scope.homeId
+    &&uuid(output.buildingId)===buildingId);
+  if(output.status==='unavailable') {
+    need(output.head===null&&(output.reason==='no-current-association'||output.reason==='current-source-unavailable'));
+    return Object.freeze({status:'unavailable',reason:output.reason});
+  }
+  need(output.status==='available'&&output.reason===null);
+  const head=row(output.head,['recordId','revision','payloadSha256']);
+  return Object.freeze({status:'available',recordId:uuid(head.recordId),revision:integer(head.revision),payloadSha256:sha(head.payloadSha256)});
+}
+/** Bounded association pins only; source custody remains with document owners
+ * and the host context. This grants no geometry or original-download access. */
+export async function readNativeOverlayAssociationHead(next:SceneAssociationContext,buildingId:string,
+  signal:AbortSignal,guard:()=>void,transport:typeof fetch=fetch):Promise<SceneAssociationHeadRead> {
+  signal.throwIfAborted();guard();
+  need(UUID.test(buildingId)&&UUID.test(next.view.scope.workspaceId)&&UUID.test(next.view.scope.homeId)
+    &&next.sessionIdentity&&Number.isFinite(Date.parse(next.session.expiresAt))&&Date.parse(next.session.expiresAt)>Date.now());
+  const response=await abortable(transport(`/api/atlas/scene/v1/workspaces/${next.view.scope.workspaceId}/homes/${next.view.scope.homeId}/buildings/${buildingId}/head`,
+    {method:'GET',headers:{Accept:'application/json'},signal,credentials:'same-origin',cache:'no-store',redirect:'error',mode:'same-origin'}),signal);
+  let raw:LosslessJson;try{raw=await responseJson(response,signal,MAX_HEAD);}catch(error){void response.body?.cancel().catch(()=>undefined);throw error;}
+  signal.throwIfAborted();guard();const result=qualifyHeadResponse(raw,next,buildingId);guard();return result;
 }
 
 export interface SceneAssociationContext {
@@ -341,59 +453,13 @@ export function createNativeSceneAssociationClient(options: {
     return bounded(outer, async signal => {
       const url = `/api/atlas/scene/v1/workspaces/${next.view.scope.workspaceId}/homes/${next.view.scope.homeId}/buildings/${buildingId}/current`;
       const raw = await obtain(url, { method: 'GET', headers: { Accept: 'application/json' } }, signal);
-      need(current(owner, geometry)); const output = row(raw);
-      if (output.status === 'unavailable') {
-        row(raw, ['status','reason','association']);
-        need(output.association === null && (output.reason === 'no-current-association' || output.reason === 'current-source-unavailable'));
-        return Object.freeze({ status: 'unavailable' as const,
-          reason: output.reason as 'no-current-association' | 'current-source-unavailable' });
-      }
-      row(raw, ['status','association']); need(output.status === 'available');
-      // Root registers the exact closed Stock3 Atlas record root. The current
-      // route returns a raw stored record, not a Stock atlasReceipt envelope.
-      need(validator.validateNativeEvidenceShape('scene-association', output.association!));
-      const record = row(output.association, ['schemaVersion','recordType','recordId','workspaceId','homeId','revision',
-        'lifecycle','createdAt','updatedAt','lastAuditId','payload']);
-      need(integer(record.schemaVersion).compare(ONE) === 0 && record.recordType === 'scene-association'
-        && record.lifecycle === 'active' && record.workspaceId === next.view.scope.workspaceId
-        && record.homeId === next.view.scope.homeId);
-      const recordId = uuid(record.recordId), revision = integer(record.revision);
-      const p = row(record.payload, ['profile','buildingId','associationVersion','previousAssociationId',
-        'reviewStatus','reviewStatement','sourceDocuments','acceptedReceipt','sourceFloors','roomMappings']);
-      need(p.profile === 'houseatlas.native-scene-association.v1' && p.buildingId === buildingId
-        && p.reviewStatus === 'accepted' && integer(p.associationVersion));
-      const docs = list(p.sourceDocuments, 2); need(docs.length === 2);
-      const documents = docs.map(item => row(item, ['role','evidenceId','evidenceRevision','originalAssetId',
-        'originalAssetRevision','originalSha256','contentType']));
-      const primary = documents.find(doc => doc.role === 'primary-scene');
-      const historical = documents.find(doc => doc.role === 'documentary-sheet');
-      need(primary && historical && documents.filter(doc => doc.role === 'primary-scene').length === 1
-        && documents.filter(doc => doc.role === 'documentary-sheet').length === 1
-        && primary.contentType === 'text/plain' && historical.contentType === 'text/plain'
-        && primary.originalAssetId !== historical.originalAssetId);
-      for (const doc of documents) { uuid(doc.evidenceId); uuid(doc.originalAssetId);
-        integer(doc.evidenceRevision); integer(doc.originalAssetRevision); sha(doc.originalSha256); }
-      const receipt = row(p.acceptedReceipt, ['receiptId','canonicalJson','canonicalSha256','anchors']);
-      const literal = str(receipt.canonicalJson, 131072);
-      const parsed = row(parse(literal), ['profile','receiptId','sourceReceiptSha256','anchors']);
-      need(parsed.profile === 'houseatlas.native-scene-room-review.v1' && canonical(parsed) === literal
-        && parsed.receiptId === receipt.receiptId && parsed.sourceReceiptSha256 === historical.originalSha256
-        && await digest(encoder.encode(literal)) === receipt.canonicalSha256
-        && equal(parsed.anchors!, receipt.anchors!));
-      need(receipt.anchors !== undefined);
-      const acceptedRoomAnchors = anchors(receipt.anchors);
-      const expectedEvidenceIds = documents.map(doc => uuid(doc.evidenceId));
-      const acceptedRoomMappings = roomMappings(p.roomMappings!, acceptedRoomAnchors, expectedEvidenceIds);
-      const sourceFloorBindings = floors(p.sourceFloors!, geometry);
-      let selection: NativeSceneSourceSelection = Object.freeze({ sessionIdentity: next.sessionIdentity,
-        workspaceId: next.view.scope.workspaceId, homeId: next.view.scope.homeId,
-        expiresAt: next.session.expiresAt, buildingId, viewKey: geometry.viewKey,
-        sceneEvidenceId: uuid(primary.evidenceId), historicalSceneEvidenceId: uuid(historical.evidenceId), sceneAssetId: uuid(primary.originalAssetId),
-        sceneOriginalSha256: sha(primary.originalSha256),
-        sceneEvidenceRevision: exactStockSafeInteger(integer(primary.evidenceRevision)),
-        sceneAssetRevision: integer(primary.originalAssetRevision),
-        acceptedRoomReceiptId: str(receipt.receiptId, 256), acceptedRoomReceiptSha256: sha(receipt.canonicalSha256),
-        acceptedRoomAnchors, acceptedRoomMappings, sourceFloorBindings });
+      need(current(owner, geometry));
+      const qualified=await qualifyCurrentResponse(raw,next,buildingId,geometry.viewKey,geometry,validator);
+      need(current(owner,geometry));if(qualified.status!=='available')return qualified;
+      const recordId=qualified.recordId,revision=qualified.revision,p=row(qualified.payload);
+      const documents=list(p.sourceDocuments,2).map(item=>row(item));
+      const historical=documents.find(doc=>doc.role==='documentary-sheet')!;
+      let selection=qualified.selection;
       // A current native review binds the exact support bytes. It does not
       // natively certify photo/page semantics, which remain independently reviewed evidence.
       if (options.createDrawingReview) {
@@ -423,7 +489,7 @@ export function createNativeSceneAssociationClient(options: {
         finally { if (frame) documents.release(frame); documents.dispose(); }
       }
       need(current(owner, geometry));
-      return Object.freeze({ status: 'available' as const, recordId, revision, payload: record.payload!, selection });
+      return Object.freeze({ status: 'available' as const, recordId, revision, payload: qualified.payload, selection });
     });
   };
   const releasePrepared = (prepared: SceneAssociationPrepared) => {
@@ -450,24 +516,16 @@ export function createNativeSceneAssociationClient(options: {
       const url = `/api/atlas/scene/v1/workspaces/${next.view.scope.workspaceId}/homes/${next.view.scope.homeId}/buildings/${captured.buildingId}/head`;
       const raw = await obtain(url, { method: 'GET', headers: { Accept: 'application/json' } }, signal, MAX_HEAD);
       signal.throwIfAborted(); need(current(owner, geometry));
-      const output = row(raw, ['schema','scope','buildingId','status','reason','head']);
-      const scope = row(output.scope, ['workspaceId','homeId']);
-      need(output.schema === 'houseatlas.native-scene-head.v1'
-        && uuid(scope.workspaceId) === next.view.scope.workspaceId && uuid(scope.homeId) === next.view.scope.homeId
-        && uuid(output.buildingId) === captured.buildingId);
+      const observed = qualifyHeadResponse(raw, next, captured.buildingId);
       const assertHead = (condition: unknown): void => {
         if (!condition) throw new TypeError('Native scan prior scene head changed; custody remains held');
       };
-      if (output.status === 'unavailable') {
-        need(output.head === null && (output.reason === 'no-current-association' || output.reason === 'current-source-unavailable'));
+      if (observed.status === 'unavailable') {
         assertHead(head.status === 'unavailable' && head.reason === 'no-current-association'
-          && output.reason === 'no-current-association');
+          && observed.reason === 'no-current-association');
       } else {
-        need(output.status === 'available' && output.reason === null);
-        const observed = row(output.head, ['recordId','revision','payloadSha256']);
-        const recordId = uuid(observed.recordId), revision = integer(observed.revision), payloadSha256 = sha(observed.payloadSha256);
-        assertHead(head.status === 'available' && recordId === head.recordId
-          && revision.compare(head.revision) === 0 && payloadSha256 === expectedDigest);
+        assertHead(head.status === 'available' && observed.recordId === head.recordId
+          && observed.revision.compare(head.revision) === 0 && observed.payloadSha256 === expectedDigest);
       }
       signal.throwIfAborted(); need(current(owner, geometry));
       return head;
@@ -699,4 +757,19 @@ export function createNativeSceneAssociationClient(options: {
     dispose() { disposed = true; unsubscribe(); for (const item of held.keys()) releasePrepared(item);
       binding = null; pendingBinding = null; listeners.clear(); }
   };
+}
+
+/** Current native building -> evidence qualification used by the source-only
+ * overlay owner before offering the separately reviewed PDF correlation. */
+export async function readNativeOverlayBuildingEvidence(next:SceneAssociationContext,buildingId:string,evidenceId:string,
+  signal:AbortSignal,guard:()=>void,transport:typeof fetch=fetch):Promise<boolean>{
+  guard();need(UUID.test(buildingId)&&UUID.test(evidenceId));
+  const response=await transport(`/api/atlas/stock/v3/workspaces/${next.view.scope.workspaceId}/homes/${next.view.scope.homeId}/records/identity/${buildingId}`,
+    {method:'GET',headers:{Accept:'application/json'},signal,credentials:'same-origin',cache:'no-store',redirect:'error',mode:'same-origin'});
+  let raw:LosslessJson;try{raw=await responseJson(response,signal);}catch(error){void response.body?.cancel().catch(()=>undefined);throw error;}
+  guard();need(createExactStockResultValidator().validateNativeRead('atlas.identity.get',raw));
+  const r=row(raw),scope=row(r.resolvedScope),data=row(r.data),records=list(data.records,1);
+  need(r.commandId==='atlas.identity.get'&&r.status==='read'&&r.replayed===false&&scope.workspaceId===next.view.scope.workspaceId&&scope.homeId===next.view.scope.homeId&&data.sourceStatus==='current'&&data.nextCursor===null&&records.length===1);
+  const record=row(records[0]),target=row(record.target),payload=row(record.payload);
+  need(target.authority==='atlas'&&target.recordType==='identity'&&target.recordId===buildingId&&record.lifecycle==='active'&&Array.isArray(payload.evidenceIds));guard();return payload.evidenceIds.includes(evidenceId);
 }

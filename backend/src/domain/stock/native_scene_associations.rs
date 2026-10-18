@@ -251,10 +251,21 @@ pub fn current_scene_head<'a>(
             return Err(SceneHeadError::Unavailable);
         }
     }
+    let mut source_floor_keys = HashSet::new();
+    let mut native_floor_keys = HashSet::new();
     for floor in head.payload["sourceFloors"]
         .as_array()
         .ok_or(SceneHeadError::Conflict)?
     {
+        let source_key = floor["sourceFloorKey"]
+            .as_str()
+            .ok_or(SceneHeadError::Conflict)?;
+        let native_key = floor["nativeFloorKey"]
+            .as_str()
+            .ok_or(SceneHeadError::Conflict)?;
+        if !source_floor_keys.insert(source_key) || !native_floor_keys.insert(native_key) {
+            return Err(SceneHeadError::Conflict);
+        }
         let geometry_id = floor["nativeGeometryId"]
             .as_str()
             .ok_or(SceneHeadError::Conflict)?;

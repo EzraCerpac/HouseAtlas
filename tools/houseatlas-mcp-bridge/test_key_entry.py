@@ -180,6 +180,25 @@ class Cases(unittest.TestCase):
                 with self.assertRaises(wrapper.WrapperError): wrapper.launch()
             self.assertEqual(names, ['launch-spec.json'])
 
+    def denial_duplicate_launch_spec(self):
+        first, second = 'tunnel_' + '1' * 32, 'tunnel_' + '2' * 32
+        inputs = [('{"configured":true,"registrationId":"%s","registrationId":"%s"}' % (first, second)).encode(),
+                  ('{"configured":false,"configured":true,"registrationId":"%s"}' % first).encode()]
+        with tempfile.TemporaryDirectory(prefix='houseatlas-launch-spec-synthetic-') as temp:
+            host = host_fixture(temp)
+            for raw in inputs:
+                reads = []
+                def read(name, limit):
+                    reads.append(name); self.assertEqual(name, 'launch-spec.json')
+                    return raw
+                with patch.object(wrapper, 'load_host', return_value=host), \
+                     patch.object(wrapper.sys, 'argv', ['wrapper']), patch.object(wrapper, 'read_private', read), \
+                     patch.object(wrapper, 'verify_executable', side_effect=AssertionError('No executable inspection')), \
+                     patch.object(wrapper.subprocess, 'run', side_effect=AssertionError('No binary execution')), \
+                     patch.object(wrapper.os, 'execve', side_effect=AssertionError('No launch')):
+                    with self.assertRaises(wrapper.WrapperError): wrapper.launch()
+                self.assertEqual(reads, ['launch-spec.json'])
+
     def healthy_launcher_memory_only(self):
         with tempfile.TemporaryDirectory(prefix='houseatlas-launcher-synthetic-') as temp:
             host = host_fixture(temp)
@@ -265,6 +284,7 @@ class Cases(unittest.TestCase):
 
 HEALTHY = ('healthy_create_only_file', 'healthy_tty_noecho', 'healthy_wrapper_environment', 'healthy_launcher_memory_only', 'healthy_executable_contract', 'healthy_private_deployment')
 REGRESSION = ('denial_existing_or_symlink', 'denial_no_tty_fallback', 'denial_unconfigured_wrapper', 'denial_tty_oversize', 'denial_executable_contract', 'failure_tty_sigquit_restore', 'failure_tty_sigtstp_restore', 'denial_private_deployment')
+REGRESSION += ('denial_duplicate_launch_spec',)
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('case', choices=HEALTHY + REGRESSION)

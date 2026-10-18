@@ -56,6 +56,14 @@ config can activate it. A supplied `approvalReceiptId` UUID is never proof.
 Thus 37 forms are recognized, 36 can dispatch when genuinely admitted, and remap
 remains an explicit integration gap.
 
+Native revision carriers accept exact integral decimal/exponent spellings such
+as `1.0`, `1e0` and `10e-1`. The adapter checks the exact Decimal value, safe
+integer range and native 4096-byte token/exponent/decimal-shift processing limits;
+it never rounds a fractional/underflow value through a float. CAS predecessors
+must permit a safe CAS+1 result before dispatch. The same checks cover receipt,
+record, scene/document revision pins, byte sizes and page/chunk bounds. Local
+integer comparisons do not rewrite submitted wire JSON, intent or journal bytes.
+
 Native Stock HTTP intake is 1 MiB, separate from native MCP's64KiB bound. This
 adapter admits complete write envelopes up to1MiB and uses an8MiB stdio line
 bound for escaped JSON. Native read `/invoke` keeps its16KiB envelope/32KiB
@@ -90,6 +98,34 @@ Stock responses require a separately qualified streaming/chunked native owner.
 No such owner is implemented here. The dedicated source-evidence tool retains
 its separate verified-original10MiB/256KiB-chunk profile. capabilities reports
 these read bounds and the gap explicitly.
+
+## Bounded commit and retained-result profile
+
+The 1 MiB request bound does not bound an existing record returned by tombstone
+or restore. Normal commit responses therefore have a separate 2 MiB byte budget
+at transport and parser, with 262,144 nodes and depth64. Root and child receipts
+use that same profile during correlation. Native `atlas_results::receipt_wire`
+returns all committed records/audits; their unbounded arrays have no finite
+schema-wide response maximum. This is an explicit partial result profile.
+
+`StockRetainedCommittedResult` contains the root wire plus up to100 ordered child
+wires, repeating the root records/audits. Retained transport/parser therefore
+allow two 2 MiB copies plus256KiB for fixed envelope/group metadata (4,456,448
+bytes), 540,672 nodes and depth68. Each root/child still must fit the original
+2 MiB/262,144-node/depth64 receipt profile. These margins cover the native wrapper
+and bounded group headers; they do not admit arbitrary larger record payloads.
+Exact original intents above16KiB remain unreconcilable through this native owner.
+
+Only complete, correlated results followed by session revalidation clear UNKNOWN.
+An oversized/unrepresentable receipt, wrapper or original intent remains UNKNOWN
+with no retry authorization; a separately qualified native owner is still needed
+for larger results. Neither journal clearing nor automatic redispatch is offered.
+The journal retains the entire admitted native response byte-for-byte. When the
+retained response would exceed the reserved4MiB MCP content budget after nested
+JSON escaping, operation-status explicitly omits `nativeReconciliationJson` and
+returns its byte count/SHA256 and confirmed commit metadata. This is not a sliced
+receipt or an unknown outcome: the complete response is already retained in the
+private journal. The existing final8MiB encoded MCP guard also covers request IDs.
 
 Standard request params._meta is accepted only as an object and otherwise
 ignored; it grants no scope, identity, approval or progress-report capability.
@@ -249,6 +285,22 @@ Separate denial lane: `denial_existing_or_symlink`, `denial_no_tty_fallback`,
 `failure_tty_sigquit_restore`, `failure_tty_sigtstp_restore`,
 `denial_private_deployment`.
 Use an external15-second process timeout for every owned-PTY case.
+
+Focused PR203 repair checks (run individually; no broad suite):
+`healthy_integral_revisions`, `healthy_integral_read_carriers`,
+`healthy_integral_page_size`, `healthy_large_commit_receipt`,
+`healthy_commit_response_boundary`, `healthy_large_retained_receipt`,
+`healthy_bounded_reconciliation_output`. The last checks explicit metadata-only
+MCP output while preserving the complete private response. The real bounded HTTPS
+reader is exercised only against an in-memory mocked connection, never a socket.
+Separate focused denial lane: `denial_integral_revision_bounds`,
+`denial_commit_receipt_profile`, `denial_receipt_parser_borders`, and helper
+`denial_duplicate_launch_spec`. Parser border fixtures qualify only JSON processing
+budgets, not native domain payloads. Valid response padding qualifies the exact
+byte border, not a claim about the native serializer. Duplicate launch properties
+are refused before binary inspection, key access or launch. These are focused
+checks of the three reviewed findings and adjacent numeric/size carriers; they
+release no replay, fault/crash, expiry, credential, native request or deployment.
 
 All cases use generated strings, disposable directories/SQLite, owned PTYs,
 mocked processes or deterministic fake native exchanges with no external

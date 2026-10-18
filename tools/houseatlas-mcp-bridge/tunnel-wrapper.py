@@ -80,7 +80,7 @@ def verify_executable(path, expected_hash, exact_mode=None, exact_uid=None):
 
 
 def command(spec):
-    need(set(spec) == {'configured', 'registrationId'})
+    need(type(spec) is dict and set(spec) == {'configured', 'registrationId'})
     need(spec['configured'] is True
          and isinstance(spec['registrationId'], str)
          and re.fullmatch(r'tunnel_[0-9a-f]{32}', spec['registrationId']))
@@ -91,6 +91,19 @@ def command(spec):
             '--mcp.max-concurrent-requests', '1', '--mcp.stdio-send-initialized-notification',
             '--control-plane.max-inflight', '1', '--health.listen-addr', '127.0.0.1:0',
             '--health.url-file', str(STATE / 'health-url'), '--log.level', 'info', '--log.format', 'json']
+
+
+def launch_spec(raw):
+    # Same duplicate-rejecting object pattern as the private deployment reader.
+    # This runs before executable inspection, key access or command execution.
+    need(len(raw) <= 16384)
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            need(key not in result)
+            result[key] = value
+        return result
+    return command(json.loads(raw, object_pairs_hook=pairs))
 
 
 def launch():
@@ -104,7 +117,7 @@ def launch():
         info = directory.lstat()
         need(directory.resolve() == directory and stat.S_ISDIR(info.st_mode)
              and info.st_uid == UID and stat.S_IMODE(info.st_mode) == 0o700)
-    argv = command(json.loads(read_private('launch-spec.json', 16384)))
+    argv = launch_spec(read_private('launch-spec.json', 16384))
     for key in ('tunnel', 'python'):
         pin = host[key]
         verify_executable(pin['path'], pin['sha256'], exact_mode=pin['mode'], exact_uid=pin['uid'])
