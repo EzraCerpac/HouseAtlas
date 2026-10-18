@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "84caa984d358146786aaacf377b8937a49e27b8a42231894c59b6f524e5adc7c",
+  "sourceDigestSha256": "d1a85c9797bbb48cd95e8968486080fbc41fb435416b6487f3bed2b1871c4025",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -6293,8 +6293,8 @@
     {
       "path": "docs/mcp-bridge/README.md",
       "mode": "100644",
-      "bytes": 24877,
-      "sha256": "6e6c05691b0958887335d181c96367c9be446ff190e21c656c3775dfbdf2daa5",
+      "bytes": 26918,
+      "sha256": "d5b07ad62ab5c972da3bb0d98ae9558299a4dc3ed2039e02b8d7870af9c34302",
       "owner": "mcp"
     },
     {
@@ -11053,8 +11053,8 @@
     {
       "path": "tools/houseatlas-mcp-bridge/bridge.py",
       "mode": "100644",
-      "bytes": 58558,
-      "sha256": "787e00cadee93eaa2c343b406ec4eb023f00d45caed671e7519a1f13a11a7915",
+      "bytes": 58646,
+      "sha256": "e95d373ddc3ddc3f84f2c6bc4aa5a656cb0be31f2383850b68e12ecfebd73765",
       "owner": "mcp"
     },
     {
@@ -11081,8 +11081,8 @@
     {
       "path": "tools/houseatlas-mcp-bridge/test_bridge.py",
       "mode": "100644",
-      "bytes": 73210,
-      "sha256": "585a3d5d4aeba5faf9e1023b7da83307d94719d2549781819f177c508e24fd8f",
+      "bytes": 80289,
+      "sha256": "6792520a436d64d7813c29b1f825f05e0e48f107b68db6f6ac8f7d6e83c782d0",
       "owner": "mcp"
     },
     {

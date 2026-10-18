@@ -142,6 +142,28 @@ ID-bearing requests retain their existing error/correlation behavior. No silent
 write, read, reconciliation or handshake initialization occurs through id-less
 request methods; UNKNOWN journal state and original intent bytes are untouched.
 
+## Successive handshakes on persistent stdio
+
+The tunnel can reuse one serialized stdio child for successive logical client
+handshakes. A valid ID-bearing initialize negotiates its protocol version and
+sets MCP readiness false even after an earlier successful handshake. The client
+must then send notifications/initialized before tools/list or tools/call;
+ping behavior is unchanged. The configured tunnel initialized-notification shim
+supplies that notification after each successful forwarded initialize.
+
+Existing params, request-metadata and protocol-version validation runs before
+readiness changes. Invalid repeated requests preserve the previous readiness;
+id-less initialize remains dropped before dispatch. Supported versions are echoed
+and unsupported string versions receive the same counteroffer as initial setup.
+No native session is closed, issued or refreshed by initialize. The same native
+owner, cookie/CSRF, actor/scope/expiry, journal/UNKNOWN intent, approval owner and
+operation state remain attached. Initialization grants no native authority and
+does not reconcile, clear, retry or dispatch a write.
+
+This addresses the observed already_initialized rejection on a persistent child.
+It does not claim the uncaptured live RPC sequence or complete connector success.
+Unsupported server/discover still receives -32601; no discovery feature is added.
+
 ## Bounded initialize diagnostic
 
 The protected bridge config optionally accepts `initializeDiagnostics`, strictly
@@ -167,7 +189,10 @@ consumes no diagnostic ordinal, including when the fallback must null its ID.
 | MCP params object required | `params_object_required` |
 | MCP request metadata object required | `request_metadata_object_required` |
 
-For example: `{"ordinal":1,"category":"already_initialized"}`. No original
+The historical `already_initialized` category remains in the fixed classifier
+for receipt compatibility; valid successive handshakes no longer emit it.
+
+For example: `{"ordinal":1,"category":"protocol_version_required"}`. No original
 message text, request ID, params, protocol version, headers, native data, key or
 credential is emitted. Tool/native errors never enter this diagnostic. Child
 stderr is already forwarded by the pinned tunnel client; no broader logging is
@@ -364,6 +389,14 @@ They use generated in-memory frames, prohibit native/socket access and compare
 enabled/disabled stdout byte for byte, including recovery/lifecycle state and
 stderr failure. They cover all four categories, strict opt-in/default silence,
 nonmatching/idless/malformed exclusions and the two-attempt process budget.
+
+Focused persistent-handshake checks (individually):
+`healthy_repeated_initialize_stdio`, `denial_repeated_initialize_validation`,
+`healthy_repeated_initialize_state`. They cover supported/counteroffered repeat
+negotiation, pending-notification list/call refusal, ping, invalid requests in
+ready/unready states, id-less silence and preserved native/UNKNOWN custody.
+The former already-initialized diagnostic fixture now checks its historical
+classifier value directly; it no longer expects valid repeats to fail.
 
 All cases use generated strings, disposable directories/SQLite, owned PTYs,
 mocked processes or deterministic fake native exchanges with no external
