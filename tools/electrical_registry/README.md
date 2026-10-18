@@ -5,8 +5,9 @@ An offline, data-only registry for the existing
 native write, source discovery, model selection or production read is included.
 Real ledgers, diagrams, registry outputs and evidence reports stay outside Git.
 
-Inspect `registry.mjs` and `registry.test.mjs`, then run the four generated
-positive cases and five specifically requested review regressions with Node 26.10.0:
+Inspect `registry.mjs` and `registry.test.mjs`, then run the thirteen scoped
+cases with Node 26.10.0: four generated positives, five original review regressions
+and four specifically requested geometry/provenance/file-boundary groups.
 
 ```sh
 node --test --test-concurrency=1 tools/electrical_registry/registry.test.mjs
@@ -25,6 +26,12 @@ receipt. No additional omission controls were run for those three follow-ups.
 The final contract-alignment pass adds healthy examples for unique source symbols,
 explicit cluster IDs, UUID room identities, bounded quantities and equivalent
 scientific notation. It adds no malformed-input, load or denial controls.
+The four boundary groups use generated data in disposable local directories.
+They cover complete source geometry and references, short/exact-limit JSON reads,
+growth detection, successful CLI publication, existing destinations, and the named
+partial-write/private-cleanup failures. Their narrow authorization comes from the
+four-issue repair request; it does not release other failure, load, omission,
+private-intake or broad controls. No household data or live service is used.
 
 For separately authorized retained local inputs, explicitly name each file:
 
@@ -34,8 +41,27 @@ node tools/electrical_registry/registry.mjs /private/ledger.json /private/new-re
   --artifact /private/original-photo.heic --artifact /private/upright-photo.jpg
 ```
 
-Output is created exclusively with mode 0600; an existing output is never
-overwritten. Only supplied files are read. Each JSON input is bounded to 16 MiB,
+Output is serialized before filesystem changes, then fully written, synced and
+closed in a private mode-0700 staging directory beside the selected destination.
+A hard link publishes the complete mode-0600 file atomically without replacing
+any existing path, including a directory or dangling symlink; the destination
+filesystem must support hard links. Only owned staging
+paths are cleaned; the selected output is never removed. A cleanup error after
+publication reports that the complete output remains. Abrupt process termination
+may leave private staging; this is not a power-loss or hostile-filesystem guarantee.
+
+Only explicitly supplied files are read. Both JSON inputs use one opened regular
+file descriptor, checked before allocating at most the initial size plus one byte
+(never more than 16 MiB plus one). Partial reads share that allocation; a sentinel
+detects growth, and final descriptor metadata/byte-count checks reject observed
+changes or truncation. Explicit symlinks to regular input files are allowed; the
+opened descriptor is used throughout. Nonregular JSON inputs are rejected, and
+opening uses nonblocking mode so a FIFO cannot wait for a writer. Explicit
+`--artifact` image bytes are separate from this JSON policy and retain their
+existing uncapped local-byte read behavior. Documentary photo references are never
+resolved or opened implicitly.
+
+Each JSON input is bounded to 16 MiB,
 64 nesting levels and 1,000,000 object/array members; each ledger table has at
 most 10,000 rows and each region has at most 64 place associations. Total source
 place memberships, expanded fixture-room memberships and fixture-registration
@@ -67,6 +93,13 @@ and room/region/sheet record collections are indexed rather than repeatedly
 scanning unrelated fixtures or receipts for every summary.
 The registry preserves source points, quantity uncertainty, original source
 dates, interpretation date, labels, association basis and receipt identities.
+The ledger's validated `viewKey` is retained as historical source provenance,
+never substituted for a current host/model key. Sheets retain their bounded
+`originalPhoto` reference alongside byte pins. Regions retain copied source
+bounds, outlines, closure flags and tracing basis, including valid degenerate
+bounds and up to 1,024 source-outline points. No polygon-size, point-in-region or
+closure rules beyond the v1 source contract are inferred. These source coordinates
+remain distinct from the explicit unknown physical transform and placement.
 Its counts describe documentary records, never installed devices. Per-room, per-region
 and per-sheet counts retain unassigned records, while association-instance
 counts remain separate from distinct-record counts. A room's registration count

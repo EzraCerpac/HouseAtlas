@@ -1,9 +1,15 @@
 // Generated positive data and the five specifically requested review regressions.
-// No provider, listener, household files, native actions or persistent writes.
+// Four explicitly requested boundary repairs add generated disposable local files.
+// No provider, listener, household files or native actions.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import { buildRegistry, validateLedger } from './registry.mjs';
+import fs from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
+import { buildRegistry, validateLedger, readEvidenceFile, writeRegistryFile, MAX_EVIDENCE_JSON_BYTES } from './registry.mjs';
 
 const bytes = value => Buffer.from(JSON.stringify(value));
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -12,14 +18,15 @@ const rendered = Buffer.from('generated upright drawing');
 const receipt = bytes({ receiptId: 'generated-room-receipt' });
 function fixture() {
   const data = {
-    schema: 'houseatlas.documentary-electrical-fixtures.v1', interpretationDate: '2026-10-17',
+    schema: 'houseatlas.documentary-electrical-fixtures.v1', viewKey: 'generated:historical-source', interpretationDate: '2026-10-17',
     symbolLegend: { xMeansSocket: true, socketsPerX: 1, receiptId: 'generated-symbol-receipt' },
     roomMappingReceipt: { id: 'generated-room-receipt', sha256: hash(receipt) },
     registrationReceipts: [],
-    sheets: [{ id: 'sheet', title: 'Generated drawing', pdfPage: 2, sourceDate: null,
+    sheets: [{ id: 'sheet', title: 'Generated drawing', pdfPage: 2, sourceDate: null, originalPhoto: 'generated-photo.jpg',
       originalPhotoSha256: hash(original), renderedPhotoSha256: hash(rendered), regionIds: ['region', 'unassigned'] }],
     regions: ['region', 'unassigned'].map(id => ({ id, sheetId: 'sheet', label: id,
-      sourceBounds: [0, 0, 1, 1], physicalTransform: null, orientation: 'unregistered',
+      sourceBounds: [0, 0, 1, 1], sourceOutline: [], outlineClosed: false, outlineBasis: 'untraced',
+      physicalTransform: null, orientation: 'unregistered',
       places: id === 'unassigned' ? [] : [
         { packagePlaceKey: 'room:a', packagePlaceUuid: '00000000-0000-0000-0000-00000000000a', label: 'Same label', basis: 'owner-reported' },
         { packagePlaceKey: 'room:b', packagePlaceUuid: '00000000-0000-0000-0000-00000000000b', label: 'Same label', basis: 'inferred' }] })),
@@ -43,7 +50,7 @@ test('healthy source marks retain exact joins, unknowns and distinct same-label 
   assert.deepEqual(validateLedger(data), []);
   const result = buildRegistry(input);
   assert.deepEqual(data, before);
-  assert.deepEqual(result.ledger, { sha256: hash(input), bytes: input.length, interpretationDate: data.interpretationDate });
+  assert.deepEqual(result.ledger, { sha256: hash(input), bytes: input.length, viewKey: data.viewKey, interpretationDate: data.interpretationDate });
   assert.equal(result.completeness.documentaryRecords, 3);
   assert.equal(result.completeness.roomAssociatedRecords, 2);
   assert.equal(result.completeness.roomAssociationInstances, 4);
@@ -209,4 +216,148 @@ test('review regression: each room counts only registrations for its exact key a
   assert.equal(result.completeness.approximateRegisteredRecords, 2); // Distinct records, not receipts.
   assert.deepEqual(result.rooms.map(r => r.completeness.approximateRegisteredRecords), [2, 1]);
   assert(result.records.every(r => r.physicalCoordinate === null && r.currentCircuitId === null));
+});
+
+const scratch = t => {
+  const directory = fs.mkdtempSync(join(tmpdir(), 'houseatlas-registry-test-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  return directory;
+};
+const cli = (...args) => spawnSync(process.execPath, [fileURLToPath(new URL('./registry.mjs', import.meta.url)), ...args],
+  { encoding: 'utf8', timeout: 15000 });
+
+test('four-boundary geometry: retain all supported source geometry without inferred physical rules', () => {
+  for (const sourceBounds of [[0, 0, 1, 1], [.5, .5, .5, .5], [0, 0, 0, 1], [0, 1, 1, 1]]) {
+    for (const outlineClosed of [false, true]) {
+      const data = fixture();
+      Object.assign(data.regions[0], { sourceBounds, sourceOutline: [[0, 1]], outlineClosed, outlineBasis: 'approximate-photo-trace' });
+      const result = buildRegistry(bytes(data)), region = result.regions[0];
+      assert.deepEqual(region.sourceBounds, sourceBounds);
+      assert.deepEqual(region.sourceOutline, [[0, 1]]);
+      assert.equal(region.outlineClosed, outlineClosed);
+      assert.equal(region.outlineBasis, 'approximate-photo-trace');
+      assert.equal(region.physicalTransform, null); assert.equal(region.orientation, 'unregistered');
+      region.sourceBounds[0] = .25; region.sourceOutline[0][0] = .25;
+      assert.deepEqual(data.regions[0].sourceBounds, sourceBounds);
+      assert.deepEqual(data.regions[0].sourceOutline, [[0, 1]]);
+    }
+  }
+  const data = fixture();
+  data.regions[0].sourceOutline = Array.from({ length: 1024 }, (_, i) => [i % 2, (i + 1) % 2]);
+  data.regions[0].outlineBasis = 'approximate-photo-trace';
+  assert.deepEqual(buildRegistry(bytes(data)).regions[0].sourceOutline, data.regions[0].sourceOutline);
+  assert.deepEqual(buildRegistry(bytes(fixture())).regions[0].sourceOutline, []);
+});
+
+test('four-boundary provenance: historical view and original-photo references survive serialization', () => {
+  for (const viewKey of ['v', 'historical-source-distinct-from-current-host', 'x'.repeat(256), '🗺'.repeat(256)]) {
+    const data = fixture(); data.viewKey = viewKey;
+    data.sheets[0].originalPhoto = 'a/b/c/d/e/f/g/Original photo.HEIC';
+    const result = JSON.parse(JSON.stringify(buildRegistry(bytes(data))));
+    assert.equal(result.ledger.viewKey, viewKey);
+    assert.equal(result.sheets[0].originalPhoto, data.sheets[0].originalPhoto);
+    assert.equal(result.sheets[0].original.status, 'not-supplied'); // A documentary name is never opened.
+    assert.equal(result.sheets[0].sourceDate, null);
+    assert.equal(result.qualification, 'offline-documentary-consistency-only');
+  }
+  const data = fixture(), first = buildRegistry(bytes(data));
+  data.interpretationDate = '2026-10-18';
+  const revised = buildRegistry(bytes(data));
+  assert.equal(first.ledger.viewKey, revised.ledger.viewKey);
+  assert.notEqual(first.ledger.sha256, revised.ledger.sha256);
+});
+
+test('four-boundary JSON reads: descriptor bounds cover partial reads, exact limit and file growth', t => {
+  const root = scratch(t), input = join(root, 'input.json'), room = join(root, 'room.json');
+  const source = bytes(fixture()); fs.writeFileSync(input, source); fs.writeFileSync(room, receipt);
+  const read = fs.readSync; let calls = 0, backing = null;
+  t.mock.method(fs, 'readSync', (fd, buffer, offset, length, position) => {
+    calls++; backing ??= buffer;
+    assert.equal(buffer, backing);
+    assert.equal(buffer.length, source.length + 1);
+    return read(fd, buffer, offset, Math.min(length, 7), position);
+  });
+  try { assert.deepEqual(readEvidenceFile(input), source); assert(calls > 1); }
+  finally { t.mock.restoreAll(); }
+  fs.symlinkSync('input.json', join(root, 'explicit-alias.json'));
+  assert.deepEqual(readEvidenceFile(join(root, 'explicit-alias.json')), source);
+
+  assert.equal(MAX_EVIDENCE_JSON_BYTES, 16 * 1024 * 1024);
+  const padded = Buffer.concat([source, Buffer.alloc(MAX_EVIDENCE_JSON_BYTES - source.length, 0x20)]);
+  fs.writeFileSync(input, padded);
+  assert.equal(readEvidenceFile(input).length, MAX_EVIDENCE_JSON_BYTES);
+  assert.equal(buildRegistry(readEvidenceFile(input)).completeness.documentaryRecords, 3);
+
+  fs.writeFileSync(input, '{}'); let grew = false;
+  t.mock.method(fs, 'readSync', (fd, buffer, offset, length, position) => {
+    assert.equal(buffer.length, 3); // Growth cannot enlarge the initial allocation.
+    if (!grew) { grew = true; fs.truncateSync(input, MAX_EVIDENCE_JSON_BYTES + 1); }
+    return read(fd, buffer, offset, length, position);
+  });
+  try { assert.throws(() => readEvidenceFile(input), /changed while reading/); }
+  finally { t.mock.restoreAll(); }
+  t.mock.method(fs, 'readSync', () => { throw new Error('Oversized evidence must be rejected before reading'); });
+  try { assert.throws(() => readEvidenceFile(input), /exceeds 16 MiB/); }
+  finally { t.mock.restoreAll(); }
+
+  const good = join(root, 'good.json'); fs.writeFileSync(good, source);
+  for (const args of [[input], [good, '--room-mapping', input]]) {
+    const output = join(root, `unpublished-${args.length}.json`);
+    const result = cli(args[0], output, ...args.slice(1));
+    assert.notEqual(result.status, 0); assert.match(result.stderr, /exceeds 16 MiB/);
+    assert.equal(fs.existsSync(output), false);
+  }
+  const output = join(root, 'healthy-cli.json'), run = cli(good, output, '--room-mapping', room);
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(JSON.parse(fs.readFileSync(output)).roomMapping.status, 'retained-byte-match');
+  assert.equal(fs.statSync(output).mode & 0o777, 0o600);
+});
+
+test('four-boundary output: complete-only publication preserves destinations and cleans owned staging', t => {
+  const root = scratch(t), registry = buildRegistry(bytes(fixture()));
+  const output = join(root, 'r'.repeat(255));
+  const link = fs.linkSync;
+  t.mock.method(fs, 'linkSync', (temporary, selected) => {
+    assert.equal(fs.statSync(dirname(temporary)).mode & 0o777, 0o700);
+    assert.equal(fs.statSync(temporary).mode & 0o777, 0o600);
+    assert.deepEqual(JSON.parse(fs.readFileSync(temporary)), registry);
+    assert.equal(fs.existsSync(selected), false);
+    link(temporary, selected);
+  });
+  try { writeRegistryFile(output, registry); } finally { t.mock.restoreAll(); }
+  assert.deepEqual(JSON.parse(fs.readFileSync(output)), registry);
+  assert.equal(fs.statSync(output).mode & 0o777, 0o600);
+  assert(fs.readdirSync(root).every(name => !name.startsWith('.houseatlas-registry-')));
+
+  const prior = join(root, 'prior.json'); fs.writeFileSync(prior, 'prior evidence');
+  const directory = join(root, 'existing-directory'); fs.mkdirSync(directory);
+  const alias = join(root, 'existing-link'), dangling = join(root, 'dangling-link');
+  fs.symlinkSync('prior.json', alias); fs.symlinkSync('missing.json', dangling);
+  for (const selected of [prior, directory, alias, dangling]) assert.throws(() => writeRegistryFile(selected, registry), { code: 'EEXIST' });
+  assert.equal(fs.readFileSync(prior, 'utf8'), 'prior evidence');
+  assert(fs.statSync(directory).isDirectory()); assert.equal(fs.readlinkSync(alias), 'prior.json');
+  assert.equal(fs.readlinkSync(dangling), 'missing.json');
+
+  const same = join(root, 'same-input-output.json'), source = bytes(fixture()); fs.writeFileSync(same, source);
+  const sameRun = cli(same, same); assert.notEqual(sameRun.status, 0); assert.match(sameRun.stderr, /EEXIST/);
+  assert.deepEqual(fs.readFileSync(same), source);
+
+  const failed = join(root, 'failed.json'), write = fs.writeFileSync;
+  t.mock.method(fs, 'writeFileSync', (fd, body) => {
+    write(fd, body.slice(0, 12)); throw Object.assign(new Error('Generated partial write failure'), { code: 'ENOSPC' });
+  });
+  try { assert.throws(() => writeRegistryFile(failed, registry), { code: 'ENOSPC' }); }
+  finally { t.mock.restoreAll(); }
+  assert.equal(fs.existsSync(failed), false);
+  assert(fs.readdirSync(root).every(name => !name.startsWith('.houseatlas-registry-')));
+
+  const complete = join(root, 'complete-despite-cleanup.json'), unlink = fs.unlinkSync;
+  t.mock.method(fs, 'unlinkSync', path => {
+    if (path.endsWith('/registry.json')) throw Object.assign(new Error('Generated private cleanup failure'), { code: 'EACCES' });
+    return unlink(path);
+  });
+  try { assert.throws(() => writeRegistryFile(complete, registry), /Complete registry published/); }
+  finally { t.mock.restoreAll(); }
+  assert.deepEqual(JSON.parse(fs.readFileSync(complete)), registry);
+  assert.equal(fs.statSync(complete).mode & 0o777, 0o600);
 });

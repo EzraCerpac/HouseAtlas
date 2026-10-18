@@ -1,7 +1,7 @@
 /** Offline documentary registry. No transport, admission, calibration or UI. */
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import fs from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -17,6 +17,10 @@ const box = value => Array.isArray(value) && value.length === 4 &&
 const count = value => value === null || (Number.isSafeInteger(value) && value >= 1 && value <= 10000);
 const sameReceipt = (a, b) => a && b && a.id === b.id && a.sha256 === b.sha256;
 const pair = place => JSON.stringify([place?.packagePlaceKey, place?.packagePlaceUuid]);
+export const MAX_EVIDENCE_JSON_BYTES = 16 * 1024 * 1024;
+const sourceReference = value => named(value, 512) && value.split('/').length <= 8 &&
+  value.split('/').every(part => /^[A-Za-z0-9][A-Za-z0-9._ -]{0,127}$/.test(part) &&
+    part !== '.' && part !== '..' && !part.endsWith('.') && !part.endsWith(' '));
 
 // Compare decimal values without expanding large exponents or rounding tokens.
 function decimalKey(token) {
@@ -33,7 +37,7 @@ function decimalKey(token) {
 /** Preflight decoded object keys before JSON.parse can discard conflicting evidence.
  * Same lexical approach as native-scene-documentary-support, without UI imports. */
 function parseEvidenceJson(bytes) {
-  if (bytes.byteLength > 16 * 1024 * 1024) throw new Error('Evidence JSON exceeds 16 MiB');
+  if (bytes.byteLength > MAX_EVIDENCE_JSON_BYTES) throw new Error('Evidence JSON exceeds 16 MiB');
   const input = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
   let i = 0, members = 0;
   const need = ok => { if (!ok) throw new SyntaxError('Invalid or excessive evidence JSON'); };
@@ -87,6 +91,7 @@ export function validateLedger(data) {
   const check = (ok, path, reason) => { if (!ok) errors.push({ path, reason }); };
   if (!data || typeof data !== 'object' || Array.isArray(data)) return [{ path: '$', reason: 'Expected ledger object' }];
   check(data.schema === 'houseatlas.documentary-electrical-fixtures.v1', 'schema', 'Unsupported documentary ledger schema');
+  check(named(data.viewKey), 'viewKey', 'Bounded documentary source view key required');
   check(named(data.interpretationDate), 'interpretationDate', 'Bounded interpretation date required');
   check(data.symbolLegend && [true, false, null].includes(data.symbolLegend.xMeansSocket) &&
     count(data.symbolLegend.socketsPerX) && (data.symbolLegend.receiptId === null || named(data.symbolLegend.receiptId)),
@@ -111,6 +116,7 @@ export function validateLedger(data) {
   for (const s of data.sheets) {
     check(digest(s.originalPhotoSha256) && digest(s.renderedPhotoSha256), `sheets.${s.id}`, 'Source photo digests required');
     check(named(s.title, 512), `sheets.${s.id}.title`, 'Bounded source title required');
+    check(sourceReference(s.originalPhoto), `sheets.${s.id}.originalPhoto`, 'Bounded relative documentary photo reference required');
     check(Number.isSafeInteger(s.pdfPage) && s.pdfPage >= 1 && s.pdfPage <= 10000, `sheets.${s.id}.pdfPage`, 'Expected PDF page 1..10000');
     check(s.sourceDate === null || named(s.sourceDate), `sheets.${s.id}.sourceDate`, 'Preserve explicit unknown or bounded source date');
     check(refs(s.regionIds, tables.regions) && s.regionIds.every(id => tables.regions.get(id).sheetId === s.id),
@@ -123,6 +129,10 @@ export function validateLedger(data) {
     check(sheet && sheetRegions.get(sheet.id).has(r.id), `regions.${r.id}.sheetId`, 'Missing reciprocal sheet membership');
     check(r.physicalTransform === null && r.orientation === 'unregistered', `regions.${r.id}`, 'v1 preserves unknown physical transform/orientation');
     check(box(r.sourceBounds), `regions.${r.id}.sourceBounds`, 'Expected normalized source box');
+    check(Array.isArray(r.sourceOutline) && r.sourceOutline.length <= 1024 && r.sourceOutline.every(point) &&
+      typeof r.outlineClosed === 'boolean' && ['untraced', 'approximate-photo-trace'].includes(r.outlineBasis) &&
+      (r.outlineBasis !== 'untraced' || (r.sourceOutline.length === 0 && r.outlineClosed === false)),
+      `regions.${r.id}.sourceOutline`, 'Explicit bounded source outline, closure and documentary basis required');
     check(Array.isArray(r.places) && r.places.length <= 64, `regions.${r.id}.places`, 'Explicit documentary place array required (maximum 64)');
     placeMemberships += Array.isArray(r.places) ? r.places.length : 0;
     const seen = new Set();
@@ -273,7 +283,7 @@ export function buildRegistry(ledgerBytes, { artifacts = [], roomMappingBytes = 
     for (const place of record.roomAssociations) append(rowsByRoom, pair(place), record);
   }
   return { schema: 'houseatlas.documentary-placement-registry.v1',
-    ledger: { sha256: sha256(ledgerBytes), bytes: ledgerBytes.byteLength, interpretationDate: data.interpretationDate },
+    ledger: { sha256: sha256(ledgerBytes), bytes: ledgerBytes.byteLength, viewKey: data.viewKey, interpretationDate: data.interpretationDate },
     qualification: 'offline-documentary-consistency-only', roomMapping,
     symbolLegend: structuredClone(data.symbolLegend), documentaryGroups: structuredClone(data.groups),
     // Preserve every receipt, including source reviews that approve no fixture yet.
@@ -283,10 +293,12 @@ export function buildRegistry(ledgerBytes, { artifacts = [], roomMappingBytes = 
       const rows = rowsByRoom.get(pair(room)) ?? [];
       return { ...room, completeness: { ...summarize(rows, room), roomAssociationInstances: rows.length } };
     }),
-    sheets: data.sheets.map(s => ({ sheetId: s.id, title: s.title, pdfPage: s.pdfPage, sourceDate: s.sourceDate,
+    sheets: data.sheets.map(s => ({ sheetId: s.id, title: s.title, pdfPage: s.pdfPage, sourceDate: s.sourceDate, originalPhoto: s.originalPhoto,
       original: source(s.originalPhotoSha256), rendered: source(s.renderedPhotoSha256),
       completeness: summarize(rowsBySheet.get(s.id) ?? []) })),
     regions: data.regions.map(r => ({ regionId: r.id, sheetId: r.sheetId, label: r.label,
+      sourceBounds: [...r.sourceBounds], sourceOutline: structuredClone(r.sourceOutline),
+      outlineClosed: r.outlineClosed, outlineBasis: r.outlineBasis,
       roomAssociations: structuredClone(r.places), physicalTransform: null, orientation: r.orientation,
       completeness: summarize(rowsByRegion.get(r.id) ?? []) })),
     records,
@@ -296,7 +308,60 @@ export function buildRegistry(ledgerBytes, { artifacts = [], roomMappingBytes = 
       'Byte matches establish local availability only; no native custody, current access or active-model mapping is qualified.'] };
 }
 
-// Explicit local inputs only. Output creation is exclusive; never overwrite evidence.
+/** One descriptor, bounded content reads, no path-stat/read race or FIFO wait.
+ * Explicit symlinks to regular files retain ordinary local input semantics. */
+export function readEvidenceFile(path) {
+  const fd = fs.openSync(path, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK);
+  try {
+    const before = fs.fstatSync(fd, { bigint: true });
+    if (!before.isFile()) throw new Error('Evidence JSON input must be a regular file');
+    if (before.size < 0n || before.size > BigInt(MAX_EVIDENCE_JSON_BYTES)) throw new Error('Evidence JSON exceeds 16 MiB');
+    const expected = Number(before.size), bytes = Buffer.allocUnsafe(expected + 1);
+    let total = 0;
+    for (;;) {
+      const size = fs.readSync(fd, bytes, total, bytes.length - total, null);
+      if (size === 0) break;
+      total += size;
+      if (total > MAX_EVIDENCE_JSON_BYTES) throw new Error('Evidence JSON exceeds 16 MiB');
+      if (total > expected) throw new Error('Evidence JSON changed while reading');
+    }
+    const after = fs.fstatSync(fd, { bigint: true });
+    if (before.size !== after.size || before.mtimeNs !== after.mtimeNs || before.ctimeNs !== after.ctimeNs ||
+      BigInt(total) !== after.size) throw new Error('Evidence JSON changed while reading');
+    return bytes.subarray(0, total);
+  } finally { fs.closeSync(fd); }
+}
+
+/** Complete-only, no-clobber publication; never remove the selected output. */
+export function writeRegistryFile(output, registry) {
+  const serialized = JSON.stringify(registry, null, 2); // Serialize before touching the filesystem.
+  if (serialized === undefined) throw new Error('Registry output must be JSON serializable');
+  const body = `${serialized}\n`;
+  const target = resolve(output);
+  const directory = fs.mkdtempSync(join(dirname(target), '.houseatlas-registry-'));
+  const temporary = join(directory, 'registry.json');
+  let fd = null, failure = null, published = false;
+  const cleanupErrors = [];
+  const close = () => { const owned = fd; fd = null; if (owned !== null) fs.closeSync(owned); };
+  try {
+    fd = fs.openSync(temporary, 'wx', 0o600);
+    fs.writeFileSync(fd, body);
+    fs.fsyncSync(fd);
+    close();
+    fs.linkSync(temporary, target); // Atomic visibility without replacing any existing path.
+    published = true;
+  } catch (error) { failure = error; }
+  finally {
+    try { close(); } catch (error) { cleanupErrors.push(error); }
+    try { fs.unlinkSync(temporary); } catch (error) { if (error.code !== 'ENOENT') cleanupErrors.push(error); }
+    try { fs.rmdirSync(directory); } catch (error) { cleanupErrors.push(error); }
+  }
+  if (failure && !cleanupErrors.length) throw failure;
+  if (failure || cleanupErrors.length) throw new AggregateError([...(failure ? [failure] : []), ...cleanupErrors],
+    published ? 'Complete registry published; private staging cleanup failed' : 'Registry publication failed');
+}
+
+// Explicit local inputs only. Both JSON inputs are bounded before parsing.
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const args = process.argv.slice(2);
   if (args.length < 2) throw new Error('Usage: node registry.mjs LEDGER_JSON NEW_OUTPUT_JSON [--room-mapping JSON] [--artifact FILE ...]');
@@ -304,11 +369,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const artifacts = []; let roomMappingBytes = null;
   for (let i = 0; i < options.length; i += 2) {
     if (!options[i + 1]) throw new Error('Missing option value');
-    if (options[i] === '--artifact') artifacts.push({ label: options[i + 1], bytes: readFileSync(options[i + 1]) });
-    else if (options[i] === '--room-mapping' && roomMappingBytes === null) roomMappingBytes = readFileSync(options[i + 1]);
+    if (options[i] === '--artifact') artifacts.push({ label: options[i + 1], bytes: fs.readFileSync(options[i + 1]) });
+    else if (options[i] === '--room-mapping' && roomMappingBytes === null) roomMappingBytes = readEvidenceFile(options[i + 1]);
     else throw new Error(`Unknown or duplicate option: ${options[i]}`);
   }
-  const registry = buildRegistry(readFileSync(ledger), { artifacts, roomMappingBytes });
-  writeFileSync(output, `${JSON.stringify(registry, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
+  const registry = buildRegistry(readEvidenceFile(ledger), { artifacts, roomMappingBytes });
+  writeRegistryFile(output, registry);
   console.log(JSON.stringify({ output, ledger: registry.ledger, completeness: registry.completeness }));
 }
