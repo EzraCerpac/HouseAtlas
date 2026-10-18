@@ -85,6 +85,12 @@ relative components; links, special files, PAX/GNU extensions and extra archive
 members are excluded. `SHA256SUMS` contains exactly the archive pin followed
 by the manifest pin. No checksum file authenticates itself.
 
+The 180-byte ASCII path limit also requires a USTAR-encodable split: a name
+field of at most 100 bytes and, when needed, a prefix of at most 155 bytes at
+a slash boundary. Producer scans and manifest validation use the USTAR encoder
+to check this before creating any output. A valid long prefix remains supported;
+the total path-length bound alone does not make a long filename encodable.
+
 An expected manifest digest must come from independent release review. Hash
 verification establishes integrity. Producer authorization additionally requires
 the allowlisted repository, exact workflow path, successful main manual run and
@@ -122,6 +128,12 @@ operations are explicit and serialized:
    download roundtrip, rechecks the tag, then publishes last. It never rebuilds
    and does not mark the release as latest.
 
+Artifact acquisition, asset upload and release roundtrip download use a
+600-second subprocess ceiling rather than the 120-second inspection-command
+timeout. The existing ten-minute promotion job remains the shared deadline for
+the entire operation, including all three transfers and verification; these
+per-transfer ceilings do not extend it or add retries.
+
 The default token scope is `contents:read`. Building adds `actions:read` to
 inspect prior CI; promotion uses `actions:read` and `contents:write` only in its
 separate job, with the built-in short-lived token supplied to the publication
@@ -157,6 +169,19 @@ It performs no actual GH write or hosted build. Existing held adversarial,
 crash, replay, expiry, rollback, real target, household and provider cases are
 outside this command. The source owner retains shared publication-manifest
 resealing and registration in the main verification guide.
+
+The two review repairs have a separate, explicitly selected regression command:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 tools/release/test_bundle.py --repair-regressions
+```
+
+It checks all three transfer calls through fake subprocesses with simulated
+150-second durations and no waits or network, retains the short inspection
+timeout, roundtrips generated USTAR boundary paths, and rejects two generated
+unencodable paths during both payload and manifest validation. Rejected payloads
+create no output directory. These named cases are excluded from ordinary test
+discovery and add no workflow step or broader regression permission.
 
 For an independently reviewed artifact, offline inspection is:
 
