@@ -156,12 +156,55 @@ class CodeStore:
             require(scanned.sha256 == spec.sha256, "archive-invalid")
         checkpoint(deadline)
 
+    def immutable_assets(self, installed: Installed, deadline: float) -> dict[str, tuple]:
+        """All verified prior /assets/** paths remain requirements for loaded tabs.
+
+        No filename guess, browser-cache assumption, HTTP fallback root or
+        postmanifest copy can weaken this conservative exact map.
+        """
+        self.verify(installed, deadline)
+        root = installed.frontend
+        for _ in PurePosixPath(self.policy.frontend_root).parts:
+            root = root.parent
+        raw, _ = read_file(root / MANIFEST, self.policy.max_manifest_bytes, 0o600, deadline)
+        require(sha256(raw) == root.name, "installed-invalid")
+        bundle = self.parse_manifest(raw, deadline)
+        checkpoint(deadline)
+        require(bundle.selection.manifest_sha256 == root.name and
+                installed.frontend == root / self.policy.frontend_root and
+                next(part for part in bundle.components if part.name == "frontend").action == "replace",
+                "installed-invalid")
+        return self._asset_specs(bundle, deadline)
+
+    def _asset_specs(self, bundle: Bundle, deadline: float) -> dict[str, tuple]:
+        prefix = self.policy.frontend_root + "/"
+        assets = {}
+        for spec in bundle.files:
+            checkpoint(deadline)
+            if spec.path.startswith(prefix + "assets/"):
+                assets["/" + spec.path[len(prefix):]] = (spec.size, spec.sha256, spec.mode)
+        return assets
+
+    def require_replacement_assets(self, bundle: Bundle, previous: Installed, deadline: float):
+        if next(part for part in bundle.components if part.name == "frontend").action == "retain":
+            return  # Core requires the exact same canonical frontend and identity.
+        required = self.immutable_assets(previous, deadline)
+        replacement = self._asset_specs(bundle, deadline)
+        require(required.items() <= replacement.items(), "component-incompatible")
+
+    def require_retained_assets(self, current: Installed, replacement: Installed,
+                                deadline: float, code: str):
+        required = self.immutable_assets(current, deadline)
+        retained = self.immutable_assets(replacement, deadline)
+        require(required.items() <= retained.items(), code)
+
     def create(self, stage: Path, bundle: Bundle, previous: Installed, deadline: float) -> Installed:
         checkpoint(deadline)
         layout(self.policy)
         require(stage.parent == self.policy.staging_parent and stage.resolve(strict=True) == stage and
                 stage.stat().st_dev == self.policy.publication_root.stat().st_dev, "layout-invalid")
         self.verify(previous, deadline)
+        self.require_replacement_assets(bundle, previous, deadline)
         self.verify_payload(stage, bundle, deadline)
         raw, _ = read_file(stage / MANIFEST, self.policy.max_manifest_bytes, 0o600, deadline)
         require(sha256(raw) == bundle.selection.manifest_sha256 and self.parse_manifest(raw, deadline) == bundle,
@@ -232,6 +275,29 @@ class CodeStore:
         checkpoint(deadline)
 
 
+class PreservingManifestVerifier:
+    """Pre-stop asset compatibility around the unchanged trusted core verifier.
+
+    The delegate remains responsible for schema/producer admission. This wrapper
+    performs no acquisition, target action, merge or producer qualification.
+    CodeStore repeats its result against actual closures before activation.
+    """
+    def __init__(self, delegate, launcher, store: CodeStore):
+        require(launcher.store is store, "layout-invalid")
+        self.delegate, self.launcher, self.store = delegate, launcher, store
+
+    def verify(self, acquired, policy):
+        require(policy == self.store.policy, "layout-invalid")
+        deadline = self.launcher.deadline()
+        checkpoint(deadline)
+        bundle = self.delegate.verify(acquired, policy)
+        checkpoint(deadline)
+        previous = self.launcher.read_installed(deadline)
+        self.store.require_replacement_assets(bundle, previous, deadline)
+        checkpoint(deadline)
+        return bundle
+
+
 class Publication:
     def __init__(self, launcher, store: CodeStore,
                  compare_and_swap: Callable[[Installed, Installed, object, object, float], None]):
@@ -248,13 +314,14 @@ class Publication:
         self._published = (candidate, previous, fresh.runtime)
         return candidate
 
-    def _activate(self, expected, replacement, stopped, deadline):
+    def _activate(self, expected, replacement, stopped, deadline, asset_error="component-incompatible"):
         # Repeat the full stopped fence/lease/config inspection immediately
         # before the owner's exact activation CAS, after potentially slow copy.
         require(self.launcher.inspect_stopped(stopped, deadline) == stopped.runtime and
                 self.launcher.read_installed(deadline) == expected, "installed-changed")
         self.store.verify(expected, deadline)
         self.store.verify(replacement, deadline)
+        self.store.require_retained_assets(expected, replacement, deadline, asset_error)
         self.launcher.check_deadline(deadline)
         self.compare_and_swap(expected, replacement, stopped.lease.native, stopped.lease.fence, deadline)
         self.launcher.check_deadline(deadline)
@@ -271,5 +338,8 @@ class Publication:
                 candidate.storage == previous.storage == fresh.runtime.storage and
                 fresh.runtime == stopped.runtime and not fresh.runtime.pending_transition,
                 "rollback-incompatible")
-        self._activate(candidate, previous, stopped, deadline)
+        # New tabs may already name candidate assets. No evidence here permits
+        # discarding them or mutating the previous immutable closure to add them.
+        self.store.require_retained_assets(candidate, previous, deadline, "rollback-incompatible")
+        self._activate(candidate, previous, stopped, deadline, "rollback-incompatible")
         return previous
