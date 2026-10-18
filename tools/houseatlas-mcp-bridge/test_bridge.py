@@ -672,7 +672,6 @@ class Cases(unittest.TestCase):
         initialize = lambda n, params: {'jsonrpc': '2.0', 'id': n, 'method': 'initialize', 'params': params}
         ready = {'jsonrpc': '2.0', 'method': 'notifications/initialized'}
         cases = [
-            ([initialize(1, valid), ready], valid, 'already_initialized'),
             ([], {}, 'protocol_version_required'),
             ([], None, 'params_object_required'),
             ([], {**valid, '_meta': None}, 'request_metadata_object_required'),
@@ -693,6 +692,104 @@ class Cases(unittest.TestCase):
                                  [{'ordinal': 1, 'category': category}, {'ordinal': 2, 'category': category}])
                 self.assertLessEqual(len(stderr.getvalue().encode()), 160)
                 self.assertEqual(len(json.loads(actual.splitlines()[-1])['result']['tools']), 6)
+        # Historical category remains an allowlisted classifier value; valid
+        # repeated initialization no longer produces this rejection.
+        legacy = io.StringIO()
+        b.InitializeDiagnostics(legacy).rejection(b.BridgeError('Already initialized'))
+        self.assertEqual(legacy.getvalue(), '{"ordinal":1,"category":"already_initialized"}\n')
+
+    def healthy_repeated_initialize_stdio(self):
+        initialize = lambda n, version: {'jsonrpc': '2.0', 'id': n, 'method': 'initialize',
+                                        'params': {'protocolVersion': version}}
+        ready = {'jsonrpc': '2.0', 'method': 'notifications/initialized', 'params': {'_meta': {}}}
+        messages = [initialize(1, '2025-11-25'), ready,
+                    {'jsonrpc': '2.0', 'id': 2, 'method': 'server/discover'},
+                    initialize(3, '2024-11-05'),
+                    {'jsonrpc': '2.0', 'id': 40, 'method': 'tools/call',
+                     'params': {'name': 'houseatlas_write', 'arguments': {'requestJson': 'generated-never-dispatched'}}},
+                    {'jsonrpc': '2.0', 'id': 41, 'method': 'ping'},
+                    {'jsonrpc': '2.0', 'id': 4, 'method': 'tools/list'}, ready,
+                    {'jsonrpc': '2.0', 'id': 5, 'method': 'tools/list'},
+                    initialize(6, 'generated-unsupported-version'),
+                    {'jsonrpc': '2.0', 'id': 7, 'method': 'tools/list'}, ready,
+                    {'jsonrpc': '2.0', 'id': 8, 'method': 'tools/list'},
+                    {'jsonrpc': '2.0', 'id': 9, 'method': 'ping'}]
+        stderr = io.StringIO()
+        actual = self.diagnostic_frames(messages, b.InitializeDiagnostics(stderr))
+        self.assertEqual(actual, self.diagnostic_frames(messages))
+        results = [json.loads(line) for line in actual.splitlines()]
+        self.assertEqual([r['id'] for r in results], [1, 2, 3, 40, 41, 4, 5, 6, 7, 8, 9])
+        by_id = {r['id']: r for r in results}
+        self.assertEqual(by_id[2]['error']['code'], -32601)
+        self.assertEqual(by_id[3]['result']['protocolVersion'], '2024-11-05')
+        self.assertEqual(by_id[40]['error']['message'], 'Initialization notification required')
+        self.assertEqual(by_id[41]['result'], {})
+        self.assertEqual(by_id[4]['error']['message'], 'Initialization notification required')
+        self.assertEqual(len(by_id[5]['result']['tools']), 6)
+        self.assertEqual(by_id[6]['result']['protocolVersion'], b.PROTOCOLS[0])
+        self.assertEqual(by_id[7]['error']['code'], -32602)
+        self.assertEqual(len(by_id[8]['result']['tools']), 6)
+        self.assertEqual(by_id[9]['result'], {})
+        self.assertEqual(stderr.getvalue(), '')
+
+    def denial_repeated_initialize_validation(self):
+        initialize = lambda n, params: {'jsonrpc': '2.0', 'id': n, 'method': 'initialize', 'params': params}
+        ready = {'jsonrpc': '2.0', 'method': 'notifications/initialized'}
+        invalid = [(None, 'MCP params object required'), ([], 'MCP params object required'),
+                   ({}, 'MCP protocol version required'),
+                   ({'protocolVersion': None}, 'MCP protocol version required'),
+                   ({'protocolVersion': 2025}, 'MCP protocol version required'),
+                   ({'protocolVersion': '2025-11-25', '_meta': None}, 'MCP request metadata object required')]
+        for ready_before in (False, True):
+            for params, message in invalid:
+                with self.subTest(ready=ready_before, message=message, params=params):
+                    messages = [initialize(1, {'protocolVersion': '2025-11-25'}),
+                            *([ready] if ready_before else []),
+                            initialize(2, params),
+                            {'jsonrpc': '2.0', 'method': 'initialize',
+                             'params': {'protocolVersion': '2024-11-05'}},
+                            {'jsonrpc': '2.0', 'id': 3, 'method': 'tools/list'}]
+                    results = [json.loads(line) for line in self.diagnostic_frames(messages).splitlines()]
+                    self.assertEqual([r['id'] for r in results], [1, 2, 3])
+                    self.assertEqual(results[1]['error'], {'code': -32602, 'message': message})
+                    if ready_before:
+                        self.assertEqual(len(results[2]['result']['tools']), 6)
+                    else:
+                        self.assertEqual(results[2]['error']['message'], 'Initialization notification required')
+
+    def healthy_repeated_initialize_state(self):
+        retained = request(n=3100); raw = b.compact(retained)
+        self.journal.begin(retained, raw)
+        self.bridge.actor, self.bridge.csrf, self.bridge.session_expiry = uid(9000), 'synthetic-csrf', 9999999999
+        self.owner.csrf = 'synthetic-owner-csrf'
+        self.bridge.approval_owner = object()
+        before = (self.journal.operation(retained['requestId']), dict(self.bridge.scope),
+                  self.bridge.actor, self.bridge.csrf, self.bridge.session_expiry, self.owner.cookie,
+                  self.owner.csrf, self.bridge.action_depth, self.bridge.owner, self.bridge.journal,
+                  self.bridge.approval_owner)
+        session = b.Stdio(self.bridge)
+        def forbidden(*_args, **_kwargs): raise AssertionError('Handshake invoked native custody')
+        with patch.multiple(self.bridge, prepare_session=forbidden, close_session=forbidden,
+                            session=forbidden, capabilities=forbidden, read=forbidden, write=forbidden,
+                            reconcile_operation=forbidden, scene=forbidden, evidence=forbidden), \
+             patch.multiple(self.owner, login=forbidden, logout=forbidden, exchange=forbidden), \
+             patch.multiple(self.journal, bind=forbidden, close=forbidden):
+            for version in ('2025-11-25', '2025-11-25', '2024-11-05', 'generated-unsupported-version'):
+                response = session.handle({'jsonrpc': '2.0', 'id': 1, 'method': 'initialize',
+                                       'params': {'protocolVersion': version, 'clientInfo': {'name': 'generated-only'}}})
+                self.assertEqual(response['protocolVersion'], version if version in b.PROTOCOLS else b.PROTOCOLS[0])
+                self.assertFalse(session.ready)
+                session.handle({'jsonrpc': '2.0', 'method': 'notifications/initialized'})
+                self.assertTrue(session.ready)
+                self.assertIs(session.bridge, self.bridge)
+        after = (self.journal.operation(retained['requestId']), dict(self.bridge.scope),
+                 self.bridge.actor, self.bridge.csrf, self.bridge.session_expiry, self.owner.cookie,
+                 self.owner.csrf, self.bridge.action_depth, self.bridge.owner, self.bridge.journal,
+                 self.bridge.approval_owner)
+        self.assertEqual(after, before)
+        self.assertTrue(self.bridge.status()['writeBlocked'])
+        self.assertEqual(self.owner.calls, [])
+        self.assertEqual(self.owner.posts, [])
 
     def denial_initialize_diagnostic_filter_and_bound(self):
         marker = 'SYNTHETIC-DO-NOT-LOG'
@@ -1189,6 +1286,8 @@ HEALTHY += ('healthy_idless_notifications',)
 HEALTHY += ('healthy_initialize_diagnostic_categories', 'healthy_initialize_diagnostic_config')
 REGRESSION += ('denial_initialize_diagnostic_filter_and_bound', 'denial_initialize_diagnostic_sink')
 REGRESSION += ('denial_initialize_diagnostic_final_response',)
+HEALTHY += ('healthy_repeated_initialize_stdio', 'healthy_repeated_initialize_state')
+REGRESSION += ('denial_repeated_initialize_validation',)
 REGRESSION += ('denial_idless_initialized_guards', 'denial_idless_tool_dispatch')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
