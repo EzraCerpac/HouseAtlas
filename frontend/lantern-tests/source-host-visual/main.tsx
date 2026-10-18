@@ -126,10 +126,10 @@ async function sourceModels(): Promise<SourceModelPort> {
 }
 
 const root = createRoot(document.getElementById('root')!);
-void sourceModels().then(models => root.render(<LanternHost view={fixture.view as ReadyView}
+void sourceModels().then(models => root.render(<div className="lantern-integration"><LanternHost view={fixture.view as ReadyView}
   actions={{ reload: async () => true, switchHome: () => {}, busy: false, notice: '',
     session: { ...session, signOut: async () => {} } }}
-  nativeContent={null} sourceModels={models} sourceDocuments={sourceDocuments} />),
+  nativeContent={null} sourceModels={models} sourceDocuments={sourceDocuments} /></div>),
 error => root.render(<p role="alert">{error instanceof Error ? error.message : 'The Atlas fixture could not start.'}</p>));
 // Anonymous site and model stage timings, below the host and bounded.
 const timings = createRoot(document.getElementById('timings')!);
