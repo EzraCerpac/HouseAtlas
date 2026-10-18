@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "013e2bccc6b00a8711de990d011192d87c7641c5f314c7bd347a52146eac96f4",
+  "sourceDigestSha256": "73706f7c842dc0dc2335ec86441988459432a56b234ded3ae22fd1115ad65ffb",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5964,8 +5964,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 129768,
-      "sha256": "f76658a08f36362e1bead215fa93724c0d8683b9b1e89fa9b0b66db69e17b918",
+      "bytes": 129848,
+      "sha256": "edf4294c2086c5df3b8a3dbc743340f73b611d5a3913d241c5d2184b190c9be1",
       "owner": "core-integration"
     },
     {
@@ -6531,16 +6531,16 @@
     {
       "path": "docs/operations/updater-application-readiness.md",
       "mode": "100644",
+      "owner": "core-integration",
       "bytes": 8572,
-      "sha256": "1bd79acafdd9f8c2fbf9b6138709eb8309b12ea2b4b52860d5965a9bc370a86f",
-      "owner": "core-integration"
+      "sha256": "1bd79acafdd9f8c2fbf9b6138709eb8309b12ea2b4b52860d5965a9bc370a86f"
     },
     {
       "path": "docs/operations/updater-established-native-transport.md",
       "mode": "100644",
+      "owner": "core-integration",
       "bytes": 8750,
-      "sha256": "154e1738e6826d8f31e94da4e334b3a95dd755af9e4b426548beeb94980c1d8e",
-      "owner": "core-integration"
+      "sha256": "154e1738e6826d8f31e94da4e334b3a95dd755af9e4b426548beeb94980c1d8e"
     },
     {
       "path": "docs/operations/updater-native-validation.md",
@@ -11123,22 +11123,22 @@
     {
       "path": "tools/electrical_registration/README.md",
       "mode": "100644",
-      "bytes": 7323,
-      "sha256": "928bcde560cb11375bf66bb7431f88bb1c6204f511f81160b969032e0e1cb26a",
+      "bytes": 9014,
+      "sha256": "756211c56a0f2597782fc83d48d2b87b042758990b6a3d7cec49d4767a4c1080",
       "owner": "media"
     },
     {
       "path": "tools/electrical_registration/healthy.test.mjs",
       "mode": "100644",
-      "bytes": 6516,
-      "sha256": "4551f5c7c9e513942c06d9c0adbbccbbbb86cc71e30a566f52a184821c8a132d",
+      "bytes": 8608,
+      "sha256": "0dc1b49329f585b88a9ba8570083e2bbbd0c9ccbc319930dae49adff4fd4e08c",
       "owner": "media"
     },
     {
       "path": "tools/electrical_registration/registration.mjs",
       "mode": "100644",
-      "bytes": 13829,
-      "sha256": "c2f3f69cc4406eee1bf658596765118ce15197d01538476951602ea1f55419cf",
+      "bytes": 15778,
+      "sha256": "9745ba4e3c936ce156d5a82bb99b141c27c05a441af307a0d0ef9b011a437a14",
       "owner": "media"
     },
     {
@@ -11319,16 +11319,16 @@
     {
       "path": "tools/houseatlas-updater-runtime/houseatlas_updater_runtime/application_readiness.py",
       "mode": "100644",
+      "owner": "core-integration",
       "bytes": 30345,
-      "sha256": "42f6bcd9e1ed4d49f189c6e3d28501d9dd7e7e1561574fa32b75e56714c4ad05",
-      "owner": "core-integration"
+      "sha256": "42f6bcd9e1ed4d49f189c6e3d28501d9dd7e7e1561574fa32b75e56714c4ad05"
     },
     {
       "path": "tools/houseatlas-updater-runtime/houseatlas_updater_runtime/established_native_http.py",
       "mode": "100644",
+      "owner": "core-integration",
       "bytes": 18623,
-      "sha256": "7d5d992538c14c764deeabdba378e7cdaa183f9ecb255d89c8de1777d287cf11",
-      "owner": "core-integration"
+      "sha256": "7d5d992538c14c764deeabdba378e7cdaa183f9ecb255d89c8de1777d287cf11"
     },
     {
       "path": "tools/houseatlas-updater-runtime/houseatlas_updater_runtime/native.py",
@@ -11361,16 +11361,16 @@
     {
       "path": "tools/houseatlas-updater-runtime/tests/test_application_readiness_happy.py",
       "mode": "100644",
+      "owner": "core-integration",
       "bytes": 17626,
-      "sha256": "085b88ac72aae95637f575f45d822b8a772bc5d9a18f81e7db71e5ab88cebf55",
-      "owner": "core-integration"
+      "sha256": "085b88ac72aae95637f575f45d822b8a772bc5d9a18f81e7db71e5ab88cebf55"
     },
     {
       "path": "tools/houseatlas-updater-runtime/tests/test_established_native_http_happy.py",
       "mode": "100644",
+      "owner": "core-integration",
       "bytes": 8893,
-      "sha256": "f8a102fd7c48ad8132fb1f26008cb604aa49c63f68fb7360aedcda551914ec7b",
-      "owner": "core-integration"
+      "sha256": "f8a102fd7c48ad8132fb1f26008cb604aa49c63f68fb7360aedcda551914ec7b"
     },
     {
       "path": "tools/houseatlas-updater-runtime/tests/test_runtime_happy.py",

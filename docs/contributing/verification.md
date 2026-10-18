@@ -1979,15 +1979,16 @@ the generated healthy fixture before this exact command on pinned Node 26.10.0:
 node --test --test-concurrency=1 tools/electrical_registration/healthy.test.mjs
 ```
 
-Four ordinary generated cases cover source-to-page arithmetic, independently
+Five ordinary generated cases cover source-to-page arithmetic, independently
 reviewed metric controls, exact current publication/model/frame/occurrence pins,
-uncertainty propagation and complete inventory with selection-only highlighting.
+uncertainty propagation, complete inventory with selection-only highlighting,
+and a valid reviewed nomination-withdrawal lifecycle preserving unrelated records.
 They create no native receipt or placement authority. Unsupported rows remain
 explicit; source pixels alone do not establish metric points, surveyed positions
 or current circuits. No browser, actual source, provider, failure/denial/replay/
 expiry/crash control, broad suite or deployment is involved.
 
-The same inspected four healthy examples may also be invoked directly on pinned
+The same inspected five healthy examples may also be invoked directly on pinned
 Node 26.10.0 to retain their individual names when a test subprocess reports
 only a file-level result:
 
