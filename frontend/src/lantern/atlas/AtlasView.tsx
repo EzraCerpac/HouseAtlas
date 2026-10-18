@@ -61,7 +61,7 @@ export function AtlasView() {
       { id: 'home' as const, label: 'Home map' },
     ];
     const open = others.find(row => row.id === other) ?? null;
-    // Other sources come first: beside the archive filter, above the stage.
+    // Other sources stay above the stage.
     if (!open) return <>
       <details className="atlas-source-details" onBlur={event => {
         if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;

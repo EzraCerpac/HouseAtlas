@@ -4,8 +4,35 @@ import { useSelect, useStore, type ViewId } from '../state/store';
 import { Icon } from './Icon';
 import { KIND_ICON } from './ui';
 import { KIND_LABEL } from '../data/query';
+import { isArchivedEntry } from '../../app/model';
 
-const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+
+/** Keep retained records reachable without a filter strip on every page. */
+function ArchiveFilter({ choose }: { choose: (hit: Pick<SearchHit, 'id' | 'kind'>) => void }) {
+  const { actions, projection } = useStore();
+  const visibility = actions.archiveVisibility;
+  const hasArchived = projection.view.entries.some(entry =>
+    entry.workspaceId === projection.view.scope.workspaceId
+    && entry.homeId === projection.view.scope.homeId && isArchivedEntry(entry));
+  if (!visibility || (!hasArchived && !visibility.included)) return null;
+  const archived = [...projection.house.spaces, ...projection.house.items].flatMap(record => {
+    const entry = projection.entries.get(record.id);
+    return entry && isArchivedEntry(entry) ? [{ record, entry }] : [];
+  });
+  return <section className={`archive-filter${visibility.included ? ' is-on' : ''}`} aria-label="Archived records">
+    <label className="archive-toggle"><input type="checkbox" checked={visibility.included}
+      onChange={event => visibility.setIncluded(event.currentTarget.checked)} /> Include archived records</label>
+    {visibility.included && <details>
+      <summary>Archived records ({archived.length})</summary>
+      {archived.length ? <ul className="rows">{archived.map(({ record, entry }) => <li key={record.id}>
+        <button type="button" className="row-title" onClick={() => choose({ id: record.id,
+          kind: entry.kind === 'place' ? 'space' : entry.kind === 'unknown' ? 'unknown' : 'item' })}>{record.name || 'Unnamed source record'}</button>
+        <span className="row-meta">Entity archived: {entry.entity.archived ? 'yes' : 'no'} · Source: {entry.sourceState}; cache: {entry.cacheStatus}</span>
+      </li>)}</ul> : <p className="empty">No archived records in this saved view.</p>}
+    </details>}
+  </section>;
+}
 
 export function SearchPalette() {
   const { house, dispatch, state } = useStore();
@@ -80,7 +107,7 @@ export function SearchPalette() {
   }, [active]);
 
   const close = () => dispatch({ type: 'search', open: false });
-  const choose = (h: SearchHit) => {
+  const choose = (h: Pick<SearchHit, 'id' | 'kind'>) => {
     restoreFocus.current = false;
     const loc = locate(house, h.id);
     const planned = house.floors.find((f) => f.id === loc.floorId)?.hasPlan;
@@ -131,50 +158,53 @@ export function SearchPalette() {
             <Icon name="close" size={18} />
           </button>
         </div>
-        <div className="palette-results" id="palette-results" role="listbox" ref={listRef} aria-label="Results">
-          {!q.trim() && (
-            <div className="palette-hint">
-              <p>Search names, models or documents in this home.</p>
-              {suggestions.length > 0 && <div className="palette-try" role="group" aria-label="Search suggestions">
-                {suggestions.map((t) => (
-                  <button key={t} type="button" className="chip-btn" onClick={() => setQ(t)}>
-                    {t}
-                  </button>
-                ))}
-              </div>}
-            </div>
-          )}
-          {q.trim() && flat.length === 0 && (
-            <p className="palette-empty">
-              No matches for “{q.trim()}” in this home.
-            </p>
-          )}
-          {grouped.map((g) => (
-            <div key={g.label} className="palette-group" role="group" aria-label={g.label}>
-              <p className="palette-group-label">{g.label}</p>
-              {g.hits.map((h) => {
-                index += 1;
-                const i = index;
-                return (
-                  <div
-                    key={h.id}
-                    id={`palette-hit-${i}`}
-                    data-index={i}
-                    role="option"
-                    aria-selected={i === active}
-                    className={`palette-hit${i === active ? ' is-active' : ''}`}
-                    onMouseEnter={() => setActive(i)}
-                    onClick={() => choose(h)}
-                  >
-                    <Icon name={KIND_ICON[h.kind]} size={17} />
-                    <span className="hit-title">{h.title}</span>
-                    <span className="hit-context">{h.context}</span>
-                    <span className="hit-kind">{KIND_LABEL[h.kind]}</span>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+        <div className="palette-results">
+          <ArchiveFilter choose={choose} />
+          <div id="palette-results" role="listbox" ref={listRef} aria-label="Results">
+            {!q.trim() && (
+              <div className="palette-hint">
+                <p>Search names, models or documents in this home.</p>
+                {suggestions.length > 0 && <div className="palette-try" role="group" aria-label="Search suggestions">
+                  {suggestions.map((t) => (
+                    <button key={t} type="button" className="chip-btn" onClick={() => setQ(t)}>
+                      {t}
+                    </button>
+                  ))}
+                </div>}
+              </div>
+            )}
+            {q.trim() && flat.length === 0 && (
+              <p className="palette-empty">
+                No matches for “{q.trim()}” in this home.
+              </p>
+            )}
+            {grouped.map((g) => (
+              <div key={g.label} className="palette-group" role="group" aria-label={g.label}>
+                <p className="palette-group-label">{g.label}</p>
+                {g.hits.map((h) => {
+                  index += 1;
+                  const i = index;
+                  return (
+                    <div
+                      key={h.id}
+                      id={`palette-hit-${i}`}
+                      data-index={i}
+                      role="option"
+                      aria-selected={i === active}
+                      className={`palette-hit${i === active ? ' is-active' : ''}`}
+                      onMouseEnter={() => setActive(i)}
+                      onClick={() => choose(h)}
+                    >
+                      <Icon name={KIND_ICON[h.kind]} size={17} />
+                      <span className="hit-title">{h.title}</span>
+                      <span className="hit-context">{h.context}</span>
+                      <span className="hit-kind">{KIND_LABEL[h.kind]}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
         </div>
         <p className="palette-foot">Arrow keys to move, Enter to open, Esc to close.</p>
       </div>
