@@ -12,7 +12,7 @@ from houseatlas_updater.validation import (
     layout, relative_path, require, sha256,
     private_directory,
 )
-from .native import read_file
+from .native import CHUNK_BYTES, checkpoint, read_file, scan_file
 
 
 RECORD = ".runtime-selection.json"
@@ -26,16 +26,17 @@ class CodeStore:
     trusted release/producer context. It is not caller-selected code or a path.
     Activation is separate: no current symlink or whole-directory root swap.
     """
-    def __init__(self, policy: Policy, parse_manifest: Callable[[bytes], Bundle]):
+    def __init__(self, policy: Policy, parse_manifest: Callable[[bytes, float], Bundle]):
         layout(policy)
         self.policy, self.parse_manifest = policy, parse_manifest
 
-    def _paths(self, root: Path, bundle: Bundle) -> tuple[Path, Path]:
+    def _paths(self, root: Path, bundle: Bundle, deadline: float) -> tuple[Path, Path]:
+        checkpoint(deadline)
         require(root.parent == self.policy.publication_root and
                 root.name == bundle.selection.manifest_sha256, "installed-invalid")
         record = root / RECORD
         if record.exists() or record.is_symlink():
-            raw, _ = read_file(record, 4096, 0o600)
+            raw, _ = read_file(record, 4096, 0o600, deadline)
             value = json_object(raw, 4096)
             require(set(value) == {"revision", "binary", "frontend"} and
                     value["revision"] == root.name, "installed-invalid")
@@ -48,32 +49,38 @@ class CodeStore:
         require(all(part.action == "replace" for part in bundle.components), "installed-invalid")
         return root / self.policy.backend_entry, root / self.policy.frontend_root
 
-    def verify(self, installed: Installed) -> None:
+    def verify(self, installed: Installed, deadline: float) -> None:
+        checkpoint(deadline)
         validate_installed(installed, self.policy)
         visited: set[Path] = set()
-        found = self._verify_root(installed.release_directory, visited, {})
+        found = self._verify_root(installed.release_directory, visited, {}, deadline)
         require(found == installed, "installed-invalid")
+        checkpoint(deadline)
 
-    def _verify_root(self, root: Path, visited: set[Path], verified: dict[Path, Installed]) -> Installed:
+    def _verify_root(self, root: Path, visited: set[Path], verified: dict[Path, Installed],
+                     deadline: float) -> Installed:
+        checkpoint(deadline)
         if root in verified:
             return verified[root]
         private_directory(root)
         require(root not in visited and len(visited) + len(verified) < 256 and root.resolve(strict=True) == root and
                 root.parent == self.policy.publication_root, "installed-invalid")
         visited.add(root)
-        raw, _ = read_file(root / MANIFEST, self.policy.max_manifest_bytes, 0o600)
+        raw, _ = read_file(root / MANIFEST, self.policy.max_manifest_bytes, 0o600, deadline)
         require(sha256(raw) == root.name, "installed-invalid")
-        bundle = self.parse_manifest(raw)
+        bundle = self.parse_manifest(raw, deadline)
+        checkpoint(deadline)
         require(bundle.selection.manifest_sha256 == root.name and bundle.target == self.policy.target and
                 bundle.contract == self.policy.bundle_contract, "installed-invalid")
-        binary, frontend = self._paths(root, bundle)
+        binary, frontend = self._paths(root, bundle, deadline)
         installed = Installed(root.name, bundle.selection, bundle.frontend_identity, bundle.components,
                               bundle.storage, binary, frontend, bundle.target, root, bundle.shell_identity)
         validate_installed(installed, self.policy)
-        self.verify_payload(root, bundle)
+        self.verify_payload(root, bundle, deadline)
         for name, path, entry in (("backend", binary, self.policy.backend_entry),
                                   ("frontend", frontend, self.policy.frontend_root)):
             part = next(part for part in bundle.components if part.name == name)
+            checkpoint(deadline)
             if part.action == "replace":
                 require(path == root / entry, "installed-invalid")
             else:
@@ -83,7 +90,7 @@ class CodeStore:
                     ancestor = ancestor.parent
                 require(ancestor != root and path == ancestor / entry, "installed-invalid")
                 # A release can retain both components from one predecessor.
-                retained = self._verify_root(ancestor, visited, verified)
+                retained = self._verify_root(ancestor, visited, verified, deadline)
                 previous_path = retained.binary if name == "backend" else retained.frontend
                 prior_part = next(item for item in retained.components if item.name == name)
                 require(path == previous_path and part.identity == prior_part.identity and
@@ -95,12 +102,15 @@ class CodeStore:
         if bundle.shell_identity is not None and any(
                 part.name == "frontend" and part.action == "replace" for part in bundle.components):
             from houseatlas_updater.release_bundle import verify_shell
+            checkpoint(deadline)
             verify_shell(frontend, bundle.shell_identity)
+            checkpoint(deadline)
         visited.remove(root)
         verified[root] = installed
         return installed
 
-    def verify_payload(self, root: Path, bundle: Bundle) -> None:
+    def verify_payload(self, root: Path, bundle: Bundle, deadline: float) -> None:
+        checkpoint(deadline)
         private_directory(root)
         expected = {spec.path for spec in bundle.files} | {MANIFEST}
         if (root / RECORD).exists() or (root / RECORD).is_symlink():
@@ -114,9 +124,11 @@ class CodeStore:
         pending = [root]
         count = 0
         while pending:
+            checkpoint(deadline)
             directory = pending.pop()
             with os.scandir(directory) as entries:
                 for entry in entries:
+                    checkpoint(deadline)
                     count += 1
                     require(count <= self.policy.max_files * 4 + 3, "archive-invalid")
                     path = directory / entry.name
@@ -132,6 +144,7 @@ class CodeStore:
                         actual.add(name)
         require(actual == expected, "archive-invalid")
         for spec in bundle.files:
+            checkpoint(deadline)
             relative_path(spec.path)
             require(spec.path == self.policy.backend_entry or
                     spec.path.startswith(self.policy.frontend_root + "/") or
@@ -139,18 +152,21 @@ class CodeStore:
                     "archive-invalid")
             require(spec.mode == (0o755 if spec.path == self.policy.backend_entry else 0o644),
                     "archive-invalid")
-            data, _ = read_file(root / spec.path, spec.size, spec.mode)
-            require(len(data) == spec.size and sha256(data) == spec.sha256, "archive-invalid")
+            scanned = scan_file(root / spec.path, spec.size, spec.mode, deadline, expected_size=spec.size)
+            require(scanned.sha256 == spec.sha256, "archive-invalid")
+        checkpoint(deadline)
 
-    def create(self, stage: Path, bundle: Bundle, previous: Installed) -> Installed:
+    def create(self, stage: Path, bundle: Bundle, previous: Installed, deadline: float) -> Installed:
+        checkpoint(deadline)
         layout(self.policy)
         require(stage.parent == self.policy.staging_parent and stage.resolve(strict=True) == stage and
                 stage.stat().st_dev == self.policy.publication_root.stat().st_dev, "layout-invalid")
-        self.verify(previous)
-        self.verify_payload(stage, bundle)
-        raw, _ = read_file(stage / MANIFEST, self.policy.max_manifest_bytes, 0o600)
-        require(sha256(raw) == bundle.selection.manifest_sha256 and self.parse_manifest(raw) == bundle,
+        self.verify(previous, deadline)
+        self.verify_payload(stage, bundle, deadline)
+        raw, _ = read_file(stage / MANIFEST, self.policy.max_manifest_bytes, 0o600, deadline)
+        require(sha256(raw) == bundle.selection.manifest_sha256 and self.parse_manifest(raw, deadline) == bundle,
                 "manifest-invalid")
+        checkpoint(deadline)
         root = self.policy.publication_root / bundle.selection.manifest_sha256
         actions = {part.name: part.action for part in bundle.components}
         candidate = Installed(bundle.selection.manifest_sha256, bundle.selection, bundle.frontend_identity,
@@ -162,33 +178,58 @@ class CodeStore:
         # Exclusive reservation: no rename can replace an existing empty or
         # partially built immutable release. Partial unactivated code stays put
         # for owner review after an ambiguous write; never delete it here.
+        checkpoint(deadline)
         root.mkdir(mode=0o700)
         for name, maximum, mode in [(spec.path, spec.size, spec.mode) for spec in bundle.files] + [
                 (MANIFEST, self.policy.max_manifest_bytes, 0o600)]:
-            data, _ = read_file(stage / name, maximum, mode)
+            checkpoint(deadline)
             target = root / name
             target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-            self._write(target, data, mode)
+            self._copy(stage / name, target, maximum, mode, deadline)
         self._write(root / RECORD, canonical({"revision": candidate.revision,
                      "binary": str(candidate.binary.relative_to(self.policy.publication_root)),
-                     "frontend": str(candidate.frontend.relative_to(self.policy.publication_root))}), 0o600)
-        for directory in sorted((p for p in root.rglob("*") if p.is_dir()),
-                                key=lambda p: len(p.parts), reverse=True):
+                     "frontend": str(candidate.frontend.relative_to(self.policy.publication_root))}), 0o600, deadline)
+        directories = []
+        for path in root.rglob("*"):
+            checkpoint(deadline)
+            if path.is_dir():
+                directories.append(path)
+        for directory in sorted(directories, key=lambda p: len(p.parts), reverse=True):
+            checkpoint(deadline)
             sync_directory(directory)
+            checkpoint(deadline)
         sync_directory(root)
+        checkpoint(deadline)
         sync_directory(root.parent)
-        self.verify(candidate)
-        self.verify(previous)
+        self.verify(candidate, deadline)
+        self.verify(previous, deadline)
         return candidate
 
     @staticmethod
-    def _write(path: Path, data: bytes, mode: int):
+    def _write(path: Path, data: bytes, mode: int, deadline: float):
+        checkpoint(deadline)
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
         with os.fdopen(descriptor, "wb") as output:
-            output.write(data)
+            for offset in range(0, len(data), CHUNK_BYTES):
+                checkpoint(deadline)
+                output.write(data[offset:offset + CHUNK_BYTES])
+                checkpoint(deadline)
             output.flush()
             os.fchmod(output.fileno(), mode)
             os.fsync(output.fileno())
+        checkpoint(deadline)
+
+    @staticmethod
+    def _copy(source: Path, target: Path, maximum: int, mode: int, deadline: float):
+        checkpoint(deadline)
+        descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(descriptor, "wb") as output:
+            scan_file(source, maximum, mode, deadline, consume=output.write)
+            checkpoint(deadline)
+            output.flush()
+            os.fchmod(output.fileno(), mode)
+            os.fsync(output.fileno())
+        checkpoint(deadline)
 
 
 class Publication:
@@ -199,35 +240,36 @@ class Publication:
         self._published = None
 
     def publish(self, staged, bundle, previous, fresh, stopped):
-        self.launcher.consume(fresh, previous, stopped)
+        deadline = self.launcher.deadline()
+        self.launcher.consume(fresh, previous, stopped, deadline)
         validate_bundle(bundle, bundle.selection, previous, fresh.runtime, self.store.policy)
-        candidate = self.store.create(staged, bundle, previous)
-        self._activate(previous, candidate, stopped)
+        candidate = self.store.create(staged, bundle, previous, deadline)
+        self._activate(previous, candidate, stopped, deadline)
         self._published = (candidate, previous, fresh.runtime)
         return candidate
 
-    def _activate(self, expected, replacement, stopped):
+    def _activate(self, expected, replacement, stopped, deadline):
         # Repeat the full stopped fence/lease/config inspection immediately
         # before the owner's exact activation CAS, after potentially slow copy.
-        require(self.launcher.inspect_stopped(stopped) == stopped.runtime and
-                self.launcher.read_installed() == expected, "installed-changed")
-        self.store.verify(expected)
-        self.store.verify(replacement)
-        deadline = self.launcher.deadline()
+        require(self.launcher.inspect_stopped(stopped, deadline) == stopped.runtime and
+                self.launcher.read_installed(deadline) == expected, "installed-changed")
+        self.store.verify(expected, deadline)
+        self.store.verify(replacement, deadline)
         self.launcher.check_deadline(deadline)
         self.compare_and_swap(expected, replacement, stopped.lease.native, stopped.lease.fence, deadline)
         self.launcher.check_deadline(deadline)
-        require(self.launcher.read_installed() == replacement and
-                self.launcher.inspect_stopped(stopped) == stopped.runtime, "installed-changed")
-        self.store.verify(replacement)
+        require(self.launcher.read_installed(deadline) == replacement and
+                self.launcher.inspect_stopped(stopped, deadline) == stopped.runtime, "installed-changed")
+        self.store.verify(replacement, deadline)
 
     def restore(self, candidate, previous, fresh, stopped):
         # Source implementation only; ordinary tests deliberately do not invoke
         # rollback. Restore activation metadata/code selections, never native data.
-        self.launcher.consume(fresh, candidate, stopped)
+        deadline = self.launcher.deadline()
+        self.launcher.consume(fresh, candidate, stopped, deadline)
         require(self._published == (candidate, previous, fresh.runtime) and
                 candidate.storage == previous.storage == fresh.runtime.storage and
                 fresh.runtime == stopped.runtime and not fresh.runtime.pending_transition,
                 "rollback-incompatible")
-        self._activate(candidate, previous, stopped)
+        self._activate(candidate, previous, stopped, deadline)
         return previous
