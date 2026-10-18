@@ -51,8 +51,19 @@ function validateContext(context) {
   need(context && validFrame(context.frame) && Array.isArray(context.sources) && context.sources.every(validSource) && Array.isArray(context.occurrences),'Explicit complete current publication/frame and source context required');
   need(context.occurrences.every(o=>validBinding(o)&&Array.isArray(o.featureIds)&&o.featureIds.every(text)),'Complete current room/occurrence/building/level/plan and feature IDs required');
   need(new Set(context.occurrences.map(o=>JSON.stringify(bindingKeys.map(k=>o[k])))).size===context.occurrences.length,'Unique current occurrence/plan bindings required');
+  const withdrawals=context.withdrawnNominations===undefined?[]:context.withdrawnNominations;
+  need(Array.isArray(withdrawals)&&withdrawals.length<=256,'Bounded explicit nomination withdrawals required');
+  need(withdrawals.every(w=>text(w.id)&&w.id.length<=256&&w.status==='invalid-nomination'&&validSource(w.source)
+    &&validFrame(w.target)&&validBinding(w.target)&&Array.isArray(w.targetFeatureIds)&&w.targetFeatureIds.length>0&&w.targetFeatureIds.length<=32
+    &&w.targetFeatureIds.every(text)&&new Set(w.targetFeatureIds).size===w.targetFeatureIds.length
+    &&text(w.reason)&&w.reason.length<=4096&&evidence(w.evidence)),'Pinned source/target/feature withdrawal evidence required');
+  need(new Set(withdrawals.map(w=>w.id)).size===withdrawals.length,'Unique nomination withdrawal identities required');
 }
 function evidence(e) { return e && sha(e.sha256) && text(e.locator); }
+function nominationWithdrawals(context,source,target,featureIds) {
+  return (context.withdrawnNominations??[]).filter(w=>sameSource(w.source,source)&&sameFrame(w.target,target)
+    &&sameBinding(w.target,target)&&w.targetFeatureIds.some(id=>featureIds.includes(id)));
+}
 /** Context is an independently supplied offline observation, never a native grant.
  * Incomplete but well-formed evidence is retained as a withheld registration. */
 export function assessRegistration(proposal, context) {
@@ -60,15 +71,22 @@ export function assessRegistration(proposal, context) {
   validateContext(context);
   need(validSource(proposal.source),'Exact source IDs and SHA-256 pins required');
   need(validFrame(proposal.target)&&validBinding(proposal.target),'Exact current target IDs, frame and SHA-256 pins required');
+  const all=[...proposal.controls,...proposal.checks];
+  need(all.length<=128,'At most 128 total landmarks');
+  for(const c of all) need(text(c.id)&&text(c.targetLandmarkId)&&point(c.sourcePoint)&&point(c.targetPoint),'Named source/target landmarks and finite pairs required');
+  const targetFeatureIds=[...new Set(all.map(c=>c.targetFeatureId))];
+  const withdrawals=nominationWithdrawals(context,proposal.source,proposal.target,targetFeatureIds);
+  if(withdrawals.length) return {id:proposal.id,status:'withdrawn-invalid-nomination',reasons:withdrawals.map(w=>w.reason),
+    source:copy(proposal.source),target:copy(proposal.target),reviewEvidence:copy(proposal.reviewEvidence??null),
+    layoutQualification:copy(proposal.layoutQualification??null),targetFeatureIds,targetLandmarkIds:all.map(c=>c.targetLandmarkId),
+    fit:null,checks:[],maxCheckResidual:null,uncertainty:copy(proposal.uncertainty??null),withdrawnNominations:copy(withdrawals),
+    physicalRegistration:null,nativeQualified:false};
   const reasons=[], add=s=>reasons.push(s), fit=fitAffine(proposal.controls);
   if(!sameFrame(proposal.target,context.frame))add('Current publication, model or coordinate-frame pins differ');
   if(proposal.target.units!=='m' || JSON.stringify(proposal.target.horizontalAxes)!=='["X","Z"]')add('Target must explicitly use scene XZ metres');
   if(!context.sources.some(s=>sameSource(s,proposal.source)))add('Exact source sheet/region/photo tuple unavailable');
   const occurrence=context.occurrences.find(o=>sameBinding(o,proposal.target));
   if(!occurrence)add('Exact current room/occurrence/building/level/plan tuple unavailable');
-  const all=[...proposal.controls,...proposal.checks];
-  need(all.length<=128,'At most 128 total landmarks');
-  for(const c of all) need(text(c.id)&&text(c.targetLandmarkId)&&point(c.sourcePoint)&&point(c.targetPoint),'Named source/target landmarks and finite pairs required');
   if(new Set(all.map(c=>c.id)).size!==all.length)add('Landmark identities are not independent');
   if(new Set(all.map(c=>c.targetLandmarkId)).size!==all.length)add('Target landmark identities are not independent');
   if(proposal.checks.length<2)add('Two independent held-out landmarks are required');
@@ -106,6 +124,7 @@ export function projectInventory(records, assessments, currentContext, selection
     need(row.physicalCoordinate==null&&row.currentCircuitId==null&&row.wireRoute==null&&row.heightMetres==null,'Known physical/circuit facts require a separate contract; they cannot be overwritten by this documentary projector');
     const matches=assessments.filter(a=>{
       if(a.status!=='reviewed-approximate-scene-registration'||!sameFrame(a.target,currentContext.frame)||!sameSource(a.source,row)||!currentContext.sources.some(s=>sameSource(s,a.source)))return false;
+      if(!Array.isArray(a.targetFeatureIds)||nominationWithdrawals(currentContext,a.source,a.target,a.targetFeatureIds).length)return false;
       const occurrence=currentContext.occurrences.find(o=>sameBinding(o,a.target));
       return occurrence && evidence(a.reviewEvidence) && text(a.layoutQualification) && Array.isArray(a.targetFeatureIds) && a.targetFeatureIds.every(id=>occurrence.featureIds.includes(id))
         && row.bindings.some(b=>sameBinding(a.target,b));
