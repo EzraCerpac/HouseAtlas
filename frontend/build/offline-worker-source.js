@@ -45,6 +45,9 @@ self.addEventListener('message', event => {
   })());
 });
 self.addEventListener('fetch', event => {
+  // The root wrapper imports verification/lifecycle code, never Saved fetch
+  // ownership. Only the narrower /saved/ registration serves public bytes.
+  if (typeof ROOT_BUILD !== 'undefined') return;
   const request = event.request, url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin || url.search || url.hash) return;
   // No API, auth, native media, arbitrary route or query interception.

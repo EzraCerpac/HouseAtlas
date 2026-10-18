@@ -19,7 +19,10 @@ wrapper's generated build pin. The build identity binds the unmarked public
 asset table, Saved worker implementation and root wrapper source. The marked
 Saved HTML also receives its own exact byte count and SHA-256 in the public
 closure. Both workers verify every public byte before activation and status.
-There is no authenticated root document in that closure.
+There is no authenticated root document in that closure. The imported Saved
+fetch listener returns immediately when the generated `ROOT_BUILD` constant is
+present. Root reuses public verification, installation and status code only;
+its fetch policy remains navigation-only.
 
 The root wrapper owns only same-origin GET navigations to `/` or `/index.html`
 without a query or fragment. It attempts the original request with
@@ -29,10 +32,13 @@ Every resolved response passes through unchanged, including HTTP authentication
 and server errors. A rejected network read can redirect to the exact
 `/saved/index.html` only while the complete public Saved closure still verifies.
 This is a local network-read outcome, not a WAN availability detector. The
-narrower Saved registration serves its verified public entry and does not
-redirect back to root. Both workers admit only the existing public asset table;
-root/API/model/session responses are never cached. No native current data is
-manufactured, and no global fetch function is replaced.
+narrower Saved registration exclusively serves its verified public entry and
+assets and does not redirect back to root. The root registration leaves all
+subresource requests untouched, including fixed-name decoder assets used by
+newer online native pages. A retained older root worker therefore cannot supply
+its old public asset bytes to a newer live page. Both workers verify only the
+existing public asset table; root/API/model/session responses are never cached.
+No native current data is manufactured, and no global fetch function is replaced.
 
 The handoff opens the existing Saved Atlas host. Its existing retained store
 lists copies, preserves their capture times and opens a copy only through its
@@ -78,8 +84,9 @@ folder through the actual plugin, executes the actual worker sources and
 TypeScript shell helper in isolated VM contexts, and models CacheStorage and
 ordinary registration/activation/message operations. It checks normal root
 responses, the unavailable-network handoff, exact Saved public bytes and build
-pins, private-route exclusion, the normal marked Saved entry, a foreign root
-owner, ordinary updates and displayed-build cleanup. Capture labeling is checked
+pins, root navigation-only dispatch with unchanged native fixed-name assets,
+private-route exclusion, the normal marked Saved entry, a foreign root owner,
+ordinary updates and displayed-build cleanup. Capture labeling is checked
 at the existing component source seams, not through fabricated private records
 or a browser render. VM-local transports never replace process-global fetch.
 No listener, browser, native service, credential, real private store, provider,

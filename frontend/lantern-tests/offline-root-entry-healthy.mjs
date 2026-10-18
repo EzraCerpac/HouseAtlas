@@ -30,9 +30,11 @@ function cacheStorage() {
   };
 }
 function generatedBuild(version) {
-  const directory = join(scratch, version); mkdirSync(join(directory, 'saved'), { recursive: true }); mkdirSync(join(directory, 'assets'));
+  const directory = join(scratch, version); mkdirSync(join(directory, 'saved'), { recursive: true }); mkdirSync(join(directory, 'assets/pdfjs'), { recursive: true });
   const html = '<!doctype html><html><head></head><body><div id="root"></div><script src="/assets/saved.js"></script></body></html>';
-  const assets = { '/saved/index.html': html, '/assets/saved.js': `/* generated public Saved entry ${version} */`, '/assets/saved.css': 'body{color:black}' };
+  const assets = { '/saved/index.html': html, '/assets/saved.js': `/* generated public Saved entry ${version} */`, '/assets/saved.css': 'body{color:black}',
+    '/assets/pdfjs/openjpeg_nowasm_fallback.js': `/* generated public JPEG decoder ${version} */`,
+    '/assets/pdfjs/jbig2_nowasm_fallback.js': `/* generated public JBIG decoder ${version} */` };
   for (const [path, bytes] of Object.entries(assets)) writeFileSync(join(directory, path), bytes);
   // Root/auth responses are deliberately outside the public cache closure.
   writeFileSync(join(directory, 'index.html'), '<div id="root">generated native bootstrap</div>');
@@ -44,7 +46,7 @@ function generatedBuild(version) {
   const unmarked = table.map(pin => pin.path === '/saved/index.html' ? { ...pin, bytes: Buffer.byteLength(html), sha256: hash(html) } : pin);
   assert.equal(buildId, hash(hash(JSON.stringify(unmarked) + read('build/offline-worker-source.js')) + read('build/root-offline-worker-source.js')));
   assert(root.startsWith(`const ROOT_BUILD="${buildId}";`));
-  assert.deepEqual(table.map(pin => pin.path), ['/assets/saved.css', '/assets/saved.js', '/saved/index.html']);
+  assert.deepEqual(table.map(pin => pin.path), ['/assets/pdfjs/jbig2_nowasm_fallback.js', '/assets/pdfjs/openjpeg_nowasm_fallback.js', '/assets/saved.css', '/assets/saved.js', '/saved/index.html']);
   const responses = new Map(table.map(pin => {
     const bytes = readFileSync(join(directory, pin.path)); assert.equal(bytes.length, pin.bytes); assert.equal(hash(bytes), pin.sha256);
     return [pin.path, new Response(bytes, { headers: { 'content-type': pin.mime } })];
@@ -154,7 +156,7 @@ try {
 
   // Existing installed apps retain start_url /. Normal online root requests
   // keep their original Request and exact native response, including headers.
-  const networkCalls = [], online = new Response('generated native root', { headers: { 'cache-control': 'private, no-store' } });
+  const networkCalls = [], online = new Response(`generated newer native root ${second.buildId}`, { headers: { 'cache-control': 'private, no-store' } });
   const live = workerRuntime(first, 'root', storage, async (input, init) => { networkCalls.push({ input, init }); return online; });
   const rootRequest = request('/'); assert.equal(await live.fetchEvent(rootRequest), online); assert.equal(networkCalls[0].input, rootRequest);
   assert.deepEqual(JSON.parse(JSON.stringify(networkCalls[0].init)), { cache: 'no-store' });
@@ -179,9 +181,21 @@ try {
   const savedResponse = await savedRuntime.fetchEvent(request('/saved/index.html'));
   assert.equal(await savedResponse.text(), await first.responses.get('/saved/index.html').clone().text());
   assert.equal(savedRuntime.fetchEvent(request('/')), null);
-  const rootSavedResponse = await offline.fetchEvent(request('/saved/index.html'));
-  assert.equal(rootSavedResponse.status, 200); assert.equal(rootSavedResponse.headers.get('location'), null);
-  assert.equal(await rootSavedResponse.text(), await first.responses.get('/saved/index.html').clone().text());
+  assert.equal(offline.fetchEvent(request('/saved/index.html')), null, 'Only narrower Saved registration owns its navigation');
+  // A retained root worker A must leave fixed-name subresources untouched
+  // after passing newer online native HTML B through. Saved A still owns
+  // its exact public bytes for its separately controlled Saved context.
+  for (const pin of first.table.filter(pin => pin.path.startsWith('/assets/'))) {
+    assert.equal(live.fetchEvent(request(pin.path, { mode: 'cors' })), null);
+    assert.equal(offline.fetchEvent(request(pin.path, { mode: 'cors' })), null);
+    const asset = await savedRuntime.fetchEvent(request(pin.path, { mode: 'cors' }));
+    assert.equal(await asset.text(), await first.responses.get(pin.path).clone().text());
+  }
+  for (const path of ['/assets/pdfjs/openjpeg_nowasm_fallback.js', '/assets/pdfjs/jbig2_nowasm_fallback.js'])
+    assert.notEqual(await first.responses.get(path).clone().text(), await second.responses.get(path).clone().text());
+  assert.equal(live.calls.length, 1, 'Root dispatch must not fetch or cache native subresources');
+  assert.equal(offline.calls.length, 2, 'Only exact root navigations reach the root transport');
+  cases.push('root-navigation-only-live-fixed-assets-remain-network-owned');
   // Capture labels remain owned by the existing retained-store presentation.
   // These are source-seam checks, not a fabricated private copy or browser render.
   const manager = read('src/offline/SavedHouseManager.tsx'), host = read('src/offline/SavedAtlasHost.tsx');
