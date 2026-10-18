@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "8a879fed070c3817b345a699ab8dcc7c148be1ba053258e9f0f9bec83dbfb5b2",
+  "sourceDigestSha256": "3ddcafd7f0b062043e745fa685fa6e0290e3a9bd632eefe5e09d47d4610012d9",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5957,8 +5957,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 112694,
-      "sha256": "d454e9bfb92b8e6d0c9ef9a5f3855e85b1b8f340008e57b51137be0fca01540b",
+      "bytes": 113787,
+      "sha256": "26334e30b11e7f2af78a9f36c40532357c9901a01250198e69e411bde7bc4b61",
       "owner": "core-integration"
     },
     {
@@ -6379,6 +6379,13 @@
       "mode": "100644",
       "bytes": 9743,
       "sha256": "48e451e8ab62e68b22e1359c9a1bcf4c4441a71b1227a76a351a0c02f99d95a2",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/operations/houseatlas-updater-acquisition.md",
+      "mode": "100644",
+      "bytes": 7616,
+      "sha256": "cd91dd8ffb36413c4133727d7dd7d6a1745ffc8ffdea8bd72aa8df30d8d27e9f",
       "owner": "core-integration"
     },
     {
@@ -11091,6 +11098,27 @@
       "bytes": 5714,
       "sha256": "4698bbcd54575db7ada8e5d2399ed95b83a445876c015886a86817e1b17c2888",
       "owner": "mcp"
+    },
+    {
+      "path": "tools/houseatlas-updater-adapters/github_release.py",
+      "mode": "100644",
+      "bytes": 14770,
+      "sha256": "49c435721c69bd0f05a6e1746ce0b7210c91da9f1f36ba084e954560f7cdbc06",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/houseatlas-updater-adapters/tests/__init__.py",
+      "mode": "100644",
+      "bytes": 80,
+      "sha256": "1d15dc205c97781e8352b97e33ef99298a8b622be0ead1c8696f21a183f1c81c",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/houseatlas-updater-adapters/tests/test_github_release_happy.py",
+      "mode": "100644",
+      "bytes": 10308,
+      "sha256": "990cf841c79441f80c211916226985d12f59bc9575c0ca2de4c22182269a2afd",
+      "owner": "core-integration"
     },
     {
       "path": "tools/houseatlas-updater/houseatlas_updater/__init__.py",

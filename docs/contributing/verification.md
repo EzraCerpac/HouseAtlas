@@ -1877,3 +1877,20 @@ Only generated JSON bytes and a recording status fake are used. These cases
 cover the exact non-finite-to-null defect and ordinary null/UUID selectors;
 they add no transport, filesystem, service action, broad control alias or
 failure/rollback/crash qualification.
+
+## Named generated GitHub acquisition adapter checks
+
+Read [the acquisition source contract](../operations/houseatlas-updater-acquisition.md)
+and inspect the adapter, selected test bodies and pinned packaging helpers.
+From `tools/houseatlas-updater-adapters`, run only the two named positives:
+
+```sh
+HOUSEATLAS_PACKAGING_SOURCE=../release PYTHONPATH=../houseatlas-updater PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_github_release_happy.GitHubReleaseHappyPaths.test_published_release_exact_build_and_bytes tests.test_github_release_happy.GitHubReleaseHappyPaths.test_annotated_prerelease_bounded_asset_redirects -v
+```
+
+Both cases use finite in-process HTTP replies and generated software payloads,
+checking exact producer/asset bytes, tag resolution, partial reads, shared
+deadline/header bounds and ordinary asset redirects. They perform no actual
+GitHub request, socket, credential, native process, controller transaction or
+runtime installation. Real HTTPS-port, acquisition and target qualification
+remain separate; no broad control discovery or new held case is released.
