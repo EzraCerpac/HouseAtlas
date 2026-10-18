@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c8a074a3627d1534a49f93141177988fce1f1e5b145f1649f58fbbfaf10f7f6b",
+  "sourceDigestSha256": "425cd8bfe5dc9d3eca08e0b29e9966c35fe84502cdfac1b351ae8c0d20355e2f",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -2282,8 +2282,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 55296,
-      "sha256": "7e970cad4dcc5b6f9ba44d85d78123bf5f30e12fd54c0846d05d017da385fa35",
+      "bytes": 55502,
+      "sha256": "eee2e51efc5ed4238fcb41de288c7c077b6040120f2490b32ea2282cd810da72",
       "owner": "core-integration"
     },
     {
@@ -10789,6 +10789,27 @@
       "mode": "100644",
       "bytes": 4070,
       "sha256": "9f963f128058d05cc32cf9e380ccde984cf1c98e34903b23b3b4d6e8fe583e86",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/backend-response/README.md",
+      "mode": "100644",
+      "bytes": 3901,
+      "sha256": "ab011f10e43bd73daed6a7220bf41ee0d15b9d8f692ee24b4c90b9e346a07ec7",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/backend-response/run.mjs",
+      "mode": "100644",
+      "bytes": 9052,
+      "sha256": "5a9d13573163c1e211706fdfdc11dd0919afc33a0169d8faec2cb29b7f54a5e5",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/backend-response/worker.rs",
+      "mode": "100644",
+      "bytes": 11167,
+      "sha256": "18fec1bf90e782543170c789edef74f25180b17d3e86b22d30fe8b324b590df7",
       "owner": "core-integration"
     },
     {
