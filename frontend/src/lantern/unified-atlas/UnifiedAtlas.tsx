@@ -158,15 +158,15 @@ const RULES: DrawRules = { visibleFloors: 'all', clipY: null };
  * apart from the warm board. Explicit glTF colours take precedence over these
  * presentation tones; selection and overlay highlights remain Lantern tones. */
 const ATLAS_MESH_PALETTE: Partial<MeshPalette> = {
-  paper: '#BDB8AE', wall: CARD, top: '#ECDDBF', cut: '#5E5040', room: '#F3DFC0', selected: LANTERN, context: '#FBEFC8', ghost: '#E2D9C8',
+  paper: '#BDB8AE', wall: CARD, top: '#ECDDBF', cut: '#54463A', room: '#F3DFC0', selected: LANTERN, context: '#FBEFC8', ghost: '#E2D9C8',
 };
 const ATLAS_AMBIENT = .62, ATLAS_SHADE = '#4A3F33', ATLAS_PITCH = '#7C736C';
-/** Fallback terrain without an explicit source colour reads as part of the board, one flat birch tone with no
+/** Fallback terrain without an explicit source colour reads as part of the board, one flat pale birch tone with no
  * slope shading, so its facets never compete with the buildings; floors cut
  * away above the focus stay a faint outline; their faces add up where they
  * overlap, so each stays light enough that stacked walls never haze the
  * floor below. Presentation only. */
-const ATLAS_SITE = '#DCC593', ATLAS_GHOST_ALPHA = .05;
+const ATLAS_SITE = '#E0CFA6', ATLAS_GHOST_ALPHA = .05;
 /** Authored materials step back at under half the fallback dimming: context
  * grass stays green, the fence and glazing stay dark, and neighbours keep
  * their own colours, while the focused building alone is at full strength. */
