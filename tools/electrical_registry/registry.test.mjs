@@ -25,12 +25,12 @@ function fixture() {
         { packagePlaceKey: 'room:b', packagePlaceUuid: 'uuid-b', label: 'Same label', basis: 'inferred' }] })),
     groups: [{ id: 'group', label: 'L7', fixtureIds: ['socket', 'light'],
       evidenceBasis: 'historic-drawing-label', currentCircuitId: null, verifiedWiring: false }],
-    fixtures: ['socket', 'light', 'unresolved'].map((kind, i) => ({ id: kind, kind, sheetId: 'sheet',
+    fixtures: ['socket', 'light', 'unresolved'].map((kind, i) => ({ id: kind, kind, label: `Generated ${kind}`, glyph: kind === 'socket' ? 'X' : '', sheetId: 'sheet',
       regionId: kind === 'unresolved' ? 'unassigned' : 'region',
       source: { originalPhotoSha256: hash(original), renderedPhotoSha256: hash(rendered),
         normalizedPoint: [0.25 + i / 10, 0.5], normalizedBox: [0.1, 0.1, 0.8, 0.8],
         literalLabels: ['L7'], placementDescription: 'Generated source mark' },
-      group: { id: kind === 'unresolved' ? null : 'group', label: kind === 'unresolved' ? null : 'L7', basis: 'label-adjacent' },
+      group: { id: kind === 'unresolved' ? null : 'group', label: kind === 'unresolved' ? null : 'L7', basis: 'label-adjacent', note: '' },
       glyphCount: 1, fixtureCount: kind === 'socket' ? 1 : null,
       uncertainty: kind === 'light' ? 'Installed quantity unknown' : null,
       currentState: 'historic-unverified', physicalCoordinate: null, wireRoute: null })),
@@ -57,6 +57,11 @@ test('healthy source marks retain exact joins, unknowns and distinct same-label 
   assert.equal(result.sheets[0].original.status, 'not-supplied');
   assert.equal(result.roomMapping.status, 'not-supplied');
   assert.deepEqual(result.records[0].source.normalizedPoint, [0.25, 0.5]);
+  for (const [i, row] of JSON.parse(JSON.stringify(result)).records.entries()) {
+    assert.equal(row.label, data.fixtures[i].label);
+    assert.equal(row.glyph, data.fixtures[i].glyph);
+    assert.deepEqual(row.documentaryGroup, data.fixtures[i].group);
+  }
   for (const row of result.records) {
     assert.equal(row.physicalCoordinate, null); assert.equal(row.physicalTransform, null);
     assert.equal(row.currentCircuitId, null); assert.equal(row.wireRoute, null);
@@ -88,7 +93,13 @@ test('healthy approximate and proposed registrations remain nonphysical', () => 
     sourceAnchorIds: ['anchor:a'], approvedFixtureIds: [i === 0 ? 'light' : 'socket'], physicalTransform: null,
     basis: 'Generated matching source landmarks', reviewQualification: 'Approximate display only; not measured or current wiring',
   }));
+  data.registrationReceipts.push({ ...data.registrationReceipts[0], id: 'empty-review',
+    sha256: hash(Buffer.from('empty-review')), approvedFixtureIds: [] });
   const result = buildRegistry(bytes(data));
+  assert.deepEqual(JSON.parse(JSON.stringify(result)).registrationReceipts, data.registrationReceipts);
+  result.registrationReceipts[2].sourceAnchorIds.push('registry-copy-only');
+  assert.deepEqual(data.registrationReceipts[2].sourceAnchorIds, ['anchor:a']);
+  assert(result.records.every(row => row.approximateRegistrations.every(reg => reg.id !== 'empty-review')));
   assert.equal(result.completeness.approximateRegisteredRecords, 1);
   assert.equal(result.completeness.physicalLocationUnknownRecords, 3);
   assert.equal(result.records[1].approximateRegistrations[0].status, 'proposed');

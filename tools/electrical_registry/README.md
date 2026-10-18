@@ -19,6 +19,9 @@ regressions cover uncertainty omission/type, point/box containment, conflicting
 plain/escaped duplicate JSON keys, registration provenance and room-specific
 registration counts. They use generated memory data only. This scoped review
 coverage does not authorize unrelated held controls or existing broad suites.
+The healthy examples also retain required fixture label/glyph text, complete
+assigned and unassigned group metadata, and an empty-membership registration
+receipt. No additional omission controls were run for those three follow-ups.
 
 For separately authorized retained local inputs, explicitly name each file:
 
@@ -50,6 +53,8 @@ counts remain separate from distinct-record counts. A room's registration count
 includes only non-proposed receipts for its exact package key/UUID pair; global
 counts deduplicate fixtures across receipts. Every projected registration retains
 its nonempty `basis` and `reviewQualification` text, including proposed receipts.
+The top-level `registrationReceipts` table preserves every full receipt, including
+empty fixture membership; those receipts add no registered-fixture counts.
 
 The existing v1 contract cannot express calibrated physical placements or
 verified current circuits. This tool requires its explicit null transforms,

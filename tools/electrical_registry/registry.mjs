@@ -117,6 +117,8 @@ export function validateLedger(data) {
     const r = tables.regions.get(f.regionId), s = tables.sheets.get(f.sheetId);
     check(r && s && r.sheetId === f.sheetId, `fixtures.${f.id}`, 'Fixture sheet/region join must agree');
     check(kinds.includes(f.kind), `fixtures.${f.id}.kind`, 'Unknown fixture kind');
+    check(text(f.label) && typeof f.glyph === 'string', `fixtures.${f.id}`,
+      'Fixture label and glyph text required (glyph may be blank)');
     check(f.physicalCoordinate === null && f.wireRoute === null && f.currentState === 'historic-unverified' &&
       (f.physicalTransform === undefined || f.physicalTransform === null) &&
       (f.currentCircuitId === undefined || f.currentCircuitId === null),
@@ -133,6 +135,10 @@ export function validateLedger(data) {
     check(s && f.source?.originalPhotoSha256 === s.originalPhotoSha256 && f.source?.renderedPhotoSha256 === s.renderedPhotoSha256,
       `fixtures.${f.id}.source`, 'Fixture photo digests must match source sheet');
     const g = tables.groups.get(f.group?.id);
+    check(f.group && (f.group.id === null || text(f.group.id)) &&
+      (f.group.label === null || text(f.group.label)) && (f.group.id === null) === (f.group.label === null) &&
+      ['label-adjacent', 'drawn-arrow', 'uncertain', 'unknown'].includes(f.group.basis) && typeof f.group.note === 'string',
+      `fixtures.${f.id}.group`, 'Explicit group ID/label parity, documentary basis and note text required');
     check(f.group?.id === null || (g && Array.isArray(g.fixtureIds) && g.fixtureIds.includes(f.id) && g.label === f.group.label),
       `fixtures.${f.id}.group`, 'Documentary group membership must agree');
   }
@@ -209,6 +215,8 @@ export function buildRegistry(ledgerBytes, { artifacts = [], roomMappingBytes = 
     ledger: { sha256: sha256(ledgerBytes), bytes: ledgerBytes.byteLength, interpretationDate: data.interpretationDate },
     qualification: 'offline-documentary-consistency-only', roomMapping,
     symbolLegend: structuredClone(data.symbolLegend), documentaryGroups: structuredClone(data.groups),
+    // Preserve every receipt, including source reviews that approve no fixture yet.
+    registrationReceipts: structuredClone(data.registrationReceipts),
     completeness: summarize(records),
     rooms: [...rooms.values()].map(room => {
       const rows = records.filter(f => f.roomAssociations.some(p => pair(p) === pair(room)));
