@@ -483,7 +483,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   const lens = hostLens?.value ?? null;
   // Read wide, the stage is the host's inset: drawn and kept current, its
   // controls set aside and the stage out of the tab order.
-  const inset = lens?.reading === true;
+  const readingInset = lens?.reading === true;
   const [graphOpen, setGraphOpen] = useState(false);
   const showGraph = !hostLens && graphOpen && graphs.length > 0;
   const [graphCovers, setGraphCovers] = useState(false);
@@ -495,7 +495,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   const [compact, setCompact] = useState(false);
   const [menu, setMenu] = useState<'view' | 'buildings' | null>(null);
   const layersKey = `${state.layers.electrical}${state.layers.network}${state.layers.measurements}`;
-  const chrome = `${plan}\n${sheetOpen}\n${layersKey}\n${selected}\n${state.buildingId}\n${state.levelId}\n${state.exploded}\n${drawer}\n${showGraph}\n${compact}\n${lens?.kind}\n${inset}`;
+  const chrome = `${plan}\n${sheetOpen}\n${layersKey}\n${selected}\n${state.buildingId}\n${state.levelId}\n${state.exploded}\n${drawer}\n${showGraph}\n${compact}\n${lens?.kind}\n${readingInset}`;
   useLayoutEffect(() => {
     const root = shell.current, stage = viewport.current;
     if (!root || !stage) return;
@@ -1036,7 +1036,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   const underGraph = showGraph && graphCovers;
   // The stage's controls leave the tab order under a covering graph and while
   // the stage is the host's inset.
-  const stageInert = underGraph || inset;
+  const stageInert = underGraph || readingInset;
   // The Network lens toggle, in the network key, where the host has a lens.
   const lensGraph = hostLens ? { id: hostLens.panelId, open: lens?.kind === 'network',
     toggle: () => hostLens.set(lens?.kind === 'network' ? null : { kind: 'network', reading: false }) } : null;
@@ -1160,7 +1160,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   };
 
   const pickLabel = state.buildingId === null ? 'All buildings' : building?.label ?? 'All buildings';
-  return <section ref={shell} className={`ua-shell is-stage${plan ? ' is-plan' : ''}${sheetOpen ? ' is-sheet-open' : ''}${showGraph ? ' is-graph-open' : ''}${underGraph ? ' is-graph-covering' : ''}${compact ? ' is-compact' : ''}${lens ? ' has-lens' : ''}${inset ? ' is-inset' : ''}`}
+  return <section ref={shell} className={`ua-shell is-stage${plan ? ' is-plan' : ''}${sheetOpen ? ' is-sheet-open' : ''}${showGraph ? ' is-graph-open' : ''}${underGraph ? ' is-graph-covering' : ''}${compact ? ' is-compact' : ''}${lens ? ' has-lens' : ''}${readingInset ? ' is-inset' : ''}`}
     aria-label="Atlas" onKeyDownCapture={graphEscape} onKeyDown={escape}
     onFocusCapture={event => {
       const target = event.target;
