@@ -52,14 +52,48 @@ class Acquired:
     producer: Producer
 
 
+# Revision of this updater's normalized storage-mapping interpretation, NOT the
+# caller JSON schema, MCP/JSON-RPC/HTTP protocol or a backend package version.
+# Revision one supports only these unchanged preserve-no-migration profiles.
+# The literal does not qualify an owner mapping, a contract hash or live state.
+STORAGE_MAPPING_PROTOCOL_V1 = 1
+_STORAGE_MAPPING_V1 = (
+    ("houseatlas-persistent-server/1", "houseatlas-server-state/2", 1, "atlas", 5, 1),
+    ("houseatlas-persistent-full-geodata-server/1", "houseatlas-server-state/2", 1,
+     "full-geodata", 1, 1),
+)
+
+
 @dataclass(frozen=True)
 class Storage:
+    """Owner-normalized profile under the explicit updater mapping revision.
+
+    This describes how the six fields are interpreted, not proof that native
+    state implements them. Exact owner-reviewed hash mapping and fresh compiled
+    native validation remain separate requirements. No default or inference.
+    """
     receipt_format: str
     config_digest_format: str
     access_schema: int
     atlas_profile: str
     atlas_schema: int
     protocol: int
+
+    def __post_init__(self):
+        Storage.validate(self)
+
+    def validate(self) -> None:
+        """Recheck owner inputs before equality; bool/float are not integers."""
+        if type(self) is not Storage:
+            raise UpdateError("state-incompatible")
+        values = tuple(getattr(self, name, None) for name in (
+            "receipt_format", "config_digest_format", "access_schema",
+            "atlas_profile", "atlas_schema", "protocol",
+        ))
+        if (tuple(type(value) for value in values) != (str, str, int, str, int, int)
+                or self.protocol != STORAGE_MAPPING_PROTOCOL_V1
+                or values not in _STORAGE_MAPPING_V1):
+            raise UpdateError("state-incompatible")
 
 
 @dataclass(frozen=True)

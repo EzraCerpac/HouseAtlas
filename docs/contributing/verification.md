@@ -1952,6 +1952,23 @@ cover the exact non-finite-to-null defect and ordinary null/UUID selectors;
 they add no transport, filesystem, service action, broad control alias or
 failure/rollback/crash qualification.
 
+The separately scoped storage-mapping protocol source cases use only generated
+in-memory tuples, a checked-in packaging schema/manifest and typed recording
+values. Inspect `tests/test_storage_protocol.py`, `model.py`, `validation.py` and
+`release_bundle.py`, then run from `tools/houseatlas-updater`:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_storage_protocol.StorageProtocolSourceCases.test_two_explicit_profiles_preserve_field_meanings tests.test_storage_protocol.StorageProtocolSourceCases.test_missing_ambiguous_and_unsupported_protocols_rejected tests.test_storage_protocol.StorageProtocolSourceCases.test_mixed_profiles_and_loosely_typed_schemas_rejected tests.test_storage_protocol.StorageProtocolSourceCases.test_packaging_owner_map_requires_typed_supported_storage tests.test_storage_protocol.StorageProtocolSourceCases.test_selected_map_is_revalidated_before_bundle_normalization tests.test_storage_protocol.StorageProtocolSourceCases.test_equal_legacy_tuples_cannot_pass_admission_or_compatibility -v
+```
+
+The cases cover exact supported interpretations, unsupported/ambiguous values,
+mixed profiles and Python bool/int equality aliases, including legacy owner
+tuples at admission. They do not read native state, execute SQL, create a
+controller transaction, start processes, use transports or register release
+contract hashes. Passing proves bounded source behavior only; actual profile,
+contract preimages, target preservation, native qualification and rollback remain
+separate owner evidence. No workflow, build or broad regression suite is added.
+
 ## Named generated GitHub acquisition adapter checks
 
 Read [the acquisition source contract](../operations/houseatlas-updater-acquisition.md)
