@@ -1,15 +1,20 @@
 {
   "format": "houseatlas.release-profile.v1",
   "native": {
-    "status": "unqualified",
+    "status": "reviewed",
     "runner": "macos-15-intel",
     "target": "x86_64-apple-darwin",
-    "minimumMacos": null,
-    "sourceInputsSha256": null,
-    "allowedDylibs": [],
-    "runnerImage": null,
-    "sdkVersion": null,
-    "xcodeBuild": null
+    "minimumMacos": "15.0",
+    "sourceInputsSha256": "7ca82171b53ca4798d41ddbe9075cc0da9beca39dafee88c915d2f5737d6cd95",
+    "allowedDylibs": [
+      "/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation",
+      "/System/Library/Frameworks/Security.framework/Versions/A/Security",
+      "/usr/lib/libSystem.B.dylib",
+      "/usr/lib/libiconv.2.dylib"
+    ],
+    "runnerImage": "20260824.0482.1",
+    "sdkVersion": "15.5",
+    "xcodeBuild": "16F6"
   },
   "compatibility": {
     "status": "unqualified",

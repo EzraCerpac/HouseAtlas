@@ -1969,6 +1969,23 @@ contract hashes. Passing proves bounded source behavior only; actual profile,
 contract preimages, target preservation, native qualification and rollback remain
 separate owner evidence. No workflow, build or broad regression suite is added.
 
+The inert trusted-contract registration has three named static/memory positives.
+Inspect `storage_contracts.py`, the two exact JSON preimages under `contracts/`
+and `tests/test_storage_contracts.py`, then run from `tools/houseatlas-updater`:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_storage_contracts.TrustedStorageContractSourceCases.test_registered_preimages_are_exact_canonical_source_contracts tests.test_storage_contracts.TrustedStorageContractSourceCases.test_persistent_schema_pins_match_current_public_source tests.test_storage_contracts.TrustedStorageContractSourceCases.test_fresh_registry_is_inert_and_adapter_requires_explicit_input -v
+```
+
+These cases hash only fixed public software declarations and seven SQL source
+files, without executing SQL. They check canonical preimage identity, independently
+normalized tuples, fresh values and explicit in-memory adapter construction with
+a synthetic native marker. No manifest, target selection, compatibility promotion,
+native state, process, controller transaction or network is used. The checked-in
+release compatibility stays unqualified/null/null/false. Document revision two
+does not change contract format revision one. This adds no workflow or broader
+test discovery; actual target admission, preservation and rollback remain open.
+
 ## Named generated GitHub acquisition adapter checks
 
 Read [the acquisition source contract](../operations/houseatlas-updater-acquisition.md)

@@ -9,13 +9,18 @@ provenance. Target installation, service activation and runtime qualification
 remain with the updater and runtime owners.
 
 The checked-in [`release-profile.json`](../../tools/release/release-profile.json)
-is explicitly **unqualified**. The build stops before dependency installation
-until the native-build owner supplies reviewed minimum macOS, exact standard
-Intel runner image, Xcode build, SDK, native source-input digest and system
-dynamic-library closure. No older macOS support or NAS compatibility is inferred
-from source compilation. Storage compatibility is also unqualified; promotion
-requires a reviewed required/resulting storage-contract pin. This source slice
-performs no hosted build or release publication.
+records the reviewed native qualification of product source
+`978651fe1e4527b7e0836d2a843bc60c76a7f0d3` in run `39205023226`, attempt 1:
+standard `macos-15-intel` image `20260824.0482.1`, Xcode build `16F6`, SDK `15.5`,
+minimum macOS `15.0`, exact 891-row native source-input digest and four system
+dynamic libraries. Qualification remains attributed to that source; later
+composition must preserve every native input. Preflight rejects builder or input
+drift before dependency installation. No older macOS support, signing or NAS
+compatibility is inferred. Storage compatibility remains **unqualified**;
+required/resulting contract hashes stay null and rollback stays disabled.
+The updater's inert source mappings do not qualify a target or release. Actual
+build and promotion remain separately gated manual operations; this adoption
+performs neither.
 
 ## Payload and identity
 
@@ -163,7 +168,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/release -p test_
 
 It checks exact fixture bytes, roundtrip verification, reproducibility across
 roots/mtimes/input modes, explicit retained backend and reviewed storage
-declarations, the unqualified native profile, positive producer identity and a
+declarations, the checked-in profile's explicit qualification, positive producer identity and a
 fully fake local draft/upload/download/publish sequence preserving built bytes.
 It performs no actual GH write or hosted build. Existing held adversarial,
 crash, replay, expiry, rollback, real target, household and provider cases are

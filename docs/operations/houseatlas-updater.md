@@ -75,8 +75,9 @@ its schema admission is a positive check, not runtime compatibility acceptance.
 The original `tests.synthetic.FixtureManifest` remains a private generated profile
 `houseatlas.updater.provisional-fixture.v1`; its statuses explicitly say
 `bundleContract=provisional-fixture`. It is never a production release parser.
-Actual production acquisition, producer verification, native/storage profiles and
-target binding remain unqualified even though the schema is acknowledged.
+Actual production acquisition, producer verification, native qualification,
+storage compatibility and target binding remain separate owner admission gates;
+schema acknowledgment alone establishes none of them.
 
 ### Normalized storage mapping protocol
 
@@ -115,8 +116,35 @@ contract preimage, grant that hash owner review, prove native state or authorize
 rollback. Contract hashes must still be independently bound to reviewed exact
 contract bytes and fresh compiled-owner target evidence. An amended contract
 requires new canonical bytes/hash; original null drafts stay unchanged,
-unregistered and release-ineligible. This source change registers no contract,
-chooses no target profile and changes no release qualification.
+unregistered and release-ineligible. The protocol definition alone registers no
+contract and chooses no target profile.
+
+### Source-reviewed inert contract mappings
+
+`storage_contracts.trusted_storage_contracts()` explicitly returns a fresh
+dictionary and fresh typed `Storage` values for these exact canonical source
+preimages, reviewed against the unchanged native inputs qualified at
+`978651fe1e4527b7e0836d2a843bc60c76a7f0d3`:
+
+| Contract preimage | SHA256 | Mapping |
+| --- | --- | --- |
+| [`storage-access-atlas.draft.v2.json`](../../tools/houseatlas-updater/contracts/storage-access-atlas.draft.v2.json) | `b226413460ca7a57ba6fb245c65e415f87814d2e96227024b8a0146ad03bdd2d` | Atlas tuple above |
+| [`storage-access-full-geodata.draft.v2.json`](../../tools/houseatlas-updater/contracts/storage-access-full-geodata.draft.v2.json) | `ef8517886be6bb1d6836c01fc3c606f326b53c2d4e604b46031761921e566900` | Full-geodata tuple above |
+
+The `.v2` filenames denote document revision two, whose only contract change
+from the preserved null drafts is explicit mapping protocol 1. Their JSON format
+and `contractVersion` remain revision 1. The hashes bind every declaration,
+including Access preservation and the exact seven persistent-schema source pins;
+they do not describe a selected target's current state.
+
+The factory performs no I/O and is not installed as a default in the CLI,
+controller or `ReleaseBundleV1`. An owner must explicitly supply its result to
+the existing verifier along with independently admitted native-profile evidence.
+Fresh compiled-owner target validation, coherent preservation, exact release
+required/resulting hash selection and rollback review remain necessary. These
+source mappings do not change release compatibility: it stays unqualified,
+with both contract hashes null and `codeRollbackCompatible=false`. No installed
+profile, native receipt, migration or normal session/rate behavior is changed.
 
 The normalized archive profile is strict gzip/ustar with regular files, optional
 normal directories and an optional exact embedded selected manifest. No links,
