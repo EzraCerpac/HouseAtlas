@@ -205,10 +205,10 @@
    refits to the room it is given. A document fallback (building sections)
    gives its place to the lens. */
 
-/* The sheet's own width (beside the details column, inside the section rail)
-   is the size the arrangement answers to. */
+/* The sheet's own size (beside the details column, inside the section rail)
+   is what the arrangement answers to; its height comes from the sheet column. */
 .lantern-host .atlas-sheet {
-  container: atlas-sheet / inline-size;
+  container: atlas-sheet / size;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -325,7 +325,8 @@
 
 .lantern-host .atlas-lens-native:empty { display: none; }
 
-/* Where no Atlas room map is open: why the model's own part is absent. */
+/* Without a selected unified model publication: why its model rooms or
+   network graph are absent. */
 .lantern-host .atlas-lens-status {
   margin: 0 0 18px;
   padding-bottom: 18px;
@@ -417,6 +418,44 @@
   }
 
   .lantern-host .atlas-lens-body { padding: 12px 14px 24px; }
+}
+
+/* Short sheets (a phone on its side, a low window): a band over the lens
+   would leave the lens no height, so lens and map stand side by side, and
+   read wide the inset stands beside the lens above Show map. */
+@container atlas-sheet (max-height: 439px) {
+  .lantern-host .atlas-workspace.has-lens {
+    grid-template-columns: min(460px, 50%) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: 'lens map';
+  }
+
+  .lantern-host .atlas-workspace.is-reading {
+    grid-template-columns: minmax(0, 1fr) min(300px, 40%);
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas: 'lens map' 'lens show';
+  }
+
+  .lantern-host .atlas-workspace.is-reading .atlas-map {
+    height: auto;
+    margin: 8px 8px 0;
+  }
+
+  .lantern-host .atlas-show-map { margin: 8px; }
+
+  .lantern-host .atlas-workspace.is-replaced {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: 'lens';
+  }
+
+  .lantern-host .atlas-lens {
+    border-top: 0;
+    border-right: 1px solid var(--hair-2);
+    animation-name: lens-in;
+  }
+
+  .lantern-host .atlas-workspace.is-replaced .atlas-lens { border-right: 0; }
 }
 
 /* The lens moves in and never fades: its text is whole from the first frame. */

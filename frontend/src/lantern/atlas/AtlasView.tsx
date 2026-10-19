@@ -176,7 +176,7 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
   readonly sources?: ReactNode; readonly children: ReactNode;
 }) {
   const heading = useRef<HTMLHeadingElement>(null), expandButton = useRef<HTMLButtonElement>(null), showMapButton = useRef<HTMLButtonElement>(null);
-  const mapButton = useRef<HTMLButtonElement>(null), panel = useRef<HTMLElement>(null);
+  const mapButton = useRef<HTMLButtonElement>(null), panel = useRef<HTMLElement>(null), body = useRef<HTMLDivElement>(null);
   const opener = useRef<HTMLElement | null>(null);
   const kindOpen = lens?.kind ?? null;
   const reading = lens !== null && lens.reading && kind === 'map';
@@ -224,6 +224,8 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
     // An explicit lens change ends any reading the record began.
     byRecord.current = null;
     if (kindOpen) {
+      // A new lens starts at its top; Expand and Show map keep the reader's place.
+      if (body.current) body.current.scrollTop = 0;
       const active = document.activeElement;
       if (before === null) opener.current = active instanceof HTMLElement && active !== document.body ? active : null;
       heading.current?.focus({ preventScroll: true });
@@ -278,7 +280,7 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
           <button type="button" className="chip-btn atlas-lens-close" onClick={() => setLens(null)}>
             <Icon name="close" size={15} /><span>Close<span className="sr-only"> {LENS_TITLE[lens.kind]}</span></span></button>
         </header>
-        <div className="atlas-lens-body">
+        <div ref={body} className="atlas-lens-body">
           {/* The unified Atlas renders its own model rooms or network graph here;
               without one, the lens says so before the home's own records. */}
           {native ? <div ref={nativeTarget} className="atlas-lens-native" />
