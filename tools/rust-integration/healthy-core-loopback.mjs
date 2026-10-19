@@ -142,14 +142,25 @@ try {
   const topologyResponseStart = nativeListResponses.length;
   await until(async () => await evaluate(`(() => {
     const button = [...document.querySelectorAll('nav[aria-label="Sections"] button')]
+      .find(button => button.textContent?.trim() === 'Atlas' && button.getClientRects().length);
+    if (!button) return false;
+    button.click();
+    return true;
+  })()`), 'Visible Atlas navigation');
+  // This host's native map stays mounted beside Places and shares its topology
+  // lease. Count the four fresh reads from Atlas entry across that one lifetime;
+  // opening the lens must not invent another fetch just for presentation.
+  await until(async () => await evaluate("document.querySelector('.topology-scope [role=status]')?.textContent === 'No reviewed buildings in this home.'"), 'Atlas topology ready');
+  await until(async () => await evaluate(`(() => {
+    const button = [...document.querySelectorAll('[aria-label="Atlas lens"] button')]
       .find(button => button.textContent?.trim() === 'Rooms & places' && button.getClientRects().length);
     if (!button) return false;
     button.click();
     return true;
-  })()`), 'Visible Rooms & places navigation');
-  await until(async () => await evaluate("document.querySelector('main#main h1')?.textContent === 'Rooms & places'"), 'Lantern Rooms & places view');
+  })()`), 'Visible Atlas Rooms & places lens');
+  await until(async () => await evaluate("document.querySelector('.atlas-lens.is-places h2')?.textContent === 'Rooms & places'"), 'Lantern Rooms & places view');
   try {
-    await until(async () => await evaluate("document.querySelector('.topology-scope [role=status]')?.textContent === 'No reviewed buildings in this home.'"), 'Actual native topology frame after matched snapshot reads');
+    await until(async () => await evaluate("document.querySelector('.atlas-lens.is-places .topology-scope [role=status]')?.textContent === 'No reviewed buildings in this home.'"), 'Actual foreground Places topology frame after matched snapshot reads');
   } catch (error) {
     const lists = [];
     for (const response of nativeListResponses) {

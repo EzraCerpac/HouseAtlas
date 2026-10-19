@@ -197,6 +197,67 @@
   flex-direction: column;
 }
 
+/* ---------------- Atlas workspace ----------------
+   One row to choose Map, Rooms & places or Network, then the map with the
+   chosen lens beside it. Read wide, the lens takes the sheet and the map
+   stands in the corner as a drawn inset above Show map. The map frame is the
+   same element throughout and changes real size, never scale, so each map
+   refits to the room it is given. A document fallback (building sections)
+   gives its place to the lens. */
+
+/* The sheet's own size (beside the details column, inside the section rail)
+   is what the arrangement answers to; its height comes from the sheet column. */
+.lantern-host .atlas-sheet {
+  container: atlas-sheet / size;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.lantern-host .atlas-lens-bar {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 6px clamp(10px, 2.4vw, 20px);
+  border-bottom: 1px solid var(--hair);
+  background: var(--card-2);
+}
+
+.lantern-host .atlas-lens-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+}
+
+.lantern-host .atlas-lens-switch .icon { flex: none; }
+
+.lantern-host .atlas-workspace {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: 'map';
+}
+
+.lantern-host .atlas-map {
+  grid-area: map;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.lantern-host .atlas-map > .stage-shell,
+.lantern-host .atlas-map > .atlas-section,
+.lantern-host .atlas-map > .native-scan-atlas,
+.lantern-host .atlas-map > .source-model-pane,
 .lantern-host.view-atlas .main > .stage-shell,
 .lantern-host.view-atlas .main > .atlas-section,
 .lantern-host.view-atlas .main > .native-scan-atlas {
@@ -204,15 +265,251 @@
   min-height: 0;
 }
 
+/* Opened as another source beside the Atlas, the home map fills the sheet
+   as before; a building section scrolls as a document. */
 .lantern-host.view-atlas .main > .atlas-section,
-.lantern-host.view-atlas .main > .native-scan-atlas {
+.lantern-host.view-atlas .main > .native-scan-atlas { overflow: auto; }
+.lantern-host.view-atlas .main:has(> .atlas-section) { display: block; overflow: auto; }
+
+.lantern-host .atlas-map > .source-model-pane { overflow: auto; }
+
+/* Beside a lens or as an inset the frame decides the map's height. */
+.lantern-host .atlas-workspace.has-lens .atlas-map > .stage-shell { min-height: 0; }
+
+/* A building section and the scan atlas are documents like the list views:
+   the frame scrolls. */
+.lantern-host .atlas-map:has(> .atlas-section),
+.lantern-host .atlas-map:has(> .native-scan-atlas) {
+  display: block;
   overflow: auto;
 }
 
-/* A building section is a document like the list views: the sheet scrolls. */
-.lantern-host.view-atlas .main:has(> .atlas-section) {
-  display: block;
+/* The lens panel: a sheet of the workspace, its head fixed, its body scrolling.
+   Its own width decides how its head is laid out. */
+.lantern-host .atlas-lens {
+  container: atlas-lens / inline-size;
+  grid-area: lens;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--hair-2);
+  background: var(--sheet);
+  animation: lens-in 0.24s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+/* The title, then Expand and Close as full-size targets. The title is never
+   narrower than its longest word. */
+.lantern-host .atlas-lens-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 12px 10px 18px;
+  border-bottom: 1px solid var(--hair);
+}
+
+.lantern-host .atlas-lens-head h2 {
+  flex: 1;
+  min-width: min-content;
+  font-size: var(--fs-xl);
+  font-weight: 720;
+}
+
+.lantern-host .atlas-lens-head > button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* A narrow lens (a phone, or half a short sheet): the title has its own row
+   and the actions share the row below it, at the right. */
+@container atlas-lens (max-width: 379px) {
+  .lantern-host .atlas-lens-head { flex-wrap: wrap; }
+  .lantern-host .atlas-lens-head h2 { flex-basis: 100%; }
+  .lantern-host .atlas-lens-head h2 + button { margin-left: auto; }
+}
+
+.lantern-host .atlas-lens-head h2:focus { outline: none; }
+.lantern-host .atlas-lens-head h2:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
+
+.lantern-host .atlas-lens-body {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
+  padding: 14px 18px 28px;
+}
+
+.lantern-host .atlas-lens-native:empty { display: none; }
+
+/* Without a selected unified model publication: why its model rooms or
+   network graph are absent. */
+.lantern-host .atlas-lens-status {
+  margin: 0 0 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--hair);
+  color: var(--ink-2);
+}
+
+.lantern-host .lens-source-title {
+  margin: 0 0 10px;
+  font-size: var(--fs-m);
+  font-weight: 680;
+}
+
+/* Wide: the lens beside the map. */
+.lantern-host .atlas-workspace.has-lens {
+  grid-template-columns: min(460px, 44%) minmax(0, 1fr);
+  grid-template-areas: 'lens map';
+}
+
+/* Read wide: the lens takes the sheet; the map stands in the lower corner,
+   Show map above it. */
+.lantern-host .atlas-workspace.is-reading {
+  grid-template-columns: minmax(0, 1fr) min(340px, 34%);
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  grid-template-areas: 'lens .' 'lens show' 'lens map';
+}
+
+.lantern-host .atlas-workspace.is-reading .atlas-map {
+  height: 230px;
+  margin: 0 12px 12px;
+  border: 1px solid var(--hair-2);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-float);
+  animation: inset-in 0.28s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+.lantern-host .atlas-show-map {
+  grid-area: show;
+  justify-self: end;
+  margin: 0 12px 8px;
+}
+
+/* A document is set aside while a lens is open; the lens takes its place. */
+.lantern-host .atlas-workspace.is-replaced {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'lens';
+}
+
+.lantern-host .atlas-workspace.is-replaced .atlas-map { display: none; }
+.lantern-host .atlas-workspace.is-replaced .atlas-lens { border-right: 0; }
+
+/* The legacy home map draws its controls over the plan; as an inset only the
+   plan remains, set aside from the tab order with the frame. */
+.lantern-host .atlas-map.is-inset .stage-ui { display: none; }
+
+/* Narrow sheets: the map is a band over the lens; read wide the band is short. */
+@container atlas-sheet (max-width: 899px) {
+  .lantern-host .atlas-workspace.has-lens {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(200px, 40%) minmax(0, 1fr);
+    grid-template-areas: 'map' 'lens';
+  }
+
+  .lantern-host .atlas-workspace.is-reading {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 132px minmax(0, 1fr);
+    grid-template-areas: 'map show' 'lens lens';
+  }
+
+  .lantern-host .atlas-workspace.is-reading .atlas-map {
+    height: auto;
+    margin: 8px 0 8px 8px;
+  }
+
+  .lantern-host .atlas-show-map {
+    align-self: center;
+    margin: 0 8px;
+  }
+
+  .lantern-host .atlas-workspace.is-replaced {
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: 'lens';
+  }
+
+  .lantern-host .atlas-lens {
+    border-right: 0;
+    border-top: 1px solid var(--hair-2);
+    animation-name: lens-rise;
+  }
+
+  .lantern-host .atlas-lens-body { padding: 12px 14px 24px; }
+}
+
+/* Short sheets (a phone on its side, a low window): a band over the lens
+   would leave the lens no height, so lens and map stand side by side, and
+   read wide the inset stands beside the lens above Show map. */
+@container atlas-sheet (max-height: 439px) {
+  .lantern-host .atlas-workspace.has-lens {
+    grid-template-columns: min(460px, 50%) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: 'lens map';
+  }
+
+  .lantern-host .atlas-workspace.is-reading {
+    grid-template-columns: minmax(0, 1fr) min(300px, 40%);
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas: 'lens map' 'lens show';
+  }
+
+  .lantern-host .atlas-workspace.is-reading .atlas-map {
+    height: auto;
+    margin: 8px 8px 0;
+  }
+
+  .lantern-host .atlas-show-map { margin: 8px; }
+
+  .lantern-host .atlas-workspace.is-replaced {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: 'lens';
+  }
+
+  .lantern-host .atlas-lens {
+    border-top: 0;
+    border-right: 1px solid var(--hair-2);
+    animation-name: lens-in;
+  }
+
+  .lantern-host .atlas-workspace.is-replaced .atlas-lens { border-right: 0; }
+}
+
+/* The lens moves in and never fades: its text is whole from the first frame. */
+@keyframes lens-in {
+  from { transform: translateX(-16px); }
+}
+
+@keyframes lens-rise {
+  from { transform: translateY(16px); }
+}
+
+@keyframes inset-in {
+  from { transform: translate(0, 12px); }
+}
+
+@media (max-width: 759px) {
+  .lantern-host .atlas-lens-bar { padding: 4px 8px; }
+  .lantern-host .atlas-lens-switch { flex: 1 1 auto; }
+  .lantern-host .atlas-lens-switch button { flex: 1 1 auto; justify-content: center; min-height: 40px; padding: 0 10px; }
+}
+
+/* Small phones: Rooms & places shows its short name; the full one stays the
+   control's name. */
+@media (max-width: 419px) {
+  .lantern-host .atlas-lens-name > .atlas-lens-full {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .lantern-host .atlas-lens-name::after {
+    content: attr(data-short);
+    content: attr(data-short) / '';
+  }
 }
 
 /* The record sheet: the overview or one record, laid beside the work sheet. */

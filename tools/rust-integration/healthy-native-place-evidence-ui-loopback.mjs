@@ -335,8 +335,8 @@ try {
   const signInRequests = requests.filter(item => item.path === '/api/atlas/auth/local' && item.method === 'POST'); assert.equal(signInRequests.length, 1);
   const signInResponse = await until(() => responses.find(item => item.id === signInRequests[0].id), 'Actual local sign-in response'); assert.equal(signInResponse.status, 200);
   await terminal(signInResponse, 'Successful local sign-in terminal completion');
-  await click(byText('document.querySelector(\'nav[aria-label="Sections"]\')', 'Rooms & places'), 'Rooms & places');
-  await until(async () => evaluate("document.querySelector('main#main h1')?.textContent==='Rooms & places' && document.querySelector('.topology-scope > p[role=status]')?.textContent==='No reviewed buildings in this home.'"), 'Fresh empty topology');
+  await click(byText('document.querySelector(\'[aria-label="Atlas lens"]\')', 'Rooms & places'), 'Rooms & places lens');
+  await until(async () => evaluate("document.querySelector('.atlas-lens.is-places h2')?.textContent==='Rooms & places' && document.querySelector('.topology-scope > p[role=status]')?.textContent==='No reviewed buildings in this home.'"), 'Fresh empty topology');
   const empty = { pageSize: 100, cursor: null, includeArchived: false };
   assert.deepEqual((await read('identity', 'list', null, empty)).data.records, []);
   assert.deepEqual((await read('binding', 'list', null, empty)).data.records, []);

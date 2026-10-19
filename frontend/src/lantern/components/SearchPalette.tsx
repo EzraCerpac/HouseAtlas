@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEve
 import { SEARCH_GROUPS, dueState, getRecord, locate, nameOf, search, type SearchHit } from '../data/query';
 import type { HouseData } from '../data/types';
 import { fmtDate, fmtShortDate } from '../data/time';
-import { useSelect, useStore, type ViewId } from '../state/store';
+import { useSelect, useStore, type AtlasLens, type ViewId } from '../state/store';
 import { Icon } from './Icon';
 import { KIND_ICON } from './ui';
 import { KIND_LABEL } from '../data/query';
@@ -14,6 +14,18 @@ const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), summary, [tabi
  * need no kind of their own; a group that holds several keeps each result's. */
 function groupMixesKinds(label: string): boolean {
   return (SEARCH_GROUPS.find((group) => group.label === label)?.kinds.length ?? 2) > 1;
+}
+
+/** Where a chosen place-bound result opens. On a reviewed plan it opens on the
+ * map, any lens set aside. Otherwise it opens Rooms & places beside the map,
+ * as it once opened the Rooms view, unless the Atlas already shows the map or
+ * Rooms & places, which stay as they are. The Network lens is not where an
+ * unplanned place is found, so it gives way to Rooms & places, as the Network
+ * view once did. Other results keep the current view. */
+function searchRoute(placeBound: boolean, planned: boolean, current: ViewId, lens: AtlasLens | null): { view?: ViewId; lens?: AtlasLens | null } | undefined {
+  if (!placeBound) return undefined;
+  if (planned) return { view: 'atlas', lens: null };
+  return current === 'atlas' && lens?.kind !== 'network' ? { view: 'atlas' } : { view: 'rooms' };
 }
 
 /** A letter, digit or combining mark: a character that continues a word. */
@@ -191,11 +203,8 @@ export function SearchPalette() {
     restoreFocus.current = false;
     const loc = locate(house, h.id);
     const planned = house.floors.find((f) => f.id === loc.floorId)?.hasPlan;
-    let view: ViewId | undefined;
-    if (['space', 'item', 'container', 'panel', 'outlet', 'valve', 'device', 'circuit'].includes(h.kind)) {
-      view = planned && house.geometry === 'reviewed' ? 'atlas' : state.view === 'atlas' ? 'atlas' : 'rooms';
-    }
-    select(h.id, view ? { view } : undefined);
+    const placeBound = ['space', 'item', 'container', 'panel', 'outlet', 'valve', 'device', 'circuit'].includes(h.kind);
+    select(h.id, searchRoute(placeBound, Boolean(planned && house.geometry === 'reviewed'), state.view, state.atlasLens));
     close();
   };
 

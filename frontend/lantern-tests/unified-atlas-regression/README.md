@@ -1,5 +1,32 @@
 # PR201 interaction acceptance
 
+## Wheel-input successor scope
+
+The later Atlas input successor adds five named CPU cases against the actual
+production `stage-wheel.ts` adapter. They cover the page-scroll default, the
+Unified Atlas pan opt-in, pixel/line/page units, unchanged raw modifier-zoom
+deltas, Safari duplicate-wheel absorption, and event cancellation boundaries.
+They use synthetic event records. The historical results below remain attributed
+to their original source; this section records test scope, not a new run result.
+
+Only Unified Atlas opts into ordinary wheel pan. A line becomes 16 CSS pixels;
+a page uses the viewport size on each axis, with a one-viewport per-event cap.
+All ordinary wheel hardware follows that policy; no trackpad detection is used.
+Model overview, local GLB preview and Site retain page scrolling. Legacy map
+wheel handling, pointer/touch handling, Safari gesture handling and camera
+easing remain with their existing owners.
+
+The hook guards inert/hidden surfaces, actual interactive controls and nested
+scrollers; room-label and marker buttons remain map hit surfaces. Actual DOM
+target routing, sidebar scrolling, viewport cleanup, focus and rendered pan
+still require the synthetic browser retest. Physical Mac trackpad, Safari,
+momentum sensitivity and operating-system back-swipe behavior require separate
+device acceptance; CPU or synthetic browser events cannot establish them.
+
+The existing canonical healthy harness maps the actual new helper import. The
+named interaction command below executes the five wheel cases along with the
+retained interaction cases; retain every individual name and the final count.
+
 Audited head: `abd77841e80d100b4f548068f8d129562da6b8d3`.
 This is a new, test-only suite. All inputs are generated fixtures. No shared
 implementation, styles, source data, dependency locks, CI or publication

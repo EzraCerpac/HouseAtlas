@@ -200,15 +200,15 @@ try {
     await send('Input.dispatchMouseEvent',{type:'mousePressed',x:hidePoint.x,y:hidePoint.y,button:'left',clickCount:1});
     await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:hidePoint.x,y:hidePoint.y,button:'left',clickCount:1});
     await until(async()=>await evaluate(`document.querySelector('.stock-completion-header button')?.getAttribute('aria-expanded')==='false'`),'User hides the acknowledged command result');
-    const roomsPoint=await evaluate(`(()=>{const button=Array.from(document.querySelectorAll('.nav-btn')).find(node=>node.textContent.trim()==='Rooms & places');const rect=button.getBoundingClientRect();return {x:rect.x+rect.width/2,y:rect.y+rect.height/2};})()`);
+    const roomsPoint=await evaluate(`(()=>{const button=Array.from(document.querySelectorAll('[aria-label="Atlas lens"] button')).find(node=>node.textContent.trim()==='Rooms & places');const rect=button.getBoundingClientRect();return {x:rect.x+rect.width/2,y:rect.y+rect.height/2};})()`);
     await send('Input.dispatchMouseEvent',{type:'mousePressed',...roomsPoint,button:'left',clickCount:1});
     await send('Input.dispatchMouseEvent',{type:'mouseReleased',...roomsPoint,button:'left',clickCount:1});
     await until(async()=>await evaluate(`document.querySelector('[aria-labelledby="geometry-metadata-heading"] summary')?.textContent.includes('${U(601)}')`),'Rooms renders actual saved geometry metadata');
     const detailPoint=await evaluate(`(()=>{const rect=document.querySelector('[aria-labelledby="geometry-metadata-heading"] summary').getBoundingClientRect();return {x:rect.x+rect.width/2,y:rect.y+rect.height/2};})()`);
     await send('Input.dispatchMouseEvent',{type:'mousePressed',...detailPoint,button:'left',clickCount:1});
     await send('Input.dispatchMouseEvent',{type:'mouseReleased',...detailPoint,button:'left',clickCount:1});
-    const ui=await evaluate(`(()=>{const section=document.querySelector('[aria-labelledby="geometry-metadata-heading"]');return {currentRooms:Array.from(document.querySelectorAll('.nav-btn')).find(node=>node.textContent.trim()==='Rooms & places')?.getAttribute('aria-current'),text:section.innerText,open:section.querySelector('details').open,summary:section.querySelector('summary').textContent,facts:Array.from(section.querySelectorAll('details dl')).map(dl=>Object.fromEntries(Array.from(dl.children).map(row=>[row.querySelector('dt').textContent,row.querySelector('dd').textContent]))),shapes:Array.from(document.querySelectorAll('.ledger-shape')).map(node=>node.textContent)};})()`);
-    assert.equal(ui.currentRooms,'page');assert.equal(ui.open,true);
+    const ui=await evaluate(`(()=>{const section=document.querySelector('[aria-labelledby="geometry-metadata-heading"]');return {currentRooms:Array.from(document.querySelectorAll('[aria-label="Atlas lens"] button')).find(node=>node.textContent.trim()==='Rooms & places')?.getAttribute('aria-pressed'),text:section.innerText,open:section.querySelector('details').open,summary:section.querySelector('summary').textContent,facts:Array.from(section.querySelectorAll('details dl')).map(dl=>Object.fromEntries(Array.from(dl.children).map(row=>[row.querySelector('dt').textContent,row.querySelector('dd').textContent]))),shapes:Array.from(document.querySelectorAll('.ledger-shape')).map(node=>node.textContent)};})()`);
+    assert.equal(ui.currentRooms,'true');assert.equal(ui.open,true);
     assert.equal(ui.summary,'Magicplan version 1 · active · '+U(601));
     assert(ui.text.includes('Plan unavailable: this read does not supply room shapes or positions.'));assert(ui.text.includes('Source status: current'));
     const payload=originalGeometry.payload,mapping=payload.mappings[0],ref=mapping.homeboxEntity;

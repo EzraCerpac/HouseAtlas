@@ -16,6 +16,21 @@ import { ClaimBadge, EntityLink, Empty, Note } from '../components/ui';
 import { DocList } from '../components/rows';
 
 export function NetworkView() {
+  return (
+    <div className="view">
+      <header className="view-head">
+        <h1>Network</h1>
+      </header>
+      <NetworkSources />
+    </div>
+  );
+}
+
+/** Everything the former Network view held, for the Atlas Network lens: saved
+ * relations, the explicit paged relations read, and the projected house's
+ * observed links, cabling and observations where it has devices. Mounted only
+ * while shown; a relations read in progress stops when it unmounts. */
+export function NetworkSources() {
   const { house, projection, actions } = useStore();
   const [tab, setTab] = useState<'logical' | 'cabling'>('logical');
   // ReadyView may retain other homes and archived records; only current
@@ -25,13 +40,10 @@ export function NetworkView() {
     entry.workspaceId === scope.workspaceId && entry.homeId === scope.homeId
     && (entry.networkBound || entry.networkRelations.length > 0));
   return (
-    <div className="view">
-      <header className="view-head">
-        <h1>Network</h1>
-        <p>
-          Saved Network relations are read-only. Observation dates and retrieval dates remain distinct.
-        </p>
-      </header>
+    <>
+      <p className="network-sources-note">
+        Saved Network relations are read-only. Observation dates and retrieval dates remain distinct.
+      </p>
       <div className="seg seg-wide" role="tablist" aria-label="Network views">
         <button id="net-tab-logical" type="button" role="tab" aria-selected={tab === 'logical'} aria-controls="net-panel" onClick={() => setTab('logical')}>
           Observed links
@@ -48,7 +60,7 @@ export function NetworkView() {
         {house.devices.length > 0 && <Topology />}
       </div>
       {house.devices.length > 0 && <Observations />}
-    </div>
+    </>
   );
 }
 

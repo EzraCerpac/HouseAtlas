@@ -973,6 +973,41 @@
   color: var(--muted);
 }
 
+/* The saved Network relations' standing qualifier, above their tabs. */
+.lantern-host .network-sources-note {
+  margin: 0 0 14px;
+  max-width: 68ch;
+  color: var(--muted);
+}
+
+/* In a lens: the former Rooms & places and Network content at the lens's
+   width. Ledgers keep a narrower marker column; sections keep their rules. */
+.lantern-host .atlas-lens-body .ledger {
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.lantern-host .atlas-lens-body .ledger-floor { font-size: 22px; }
+.lantern-host .atlas-lens-body .ledger-icon .icon { width: 22px; height: 22px; }
+.lantern-host .atlas-lens-body .seg-wide { margin-bottom: 14px; }
+
+/* A place row stacks its name, counts and flags at lens width. */
+.lantern-host .atlas-lens-body .ledger-main:not(.topology-row) {
+  grid-template-columns: 6px minmax(0, 1fr);
+  grid-template-areas:
+    'sw name'
+    'sw facts'
+    'sw flags';
+  row-gap: 4px;
+}
+
+.lantern-host .atlas-lens-body .ledger-main:not(.topology-row) > .ledger-swatch { grid-area: sw; height: 100%; }
+.lantern-host .atlas-lens-body .ledger-main:not(.topology-row) > .ledger-name { grid-area: name; }
+.lantern-host .atlas-lens-body .ledger-main:not(.topology-row) > .ledger-facts { grid-area: facts; }
+.lantern-host .atlas-lens-body .ledger-main:not(.topology-row) > .ledger-flags { grid-area: flags; justify-content: flex-start; }
+.lantern-host .atlas-lens-body .ledger-main:not(.topology-row) > .ledger-facts:empty { display: none; }
+.lantern-host .atlas-lens-body .topology-scope { margin-top: 0; }
+
 .lantern-host .view .section > p + p,
 .lantern-host .view .section > p + .relation-list,
 .lantern-host .view .section > .note + p {

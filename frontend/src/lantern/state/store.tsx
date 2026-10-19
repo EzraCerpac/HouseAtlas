@@ -9,7 +9,15 @@ import type { PinnedFileClient } from '../../api/pinned-file-client';
 import type { NetworkRelationsClient } from '../../api/network-relations-client';
 import type { Scope } from '../../app/types';
 import type { SessionSettings } from '../../app/session';
+/** 'rooms' and 'network' remain route aliases for existing callers; they
+ * resolve to the Atlas with its Places or Network lens and are never the
+ * current view. */
 export type ViewId = 'atlas' | 'rooms' | 'upkeep' | 'network' | 'library' | 'changes';
+
+/** A lens over the Atlas: Rooms & places or Network beside the live map, or
+ * read wide with the map set aside. Presentation state only. */
+export type AtlasLensKind = 'places' | 'network';
+export interface AtlasLens { readonly kind: AtlasLensKind; readonly reading: boolean }
 
 export type Dialog =
   | { type: 'editItem'; itemId: string }
@@ -37,6 +45,9 @@ export interface AppState {
   houseId: string;
   houses: Record<string, HouseData>;
   view: ViewId;
+  /** Kept while other sections are visited, so returning to the Atlas
+   * returns to the same lens; Map or a route to the map clears it. */
+  atlasLens: AtlasLens | null;
   selection: Selection | null;
   floorId: string;
   mode: '3d' | '2d';
@@ -57,7 +68,10 @@ export interface AppState {
 export type Action =
   | { type: 'house'; id: string }
   | { type: 'view'; view: ViewId; focus?: string }
-  | { type: 'select'; sel: Selection | null; keepOverlay?: boolean; view?: ViewId }
+  | { type: 'select'; sel: Selection | null; keepOverlay?: boolean; view?: ViewId; lens?: AtlasLens | null }
+  | { type: 'atlasLens'; lens: AtlasLens | null }
+  /** Ends a reading a record began, only while that same lens is still current. */
+  | { type: 'atlasReadingRelease'; claim: AtlasLens }
   | { type: 'floor'; id: string }
   | { type: 'mode'; mode: '3d' | '2d' }
   | { type: 'explode'; on: boolean }
@@ -96,21 +110,33 @@ export interface LanternActions {
   nativeContent: ReactNode;
 }
 function initial(house: HouseData): AppState {
-  return { houseId: house.id, houses: { [house.id]: house }, view: 'atlas', selection: null,
+  return { houseId: house.id, houses: { [house.id]: house }, view: 'atlas', atlasLens: null, selection: null,
     floorId: house.floors[0]?.id ?? '', mode: '3d', exploded: true, overlay: 'spaces', dialog: null,
     searchOpen: false, askOpen: false, settingsOpen: false, nativeOpen: false, toasts: [],
     settings: { outage: false, slowWrites: false, motion: 'system', assistant: 'off' }, ask: {} };
 }
 let toastSeq = 0;
+const LENS_ALIAS: Partial<Record<ViewId, AtlasLensKind>> = { rooms: 'places', network: 'network' };
+/** One place resolves every route: the former Rooms and Network views open
+ * the Atlas with that lens beside the map; any other view keeps the lens
+ * unless the caller sets it. */
+function route(s: AppState, view: ViewId | undefined, lens: AtlasLens | null | undefined): Pick<AppState, 'view' | 'atlasLens'> {
+  const alias = view === undefined ? undefined : LENS_ALIAS[view];
+  if (alias) return { view: 'atlas', atlasLens: { kind: alias, reading: false } };
+  return { view: view ?? s.view, atlasLens: lens === undefined ? s.atlasLens : lens };
+}
 function reducer(s: AppState, a: Action): AppState {
   switch (a.type) {
-    case 'view': return { ...s, view: a.view, changesFocus: a.focus };
+    case 'view': return { ...s, ...route(s, a.view, undefined), changesFocus: a.focus };
     case 'select': {
       const loc = a.sel ? locate(s.houses[s.houseId]!, a.sel.id) : {};
       return { ...s, selection: a.sel, floorId: loc.floorId ?? s.floorId,
         overlay: a.sel && !a.keepOverlay ? OVERLAY_FOR_KIND[a.sel.kind] ?? s.overlay : s.overlay,
-        view: a.view ?? s.view, focusCircuit: a.sel?.kind === 'circuit' ? a.sel.id : undefined };
+        ...route(s, a.view, a.lens), focusCircuit: a.sel?.kind === 'circuit' ? a.sel.id : undefined };
     }
+    case 'atlasLens': return { ...s, atlasLens: a.lens };
+    // Any lens choice since the claim replaced the lens object, and wins.
+    case 'atlasReadingRelease': return s.atlasLens === a.claim ? { ...s, atlasLens: { kind: a.claim.kind, reading: false } } : s;
     case 'floor': return { ...s, floorId: a.id };
     case 'mode': return { ...s, mode: a.mode };
     case 'explode': return { ...s, exploded: a.on };
@@ -164,7 +190,7 @@ export function StoreProvider({ children, projection, actions }: { children: Rea
 export function useStore(): Ctx { const ctx = useContext(StoreContext); if (!ctx) throw new Error('useStore outside provider'); return ctx; }
 export function useSelect() {
   const { dispatch } = useStore();
-  return useCallback((id: string | null, opts?: { keepOverlay?: boolean; view?: ViewId }) => {
+  return useCallback((id: string | null, opts?: { keepOverlay?: boolean; view?: ViewId; lens?: AtlasLens | null }) => {
     if (!id) return dispatch({ type: 'select', sel: null });
     const kind = kindFromId(id); if (kind) dispatch({ type: 'select', sel: { kind, id }, ...opts });
   }, [dispatch]);

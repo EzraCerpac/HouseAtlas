@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, typ
 import { useEased } from '../atlas/useCamera';
 import { createStagePointers, type StageGesture } from './stage-pointers';
 import { bindTrackpadGesture, createTrackpadGesture } from './trackpad-gesture';
+import { stageWheelIntent, type StageWheelMode } from './stage-wheel';
 
 export const motionQuery = '(prefers-reduced-motion: reduce)';
 function subscribeMotion(change: () => void) {
@@ -18,7 +19,7 @@ export const DEFAULT_ORBIT = { yaw: -32, pitch: 36 } as const;
 /** Camera state and interaction shared by the canonical stage and the local
  * preview. Every change re-targets the eased pose, so navigation is always
  * interruptible; reduced motion (OS preference) snaps. */
-export function useStageCamera({ element, top, reduced, onTap, onEscape, minimumZoom }: {
+export function useStageCamera({ element, top, reduced, onTap, onEscape, minimumZoom, wheel = 'page' }: {
   readonly element: RefObject<HTMLDivElement | null>;
   /** Top-down pose (plan or top view). */
   readonly top: boolean;
@@ -27,6 +28,8 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape, minimum
   readonly onEscape?: () => void;
   /** Presentation fits may extend zoom-out without changing the ordinary fitted pose. */
   readonly minimumZoom?: () => number;
+  /** Only Unified Atlas opts in; model/source panes retain ordinary scrolling. */
+  readonly wheel?: StageWheelMode;
 }) {
   const [size, setSize] = useState({ width: 960, height: 640 });
   const [orbit, setOrbit] = useState<{ yaw: number; pitch: number }>(DEFAULT_ORBIT);
@@ -46,8 +49,8 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape, minimum
     });
     observer.observe(node); return () => observer.disconnect();
   }, [element]);
-  const live = useRef({ yaw: orbit.yaw, zoom, top, minimumZoom });
-  live.current = { yaw: orbit.yaw, zoom, top, minimumZoom };
+  const live = useRef({ yaw: orbit.yaw, zoom, top, minimumZoom, wheel });
+  live.current = { yaw: orbit.yaw, zoom, top, minimumZoom, wheel };
   // Native listeners and pointer closures read the same current floor, even
   // while a presentation fit eases or a resize changes its magnification.
   const zoomLimits = {
@@ -62,7 +65,8 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape, minimum
     previousMinimum.current = minimum;
     setZoom(value => Math.min(ZOOM.max, Math.max(minimum, value)));
   });
-  // Pinch and ctrl/cmd + wheel zoom; an ordinary wheel keeps scrolling the page.
+  // Pinch and ctrl/cmd + wheel zoom; ordinary wheel pans only in the opted-in
+  // unified Atlas. Other viewers keep scrolling their source pane.
   // Safari trackpad twist turns and pinch zooms through its gesture events; the
   // ctrl-wheel WebKit sends for the same pinch is absorbed meanwhile.
   useEffect(() => {
@@ -76,11 +80,33 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape, minimum
       rotates: () => !live.current.top,
       zoomLimits,
     });
+    const wheelBlocked = (event: WheelEvent) => {
+      if (node.closest('[inert], [hidden]')) return true;
+      for (const target of event.composedPath()) {
+        if (target === node) return false;
+        if (!(target instanceof Element)) continue;
+        if (target.matches('[inert], [hidden]')) return true;
+        // Room labels and documentary markers are map hit surfaces. Actual
+        // controls, editable content and nested scrollers keep their wheel.
+        const mapHit = target.matches('button[data-atlas-occurrence], button[data-stage-key^="marker:"]');
+        if (!mapHit && target.matches('button, a[href], input, select, textarea, summary, [contenteditable]:not([contenteditable="false"]), [role="button"], [role="slider"], [role="spinbutton"], [role="textbox"], [role="combobox"], [role="listbox"]')) return true;
+        if (target instanceof HTMLElement) {
+          const style = getComputedStyle(target);
+          if ((target.scrollHeight > target.clientHeight && /^(auto|scroll|overlay)$/.test(style.overflowY))
+            || (target.scrollWidth > target.clientWidth && /^(auto|scroll|overlay)$/.test(style.overflowX))) return true;
+        }
+      }
+      return true;
+    };
     const wheel = (event: WheelEvent) => {
-      if (!event.ctrlKey && !event.metaKey) return;
+      if (wheelBlocked(event)) return;
+      const intent = stageWheelIntent(event, { mode: live.current.wheel, gestureActive: trackpad.active(),
+        width: node.clientWidth, height: node.clientHeight });
+      if (!intent) return;
       event.preventDefault();
-      if (trackpad.active()) return;
-      setZoom(value => Math.min(zoomLimits.max, Math.max(zoomLimits.min, value * Math.exp(-event.deltaY * .004))));
+      if (intent.kind === 'absorb') return;
+      if (intent.kind === 'pan') { setPan(value => ({ x: value.x + intent.x, y: value.y + intent.y })); return; }
+      setZoom(value => Math.min(zoomLimits.max, Math.max(zoomLimits.min, value * Math.exp(-intent.deltaY * .004))));
     };
     node.addEventListener('wheel', wheel, { passive: false });
     const unbind = bindTrackpadGesture(node, trackpad);
