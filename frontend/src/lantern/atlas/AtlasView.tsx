@@ -65,6 +65,7 @@ export function AtlasView() {
   const [other, setOther] = useState<'model' | 'site' | 'home' | null>(null);
   const lens = state.atlasLens;
   const setLens = useCallback((next: AtlasLens | null) => dispatch({ type: 'atlasLens', lens: next }), [dispatch]);
+  const releaseReading = useCallback((claim: AtlasLens) => dispatch({ type: 'atlasReadingRelease', claim }), [dispatch]);
   const [nativeTarget, setNativeTarget] = useState<HTMLElement | null>(null);
   const panelId = useId();
   // Without a shape projection or a native scan reader the home Atlas is the
@@ -76,7 +77,7 @@ export function AtlasView() {
   // A route to a lens (Rooms & places or Network from elsewhere) returns to the Atlas.
   useEffect(() => { if (lens) setOther(null); }, [lens]);
   const workspace = (kind: MapKind, map: ReactNode, native = false, sources?: ReactNode) => <AtlasWorkspace kind={kind} lens={lens} setLens={setLens}
-    panelId={panelId} nativeTarget={setNativeTarget} native={native} selection={state.selection?.id ?? null} sources={sources}>{map}</AtlasWorkspace>;
+    releaseReading={releaseReading} panelId={panelId} nativeTarget={setNativeTarget} native={native} selection={state.selection?.id ?? null} sources={sources}>{map}</AtlasWorkspace>;
   if (!models) return workspace(homeKind, <HomeAtlas />);
   // With the opt-in scene port and a selected publication, the unified Atlas is
   // the Atlas; the other sources stay reachable through their own owners.
@@ -147,7 +148,8 @@ export function AtlasView() {
 }
 
 const LENS_TITLE = { places: 'Rooms & places', network: 'Network' } as const;
-/** Said in the lens where no Atlas room map is open to list its own part. */
+/** Said in the lens in place of the unified Atlas's own part, its model rooms
+ * or network graph, when no unified model publication is selected. */
 const NO_ROOM_MAP = {
   places: 'No unified model publication is selected, so its model rooms are not listed here.',
   network: 'No unified model publication is selected, so its logical network graph is not shown here.',
@@ -157,12 +159,15 @@ const NO_ROOM_MAP = {
  * the map with the chosen lens beside it. Read wide, the lens takes the room
  * and the map stands in the corner as a still-drawn inset, returned by Show
  * map. A record opened from the lens reads wide in the same way while it is
- * open, and closing it brings the map back beside the lens. A spatial map is
+ * open, and closing it, or leaving the Atlas, brings the map back beside the
+ * lens unless the lens was chosen again since. A spatial map is
  * the same element in every arrangement, so its source, camera and selection
  * stay as they are; a document fallback unmounts while a lens replaces it,
  * ending its reads; only a lens mounts and unmounts otherwise. */
-function AtlasWorkspace({ kind, lens, setLens, panelId, nativeTarget, native, selection, sources, children }: {
+function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTarget, native, selection, sources, children }: {
   readonly kind: MapKind; readonly lens: AtlasLens | null; readonly setLens: (next: AtlasLens | null) => void;
+  /** Returns to Beside only while the lens is still the one a record read wide. */
+  readonly releaseReading: (claim: AtlasLens) => void;
   readonly panelId: string; readonly nativeTarget: (node: HTMLElement | null) => void;
   /** The unified Atlas fills its own part of the lens. */
   readonly native: boolean;
@@ -181,8 +186,10 @@ function AtlasWorkspace({ kind, lens, setLens, panelId, nativeTarget, native, se
   // that event, so a later selection from elsewhere never counts.
   const fromLens = useRef(false);
   const markLens = () => { fromLens.current = true; window.setTimeout(() => { fromLens.current = false; }, 0); };
-  // Reading wide because that record opened: closing it returns to Beside.
-  const byRecord = useRef(false);
+  // The lens read wide because that record opened: closing it returns to
+  // Beside. Any lens choice since replaces the lens, so the claim no longer
+  // matches and the choice stays.
+  const byRecord = useRef<AtlasLens | null>(null);
   // A reading change made for the record sheet leaves focus with the sheet.
   const quiet = useRef(false);
   const selectedBefore = useRef(selection);
@@ -194,15 +201,20 @@ function AtlasWorkspace({ kind, lens, setLens, panelId, nativeTarget, native, se
       const inLens = fromLens.current || (active instanceof Node && panel.current?.contains(active) === true);
       fromLens.current = false;
       if (inLens && lens && kind === 'map' && !lens.reading) {
-        byRecord.current = true; quiet.current = true;
-        setLens({ ...lens, reading: true });
+        const claim = { ...lens, reading: true };
+        byRecord.current = claim; quiet.current = true;
+        setLens(claim);
       }
       return;
     }
-    if (!byRecord.current) return;
-    byRecord.current = false;
-    if (lens?.reading) { quiet.current = true; setLens({ ...lens, reading: false }); }
+    const claim = byRecord.current;
+    if (!claim) return;
+    byRecord.current = null;
+    if (lens === claim) { quiet.current = reading; releaseReading(claim); }
   }, [selection]);
+  // Leaving the Atlas ends the record's reading too, so it is not found wide
+  // on return without the record that began it.
+  useEffect(() => () => { const claim = byRecord.current; if (claim) releaseReading(claim); }, []);
   // Opening a lens, or changing it, takes focus to its heading; closing it
   // returns focus to what opened it when that is still shown, else to Map.
   const shownBefore = useRef<string | null>(null);
@@ -210,7 +222,7 @@ function AtlasWorkspace({ kind, lens, setLens, panelId, nativeTarget, native, se
     const before = shownBefore.current; shownBefore.current = kindOpen;
     if (kindOpen === before) return;
     // An explicit lens change ends any reading the record began.
-    byRecord.current = false;
+    byRecord.current = null;
     if (kindOpen) {
       const active = document.activeElement;
       if (before === null) opener.current = active instanceof HTMLElement && active !== document.body ? active : null;
@@ -232,7 +244,7 @@ function AtlasWorkspace({ kind, lens, setLens, panelId, nativeTarget, native, se
     (reading ? showMapButton : expandButton).current?.focus({ preventScroll: true });
   }, [reading]);
   // Expand and Show map are the user's own choice, never undone by a record closing.
-  const setReading = (next: boolean) => { byRecord.current = false; if (lens) setLens({ ...lens, reading: next }); };
+  const setReading = (next: boolean) => { byRecord.current = null; if (lens) setLens({ ...lens, reading: next }); };
   const choose = (next: 'places' | 'network' | null) => {
     if (next === null) setLens(null);
     else if (lens?.kind !== next) setLens({ kind: next, reading: false });

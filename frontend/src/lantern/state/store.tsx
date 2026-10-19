@@ -70,6 +70,8 @@ export type Action =
   | { type: 'view'; view: ViewId; focus?: string }
   | { type: 'select'; sel: Selection | null; keepOverlay?: boolean; view?: ViewId; lens?: AtlasLens | null }
   | { type: 'atlasLens'; lens: AtlasLens | null }
+  /** Ends a reading a record began, only while that same lens is still current. */
+  | { type: 'atlasReadingRelease'; claim: AtlasLens }
   | { type: 'floor'; id: string }
   | { type: 'mode'; mode: '3d' | '2d' }
   | { type: 'explode'; on: boolean }
@@ -133,6 +135,8 @@ function reducer(s: AppState, a: Action): AppState {
         ...route(s, a.view, a.lens), focusCircuit: a.sel?.kind === 'circuit' ? a.sel.id : undefined };
     }
     case 'atlasLens': return { ...s, atlasLens: a.lens };
+    // Any lens choice since the claim replaced the lens object, and wins.
+    case 'atlasReadingRelease': return s.atlasLens === a.claim ? { ...s, atlasLens: { kind: a.claim.kind, reading: false } } : s;
     case 'floor': return { ...s, floorId: a.id };
     case 'mode': return { ...s, mode: a.mode };
     case 'explode': return { ...s, exploded: a.on };
