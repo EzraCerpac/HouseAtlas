@@ -743,9 +743,13 @@ populated archive release, deletion or recovery authority:
 cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision --example healthy-exact-read-contracts
 ```
 
-A separate core visual harness uses the unchanged Home, Rooms & places and
-Network UI with the original generic topology fixture. It uses production read
-clients with synthetic responses; Network loads only through its visible action.
+A separate core visual harness uses Home and the Atlas Rooms & places and
+Network lenses with the original generic topology fixture. It uses production
+read clients with synthetic responses; saved Network relations load only through
+their visible action. Existing Rooms and Network route aliases resolve to Atlas
+lenses. Opening a lens mounts its existing source content; closing it ends those
+reads. A building-section document without a map unmounts while a lens replaces
+it, rather than continuing a second hidden topology read.
 After inspecting the three harness files and their imports, its scoped typecheck
 uses a private config extending frontend/tsconfig.json with main.tsx included,
 and its build uses the installed Vite compiler. For a manual preview, choose an
@@ -761,6 +765,25 @@ cd frontend
 All other application fetches return unavailable in this dedicated page. Its
 retained Network revision does not widen native provider admission or certify
 authentication, source freshness, runtime security or actual-user acceptance.
+
+The Atlas workspace keeps a spatial map mounted beside either lens. Expand
+reads the lens wide with an inert map inset; Show map returns to Beside. Opening
+a record from a lens can temporarily enter Reading; closing it or leaving Atlas
+releases only that exact presentation claim. A later explicit Map, source, lens
+or Expand choice wins. Native model rooms and HomeBox places retain their own
+identities and source qualifications; composition creates no inferred join.
+The native logical graph remains tied to the Network layer, while saved relation
+reads retain their separate visible action. The standalone saved viewer keeps
+its own graph presentation and does not acquire the live workspace lenses.
+
+The existing named healthy-read loader exercises the actual store reducer and
+Search route helper through temporary compiled-module exports, including route
+aliases, selection retention and conditional Reading release. These exports do
+not enter product modules. Generated browser review is separate: check both the
+fictional room fixture and generated source-host fixture at short landscape and
+narrow portrait sizes, lens title/action separation and body reachability,
+kind-change scroll reset, same-kind scroll retention, focus/inert behavior and
+record/source transitions. CPU results alone do not establish those behaviors.
 
 The topology visual harness uses the same synthetic records, an injected topology client
 and a stub for all other application fetches. After inspecting the harness,
@@ -1370,21 +1393,31 @@ GLB loader, reducer, projection, pointer factory and documentary index. Inspect
 node --test --test-concurrency=1 frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs
 ```
 
-Its thirty-five CPU cases cover repeated navigation, every declared selectable
+Its forty CPU cases cover repeated navigation, every declared selectable
 occurrence, shared room identity, source-coordinate plans, normal overlay
 toggles, collapse-before-Plan selection, deterministic count touch-target
 suppression, complete label-action targets, source-qualified duplicate floor
 names, indexed tessellated-room picks and tap/drag/pinch sequences. A generated
 Plan projection also checks complete-frame zoom-out after an off-centre scale
-boost, including the shared pointer and cumulative native-gesture zoom floor. They include no held controls, listener,
+boost, including the shared pointer and cumulative native-gesture zoom floor.
+Five wheel-adapter positives use the actual production adapter: default page
+mode and explicit Unified Atlas pan mode, fractional two-axis pan, line/page
+normalization and viewport caps, raw modifier zoom, Safari gesture absorption,
+and canceled/noncancelable event ownership. Only ordinary pan is normalized;
+modifier zoom retains its original raw delta. The shared hook defaults to page
+scrolling and only Unified Atlas opts into ordinary wheel pan. Wheel events do
+not identify mouse versus trackpad hardware. Hook listener routing and cleanup,
+nested controls and scrolling, inert boundaries and real-device gestures need
+separate mounted browser/device evidence. Pointer, touch, camera fitting and
+easing algorithms are unchanged. These cases include no held controls, listener,
 provider, credentials or private inputs. They do not qualify DOM focus, CSS,
 animations, GPU rendering, native overlays or devices. The adjacent acceptance
 matrix retains its exact historical source attribution; browser automation is
 a separate check and gains no execution permission from this CPU command.
 This adds no workflow or ordinary CI step.
 
-Before claiming all thirty-five ran, retain their individual names and a
-thirty-five-test summary. A file-only successful result establishes neither.
+Before claiming all forty ran, retain their individual names and a
+forty-test summary. A file-only successful result establishes neither.
 For an environment whose test subprocess reports only the file, the same
 inspected healthy module may be run directly on pinned Node 26.10.0:
 
@@ -1393,7 +1426,7 @@ node frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs
 ```
 
 This changes no assertion, fixture, loader or scope. Record which invocation
-actually emitted the thirty-five names; do not attribute it to the file-only run.
+actually emitted the forty names; do not attribute it to the file-only run.
 
 The separate property-network association positive is documented in
 [the architecture contract](../architecture/property-network-connections.md).
