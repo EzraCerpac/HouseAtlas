@@ -269,8 +269,10 @@ async function start(artifact, label, frontend) {
 }
 async function readyRooms(requireEditor) {
   await until(async () => evaluate("document.querySelector('.house-name')?.textContent==='Synthetic home'"), 'real home ready');
-  await click(`Array.from(document.querySelectorAll('[aria-label="Atlas lens"] button')).find(button=>button.textContent.trim()==='Rooms & places')`, 'Rooms & places');
-  await until(async () => evaluate("document.querySelector('.atlas-lens.is-places h2')?.textContent==='Rooms & places' && !!document.querySelector('.topology-scope')"), 'Rooms view');
+  // This lifecycle check also loads the explicitly pinned older fallback
+  // frontend, which still exposes Rooms as a section rather than a lens.
+  await click(`Array.from(document.querySelectorAll('[aria-label="Atlas lens"] button')).find(button=>button.textContent.trim()==='Rooms & places') ?? Array.from(document.querySelectorAll('nav[aria-label="Sections"] button')).find(button=>button.textContent.trim()==='Rooms & places')`, 'Rooms & places');
+  await until(async () => evaluate("(document.querySelector('.atlas-lens.is-places h2') ?? document.querySelector('main#main h1'))?.textContent==='Rooms & places' && !!document.querySelector('.topology-scope')"), 'Rooms view');
   if (requireEditor) await until(async () => evaluate("!!Array.from(document.querySelectorAll('.topology-scope > button')).find(button=>button.textContent.trim()==='Add Atlas place')"), 'current admitted native form');
 }
 async function selectBuilding(id) {
