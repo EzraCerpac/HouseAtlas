@@ -139,15 +139,26 @@ try {
     return true;
   })()`), 'Visible Close Atlas tools action');
   await until(async () => await evaluate("!document.querySelector('[aria-label=\"Atlas tools\"]:not([hidden])')"), 'Atlas tools closed before section navigation');
-  const topologyResponseStart = nativeListResponses.length;
   await until(async () => await evaluate(`(() => {
     const button = [...document.querySelectorAll('nav[aria-label="Sections"] button')]
+      .find(button => button.textContent?.trim() === 'Atlas' && button.getClientRects().length);
+    if (!button) return false;
+    button.click();
+    return true;
+  })()`), 'Visible Atlas navigation');
+  // Settle the fallback document's own read lifetime before replacing it with
+  // the Places lens. The assertion below still counts exactly the lens's four
+  // completed production reads, rather than a mixture of both lifetimes.
+  await until(async () => await evaluate("document.querySelector('.topology-scope [role=status]')?.textContent === 'No reviewed buildings in this home.'"), 'Atlas fallback topology ready');
+  const topologyResponseStart = nativeListResponses.length;
+  await until(async () => await evaluate(`(() => {
+    const button = [...document.querySelectorAll('[aria-label="Atlas lens"] button')]
       .find(button => button.textContent?.trim() === 'Rooms & places' && button.getClientRects().length);
     if (!button) return false;
     button.click();
     return true;
-  })()`), 'Visible Rooms & places navigation');
-  await until(async () => await evaluate("document.querySelector('main#main h1')?.textContent === 'Rooms & places'"), 'Lantern Rooms & places view');
+  })()`), 'Visible Atlas Rooms & places lens');
+  await until(async () => await evaluate("document.querySelector('.atlas-lens.is-places h2')?.textContent === 'Rooms & places'"), 'Lantern Rooms & places view');
   try {
     await until(async () => await evaluate("document.querySelector('.topology-scope [role=status]')?.textContent === 'No reviewed buildings in this home.'"), 'Actual native topology frame after matched snapshot reads');
   } catch (error) {

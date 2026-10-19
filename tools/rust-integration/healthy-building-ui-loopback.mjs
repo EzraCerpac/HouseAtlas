@@ -150,7 +150,7 @@ try {
     await send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point.point, button: 'left', clickCount: 1 });
     await send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point.point, button: 'left', clickCount: 1 });
   };
-  const nav = label => `Array.from(document.querySelectorAll('nav[aria-label="Sections"] button')).find(button => button.textContent.trim() === ${JSON.stringify(label)})`;
+  const nav = label => `Array.from(document.querySelectorAll('[aria-label="Atlas lens"] button')).find(button => button.textContent.trim() === ${JSON.stringify(label)})`;
   const capture = async label => {
     for (const [width, height] of [[1440, 900], [390, 844]]) {
       await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
@@ -263,7 +263,7 @@ try {
   assert(homeText.includes('Synthetic home: no reviewed shape projection'));
   assert(homeText.includes('Plan, 3D and measured positions require reviewed geometry.'));
   await click(nav('Rooms & places'), 'Rooms & places navigation');
-  await until(async () => await evaluate("document.querySelector('main#main h1')?.textContent === 'Rooms & places'"), 'actual Rooms view');
+  await until(async () => await evaluate("document.querySelector('.atlas-lens.is-places h2')?.textContent === 'Rooms & places'"), 'actual Rooms view');
   const buildingSelector = `document.querySelector('.topology-scope [role="group"][aria-label="Building"] button[title="${U(9701)}"]')`;
   await click(buildingSelector, 'original unnamed building chip');
   await until(async () => await evaluate(`Boolean(document.querySelector('.topology-scope [role="status"]')?.textContent.endsWith(': 2 locations in reviewed membership') && document.querySelector('.topology-building'))`), 'actual selected native building membership');
@@ -286,7 +286,7 @@ try {
   const networkPath = '/api/atlas/v1/workspaces/' + scope.workspaceId + '/homes/' + scope.homeId + '/network/relations';
   assert.equal(requests.filter(row => new URL(row.url).pathname === networkPath).length, 0, 'No automatic saved Network read');
   await click(nav('Network'), 'Network navigation');
-  await until(async () => await evaluate("document.querySelector('main#main h1')?.textContent === 'Network'"), 'actual Network view');
+  await until(async () => await evaluate("document.querySelector('.atlas-lens.is-network h2')?.textContent === 'Network'"), 'actual Network view');
   assert.equal(requests.filter(row => new URL(row.url).pathname === networkPath).length, 0, 'Network mount does not collect or load');
   await click(`Array.from(document.querySelectorAll('section[aria-labelledby="network-relations-heading"] button')).find(button=>button.textContent.trim()==='Load Network relations')`, 'Load Network relations');
   await until(async () => await evaluate(`document.querySelector('section[aria-labelledby="network-relations-heading"] [role="status"]')?.textContent==='No Network relations saved for this home.'`), 'actual saved empty Network result');
