@@ -341,6 +341,62 @@ const selectedOnPlan = healthyReducer(readingNetwork, { type: 'select',
 assert.equal(selectedOnPlan.atlasLens, null);
 assert.equal(selectedOnPlan.view, 'atlas');
 assert.equal(healthyReducer(selectedFromNetwork, { type: 'select', sel: null }).selection, null);
+
+// A record-owned Reading arrangement ends on departure/close without undoing
+// a newer explicit choice. Exercise the actual reducer with both cleanup
+// orders; DOM effect timing and focus still need separate browser proof.
+const recordReadingClaim = { kind: 'places', reading: true };
+const recordReading = healthyReducer(selectedFromNetwork,
+  { type: 'atlasLens', lens: recordReadingClaim });
+const releaseRecordReading = { type: 'atlasReadingRelease', claim: recordReadingClaim };
+for (const destination of ['library', 'upkeep', 'changes']) {
+  const away = healthyReducer(recordReading, { type: 'view', view: destination });
+  const releasedOnDeparture = healthyReducer(away, releaseRecordReading);
+  assert.equal(releasedOnDeparture.view, destination, 'Cleanup never navigates');
+  assert.deepEqual(releasedOnDeparture.atlasLens, { kind: 'places', reading: false });
+  for (const key of ['selection', 'floorId', 'overlay', 'mode', 'exploded']) {
+    assert.deepEqual(releasedOnDeparture[key], away[key], `Cleanup preserves ${key}`);
+  }
+  const closedAfterDeparture = healthyReducer(releasedOnDeparture, { type: 'select', sel: null });
+  assert.equal(closedAfterDeparture.selection, null);
+  assert.deepEqual(healthyReducer(closedAfterDeparture, { type: 'view', view: 'atlas' }).atlasLens,
+    { kind: 'places', reading: false });
+  const closedBeforeCleanup = healthyReducer(away, { type: 'select', sel: null });
+  const releasedAfterClose = healthyReducer(closedBeforeCleanup, releaseRecordReading);
+  assert.equal(releasedAfterClose.view, destination);
+  assert.equal(releasedAfterClose.selection, null);
+  assert.deepEqual(releasedAfterClose.atlasLens, { kind: 'places', reading: false });
+  assert.equal(healthyReducer(releasedOnDeparture, releaseRecordReading), releasedOnDeparture,
+    'A second cleanup is a no-op');
+}
+const mapChosenBeforeCleanup = healthyReducer(recordReading, { type: 'atlasLens', lens: null });
+assert.equal(healthyReducer(mapChosenBeforeCleanup, releaseRecordReading), mapChosenBeforeCleanup,
+  'Map or source-clearing intent cannot be reinstated by old cleanup');
+const networkChosenBeforeCleanup = healthyReducer(recordReading, { type: 'view', view: 'network' });
+assert.equal(healthyReducer(networkChosenBeforeCleanup, releaseRecordReading), networkChosenBeforeCleanup,
+  'A newer lens alias wins over cleanup');
+const deliberateReading = healthyReducer(recordReading,
+  { type: 'atlasLens', lens: { kind: 'places', reading: true } });
+assert.equal(healthyReducer(deliberateReading, releaseRecordReading), deliberateReading,
+  'Deliberate Expand wins even when its visible values match the old claim');
+for (const destination of ['library', 'upkeep', 'changes']) {
+  const away = healthyReducer(deliberateReading, { type: 'view', view: destination });
+  assert.equal(healthyReducer(away, releaseRecordReading), away);
+  assert.equal(healthyReducer(away, { type: 'view', view: 'atlas' }).atlasLens,
+    deliberateReading.atlasLens, 'Deliberate Reading stays remembered');
+}
+const laterRecordClaim = { kind: 'places', reading: true };
+const laterRecordReading = healthyReducer(recordReading, { type: 'atlasLens', lens: laterRecordClaim });
+assert.equal(healthyReducer(laterRecordReading, releaseRecordReading), laterRecordReading,
+  'An older record cannot release a newer record arrangement');
+assert.equal(healthyReducer(recordReading,
+  { type: 'atlasReadingRelease', claim: { ...recordReadingClaim } }), recordReading,
+  'Equal values alone do not establish ownership of Reading');
+assert.deepEqual(healthyReducer(laterRecordReading,
+  { type: 'atlasReadingRelease', claim: laterRecordClaim }).atlasLens,
+  { kind: 'places', reading: false });
+assert.equal(recordReadingClaim.reading, true, 'Cleanup never mutates its old claim');
+console.log('PASS Atlas record Reading release: departure/close orders, newer choices, stale claims and deliberate Reading memory');
 assert.equal(JSON.stringify(view), quantityOriginalView);
 assert(projected.house.docs.every(d => d.addedAt === '' && d.preview === 'none' && d.version === 0));
 const radio = view.entries.find(e => e.entity.name === 'Portable radio');
