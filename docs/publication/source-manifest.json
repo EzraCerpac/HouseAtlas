@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "420a3a68b3d0c34d6515e2ce94bf89d1cbf3d745a2d3f33a485329b4961d175e",
+  "sourceDigestSha256": "f895ae2186ef2c3ecc00dd113bc1bd8a7398535f5cb0b0b78993545d68c59379",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5894,8 +5894,8 @@
     {
       "path": "docs/ci-performance.md",
       "mode": "100644",
-      "bytes": 11217,
-      "sha256": "63547f8a8905ffe874f84f77da455991e98d9f097ee60553d13696ac0cb77f4e",
+      "bytes": 11591,
+      "sha256": "8e0ceb388470254f0bd045991fcab0d63b739fff2d39d99c4c681f696c92ee05",
       "owner": "core-integration"
     },
     {
@@ -5964,8 +5964,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 130931,
-      "sha256": "b001f8c42540ec86e2e037d813e780c50d59481e1bd7264911ec2d5956082f22",
+      "bytes": 131957,
+      "sha256": "933e649154b4e0fb4b42f2322b538482475f594dca02e9bbaf63f32c7426a004",
       "owner": "core-integration"
     },
     {
@@ -11823,8 +11823,8 @@
     {
       "path": "tools/perf/reporting/compare.mjs",
       "mode": "100644",
-      "bytes": 9133,
-      "sha256": "d76785a9656bdd018afec7bbdf247cffea4f87a033a9763437bd819e400851e2",
+      "bytes": 9463,
+      "sha256": "aeb91a03cc884d659c24e0ef4a7b700f5bb26a4684535f2f04a4ba64486e5f47",
       "owner": "core-integration"
     },
     {
@@ -11853,6 +11853,13 @@
       "mode": "100644",
       "bytes": 1892,
       "sha256": "53c65a36e4880e83400b62a28d67e96e667ff9f8e3a00908601664965d02da72",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/reporting/head-budget-healthy.test.mjs",
+      "mode": "100644",
+      "bytes": 3014,
+      "sha256": "b16a70e4ebb860962963c764c035bdf079905729995e1ef3b97c3cff95239d7d",
       "owner": "core-integration"
     },
     {
