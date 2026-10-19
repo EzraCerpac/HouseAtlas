@@ -284,8 +284,10 @@
   overflow: auto;
 }
 
-/* The lens panel: a sheet of the workspace, its head fixed, its body scrolling. */
+/* The lens panel: a sheet of the workspace, its head fixed, its body scrolling.
+   Its own width decides how its head is laid out. */
 .lantern-host .atlas-lens {
+  container: atlas-lens / inline-size;
   grid-area: lens;
   min-width: 0;
   min-height: 0;
@@ -296,6 +298,8 @@
   animation: lens-in 0.24s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
+/* The title, then Expand and Close as full-size targets. The title is never
+   narrower than its longest word. */
 .lantern-host .atlas-lens-head {
   flex: none;
   display: flex;
@@ -307,9 +311,22 @@
 
 .lantern-host .atlas-lens-head h2 {
   flex: 1;
-  min-width: 0;
+  min-width: min-content;
   font-size: var(--fs-xl);
   font-weight: 720;
+}
+
+.lantern-host .atlas-lens-head > button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* A narrow lens (a phone, or half a short sheet): the title has its own row
+   and the actions share the row below it, at the right. */
+@container atlas-lens (max-width: 379px) {
+  .lantern-host .atlas-lens-head { flex-wrap: wrap; }
+  .lantern-host .atlas-lens-head h2 { flex-basis: 100%; }
+  .lantern-host .atlas-lens-head h2 + button { margin-left: auto; }
 }
 
 .lantern-host .atlas-lens-head h2:focus { outline: none; }
