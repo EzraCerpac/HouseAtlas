@@ -526,7 +526,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   // A tap resolves against what is drawn now, mid-transition included, and the
   // reducer re-targets every eased value; an empty tap moves out one level.
   const minimumZoom = useRef(.6);
-  const camera = useStageCamera({ element: viewport, top: plan, reduced, onEscape: out, minimumZoom: () => minimumZoom.current,
+  const camera = useStageCamera({ element: viewport, top: plan, reduced, wheel: 'pan', onEscape: out, minimumZoom: () => minimumZoom.current,
     onTap: (px, py, target) => {
       const label = target instanceof Element ? target.closest<HTMLButtonElement>('button[data-atlas-occurrence]') : null;
       if (label?.dataset.atlasOccurrence && model.selectable.has(label.dataset.atlasOccurrence)) {

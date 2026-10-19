@@ -548,6 +548,71 @@ test('measurement spans retain irregular outlines and holes without turning a cu
   assert.equal(api.roomArea(model, 'syn-occ-study'), null, 'estimated proxies never acquire measured dimensions');
 });
 
+// Actual pure production wheel adapter; event records are synthetic, not
+// physical trackpad or DOM-listener acceptance.
+const wheelEvent = (changes = {}) => ({ deltaX: 0, deltaY: 30, deltaMode: 0,
+  ctrlKey: false, metaKey: false, cancelable: true, defaultPrevented: false, ...changes });
+const wheelView = { gestureActive: false, width: 400, height: 200 };
+
+test('shared wheel default preserves page scrolling while modifier zoom keeps its raw delta in every unit mode', () => {
+  for (const deltaMode of [0, 1, 2]) {
+    const event = wheelEvent({ deltaMode });
+    assert.equal(api.stageWheelIntent(event, wheelView), null);
+    assert.equal(api.stageWheelIntent(event, { ...wheelView, mode: 'page', gestureActive: true }), null);
+    for (const modifier of ['ctrlKey', 'metaKey']) for (const mode of ['page', 'pan']) {
+      assert.deepEqual(api.stageWheelIntent({ ...event, [modifier]: true }, { ...wheelView, mode }),
+        { kind: 'zoom', deltaY: 30 });
+    }
+  }
+});
+
+test('opted-in wheel pan retains both fractional CSS-pixel axes and browser-provided shift-wheel direction', () => {
+  const options = { ...wheelView, mode: 'pan' };
+  assert.deepEqual(api.stageWheelIntent(wheelEvent({ deltaX: 12.5, deltaY: -7.25 }), options),
+    { kind: 'pan', x: -12.5, y: 7.25 });
+  assert.deepEqual(api.stageWheelIntent(wheelEvent({ deltaX: 24, deltaY: 0, shiftKey: true }), options),
+    { kind: 'pan', x: -24, y: 0 });
+  assert.deepEqual(api.stageWheelIntent(wheelEvent({ deltaX: 0, deltaY: 30 }), options),
+    { kind: 'pan', x: 0, y: -30 });
+});
+
+test('line and page wheel pan use each viewport axis and cap each event without changing modifier zoom', () => {
+  const options = { ...wheelView, mode: 'pan' };
+  assert.deepEqual(api.stageWheelIntent(wheelEvent({ deltaMode: 1, deltaX: 2, deltaY: -3 }), options),
+    { kind: 'pan', x: -32, y: 48 });
+  assert.deepEqual(api.stageWheelIntent(wheelEvent({ deltaMode: 2, deltaX: .5, deltaY: -.5 }), options),
+    { kind: 'pan', x: -200, y: 100 });
+  assert.deepEqual(api.stageWheelIntent(wheelEvent({ deltaMode: 2, deltaX: 2, deltaY: -2 }), options),
+    { kind: 'pan', x: -400, y: 200 });
+  assert.deepEqual(api.stageWheelIntent(wheelEvent({ deltaMode: 2, deltaY: 30, ctrlKey: true }), options),
+    { kind: 'zoom', deltaY: 30 });
+});
+
+test('an active Safari gesture absorbs opted-in plain and modifier wheel without duplicate pan or zoom', () => {
+  for (const modifier of [{}, { ctrlKey: true }, { metaKey: true }]) {
+    assert.deepEqual(api.stageWheelIntent(wheelEvent(modifier), { ...wheelView, mode: 'pan', gestureActive: true }),
+      { kind: 'absorb' });
+  }
+  assert.deepEqual(api.stageWheelIntent(wheelEvent({ ctrlKey: true }), { ...wheelView, gestureActive: true }),
+    { kind: 'absorb' });
+});
+
+test('wheel routing preserves noncancelable modifier zoom, leaves scrolling untouched and ignores stationary pan', () => {
+  for (const mode of ['page', 'pan']) for (const modifier of [{}, { ctrlKey: true }, { metaKey: true }]) {
+    assert.equal(api.stageWheelIntent(wheelEvent({ ...modifier, defaultPrevented: true }), { ...wheelView, mode }), null);
+  }
+  for (const mode of ['page', 'pan']) {
+    assert.equal(api.stageWheelIntent(wheelEvent({ cancelable: false }), { ...wheelView, mode }), null);
+    for (const modifier of [{ ctrlKey: true }, { metaKey: true }]) {
+      assert.deepEqual(api.stageWheelIntent(wheelEvent({ ...modifier, cancelable: false }), { ...wheelView, mode }),
+        { kind: 'zoom', deltaY: 30 });
+      assert.deepEqual(api.stageWheelIntent(wheelEvent({ ...modifier, cancelable: false }), { ...wheelView, mode, gestureActive: true }),
+        { kind: 'absorb' });
+    }
+  }
+  assert.equal(api.stageWheelIntent(wheelEvent({ deltaX: 0, deltaY: 0 }), { ...wheelView, mode: 'pan' }), null);
+});
+
 test('native trackpad rotation and scale use cumulative start values and scoped listeners release normally', () => {
   let pose = { yaw: 30, zoom: 2 }, rotates = true, prevented = 0;
   const gesture = api.createTrackpadGesture({ read: () => pose, apply: value => { pose = { yaw: value.yaw ?? pose.yaw, zoom: value.zoom }; },

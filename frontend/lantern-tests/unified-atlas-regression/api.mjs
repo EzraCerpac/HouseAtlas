@@ -17,6 +17,7 @@ export async function loadAPI() {
       'src/lantern/canonical-ifc/standard-glb.ts',
       'src/lantern/canonical-ifc/stage-pointers.ts',
       'src/lantern/canonical-ifc/trackpad-gesture.ts',
+      'src/lantern/canonical-ifc/stage-wheel.ts',
       'src/lantern/unified-atlas/measurements.ts',
       'integration/unified-atlas-reader.ts',
       'lantern-tests/unified-atlas/synthetic-atlas.ts',

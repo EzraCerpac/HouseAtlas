@@ -55,8 +55,9 @@ const iconURL = await sourceURL('../src/lantern/components/Icon.tsx', 'tsx', { '
 const cameraURL = await sourceURL('../src/lantern/atlas/useCamera.ts', 'ts', { react });
 const pointersURL = await sourceURL(`${base}stage-pointers.ts`, 'ts');
 const trackpadURL = await sourceURL(`${base}trackpad-gesture.ts`, 'ts');
+const wheelURL = await sourceURL(`${base}stage-wheel.ts`, 'ts');
 const stageCameraURL = await sourceURL(`${base}useStageCamera.ts`, 'ts', { react, '../atlas/useCamera': cameraURL,
-  './stage-pointers': pointersURL, './trackpad-gesture': trackpadURL });
+  './stage-pointers': pointersURL, './trackpad-gesture': trackpadURL, './stage-wheel': wheelURL });
 const meshLayerURL = await sourceURL(`${base}MeshLayer.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx, './geometry': geometryURL });
 const stageURL = await sourceURL(`${base}ModelStage.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx, '../components/Icon': iconURL,
   './geometry': geometryURL, './selection': selectionURL, './MeshLayer': meshLayerURL, './tones': tonesURL, './useStageCamera': stageCameraURL });
