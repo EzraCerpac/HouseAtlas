@@ -78,6 +78,46 @@ The original `tests.synthetic.FixtureManifest` remains a private generated profi
 Actual production acquisition, producer verification, native/storage profiles and
 target binding remain unqualified even though the schema is acknowledged.
 
+### Normalized storage mapping protocol
+
+`Storage.protocol` is the revision of the updater's **normalized storage mapping
+interpretation**. `STORAGE_MAPPING_PROTOCOL_V1 = 1` in `model.py` is its first
+explicit source definition. It is independent of the caller
+`protocol.schema.json` version, MCP, JSON-RPC, HTTP, native API contracts and
+package versions. The pre-existing synthetic fixture's literal `1` did not
+define a production meaning; neither that fixture nor earlier artifacts become
+qualified by this definition.
+
+Revision one interprets all six `Storage` fields together under the existing
+`preserve-no-migration` policy and supports exactly these tuples:
+
+| Receipt format | Config digest format | Access schema | Atlas profile | Atlas schema | Mapping protocol |
+| --- | --- | --- | --- | --- | --- |
+| `houseatlas-persistent-server/1` | `houseatlas-server-state/2` | 1 | `atlas` | 5 | 1 |
+| `houseatlas-persistent-full-geodata-server/1` | `houseatlas-server-state/2` | 1 | `full-geodata` | 1 | 1 |
+
+Receipt/schema constants come from `backend/src/lifecycle/persistent.rs`,
+`backend/src/access/mod.rs`, `backend/src/storage/migrations.rs`,
+`backend/src/storage/geodata_full.rs` and `backend/src/config/server.rs`. The
+full-geodata outer schema is 1; its underlying core SQLite user version remains
+5. These are two supported interpretations, not a selection of the live profile.
+
+`Storage` construction and owner-input admission require exact scalar types and
+the complete supported tuple. Null, booleans, numeric strings, floats, mixed
+profile fields, unknown profiles and unsupported revisions are rejected with
+`state-incompatible`; no default, coercion, wildcard or version inference is
+available. Mappings are rechecked on entry to `ReleaseBundleV1` and when selected,
+and before Runtime/Installed/Bundle or rollback-compatibility equality checks.
+The caller wire schema remains unchanged and accepts no storage override.
+
+A supported tuple describes interpretation only. It does not verify the hash's
+contract preimage, grant that hash owner review, prove native state or authorize
+rollback. Contract hashes must still be independently bound to reviewed exact
+contract bytes and fresh compiled-owner target evidence. An amended contract
+requires new canonical bytes/hash; original null drafts stay unchanged,
+unregistered and release-ineligible. This source change registers no contract,
+chooses no target profile and changes no release qualification.
+
 The normalized archive profile is strict gzip/ustar with regular files, optional
 normal directories and an optional exact embedded selected manifest. No links,
 special files, PAX/GNU extensions, traversal, duplicate or case-colliding paths,

@@ -60,7 +60,10 @@ class ReleaseBundleV1:
     def __init__(self, schema_bytes: bytes, storage_contracts: dict[str, Storage],
                  native_profile_sha256: str, *, synthetic_only: bool = False):
         require(sha256(schema_bytes) == SCHEMA_SHA256 and digest(native_profile_sha256), "manifest-invalid")
-        require(bool(storage_contracts) and all(digest(key) for key in storage_contracts), "state-incompatible")
+        require(type(storage_contracts) is dict and bool(storage_contracts) and
+                all(digest(key) for key in storage_contracts), "state-incompatible")
+        for storage in storage_contracts.values():
+            Storage.validate(storage)
         self.schema = json.loads(schema_bytes)
         self.storage_contracts = dict(storage_contracts)
         self.native_profile = native_profile_sha256
@@ -93,6 +96,7 @@ class ReleaseBundleV1:
         require(compatibility["status"] == "reviewed" and pin in self.storage_contracts and
                 compatibility["resultingStorageContractSha256"] == pin and
                 compatibility["codeRollbackCompatible"], "state-incompatible")
+        Storage.validate(self.storage_contracts[pin])
         rows = value["files"]
         paths = [row["path"] for row in rows]
         require(paths == sorted(set(paths)) and

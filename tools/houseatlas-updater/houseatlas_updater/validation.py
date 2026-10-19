@@ -7,7 +7,7 @@ import stat
 import uuid
 from pathlib import Path, PurePosixPath
 
-from .model import Bundle, Installed, Policy, Runtime, Selection, UpdateError
+from .model import Bundle, Installed, Policy, Runtime, Selection, Storage, UpdateError
 
 
 def require(condition: bool, code: str) -> None:
@@ -160,6 +160,7 @@ def layout(policy: Policy) -> None:
 
 
 def runtime(value: Runtime) -> None:
+    Storage.validate(value.storage)
     require(not value.pending_transition and bool(value.configuration) and
             bool(value.receipt_identity) and bool(value.native_identities), "state-incompatible")
     names = [name for name, _, _ in value.native_identities]
@@ -169,6 +170,7 @@ def runtime(value: Runtime) -> None:
 
 
 def installed(value: Installed, policy: Policy) -> None:
+    Storage.validate(value.storage)
     require(digest(value.revision) and digest(value.frontend_identity), "installed-invalid")
     require(value.target == policy.target, "platform-incompatible")
     require(value.shell_identity is None or digest(value.shell_identity), "installed-invalid")
@@ -190,6 +192,8 @@ def installed(value: Installed, policy: Policy) -> None:
 
 def bundle(value: Bundle, expected: Selection, before: Installed,
            state: Runtime, policy: Policy) -> None:
+    Storage.validate(value.storage)
+    Storage.validate(before.storage)
     require(value.contract == policy.bundle_contract and value.contract in
             ("provisional-fixture", "houseatlas.release-bundle.v1"), "manifest-invalid")
     require(value.selection == expected, "release-identity-mismatch")
@@ -253,4 +257,9 @@ def bundle(value: Bundle, expected: Selection, before: Installed,
 
 def compatible(old: Runtime, current: Runtime) -> bool:
     # Conservative unchanged profile/receipt/config/native identities only.
+    try:
+        Storage.validate(old.storage)
+        Storage.validate(current.storage)
+    except UpdateError:
+        return False
     return not current.pending_transition and old == current
