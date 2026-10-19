@@ -2,6 +2,7 @@ import {
   useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type FocusEvent,
   type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '../components/Icon';
 import { useReducedMotion, useStore } from '../state/store';
 import { useEased } from '../atlas/useCamera';
@@ -71,27 +72,52 @@ function remember(key: string, state: AtlasViewState) {
 /** A source the host can open in place of the Atlas; listed in the narrow-stage menu. */
 export interface OtherSource { readonly id: string; readonly label: string; readonly open: () => void }
 
+/** A lens over the Atlas, held by the host workspace. */
+export interface AtlasLensState { readonly kind: 'places' | 'network'; readonly reading: boolean }
+/** The host's lens: its state and setter, the element in the lens panel this
+ * Atlas renders its own model rooms or network graph into, and the panel's id.
+ * Read wide, the Atlas stands as an inset: drawn, out of the tab order, its
+ * controls set aside until the host shows the map again. */
+export interface AtlasLensHost {
+  readonly value: AtlasLensState | null;
+  readonly set: (next: AtlasLensState | null) => void;
+  readonly target: HTMLElement | null;
+  readonly panelId: string;
+}
+
 export interface AtlasPresentationEnvironment {
   readonly reducedMotion: boolean;
   readonly openNetwork?: () => void;
   readonly openDocuments?: () => void;
   readonly archive?: { readonly included: boolean; readonly setIncluded: (included: boolean) => void };
+  /** Absent in the saved viewer, which keeps its own graph panel. */
+  readonly lens?: AtlasLensHost;
 }
 interface AtlasProps {
   readonly port: UnifiedAtlasPort | AtlasPresentationPort;
   readonly onOpenModel?: () => void;
   readonly otherSources?: readonly OtherSource[];
   readonly environment?: AtlasPresentationEnvironment;
+  /** The live host's lens; an explicit environment supplies its own. */
+  readonly lens?: AtlasLensHost;
 }
 export default function UnifiedAtlas(props: AtlasProps) {
   return props.environment ? <AtlasPresentation {...props} environment={props.environment} /> : <LiveAtlasPresentation {...props} />;
 }
 function LiveAtlasPresentation(props: AtlasProps) {
   const { dispatch, actions } = useStore(), reducedMotion = useReducedMotion();
+  // Open Network routes to the Network lens beside this same Atlas.
   return <AtlasPresentation {...props} environment={{ reducedMotion,
     openNetwork: () => dispatch({ type: 'view', view: 'network' }),
     openDocuments: () => dispatch({ type: 'view', view: 'library' }),
-    ...(actions.archiveVisibility ? { archive: actions.archiveVisibility } : {}) }} />;
+    ...(actions.archiveVisibility ? { archive: actions.archiveVisibility } : {}),
+    ...(props.lens ? { lens: props.lens } : {}) }} />;
+}
+
+/** While the room map is not open, the lens panel still says why the model's
+ * own rooms and network graph are absent. */
+function LensStatus({ lens, children }: { readonly lens: AtlasLensHost | undefined; readonly children: string }) {
+  return lens?.value && lens.target ? createPortal(<p className="ua-lens-status" role="status">{children}</p>, lens.target) : null;
 }
 function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, environment }: AtlasProps & { readonly environment: AtlasPresentationEnvironment }) {
   const port = useMemo(() => 'kind' in suppliedPort ? suppliedPort : createLiveAtlasPresentationPort(suppliedPort), [suppliedPort]);
@@ -128,14 +154,17 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
     return () => controller.abort();
   }, [port, selection, attempt]);
 
-  if (!selection) return <section className="ua-shell" aria-label="Atlas"><p className="ua-state" role="status">No model is selected.</p></section>;
+  if (!selection) return <section className="ua-shell" aria-label="Atlas"><p className="ua-state" role="status">No model is selected.</p>
+    <LensStatus lens={environment.lens}>No model is selected, so no model rooms or network graph are shown.</LensStatus></section>;
   const outcome = loaded && loaded.selection === selection && loaded.attempt === attempt ? loaded.outcome : null;
   if (!outcome) return <section className="ua-shell is-loading" aria-label="Atlas" aria-busy="true">
     <div className="ua-state" role="status"><span className="ua-spinner" aria-hidden="true" />Loading the room map…</div>
+    <LensStatus lens={environment.lens}>Model rooms and the network graph appear when the room map has loaded.</LensStatus>
   </section>;
   if (outcome.status === 'failed') {
     const failure = FAILURE[outcome.reason];
     return <section className="ua-shell" aria-label="Atlas">
+      <LensStatus lens={environment.lens}>The room map is unavailable, so its model rooms and network graph are not shown.</LensStatus>
       <div className="ua-state" role="alert">
         <p>{failure.text}</p>
         <div className="ua-state-actions">
@@ -448,8 +477,15 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   const [drawer, setDrawer] = useState<'floors' | 'layers' | null>(null);
   // The logical network graph: its own panel, beside the model or over a narrow stage.
   const graphs = networkOn ? runtime.records?.networkGraphs ?? [] : [];
+  // With a host lens the graph opens in the Network lens beside this stage;
+  // without one (the saved viewer) it keeps its own panel.
+  const hostLens = environment.lens;
+  const lens = hostLens?.value ?? null;
+  // Read wide, the stage is the host's inset: drawn and kept current, its
+  // controls set aside and the stage out of the tab order.
+  const inset = lens?.reading === true;
   const [graphOpen, setGraphOpen] = useState(false);
-  const showGraph = graphOpen && graphs.length > 0;
+  const showGraph = !hostLens && graphOpen && graphs.length > 0;
   const [graphCovers, setGraphCovers] = useState(false);
   const graphStageFocus = useRef<HTMLElement | null>(null);
   const [cover, setCover] = useState<readonly Box[]>([]);
@@ -459,7 +495,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   const [compact, setCompact] = useState(false);
   const [menu, setMenu] = useState<'view' | 'buildings' | null>(null);
   const layersKey = `${state.layers.electrical}${state.layers.network}${state.layers.measurements}`;
-  const chrome = `${plan}\n${sheetOpen}\n${layersKey}\n${selected}\n${state.buildingId}\n${state.levelId}\n${state.exploded}\n${drawer}\n${showGraph}\n${compact}`;
+  const chrome = `${plan}\n${sheetOpen}\n${layersKey}\n${selected}\n${state.buildingId}\n${state.levelId}\n${state.exploded}\n${drawer}\n${showGraph}\n${compact}\n${lens?.kind}\n${inset}`;
   useLayoutEffect(() => {
     const root = shell.current, stage = viewport.current;
     if (!root || !stage) return;
@@ -998,6 +1034,19 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   };
   // Over a narrow stage the graph is the whole view: what lies under it leaves the tab order.
   const underGraph = showGraph && graphCovers;
+  // The stage's controls leave the tab order under a covering graph and while
+  // the stage is the host's inset.
+  const stageInert = underGraph || inset;
+  // The Network lens toggle, in the network key, where the host has a lens.
+  const lensGraph = hostLens ? { id: hostLens.panelId, open: lens?.kind === 'network',
+    toggle: () => hostLens.set(lens?.kind === 'network' ? null : { kind: 'network', reading: false }) } : null;
+  // Escape in the Atlas's part of the lens belongs to the lens, never the camera.
+  const lensKeys = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing || !hostLens || !lens) return;
+    if ((event.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]')) return;
+    event.preventDefault(); event.stopPropagation();
+    hostLens.set(lens.reading ? { ...lens, reading: false } : null);
+  };
   const graphCoveredBefore = useRef(false);
   useLayoutEffect(() => {
     const entering = underGraph && !graphCoveredBefore.current;
@@ -1111,7 +1160,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   };
 
   const pickLabel = state.buildingId === null ? 'All buildings' : building?.label ?? 'All buildings';
-  return <section ref={shell} className={`ua-shell is-stage${plan ? ' is-plan' : ''}${sheetOpen ? ' is-sheet-open' : ''}${showGraph ? ' is-graph-open' : ''}${underGraph ? ' is-graph-covering' : ''}${compact ? ' is-compact' : ''}`}
+  return <section ref={shell} className={`ua-shell is-stage${plan ? ' is-plan' : ''}${sheetOpen ? ' is-sheet-open' : ''}${showGraph ? ' is-graph-open' : ''}${underGraph ? ' is-graph-covering' : ''}${compact ? ' is-compact' : ''}${lens ? ' has-lens' : ''}${inset ? ' is-inset' : ''}`}
     aria-label="Atlas" onKeyDownCapture={graphEscape} onKeyDown={escape}
     onFocusCapture={event => {
       const target = event.target;
@@ -1127,7 +1176,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
       });
     }}>
     <div className="ua-stage" onKeyDownCapture={stripEscape}>
-      <div className="ua-scope" inert={underGraph} onBlur={menuBlur('buildings')}>
+      <div className="ua-scope" inert={stageInert} onBlur={menuBlur('buildings')}>
         {port.savedDocumentary && <p className="ua-snapshot-note" role="note">
           <Icon name="history" size={15} />
           <span className="ua-snapshot-kind">Saved <span className="ua-snapshot-wide">documentary </span>snapshot</span>
@@ -1151,7 +1200,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
           shownLevel={plan ? presentation.focusLevelId : null} selectionLevel={selectionLevel} contextLevels={contextLevels} />
       </div>
 
-      <div className="ua-tools" inert={underGraph}>
+      <div className="ua-tools" inert={stageInert}>
         <div className="seg" role="group" aria-label="Atlas view">
           <button type="button" aria-pressed={!plan} onClick={() => dispatch({ type: 'view', view: '3d' })}>3D</button>
           <button type="button" aria-pressed={plan} onClick={() => dispatch({ type: 'view', view: 'plan' })}>Plan</button>
@@ -1203,7 +1252,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
 
       <div ref={viewport} className={`cifc-viewport ua-viewport${camera.dragging ? ' is-dragging' : ''}`} tabIndex={0} role="group"
         aria-label={`${plan ? 'Plan' : '3D'} of ${scopeLabel}. Arrow keys ${plan ? 'pan' : 'turn'}, plus and minus zoom, Escape goes back one level.`}
-        {...camera.bind} onFocus={focusIn} onBlur={focusOut} inert={underGraph}>
+        {...camera.bind} onFocus={focusIn} onBlur={focusOut} inert={stageInert}>
         {/* The birch board: its edge a little below the lowest floor, its top lit
             across, and the metric grid once a metre is wide enough to read. In
             Plan it recedes to a faint plate under the drafting sheet, so the
@@ -1311,7 +1360,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
           {focusLevel ? `No plan for ${atlasLevelName(model, focusLevel.levelId)} in this model.` : 'This model has no floors to show as a plan.'}</p>}
       </div>
 
-      <div className="ua-bottom" inert={underGraph}>
+      <div className="ua-bottom" inert={stageInert}>
         {/* The keys come first: on a wide stage they are the dock, and the
             floors strip sits just before the fold that opens it. */}
         {hasKeys && <div ref={keysDock} id={`${foldIds}-layers`} className={`ua-keys${drawer === 'layers' ? ' is-unfolded' : ''}`}>
@@ -1321,7 +1370,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
             publishedOnly={!runtimeConfigured} openDocuments={environment.openDocuments}
             availability={runtime.records?.[layer.kind] ?? (!runtimeConfigured ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
             openNetwork={environment.openNetwork}
-            graph={layer.kind === 'network' && graphs.length > 0 ? { id: graphId, open: showGraph, toggle: toggleGraph } : null} />)}
+            graph={layer.kind === 'network' && graphs.length > 0 ? lensGraph ?? { id: graphId, open: showGraph, toggle: toggleGraph } : null} />)}
           {measuring && <MeasurementKey estimated={estimated} shown={measured.length} />}
         </div>}
         {tiles.length > 0 && <nav id={`${foldIds}-floors`} className={`ua-tiles${drawer === 'floors' ? ' is-unfolded' : ''}`} aria-label="Other floors">
@@ -1376,6 +1425,44 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
       open={sheetOpen} setOpen={setSheetOpen}
       openDocuments={environment.openDocuments}
       openNetwork={environment.openNetwork} />
+
+    {/* This model's own part of the host lens: its rooms, chosen as on the
+        stage, or its logical network graph. Rendered into the lens panel;
+        state, reads and selection stay with this Atlas. */}
+    {hostLens?.target && lens && createPortal(<div className="ua-lens-native" onKeyDown={lensKeys}>
+      {lens.kind === 'places'
+        ? <section className="ua-lens-section" aria-labelledby={`${graphId}-rooms`}>
+          <h3 id={`${graphId}-rooms`}>Model rooms</h3>
+          {/* On a phone the lens stands where the room sheet does: choosing
+              a room hands the stage and its sheet back. */}
+          <RoomList model={model} levels={listedLevels(model, state)} levelName={levelId => atlasLevelName(model, levelId, model.floorBuildings.length > 1)}
+            choose={key => { dispatch({ type: 'select', occurrenceId: key }); if (compact) hostLens.set(null); }} />
+        </section>
+        : <NetworkLensSection graphs={graphs} networkOn={networkOn} published={!runtimeConfigured}
+          availability={runtime.records?.network ?? (!runtimeConfigured ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
+          headingId={`${graphId}-network`} showLayer={() => dispatch({ type: 'layer', layer: 'network', on: true })} />}
+    </div>, hostLens.target)}
+  </section>;
+}
+
+/** The model's network in the Network lens. Its graph is read with the
+ * Network layer, as on the stage; the lens offers that layer alone and never
+ * changes another. */
+function NetworkLensSection({ graphs, networkOn, published, availability, headingId, showLayer }: {
+  readonly graphs: NonNullable<PropertyRecords['networkGraphs']>; readonly networkOn: boolean; readonly published: boolean;
+  readonly availability: 'available' | 'partial' | 'unavailable' | 'loading'; readonly headingId: string; readonly showLayer: () => void;
+}) {
+  return <section className="ua-lens-section" aria-labelledby={headingId} style={{ '--layer': TONE_COLOR.network } as CSSProperties}>
+    <h3 id={headingId}><span className="ua-logical-swatch" aria-hidden="true" />Logical network graph</h3>
+    {!networkOn ? <>
+      <p>The model's network records are read with the Network layer.</p>
+      <button type="button" className="btn btn-small" onClick={showLayer}>Show Network layer</button>
+    </> : <>
+      {availability === 'partial' && <p className="ua-unplaced">Some buildings or sources are unavailable; their records are not counted.</p>}
+      {graphs.length > 0 ? graphs.map(graph => <NetworkGraph key={graph.key} graph={graph} />)
+        : <p role="status">{availability === 'loading' ? 'Loading room sources…' : availability === 'unavailable' ? 'Current room sources are unavailable.'
+          : published ? 'No logical network graph in this publication.' : 'No logical network graph in the available source.'}</p>}
+    </>}
   </section>;
 }
 

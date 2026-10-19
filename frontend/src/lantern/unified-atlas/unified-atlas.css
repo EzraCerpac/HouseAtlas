@@ -4,51 +4,27 @@
    yellow: the selected room, its tag and the section plane that sweeps to a
    floor. Navigation choices are ink; layer hues stay with their records. */
 
-.lantern-host.view-atlas .main > .ua-shell {
+/* The Atlas stands in the workspace's map frame (app.css), beside a lens or
+   as its inset; the lens row above it carries the other sources. */
+.lantern-host .atlas-map > .ua-shell {
   flex: 1;
   min-height: 0;
 }
 
-/* One slim row above the stage: the archive filter and the other sources,
-   which open as a menu over the stage instead of a row below it. */
-.lantern-host.view-atlas .main:has(> .ua-shell) {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto auto minmax(0, 1fr);
-}
+/* Beside a lens or as an inset the frame decides the height. */
+.lantern-host .atlas-workspace.has-lens .atlas-map > .ua-shell { min-height: 0; }
 
-.lantern-host.view-atlas .main:has(> .ua-shell) > * { grid-column: 1 / -1; }
-.lantern-host.view-atlas .main:has(> .ua-shell) > .ua-shell { grid-row: 3; }
-
-.lantern-host.view-atlas .main:has(> .ua-shell) > .archive-filter,
-.lantern-host.view-atlas .main:has(> .ua-shell) > .atlas-source-details {
-  grid-row: 2;
-  margin: 0;
-  border-bottom: 1px solid var(--hair);
-  background: var(--card-2);
+/* Other sources: a menu that opens over the stage from the lens row. */
+.lantern-host .atlas-lens-bar > .atlas-source-details {
+  position: relative;
+  z-index: 8;
+  margin: 0 0 0 auto;
   font-size: var(--fs-s);
 }
 
-.lantern-host.view-atlas .main:has(> .ua-shell) > .archive-filter {
-  grid-column: 1;
-  padding: 3px 8px 3px clamp(12px, 3vw, 24px);
-}
+.lantern-host .atlas-lens-bar > .atlas-source-details > summary { min-height: 36px; }
 
-.lantern-host.view-atlas .main:has(> .ua-shell) > .atlas-source-details {
-  grid-column: 2;
-  position: relative;
-  z-index: 8;
-  padding: 0 clamp(12px, 3vw, 24px) 0 8px;
-}
-
-.lantern-host.view-atlas .main:has(> .ua-shell):not(:has(> .archive-filter)) > .atlas-source-details {
-  grid-column: 1 / -1;
-  text-align: right;
-}
-
-.lantern-host.view-atlas .main:has(> .ua-shell) > .atlas-source-details > summary { min-height: 36px; }
-
-.lantern-host.view-atlas .main:has(> .ua-shell) > .atlas-source-details > .atlas-sources {
+.lantern-host .atlas-lens-bar > .atlas-source-details > .atlas-sources {
   position: absolute;
   top: calc(100% + 4px);
   right: 8px;
@@ -66,14 +42,56 @@
 }
 
 @media (max-width: 720px) {
-  .lantern-host.view-atlas .main:has(> .ua-shell) > .archive-filter,
-  .lantern-host.view-atlas .main:has(> .ua-shell) > .atlas-source-details { font-size: var(--fs-xs); }
+  .lantern-host .atlas-lens-bar > .atlas-source-details { font-size: var(--fs-xs); }
 }
 
-/* A compact stage carries both in its own menu, so the row gives its height
-   to the model. Included archived records keep the row, with their list. */
-.lantern-host.view-atlas .main:has(> .ua-shell.is-compact) > .atlas-source-details,
-.lantern-host.view-atlas .main:has(> .ua-shell.is-compact) > .archive-filter:not(.is-on) { display: none; }
+/* A compact stage carries the other sources in its own menu. */
+.lantern-host.view-atlas .main:has(.atlas-map .ua-shell.is-compact) .atlas-lens-bar > .atlas-source-details { display: none; }
+
+/* ---- Beside a lens, and as its inset ------------------------------------- */
+
+/* On a phone the lens stands below a short map band: the room sheet and the
+   layer row give it their place, and return when the lens closes. */
+.lantern-host .ua-shell.has-lens.is-compact .ua-inspector,
+.lantern-host .ua-shell.has-lens.is-compact .ua-bottom { display: none; }
+
+/* Read wide, the stage is a drawn inset: its controls and the room panel are
+   set aside (not hidden behind it), so the model frames the inset whole. */
+.lantern-host .ua-shell.is-inset .ua-scope,
+.lantern-host .ua-shell.is-inset .ua-tools,
+.lantern-host .ua-shell.is-inset .ua-bottom,
+.lantern-host .ua-shell.is-inset .ua-inspector { display: none; }
+
+/* The model's own part of a lens: its rooms, or its network graph. */
+.lantern-host .ua-lens-native {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--hair);
+}
+
+.lantern-host .ua-lens-section { display: grid; gap: 10px; }
+
+.lantern-host .ua-lens-section > h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font: 680 var(--fs-m)/1.3 var(--display);
+  color: var(--ink);
+}
+
+.lantern-host .ua-lens-section > h3 .ua-logical-swatch { margin-right: 0; }
+.lantern-host .ua-lens-section > p { margin: 0; color: var(--ink-2); }
+.lantern-host .ua-lens-section > .btn { justify-self: start; }
+
+.lantern-host .ua-lens-status {
+  margin: 0 0 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--hair);
+  color: var(--ink-2);
+}
 
 .lantern-host .ua-shell {
   --ua-peek: 76px;

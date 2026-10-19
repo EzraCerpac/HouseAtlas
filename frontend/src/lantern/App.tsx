@@ -1,8 +1,7 @@
-import { lazy, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { lazy, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useReducedMotion, useStore, type ViewId } from './state/store';
 import { Icon } from './components/Icon';
 import { AtlasView } from './atlas/AtlasView';
-import { RoomsView } from './views/RoomsView';
 import { DeferredView } from './DeferredView';
 import { DetailPanel } from './components/DetailPanel';
 import { AskPanel } from './components/AskPanel';
@@ -15,22 +14,29 @@ import { ShellMenu } from './components/ShellMenu';
 import { attentionCount } from './components/DetailPanel';
 import { AiActivityStatus } from '../ai/host/index.js';
 
-// Keep the default Atlas/Rooms path and shared providers eager. These modules
+// Keep the default Atlas path and shared providers eager. These modules
 // load only when selected; no background prefetch or source reads are added.
+// Rooms & places and Network are lenses of the Atlas, not sections of their own.
 const UpkeepView = lazy(() => import('./views/UpkeepView').then(m => ({ default: m.UpkeepView })));
-const NetworkView = lazy(() => import('./views/NetworkView').then(m => ({ default: m.NetworkView })));
 const LibraryView = lazy(() => import('./views/LibraryView').then(m => ({ default: m.LibraryView })));
 const ChangesView = lazy(() => import('./views/ChangesView').then(m => ({ default: m.ChangesView })));
 
 /** `short`: the phone tab bar's visible name where the full one would wrap; the full name stays the control's name. */
 const VIEWS: { id: ViewId; label: string; short?: string; icon: string }[] = [
   { id: 'atlas', label: 'Atlas', icon: 'atlas' },
-  { id: 'rooms', label: 'Rooms & places', short: 'Rooms', icon: 'rooms' },
   { id: 'upkeep', label: 'Upkeep', icon: 'upkeep' },
-  { id: 'network', label: 'Network', icon: 'network' },
   { id: 'library', label: 'Library', icon: 'library' },
   { id: 'changes', label: 'Changes', icon: 'changes' },
 ];
+
+/** Whether a media query matches now; read again when it changes. */
+function useMedia(query: string): boolean {
+  return useSyncExternalStore(changed => {
+    const list = window.matchMedia(query);
+    list.addEventListener('change', changed);
+    return () => list.removeEventListener('change', changed);
+  }, () => window.matchMedia(query).matches, () => false);
+}
 
 function Mark() {
   return (
@@ -146,12 +152,8 @@ export function App() {
 
   const view = (() => {
     switch (state.view) {
-      case 'rooms':
-        return <RoomsView />;
       case 'upkeep':
         return <DeferredView key="upkeep" label="Upkeep"><UpkeepView /></DeferredView>;
-      case 'network':
-        return <DeferredView key="network" label="Network"><NetworkView /></DeferredView>;
       case 'library':
         return <DeferredView key="library" label="Library"><LibraryView /></DeferredView>;
       case 'changes':
@@ -162,6 +164,13 @@ export function App() {
   })();
 
   const sheetExpanded = !!state.selection || sheetOpen;
+  // Where the record sheet lies over the workspace it is the one foreground
+  // surface: on phones it rises over every section, and on tablets over the
+  // Atlas, whose room sheet and lens sit in the same place. The workspace
+  // under it leaves the tab order until it closes, when focus returns to the
+  // control that opened it, or to the main sheet.
+  const phone = useMedia('(max-width: 759px)'), tablet = useMedia('(max-width: 1179px)');
+  const recordCovers = sheetExpanded && (phone || (tablet && state.view === 'atlas'));
   // Focus returns to what opened the sheet when it collapses, because the
   // collapsed sheet (and its handle) is not displayed at narrow widths.
   const opener = useRef<HTMLElement | null>(null);
@@ -260,7 +269,7 @@ export function App() {
           { label: 'Settings', icon: 'settings', open: openSettings, equivalent: settingsButton }]} />
       </div>
 
-      <main id="main" className="main" tabIndex={-1}>
+      <main id="main" className="main" tabIndex={-1} inert={recordCovers}>
         {!state.askOpen && !state.nativeOpen && (
           <div hidden={state.settingsOpen}>
             <AiActivityStatus onOpenSettings={() => dispatch({ type: 'settingsOpen', open: true })} />

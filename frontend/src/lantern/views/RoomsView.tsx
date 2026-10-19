@@ -8,14 +8,24 @@ import { LinkedEvidence } from '../components/LinkedEvidence';
 import { BuildingScope } from '../topology/BuildingScope';
 import { useTopology } from '../topology/TopologyProvider';
 
+/** Everything the former Rooms & places view held, for the Atlas Places lens:
+ * buildings and levels with native place actions, the HomeBox place ledger,
+ * records without a reviewed placement and geometry records. Mounted only
+ * while shown, so its topology reads start and stop with it. */
+export function PlacesContent() {
+  return <>
+    <RoomIndex />
+    <GeometryMetadata />
+  </>;
+}
+
 export function RoomsView() {
   return (
     <div className="view">
       <header className="view-head">
         <h1>Rooms &amp; places</h1>
       </header>
-      <RoomIndex />
-      <GeometryMetadata />
+      <PlacesContent />
     </div>
   );
 }
