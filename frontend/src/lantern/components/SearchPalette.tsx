@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { SEARCH_GROUPS, locate, search, type SearchHit } from '../data/query';
+import { SEARCH_GROUPS, dueState, getRecord, locate, nameOf, search, type SearchHit } from '../data/query';
+import type { HouseData } from '../data/types';
+import { fmtDate, fmtShortDate } from '../data/time';
 import { useSelect, useStore, type ViewId } from '../state/store';
 import { Icon } from './Icon';
 import { KIND_ICON } from './ui';
@@ -7,6 +9,84 @@ import { KIND_LABEL } from '../data/query';
 import { isArchivedEntry } from '../../app/model';
 
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+
+/** A group's heading names its kind when it holds only one, so its results
+ * need no kind of their own; a group that holds several keeps each result's. */
+function groupMixesKinds(label: string): boolean {
+  return (SEARCH_GROUPS.find((group) => group.label === label)?.kinds.length ?? 2) > 1;
+}
+
+/** A letter, digit or combining mark: a character that continues a word. */
+const WORD_CHARACTER = /[\p{L}\p{N}\p{M}]/u;
+
+/** Whether the title already says this exact whole name: the same characters,
+ * ignoring only letter case, standing as their own word or phrase. "TV" is not
+ * in "HDTV"; nothing is folded, stemmed or matched loosely. Display only. */
+function titleSays(title: string, name: string): boolean {
+  const haystack = title.toLowerCase(), needle = name.trim().toLowerCase();
+  if (!needle) return false;
+  for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + 1)) {
+    const before = Array.from(haystack.slice(0, at)).pop() ?? '';
+    const after = Array.from(haystack.slice(at + needle.length))[0] ?? '';
+    if (!WORD_CHARACTER.test(before) && !WORD_CHARACTER.test(after)) return true;
+  }
+  return false;
+}
+
+/** Whether a linked record's name may be left out because the title already
+ * says it. A link to a record that is not in this view is never left out: its
+ * placeholder name marks the missing record, whatever the title says. */
+function titleSaysRecord(house: HouseData, title: string, id: string): boolean {
+  return getRecord(house, id) !== undefined && titleSays(title, nameOf(house, id));
+}
+
+/** A recorded date, short when the saved view supplies its own date to read
+ * the year against; otherwise, or when that reading fails, in full. Never
+ * judged against this device's clock. */
+function displayDate(house: HouseData, iso: string): string {
+  const full = fmtDate(iso);
+  if (house.displayNow === undefined || full === 'Unknown' || full === 'No date') return full;
+  const short = fmtShortDate(iso, house.displayNow);
+  return short === 'Unknown' ? full : short;
+}
+
+/** The line under a result's title: what tells it apart at a glance, said
+ * once. A document says what it is for, leaving out any name its title
+ * already says, and that it is only an external link; its kind and storage
+ * stay on the document itself. An upkeep task says where it stands, reading
+ * its own status before any date, and what it is for only when its title
+ * does not already say so. Every other result keeps the location the search
+ * supplied. Links and targets are unchanged on the records themselves. */
+function hitSubtitle(house: HouseData, hit: SearchHit): { readonly text: string; readonly alert?: boolean } {
+  if (hit.kind === 'doc') {
+    const doc = house.docs.find((d) => d.id === hit.id);
+    if (!doc) return { text: hit.context };
+    const unsaid = doc.linkedTo.filter((id) => !titleSaysRecord(house, doc.title, id)).map((id) => nameOf(house, id));
+    const parts = [unsaid.length > 0 ? `For ${unsaid.join(', ')}` : null,
+      doc.storage === 'link' ? 'External link' : null].filter(Boolean);
+    return { text: parts.join(' · ') };
+  }
+  if (hit.kind === 'task') {
+    const task = house.tasks.find((t) => t.id === hit.id);
+    if (!task) return { text: hit.context };
+    const target = nameOf(house, task.targetId);
+    const recorded = task.due ? fmtDate(task.due) : null;
+    const date = task.due && recorded !== 'Unknown' ? displayDate(house, task.due) : recorded;
+    let state: string, alert = false;
+    if (task.status === 'done') state = task.completedAt && fmtDate(task.completedAt) !== 'Unknown' ? `Done ${displayDate(house, task.completedAt)}` : 'Done';
+    else if (task.status !== 'scheduled') state = date ? `Status not supplied, date ${date}` : 'Status not supplied';
+    else if (!recorded) state = 'No date supplied';
+    else if (recorded === 'Unknown') state = 'Due date unreadable';
+    else {
+      const due = dueState(task, house.displayNow);
+      if (due === 'overdue') { state = `Overdue, was due ${date}`; alert = true; }
+      else if (due === 'soon') state = `Due soon, ${date}`;
+      else state = `Due ${date}`;
+    }
+    return { text: titleSaysRecord(house, task.title, task.targetId) ? state : `${target} · ${state}`, alert };
+  }
+  return { text: hit.context };
+}
 
 /** Keep retained records reachable without a filter strip on every page. */
 function ArchiveFilter({ choose }: { choose: (hit: Pick<SearchHit, 'id' | 'kind'>) => void }) {
@@ -178,12 +258,15 @@ export function SearchPalette() {
                 No matches for “{q.trim()}” in this home.
               </p>
             )}
-            {grouped.map((g) => (
+            {grouped.map((g) => {
+              const mixed = groupMixesKinds(g.label);
+              return (
               <div key={g.label} className="palette-group" role="group" aria-label={g.label}>
                 <p className="palette-group-label">{g.label}</p>
                 {g.hits.map((h) => {
                   index += 1;
                   const i = index;
+                  const sub = hitSubtitle(house, h);
                   return (
                     <div
                       key={h.id}
@@ -197,13 +280,14 @@ export function SearchPalette() {
                     >
                       <Icon name={KIND_ICON[h.kind]} size={17} />
                       <span className="hit-title">{h.title}</span>
-                      <span className="hit-context">{h.context}</span>
-                      <span className="hit-kind">{KIND_LABEL[h.kind]}</span>
+                      {sub.text && <span className={`hit-context${sub.alert ? ' is-alert' : ''}`}>{sub.text}</span>}
+                      {mixed && <span className="hit-kind">{KIND_LABEL[h.kind]}</span>}
                     </div>
                   );
                 })}
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
         <p className="palette-foot">Arrow keys to move, Enter to open, Esc to close.</p>

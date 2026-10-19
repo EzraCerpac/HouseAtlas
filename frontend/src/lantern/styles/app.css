@@ -230,9 +230,11 @@
   box-shadow: var(--shadow-sheet);
 }
 
+/* The record sheet slides in already opaque: its own keyframes move it and
+   never fade it, so the page behind never shows through its text. */
 .lantern-host .detail-col.is-expanded {
   display: flex;
-  animation: drawer-in 0.22s cubic-bezier(0.2, 0.7, 0.3, 1);
+  animation: record-sheet-in 0.22s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
 .lantern-host .detail-scroll {
@@ -1432,9 +1434,13 @@
 
 /* ---------------- Search palette ---------------- */
 
+/* Search enters without fading its foreground: the scrim's own colour fades
+   in (its opacity, which every child would inherit, stays whole), and the
+   panel only rises. Dialogs keep the shared fade. */
 .lantern-host .palette-backdrop {
   place-items: start center;
   padding-top: 9vh;
+  animation: palette-scrim-in 0.18s ease-out;
 }
 
 .lantern-host .palette {
@@ -1446,7 +1452,7 @@
   border-radius: 14px;
   box-shadow: var(--shadow-modal);
   overflow: hidden;
-  animation: rise-in 0.2s ease-out;
+  animation: palette-rise 0.2s ease-out;
 }
 
 .lantern-host .palette-input {
@@ -1504,6 +1510,7 @@
     'icon ctx kind';
   column-gap: 12px;
   align-items: center;
+  min-height: 44px;
   padding: 8px 10px;
   border-radius: 9px;
   cursor: pointer;
@@ -1524,15 +1531,23 @@
   font-weight: 600;
 }
 
+/* A result's location wraps rather than being cut: it is where the record is. */
 .lantern-host .hit-context {
   grid-area: ctx;
+  min-width: 0;
   font-size: var(--fs-s);
+  line-height: 1.35;
   color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
+/* Upkeep that is past due reads as such at a glance. */
+.lantern-host .hit-context.is-alert {
+  color: var(--alert);
+  font-weight: 600;
+}
+
+/* Shown only in groups that hold more than one kind. */
 .lantern-host .hit-kind {
   grid-area: kind;
   font-size: var(--fs-xs);
@@ -1544,6 +1559,51 @@
   font-size: var(--fs-xs);
   color: var(--muted);
   border-top: 1px solid var(--hair);
+}
+
+/* Touch: results take a full finger's height; the archived records filter
+   sits as one compact panel inside the results instead of a full-bleed
+   band; the keyboard guide stays, on a tighter line, for attached keyboards. */
+@media (pointer: coarse) {
+  .lantern-host .palette-hit {
+    min-height: 48px;
+    padding: 9px 10px;
+  }
+}
+
+@media (max-width: 759px) {
+  .lantern-host .palette-results .archive-filter {
+    gap: 2px 12px;
+    margin: 2px 2px 8px;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: var(--r-control);
+    font-size: var(--fs-xs);
+  }
+
+  .lantern-host .palette-results .archive-filter .archive-toggle {
+    min-height: 44px;
+    font-size: var(--fs-s);
+  }
+
+  /* Stays a list item, so the native open/closed triangle remains; the
+     padding and line height make the full 44px target around it. */
+  .lantern-host .palette-results .archive-filter summary {
+    display: list-item;
+    min-height: 44px;
+    padding: 12px 0;
+    line-height: 20px;
+  }
+
+  .lantern-host .palette-results .archive-filter .row-meta {
+    font-size: var(--fs-xs);
+    overflow-wrap: anywhere;
+  }
+
+  .lantern-host .palette-foot {
+    padding: 6px 12px calc(6px + env(safe-area-inset-bottom));
+    line-height: 1.35;
+  }
 }
 
 /* ---------------- Toasts ---------------- */
@@ -1620,6 +1680,31 @@
   from {
     transform: translateY(40px);
     opacity: 0;
+  }
+}
+
+/* Search and the record sheet only: motion without fading the foreground. */
+@keyframes palette-scrim-in {
+  from {
+    background-color: rgba(32, 30, 26, 0);
+  }
+}
+
+@keyframes palette-rise {
+  from {
+    transform: translateY(8px);
+  }
+}
+
+@keyframes record-sheet-in {
+  from {
+    transform: translateX(24px);
+  }
+}
+
+@keyframes record-sheet-rise {
+  from {
+    transform: translateY(40px);
   }
 }
 
@@ -1732,7 +1817,7 @@
     margin: 0;
     border: 1px solid var(--hair-2);
     box-shadow: var(--shadow-modal);
-    animation: drawer-in 0.24s ease-out;
+    animation: record-sheet-in 0.24s ease-out;
   }
 
   .lantern-host .detail-col.is-expanded .sheet-handle {
@@ -1925,7 +2010,7 @@
     border: 0;
     border-radius: 18px 18px 0 0;
     box-shadow: 0 0 0 1px var(--frame-line), 0 -18px 40px -18px rgba(40, 30, 14, 0.45);
-    animation: sheet-in 0.24s ease-out;
+    animation: record-sheet-rise 0.24s ease-out;
   }
 
   .lantern-host .detail-col.is-expanded .sheet-handle {

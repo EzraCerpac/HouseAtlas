@@ -2175,3 +2175,48 @@ records, inventory/files/upkeep, query semantics and verified native links are
 unchanged. Removing the HomeBox integration itself is outside this change.
 Browser focus, scrolling and affected responsive presentation need fresh generated
 or installed observations; static success does not qualify provider availability.
+
+## Generated room-sheet presentation
+
+The [room UX visual fixture](../../frontend/lantern-tests/room-ux-visual/README.md)
+mounts the actual App and DetailPanel with the original fictional Alder house.
+It provides populated room, empty-container and empty-section examples without
+a native reader, session, acquisition port or admitted write. Geometry and
+operation-history availability are explicitly unavailable. The fixture-specific
+TypeScript configuration inherits the complete production configuration:
+
+```sh
+cd frontend
+./node_modules/.bin/tsc --project lantern-tests/room-ux-visual/tsconfig.json
+```
+
+Use the existing generated source-host fixture separately for retained-record
+Search and archive disclosure, and the existing saved Atlas fixture for
+native-shaped historical room records. Supplied room-record counts and source
+availability remain distinct; with both documentary layers off, the existing
+reader omits the contents overview. Empty sections preserve their original
+explanations and empty-container links. Record qualifiers, dates, unknowns and
+retained observations stay inspectable.
+
+The existing frontend typecheck, healthy read, Unified Atlas healthy and named
+interaction checks, production build and backend asset compatibility check
+remain the relevant ordinary checks. Manual desktop and phone review must
+distinguish opening motion from settled pixels and verify focus through actual
+invoking controls. Generated presentation does not establish native admission,
+current source authorization, physical accuracy, deployment or device behavior.
+
+Search first-glance text uses linked document names and recorded upkeep status
+and dates. Homogeneous groups omit repeated kind labels; mixed groups retain
+them. Document kind remains in its provenance details. Room rows show supplied
+contents and exceptional archive/source/cache/no-shape states; normal source
+state and every geometry mapping remain in contextual details. Storage type
+does not establish file access, and an unknown upkeep status does not establish
+an overdue task. A stored document without links may have a title-only result.
+
+For this presentation, inspect both opening and settled Search and room sheets.
+The Search scrim animates background color; foreground and record-sheet entry
+animate transforms without opacity fading. Review the ancestor as well as the
+foreground, ordinary keyboard selection and Close focus return, and the actual
+contextual metadata destinations. Use the original supplied examples; source
+review covers combinations absent from a generated fixture. These observations
+do not qualify every source-state combination or frame timing.

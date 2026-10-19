@@ -62,23 +62,37 @@ export function RoomIndex() {
                 {rooms.map((r) => {
                   const c = roomContents(house, r.id);
                   const due = c.tasks.filter((t) => dueState(t, house.displayNow) === 'overdue' || dueState(t, house.displayNow) === 'soon').length;
+                  // First glance: what the place holds, then only what changes a
+                  // decision now. Its classification, shape review, geometry
+                  // mappings and a normal source state are on its record sheet.
+                  const entry = projection.entries.get(r.id);
+                  // Two independent facts: the entity's own archive flag shows as
+                  // Archived whatever the source state; an archived source state
+                  // shows in the source flag, never as the entity's archival.
+                  const archived = entry !== undefined && entry.entity.archived === true;
+                  const sourceException = entry !== undefined && (entry.sourceState !== 'present' || entry.cacheStatus !== 'fresh');
+                  const holds: { icon: string; count: number; one: string; many: string }[] = [
+                    { icon: 'box', count: c.items.length, one: 'belonging', many: 'belongings' },
+                    { icon: 'file', count: c.docs.length, one: 'document', many: 'documents' },
+                    { icon: 'plug', count: c.outlets.length, one: 'outlet', many: 'outlets' },
+                    { icon: 'valve', count: c.valves.length, one: 'valve', many: 'valves' },
+                    { icon: 'wifi', count: c.devices.length, one: 'device', many: 'devices' },
+                  ];
                   return (
                     <li key={r.id} className={`ledger-row${selectedId === r.id ? ' is-selected' : ''}`}>
                       <button type="button" className="ledger-main" onClick={() => select(r.id)}>
-                        <span className="ledger-swatch" style={{ background: projection.entries.has(r.id) ? "#8a8f99" : ROOM_TINT[r.kind] }} aria-hidden="true" />
+                        <span className="ledger-swatch" style={{ background: entry ? "#8a8f99" : ROOM_TINT[r.kind] }} aria-hidden="true" />
                         <span className="ledger-name">{r.name}</span>
-                        <span className="ledger-kind">{projection.entries.get(r.id)?.semanticKind ?? 'Unknown'}</span>
                         <span className="ledger-facts">
-                          {c.items.length > 0 && <span>{c.items.length} belongings recorded here</span>}
-                          <span>{c.docs.length} documents</span>
-                          {projection.geometryMappings.get(r.id)?.map(({ record, mapping }, index) => <span key={`${record.target.recordId}-${index}`}>Magicplan mapping: {mapping.reviewStatus}; version {record.payload.geometryVersion}; producer room {mapping.producerRoomId}</span>)}
-                          {projection.entries.get(r.id) && <span>Source: {projection.entries.get(r.id)?.sourceState}; cache: {projection.entries.get(r.id)?.cacheStatus}</span>}
-                          {c.outlets.length > 0 && <span>{c.outlets.length} outlets</span>}
-                          {c.valves.length > 0 && <span>{c.valves.length} valves</span>}
-                          {c.devices.length > 0 && <span>{c.devices.length} devices</span>}
-                          {due > 0 && <span className="tone-alert">{due} upkeep due</span>}
+                          {holds.filter((row) => row.count > 0).map((row) => <span key={row.one} className="ledger-count">
+                            <Icon name={row.icon} size={14} />{row.count} {row.count === 1 ? row.one : row.many}</span>)}
+                          {due > 0 && <span className="ledger-count tone-alert"><Icon name="upkeep" size={14} />{due} upkeep due</span>}
                         </span>
-                        <span className={`ledger-shape${r.geometry === 'reviewed' ? '' : ' is-none'}`}>{r.geometry === 'reviewed' ? 'Shape reviewed' : 'No shape'}</span>
+                        {(archived || sourceException || r.geometry !== 'reviewed') && <span className="ledger-flags">
+                          {archived && <span className="ledger-flag">Archived</span>}
+                          {entry && sourceException && <span className="ledger-flag">Source: {entry.sourceState}; cache: {entry.cacheStatus}</span>}
+                          {r.geometry !== 'reviewed' && <span className="ledger-flag is-quiet">No shape</span>}
+                        </span>}
                       </button>
                       {c.containers.length > 0 && (
                         <ul className="ledger-storage" aria-label={`Storage in ${r.name}`}>
