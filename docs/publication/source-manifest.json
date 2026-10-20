@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "18509fc037ab5c82da0e7d4d87a08c33d45aac8d683a4cee9acca7d464e2e890",
+  "sourceDigestSha256": "534b2c63a113c40bb787704562e709d3e5649f9897ad5da50722631e10f42c04",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5964,8 +5964,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 137215,
-      "sha256": "e1d76efd049e83924147e1431bc8fbfef146515f43a0d6613ef79b20c9bc217a",
+      "bytes": 140333,
+      "sha256": "c8bb3f3d22e8f10fcc1ceb755905deea05bea3661fa4275e03fa96a1f5b498d3",
       "owner": "core-integration"
     },
     {
@@ -7014,8 +7014,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 39672,
-      "sha256": "40276ac6119b7126f6b30e92389d3c92f446774bdd52376b8211ad2b2670979c",
+      "bytes": 40012,
+      "sha256": "a9015cc1a93426b28508409cbfb74c6de43b23d970a26c846b78ea454b2cf87c",
       "owner": "core-integration"
     },
     {
@@ -7824,6 +7824,20 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/session-bootstrap-fixture.jsx",
+      "mode": "100644",
+      "bytes": 7869,
+      "sha256": "24f22a77a1fbbc937f66e0520023d95ce16962c90b34cc7ad019dea8556343f4",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/session-bootstrap.mjs",
+      "mode": "100644",
+      "bytes": 3833,
+      "sha256": "d290627d77ddef205097b0c675972551a20051de63d6e1755138afde3c144e70",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/shell-viewport/README.md",
       "mode": "100644",
       "bytes": 823,
@@ -8435,8 +8449,8 @@
     {
       "path": "frontend/src/app/SessionApp.tsx",
       "mode": "100644",
-      "bytes": 16758,
-      "sha256": "b05f548fcaf2174a73d7272e145c73e37a3d37351803b9110e8c4a36d2a700f6",
+      "bytes": 18624,
+      "sha256": "38a9865799ad53a0e6993bc39e3512bd645f2cc35b41eed83c265f906c72c4a0",
       "owner": "web"
     },
     {
@@ -8514,6 +8528,13 @@
       "mode": "100644",
       "bytes": 5053,
       "sha256": "ad93fe9b6a4e42706de1db8c602127622b8717a88dc9ca35e6de29fdfcb974e4",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/app/session-bootstrap.ts",
+      "mode": "100644",
+      "bytes": 677,
+      "sha256": "dffcb6e3b751ebc5389f4ad5616355e12f1838225a48c2c4fe68e7ce08cf4751",
       "owner": "web"
     },
     {
