@@ -14,6 +14,7 @@ import type { AtlasClient } from "./types";
 import type { AtlasEditingClient } from "./editing";
 import type { AiApplicationPort } from "../ai/host/index.js";
 import type { CaptureDraftPort } from "../capture-drafts-ui/port";
+import type { InitialHomeBootstrap } from "./session-bootstrap";
 import type {
   AtlasAuthMode,
   AtlasCredentials,
@@ -42,6 +43,7 @@ export interface SessionAppProps {
   renderContent?: AtlasAppProps["renderContent"];
   onScopeCommit?: AtlasAppProps["onScopeCommit"];
   localCaptures?: Pick<CaptureDraftPort, 'invalidate' | 'clearBeforeSignOut'>;
+  initialHomeBootstrap?: InitialHomeBootstrap;
 }
 /** Optional application-auth shell. It does not provision accounts, grant home
  * membership or authorize a source. Protected browsing is still owned by App. */
@@ -55,6 +57,7 @@ export function SessionApp({
   renderContent,
   onScopeCommit,
   localCaptures,
+  initialHomeBootstrap,
 }: SessionAppProps) {
   const [state, setState] = useState<SessionState>({ status: "loading" });
   const generation = useRef(0),
@@ -73,42 +76,78 @@ export function SessionApp({
     active.current = controller;
     return { controller, attempt: ++generation.current };
   };
-  // Signed-out transition. Without the paired local port this is the legacy
-  // password state; otherwise the mode GET runs on the caller's attempt and a
-  // mode failure never falls back to a sign-in method.
+  // Only the initial host-owned bootstrap may consume its one configured-home
+  // action. Refresh, explicit sign-out and recovery keep the manual transition.
+  // A mode failure never falls back to a different sign-in method.
   const toSignedOut = useCallback(
-    async (controller: AbortController, attempt: number) => {
+    async (controller: AbortController, attempt: number, initial = false) => {
       const localAccess = sessions.localAccess;
       if (!localAccess) {
+        initialHomeBootstrap?.retire();
         setState({ status: "signed-out", mode: "password" });
         return;
       }
+      let mode: AtlasAuthMode;
       try {
-        const mode = await localAccess.mode(controller.signal);
-        if (!controller.signal.aborted && attempt === generation.current)
-          setState({ status: "signed-out", mode });
+        mode = await localAccess.mode(controller.signal);
       } catch {
-        if (!controller.signal.aborted && attempt === generation.current)
+        if (!controller.signal.aborted && attempt === generation.current) {
+          initialHomeBootstrap?.retire();
           setState({ status: "unavailable", action: "mode" });
+        }
+        return;
       }
+      if (controller.signal.aborted || attempt !== generation.current) return;
+      if (initial && initialHomeBootstrap &&
+          (mode === "loopback-local" || mode === "trusted-proxy")) {
+        const open = mode === "loopback-local"
+          ? localAccess.signIn
+          : localAccess.proxySignIn;
+        if (!open) {
+          initialHomeBootstrap.retire();
+          setState({ status: "unavailable", action: "mode" });
+          return;
+        }
+        // Consume synchronously before the wrapped port dispatches. Aborted,
+        // uncertain or remounted attempts never replenish the root's fence.
+        if (initialHomeBootstrap.consume(sessions)) {
+          setState({ status: "opening" });
+          try {
+            const info = await open(controller.signal);
+            if (!controller.signal.aborted && attempt === generation.current)
+              setState({ status: "authenticated", info });
+          } catch {
+            if (!controller.signal.aborted && attempt === generation.current)
+              setState({ status: "unavailable", action: "local" });
+          }
+          return;
+        }
+      }
+      initialHomeBootstrap?.retire();
+      setState({ status: "signed-out", mode });
     },
-    [sessions],
+    [sessions, initialHomeBootstrap],
   );
-  const load = useCallback(async () => {
+  const load = useCallback(async (initial = false) => {
+    if (!initial) initialHomeBootstrap?.retire();
     const { controller, attempt } = begin();
     setState({ status: "loading" });
     try {
       const info = await sessions.session(controller.signal);
       if (controller.signal.aborted || attempt !== generation.current) return;
-      if (info) setState({ status: "authenticated", info });
-      else await toSignedOut(controller, attempt);
+      if (info) {
+        initialHomeBootstrap?.retire();
+        setState({ status: "authenticated", info });
+      } else await toSignedOut(controller, attempt, initial);
     } catch {
-      if (!controller.signal.aborted && attempt === generation.current)
+      if (!controller.signal.aborted && attempt === generation.current) {
+        initialHomeBootstrap?.retire();
         setState({ status: "unavailable", action: "load" });
+      }
     }
-  }, [sessions, toSignedOut]);
+  }, [sessions, toSignedOut, initialHomeBootstrap]);
   useEffect(() => {
-    void load();
+    void load(true);
     return () => {
       generation.current++;
       active.current?.abort();
@@ -132,6 +171,7 @@ export function SessionApp({
       const remaining = expiresAt - Date.now();
       if (!Number.isFinite(remaining) || remaining <= 0) {
         stopped = true;
+        initialHomeBootstrap?.retire();
         generation.current++;
         active.current?.abort();
         localCaptures?.invalidate();
@@ -155,7 +195,7 @@ export function SessionApp({
       window.removeEventListener("focus", check);
       window.removeEventListener("pageshow", check);
     };
-  }, [state, localCaptures, onScopeCommit]);
+  }, [state, localCaptures, onScopeCommit, initialHomeBootstrap]);
   useLayoutEffect(() => {
     if (state.status !== "authenticated") {
       document.title = "HouseAtlas";
@@ -163,17 +203,20 @@ export function SessionApp({
     }
   }, [state]);
   const signIn = async (credentials: AtlasCredentials, signal: AbortSignal) => {
+    initialHomeBootstrap?.retire();
     const attempt = ++generation.current;
     const info = await sessions.signIn(credentials, signal);
     if (!signal.aborted && attempt === generation.current)
       setState({ status: "authenticated", info });
   };
   const reloadMode = () => {
+    initialHomeBootstrap?.retire();
     const { controller, attempt } = begin();
     setState({ status: "loading" });
     void toSignedOut(controller, attempt);
   };
   const showSignIn = () => {
+    initialHomeBootstrap?.retire();
     if (sessions.localAccess) {
       reloadMode();
       return;
@@ -186,6 +229,7 @@ export function SessionApp({
   // missing action is a mode failure, never another route. An unconfirmed
   // outcome is resolved only by a session check, never by an automatic retry.
   const openHome = async (mode: AtlasAuthMode) => {
+    initialHomeBootstrap?.retire();
     const localAccess = sessions.localAccess;
     if (!localAccess) return;
     const open =
@@ -210,6 +254,7 @@ export function SessionApp({
     }
   };
   const signOut = async () => {
+    initialHomeBootstrap?.retire();
     if (!sessions.signOut) return;
     const { controller, attempt } = begin();
     setState({ status: "loading" });
