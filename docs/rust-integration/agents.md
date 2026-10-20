@@ -62,15 +62,17 @@ acknowledging tool completion. It registers tools through actual
 follows the actual committed scope and admitted catalog. A failed optional
 catalog load leaves the authorized home visible with tools unavailable.
 
-The healthy browser runners support five source-inspected native releases:
+The healthy browser runners support six source-inspected native releases:
 [Chromium 151.0.7922.173](https://chromium.googlesource.com/chromium/src/+/refs/tags/151.0.7922.173/third_party/blink/renderer/core/script_tools/model_context.idl),
 [154.0.8037.57](https://chromium.googlesource.com/chromium/src/+/refs/tags/154.0.8037.57/third_party/blink/renderer/core/script_tools/model_context.idl),
 [154.0.8037.97](https://chromium.googlesource.com/chromium/src/+/refs/tags/154.0.8037.97/third_party/blink/renderer/core/script_tools/model_context.idl),
-[154.0.8037.98](https://chromium.googlesource.com/chromium/src/+/refs/tags/154.0.8037.98/third_party/blink/renderer/core/script_tools/model_context.idl)
-and [155.0.8059.39](https://chromium.googlesource.com/chromium/src/+/refs/tags/155.0.8059.39/third_party/blink/renderer/core/script_tools/model_context.idl).
+[154.0.8037.98](https://chromium.googlesource.com/chromium/src/+/refs/tags/154.0.8037.98/third_party/blink/renderer/core/script_tools/model_context.idl),
+[155.0.8059.39](https://chromium.googlesource.com/chromium/src/+/refs/tags/155.0.8059.39/third_party/blink/renderer/core/script_tools/model_context.idl)
+and [155.0.8059.84](https://chromium.googlesource.com/chromium/src/+/refs/tags/155.0.8059.84/third_party/blink/renderer/core/script_tools/model_context.idl).
 The 151 and 154 releases declare `executeTool` input as DOMString and receive the
 complete request as JSON text; the inspected 154 patch-release IDLs are
-byte-identical. 155.0.8059.39 declares `optional any inputObject`, and its
+byte-identical. The inspected 155.0.8059.39 and .84 IDLs and implementations
+are byte-identical. They declare `optional any inputObject`, and the
 [`model_context.cc`](https://chromium.googlesource.com/chromium/src/+/refs/tags/155.0.8059.39/third_party/blink/renderer/core/script_tools/model_context.cc)
 rejects a non-object before serializing it, so runners pass the same complete
 request as a structured object. Each runner selects that form from the exact

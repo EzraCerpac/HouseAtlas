@@ -81,10 +81,10 @@ try {
   cdp = new Pipe(browser);
   const version = await cdp.send('Browser.getVersion');
   // Exact source-inspected native executeTool input forms: the 151/154 IDLs take
-  // DOMString JSON text; 155.0.8059.39 takes a structured object. Any other
+  // DOMString JSON text; inspected 155.0.8059.39/.84 take a structured object. Any other
   // version requires source inspection before this ordinary flow runs.
   const nativeInputForm = new Map([['Chrome/151.0.7922.173', 'json-text'], ['Chrome/154.0.8037.57', 'json-text'], ['Chrome/154.0.8037.97', 'json-text'],
-    ['Chrome/154.0.8037.98', 'json-text'], ['Chrome/155.0.8059.39', 'object']]).get(version.product);
+    ['Chrome/154.0.8037.98', 'json-text'], ['Chrome/155.0.8059.39', 'object'], ['Chrome/155.0.8059.84', 'object']]).get(version.product);
   assert(nativeInputForm, 'Inspected native WebMCP browser version');
   // Each native call passes the request in the form selected above.
   const nativeObjectInput = () => { assert(nativeInputForm, 'Inspected native WebMCP browser version'); return nativeInputForm === 'object'; };
