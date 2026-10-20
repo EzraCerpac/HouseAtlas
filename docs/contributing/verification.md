@@ -2287,3 +2287,50 @@ foreground, ordinary keyboard selection and Close focus return, and the actual
 contextual metadata destinations. Use the original supplied examples; source
 review covers combinations absent from a generated fixture. These observations
 do not qualify every source-state combination or frame timing.
+
+
+## Initial configured-home bootstrap: generated React mount
+
+Inspect `frontend/lantern-tests/session-bootstrap.mjs`, its JSX fixture and the
+three changed production modules before these exact commands. Use Node 26.10.0,
+the unchanged locked frontend dependencies, and the separately reviewed external
+jsdom 26.1.0 installation at the path below. The test dependency stays outside
+the app dependency and lock files. Run from the repository root in a disposable
+synthetic checkout, with no real credentials, native providers or user data.
+
+The ordinary positive group mounts the actual SessionApp and App through
+ReactDOM with generated views and fake session/client ports:
+
+```sh
+HOUSEATLAS_TEST_JSDOM=/tmp/houseatlas-direct-entry-dom-20261020/node_modules/jsdom/lib/api.js node frontend/lantern-tests/session-bootstrap.mjs --healthy
+```
+
+Its five positives cover local and proxy initial opening, an existing session,
+a host without the opt-in fence, and password-mode form presentation. It checks
+that home content waits for fake verified-port completion, then reaches the
+actual App. The fake completion represents the existing canonical wrapped port;
+it does not execute that port's HTTP verification or prove server admission.
+
+The following five commands belong only to the isolated synthetic regression
+lane. Execute each as one separate process; there is no default broad suite:
+
+```sh
+HOUSEATLAS_TEST_JSDOM=/tmp/houseatlas-direct-entry-dom-20261020/node_modules/jsdom/lib/api.js node frontend/lantern-tests/session-bootstrap.mjs --regression strict-effect-setup
+HOUSEATLAS_TEST_JSDOM=/tmp/houseatlas-direct-entry-dom-20261020/node_modules/jsdom/lib/api.js node frontend/lantern-tests/session-bootstrap.mjs --regression pending-remount
+HOUSEATLAS_TEST_JSDOM=/tmp/houseatlas-direct-entry-dom-20261020/node_modules/jsdom/lib/api.js node frontend/lantern-tests/session-bootstrap.mjs --regression uncertain-open
+HOUSEATLAS_TEST_JSDOM=/tmp/houseatlas-direct-entry-dom-20261020/node_modules/jsdom/lib/api.js node frontend/lantern-tests/session-bootstrap.mjs --regression port-replacement
+HOUSEATLAS_TEST_JSDOM=/tmp/houseatlas-direct-entry-dom-20261020/node_modules/jsdom/lib/api.js node frontend/lantern-tests/session-bootstrap.mjs --regression subscription-during-open
+```
+
+The StrictMode setup and pending-root replacement cases exercise concurrent
+observer lifetimes around one synthetic attempt. The unconfirmed-completion
+case injects a rejected fake port and uses only the displayed canonical-session
+check afterward. Port replacement and subscription cases overlap fake work with
+an observer change. These are bounded concurrency/failure-injection cases, not
+real session replay, crash, expiry, revocation or logout tests.
+
+All commands forbid global fetch, use no listener or browser, and remove their
+owned temporary bundle and React containers. They add no app dependencies,
+workflow, CI step, runtime alias, security/control suite or deployment gate.
+They do not qualify browser focus, CSS, installed sessions, session eviction,
+native/provider behavior, canonical HTTP binding or live service recovery.
