@@ -8,6 +8,8 @@ use axum::{
 use base64::{Engine, engine::general_purpose::STANDARD};
 #[path = "support/unified_atlas_fixture.rs"]
 mod fixture;
+#[path = "support/unified_atlas_material_fixture.rs"]
+mod material_fixture;
 use houseatlas_backend::{
     config::{
         atlas_scene::ServerAtlasSceneSelection, model_overview::ServerModelOverviewSelection,
@@ -66,8 +68,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let publication_dir = root.join("publication");
     fs::create_dir(&publication_dir)?;
     fs::set_permissions(&publication_dir, fs::Permissions::from_mode(0o700))?;
-    let (glb, manifest, companion) =
-        fixture::generate(json!({"workspaceId":id(2),"homeId":id(3)}), id(6));
+    let mut fixture_args = std::env::args().skip(1).collect::<Vec<_>>();
+    let material_name = if fixture_args
+        .first()
+        .is_some_and(|v| v == "--material-fixture")
+    {
+        if fixture_args.len() < 2 {
+            return Err("A named material fixture is required".into());
+        }
+        Some(fixture_args.drain(..2).nth(1).unwrap())
+    } else {
+        None
+    };
+    let scope = json!({"workspaceId":id(2),"homeId":id(3)});
+    let (glb, manifest, companion) = match material_name.as_deref() {
+        Some(name) => material_fixture::generate(scope, id(6), name),
+        None => fixture::generate(scope, id(6)),
+    };
     private(&publication_dir.join("overview.glb"), &glb)?;
     private(&publication_dir.join("atlas-scene.json"), &companion)?;
     let manifest_path = publication_dir.join("publication.json");
@@ -258,7 +275,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let old: Value = serde_json::from_slice(&to_bytes(response.into_body(), 100000).await?)?;
     assert_eq!(old.as_object().unwrap().len(), 10);
     assert!(old.get("atlasSceneService").is_none());
-    let args = std::env::args().skip(1).collect::<Vec<_>>();
+    let args = fixture_args;
     if !args.is_empty() {
         if args.len() != 2 || args[0] != "--fixture-output" {
             return Err("Use --fixture-output /absolute/new/tmp/directory".into());
@@ -299,6 +316,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     assert_eq!(fs::read(manifest_path)?, manifest);
     assert_eq!(fs::read(publication_dir.join("overview.glb"))?, glb);
     drop(lease);
+    if let Some(name) = material_name {
+        println!(
+            "PASS named generated material fixture {name} through actual unified publication/session/Read/Media validation"
+        );
+    }
     println!(
         "PASS generated unified scene: actual native session/Read/Media; two levels, logical multi-occurrence room, explicit estimated pick geometry+matching plans; validated normals/indices, single-level slab and shared structure; matching concave courtyard footprint with hole, collinear subdivisions and positive sub-tolerance edges; unchanged current/scoped ReadyView; exact descriptor/publication/selection; explicit selected-building entry header and unchanged unconfigured selection; repeated original/query/hash/headers; unchanged overview/config/receipt/source bytes. No listener/provider/private household/probe."
     );

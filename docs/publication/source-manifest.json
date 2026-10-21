@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "10f199be49489a4760a0a9f3d2bc3582bfd179aeb24f98e1b921dac59e16265a",
+  "sourceDigestSha256": "37174431f479a0e847ab5b9345669ad0c3e900c648511a7ff20434c255d70755",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -385,8 +385,8 @@
     {
       "path": "backend/examples/healthy-unified-atlas-read.rs",
       "mode": "100644",
-      "bytes": 12935,
-      "sha256": "a184d05dfadd10082a45c6f90af6237c60347863a78221034da48a48f4538936",
+      "bytes": 13711,
+      "sha256": "6fabbab957d206075b4405d85ece9f1a77958670b3b39b4482e94186287bb9ba",
       "owner": "core-integration"
     },
     {
@@ -415,6 +415,13 @@
       "mode": "100644",
       "bytes": 12177,
       "sha256": "93334dce6d3a4082e1f00e47c140260d17656f9711671608983565d5c6e060e5",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/examples/support/unified_atlas_material_fixture.rs",
+      "mode": "100644",
+      "bytes": 7194,
+      "sha256": "5d8ce269c335d13ff0d424b2a4ad2fc29eaa6e5fdbab0875771ec7084ddf6c25",
       "owner": "core-integration"
     },
     {
@@ -1211,8 +1218,8 @@
     {
       "path": "backend/src/config/atlas_scene.rs",
       "mode": "100644",
-      "bytes": 31450,
-      "sha256": "08dc7d4579557ebe71db05134499c5ad0ba94d79f57712058afef57104c6e067",
+      "bytes": 31496,
+      "sha256": "e35133f3b776895dda6f00aae644c43da59c371e102e967085b786385bde04a0",
       "owner": "core-integration"
     },
     {
@@ -1225,8 +1232,15 @@
     {
       "path": "backend/src/config/atlas_scene_glb.rs",
       "mode": "100644",
-      "bytes": 19633,
-      "sha256": "260cc7f32fa05bac4560dc5d861bafa7b6c08db1acfe06948e630e0e45da0c18",
+      "bytes": 34069,
+      "sha256": "5d3fe0b948e288729d91cca249e39d667d00468babd25f70e8c31e378fe5e397",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/config/atlas_scene_material.rs",
+      "mode": "100644",
+      "bytes": 15042,
+      "sha256": "d0d95ecbcf53c3ca26885f439fc8ab60e2ce4125f1f48c75416aac6fb370642f",
       "owner": "core-integration"
     },
     {
@@ -1239,8 +1253,8 @@
     {
       "path": "backend/src/config/mod.rs",
       "mode": "100644",
-      "bytes": 3166,
-      "sha256": "4f374225df0ae90463fe9ee79dc166d6ec1d34ff4aa4f6fa111d582403b8772d",
+      "bytes": 3192,
+      "sha256": "ef3c149d567d183e9c25408d7c571a7cdf14e29ff483e87b53d0c505f7c6f796",
       "owner": "core-integration"
     },
     {
