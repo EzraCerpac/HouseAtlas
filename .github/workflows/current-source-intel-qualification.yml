@@ -1,0 +1,67 @@
+name: Current-source Intel macOS qualification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/current-source-intel-qualification.yml
+      - tools/release/current-source-intel-qualification.py
+
+permissions:
+  contents: read
+
+jobs:
+  darwin-artifact:
+    runs-on: macos-15-intel
+    timeout-minutes: 60
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '15.0'
+      RUSTUP_TOOLCHAIN: '1.99.0'
+      CARGO_BUILD_JOBS: '2'
+      HOUSEATLAS_EXECUTED_WORKFLOW_SHA: ${{ github.workflow_sha }}
+      HOUSEATLAS_EXECUTED_WORKFLOW_REF: ${{ github.workflow_ref }}
+    steps:
+      - name: Prepare isolated Cargo paths
+        shell: bash
+        run: |
+          printf 'CARGO_HOME=%s/current-source-intel-cargo\nCARGO_TARGET_DIR=%s/current-source-intel-target\n' "$RUNNER_TEMP" "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - name: Check out reviewed build recipe
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: recipe
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Check out the workflow revision GitHub executed
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: executed-workflow
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Check out immutable public product source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: 7cae5db05389cb5ca5cc97403975fa60d8f4cbcb
+          path: source
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Install exact Rust compiler and target
+        run: rustup toolchain install 1.99.0 --profile minimal --target x86_64-apple-darwin
+      - name: Build pinned source and inspect Intel macOS ABI
+        run: >-
+          python3 recipe/tools/release/current-source-intel-qualification.py
+          --source source --recipe recipe --workflow-source executed-workflow
+          --output "$RUNNER_TEMP/current-source-intel-artifact"
+      - name: Upload binary archive and provenance
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: houseatlas-current-source-7cae5db0-x86_64-apple-darwin
+          path: ${{ runner.temp }}/current-source-intel-artifact/
+          retention-days: 7
+          if-no-files-found: error
+          include-hidden-files: false

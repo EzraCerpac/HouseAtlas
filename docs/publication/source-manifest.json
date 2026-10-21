@@ -23,8 +23,15 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "37174431f479a0e847ab5b9345669ad0c3e900c648511a7ff20434c255d70755",
+  "sourceDigestSha256": "912601c97a64acc88ae81a6d4d8f96885185274b48706acf909524ed1f37ddca",
   "files": [
+    {
+      "path": ".github/workflows/current-source-intel-qualification.yml",
+      "mode": "100644",
+      "bytes": 2596,
+      "sha256": "d58011c589581e0edae4d1e71c29842918b48e0e891370ae74e12439b15384b4",
+      "owner": "core-integration"
+    },
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
@@ -12168,6 +12175,13 @@
       "mode": "100644",
       "bytes": 12478,
       "sha256": "421ce99daf71e45df1580cafcc1eb146be1561023059075825fc6b77b2700a0f",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/release/current-source-intel-qualification.py",
+      "mode": "100644",
+      "bytes": 18926,
+      "sha256": "53051c737deaa0dc841b0e88a535b1c8a0a788b7be92dd137e5850a4765c1596",
       "owner": "core-integration"
     },
     {
