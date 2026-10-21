@@ -1764,7 +1764,7 @@ the same healthy test also checks the actual canonical contract:
 HOUSEATLAS_PERF_CONTRACT_ROOT=/absolute/pinned/harness-checkout node --test --test-concurrency=1 tools/perf/reporting/healthy-reporting.test.mjs
 ```
 
-The pin is `d03223b0669761cf92846492fe56fb9e8f9f7db9`, and the sole schema is
+The pin is `4bb08dfd255c32c385d496ae64705719d5d56e80`, and the sole schema is
 `tools/perf/contract/run.schema.json`, SHA-256
 `642af28eacc14e6fdd7b9f7071979f07abc8dcb9a427773f5d74dab672b7056a`.
 The test opens no listener and calls no remote API, application service, provider

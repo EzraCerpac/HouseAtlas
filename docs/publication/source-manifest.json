@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "f167286ca3138f50ec9b7c16c81e06ee906abd1510f063b1b63b0797d11effd6",
+  "sourceDigestSha256": "10f199be49489a4760a0a9f3d2bc3582bfd179aeb24f98e1b921dac59e16265a",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -36,14 +36,14 @@
       "path": ".github/workflows/performance-report.yml",
       "mode": "100644",
       "bytes": 4211,
-      "sha256": "f05d588b811c59dad50b40c217a95ad2a31e8c87dc1535fab06a1b6d3e803ade",
+      "sha256": "b198c1a8cc6c128a7cac99915e77b96ff821c348e853957332478ffba6921d90",
       "owner": "core-integration"
     },
     {
       "path": ".github/workflows/performance.yml",
       "mode": "100644",
       "bytes": 6207,
-      "sha256": "5c55911d6cde95179488e012a4e85eb4ff935ff5490a9c8e9a6be1ab1adbdb9f",
+      "sha256": "0b334a3a3ef5b3cee7bfa64721257f5eb3ddf7321a6571ee4b848f12aa6a85b1",
       "owner": "core-integration"
     },
     {
@@ -5895,7 +5895,7 @@
       "path": "docs/ci-performance.md",
       "mode": "100644",
       "bytes": 11591,
-      "sha256": "8e0ceb388470254f0bd045991fcab0d63b739fff2d39d99c4c681f696c92ee05",
+      "sha256": "60314f323b69fc997e88acdf0a63a9fbd27f0241214be8cbb1b19fcda5d01d8c",
       "owner": "core-integration"
     },
     {
@@ -5965,7 +5965,7 @@
       "path": "docs/contributing/verification.md",
       "mode": "100644",
       "bytes": 140333,
-      "sha256": "c8bb3f3d22e8f10fcc1ceb755905deea05bea3661fa4275e03fa96a1f5b498d3",
+      "sha256": "b2ca62403ba751cb4bf07bd2b1c5f120fc682fb4d0fa66af2d29158bd8672dc1",
       "owner": "core-integration"
     },
     {
@@ -7324,6 +7324,48 @@
       "mode": "100644",
       "bytes": 11640,
       "sha256": "3074fdd2edde7c6da9f1b7fc301c35a86dc78459ea304b90ed958307d1b9b255",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/embedded-material-react.mjs",
+      "mode": "100644",
+      "bytes": 544,
+      "sha256": "04cf1b9db412e55408c15a4460dd53d3a53be1e5aeb0a13364f854be59b19c9f",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/embedded-png-material-fixture.ts",
+      "mode": "100644",
+      "bytes": 6686,
+      "sha256": "7305dc847212853de01b8fc9fb43a8fca51ba602745e29271258a11fbd32bbe0",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/embedded-png-material-healthy.mjs",
+      "mode": "100644",
+      "bytes": 15377,
+      "sha256": "f54e54a0f6d55e46b1a4ca67ea1867428cf1c726e011b0552c0c3103f45b9b50",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/embedded-png-material-lifecycle.mjs",
+      "mode": "100644",
+      "bytes": 3516,
+      "sha256": "b42e4b0cf192cdfa1e9918b9420eb1222bf400fcdf41f8f6775578f6dbaded37",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/embedded-png-material-visual/index.html",
+      "mode": "100644",
+      "bytes": 849,
+      "sha256": "e20dea2492597427d9f6a92a867e6a5047ad0f4d1c5be9c72854dddce5efce39",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/embedded-png-material-visual/main.tsx",
+      "mode": "100644",
+      "bytes": 2479,
+      "sha256": "6088381e87198091805c6b83ad5e35f2f2e03de02552817bc03383251c79f883",
       "owner": "web"
     },
     {
@@ -8792,8 +8834,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/MeshLayer.tsx",
       "mode": "100644",
-      "bytes": 20385,
-      "sha256": "66efaf528ff5ab1ac2f25c99d116520276210e1e44a414859b9ad2489234d376",
+      "bytes": 30544,
+      "sha256": "77e4e18b6b71e8026483b768e62e0c653febd3e77bc893f52995f1e72e03ca06",
       "owner": "web"
     },
     {
@@ -8839,17 +8881,24 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/canonical-ifc/embedded-png-material.ts",
+      "mode": "100644",
+      "bytes": 19886,
+      "sha256": "4b1499fcea7350eaa6b12164ad68100f68503f51e9e3a12814d3ff4bfecc333d",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/canonical-ifc/geometry.ts",
       "mode": "100644",
-      "bytes": 17991,
-      "sha256": "943ee4a2ae3241c1e4c0fe4d85bfb6c8e3b7f9c0ef74fa82c700ebd5880ce9f1",
+      "bytes": 19400,
+      "sha256": "83d13db995730eada4ea4f16ebd02cd6bb2b89bac90057a510bf75b65a9559df",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/canonical-ifc/glb-preflight.ts",
       "mode": "100644",
-      "bytes": 17244,
-      "sha256": "0c0a1b2f1b578f9cf68e605e33fb29d176b20beee9f3eee66af3fc5348a8a46c",
+      "bytes": 17361,
+      "sha256": "ceae2f097b814bfc3f5e81214e834be59c0acdaf13d7ca791bac2e65d6b5a5af",
       "owner": "web"
     },
     {
@@ -8904,8 +8953,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/standard-glb.ts",
       "mode": "100644",
-      "bytes": 9118,
-      "sha256": "38e2cd89276e2aad75e06d6cd53757ed19605073f5798a25403ffa8a3f87741e",
+      "bytes": 13578,
+      "sha256": "f9be598b3a04b9601f325ba164cfadf25d5d1685e290f282200192cd18df124e",
       "owner": "web"
     },
     {
@@ -9933,8 +9982,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 133710,
-      "sha256": "6042c7616ec232fcdc6ce4103edb1841998bc9081ef41856bce9b8667235d8fb",
+      "bytes": 133787,
+      "sha256": "e8bbd47d1a4f92266abbabf1ad63f79d23c1e7e60a5fca5905983718584fde83",
       "owner": "web"
     },
     {
@@ -11816,8 +11865,8 @@
     {
       "path": "tools/perf/harness/cpu-worker.mjs",
       "mode": "100644",
-      "bytes": 6751,
-      "sha256": "dd8c6db76b6cc4afa72a244f243dc940fd71a246e205a6433e328fcd418ad54d",
+      "bytes": 7125,
+      "sha256": "439d93bbcc97974588ca84c6d6bb0fe5055b57cb79887b1999772dbc46814a14",
       "owner": "core-integration"
     },
     {
@@ -11894,7 +11943,7 @@
       "path": "tools/perf/reporting/README.md",
       "mode": "100644",
       "bytes": 7785,
-      "sha256": "672c8510d2ad7157924e74ba18f9360f682b4405dc26a6c015e5f1c50ff34cd4",
+      "sha256": "560e1cc99f06eea5281de4214519f10b46a22ac6fcdc25955acb981583a74bfb",
       "owner": "core-integration"
     },
     {
@@ -11999,7 +12048,7 @@
       "path": "tools/perf/reporting/measurement.mjs",
       "mode": "100644",
       "bytes": 1765,
-      "sha256": "a2f2da0f468cb17b025eea243c6f75279b405cc7baffc8a067629048aa041124",
+      "sha256": "41c729f0dd1ca9a54bcfae1854770b318f049c875afaba465832406168fef88a",
       "owner": "core-integration"
     },
     {
