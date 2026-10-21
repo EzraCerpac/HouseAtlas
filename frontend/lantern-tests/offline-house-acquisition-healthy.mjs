@@ -153,8 +153,16 @@ function renderCopy(state) {
   assert.equal(actions, 0);
   assert(html.includes('<summary tabindex="0">Saved house copy</summary>'));
   assert(html.includes('unencrypted in this browser profile and remains after sign-out'));
-  assert(html.includes('browser persistence is not guaranteed'));
-  assert(html.includes('href="/saved/index.html"'));
+  assert(html.includes('historical, read-only house copy'));
+  assert(html.includes('captured Atlas, inventory and document lists and details'));
+  assert(html.includes('including allowed source originals'));
+  assert(html.includes('Retained document originals can be explicitly verified and downloaded.'));
+  assert(html.includes('Inline PDF navigation, editing, sync and fresh native downloads are unavailable in the saved viewer.'));
+  assert(html.includes('Storage estimates are advisory; browser persistence is not guaranteed'));
+  assert(html.includes('href="/saved/index.html">Open saved house copy</a>'));
+  assert(!html.includes('The saved viewer supports Atlas only'));
+  assert(!html.includes('General inventory, Documents and PDF navigation, and editing are unavailable offline'));
+  assert(!html.includes('Open saved Atlas'));
   return html;
 }
 const idleHTML = renderCopy({ status: 'idle' });
@@ -184,6 +192,8 @@ const savingHTML = renderCopy({ status: 'saving', preparation: newCapture,
 assert(savingHTML.includes('>Stop saving</button>'));
 const savedHTML = renderCopy({ status: 'saved', receipt: partialCapture.receipt });
 assert(savedHTML.includes('Not included in this copy:'));
+assert(savedHTML.includes('This receipt describes a saved capture, not the current native home.'));
+assert(savedHTML.includes('App verification does not establish offline device availability.'));
 assert(savedHTML.includes(`Coverage: ${partialCapture.receipt.completeness}`));
 for (const item of partialCapture.receipt.exclusions)
   assert(savedHTML.includes(renderToStaticMarkup(createElement('li', null, `${item.section}: ${item.label} (${item.code})`))));

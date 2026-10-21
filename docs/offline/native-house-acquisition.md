@@ -5,8 +5,13 @@ Opening the tools, expanding the control, observing its state and rendering the
 home perform no acquisition, shell verification or local-store inspection.
 The disclosure precedes **Prepare house copy**: retained data and permitted
 originals are unencrypted in this browser profile and survive sign-out. The
-saved viewer supports Atlas; general inventory, Documents/PDF navigation and
-editing remain unavailable offline. Quota estimates are advisory; acquisition requests no quota estimate or
+saved viewer provides a historical, read-only capture of Atlas plus inventory
+and document lists and details. Retained document originals have explicit
+**Verify retained original** and **Download verified saved original** actions;
+verification checks the retained bytes before offering the download. Inline PDF
+navigation, editing, sync and fresh native downloads remain unavailable in the
+saved viewer. Coverage and exclusions describe what the capture includes.
+Quota estimates are advisory; acquisition requests no quota estimate or
 persistence permission, and browser persistence is not guaranteed.
 
 Preparation captures the actual current native session, ReadyView, scope object,
@@ -58,7 +63,7 @@ The actual activation completion is the success boundary. A later Cancel or
 owner replacement cannot turn that successful commit into a failed receipt.
 The retained receipt records house, capture date, snapshot, local revision,
 public shell build, complete/partial coverage and exclusions. **Open saved
-Atlas** uses the normal `/saved/index.html` entry and does not fetch a new copy.
+house copy** uses the normal `/saved/index.html` entry and does not fetch a new copy.
 A saved receipt makes no claim that the capture is the current native home.
 Shell readiness does not establish genuine offline/device/PWA acceptance.
 
@@ -86,7 +91,9 @@ operation finishes its normal store close).
 The same check statically renders the actual React control in seven valid idle,
 prepared, replacement, partial, preparing, saving and receipt states. It checks
 passive rendering, the separate Prepare/Save labels, new/current capture labels,
-coverage/exclusions before confirmation, Cancel wording and exact receipt pins.
+coverage/exclusions before confirmation, historical/read-only catalog scope,
+explicit retained-original verification/download disclosure, unavailable actions,
+**Open saved house copy**, Cancel wording and exact receipt pins.
 This is source/static-render evidence, not keyboard, layout or browser evidence.
 It does not run denial, foreign-token, expiry, revocation, crash, fault,
 guard-reversal or broad aliases. It opens no socket, browser, real IndexedDB,

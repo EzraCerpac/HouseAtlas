@@ -13,8 +13,8 @@ export function SaveHouseCopy({ port }: { readonly port: HouseAcquisitionPort })
   return <details className="save-copy">
     <summary tabIndex={0}>Saved house copy</summary>
     <div className="save-copy-terms">
-      <p className="save-copy-privacy">Save the whole current house for the saved Atlas viewer, including allowed source originals. Data is unencrypted in this browser profile and remains after sign-out.</p>
-      <p>The saved viewer supports Atlas only. General inventory, Documents and PDF navigation, and editing are unavailable offline. Storage estimates are advisory; browser persistence is not guaranteed.</p>
+      <p className="save-copy-privacy">Save a historical, read-only house copy with captured Atlas, inventory and document lists and details, including allowed source originals. Data is unencrypted in this browser profile and remains after sign-out.</p>
+      <p>Retained document originals can be explicitly verified and downloaded. Inline PDF navigation, editing, sync and fresh native downloads are unavailable in the saved viewer. Storage estimates are advisory; browser persistence is not guaranteed.</p>
     </div>
     {preparation && <section className="save-copy-review" aria-label="Prepared house copy">
       <p className="save-copy-label">{preparation.label} · {preparation.resources} resources · {preparation.totalBytes.toLocaleString()} bytes</p>
@@ -38,6 +38,6 @@ export function SaveHouseCopy({ port }: { readonly port: HouseAcquisitionPort })
       {receipt.exclusions.length > 0 && <div className="save-copy-exclusions"><p>Not included in this copy:</p><ul>{receipt.exclusions.map((entry, index) => <li key={index}>{entry.section}: {entry.label} ({entry.code})</li>)}</ul></div>}
       <p className="save-copy-note">This receipt describes a saved capture, not the current native home. App verification does not establish offline device availability.</p>
     </section>}
-    <a className="save-copy-open" href="/saved/index.html">Open saved Atlas</a>
+    <a className="save-copy-open" href="/saved/index.html">Open saved house copy</a>
   </details>;
 }
