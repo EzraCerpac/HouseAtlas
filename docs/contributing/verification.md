@@ -2334,3 +2334,37 @@ owned temporary bundle and React containers. They add no app dependencies,
 workflow, CI step, runtime alias, security/control suite or deployment gate.
 They do not qualify browser focus, CSS, installed sessions, session eviction,
 native/provider behavior, canonical HTTP binding or live service recovery.
+
+## Named generated local edit-retention positive
+
+Inspect `frontend/src/local-edit-retention/types.ts`,
+`frontend/src/local-edit-retention/store.ts`, the unchanged
+`frontend/lantern-tests/synthetic-indexeddb.mjs` and the named runner before
+this separately released manual positive. Use Node 26.10.0 and the existing
+locked dependencies:
+
+```sh
+node frontend/lantern-tests/local-edit-retention-healthy.mjs
+```
+
+This imports the actual production store into disposable synthetic IndexedDB.
+Its five positive groups cover close/reopen round trips, explicit local
+partition/home/snapshot isolation, exact large revision strings, detached
+buffers/results, immutable documentary originals, reversible proposals/reset,
+unavailable original evidence and targeted discard with unrelated rows retained.
+Successful mutations wait for transaction completion and verify the detached
+returned bytes afterward. A rejected mutation alone does not prove rollback;
+its local outcome remains unresolved until separately inspected.
+
+The fixed local database is separate from saved-house and capture storage.
+The caller-supplied partition is only a data partition: native authority stays
+`not-established` and the current base stays `not-checked`. This unmounted
+module adds no actor/session/grant authority, native envelope, submission,
+acknowledgement, reconciliation or automatic retry. Browser-managed retention
+is not a backup or a device-durability guarantee.
+
+This command opens no browser, listener, network transport, provider or native
+service and uses no user data. It adds no workflow, CI step, broad suite or
+runtime alias. Fault/crash/replay, corruption, refusal/quota and concurrent
+writer controls are not exercised or released by this positive. Browser/device
+persistence, future mounting, live authorization and deployment remain separate.

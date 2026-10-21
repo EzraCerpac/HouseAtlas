@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "8ff14f5c0a3e133185f6d00095aac77d89bba82aebbdd6e7f528f191a670d980",
+  "sourceDigestSha256": "3b8b7c1d8bce37b384ccbce224f879f6c3749c970b57daf75d741c290732383a",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -5985,8 +5985,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 140333,
-      "sha256": "b2ca62403ba751cb4bf07bd2b1c5f120fc682fb4d0fa66af2d29158bd8672dc1",
+      "bytes": 142172,
+      "sha256": "c1dba051c7777c3a12d4845ca78004bef2619bfc85163b766c5633457241401d",
       "owner": "core-integration"
     },
     {
@@ -7422,6 +7422,13 @@
       "mode": "100644",
       "bytes": 7300,
       "sha256": "3a2cb6ebe45998ac02d2753de9b84f477a4d43db28741f4e9831430b92a5a59d",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/local-edit-retention-healthy.mjs",
+      "mode": "100644",
+      "bytes": 12423,
+      "sha256": "52d952ca5879ab1190e370a15f65c684f199efb34b4871356026fc3a8885f426",
       "owner": "web"
     },
     {
@@ -10110,6 +10117,20 @@
       "mode": "100644",
       "bytes": 3630,
       "sha256": "90d3b5ea3ef30ddd08b05996cd5cf0a18273ea6c98e16b0197fa7f0a42eb9a96",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/local-edit-retention/store.ts",
+      "mode": "100644",
+      "bytes": 12369,
+      "sha256": "a451098f9a2322ef10d7658e70a8cfd38c7ec8383ee85b7bd1efc3d102040055",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/local-edit-retention/types.ts",
+      "mode": "100644",
+      "bytes": 2780,
+      "sha256": "5b62221d9665ba26a7f21b471961163f24e817d11cb07cc2e19b8e0d31de17ee",
       "owner": "web"
     },
     {
