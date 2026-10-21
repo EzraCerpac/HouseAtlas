@@ -402,12 +402,12 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
     need(gltf["asset"].get("minVersion").is_none_or(|v| v == "2.0"))?;
     let nodes = gltf["nodes"].as_array().ok_or_else(invalid)?;
     let meshes = gltf["meshes"].as_array().ok_or_else(invalid)?;
-    super::atlas_scene_glb::materials(&gltf)?;
+    let materials = super::atlas_scene_material::materials(&gltf, glb, 20 + json_len)?;
     let worlds = super::atlas_scene_glb::worlds(&gltf)?;
     let mut work = footprint::Work::default();
     let mut supports: BTreeMap<&str, footprint::Support> = BTreeMap::new();
     let mut footprints: BTreeMap<&str, Vec<footprint::Polygon>> = BTreeMap::new();
-    let mut geometry_work = super::atlas_scene_glb::Work::default();
+    let mut geometry_work = super::atlas_scene_glb::Work::new(materials);
     let mut selectors = BTreeSet::new();
     let mut picks = BTreeSet::new();
     for m in &p.mesh_bindings {

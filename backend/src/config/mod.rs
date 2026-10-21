@@ -96,5 +96,6 @@ impl Config {
 pub mod atlas_scene;
 mod atlas_scene_footprint;
 mod atlas_scene_glb;
+mod atlas_scene_material;
 
 pub mod atlas_room_links;
