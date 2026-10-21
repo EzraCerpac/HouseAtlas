@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d1b4cd45e2d9de5fec7918ba5d1b475998be89162e7b68e33465859194c60ad1",
+  "sourceDigestSha256": "10f199be49489a4760a0a9f3d2bc3582bfd179aeb24f98e1b921dac59e16265a",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -5895,7 +5895,7 @@
       "path": "docs/ci-performance.md",
       "mode": "100644",
       "bytes": 11591,
-      "sha256": "8e0ceb388470254f0bd045991fcab0d63b739fff2d39d99c4c681f696c92ee05",
+      "sha256": "60314f323b69fc997e88acdf0a63a9fbd27f0241214be8cbb1b19fcda5d01d8c",
       "owner": "core-integration"
     },
     {
