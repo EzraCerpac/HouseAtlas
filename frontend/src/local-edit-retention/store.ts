@@ -163,12 +163,16 @@ export function createLocalEditRetentionStore(
   };
   async function changeProposal(value: LocalEditSelection, proposal: LocalEditBytes | null): Promise<LocalEditDraft> {
     const selected = select(value);
-    return transaction(await database(), 'readwrite', (rows, store) => {
+    const draft = await transaction(await database(), 'readwrite', (rows, store) => {
       const row = rows.find(item => item.id === selected.id); need(row);
       const draft: LocalEditDraft = { ...row.draft, proposal };
       bounded(rows.map(item => item.id === selected.id ? { id: selected.id, draft } : item));
       store.put({ id: selected.id, draft }); return draft;
     });
+    // Verify detached committed bytes outside the active IDB transaction, as on
+    // reads. A rejection here does not establish that the local write rolled back.
+    await verify(draft);
+    return draft;
   }
   return {
     async retain(input: LocalEditInput): Promise<LocalEditDraft> {
