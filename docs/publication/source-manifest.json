@@ -23,8 +23,15 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "37174431f479a0e847ab5b9345669ad0c3e900c648511a7ff20434c255d70755",
+  "sourceDigestSha256": "d6b10aa99ade8c8447284856ff480d77eb7dbc7b9830400d8d03c263b1b16630",
   "files": [
+    {
+      "path": ".github/workflows/current-source-intel-qualification.yml",
+      "mode": "100644",
+      "bytes": 2596,
+      "sha256": "d58011c589581e0edae4d1e71c29842918b48e0e891370ae74e12439b15384b4",
+      "owner": "core-integration"
+    },
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
@@ -98,8 +105,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 4848,
-      "sha256": "78fa23f8a9f17128512301ebec90b9fa7b977f479fa5a7414d15b06d881cea77",
+      "bytes": 6122,
+      "sha256": "3879ba91657dd112ab15bb2cd2246559d5be8fc660c461b1d0a02710278aa8cd",
       "owner": "core-integration"
     },
     {
@@ -12168,6 +12175,13 @@
       "mode": "100644",
       "bytes": 12478,
       "sha256": "421ce99daf71e45df1580cafcc1eb146be1561023059075825fc6b77b2700a0f",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/release/current-source-intel-qualification.py",
+      "mode": "100644",
+      "bytes": 18926,
+      "sha256": "53051c737deaa0dc841b0e88a535b1c8a0a788b7be92dd137e5850a4765c1596",
       "owner": "core-integration"
     },
     {
