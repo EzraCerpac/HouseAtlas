@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 import { drawsFloor, sourceMeshColor, type DrawRules, type PreparedMesh, type Projection } from './geometry';
+import type { EmbeddedTexture } from './embedded-png-material';
 
 interface Props {
   readonly meshes: readonly PreparedMesh[];
@@ -31,8 +32,10 @@ interface Props {
   /** Colour overrides (hex); omitted entries keep the default tones. */
   readonly palette?: Partial<MeshPalette> | undefined;
   /** Opt in to explicit core glTF linear base colours. Selection/overlay and
-   * cutaway presentation still take precedence; textures/PBR are not added. */
+   * cutaway presentation still take precedence; this alone enables no maps. */
   readonly sourceColors?: boolean | undefined;
+  /** Unified-only admitted embedded PNG materials; all other callers opt out. */
+  readonly sourceMaterials?: boolean | undefined;
   /** With sourceColors only: share (0–1) of a mesh's dimming applied to its
    * source colour, so context steps back while keeping its material hue.
    * Default 1, the full dimming of the fallback tones. */
@@ -91,6 +94,65 @@ float light=clamp(ambient+(1.0-ambient)*dot(n,lightDir),0.0,1.0);
 vec3 face=usePitch>0.5?(n.y>=0.97?topColor:mix(shadeColor,n.y>0.2?pitchColor:baseColor,light)):(n.y>0.8?topColor:mix(shadeColor,baseColor,light));
 gl_FragColor=vec4(displayColor(face)*alpha,alpha);}`;
 
+// A separate WebGL2 program supports NPOT REPEAT textures with complete mip
+// chains. The legacy WebGL1 program and its 24-byte stream remain unchanged.
+const materialVertexSource = '#version 300 es\n' + vertexSource.replaceAll('attribute ', 'in ').replaceAll('varying ', 'out ')
+  .replace('void main(){', `in vec2 materialUv;in vec3 shadingNormal;in vec4 materialTangent;
+out vec2 vUv;out vec3 vShadingNormal;out vec4 vTangent;
+void main(){vUv=materialUv;vShadingNormal=shadingNormal;vTangent=materialTangent;`);
+const materialFragmentSource = '#version 300 es\n' + fragmentSource.replaceAll('varying ', 'in ').replaceAll('gl_FragColor', 'fragmentColor')
+  .replace('precision highp float;', `precision highp float;out vec4 fragmentColor;
+in vec2 vUv;in vec3 vShadingNormal;in vec4 vTangent;
+uniform float useMaterial;uniform float materialDoubleSided;uniform vec4 materialFactor;
+uniform float metallicFactor;uniform float roughnessFactor;uniform float hasBase;uniform float hasNormal;uniform float hasMetalRough;
+uniform sampler2D baseMap;uniform sampler2D normalMap;uniform sampler2D metalRoughMap;
+uniform vec3 viewDir;uniform vec3 materialPaper;uniform float materialDim;`)
+  .replace('vec3 n=normalize(vNormal);', `if(useMaterial>0.5){
+if(!gl_FrontFacing&&materialDoubleSided<0.5)discard;
+vec3 N=normalize(vShadingNormal);
+if(hasNormal>0.5){vec3 T=normalize(vTangent.xyz-N*dot(N,vTangent.xyz));vec3 B=cross(N,T)*(vTangent.w<0.0?-1.0:1.0);
+vec3 mapN=texture(normalMap,vUv).rgb*2.0-1.0;N=normalize(mat3(T,B,N)*mapN);}
+if(!gl_FrontFacing)N=-N;
+// Base map uses SRGB8_ALPHA8: sampling decodes once. Data maps use RGBA8.
+vec3 base=materialFactor.rgb*(hasBase>0.5?texture(baseMap,vUv).rgb:vec3(1.0));
+vec3 mr=hasMetalRough>0.5?texture(metalRoughMap,vUv).rgb:vec3(1.0);
+float metallic=metallicFactor*mr.b;float roughness=max(0.045,roughnessFactor*mr.g);
+vec3 L=normalize(lightDir);vec3 V=normalize(viewDir);vec3 H=(L+V)/max(length(L+V),0.0001);
+float nl=max(dot(N,L),0.0);float nv=max(dot(N,V),0.0001);float nh=max(dot(N,H),0.0);float vh=max(dot(V,H),0.0);
+float a=roughness*roughness;float a2=a*a;float denom=nh*nh*(a2-1.0)+1.0;
+float D=a2/(3.14159265359*denom*denom);float k=(roughness+1.0)*(roughness+1.0)/8.0;
+float G=(nv/(nv*(1.0-k)+k))*(nl/(nl*(1.0-k)+k));
+vec3 f0=mix(vec3(0.04),base,metallic);vec3 F=f0+(1.0-f0)*pow(1.0-vh,5.0);
+vec3 spec=D*G*F/max(4.0*nv*nl,0.0001);vec3 diffuse=(1.0-F)*(1.0-metallic)*base/3.14159265359;
+vec3 lit=ambient*(base*(1.0-metallic)+f0*0.12)+(1.0-ambient)*(diffuse+spec)*nl*3.14159265359;
+fragmentColor=vec4(displayColor(mix(max(lit,vec3(0.0)),materialPaper,materialDim)),1.0);return;}
+vec3 n=normalize(vNormal);`);
+
+/** Actual per-mesh-set GPU reservation, before creating any GL resource.
+ * Exact image/sampler/colour-role resources are shared by this owner only. */
+export function materialGpuResources(meshes: readonly PreparedMesh[], enabled: boolean) {
+  const textures = new Map<string, EmbeddedTexture>(); let bytes = 0;
+  for (const mesh of meshes) {
+    bytes += mesh.vertices.byteLength;
+    if (!enabled || !mesh.sourceMaterial) continue;
+    if (!mesh.materialVertices || mesh.materialVertices.length !== mesh.triangles * 27) throw new Error('Required texture attributes unavailable');
+    bytes += mesh.materialVertices.byteLength;
+    for (const texture of [mesh.sourceMaterial.baseColorTexture, mesh.sourceMaterial.normalTexture, mesh.sourceMaterial.metallicRoughnessTexture]) {
+      if (!texture) continue;
+      const prior = textures.get(texture.key);
+      if (prior) { if (prior.image !== texture.image || prior.colorRole !== texture.colorRole) throw new Error('Texture owner identity collision'); continue; }
+      const image = texture.image;
+      if (!Number.isSafeInteger(image.width) || !Number.isSafeInteger(image.height) || image.width < 1 || image.height < 1
+        || image.width > 1024 || image.height > 1024 || image.rgba.length !== image.width * image.height * 4) throw new Error('Required decoded pixels unavailable');
+      let w = image.width, h = image.height;
+      do { bytes += w * h * 4; if (w === 1 && h === 1) break; w = Math.max(1, Math.floor(w / 2)); h = Math.max(1, Math.floor(h / 2)); } while (true);
+      textures.set(texture.key, texture);
+    }
+  }
+  if (bytes > RENDER_LIMITS.uploadBytes) throw new Error('Model exceeds the unchanged GPU budget');
+  return { bytes, textures };
+}
+
 type Rgb = [number, number, number];
 const rgb = (hex: string): Rgb => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255) as Rgb;
 const linearRgb = (color: Rgb): Rgb => color.map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4) as Rgb;
@@ -111,7 +173,7 @@ export function MeshLayer(props: Props) {
   const redraw = useRef<(() => void) | null>(null);
   useLayoutEffect(() => { redraw.current?.(); },
     [props.projection, props.rules, props.currentFloorId, props.selectedOccurrenceId, props.contextOccurrenceIds, props.tints, props.hidden, props.referenceKeys,
-      props.hiddenKeys, props.selectedKeys, props.lifts, props.clips, props.dims, props.ghosts, props.palette, props.sourceColors, props.sourceDim, props.ambient, props.twoSided, props.shade, props.light, props.pitch, props.pitchKeys, props.site, props.ghostAlpha]);
+      props.hiddenKeys, props.selectedKeys, props.lifts, props.clips, props.dims, props.ghosts, props.palette, props.sourceColors, props.sourceMaterials, props.sourceDim, props.ambient, props.twoSided, props.shade, props.light, props.pitch, props.pitchKeys, props.site, props.ghostAlpha]);
   useLayoutEffect(() => {
     const element = canvas.current; if (!element || props.meshes.length === 0) return;
     let creationReason = '';
@@ -119,9 +181,10 @@ export function MeshLayer(props: Props) {
       creationReason = (event as WebGLContextEvent).statusMessage?.replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 240) ?? '';
     };
     element.addEventListener('webglcontextcreationerror', creationFailed);
-    let gl: WebGLRenderingContext | null;
+    const usesMaterials = props.sourceMaterials === true && props.meshes.some(mesh => mesh.sourceMaterial !== undefined);
+    let gl: WebGLRenderingContext | WebGL2RenderingContext | null;
     try {
-      gl = element.getContext('webgl', { antialias: true, alpha: true, preserveDrawingBuffer: false });
+      gl = element.getContext(usesMaterials ? 'webgl2' : 'webgl', { antialias: true, alpha: true, preserveDrawingBuffer: false }) as WebGLRenderingContext | WebGL2RenderingContext | null;
     } catch {
       element.removeEventListener('webglcontextcreationerror', creationFailed);
       props.onUnavailable('3D context creation threw an exception (context-exception).'); return;
@@ -131,7 +194,8 @@ export function MeshLayer(props: Props) {
       props.onUnavailable(`3D context creation returned no context (context-null).${creationReason ? ` ${creationReason}` : ' No browser reason was provided.'}`); return;
     }
     let disposed = false, frame: number | null = null, program: WebGLProgram | null = null;
-    const shaders: WebGLShader[] = [], uploaded: { mesh: PreparedMesh; buffer: WebGLBuffer }[] = [];
+    const shaders: WebGLShader[] = [], uploaded: { mesh: PreparedMesh; buffer: WebGLBuffer; materialBuffer?: WebGLBuffer }[] = [];
+    const textures = new Map<string, WebGLTexture>();
     const schedule = () => {
       if (disposed || frame !== null || document.hidden) return;
       frame = requestAnimationFrame(() => { frame = null; try { render(); } catch { fail('The 3D model cannot be rendered.'); } });
@@ -140,14 +204,40 @@ export function MeshLayer(props: Props) {
       if (disposed) return; disposed = true;
       if (frame !== null) cancelAnimationFrame(frame); frame = null;
       if (redraw.current === schedule) redraw.current = null;
-      if (!gl.isContextLost()) { for (const item of uploaded) gl.deleteBuffer(item.buffer); for (const shader of shaders) gl.deleteShader(shader); gl.deleteProgram(program); }
+      if (!gl.isContextLost()) { for (const item of uploaded) { gl.deleteBuffer(item.buffer); if (item.materialBuffer) gl.deleteBuffer(item.materialBuffer); }
+        for (const texture of textures.values()) gl.deleteTexture(texture); for (const shader of shaders) gl.deleteShader(shader); gl.deleteProgram(program); }
+      textures.clear();
       uploaded.length = 0; element.width = 1; element.height = 1;
     };
     const fail = (message: string) => { const live = !disposed; release(); if (live) latest.current.onUnavailable(message); };
     const lost = (event: Event) => { event.preventDefault(); fail('3D view closed by the browser. Reopen the viewer to retry.'); };
     const visibility = () => { if (!document.hidden) schedule(); };
     const uniforms: Record<string, WebGLUniformLocation | null> = {};
-    let position = -1, normal = -1;
+    let position = -1, normal = -1, materialUv = -1, shadingNormal = -1, materialTangent = -1;
+    const disableMaterial = () => {
+      if (!usesMaterials) return;
+      gl.uniform1f(uniforms.useMaterial!, 0);
+      gl.disableVertexAttribArray(materialUv); gl.disableVertexAttribArray(shadingNormal); gl.disableVertexAttribArray(materialTangent);
+      gl.vertexAttrib2f(materialUv, 0, 0); gl.vertexAttrib3f(shadingNormal, 0, 1, 0); gl.vertexAttrib4f(materialTangent, 1, 0, 0, 1);
+    };
+    const bindMaterial = (item: typeof uploaded[number], enabled: boolean, dim: number) => {
+      disableMaterial(); const material = enabled ? item.mesh.sourceMaterial : undefined;
+      if (!usesMaterials || !material || !item.materialBuffer) return;
+      gl.uniform1f(uniforms.useMaterial!, 1); gl.uniform1f(uniforms.materialDoubleSided!, material.doubleSided ? 1 : 0);
+      gl.uniform4f(uniforms.materialFactor!, ...material.baseColor); gl.uniform1f(uniforms.metallicFactor!, material.metallic); gl.uniform1f(uniforms.roughnessFactor!, material.roughness);
+      gl.uniform1f(uniforms.materialDim!, Math.min(1, Math.max(0, dim)));
+      const fallback = textures.values().next().value;
+      if (!fallback) throw new Error('Required GPU texture unavailable');
+      for (const [unit, pin, flag] of [[0, material.baseColorTexture, 'hasBase'], [1, material.normalTexture, 'hasNormal'], [2, material.metallicRoughnessTexture, 'hasMetalRough']] as const) {
+        const texture = pin ? textures.get(pin.key) : fallback;
+        if (!texture) throw new Error('Required GPU texture unavailable');
+        gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, texture); gl.uniform1f(uniforms[flag]!, pin ? 1 : 0);
+      }
+      gl.bindBuffer(gl.ARRAY_BUFFER, item.materialBuffer);
+      gl.enableVertexAttribArray(materialUv); gl.vertexAttribPointer(materialUv, 2, gl.FLOAT, false, 36, 0);
+      gl.enableVertexAttribArray(shadingNormal); gl.vertexAttribPointer(shadingNormal, 3, gl.FLOAT, false, 36, 8);
+      gl.enableVertexAttribArray(materialTangent); gl.vertexAttribPointer(materialTangent, 4, gl.FLOAT, false, 36, 20);
+    };
     const render = () => {
       if (disposed || !program) return;
       const p = latest.current; if (p.hidden) return;
@@ -164,6 +254,7 @@ export function MeshLayer(props: Props) {
       gl.uniform3f(uniforms.center!, q.center[0], q.center[1], q.center[2]);
       gl.uniform4f(uniforms.frame!, q.k, q.ox, q.oy, q.depthRadius);
       gl.uniform2f(uniforms.viewport!, q.viewport.width, q.viewport.height);
+      if (usesMaterials) { gl.uniform3f(uniforms.viewDir!, q.st * q.cf, q.sf, q.ct * q.cf); gl.uniform3f(uniforms.materialPaper!, ...linearRgb(tones(p.palette).PAPER)); }
       gl.enableVertexAttribArray(position); gl.enableVertexAttribArray(normal);
       gl.uniform1f(uniforms.alpha!, 1); gl.uniform1f(uniforms.useFloor!, 0); gl.uniform1f(uniforms.floorY!, 0);
       gl.uniform1f(uniforms.ambient!, Math.min(1, Math.max(0, p.ambient ?? DEFAULT_AMBIENT)));
@@ -180,7 +271,8 @@ export function MeshLayer(props: Props) {
       for (const pass of ['reference', 'unbound', 'bound'] as const) {
         if (pass === 'unbound') gl.disable(gl.POLYGON_OFFSET_FILL);
         else { gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(pass === 'bound' ? -2 : 2, pass === 'bound' ? -2 : 2); }
-        for (const { mesh, buffer } of uploaded) {
+        for (const item of uploaded) {
+          const { mesh, buffer } = item;
           const kind = p.referenceKeys?.has(mesh.meshKey) ? 'reference' : mesh.occurrenceId !== null ? 'bound' : 'unbound';
           if (kind !== pass || !drawsFloor(p.rules, mesh.floorId) || p.hiddenKeys?.has(mesh.meshKey)) continue;
           const dim = p.dims ? p.dims.get(mesh.meshKey) ?? 0 : mesh.floorId !== p.currentFloorId ? .55 : 0;
@@ -190,6 +282,7 @@ export function MeshLayer(props: Props) {
           const source = sourceMeshColor(mesh, { enabled: p.sourceColors, selected: p.selectedKeys?.has(mesh.meshKey) ?? false,
             reference: kind === 'reference', selectedOccurrenceId: p.selectedOccurrenceId, contextOccurrenceIds: p.contextOccurrenceIds, tints: p.tints });
           gl.uniform1f(uniforms.useSourceColor!, source ? 1 : 0);
+          bindMaterial(item, Boolean(source && p.sourceMaterials), dim * SOURCE_DIM);
           let top: Rgb, base: Rgb, cut: Rgb, pitch: Rgb | null = null, shade = SHADE;
           if (p.selectedKeys?.has(mesh.meshKey)) { top = LANTERN; base = LANTERN; cut = mix(LANTERN, CUT, .18); }
           else if (kind === 'reference') { top = REFERENCE_TOP; base = REFERENCE; cut = mix(REFERENCE, CUT, .3); }
@@ -230,6 +323,7 @@ export function MeshLayer(props: Props) {
         const quiet = p.twoSided && p.ghostAlpha !== undefined;
         gl.uniform1f(uniforms.alpha!, quiet ? Math.min(1, Math.max(0, p.ghostAlpha!)) : GHOST_ALPHA);
         gl.uniform1f(uniforms.useClip!, 0); gl.uniform1f(uniforms.usePitch!, 0); gl.uniform1f(uniforms.useSourceColor!, 0); gl.uniform3f(uniforms.shadeColor!, ...(quiet ? mix(SHADE, GHOST, .8) : SHADE));
+        disableMaterial();
         gl.uniform3f(uniforms.topColor!, ...GHOST); gl.uniform3f(uniforms.baseColor!, ...GHOST); gl.uniform3f(uniforms.cutColor!, ...GHOST);
         for (const { mesh, buffer } of uploaded) {
           if (!p.ghosts.has(mesh.meshKey) || !drawsFloor(p.rules, mesh.floorId)) continue;
@@ -248,22 +342,48 @@ export function MeshLayer(props: Props) {
     document.addEventListener('visibilitychange', visibility);
     const resize = new ResizeObserver(schedule); resize.observe(element);
     try {
-      if (props.meshes.reduce((sum, mesh) => sum + mesh.vertices.byteLength, 0) > RENDER_LIMITS.uploadBytes) throw new Error('bound');
+      const reservation = materialGpuResources(props.meshes, usesMaterials);
       const compile = (kind: number, source: string) => {
         const shader = gl.createShader(kind); if (!shader) throw new Error('shader'); shaders.push(shader);
         gl.shaderSource(shader, source); gl.compileShader(shader);
         if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error('compile'); return shader;
       };
       program = gl.createProgram(); if (!program) throw new Error('program');
-      gl.attachShader(program, compile(gl.VERTEX_SHADER, vertexSource)); gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragmentSource));
+      gl.attachShader(program, compile(gl.VERTEX_SHADER, usesMaterials ? materialVertexSource : vertexSource));
+      gl.attachShader(program, compile(gl.FRAGMENT_SHADER, usesMaterials ? materialFragmentSource : fragmentSource));
       gl.linkProgram(program); if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error('link');
       position = gl.getAttribLocation(program, 'position'); normal = gl.getAttribLocation(program, 'normal');
       for (const name of ['rot', 'center', 'frame', 'viewport', 'lift', 'baseColor', 'topColor', 'cutColor', 'clipY', 'useClip', 'alpha', 'floorY', 'useFloor', 'ambient', 'twoSided', 'shadeColor', 'lightDir', 'usePitch', 'pitchColor', 'useSourceColor'])
         uniforms[name] = gl.getUniformLocation(program, name);
+      if (usesMaterials) {
+        materialUv = gl.getAttribLocation(program, 'materialUv'); shadingNormal = gl.getAttribLocation(program, 'shadingNormal'); materialTangent = gl.getAttribLocation(program, 'materialTangent');
+        if ([materialUv, shadingNormal, materialTangent].some(at => at < 0) || gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS) < 3) throw new Error('material inputs');
+        for (const name of ['useMaterial', 'materialDoubleSided', 'materialFactor', 'metallicFactor', 'roughnessFactor', 'hasBase', 'hasNormal', 'hasMetalRough', 'baseMap', 'normalMap', 'metalRoughMap', 'viewDir', 'materialPaper', 'materialDim']) uniforms[name] = gl.getUniformLocation(program, name);
+        gl.useProgram(program); gl.uniform1i(uniforms.baseMap!, 0); gl.uniform1i(uniforms.normalMap!, 1); gl.uniform1i(uniforms.metalRoughMap!, 2);
+        const gl2 = gl as WebGL2RenderingContext;
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0); gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+        for (const [key, pin] of reservation.textures) {
+          const image = pin.image; if (image.width > gl.getParameter(gl.MAX_TEXTURE_SIZE) || image.height > gl.getParameter(gl.MAX_TEXTURE_SIZE)) throw new Error('texture dimensions');
+          const texture = gl.createTexture(); if (!texture) throw new Error('texture'); textures.set(key, texture);
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+          gl.texImage2D(gl.TEXTURE_2D, 0, pin.colorRole === 'srgb' ? gl2.SRGB8_ALPHA8 : gl2.RGBA8, image.width, image.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, image.rgba);
+          gl.generateMipmap(gl.TEXTURE_2D);
+        }
+        const first = textures.values().next().value;
+        if (!first) throw new Error('textures');
+        for (let unit = 0; unit < 3; unit++) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, first); }
+      }
       if (position < 0 || normal < 0 || Object.values(uniforms).some(value => value === null)) throw new Error('inputs');
       for (const mesh of props.meshes) {
         const buffer = gl.createBuffer(); if (!buffer) throw new Error('buffer');
         uploaded.push({ mesh, buffer }); gl.bindBuffer(gl.ARRAY_BUFFER, buffer); gl.bufferData(gl.ARRAY_BUFFER, mesh.vertices, gl.STATIC_DRAW);
+        if (usesMaterials && mesh.sourceMaterial && mesh.materialVertices) {
+          const materialBuffer = gl.createBuffer(); if (!materialBuffer) throw new Error('material buffer');
+          uploaded[uploaded.length - 1]!.materialBuffer = materialBuffer;
+          gl.bindBuffer(gl.ARRAY_BUFFER, materialBuffer); gl.bufferData(gl.ARRAY_BUFFER, mesh.materialVertices, gl.STATIC_DRAW);
+        }
       }
       if (gl.getError() !== gl.NO_ERROR) throw new Error('upload');
       redraw.current = schedule; schedule();
@@ -274,6 +394,6 @@ export function MeshLayer(props: Props) {
     };
     // The GL scene is owned by one prepared mesh set; other props redraw only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.meshes]);
+  }, [props.meshes, props.sourceMaterials]);
   return <canvas ref={canvas} className="cifc-canvas" hidden={props.hidden} aria-hidden="true" />;
 }

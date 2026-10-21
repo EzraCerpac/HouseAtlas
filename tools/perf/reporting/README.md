@@ -6,7 +6,7 @@ schema for `houseatlas.perf.run/1`.
 
 The canonical schema is `tools/perf/contract/run.schema.json`; its module is
 `tools/perf/contract/index.mjs`, owned by PR190 at
-`d03223b0669761cf92846492fe56fb9e8f9f7db9`. Its verified schema SHA-256 is
+`4bb08dfd255c32c385d496ae64705719d5d56e80`. Its verified schema SHA-256 is
 `642af28eacc14e6fdd7b9f7071979f07abc8dcb9a427773f5d74dab672b7056a`.
 
 The trusted contract module must export:

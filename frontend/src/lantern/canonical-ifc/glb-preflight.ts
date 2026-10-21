@@ -94,7 +94,9 @@ export interface GlbAdmission {
   readonly declaredNodes: number;
   readonly declaredMeshes: number;
   /** Loader-visible work admitted before loading, expanded per node instance. */
-  readonly work: { readonly instances: number; readonly vertices: number; readonly triangles: number; readonly outputBytes: number };
+  readonly work: { readonly instances: number; readonly vertices: number; readonly triangles: number; readonly outputBytes: number;
+    /** Explicit material opt-in adds attributes and complete texture mip chains. */
+    readonly gpuBytes?: number };
 }
 
 const IDENTITY_MATRIX = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];

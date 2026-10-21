@@ -139,8 +139,8 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
         signal.throwIfAborted();
         // Prepared geometry is reserved from the preflight counts before the loader allocates.
         const glb = await loadStandardGlb(read.model, 'atlas', signal, admission => {
-          if (admission.work.triangles * PREPARED_BYTES_PER_TRIANGLE > RENDER_LIMITS.uploadBytes) throw new AtlasReadError('too-large');
-        });
+          if ((admission.work.gpuBytes ?? admission.work.triangles * PREPARED_BYTES_PER_TRIANGLE) > RENDER_LIMITS.uploadBytes) throw new AtlasReadError('too-large');
+        }, { embeddedPngMaterials: true });
         signal.throwIfAborted();
         outcome = { status: 'ready', model: bindAtlasModel(read.scene, glb), entryBuildingId: read.entryBuildingId };
       } catch (error) {
@@ -1282,7 +1282,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
         <div className="cifc-canvas-wrap" style={{ opacity: 1 - planBlend }}>
           <MeshLayer meshes={model.meshes} projection={projection} rules={RULES} currentFloorId={presentation.focusLevelId}
             selectedOccurrenceId={selected} contextOccurrenceIds={context} tints={tints} hidden={!showCanvas}
-            hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} sourceColors sourceDim={ATLAS_SOURCE_DIM} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE} light={light} pitch={ATLAS_PITCH}
+            hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} sourceColors sourceMaterials sourceDim={ATLAS_SOURCE_DIM} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE} light={light} pitch={ATLAS_PITCH}
             pitchKeys={roofKeys} site={site} ghostAlpha={ATLAS_GHOST_ALPHA}
             onUnavailable={message => setFailure(message)} />
         </div>
