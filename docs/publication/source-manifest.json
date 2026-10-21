@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "599ef43b5130e9f2224e290bc9b25c788363cba8f66bba80100c8fc50a546403",
+  "sourceDigestSha256": "8619ace25ac0d59bd2e31709880c5c7e9b2a224f9fcb2ac2a76fdadf4b9b96da",
   "files": [
     {
       "path": ".github/workflows/ordinary-core.yml",
@@ -6356,8 +6356,8 @@
     {
       "path": "docs/offline/saved-atlas-mounting.md",
       "mode": "100644",
-      "bytes": 6700,
-      "sha256": "920eaeff8730eac3afa07aac8c93268b5b72043d6d1d885573b6f659602946a9",
+      "bytes": 10018,
+      "sha256": "852ee8df10b1ad930034a635113706471cd54abf98e3dadab20818b5c96ba6cc",
       "owner": "web"
     },
     {
@@ -7625,6 +7625,13 @@
       "mode": "100644",
       "bytes": 8000,
       "sha256": "5ad10a6f4de94237ebfc62d497a427b0824cf42dd34640c5b1726fb8e928fd44",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/offline-catalog-mounting-healthy.mjs",
+      "mode": "100644",
+      "bytes": 11014,
+      "sha256": "cbd884ff34d749983a5daeabd410f20dca560cfdd37e78473ecee303d333b43d",
       "owner": "web"
     },
     {
@@ -10080,8 +10087,15 @@
     {
       "path": "frontend/src/offline/SavedAtlasHost.tsx",
       "mode": "100644",
-      "bytes": 4986,
-      "sha256": "256ef0c880366308d3c9ffefc46cdf7ad1306353577104a889bd2632c3cb5af4",
+      "bytes": 9455,
+      "sha256": "25441dd6f898cee6f532d8740893c0fe8ce174e359c83b0f1b779322a6daf50e",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/offline/SavedCatalogView.tsx",
+      "mode": "100644",
+      "bytes": 9498,
+      "sha256": "d887729ae29c20cee5a2c68ccb9b285098053ff520a5d5a40b2f36ec17e75928",
       "owner": "web"
     },
     {
@@ -10138,6 +10152,13 @@
       "mode": "100644",
       "bytes": 6467,
       "sha256": "51366ea826121d6e1f403049e78057d27026a4682960e07c3467fa75e6f2e266",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/offline/saved-catalog.css",
+      "mode": "100644",
+      "bytes": 2772,
+      "sha256": "dfb570ee040626d407c33a5ff69ac616418856b24ad1e12b74dc3fc2c8fc870c",
       "owner": "web"
     },
     {
