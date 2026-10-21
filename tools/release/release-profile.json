@@ -5,7 +5,7 @@
     "runner": "macos-15-intel",
     "target": "x86_64-apple-darwin",
     "minimumMacos": "15.0",
-    "sourceInputsSha256": "7ca82171b53ca4798d41ddbe9075cc0da9beca39dafee88c915d2f5737d6cd95",
+    "sourceInputsSha256": "5ed82d0bc529d968929bb336c6aaad0002e1a90de8457eb7e868e5c5d521d4c1",
     "allowedDylibs": [
       "/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation",
       "/System/Library/Frameworks/Security.framework/Versions/A/Security",

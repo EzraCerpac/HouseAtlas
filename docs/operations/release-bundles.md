@@ -8,8 +8,52 @@ nonexecutable synthetic example. A bundle supplies software bytes and build
 provenance. Target installation, service activation and runtime qualification
 remain with the updater and runtime owners.
 
-The checked-in [`release-profile.json`](../../tools/release/release-profile.json)
-records the reviewed native qualification of product source
+## Native profile qualification
+
+The current [native profile](../../tools/release/release-profile.json) adopts
+the independently reviewed qualification of product source
+`7cae5db05389cb5ca5cc97403975fa60d8f4cbcb`, tree
+`015320ded4947bc5c5100804ac6c521ce94c56e6`, from
+[run 39668402224, attempt 1](https://github.com/EzraCerpac/HouseAtlas/actions/runs/39668402224).
+The reviewed recipe is `f7855face19d7adaaf9bc07da8559dbb5e42ecaf`; its
+workflow and support bytes remain unchanged in policy child
+`17ba1b4a7b38c6b7e682fb5ccb49c985e3a380e1`.
+The later automatic [run 39675962945](https://github.com/EzraCerpac/HouseAtlas/actions/runs/39675962945)
+is separate evidence, not a replacement for this recorded qualification.
+
+The exact 893-row native-input digest is
+`5ed82d0bc529d968929bb336c6aaad0002e1a90de8457eb7e868e5c5d521d4c1`.
+Independent static inspection checked ZIP/TAR closure, evidence and receipt
+hashes, actual generic x86_64 Mach-O commands, minimum macOS 15.0, SDK 15.5,
+no RPATH, the four allowed system libraries, four generated PASS logs and
+run/source/tree/lock/recipe provenance. It did not execute artifact code or
+rebuild the binary. The standard Intel image `20260824.0482.1`, Xcode build
+`16F6`, SDK `15.5`, target and library closure match the prior profile;
+only `native.sourceInputsSha256` changes. The unsigned binary's codesign
+inspections are informational, as explicitly permitted by the recipe.
+
+Recorded public evidence:
+
+- [GitHub artifact 12379904071](https://github.com/EzraCerpac/HouseAtlas/actions/runs/39668402224/artifacts/12379904071):
+  13,243,645 bytes, SHA-256
+  `bc4f7e2ed6174e1260fb578f1630503fd84e231e8453772e2c27d7993aa46dfe`.
+- Native archive: 13,215,436 bytes, SHA-256
+  `a79cf97cc68cd9d33825b6d48269b56aa15bd5ba16616877d69badd61290af94`.
+- Archived binary SHA-256:
+  `8ff5d03e282248a7aa0398a15265e9020d1eee073d6d230ea8ce6161831fad4d`.
+- Build receipt SHA-256:
+  `38c0acc801e16434c6f0a352d48948ad2363a35f41948f06a0d762cbd2cd869f`.
+
+This qualifies the recorded native input/builder/ABI combination only.
+Storage compatibility remains unqualified with null contract pins and code
+rollback disabled. Native/runtime maintenance bindings, NAS compatibility,
+installed-service preservation, promotion and deployment need separate owner
+evidence. No signing, notarization, household validation or target acceptance
+is inferred, and no actual release build or promotion is performed here.
+
+### Retained historical qualification
+
+The previous native profile recorded the reviewed qualification of product source
 `978651fe1e4527b7e0836d2a843bc60c76a7f0d3` in run `39205023226`, attempt 1:
 standard `macos-15-intel` image `20260824.0482.1`, Xcode build `16F6`, SDK `15.5`,
 minimum macOS `15.0`, exact 891-row native source-input digest and four system
