@@ -1,4 +1,5 @@
 import type { AdmittedPresentation, PlanRing, PlanShape } from './model';
+import type { EmbeddedMaterial } from './embedded-png-material';
 
 /** One orthographic camera over the shared renderer frame. Plan and 3D are
  * poses of this camera; SVG, WebGL and picking all use it. */
@@ -60,6 +61,8 @@ export interface MeshInput {
   readonly positions: Float32Array;
   readonly indices: Uint32Array;
   readonly sourceBaseColor?: SourceBaseColor;
+  readonly sourceMaterial?: EmbeddedMaterial;
+  readonly sourceAttributes?: Readonly<{ uv: Float32Array; normal: Float32Array; tangent: Float32Array | null }>;
 }
 
 /** Non-indexed triangles with flat normals; only index-referenced vertices exist here. */
@@ -73,11 +76,17 @@ export interface PreparedMesh {
   readonly yRange: readonly [number, number];
   readonly bounds: Bounds;
   readonly sourceBaseColor?: SourceBaseColor;
+  readonly sourceMaterial?: EmbeddedMaterial;
+  /** Separate UV(2), source shading normal(3), tangent(4) stream. Picking keeps
+   * the original 24-byte position/flat-normal stream without any layout change. */
+  readonly materialVertices?: Float32Array;
 }
 
 export function prepareMeshes(meshes: readonly MeshInput[], binding: (mesh: MeshInput) => string | null = mesh => mesh.occurrenceId): readonly PreparedMesh[] {
   return meshes.map(mesh => {
     const triangles = mesh.indices.length / 3, vertices = new Float32Array(triangles * 18);
+    const attributes = mesh.sourceAttributes;
+    const materialVertices = attributes ? new Float32Array(triangles * 27) : null;
     const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
     const p = mesh.positions, at = (t: number, corner: number) => mesh.indices[t * 3 + corner]! * 3;
     for (let t = 0; t < triangles; t++) {
@@ -91,11 +100,21 @@ export function prepareMeshes(meshes: readonly MeshInput[], binding: (mesh: Mesh
         const o = (t * 3 + corner) * 6;
         vertices[o] = p[index]!; vertices[o + 1] = p[index + 1]!; vertices[o + 2] = p[index + 2]!;
         vertices[o + 3] = nx; vertices[o + 4] = ny; vertices[o + 5] = nz;
+        if (materialVertices && attributes) {
+          const source = index / 3, out = (t * 3 + corner) * 9;
+          materialVertices[out] = attributes.uv[source * 2]!; materialVertices[out + 1] = attributes.uv[source * 2 + 1]!;
+          for (let axis = 0; axis < 3; axis++) materialVertices[out + 2 + axis] = attributes.normal[source * 3 + axis]!;
+          materialVertices[out + 5] = attributes.tangent?.[source * 4] ?? 1;
+          materialVertices[out + 6] = attributes.tangent?.[source * 4 + 1] ?? 0;
+          materialVertices[out + 7] = attributes.tangent?.[source * 4 + 2] ?? 0;
+          materialVertices[out + 8] = attributes.tangent?.[source * 4 + 3] ?? 1;
+        }
         for (let axis = 0; axis < 3; axis++) { const v = p[index + axis]!; if (v < min[axis]!) min[axis] = v; if (v > max[axis]!) max[axis] = v; }
       }
     }
     return { meshKey: mesh.meshKey, floorId: mesh.floorId, occurrenceId: binding(mesh), vertices, triangles,
       ...(mesh.sourceBaseColor ? { sourceBaseColor: mesh.sourceBaseColor } : {}),
+      ...(mesh.sourceMaterial && materialVertices ? { sourceMaterial: mesh.sourceMaterial, materialVertices } : {}),
       yRange: [min[1]!, max[1]!], bounds: { min: [min[0]!, min[1]!, min[2]!], max: [max[0]!, max[1]!, max[2]!] } };
   });
 }
