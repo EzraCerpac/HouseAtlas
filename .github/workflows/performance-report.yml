@@ -27,7 +27,7 @@ jobs:
       - name: Checkout the immutable canonical healthy fixture source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: d03223b0669761cf92846492fe56fb9e8f9f7db9
+          ref: 4bb08dfd255c32c385d496ae64705719d5d56e80
           path: .houseatlas-perf-harness
           fetch-depth: 1
           fetch-tags: false
