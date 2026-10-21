@@ -8,17 +8,50 @@ continues to use its StoreProvider. Saved mode opens property scope explicitly;
 model-v2 contains no entry-building metadata. No source bytes change.
 
 Saved allocations are tagged, revision-scoped and idempotently disposed. Their
-one store subscription retires the selection and removes old stage pixels.
-Opening abort signals apply only to opening. Host-owned reads abort on unmount.
+store subscriptions retire the selection and remove old stage pixels.
+The host keeps each catalog selection signal alive for the whole allocation.
+Host-owned reads abort on unmount.
 Saved state has no session, expiry, native grant or fabricated receipt. Memory is
 scoped to allocation, local revision, snapshot, publication and semantics.
 
 The manager lists, opens and removes actual retained copies using production
-store APIs. Empty storage says no saved copy. There is no acquisition/download
-flow. Captured time, pack completeness, exclusions, supported overlay coverage,
-source facts and unsupported historical joins remain visible. General inventory,
-Documents/PDF navigation, editing, installed PWA/iOS and native authorization are
-outside this Atlas-only entry.
+store APIs. Empty storage says no saved copy. There is no live/native acquisition
+or fresh native download flow. Retained originals use the explicit verification
+and download action below. Captured time, pack completeness, exclusions, supported overlay coverage,
+source facts and unsupported historical joins remain visible. Atlas, Inventory
+and Documents are explicit saved views. Inventory and document lists/details
+use the merged local catalog adapter independently of optional Atlas/model
+admission; a model-free copy can still expose its verified catalog sections.
+Switching saved views hides the Atlas stage without replacing its allocation
+or unmounting its renderer. Leaving a catalog view retires its owned file URLs.
+Editing, sync, fresh native downloads, installed PWA/iOS and current native
+authorization remain outside this entry.
+
+The mounting owner reads genuinely verified saved sections without bypassing
+their eager original-byte admission. Initial missing/corrupt originals still
+reject that admission. Metadata remains distinct from a retained-unverified
+original. Lists use the adapter's exact scoped/source tuple keys and preserve
+captured dates, section state, required-byte coverage, exclusions, caches and
+source metadata. Details show every captured field with `canonicalPack`, keeping
+exact decimals, nulls, unknown types, attachments, maintenance and provenance.
+Captured URLs are inert text, including native links; no source URL is opened.
+
+A store notification synchronously clears the current allocation, aborts its
+selection/read signals, withdraws its catalog, disposes its Atlas and revokes
+owned file URLs before awaiting a fresh list for the same selected house key.
+It then re-reads verified sections and optional Atlas independently. Selection
+replacement, Close and unmount retire the same ownership. Late reads cannot
+publish into another allocation. React state alone does not retire ownership.
+
+**Verify retained original** is an explicit action on a retained document detail.
+The adapter rechecks the owner, size, MIME and SHA; the caller also checks its
+selection/request identity after the await before owning a Blob URL. The result
+shows exact document/asset revisions, SHA and MIME and offers an explicit
+**Download verified saved original** link. No original is rendered inline or
+fetched from an online/native source. Closing the file/detail/view, replacing
+selection, any store notice and unmount revoke that URL and cancel pending file
+publication. A failed later open leaves historical metadata distinct from file
+availability. Actual browser download behavior remains unqualified.
 
 `discardStage({ key, token, epoch })` discards only the matching pending Save
 allocation, after checking its durable token/epoch and current control epoch in
@@ -48,6 +81,7 @@ node frontend/lantern-tests/offline-atlas-presentation-healthy.mjs
 node frontend/lantern-tests/offline-atlas-overlays-healthy.mjs
 node frontend/lantern-tests/offline-atlas-mounting-healthy.mjs
 node frontend/lantern-tests/offline-stage-discard-healthy.mjs
+node frontend/lantern-tests/offline-catalog-mounting-healthy.mjs
 ```
 
 The three Atlas positives use generated valid complete/partial packages, fake local resource owners,
@@ -65,6 +99,19 @@ transaction-completion boundaries. Parser/exporter qualification is outside this
 positive. This is simulated IDB/source qualification;
 genuine browser-IDB persistence, actual Save/persisted reopen, genuine offline and
 native acceptance remain separate gates.
+
+The catalog-mounting positive uses the checked-in valid complete/partial catalog
+generator and its ordinary fake local resource owner. It executes production
+mount/original ownership with genuinely verified sections and no model, and
+server-renders the actual catalog list/coverage component with React. It checks
+scoped keys, captured qualifiers, exact decimal preservation, byte-faithful
+explicit original verification, real CPU Blob URL revocation, ordinary store
+notice/re-list/re-read, selected-copy replacement, Close, unmount and removal.
+Deferred ordinary reads exercise retirement without injecting storage/transport
+failures. It does not run the fixture's held missing/corrupt/MIME/size controls.
+This is CPU lifecycle and React SSR evidence, not interactive DOM/focus, actual
+browser download, IndexedDB persistence, native Save, genuine offline, iOS/PWA
+or device acceptance. Those gates remain open and require separate release.
 
 From `frontend`, the ordinary compatibility commands are:
 
