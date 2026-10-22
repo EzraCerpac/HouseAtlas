@@ -242,7 +242,11 @@ Bounds: 35 seconds for one-shot tool/initializer/observer, 45 seconds per server
 request and 210 seconds for the run. Output/HTTP bodies are bounded to 4 MiB;
 files to 64 MiB; one copied store tree to 128 MiB and 256 files. On timeout or
 interruption only recorded ChildProcess handles receive TERM then KILL after
-seven seconds, and their close events are awaited. No PID scan, unrelated
+seven seconds. The first termination request immediately starts one idempotent
+per-child escalation, including while awaiting `finish()`; later requests never
+postpone it. Actual closure clears lifetime and escalation timers. Cleanup
+requests termination for all remaining owned children before awaiting their
+close events. No PID scan, unrelated
 process kill, service restart, production cleanup or fixture deletion occurs.
 Readiness polls only owned stdout; no failed mutation/request is retried.
 

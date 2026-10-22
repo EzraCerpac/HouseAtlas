@@ -181,6 +181,15 @@ else:
 const sqlitePath = join(root, 'sqlite-tool.py');
 put(sqlitePath, SQLITE_TOOL);
 receipt.sqliteToolSha256 = hash(SQLITE_TOOL);
+function terminate(item) {
+  if (item.closed || !owned.has(item) || item.terminationTimer !== null) return;
+  // Start escalation on the first TERM request, even while finish() awaits close.
+  // Repeated interruption/deadline/cleanup requests must not postpone KILL.
+  item.terminationTimer = setTimeout(() => {
+    if (!item.closed && owned.has(item)) item.child.kill('SIGKILL');
+  }, 7000);
+  item.child.kill('SIGTERM');
+}
 function launch(executable, args, label, lifetime = 35000) {
   assert(!receipt.interruption, 'Interrupted run cannot launch more work');
   if (executable === join(root, 'bin', 'old') || executable === join(root, 'bin', 'new')) {
@@ -190,25 +199,25 @@ function launch(executable, args, label, lifetime = 35000) {
   const record = { label, executable, args, startedAt: new Date().toISOString(), status: 'starting' };
   receipt.processes.push(record);
   const child = spawn(executable, args, { cwd: root, env, stdio: ['pipe', 'pipe', 'pipe'] });
-  const item = { child, record, out: '', err: '', closed: false, failed: null };
+  const item = { child, record, out: '', err: '', closed: false, failed: null, terminationTimer: null };
   owned.add(item); record.pid = child.pid ?? null;
   const timeout = setTimeout(() => {
     item.failed ??= new Error(`${label}: deadline; outcome uncertain`);
-    record.status = 'uncertain'; child.kill('SIGTERM');
+    record.status = 'uncertain'; terminate(item);
   }, lifetime);
-  const forced = setTimeout(() => { if (!item.closed) child.kill('SIGKILL'); }, lifetime + 7000);
   for (const [stream, key] of [[child.stdout, 'out'], [child.stderr, 'err']]) stream.on('data', chunk => {
     item[key] += chunk.toString('utf8');
     if (Buffer.byteLength(item.out) + Buffer.byteLength(item.err) > MAX_OUTPUT) {
       item[key] = item[key].slice(0, MAX_OUTPUT / 2);
       item.failed ??= new Error(`${label}: output bound; outcome uncertain`);
-      child.kill('SIGTERM');
+      terminate(item);
     }
   });
   child.stdin.on('error', error => { item.failed ??= error; });
   child.on('error', error => { item.failed ??= error; });
   item.done = new Promise(resolveDone => child.on('close', (code, signal) => {
-    clearTimeout(timeout); clearTimeout(forced); item.closed = true; owned.delete(item);
+    item.closed = true; clearTimeout(timeout); clearTimeout(item.terminationTimer);
+    item.terminationTimer = null; owned.delete(item);
     Object.assign(record, { code, signal, status: item.failed ? 'uncertain' : code === 0 ? 'closed' : 'failed',
       stdout: item.out, stderr: item.err, endedAt: new Date().toISOString() });
     resolveDone();
@@ -235,7 +244,7 @@ async function ready(item, marker) {
 }
 async function stop(item) {
   assert(!item.closed && !item.failed, 'Unexpected pre-shutdown process outcome');
-  item.child.kill('SIGTERM'); await finish(item);
+  terminate(item); await finish(item);
   assert(item.out.includes('persistent server listening on'), 'Persistent startup marker missing');
   const events = bytes(join(item.data, 'logs', 'server.events.jsonl')).toString().trim().split('\n').map(line => JSON.parse(line));
   assert.equal(events.at(-1).format, 'houseatlas-server-event/1');
@@ -415,7 +424,7 @@ const oldBinary = join(root, 'bin', 'old'), newBinary = join(root, 'bin', 'new')
 let active, keeper;
 const interrupted = signal => {
   receipt.status = 'uncertain'; receipt.interruption = signal;
-  for (const item of owned) { item.failed ??= new Error(`Interrupted by ${signal}`); item.child.kill('SIGTERM'); }
+  for (const item of owned) { item.failed ??= new Error(`Interrupted by ${signal}`); terminate(item); }
 };
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => interrupted(signal));
 const totalTimer = setTimeout(() => interrupted('whole-run-210-second-deadline'), 210000);
@@ -531,11 +540,11 @@ try {
 } finally {
   clearTimeout(totalTimer);
   // No global process lookup, process-group kill, retry, deletion or production cleanup.
-  for (const item of [...owned]) {
-    item.failed ??= new Error('Incomplete operation: outcome uncertain'); item.child.kill('SIGTERM');
-    const force = setTimeout(() => { if (!item.closed) item.child.kill('SIGKILL'); }, 7000);
-    await item.done; clearTimeout(force);
+  const remaining = [...owned];
+  for (const item of remaining) {
+    item.failed ??= new Error('Incomplete operation: outcome uncertain'); terminate(item);
   }
+  await Promise.all(remaining.map(item => item.done));
   if (receipt.interruption || receipt.processes.some(p => p.status === 'uncertain')) { receipt.status = 'uncertain'; process.exitCode = 1; }
   receipt.endedAt = new Date().toISOString(); persist();
   console.log(JSON.stringify({ status: receipt.status, retainedRoot: root, syntheticOnly: true }));
