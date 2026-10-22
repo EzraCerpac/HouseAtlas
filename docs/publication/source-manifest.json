@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "2987e9ecbb009546e78b5c6cca3d3c90e740849ed0280135c96f4a3570252853",
+  "sourceDigestSha256": "297b051d29eced92917aac4de8f275454f29fb8bdf00499a12731fd5659eb544",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -5089,8 +5089,8 @@
     {
       "path": "backend/src/storage/recovery_checks.rs",
       "mode": "100644",
-      "bytes": 29845,
-      "sha256": "6d9b74f504e70986ca2c0125f980333095ff673ae5435102073ef110cce1081b",
+      "bytes": 29850,
+      "sha256": "f796273795f6a66cafbd0c16914102070ef67952285e60a8bf14ccfd98c4c610",
       "owner": "storage"
     },
     {
