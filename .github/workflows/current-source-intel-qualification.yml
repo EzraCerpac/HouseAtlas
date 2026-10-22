@@ -44,7 +44,7 @@ jobs:
       - name: Check out immutable public product source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: 7cae5db05389cb5ca5cc97403975fa60d8f4cbcb
+          ref: d36a48546a92b58cb3c515d8034272dfa1d92e5a
           path: source
           fetch-depth: 1
           fetch-tags: false
@@ -60,7 +60,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: houseatlas-current-source-7cae5db0-x86_64-apple-darwin
+          name: houseatlas-current-source-d36a4854-x86_64-apple-darwin
           path: ${{ runner.temp }}/current-source-intel-artifact/
           retention-days: 7
           if-no-files-found: error

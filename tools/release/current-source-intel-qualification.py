@@ -12,11 +12,11 @@ import struct
 import subprocess
 import tarfile
 
-SOURCE = '7cae5db05389cb5ca5cc97403975fa60d8f4cbcb'
-TREE = '015320ded4947bc5c5100804ac6c521ce94c56e6'
+SOURCE = 'd36a48546a92b58cb3c515d8034272dfa1d92e5a'
+TREE = '9567e8f9da5c81a8b9b9e4d088b09b269a5bdd8a'
 LOCK = '9e7275031042b5010f12a69746ec10ef41c48e351605f4cd9ef8009bb260b1c8'
-NATIVE_INPUTS = '5ed82d0bc529d968929bb336c6aaad0002e1a90de8457eb7e868e5c5d521d4c1'
-NATIVE_INPUT_COUNT = 893
+NATIVE_INPUTS = '2061368ea3e6d6620451d8542dc111226721ea6fd599ea8b3f841f2e9457586b'
+NATIVE_INPUT_COUNT = 898
 TARGET = 'x86_64-apple-darwin'
 WORKFLOW = '.github/workflows/current-source-intel-qualification.yml'
 SUPPORT = 'tools/release/current-source-intel-qualification.py'
@@ -285,7 +285,7 @@ def main():
               'Built on GitHub-hosted macos-15-intel with Rust 1.99.0.\n'
               'Inspect BUILD_RECEIPT.json and detached evidence before selecting this artifact.\n'
               'No installation or NAS qualification is supplied. No credential signing or notarization.\n').encode()
-    archive = output / 'houseatlas-current-source-7cae5db0-x86_64-apple-darwin.tar.gz'
+    archive = output / 'houseatlas-current-source-d36a4854-x86_64-apple-darwin.tar.gz'
     with archive.open('wb') as raw:
         with gzip.GzipFile(filename='', mode='wb', fileobj=raw, mtime=0) as zipped:
             with tarfile.open(fileobj=zipped, mode='w', format=tarfile.USTAR_FORMAT) as tar:

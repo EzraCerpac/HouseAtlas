@@ -68,7 +68,7 @@ The owner-authorized standard-runner native qualification exception permits
 `main` touching that workflow or `tools/release/current-source-intel-qualification.py`.
 Its scope is one standard `macos-15-intel` job per run, at most 60 minutes,
 read-only repository permissions, exact Rust 1.99.0 and seven-day review artifacts.
-The recipe pins product source `7cae5db05389cb5ca5cc97403975fa60d8f4cbcb`, its tree,
+The recipe pins product source `d36a48546a92b58cb3c515d8034272dfa1d92e5a`, its tree,
 dependency lock and native-input digest. It may build that native binary, inspect
 its ABI/provenance and run only these four generated healthy examples:
 `healthy-native-full-geodata-profile`, `healthy-model-overview-read`,
