@@ -399,15 +399,6 @@ async fn retained_identity_bodies_positive() -> Outcome<()> {
         assert_eq!(manifest["sections"]["atlas"]["requiredBytesComplete"], true);
         assert!(manifest["exclusions"].as_array().unwrap().is_empty());
         let resources = manifest["resources"].as_array().unwrap();
-        let aggregate = resources
-            .iter()
-            .filter(|r| r["role"] == "retained-identity-bodies")
-            .collect::<Vec<_>>();
-        assert_eq!(aggregate.len(), 1);
-        let aggregate = aggregate[0];
-        assert_eq!(aggregate["section"], "atlas");
-        assert_eq!(aggregate["contentType"], "application/octet-stream");
-        assert!(aggregate["record"].is_null());
         let atlas_resource = resources
             .iter()
             .find(|r| r["sha256"] == manifest["sections"]["atlas"]["resourceSha256"])
@@ -426,6 +417,16 @@ async fn retained_identity_bodies_positive() -> Outcome<()> {
             descriptor["profile"],
             "houseatlas.home-read-pack.retained-identity-bodies.v1"
         );
+        let aggregates = resources
+            .iter()
+            .filter(|r| r["sha256"] == descriptor["resourceSha256"])
+            .collect::<Vec<_>>();
+        assert_eq!(aggregates.len(), 1);
+        let aggregate = aggregates[0];
+        assert_eq!(aggregate["section"], "atlas");
+        assert_eq!(aggregate["role"], "original");
+        assert_eq!(aggregate["contentType"], "application/octet-stream");
+        assert!(aggregate["record"].is_null());
         assert_eq!(descriptor["resourceSha256"], aggregate["sha256"]);
         assert_eq!(descriptor["bytes"], aggregate["bytes"]);
         assert!(descriptor["omissions"].as_array().unwrap().is_empty());
@@ -653,7 +654,7 @@ async fn verify_pack(
     let mut section_model = Value::Null;
     let mut section_documents = Value::Null;
     let mut section_atlas = Value::Null;
-    let mut retained_identity_bytes = None;
+    let mut unattributed_atlas_originals = BTreeMap::new();
     for resource in manifest["resources"].as_array().unwrap() {
         let href = resource["href"].as_str().unwrap();
         let hash = resource["sha256"].as_str().unwrap();
@@ -675,12 +676,20 @@ async fn verify_pack(
 
         assert_eq!(body.len() as u64, resource["bytes"].as_u64().unwrap());
         total += body.len() as u64;
-        if resource["role"] == "retained-identity-bodies" {
-            assert_eq!(resource["section"], "atlas");
-            assert_eq!(resource["contentType"], "application/octet-stream");
-            assert!(retained_identity_bytes.replace(body.to_vec()).is_none());
+        if resource["section"] == "atlas"
+            && resource["role"] == "original"
+            && resource["record"].is_null()
+        {
+            assert!(
+                unattributed_atlas_originals
+                    .insert(hash.to_owned(), body.to_vec())
+                    .is_none()
+            );
         }
-        if resource["section"] == "atlas" && resource["role"] == "original" {
+        if resource["section"] == "atlas"
+            && resource["role"] == "original"
+            && resource["record"]["recordType"] == "asset"
+        {
             found_asset = true;
             if resource["contentType"] == "text/plain" {
                 assert_eq!(body.as_ref(), b"Generated native offline original.");
@@ -789,7 +798,19 @@ async fn verify_pack(
         retained["profile"],
         "houseatlas.home-read-pack.retained-identity-bodies.v1"
     );
-    let identity_bytes = retained_identity_bytes.unwrap();
+    let identity_hash = retained["resourceSha256"].as_str().unwrap();
+    let identity_bytes = unattributed_atlas_originals.remove(identity_hash).unwrap();
+    assert!(unattributed_atlas_originals.is_empty());
+    let aggregate = manifest["resources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["sha256"] == identity_hash)
+        .unwrap();
+    assert_eq!(aggregate["section"], "atlas");
+    assert_eq!(aggregate["role"], "original");
+    assert_eq!(aggregate["contentType"], "application/octet-stream");
+    assert!(aggregate["record"].is_null());
     assert_eq!(sha(&identity_bytes), retained["resourceSha256"]);
     assert_eq!(
         identity_bytes.len() as u64,

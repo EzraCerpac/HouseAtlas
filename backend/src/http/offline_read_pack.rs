@@ -470,14 +470,17 @@ fn retained_identity_bodies(
             captured.bytes.clone(),
             "application/octet-stream",
             "atlas",
-            "retained-identity-bodies",
+            "original",
             Value::Null,
         )?;
         if hash.as_deref() != Some(captured.sha256.as_str()) {
             return Ok((None, false));
         }
         let resource = &builder.resources[&captured.sha256].descriptor;
-        if resource["section"] != "atlas" || resource["role"] != "retained-identity-bodies" {
+        if resource["section"] != "atlas"
+            || resource["role"] != "original"
+            || !resource["record"].is_null()
+        {
             builder.exclusion(
                 "atlas",
                 "retained-identity-bodies-attribution",
