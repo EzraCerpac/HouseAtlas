@@ -2352,9 +2352,11 @@ Its five positive groups cover close/reopen round trips, explicit local
 partition/home/snapshot isolation, exact large revision strings, detached
 buffers/results, immutable documentary originals, reversible proposals/reset,
 unavailable original evidence and targeted discard with unrelated rows retained.
-Successful mutations wait for transaction completion and verify the detached
-returned bytes afterward. A rejected mutation alone does not prove rollback;
-its local outcome remains unresolved until separately inspected.
+Successful mutations wait for transaction completion. Retain verifies its
+owned input before writing; proposal set/reset verify the detached committed
+draft afterward, outside the active transaction. Discard returns only whether
+the selected local row existed. A rejected mutation alone does not prove
+rollback; its local outcome remains unresolved until separately inspected.
 
 The fixed local database is separate from saved-house and capture storage.
 The caller-supplied partition is only a data partition: native authority stays

@@ -83,18 +83,26 @@ TypeScript and the frontend build passed. Independent source review found and
 closed Unicode label-counting and partial-coverage coherence issues; the final
 rereview reported no remaining concrete P1/P2 findings in this scope.
 
-## Integration boundary
+## Integration history and acceptance boundary
 
-The adapter does not implement `UnifiedAtlasPort`: its current selection type
-requires native expiry/owner/manifest authority. Mounting requires a separately
-agreed local-selection facade from the frontend owner. Shared Atlas UI/types,
-geometry, host wiring, publication-manifest changes and other offline shell or
-download paths remain outside this release. Parent coordination must supply
-that facade and compose the remaining owners. Consumer checks do not establish
-full offline, IndexedDB/browser/PWA/device, product or deployment acceptance.
+The original PR216 data-adapter scope did not implement `UnifiedAtlasPort`.
+The then-current native selection required expiry/owner/manifest authority, so
+that initial scope required a separate local-selection facade before mounting.
+This describes the pre-facade boundary, not a current missing-source task.
 
-The six new paths also need publication-source registration by the integration
-owner. `npm run verify:publication` currently reports `Exact source allowlist
-mismatch` for exactly these paths; `docs/publication/source-manifest.json` is
-outside this release and remains unchanged. This draft cannot pass that gate
-until the owner composes and reviews the manifest update.
+[PR221](https://github.com/EzraCerpac/HouseAtlas/pull/221), merged on
+2026-10-18, composed the exporter, consumer adapter and presentation facade.
+Its [saved mounting composition](https://github.com/EzraCerpac/HouseAtlas/commit/0592d98fcda65cad09a5e36cfb3500111c57cd01)
+evolved the facade with the shared saved Atlas host.
+[PR227](https://github.com/EzraCerpac/HouseAtlas/pull/227) subsequently added
+owned-stage cleanup to the saved store. The old donor PRs' draft labels do not
+mean these source changes are absent from main.
+
+All six consumer paths are registered under `web` in the
+[source manifest](../publication/source-manifest.json). The initial draft's
+missing-registration allowlist mismatch was resolved by integration; it is
+not a current registration requirement.
+
+Source inclusion and registration do not establish full offline,
+IndexedDB/browser/PWA/device, native-authority, product or deployment acceptance.
+Consumer checks retain their documented scope and limitations.
