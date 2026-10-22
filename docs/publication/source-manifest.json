@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "9cb30d4b6efdbe5d722f8668b8af9ad621670f3011e081c53c33bbd651231512",
+  "sourceDigestSha256": "7ad015630a9f188b5afd55f7fba3ded5d9c35542dabd15080322c9cd8c5b8361",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -4674,6 +4674,13 @@
       "owner": "storage"
     },
     {
+      "path": "backend/src/storage/checks/updater-retained-bytes-healthy.rs",
+      "mode": "100644",
+      "bytes": 15338,
+      "sha256": "3ae704ef726abc3bf9abf6b6cab6e1b9f12fef020a136b06b6a7fdd4db699b02",
+      "owner": "storage"
+    },
+    {
       "path": "backend/src/storage/checks/upload-healthy.rs",
       "mode": "100644",
       "bytes": 53131,
@@ -5313,8 +5320,8 @@
     {
       "path": "backend/src/storage/updater_read_validation.rs",
       "mode": "100644",
-      "bytes": 1944,
-      "sha256": "be3d555c7fc2fac2ac80efe37c180f5064f38fc164a602fbe42aa31312e98133",
+      "bytes": 3820,
+      "sha256": "2b9e239da5ec240893346bb5469bb204c47a0cba3f6acd84fa8791193ffd0102",
       "owner": "storage"
     },
     {
@@ -5999,8 +6006,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 144071,
-      "sha256": "6fe365969b31e863f26b5e8111ee8f371cc66ecc3f22a5bdf160e92a5d097294",
+      "bytes": 146081,
+      "sha256": "5367d4ce1589ea83c9477b558517b685660c9b1474c6354a0002393ac9f38c3d",
       "owner": "core-integration"
     },
     {
