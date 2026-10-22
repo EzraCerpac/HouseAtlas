@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "7ad015630a9f188b5afd55f7fba3ded5d9c35542dabd15080322c9cd8c5b8361",
+  "sourceDigestSha256": "6ab44b087e5c74975739c1a8e4102531b71d330d4dc606ccbc4161f9bbbe6c21",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -6006,8 +6006,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 146081,
-      "sha256": "5367d4ce1589ea83c9477b558517b685660c9b1474c6354a0002393ac9f38c3d",
+      "bytes": 148158,
+      "sha256": "b4d9c2a8206c724dae7df8a8e830a5299920ec7f6aa0829b91cff1059b705404",
       "owner": "core-integration"
     },
     {
@@ -6363,8 +6363,8 @@
     {
       "path": "docs/models/unified-atlas-scene-v1.md",
       "mode": "100644",
-      "bytes": 19226,
-      "sha256": "2e739dfcba6e3a29dbf1edbca6638af83eb3239c0ecd864c71a762b950496108",
+      "bytes": 22025,
+      "sha256": "19f85c81b4249299c5edffdf01cd85882b01d6b9839491a24ac99515a8a49ac3",
       "owner": "core-integration"
     },
     {

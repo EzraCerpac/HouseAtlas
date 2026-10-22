@@ -2434,3 +2434,38 @@ repair, migration, replay, fault or concurrency case is included. These bounded
 observations establish neither general filesystem/SHM inactivity nor whole-Core
 custody. The existing local media budgets and caller checkpoints are not a hard
 absolute deadline or permission to inspect a running target.
+
+## Named generated embedded-PNG material positives
+
+Inspect `frontend/lantern-tests/embedded-png-material-healthy.mjs`, its generated
+fixture and React hook seam, and the production loader, preflight, decoder,
+geometry and MeshLayer imports before execution. Use Node 26.10.0 and the
+unchanged locked frontend dependencies. Select one ordinary generated positive
+per invocation:
+
+```sh
+node frontend/lantern-tests/embedded-png-material-healthy.mjs --case slots
+node frontend/lantern-tests/embedded-png-material-healthy.mjs --case image-sharing
+node frontend/lantern-tests/embedded-png-material-healthy.mjs --case png-filters
+node frontend/lantern-tests/embedded-png-material-healthy.mjs --case png-adam7
+node frontend/lantern-tests/embedded-png-material-healthy.mjs --case accounting-1024
+node frontend/lantern-tests/embedded-png-material-healthy.mjs --case legacy-geometry
+node frontend/lantern-tests/embedded-png-material-healthy.mjs --case gpu-owner
+node frontend/lantern-tests/embedded-png-material-healthy.mjs --case precedence
+```
+
+These cases generate RGB PNGs and GLBs locally; global fetch is forbidden.
+They cover supported slots and color roles, image sharing, filters and Adam7,
+bounded accounting and mip chains, legacy geometry/picking and material opt-out,
+owned resource cleanup and appearance precedence. The runner compiles actual
+production imports into an owned temporary module and removes it afterward.
+Its React hook seam and GL recorder exercise MeshLayer effects without a DOM,
+real React mount, browser, native provider or household input.
+
+The GL recorder reports successful shader compilation/linking and records
+resource calls; it does not execute shaders or measure real GPU output.
+Generated CPU/accounting assertions are not private-candidate, installed,
+rendering or device acceptance, nor total browser/driver peak-memory evidence.
+The separate lifecycle cancellation/reselection runner remains in the
+separately reviewed regression lane; these commands do not release it or any
+fault, denial, replay, expiry, concurrency or target controls.
