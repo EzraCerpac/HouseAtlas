@@ -137,20 +137,37 @@ try {
   assert.equal(multi.reads.length, 0); assert.equal(disk.databases.size, 0, 'Construction/rendering reads and writes nothing');
   const stable = adapter.getSnapshot(); assert.equal(stable, adapter.getSnapshot()); assert(Object.isFrozen(stable));
   let notifications = 0;
+  const observations = [];
   let stop = adapter.subscribe(() => {
-    notifications++; assert(notifications <= 100);
+    notifications++;
     const snapshot = adapter.getSnapshot();
-    assert(Object.isFrozen(snapshot));
-    for (const candidate of snapshot.candidates) assert.equal(typeof candidate.revision, 'string');
-    if (snapshot.status === 'ready') assert(transactions.every(tx => tx.completed));
+    observations.push({ frozen: Object.isFrozen(snapshot), status: snapshot.status,
+      revisionTypes: snapshot.candidates.map(candidate => typeof candidate.revision),
+      transactionsCompleted: transactions.every(tx => tx.completed) });
   });
-  await adapter.readCandidates();
+  async function observed(action) {
+    const start = observations.length;
+    const result = await action();
+    // Adapter observers cannot fail the action: it deliberately catches their
+    // exceptions. Assert outside it, against values captured at publication.
+    assert(notifications <= 100); assert.equal(observations.length, notifications);
+    assert(observations.length > start);
+    for (const observation of observations.slice(start)) {
+      assert(observation.frozen);
+      for (const type of observation.revisionTypes) assert.equal(type, 'string');
+      if (observation.status === 'ready') assert(observation.transactionsCompleted,
+        'Transactions completed before this successful publication');
+    }
+    if (result?.completion === 'verified' && result.published) assert(observations.slice(start).some(item => item.status === 'ready'));
+    return result;
+  }
+  await observed(() => adapter.readCandidates());
   assert.equal(adapter.getSnapshot().candidateStatus, 'ready'); assert.equal(rows().length, 0);
   assert.deepEqual(adapter.getSnapshot().candidates.map(row => row.recordId), multi.included.map(row => row.value.recordId));
   assert.deepEqual(adapter.getSnapshot().candidates.map(row => row.revision), multi.included.map(row => row.token));
   assert(adapter.getSnapshot().candidateMessage.includes('1 oversized'));
   const firstKey = adapter.getSnapshot().candidates[0].key;
-  const selected = await adapter.chooseCandidate(firstKey);
+  const selected = await observed(() => adapter.chooseCandidate(firstKey));
   assert.equal(selected.completion, 'verified'); assert.equal(selected.action, 'read'); assert.equal(selected.draft, null);
   assert.equal(adapter.getSnapshot().canRetain, true); assert.equal(rows().length, 0);
   assert(render(multi.selection, adapter).includes('Retain local draft'));
@@ -161,7 +178,7 @@ try {
     assert.equal(draft.nativeAuthority, 'not-established'); assert.equal(draft.currentBase, 'not-checked');
     assert.deepEqual(draft.selectedResource, pack.baseline.resources.find(pin => pin.sha256 === pack.aggregateHash));
   }
-  const retained = await adapter.retain();
+  const retained = await observed(() => adapter.retain());
   assert.equal(retained.completion, 'verified'); assert.equal(retained.action, 'retain'); exact(retained.draft, multi, multi.included[0]);
   assert.notEqual(retained.draft.original.sha256, retained.draft.selectedResource.sha256);
   assert.equal(adapter.getSnapshot().canRetain, false);
@@ -169,14 +186,14 @@ try {
   for (const label of ['Local proposal JSON', 'Retained original JSON', 'not established', 'Current base not checked', 'Retain local draft']) assert(html.includes(label));
   assert(!html.includes('<a '));
   const proposal = '{\n "proposed":"Local only 🧭", "revision":1E+0\n}\n';
-  const proposed = await adapter.saveProposal(proposal); exact(proposed.draft, multi, multi.included[0]);
+  const proposed = await observed(() => adapter.saveProposal(proposal)); exact(proposed.draft, multi, multi.included[0]);
   assert.deepEqual(proposed.draft.proposal.bytes, encode(proposal));
   new Uint8Array(proposed.draft.original.bytes).fill(0); new Uint8Array(proposed.draft.manifest.bytes).fill(0);
   assert.equal(adapter.getSnapshot().detail.originalText, decode(multi.included[0].bytes));
   // Retain every valid included member serially, including the 1 MiB boundary.
   for (const candidate of adapter.getSnapshot().candidates.slice(1)) {
-    await adapter.chooseCandidate(candidate.key);
-    const result = await adapter.retain(); assert.equal(result.completion, 'verified');
+    await observed(() => adapter.chooseCandidate(candidate.key));
+    const result = await observed(() => adapter.retain()); assert.equal(result.completion, 'verified');
     exact(result.draft, multi, multi.included.find(row => row.value.recordId === candidate.recordId));
   }
   const seed = clone(retained.draft); delete seed.localPartitionId; delete seed.nativeAuthority; delete seed.currentBase; delete seed.proposal;
