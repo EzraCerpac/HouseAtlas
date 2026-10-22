@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "63a0dc3fccd19bd2be50486e7b448fb51405641e750fc022ca2a31de66e6e1c5",
+  "sourceDigestSha256": "bf3cc267cdf282983e39efcd98a2572cc5de131cc6a93dfb256c6bb36aaa1f6f",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -12402,10 +12402,24 @@
       "owner": "core-integration"
     },
     {
+      "path": "tools/rust-integration/backend-storage-compatibility-python-parity.md",
+      "mode": "100644",
+      "bytes": 25305,
+      "sha256": "81b356fd6a3824c5610dea37b463e6c600c0b04a4834a71522e5438dd6d16f15",
+      "owner": "core-integration"
+    },
+    {
       "path": "tools/rust-integration/backend-storage-compatibility.mjs",
       "mode": "100644",
       "bytes": 32468,
       "sha256": "6554df16e0e6230395a09009570037451b98b69c70752762fd5195ca3fa31601",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/rust-integration/backend-storage-compatibility.py",
+      "mode": "100644",
+      "bytes": 53319,
+      "sha256": "1587fa46b870eb28d9b9688a8b3cbd03b152d84304ac19a3885846345d6f5a2f",
       "owner": "core-integration"
     },
     {
