@@ -3,6 +3,11 @@
 //! Real Axum/Access/SQLite owners, no listener/provider/Node ledger or replay.
 //! Checks committed SQL coherence, not injected rollback or crash atomicity.
 //! Registration and publication-manifest adoption belong to the source owner.
+//! New opt-in regression cases are listed in offline06/CASES.md; no aggregate
+//! selector or automatic retry is provided. No arguments retains this baseline.
+
+#[path = "offline06/atomic_recovery.rs"]
+mod atomic_recovery;
 
 use axum::{
     Router,
@@ -220,10 +225,24 @@ fn assert_absent(value: &Value, intent: &Value, request_digest: &str) {
 
 fn main() -> Result<(), Failure> {
     rustix::process::umask(rustix::fs::Mode::from_raw_mode(0o077));
-    tokio::runtime::Builder::new_multi_thread()
+    let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .build()?
-        .block_on(qualify())
+        .build()?;
+    let mut arguments = std::env::args().skip(1);
+    match arguments.next().as_deref() {
+        None => runtime.block_on(qualify()),
+        Some("--case") => {
+            let case = arguments.next().ok_or("One exact case name is required")?;
+            if arguments.next().is_some() {
+                return Err("Only one case can be selected".into());
+            }
+            runtime.block_on(atomic_recovery::run(&case))
+        }
+        Some("--child-outcome") if arguments.next().is_none() => {
+            runtime.block_on(atomic_recovery::child_outcome())
+        }
+        _ => Err("Expected no arguments, --case NAME, or internal --child-outcome".into()),
+    }
 }
 
 async fn qualify() -> Result<(), Failure> {
