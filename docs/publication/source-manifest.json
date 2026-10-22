@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "20770fed75975f16f27843129ec5312ffcef8fc8d86e3fcc0cff465af4437dbc",
+  "sourceDigestSha256": "8ac23fc748ec0f186aad30aa38f35e85c3b96080e87658375ade5a7fc39b5e8e",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -378,8 +378,8 @@
     {
       "path": "backend/examples/healthy-offline-intent-reconciliation.rs",
       "mode": "100644",
-      "bytes": 16791,
-      "sha256": "308307802015e7d625fc76100fbf61c1f8196d50c23f0f585a8fc4e58abda938",
+      "bytes": 17678,
+      "sha256": "5e5d3d3ee62420a0dd5c18c915619d43c1c994c59bd27d5ef7e44658ceb759bd",
       "owner": "core-integration"
     },
     {
@@ -409,6 +409,20 @@
       "bytes": 61003,
       "sha256": "c7c527b2ce1064041d7e26efbfb49e2d80b29100327f13ae05a938073d94a840",
       "owner": "core-integration"
+    },
+    {
+      "path": "backend/examples/offline06/CASES.md",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 7030,
+      "sha256": "da01b52f3de0eb690942052a34a4d26696d85ac4fe2633fae74c17b14883211c"
+    },
+    {
+      "path": "backend/examples/offline06/atomic_recovery.rs",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 25219,
+      "sha256": "d7fb47ee99407fa0c3f0fd9db1782673144bf504ab08f02e7499f56b807ab0d6"
     },
     {
       "path": "backend/examples/support/home_read_pack_geometry.rs",
@@ -6006,8 +6020,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 150230,
-      "sha256": "b5f024dbfe58a5b2ac96fd63c8fe515e99aa5f694aea765f92c71e7776179052",
+      "bytes": 153400,
+      "sha256": "b6a3bbe48ce6ef9ff2c908b012e4ab9172ef42b58a666bb1dea2c1647d01a346",
       "owner": "core-integration"
     },
     {

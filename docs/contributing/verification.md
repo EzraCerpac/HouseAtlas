@@ -1862,6 +1862,58 @@ establish replay safety, injected rollback, crash or process recovery, concurren
 writers, two authorized-home collision isolation, a server response-size ceiling,
 offline editing/sync, production access or deployment readiness.
 
+## Named generated offline-06 regression cases
+
+Inspect `backend/examples/healthy-offline-intent-reconciliation.rs`,
+`backend/examples/offline06/atomic_recovery.rs` and its `CASES.md` before
+any separately released invocation. The no-argument healthy body is unchanged;
+there is no aggregate selector or automatic case execution. Use Rust 1.99.0,
+the unchanged lock and an owned external Cargo target. The compile-only gate is:
+
+```sh
+cargo check --offline --locked -p houseatlas-backend --example healthy-offline-intent-reconciliation
+```
+
+After the exact registered source and compile result are accepted, select each
+separately released case in its own invocation; stop and report the first
+failure without retrying or changing the fixture:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-offline-intent-reconciliation -- --case late-precommit-rollback
+cargo run --offline --locked -p houseatlas-backend --example healthy-offline-intent-reconciliation -- --case duplicate-shared-store
+cargo run --offline --locked -p houseatlas-backend --example healthy-offline-intent-reconciliation -- --case duplicate-independent-connections
+cargo run --offline --locked -p houseatlas-backend --example healthy-offline-intent-reconciliation -- --case child-process-outcome
+```
+
+These are separate generated regression-lane cases, not additions to ordinary
+CI or the default healthy run. The late failure uses an existing test-only
+authorization callback after native/Stock persistence but before COMMIT; it
+compares complete typed rows in all seven tables and uses a different intent
+as the positive control. The shared-Store case explicitly submits one duplicate
+and reaches the existing retained-hit branch. That exact duplicate is a bounded
+mutex-serialization qualification, not independent-connection concurrency or
+general replay permission.
+
+The two-connection case holds one writer at precommit, establishes SQLite
+BUSY/LOCKED contention and a second request rejected before intake, and checks
+the full preimage from an independent reader. It never retries the busy
+request. The process case closes parent application handles and launches the
+same executable in a distinct child process to read the original outcome and
+a missing-key result. It does not simulate a crashed process, power loss or
+native-service restart. Missing outcomes retain retry safety as not established.
+
+Every case creates a fresh private temporary fixture using existing lifecycle
+setup. Storage probes accept only their generated principal/scope/intent;
+transaction results do not qualify real Access authorization. Actual Access
+and the in-process Axum outcome handler are used where documented. Writer gates
+have ten-second waits; the owned child has bounded ticket/output and a
+thirty-second protective timeout. Timeout is a failed run, not crash recovery.
+
+No listener, provider, household input, production database, NAS/native service,
+browser/device, automatic submission/replay, populated restore, Scope A or new
+dependency is included. These commands require an exact source-owner case
+release; registration alone is not execution or offline-sync acceptance.
+
 ## Named generated saved Atlas mounting positives
 
 Read [saved Atlas mounting](../offline/saved-atlas-mounting.md),
