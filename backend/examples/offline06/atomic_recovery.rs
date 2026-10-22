@@ -398,8 +398,8 @@ async fn shared_store() -> Result<(), Failure> {
         result
     };
     let commits = std::thread::scope(|scope| {
-        let a = scope.spawn(&worker);
-        let b = scope.spawn(&worker);
+        let a = scope.spawn(worker);
+        let b = scope.spawn(worker);
         barrier.wait();
         (a.join().unwrap(), b.join().unwrap())
     });
@@ -496,13 +496,15 @@ async fn independent_connections() -> Result<(), Failure> {
 async fn process_reader() -> Result<(), Failure> {
     let fixture = Fixture::new().await?;
     let raw = intent(fixture.context()?, 5);
-    let core = fixture.host.core.lock().map_err(|_| "Core unavailable")?;
-    let home = serde_json::to_value(&core.home)?;
-    let command_path = format!(
-        "/api/atlas/stock/v3/workspaces/{}/homes/{}/commands",
-        core.home.scope.workspace_id, core.home.scope.home_id
-    );
-    drop(core);
+    let (home, command_path) = {
+        let core = fixture.host.core.lock().map_err(|_| "Core unavailable")?;
+        let home = serde_json::to_value(&core.home)?;
+        let command_path = format!(
+            "/api/atlas/stock/v3/workspaces/{}/homes/{}/commands",
+            core.home.scope.workspace_id, core.home.scope.home_id
+        );
+        (home, command_path)
+    };
     let response = post(
         &fixture.app,
         &command_path,
@@ -624,7 +626,7 @@ pub(super) async fn child_outcome() -> Result<(), Failure> {
     }
     let directory = root.join("fixture");
     let access = Arc::new(Mutex::new(access::AccessBoundary::open_existing(
-        &directory.join("access.sqlite"),
+        directory.join("access.sqlite"),
         access::AccessConfig::new(vec![ORIGIN.into()])?,
     )?));
     let vault = Arc::new(houseatlas_backend::media::AssetVault::open_existing(
