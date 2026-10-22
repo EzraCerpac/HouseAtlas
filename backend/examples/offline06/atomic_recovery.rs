@@ -325,7 +325,12 @@ fn single_delta(before: &[i64], after: &[i64]) {
     assert_eq!(after, before.iter().map(|n| n + 1).collect::<Vec<_>>());
 }
 async fn absent(fixture: &Fixture, raw: &Value) -> Result<(), Failure> {
-    assert_absent(&inspect(&fixture.app, raw, &fixture.editor).await?, raw);
+    let digest = houseatlas_backend::domain::stock::request_digest(raw)?;
+    assert_absent(
+        &inspect(&fixture.app, raw, &fixture.editor).await?,
+        raw,
+        &digest,
+    );
     Ok(())
 }
 
@@ -660,7 +665,12 @@ pub(super) async fn child_outcome() -> Result<(), Failure> {
     assert_receipt(&outcome, &ticket["intent"], &ticket["committed"]);
     let mut missing = ticket["intent"].clone();
     missing["idempotencyKey"] = json!(id(31999));
-    assert_absent(&inspect(&app, &missing, &editor).await?, &missing);
+    let missing_digest = houseatlas_backend::domain::stock::request_digest(&missing)?;
+    assert_absent(
+        &inspect(&app, &missing, &editor).await?,
+        &missing,
+        &missing_digest,
+    );
     assert_eq!(tables(&directory.join("atlas.sqlite"))?, before);
     assert_eq!(disk(&directory.join("atlas.sqlite"))?, disk_before);
     drop(app);
