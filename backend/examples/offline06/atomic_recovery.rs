@@ -32,7 +32,7 @@ impl Fixture {
         let scratch = tempfile::Builder::new()
             .prefix("houseatlas-offline06-case-")
             .tempdir_in("/tmp")?;
-        let directory = scratch.path().join("fixture");
+        let directory = scratch.path().canonicalize()?.join("fixture");
         let core = lifecycle::prepare(&directory, ORIGIN)?;
         let host = Host::new(core, ORIGIN.into(), Arc::new(BTreeMap::new()), vec![])?;
         let app = router(host.clone());
