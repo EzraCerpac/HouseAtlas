@@ -142,7 +142,7 @@ fn validate_core_profile<C: Contract>(
         CoreProfile::GeodataFull => super::super::super::geodata_full::validate_catalog(db)?,
     }
     let mut integrity_rows = 0;
-    each(db, "PRAGMA integrity_check", check, |row, _| {
+    each(db, "PRAGMA main.integrity_check", check, |row, _| {
         integrity_rows += 1;
         require(row.get::<_, String>(0)? == "ok")
     })?;

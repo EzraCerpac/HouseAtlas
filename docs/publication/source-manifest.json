@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "3b8b7c1d8bce37b384ccbce224f879f6c3749c970b57daf75d741c290732383a",
+  "sourceDigestSha256": "7ab93041d89995c629ce71afc3954abe6508a413f59a052ade5298a5fed0734d",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -4667,6 +4667,13 @@
       "owner": "storage"
     },
     {
+      "path": "backend/src/storage/checks/updater-read-validation-healthy.rs",
+      "mode": "100644",
+      "bytes": 7823,
+      "sha256": "c74cc8761e9b4408aaee8be6b143f120ae234fd527db370da969e42db8a89628",
+      "owner": "storage"
+    },
+    {
       "path": "backend/src/storage/checks/upload-healthy.rs",
       "mode": "100644",
       "bytes": 53131,
@@ -5082,8 +5089,8 @@
     {
       "path": "backend/src/storage/recovery_checks.rs",
       "mode": "100644",
-      "bytes": 29845,
-      "sha256": "6d9b74f504e70986ca2c0125f980333095ff673ae5435102073ef110cce1081b",
+      "bytes": 29850,
+      "sha256": "f796273795f6a66cafbd0c16914102070ef67952285e60a8bf14ccfd98c4c610",
       "owner": "storage"
     },
     {
@@ -5292,8 +5299,8 @@
     {
       "path": "backend/src/storage/store.rs",
       "mode": "100644",
-      "bytes": 24191,
-      "sha256": "4e5b89758cee0b803094c91f2500ea400dfb1ffdbe872f00c3d4f57ba07089cd",
+      "bytes": 24259,
+      "sha256": "435478a071a42fa1ac29624ad5c1d18abc1a00e5c224cfbb593764de872cbb1f",
       "owner": "storage"
     },
     {
@@ -5301,6 +5308,13 @@
       "mode": "100644",
       "bytes": 11998,
       "sha256": "4db2a23f547bd48e9841021926dd67ffa7f567ec572478f2faa8e7764e01c558",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/updater_read_validation.rs",
+      "mode": "100644",
+      "bytes": 1944,
+      "sha256": "be3d555c7fc2fac2ac80efe37c180f5064f38fc164a602fbe42aa31312e98133",
       "owner": "storage"
     },
     {
@@ -5985,8 +5999,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 142172,
-      "sha256": "c1dba051c7777c3a12d4845ca78004bef2619bfc85163b766c5633457241401d",
+      "bytes": 143913,
+      "sha256": "089f4f32ce845e7c762b29d906451d8814ca84657b540cc46519d8db45ba0d93",
       "owner": "core-integration"
     },
     {
