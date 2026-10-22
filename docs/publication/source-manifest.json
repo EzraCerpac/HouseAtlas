@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "8ac23fc748ec0f186aad30aa38f35e85c3b96080e87658375ade5a7fc39b5e8e",
+  "sourceDigestSha256": "1275d545a6967b6a32a2d43b831059ebff423343ec7ba7a79691dc4e3a3437cb",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -421,8 +421,8 @@
       "path": "backend/examples/offline06/atomic_recovery.rs",
       "mode": "100644",
       "owner": "core-integration",
-      "bytes": 25219,
-      "sha256": "d7fb47ee99407fa0c3f0fd9db1782673144bf504ab08f02e7499f56b807ab0d6"
+      "bytes": 25235,
+      "sha256": "9dbfd05c9202498fd40526167f629802d50970c2cc6feb0d6d30ce71a3dd84a0"
     },
     {
       "path": "backend/examples/support/home_read_pack_geometry.rs",
