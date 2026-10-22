@@ -2371,6 +2371,42 @@ runtime alias. Fault/crash/replay, corruption, refusal/quota and concurrent
 writer controls are not exercised or released by this positive. Browser/device
 persistence, future mounting, live authorization and deployment remain separate.
 
+## Named generated local edit-retention controller positive
+
+Inspect `frontend/src/local-edit-retention/controller.ts`, the unchanged
+retention store/types and synthetic IndexedDB helper, and
+`frontend/lantern-tests/local-edit-retention-controller-healthy.mjs` before
+this separately released manual positive. Use Node 26.10.0 and the existing
+locked dependencies:
+
+```sh
+node frontend/lantern-tests/local-edit-retention-controller-healthy.mjs
+```
+
+The runner imports the actual controller and store into disposable synthetic
+IndexedDB. Its serial healthy paths cover explicit select/read/retain without
+implicit storage on selection, exact manifest/original bytes and large revision
+strings, detached input/results/snapshots, separate proposals, partition/home/
+snapshot isolation, completed-allocation retirement and clean store reopen,
+nullable original evidence, reset and targeted discard. It observes transaction
+completion before successful publication. Supplied record-original bytes retain
+their own digest; an aggregate resource pin never supplies missing provenance.
+
+The controller is unmounted and receives explicit documentary input and an
+already partition-bound store. Partition and selection-generation values are
+local attribution, not actor/session/grant, operation or idempotency authority.
+Native authority stays `not-established`; the current base stays `not-checked`.
+Retirement clears memory publication without cancelling or rolling back pending
+storage. A rejected dispatched mutation is completion-unconfirmed until an
+explicit read; no automatic retry or cleanup occurs.
+
+Pending retirement, stale completions, reentrant observers, mutation failures,
+concurrent writers and crash/replay controls are not exercised or released by
+this serial positive. The case starts no browser, listener, transport, native
+service or household intake. It changes no saved-house/capture store, worker,
+host mounting, editor or submission path. Browser/device durability, live-base
+reconciliation, native authorization and installed acceptance remain separate.
+
 ## Named generated Atlas current-connection read-validation positive
 
 Inspect `backend/src/storage/updater_read_validation.rs`, its generated healthy
