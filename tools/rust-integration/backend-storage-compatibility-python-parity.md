@@ -86,8 +86,29 @@ than 1,048,576, permitting source-side closure of descriptors 3 through that
 bound. The orchestrator repeats environment clearing, makes stdin `/dev/null`,
 sets umask 077, and gives every child `close_fds=True`, empty `pass_fds`, private
 pipes, exact cwd and an explicit five-entry HOME/TMPDIR/PATH/LANG/LC_ALL allowlist.
+Only the selected OpenSSL executable's generated-TLS child receives the sixth
+entry `OPENSSL_CONF=/dev/null`, selecting the existing public empty device instead
+of a host default configuration. Each child receipt records its exact environment.
+The parent, Python helpers and old/new backend children retain the five-entry
+environment; no OpenSSL override is propagated to those processes.
 Clearing after startup cannot undo an already loaded library or inherited
 policy; parent pre-exec sanitation is essential.
+
+The generated certificate invocation keeps `req -x509 -newkey rsa:2048 -nodes
+-days 1 -config ROOT/openssl.cnf -keyout ROOT/key.pem -out ROOT/cert.pem` unchanged.
+The explicitly selected create-only config supplies `[req]` with `prompt=no`,
+`distinguished_name=dn`, `x509_extensions=v3`; `[dn]` supplies `CN=127.0.0.1`;
+`[v3]` supplies `subjectAltName=IP:127.0.0.1` and `basicConstraints=critical,CA:TRUE`.
+Thus subject and SAN remain explicit in the owned config, not dependent on a
+host default. OpenSSL's official [environment documentation](https://docs.openssl.org/3.6/man7/openssl-env/)
+defines OPENSSL_CONF as config-file selection. The official [req documentation](https://docs.openssl.org/3.6/man1/openssl-req/)
+supports `-config`, direct field values with `prompt=no`, and `x509_extensions`
+for `-x509`; [X509v3 configuration](https://docs.openssl.org/3.6/man5/x509v3_config/)
+supports the IP SAN spelling. This is source/documentation confirmation only.
+The override aligns config selection with the retained OpenSSL version inventory;
+that inventory still does not qualify this TLS-generation invocation, Python's
+SSL/SQLite native/module closure, or actual inherited containment. No private
+configuration is read, no runtime check is added, and isolation is not relaxed.
 
 The root is admitted only if canonical, empty, owned, 0700, a directory and equal
 to the explicitly supplied device/inode. A retained `O_DIRECTORY|O_NOFOLLOW`

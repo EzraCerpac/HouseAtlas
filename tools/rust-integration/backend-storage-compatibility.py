@@ -227,14 +227,17 @@ class OwnedChild:
         self.failure, self.escalation = None, None
         self.closed = threading.Event()
         self.buffers = {"stdout": bytearray(), "stderr": bytearray()}
+        child_env = dict(run.env)
+        if executable == run.openssl:
+            child_env["OPENSSL_CONF"] = "/dev/null"
         self.record = {"label": label, "executable": str(executable), "args": args,
-                       "startedAtMs": now(), "status": "starting"}
+                       "environment": child_env, "startedAtMs": now(), "status": "starting"}
         with run.lock:
             run.check()
             run.receipt["processes"].append(self.record)
         try:
             self.process = subprocess.Popen(
-                [str(executable), *args], cwd=run.root, env=run.env,
+                [str(executable), *args], cwd=run.root, env=child_env,
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 close_fds=True, pass_fds=(), start_new_session=False, bufsize=0)
         except BaseException as error:
