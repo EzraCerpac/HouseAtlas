@@ -119,6 +119,77 @@ its exact original bytes. Native asset and model MIME values remain explicit.
 - `model`: the versioned section below. Its small root is always a generic
   section JSON resource; the admitted raw companion is a separate opaque resource.
 
+### Exact retained identity bodies amendment
+
+An Atlas section may additionally contain `retainedIdentityBodies`. This
+optional descriptor refers to exact retained `records.body` bytes at the
+captured revision, not original mutation requests, a current base or native
+authority. Older packs without it remain readable but supply no exact-record
+evidence for creating local drafts.
+
+```text
+{
+  profile: "houseatlas.home-read-pack.retained-identity-bodies.v1",
+  resourceSha256: lowercase SHA256 | null,
+  bytes: exact nonnegative integer,
+  members: [{
+    workspaceId, homeId, recordType: "identity", recordId,
+    revision: exact original numeric token,
+    offset: exact nonnegative byte offset, bytes: exact positive byte length,
+    sha256: lowercase SHA256
+  }],
+  omissions: [{
+    workspaceId, homeId, recordType: "identity", recordId,
+    revision: exact original numeric token, bytes: exact positive byte length,
+    sha256: lowercase SHA256, code: "member-byte-budget"
+  }]
+}
+```
+
+The one aggregate uses the existing manifest descriptor
+`section:atlas, role:original, record:null`, MIME
+`application/octet-stream`, and its exact length and SHA256. It is not a new
+resource role or JSON resource. Deterministic record-ID order concatenates
+unchanged bodies without separators or padding. Unique member slices are
+contiguous, nonoverlapping and cover the complete aggregate; offsets and lengths
+count UTF-8 bytes, never characters. Each member has its own digest, distinct
+from the aggregate digest. A consumer must verify the actual aggregate
+length/hash/MIME and then the checked member slice, per-body hash, strict
+schema, scope, identity and revision. It must not substitute a resource hash
+for a record hash or pass concatenated bodies through the generic section JSON
+parser. Generic saved-house storage retains the aggregate opaquely.
+
+Capture uses the existing authorized SQL transaction. Duplicate-rejecting,
+number-preserving v2 JSON parsing and the closed native identity schema precede
+SQL scope/type/ID/revision and complete captured-record comparison. Revisions
+have exact integer values in 1..9007199254740991; their original numeric lexical
+tokens are preserved without binary64 conversion, including valid integral
+decimal/exponent encodings. Whitespace in retained bodies is also preserved.
+The identity must equal its existing documentary projection: excluded or
+transformed fields cannot escape through this resource. Missing or conflicting
+rows refuse the capture. The continuation fingerprint commits ordered keys,
+revision tokens, lengths, body hashes, omissions and aggregate hash, so
+byte-only changes invalidate continuation.
+
+At most 10,000 identities and 16 MiB of identity bodies are captured; exceeding
+that capture bound refuses export. Each included member is at most 1 MiB.
+Larger members are omitted with exact documentary metadata and explicit partial
+coverage. No empty aggregate is listed: an omissions-only descriptor has a
+null resource hash, zero aggregate bytes and no members. With no identities,
+the optional descriptor is absent. Aggregate/mapping publication consumes the
+unchanged resource, section, metadata and total budgets. If the extension
+cannot fit or has conflicting resource attribution, it is withheld with explicit
+partial coverage; the same frozen cut may be recomposed without the extension
+when later metadata cannot fit. An added aggregate can consume a resource slot
+otherwise available to another section; resulting coverage remains explicit.
+
+Existing authorization, source restrictions, byte ownership and final/resumed
+revalidation remain authoritative. This producer adds no frontend admission,
+draft creation UI, local-store schema, native mutation, submission or replay.
+In particular, the current frontend lossless JSON parser's last-wins object
+handling is insufficient for exact-original admission: the later consumer must
+reject duplicate decoded keys, including escaped-equivalent keys.
+
 ### Model section v2 amendment
 
 The closed v1 manifest, six sections, resource roles, limits and digest/dedup

@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c579f309626cfaa66e28a1dd976a869341a1527334f1f118be6961f289e14cf1",
+  "sourceDigestSha256": "b960065370206cab09fb7210bdea13dcfa6480f6e37a0f148f79c6eedf5882bd",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -301,8 +301,8 @@
     {
       "path": "backend/examples/healthy-home-read-pack.rs",
       "mode": "100644",
-      "bytes": 33235,
-      "sha256": "b688a7cc4ea6700b96a4249ea6c323350536d43459399623ed579168800ffa6b",
+      "bytes": 47145,
+      "sha256": "430a0468821a69b1a8b272adb33c3c50569c628c15805413f00299fc70f0b626",
       "owner": "core-integration"
     },
     {
@@ -2387,8 +2387,8 @@
     {
       "path": "backend/src/http/offline_read_pack.rs",
       "mode": "100644",
-      "bytes": 38718,
-      "sha256": "4f89331d8b729270dde75071e99cd89746e0ec1973e78defbf1348ed587c7662",
+      "bytes": 45553,
+      "sha256": "18a8cf6ca2e8f3ff16bf9ec4d4407dacfb7fb6a95fb2f7bcb2ff855515f8c993",
       "owner": "core-integration"
     },
     {
@@ -4774,8 +4774,8 @@
     {
       "path": "backend/src/storage/home_read_pack.rs",
       "mode": "100644",
-      "bytes": 3793,
-      "sha256": "0be829e116936ec7f852d75c19cde9c22ffdb81bf4e3026e72e0332bc855e25d",
+      "bytes": 12809,
+      "sha256": "15ff141eccbe7a8e18e47993756d08bc6000d20a69329499f26f1f79404bf6b1",
       "owner": "storage"
     },
     {
@@ -6020,8 +6020,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 155590,
-      "sha256": "118263d9a807ab8c9f5b5995cf409daa7c79fb9b40188eee46868164d515fd34",
+      "bytes": 157491,
+      "sha256": "08115c1243769340ddbb8a73ddb0a371949f51e6fd696c3707264e996e5c9464",
       "owner": "core-integration"
     },
     {
@@ -6384,8 +6384,8 @@
     {
       "path": "docs/offline/home-read-pack-v1.md",
       "mode": "100644",
-      "bytes": 12549,
-      "sha256": "1e1504079374689d6582750f3322d206f8a0666cd22899d5c8e54d585116d512",
+      "bytes": 16520,
+      "sha256": "72f1e6bba835376b8b6d08e453fadb89726b7db555f1d3cdbe017399bd24f4c7",
       "owner": "storage"
     },
     {

@@ -1836,6 +1836,41 @@ establish offline renderer, browser, device, source placement or deployment
 acceptance. The closed v1 envelope remains; explicit model-section v2 renderer
 support is still required.
 
+## Named generated retained identity body positive
+
+Inspect the exact `--retained-identity-bodies` branch and
+`retained_identity_bodies_positive()` in
+`backend/examples/healthy-home-read-pack.rs`, and the touched read-pack
+storage/HTTP code, before this separate command. The producer-only positive
+uses fresh private canonical temporary state, an in-process local session and
+the existing native mutation owner to create generated identities. Synthetic
+SQL setup then supplies valid whitespace-preserving encodings, exact integral
+decimal/exponent revision tokens, a maximum safe revision and one exactly
+1 MiB body. Setup finishes before read-only observation; it is not an audit
+history, recovery or malformed-input control.
+
+Using Rust 1.99.0 and an owned target outside the checkout, the separately
+coordinated command is:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-home-read-pack -- --retained-identity-bodies
+```
+
+The body checks actual manifest/Atlas/aggregate GETs, unchanged body slices,
+independent hashes, deterministic contiguous closure, exact revision tokens,
+repeat-capture descriptor consistency and exact retained-manifest continuation.
+It compares complete record rows, database files and observer-connection
+change/version values before and after the read phase. Those observations do
+not establish general live WAL/SHM inactivity or crash durability. The existing
+baseline and fixture-output paths remain separate invocations; this command
+does not run them.
+
+Only generated records and existing in-process transports are used. No listener,
+live data, provider, browser/device session, local draft retention, UI, native
+authority, submission, replay, fault, denial, concurrency or deployment is
+qualified. This registration records the inspected command and scope, not an
+execution result; invocation requires the coordinated exact-head release.
+
 ## Bounded generated offline intent reconciliation qualification
 
 Inspect `backend/examples/healthy-offline-intent-reconciliation.rs` before this
