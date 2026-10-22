@@ -67,10 +67,10 @@ export function LocalEditPanel({ selection, adapter: supplied, lifetime }: {
     return () => { if (lifetime?.current === retire) lifetime.current = null; retire(); };
   }, [lifetime, retire]);
   if (selection.signal.aborted || !selection.isCurrent()) return null;
-  const busy = state !== null && ['listing', 'opening', 'pending'].includes(state.status);
+  const busy = state !== null && (['listing', 'opening', 'pending'].includes(state.status) || state.candidateStatus === 'reading');
   const disabled = busy || state?.status === 'completion-unconfirmed' || state?.status === 'retired';
   return <section className="saved-catalog" aria-label="Local drafts">
-    <h2>Local drafts</h2><p>Local only / not submitted. Existing drafts for this saved copy; no new draft creation here.</p>
+    <h2>Local drafts</h2><p>Local only / not submitted. Documentary originals; native authority not established. Current base not checked.</p>
     {!supplied && <form className="session-form" onSubmit={event => {
       event.preventDefault(); if (!selection.isCurrent() || selection.signal.aborted) return;
       const chosen = space; retire();
@@ -97,8 +97,28 @@ export function LocalEditPanel({ selection, adapter: supplied, lifetime }: {
         <div><dt>Snapshot</dt><dd>{state.context.snapshotId}</dd></div>
         <div><dt>Local revision</dt><dd>{state.context.localRevision}</dd></div>
       </dl></details>
+      <section aria-label="Saved identity originals">
+        <h3>Saved identity originals</h3>
+        <button type="button" disabled={disabled} onClick={() => { void adapter.readCandidates(); }}>Read saved identity originals</button>
+        {state.candidateStatus === 'reading' && <p role="status">Verifying saved identity originals…</p>}
+        {state.candidateMessage && <p role={state.candidateStatus === 'unavailable' ? 'alert' : 'status'}>{state.candidateMessage}</p>}
+        <ul className="saved-catalog-list" aria-label="Verified saved identity candidates">
+          {state.candidates.map(candidate => <li key={candidate.key}>
+            <button type="button" disabled={disabled} aria-pressed={state.selectedCandidate === candidate.key}
+              onClick={() => { void adapter.chooseCandidate(candidate.key); }}>
+              <strong>identity: {candidate.recordId}</strong><span>Revision {candidate.revision}; {candidate.bytes} bytes</span>
+            </button>
+            {state.selectedCandidate === candidate.key && <details><summary>Verified original evidence</summary><dl>
+              <div><dt>Member SHA256</dt><dd>{candidate.sha256}</dd></div>
+              <div><dt>Aggregate resource SHA256</dt><dd>{candidate.resourceSha256}</dd></div>
+            </dl></details>}
+          </li>)}
+        </ul>
+        {state.selectedCandidate !== null && <button type="button" disabled={disabled || !state.canRetain}
+          onClick={() => { void adapter.retain(); }}>Retain local draft</button>}
+      </section>
       {state.message && <p role={state.status === 'completion-unconfirmed' || state.status === 'unavailable' ? 'alert' : 'status'}>{state.message}</p>}
-      {busy && <p role="status">{state.status === 'listing' ? 'Reading local drafts…' : state.status === 'opening' ? 'Reading local draft…' : 'Saving local change…'}</p>}
+      {busy && state.candidateStatus !== 'reading' && <p role="status">{state.status === 'listing' ? 'Reading local drafts…' : state.status === 'opening' ? 'Reading local draft…' : 'Saving local change…'}</p>}
       <div className="saved-catalog-original">
         <button type="button" disabled={busy || state.status === 'retired'} onClick={() => { void adapter.list(); }}>Read local drafts</button>
         {state.selectedKey !== null && <>

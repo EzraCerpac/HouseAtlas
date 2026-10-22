@@ -58,7 +58,8 @@ export function mountSavedSelection(store: SavedHouseStore, key: string, sink: S
       if (!selected) { retire(); sink.missing(); return; }
       const house = structuredClone(selected); sink.house(house);
       if (!isCurrent()) return;
-      sink.houseSelection?.({ house: structuredClone(house), signal, isCurrent });
+      sink.houseSelection?.({ house: structuredClone(house), signal, isCurrent,
+        resources: { list: () => store.list(), asset: (saved, id) => store.asset(saved, id) } });
       if (!isCurrent()) return;
       // Catalog admission is independent of optional model/Atlas admission.
       void readSavedPackSections(store, house, signal)
