@@ -58,6 +58,11 @@ fn request(method: &str, path: &str, body: &str) -> Request<Body> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // Separate generated positive, held for exact-source review and release.
+    // The existing baseline and fixture-output entry paths stay unchanged.
+    if args.as_slice() == ["--retained-identity-bodies"] {
+        return retained_identity_bodies_positive().await;
+    }
     let output = match args.as_slice() {
         [] => None,
         [flag, path] if flag == "--fixture-output" => {
@@ -259,6 +264,246 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     );
     Ok(())
 }
+
+// PREPARED ONLY: do not execute until independent review separately releases
+// this exact source and command:
+// cargo run --offline --locked -p houseatlas-backend --example healthy-home-read-pack -- --retained-identity-bodies
+async fn retained_identity_bodies_positive() -> Outcome<()> {
+    use houseatlas_backend::contracts::v2;
+    use rusqlite::params;
+    #[derive(serde::Deserialize)]
+    struct LexicalRevision {
+        revision: Box<serde_json::value::RawValue>,
+    }
+    #[derive(serde::Deserialize)]
+    struct LexicalMembers {
+        members: Vec<LexicalRevision>,
+    }
+    #[derive(serde::Deserialize)]
+    struct LexicalAtlas {
+        #[serde(rename = "retainedIdentityBodies")]
+        bodies: LexicalMembers,
+    }
+    let temporary = tempfile::Builder::new()
+        .permissions(fs::Permissions::from_mode(0o700))
+        .tempdir()?;
+    let root = fs::canonicalize(temporary.path())?;
+    let config_bytes = serde_json::to_vec(&json!({"schemaVersion":1,"deploymentId":id(1),
+        "dataDirectory":root.join("data"),"logDirectory":root.join("data/logs"),
+        "frontendDirectory":root.join("frontend"),"tlsCertificate":root.join("unused.pem"),
+        "tlsPrivateKey":root.join("unused-key.pem"),"listen":"127.0.0.1:48743",
+        "origin":"https://127.0.0.1:48743","homes":[{"workspaceId":id(2),"homeId":id(3),"label":"Synthetic Home"}],
+        "mcpCommands":"read-only","authentication":{"mode":"loopback-local","identity":{
+            "userId":id(4),"actorId":id(5),"username":"synthetic-local","scope":{"workspaceId":id(2),"homeId":id(3)}}}}))?;
+    let config: ServerConfig = serde_json::from_slice(&config_bytes)?;
+    persistent::initialize_without_password(&config)?;
+    let (core, _lease) = persistent::reopen(&config)?;
+    let host = Host::new(
+        core,
+        config.origin.clone(),
+        Arc::new(BTreeMap::new()),
+        vec![],
+    )?
+    .with_loopback_local()?;
+    let app = router(host);
+    let response = app
+        .clone()
+        .oneshot(request("POST", "/api/atlas/auth/local", "{}"))
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let cookie = response.headers()["set-cookie"]
+        .to_str()?
+        .split(';')
+        .next()
+        .unwrap()
+        .to_owned();
+    let session = v2::parse_value(&to_bytes(response.into_body(), 4096).await?)?;
+    let csrf = session["csrfToken"].as_str().unwrap();
+    seed_records(&app, &cookie, csrf).await?;
+    // Create valid identities through the existing native mutation owner in
+    // deliberately non-key order. No referenced evidence is added by capture.
+    for n in [305, 303, 304] {
+        let body = json!({"schemaVersion":1,"mutationId":id(n+10000),"operation":"create",
+            "expectedRevision":null,"reason":"Generated retained identity positive","guards":[],
+            "value":{"recordType":"identity","payload":{"kind":"item","evidenceIds":[]}}});
+        let path = format!(
+            "/api/atlas/v1/workspaces/{}/homes/{}/records/identity/{}/mutations",
+            id(2),
+            id(3),
+            id(n)
+        );
+        let mut req = request("POST", &path, &serde_json::to_string(&body)?);
+        req.headers_mut().insert("cookie", cookie.parse()?);
+        req.headers_mut().insert("x-atlas-csrf", csrf.parse()?);
+        let response = app.clone().oneshot(req).await?;
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+    let db = rusqlite::Connection::open(root.join("data/atlas.sqlite"))?;
+    let mut originals = BTreeMap::new();
+    // Synthetic setup only: select valid retained encodings and a large SQL
+    // revision without billions of mutations. This is not an audit-history or
+    // recovery qualification. All setup finishes before read-only observation.
+    for (n, revision, token) in [
+        (305, 1u64, "10e-1"),
+        (101, 1, "1.0"),
+        (304, 9_007_199_254_740_991, "90071992547409910e-1"),
+        (303, 1, "1E+0"),
+    ] {
+        let body: String = db.query_row(
+            "SELECT body FROM records WHERE workspace_id=?1 AND home_id=?2 AND record_id=?3",
+            params![id(2), id(3), id(n)],
+            |r| r.get(0),
+        )?;
+        let mut value = v2::parse_value(body.as_bytes())?;
+        value["revision"] = json!(revision);
+        v2::validate_value("identityRecord", &value)?;
+        let encoded = serde_json::to_string_pretty(&value)?.replace(
+            &format!("\"revision\": {revision}"),
+            &format!("\"revision\": {token}"),
+        );
+        let mut body = format!("\n\t{encoded}\r\n").into_bytes();
+        if n == 303 {
+            body.resize(1024 * 1024, b' ');
+        }
+        assert_eq!(db.execute("UPDATE records SET revision=?1,body=?2 WHERE workspace_id=?3 AND home_id=?4 AND record_type='identity' AND record_id=?5",
+            params![revision as i64,std::str::from_utf8(&body)?,id(2),id(3),id(n)])?,1);
+        originals.insert(id(n), (revision, token.to_owned(), body));
+    }
+    let logical_rows = || -> Outcome<Vec<(String, String, i64, String)>> {
+        Ok(db
+            .prepare("SELECT record_type,record_id,revision,body FROM records ORDER BY record_id")?
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
+            .collect::<rusqlite::Result<Vec<_>>>()?)
+    };
+    let before_rows = logical_rows()?;
+    let before_files = database_bytes(&root.join("data"))?;
+    let before_changes = db.total_changes();
+    let before_version: i64 = db.pragma_query_value(None, "data_version", |r| r.get(0))?;
+    let get = |path: &str| {
+        let mut req = request("GET", path, "");
+        req.headers_mut().insert("cookie", cookie.parse().unwrap());
+        req
+    };
+    let base = format!("/api/atlas/offline/v1/workspaces/{}/homes/{}", id(2), id(3));
+    let mut prior_descriptor = None;
+    for _ in 0..2 {
+        let response = app
+            .clone()
+            .oneshot(get(&format!("{base}/manifest")))
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let manifest_bytes = to_bytes(response.into_body(), 1024 * 1024).await?;
+        let manifest = v2::parse_value(&manifest_bytes)?;
+        assert_eq!(manifest["completeness"], "complete");
+        assert_eq!(manifest["sections"]["atlas"]["state"], "complete");
+        assert_eq!(manifest["sections"]["atlas"]["requiredBytesComplete"], true);
+        assert!(manifest["exclusions"].as_array().unwrap().is_empty());
+        let resources = manifest["resources"].as_array().unwrap();
+        let aggregate = resources
+            .iter()
+            .filter(|r| r["role"] == "retained-identity-bodies")
+            .collect::<Vec<_>>();
+        assert_eq!(aggregate.len(), 1);
+        let aggregate = aggregate[0];
+        assert_eq!(aggregate["section"], "atlas");
+        assert_eq!(aggregate["contentType"], "application/octet-stream");
+        assert!(aggregate["record"].is_null());
+        let atlas_resource = resources
+            .iter()
+            .find(|r| r["sha256"] == manifest["sections"]["atlas"]["resourceSha256"])
+            .unwrap();
+        let response = app
+            .clone()
+            .oneshot(get(atlas_resource["href"].as_str().unwrap()))
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let atlas_bytes = to_bytes(response.into_body(), 4 * 1024 * 1024).await?;
+        assert_eq!(sha(&atlas_bytes), atlas_resource["sha256"]);
+        let atlas = v2::parse_value(&atlas_bytes)?;
+        let lexical: LexicalAtlas = serde_json::from_slice(&atlas_bytes)?;
+        let descriptor = &atlas["retainedIdentityBodies"];
+        assert_eq!(
+            descriptor["profile"],
+            "houseatlas.home-read-pack.retained-identity-bodies.v1"
+        );
+        assert_eq!(descriptor["resourceSha256"], aggregate["sha256"]);
+        assert_eq!(descriptor["bytes"], aggregate["bytes"]);
+        assert!(descriptor["omissions"].as_array().unwrap().is_empty());
+        let response = app
+            .clone()
+            .oneshot(get(aggregate["href"].as_str().unwrap()))
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers()["content-type"],
+            "application/octet-stream"
+        );
+        let body = to_bytes(response.into_body(), 2 * 1024 * 1024).await?;
+        let expected = originals
+            .values()
+            .flat_map(|(_, _, b)| b.iter().copied())
+            .collect::<Vec<_>>();
+        assert_eq!(body.as_ref(), expected);
+        assert_eq!(sha(&expected), aggregate["sha256"]);
+        assert_eq!(sha(&body), descriptor["resourceSha256"]);
+        assert_eq!(body.len() as u64, descriptor["bytes"].as_u64().unwrap());
+        let members = descriptor["members"].as_array().unwrap();
+        assert_eq!(members.len(), originals.len());
+        assert_eq!(lexical.bodies.members.len(), members.len());
+        let mut offset = 0usize;
+        for ((member, raw), (id, (revision, token, original))) in
+            members.iter().zip(&lexical.bodies.members).zip(&originals)
+        {
+            assert_eq!(member["workspaceId"], config.homes[0].workspace_id.as_str());
+            assert_eq!(member["homeId"], config.homes[0].home_id.as_str());
+            assert_eq!(member["recordType"], "identity");
+            assert_eq!(member["recordId"], *id);
+            assert_eq!(raw.revision.get(), token);
+            assert_eq!(member["offset"].as_u64(), Some(offset as u64));
+            assert_eq!(member["bytes"].as_u64(), Some(original.len() as u64));
+            let slice = &body[offset..offset + original.len()];
+            assert_eq!(slice, original);
+            assert_eq!(sha(slice), member["sha256"]);
+            assert_eq!(sha(original), member["sha256"]);
+            let mut parsed = v2::parse_value(slice)?;
+            parsed["revision"] = json!(revision);
+            let projected = atlas["records"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|r| r["recordId"] == *id)
+                .unwrap();
+            assert_eq!(&parsed, projected);
+            offset += original.len();
+        }
+        assert_eq!(offset, body.len());
+        if let Some(prior) = &prior_descriptor {
+            assert_eq!(descriptor, prior);
+        }
+        prior_descriptor = Some(descriptor.clone());
+        let retained = format!(
+            "{base}/snapshots/{}/manifest",
+            manifest["snapshotId"].as_str().unwrap()
+        );
+        let response = app.clone().oneshot(get(&retained)).await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            to_bytes(response.into_body(), 1024 * 1024).await?,
+            manifest_bytes
+        );
+    }
+    assert_eq!(logical_rows()?, before_rows);
+    assert_eq!(database_bytes(&root.join("data"))?, before_files);
+    assert_eq!(db.total_changes(), before_changes);
+    assert_eq!(
+        db.pragma_query_value(None, "data_version", |r| r.get::<_, i64>(0))?,
+        before_version
+    );
+    println!(
+        "PASS generated retained identity bodies: exact stored/member bytes, independent hashes, ordered closure, original numeric revisions and unchanged read-only cut. Audit history and recovery are not qualified."
+    );
+    Ok(())
+}
 type Outcome<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 async fn seed_records(app: &axum::Router, cookie: &str, csrf: &str) -> Outcome<()> {
     let evidence = json!({"statement":"Generated offline reading building","provenance":{"source":null,"sourceRevision":null,"sourceConfidence":null,"evidenceBasis":"owner-report","factAt":null,"retrievedAt":"2026-10-16T00:00:00Z","vantage":null,"uncertainty":{"status":"unknown","explanation":null}},"supersedesEvidenceIds":[],"references":[]});
@@ -408,6 +653,7 @@ async fn verify_pack(
     let mut section_model = Value::Null;
     let mut section_documents = Value::Null;
     let mut section_atlas = Value::Null;
+    let mut retained_identity_bytes = None;
     for resource in manifest["resources"].as_array().unwrap() {
         let href = resource["href"].as_str().unwrap();
         let hash = resource["sha256"].as_str().unwrap();
@@ -429,6 +675,11 @@ async fn verify_pack(
 
         assert_eq!(body.len() as u64, resource["bytes"].as_u64().unwrap());
         total += body.len() as u64;
+        if resource["role"] == "retained-identity-bodies" {
+            assert_eq!(resource["section"], "atlas");
+            assert_eq!(resource["contentType"], "application/octet-stream");
+            assert!(retained_identity_bytes.replace(body.to_vec()).is_none());
+        }
         if resource["section"] == "atlas" && resource["role"] == "original" {
             found_asset = true;
             if resource["contentType"] == "text/plain" {
@@ -531,6 +782,35 @@ async fn verify_pack(
     }
     assert_eq!(total, manifest["totals"]["bytes"].as_u64().unwrap());
     assert!(found_asset);
+    // The existing records/overview/unified/Documents variants keep their
+    // documentary identity projection, with one independently pinned original.
+    let retained = &section_atlas["retainedIdentityBodies"];
+    assert_eq!(
+        retained["profile"],
+        "houseatlas.home-read-pack.retained-identity-bodies.v1"
+    );
+    let identity_bytes = retained_identity_bytes.unwrap();
+    assert_eq!(sha(&identity_bytes), retained["resourceSha256"]);
+    assert_eq!(
+        identity_bytes.len() as u64,
+        retained["bytes"].as_u64().unwrap()
+    );
+    assert!(retained["omissions"].as_array().unwrap().is_empty());
+    let identities = section_atlas["records"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|r| r["recordType"] == "identity")
+        .collect::<Vec<_>>();
+    let members = retained["members"].as_array().unwrap();
+    assert_eq!(members.len(), identities.len());
+    assert_eq!(members.len(), 1);
+    assert_eq!(members[0]["offset"], 0);
+    assert_eq!(members[0]["bytes"], retained["bytes"]);
+    assert_eq!(members[0]["sha256"], retained["resourceSha256"]);
+    assert_eq!(members[0]["recordId"], identities[0]["recordId"]);
+    assert_eq!(members[0]["revision"], identities[0]["revision"]);
+    assert_eq!(serde_json::to_vec(identities[0])?, identity_bytes);
     let geometry = &section_atlas["nativeGeometry"][0];
     assert_eq!(geometry["state"], "complete");
     assert_eq!(geometry["physicalScale"], "unknown");
