@@ -34,7 +34,9 @@ fn rows(db: &Connection, sql: &str) -> Rows {
     let mut statement = db.prepare(sql).unwrap();
     let columns = statement.column_count();
     statement
-        .query_map([], |row| (0..columns).map(|column| row.get(column)).collect())
+        .query_map([], |row| {
+            (0..columns).map(|column| row.get(column)).collect()
+        })
         .unwrap()
         .collect::<rusqlite::Result<_>>()
         .unwrap()

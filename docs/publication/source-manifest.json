@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "297b051d29eced92917aac4de8f275454f29fb8bdf00499a12731fd5659eb544",
+  "sourceDigestSha256": "7ab93041d89995c629ce71afc3954abe6508a413f59a052ade5298a5fed0734d",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -4669,8 +4669,8 @@
     {
       "path": "backend/src/storage/checks/updater-read-validation-healthy.rs",
       "mode": "100644",
-      "bytes": 7799,
-      "sha256": "5d58a06f6dd417e5170f175a355e739fb0bb5a7b046732a7498c49bf5733c5f1",
+      "bytes": 7823,
+      "sha256": "c74cc8761e9b4408aaee8be6b143f120ae234fd527db370da969e42db8a89628",
       "owner": "storage"
     },
     {
