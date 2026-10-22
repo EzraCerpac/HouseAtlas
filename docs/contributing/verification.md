@@ -2368,3 +2368,34 @@ service and uses no user data. It adds no workflow, CI step, broad suite or
 runtime alias. Fault/crash/replay, corruption, refusal/quota and concurrent
 writer controls are not exercised or released by this positive. Browser/device
 persistence, future mounting, live authorization and deployment remain separate.
+
+## Named generated Atlas current-connection read-validation positive
+
+Inspect `backend/src/storage/updater_read_validation.rs`, its generated healthy
+body and the delegated recovery/full-geodata validators before this separately
+released manual positive. Use Rust 1.99.0, the locked dependencies and an owned
+`CARGO_TARGET_DIR` outside the checkout:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::updater_read_validation::healthy::healthy_current_profile_read_validation -- --exact --test-threads=1
+```
+
+The generated case prepares valid Atlas v5 and full-geodata v1 stores before
+the observation window, then validates through their original owned connections.
+It compares compiled recovery metadata, complete logical catalogue/table rows,
+connection policy/change counters, Store and owner identities, database device/
+inode and main-file bytes. The Connection-field address assertion does not
+identify the underlying SQLite handle; absence of replacement also requires
+source inspection.
+
+Document and stock/queue facets are empty, and the original asset is blocked/
+missing. This positive does not establish populated document, retained-byte or
+stock/queue history coverage. Main-file equality is not general live WAL/SHM
+filesystem no-write evidence.
+
+This component reuses the existing compiled profile validators. Access methods,
+maintenance composition, whole-Core coherence, running/stopped custody, real
+host binding, application readiness and deployment remain separate. The case
+uses no listener, browser, provider, session, household input or target service.
+It adds no workflow, CI step, default suite, runtime exposure, access grant or
+fault/concurrency/replay/crash/denial-control release.
