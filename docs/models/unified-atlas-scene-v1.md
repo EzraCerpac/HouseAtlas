@@ -264,8 +264,9 @@ General node rotation and scale use explicit glTF TRS. Matrix nodes in this
 static companion profile may only translate an identity linear transform;
 general affine matrices are unsupported because the standard loader decomposes
 and recomposes them.
-Selected materials must resolve to the admitted core color/factor profile;
-texture, image and sampler resource graphs are unsupported. Each room-pick
+Selected materials must resolve to the admitted core color/factor profile or the
+Unified consumer's bounded embedded-PNG profile below. Other material resource
+graphs and extensions remain unsupported. Each room-pick
 primitive needs a nondegenerate transformed triangle. Plan rings are simple,
 with strictly contained, disjoint holes and disjoint polygon components.
 Concave rings and holes are supported without a convex-hull approximation.
@@ -308,3 +309,47 @@ app browser: default Atlas, individual room picks, all-level explosion, building
 entry/return, same-room 2D/3D navigation and electrical/network overlays. Record
 desktop/mobile pixels and a real interaction playthrough. CPU parsing, static
 Blender renders, synthetic fixtures and obsolete-head CI do not replace this.
+
+## Existing bounded embedded-PNG material consumer
+
+The Unified live and Saved consumers opt into
+`houseatlas.embedded-png-material.v1`. This is an existing production path:
+`standard-glb.ts` combines geometry preflight with
+`embedded-png-material.ts` admission before loader copying and image decoding;
+`geometry.ts` retains the copied material and UV/normal/tangent streams;
+`unified-atlas/scene.ts` preserves them when binding semantic selectors; and
+`MeshLayer.tsx` owns their WebGL2 buffers, textures and cleanup.
+Other callers remain opted out unless they explicitly enable this profile.
+The Three loader still declines its own texture requests and disposes its
+resources; the bounded decoder and copied streams supply the Unified renderer.
+
+The profile accepts only embedded RGB8 PNG bufferViews in the GLB BIN chunk,
+with at most three images. Image URIs remain forbidden. Each image is at most
+1,024 by 1,024 pixels, 1,048,576 pixels and 2,097,152 encoded bytes; unique
+encoded image bytes total at most 4,194,304. Aggregate decoded RGBA is at most
+12,582,912 bytes and application decoder scratch at most 8,388,608 bytes.
+PNG framing and CRC, supported filters and noninterlaced/Adam7 decoding are
+checked by the application decoder; browser image decoding is not used.
+
+Supported slots are base color (sRGB), normal (data, scale 1) and metallic/
+roughness (data), using texCoord 0. Sampling is REPEAT with linear magnification
+and linear mipmapped minification. Textured materials require OPAQUE mode and
+base alpha 1. Their matching Float32 UVs and shading normals are retained;
+normal mapping additionally requires Float32 tangents. Untextured BLEND retains
+its legacy opaque appearance: this path does not add transparency rendering.
+
+Material admission includes encoded images, decoded RGBA, decoder scratch,
+indexed attributes and expanded corner attributes in the prepared-byte ledger.
+The renderer keeps the legacy position/flat-normal stream for picking and a
+separate UV/shading-normal/tangent stream for material drawing. GPU accounting
+includes both streams and complete mip chains, deduplicated by image, sampler
+and color role. The existing 96 MiB prepared and 64 MiB GPU limits remain in
+force; the renderer checks its resource ledger before allocating GL resources.
+These are bounded application ledgers, not measurements of total browser,
+driver or process peak memory.
+
+The named generated material positives in the verification guide exercise this
+source path using synthetic assets and a GL call recorder. They do not establish
+actual shader execution, GPU pixels, private-candidate admission, installed
+identity or browser/device acceptance. The product-readiness observations above
+remain separate.
