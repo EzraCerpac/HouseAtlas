@@ -6,10 +6,12 @@ Sole implementation writer: the existing offline-06 task
 `01a14bb9-28e9-77ad-8226-12594480a0dc`.
 Source review/integration owner: `01a13158-c477-746d-8023-299d117550d6`.
 
-**Prepared for review. None of the new cases has been compiled or executed.**
-These commands are proposals for exact-case approval, not an execution release.
-No workflow, dependency, runtime hook, router, migration, registration or
-publication-manifest change is included. Source owner retains those paths.
+**Historical donor preparation record, not execution evidence.** The original
+fixture donor was prepared without compiling or executing the new cases.
+Commands below identify exact cases; they are not a standing execution release.
+The fixture donor changed no workflow, dependency, runtime hook, router or
+migration. Registration and publication-manifest composition are separate
+source-owner changes.
 
 ## Default invocation remains the existing healthy case
 
@@ -80,7 +82,10 @@ its limited conclusion. A passing command exit is mandatory; there are no saved
 or invented passing results in this preparation. Record exact source/command,
 exit status and emitted JSON after a separately reviewed execution release.
 
-No new case has run, and the default case was not rerun in this preparation.
-There is no power interruption, crash injection, automatic replay, production
-or household mutation, native service listener, provider, NAS, browser, device,
-Scope A, populated restore or full offline editing/sync claim.
+The original preparation did not run a new case or rerun the default case.
+Later execution evidence must remain bound to its exact registered revision;
+preserve unsuccessful evidence separately from any later result. This document
+adds no execution release. There is no power interruption, crash injection,
+automatic replay, production or household mutation, native service listener,
+provider, NAS, browser, device, Scope A, populated restore or full offline
+editing/sync claim.
