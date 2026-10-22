@@ -74,8 +74,20 @@ impl Authorization for SetupMutation<'_, '_> {
             .authorize(&scope, a::Capability::Mutate)
             .map_err(|_| Error::new("forbidden", "Original editor guard unavailable"))?;
         Ok(VerifiedActor {
-            workspace_id: principal.principal.principal().scope().workspace_id.as_str().into(),
-            home_id: principal.principal.principal().scope().home_id.as_str().into(),
+            workspace_id: principal
+                .principal
+                .principal()
+                .scope()
+                .workspace_id
+                .as_str()
+                .into(),
+            home_id: principal
+                .principal
+                .principal()
+                .scope()
+                .home_id
+                .as_str()
+                .into(),
             actor_id: principal.principal.principal().actor_id().as_str().into(),
         })
     }
@@ -96,11 +108,18 @@ fn mutate(
         .with_mutation_authorization(
             principal.principal.principal(),
             |guard| -> a::AccessResult<()> {
-                let authorization = SetupMutation { guard, original: principal };
+                let authorization = SetupMutation {
+                    guard,
+                    original: principal,
+                };
                 committed = Some(
                     store
                         .execute_json_with_authorization(
-                            &authorization, principal, scope, target, &command,
+                            &authorization,
+                            principal,
+                            scope,
+                            target,
+                            &command,
                         )
                         .map_err(|_| a::AccessError::Unavailable)?,
                 );
@@ -128,7 +147,10 @@ fn payload(vault: &AssetVault, scope: &Scope, bytes: &[u8]) -> AssetPayload {
         )
         .unwrap()
         .with_provenance(
-            SourceLicense { status: LicenseStatus::Unknown, reference: None },
+            SourceLicense {
+                status: LicenseStatus::Unknown,
+                reference: None,
+            },
             vec![id(100)],
         )
         .unwrap()
@@ -161,11 +183,17 @@ fn logical_state(db: &Connection) -> BTreeMap<String, Rows> {
     let mut state = BTreeMap::new();
     state.insert(
         "catalogue".into(),
-        rows(db, "SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY type,name"),
+        rows(
+            db,
+            "SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY type,name",
+        ),
     );
     for table in tables {
         let quoted = table.replace('"', "\"\"");
-        state.insert(table, rows(db, &format!("SELECT * FROM \"{quoted}\" ORDER BY rowid")));
+        state.insert(
+            table,
+            rows(db, &format!("SELECT * FROM \"{quoted}\" ORDER BY rowid")),
+        );
     }
     state
 }
@@ -175,9 +203,14 @@ fn connection_state(db: &Connection) -> (u64, u64, i64, Vec<Rows>) {
         db.changes(),
         db.last_insert_rowid(),
         [
-            "PRAGMA database_list","PRAGMA user_version","PRAGMA journal_mode",
-            "PRAGMA query_only","PRAGMA foreign_keys","PRAGMA synchronous",
-            "PRAGMA busy_timeout","PRAGMA data_version",
+            "PRAGMA database_list",
+            "PRAGMA user_version",
+            "PRAGMA journal_mode",
+            "PRAGMA query_only",
+            "PRAGMA foreign_keys",
+            "PRAGMA synchronous",
+            "PRAGMA busy_timeout",
+            "PRAGMA data_version",
         ]
         .iter()
         .map(|sql| rows(db, sql))
@@ -205,7 +238,10 @@ fn vault_state(root: &Path) -> BTreeMap<PathBuf, (u64, u64, u32, Vec<u8>)> {
                 pending.push(entry.unwrap().path());
             }
         } else {
-            files.insert(path.strip_prefix(root).unwrap().to_owned(), file_state(&path).unwrap());
+            files.insert(
+                path.strip_prefix(root).unwrap().to_owned(),
+                file_state(&path).unwrap(),
+            );
         }
     }
     files
@@ -218,8 +254,12 @@ fn healthy_current_native_retained_bytes() {
     let database = root.join("atlas.sqlite");
     let media_root = root.join("media");
     let vault = Arc::new(AssetVault::open(&media_root).unwrap());
-    let scope = Scope { workspace_id: id(1), home_id: id(2) };
-    let access_scope: a::Scope = serde_json::from_value(serde_json::to_value(&scope).unwrap()).unwrap();
+    let scope = Scope {
+        workspace_id: id(1),
+        home_id: id(2),
+    };
+    let access_scope: a::Scope =
+        serde_json::from_value(serde_json::to_value(&scope).unwrap()).unwrap();
     let mut boundary = a::AccessBoundary::in_memory(
         a::AccessConfig::new(vec!["https://atlas.synthetic.invalid".into()]).unwrap(),
     )
@@ -227,11 +267,16 @@ fn healthy_current_native_retained_bytes() {
     let user = a::CanonicalId::parse(id(50)).unwrap();
     boundary
         .provision_user(
-            &user, &a::CanonicalId::parse(id(51)).unwrap(), "generated-editor",
-            &a::hash_password("Synthetic-retained-byte-password-only!").unwrap(), None,
+            &user,
+            &a::CanonicalId::parse(id(51)).unwrap(),
+            "generated-editor",
+            &a::hash_password("Synthetic-retained-byte-password-only!").unwrap(),
+            None,
         )
         .unwrap();
-    boundary.set_membership(&user, &access_scope, a::Role::Editor, true).unwrap();
+    boundary
+        .set_membership(&user, &access_scope, a::Role::Editor, true)
+        .unwrap();
     let session = boundary
         .login(
             &request(None, None),
@@ -247,22 +292,33 @@ fn healthy_current_native_retained_bytes() {
         boundary
             .authorize(
                 &request(Some(&cookie), Some(session.info().csrf_token())),
-                &access_scope, a::Action::Mutate,
+                &access_scope,
+                a::Action::Mutate,
             )
             .unwrap(),
     );
     let access = Arc::new(Mutex::new(boundary));
     let mut store = Store::open(
-        &database, NativeContracts, ReadAuthority(access.clone()),
-        NativeMediaRuntime { vault: vault.clone(), server: ServerRuntime },
-        StoreOptions { allow_synthetic_bootstrap: true, ..StoreOptions::default() },
+        &database,
+        NativeContracts,
+        ReadAuthority(access.clone()),
+        NativeMediaRuntime {
+            vault: vault.clone(),
+            server: ServerRuntime,
+        },
+        StoreOptions {
+            allow_synthetic_bootstrap: true,
+            ..StoreOptions::default()
+        },
     )
     .unwrap();
     let mut initial: Snapshot = serde_json::from_str(include_str!(
         "../../../../packages/contracts/fixtures/optional-geometry.snapshot.json"
     ))
     .unwrap();
-    initial.records.retain(|r| r.record_type == RecordType::Evidence && r.record_id == id(100));
+    initial
+        .records
+        .retain(|r| r.record_type == RecordType::Evidence && r.record_id == id(100));
     initial.sources.clear();
     initial.homebox_entities.clear();
     initial.caches.clear();
@@ -271,14 +327,28 @@ fn healthy_current_native_retained_bytes() {
 
     let past_bytes = b"Historical generated original.\n";
     let current_bytes = b"Current generated original.\n";
-    let past_target = RecordRef { record_type: RecordType::Asset, record_id: id(900) };
-    let current_target = RecordRef { record_type: RecordType::Asset, record_id: id(901) };
+    let past_target = RecordRef {
+        record_type: RecordType::Asset,
+        record_id: id(900),
+    };
+    let current_target = RecordRef {
+        record_type: RecordType::Asset,
+        record_id: id(901),
+    };
     let past = mutate(
-        &mut store, &access, &principal, &scope, &past_target,
+        &mut store,
+        &access,
+        &principal,
+        &scope,
+        &past_target,
         create(1000, payload(&vault, &scope, past_bytes)),
     );
     let retired = mutate(
-        &mut store, &access, &principal, &scope, &past_target,
+        &mut store,
+        &access,
+        &principal,
+        &scope,
+        &past_target,
         json!({
             "schemaVersion":1,"mutationId":id(1001),"operation":"tombstone",
             "expectedRevision":1,"reason":"Retain generated historical original",
@@ -286,7 +356,11 @@ fn healthy_current_native_retained_bytes() {
         }),
     );
     let current = mutate(
-        &mut store, &access, &principal, &scope, &current_target,
+        &mut store,
+        &access,
+        &principal,
+        &scope,
+        &current_target,
         create(1002, payload(&vault, &scope, current_bytes)),
     );
     assert_eq!(past.record.revision, 1);
@@ -294,25 +368,51 @@ fn healthy_current_native_retained_bytes() {
     assert_eq!(retired.record.lifecycle, Lifecycle::Tombstoned);
     assert_eq!(current.record.revision, 1);
     assert_eq!(current.record.lifecycle, Lifecycle::Active);
-    assert_ne!(past.record.payload["sha256"], current.record.payload["sha256"]);
+    assert_ne!(
+        past.record.payload["sha256"],
+        current.record.payload["sha256"]
+    );
 
     let retained = super::super::super::geodata_full::legacy_assets(&store.db).unwrap();
     assert_eq!(retained.len(), 3);
-    assert!(retained.iter().all(|r| r.payload.availability == Availability::Available));
+    assert!(
+        retained
+            .iter()
+            .all(|r| r.payload.availability == Availability::Available)
+    );
     // Revision 1 of the retired asset survives in its actual mutation receipt;
     // revision 2 is the tombstoned current record. Both retain original bytes.
-    assert!(retained.iter().any(|r| r.record_id == id(900) && r.revision == 1));
-    assert!(retained.iter().any(|r| r.record_id == id(900) && r.revision == 2));
-    assert!(retained.iter().any(|r| r.record_id == id(901) && r.revision == 1));
+    assert!(
+        retained
+            .iter()
+            .any(|r| r.record_id == id(900) && r.revision == 1)
+    );
+    assert!(
+        retained
+            .iter()
+            .any(|r| r.record_id == id(900) && r.revision == 2)
+    );
+    assert!(
+        retained
+            .iter()
+            .any(|r| r.record_id == id(901) && r.revision == 1)
+    );
     for record in &retained {
-        let expected = if record.record_id == id(900) { &past_bytes[..] } else { &current_bytes[..] };
+        let expected = if record.record_id == id(900) {
+            &past_bytes[..]
+        } else {
+            &current_bytes[..]
+        };
         assert_eq!(vault.read_retained(record, &budget()).unwrap(), expected);
     }
 
     let stock = NativeStockContract::new().unwrap();
     let queue_free = QueueFreeNativeOwners::for_queue_free_profile().unwrap();
     let peers = RecoveryValidationPeers {
-        stock: &stock, queues: &[], discovery: &queue_free, evidence: &queue_free,
+        stock: &stock,
+        queues: &[],
+        discovery: &queue_free,
+        evidence: &queue_free,
     };
     let mut sql_checks = 0;
     let expected = store

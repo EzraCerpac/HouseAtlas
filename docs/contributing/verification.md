@@ -2399,3 +2399,36 @@ host binding, application readiness and deployment remain separate. The case
 uses no listener, browser, provider, session, household input or target service.
 It adds no workflow, CI step, default suite, runtime exposure, access grant or
 fault/concurrency/replay/crash/denial-control release.
+
+## Named generated native retained-byte validation positive
+
+Inspect `backend/src/storage/checks/updater-retained-bytes-healthy.rs`,
+the two administrative methods in `storage/updater_read_validation.rs`, and
+their existing Access, native media, recovery and historical-asset helpers.
+Use Rust 1.99.0, the unchanged dependency lock and an owned external Cargo target:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::updater_read_validation::retained_bytes_healthy::healthy_current_native_retained_bytes -- --exact --test-threads=1
+```
+
+This single ordinary positive creates a fresh synthetic Editor/session through
+the actual Access owner. Setup commits two small owned text originals and
+tombstones one asset through the existing guarded mutation path. Administrative
+validation then uses the Store's original native vault and one Atlas transaction
+for SQL closure plus the existing historical retained-byte traversal. The
+generic PR258 API is unchanged; the native-specific method additionally checks
+the original vault binding when delegating to full-geodata.
+
+The case selects ordinary v5. It compares the SQL verdict, current and
+single-receipt historical originals, callback observations, logical rows,
+connection observations, main/WAL file bytes and identities, and vault-file
+bytes/modes/identities around the validation call. Setup mutations and normal
+Store close are outside that observation. The Rust connection-field address
+is not an independent SQLite-handle proof. Populated batch, document and queue
+histories and the native-specific full-geodata branch are not exercised here.
+
+No listener, browser, provider, real account, household input, native target,
+repair, migration, replay, fault or concurrency case is included. These bounded
+observations establish neither general filesystem/SHM inactivity nor whole-Core
+custody. The existing local media budgets and caller checkpoints are not a hard
+absolute deadline or permission to inspect a running target.

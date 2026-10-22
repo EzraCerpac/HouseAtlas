@@ -85,3 +85,7 @@ impl<C: Contract, A: Authorization, R: Runtime>
 #[cfg(test)]
 #[path = "checks/updater-read-validation-healthy.rs"]
 mod healthy;
+
+#[cfg(test)]
+#[path = "checks/updater-retained-bytes-healthy.rs"]
+mod retained_bytes_healthy;
