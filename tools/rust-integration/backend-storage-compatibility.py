@@ -54,6 +54,9 @@ def encoded(value):
 
 
 def decoded(data):
+    if isinstance(data, bytes):
+        data = data.decode("utf-8", errors="strict")
+    require(type(data) is str, "JSON input must be explicit UTF-8 bytes or text")
     def pairs(items):
         result = {}
         for key, value in items:
@@ -65,6 +68,28 @@ def decoded(data):
         raise RuntimeError("Non-finite JSON number: " + value)
 
     return json.loads(data, object_pairs_hook=pairs, parse_constant=invalid)
+
+
+def integer(value, name):
+    # Preserve JSON Number-category 1 == 1.0 without ever coercing exact ints.
+    require(type(value) is int or (type(value) is float and value.is_integer()),
+            name + " must be an integer-valued JSON number, not a boolean")
+    return value
+
+
+def json_equal(left, right):
+    # JSON booleans and numbers are distinct categories, including recursively.
+    numbers = (int, float)
+    if type(left) in numbers and type(right) in numbers:
+        return left == right
+    if type(left) is not type(right):
+        return False
+    if type(left) is dict:
+        return left.keys() == right.keys() and all(json_equal(left[key], right[key]) for key in left)
+    if type(left) is list:
+        return len(left) == len(right) and all(json_equal(a, b) for a, b in zip(left, right))
+    require(type(left) in (str, bool, type(None)), "Unsupported JSON comparison category")
+    return left == right
 
 
 def canonical(path):
@@ -523,6 +548,7 @@ class Run:
         import socket
         connection, deadline, stream = None, None, None
         expired = threading.Event()
+        expires_at = time.monotonic() + 5
         record = {"path": path, "method": "TLS-only" if tls_only else "POST" if body is not None else "GET",
                   "startedAtMs": now(), "status": "in-progress"}
         self.receipt["requests"].append(record)
@@ -532,21 +558,32 @@ class Run:
             with self.lock:
                 self.connection = raw
             def expire():
-                expired.set()
                 with self.lock:
+                    expired.set()
                     if self.connection is not None:
                         self.abort_socket(self.connection)
-            deadline = threading.Timer(5, expire)
+            deadline = threading.Timer(max(0, expires_at - time.monotonic()), expire)
             deadline.daemon = True
             deadline.start()
+            remaining = expires_at - time.monotonic()
+            require(not expired.is_set() and not self.interruption and remaining > 0, "Exchange expired before connect")
+            raw.settimeout(remaining)
             raw.connect(("127.0.0.1", self.port))  # No getaddrinfo, DNS, URL opener or proxy.
-            connection = self.tls.wrap_socket(raw, server_hostname="127.0.0.1", do_handshake_on_connect=False)
             with self.lock:
+                require(not expired.is_set() and not self.interruption and time.monotonic() < expires_at,
+                        "Exchange expired/interrupted before TLS ownership transfer")
+                # Expiry cannot see a detached raw socket between wrap and publication.
+                connection = self.tls.wrap_socket(raw, server_hostname="127.0.0.1", do_handshake_on_connect=False)
                 self.connection = connection
+                remaining = expires_at - time.monotonic()
+                require(not expired.is_set() and not self.interruption and remaining > 0,
+                        "Exchange expired/interrupted before handshake")
+                connection.settimeout(remaining)
             connection.do_handshake()
             require(connection.getpeercert(binary_form=True) == self.peer_der, "Exact generated peer certificate mismatch")
             self.check()
-            require(not expired.is_set() and self.active.process.poll() is None and not self.active.failure,
+            require(not expired.is_set() and time.monotonic() < expires_at
+                    and self.active.process.poll() is None and not self.active.failure,
                     "Owned server/TLS deadline changed before credential transmission")
             record["peerCertificateSha256"] = sha(self.peer_der)
             if tls_only:
@@ -565,6 +602,10 @@ class Run:
                     headers["X-Atlas-Csrf"] = self.csrf
             method = "POST" if body is not None else "GET"
             wire = f"{method} {path} HTTP/1.1\r\n" + "".join(f"{key}: {value}\r\n" for key, value in headers.items()) + "\r\n"
+            with self.lock:
+                remaining = expires_at - time.monotonic()
+                require(not expired.is_set() and not self.interruption and remaining > 0, "Exchange expired before send")
+                connection.settimeout(remaining)
             connection.sendall(wire.encode("ascii") + payload)
             stream = connection.makefile("rb")
             status_line = stream.readline(8193)
@@ -588,9 +629,12 @@ class Run:
             length = int(length[0])
             require(length <= MAX_OUTPUT, "HTTP body budget")
             content = stream.read(length + 1)
-            require(len(content) == length and not expired.is_set(), "HTTP truncated/extra body/deadline; outcome uncertain")
+            require(len(content) == length and not expired.is_set() and time.monotonic() < expires_at,
+                    "HTTP truncated/extra body/deadline; outcome uncertain")
             if self.window is not None:
-                self.window["authentications"] += 2 if path.startswith("/api/atlas/offline/") else 1
+                count = 2 if path.startswith("/api/atlas/offline/") else 1
+                self.window["authentications"] += count
+                self.window["authenticationObservations"].append({"start": record["startedAtMs"], "end": now(), "count": count})
             record.update(status="complete", bytes=length, sha256=sha(content))
             return content, received
         except BaseException as error:
@@ -632,18 +676,18 @@ class Run:
     def reads(self, expected):
         page = self.json_request(self.prefix + "/records?limit=100")
         require(page["contractVersion"] == "1.0.0" and page["nextCursor"] is None
-                and sorted(page["items"], key=lambda row: row["recordId"]) == expected, "Exact scoped record page required")
+                and json_equal(sorted(page["items"], key=lambda row: row["recordId"]), expected), "Exact scoped record page required")
         histories = []
         for record in expected:
             path = f'{self.prefix}/records/{record["recordType"]}/{record["recordId"]}'
-            require(self.json_request(path) == record, "Exact individual record required")
+            require(json_equal(self.json_request(path), record), "Exact individual record required")
             history = self.json_request(path + "/history")
             require(len(history) == 1 and history[0]["auditId"] == record["lastAuditId"]
                     and history[0]["actorId"] == uid(5), "Non-vacuous audit/actor history required")
             histories.append(history)
         for collection in ("homebox/entities", "network/relations"):
             empty = self.json_request(self.prefix + "/" + collection + "?limit=100")
-            require(empty["items"] == [] and empty["nextCursor"] is None, "Expected empty provider page")
+            require(json_equal(empty["items"], []) and empty["nextCursor"] is None, "Expected empty provider page")
         return {"records": page["items"], "histories": histories}
 
     def export(self, original):
@@ -658,7 +702,7 @@ class Run:
             resources = [row for row in manifest["resources"] if row["sha256"] == digest]
             require(len(resources) == 1, "Exactly one matching resource descriptor")
             content = self.request(f'{base}/snapshots/{manifest["snapshotId"]}/resources/{digest}')[0]
-            require(sha(content) == digest and len(content) == resources[0]["bytes"], "Resource hash/length mismatch")
+            require(sha(content) == digest and len(content) == integer(resources[0]["bytes"], "Resource bytes"), "Resource hash/length mismatch")
             return content
 
         atlas = decoded(get(manifest["sections"]["atlas"]["resourceSha256"]))
@@ -667,13 +711,15 @@ class Run:
         else:
             descriptor, body = atlas["retainedIdentityBodies"], original.encode("utf-8")
             require(descriptor["profile"] == "houseatlas.home-read-pack.retained-identity-bodies.v1"
-                    and descriptor["omissions"] == [] and len(descriptor["members"]) == 1,
+                    and json_equal(descriptor["omissions"], []) and len(descriptor["members"]) == 1,
                     "One exact retained identity member without omissions required")
             member = descriptor["members"][0]
-            require(all(member[key] == value for key, value in {
+            require(all(json_equal(member[key], value) for key, value in {
                 "recordId": uid(200), "recordType": "identity", "workspaceId": uid(1), "homeId": uid(2),
                 "revision": 1, "offset": 0, "bytes": len(body), "sha256": sha(body)}.items()), "Identity member attribution mismatch")
-            require(descriptor["bytes"] == len(body) and descriptor["resourceSha256"] == sha(body)
+            for field in ("revision", "offset", "bytes"):
+                integer(member[field], "Identity member " + field)
+            require(integer(descriptor["bytes"], "Identity aggregate bytes") == len(body) and descriptor["resourceSha256"] == sha(body)
                     and get(descriptor["resourceSha256"]) == body, "Exact original identity aggregate bytes required")
         self.receipt["identityExport"] = {"manifest": manifest, "exactOriginalCompared": original is not None}
 
@@ -760,9 +806,9 @@ class Run:
                 result = self.json_request(f"{self.prefix}/records/{kind}/{uid(number)}/mutations", {
                     "schemaVersion": 1, "mutationId": uid(number + 1000), "operation": "create", "expectedRevision": None,
                     "reason": "Generated storage compatibility setup", "guards": guards, "value": {"recordType": kind, "payload": payload}})
-                require(result["replayed"] is False and result["record"]["revision"] == 1, "Fresh committed mutation required")
+                require(result["replayed"] is False and integer(result["record"]["revision"], "Record revision") == 1, "Fresh committed mutation required")
                 expected.append(result["record"])
-            require(expected[1]["payload"]["evidenceIds"] == [expected[0]["recordId"]], "Explicit evidence reference required")
+            require(json_equal(expected[1]["payload"]["evidenceIds"], [expected[0]["recordId"]]), "Explicit evidence reference required")
         expected.sort(key=lambda row: row["recordId"])
         baseline_reads = self.reads(expected)
         self.stop()
@@ -783,21 +829,21 @@ class Run:
         self.receipt["baselineFiles"] = baseline_files
         before = self.observe(baseline, "old baseline SQL")
         tables = before["stores"]["atlas.sqlite"]["tables"]
-        require(before["stores"]["atlas.sqlite"]["userVersion"] == 5
-                and before["stores"]["access.sqlite"]["tables"]["access_meta"]["rows"][0][1] == 1, "Exact schema versions")
+        require(integer(before["stores"]["atlas.sqlite"]["userVersion"], "Atlas userVersion") == 5
+                and integer(before["stores"]["access.sqlite"]["tables"]["access_meta"]["rows"][0][1], "Access meta version") == 1, "Exact schema versions")
         bodies = [decoded(row[tables["records"]["columns"].index("body")]) for row in tables["records"]["rows"]]
-        require(sorted(bodies, key=lambda row: row["recordId"]) == expected
+        require(json_equal(sorted(bodies, key=lambda row: row["recordId"]), expected)
                 and len(tables["audits"]["rows"]) == len(expected) == len(tables["receipts"]["rows"]), "SQL record/audit/receipt state")
         transition = self.initialize("transition")
         self.install(baseline, transition[0])
         prior = self.observe(transition[0], "transition before candidate")
-        require(comparable(prior) == comparable(before), "Installed logical state must equal preserved baseline")
+        require(json_equal(comparable(prior), comparable(before)), "Installed logical state must equal preserved baseline")
         state_pin = sha(read_bytes(transition[0] / "server-state.json"))
         for role, label in (("new", "candidate"), ("old", "old reopen")):
-            window = {"start": now(), "authentications": 0}
+            window = {"start": now(), "authentications": 0, "authenticationObservations": []}
             self.window = window
             self.serve(self.root / "bin" / role, transition, label)
-            require(self.reads(expected) == baseline_reads, "Old/new/old exact record/history reads")
+            require(json_equal(self.reads(expected), baseline_reads), "Old/new/old exact record/history reads")
             if role == "new":
                 table = tables["records"]
                 originals = [row[table["columns"].index("body")] for row in table["rows"]
@@ -813,7 +859,7 @@ class Run:
             self.receipt["observations"].append({"label": label + " admitted authentication window", "window": window})
             self.receipt["observations"].append({"label": label + " closed tree",
                 "files": self.tree(transition[0], self.root / (label.replace(" ", "-") + "-closed"))})
-        require(self.tree(baseline) == baseline_files, "Untouched generated baseline must remain exact")
+        require(json_equal(self.tree(baseline), baseline_files), "Untouched generated baseline must remain exact")
 
 
 def comparable(snapshot):
@@ -825,29 +871,46 @@ def compare(before, after, window):
     a, b = comparable(before), comparable(after)
     ta, tb = a["access.sqlite"]["tables"], b["access.sqlite"]["tables"]
     sa, sb = ta["access_sessions"], tb["access_sessions"]
-    require(sa["columns"] == sb["columns"] and len(sa["rows"]) == len(sb["rows"]) == 1, "One unchanged session required")
+    require(json_equal(sa["columns"], sb["columns"]) and len(sa["rows"]) == len(sb["rows"]) == 1, "One unchanged session required")
     seen = sa["columns"].index("last_seen")
-    previous, current = sa["rows"][0][seen], sb["rows"][0][seen]
+    previous, current = integer(sa["rows"][0][seen], "Previous last_seen"), integer(sb["rows"][0][seen], "Current last_seen")
     require(previous <= current <= window["end"] and current >= window["start"], "Only current monotone last_seen admitted")
     sb["rows"][0][seen] = previous
     ra, rb = ta["access_rates"], tb["access_rates"]
-    require(ra["columns"] == rb["columns"] == ["bucket", "starts_at", "expires_at", "count"], "Exact rate columns")
+    require(json_equal(ra["columns"], rb["columns"])
+            and json_equal(ra["columns"], ["bucket", "starts_at", "expires_at", "count"]), "Exact rate columns")
     bucket, old_rows = sha("request:user:" + uid(4)), {row[0]: row for row in ra["rows"]}
+    observations = window["authenticationObservations"]
+    require(sum(event["count"] for event in observations) == window["authentications"] > 0,
+            "Non-vacuous observed authentication count required")
+    for row in ra["rows"] + rb["rows"]:
+        for index, name in ((1, "starts_at"), (2, "expires_at"), (3, "count")):
+            integer(row[index], "Rate " + name)
     for row in rb["rows"]:
         old = old_rows.get(row[0])
         if row[0] != bucket:
-            require(old == row, "Unrelated rate row changed")
+            require(json_equal(old, row), "Unrelated rate row changed")
         else:
             require(row[1] <= window["end"] and row[2] == row[1] + 60000 and 0 < row[3] <= 300, "Bounded request rate window")
             if old and row[1] == old[1]:
-                require(old[2] > window["start"] and row[3] == old[3] + window["authentications"], "Exact auth rate increment")
+                require(old[2] > window["start"] and all(event["start"] < old[2] for event in observations)
+                        and row[3] == old[3] + window["authentications"], "Exact viable-window auth rate increment")
             else:
-                require(row[1] >= window["start"] and row[3] <= window["authentications"], "New rate window exceeds observed auth")
+                # consume_rate deletes only expires_at<=now, then creates a new
+                # starts_at=now, expires_at=now+60_000, count=1 request-user row.
+                require(row[1] >= window["start"] and (old is None or row[1] >= old[2]),
+                        "Request-user bucket replaced before actual old expiration")
+                crossing = [event for event in observations if event["start"] <= row[1] <= event["end"]]
+                lower = sum(event["count"] for event in observations if event["start"] > row[1])
+                upper = sum(event["count"] for event in observations if event["end"] >= row[1])
+                require(crossing and max(1, lower) <= row[3] <= upper,
+                        "Replacement bucket count/start lacks observed authentication support")
     require(any(row[0] == bucket for row in rb["rows"]), "Expected request-user rate row")
     for row in ra["rows"]:
-        require(any(new[0] == row[0] for new in rb["rows"]) or row[2] <= window["end"], "Only expired rates may disappear")
+        require(any(new[0] == row[0] for new in rb["rows"])
+                or any(event["end"] >= row[2] for event in observations), "Only rates expired by observed authentication may disappear")
     del ta["access_rates"], tb["access_rates"]
-    require(a == b, "Unexpected catalogue/row/reference/journal/authority change")
+    require(json_equal(a, b), "Unexpected catalogue/row/reference/journal/authority change")
 
 
 def main():

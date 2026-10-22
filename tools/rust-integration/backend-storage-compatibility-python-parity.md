@@ -140,7 +140,7 @@ source intent; no runtime outcome is asserted by this preparation.
 | Fixture-only CA, no proxy/redirect/external connection | `setup` constructs `SSLContext(PROTOCOL_TLS_CLIENT)` with only generated PEM, certificate verification and hostname checks; `request` uses an AF_INET socket to the literal tuple; no resolver or URL/proxy opener |
 | Before credential transmission, establish trusted own listener | Python additionally performs a TLS-only gate after readiness and compares peer DER exactly on **every** connection before encoding/sending HTTP credentials/cookie/CSRF |
 | Generated credential creation needed by offline initializer | Password provisioning remains a local create-only file before `initialize`; no fake credential bytes cross TLS until readiness + exact peer admission. Native password startup requires this ordering |
-| Bounded HTTP and no blind retry | One five-second whole-exchange socket deadline plus socket timeout; abort on timeout/interruption, no retry. Explicit HTTP/1.0/1.1 200, single Content-Length and no Transfer-Encoding are required; unexpected framing HOLDs |
+| Bounded HTTP and no blind retry | One monotonic five-second whole-exchange deadline; socket ownership transfers from raw to SSL atomically under the expiry lock. Deadline/interruption checked before handshake; connect/handshake/send use the remaining time, and expiry always closes the published live socket. No redirect/retry; explicit HTTP/1.0/1.1 200, single Content-Length, no Transfer-Encoding |
 | Old initializes/serves, logs in once, generates selected state | `execute`, `initialize`: same native CLI and normal fake password session; no library API exposed or assumed CLI invented |
 | Empty business state is explicit, Access is not empty | `empty`: zero Atlas records/audits/receipts; exactly one real fake session after login and initializer-created fake user/membership |
 | Fresh evidence/identity mutations with required guard | Same two endpoints, mutation IDs/payloads; `replayed is False`, revision 1 and identity's evidence ID matches evidence record. No source or asset enrollment |
@@ -152,17 +152,17 @@ source intent; no runtime outcome is asserted by this preparation.
 | Candidate then old reopen on the same candidate-touched paths | One transition/config/origin pair in both loop iterations; no restore, receipt migration, second clone substitute or session reinitialization between them |
 | Receipt byte preservation and actual clean server close | SHA256 of transition server-state fixed through both reopens; success exit plus final `houseatlas-server-event/1` `graceful-shutdown` event required |
 | Read-only inspection scope | Helper `mode=ro`, query_only, BEGIN on observation copies, exactly one database named main; no immutable mode, extension loading or attached scope |
-| Actual integrity result and separate FK result | Both stores must return precisely `[("ok",)]` and independently zero foreign_key_check rows; exceptions/no result/non-ok/additional integrity rows HOLD |
-| Full catalogue/schema/table comparison | Helper collects entire sqlite_schema, every table/column/row including metadata/migrations, declared FKs, user_version/application_id and journal mode; compare uses deep copies and exact equality |
-| All SQL body values retained deterministically | Row sorting and BLOB hex encoding match MJS helper; Python integers retain exact value; this source still generates only tiny values and claims no wider numeric fixture coverage |
-| Only narrow Access authenticated-read writes admitted | `compare`: one unchanged session, monotonic last_seen inside observation window; exact request-user rate bucket and count deltas, known 60-second boundary rules; other rates unchanged or actually expired |
+| Actual integrity result and separate FK result | Both stores must return precisely `[("ok",)]` from integrity_check; no integrity result/non-ok/extra rows or SQL exception HOLDs. Foreign_key_check separately expects zero rows; empty rows alone cannot establish that an unknown/unsupported FK PRAGMA was detected. Capability qualification stays open |
+| Full catalogue/schema/table comparison | Helper collects entire sqlite_schema, every table/column/row including metadata/migrations, declared FKs, user_version/application_id and journal mode; deep-copy comparisons recurse by JSON category so booleans never equal numbers |
+| All SQL body values retained deterministically | Row sorting and BLOB hex encoding match MJS helper; JSON bytes are explicitly decoded as strict UTF-8 rather than auto-detecting UTF-16/32. Original-body strings remain unchanged and their original UTF-8 bytes are compared directly; no floating-point range restriction is imposed on those raw originals |
+| Only narrow Access authenticated-read writes admitted | `compare`: one unchanged session, typed millisecond last_seen inside phase; exact unchanged-bucket count delta. Python corrects an inherited MJS gap: a replacement must begin at/after old expiry and inside an observed authentication interval, with its count bounded by those intervals. This tightened boundary check is not identical parity; details below |
 | Request counting remains source-based and bounded | One authentication per normal scoped GET, two per manifest/resource Read+Media; TLS-only gate sends no HTTP and adds zero; no new logins between reopens |
 | No user/verifier/membership/epoch/source/session exclusion | Only compared last_seen is normalized; rates compared separately with original rows retained; all remaining Access/Atlas columns and rows must equal |
 | Honest SQLite housekeeping | Raw file sizes/hashes/modes and journal/page/freelist observations retained; persistent journal mode still exact. Main/WAL/SHM may differ on normal checkpoint/index rebuild/close; no byte-equality or filesystem-no-write claim |
 | Closed namespace and empty media vault | Same five required files, optional main WAL/SHM, only logs/media/blobs/staging directories; no unexpected files/media bytes/rollback journal; no cleanup to force admission |
 | Mounted original identity export | Candidate only: exact profile, 64-hex snapshot ID, Atlas section complete; every fetched resource must have exactly one descriptor and exact length/SHA256 |
 | Empty identity descriptor | Empty case requires absence of retainedIdentityBodies, not an empty fabricated member |
-| Full original identity member assertions | One member/no omissions; exact recordType/recordId/workspace/home/revision 1/offset 0/UTF-8 byte length/member hash; aggregate length/hash and resource bytes equal exact SQL records.body |
+| Full original identity member assertions | One member/no omissions; exact recordType/recordId/workspace/home; revision 1, offset 0 and member/aggregate/resource byte counts are guarded integer-valued JSON numbers excluding bool. Numeric 1.0 remains equivalent to 1; member hash and aggregate resource bytes equal exact original SQL records.body |
 | Original documentary source unchanged | Export compared to stored original bytes without reserializing record JSON; no inference that a DTO or aggregate hash supplies missing original provenance |
 | Private receipts and retained uncertain state | Numbered create-only root-relative receipts include binary/tool/source/helper hashes, root context, argv, PIDs, timestamps, code/signal, streams, file/SQL results, requests and auth windows; fake session file stays private |
 | No retry, deletion or production cleanup | All failure paths preserve generated root and siblings. HTTP error/timeout, interruption or child uncertainty prevents PASS; parent must reconcile uncertain outcomes before any later retry |
@@ -175,6 +175,53 @@ prefix. A 30-second progress callback additionally bounds observation SQL work;
 process deadlines remain authoritative. Its `hold-wal` action performs normal
 healthy setup, commits no extra data, waits for the one explicit close message,
 then closes normally. It is not a new top-level fixture/control selector.
+
+## Reviewed comparison corrections
+
+`json_equal` recursively distinguishes JSON null, boolean, number, string, array
+and object categories, with exact object keys and ordered array members. Python's
+`True == 1` / `False == 0` coercion is never used for JSON structural assertions.
+Numeric 1 and 1.0 may compare by value within the number category, matching MJS
+Number semantics; exact Python integers are never converted to float. Manifest
+revision/offset/byte fields, native record revisions, schema versions, last_seen
+and SQL rate timestamps/counts additionally require integer-valued JSON numbers;
+booleans and fractional values are refused. Byte/hash assertions on raw
+original record strings are retained independently of parsed documentary views.
+Every byte-input JSON decode explicitly uses strict UTF-8 first.
+
+No new floating-point/exponent limit is imposed on retained originals: exponent
+overflow such as 1e999 is not a lost-MJS-parity finding, since JSON.parse also
+produces Infinity. The raw original string/UTF-8 bytes retain the independent
+exact comparison. Replayed still requires the actual boolean `False`.
+
+An empty foreign_key_check result is the expected healthy result, but SQLite
+also returns no rows for some unknown PRAGMAs. Neither this assertion nor the
+frozen MJS helper inherently detects an unsupported FK PRAGMA. The inherited
+cases document must not be read as such capability proof. Python SQLite and
+native capability/linked-closure qualification remain open; no negative probe,
+canary or new execution is introduced to settle them in this preparation.
+
+The rate correction follows `backend/src/access/store.rs::consume_rate` and
+`backend/src/access/boundary.rs::authenticate/rate`: times are epoch milliseconds,
+the request-user window is exactly 60,000 ms, rows are removed only when
+`expires_at <= now`, a new row has `(starts_at=now, expires_at=now+60000, count=1)`,
+and conflict updates increment only count. The frozen MJS inherited a gap that
+allowed replacement after phase start without requiring old expiration; its
+registered bytes remain unchanged and this Python-only correction is explicit.
+
+For the same retained starts_at, require unchanged-window viability and the
+exact observed authentication increment. For a replacement, require the new
+starts_at at/after phase start **and old expires_at**, its own exact 60-second
+expiry, and a recorded successful request interval containing that starts_at.
+The count must include all authentications in request intervals strictly after
+the reset, may include those in intervals crossing it, and cannot include any
+request interval already finished before it. At least one authentication must
+support the new bucket. A request with Read+Media has two authentications; the
+interval bounds deliberately do not pretend to locate their individual native
+timestamps. Missing other rate rows must have expired by an observed request,
+rather than merely by the end of shutdown. Raw rows and per-request intervals
+remain in receipts. This is bounded healthy-state observation, not a new control
+case or proof against an adversarial concurrent writer.
 
 ## Lifecycle, budgets and uncertainty details
 
