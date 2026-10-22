@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "20770fed75975f16f27843129ec5312ffcef8fc8d86e3fcc0cff465af4437dbc",
+  "sourceDigestSha256": "ffb015655c3376d3b7fef4b893b02d1e1cb29a0e732f371628d5335c73a1794b",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -6006,8 +6006,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 150230,
-      "sha256": "b5f024dbfe58a5b2ac96fd63c8fe515e99aa5f694aea765f92c71e7776179052",
+      "bytes": 152420,
+      "sha256": "1709647d9f89e39f9a6bb92a7d19c0f4d6e4f7d1e73e9f4fa5516b0ca479b973",
       "owner": "core-integration"
     },
     {
@@ -7744,6 +7744,13 @@
       "mode": "100644",
       "bytes": 22010,
       "sha256": "a1bddb311a87bddad9e54f634f78262d0561759034eb41d358cfcae4d7b41b9c",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/offline-local-edit-mounting-healthy.mjs",
+      "mode": "100644",
+      "bytes": 14597,
+      "sha256": "d81b6615f85953abb5706f0eddfe7b6e169ae75d434ff7481f9ee71c8d749ee7",
       "owner": "web"
     },
     {
@@ -10148,10 +10155,24 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/local-edit-retention/LocalEditPanel.tsx",
+      "mode": "100644",
+      "bytes": 8793,
+      "sha256": "a2e3e1e120a673e58e940cac7dc7f7cf9039f24d48407d87c45b34f40fd34cfb",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/local-edit-retention/controller.ts",
       "mode": "100644",
       "bytes": 11811,
       "sha256": "c4efca1d9d21022137abfe2743b1325272ff22da20c7b848a8bcb9b5ad04bfaa",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/local-edit-retention/saved-adapter.ts",
+      "mode": "100644",
+      "bytes": 12952,
+      "sha256": "b5cf9832298a7b045acf247c9fd2c1c91df7d51f7297e286883a018d4f5d7909",
       "owner": "web"
     },
     {
@@ -10213,8 +10234,8 @@
     {
       "path": "frontend/src/offline/SavedAtlasHost.tsx",
       "mode": "100644",
-      "bytes": 9455,
-      "sha256": "25441dd6f898cee6f532d8740893c0fe8ce174e359c83b0f1b779322a6daf50e",
+      "bytes": 10638,
+      "sha256": "73f30c861ec8dd29e86e4181046482112eee89116a62946c3f76771d83a984b4",
       "owner": "web"
     },
     {
