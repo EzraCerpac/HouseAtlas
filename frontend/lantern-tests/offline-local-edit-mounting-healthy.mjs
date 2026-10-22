@@ -108,7 +108,9 @@ try {
   assert(choice.includes('Local draft space')); assert(choice.includes('Open local draft space'));
   assert(choice.includes('Local only / not submitted')); assert(!choice.includes('Save local proposal'));
   assert.equal(disk.databases.size, 0, 'Rendering/adapter construction has no automatic storage reads');
-  assert.equal(typeof adapter.retain, 'undefined');
+  assert.equal(typeof adapter.retain, 'function');
+  assert.equal(adapter.getSnapshot().canRetain, false);
+  assert.deepEqual(adapter.getSnapshot().candidates, []);
   const stable = adapter.getSnapshot(); assert.equal(adapter.getSnapshot(), stable); assert(Object.isFrozen(stable));
 
   // Test-only setup seeds pre-existing rows through the actual production store.
