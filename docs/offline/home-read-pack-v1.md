@@ -152,8 +152,8 @@ The one aggregate uses the existing manifest descriptor
 resource role or JSON resource. Deterministic record-ID order concatenates
 unchanged bodies without separators or padding. Unique member slices are
 contiguous, nonoverlapping and cover the complete aggregate; offsets and lengths
-count UTF-8 bytes, never characters. Each member has its own digest, distinct
-from the aggregate digest. A consumer must verify the actual aggregate
+count UTF-8 bytes, never characters. Each member's digest is computed independently for its slice; it can equal
+that of a single-member aggregate. A consumer must verify the actual aggregate
 length/hash/MIME and then the checked member slice, per-body hash, strict
 schema, scope, identity and revision. It must not substitute a resource hash
 for a record hash or pass concatenated bodies through the generic section JSON
