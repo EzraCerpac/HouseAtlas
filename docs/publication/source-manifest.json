@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "3b8b7c1d8bce37b384ccbce224f879f6c3749c970b57daf75d741c290732383a",
+  "sourceDigestSha256": "3121a2b765edb3af0e7e57891031e35f57a03d9370f9691b12a8ef9e4941738a",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -5985,8 +5985,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 142172,
-      "sha256": "c1dba051c7777c3a12d4845ca78004bef2619bfc85163b766c5633457241401d",
+      "bytes": 142330,
+      "sha256": "5cb7462133ae71ede504f19da0b9aaa14cf3a94d5bf98c49f0329f042f1c94c9",
       "owner": "core-integration"
     },
     {
@@ -6370,8 +6370,8 @@
     {
       "path": "docs/offline/saved-atlas-consumer-v2.md",
       "mode": "100644",
-      "bytes": 5773,
-      "sha256": "50b13f9e5e80c190f2307b0405d8362374309e9b9b24857cd0db69d8c78c715f",
+      "bytes": 6175,
+      "sha256": "af5535af41d092fbedb9ea91f919e00cfd4cea1ced92fa4a98edb9bc3fa523cd",
       "owner": "web"
     },
     {
