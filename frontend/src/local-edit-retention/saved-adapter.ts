@@ -127,9 +127,12 @@ export function createSavedLocalEditAdapter(
     state = frozen({ ...state, ...structuredClone(patch) });
     for (const listener of [...listeners]) { try { listener(); } catch { /* Observers do not own storage outcomes. */ } }
   }
-  function closeDetail(): void {
-    generation++; handle?.retire(); controller.retire(); handle = null; selectedKey = null; busy = false; uncertain = false;
+  function closeDetail(): number {
+    // Capture before notifying: a subscriber may retire or replace this allocation.
+    const ticket = ++generation;
+    handle?.retire(); controller.retire(); handle = null; selectedKey = null; busy = false; uncertain = false;
     publish({ status: current() ? 'listed' : 'retired', selectedKey: null, detail: null, outcome: null, message: null });
+    return ticket;
   }
   function retire(): void {
     if (!active) return;
@@ -203,8 +206,11 @@ export function createSavedLocalEditAdapter(
     subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     async list() {
       if (!current() || busy) return;
-      closeDetail(); const ticket = generation; busy = true; rows = [];
+      const ticket = closeDetail();
+      if (!owns(ticket)) return;
+      busy = true; rows = [];
       publish({ status: 'listing', summaries: [], message: null });
+      if (!owns(ticket)) return;
       try {
         const found = await store.list(structuredClone(context));
         for (const row of found) await admitted(row);
@@ -217,10 +223,13 @@ export function createSavedLocalEditAdapter(
       if (!current() || busy) return null;
       const row = rows.find(value => draftKey(value) === key);
       if (!row) return null;
-      closeDetail(); selectedKey = key; handle = controller.select(structuredClone(row));
+      const ticket = closeDetail();
+      if (!owns(ticket)) return null;
+      selectedKey = key; handle = controller.select(structuredClone(row));
       return run('read');
     },
     read: () => run('read'), saveProposal: text => run('save', text),
-    resetProposal: () => run('reset'), discard: () => run('discard'), closeDetail, dispose: retire,
+    resetProposal: () => run('reset'), discard: () => run('discard'),
+    closeDetail: () => { closeDetail(); }, dispose: retire,
   };
 }
