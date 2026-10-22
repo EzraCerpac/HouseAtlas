@@ -1836,6 +1836,41 @@ establish offline renderer, browser, device, source placement or deployment
 acceptance. The closed v1 envelope remains; explicit model-section v2 renderer
 support is still required.
 
+## Named generated retained identity body positive
+
+Inspect the exact `--retained-identity-bodies` branch and
+`retained_identity_bodies_positive()` in
+`backend/examples/healthy-home-read-pack.rs`, and the touched read-pack
+storage/HTTP code, before this separate command. The producer-only positive
+uses fresh private canonical temporary state, an in-process local session and
+the existing native mutation owner to create generated identities. Synthetic
+SQL setup then supplies valid whitespace-preserving encodings, exact integral
+decimal/exponent revision tokens, a maximum safe revision and one exactly
+1 MiB body. Setup finishes before read-only observation; it is not an audit
+history, recovery or malformed-input control.
+
+Using Rust 1.99.0 and an owned target outside the checkout, the separately
+coordinated command is:
+
+```sh
+cargo run --offline --locked -p houseatlas-backend --example healthy-home-read-pack -- --retained-identity-bodies
+```
+
+The body checks actual manifest/Atlas/aggregate GETs, unchanged body slices,
+independent hashes, deterministic contiguous closure, exact revision tokens,
+repeat-capture descriptor consistency and exact retained-manifest continuation.
+It compares complete record rows, database files and observer-connection
+change/version values before and after the read phase. Those observations do
+not establish general live WAL/SHM inactivity or crash durability. The existing
+baseline and fixture-output paths remain separate invocations; this command
+does not run them.
+
+Only generated records and existing in-process transports are used. No listener,
+live data, provider, browser/device session, local draft retention, UI, native
+authority, submission, replay, fault, denial, concurrency or deployment is
+qualified. This registration records the inspected command and scope, not an
+execution result; invocation requires the coordinated exact-head release.
+
 ## Bounded generated offline intent reconciliation qualification
 
 Inspect `backend/examples/healthy-offline-intent-reconciliation.rs` before this
@@ -2481,12 +2516,16 @@ stable detached snapshots, proposal save/reset, partition/home/snapshot
 isolation, empty read-only lists, clean store reopen, nullable evidence,
 read-only inventory and targeted discard preserving unrelated rows.
 
-The adapter has no retain/new-base API. The production panel requires an
-explicit memory-only local draft-space choice and lists only existing rows.
-That partition is local data isolation, not an account or grant. Supplied
-original bytes/revisions remain documentary evidence; proposal editing checks
+This retained-row positive does not invoke candidate admission or retention.
+It checks that the extended adapter starts with retention disabled and no
+candidates; construction/rendering still perform no implicit storage reads.
+The separate saved-identity positive below covers explicit new retention.
+The production panel requires a memory-only local draft-space choice. That
+partition is local data isolation, not an account or grant. Supplied original
+bytes/revisions remain documentary evidence; proposal editing checks
 byte-faithful UTF-8 JSON syntax, not native field semantics. Native authority
-stays unestablished and the current base unchecked. Empty partitions stay empty.
+stays unestablished and the current base unchecked. Empty partitions stay empty
+until explicit retention of independently admitted evidence.
 
 SSR verifies markup, not DOM events, focus, effects or the actual Saved host
 lifetime. Pending retirement, stale completions, reentrant observers, uncertain
@@ -2496,6 +2535,50 @@ of those guards is not runtime qualification. Browser-managed persistence,
 device durability, interactive browser/device acceptance, native submission/
 reconciliation and deployment remain separate. No new workflow or runtime
 alias, production data, provider, listener or native service is included.
+
+## Named generated saved identity retention positive
+
+Inspect `frontend/src/local-edit-retention/retained-identity.ts`, the extended
+`saved-adapter.ts`/`LocalEditPanel.tsx`, the read-only resource-port seam in
+`offline/SavedAtlasHost.tsx`, the unchanged store/controller/types and synthetic
+IndexedDB helper, and the complete
+`frontend/lantern-tests/offline-retained-identity-healthy.mjs` body before
+execution. Use Node 26.10.0 and the existing locked frontend dependencies.
+The exact commands run separately, serially in this order:
+
+```sh
+node frontend/lantern-tests/offline-retained-identity-healthy.mjs
+node frontend/lantern-tests/offline-local-edit-mounting-healthy.mjs
+```
+
+This separate manual positive bundles actual production imports in an owned
+temporary module and uses actual panel React SSR with generated local resource
+ports and disposable synthetic IndexedDB. It has no arguments and a 60-second
+process deadline. Generated multi-member, single-member and omissions-only packs
+exercise original lexical integral decimal/exponent revisions through the
+maximum safe value, exact noncanonical manifest/original bytes, independent
+resource/member digests, complete membership and contiguous slices, a 1 MiB
+included member and a valid oversized omission. Observation assertions run
+outside adapter notification callbacks, whose exceptions are intentionally
+caught by production code.
+
+Serial explicit Read originals, Choose, verified absent Read, Retain, proposal,
+clean store reopen, reset and targeted discard operations preserve detached
+originals, immutable saved resources, unrelated rows and the other partition.
+Choosing an existing row opens it without overwriting it; discard does not
+automatically re-enable retention. The complete legacy retained-row positive
+above is a separate invocation with only its obsolete no-retain-method assertion
+updated. Run the two named commands once each in the order above, stopping on the first
+failure. Do not substitute an aggregate suite or automatically retry a failed
+invocation.
+
+These generated positives establish only their inspected successful serial
+paths and SSR markup. No negative/control, pending retirement, stale completion,
+reentrancy, uncertain-write, corruption/denial/fault/concurrency/replay/crash,
+actual mounted-host, DOM event/focus/effect, browser/device durability, native
+authority, current-base, submission or deployment qualification is supplied.
+This registration records commands and scope, not an execution outcome.
+Invocation requires the coordinated exact-head release.
 
 ## Named generated Atlas current-connection read-validation positive
 

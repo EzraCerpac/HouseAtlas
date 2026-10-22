@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c579f309626cfaa66e28a1dd976a869341a1527334f1f118be6961f289e14cf1",
+  "sourceDigestSha256": "99695cf201e12d0c1932bfccfe0430427d5115afcc02015908653edaf688fddf",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -301,8 +301,8 @@
     {
       "path": "backend/examples/healthy-home-read-pack.rs",
       "mode": "100644",
-      "bytes": 33235,
-      "sha256": "b688a7cc4ea6700b96a4249ea6c323350536d43459399623ed579168800ffa6b",
+      "bytes": 47145,
+      "sha256": "430a0468821a69b1a8b272adb33c3c50569c628c15805413f00299fc70f0b626",
       "owner": "core-integration"
     },
     {
@@ -2387,8 +2387,8 @@
     {
       "path": "backend/src/http/offline_read_pack.rs",
       "mode": "100644",
-      "bytes": 38718,
-      "sha256": "4f89331d8b729270dde75071e99cd89746e0ec1973e78defbf1348ed587c7662",
+      "bytes": 45553,
+      "sha256": "18a8cf6ca2e8f3ff16bf9ec4d4407dacfb7fb6a95fb2f7bcb2ff855515f8c993",
       "owner": "core-integration"
     },
     {
@@ -4774,8 +4774,8 @@
     {
       "path": "backend/src/storage/home_read_pack.rs",
       "mode": "100644",
-      "bytes": 3793,
-      "sha256": "0be829e116936ec7f852d75c19cde9c22ffdb81bf4e3026e72e0332bc855e25d",
+      "bytes": 12809,
+      "sha256": "15ff141eccbe7a8e18e47993756d08bc6000d20a69329499f26f1f79404bf6b1",
       "owner": "storage"
     },
     {
@@ -6020,8 +6020,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 155590,
-      "sha256": "118263d9a807ab8c9f5b5995cf409daa7c79fb9b40188eee46868164d515fd34",
+      "bytes": 160338,
+      "sha256": "1ebbc941c6f86a02429252b3a3def6db9b665a042fb9266bee5f432274294348",
       "owner": "core-integration"
     },
     {
@@ -6384,8 +6384,8 @@
     {
       "path": "docs/offline/home-read-pack-v1.md",
       "mode": "100644",
-      "bytes": 12549,
-      "sha256": "1e1504079374689d6582750f3322d206f8a0666cd22899d5c8e54d585116d512",
+      "bytes": 19484,
+      "sha256": "5f53d326f7793a758ab129057e95839d37e96eea4a56c24dd4c3cb0a0651064e",
       "owner": "storage"
     },
     {
@@ -7763,8 +7763,8 @@
     {
       "path": "frontend/lantern-tests/offline-local-edit-mounting-healthy.mjs",
       "mode": "100644",
-      "bytes": 14597,
-      "sha256": "d81b6615f85953abb5706f0eddfe7b6e169ae75d434ff7481f9ee71c8d749ee7",
+      "bytes": 14710,
+      "sha256": "9540e66e05ef76b88e558c827c6147ddc2ec9076892d27c26656cfa29009c34d",
       "owner": "web"
     },
     {
@@ -7773,6 +7773,13 @@
       "bytes": 13276,
       "sha256": "c60993c00ed94fd910cb46ffa28a6604eed9ceaa33f7dddde5ae49e05e41e3a2",
       "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/offline-retained-identity-healthy.mjs",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 19707,
+      "sha256": "065d6af8799a85171d7a32c7976ba7d332036c66c493ecd55d2e86b6549c6fb5"
     },
     {
       "path": "frontend/lantern-tests/offline-root-entry-healthy.mjs",
@@ -10171,8 +10178,8 @@
     {
       "path": "frontend/src/local-edit-retention/LocalEditPanel.tsx",
       "mode": "100644",
-      "bytes": 8793,
-      "sha256": "a2e3e1e120a673e58e940cac7dc7f7cf9039f24d48407d87c45b34f40fd34cfb",
+      "bytes": 10429,
+      "sha256": "415cfc585e8d080b18b2daa6d2dad6a3153f50c50170afb5b0cdde674ca97014",
       "owner": "web"
     },
     {
@@ -10183,10 +10190,17 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/local-edit-retention/retained-identity.ts",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 12728,
+      "sha256": "1b7e5683eccb29a6acfd8a3f95ca84aa87c578493e3b2785ea54b7121b5142ad"
+    },
+    {
       "path": "frontend/src/local-edit-retention/saved-adapter.ts",
       "mode": "100644",
-      "bytes": 12952,
-      "sha256": "b5cf9832298a7b045acf247c9fd2c1c91df7d51f7297e286883a018d4f5d7909",
+      "bytes": 16705,
+      "sha256": "a849aab1fbc9c02f74e8af7d499ea7e5ad3a809631cfb45ecad4f9fa3b24628b",
       "owner": "web"
     },
     {
@@ -10248,8 +10262,8 @@
     {
       "path": "frontend/src/offline/SavedAtlasHost.tsx",
       "mode": "100644",
-      "bytes": 10638,
-      "sha256": "73f30c861ec8dd29e86e4181046482112eee89116a62946c3f76771d83a984b4",
+      "bytes": 10733,
+      "sha256": "f5ad59df85d477bc2a15aef1a2d6ec9152e98294ae0387aa376e4616dbdb589b",
       "owner": "web"
     },
     {

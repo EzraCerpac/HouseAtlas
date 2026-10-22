@@ -119,6 +119,123 @@ its exact original bytes. Native asset and model MIME values remain explicit.
 - `model`: the versioned section below. Its small root is always a generic
   section JSON resource; the admitted raw companion is a separate opaque resource.
 
+### Exact retained identity bodies amendment
+
+An Atlas section may additionally contain `retainedIdentityBodies`. This
+optional descriptor refers to exact retained `records.body` bytes at the
+captured revision, not original mutation requests, a current base or native
+authority. Older packs without it remain readable but supply no exact-record
+evidence for creating local drafts.
+
+```text
+{
+  profile: "houseatlas.home-read-pack.retained-identity-bodies.v1",
+  resourceSha256: lowercase SHA256 | null,
+  bytes: exact nonnegative integer,
+  members: [{
+    workspaceId, homeId, recordType: "identity", recordId,
+    revision: exact original numeric token,
+    offset: exact nonnegative byte offset, bytes: exact positive byte length,
+    sha256: lowercase SHA256
+  }],
+  omissions: [{
+    workspaceId, homeId, recordType: "identity", recordId,
+    revision: exact original numeric token, bytes: exact positive byte length,
+    sha256: lowercase SHA256, code: "member-byte-budget"
+  }]
+}
+```
+
+The one aggregate uses the existing manifest descriptor
+`section:atlas, role:original, record:null`, MIME
+`application/octet-stream`, and its exact length and SHA256. It is not a new
+resource role or JSON resource. Deterministic record-ID order concatenates
+unchanged bodies without separators or padding. Unique member slices are
+contiguous, nonoverlapping and cover the complete aggregate; offsets and lengths
+count UTF-8 bytes, never characters. Each member's digest is computed independently for its slice; it can equal
+that of a single-member aggregate. A consumer must verify the actual aggregate
+length/hash/MIME and then the checked member slice, per-body hash, strict
+schema, scope, identity and revision. It must not substitute a resource hash
+for a record hash or pass concatenated bodies through the generic section JSON
+parser. Generic saved-house storage retains the aggregate opaquely.
+
+Capture uses the existing authorized SQL transaction. Duplicate-rejecting,
+number-preserving v2 JSON parsing and the closed native identity schema precede
+SQL scope/type/ID/revision and complete captured-record comparison. Revisions
+have exact integer values in 1..9007199254740991; their original numeric lexical
+tokens are preserved without binary64 conversion, including valid integral
+decimal/exponent encodings. Whitespace in retained bodies is also preserved.
+The identity must equal its existing documentary projection: excluded or
+transformed fields cannot escape through this resource. Missing or conflicting
+rows refuse the capture. The continuation fingerprint commits ordered keys,
+revision tokens, lengths, body hashes, omissions and aggregate hash, so
+byte-only changes invalidate continuation.
+
+At most 10,000 identities and 16 MiB of identity bodies are captured; exceeding
+that capture bound refuses export. Each included member is at most 1 MiB.
+Larger members are omitted with exact documentary metadata and explicit partial
+coverage. No empty aggregate is listed: an omissions-only descriptor has a
+null resource hash, zero aggregate bytes and no members. With no identities,
+the optional descriptor is absent. Aggregate/mapping publication consumes the
+unchanged resource, section, metadata and total budgets. If the extension
+cannot fit or has conflicting resource attribution, it is withheld with explicit
+partial coverage; the same frozen cut may be recomposed without the extension
+when later metadata cannot fit. An added aggregate can consume a resource slot
+otherwise available to another section; resulting coverage remains explicit.
+
+Existing authorization, source restrictions, byte ownership and final/resumed
+revalidation remain authoritative. This producer adds no frontend admission,
+draft creation UI, local-store schema, native mutation, submission or replay.
+The shared frontend lossless JSON parser's last-wins object handling alone is
+insufficient for exact-original admission; the saved identity consumer below
+adds an admission-only duplicate-decoded-key preflight.
+
+### Saved identity draft consumer
+
+The saved Local drafts panel can explicitly read this optional identity
+descriptor through a read-only local resource port. It does not derive originals
+from catalog trees, aggregate hashes or the generic section reader's parsed
+projection. Before using either existing last-wins parser, an admission-only
+scanner rejects duplicate decoded keys throughout the raw manifest, raw Atlas
+section and individual body, including escaped-equivalent keys. Shared parser,
+schema, saved-house storage and local-edit store/controller contracts are
+unchanged.
+
+Admission binds the complete selected saved copy, exact manifest bytes, resource
+descriptors and current local revision across asynchronous reads. It checks the
+complete identity set against members plus omissions, strict native identity
+shape/scope/ID, exact safe-integer revision values and original lexical tokens,
+ordered contiguous offsets, captured-byte bounds, the complete aggregate
+length/hash/MIME and each included member's hash and full documentary equality.
+The binary aggregate never enters the generic JSON section parser. Each
+included member supplies a detached exact original and its individual digest;
+the selected resource remains the actual aggregate descriptor. A single-member
+aggregate can legitimately have equal resource and original digests.
+
+Construction and rendering perform no resource reads or retention. After an
+explicit memory-only local draft-space choice, the user selects Read saved
+identity originals, then an admitted candidate. Selection first reads the
+matching local draft: an existing row opens without replacement. Only a verified
+absent read enables the separate Retain local draft action. The unchanged
+controller/store preserves transaction-completion verification, immutable
+originals and exact manifest bytes, separate reversible proposals, and targeted
+discard. An uncertain completion establishes no safe retry. Discard never
+automatically re-enables retention. All changes remain local and unsubmitted;
+the partition supplies isolation, not actor/session/grant authority.
+
+Older packs without the optional descriptor, unavailable resource ports or
+failed candidate admission expose a separate candidate-unavailable state.
+Already-retained local drafts remain independently readable/editable. No
+automatic online request, new source capture, saved-pack upgrade, native
+mutation, submission or replay is introduced. Consumers must acquire a separately
+qualified new saved pack to obtain newly exported identity originals.
+
+The generated serial positives and panel SSR described in the verification
+guide do not establish DOM events/focus/effects, actual mounted-host lifetime,
+pending retirement/stale completion/reentrant observer behavior, uncertain
+writes, corruption/denial/fault/concurrency/replay/crash controls, browser/device
+durability, live-base reconciliation or installed acceptance.
+
 ### Model section v2 amendment
 
 The closed v1 manifest, six sections, resource roles, limits and digest/dedup

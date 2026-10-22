@@ -259,6 +259,16 @@ impl Builder {
         role: &str,
         record: Value,
     ) -> Result<Option<String>, HttpFailure> {
+        self.add_shared(Arc::new(bytes), mime, section, role, record)
+    }
+    fn add_shared(
+        &mut self,
+        bytes: Arc<Vec<u8>>,
+        mime: &str,
+        section: &str,
+        role: &str,
+        record: Value,
+    ) -> Result<Option<String>, HttpFailure> {
         let hash = digest(&bytes);
         if let Some(prior) = self.resources.get(&hash) {
             if prior.descriptor["contentType"] != mime {
@@ -294,7 +304,7 @@ impl Builder {
         }
         self.bytes += bytes.len();
         self.order.push(hash.clone());
-        self.resources.insert(hash.clone(),Resource { descriptor:json!({"sha256":hash,"bytes":bytes.len(),"contentType":mime,"section":section,"role":role,"record":record}),bytes:Arc::new(bytes) });
+        self.resources.insert(hash.clone(),Resource { descriptor:json!({"sha256":hash,"bytes":bytes.len(),"contentType":mime,"section":section,"role":role,"record":record}),bytes });
         Ok(Some(hash))
     }
     fn section(
@@ -303,7 +313,14 @@ impl Builder {
         section: &str,
         complete: bool,
     ) -> Result<Value, HttpFailure> {
-        let bytes = encoded(&value)?;
+        self.section_bytes(encoded(&value)?, section, complete)
+    }
+    fn section_bytes(
+        &mut self,
+        bytes: Vec<u8>,
+        section: &str,
+        complete: bool,
+    ) -> Result<Value, HttpFailure> {
         if bytes.len() > SECTION {
             return Err(failure(StatusCode::PAYLOAD_TOO_LARGE));
         }
@@ -359,6 +376,135 @@ fn documentary(value: &Value) -> Value {
         ),
         _ => value.clone(),
     }
+}
+// Count serialized metadata before copying member descriptors or encoding the
+// extended section. Binary aggregate storage is shared with the captured cut.
+fn encoded_len(value: &impl serde::Serialize) -> Result<usize, HttpFailure> {
+    struct Counter(usize);
+    impl std::io::Write for Counter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0 = self
+                .0
+                .checked_add(bytes.len())
+                .ok_or_else(|| std::io::Error::other("metadata size overflow"))?;
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut counter = Counter(0);
+    serde_json::to_writer(&mut counter, value).map_err(|_| unavailable())?;
+    Ok(counter.0)
+}
+fn retained_identity_bodies(
+    prepared: &Prepared,
+    atlas: &Value,
+    builder: &mut Builder,
+) -> Result<(Option<Vec<u8>>, bool), HttpFailure> {
+    let captured = &prepared.metadata.identity_bodies;
+    if captured.members.is_empty() && captured.omissions.is_empty() {
+        return Ok((None, true));
+    }
+    // Identity originals must correspond to the unchanged documentary records.
+    // Schema validation and exact full-Record comparison occurred in the cut.
+    let projections = atlas["records"].as_array().ok_or_else(unavailable)?;
+    if projections.len() != prepared.snapshot.records.len() {
+        return Err(conflict());
+    }
+    for (record, projection) in prepared.snapshot.records.iter().zip(projections) {
+        if record.record_type != s::RecordType::Identity {
+            continue;
+        }
+        let value = serde_json::to_value(record).map_err(|_| unavailable())?;
+        if documentary(&value) != value || *projection != value {
+            return Err(conflict());
+        }
+    }
+    #[derive(serde::Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Descriptor<'a> {
+        profile: &'static str,
+        resource_sha256: Option<&'a str>,
+        bytes: usize,
+        members: &'a [s::home_read_pack::IdentityBodyMember],
+        omissions: &'a [s::home_read_pack::IdentityBodyMember],
+    }
+    let descriptor = Descriptor {
+        profile: "houseatlas.home-read-pack.retained-identity-bodies.v1",
+        resource_sha256: (!captured.bytes.is_empty()).then_some(captured.sha256.as_str()),
+        bytes: captured.bytes.len(),
+        members: &captured.members,
+        omissions: &captured.omissions,
+    };
+    #[derive(serde::Serialize)]
+    struct ExtendedAtlas<'a> {
+        #[serde(flatten)]
+        atlas: &'a Value,
+        #[serde(rename = "retainedIdentityBodies")]
+        retained: Descriptor<'a>,
+    }
+    let extended = ExtendedAtlas {
+        atlas,
+        retained: descriptor,
+    };
+    // Count the complete extended wire object before allocation. Preserve the
+    // existing section/metadata/resource/aggregate ceilings unchanged.
+    let required = encoded_len(&extended)?;
+    if required > SECTION
+        || builder.metadata + required > METADATA
+        || (!captured.bytes.is_empty()
+            && (builder.resources.len() >= 511
+                || builder.bytes + captured.bytes.len() > TOTAL - METADATA
+                || builder.bytes + captured.bytes.len() + required > TOTAL))
+    {
+        builder.exclusion(
+            "atlas",
+            "retained-identity-bodies-budget",
+            "Retained identity bodies exceed pack bounds",
+        );
+        return Ok((None, false));
+    }
+    if !captured.bytes.is_empty() {
+        let hash = builder.add_shared(
+            captured.bytes.clone(),
+            "application/octet-stream",
+            "atlas",
+            "original",
+            Value::Null,
+        )?;
+        if hash.as_deref() != Some(captured.sha256.as_str()) {
+            return Ok((None, false));
+        }
+        let resource = &builder.resources[&captured.sha256].descriptor;
+        if resource["section"] != "atlas"
+            || resource["role"] != "original"
+            || !resource["record"].is_null()
+        {
+            builder.exclusion(
+                "atlas",
+                "retained-identity-bodies-attribution",
+                "Retained identity bodies have conflicting content attribution",
+            );
+            return Ok((None, false));
+        }
+    }
+    // Serialize the raw numeric revision directly. Going through Value here
+    // would normalize its original exponent spelling again.
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(required)
+        .map_err(|_| failure(StatusCode::PAYLOAD_TOO_LARGE))?;
+    serde_json::to_writer(&mut bytes, &extended).map_err(|_| unavailable())?;
+    if !captured.omissions.is_empty() {
+        builder.exclusion(
+            "atlas",
+            "retained-identity-member-budget",
+            "An identity body exceeds the retained member bound",
+        );
+        return Ok((Some(bytes), false));
+    }
+    Ok((Some(bytes), true))
 }
 fn empty_section(state: &str) -> Value {
     json!({"state":state,"resourceSha256":null,"requiredBytesComplete":state=="not-configured"})
@@ -533,6 +679,27 @@ fn build(
     prepared: &Prepared,
     scope: &d::Scope,
 ) -> Result<(String, Arc<Pack>), HttpFailure> {
+    match build_cut(host, prepared, scope, true) {
+        Err(error)
+            if error.status == StatusCode::PAYLOAD_TOO_LARGE
+                && (!prepared.metadata.identity_bodies.members.is_empty()
+                    || !prepared.metadata.identity_bodies.omissions.is_empty()) =>
+        {
+            // Later sections and the final manifest share the metadata budget.
+            // If the optional extension exhausted it, discard that unpublished
+            // build and compose the same frozen cut with explicit omission.
+            // Original authority/final continuation revalidation still applies.
+            build_cut(host, prepared, scope, false)
+        }
+        result => result,
+    }
+}
+fn build_cut(
+    host: &Host,
+    prepared: &Prepared,
+    scope: &d::Scope,
+    retain_identities: bool,
+) -> Result<(String, Arc<Pack>), HttpFailure> {
     let mut b = Builder::empty();
     let mut sections = serde_json::Map::new();
     sections.insert("home".into(),b.section(json!({"profile":"houseatlas.home-read-pack.home.v1","scope":scope,"label":prepared.label,"selection":{"workspaceId":scope.workspace_id,"homeId":scope.home_id,"buildingId":null,"floorId":null,"roomId":null}}),"home",true)?);
@@ -649,7 +816,27 @@ fn build(
             "Retained geometry has no admitted floor descriptor for offline rendering",
         );
     }
-    sections.insert("atlas".into(),b.section(json!({"contractVersion":prepared.snapshot.contract_version,"synthetic":prepared.snapshot.synthetic,"records":documentary(&records),"revisions":revisions,"nativeGeometry":scans,"sources":prepared.snapshot.sources,"caches":prepared.snapshot.caches}),"atlas",atlas_complete)?);
+    let atlas = json!({"contractVersion":prepared.snapshot.contract_version,"synthetic":prepared.snapshot.synthetic,"records":documentary(&records),"revisions":revisions,"nativeGeometry":scans,"sources":prepared.snapshot.sources,"caches":prepared.snapshot.caches});
+    let atlas_bytes = if retain_identities {
+        let (bytes, complete) = retained_identity_bodies(prepared, &atlas, &mut b)?;
+        atlas_complete &= complete;
+        bytes
+    } else {
+        atlas_complete = false;
+        b.exclusion(
+            "atlas",
+            "retained-identity-bodies-budget",
+            "Retained identity bodies exceed pack bounds",
+        );
+        None
+    };
+    sections.insert(
+        "atlas".into(),
+        match atlas_bytes {
+            Some(bytes) => b.section_bytes(bytes, "atlas", atlas_complete)?,
+            None => b.section(atlas, "atlas", atlas_complete)?,
+        },
+    );
     let source_complete = !prepared
         .snapshot
         .caches
