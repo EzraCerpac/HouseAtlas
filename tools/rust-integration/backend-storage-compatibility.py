@@ -901,9 +901,10 @@ def compare(before, after, window):
                 require(row[1] >= window["start"] and (old is None or row[1] >= old[2]),
                         "Request-user bucket replaced before actual old expiration")
                 crossing = [event for event in observations if event["start"] <= row[1] <= event["end"]]
+                require(crossing, "Replacement reset requires a crossing authentication interval")
                 lower = sum(event["count"] for event in observations if event["start"] > row[1])
                 upper = sum(event["count"] for event in observations if event["end"] >= row[1])
-                require(crossing and max(1, lower) <= row[3] <= upper,
+                require(lower + 1 <= row[3] <= upper,
                         "Replacement bucket count/start lacks observed authentication support")
     require(any(row[0] == bucket for row in rb["rows"]), "Expected request-user rate row")
     for row in ra["rows"]:

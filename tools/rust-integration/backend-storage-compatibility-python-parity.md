@@ -214,9 +214,11 @@ exact observed authentication increment. For a replacement, require the new
 starts_at at/after phase start **and old expires_at**, its own exact 60-second
 expiry, and a recorded successful request interval containing that starts_at.
 The count must include all authentications in request intervals strictly after
-the reset, may include those in intervals crossing it, and cannot include any
-request interval already finished before it. At least one authentication must
-support the new bucket. A request with Read+Media has two authentications; the
+the reset **plus the mandatory reset-triggering authentication in a crossing
+interval**: the lower bound is `lower + 1`, after requiring a crossing interval.
+The upper bound is unchanged; it includes all intervals ending at/after reset.
+Other crossing authentications may contribute; requests finished before reset
+cannot. A request with Read+Media has two authentications; the
 interval bounds deliberately do not pretend to locate their individual native
 timestamps. Missing other rate rows must have expired by an observed request,
 rather than merely by the end of shutdown. Raw rows and per-request intervals
