@@ -2407,6 +2407,44 @@ service or household intake. It changes no saved-house/capture store, worker,
 host mounting, editor or submission path. Browser/device durability, live-base
 reconciliation, native authorization and installed acceptance remain separate.
 
+## Named generated retained-draft Saved UI positive
+
+Inspect `frontend/src/local-edit-retention/saved-adapter.ts`,
+`LocalEditPanel.tsx`, the bounded `offline/SavedAtlasHost.tsx` lifetime seam,
+the unchanged controller/store/types and synthetic IndexedDB helper, and
+`frontend/lantern-tests/offline-local-edit-mounting-healthy.mjs` before this
+separately released manual positive. Use Node 26.10.0 and the existing locked
+dependencies:
+
+```sh
+node frontend/lantern-tests/offline-local-edit-mounting-healthy.mjs
+```
+
+The runner bundles actual production imports into an owned temporary module
+and uses actual React server rendering of the panel. Test setup alone seeds
+matching pre-existing documentary drafts in disposable synthetic IndexedDB.
+Serial adapter/controller/store operations cover exact selected-copy/resource/
+manifest binding, separate resource/original hashes, large revision strings,
+stable detached snapshots, proposal save/reset, partition/home/snapshot
+isolation, empty read-only lists, clean store reopen, nullable evidence,
+read-only inventory and targeted discard preserving unrelated rows.
+
+The adapter has no retain/new-base API. The production panel requires an
+explicit memory-only local draft-space choice and lists only existing rows.
+That partition is local data isolation, not an account or grant. Supplied
+original bytes/revisions remain documentary evidence; proposal editing checks
+byte-faithful UTF-8 JSON syntax, not native field semantics. Native authority
+stays unestablished and the current base unchecked. Empty partitions stay empty.
+
+SSR verifies markup, not DOM events, focus, effects or the actual Saved host
+lifetime. Pending retirement, stale completions, reentrant observers, uncertain
+writes, corruption/denial/fault/concurrency/replay/crash controls and cross-tab
+behavior are not exercised or released by this serial positive. Source review
+of those guards is not runtime qualification. Browser-managed persistence,
+device durability, interactive browser/device acceptance, native submission/
+reconciliation and deployment remain separate. No new workflow or runtime
+alias, production data, provider, listener or native service is included.
+
 ## Named generated Atlas current-connection read-validation positive
 
 Inspect `backend/src/storage/updater_read_validation.rs`, its generated healthy
