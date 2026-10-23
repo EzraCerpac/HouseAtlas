@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "99695cf201e12d0c1932bfccfe0430427d5115afcc02015908653edaf688fddf",
+  "sourceDigestSha256": "0c6f0992d10dfdf6ba5af318e0d536d896297966aac1fc0095152c60112a7bd5",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -6020,8 +6020,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 160338,
-      "sha256": "1ebbc941c6f86a02429252b3a3def6db9b665a042fb9266bee5f432274294348",
+      "bytes": 163811,
+      "sha256": "e8857fe10537f0472a4ab0cb261d598f025a2dbb58830caf3e0565a148532c96",
       "owner": "core-integration"
     },
     {
@@ -7780,6 +7780,13 @@
       "owner": "web",
       "bytes": 19707,
       "sha256": "065d6af8799a85171d7a32c7976ba7d332036c66c493ecd55d2e86b6549c6fb5"
+    },
+    {
+      "path": "frontend/lantern-tests/offline-retained-identity-lifecycle-regression.mjs",
+      "mode": "100644",
+      "bytes": 29163,
+      "sha256": "f53c10a10fa807b7721f74dcd2b5fa7313281110e16092bf96a081348ae154d3",
+      "owner": "web"
     },
     {
       "path": "frontend/lantern-tests/offline-root-entry-healthy.mjs",

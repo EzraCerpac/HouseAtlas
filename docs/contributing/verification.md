@@ -2678,3 +2678,57 @@ rendering or device acceptance, nor total browser/driver peak-memory evidence.
 The separate lifecycle cancellation/reselection runner remains in the
 separately reviewed regression lane; these commands do not release it or any
 fault, denial, replay, expiry, concurrency or target controls.
+
+## Named generated saved identity lifecycle regressions
+
+Inspect the complete
+`frontend/lantern-tests/offline-retained-identity-lifecycle-regression.mjs`
+body, actual saved adapter, controller, retention store, retained-identity reader,
+manifest/parser imports and unchanged synthetic IndexedDB helper before execution.
+This separate manual regression lane uses only generated local data and owned
+temporary modules with Node 26.10.0 and unchanged locked frontend dependencies.
+After coordinated exact-head release, run these five separate processes once
+each, serially in this order, stopping on the first failure:
+
+```sh
+node frontend/lantern-tests/offline-retained-identity-lifecycle-regression.mjs --case candidate-rejection-isolation
+node frontend/lantern-tests/offline-retained-identity-lifecycle-regression.mjs --case candidate-read-retired
+node frontend/lantern-tests/offline-retained-identity-lifecycle-regression.mjs --case reentrant-publication-retirement
+node frontend/lantern-tests/offline-retained-identity-lifecycle-regression.mjs --case postcommit-verification-unconfirmed
+node frontend/lantern-tests/offline-retained-identity-lifecycle-regression.mjs --case committed-write-retired-completion
+```
+
+There is no default or aggregate selector and no automatic retry. These commands
+add no ordinary CI step, runtime alias or broader control-suite release.
+
+The first case changes only the second member's declared hash in an otherwise
+independently hashed generated pack and preserves an existing retained first
+member. The second defers one valid aggregate resource return before aborting
+the selected lifetime. The third uses four fixed serial subcases: reading and
+selected publication, each with closeDetail and dispose. Reentrant reactions
+are observed before checking that no stale resource/storage dispatch occurred.
+Observation and resource-port assertion failures are checked outside production
+callbacks that intentionally catch observer exceptions.
+
+The fourth delegates to the actual store until write transaction completion,
+then rejects exactly the following controller verification read. It preserves
+the committed row, requires completion-unconfirmed publication and blocks another
+write until an explicit successful read. The fifth holds the already committed
+retain return, retires its allocation and creates a replacement before release;
+the old attributed result must remain unpublished and the committed row retained.
+Neither case establishes rollback or safe mutation retry.
+
+Promise handshakes select these boundaries without runner sleeps, polling or
+random timing. The 60-second in-runner deadline starts after module imports; it
+is not an OS-enforced absolute containment/deadline claim. Evidence is captured
+before cleanup releases pending barriers and closes the owned synthetic store.
+Cleanup errors fail the case rather than turn it into PASS.
+
+This registration records source and command scope, not execution outcomes.
+Coverage is generated adapter/controller/storage behavior only. No actual React
+host mount, DOM/focus/effects, browser/device durability, real parallel IndexedDB,
+process crash, native/session/current-base authority, submission/replay, private
+data, provider, listener, NAS operation or deployment is included. Other corrupt,
+omission, denial, expiry, revocation, fault and concurrency cases remain held
+unless separately reviewed and released; these five selectors do not release
+a broad class of controls.
