@@ -24,6 +24,7 @@ import type { NativeSceneHost } from './scans/native-ui/native-scene-host';
 import { NativeGeometryProvider } from './scans/native-ui/NativeScanAtlas';
 import { SourcePortsContext, type SourceModelPort } from './source-ports';
 import type { SourceDocumentsPort } from './source-documents/types';
+import type { ElectricalLibraryPort } from './electrical-library/types';
 import type { HouseAcquisitionPort } from '../offline/acquisition-types';
 import { SaveHouseCopy } from '../offline/SaveHouseCopy';
 import './styles/fonts.css';
@@ -35,7 +36,7 @@ import './styles/integration.css';
 import './styles/topology.css';
 
 /** The existing session/view/stock owners remain above this presentation seam. */
-export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinnedFiles, networkRelations, topology, nativePlaces, nativeGeometry, nativeGeometryWrite, nativeGeometryAssociation, nativeEvidenceDocuments, nativeScene, sourceModels, sourceDocuments, houseAcquisition }: {
+export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinnedFiles, networkRelations, topology, nativePlaces, nativeGeometry, nativeGeometryWrite, nativeGeometryAssociation, nativeEvidenceDocuments, nativeScene, sourceModels, sourceDocuments, sourceElectricalLibrary, houseAcquisition }: {
   view: ReadyView; actions: AtlasContentActions; nativeContent: ReactNode;
   quantityWebMcp?: { readonly admission: QuantityAdmissionPort; readonly modelContext: ModelContextPort };
   /** Optional local HomeBox file consumer; its actions are explicit user reads. */
@@ -54,9 +55,12 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   sourceModels?: SourceModelPort;
   /** Optional native v2 source Documents reader. */
   sourceDocuments?: SourceDocumentsPort;
+  /** Optional qualified electrical evidence and page references, without model selection. */
+  sourceElectricalLibrary?: ElectricalLibraryPort;
   houseAcquisition?: HouseAcquisitionPort;
 }) {
-  const sources = useMemo(() => ({ ...(sourceModels ? { models: sourceModels } : {}), ...(sourceDocuments ? { documents: sourceDocuments } : {}) }), [sourceModels, sourceDocuments]);
+  const sources = useMemo(() => ({ ...(sourceModels ? { models: sourceModels } : {}), ...(sourceDocuments ? { documents: sourceDocuments } : {}),
+    ...(sourceElectricalLibrary ? { electricalLibrary: sourceElectricalLibrary } : {}) }), [sourceModels, sourceDocuments, sourceElectricalLibrary]);
   const client = useMemo(() => createGeometryClient(), []);
   const historyClient = useMemo(() => createOperationHistoryClient(), []);
   const session = actions.session?.expiresAt;
