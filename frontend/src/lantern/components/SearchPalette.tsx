@@ -7,6 +7,8 @@ import { Icon } from './Icon';
 import { KIND_ICON } from './ui';
 import { KIND_LABEL } from '../data/query';
 import { isArchivedEntry } from '../../app/model';
+import { useTopology } from '../topology/TopologyProvider';
+import { nativePlaceSearch, openNativePlaceSearchHit, type NativePlaceSearchHit } from '../topology/search';
 
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
 
@@ -129,6 +131,8 @@ function ArchiveFilter({ choose }: { choose: (hit: Pick<SearchHit, 'id' | 'kind'
 export function SearchPalette() {
   const { house, dispatch, state } = useStore();
   const select = useSelect();
+  const topology = useTopology();
+  useEffect(() => topology.activate(), [topology.activate]);
   const [q, setQ] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -139,7 +143,8 @@ export function SearchPalette() {
   const dispatchRef = useRef(dispatch);
   dispatchRef.current = dispatch;
 
-  const hits = useMemo(() => search(house, q).slice(0, 40), [house, q]);
+  const hits = useMemo(() => [...search(house, q), ...nativePlaceSearch(topology.index, topology.status, q)]
+    .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title)).slice(0, 40), [house, q, topology.index, topology.status]);
   const grouped = useMemo(() => {
     const out: { label: string; hits: SearchHit[] }[] = [];
     for (const g of SEARCH_GROUPS) {
@@ -199,13 +204,19 @@ export function SearchPalette() {
   }, [active]);
 
   const close = () => dispatch({ type: 'search', open: false });
-  const choose = (h: Pick<SearchHit, 'id' | 'kind'>) => {
+  const chooseSaved = (h: Pick<SearchHit, 'id' | 'kind'>) => {
     restoreFocus.current = false;
     const loc = locate(house, h.id);
     const planned = house.floors.find((f) => f.id === loc.floorId)?.hasPlan;
     const placeBound = ['space', 'item', 'container', 'panel', 'outlet', 'valve', 'device', 'circuit'].includes(h.kind);
     select(h.id, searchRoute(placeBound, Boolean(planned && house.geometry === 'reviewed'), state.view, state.atlasLens));
     close();
+  };
+  const choose = (h: Pick<SearchHit, 'id' | 'kind'> | NativePlaceSearchHit) => {
+    if ('location' in h) {
+      openNativePlaceSearchHit(h, topology.index, topology.status, house,
+        { select, chooseSaved, chooseBuilding: topology.chooseBuilding, dispatch, close });
+    } else chooseSaved(h);
   };
 
   const onKey = (e: ReactKeyboardEvent) => {
@@ -249,6 +260,9 @@ export function SearchPalette() {
         </div>
         <div className="palette-results">
           <ArchiveFilter choose={choose} />
+          {topology.status !== 'ready' && <p className="palette-hint" role="status">{topology.status === 'loading'
+            ? 'Loading Atlas places. Saved records are searchable.'
+            : 'Atlas places are unavailable for search. Saved records are searchable.'}</p>}
           <div id="palette-results" role="listbox" ref={listRef} aria-label="Results">
             {!q.trim() && (
               <div className="palette-hint">
@@ -264,7 +278,7 @@ export function SearchPalette() {
             )}
             {q.trim() && flat.length === 0 && (
               <p className="palette-empty">
-                No matches for “{q.trim()}” in this home.
+                {topology.status === 'ready' ? `No matches for “${q.trim()}” in this home.` : `No matching saved records for “${q.trim()}”.`}
               </p>
             )}
             {grouped.map((g) => {
