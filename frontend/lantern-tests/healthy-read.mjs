@@ -253,19 +253,30 @@ const searchIcon = await searchJsx('../src/lantern/components/Icon.tsx', { 'reac
 const searchUi = await searchJsx('../src/lantern/components/ui.tsx', {
   'react/jsx-runtime': jsxUrl, '../data/query': searchQuery, '../state/store': searchStore, './Icon': searchIcon,
 });
+// Provide the actual optional topology context without a client. Static React
+// rendering starts no activation effect or native read; saved-view assertions stay unchanged.
+const searchTopology = await searchJsx('../src/lantern/topology/TopologyProvider.tsx', {
+  react: reactUrl, 'react/jsx-runtime': jsxUrl,
+  '../adapters/read': new URL('../src/lantern/adapters/read.ts', import.meta.url).href,
+  '../state/store': searchStore, './model': await loadNumericSource('lantern/topology/model.ts'),
+});
+const nativeSearch = await quantityModule('../src/lantern/topology/search.ts');
 const searchPalette = await searchJsx('../src/lantern/components/SearchPalette.tsx', {
   react: reactUrl, 'react/jsx-runtime': jsxUrl, '../data/query': searchQuery,
   '../data/time': searchTime,
   '../state/store': searchStore, './Icon': searchIcon, './ui': searchUi, '../../app/model': quantityModelModule,
+  '../topology/TopologyProvider': searchTopology, '../topology/search': nativeSearch,
 }, ['searchRoute as healthySearchRoute']);
 const { StoreProvider, healthyInitial, healthyReducer } = await import(searchStore);
+const { TopologyProvider } = await import(searchTopology);
 const { SearchPalette, healthySearchRoute } = await import(searchPalette);
 const { search } = await import(searchQuery);
 const renderSearch = (savedView, included) => {
   const projection = projectView(savedView, undefined, undefined, null, included);
   const actions = { reload: async () => true, switchHome() {}, nativeContent: null,
     archiveVisibility: { included, setIncluded() {} } };
-  return { projection, markup: renderToStaticMarkup(createElement(StoreProvider, { projection, actions }, createElement(SearchPalette))) };
+  return { projection, markup: renderToStaticMarkup(createElement(StoreProvider, { projection, actions },
+    createElement(TopologyProvider, null, createElement(SearchPalette)))) };
 };
 const archiveOff = renderSearch(view, false);
 assert(archiveOff.markup.includes('Include archived records'));

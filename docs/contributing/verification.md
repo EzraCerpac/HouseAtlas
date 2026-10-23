@@ -2732,3 +2732,31 @@ data, provider, listener, NAS operation or deployment is included. Other corrupt
 omission, denial, expiry, revocation, fault and concurrency cases remain held
 unless separately reviewed and released; these five selectors do not release
 a broad class of controls.
+
+## Named generated native-place search positive
+
+Inspect `frontend/lantern-tests/native-place-search-healthy.mjs`, its generated
+topology and saved-house fixtures, and the production SearchPalette, topology
+search helpers and provider imports before execution. With Node 26.10.0 and
+unchanged locked frontend dependencies, the named command is:
+
+```sh
+node frontend/lantern-tests/native-place-search-healthy.mjs
+```
+
+The positive preserves distinct active native place identities with matching
+labels, existing saved-house search and qualified saved-space navigation.
+An unbound native result opens whole-home Places rather than treating a native
+identity as a saved-space ID. Loading, unavailable and replaced-index inputs
+remain explicit; no native read or mutation authority is inferred.
+
+The runner uses generated data, actual production search helpers and an explicit
+synchronous React hook seam for SearchPalette with React server rendering.
+It observes an activation lease and serial retirement/reopen through that seam;
+it does not mount the real provider, run its asynchronous read/fence lifecycle,
+or establish actual DOM, focus, keyboard, browser or installed-site behavior.
+The existing healthy-read SSR fixture supplies the production topology context
+while preserving its original assertions. No listener, live provider, household
+input, native submission, replay, fault/concurrency control or deployment is
+included. This registration defines the command and source scope, not an
+execution outcome or exhaustive whole-home search completeness.
