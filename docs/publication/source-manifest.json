@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0c6f0992d10dfdf6ba5af318e0d536d896297966aac1fc0095152c60112a7bd5",
+  "sourceDigestSha256": "df8c15ccf0f42406ddd27bc16ca20dcea3efccc491e12884b0f6a181fe3f158e",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -10136,8 +10136,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/unified-atlas.css",
       "mode": "100644",
-      "bytes": 77477,
-      "sha256": "9663a9fbfa42b878511955e9f70df17fc650d5bcae08f5b66f76bba94158aebc",
+      "bytes": 78977,
+      "sha256": "6df973059a741e747683b4862a7abef483877791a390d3252aa8446510746db5",
       "owner": "web"
     },
     {
