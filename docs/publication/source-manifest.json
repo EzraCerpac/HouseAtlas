@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "ed3ffb44a964d791dc6d511547438ec92ea305457b834b98411a8ba7d1fcb96e",
+  "sourceDigestSha256": "cabe690b2ff56201c66c83127efc689915f2fdf801001ec25542f4b5a684ce96",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -6020,8 +6020,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 166971,
-      "sha256": "83d83bcb8c76d5b21342d3a42a0c0002c5147d985491ca28e77c15b2ddab01fd",
+      "bytes": 169974,
+      "sha256": "528e2d5d7403d50c00b3e6b24a89e40ea538bced31b65759d46b6148cadebd34",
       "owner": "core-integration"
     },
     {
@@ -8129,6 +8129,13 @@
       "mode": "100644",
       "bytes": 1763,
       "sha256": "b2160ec3755e5296b91cdf1bf894b24f731576207879a60581df6163affbc849",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/unified-atlas-compact-legend-browser.mjs",
+      "mode": "100644",
+      "bytes": 44341,
+      "sha256": "7fc9dbf63505651fb0342812cc728fa6d76ac96c9bc152eb25494498bb3caf83",
       "owner": "web"
     },
     {

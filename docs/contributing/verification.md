@@ -2788,3 +2788,53 @@ use household data or establish browser/device, native/current-base, recovery,
 retry, crash, replay or deployment acceptance. PR268 lifecycle regressions remain
 separate. This registration defines the command and bounded source scope, not an
 execution outcome. Other held cases and broad suites are not released.
+
+## Named generated compact Atlas legend browser regression
+
+Inspect `frontend/lantern-tests/unified-atlas-compact-legend-browser.mjs`,
+the source-host visual fixture, generated Atlas and production UnifiedAtlas
+imports before execution. This separate manual check requires coordinated
+exact-head release, Node 26.10.0, npm 11.19.1, unchanged locked frontend
+dependencies and an inspected absolute `HOUSEATLAS_CHROMIUM` executable.
+Record the runtime and browser identities before a released invocation:
+
+```sh
+node frontend/lantern-tests/unified-atlas-compact-legend-browser.mjs
+```
+
+There are no arguments, alternate fixtures or automatic retries. The runner
+checks four fixed source/stylesheet/lock hashes, builds only the generated
+source-host entry in an owned temporary directory, and serves its bytes on an
+owned IPv4 loopback GET listener. It opens a fresh headless browser profile
+through the existing direct CDP pipe pattern without sandbox-bypass flags.
+A separate build child has a 120-second budget; the build/browser sequence
+has a 240-second timer with bounded owned-child cleanup. Synchronous startup
+inspection and filesystem work are not an OS-enforced absolute deadline.
+
+The six cases combine 568x320, 390x844 and 1280x720 with Plan and 3D. Each
+navigation is bound to its new frame/loader and document time origin. Native
+keyboard and wheel input exercises layers, folds, legend text, floor navigation
+and room selection. The proposed reading minimum requires full legend width,
+at least the bounded 96-pixel/three-line window defined by the runner, and
+complete hit-testable text lines across recorded scroll windows. Scroll
+reachability does not waive that reading minimum. A failure is retained as
+a failure; registration does not assert the current compact layout passes it.
+
+The renderer probe inspects existing WebGL1/WebGL2 context objects, drawing
+buffers and bound programs. It creates no context and establishes no pixel,
+draw-count, hardware-GPU or real-device acceptance. The request check is a
+post-request audit of events on the attached page session, not egress
+prevention or coverage of browser background traffic, workers or other targets.
+
+Cleanup success requires the original child close events and owned pipe
+closures; it does not prove absence of detached descendants. JavaScript leader
+checks before numeric group operations are not an atomic kernel identity
+guarantee. Uncertain ownership stops those operations, preserves scratch and
+HOLD evidence, and bounds controller exit after releasing only its own handles.
+Handle release cannot upgrade the frozen cleanup facts. Evidence persistence
+is claimed only after the asynchronous write resolves.
+
+This registration records source and command scope only: this runner has not
+been executed. It adds no CI step, dependency, product/CSS change, live source,
+household input, installed-site check, native-service operation or deployment.
+Installed, device, offline and broader visual acceptance remain separate.
