@@ -20,9 +20,11 @@ assert(!evidence.startsWith(root + sep)); mkdirSync(evidence, { mode: 0o700 });
 const scratch = mkdtempSync(join(tmpdir(), 'houseatlas-electrical-library-browser-')), output = join(scratch, 'built'), downloads = join(scratch, 'downloads');
 mkdirSync(downloads); const controller = new AbortController();
 const deadline = setTimeout(() => controller.abort(new Error('120-second fictional browser bound')), 120_000);
-let server, browser, cdp, failure, childClosed = false, spawnFailed = false, groupGone = false;
+let server, browser, cdp, failure, childClosed = false, leaderExited = false, leaderExit = null, spawnFailed = false, groupGone = false;
+let ownershipHold = null;
 const results = [];
-let cleanupProof = { browserClosed: true, groupGone: true, listenerStopped: true, scratchRemoved: false };
+let cleanupProof = { browserClosed: true, leaderExited: true, leaderExit: null, groupGone: true,
+  listenerStopped: true, scratchRemoved: false, disposition: 'HOLD', holdReason: null };
 class CDP {
   constructor(child) {
     this.child = child; this.id = 0; this.pending = new Map(); this.buffer = ''; this.errors = []; this.requests = [];
@@ -61,37 +63,62 @@ async function until(check, label, ms = 20_000) {
   throw new Error(`Fictional browser timeout: ${label}`);
 }
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+const exitObserved = () => leaderExited || browser?.exitCode != null || browser?.signalCode != null;
+const holdOwnership = reason => { ownershipHold ??= reason; };
 function groupAbsent() {
   if (!browser || groupGone) return true;
-  if (!childClosed) return false;
-  // Failed spawn has no process group. A signalled child still requires its
-  // 'close' event; exitCode alone remains null after a signal and is not proof.
-  if (browser.pid === undefined) { assert(spawnFailed); groupGone = true; return true; }
+  if (ownershipHold) return false;
+  // Close can lag leader exit while descendants retain stdio. Neither an open
+  // pipe nor an unreceived close event proves that a numeric group is owned.
+  if (browser.pid === undefined) {
+    if (!(spawnFailed && childClosed)) return false;
+    groupGone = true; return true;
+  }
+  if (!exitObserved() && !childClosed) return false;
   const snapshot = execFileSync('/bin/ps', ['-axo', 'pid=,pgid='], { encoding: 'utf8', timeout: 1000, maxBuffer: 1024 * 1024 });
   const rows = snapshot.trim().split('\n').map(line => {
     assert(/^\s*\d+\s+\d+\s*$/.test(line), 'Complete numeric process snapshot required');
     return line.trim().split(/\s+/).map(Number);
   });
-  if (rows.some(([pid, pgid]) => pid === browser.pid || pgid === browser.pid)) return false;
-  groupGone = true; return true;
+  if (rows.some(([pid]) => pid === browser.pid)) {
+    holdOwnership('Leader PID present after observed exit; numeric reuse or identity uncertainty cannot establish ownership');
+    return false;
+  }
+  if (rows.some(([, pgid]) => pgid === browser.pid)) return false;
+  // Cache absence only after direct-child closure as well. A snapshot taken
+  // while close is pending must be repeated before deleting owned scratch.
+  groupGone = childClosed; return true;
 }
 function signalOwnedGroup(signal) {
   if (!browser || groupAbsent()) return;
+  if (ownershipHold) return;
+  // No post-exit ownership revalidation is implemented. Numeric PID/PGID
+  // membership alone never permits signalling after the leader has exited.
+  if (exitObserved() || childClosed || spawnFailed) {
+    holdOwnership('Numeric group signal withheld after leader exit or loss of ownership proof');
+    return;
+  }
   assert(Number.isSafeInteger(browser.pid) && browser.pid > 0, 'An owned browser process group is required');
-  // Only the original detached group is signalled. Discovered PIDs are never
-  // targets, and permission/probe failures never establish process absence.
+  // This synchronous check/signal path applies only to the still-owned live
+  // leader. No discovered PID is a target. ESRCH does not prove child closure
+  // or replace the required post-close absence snapshot.
   try { process.kill(-browser.pid, signal); }
-  catch (error) { if (error.code === 'ESRCH') groupGone = true; else throw error; }
+  catch (error) { if (error.code !== 'ESRCH') throw error; }
 }
 async function waitForBrowser(bound) {
   const due = performance.now() + bound;
-  while (browser && performance.now() < due && !(childClosed && groupAbsent())) await wait(25);
+  while (browser && performance.now() < due) {
+    const absent = groupAbsent();
+    if (childClosed && absent) return true;
+    if (ownershipHold) return false;
+    await wait(25);
+  }
   return !browser || childClosed && groupAbsent();
 }
 async function cleanup() {
   let browserError, listenerError, listenerStopped = !server?.listening;
   try {
-    if (browser && !childClosed && !controller.signal.aborted) {
+    if (browser && !exitObserved() && !childClosed && !controller.signal.aborted) {
       const closing = cdp?.send('Browser.close').catch(() => {});
       await Promise.race([closing, wait(500)]);
     }
@@ -99,9 +126,12 @@ async function cleanup() {
     await waitForBrowser(1500);
     for (const signal of ['SIGTERM', 'SIGKILL']) {
       if (!browser || childClosed && groupAbsent()) break;
+      if (ownershipHold) break;
       signalOwnedGroup(signal);
+      if (ownershipHold) break;
       if (await waitForBrowser(2000)) break;
     }
+    assert(!ownershipHold, ownershipHold ?? 'Browser ownership unconfirmed');
     assert(!browser || childClosed && groupAbsent(), 'Owned browser closure/group absence unconfirmed; scratch retained');
   } catch (error) { browserError = error; }
   try {
@@ -113,8 +143,10 @@ async function cleanup() {
     listenerStopped = true;
   } catch (error) { listenerError = error; }
   cdp?.close(new Error('Fixture ended')); controller.abort();
-  cleanupProof = { browserClosed: !browser || childClosed, groupGone: !browser || groupGone,
-    listenerStopped, scratchRemoved: false };
+  cleanupProof = { browserClosed: !browser || childClosed, leaderExited: !browser || exitObserved(), leaderExit,
+    groupGone: !browser || groupGone, listenerStopped, scratchRemoved: false,
+    disposition: browserError || listenerError || ownershipHold ? 'HOLD' : 'confirmed',
+    holdReason: ownershipHold ?? browserError?.message ?? listenerError?.message ?? null };
   if (browserError || listenerError) throw browserError ?? listenerError;
   assert(cleanupProof.browserClosed && cleanupProof.groupGone && cleanupProof.listenerStopped, 'Owned resources remain unconfirmed; scratch retained');
   rmSync(scratch, { recursive: true, force: true }); cleanupProof.scratchRemoved = !existsSync(scratch);
@@ -137,6 +169,7 @@ try {
     '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-default-apps',
     `--user-data-dir=${join(scratch, 'profile')}`, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'], detached: true });
   browser.once('error', () => { spawnFailed = true; });
+  browser.once('exit', (code, signal) => { leaderExited = true; leaderExit = { code, signal }; });
   browser.once('close', () => { childClosed = true; });
   browser.stderr.on('data', () => {});
   cdp = new CDP(browser);
@@ -195,7 +228,9 @@ try {
 } catch (error) { failure = error; }
 finally {
   clearTimeout(deadline);
-  try { await cleanup(); } catch (error) { failure ??= error; }
+  try { await cleanup(); } catch (error) {
+    failure ??= error; cleanupProof.disposition = 'HOLD'; cleanupProof.holdReason ??= error.message;
+  }
   // A report cannot claim success before termination and reaping are proven.
   writeFileSync(join(evidence, 'result.json'), JSON.stringify({ check: 'electrical-library-browser', results,
     screenshots: false, success: !failure, cleanup: cleanupProof,
