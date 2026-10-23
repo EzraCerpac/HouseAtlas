@@ -45,13 +45,13 @@ export function createNativeElectricalLibraryReader(options: NativeElectricalLib
   type Owned = { client: NativeEvidenceDocumentClient; frame: NativeEvidenceDocumentFrame | null;
     off: (() => void) | null; released: WeakSet<object> };
   type Owner = { token: object; context: SceneAssociationContext; stamp: string };
-  type Attempt = { owner: Owner; buildingId: string; controller: AbortController; sources: Owned[];
+  type Attempt = { generation: number; owner: Owner; buildingId: string; controller: AbortController; sources: Owned[];
     drawings: Set<NativeEvidenceDocumentClient>; listeners: Set<() => void>; frame: ElectricalLibraryFrame | null;
     headAt: number; pdfAt: number | null; timer: ReturnType<typeof setTimeout> | null;
     expiry: ReturnType<typeof setTimeout> | null; offAbort: () => void; retired: boolean };
   const transport = options.transport ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
   const issued = new WeakSet<object>(), ownerListeners = new Set<() => void>();
-  let binding: Owner | null = null, active: Attempt | null = null, disposed = false;
+  let binding: Owner | null = null, active: Attempt | null = null, disposed = false, generation = 0;
   const notify = (callbacks: Iterable<() => void>) => { for (const callback of [...callbacks]) { try { callback(); } catch { /* notify all owners */ } } };
   const release = (owned: Owned, frame: NativeEvidenceDocumentFrame) => {
     if (!owned.released.has(frame)) { owned.released.add(frame); owned.client.release(frame); }
@@ -77,22 +77,36 @@ export function createNativeElectricalLibraryReader(options: NativeElectricalLib
       && context.view.scope === binding.context.view.scope && context.admission === binding.context.admission && stamp(context) === binding.stamp;
     if (same) return binding;
     if (!context && !binding) return null;
-    if (active) retire(active);
+    // Publish the replacement binding before retirement can call a subscriber
+    // that opens another read. Returning from callbacks must not overwrite it.
+    const previous = active;
     binding = context ? { token: Object.freeze({}), context, stamp: stamp(context) } : null;
+    if (previous) retire(previous);
     notify(ownerListeners); return binding;
   };
-  const current = (attempt: Attempt): boolean => !disposed && !attempt.retired && active === attempt
-    && observe() === attempt.owner && !attempt.controller.signal.aborted
-    && attempt.sources.every(source => !source.frame || source.client.isCurrent(source.frame))
-    && (!attempt.frame || (Date.now() - attempt.headAt <= MAX_AGE && (attempt.pdfAt === null || Date.now() - attempt.pdfAt <= MAX_AGE)));
+  const ownsAttempt = (attempt: Attempt) => !disposed && !attempt.retired && active === attempt
+    && generation === attempt.generation && !attempt.controller.signal.aborted;
+  const current = (attempt: Attempt): boolean => {
+    if (!ownsAttempt(attempt) || observe() !== attempt.owner || !ownsAttempt(attempt)) return false;
+    const sourcesCurrent = attempt.sources.every(source => !source.frame || source.client.isCurrent(source.frame));
+    // Both the context and document-owner calls can synchronously notify their
+    // consumers. Recheck ownership after those calls, not only before them.
+    return sourcesCurrent && ownsAttempt(attempt)
+      && (!attempt.frame || (Date.now() - attempt.headAt <= MAX_AGE && (attempt.pdfAt === null || Date.now() - attempt.pdfAt <= MAX_AGE)));
+  };
   const guard = (attempt: Attempt) => { attempt.controller.signal.throwIfAborted(); need(current(attempt)); };
   const makeClient = () => { const client = options.createDocuments(); need(!issued.has(client)); issued.add(client); return client; };
   const offHost = options.subscribeContext(() => { observe(); });
   const read = async (buildingId: string, signal: AbortSignal): Promise<ElectricalLibraryRead> => {
     signal.throwIfAborted(); need(UUID.test(buildingId));
-    if (active) retire(active);
-    const owner = observe(); if (!owner) return { status: 'unavailable', reason: 'current-source-unavailable' };
-    const attempt: Attempt = { owner, buildingId, controller: new AbortController(), sources: [], drawings: new Set(), listeners: new Set(),
+    const reserved = ++generation, previous = active;
+    if (previous) retire(previous);
+    const reservationCurrent = () => !disposed && generation === reserved && !signal.aborted;
+    if (!reservationCurrent()) { signal.throwIfAborted(); return { status: 'unavailable', reason: 'selection-changed' }; }
+    const owner = observe();
+    if (!reservationCurrent()) { signal.throwIfAborted(); return { status: 'unavailable', reason: 'selection-changed' }; }
+    if (!owner) return { status: 'unavailable', reason: 'current-source-unavailable' };
+    const attempt: Attempt = { generation: reserved, owner, buildingId, controller: new AbortController(), sources: [], drawings: new Set(), listeners: new Set(),
       frame: null, headAt: 0, pdfAt: null, timer: null, expiry: null, offAbort: () => {}, retired: false };
     active = attempt;
     const stop = () => retire(attempt);
@@ -101,7 +115,11 @@ export function createNativeElectricalLibraryReader(options: NativeElectricalLib
     attempt.expiry = setTimeout(stop, 75_000);
     const pin = () => guard(attempt), native = owner.context;
     const retain = async (document: Record<string, LosslessJson>) => {
-      pin(); const owned: Owned = { client: makeClient(), frame: null, off: null, released: new WeakSet() }; attempt.sources.push(owned);
+      pin(); const client = makeClient();
+      // A reentrant factory may have superseded this attempt before the new
+      // client could be registered for retirement. Dispose that exact client.
+      try { pin(); } catch (error) { client.dispose(); throw error; }
+      const owned: Owned = { client, frame: null, off: null, released: new WeakSet() }; attempt.sources.push(owned);
       const opening = owned.client.open(text(document.evidenceId), attempt.controller.signal);
       void opening.then(frame => { if (attempt.retired || attempt.controller.signal.aborted) release(owned, frame); }, () => {});
       const frame = await abortable(opening, attempt.controller.signal); owned.frame = frame; pin();

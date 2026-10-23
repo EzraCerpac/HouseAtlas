@@ -1,5 +1,7 @@
-/** Proposed healthy generated-only check. Register this exact command with the
- * source owner before execution. No native host, browser, credentials or writes. */
+/** Proposed generated-only checks. Register each exact command with the source
+ * owner before execution. The separately selected retirement case is a bounded
+ * fake/local-only reentrancy regression, outside the default healthy example.
+ * No native host, browser, credentials or writes. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
@@ -8,7 +10,9 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'vite';
 
-assert.equal(process.version, 'v26.10.0'); assert.equal(process.argv.length, 2);
+assert.equal(process.version, 'v26.10.0');
+const selectedCase = process.argv.length === 2 ? 'healthy' : process.argv.length === 4 && process.argv[2] === '--case' ? process.argv[3] : null;
+assert(['healthy', 'reentrant-retirement'].includes(selectedCase), 'Select the healthy example or the separately registered retirement case');
 const root = resolve(fileURLToPath(new URL('../../', import.meta.url)));
 const scratch = mkdtempSync(join(tmpdir(), 'houseatlas-electrical-library-read-'));
 const paths = ['frontend/integration/native-electrical-library-reader.ts', 'frontend/src/lantern/electrical-library/project.ts',
@@ -22,6 +26,42 @@ try {
   const output = Array.isArray(built) ? built[0] : built;
   const modulePath = join(scratch, 'reader.mjs'); writeFileSync(modulePath, output.output.find(item => item.type === 'chunk' && item.isEntry).code);
   const { createNativeElectricalLibraryReader, createSyntheticElectricalLibrary } = await import(pathToFileURL(modulePath).href);
+  if (selectedCase === 'reentrant-retirement') {
+    const results = [];
+    for (const trigger of ['retirement', 'binding-change', 'initial-owner']) {
+      const fixture = await createSyntheticElectricalLibrary();
+      let context = fixture.options.getContext(), later;
+      reader = createNativeElectricalLibraryReader({ ...fixture.options, getContext: () => context });
+      if (trigger === 'initial-owner') {
+        let notified = false;
+        const off = reader.subscribeOwner(() => {
+          if (!notified) { notified = true; later = reader.read(fixture.buildingId, new AbortController().signal); }
+        });
+        const older = await reader.read(fixture.buildingId, new AbortController().signal);
+        off(); assert.equal(older.status, 'unavailable'); assert.equal(older.reason, 'selection-changed');
+      } else {
+        const first = await reader.read(fixture.buildingId, new AbortController().signal);
+        assert.equal(first.status, 'available');
+        reader.subscribeInvalidation(first, () => { later = reader.read(fixture.buildingId, new AbortController().signal); });
+        if (trigger === 'retirement') {
+          const older = await reader.read(fixture.buildingId, new AbortController().signal);
+          assert.equal(older.status, 'unavailable'); assert.equal(older.reason, 'selection-changed');
+        } else {
+          context = { ...context, sessionIdentity: Object.freeze({}) };
+          assert.ok(reader.owner(), 'binding is published before its retirement notification');
+        }
+      }
+      assert.ok(later, 'a synchronous subscriber requested the newer read');
+      const latest = await later;
+      assert.equal(latest.status, 'available'); assert.ok(reader.isCurrent(latest), 'the older call cannot overwrite the newer attempt');
+      assert.equal(fixture.counts.owners, trigger === 'initial-owner' ? 2 : 4, 'superseded calls allocate no orphan source clients');
+      reader.release(latest); reader.dispose(); reader = null;
+      assert.equal(fixture.counts.owners, fixture.counts.disposes);
+      assert.equal(fixture.counts.owners, fixture.counts.releases);
+      results.push({ trigger, counts: fixture.counts });
+    }
+    console.log(JSON.stringify({ check: 'electrical-library-reentrant-retirement', fictional: true, results }));
+  } else {
   const fixture = await createSyntheticElectricalLibrary();
   assert.equal(fixture.view.entries.length, 0);
   assert.equal(fixture.view.sourceDocumentsService, undefined);
@@ -63,4 +103,5 @@ try {
   console.log(JSON.stringify({ check: 'electrical-library-read', fictional: true, documents: 1, pages: [2, 9, 18],
     pdfSha256: fixture.pdfSha, counts: fixture.counts,
     sourcePins: Object.fromEntries(paths.map(path => [path, createHash('sha256').update(readFileSync(join(root, path))).digest('hex')])) }));
+  }
 } finally { reader?.dispose(); rmSync(scratch, { recursive: true, force: true }); }

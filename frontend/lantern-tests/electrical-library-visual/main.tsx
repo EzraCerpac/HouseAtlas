@@ -1,12 +1,12 @@
-/** Real Library and electrical section under the existing store/topology
- * providers. Shared Host wiring belongs to the integration owner. */
+/** Actual LibraryView consumes the optional port through the published source
+ * context. Requires the source owner's shared host-wiring commit. */
 import { createRoot } from 'react-dom/client';
 import { useState } from 'react';
 import { projectView } from '../../src/lantern/adapters/read';
 import { StoreProvider } from '../../src/lantern/state/store';
 import { TopologyProvider } from '../../src/lantern/topology/TopologyProvider';
 import { LibraryView } from '../../src/lantern/views/LibraryView';
-import { ElectricalLibrary } from '../../src/lantern/electrical-library/ElectricalLibrary';
+import { SourcePortsContext } from '../../src/lantern/source-ports';
 import { createSyntheticElectricalLibrary } from './synthetic-electrical';
 import '../../src/lantern/styles/fonts.css';
 import '../../src/lantern/styles/tokens.css';
@@ -18,6 +18,7 @@ import '../../src/lantern/styles/integration.css';
 globalThis.fetch = async () => { throw new Error('No external fetch in this fictional fixture'); };
 const fixture = await createSyntheticElectricalLibrary(new URLSearchParams(location.search).get('mode') === 'legacy' ? 'legacy' : 'pdf');
 const projection = projectView(fixture.view);
+const sourcePorts = Object.freeze({ electricalLibrary: fixture.port });
 Object.assign(window, { __electricalFixture: { counts: fixture.counts, pdfSha: fixture.pdfSha,
   byteSize: fixture.pdf.length, pdfEvidenceId: fixture.pdfEvidenceId, pdfAssetId: fixture.pdfAssetId } });
 function Fixture() {
@@ -28,7 +29,7 @@ function Fixture() {
       <main className="lantern-host" style={{ padding: 20, height: 'auto' }}>
         <p>SYNTHETIC fixture · generated documents and fake native readers only</p>
         <button type="button" onClick={() => setShown(value => !value)}>{shown ? 'Leave Library' : 'Return to Library'}</button>
-        {shown && <><LibraryView /><ElectricalLibrary port={fixture.port} /></>}
+        {shown && <SourcePortsContext.Provider value={sourcePorts}><LibraryView /></SourcePortsContext.Provider>}
       </main>
     </TopologyProvider>
   </StoreProvider>;
