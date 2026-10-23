@@ -232,9 +232,23 @@ finally {
     failure ??= error; cleanupProof.disposition = 'HOLD'; cleanupProof.holdReason ??= error.message;
   }
   // A report cannot claim success before termination and reaping are proven.
-  writeFileSync(join(evidence, 'result.json'), JSON.stringify({ check: 'electrical-library-browser', results,
-    screenshots: false, success: !failure, cleanup: cleanupProof,
-    ...(failure ? { error: failure.message, ...(existsSync(scratch) ? { retainedScratch: scratch } : {}) } : {}) }, null, 2));
+  try {
+    writeFileSync(join(evidence, 'result.json'), JSON.stringify({ check: 'electrical-library-browser', results,
+      screenshots: false, success: !failure, cleanup: cleanupProof,
+      ...(failure ? { error: failure.message, ...(existsSync(scratch) ? { retainedScratch: scratch } : {}) } : {}) }, null, 2));
+  } finally {
+    if (browser && cleanupProof.disposition === 'HOLD') {
+      // The report above captures facts before local detachment. Destroying
+      // parent-side pipes may emit close; it proves no browser/group exit and
+      // must never promote HOLD or remove its retained scratch evidence.
+      let detachError;
+      for (const fd of [2, 3, 4]) {
+        try { browser.stdio[fd]?.destroy(); } catch (error) { detachError ??= error; }
+      }
+      try { browser.unref(); } catch (error) { detachError ??= error; }
+      if (detachError) throw detachError;
+    }
+  }
 }
 if (failure) throw failure;
 console.log(JSON.stringify({ result: join(evidence, 'result.json'), results, cleanup: cleanupProof }));
