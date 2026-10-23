@@ -2,7 +2,7 @@
  * command before execution. No screenshots or live native/provider fallback. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -20,7 +20,9 @@ assert(!evidence.startsWith(root + sep)); mkdirSync(evidence, { mode: 0o700 });
 const scratch = mkdtempSync(join(tmpdir(), 'houseatlas-electrical-library-browser-')), output = join(scratch, 'built'), downloads = join(scratch, 'downloads');
 mkdirSync(downloads); const controller = new AbortController();
 const deadline = setTimeout(() => controller.abort(new Error('120-second fictional browser bound')), 120_000);
-let server, browser, cdp;
+let server, browser, cdp, failure, childClosed = false, spawnFailed = false, groupGone = false;
+const results = [];
+let cleanupProof = { browserClosed: true, groupGone: true, listenerStopped: true, scratchRemoved: false };
 class CDP {
   constructor(child) {
     this.child = child; this.id = 0; this.pending = new Map(); this.buffer = ''; this.errors = []; this.requests = [];
@@ -28,7 +30,10 @@ class CDP {
       this.buffer += bytes.toString(); if (this.buffer.length > 8 * 1024 * 1024) { controller.abort(); return; }
       let end;
       while ((end = this.buffer.indexOf('\0')) !== -1) {
-        const message = JSON.parse(this.buffer.slice(0, end)); this.buffer = this.buffer.slice(end + 1);
+        let message;
+        try { message = JSON.parse(this.buffer.slice(0, end)); }
+        catch (error) { controller.abort(error); return; }
+        this.buffer = this.buffer.slice(end + 1);
         if (message.id) {
           const request = this.pending.get(message.id); if (!request) continue;
           clearTimeout(request.timer); this.pending.delete(message.id);
@@ -55,6 +60,65 @@ async function until(check, label, ms = 20_000) {
   while (performance.now() < end) { controller.signal.throwIfAborted(); if (await check()) return; await new Promise(resolve => setTimeout(resolve, 50)); }
   throw new Error(`Fictional browser timeout: ${label}`);
 }
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+function groupAbsent() {
+  if (!browser || groupGone) return true;
+  if (!childClosed) return false;
+  // Failed spawn has no process group. A signalled child still requires its
+  // 'close' event; exitCode alone remains null after a signal and is not proof.
+  if (browser.pid === undefined) { assert(spawnFailed); groupGone = true; return true; }
+  const snapshot = execFileSync('/bin/ps', ['-axo', 'pid=,pgid='], { encoding: 'utf8', timeout: 1000, maxBuffer: 1024 * 1024 });
+  const rows = snapshot.trim().split('\n').map(line => {
+    assert(/^\s*\d+\s+\d+\s*$/.test(line), 'Complete numeric process snapshot required');
+    return line.trim().split(/\s+/).map(Number);
+  });
+  if (rows.some(([pid, pgid]) => pid === browser.pid || pgid === browser.pid)) return false;
+  groupGone = true; return true;
+}
+function signalOwnedGroup(signal) {
+  if (!browser || groupAbsent()) return;
+  assert(Number.isSafeInteger(browser.pid) && browser.pid > 0, 'An owned browser process group is required');
+  // Only the original detached group is signalled. Discovered PIDs are never
+  // targets, and permission/probe failures never establish process absence.
+  try { process.kill(-browser.pid, signal); }
+  catch (error) { if (error.code === 'ESRCH') groupGone = true; else throw error; }
+}
+async function waitForBrowser(bound) {
+  const due = performance.now() + bound;
+  while (browser && performance.now() < due && !(childClosed && groupAbsent())) await wait(25);
+  return !browser || childClosed && groupAbsent();
+}
+async function cleanup() {
+  let browserError, listenerError, listenerStopped = !server?.listening;
+  try {
+    if (browser && !childClosed && !controller.signal.aborted) {
+      const closing = cdp?.send('Browser.close').catch(() => {});
+      await Promise.race([closing, wait(500)]);
+    }
+    cdp?.close(new Error('Fixture cleanup')); controller.abort();
+    await waitForBrowser(1500);
+    for (const signal of ['SIGTERM', 'SIGKILL']) {
+      if (!browser || childClosed && groupAbsent()) break;
+      signalOwnedGroup(signal);
+      if (await waitForBrowser(2000)) break;
+    }
+    assert(!browser || childClosed && groupAbsent(), 'Owned browser closure/group absence unconfirmed; scratch retained');
+  } catch (error) { browserError = error; }
+  try {
+    if (server?.listening) await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Owned listener close deadline')), 2000);
+      server.close(error => { clearTimeout(timer); error ? reject(error) : resolve(); });
+      server.closeAllConnections();
+    });
+    listenerStopped = true;
+  } catch (error) { listenerError = error; }
+  cdp?.close(new Error('Fixture ended')); controller.abort();
+  cleanupProof = { browserClosed: !browser || childClosed, groupGone: !browser || groupGone,
+    listenerStopped, scratchRemoved: false };
+  if (browserError || listenerError) throw browserError ?? listenerError;
+  assert(cleanupProof.browserClosed && cleanupProof.groupGone && cleanupProof.listenerStopped, 'Owned resources remain unconfirmed; scratch retained');
+  rmSync(scratch, { recursive: true, force: true }); cleanupProof.scratchRemoved = !existsSync(scratch);
+}
 try {
   await build({ root: frontend, configFile: false, logLevel: 'silent', plugins: [pdfjsBinaryDataPlugin(frontend)],
     build: { outDir: output, target: 'esnext', rolldownOptions: { input: join(frontend, 'lantern-tests/electrical-library-visual/index.html'),
@@ -72,9 +136,13 @@ try {
   browser = spawn(browserPath, ['--headless=new', '--remote-debugging-pipe', '--no-first-run', '--no-default-browser-check',
     '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-default-apps',
     `--user-data-dir=${join(scratch, 'profile')}`, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'], detached: true });
+  browser.once('error', () => { spawnFailed = true; });
+  browser.once('close', () => { childClosed = true; });
   browser.stderr.on('data', () => {});
   cdp = new CDP(browser);
-  controller.signal.addEventListener('abort', () => { cdp.close(controller.signal.reason ?? new Error('Stopped')); try { process.kill(-browser.pid, 'SIGTERM'); } catch {} }, { once: true });
+  // The deadline rejects pending work. All signalling, bounded waits and
+  // scratch removal belong to the single cleanup owner below.
+  controller.signal.addEventListener('abort', () => cdp.close(controller.signal.reason ?? new Error('Stopped')), { once: true });
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params) => cdp.send(method, params, sessionId);
@@ -90,7 +158,6 @@ try {
   };
   await send('Runtime.enable'); await send('Page.enable'); await send('Network.enable');
   await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloads });
-  const results = [];
   for (const width of [1280, 360]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
     await send('Page.navigate', { url: `${origin}/lantern-tests/electrical-library-visual/index.html` });
@@ -125,14 +192,14 @@ try {
   }
   assert.deepEqual(cdp.errors, []);
   assert(cdp.requests.every(url => url.startsWith(origin + '/') || url.startsWith('blob:') || url === 'about:blank'));
-  writeFileSync(join(evidence, 'result.json'), JSON.stringify({ check: 'electrical-library-browser', results, screenshots: false }, null, 2));
-  console.log(JSON.stringify({ result: join(evidence, 'result.json'), results }));
-} finally {
-  clearTimeout(deadline); controller.abort();
-  if (browser?.pid) { try { process.kill(-browser.pid, 'SIGTERM'); } catch {} }
-  cdp?.close(new Error('Fixture ended'));
-  if (server) await new Promise(resolve => server.close(resolve));
-  if (browser && browser.exitCode === null) await Promise.race([new Promise(resolve => browser.once('close', resolve)), new Promise(resolve => setTimeout(resolve, 1000))]);
-  if (browser?.pid) { try { process.kill(-browser.pid, 'SIGKILL'); } catch {} }
-  rmSync(scratch, { recursive: true, force: true });
+} catch (error) { failure = error; }
+finally {
+  clearTimeout(deadline);
+  try { await cleanup(); } catch (error) { failure ??= error; }
+  // A report cannot claim success before termination and reaping are proven.
+  writeFileSync(join(evidence, 'result.json'), JSON.stringify({ check: 'electrical-library-browser', results,
+    screenshots: false, success: !failure, cleanup: cleanupProof,
+    ...(failure ? { error: failure.message, ...(existsSync(scratch) ? { retainedScratch: scratch } : {}) } : {}) }, null, 2));
 }
+if (failure) throw failure;
+console.log(JSON.stringify({ result: join(evidence, 'result.json'), results, cleanup: cleanupProof }));
