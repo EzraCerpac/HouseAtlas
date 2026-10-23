@@ -2760,3 +2760,31 @@ while preserving its original assertions. No listener, live provider, household
 input, native submission, replay, fault/concurrency control or deployment is
 included. This registration defines the command and source scope, not an
 execution outcome or exhaustive whole-home search completeness.
+
+## Named generated local-draft panel presentation check
+
+Inspect `frontend/lantern-tests/local-edit-panel-presentation.mjs` and the unchanged
+production `LocalEditPanel.tsx` before execution. With Node 26.10.0 and unchanged
+locked frontend dependencies, the named command is:
+
+```sh
+node frontend/lantern-tests/local-edit-panel-presentation.mjs
+```
+
+The runner compiles the actual panel with Vite into an owned temporary module
+and uses React server rendering with immutable generated snapshots and an
+injected adapter whose operations fail if called. It checks read/write pending
+controls, completion-unconfirmed presentation with explicit retained-draft reads,
+retired and invalid selections, missing-evidence presentation, exact lexical
+revision text, escaped documentary/proposal text and no render-time adapter
+dispatch. Candidate and existing-draft controls are asserted in their separate
+labelled lists. Compilation scratch is removed in a finally block.
+
+These states are supplied presentation inputs; the runner induces no write
+failure, retirement race or storage transition. Missing-evidence inputs explicitly
+set canEdit false; this check does not qualify evidence validation. It does not
+mount React effects, dispatch DOM events, operate an adapter/store, open a listener,
+use household data or establish browser/device, native/current-base, recovery,
+retry, crash, replay or deployment acceptance. PR268 lifecycle regressions remain
+separate. This registration defines the command and bounded source scope, not an
+execution outcome. Other held cases and broad suites are not released.
