@@ -2788,3 +2788,33 @@ use household data or establish browser/device, native/current-base, recovery,
 retry, crash, replay or deployment acceptance. PR268 lifecycle regressions remain
 separate. This registration defines the command and bounded source scope, not an
 execution outcome. Other held cases and broad suites are not released.
+
+## Named generated compact layer-details focus check
+
+Inspect `frontend/lantern-tests/unified-atlas-compact-layer-details.mjs`,
+`LayerDetailsDock.tsx`, the coordinated focus and Escape handlers in
+`UnifiedAtlas.tsx`, and the layer-details CSS before execution. Use Node
+26.10.0, npm 11.19.1 and unchanged locked frontend dependencies. After the
+coordinated exact-candidate release, the named manual command is:
+
+```sh
+node frontend/lantern-tests/unified-atlas-compact-layer-details.mjs
+```
+
+This generated check compiles the actual dock/helper and shell Escape handlers
+with Vite and uses React server rendering plus an explicit synchronous hook
+seam. Synthetic elements model desktop and short compact transitions, including
+drawer=null and drawer=floors, queued key restoration after initial Close focus,
+nearest scroll reveal, modal close/reopen, composing Escape containment and
+ordinary Escape dismissal. It checks unchanged key children, generated long
+text, markup and named CSS constraints. Run once; stop on failure without an
+automatic retry or substitute suite.
+
+The hook seam models child-first layout-effect order; it does not mount React
+or prove actual browser event ordering, native modal top-layer/inert behavior,
+Tab containment, focus restoration, layout, hit targets, camera or selection
+preservation. The scroll observation is a synthetic method-call assertion,
+not measured visibility. No listener, browser, provider, household input,
+native target, failure injection, deployment or security-setting change is
+included. This registration defines source and command scope only; actual
+ordinary-check results and separately released sole-GUI acceptance remain open.

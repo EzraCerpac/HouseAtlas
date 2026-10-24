@@ -28,6 +28,7 @@ import { documentaryOverlayIndex, type BuildingCoverage, type DocumentaryRecord,
 import { edgeSpans, estimatedOccurrences, MEASUREMENT_BASIS, placeLabels, roomArea } from './measurements';
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
 import { NetworkGraph } from './NetworkGraph';
+import { LayerDetailsDock, useLayerDetailsFocus, useShortLayerDetails } from './LayerDetailsDock';
 import { NetworkStageConnections, networkRoomConnections } from './NetworkStageConnections';
 import type { NetworkConnections } from './network-connections';
 import { AreaValue, PLAN_ORDER, PlanRoom, PlanTile, planTileLevels } from './plan-presentation';
@@ -275,7 +276,8 @@ const COMPACT_STAGE = 720;
 /** Least height, in pixels, of the floor list beside a docked key column: All floors and one whole floor row. */
 const LADDER_FLOOR = 112;
 
-const laidOut = (node: Element) => getComputedStyle(node).display !== 'none';
+// A top-layer reading sheet never claims space in the map's fitted frame.
+const laidOut = (node: Element) => !node.matches(':modal') && getComputedStyle(node).display !== 'none';
 const showing = (node: Element) => laidOut(node) && getComputedStyle(node).visibility !== 'hidden';
 
 /** Each panel is cleared by the edge band that costs the frame least: every
@@ -493,6 +495,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   // the camera, the archive filter and the other sources fold into one menu,
   // the buildings into one chooser. One of them opens at a time.
   const [compact, setCompact] = useState(false);
+  const shortLayerDetails = useShortLayerDetails(compact);
   const [menu, setMenu] = useState<'view' | 'buildings' | null>(null);
   const layersKey = `${state.layers.electrical}${state.layers.network}${state.layers.measurements}`;
   const chrome = `${plan}\n${sheetOpen}\n${layersKey}\n${selected}\n${state.buildingId}\n${state.levelId}\n${state.exploded}\n${drawer}\n${showGraph}\n${compact}\n${lens?.kind}\n${readingInset}`;
@@ -958,7 +961,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   }, [drawer, tiles.length, hasKeys]);
   const fold = (which: 'floors' | 'layers') => setDrawer(value => value === which ? null : which);
   const floorsFold = useRef<HTMLButtonElement>(null), layersFold = useRef<HTMLButtonElement>(null);
-  const keysDock = useRef<HTMLDivElement>(null);
+  const keysDock = useRef<HTMLDialogElement>(null);
   const foldIds = useId();
   // Choosing another floor hands the stage back to the plan; focus stays on the fold that opened it.
   const chooseTile = (levelId: string) => {
@@ -971,7 +974,8 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   // out: it folds back and focus returns to its opener. The compact folds
   // keep their own behaviour.
   const stripEscape = (event: ReactKeyboardEvent<HTMLElement>) => {
-    if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing || compact || drawer !== 'floors') return;
+    if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing || compact || drawer !== 'floors'
+      || (event.target as HTMLElement).closest('.ua-layer-dialog[aria-modal="true"]')) return;
     if ((event.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]')) return;
     // A strip stepped aside under an open card is not the target.
     const strip = shell.current?.querySelector('.ua-tiles.is-unfolded');
@@ -983,23 +987,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   // keys focused in the dock unfold on a narrow stage, and the layer details
   // fold, hidden on a wide stage, hands focus to the docked keys. Focus the
   // browser already dropped is found where the stage guard kept it.
-  const modeFocus = useRef<HTMLElement | null>(null);
-  useLayoutEffect(() => {
-    const active = document.activeElement;
-    const origin = active instanceof HTMLElement && active !== document.body ? active : graphStageFocus.current;
-    if (!origin) return;
-    const keys = keysDock.current;
-    if (compact && keys?.contains(origin) && keys.getClientRects().length === 0) { modeFocus.current = origin; setDrawer('layers'); }
-    else if (!compact && origin === layersFold.current) {
-      setDrawer(value => value === 'layers' ? null : value);
-      keysDock.current?.querySelector<HTMLElement>('.ua-key-head')?.focus({ preventScroll: true });
-    }
-  }, [compact]);
-  useLayoutEffect(() => {
-    const target = modeFocus.current; modeFocus.current = null;
-    const lost = document.activeElement === null || document.activeElement === document.body;
-    if (target && lost && target.isConnected && target.getClientRects().length > 0) target.focus({ preventScroll: true });
-  }, [drawer]);
+  useLayerDetailsFocus({ compact, drawer, dock: keysDock, trigger: layersFold, focusOrigin: graphStageFocus, setDrawer });
 
   // The graph opens from the network key and returns focus there when it closes.
   const graphOpener = useRef<HTMLElement | null>(null), graphReturn = useRef<HTMLElement | null>(null);
@@ -1142,6 +1130,8 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   // An open compact menu, then the graph, is the first Escape target across
   // Atlas, including the viewport's camera handler.
   const graphEscape = (event: ReactKeyboardEvent<HTMLElement>) => {
+    // Modal key events belong to the reading sheet, before any map/menu Escape.
+    if ((event.target as HTMLElement).closest('.ua-layer-dialog[aria-modal="true"]')) return;
     if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing) return;
     if (menu !== null) {
       event.preventDefault(); event.stopPropagation();
@@ -1153,7 +1143,8 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   };
 
   const escape = (event: ReactKeyboardEvent<HTMLElement>) => {
-    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing
+      || (event.target as HTMLElement).closest('.ua-layer-dialog[aria-modal="true"]')) return;
     const target = event.target as HTMLElement;
     if (target.closest('input, textarea, select, [contenteditable="true"]')) return;
     event.preventDefault(); out();
@@ -1363,16 +1354,24 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
       <div className="ua-bottom" inert={stageInert}>
         {/* The keys come first: on a wide stage they are the dock, and the
             floors strip sits just before the fold that opens it. */}
-        {hasKeys && <div ref={keysDock} id={`${foldIds}-layers`} className={`ua-keys${drawer === 'layers' ? ' is-unfolded' : ''}`}>
+        {hasKeys && <LayerDetailsDock dock={keysDock} trigger={layersFold} id={`${foldIds}-layers`}
+          short={shortLayerDetails} expanded={drawer === 'layers'} close={() => setDrawer(null)}>
           {active.map(layer => <OverlayKey key={layer.kind} layer={layer} records={runtime.records}
             connectionCoverage={layer.kind === 'network' ? networkConnections.coverage : null}
             buildings={runtime.buildings}
-            publishedOnly={!runtimeConfigured} openDocuments={environment.openDocuments}
+            publishedOnly={!runtimeConfigured} openDocuments={environment.openDocuments && (() => {
+              if (shortLayerDetails) setDrawer(null); environment.openDocuments?.();
+            })}
             availability={runtime.records?.[layer.kind] ?? (!runtimeConfigured ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
-            openNetwork={environment.openNetwork}
-            graph={layer.kind === 'network' && graphs.length > 0 ? lensGraph ?? { id: graphId, open: showGraph, toggle: toggleGraph } : null} />)}
+            openNetwork={environment.openNetwork && (() => {
+              if (shortLayerDetails) setDrawer(null); environment.openNetwork?.();
+            })}
+            graph={layer.kind === 'network' && graphs.length > 0 ? {
+              id: lensGraph?.id ?? graphId, open: lensGraph?.open ?? showGraph,
+              toggle: () => { if (shortLayerDetails) setDrawer(null); (lensGraph?.toggle ?? toggleGraph)(); },
+            } : null} />)}
           {measuring && <MeasurementKey estimated={estimated} shown={measured.length} />}
-        </div>}
+        </LayerDetailsDock>}
         {tiles.length > 0 && <nav id={`${foldIds}-floors`} className={`ua-tiles${drawer === 'floors' ? ' is-unfolded' : ''}`} aria-label="Other floors">
           {tiles.map(level => <PlanTile key={level.levelId} model={model} level={level} layers={active} tints={tints} selected={selected}
             name={atlasLevelName(model, level.levelId, buildings.length > 1)} choose={() => chooseTile(level.levelId)} />)}
@@ -1385,6 +1384,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
             <Icon name="layers" size={16} /><span>Other floors</span>{' '}<span className="ua-fold-count">{tiles.length.toLocaleString()}</span>
             <Icon name="chevronDown" size={15} /></button>}
           {hasKeys && <button ref={layersFold} type="button" className="ua-fold ua-fold-layers" aria-expanded={drawer === 'layers'} aria-controls={`${foldIds}-layers`}
+            aria-haspopup={shortLayerDetails ? 'dialog' : undefined}
             onClick={() => fold('layers')}>
             <Icon name="info" size={16} /><span>Layer details</span>{' '}<span className="ua-fold-count">{keysCount.toLocaleString()}</span>
             <Icon name="chevronDown" size={15} /></button>}

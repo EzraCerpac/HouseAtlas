@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "ed3ffb44a964d791dc6d511547438ec92ea305457b834b98411a8ba7d1fcb96e",
+  "sourceDigestSha256": "9362d7e16cd21cb5ff83016f0cd4a2a5c978fa513a37b04daf2a589ac8b2feea",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -6020,8 +6020,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 166971,
-      "sha256": "83d83bcb8c76d5b21342d3a42a0c0002c5147d985491ca28e77c15b2ddab01fd",
+      "bytes": 168658,
+      "sha256": "b3334688a466aad660899022c06e82ac149a95bf1ec7e89726e98e2b2e67191e",
       "owner": "core-integration"
     },
     {
@@ -8132,6 +8132,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/unified-atlas-compact-layer-details.mjs",
+      "mode": "100644",
+      "bytes": 14790,
+      "sha256": "06ecf0f209c73b9eba76ad817ec5a1ac85ab90da2e9a9c0fcb9791e501299bf6",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
       "bytes": 97627,
@@ -10071,6 +10078,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/unified-atlas/LayerDetailsDock.tsx",
+      "mode": "100644",
+      "bytes": 6163,
+      "sha256": "b6d57ca0a28660002e04ad9b6f8cb6e14d804f0948c9e2edb9994adee54dfb31",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/unified-atlas/NetworkGraph.tsx",
       "mode": "100644",
       "bytes": 31508,
@@ -10094,8 +10108,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 133787,
-      "sha256": "e8bbd47d1a4f92266abbabf1ad63f79d23c1e7e60a5fca5905983718584fde83",
+      "bytes": 134068,
+      "sha256": "c10659c3952bf1b210310e713e2fe9a361567744e39f101f125717011b92f59c",
       "owner": "web"
     },
     {
@@ -10157,8 +10171,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/unified-atlas.css",
       "mode": "100644",
-      "bytes": 78977,
-      "sha256": "6df973059a741e747683b4862a7abef483877791a390d3252aa8446510746db5",
+      "bytes": 81892,
+      "sha256": "bc4c7e13c6ee7afb086031679c83e93bbb57d07b16aae2e2674d6fc2a492c454",
       "owner": "web"
     },
     {

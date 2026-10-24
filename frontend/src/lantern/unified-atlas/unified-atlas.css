@@ -877,6 +877,24 @@
 .lantern-host .ua-tile-name { font: 650 var(--fs-xs)/1.25 var(--display); overflow-wrap: anywhere; }
 .lantern-host .ua-tile-sub { font-size: 11px; line-height: 1.3; color: var(--muted); }
 
+/* A nonmodal dialog is the same dock; remove only browser dialog defaults. */
+.lantern-host :where(dialog).ua-keys {
+  position: static;
+  inset: auto;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  overflow: visible;
+}
+.lantern-host .ua-layer-details-head { display: none; }
+.lantern-host .ua-layer-details-body { display: contents; }
+
 .lantern-host .ua-keys {
   flex: 0 1 auto;
   min-height: 0;
@@ -2004,8 +2022,8 @@
   }
 
   /* Each key is a row of the dock: its hue as an edge, a hairline between. */
-  .lantern-host .ua-keys > .ua-key,
-  .lantern-host .ua-keys > .ua-key.is-closed {
+  .lantern-host .ua-keys > .ua-layer-details-body > .ua-key,
+  .lantern-host .ua-keys > .ua-layer-details-body > .ua-key.is-closed {
     flex: none;
     width: 100%;
     max-height: none;
@@ -2017,7 +2035,7 @@
     animation: none;
   }
 
-  .lantern-host .ua-keys > .ua-key + .ua-key { border-top: 1px solid var(--hair); }
+  .lantern-host .ua-keys > .ua-layer-details-body > .ua-key + .ua-key { border-top: 1px solid var(--hair); }
 
   .lantern-host .ua-bottom > .layer-bar { grid-column: 4; grid-row: 4; }
 
@@ -2716,3 +2734,79 @@
 
   .lantern-host .ua-bottom .layer-chip[aria-pressed='true'] .layer-swatch { background: Highlight; box-shadow: none; }
 }
+
+/* Short-stage reading priority: native top layer, independent of stage clips.
+   The header stays put; only the body scrolls, including long source records. */
+.lantern-host dialog.ua-layer-dialog:not([open]) { display: none; }
+.lantern-host .ua-bottom > dialog.ua-layer-dialog:modal {
+  position: fixed;
+  inset: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0;
+  width: min(560px, calc(100vw - 24px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
+  height: auto;
+  max-width: none;
+  max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--ua-line);
+  border-radius: var(--r-panel);
+  background: var(--ua-paper);
+  color: var(--ink);
+  box-shadow: var(--ua-shadow);
+  overflow: hidden;
+  visibility: visible;
+  pointer-events: auto;
+  animation: none;
+}
+.lantern-host .ua-layer-dialog::backdrop { background: rgb(30 24 18 / 45%); }
+.lantern-host .ua-layer-dialog:modal .ua-layer-details-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--ua-line);
+}
+.lantern-host .ua-layer-details-head h2 { margin: 0; font: 650 var(--fs-m)/1.25 var(--display); }
+.lantern-host .ua-layer-details-close {
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--ua-line);
+  border-radius: var(--r-panel);
+  background: var(--ua-panel);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.lantern-host .ua-layer-dialog:modal .ua-layer-details-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-height: 0;
+  padding: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+}
+.lantern-host .ua-layer-dialog:modal .ua-key {
+  flex: none;
+  min-width: 0;
+  width: 100%;
+  max-height: none;
+  overflow: visible;
+}
+.lantern-host .ua-layer-dialog:modal .ua-key-head { min-height: 44px; }
+.lantern-host .ua-layer-dialog:modal .ua-key-body { overflow: visible; }
