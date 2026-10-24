@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "4face6053e2834652bba26e7c28b40302dee7f37368d69f96e98ab186673e81c",
+  "sourceDigestSha256": "280877e127d3e0c87cf7566aae315cdfe1a56ba445046bac00d18eb8dd09232e",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -12091,6 +12091,55 @@
       "mode": "100644",
       "bytes": 2241,
       "sha256": "a1550980ec80d2b9df53eb335636febd069890ce931af41cf9d808181d5d6ef4",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/model-interaction/README.md",
+      "mode": "100644",
+      "bytes": 8260,
+      "sha256": "f72836e18735ede487531c693a0fe5e2061965c8686ba2b99b30277c71e2f7bd",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/model-interaction/fixtures.mjs",
+      "mode": "100644",
+      "bytes": 3373,
+      "sha256": "b689f49d56507f7e12c20008fb5cab7f369241086519f911f7160e32eaea40c0",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/model-interaction/healthy.test.mjs",
+      "mode": "100644",
+      "bytes": 6561,
+      "sha256": "29f9a374d9ce2bf7a7f065cabe34fd4515cae3d20f7151a76ecbaaa6626f5c17",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/model-interaction/measure.mjs",
+      "mode": "100644",
+      "bytes": 2710,
+      "sha256": "93023874406260d8b01659f230ed928933dfd8176ade1b7dc7b7805c860f2532",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/model-interaction/run.mjs",
+      "mode": "100644",
+      "bytes": 5502,
+      "sha256": "4fab43237cdeb7cef62be4475472fbc1584f967ddcd193d079c40f35722dddb7",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/model-interaction/source.mjs",
+      "mode": "100644",
+      "bytes": 1977,
+      "sha256": "748d4bdcd6efa2997ee2d1f96247b0819d66e29edd03ca27b25653ff83a07825",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/model-interaction/worker.mjs",
+      "mode": "100644",
+      "bytes": 4615,
+      "sha256": "c5b5d7b4a607fa695ec713a815a7cbd0a4b1df99449b64c424a3c5445f42cc63",
       "owner": "core-integration"
     },
     {
