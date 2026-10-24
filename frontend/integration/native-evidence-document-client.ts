@@ -1,3 +1,4 @@
+import { scheduleSessionExpiry } from './session-expiry';
 import { ExactDecimal, isExactDecimal } from '../src/numeric/decimal';
 import { parseLosslessJson, stringifyLosslessJson, type LosslessJson } from '../src/numeric/lossless-json';
 import { createExactStockResultValidator } from '../src/numeric/schema-validator';
@@ -148,10 +149,10 @@ export function createNativeEvidenceDocumentClient(options: NativeEvidenceDocume
   const original = createNativeDocumentReadClient(options);
   const evidence = createEvidenceClient(transport), validator = createExactStockResultValidator();
   let current: Live | null = null, pending: AbortController | null = null, disposed = false, generation = 0;
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  let cancelExpiry: (() => void) | undefined;
   const withdraw = (): number => {
     const reserved = ++generation; // Fence older opens before external abort and listener callbacks.
-    if (timer !== undefined) clearTimeout(timer); timer = undefined;
+    cancelExpiry?.(); cancelExpiry = undefined;
     const previous = current, request = pending; current = null; pending = null;
     if (previous) previous.blob = null;
     request?.abort(new NativeEvidenceDocumentError());
@@ -235,7 +236,7 @@ export function createNativeEvidenceDocumentClient(options: NativeEvidenceDocume
       const live: Live = { owner, generation: reserved, frame, original: retained, blob, listeners: new Set() };
       current = live; pending = null; retained = null; published = frame;
       const remaining = Date.parse(owner.expiresAt) - Date.now(); need(remaining > 0);
-      timer = setTimeout(withdraw, Math.min(remaining + 1, 2_147_483_647));
+      cancelExpiry = scheduleSessionExpiry(Date.parse(owner.expiresAt), () => { if (current === live) withdraw(); });
       const registered = live.original;
       original.subscribeInvalidation(registered, () => { if (current === live) withdraw(); });
       need(active(live)); return frame;

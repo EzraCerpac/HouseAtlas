@@ -22,7 +22,7 @@ use axum::{
 };
 use serde_json::Value;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -36,9 +36,11 @@ type CaptureRequestKey = ([u8; 32], String, String, String);
 struct ConsumedCaptureRequest {
     wire: Vec<u8>,
     session_expires_at_ms: i64,
+    original: a::Principal,
 }
 /// Process-local at-most-once admission, not a delivery or issuance receipt.
-/// Spent IDs survive every later failure until the original session expires.
+/// Spent IDs survive every later failure while their native session can return.
+/// Only absolute expiry or authoritative native session retirement reclaims IDs.
 /// Capacity exhaustion refuses new work rather than evicting a live spent ID.
 /// Each authenticated session has a smaller quota so one session cannot spend
 /// the entire shared budget. The global bound still limits aggregate retention.
@@ -50,10 +52,19 @@ pub(super) struct CaptureRequests {
 impl CaptureRequests {
     fn consume(
         &mut self,
+        access: &a::AccessBoundary,
+        original: &a::Principal,
         session: [u8; 32],
         session_expires_at_ms: i64,
         request: &st::ValidatedRequest,
     ) -> Result<(), super::HttpFailure> {
+        if access
+            .authenticated_session_binding(original)
+            .map_err(access_error)?
+            != session
+        {
+            return Err(failure(StatusCode::FORBIDDEN));
+        }
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .ok()
@@ -68,6 +79,20 @@ impl CaptureRequests {
         }
         self.spent
             .retain(|_, spent| spent.session_expires_at_ms > now);
+        let mut checked = BTreeSet::new();
+        let mut ended = BTreeSet::new();
+        for (key, spent) in &self.spent {
+            if checked.insert(key.0)
+                && access
+                    .session_binding_has_ended(&spent.original)
+                    .map_err(access_error)?
+            {
+                ended.insert(key.0);
+            }
+        }
+        // No transient membership/source denial or clock rollback can release
+        // an ID. A failed authoritative read leaves live tombstones retained.
+        self.spent.retain(|key, _| !ended.contains(&key.0));
         let key = (
             session,
             request.context().workspace_id.clone(),
@@ -102,6 +127,7 @@ impl CaptureRequests {
             ConsumedCaptureRequest {
                 wire,
                 session_expires_at_ms,
+                original: original.clone(),
             },
         );
         Ok(())
@@ -317,10 +343,15 @@ async fn capture_selected(
                 let original = principal.principal.retained().clone();
                 // Burn admission before the first provider GET. No gate guard
                 // crosses I/O, and no error or cancellation resets this entry.
-                host.pinned_homebox_capture_requests
-                    .lock()
-                    .map_err(|_| unavailable())?
-                    .consume(session, session_expires_at_ms, &request)?;
+                {
+                    // Keep native retirement observations and consumption in
+                    // the same Access->capture lock order, before provider I/O.
+                    let boundary = access.lock().map_err(|_| unavailable())?;
+                    host.pinned_homebox_capture_requests
+                        .lock()
+                        .map_err(|_| unavailable())?
+                        .consume(&boundary, original.principal(), session, session_expires_at_ms, &request)?;
+                }
                 // No Core/Store/Access/Broker guard survives these three real GETs.
                 let owner = Arc::new(
                     runtime
@@ -495,4 +526,275 @@ pub(super) async fn redeem(
     })
     .await
     .map_err(|_| unavailable())?
+}
+
+#[cfg(test)]
+mod session_retirement_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicI64, Ordering};
+    const ORIGIN: &str = "https://127.0.0.1:48743";
+    fn id(n: u32) -> String {
+        format!("10000000-0000-4000-8000-{n:012}")
+    }
+    fn evidence<'a>(
+        method: a::Method,
+        cookie: Option<&'a str>,
+        csrf: Option<&'a str>,
+    ) -> a::RequestEvidence<'a> {
+        a::RequestEvidence {
+            method,
+            url: "https://127.0.0.1:48743/api/atlas/auth/session",
+            origin: Some(ORIGIN),
+            sec_fetch_site: Some("same-origin"),
+            referer: None,
+            cookie,
+            csrf,
+            authorization: None,
+        }
+    }
+    fn cookie(receipt: &a::SessionReceipt) -> &str {
+        receipt.set_cookie().split(';').next().unwrap()
+    }
+    fn request(contracts: &st::NativeStockContract, n: u32, resource: u32) -> st::ValidatedRequest {
+        st::ValidatedRequest::parse(contracts, serde_json::json!({
+            "schemaVersion":3,"commandId":"homebox.file.download","requestId":id(n),
+            "context":{"workspaceId":id(1),"homeId":id(2)},
+            "target":{"authority":"homebox","sourceInstanceId":id(3),"collectionId":id(4),
+                "resourceKind":"attachment","entityId":id(5),"resourceId":id(resource)},"payload":{}
+        })).unwrap()
+    }
+    fn principal(
+        access: &mut a::AccessBoundary,
+        receipt: &a::SessionReceipt,
+        scope: &a::Scope,
+    ) -> a::Principal {
+        access
+            .authorize(
+                &evidence(a::Method::Get, Some(cookie(receipt)), None),
+                scope,
+                a::Action::Read,
+            )
+            .unwrap()
+    }
+    fn consume(
+        gate: &mut CaptureRequests,
+        access: &a::AccessBoundary,
+        original: &a::Principal,
+        receipt: &a::SessionReceipt,
+        request: &st::ValidatedRequest,
+    ) -> Result<(), super::super::HttpFailure> {
+        gate.consume(
+            access,
+            original,
+            access
+                .authenticated_session_binding(original)
+                .map_err(access_error)?,
+            receipt.info().expires_at_ms(),
+            request,
+        )
+    }
+    fn setup() -> (
+        a::AccessBoundary,
+        Arc<AtomicI64>,
+        a::Scope,
+        a::CanonicalId,
+        i64,
+    ) {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64;
+        let clock = Arc::new(AtomicI64::new(now));
+        let current = clock.clone();
+        let user = a::CanonicalId::parse(id(4)).unwrap();
+        let scope = a::Scope {
+            workspace_id: a::CanonicalId::parse(id(1)).unwrap(),
+            home_id: a::CanonicalId::parse(id(2)).unwrap(),
+        };
+        let config = a::AccessConfig::new(vec![ORIGIN.into()])
+            .unwrap()
+            .with_loopback_local(a::LoopbackLocalIdentity {
+                user_id: user.clone(),
+                actor_id: a::CanonicalId::parse(id(5)).unwrap(),
+                username: "generated-capture".into(),
+                scope: scope.clone(),
+            })
+            .unwrap()
+            .with_limits(a::AccessLimits {
+                request_limit: 10_000,
+                ..Default::default()
+            })
+            .unwrap()
+            .with_clock(move || current.load(Ordering::Relaxed));
+        let mut access = a::AccessBoundary::in_memory(config).unwrap();
+        access.provision_loopback_local_user().unwrap();
+        (access, clock, scope, user, now)
+    }
+
+    #[test]
+    #[ignore = "HELD standalone capture replay/changed-wire/quota controls; source-only, no execution authorized"]
+    fn live_capture_replay_controls_source_only() {
+        let (mut access, clock, scope, user, now) = setup();
+        let peer = "127.0.0.1".parse().unwrap();
+        let first = access
+            .login_loopback_local(&evidence(a::Method::Post, None, None), peer)
+            .unwrap();
+        let mut original = principal(&mut access, &first, &scope);
+        let contracts = st::NativeStockContract::new().unwrap();
+        let mut gate = CaptureRequests::default();
+        for n in 0..128 {
+            assert!(
+                consume(
+                    &mut gate,
+                    &access,
+                    &original,
+                    &first,
+                    &request(&contracts, 100 + n, 6)
+                )
+                .is_ok()
+            );
+        }
+        let spent = request(&contracts, 100, 6);
+        assert_eq!(
+            consume(&mut gate, &access, &original, &first, &spent)
+                .err()
+                .unwrap()
+                .status,
+            StatusCode::CONFLICT
+        );
+        assert_eq!(
+            consume(
+                &mut gate,
+                &access,
+                &original,
+                &first,
+                &request(&contracts, 100, 7)
+            )
+            .err()
+            .unwrap()
+            .status,
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
+        assert_eq!(
+            consume(
+                &mut gate,
+                &access,
+                &original,
+                &first,
+                &request(&contracts, 999, 6)
+            )
+            .err()
+            .unwrap()
+            .status,
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        // A temporary membership denial can later recover with this same cookie.
+        access
+            .set_membership(&user, &scope, a::Role::Editor, false)
+            .unwrap();
+        assert!(!access.session_binding_has_ended(&original).unwrap());
+        access
+            .set_membership(&user, &scope, a::Role::Editor, true)
+            .unwrap();
+        original = principal(&mut access, &first, &scope);
+        assert_eq!(
+            consume(&mut gate, &access, &original, &first, &spent)
+                .err()
+                .unwrap()
+                .status,
+            StatusCode::CONFLICT
+        );
+        // Clock rollback is also transient and cannot release replay history.
+        clock.store(now - 1, Ordering::Relaxed);
+        assert!(!access.session_binding_has_ended(&original).unwrap());
+        assert!(consume(&mut gate, &access, &original, &first, &spent).is_err());
+        assert_eq!(gate.spent.len(), 128);
+        clock.store(now, Ordering::Relaxed);
+    }
+
+    #[test]
+    #[ignore = "Explicit isolated generated native-session retirement lifecycle; exact documented command only"]
+    fn ended_native_sessions_release_capture_capacity() {
+        let (mut access, _clock, scope, user, _now) = setup();
+        let peer = "127.0.0.1".parse().unwrap();
+        let first = access
+            .login_loopback_local(&evidence(a::Method::Post, None, None), peer)
+            .unwrap();
+        let original = principal(&mut access, &first, &scope);
+        let contracts = st::NativeStockContract::new().unwrap();
+        let mut gate = CaptureRequests::default();
+        for n in 0..128 {
+            assert!(
+                consume(
+                    &mut gate,
+                    &access,
+                    &original,
+                    &first,
+                    &request(&contracts, 100 + n, 6)
+                )
+                .is_ok()
+            );
+        }
+        assert_eq!(gate.spent.len(), 128);
+        let mut receipt = access
+            .rotate_session(&evidence(
+                a::Method::Post,
+                Some(cookie(&first)),
+                Some(first.info().csrf_token()),
+            ))
+            .unwrap();
+        assert_eq!(receipt.info().expires_at_ms(), first.info().expires_at_ms());
+        assert!(access.session_binding_has_ended(&original).unwrap());
+        for transition in 0..4 {
+            let fresh = principal(&mut access, &receipt, &scope);
+            assert!(
+                consume(
+                    &mut gate,
+                    &access,
+                    &fresh,
+                    &receipt,
+                    &request(&contracts, 5000 + transition, 6)
+                )
+                .is_ok()
+            );
+            assert_eq!(gate.spent.len(), 1);
+            match transition {
+                0 => {
+                    access
+                        .logout(&evidence(
+                            a::Method::Post,
+                            Some(cookie(&receipt)),
+                            Some(receipt.info().csrf_token()),
+                        ))
+                        .unwrap();
+                }
+                1 => {
+                    access.revoke_user_sessions(&user).unwrap();
+                }
+                2 => {
+                    access.set_user_enabled(&user, false).unwrap();
+                    access.set_user_enabled(&user, true).unwrap();
+                }
+                _ => {
+                    access.invalidate_all_sessions().unwrap();
+                }
+            }
+            assert!(access.session_binding_has_ended(&fresh).unwrap());
+            receipt = access
+                .login_loopback_local(&evidence(a::Method::Post, None, None), peer)
+                .unwrap();
+        }
+        let final_principal = principal(&mut access, &receipt, &scope);
+        assert!(
+            consume(
+                &mut gate,
+                &access,
+                &final_principal,
+                &receipt,
+                &request(&contracts, 6000, 6)
+            )
+            .is_ok()
+        );
+        assert_eq!(gate.spent.len(), 1);
+    }
 }

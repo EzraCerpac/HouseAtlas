@@ -1,5 +1,34 @@
 # HouseAtlas
 
+## Generated annual-session integration regressions
+
+Inspect `frontend/lantern-tests/session-policy-integration.mjs`, the production
+`integration/session-expiry.ts`, `src/app/session-rotation.ts`, session client
+and four timer call sites before these separate, explicit local selections:
+
+```sh
+node frontend/lantern-tests/session-policy-integration.mjs --case annual-expiry
+node frontend/lantern-tests/session-policy-integration.mjs --case expiry-cancel
+node frontend/lantern-tests/session-policy-integration.mjs --case explicit-rotation
+node frontend/lantern-tests/session-policy-integration.mjs --case rotation-interruption
+```
+
+Use Node 26.10.0. These dependency-free cases transform the actual TypeScript
+timer, session decoder, rotation transition and session transport with Node's
+built-in transformer. The unrelated Atlas view decoder is replaced with a
+throwing unused stub. A fake clock observes the annual timeout cap, backward
+clock adjustment, absolute expiry, cancellation and replacement. Fake in-process
+Responses observe explicit GET/CSRF POST/canonical GET order, held canonical
+publication, unchanged actor/expiry, changed canonical cookie marker, unknown
+POST completion, missing or changed canonical identity, and cancellation before
+POST or after canonical read.
+
+No listener, browser, native/session state, real credentials, provider or capture
+request is used. These selectors do not test actual React mounting, all resource
+owner lifecycles, native rotation/reclamation, global capacity recovery, capture
+replay, security, browser/device acceptance or deployment. Frontend typecheck and
+existing healthy reader checks remain separate and require locked dependencies.
+
 The selected provisional overview consumer has this healthy generated check:
 
 ```sh
@@ -836,6 +865,17 @@ suite is run as part of this policy update; owners add and run cases separately.
 Existing stopped/unrun descriptions for these three classes record ordinary or
 historical coverage; they do not prohibit an exact case satisfying this separate
 lane. Descriptions of other held classes retain their existing force.
+
+The separately authorized native annual-session policy lane has six exact
+generated commands in [Native session policy](../operations/native-session-policy.md#bounded-generated-verification).
+They cover the approved device-count, idle retention, annual expiry/renewal,
+logout/revocation and scoped Origin/CSRF behavior, bounded indexed expiry
+cleanup across generated strict reopens, retired-session capture capacity, and a
+local gateway admission benchmark. Inspect their full source and imports first.
+They use only generated Access state, a disposable schema-1 database and a private Unix peer; external WhoIs, real
+credentials, installed services and production are excluded. This narrow lane
+does not release other expiry/revocation cases, the separately held capture
+replay controls, or add ordinary CI entrypoints.
 
 A separately named native topology positive uses the actual disposable Store,
 Editor HTTP login and mounted MCP stock commands. It creates generic Alpha/Beta

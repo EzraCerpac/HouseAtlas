@@ -32,12 +32,15 @@ export interface AtlasSessionClient {
   ): Promise<AtlasSessionInfo>;
   /** Only supplied when the host mounts the documented logout action. */
   signOut?: (signal: AbortSignal) => Promise<void>;
+  /** Explicit rotation, followed by a canonical read; preserves absolute expiry. */
+  rotate?: (signal: AbortSignal) => Promise<AtlasSessionInfo>;
   /** Absent means the legacy password flow, unchanged. */
   localAccess?: AtlasLocalAccess;
 }
 export interface SessionSettings {
   expiresAt: string;
   signOut?: () => void;
+  rotate?: () => void;
 }
 export function decodeSessionInfo(value: unknown): AtlasSessionInfo {
   if (!value || typeof value !== "object" || Array.isArray(value))

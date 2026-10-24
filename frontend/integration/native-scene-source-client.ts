@@ -1,3 +1,4 @@
+import { scheduleSessionExpiry } from './session-expiry';
 import { readDocumentarySupport, documentaryReferences, sameDocumentaryValue, type DocumentarySupport } from './native-scene-documentary-support';
 import { ExactDecimal, isExactDecimal } from '../src/numeric/decimal';
 import { parseLosslessJson, type LosslessJson } from '../src/numeric/lossless-json';
@@ -557,6 +558,7 @@ export function createNativeSceneSourceClient(options: NativeSceneSourceOptions)
   let unsubscribeSupport: (() => void) | null = null;
   let unsubscribeAbort: (() => void) | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let cancelExpiry: (() => void) | null = null;
   const released = new WeakSet<object>();
   const releaseDocument = (frame: NativeEvidenceDocumentFrame) => {
     if (released.has(frame)) return; released.add(frame); options.documents.release(frame);
@@ -566,6 +568,7 @@ export function createNativeSceneSourceClient(options: NativeSceneSourceOptions)
     const previousListeners = listeners; listeners = new Set();
     pending = null; document = null; current = null; currentSelection = null; currentStamp = null;
     if (timer) clearTimeout(timer); timer = null;
+    cancelExpiry?.(); cancelExpiry = null;
     const stopDocument = unsubscribeDocument, stopGeometry = unsubscribeGeometry, stopAbort = unsubscribeAbort;
     unsubscribeDocument = null; unsubscribeGeometry = null; unsubscribeAbort = null;
     const stopSupport = unsubscribeSupport; unsubscribeSupport = null;
@@ -770,8 +773,8 @@ export function createNativeSceneSourceClient(options: NativeSceneSourceOptions)
         && options.documents.isCurrent(frame) && generation === reserved && current === result);
       supportLease = attempt.supportOwner ? attempt : null; pending = null;
       if (timer) clearTimeout(timer); timer = null;
-      timer = setTimeout(() => { if (generation === reserved) withdraw(); },
-        Math.min(Date.parse(selection.expiresAt) - Date.now() + 1, 2_147_483_647));
+      cancelExpiry?.(); cancelExpiry = null;
+      cancelExpiry = scheduleSessionExpiry(Date.parse(selection.expiresAt), () => { if (generation === reserved) withdraw(); });
       need(generation === reserved && current === result && document === frame
         && !controller.signal.aborted && performance.now() < due && same(selection, geometry, reserved));
       return result;

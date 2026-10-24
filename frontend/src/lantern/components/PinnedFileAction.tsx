@@ -187,6 +187,10 @@ export function PinnedFileAction({ docId }: { docId: string }) {
           )}
           {captureNow?.status === 'capturing' && <p className="fine" role="status">Capturing local copy…</p>}
           {captureNow?.status === 'refused' && <p className="fine" role="status">Capture not sent: session, home or source checks did not pass.</p>}
+          {matched && actions.session?.rotate && <>
+            <button type="button" className="btn" disabled={busy} onClick={actions.session.rotate}>Rotate session for new captures</button>
+            <p className="fine">If capture capacity is reached, rotate this session, then choose a new capture. Previous unknown outcomes remain unknown.</p>
+          </>}
           {artifact && (
             <>
               <dl className="facts">

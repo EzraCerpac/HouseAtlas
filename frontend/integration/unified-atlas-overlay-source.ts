@@ -1,3 +1,4 @@
+import { scheduleSessionExpiry } from './session-expiry';
 /** Current native documentary details for one selected unified publication.
  * Producer overlay hints are not authority; no rendered old geometry is used. */
 import { nativeSceneAssociationPayloadDigest, readNativeOverlayAssociationHead, readNativeOverlayAssociation, readNativeOverlayBuildingEvidence, type SceneAssociationContext, type SceneAssociationCurrent } from './native-scene-association-client';
@@ -122,14 +123,14 @@ export function createUnifiedAtlasOverlaySource(options:UnifiedAtlasOverlaySourc
   type Owned={owner:NativeEvidenceDocumentClient;frame:NativeEvidenceDocumentFrame|null;stop:(()=>void)|null;disposed:boolean;released:WeakSet<object>};
   type Attempt={generation:number;context:UnifiedAtlasOverlayContext;stamp:string;controller:AbortController;owners:Owned[];listeners:Set<()=>void>;
     frame:UnifiedAtlasOverlayAvailableFrame|null;headCheckedAt:number;drawingProof:{evidenceId:string;checkedAt:number}|null;
-    headTimer:ReturnType<typeof setTimeout>|null;stopAbort:(()=>void)|null;timer:ReturnType<typeof setTimeout>|null;retired:boolean};
+    headTimer:ReturnType<typeof setTimeout>|null;stopAbort:(()=>void)|null;timer:ReturnType<typeof setTimeout>|null;cancelExpiry:(()=>void)|null;retired:boolean};
   let active:Attempt|null=null,generation=0,disposed=false;
   const transport=options.fetch??((...args:Parameters<typeof fetch>)=>fetch(...args));
   const observe=()=>{try{return options.getContext();}catch{return null;}};
   const releaseOwned=(owned:Owned,frame:NativeEvidenceDocumentFrame)=>{if(owned.released.has(frame))return;owned.released.add(frame);owned.owner.release(frame);};
   const retire=(attempt:Attempt)=>{
     if(attempt.retired)return;attempt.retired=true;if(active===attempt)active=null;
-    const callbacks=[...attempt.listeners];attempt.listeners.clear();attempt.controller.abort();attempt.stopAbort?.();if(attempt.timer)clearTimeout(attempt.timer);if(attempt.headTimer)clearTimeout(attempt.headTimer);
+    const callbacks=[...attempt.listeners];attempt.listeners.clear();attempt.controller.abort();attempt.stopAbort?.();attempt.cancelExpiry?.();if(attempt.timer)clearTimeout(attempt.timer);if(attempt.headTimer)clearTimeout(attempt.headTimer);
     for(const owned of attempt.owners){owned.stop?.();owned.stop=null;if(owned.frame)releaseOwned(owned,owned.frame);if(!owned.disposed){owned.disposed=true;owned.owner.dispose();}}
     for(const changed of callbacks){try{changed();}catch{/* notify every subscriber */}}
   };
@@ -154,7 +155,7 @@ export function createUnifiedAtlasOverlaySource(options:UnifiedAtlasOverlaySourc
       ||review.publicationId!==s.publicationId||review.semanticsSha256!==s.semanticsSha256)return Object.freeze({status:'unavailable',reason:'room-link-not-qualified'});
     need(UUID.test(s.workspaceId)&&UUID.test(s.homeId)&&UUID.test(s.publicationId)&&SHA.test(s.semanticsSha256)&&s.revision.length>0&&s.revision.length<=128
       &&context.native.view.scope.workspaceId===s.workspaceId&&context.native.view.scope.homeId===s.homeId&&UUID.test(input.nativeBuildingId));
-    const attempt:Attempt={generation:reserved,context,stamp:stamp(context),controller:new AbortController(),owners:[],listeners:new Set(),frame:null,headCheckedAt:0,drawingProof:null,headTimer:null,stopAbort:null,timer:null,retired:false};active=attempt;
+    const attempt:Attempt={generation:reserved,context,stamp:stamp(context),controller:new AbortController(),owners:[],listeners:new Set(),frame:null,headCheckedAt:0,drawingProof:null,headTimer:null,stopAbort:null,timer:null,cancelExpiry:null,retired:false};active=attempt;
     const stop=()=>{if(active===attempt)withdraw();};signal.addEventListener('abort',stop,{once:true});attempt.stopAbort=()=>signal.removeEventListener('abort',stop);if(signal.aborted)stop();
     attempt.timer=setTimeout(stop,75_000);
     const pin=()=>guard(attempt);
@@ -228,7 +229,8 @@ export function createUnifiedAtlasOverlaySource(options:UnifiedAtlasOverlaySourc
       };
       pin();attempt.headCheckedAt=headCheckedAt;attempt.frame=frame;
       if(attempt.timer)clearTimeout(attempt.timer);
-      attempt.timer=setTimeout(stop,Math.min(Date.parse(context.native.session.expiresAt)-Date.now()+1,2_147_483_647));
+      attempt.timer=null;
+      attempt.cancelExpiry=scheduleSessionExpiry(Date.parse(context.native.session.expiresAt),stop);
       attempt.headTimer=setTimeout(()=>{void checkHead();},Math.max(0,HEAD_INTERVAL_MS-(Date.now()-headCheckedAt)));pin();return frame;
     }catch{const changed=!current(attempt);retire(attempt);signal.throwIfAborted();return Object.freeze({status:'unavailable',reason:changed?'selection-changed':'current-source-unavailable'});}
   };
