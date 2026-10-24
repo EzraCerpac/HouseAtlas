@@ -1,3 +1,4 @@
+import { scheduleSessionExpiry } from './session-expiry';
 import { ExactDecimal, isExactDecimal } from '../src/numeric/decimal';
 import { MESH_LIMITS, MESH_PROFILE } from '../src/lantern/scans/mesh-profile';
 import { IFC_GLB_MIME, IFC_GLB_PROFILE } from '../src/lantern/scans/ifc-glb-profile';
@@ -308,11 +309,11 @@ export function createNativeGeometryReadClient(options: NativeGeometryReadOption
   // a session (sign-out or session check), session expiry or dispose clears it.
   const retention = options.retainMeshes ?? null, persist = retention?.persist ?? null;
   let retainedFor: RetainedPartition | null = null, retainedBytes = 0;
-  let retainedTimer: ReturnType<typeof setTimeout> | undefined;
+  let cancelRetainedExpiry: (() => void) | undefined;
   const retained = new Map<string, Uint8Array>();
   const discardRetained = () => {
-    if (retainedTimer !== undefined) clearTimeout(retainedTimer);
-    retainedTimer = undefined; retainedFor = null; retained.clear(); retainedBytes = 0;
+    cancelRetainedExpiry?.();
+    cancelRetainedExpiry = undefined; retainedFor = null; retained.clear(); retainedBytes = 0;
   };
   const sessionPresent = () => { try { return retention?.sessionPresent() === true; } catch { return false; } };
   const partition = (binding: NativeGeometryBinding | null) => {
@@ -327,7 +328,7 @@ export function createNativeGeometryReadClient(options: NativeGeometryReadOption
     retainedFor = Object.freeze({ sessionIdentity: binding.sessionIdentity, expiresAt: binding.expiresAt,
       workspaceId: binding.scope.workspaceId, homeId: binding.scope.homeId });
     // Session expiry drops the bytes even while no read observes the binding.
-    retainedTimer = setTimeout(discardRetained, Math.min(Math.max(0, Date.parse(binding.expiresAt) - Date.now()) + 1, MAX_TIMER));
+    cancelRetainedExpiry = scheduleSessionExpiry(Date.parse(binding.expiresAt), discardRetained);
   };
   const partitionOf = (found: Owner) => retainedFor !== null && retainedFor.sessionIdentity === found.sessionIdentity
     && retainedFor.expiresAt === found.expiresAt && retainedFor.workspaceId === found.scope.workspaceId

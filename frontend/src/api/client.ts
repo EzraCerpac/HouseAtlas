@@ -1,4 +1,5 @@
 import { decodeAtlasView } from "../app/decode";
+import { reconcileSessionRotation } from "../app/session-rotation";
 import type { AtlasClient, AtlasView, Scope } from "../app/types";
 import {
   decodeAuthMode,
@@ -13,8 +14,10 @@ export interface AtlasEndpoints {
   home: (scope: Scope) => string;
 }
 export class AtlasReadError extends Error {
-  constructor(readonly status: number) {
+  readonly status: number;
+  constructor(status: number) {
     super("Saved information could not be loaded");
+    this.status = status;
   }
 }
 function localReadUrl(path: string): string {
@@ -130,6 +133,8 @@ export interface AtlasSessionEndpoints {
   login: string;
   /** Published logout acknowledgement: {schemaVersion:1,signedOut:true}. */
   logout?: string;
+  /** Explicitly mounted POST /api/atlas/auth/rotate. */
+  rotate?: string;
   /** Canonical mode path /api/atlas/auth/mode with at least one sign-in path:
    * /api/atlas/auth/local (signIn) and/or /api/atlas/auth/proxy (proxySignIn).
    * Supplied only when the host mounts them; never enabled by default. */
@@ -185,6 +190,18 @@ export function createAtlasSessionClient(
     },
   };
   const logout = endpoints.logout;
+  if (endpoints.rotate) {
+    const rotateUrl = endpoints.rotate;
+    client.rotate = signal => reconcileSessionRotation(session, async (info, signal) => {
+      signal.throwIfAborted();
+      const response = await request(rotateUrl, signal, {
+        method: "POST",
+        headers: { Accept: "application/json", "X-Atlas-CSRF": info.csrfToken },
+      });
+      if (!response.ok) throw new AtlasReadError(response.status);
+      return decodeSessionInfo(await response.json());
+    }, signal);
+  }
   if (logout)
     client.signOut = async (signal) => {
       // Session GET rotates the nonce in the published boundary. Get the current

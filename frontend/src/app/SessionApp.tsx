@@ -32,7 +32,7 @@ type SessionState =
   | { status: "expired" }
   | { status: "signed-out"; mode: AtlasAuthMode }
   | { status: "authenticated"; info: AtlasSessionInfo }
-  | { status: "unavailable"; action: "load" | "sign-out" | "mode" | "local" };
+  | { status: "unavailable"; action: "load" | "sign-out" | "mode" | "local" | "rotate" };
 export interface SessionAppProps {
   client: AtlasClient;
   sessions: AtlasSessionClient;
@@ -271,6 +271,22 @@ export function SessionApp({
     if (!localCaptures) { void signOut(); return; }
     setLoseLocal(false); setLogoutError(''); setLogoutChoice(true);
   };
+  const rotate = async () => {
+    if (!sessions.rotate) return;
+    initialHomeBootstrap?.retire();
+    const { controller, attempt } = begin();
+    onScopeCommit?.(null);
+    localCaptures?.invalidate();
+    setState({ status: "loading" });
+    try {
+      const info = await sessions.rotate(controller.signal);
+      if (!controller.signal.aborted && attempt === generation.current)
+        setState({ status: "authenticated", info });
+    } catch {
+      if (!controller.signal.aborted && attempt === generation.current)
+        setState({ status: "unavailable", action: "rotate" });
+    }
+  };
   const confirmSignOut = async () => {
     if (logoutLock.current) return;
     logoutLock.current = true; setLogoutBusy(true); setLogoutError('');
@@ -292,6 +308,7 @@ export function SessionApp({
         signIn={showSignIn}
         session={{
           expiresAt: state.info.expiresAt,
+          ...(sessions.rotate ? { rotate: () => void rotate() } : {}),
           ...(sessions.signOut ? { signOut: chooseSignOut } : {}),
         }}
         {...(accessEvents ? { accessEvents } : {})}
@@ -351,6 +368,8 @@ export function SessionApp({
           ? "Loading session…"
           : state.status === "opening"
             ? "Opening Home…"
+            : state.action === "rotate"
+              ? "Session rotation could not be confirmed."
             : state.action === "sign-out"
               ? "Sign out could not be confirmed."
               : state.action === "mode"
@@ -370,7 +389,7 @@ export function SessionApp({
               else void load();
             }}
           >
-            {state.action === "local" ? "Check session" : "Try again"}
+            {state.action === "local" || state.action === "rotate" ? "Check session" : "Try again"}
           </button>
         </div>
       )}

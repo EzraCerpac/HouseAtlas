@@ -64,6 +64,7 @@ const nativeSessions = createAtlasSessionClient({
   session: root.dataset.sessionUrl ?? "/api/atlas/auth/session",
   login: root.dataset.loginUrl ?? "/api/atlas/auth/login",
   logout: root.dataset.logoutUrl ?? "/api/atlas/auth/logout",
+  rotate: root.dataset.rotateUrl ?? "/api/atlas/auth/rotate",
   ...(authModeUrl && (localSignInUrl || proxySignInUrl) ? { localAccess: {
     mode: authModeUrl,
     ...(localSignInUrl ? { signIn: localSignInUrl } : {}),
@@ -102,6 +103,25 @@ async function canonicalSignIn(receipt: AtlasSessionInfo, signal: AbortSignal): 
   return value;
 }
 const sessions: AtlasSessionClient = {
+  async rotate(signal) {
+    captureDrafts.announceSessionChange();
+    const generation = ++sessionGeneration;
+    currentSession = null;
+    captureDrafts.setScope(null);
+    currentQuantityAdmission = null;
+    currentQuantityScope = null;
+    currentReadyView = null;
+    quantityChanged();
+    let value: AtlasSessionInfo;
+    try { value = await nativeSessions.rotate!(signal); }
+    finally { captureDrafts.announceSessionChange(); }
+    signal.throwIfAborted();
+    if (generation !== sessionGeneration) throw new Error("Session changed during rotation");
+    currentSession = value;
+    captureDrafts.observeCanonical(value);
+    quantityChanged();
+    return value;
+  },
   async session(signal) {
     captureDrafts.invalidateSession();
     const generation = ++sessionGeneration;
