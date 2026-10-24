@@ -103,9 +103,11 @@ const quantityModule = async (path, imports = []) => {
 };
 const quantityModelModule = await quantityModule('../src/app/model.ts');
 const quantitySessionModule = await quantityModule('../src/app/session.ts');
+const quantityRotationModule = await quantityModule('../src/app/session-rotation.ts');
 const quantityDecoderModule = await quantityModule('../src/app/decode.ts', [['./model', quantityModelModule]]);
 const quantityClientModule = await quantityModule('../src/api/client.ts', [
   ['../app/decode', quantityDecoderModule], ['../app/session', quantitySessionModule],
+  ['../app/session-rotation', quantityRotationModule],
 ]);
 const { decodeAtlasView } = await import(quantityDecoderModule);
 const { createAtlasClient } = await import(quantityClientModule);
