@@ -11,6 +11,46 @@ remain with the updater and runtime owners.
 ## Native profile qualification
 
 The current [native profile](../../tools/release/release-profile.json) adopts
+the reviewed 898-input qualification of product source
+`d36a48546a92b58cb3c515d8034272dfa1d92e5a`, tree
+`9567e8f9da5c81a8b9b9e4d088b09b269a5bdd8a`, from
+[run 39849910196, attempt 1](https://github.com/EzraCerpac/HouseAtlas/actions/runs/39849910196).
+The frozen recipe head is `6e725d2e26bff3ca0deefadc22b1391bdf171437`;
+GitHub executed workflow merge `b1c8ad1c4739f8903b51d3b2ab766fa401bf9e3f`.
+The exact native-input digest is
+`2061368ea3e6d6620451d8542dc111226721ea6fd599ea8b3f841f2e9457586b`.
+The accepted main source manifest still describes the same 898 native inputs.
+
+The existing independent artifact review cleared archive/member closure,
+binary ABI, source/tree/lock and executed-workflow provenance, and the four
+named generated healthy examples. This adoption records that review; it does
+not rebuild or execute artifact code. Generic x86_64, minimum macOS 15.0,
+the standard Intel runner image, SDK 15.5, Xcode build 16F6 and the four allowed
+system libraries retain the existing profile. Only
+`native.sourceInputsSha256` changes.
+
+Recorded public evidence:
+
+- [GitHub artifact 12457409985](https://github.com/EzraCerpac/HouseAtlas/actions/runs/39849910196/artifacts/12457409985):
+  13,272,791 bytes, SHA-256
+  `57a88ea38e9bbdf5d23d1cb80a2f86c214d52c26f30840efbd00bdeb7cd5ff3e`.
+- Native archive: 13,243,486 bytes, SHA-256
+  `67baf821a19fc168591e828e2ea5a8074499600784b73778e32d3ded3d594304`.
+- Archived binary SHA-256:
+  `107770cea136e5f1042e8433d068fb1578e61f7d21e724f24554a4805e2cd941`.
+- Build receipt SHA-256:
+  `621b1aa2e5d9364a50826e795fb53df59a71623609d7772d016a1e73faa7d26f`.
+
+The recipe branch and prior qualifications remain preserved. No workflow,
+qualification source, AGENTS exception, backend, dependency or storage input
+changes as part of this profile/history adoption. Storage remains unqualified,
+both contract pins remain null, and code rollback remains disabled. Native
+maintenance, installed-service identity, target compatibility, promotion and
+deployment are separate gates. Browser or device acceptance is not inferred.
+
+### Retained 893-input qualification
+
+The previous [native profile](../../tools/release/release-profile.json) adopted
 the independently reviewed qualification of product source
 `7cae5db05389cb5ca5cc97403975fa60d8f4cbcb`, tree
 `015320ded4947bc5c5100804ac6c521ce94c56e6`, from

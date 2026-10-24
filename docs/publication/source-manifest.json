@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "eb864d65d717e985cd2217710a18f6f5ef1ff8f873c73382e2ce786b8d3220cc",
+  "sourceDigestSha256": "4face6053e2834652bba26e7c28b40302dee7f37368d69f96e98ab186673e81c",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -6566,8 +6566,8 @@
     {
       "path": "docs/operations/release-bundles.md",
       "mode": "100644",
-      "bytes": 14311,
-      "sha256": "6f5559f8993a90041338f3dfab1424dfaa5af315e152b9001cba1fe9459a712b",
+      "bytes": 16488,
+      "sha256": "d3d5a171e6422566f033623eed15ef863dae544f8e08ac214ba184e514a6e585",
       "owner": "core-integration"
     },
     {
@@ -12342,7 +12342,7 @@
       "path": "tools/release/release-profile.json",
       "mode": "100644",
       "bytes": 897,
-      "sha256": "70e1b82b7ecf4f1a2a67f41d4cf5db90baaf12f8841ea2b3fa802b873b2d8346",
+      "sha256": "0be6b6d220ca12c0f814c577cffd3440d7746db31c0a6ac49e682bfddc9781a0",
       "owner": "core-integration"
     },
     {
