@@ -1881,6 +1881,14 @@
     border-radius: var(--r-sheet) var(--r-sheet) 0 0;
   }
 
+  @media (max-height: 480px) {
+    /* The open picker needs its measured head, a whole 44px room row,
+       30px of body padding and the top border, even over the side rail. */
+    .lantern-host .ua-inspector.is-open {
+      max-height: min(100%, max(72%, calc(var(--ua-peek) + 75px)));
+    }
+  }
+
   .lantern-host .ua-sheet-head { position: relative; padding: 13px 10px 7px 16px; }
 
   .lantern-host .ua-sheet-head::before {
