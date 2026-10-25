@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "ad62dbd505a143e04db631756caa03465a21dc1b184f9c8a30a87954d8cf3960",
+  "sourceDigestSha256": "a7b995a57b1528e7487a4dbc4ccf4e9e6e418c5228f55050180ee8273d47a743",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6482,8 +6482,8 @@
     {
       "path": "docs/operations/contextual-evidence-capture.md",
       "mode": "100644",
-      "bytes": 9743,
-      "sha256": "48e451e8ab62e68b22e1359c9a1bcf4c4441a71b1227a76a351a0c02f99d95a2",
+      "bytes": 12374,
+      "sha256": "df8848606010a0729baad824870747bc18d125f12462172285034f2da2d5ab5a",
       "owner": "core-integration"
     },
     {
@@ -7082,10 +7082,17 @@
       "owner": "core-integration"
     },
     {
+      "path": "frontend/capture-evidence-tests/foreground.mjs",
+      "mode": "100644",
+      "bytes": 13227,
+      "sha256": "f4ffb55b01de9c748b41132bf2e65b82942301b2aaebb6d24f28a8be0fb7ec32",
+      "owner": "core-integration"
+    },
+    {
       "path": "frontend/capture-evidence-tests/selection.mjs",
       "mode": "100644",
-      "bytes": 4711,
-      "sha256": "89239ad2d002160b1eafec7e9c1f0ee62ed9e89f91ccbbf10d477b3200c5113a",
+      "bytes": 6773,
+      "sha256": "bca6c906f423f9286b007defee4a536132243b830eca008908591d62fa4b212a",
       "owner": "core-integration"
     },
     {
