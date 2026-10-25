@@ -2798,7 +2798,7 @@ a session rotated during a lookup (the old token's refusal is not final),
 earlier edits to the same record, and an automatic retry still waiting for
 another tab's send when the person switches to it sends nothing, nor does the
 rest of a retry already sending, nor an edit whose lost reply is still being
-looked up; a Save queued behind that send is not carried
+looked up or whose dispatch is being recorded; a Save queued behind that send is not carried
 over to another home), the notice views reload on after a
 background sync, and pruning of synced entries. It runs in `run-healthy.mjs`. The server side of the
 same contract (lookup of a committed envelope, no second write on an identical

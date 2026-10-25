@@ -422,6 +422,24 @@ for (const lateChange of ['sign-out', 'abort']) {
   setSyncMode('automatic');
 }
 
+// Or while the dispatch is being recorded.
+{
+  const disk = createSyntheticDisk(), server = createServer();
+  const base = openOutboxStore(createSyntheticIndexedDB(disk));
+  let armed = false;
+  const store = { ...base, put: async row => { await base.put(row); if (armed && row.state === 'sending') setSyncMode('ask'); } };
+  const outbox = outboxOn(disk, server, { store });
+  server.online = false;
+  outbox.configure(context);
+  const entry = await outbox.submit(submission('landing', 1));
+  server.online = true;
+  armed = true;
+  await outbox.drain();
+  const stored = outbox.getSnapshot().entries.find(row => row.id === entry.id);
+  assert.equal(stored.state, 'waiting'); assert.equal(server.posts.length, 0, 'Not sent after the person chose When I ask');
+  setSyncMode('automatic');
+}
+
 // A Save queued behind another tab's send belongs to its own home: if the
 // person switches to "When I ask" and to another home before its turn, the
 // other home's waiting edits stay put.
@@ -460,4 +478,4 @@ for (const lateChange of ['sign-out', 'abort']) {
   assert.equal(kept.at(-1).target.recordId, `room-${KEEP_SYNCED + 2}`);
   assert.equal(syntheticRecords(disk, OUTBOX_DATABASE, 'entries').length, KEEP_SYNCED);
 }
-console.log(JSON.stringify({ outbox: 'healthy', cases: 20 }));
+console.log(JSON.stringify({ outbox: 'healthy', cases: 21 }));
