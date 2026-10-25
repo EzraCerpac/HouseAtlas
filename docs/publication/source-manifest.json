@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "278554f435678986ae1d1f5ba5408571e072ade5e1f5e0e3932f99710a4aae01",
+  "sourceDigestSha256": "e5891d3b502e97fc66051ee70078e8057b1bfa4f108105ace8b0fc7c745279a2",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -7806,8 +7806,8 @@
       "path": "frontend/lantern-tests/offline-connection-probe-healthy.mjs",
       "mode": "100644",
       "owner": "web",
-      "bytes": 3431,
-      "sha256": "ea362d89cb715e29aab44429de7c8020e9ae155167ee053684876868bada1482"
+      "bytes": 3837,
+      "sha256": "8bb96ce3535a176c0d0cf473b344b5ff0c942324b8ffa998da1acfdea83e22e1"
     },
     {
       "path": "frontend/lantern-tests/offline-house-acquisition-healthy.mjs",
@@ -10157,8 +10157,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 138742,
-      "sha256": "56f1a032654c7f8c8a5a43ec8502a461d74724b3ac2bc521e4e95204d404dcf9",
+      "bytes": 138974,
+      "sha256": "5cc09d4b80ffd9df4accd97ff369390270217f9aa4ae454ae09930e15ca49846",
       "owner": "web"
     },
     {

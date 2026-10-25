@@ -132,6 +132,10 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
   const current = useCallback(() => port.current(), [port]);
   const selection = useSyncExternalStore(subscribe, current, current);
   const [attempt, setAttempt] = useState(0);
+  // The selection an explicit download or retry was asked for. A later
+  // selection is held again until the user asks for it too.
+  const [asked, setAsked] = useState<AtlasPresentationSelection | null>(null);
+  const ask = useCallback(() => { setAsked(selection); setAttempt(value => value + 1); }, [selection]);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   // The stored copy bound for this selection, reused by a retry without a second parse.
   const storedCopy = useRef<{ readonly selection: AtlasPresentationSelection; readonly read: StoredAtlasRead; readonly model: AtlasModel } | null>(null);
@@ -152,7 +156,7 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
     // Stale while revalidate: this device's last verified copy of the same
     // publication and manifest shows at once; the fresh read still decides.
     // With downloads held, only an explicit Check for update starts it.
-    const fetchNow = port.kind !== 'live' || attempt > 0 || modelUpdatesAllowed();
+    const fetchNow = port.kind !== 'live' || asked === selection || modelUpdatesAllowed();
     let settled = false;
     const stored: Promise<{ readonly read: StoredAtlasRead; readonly model: AtlasModel } | null> = (async () => {
       if (port.kind !== 'live' || selection.kind !== 'live' || !port.stored) return null;
@@ -203,7 +207,7 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
       if (!signal.aborted) setLoaded({ selection, attempt, outcome });
     })();
     return () => controller.abort();
-  }, [port, selection, attempt]);
+  }, [port, selection, attempt, asked]);
 
   if (!selection) return <section className="ua-shell" aria-label="Atlas"><p className="ua-state" role="status">No model is selected.</p>
     <LensStatus lens={environment.lens}>No model is selected, so no model rooms or network graph are shown.</LensStatus></section>;
@@ -218,7 +222,7 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
     <LensStatus lens={environment.lens}>The room map is not on this device yet.</LensStatus>
     <div className="ua-state" role="status">
       <p>The room map is not on this device yet.</p>
-      <div className="ua-state-actions"><button type="button" className="btn btn-small" onClick={() => setAttempt(value => value + 1)}>Download room map</button></div>
+      <div className="ua-state-actions"><button type="button" className="btn btn-small" onClick={ask}>Download room map</button></div>
     </div>
   </section>;
   if (outcome.status === 'failed') {
@@ -228,7 +232,7 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
       <div className="ua-state" role="alert">
         <p>{failure.text}</p>
         <div className="ua-state-actions">
-          {failure.retry && <button type="button" className="btn btn-small" onClick={() => setAttempt(value => value + 1)}>{failure.retry}</button>}
+          {failure.retry && <button type="button" className="btn btn-small" onClick={ask}>{failure.retry}</button>}
           {onOpenModel && <button type="button" className="btn btn-small btn-quiet" onClick={onOpenModel}>Open model overview</button>}
         </div>
       </div>
@@ -236,7 +240,7 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
   }
   const stored = outcome.stored && (loaded!.attempt === attempt ? outcome.stored : { ...outcome.stored, refresh: 'pending' as const });
   return <AtlasStage key={memoryKey(outcome.model, selection)} model={outcome.model} port={port} selection={selection} entryBuildingId={outcome.entryBuildingId}
-    otherSources={otherSources ?? []} environment={environment} {...(stored ? { stored, retry: () => setAttempt(value => value + 1) } : {})} />;
+    otherSources={otherSources ?? []} environment={environment} {...(stored ? { stored, retry: ask } : {})} />;
 }
 
 // ---------------------------------------------------------------------------

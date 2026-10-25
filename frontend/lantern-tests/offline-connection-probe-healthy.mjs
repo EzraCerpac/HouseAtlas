@@ -49,4 +49,8 @@ assert.equal(updates.readModelUpdates(), 'ask');
 assert.equal(updates.modelUpdatesAllowed(), false);
 globalThis.localStorage = { getItem() { throw new Error('Generated storage denied'); }, setItem() { throw new Error('Generated storage denied'); } };
 assert.equal(updates.readModelUpdates(), 'automatic', 'unavailable storage leaves the default');
+// An explicit download or retry authorizes only the selection it was asked for.
+const atlas = readFileSync(new URL('../src/lantern/unified-atlas/UnifiedAtlas.tsx', import.meta.url), 'utf8');
+assert.ok(atlas.includes("asked === selection || modelUpdatesAllowed()"), 'held downloads are released per selection');
+assert.ok(!/attempt > 0 \|\|/.test(atlas), 'a past retry does not release later selections');
 console.log('PASS live-host probe and room map download preference');
