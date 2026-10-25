@@ -13,6 +13,9 @@ self.addEventListener('fetch', event => {
   const request = event.request, url = new URL(request.url);
   if (request.method !== 'GET' || request.mode !== 'navigate' || url.origin !== self.location.origin
     || url.search || url.hash || (url.pathname !== '/' && url.pathname !== '/index.html')) return;
+  // Verification that throws (missing or changed public bytes, storage
+  // failure) means no verified Saved shell: keep the network's answer.
+  const handoff = async () => { try { return await ready(); } catch { return false; } };
   event.respondWith((async () => {
     const network = fetch(request, { cache: 'no-store' });
     let timer;
@@ -24,9 +27,9 @@ self.addEventListener('fetch', event => {
       // to the native host. Only a rejected or silent network read opens retained data.
       const response = await Promise.race([network, silent]);
       if (response) return response;
-      if (!await ready()) return network;
+      if (!await handoff()) return network;
     } catch (error) {
-      if (!await ready()) throw error;
+      if (!await handoff()) throw error;
     } finally { clearTimeout(timer); }
     return Response.redirect(new URL('/saved/index.html', self.location.origin).href, 302);
   })());

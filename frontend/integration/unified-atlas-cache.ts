@@ -56,8 +56,8 @@ export function createUnifiedAtlasCache(store: NativeGeometryScanCache,
   owner: { readonly actorId: string; readonly workspaceId: string; readonly homeId: string }): UnifiedAtlasCache {
   const partition = JSON.stringify(['unified-atlas', owner.actorId, owner.workspaceId, owner.homeId]);
   const sceneKey = (publicationId: string, manifestSha256: string) => JSON.stringify(['scene', publicationId, manifestSha256]);
-  // Envelope digests this page already found stored, so an unchanged scene is not written again.
-  const known = new Set<string>();
+  // The scene this page knows is in the one scene slot, so an unchanged scene is not written again.
+  let persisted: string | null = null;
   return Object.freeze({
     async scene(publicationId: string, manifestSha256: string) {
       const record = await store.read(partition, sceneKey(publicationId, manifestSha256));
@@ -66,7 +66,7 @@ export function createUnifiedAtlasCache(store: NativeGeometryScanCache,
       const { meta, envelope } = parsed;
       if (meta.publicationId !== publicationId || meta.manifestSha256 !== manifestSha256 || typeof meta.storedAt !== 'string'
         || typeof meta.envelopeSha256 !== 'string' || !(meta.entryBuildingId === null || typeof meta.entryBuildingId === 'string')) return null;
-      known.add(`${sceneKey(publicationId, manifestSha256)}/${meta.envelopeSha256}`);
+      persisted = `${sceneKey(publicationId, manifestSha256)}/${meta.envelopeSha256}`;
       return { envelope, entryBuildingId: meta.entryBuildingId, storedAt: meta.storedAt };
     },
     async model(sha256: string, bytes: number) {
@@ -75,8 +75,8 @@ export function createUnifiedAtlasCache(store: NativeGeometryScanCache,
     },
     keepScene(publicationId: string, manifestSha256: string, envelope: Uint8Array, envelopeSha256: string, entryBuildingId: string | null) {
       const key = sceneKey(publicationId, manifestSha256);
-      if (known.has(`${key}/${envelopeSha256}`)) return;
-      known.add(`${key}/${envelopeSha256}`);
+      if (persisted === `${key}/${envelopeSha256}`) return;
+      persisted = `${key}/${envelopeSha256}`;
       // One slot: the newest scene for this home replaces earlier ones.
       store.write(partition, 'scene', key, pack({ publicationId, manifestSha256, envelopeSha256, entryBuildingId, storedAt: new Date().toISOString() }, envelope));
     },

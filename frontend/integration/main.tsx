@@ -464,13 +464,17 @@ const sourceModels: SourceModelPort = {
       const controller = new AbortController();
       const unsubscribe = subscribeOverview(() => { if (currentOverview() !== selection) controller.abort(); });
       try {
-        const [reader, cache] = await Promise.all([import('./unified-atlas-reader'), atlasCache(selection)]);
+        // The cache opens beside the scene GET; slow or unavailable storage never delays it.
+        const reader = await import('./unified-atlas-reader');
         return await reader.readUnifiedAtlas({ selection, signal: AbortSignal.any([signal, controller.signal]),
-          origin: window.location.origin, isCurrent: () => currentOverview() === selection, ...(cache ? { cache } : {}) });
+          origin: window.location.origin, isCurrent: () => currentOverview() === selection, cache: atlasCache(selection) });
       } finally { unsubscribe(); }
     },
     async stored(selection, signal) {
-      const [reader, cache] = await Promise.all([import('./unified-atlas-reader'), atlasCache(selection)]);
+      const reader = await import('./unified-atlas-reader');
+      // The fresh read waits on this display-only path, so storage that is slow to open is skipped.
+      const cache = await Promise.race([atlasCache(selection),
+        new Promise<null>(resolve => setTimeout(resolve, reader.CACHE_LOOKUP_MS, null))]);
       signal.throwIfAborted();
       return cache && currentOverview() === selection ? reader.readCachedUnifiedAtlas({ selection, signal, cache }) : null;
     },

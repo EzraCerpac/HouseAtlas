@@ -129,7 +129,7 @@ export interface UnifiedAtlasRead {
 }
 /** A verified copy from this device's own store, shown while the fresh read runs. */
 export interface StoredAtlasRead extends UnifiedAtlasRead { readonly storedAt: string }
-export type AtlasReadFailure = 'absent' | 'stale' | 'unavailable' | 'invalid' | 'too-large';
+export type AtlasReadFailure = 'absent' | 'stale' | 'unavailable' | 'invalid' | 'too-large' | 'denied';
 export class AtlasReadError extends Error {
   constructor(readonly reason: AtlasReadFailure, message: string = reason) { super(message); }
 }

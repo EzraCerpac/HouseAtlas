@@ -138,6 +138,33 @@ await openProcess(disk, actorA, async ({ cache }) => {
   assert.deepEqual(Buffer.from(read.model), Buffer.from(versions[1].glb));
 });
 
+// One page reading A, then B, then A again leaves A stored for the next start.
+{
+  const pageDisk = createSyntheticDisk();
+  await openProcess(pageDisk, actorA, async ({ cache }) => {
+    served = versions[0]; await fresh(cache, v0);
+    served = versions[1]; await fresh(cache, v1);
+    served = versions[0]; await fresh(cache, v0);
+  });
+  await openProcess(pageDisk, actorA, async ({ cache }) => {
+    assert.ok(await stored(cache, v0), 'the latest read scene is the stored one');
+    assert.equal(await stored(cache, v1), null);
+  });
+  served = versions[1];
+}
+
+// Storage that never finishes opening does not hold back the fresh read.
+calls.length = 0;
+const pending = await readUnifiedAtlas({ selection: v1, signal: signal(), origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true, transport,
+  cache: new Promise(() => {}) });
+record('storage that never opens', ['scene', 'model']);
+assert.deepEqual(Buffer.from(pending.model), Buffer.from(versions[1].glb));
+
+// An explicit refusal is reported as denied, not as an unavailable network.
+for (const status of [401, 403])
+  await assert.rejects(readUnifiedAtlas({ selection: v1, signal: signal(), origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true,
+    transport: async () => new Response(null, { status }) }), error => error.reason === 'denied', `HTTP ${status}`);
+
 await openProcess(disk, actorA, async ({ cache, store }) => {
   assert.ok(await stored(cache, v1));
   await store.clear();

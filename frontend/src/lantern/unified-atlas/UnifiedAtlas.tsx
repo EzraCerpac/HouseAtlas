@@ -53,6 +53,7 @@ const FAILURE: Record<AtlasReadFailure, { readonly text: string; readonly retry:
   unavailable: { text: 'The room map could not be loaded.', retry: 'Try again' },
   invalid: { text: 'The room map does not match this model, so it is not shown.', retry: 'Check again' },
   'too-large': { text: 'This model is larger than the viewer supports.', retry: null },
+  denied: { text: 'Access to this room map was refused.', retry: 'Try again' },
 };
 
 // View state per exact overview owner, manifest and publication revision, for this tab only.

@@ -78,7 +78,9 @@ export async function readCachedUnifiedAtlas(options: {
 
 export async function readUnifiedAtlas(options: {
   readonly selection: ModelOverviewSelection; readonly signal: AbortSignal; readonly origin: string;
-  readonly isCurrent: () => boolean; readonly transport?: typeof fetch; readonly cache?: UnifiedAtlasCache;
+  readonly isCurrent: () => boolean; readonly transport?: typeof fetch;
+  /** May still be opening; it is awaited only within the local lookup budget, alongside the scene GET. */
+  readonly cache?: UnifiedAtlasCache | Promise<UnifiedAtlasCache | null>;
 }): Promise<UnifiedAtlasRead> {
   const { selection, isCurrent } = options;
   const signal = AbortSignal.any([options.signal, AbortSignal.timeout(UNIFIED_ATLAS_READ_LIMITS.ms)]);
@@ -98,6 +100,8 @@ export async function readUnifiedAtlas(options: {
         guard();
         need(response.status !== 404 || mime !== JSON_MIME, 'absent');
         need(response.status !== 409 && response.status !== 412, 'stale');
+        // An explicit refusal is not a transport failure: no stored copy stays on screen for it.
+        need(response.status !== 401 && response.status !== 403, 'denied');
         let headerBytes = 0; response.headers.forEach((value, key) => { headerBytes += value.length + key.length; });
         need(headerBytes <= UNIFIED_ATLAS_READ_LIMITS.headers && response.status === 200 && !response.redirected
           && (!response.url || response.url === url)
@@ -127,10 +131,11 @@ export async function readUnifiedAtlas(options: {
     const href = `${path}/${selection.publicationId}/artifacts/model?expectedSha256=${scene.model.sha256}&expectedSelectionRevision=${encodeURIComponent(revision)}`;
     need(scene.model.href === href, 'invalid');
     const envelopeSha256 = hex(new Uint8Array(await crypto.subtle.digest('SHA-256', envelope))); guard();
-    const keepScene = () => options.cache?.keepScene(selection.publicationId, selection.manifestSha256, envelope, envelopeSha256, entryBuildingId);
-    if (options.cache) {
+    const cache = options.cache ? await lookup(Promise.resolve(options.cache)) : null; guard();
+    const keepScene = () => cache?.keepScene(selection.publicationId, selection.manifestSha256, envelope, envelopeSha256, entryBuildingId);
+    if (cache) {
       // Stored bytes stand in for the GET only when they hash to the digest this fresh scene pins.
-      const stored = await lookup(options.cache.model(scene.model.sha256, scene.model.bytes)); guard();
+      const stored = await lookup(cache.model(scene.model.sha256, scene.model.bytes)); guard();
       if (stored && stored.byteLength === scene.model.bytes && hex(new Uint8Array(await crypto.subtle.digest('SHA-256', stored))) === scene.model.sha256) {
         guard(); keepScene();
         return { scene, model: stored, entryBuildingId, envelopeSha256 };
@@ -145,7 +150,7 @@ export async function readUnifiedAtlas(options: {
       const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); guard();
       need(hex(digest) === scene.model.sha256 && body.headers.get('content-digest') === `sha-256=:${base64(digest)}:`, 'invalid');
       served(); guard();
-      options.cache?.keepModel(scene.model.sha256, bytes); keepScene();
+      cache?.keepModel(scene.model.sha256, bytes); keepScene();
       return { scene, model: bytes, entryBuildingId, envelopeSha256 };
     } catch (error) { void body.body?.cancel().catch(() => undefined); throw error; }
   } catch (error) {

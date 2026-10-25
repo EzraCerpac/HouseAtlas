@@ -183,6 +183,12 @@ try {
   assert.equal(handoff.status, 302); assert.equal(handoff.headers.get('location'), origin + '/saved/index.html');
   assert.ok(Date.now() - started < 3_000, 'a silent host hands off within the navigation budget');
   cases.push('silent-root-host-hands-off-to-saved');
+  // Saved verification that throws is no handoff: a slow host's answer still arrives.
+  const slowAnswer = new Response('generated slow native root');
+  const unverifiable = workerRuntime(first, 'root', { open: async () => { throw new Error('Generated storage failure'); } },
+    () => new Promise(resolve => setTimeout(resolve, 2_500, slowAnswer)));
+  assert.equal(await unverifiable.fetchEvent(request('/')), slowAnswer);
+  cases.push('slow-root-host-without-verified-saved-keeps-network-answer');
   const savedRuntime = savedRegistration.active.runtime;
   const savedResponse = await savedRuntime.fetchEvent(request('/saved/index.html'));
   assert.equal(await savedResponse.text(), await first.responses.get('/saved/index.html').clone().text());
