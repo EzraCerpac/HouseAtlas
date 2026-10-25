@@ -60,7 +60,8 @@ runner's software GPU, and the generated Unified Atlas compact layer-details
 and control-names checks (compiled source and markup only, no browser), the
 generated WebMCP batch-discovery descriptor check (schema bytes only); the
 `tools/model-bake` tests on generated geometry, including viewer admission and
-selector binding of a baked generated unified Atlas publication; and
+selector binding of a baked generated unified Atlas publication and its detail
+tier; and
 `cargo test --locked -p houseatlas-backend --lib` with its default
 (non-`#[ignore]`) set, skipping the three quantity tests that need
 `HOUSEATLAS_QUANTITY_REFERENCE_DIR`; and the healthy `tools/rust-integration`

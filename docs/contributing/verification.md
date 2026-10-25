@@ -56,7 +56,8 @@ The same `frontend checks` job then runs the model bake tests
 (`tools/model-bake/test/bake.test.mjs`) on generated geometry. They bake
 generated masters to budget and run the viewer's own preflight, scene admission
 and selector binding on the results, including the generated unified Atlas
-publication densified and baked:
+publication densified and baked, and its unsimplified detail tier admitted under
+the Full limits and bound by the same companion:
 
 ```sh
 npm ci --prefix tools/model-bake
@@ -1836,7 +1837,9 @@ three actual cube pick meshes and matching inline plans, including an explicitly
 estimated proxy. It checks authenticated current/scoped availability, exact
 publication/selection and semantic facts, the expected overview-manifest query
 and checked digest echo, identical legacy no-query descriptor bytes, repeated Media-authorized pinned GLB
-GETs/digests/headers, and unchanged overview/config/receipt/source bytes. Positive
+GETs/digests/headers for the overview and the optional detail tier (a relabelled
+copy with the same slots, served only on its own route), and unchanged
+overview/detail/config/receipt/source bytes. Positive
 source cases include reflected pick geometry, a nonnegative alpha cutoff above
 one and an unused indexed vertex below the drawn support plane.
 It runs
@@ -1847,8 +1850,8 @@ Use Rust 1.99.0 and an owned external target:
 cargo run --offline --locked -p houseatlas-backend --example healthy-unified-atlas-read -- --fixture-output /tmp/houseatlas-unified-atlas-fixture-20261016
 ```
 
-The output directory must be absent. Its four anonymous files (`overview.glb`,
-`publication.json`, `atlas-scene.json`, `scene-response.json`) are generated
+The output directory must be absent. Its five anonymous files (`overview.glb`,
+`detail.glb`, `publication.json`, `atlas-scene.json`, `scene-response.json`) are generated
 source/consumer fixtures only; no session, configuration, native database or
 credential is copied. The frontend owner can consume that exact envelope and
 model in its compiled preview. Native activation, actual publication/device

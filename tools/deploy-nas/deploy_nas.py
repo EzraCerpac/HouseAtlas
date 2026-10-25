@@ -241,15 +241,17 @@ def validate_release(release: Path, data_dir: Path) -> dict[str, Path]:
                 raise DeployError(f"{release} has no {name}")
             continue
         files[name] = p
-    for p in [release / "overview.glb", *files.values()]:
+    pub = json.loads(files["publication.json"].read_text())
+    if not pub.get("publicationId"):
+        raise DeployError("publication.json has no publicationId")
+    # The optional Full tier: the server validates and serves detail.glb when the publication names it.
+    glbs = [release / "overview.glb", *([release / "detail.glb"] if pub.get("detail") else [])]
+    for p in [*glbs, *files.values()]:
         st = p.lstat() if (p.exists() or p.is_symlink()) else None
         if st is None:
             raise DeployError(f"{release} has no {p.name}")
         if not stat.S_ISREG(st.st_mode) or stat.S_IMODE(st.st_mode) != 0o600 or st.st_nlink != 1 or st.st_uid != os.getuid():
             raise DeployError(f"{p} must be a regular 0600 file with one link, owned by this user")
-    pub = json.loads(files["publication.json"].read_text())
-    if not pub.get("publicationId"):
-        raise DeployError("publication.json has no publicationId")
     return files
 
 

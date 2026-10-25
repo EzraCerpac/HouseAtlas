@@ -26,6 +26,9 @@ export const ATLAS_LIMITS = Object.freeze({
   planBytes: 8 * MiB,
   modelBytes: 32 * MiB,
   aggregateBytes: 64 * MiB,
+  /** The optional unsimplified detail GLB (DETAIL_GLB_LIMITS.bytes). It is
+   * fetched on its own after the scene, so it is outside the aggregate. */
+  detailBytes: 256 * MiB,
   buildings: 128, levels: 64, rooms: 2048, occurrences: 4096,
   /** Bindings and selectors per binding, as the host admits them. Together the
    * selectors cannot exceed the standard loader's drawn primitive instances
@@ -121,11 +124,16 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
   need(frame.units === 'm' && frame.upAxis === 'Y' && Array.isArray(frame.horizontalAxes) && frame.horizontalAxes.length === 2
     && frame.horizontalAxes[0] === 'X' && frame.horizontalAxes[1] === 'Z'
     && frame.geometryPlacement === 'gltf-world-after-node-transforms-once' && frame.physicalRegistration === null);
-  const artifacts = list(envelope.artifacts, 1); need(artifacts.length === 1);
-  const artifact = row(artifacts[0], ['artifactId', 'role', 'contentType', 'bytes', 'sha256', 'href']);
-  need(artifact.artifactId === 'model' && artifact.role === 'model' && artifact.contentType === 'model/gltf-binary');
+  // The model, then optionally the same publication's detail GLB, which the
+  // mesh bindings select by the same (node, mesh, primitive) slots.
+  const artifacts = list(envelope.artifacts, 2).map(item => row(item, ['artifactId', 'role', 'contentType', 'bytes', 'sha256', 'href']));
+  const [artifact, detailArtifact] = artifacts;
+  need(artifact && artifact.artifactId === 'model' && artifact.role === 'model' && artifact.contentType === 'model/gltf-binary');
   const modelBytes = integer(artifact.bytes, 1, Number.MAX_SAFE_INTEGER);
   budget(modelBytes <= ATLAS_LIMITS.modelBytes && modelBytes + textBytes <= ATLAS_LIMITS.aggregateBytes);
+  need(!detailArtifact || detailArtifact.artifactId === 'detail' && detailArtifact.role === 'detail' && detailArtifact.contentType === 'model/gltf-binary');
+  const detailBytes = detailArtifact ? integer(detailArtifact.bytes, 1, Number.MAX_SAFE_INTEGER) : 0;
+  budget(detailBytes <= ATLAS_LIMITS.detailBytes);
 
   // Aggregate counts and inline sizes before any per-member allocation. Both
   // parts are measured compactly, so producer indentation does not count.
@@ -271,6 +279,7 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
     publication: { publicationId: expected.publicationId, sourceRevisionId: text(publication.sourceRevisionId, 256),
       sourceSha256: sha(publication.sourceSha256), semanticsSha256: sha(publication.semanticsSha256) },
     model: { bytes: modelBytes, sha256: sha(artifact.sha256), href: text(artifact.href, 2048) },
+    detail: detailArtifact ? { bytes: detailBytes, sha256: sha(detailArtifact.sha256), href: text(detailArtifact.href, 2048) } : null,
     buildings, levels, rooms, occurrences, meshBindings, plans, overlayBindings, coverage,
   };
 }

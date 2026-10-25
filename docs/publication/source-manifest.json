@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "f06af47b425bc34fc26dd7212ff6593e2889277c1a1422f8788b485a9d1346a8",
+  "sourceDigestSha256": "05a0dc392070b04accb32f1c621ea3897f7dc2236840cc15747313fb5a2bef3e",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -119,8 +119,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 7451,
-      "sha256": "bf91a7a967f1419f9e77e54118985dabc7d416e2786b1aa121e4f1ec748354ee",
+      "bytes": 7471,
+      "sha256": "293b47708321714d0690608f98bc71b66fa77eba10280a02c2cb371f375f6d0c",
       "owner": "core-integration"
     },
     {
@@ -406,8 +406,8 @@
     {
       "path": "backend/examples/healthy-unified-atlas-read.rs",
       "mode": "100644",
-      "bytes": 13711,
-      "sha256": "6fabbab957d206075b4405d85ece9f1a77958670b3b39b4482e94186287bb9ba",
+      "bytes": 15141,
+      "sha256": "211eb1f0a68b87fae4eed1cf215f30a6a4e1106f9a13eaeb7e367758cfed97c9",
       "owner": "core-integration"
     },
     {
@@ -1302,8 +1302,8 @@
     {
       "path": "backend/src/config/atlas_scene.rs",
       "mode": "100644",
-      "bytes": 31496,
-      "sha256": "e35133f3b776895dda6f00aae644c43da59c371e102e967085b786385bde04a0",
+      "bytes": 32358,
+      "sha256": "f041fbbd8bc6dd513612fd11a13d741f28f7827f14e3410951e75527b6c6f09a",
       "owner": "core-integration"
     },
     {
@@ -1316,8 +1316,8 @@
     {
       "path": "backend/src/config/atlas_scene_glb.rs",
       "mode": "100644",
-      "bytes": 34069,
-      "sha256": "5d3fe0b948e288729d91cca249e39d667d00468babd25f70e8c31e378fe5e397",
+      "bytes": 41076,
+      "sha256": "1223d725e280c183fc423753acfd1967146ace19abe08d14922994aab16d0b89",
       "owner": "core-integration"
     },
     {
@@ -1344,8 +1344,8 @@
     {
       "path": "backend/src/config/model_overview.rs",
       "mode": "100644",
-      "bytes": 13657,
-      "sha256": "083038da29653fceda3255d91ca592d45d32845d548075f0dd6d31ce99ecc432",
+      "bytes": 15446,
+      "sha256": "96dcc59b247257d366759ccc6d356406213abd7c49fef27043052e5b2c621ce1",
       "owner": "core-integration"
     },
     {
@@ -2303,8 +2303,8 @@
     {
       "path": "backend/src/http/atlas_scene.rs",
       "mode": "100644",
-      "bytes": 7743,
-      "sha256": "b514a010a80d4d090b089f41cace92307cbeb3ab4234c1a0d907c18a846d8fb6",
+      "bytes": 9396,
+      "sha256": "a0bda91b712d974959eaaa3dea744fd4696374af33c344bd11124813e66efe9b",
       "owner": "core-integration"
     },
     {
@@ -2408,8 +2408,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 57911,
-      "sha256": "8f60dd23d308788bdc3783e27a4e6fe869382fa45ffc3fe9d04da19028d40c67",
+      "bytes": 58123,
+      "sha256": "fa4c5bcba40b9c597b4766e412c02c7735c4645c2f5ebe1f7d5447e7d526896a",
       "owner": "core-integration"
     },
     {
@@ -6111,8 +6111,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 183003,
-      "sha256": "bae901ca396dd75840763a32504e7ddea2aaa6f98af8177c5335803bceef14fc",
+      "bytes": 183237,
+      "sha256": "0e1941da1bd4315848c004b1042f0823716afa1b34e4cd8ed38d79a1197959ce",
       "owner": "core-integration"
     },
     {
@@ -6468,8 +6468,8 @@
     {
       "path": "docs/models/unified-atlas-scene-v1.md",
       "mode": "100644",
-      "bytes": 22025,
-      "sha256": "19f85c81b4249299c5edffdf01cd85882b01d6b9839491a24ac99515a8a49ac3",
+      "bytes": 23366,
+      "sha256": "09de34a55fb3dc592b77f5d4ba240e17a4bb5d891b7115b6d97694184743ab89",
       "owner": "core-integration"
     },
     {
@@ -8407,8 +8407,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
-      "bytes": 98698,
-      "sha256": "e1d99797f87b1e9fe98d66c2f1268e8c536d0c5b043b81a6004481ab64d69112",
+      "bytes": 101133,
+      "sha256": "be38da4ec294af9758d06fb16b6139017485d6ddf4ba0b72898994fa42721346",
       "owner": "web"
     },
     {
@@ -9275,8 +9275,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/embedded-png-material.ts",
       "mode": "100644",
-      "bytes": 19886,
-      "sha256": "4b1499fcea7350eaa6b12164ad68100f68503f51e9e3a12814d3ff4bfecc333d",
+      "bytes": 19905,
+      "sha256": "1fdaff489356d7df1bba7af5b35d956d6f715e12a66da0962ce7eb012b8dae93",
       "owner": "web"
     },
     {
@@ -9289,8 +9289,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/glb-preflight.ts",
       "mode": "100644",
-      "bytes": 17361,
-      "sha256": "ceae2f097b814bfc3f5e81214e834be59c0acdaf13d7ca791bac2e65d6b5a5af",
+      "bytes": 18117,
+      "sha256": "b40f33a2fc8feb7ecb2ebf565f8794d6354b178e1bc18233f6dbc2716bd8b5cb",
       "owner": "web"
     },
     {
@@ -9366,8 +9366,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/standard-glb.ts",
       "mode": "100644",
-      "bytes": 13578,
-      "sha256": "f9be598b3a04b9601f325ba164cfadf25d5d1685e290f282200192cd18df124e",
+      "bytes": 13781,
+      "sha256": "cf6b79ff4003c3630b35250bafa73ae4d8bbdadfd2f2f9e7e2500c59767bec47",
       "owner": "web"
     },
     {
@@ -10500,15 +10500,15 @@
     {
       "path": "frontend/src/lantern/unified-atlas/scene.ts",
       "mode": "100644",
-      "bytes": 76907,
-      "sha256": "48ff90fe9ab8d7a7bdfa581d53f1cc910c31b3f1cd931f88b69d9aa6eab27a5d",
+      "bytes": 77691,
+      "sha256": "8918462ca1c02f269bf005720bb2a35484a947be728e161cd608179cd03d220d",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/unified-atlas/types.ts",
       "mode": "100644",
-      "bytes": 9304,
-      "sha256": "65894071f0bd25de8ff372cbdf91dd446de2c521abe3e629f7e605f6406b728f",
+      "bytes": 9473,
+      "sha256": "ddb7d11d3adea82ce65453700f97b2eb3cf683145f61c67551e22ba42c770650",
       "owner": "web"
     },
     {
@@ -11893,15 +11893,15 @@
     {
       "path": "tools/deploy-nas/deploy_nas.py",
       "mode": "100644",
-      "bytes": 44138,
-      "sha256": "636aaf4dd33f92279377fa54d888c7132dbcf2234a0f263f045d3f029b5b14ea",
+      "bytes": 44319,
+      "sha256": "7808b59f1441058d7364b7ca8a1e2dbf550e668785fabc9aa237c853ce2bb321",
       "owner": "core-integration"
     },
     {
       "path": "tools/deploy-nas/test_deploy_nas.py",
       "mode": "100644",
-      "bytes": 25395,
-      "sha256": "4b2aa6d1f27288ab03a463d147e92c5162a796baafa265c1f14de1af01739fc1",
+      "bytes": 25974,
+      "sha256": "5123c1591d7c4704f32f60d978f7add8d0960a8b5f4c3fd44d8b3607b236a5ec",
       "owner": "core-integration"
     },
     {
@@ -12474,15 +12474,15 @@
     {
       "path": "tools/model-bake/README.md",
       "mode": "100644",
-      "bytes": 6509,
-      "sha256": "39fad634ddce270ed682e9c8202a6193506b4003b22a2baae7bea3398018ddca",
+      "bytes": 7564,
+      "sha256": "ea9dbd62b713b14b6dccae00b0e94fe03805c26ce20ce9cee52147e547baffe3",
       "owner": "media"
     },
     {
       "path": "tools/model-bake/bake.mjs",
       "mode": "100755",
-      "bytes": 4639,
-      "sha256": "1c34736b15baeaa67b36f5d891697745fe91fafd6000a41853ffbd7700f3df17",
+      "bytes": 5776,
+      "sha256": "924a7e9ad9f0a3dfcce6922a715abbe21d343ecdf7298247d61c7ab4ced75fda",
       "owner": "media"
     },
     {
@@ -12502,15 +12502,15 @@
     {
       "path": "tools/model-bake/src/admission.mjs",
       "mode": "100644",
-      "bytes": 5089,
-      "sha256": "beca343d6c59aee48933b891ad5e04552e0a190ab2d6cfd064304d469a0a5814",
+      "bytes": 5716,
+      "sha256": "bd7f9a501f818e7073ec0ddfe70d6e37ecc6dc15d97a8d6221f03a9f09dc29df",
       "owner": "media"
     },
     {
       "path": "tools/model-bake/src/bake.mjs",
       "mode": "100644",
-      "bytes": 18465,
-      "sha256": "4a52d1dfcd6955a3a73202f7280997cd380ee99d4925ffd350c65ca2ab8f4f46",
+      "bytes": 19005,
+      "sha256": "a06f05bf46900f8694153b04be2da63b7e8ce5591f27985a34c80cd070e1a1b0",
       "owner": "media"
     },
     {
@@ -12523,8 +12523,8 @@
     {
       "path": "tools/model-bake/test/bake.test.mjs",
       "mode": "100644",
-      "bytes": 26541,
-      "sha256": "00992ee758a78eebe4ac71a2821b92f1ef4eae3fefb14dcf7c59097a6a0f4c83",
+      "bytes": 30596,
+      "sha256": "80b733a2819ec5e708f6f6f2c3e536575046e1c52a1cf3347c41f2825066c437",
       "owner": "media"
     },
     {

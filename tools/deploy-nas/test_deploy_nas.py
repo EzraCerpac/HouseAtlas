@@ -149,6 +149,15 @@ class ModelRelease(unittest.TestCase):
         (self.rel / "atlas-scene.json").unlink()
         self.assertRaises(dn.DeployError, dn.validate_release, self.rel, self.data)
 
+    def test_detail_is_required_once_the_publication_names_it(self):
+        write(self.rel / "publication.json", json.dumps({"publicationId": "p-1", "detail": {"file": "detail.glb"}}))
+        self.assertRaises(dn.DeployError, dn.validate_release, self.rel, self.data)
+        write(self.rel / "detail.glb", "glb")
+        (self.rel / "detail.glb").chmod(0o644)
+        self.assertRaises(dn.DeployError, dn.validate_release, self.rel, self.data)
+        (self.rel / "detail.glb").chmod(0o600)
+        self.assertIn("publication.json", dn.validate_release(self.rel, self.data))
+
 
 class FakeService(dn.Runner):
     """launchd plus a gateway that serves whatever binary the plist names."""
