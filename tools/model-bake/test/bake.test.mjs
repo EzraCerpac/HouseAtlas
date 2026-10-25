@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { admitInViewer, bindInViewer } from '../src/admission.mjs';
-import { bakeOverview } from '../src/bake.mjs';
+import { bakeDetail, bakeOverview } from '../src/bake.mjs';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -368,6 +368,11 @@ function densify(glb, times) {
   return writeGlb({ ...json, accessors, bufferViews: views, buffers: [{ byteLength: length }] }, out);
 }
 
+// Selection, floors and exploded views key off these: the same primitive slots,
+// roles, buildings, levels and pick occurrences, in the same order.
+const identity = model => model.parts.map(part => [part.mesh.meshKey, part.role, part.buildingId, part.levelIds, part.levelId, part.occurrenceId]);
+const boundTriangles = model => model.parts.reduce((sum, part) => sum + part.mesh.triangles, 0);
+
 test('a baked publication binds in the viewer with every identity intact', async () => {
   const atlas = await syntheticAtlas(), glb = densify(atlas.glb, 3);
   const companion = { ...atlas.companion, original: { sha256: sha256(glb), bytes: glb.byteLength } };
@@ -378,9 +383,6 @@ test('a baked publication binds in the viewer with every identity intact', async
   // The baked companion is a new revision: it pins the new bytes and nothing else changes.
   assert.deepEqual({ ...result.companion, original: null }, { ...companion, original: null });
   const after = await bindInViewer(result.glb, result.companion);
-  // Selection, floors and exploded views key off these: the same primitive slots,
-  // roles, buildings, levels and pick occurrences, in the same order.
-  const identity = model => model.parts.map(part => [part.mesh.meshKey, part.role, part.buildingId, part.levelIds, part.levelId, part.occurrenceId]);
   assert.deepEqual(identity(after), identity(before));
   assert.deepEqual([...after.selectable].sort(), [...before.selectable].sort());
   assert.deepEqual([...after.pickParts.keys()].sort(), [...before.pickParts.keys()].sort());
@@ -389,4 +391,54 @@ test('a baked publication binds in the viewer with every identity intact', async
   for (const [occurrence, parts] of before.pickParts) assert.deepEqual(after.pickParts.get(occurrence).map(part => part.mesh.triangles), parts.map(part => part.mesh.triangles));
   // An unclaimed primitive is refused, not drawn without identity.
   await assert.rejects(bindInViewer(result.glb, { ...result.companion, meshBindings: result.companion.meshBindings.slice(1) }));
+});
+
+test('the detail keeps every master triangle and binds with the overview companion', async () => {
+  const atlas = await syntheticAtlas(), glb = densify(atlas.glb, 3);
+  const companion = { ...atlas.companion, original: { sha256: sha256(glb), bytes: glb.byteLength } };
+  const overview = await bakeOverview(glb, companion, { triangles: Math.floor(trianglesIn(glb) * 0.6) });
+  const detail = await bakeDetail(glb, companion);
+  assert.equal(trianglesIn(detail.glb), trianglesIn(glb));
+  // One companion serves both tiers: the detail differs only in its own pin.
+  assert.deepEqual({ ...detail.companion, original: null }, { ...overview.companion, original: null });
+  const light = await bindInViewer(overview.glb, overview.companion);
+  const full = await bindInViewer(overview.glb, overview.companion, detail.glb);
+  assert.deepEqual(identity(full), identity(light));
+  assert.deepEqual([...full.selectable].sort(), [...light.selectable].sort());
+  assert.ok(boundTriangles(full) > boundTriangles(light), 'the Full tier draws the unsimplified master');
+  assert.equal(boundTriangles(full), detail.drawnTriangles);
+  assert.equal(boundTriangles(await bindInViewer(glb, companion)), detail.drawnTriangles);
+});
+
+test('the Full tier admits what the overview refuses', async () => {
+  // 700,000 triangles over one shared triangle: over the overview's 600,000.
+  const triangles = 700_000, positions = Float32Array.from([0, 0, 0, 1, 0, 0, 0, 1, 0]), indices = new Uint32Array(triangles * 3);
+  for (let i = 0; i < indices.length; i++) indices[i] = i % 3;
+  const bin = new Uint8Array(positions.byteLength + indices.byteLength);
+  bin.set(new Uint8Array(positions.buffer)); bin.set(new Uint8Array(indices.buffer), positions.byteLength);
+  const glb = writeGlb({ asset: { version: '2.0' }, scene: 0, scenes: [{ nodes: [0] }], nodes: [{ mesh: 0 }],
+    meshes: [{ primitives: [{ attributes: { POSITION: 0 }, indices: 1 }] }],
+    accessors: [{ bufferView: 0, componentType: 5126, count: 3, type: 'VEC3', min: [0, 0, 0], max: [1, 1, 0] }, { bufferView: 1, componentType: 5125, count: indices.length, type: 'SCALAR' }],
+    bufferViews: [{ buffer: 0, byteOffset: 0, byteLength: positions.byteLength }, { buffer: 0, byteOffset: positions.byteLength, byteLength: indices.byteLength }],
+    buffers: [{ byteLength: bin.byteLength }] }, bin);
+  await assert.rejects(admitInViewer(glb), /geometry/);
+  assert.equal((await admitInViewer(glb, 'detail')).triangles, triangles);
+});
+
+test('the command line writes the detail beside the overview', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'model-bake-'));
+  try {
+    const atlas = await syntheticAtlas(), glb = densify(atlas.glb, 2);
+    writeFileSync(join(dir, 'master.glb'), glb);
+    writeFileSync(join(dir, 'master.json'), JSON.stringify({ ...atlas.companion, original: { sha256: sha256(glb), bytes: glb.byteLength } }));
+    const out = join(dir, 'out'), cli = new URL('../bake.mjs', import.meta.url).pathname;
+    execFileSync(process.execPath, [cli, '--model', join(dir, 'master.glb'), '--companion', join(dir, 'master.json'), '--out', out, '--detail',
+      '--triangles', String(Math.floor(trianglesIn(glb) * 0.6))], { stdio: 'pipe' });
+    assert.deepEqual(readdirSync(out).sort(), ['atlas-scene.json', 'bake-report.json', 'detail.glb', 'model.glb']);
+    const report = JSON.parse(readFileSync(join(out, 'bake-report.json'), 'utf8')), detail = readFileSync(join(out, 'detail.glb'));
+    // The report carries the publication.json `detail` pin.
+    assert.deepEqual({ file: report.detail.file, contentType: report.detail.contentType, sha256: report.detail.sha256, bytes: report.detail.bytes },
+      { file: 'detail.glb', contentType: 'model/gltf-binary', sha256: sha256(detail), bytes: detail.byteLength });
+    assert.equal(report.detail.viewerBinding.boundPrimitives, report.viewerBinding.boundPrimitives);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });

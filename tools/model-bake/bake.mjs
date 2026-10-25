@@ -1,18 +1,20 @@
 #!/usr/bin/env node
 /** houseatlas-model-bake: detailed master GLB (+ atlas-scene.json) -> overview
- * GLB, matching companion and a bake report. Reads and writes local files only. */
+ * GLB, matching companion, optional detail GLB and a bake report. Reads and
+ * writes local files only. */
+import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { admitInViewer, bindInViewer } from './src/admission.mjs';
-import { BAKE_DEFAULTS, bakeOverview } from './src/bake.mjs';
+import { BAKE_DEFAULTS, bakeDetail, bakeOverview } from './src/bake.mjs';
 
 const { values } = parseArgs({ options: {
-  model: { type: 'string' }, companion: { type: 'string' }, out: { type: 'string' },
+  model: { type: 'string' }, companion: { type: 'string' }, out: { type: 'string' }, detail: { type: 'boolean' },
   triangles: { type: 'string' }, 'max-error': { type: 'string' }, 'structure-weight': { type: 'string' }, 'site-weight': { type: 'string' }, weld: { type: 'string' },
 } });
 if (!values.model || !values.out) {
-  console.error('Usage: bake.mjs --model master.glb [--companion atlas-scene.json] --out DIR '
+  console.error('Usage: bake.mjs --model master.glb [--companion atlas-scene.json] --out DIR [--detail] '
     + `[--triangles ${BAKE_DEFAULTS.triangles}] [--max-error ${BAKE_DEFAULTS.maxError}] [--structure-weight ${BAKE_DEFAULTS.structureWeight}] [--site-weight ${BAKE_DEFAULTS.siteWeight}] [--weld ${BAKE_DEFAULTS.weld}]`);
   process.exit(2);
 }
@@ -28,19 +30,28 @@ const overrides = {
 // Outputs are only ever created, never overwritten: an --out that already holds
 // a file of the same name (the master itself, a link to it, an earlier bake) is
 // refused, before any bake work.
-const names = ['model.glb', ...(values.companion ? ['atlas-scene.json'] : []), 'bake-report.json'];
+const names = ['model.glb', ...(values.companion ? ['atlas-scene.json'] : []), ...(values.detail ? ['detail.glb'] : []), 'bake-report.json'];
 for (const name of names) if (existsSync(join(values.out, name)) || isSymlink(join(values.out, name)))
   throw new Error(`${join(values.out, name)} already exists; bake into an empty --out directory`);
 const started = Date.now();
 const master = new Uint8Array(readFileSync(values.model));
 const companion = values.companion ? JSON.parse(readFileSync(values.companion, 'utf8')) : null;
+const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
+const binding = model => ({ boundPrimitives: model.parts.length, roomPickPrimitives: model.parts.filter(part => part.occurrenceId !== null).length,
+  selectableOccurrences: model.selectable.size, levels: model.levelsById.size, buildings: model.buildingsById.size });
 const { glb, companion: baked, report } = await bakeOverview(master, companion, overrides);
 report.viewerAdmission = await admitInViewer(glb);
-if (baked) {
-  // The app's own scene admission and selector binding on the baked pair.
-  const model = await bindInViewer(glb, baked);
-  report.viewerBinding = { boundPrimitives: model.parts.length, roomPickPrimitives: model.parts.filter(part => part.occurrenceId !== null).length,
-    selectableOccurrences: model.selectable.size, levels: model.levelsById.size, buildings: model.buildingsById.size };
+// The app's own scene admission and selector binding on the baked pair.
+if (baked) report.viewerBinding = binding(await bindInViewer(glb, baked));
+let detail = null;
+if (values.detail) {
+  detail = await bakeDetail(master, companion);
+  const apart = value => value && JSON.stringify({ ...value, original: null });
+  if (apart(detail.companion) !== apart(baked)) throw new Error('The detail does not keep the overview companion');
+  // The publication.json `detail` pin, then the Full tier's own admission and binding.
+  report.detail = { file: 'detail.glb', contentType: 'model/gltf-binary', sha256: sha256(detail.glb), bytes: detail.glb.byteLength,
+    drawnTriangles: detail.drawnTriangles, viewerAdmission: await admitInViewer(detail.glb, 'detail') };
+  if (baked) report.detail.viewerBinding = binding(await bindInViewer(glb, baked, detail.glb));
 }
 report.seconds = (Date.now() - started) / 1000;
 mkdirSync(values.out, { recursive: true });
@@ -48,7 +59,8 @@ const create = (name, data) => {
   try { writeFileSync(join(values.out, name), data, { flag: 'wx' }); }
   catch (error) { if (error.code === 'EEXIST') throw new Error(`${join(values.out, name)} already exists; bake into an empty --out directory`); throw error; }
 };
-const outputs = [['model.glb', glb], ...(baked ? [['atlas-scene.json', JSON.stringify(baked)]] : []), ['bake-report.json', `${JSON.stringify(report, null, 2)}\n`]];
+const outputs = [['model.glb', glb], ...(baked ? [['atlas-scene.json', JSON.stringify(baked)]] : []), ...(detail ? [['detail.glb', detail.glb]] : []),
+  ['bake-report.json', `${JSON.stringify(report, null, 2)}\n`]];
 for (const [name, data] of outputs) create(name, data);
 const mib = bytes => (bytes / 1048576).toFixed(1);
 console.log(`master   ${mib(report.master.bytes)} MiB, ${report.master.drawnTriangles} triangles`);
@@ -56,4 +68,5 @@ console.log(`overview ${mib(report.overview.bytes)} MiB, ${report.overview.drawn
 console.log(`error    house context ${(report.contextErrorMetres * 1000).toFixed(1)} mm, structure ${(report.structureErrorMetres * 1000).toFixed(1)} mm, site ${(report.siteErrorMetres * 1000).toFixed(1)} mm`);
 console.log(`admitted by the viewer preflight; GPU ledger ${mib(report.viewerAdmission.gpuBytes)} MiB`);
 if (report.viewerBinding) console.log(`bound in the viewer: ${report.viewerBinding.boundPrimitives} primitives, ${report.viewerBinding.selectableOccurrences} selectable rooms`);
-if (baked) console.log(`companion sha256 ${(await import('node:crypto')).createHash('sha256').update(JSON.stringify(baked)).digest('hex')}`);
+if (report.detail) console.log(`detail   ${mib(report.detail.bytes)} MiB, ${report.detail.drawnTriangles} triangles, admitted at Full; GPU ledger ${mib(report.detail.viewerAdmission.gpuBytes)} MiB`);
+if (baked) console.log(`companion sha256 ${sha256(JSON.stringify(baked))}`);

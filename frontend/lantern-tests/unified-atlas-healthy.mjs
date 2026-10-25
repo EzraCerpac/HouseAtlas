@@ -130,6 +130,31 @@ assert.deepEqual(retainedPosition, positioned);
 assert.equal(unicodeRead.scene.coverage.exclusions[0].reason, unicode.coverage.exclusions[0]);
 assert.equal([...retainedPosition.anchor.basis].length, 1024);
 
+// Optional detail tier: the same publication unsimplified, admitted beside the
+// model and only after it. The reader still fetches the scene and the model only.
+const withDetail = composed.envelope.artifacts.concat({ artifactId: 'detail', role: 'detail', contentType: 'model/gltf-binary',
+  bytes: 150 * 1024 * 1024, sha256: 'd'.repeat(64), href: composed.href.replace('/artifacts/model?', '/artifacts/model-detail?') });
+const admitArtifacts = artifacts => {
+  const envelope = { ...composed.envelope, artifacts };
+  return scene.admitAtlasScene(envelope, { scope, publicationId: selection.publicationId }, new TextEncoder().encode(JSON.stringify(envelope)).byteLength);
+};
+assert.equal(read.scene.detail, null, 'a publication without a detail GLB has none');
+const { bytes: detailBytes, sha256: detailSha256, href: detailHref } = withDetail[1];
+assert.deepEqual(admitArtifacts(withDetail).detail, { bytes: detailBytes, sha256: detailSha256, href: detailHref });
+assert.throws(() => admitArtifacts([...withDetail].reverse()), error => error.reason === 'invalid', 'the model comes first');
+assert.throws(() => admitArtifacts([withDetail[0], { ...withDetail[1], role: 'model' }]), error => error.reason === 'invalid');
+assert.throws(() => admitArtifacts([withDetail[0], { ...withDetail[1], artifactId: 'model' }]), error => error.reason === 'invalid');
+assert.throws(() => admitArtifacts([...withDetail, withDetail[1]]), error => error.reason === 'too-large');
+assert.throws(() => admitArtifacts([withDetail[0], { ...withDetail[1], bytes: 256 * 1024 * 1024 + 1 }]), error => error.reason === 'too-large');
+const detailEnvelopeBytes = new TextEncoder().encode(JSON.stringify({ ...composed.envelope, artifacts: withDetail }));
+const detailCalls = [];
+const detailRead = await readUnifiedAtlas({ selection, signal: new AbortController().signal, origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true,
+  transport: createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(scope), envelopeBytes: detailEnvelopeBytes,
+    href: composed.href, glb, sha256: composed.sha256, manifestSha256: composed.manifestSha256, revision: SYNTHETIC_ATLAS.revision, onRequest: url => detailCalls.push(url) }) });
+assert.deepEqual(detailCalls, calls.slice(0, 2), 'the detail is never fetched with the scene');
+assert.equal(detailRead.scene.detail.href, detailHref);
+assert.deepEqual(Buffer.from(detailRead.model), Buffer.from(glb));
+
 // Admission-only projection at the 4,096-occurrence bound: four differently
 // ordered room/non-room feature references each, plus an empty occurrence and
 // an unbound context feature. No GLB binding or backend admission is claimed.

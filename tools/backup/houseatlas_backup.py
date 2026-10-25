@@ -213,15 +213,18 @@ def copy_models(service: Service, destination: Path) -> list[dict]:
 
 
 def check_pinned_original(manifest: Path) -> None:
-    """The served manifests pin the model file by digest and size; a copy whose
-    model no longer matches would not load, so it is not a valid backup."""
-    original = json.loads(manifest.read_text()).get("original")
-    if not isinstance(original, dict):
-        return
-    path = manifest.parent / original.get("file", "overview.glb")
-    if (not path.is_file() or path.stat().st_size != original.get("bytes")
-            or sha256_file(path) != original.get("sha256")):
-        raise StepFailed("model release", f"{path.name} differs from {manifest.name}")
+    """The served manifests pin the model file (and an optional detail model) by
+    digest and size; a copy whose model no longer matches would not load, so it
+    is not a valid backup."""
+    pinned = json.loads(manifest.read_text())
+    for key, default in (("original", "overview.glb"), ("detail", "detail.glb")):
+        pin = pinned.get(key)
+        if not isinstance(pin, dict):
+            continue
+        path = manifest.parent / pin.get("file", default)
+        if (not path.is_file() or path.stat().st_size != pin.get("bytes")
+                or sha256_file(path) != pin.get("sha256")):
+            raise StepFailed("model release", f"{path.name} differs from {manifest.name}")
 
 
 def check_models(root: Path, models: list[dict]) -> None:
