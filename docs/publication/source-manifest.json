@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "f88d8e10b83d00d0c845407759c94cff771c0fee26ec97b474e5d970228cd802",
+  "sourceDigestSha256": "5e6c25ffcdec1d3c4cfcba22f79bf1c44b2ecde0ec687edfab31224d1740735f",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6032,6 +6032,13 @@
       "owner": "contracts"
     },
     {
+      "path": "docs/contracts/measurement-linear-proposal.md",
+      "mode": "100644",
+      "bytes": 7985,
+      "sha256": "c9b3e7de3d090ec1bca15204aafc6bcb7c4e9f9c7a328ed7852ec0b856eaecef",
+      "owner": "contracts"
+    },
+    {
       "path": "docs/contracts/mutations-and-api.md",
       "mode": "100644",
       "bytes": 9337,
@@ -10971,6 +10978,27 @@
       "mode": "100644",
       "bytes": 3352,
       "sha256": "8ef31a636ae11e78eb2e9842f4f69f7b2c88fa670fba897bf4ff6aa077fad528",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/proposals/linear-v1/examples.json",
+      "mode": "100644",
+      "bytes": 8315,
+      "sha256": "c89b9692efb2b755b6c325e511d64a6b8840ff5bb02c186f579bb1de03a95f48",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/proposals/linear-v1/examples.test.mjs",
+      "mode": "100644",
+      "bytes": 3915,
+      "sha256": "97f38099bd6d094a9fa399beddcc160e795a2c4bbfd13f59050127a09e851048",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/proposals/linear-v1/schema.json",
+      "mode": "100644",
+      "bytes": 16520,
+      "sha256": "d6f22eca883a5b51672f04df0667a8f9dc5939d639847877eaa8804daedc352d",
       "owner": "contracts"
     },
     {
