@@ -23,12 +23,13 @@ async function load() {
   };
   const preflightURL = await source('src/lantern/canonical-ifc/glb-preflight.ts');
   const preflight = await import(preflightURL);
-  const material = await import(await source('src/lantern/canonical-ifc/embedded-png-material.ts', { './glb-preflight': preflightURL }));
+  const materialURL = await source('src/lantern/canonical-ifc/embedded-png-material.ts', { './glb-preflight': preflightURL });
+  const material = await import(materialURL);
   const geometryURL = await source('src/lantern/canonical-ifc/geometry.ts');
   const standard = await import(await source('src/lantern/canonical-ifc/standard-glb.ts', {
     three: new URL('node_modules/three/build/three.module.js', FRONTEND).href,
     'three/examples/jsm/loaders/GLTFLoader.js': new URL('node_modules/three/examples/jsm/loaders/GLTFLoader.js', FRONTEND).href,
-    './geometry': geometryURL, './glb-preflight': preflightURL,
+    './geometry': geometryURL, './glb-preflight': preflightURL, './embedded-png-material': materialURL,
   }));
   const scene = await import(await source('src/lantern/unified-atlas/scene.ts', {
     '../canonical-ifc/geometry': geometryURL, './types': await source('src/lantern/unified-atlas/types.ts'),
@@ -63,13 +64,14 @@ export function hostEnvelope(companion, glb) {
 }
 
 /** Admits the companion as the app reads it, loads the GLB through the
- * viewer's standard loader and binds every selector to exactly one drawn
+ * viewer's standard loader exactly as UnifiedAtlas does and binds every selector to exactly one drawn
  * primitive. Returns the bound model, or throws the viewer's own refusal. */
 export async function bindInViewer(glb, companion) {
   modules ??= await load();
   const envelope = hostEnvelope(companion, glb);
   const scene = modules.scene.admitAtlasScene(envelope, { scope: companion.scope, publicationId: companion.publicationId },
     Buffer.byteLength(JSON.stringify(envelope)));
-  const loaded = await modules.standard.loadStandardGlb(glb, 'atlas', new AbortController().signal);
+  // The app's own loader path, embedded PNG decoding and source shading included.
+  const loaded = await modules.standard.loadStandardGlb(glb, 'atlas', new AbortController().signal, undefined, { embeddedPngMaterials: true });
   return modules.scene.bindAtlasModel(scene, loaded);
 }

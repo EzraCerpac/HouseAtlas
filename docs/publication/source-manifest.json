@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0b548d4bf9600b80f85401bfcae9511ca496e359855eb73f92ace1178eb0f98d",
+  "sourceDigestSha256": "0970f5505e2dac0fd638cb3317d672c166781392335f0e22c95345488109ec9b",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -12124,8 +12124,8 @@
     {
       "path": "tools/model-bake/src/admission.mjs",
       "mode": "100644",
-      "bytes": 4859,
-      "sha256": "e152e1726b9a1b96f48d895aa76bbbb32501bdba93886656a80807eb6c4eb1fa",
+      "bytes": 5089,
+      "sha256": "beca343d6c59aee48933b891ad5e04552e0a190ab2d6cfd064304d469a0a5814",
       "owner": "media"
     },
     {
