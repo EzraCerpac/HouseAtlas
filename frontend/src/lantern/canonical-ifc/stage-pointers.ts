@@ -60,7 +60,8 @@ export function createStagePointers(options: {
       if (!d.moved) { event.currentTarget.setPointerCapture(event.pointerId); options.dragging(true); }
       g.drag = { ...d, x: event.clientX, y: event.clientY, moved: true };
       if (options.top) options.pan(value => ({ x: value.x + dx, y: value.y + dy }));
-      else options.orbit(value => ({ yaw: value.yaw + dx * .4, pitch: Math.min(68, Math.max(12, value.pitch - dy * .25)) }));
+      // The house follows the hand: right turns its near side right, down tips its top towards the viewer.
+      else options.orbit(value => ({ yaw: value.yaw - dx * .4, pitch: Math.min(68, Math.max(12, value.pitch + dy * .25)) }));
     },
     onPointerUp(event: StagePointer) {
       const multi = g.pinched, d = g.drag;

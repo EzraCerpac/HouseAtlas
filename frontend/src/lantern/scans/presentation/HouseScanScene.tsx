@@ -202,8 +202,8 @@ export function HouseScanScene(props: HouseScanSceneProps) {
     <div className={`stage${plan ? ' is-plan' : ''}`} tabIndex={0} aria-label="Scanned house. Drag to turn; arrow keys rotate; plus and minus zoom."
       onPointerDown={event => { if (plan || event.button !== 0 || (event.target as Element).closest('button,[role=button],.stage-ui')) return;
         drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY }; event.currentTarget.setPointerCapture(event.pointerId); }}
-      onPointerMove={event => { const d = drag.current; if (!d || d.id !== event.pointerId) return; setYaw(v => v + (event.clientX - d.x) * .4);
-        setPitch(v => Math.max(18, Math.min(64, v - (event.clientY - d.y) * .2))); drag.current = { ...d, x: event.clientX, y: event.clientY }; }}
+      onPointerMove={event => { const d = drag.current; if (!d || d.id !== event.pointerId) return; setYaw(v => v - (event.clientX - d.x) * .4);
+        setPitch(v => Math.max(18, Math.min(64, v + (event.clientY - d.y) * .2))); drag.current = { ...d, x: event.clientX, y: event.clientY }; }}
       onPointerUp={event => { drag.current = null; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
       onPointerCancel={() => { drag.current = null; }} onLostPointerCapture={() => { drag.current = null; }}
       onKeyDown={event => { if (event.target !== event.currentTarget || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '+', '=', '-'].includes(event.key)) return;

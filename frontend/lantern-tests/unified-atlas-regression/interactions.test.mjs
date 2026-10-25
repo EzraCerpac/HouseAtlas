@@ -406,7 +406,7 @@ test('normal pointer tap selects through the real CPU picker; drag or pinch chan
   handlers.onPointerDown(pointer(1, x, y)); handlers.onPointerUp(pointer(1, x, y));
   assert.equal(state.occurrenceId, 'syn-occ-hall');
   handlers.onPointerDown(pointer(2, x, y)); handlers.onPointerMove(pointer(2, x + 40, y)); handlers.onPointerUp(pointer(2, x + 40, y));
-  assert.equal(orbit.yaw, 16);
+  assert.equal(orbit.yaw, -16);
   assert.equal(taps, 1);
   handlers.onPointerDown(pointer(3, x, y, 'touch')); handlers.onPointerDown(pointer(4, x + 20, y, 'touch'));
   handlers.onPointerMove(pointer(4, x + 40, y, 'touch'));

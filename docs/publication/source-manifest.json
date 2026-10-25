@@ -23,8 +23,22 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c69662e72bb6746b8dfbec4013655c6d0dc5164abaf1989c055cf27e49195592",
+  "sourceDigestSha256": "061637eb4efe92206838dd591d9dce0f3ca16bee0f861ef75494714e02760775",
   "files": [
+    {
+      "path": ".github/actions/ordinary-save/action.yml",
+      "mode": "100644",
+      "bytes": 2237,
+      "sha256": "03c586c9cadbde833029a6d1238785efe9beea822d46a73a80e39f12da3327f6",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".github/actions/ordinary-setup/action.yml",
+      "mode": "100644",
+      "bytes": 4496,
+      "sha256": "d341ec6da68ad0b26cb9c2af62bcf7008b6d8cc524c8a511463948b1a36edaf4",
+      "owner": "core-integration"
+    },
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
       "mode": "100644",
@@ -63,8 +77,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 15784,
-      "sha256": "81d97bb09e039f16839e57fa1bc48a6c1b17d750938aa01b4597689431584765",
+      "bytes": 13449,
+      "sha256": "7a277c1d1f879b4595e559dca65686dfc0b5d6f23356fad0121180479a08a4fd",
       "owner": "core-integration"
     },
     {
@@ -6034,8 +6048,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 174701,
-      "sha256": "b3de5e3ee06bc5d799ec0be2a002ec2ce47af25a7dd49027212a9ea2b8a9d2bc",
+      "bytes": 175604,
+      "sha256": "e7cd5ce6c0546c0fe771b642b62974763b1d16c4dfe413893522eb424028769c",
       "owner": "core-integration"
     },
     {
@@ -7826,8 +7840,8 @@
     {
       "path": "frontend/lantern-tests/offline-launch-browser.mjs",
       "mode": "100644",
-      "bytes": 8227,
-      "sha256": "87f38f98f9550cca7a9f9c3db77acf90a79467b84cb1c0e31bf99259b2974c98",
+      "bytes": 8612,
+      "sha256": "d1b8bdcd2edbc731994c10fb088ecee63175377e90087891d381b35315e0dd59",
       "owner": "web"
     },
     {
@@ -8211,8 +8225,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
-      "bytes": 97627,
-      "sha256": "02b9cb5fff11f68a3fa6bf8b85dec75a7f21b6389e723a73445ac1a2c83a3085",
+      "bytes": 98698,
+      "sha256": "e1d99797f87b1e9fe98d66c2f1268e8c536d0c5b043b81a6004481ab64d69112",
       "owner": "web"
     },
     {
@@ -8260,8 +8274,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs",
       "mode": "100644",
-      "bytes": 66787,
-      "sha256": "b309e02e3aa1a2cc8a018b6a8ce67277f2be307ff58488c1a153a7be7bb93960",
+      "bytes": 66788,
+      "sha256": "d8a47bef080e8b77926272812f73efb182c8696b0cc949172a8259095f2b6100",
       "owner": "web"
     },
     {
@@ -8932,8 +8946,8 @@
     {
       "path": "frontend/src/lantern/atlas/AtlasView.tsx",
       "mode": "100644",
-      "bytes": 36404,
-      "sha256": "9f4038c8b0c4859d7bf13bc34f50ec0a275089742ae819a95e5de92f67578e04",
+      "bytes": 36464,
+      "sha256": "17dfbf5ad787a358a9d7de79fbe96145655adec937592e67113b733e59e2bce1",
       "owner": "web"
     },
     {
@@ -9121,8 +9135,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/stage-pointers.ts",
       "mode": "100644",
-      "bytes": 4600,
-      "sha256": "670018b7eadf2dd5eddb158aadb0aa7b556edb584afe9887cba83b18ca8e1760",
+      "bytes": 4708,
+      "sha256": "955e1784690a4241c7b339cd2e66a678e800446f4dbe8b0c0109c61c99206197",
       "owner": "web"
     },
     {
@@ -9822,7 +9836,7 @@
       "path": "frontend/src/lantern/scans/presentation/HouseScanScene.tsx",
       "mode": "100644",
       "bytes": 22185,
-      "sha256": "1dca4d175f642f110736711a9d1f9acf43866f0d97e3745b29f58436de88e482",
+      "sha256": "217bfb1e7e83f453f4f14b70167f1baf3a5ef5b89501bd1832be1eedea82c368",
       "owner": "web"
     },
     {
@@ -12635,8 +12649,8 @@
     {
       "path": "tools/rust-integration/check-source.mjs",
       "mode": "100644",
-      "bytes": 1953,
-      "sha256": "9ecfcd228b5887e13655f78bdc99c612c8de54329b7eead0628b9d441b9b72a5",
+      "bytes": 2366,
+      "sha256": "82accae98566eadff679c015ced3e5423587494ef9f62ae89184f0ef3f46a7c7",
       "owner": "core-integration"
     },
     {
