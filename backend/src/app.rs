@@ -1,5 +1,6 @@
 //! The actual access/storage/domain composition and original request authority.
 pub mod ai_native_startup;
+pub(crate) mod homebox_partition_catalog;
 pub mod homebox_presence;
 pub mod homebox_presence_command;
 pub mod homebox_presence_history;

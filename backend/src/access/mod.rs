@@ -11,6 +11,7 @@ pub mod historical_presence;
 mod lifecycle;
 mod metadata;
 mod network;
+mod partition_catalog;
 mod read;
 mod recovery;
 mod shared;
