@@ -22,12 +22,9 @@ and `fixtures.json`, the focused synthetic command for Claude's check handling i
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/homebox-quantity-seed-report -p test_report.py -v
 ```
 
-These new tests are **NOT RUN locally** in this handoff. They are not registered
-in any existing runner or workflow. The registration seam is this explicit
-`unittest` discovery command; any later CI registration belongs to its owner.
-Existing publication/source CI remains separate and does not imply these Python
-tests ran. Claude owns check execution, failures, conflicts, fixes and merge under
-the approved git-first workflow.
+Ordinary CI runs this command in `.github/workflows/ordinary-core.yml` with the
+runner's `python3` (the code is stdlib only). Passing tests cover the synthetic
+report only, not live provider reads, seeding or apply.
 
 For a synthetic report, the CLI accepts one input path, or `-` for stdin, and
 prints one complete JSON report to stdout:
