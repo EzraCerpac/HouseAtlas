@@ -50,9 +50,10 @@ targeting `main`. In `.github/workflows/rust-react-ordinary.yml` that includes
 the named Lantern healthy read; `frontend/lantern-tests/run-healthy.mjs` with
 its explicit list, including the `offline-launch` and `hung-network` cases in
 the runner's Chromium against the built public shell, the generated CPU
-mesh-preparation equivalence check, and the `webgl2` case of
+mesh-preparation equivalence check, the `webgl2` case of
 `mesh-layer-browser.mjs`, which draws generated meshes through MeshLayer in the
-runner's software GPU; and
+runner's software GPU, and the generated Unified Atlas compact layer-details
+and control-names checks (compiled source and markup only, no browser); and
 `cargo test --locked -p houseatlas-backend --lib` with its default
 (non-`#[ignore]`) set, skipping the three quantity tests that need
 `HOUSEATLAS_QUANTITY_REFERENCE_DIR`; and the healthy `tools/rust-integration`

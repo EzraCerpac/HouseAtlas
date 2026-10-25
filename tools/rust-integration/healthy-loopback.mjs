@@ -60,11 +60,11 @@ class Pipe {
       }
     });
   }
-  send(method, params = {}, sessionId) {
+  send(method, params = {}, sessionId, timeoutMs = 15000) {
     if (this.stopped) return Promise.reject(this.stopped);
     const id = ++this.next;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('CDP timeout: ' + method)); }, 15000);
+      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('CDP timeout: ' + method)); }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
       this.process.stdio[3].write(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + '\0', error => {
         if (method === 'Browser.getVersion') startupObservation?.written(error);
@@ -96,7 +96,9 @@ try {
   cdp = new Pipe(browser);
   let version;
   try {
-    version = await cdp.send('Browser.getVersion');
+    // A cold Chrome can page in for longer than 15 s while the runner's disk
+    // is still flushing the build (seen: main process in disk sleep, no CDP bytes).
+    version = await cdp.send('Browser.getVersion', {}, undefined, 60000);
     console.log(JSON.stringify({ startupOnly: true, product: version.product, milliseconds: Math.round(performance.now() - startupStarted), processObservation: startupObservation.snapshot() }));
   } catch (error) {
     console.error(JSON.stringify({ startupOnly: true, beforeAnyPageOrCookie: true,

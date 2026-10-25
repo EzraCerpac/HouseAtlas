@@ -24,12 +24,13 @@ import { AtlasReadError, type AtlasLevel, type AtlasOccurrence, type AtlasReadFa
   type UnifiedAtlasRead } from './types';
 import { PublishedOverlayDetails, PublishedUnplacedBinding } from './PublishedOverlayDetails';
 import { atlasLevelName, countClearedLabelY, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, labelHitWidth, placePlanRoomLabels, planLabelFrame, planLabelObstacles,
-  planRoomLabelFits, preparePlanLabelPaper, preparePlanLabelShape, visibleCountMarkers, visibleLabelHits, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
+  planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasExclusionText, atlasOccurrenceName, preparePlanLabelShape, visibleCountMarkers, visibleLabelHits, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
 import { documentaryOverlayIndex, type BuildingCoverage, type DocumentaryRecord, type PropertyRecords, type SourceFact } from './runtime-overlays';
 import { edgeSpans, estimatedOccurrences, MEASUREMENT_BASIS, placeLabels, roomArea } from './measurements';
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
 import { modelUpdatesAllowed, useModelUpdates } from './model-updates';
 import { NetworkGraph } from './NetworkGraph';
+import { LayerDetailsDock, useLayerDetailsFocus, useShortLayerDetails } from './LayerDetailsDock';
 import { NetworkStageConnections, networkRoomConnections } from './NetworkStageConnections';
 import type { NetworkConnections } from './network-connections';
 import { AreaValue, PLAN_ORDER, PlanRoom, PlanTile, planTileLevels } from './plan-presentation';
@@ -353,7 +354,8 @@ const COMPACT_STAGE = 720;
 /** Least height, in pixels, of the floor list beside a docked key column: All floors and one whole floor row. */
 const LADDER_FLOOR = 112;
 
-const laidOut = (node: Element) => getComputedStyle(node).display !== 'none';
+// A top-layer reading sheet never claims space in the map's fitted frame.
+const laidOut = (node: Element) => !node.matches(':modal') && getComputedStyle(node).display !== 'none';
 const showing = (node: Element) => laidOut(node) && getComputedStyle(node).visibility !== 'hidden';
 
 /** Each panel is cleared by the edge band that costs the frame least: every
@@ -572,6 +574,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   // the camera, the archive filter and the other sources fold into one menu,
   // the buildings into one chooser. One of them opens at a time.
   const [compact, setCompact] = useState(false);
+  const shortLayerDetails = useShortLayerDetails(compact);
   const [menu, setMenu] = useState<'view' | 'buildings' | null>(null);
   const layersKey = `${state.layers.electrical}${state.layers.network}${state.layers.measurements}`;
   const chrome = `${plan}\n${sheetOpen}\n${layersKey}\n${selected}\n${state.buildingId}\n${state.levelId}\n${state.exploded}\n${drawer}\n${showGraph}\n${compact}\n${lens?.kind}\n${readingInset}`;
@@ -734,7 +737,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
       // A binding with no record IDs keeps its tint and provenance but has no count to show.
       if (placement.recordCount === 0 || !onStage(occurrenceId)) continue;
       const at = anchorOf(occurrenceId); if (!at) continue;
-      rows.push({ key: `${layer.kind}:${occurrenceId}`, kind: layer.kind, occurrenceId, roomLabel: model.roomsById.get(placement.roomId)!.label,
+      rows.push({ key: `${layer.kind}:${occurrenceId}`, kind: layer.kind, occurrenceId, roomLabel: atlasOccurrenceName(model, occurrenceId),
         count: placement.recordCount, x: at.x + (spread ? (layer.kind === 'electrical' ? -MARKER_SPREAD : MARKER_SPREAD) : 0), y: at.y,
         context: !live.has(occurrenceId) });
     }
@@ -936,7 +939,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
     for (const ring of rings) for (const [x, z] of ring) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z); }
     const [x, y] = projection.project((minX + maxX) / 2, model.floorY.get(group.levelId)!, minZ);
-    return [{ key: group.levelId, text: model.buildingsById.get(model.levelsById.get(group.levelId)!.buildingId)!.label, x, y: y - 10 }];
+    return [{ key: group.levelId, text: atlasBuildingName(model, model.levelsById.get(group.levelId)!.buildingId), x, y: y - 10 }];
   }), [sitePlan, planGroups, model, projection]);
 
   // Stage buttons exist only where the whole control is in view: inside the
@@ -1014,13 +1017,14 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   const building = ladderBuildingId === null ? null : model.buildingsById.get(ladderBuildingId)!;
   const focusLevel = presentation.focusLevelId === null ? null : model.levelsById.get(presentation.focusLevelId)!;
   const scopeLabel = focusLevel ? atlasLevelName(model, focusLevel.levelId, buildings.length > 1)
-    : state.buildingId === null && model.scene.buildings.length > 1 ? 'all buildings' : building?.label ?? 'this model';
+    : state.buildingId === null && model.scene.buildings.length > 1 ? 'all buildings' : building ? atlasBuildingName(model, building.buildingId) : 'this model';
   const canExplode = !plan && hasExplodableLevels(model, state.buildingId);
   const selectionLevel = selected ? model.occurrencesById.get(selected)!.levelId : null;
   const contextLevels = new Set(context.map(key => model.occurrencesById.get(key)!.levelId));
   // One level out, named for where it leads.
-  const backTo = state.occurrenceId !== null ? (state.levelId !== null ? atlasLevelName(model, state.levelId) : building?.label ?? null)
-    : state.levelId !== null ? building?.label ?? null
+  const buildingName = building ? atlasBuildingName(model, building.buildingId) : null;
+  const backTo = state.occurrenceId !== null ? (state.levelId !== null ? atlasLevelName(model, state.levelId) : buildingName)
+    : state.levelId !== null ? buildingName
     : state.buildingId !== null ? 'All buildings' : null;
   const buildingNav = model.scene.buildings.length > 1 && buildings.length > 0;
   // One building chosen: the All buildings choice right below is the same step out, so Back would only repeat it.
@@ -1037,7 +1041,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   }, [drawer, tiles.length, hasKeys]);
   const fold = (which: 'floors' | 'layers') => setDrawer(value => value === which ? null : which);
   const floorsFold = useRef<HTMLButtonElement>(null), layersFold = useRef<HTMLButtonElement>(null);
-  const keysDock = useRef<HTMLDivElement>(null);
+  const keysDock = useRef<HTMLDialogElement>(null);
   const foldIds = useId();
   // Choosing another floor hands the stage back to the plan; focus stays on the fold that opened it.
   const chooseTile = (levelId: string) => {
@@ -1050,7 +1054,8 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   // out: it folds back and focus returns to its opener. The compact folds
   // keep their own behaviour.
   const stripEscape = (event: ReactKeyboardEvent<HTMLElement>) => {
-    if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing || compact || drawer !== 'floors') return;
+    if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing || compact || drawer !== 'floors'
+      || (event.target as HTMLElement).closest('.ua-layer-dialog[aria-modal="true"]')) return;
     if ((event.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]')) return;
     // A strip stepped aside under an open card is not the target.
     const strip = shell.current?.querySelector('.ua-tiles.is-unfolded');
@@ -1062,23 +1067,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   // keys focused in the dock unfold on a narrow stage, and the layer details
   // fold, hidden on a wide stage, hands focus to the docked keys. Focus the
   // browser already dropped is found where the stage guard kept it.
-  const modeFocus = useRef<HTMLElement | null>(null);
-  useLayoutEffect(() => {
-    const active = document.activeElement;
-    const origin = active instanceof HTMLElement && active !== document.body ? active : graphStageFocus.current;
-    if (!origin) return;
-    const keys = keysDock.current;
-    if (compact && keys?.contains(origin) && keys.getClientRects().length === 0) { modeFocus.current = origin; setDrawer('layers'); }
-    else if (!compact && origin === layersFold.current) {
-      setDrawer(value => value === 'layers' ? null : value);
-      keysDock.current?.querySelector<HTMLElement>('.ua-key-head')?.focus({ preventScroll: true });
-    }
-  }, [compact]);
-  useLayoutEffect(() => {
-    const target = modeFocus.current; modeFocus.current = null;
-    const lost = document.activeElement === null || document.activeElement === document.body;
-    if (target && lost && target.isConnected && target.getClientRects().length > 0) target.focus({ preventScroll: true });
-  }, [drawer]);
+  useLayerDetailsFocus({ compact, drawer, dock: keysDock, trigger: layersFold, focusOrigin: graphStageFocus, setDrawer });
 
   // The graph opens from the network key and returns focus there when it closes.
   const graphOpener = useRef<HTMLElement | null>(null), graphReturn = useRef<HTMLElement | null>(null);
@@ -1221,6 +1210,8 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   // An open compact menu, then the graph, is the first Escape target across
   // Atlas, including the viewport's camera handler.
   const graphEscape = (event: ReactKeyboardEvent<HTMLElement>) => {
+    // Modal key events belong to the reading sheet, before any map/menu Escape.
+    if ((event.target as HTMLElement).closest('.ua-layer-dialog[aria-modal="true"]')) return;
     if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing) return;
     if (menu !== null) {
       event.preventDefault(); event.stopPropagation();
@@ -1232,13 +1223,14 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   };
 
   const escape = (event: ReactKeyboardEvent<HTMLElement>) => {
-    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing
+      || (event.target as HTMLElement).closest('.ua-layer-dialog[aria-modal="true"]')) return;
     const target = event.target as HTMLElement;
     if (target.closest('input, textarea, select, [contenteditable="true"]')) return;
     event.preventDefault(); out();
   };
 
-  const pickLabel = state.buildingId === null ? 'All buildings' : building?.label ?? 'All buildings';
+  const pickLabel = state.buildingId === null ? 'All buildings' : buildingName ?? 'All buildings';
   return <section ref={shell} className={`ua-shell is-stage${plan ? ' is-plan' : ''}${sheetOpen ? ' is-sheet-open' : ''}${showGraph ? ' is-graph-open' : ''}${underGraph ? ' is-graph-covering' : ''}${compact ? ' is-compact' : ''}${lens ? ' has-lens' : ''}${readingInset ? ' is-inset' : ''}`}
     aria-label="Atlas" onKeyDownCapture={graphEscape} onKeyDown={escape}
     onFocusCapture={event => {
@@ -1283,9 +1275,9 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
           <button type="button" className="chip-btn" aria-pressed={state.buildingId === null}
             onClick={() => chooseBuilding(null)}><Icon name="atlas" size={15} />All buildings</button>
           {buildings.map(row => <button key={row.buildingId} type="button" className="chip-btn" aria-pressed={state.buildingId === row.buildingId}
-            onClick={() => chooseBuilding(row.buildingId)}><Icon name="building" size={15} />{row.label}</button>)}
+            onClick={() => chooseBuilding(row.buildingId)}><Icon name="building" size={15} />{atlasBuildingName(model, row.buildingId)}</button>)}
         </nav>}
-        <DatumLadder model={model} levels={ladderLevels} building={building} state={state} dispatch={dispatch}
+        <DatumLadder model={model} levels={ladderLevels} building={buildingName === null ? null : { label: buildingName }} state={state} dispatch={dispatch}
           shownLevel={plan ? presentation.focusLevelId : null} selectionLevel={selectionLevel} contextLevels={contextLevels} />
       </div>
 
@@ -1437,7 +1429,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
           data-atlas-occurrence={label.id} data-stage-key={`label:${label.id}`}
           style={label.plan ? { left: label.plan.x, top: label.plan.y, width: label.plan.width, height: label.plan.height,
             transform: `translate(-50%, -50%) rotate(${label.plan.angle}deg)` } : { left: label.x, top: label.y - TAG_RISE * label.rise, width: labelHitWidth(label.text) }}
-          aria-label={`Select room: ${label.text}`} onPointerDown={label.plan?.mode === 'callout' ? stop : undefined}
+          aria-label={`Select room: ${atlasOccurrenceName(model, label.id)}`} onPointerDown={label.plan?.mode === 'callout' ? stop : undefined}
           onPointerUp={label.plan?.mode === 'callout' ? stop : undefined}
           onClick={event => { if (label.plan?.mode === 'callout' || event.detail === 0) select(label.id); }} />)}
         {counts.map(row => <button key={row.key} type="button" className={`ua-marker${row.context ? ' is-context' : ''}`} data-stage-key={`marker:${row.key}`}
@@ -1452,16 +1444,24 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
       <div className="ua-bottom" inert={stageInert}>
         {/* The keys come first: on a wide stage they are the dock, and the
             floors strip sits just before the fold that opens it. */}
-        {hasKeys && <div ref={keysDock} id={`${foldIds}-layers`} className={`ua-keys${drawer === 'layers' ? ' is-unfolded' : ''}`}>
+        {hasKeys && <LayerDetailsDock dock={keysDock} trigger={layersFold} id={`${foldIds}-layers`}
+          short={shortLayerDetails} expanded={drawer === 'layers'} close={() => setDrawer(null)}>
           {active.map(layer => <OverlayKey key={layer.kind} layer={layer} records={runtime.records}
             connectionCoverage={layer.kind === 'network' ? networkConnections.coverage : null}
             buildings={runtime.buildings}
-            publishedOnly={!runtimeConfigured} openDocuments={environment.openDocuments}
+            publishedOnly={!runtimeConfigured} openDocuments={environment.openDocuments && (() => {
+              if (shortLayerDetails) setDrawer(null); environment.openDocuments?.();
+            })}
             availability={runtime.records?.[layer.kind] ?? (!runtimeConfigured ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
-            openNetwork={environment.openNetwork}
-            graph={layer.kind === 'network' && graphs.length > 0 ? lensGraph ?? { id: graphId, open: showGraph, toggle: toggleGraph } : null} />)}
+            openNetwork={environment.openNetwork && (() => {
+              if (shortLayerDetails) setDrawer(null); environment.openNetwork?.();
+            })}
+            graph={layer.kind === 'network' && graphs.length > 0 ? {
+              id: lensGraph?.id ?? graphId, open: lensGraph?.open ?? showGraph,
+              toggle: () => { if (shortLayerDetails) setDrawer(null); (lensGraph?.toggle ?? toggleGraph)(); },
+            } : null} />)}
           {measuring && <MeasurementKey estimated={estimated} shown={measured.length} />}
-        </div>}
+        </LayerDetailsDock>}
         {tiles.length > 0 && <nav id={`${foldIds}-floors`} className={`ua-tiles${drawer === 'floors' ? ' is-unfolded' : ''}`} aria-label="Other floors">
           {tiles.map(level => <PlanTile key={level.levelId} model={model} level={level} layers={active} tints={tints} selected={selected}
             name={atlasLevelName(model, level.levelId, buildings.length > 1)} choose={() => chooseTile(level.levelId)} />)}
@@ -1474,6 +1474,7 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
             <Icon name="layers" size={16} /><span>Other floors</span>{' '}<span className="ua-fold-count">{tiles.length.toLocaleString()}</span>
             <Icon name="chevronDown" size={15} /></button>}
           {hasKeys && <button ref={layersFold} type="button" className="ua-fold ua-fold-layers" aria-expanded={drawer === 'layers'} aria-controls={`${foldIds}-layers`}
+            aria-haspopup={shortLayerDetails ? 'dialog' : undefined}
             onClick={() => fold('layers')}>
             <Icon name="info" size={16} /><span>Layer details</span>{' '}<span className="ua-fold-count">{keysCount.toLocaleString()}</span>
             <Icon name="chevronDown" size={15} /></button>}
@@ -1819,9 +1820,9 @@ function RoomList({ model, levels, choose, levelName }: {
         <h3>{levelName(level.levelId)}</h3>
         {keys.length === 0 ? <p className="ua-empty">No selectable rooms.</p>
           : <ul>{keys.map(key => {
-            const occurrence = model.occurrencesById.get(key)!, room = model.roomsById.get(occurrence.roomId)!;
+            const occurrence = model.occurrencesById.get(key)!;
             return <li key={key}><button type="button" className="ua-room-btn" onClick={() => choose(key)}>
-              <span>{room.label}</span>
+              <span>{atlasOccurrenceName(model, key)}</span>
               {occurrence.geometryBasis.kind === 'owner-estimated-pick-proxy' && <span className="ua-tag">Preliminary</span>}
             </button></li>;
           })}</ul>}
@@ -1844,7 +1845,7 @@ function SourceDetails({ model, occurrence, room, renderFailure, overlayReason, 
     <summary>Source</summary>
     <dl>
       <div><dt>Model revision</dt><dd>{publication.sourceRevisionId}</dd></div>
-      <div><dt>Model file</dt><dd><code title={model.scene.model.sha256}>{model.scene.model.sha256.slice(0, 12)}</code>, {(model.scene.model.bytes / 1_048_576).toFixed(1)} MiB</dd></div>
+      <div><dt>Model file</dt><dd>{(model.scene.model.bytes / 1_048_576).toFixed(1)} MiB, SHA-256 <code className="ua-hash">{model.scene.model.sha256}</code></dd></div>
       {renderFailure && <div><dt>3D diagnostic</dt><dd>{renderFailure}</dd></div>}
       {overlayReason !== 'not-loaded' && <div><dt>Overlay source</dt><dd>{overlayReason}</dd></div>}
       {runtimeSource?.map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value ?? 'unknown'}</dd></div>)}
@@ -1855,11 +1856,10 @@ function SourceDetails({ model, occurrence, room, renderFailure, overlayReason, 
       <div><dt>Position</dt><dd>Model frame only. Not aligned to the physical site.</dd></div>
       {elevations.length > 0 && <div><dt>Source elevations</dt><dd><ul>{elevations.map(level => <li key={level.levelId}>{atlasLevelName(model, level.levelId, model.scene.buildings.length > 1)}: {level.sourceElevationM !== null ? `${elevation(level.sourceElevationM)}; ` : ''}{level.elevationBasis ?? 'Datum not specified.'} <code>{level.levelId}</code></li>)}</ul></dd></div>}
       {coverage.exclusions.length > 0 && <div><dt>Not selectable</dt><dd><ul>
-        {coverage.exclusions.map((row, at) => <li key={at}>{row.id && model.occurrencesById.has(row.id)
-          ? model.roomsById.get(model.occurrencesById.get(row.id)!.roomId)!.label : row.id ?? 'Unnamed'}{row.reason ? `: ${row.reason}` : ''}</li>)}
+        {coverage.exclusions.map((row, at) => <li key={at}>{atlasExclusionText(model, row)}</li>)}
       </ul></dd></div>}
       {unpositioned.length > 0 && <div><dt>No model position</dt><dd><ul>
-        {unpositioned.map(row => <li key={row.roomId}>{row.label}, {model.buildingsById.get(row.buildingId)!.label}</li>)}
+        {unpositioned.map(row => <li key={row.roomId}>{row.label}, {atlasBuildingName(model, row.buildingId)}</li>)}
       </ul></dd></div>}
     </dl>
   </details>;
