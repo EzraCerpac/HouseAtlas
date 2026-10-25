@@ -75,7 +75,8 @@ export function createOutbox(options: OutboxOptions): Outbox {
   const syncedListeners = new Set<(entries: readonly OutboxEntry[]) => void>(), immediate = new Set<string>();
   let entries: OutboxEntry[] = [], context: OutboxContext | null = null, syncing = false, loaded = false;
   let snapshot: OutboxSnapshot = { entries, waiting: 0, needsYou: 0, syncing, loaded };
-  let draining: Promise<void> | null = null, wanted: Scope | null = null;
+  // Sends the person asked for, and whether an automatic retry is due.
+  let draining: Promise<void> | null = null, asked: Scope | null = null, automatic = false;
 
   function publish(): void {
     snapshot = { entries, syncing, loaded,
@@ -174,15 +175,19 @@ export function createOutbox(options: OutboxOptions): Outbox {
   }
   async function drain({ force = false, only }: { force?: boolean; only?: string } = {}): Promise<void> {
     if (!force && syncMode() === 'ask') return;
-    wanted = wanted === 'all' || !only ? 'all' : new Set([...(wanted ?? []), only]);
+    if (!force) automatic = true;
+    else asked = asked === 'all' || !only ? 'all' : new Set([...(asked ?? []), only]);
     if (draining) return draining;
     draining = (async () => {
-      while (wanted) {
-        const scope = wanted, active = context;
-        wanted = null;
+      while (asked || automatic) {
+        const requested = asked, retry = automatic, active = context;
+        asked = null; automatic = false;
         if (!active) break;
         syncing = true; publish();
-        try { await lock(() => pass(active, scope)); }
+        // A retry that waited for another tab's send asks again: the person
+        // may have chosen "When I ask" meanwhile.
+        const scope = () => retry && syncMode() !== 'ask' ? 'all' : requested;
+        try { await lock(async () => { const now = scope(); if (now) await pass(active, now); }); }
         catch { /* Storage failed; queued entries stay as they are. */ }
         finally { syncing = false; publish(); }
       }

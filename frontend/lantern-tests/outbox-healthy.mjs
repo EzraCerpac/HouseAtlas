@@ -358,6 +358,31 @@ for (const lateChange of ['sign-out', 'abort']) {
   setSyncMode('automatic');
 }
 
+// An automatic retry that waits for another tab's send sends nothing if the
+// person chose "When I ask" before its turn came.
+{
+  const disk = createSyntheticDisk(), server = createServer();
+  let tail = Promise.resolve(), hold;
+  const lock = work => { const run = tail.then(work); tail = run.catch(() => undefined); return run; };
+  const outbox = outboxOn(disk, server, { lock });
+  server.online = false;
+  outbox.configure(context);
+  const entry = await outbox.submit(submission('larder', 1));
+  server.online = true;
+  lock(() => new Promise(resolve => { hold = resolve; })); // Another tab is sending.
+  const retry = outbox.drain();
+  await new Promise(resolve => setTimeout(resolve, 10));
+  setSyncMode('ask');
+  hold();
+  await retry;
+  assert.equal(outbox.getSnapshot().entries.find(row => row.id === entry.id).state, 'waiting');
+  assert.equal(server.posts.length, 0, 'The obsolete retry sent nothing');
+  // Send now still goes through.
+  await outbox.drain({ force: true });
+  assert.equal(outbox.getSnapshot().entries.find(row => row.id === entry.id).state, 'synced');
+  setSyncMode('automatic');
+}
+
 // Only the most recent synced entries are kept for the recent list.
 {
   const disk = createSyntheticDisk(), server = createServer(), outbox = outboxOn(disk, server);
@@ -368,4 +393,4 @@ for (const lateChange of ['sign-out', 'abort']) {
   assert.equal(kept.at(-1).target.recordId, `room-${KEEP_SYNCED + 2}`);
   assert.equal(syntheticRecords(disk, OUTBOX_DATABASE, 'entries').length, KEEP_SYNCED);
 }
-console.log(JSON.stringify({ outbox: 'healthy', cases: 16 }));
+console.log(JSON.stringify({ outbox: 'healthy', cases: 17 }));
