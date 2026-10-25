@@ -1,4 +1,5 @@
-//! Only healthy, offline synthetic examples. No stopped control categories.
+//! Offline synthetic examples. Runtime-route admission uses in-memory peers;
+//! no live credential, provider, listener or account operation is exercised.
 use super::*;
 use serde_json::{Value, json};
 use std::{
@@ -314,6 +315,119 @@ fn healthy_connection_and_browser_dto() {
             ..
         }
     ));
+}
+
+/// A credential-free observation stub. It cannot enroll, sign in or submit I/O.
+struct ObservedConnection(ConnectionSnapshot);
+impl ConnectionPort<SyntheticContext> for ObservedConnection {
+    fn check<'a>(
+        &'a self,
+        _: &'a SyntheticContext,
+        _: &'a str,
+        _: &'a Cancellation,
+    ) -> PortFuture<'a, ConnectionSnapshot> {
+        Box::pin(async { Ok(self.0.clone()) })
+    }
+}
+
+#[test]
+fn runtime_route_requires_an_inference_owner_and_independent_admission() {
+    let context = SyntheticContext {
+        workspace: String::new(),
+        home: String::new(),
+    };
+    let original = ready(HealthyConnection.check(
+        &context,
+        "synthetic-selected-model",
+        &Cancellation::default(),
+    ))
+    .unwrap();
+    for (kind, route) in [
+        (RuntimeKind::Hosted, RuntimeRoute::IssuedWebsiteClient),
+        (RuntimeKind::Local, RuntimeRoute::LocalInferenceCompanion),
+    ] {
+        let mut snapshot = original.clone();
+        snapshot.runtime.kind = kind;
+        snapshot.runtime.route = route;
+        assert!(snapshot.can_infer());
+        let mut held = snapshot.clone();
+        held.runtime.qualification = RuntimeQualification::Held;
+        assert!(!held.can_infer());
+        for availability in [
+            RuntimeAvailability::Unknown,
+            RuntimeAvailability::Sleeping,
+            RuntimeAvailability::Unreachable,
+        ] {
+            held = snapshot.clone();
+            held.runtime.availability = availability;
+            assert!(!held.can_infer());
+        }
+        held = snapshot.clone();
+        held.paid_use_admission = PaidUseAdmission::Held;
+        assert!(!held.can_infer());
+        held = snapshot;
+        held.permission = InferencePermission::Unknown;
+        assert!(!held.can_infer());
+    }
+}
+
+#[test]
+fn helper_and_unset_routes_finish_without_inference_or_domain_dispatch() {
+    let context = SyntheticContext {
+        workspace: String::new(),
+        home: String::new(),
+    };
+    let original = ready(HealthyConnection.check(
+        &context,
+        "synthetic-selected-model",
+        &Cancellation::default(),
+    ))
+    .unwrap();
+    for kind in [RuntimeKind::Local, RuntimeKind::Hosted] {
+        for route in [RuntimeRoute::Unset, RuntimeRoute::LocalSignInHelper] {
+            // All other facts are admitted: the route alone must stop the
+            // actual runner before it reaches inference or shared-domain work.
+            let mut snapshot = original.clone();
+            snapshot.runtime.kind = kind;
+            snapshot.runtime.route = route;
+            let connection = ObservedConnection(snapshot);
+            let inference = HealthyInference {
+                requests: Mutex::new(vec![]),
+            };
+            let catalog = HealthyCatalog {
+                dispatched: Mutex::new(vec![]),
+            };
+            let usage = HealthyUsage::default();
+            let runner = AiRunner {
+                connection: &connection,
+                inference: &inference,
+                catalog: &catalog,
+                usage: &usage,
+                continuations: &HealthyStore,
+            };
+            let outcome = ready(runner.run(
+                &context,
+                "synthetic-selected-model",
+                RunInput {
+                    request_id: "synthetic-helper-request".into(),
+                    prompt: "Synthetic request".into(),
+                },
+                &Cancellation::default(),
+                RunLimits::default(),
+            ))
+            .unwrap();
+            assert_eq!(
+                serde_json::to_value(outcome).unwrap(),
+                json!({
+                    "status":"failed", "reason":"connection-unavailable", "operationIds":[],
+                    "usage":{"inputTokens":null,"outputTokens":null,"totalTokens":null}
+                })
+            );
+            assert!(inference.requests.lock().unwrap().is_empty());
+            assert!(catalog.dispatched.lock().unwrap().is_empty());
+            assert!(usage.0.lock().unwrap().is_empty());
+        }
+    }
 }
 
 // Historical fixture peer only. Production uses StockCatalog with exact wire3.

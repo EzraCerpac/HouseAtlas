@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
-import { admitInViewer } from '../src/admission.mjs';
+import { admitInViewer, bindInViewer } from '../src/admission.mjs';
 import { bakeOverview } from '../src/bake.mjs';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { localMatrix, maxScale, multiply, readAccessor, readGlb, writeGlb } from '../src/glb.mjs';
@@ -143,6 +144,7 @@ const drawnTriangles = glb => {
   return json.nodes.filter(node => node.mesh !== undefined)
     .reduce((sum, node) => sum + readAccessor(json, bin, json.meshes[node.mesh].primitives[0].indices).length / 3, 0);
 };
+const trianglesIn = glb => { const { json } = readGlb(glb); return json.meshes.flatMap(m => m.primitives).reduce((sum, p) => sum + json.accessors[p.indices].count / 3, 0); };
 const row = (result, name) => result.report.primitives.find(p => p.name === name);
 
 test('bakes to the budget with one shared error and locked footprints', async () => {
@@ -315,4 +317,76 @@ test('keeps textured primitives as authored', async () => {
   assert.deepEqual(uv({ json, bin }, 'TEXCOORD_0'), uv(master, 'TEXCOORD_0'));
   assert.equal(json.images.length, 1);
   assert.ok(row(result, 'Wall').changed);
+});
+
+/** The frontend's generated unified Atlas publication (three buildings, split
+ * levels, shared slabs, rooms on two floors, overlays), loaded the way the
+ * lantern tests load it. */
+async function syntheticAtlas() {
+  const file = new URL('../../../frontend/lantern-tests/unified-atlas/synthetic-atlas.ts', import.meta.url);
+  const { transformWithOxc } = await import(createRequire(new URL('../../../frontend/package.json', import.meta.url)).resolve('vite'));
+  const { code } = await transformWithOxc(readFileSync(file, 'utf8'), file.pathname, { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
+  const { buildSyntheticAtlas } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
+  const { glb, companionBytes } = await buildSyntheticAtlas({ workspaceId: '00000000-0000-4000-8000-000000000800', homeId: '00000000-0000-4000-8000-000000000801' });
+  return { glb, companion: JSON.parse(new TextDecoder().decode(companionBytes)) };
+}
+
+/** Splits every triangle into four, `times` times, in place: the same nodes,
+ * meshes and primitive slots with 4^times the triangles, so the bake has real
+ * work on a publication whose selectors must still bind. */
+function densify(glb, times) {
+  const { json, bin } = readGlb(glb), parts = [], accessors = [], views = [];
+  let length = 0;
+  const add = (array, type, componentType, extra = {}) => {
+    const bytes = new Uint8Array(array.buffer.slice(0));
+    views.push({ buffer: 0, byteOffset: length, byteLength: bytes.byteLength });
+    parts.push(bytes); length += bytes.byteLength;
+    accessors.push({ bufferView: views.length - 1, componentType, count: array.length / { SCALAR: 1, VEC3: 3 }[type], type, ...extra });
+    return accessors.length - 1;
+  };
+  for (const mesh of json.meshes) mesh.primitives = mesh.primitives.map(primitive => {
+    const positions = [...readAccessor(json, bin, primitive.attributes.POSITION)];
+    let indices = [...readAccessor(json, bin, primitive.indices)];
+    for (let round = 0; round < times; round++) {
+      const midpoints = new Map(), next = [];
+      const mid = (a, b) => {
+        const key = a < b ? `${a}/${b}` : `${b}/${a}`;
+        if (!midpoints.has(key)) { midpoints.set(key, positions.length / 3); for (let c = 0; c < 3; c++) positions.push((positions[a * 3 + c] + positions[b * 3 + c]) / 2); }
+        return midpoints.get(key);
+      };
+      for (let t = 0; t < indices.length; t += 3) {
+        const [a, b, c] = indices.slice(t, t + 3), ab = mid(a, b), bc = mid(b, c), ca = mid(c, a);
+        next.push(a, ab, ca, ab, b, bc, ca, bc, c, ab, bc, ca);
+      }
+      indices = next;
+    }
+    const { min, max } = json.accessors[primitive.attributes.POSITION];
+    return { ...primitive, attributes: { POSITION: add(Float32Array.from(positions), 'VEC3', 5126, { min, max }) }, indices: add(Uint32Array.from(indices), 'SCALAR', 5125) };
+  });
+  const out = new Uint8Array(length); let at = 0;
+  for (const part of parts) { out.set(part, at); at += part.byteLength; }
+  return writeGlb({ ...json, accessors, bufferViews: views, buffers: [{ byteLength: length }] }, out);
+}
+
+test('a baked publication binds in the viewer with every identity intact', async () => {
+  const atlas = await syntheticAtlas(), glb = densify(atlas.glb, 3);
+  const companion = { ...atlas.companion, original: { sha256: sha256(glb), bytes: glb.byteLength } };
+  const before = await bindInViewer(glb, companion);
+  const result = await bakeOverview(glb, companion, { triangles: Math.floor(trianglesIn(glb) * 0.6) });
+  // Room-pick and slab parts are locked; structure, roof and context are simplified.
+  assert.ok(result.report.primitives.filter(p => p.changed).length >= 5, 'the bake simplified the densified parts');
+  // The baked companion is a new revision: it pins the new bytes and nothing else changes.
+  assert.deepEqual({ ...result.companion, original: null }, { ...companion, original: null });
+  const after = await bindInViewer(result.glb, result.companion);
+  // Selection, floors and exploded views key off these: the same primitive slots,
+  // roles, buildings, levels and pick occurrences, in the same order.
+  const identity = model => model.parts.map(part => [part.mesh.meshKey, part.role, part.buildingId, part.levelIds, part.levelId, part.occurrenceId]);
+  assert.deepEqual(identity(after), identity(before));
+  assert.deepEqual([...after.selectable].sort(), [...before.selectable].sort());
+  assert.deepEqual([...after.pickParts.keys()].sort(), [...before.pickParts.keys()].sort());
+  assert.deepEqual([...after.levelsByBuilding.entries()], [...before.levelsByBuilding.entries()]);
+  // Room-pick primitives are locked, so picking hits exactly the authored shapes.
+  for (const [occurrence, parts] of before.pickParts) assert.deepEqual(after.pickParts.get(occurrence).map(part => part.mesh.triangles), parts.map(part => part.mesh.triangles));
+  // An unclaimed primitive is refused, not drawn without identity.
+  await assert.rejects(bindInViewer(result.glb, { ...result.companion, meshBindings: result.companion.meshBindings.slice(1) }));
 });

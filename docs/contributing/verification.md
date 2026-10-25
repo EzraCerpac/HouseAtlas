@@ -31,6 +31,17 @@ commands, including the session-policy, capture-draft controller and
 native-place-levels-intake (concurrency) selections; those keep their own lanes below. A check added to this directory is
 not run by CI until it is added to the list.
 
+The same `frontend checks` job then runs the model bake tests
+(`tools/model-bake/test/bake.test.mjs`) on generated geometry. They bake
+generated masters to budget and run the viewer's own preflight, scene admission
+and selector binding on the results, including the generated unified Atlas
+publication densified and baked:
+
+```sh
+npm ci --prefix tools/model-bake
+node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs
+```
+
 ## Real-browser offline launch
 
 `frontend/lantern-tests/offline-launch-browser.mjs` serves the built `dist/` on

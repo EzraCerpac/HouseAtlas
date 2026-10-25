@@ -55,7 +55,9 @@ mesh-preparation equivalence check, the `webgl2` case of
 runner's software GPU, and the generated Unified Atlas compact layer-details
 and control-names checks (compiled source and markup only, no browser), and
 the generated offline outbox check (synthetic IndexedDB and a generated
-server, no browser or network); and
+server, no browser or network); the `tools/model-bake` tests on generated
+geometry, including viewer admission and selector binding of a baked generated
+unified Atlas publication; and
 `cargo test --locked -p houseatlas-backend --lib` with its default
 (non-`#[ignore]`) set, skipping the three quantity tests that need
 `HOUSEATLAS_QUANTITY_REFERENCE_DIR`; and the healthy `tools/rust-integration`

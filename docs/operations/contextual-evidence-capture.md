@@ -147,3 +147,46 @@ replay, expiry, revocation, crash, recovery or deployment case is executed. The
 picker case uses cancellation events and a narrow mobile viewport in Chromium;
 it is synthetic mobile-emulation evidence, not an iPhone interruption result.
 Root retains README/CI/publication-manifest ownership and must qualify composition.
+
+## Foreground source fixtures for #296
+
+The source review at public main `a9c9fd340e09f5866f31b528a09d270aa1860ff4`
+found existing target-generation retirement, fresh native admission, synchronous
+one-shot dispatch and original-byte/receipt correlation checks. The following
+fixtures add coverage of those existing seams without changing production code.
+They reuse only the five checked-in generated originals above.
+
+```sh
+node frontend/capture-evidence-tests/selection.mjs --case selection-cancel-reselect
+node frontend/capture-evidence-tests/foreground.mjs stale-target-preparation
+node frontend/capture-evidence-tests/foreground.mjs one-shot-originals
+node frontend/capture-evidence-tests/foreground.mjs original-byte-mismatch
+node frontend/capture-evidence-tests/foreground.mjs receipt-digest-mismatch
+```
+
+Each command selects one bounded source fixture; none is added to the ordinary
+CI runner. The selection case holds header and full-text File reads, aborts the
+old caller, selects a replacement before the old read settles, and then selects
+the same original File again. It does not mount EvidencePicker or dispatch a DOM
+cancel event, so form retention, input reset, focus and close/unmount behavior
+still require their separate UI evidence.
+
+The foreground cases load the actual native evidence client, selection code
+and pinned validators, with an injected in-memory exchange. A held fresh
+admission reply cannot revive preparation after a binding generation change
+(even with identical scope IDs), session-owner change or caller cancellation.
+Explicit fresh preparation is exercised separately, with no dispatch. The
+five-format case checks exact multipart File bytes, target/request correlation,
+opaque picker labels, unknown fact provenance and one fake POST despite a
+second commit call both before and after settlement. The rejection cases change
+one byte at equal file size, or supply a schema-valid receipt with the wrong
+asset SHA-256; the latter must remain unknown and block another attempt.
+
+These are fixture definitions, not reported passes. Under the git-first
+handoff they were prepared without local execution. They perform no network,
+native mutation, browser upload or original download GET; generated receipt
+acceptance does not establish actual server custody or download-byte equality.
+Existing native/loopback fixtures retain those separate responsibilities.
+Interactive browser/device acceptance stays deferred, native recovery remains
+with #286, and HEIC/HEIF remains unsupported without conversion. No CI scope,
+renderer, cache, PDF-page handling or recovery implementation is changed here.

@@ -40,8 +40,8 @@ pub struct NativeCatalog {
 
 impl NativeCatalog {
     /// Principal-scoped admission is supplied by the host's qualified owner composition. Published
-    /// capabilityStatus metadata alone never enables an operation. Family schemas
-    /// retain the full published union; prepare also checks this exact admission.
+    /// capabilityStatus metadata alone never enables an operation. Input schemas
+    /// select admitted top-level arms; prepare also checks this exact admission.
     pub fn with_admitted_operations(
         schemas: &NativeSchemas,
         principal: &NativePrincipal,
@@ -71,7 +71,7 @@ impl NativeCatalog {
                 name: family.name.as_str().into(),
                 title: None,
                 description: "Published stock wire3 envelope. The host admits individual operations; catalog disposition is not runtime authority.".into(),
-                input_schema: schemas.schema(&family.input_schema)?,
+                input_schema: schemas.admitted_input_schema(&family.input_schema, &admitted)?,
                 output_schema: Some(schemas.schema(&family.output_schema)?),
                 annotations: Some(ToolAnnotations {
                     read_only_hint: Some(read_only),
