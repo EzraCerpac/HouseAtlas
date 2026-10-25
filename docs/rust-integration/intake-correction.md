@@ -16,11 +16,18 @@ that work's permit while SQLite/scrypt execution remains active.
 Login requires the checked actual request authority, exact trusted Origin and
 absent or same-origin fetch-site metadata before collecting body bytes. A
 supplementary process-local transport gate permits at most 60 attempts per
-minute globally and 10 per actual connection IP per five minutes. Its map holds
+minute globally and 10 per client key per five minutes. The client key is the
+actual connection's IPv4 address (also for IPv4-mapped IPv6) or its IPv6 /64.
+Peers in one /64, including every `fe80::/64` link-local peer, share one budget
+and can throttle each other's sign-in. Its map holds
 at most 1024 active client buckets, expires only elapsed buckets and denies new
 keys at capacity. It uses monotonic time. The actual access boundary still
-checks Origin and its persisted global/client/username rates and credentials;
-the transport gate issues no principal, session or replacement capability.
+checks Origin, its persisted global and per-client attempt rates, and
+credentials. Only failed verifications count toward its per-client username
+rate, so another client cannot lock out a correct password; no cross-client
+attempt rate exists per username, and the global rate bounds distributed
+guessing. The transport gate issues no principal, session or replacement
+capability.
 
 Login and mutation streams retain their 4096-byte and 1 MiB actual byte caps.
 A ten-second timeout covers each complete body collection. Timeout uses the

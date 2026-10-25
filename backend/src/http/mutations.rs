@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{
     access as a,
-    app::{Access, HomeAuthority, RequestPrincipal, Store},
+    app::{Access, HomeAuthority, RequestPrincipal, Store, access_domain},
     contracts as c,
     contracts::semantics as sem,
     domain as d,
@@ -337,15 +337,6 @@ impl s::Authorization for MutateAuthority<'_, '_, '_> {
             })
     }
 }
-pub(super) fn access_domain(error: a::AccessError) -> d::DomainError {
-    match error {
-        a::AccessError::Unauthenticated => d::DomainError::Unauthenticated,
-        a::AccessError::NotFound => d::DomainError::NotFound,
-        a::AccessError::Unavailable => d::DomainError::UpstreamUnavailable,
-        a::AccessError::InvalidInput => d::DomainError::InvalidContract,
-        _ => d::DomainError::Forbidden,
-    }
-}
 pub(super) struct WriteFailure(pub(super) d::DomainError);
 impl From<a::AccessError> for WriteFailure {
     fn from(error: a::AccessError) -> Self {
@@ -489,7 +480,7 @@ async fn command(
             .core
             .lock()
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-        let url = format!("{}{}", capture_host.origin, uri.path());
+        let url = super::auth::url(&capture_host, &uri);
         let observed = evidence(&capture_host.origin, &capture_checked, &uri, &url, &method)
             .map_err(access_error)?;
         let principal = core

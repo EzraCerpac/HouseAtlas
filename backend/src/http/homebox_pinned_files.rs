@@ -309,11 +309,7 @@ async fn capture_selected(
                 };
                 let (source_grant, partition_grant, session, session_expires_at_ms) = {
                     let mut boundary = access.lock().map_err(|_| unavailable())?;
-                    let url = format!(
-                        "{}{}",
-                        host.origin,
-                        uri.path_and_query().map_or("/", |path| path.as_str())
-                    );
+                    let url = super::auth::url(&host, &uri);
                     let request_evidence = evidence(&host.origin, &headers, &uri, &url, &method)
                         .map_err(access_error)?;
                     let session_info = boundary
@@ -432,7 +428,7 @@ fn authenticated_redemption(
         }
         Arc::clone(&core.access)
     };
-    let url = format!("{}{}", host.origin, uri.path());
+    let url = super::auth::url(host, uri);
     let request = evidence(&host.origin, headers, uri, &url, method).map_err(access_error)?;
     let redemption = {
         let mut boundary = access.lock().map_err(|_| unavailable())?;

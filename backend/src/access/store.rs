@@ -247,6 +247,22 @@ impl Store {
         tx.commit()?;
         Ok(())
     }
+
+    /// Same limit as consume_rate for a current bucket, without recording.
+    pub(super) fn check_rate(&self, bucket: &str, now: i64, limit: u32) -> AccessResult<()> {
+        let row: Option<(i64, i64)> = self
+            .db
+            .query_row(
+                "SELECT starts_at,count FROM access_rates WHERE bucket=?1 AND expires_at>?2",
+                params![bucket, now],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+        if row.is_some_and(|(start, count)| now < start || count >= i64::from(limit)) {
+            return Err(AccessError::RateLimited);
+        }
+        Ok(())
+    }
 }
 
 pub(super) fn username_key(value: &str) -> AccessResult<String> {

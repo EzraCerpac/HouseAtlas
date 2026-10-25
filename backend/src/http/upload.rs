@@ -96,7 +96,7 @@ async fn intake_command(
     let principal = tokio::task::spawn_blocking(move || {
         let _admitted = capture_checked.admission_permit()?;
         let core = capture_host.core.lock().map_err(|_| unavailable())?;
-        let url = format!("{}{}", capture_host.origin, uri.path());
+        let url = super::auth::url(&capture_host, &uri);
         let observed = evidence(&capture_host.origin, &capture_checked, &uri, &url, &method)
             .map_err(access_error)?;
         let principal = core

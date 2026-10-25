@@ -643,11 +643,7 @@ fn capture_read(
     scope: Option<d::Scope>,
     include_home_choices: bool,
 ) -> Result<(RequestPrincipal, d::HomeSummary), HttpFailure> {
-    let url = format!(
-        "{}{}",
-        host.origin,
-        uri.path_and_query().map_or("/", |p| p.as_str())
-    );
+    let url = auth::url(host, uri);
     let request = evidence(&host.origin, headers, uri, &url, method).map_err(access_error)?;
     let mut choices = {
         let mut access = core
@@ -794,11 +790,7 @@ fn authorized_read_unlocked<T>(
         return Err(failure(StatusCode::NOT_FOUND));
     }
     let canonical = core.access.clone();
-    let url = format!(
-        "{}{}",
-        host.origin,
-        uri.path_and_query().map_or("/", |path| path.as_str())
-    );
+    let url = auth::url(host, uri);
     let request = evidence(&host.origin, headers, uri, &url, method).map_err(access_error)?;
     let principal = canonical
         .lock()
@@ -1104,11 +1096,7 @@ async fn homes(
             .core
             .lock()
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-        let url = format!(
-            "{}{}",
-            host.origin,
-            uri.path_and_query().map_or("/", |p| p.as_str())
-        );
+        let url = auth::url(&host, &uri);
         let observed =
             evidence(&host.origin, &headers, &uri, &url, &method).map_err(access_error)?;
         let choices = {
@@ -1170,10 +1158,10 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
     }
     let base = Router::new()
         .route("/api/atlas/homebox/quantity/availability", get(quantity::availability).head(auth::session_head).fallback(auth::session_head))
-        .route("/api/atlas/homebox/quantity/preview", post(quantity::preview).fallback(auth::session_head))
-        .route("/api/atlas/homebox/quantity/approval", post(quantity::approval).fallback(auth::session_head))
-        .route("/api/atlas/homebox/quantity/dispatch", post(quantity::dispatch).fallback(auth::session_head))
-        .route("/api/atlas/retained-intent", post(operation_events::reconcile_intent).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/homebox/quantity/preview", post(quantity::preview).fallback(auth::post_only))
+        .route("/api/atlas/homebox/quantity/approval", post(quantity::approval).fallback(auth::post_only))
+        .route("/api/atlas/homebox/quantity/dispatch", post(quantity::dispatch).fallback(auth::post_only))
+        .route("/api/atlas/retained-intent", post(operation_events::reconcile_intent).head(auth::post_only).fallback(auth::post_only))
         .route("/api/atlas/operation-events", get(operation_events::events).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/collections/{collection_id}/cached", get(providers::cached_homebox).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/providers/homebox/workspaces/{workspace_id}/homes/{home_id}/sources/{source_instance_id}/cached", get(providers::cached_homebox_query).head(auth::session_head).fallback(auth::session_head))

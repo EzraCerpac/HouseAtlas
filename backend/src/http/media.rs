@@ -81,7 +81,7 @@ pub(super) async fn deliver(
             workspace_id: scope.workspace_id.clone(),
             home_id: scope.home_id.clone(),
         };
-        let url = format!("{}{}", host.origin, uri.path());
+        let url = super::auth::url(&host, &uri);
         let observed =
             evidence(&host.origin, &headers, &uri, &url, &method).map_err(access_error)?;
         let principal = access
