@@ -150,10 +150,13 @@ export function createOutbox(options: OutboxOptions): Outbox {
             continue;
           }
         }
+        // The lookup may have outlasted the person's permission to send it.
+        if (!wanted(row)) continue;
         // Record the dispatch before it happens: a tab closed mid-send leaves
         // an entry that is looked up before it is sent again.
         await save({ ...row, state: 'sending', sent: true });
         if (context !== active) return;
+        if (!wanted(row)) { await save({ ...row, state: 'waiting' }); continue; }
         const outcome = await sendEntry(row, active, transport);
         if (outcome.kind === 'problem' && context !== active) {
           // Refused under a session that has since been replaced: not final.

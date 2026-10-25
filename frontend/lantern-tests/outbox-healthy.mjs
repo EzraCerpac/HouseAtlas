@@ -392,12 +392,33 @@ for (const lateChange of ['sign-out', 'abort']) {
   const first = await outbox.submit(submission('pantry', 1)), second = await outbox.submit(submission('scullery', 1));
   server.online = true;
   const plain = server.transport;
-  server.transport = async (path, init) => { setSyncMode('ask'); return plain(path, init); };
+  server.transport = async (path, init) => { if (path !== '/api/atlas/retained-intent') setSyncMode('ask'); return plain(path, init); };
   await outbox.drain();
   server.transport = plain;
   const state = id => outbox.getSnapshot().entries.find(row => row.id === id).state;
   assert.equal(state(first.id), 'synced'); assert.equal(state(second.id), 'waiting', 'The second edit waits for Send now');
   assert.equal(server.posts.length, 1);
+  setSyncMode('automatic');
+}
+
+// Nor does an edit whose lost reply is still being looked up when the person
+// chooses "When I ask": it is not sent again until they press Send.
+{
+  const disk = createSyntheticDisk(), server = createServer(), outbox = outboxOn(disk, server);
+  outbox.configure(context);
+  const plain = server.transport;
+  server.transport = async () => { server.transport = plain; throw new TypeError('Generated drop before the server'); };
+  const entry = await outbox.submit(submission('attic', 1));
+  assert.equal(entry.state, 'waiting'); assert.equal(entry.sent, true);
+  let open;
+  server.lookupGate = new Promise(resolve => { open = resolve; });
+  const retry = outbox.drain();
+  await new Promise(resolve => setTimeout(resolve, 10));
+  setSyncMode('ask');
+  open(); await retry;
+  server.lookupGate = null;
+  assert.equal(outbox.getSnapshot().entries.find(row => row.id === entry.id).state, 'waiting');
+  assert.equal(server.posts.length, 0, 'Not sent again without Send now');
   setSyncMode('automatic');
 }
 
@@ -439,4 +460,4 @@ for (const lateChange of ['sign-out', 'abort']) {
   assert.equal(kept.at(-1).target.recordId, `room-${KEEP_SYNCED + 2}`);
   assert.equal(syntheticRecords(disk, OUTBOX_DATABASE, 'entries').length, KEEP_SYNCED);
 }
-console.log(JSON.stringify({ outbox: 'healthy', cases: 19 }));
+console.log(JSON.stringify({ outbox: 'healthy', cases: 20 }));
