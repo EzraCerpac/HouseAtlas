@@ -21,6 +21,9 @@ export const BAKE_DEFAULTS = Object.freeze({
   maxError: 0.05,
   /** Structure and roof errors are this share of the context error. */
   structureWeight: 0.25,
+  /** Site context (bound to no level: garden, terrain, surroundings) takes this
+   * multiple of the context error, so the budget goes to the house. */
+  siteWeight: 4,
   /** Untextured vertices closer than this (metres, per axis cell) are welded
    * before simplification, so exporter-split or clipped surfaces collapse as
    * one surface. Welding keeps the first source vertex of each cell. */
@@ -33,25 +36,27 @@ const ROLE_RANK = { 'room-pick': 4, slab: 3, structure: 2, roof: 2, context: 1 }
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const key = (mesh, primitive) => `${mesh}/${primitive}`;
 
-/** The most protective role per primitive slot: companion bindings when given,
- * otherwise the producer's `semanticRole` node extras, otherwise context. */
+/** The most protective role per primitive slot, and the slots bound to any
+ * level: companion bindings when given, otherwise the producer's `semanticRole`
+ * and `levelIds` node extras. Slots with no role count as context. */
 function primitiveRoles(json, companion, instances) {
-  const roles = new Map(), keep = (slot, role) => {
+  const roles = new Map(), onLevel = new Set(), keep = (slot, role, levelIds) => {
+    if (Array.isArray(levelIds) && levelIds.length > 0) onLevel.add(slot);
     if (!(role in ROLE_RANK)) return;
     const current = roles.get(slot);
     if (!current || ROLE_RANK[role] > ROLE_RANK[current]) roles.set(slot, role);
   };
   if (companion) {
     for (const binding of companion.meshBindings ?? [])
-      for (const primitive of binding.primitiveIndices) keep(key(binding.meshIndex, primitive), binding.role);
-    return roles;
+      for (const primitive of binding.primitiveIndices) keep(key(binding.meshIndex, primitive), binding.role, binding.levelIds);
+    return { roles, onLevel };
   }
   for (const [meshIndex, uses] of instances)
     for (const { nodeIndex } of uses) {
-      const role = json.nodes[nodeIndex].extras?.semanticRole;
-      json.meshes[meshIndex].primitives.forEach((_, primitive) => keep(key(meshIndex, primitive), role));
+      const extras = json.nodes[nodeIndex].extras;
+      json.meshes[meshIndex].primitives.forEach((_, primitive) => keep(key(meshIndex, primitive), extras?.semanticRole, extras?.levelIds));
     }
-  return roles;
+  return { roles, onLevel };
 }
 
 const textured = (json, materialIndex) => {
@@ -140,7 +145,7 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
   const { json: source, bin } = readGlb(masterBytes);
   for (const name of source.extensionsUsed ?? []) throw new Error(`The master uses glTF extension ${name}; the overview profile admits none`);
   for (const accessor of source.accessors ?? []) if (accessor.sparse) throw new Error('Sparse accessors are not supported');
-  const instances = meshInstances(source), roles = primitiveRoles(source, companion, instances);
+  const instances = meshInstances(source), { roles, onLevel } = primitiveRoles(source, companion, instances);
   await MeshoptSimplifier.ready;
 
   // Meshes no drawn node uses are left out; the viewer and backend refuse unused declarations.
@@ -159,7 +164,8 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     const indices = primitive.indices === undefined ? Uint32Array.from({ length: positions.length / 3 }, (_, i) => i)
       : Uint32Array.from(readAccessor(source, bin, primitive.indices));
     const triangles = indices.length / 3, hasTextures = textured(source, primitive.material);
-    const entry = { mesh: meshIndex, primitive: primitiveIndex, name: source.meshes[meshIndex].name ?? null, role, instances: uses.length,
+    const site = role === 'context' && !onLevel.has(slot);
+    const entry = { mesh: meshIndex, primitive: primitiveIndex, name: source.meshes[meshIndex].name ?? null, role, site, instances: uses.length,
       textured: hasTextures, triangles, bakedTriangles: triangles, changed: false };
     report.push(entry);
     if (LOCKED_ROLES.includes(role) || triangles < 4) { fixedTriangles += triangles * uses.length; return; }
@@ -174,7 +180,7 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     candidates.push({ entry, positions: compact, vertexIds: Uint32Array.from(vertexIds), original: indices, instances: uses.length, scale,
       indices: welded.map(v => local.get(v)),
       extent: MeshoptSimplifier.getScale(compact, 3),
-      weight: role === 'context' ? 1 : options.structureWeight,
+      weight: role !== 'context' ? options.structureWeight : site ? options.siteWeight : 1,
       sloppy: role === 'context' && !hasTextures,
       flags: role === 'context' ? ['ErrorAbsolute', 'Prune'] : ['ErrorAbsolute'] });
   });
@@ -257,9 +263,9 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
       profile: 'houseatlas.overview-bake-report.v2',
       master: { sha256: sha256(masterBytes), bytes: masterBytes.byteLength, binBytes: bin?.byteLength ?? 0, drawnTriangles: drawn(report.map(r => ({ ...r, bakedTriangles: r.triangles }))) },
       overview: { sha256: sha256(outBytes), bytes: outBytes.byteLength, binBytes: outBin.byteLength, drawnTriangles: drawn(report) },
-      budget: { triangles: options.triangles, maxError: options.maxError, structureWeight: options.structureWeight, weld: options.weld },
+      budget: { triangles: options.triangles, maxError: options.maxError, structureWeight: options.structureWeight, siteWeight: options.siteWeight, weld: options.weld },
       rolesFrom: companion ? 'companion' : 'node-extras',
-      contextErrorMetres: result.error, structureErrorMetres: result.error * options.structureWeight,
+      contextErrorMetres: result.error, structureErrorMetres: result.error * options.structureWeight, siteErrorMetres: result.error * options.siteWeight,
       lockedRoles: LOCKED_ROLES, unusedMeshesDropped: unusedMeshes,
       primitives: report,
     },

@@ -74,7 +74,9 @@ export function syntheticMaster({ dead = false, unusedMesh = false, extras = fal
   if (dead) add(new Float32Array(1024), 'VEC3', 5126);
   const meshIndex = name => named.findIndex(([n]) => n === name);
   const role = name => named[meshIndex(name)][2];
-  const node = (name, extra = {}) => ({ mesh: meshIndex(name), name, ...extra, ...(extras ? { extras: { semanticRole: role(name) } } : {}) });
+  // Terrain is site context: bound to no level.
+  const levelIds = name => name === 'Terrain' ? [] : ['l0'];
+  const node = (name, extra = {}) => ({ mesh: meshIndex(name), name, ...extra, ...(extras ? { extras: { semanticRole: role(name), levelIds: levelIds(name) } } : {}) });
   const json = {
     asset: { version: '2.0', generator: 'synthetic' }, scene: 0, scenes: [{ nodes: [0] }],
     nodes: [{ name: 'House', children: [1, 2, 3, 4, 5, 6] }, node('RoomPick'), node('Slab'), node('Wall'),
@@ -85,7 +87,7 @@ export function syntheticMaster({ dead = false, unusedMesh = false, extras = fal
   for (const part of parts) { bin.set(part, at); at += part.byteLength; }
   const glb = writeGlb(json, bin);
   const binding = (name, nodeIndex) => ({ artifactId: 'model', nodeIndex, meshIndex: meshIndex(name), primitiveIndices: [0],
-    buildingId: 'b', levelIds: ['l0'], spaceOccurrenceId: role(name) === 'room-pick' ? 'o1' : null, role: role(name) });
+    buildingId: 'b', levelIds: levelIds(name), spaceOccurrenceId: role(name) === 'room-pick' ? 'o1' : null, role: role(name) });
   const companion = { profile: 'houseatlas.unified-atlas-publication.v1', original: { sha256: sha256(glb), bytes: glb.byteLength },
     meshBindings: [binding('RoomPick', 1), binding('Slab', 2), binding('Wall', 3), binding('Lamp', 4), binding('Lamp', 5), binding('Terrain', 6)] };
   return { glb, companion };
@@ -124,7 +126,9 @@ test('bakes to the budget with one shared error and locked footprints', async ()
   // The flat wall loses nearly all its triangles at a sub-millimetre error.
   assert.ok(result.report.structureErrorMetres < 0.001);
   assert.ok(row(result, 'Wall').bakedTriangles < 28_800 / 20);
-  // The terrain soup collapses once its seams are welded.
+  // The terrain soup collapses once its seams are welded; as site context it takes four times the error.
+  assert.equal(row(result, 'Terrain').site, true); assert.equal(row(result, 'Lamp').site, false);
+  assert.equal(result.report.siteErrorMetres, result.report.contextErrorMetres * 4);
   assert.ok(row(result, 'Terrain').bakedTriangles < 20_000 / 5, `terrain kept ${row(result, 'Terrain').bakedTriangles}`);
 
   // Simplification keeps source vertices: every baked position is a master position.
@@ -175,6 +179,7 @@ test('reads roles from node extras when there is no companion', async () => {
     assert.deepEqual(positionsOf(result.glb, name), positionsOf(glb, name));
   }
   assert.equal(row(result, 'Wall').role, 'structure');
+  assert.equal(row(result, 'Terrain').site, true); assert.equal(row(result, 'Lamp').site, false);
   assert.ok(drawnTriangles(result.glb) <= 20_000);
 });
 

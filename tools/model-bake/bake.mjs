@@ -9,11 +9,11 @@ import { BAKE_DEFAULTS, bakeOverview } from './src/bake.mjs';
 
 const { values } = parseArgs({ options: {
   model: { type: 'string' }, companion: { type: 'string' }, out: { type: 'string' },
-  triangles: { type: 'string' }, 'max-error': { type: 'string' }, 'structure-weight': { type: 'string' }, weld: { type: 'string' },
+  triangles: { type: 'string' }, 'max-error': { type: 'string' }, 'structure-weight': { type: 'string' }, 'site-weight': { type: 'string' }, weld: { type: 'string' },
 } });
 if (!values.model || !values.out) {
   console.error('Usage: bake.mjs --model master.glb [--companion atlas-scene.json] --out DIR '
-    + `[--triangles ${BAKE_DEFAULTS.triangles}] [--max-error ${BAKE_DEFAULTS.maxError}] [--structure-weight ${BAKE_DEFAULTS.structureWeight}] [--weld ${BAKE_DEFAULTS.weld}]`);
+    + `[--triangles ${BAKE_DEFAULTS.triangles}] [--max-error ${BAKE_DEFAULTS.maxError}] [--structure-weight ${BAKE_DEFAULTS.structureWeight}] [--site-weight ${BAKE_DEFAULTS.siteWeight}] [--weld ${BAKE_DEFAULTS.weld}]`);
   process.exit(2);
 }
 const number = (text, name) => { const n = Number(text); if (!Number.isFinite(n) || n <= 0) throw new Error(`--${name} must be a positive number`); return n; };
@@ -21,6 +21,7 @@ const overrides = {
   ...(values.triangles ? { triangles: Math.floor(number(values.triangles, 'triangles')) } : {}),
   ...(values['max-error'] ? { maxError: number(values['max-error'], 'max-error') } : {}),
   ...(values['structure-weight'] ? { structureWeight: number(values['structure-weight'], 'structure-weight') } : {}),
+  ...(values['site-weight'] ? { siteWeight: number(values['site-weight'], 'site-weight') } : {}),
   ...(values.weld ? { weld: number(values.weld, 'weld') } : {}),
 };
 const started = Date.now();
@@ -36,6 +37,6 @@ writeFileSync(join(values.out, 'bake-report.json'), `${JSON.stringify(report, nu
 const mib = bytes => (bytes / 1048576).toFixed(1);
 console.log(`master   ${mib(report.master.bytes)} MiB, ${report.master.drawnTriangles} triangles`);
 console.log(`overview ${mib(report.overview.bytes)} MiB, ${report.overview.drawnTriangles} triangles (budget ${report.budget.triangles})`);
-console.log(`error    context ${(report.contextErrorMetres * 1000).toFixed(1)} mm, structure ${(report.structureErrorMetres * 1000).toFixed(1)} mm`);
+console.log(`error    house context ${(report.contextErrorMetres * 1000).toFixed(1)} mm, structure ${(report.structureErrorMetres * 1000).toFixed(1)} mm, site ${(report.siteErrorMetres * 1000).toFixed(1)} mm`);
 console.log(`admitted by the viewer preflight; GPU ledger ${mib(report.viewerAdmission.gpuBytes)} MiB`);
 if (baked) console.log(`companion sha256 ${(await import('node:crypto')).createHash('sha256').update(JSON.stringify(baked)).digest('hex')}`);

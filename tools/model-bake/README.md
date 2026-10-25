@@ -15,7 +15,8 @@ node tools/model-bake/bake.mjs --model master.glb --companion atlas-scene.json -
 Options: `--triangles` (drawn-triangle budget, default 520,000, under the
 viewer's 600,000), `--max-error` (largest context error in metres before the
 bake refuses, default 0.05), `--structure-weight` (structure and roof error as
-a share of the context error, default 0.25) and `--weld` (weld distance in
+a share of the context error, default 0.25), `--site-weight` (site context
+error as a multiple of it, default 4) and `--weld` (weld distance in
 metres, default 0.0005).
 
 ## What it keeps
@@ -27,15 +28,18 @@ metres, default 0.0005).
 - `room-pick` and `slab` primitives byte for byte. The backend compares their
   horizontal triangles with plan footprints, so they are never simplified.
 - Every primitive of a master that already fits, as authored.
-- Roles come from the companion. Without one, they come from each node's
-  `semanticRole` extra, and anything else counts as context.
+- Roles and level membership come from the companion. Without one, they come
+  from each node's `semanticRole` and `levelIds` extras, and anything else
+  counts as context.
 
 ## What it changes
 
 - Primitives over budget are simplified with meshoptimizer. One absolute
   error in metres is searched for the whole house, so a dense lamp and a plain
   wall lose detail by the same visible amount rather than the same percentage.
-  Structure and roof get a quarter of the context error. Context may also drop
+  Structure and roof get a quarter of the context error. Site context (bound to
+  no level: garden, terrain, surroundings) gets four times it (`--site-weight`),
+  so the budget goes to the house. Context may also drop
   disconnected parts smaller than that error, and falls back to vertex
   clustering where edge collapse stalls (foliage cards, clipped soup).
 - Before simplifying, untextured vertices within 0.5 mm (`--weld`) are welded,
