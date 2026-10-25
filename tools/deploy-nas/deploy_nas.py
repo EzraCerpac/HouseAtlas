@@ -223,6 +223,8 @@ def entry_scripts(index_html: Path) -> list[str]:
 
 def validate_release(release: Path, data_dir: Path) -> dict[str, Path]:
     """Check a model release has the shape the server's overview selection accepts."""
+    if not release.exists():
+        raise DeployError(f"no release folder at {release}")
     if release.is_symlink() or Path(os.path.realpath(release)) != release or not release.is_absolute():
         raise DeployError(f"{release} is not a canonical absolute path")
     st = release.lstat()
