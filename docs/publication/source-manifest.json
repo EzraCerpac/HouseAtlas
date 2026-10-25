@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0c3e8c8c27669398ba9ead6732c9d07b1efeb1c4bbbee0f38154c9368e41a89d",
+  "sourceDigestSha256": "efd1b70d97c5102b2e389cf306a26eac143834fecf506ef1d843c55c4a9704b4",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -10573,6 +10573,34 @@
       "bytes": 2156,
       "sha256": "35bf2fa7c37d53bc7f2c6bc1fb29f9c9e7bc816cd26a7b5c16c71d5ff3bac61e",
       "owner": "web"
+    },
+    {
+      "path": "frontend/src/maintenance/README.md",
+      "mode": "100644",
+      "bytes": 3462,
+      "sha256": "5d8d96ab9821ae1be03d42cab67e67cce67d0133249541736ad90be1e3a562e1",
+      "owner": "core-integration"
+    },
+    {
+      "path": "frontend/src/maintenance/caller.ts",
+      "mode": "100644",
+      "bytes": 6867,
+      "sha256": "a77a6207485aba6c444d7c1b9ac27fd1cda35f1dc4efd504af56a33bde499428",
+      "owner": "core-integration"
+    },
+    {
+      "path": "frontend/src/maintenance/contract.ts",
+      "mode": "100644",
+      "bytes": 7614,
+      "sha256": "71474dd00fa4ad29bbcb3d65e02dcc6feb2472d55967e24a49b1ca8a69f70c55",
+      "owner": "core-integration"
+    },
+    {
+      "path": "frontend/src/maintenance/synthetic.ts",
+      "mode": "100644",
+      "bytes": 7014,
+      "sha256": "82a1247e2e79dc845e6933e704f833d53daaa4c26ed8aabf8c544d5ec2aaf719",
+      "owner": "core-integration"
     },
     {
       "path": "frontend/src/numeric/decimal.ts",
