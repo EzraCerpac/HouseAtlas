@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "9fe159e27306f7006fe27e54611a5d3b14c1aaec28e6ac65a66e57041d2fd63b",
+  "sourceDigestSha256": "35a730a01d0131d852180306f4a350d6e49cc9b69eb6529b9ca94d4e82040817",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -119,8 +119,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 7068,
-      "sha256": "c4b35e395b14d03916dd33666e7e543f0974d46a2736efb7729f06fae3db8cd0",
+      "bytes": 7143,
+      "sha256": "e05b1b465bab8c216255f23298e6d11458d0d7682384e7c1bc43bdf1069a2210",
       "owner": "core-integration"
     },
     {
@@ -5397,8 +5397,8 @@
     {
       "path": "backend/src/transports/mcp/README.md",
       "mode": "100644",
-      "bytes": 10620,
-      "sha256": "fe530670547a11e5cc122021b562e84695bcec0b5f0c473ece01ee561e241f6d",
+      "bytes": 11792,
+      "sha256": "24b7f99a40bb00b936f720828a2b08391198c9a2eeb2556b2a641897f5b8692f",
       "owner": "mcp"
     },
     {
@@ -5439,8 +5439,8 @@
     {
       "path": "backend/src/transports/mcp/healthy_mappings.rs",
       "mode": "100644",
-      "bytes": 5878,
-      "sha256": "b1f08c094233ca4d06fa72e335d3e44256142befbf8f205cfffab82ffaf77e8b",
+      "bytes": 9408,
+      "sha256": "70d43f8c8c55a6bf33723eb9d9b7632f72c03673695775b5b030a67fc6f9978d",
       "owner": "mcp"
     },
     {
@@ -5530,8 +5530,8 @@
     {
       "path": "backend/src/transports/mcp/native_schemas.rs",
       "mode": "100644",
-      "bytes": 9899,
-      "sha256": "7c7ff1493e280663df3d532bcd694d189b7d89fc2e6edb82ce5802274b833191",
+      "bytes": 11186,
+      "sha256": "a4e36f9e7da888cbef1d038ded4d84da9135957eb5823e44b22eab1e2a209f44",
       "owner": "mcp"
     },
     {
@@ -6069,8 +6069,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 180820,
-      "sha256": "abeb43d6228c1914072e8433d7df47365b79d4501d2f50d686c65158df7cc949",
+      "bytes": 181895,
+      "sha256": "39cc7dcb5cafcc577bd4103df235835985056085d5eb6b3c8c951ddb374280ad",
       "owner": "core-integration"
     },
     {
@@ -6991,6 +6991,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "fixtures/integration/mcp-batch-discovery.json",
+      "mode": "100644",
+      "bytes": 2729,
+      "sha256": "dcca4922e609eee182a6946d117272c84837dffd2853e2f154ce2c694c7fc9ec",
+      "owner": "core-integration"
+    },
+    {
       "path": "fixtures/integration/multi-home-unplaced.snapshot.json",
       "mode": "100644",
       "bytes": 29372,
@@ -7168,8 +7175,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 42884,
-      "sha256": "89bbe51084646b577b337a97afdbb65fee46b67f7ae8bd37867eeab535a3f04e",
+      "bytes": 43944,
+      "sha256": "205d2bbcf4f8f591284442bea277d3ecfbf3adc3f2cb806dbdeb2bee4b29cbb0",
       "owner": "core-integration"
     },
     {
@@ -7184,6 +7191,13 @@
       "mode": "100644",
       "bytes": 20391,
       "sha256": "2a9513a0da2fed82bc15e8ea05179382847e139d29ae734a34a030328f81a42e",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/integration/native-electrical-library-reader.ts",
+      "mode": "100644",
+      "bytes": 17773,
+      "sha256": "58b36c18149a9f6833ef0ad92dddca1b4cc4f3922a4d8bfa6acab917ec17b975",
       "owner": "web"
     },
     {
@@ -7485,6 +7499,20 @@
       "mode": "100644",
       "bytes": 6107,
       "sha256": "74080f5eecddffc8932c57bef1184cb4b6556bf349c52adf746b4ba3ddc4c631",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/electrical-library-read.mjs",
+      "mode": "100644",
+      "bytes": 12495,
+      "sha256": "b069d860a441ac3b4ea52ab6e58ea86ef347273d61f4f6b171142a89e4cd3e63",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/electrical-library-visual/synthetic-electrical.ts",
+      "mode": "100644",
+      "bytes": 16701,
+      "sha256": "3ca620c11e726e3c679244226a1a9d1f6a047d6debb9687784116ba41501169d",
       "owner": "web"
     },
     {
@@ -8057,8 +8085,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 4835,
-      "sha256": "e795c4e2218a21f2e718d4242b423107c01bade9a80e242731c3d442e27ca342",
+      "bytes": 4873,
+      "sha256": "7ef77d2e886b6fb8f046c777bf78e60bf5689fc440d1b292e23b4696acbe2f84",
       "owner": "web"
     },
     {
@@ -8395,6 +8423,13 @@
       "mode": "100644",
       "bytes": 31772,
       "sha256": "098cda0194627bfe9a3cb8727c88eea39a5267721eb9094b94f5e2b2021aad84",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/webmcp-batch-discovery.mjs",
+      "mode": "100644",
+      "bytes": 4003,
+      "sha256": "ba280c8320a98992991c2aabdbe86e55b86be5696b9d11a36fe522d832e491ac",
       "owner": "web"
     },
     {
@@ -9030,8 +9065,8 @@
     {
       "path": "frontend/src/lantern/Host.tsx",
       "mode": "100644",
-      "bytes": 9435,
-      "sha256": "f84c30811eeaf4ab4d2835219d9326c787a961aaf9ca48189639a377469c3b9b",
+      "bytes": 9779,
+      "sha256": "73663cc0570c9a92330a8a5f747c086d04de3df3ce27e950d6f33f445b68be97",
       "owner": "web"
     },
     {
@@ -9557,6 +9592,34 @@
       "mode": "100644",
       "bytes": 3237,
       "sha256": "19723f3b75dd752c76ad8dd7b207180dbfe1cd3a7a1fa23b9a47043e3758f328",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/electrical-library/ElectricalLibrary.tsx",
+      "mode": "100644",
+      "bytes": 12367,
+      "sha256": "ff4204259ace34c94000df23d6522964244bd874203efe61289836a31158eb30",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/electrical-library/electrical-library.css",
+      "mode": "100644",
+      "bytes": 986,
+      "sha256": "a5807d28c1c1c5fbca6c907d3e6c9d3358c61a67280ba6bb798cc95d694cdb48",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/electrical-library/project.ts",
+      "mode": "100644",
+      "bytes": 7054,
+      "sha256": "390ab925f72cc90156c7c8cb45fca504170e981ffad3266dd5ba765d32b19479",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/electrical-library/types.ts",
+      "mode": "100644",
+      "bytes": 2992,
+      "sha256": "ee9e04a8715dcccaa3f3f9bcba3d441e5224b68df7586f50b89408f00ee2cbe6",
       "owner": "web"
     },
     {
@@ -10199,8 +10262,8 @@
     {
       "path": "frontend/src/lantern/source-ports.ts",
       "mode": "100644",
-      "bytes": 1403,
-      "sha256": "b5392f49e2b250b5626f8e71ed3d0fd8960536667d02802a1adaae4c43ad213e",
+      "bytes": 1535,
+      "sha256": "67c0413affca774bad99957ffa3e99f6ddbd7d116e78ead7e923523b98f568b1",
       "owner": "web"
     },
     {
@@ -10423,8 +10486,8 @@
     {
       "path": "frontend/src/lantern/views/LibraryView.tsx",
       "mode": "100644",
-      "bytes": 6026,
-      "sha256": "c124d8082d274f18f3659fc643d2d37e555221671d89b54ef85dc3598d73a495",
+      "bytes": 6563,
+      "sha256": "516a4c179991689fded30f1898faf0af9590a7da42fdc601b8945224d890a2a6",
       "owner": "web"
     },
     {
@@ -10675,8 +10738,8 @@
     {
       "path": "frontend/src/webmcp/README.md",
       "mode": "100644",
-      "bytes": 6124,
-      "sha256": "8e5f015225781cf3135ffdf1fdd5a93713ac5000230cb3e3bb3db86dc11ad183",
+      "bytes": 6694,
+      "sha256": "6e93dfe73e39956690d1c1a511802a78ee860d8773f92914d5397e3f3f0c9fdd",
       "owner": "webmcp"
     },
     {
@@ -10829,22 +10892,22 @@
     {
       "path": "frontend/src/webmcp/stock-schema.ts",
       "mode": "100644",
-      "bytes": 2617,
-      "sha256": "5542c23eff66c0bfca68cdc7b0ad04671d5b4bc707afc97bfb694988788602e2",
+      "bytes": 4081,
+      "sha256": "9708ac58ce5212e331dce96836b77ebae9533c19dd8250a6b0a365a2d2d4d826",
       "owner": "webmcp"
     },
     {
       "path": "frontend/src/webmcp/stock.healthy.tsx",
       "mode": "100644",
-      "bytes": 7019,
-      "sha256": "949e125e34c2a43852ab88901b71f219a72d266b4e30430519004040411ae221",
+      "bytes": 7055,
+      "sha256": "6ed0237b2ae7c94e570a426480e07d7229c6f4c24e51e8b9c80b4e67cd91a9c2",
       "owner": "webmcp"
     },
     {
       "path": "frontend/src/webmcp/stock.ts",
       "mode": "100644",
-      "bytes": 7682,
-      "sha256": "625c682048d0753ed73ae49d65f92d1211823f870dbcf4d1dd88405e9e9f9264",
+      "bytes": 7702,
+      "sha256": "eec7a9d2260f5592327d135e3060810544313a256862a93767e538319e671255",
       "owner": "webmcp"
     },
     {
@@ -11739,22 +11802,22 @@
     {
       "path": "tools/electrical_registration/README.md",
       "mode": "100644",
-      "bytes": 9014,
-      "sha256": "756211c56a0f2597782fc83d48d2b87b042758990b6a3d7cec49d4767a4c1080",
+      "bytes": 10175,
+      "sha256": "4615bffb70ae9d4df069731fd30ab38fa70a36babfe366bb3f5197b09cbe13b1",
       "owner": "media"
     },
     {
       "path": "tools/electrical_registration/healthy.test.mjs",
       "mode": "100644",
-      "bytes": 8608,
-      "sha256": "0dc1b49329f585b88a9ba8570083e2bbbd0c9ccbc319930dae49adff4fd4e08c",
+      "bytes": 14541,
+      "sha256": "7c9703a394a07d58bb8ccb54d63fb1df28dcb88f194b53347c6af9b3fb1166b3",
       "owner": "media"
     },
     {
       "path": "tools/electrical_registration/registration.mjs",
       "mode": "100644",
-      "bytes": 15778,
-      "sha256": "9745ba4e3c936ce156d5a82bb99b141c27c05a441af307a0d0ef9b011a437a14",
+      "bytes": 18092,
+      "sha256": "a289c64926c0fe91856eb6d50bf89ed9cd9531762136f8c4696e67357e042851",
       "owner": "media"
     },
     {

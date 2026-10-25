@@ -1,0 +1,13 @@
+.electrical-library { margin-block: 24px; }
+.electrical-library-documents { padding: 0; list-style: none; }
+.electrical-library-documents > li { margin-block: 14px; padding: 16px; border: 1px solid var(--line, #ddd); border-radius: 12px; }
+.electrical-library-documents ul > li, .electrical-library > div li { margin-block: 10px; }
+.electrical-library-sheet-facts { display: grid; gap: 4px; margin-block: 6px 12px; font-size: 13px; }
+.electrical-library dd { margin-inline-start: 0; overflow-wrap: anywhere; }
+.electrical-library-backdrop { position: fixed; inset: 0; z-index: 100; background: #0006; }
+.electrical-library-backdrop .native-scene-drawing { inset: max(12px, 3vh) max(12px, calc((100vw - 1100px) / 2)); }
+.electrical-library-backdrop > [role="status"] { margin: 24px; padding: 16px; background: var(--card, white); }
+@media (max-width: 600px) {
+  .electrical-library-documents > li { padding: 10px; }
+  .electrical-library-backdrop .native-scene-drawing { inset: 6px; }
+}
