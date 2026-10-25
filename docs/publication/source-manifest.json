@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "64ebe8f9e344d63c25dada2ab21a91a4bef57bfaf23d43e1c9a7488beb83f4d1",
+  "sourceDigestSha256": "179d3992f810639420282fb0c89a162ccc7e4ae6f187dcdaf921fdd6c29847f9",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -5397,8 +5397,8 @@
     {
       "path": "backend/src/transports/mcp/README.md",
       "mode": "100644",
-      "bytes": 7308,
-      "sha256": "878e015e40915a116f7fab652e6a90d9ecc837203ee32402104e26d0c28bf060",
+      "bytes": 10620,
+      "sha256": "fe530670547a11e5cc122021b562e84695bcec0b5f0c473ece01ee561e241f6d",
       "owner": "mcp"
     },
     {
@@ -5439,15 +5439,15 @@
     {
       "path": "backend/src/transports/mcp/healthy_mappings.rs",
       "mode": "100644",
-      "bytes": 3755,
-      "sha256": "0f35f923fbf5aaf3bb98eb8ae10fdbe988baa5873be2529ec81ba6b6963496f1",
+      "bytes": 5878,
+      "sha256": "b1f08c094233ca4d06fa72e335d3e44256142befbf8f205cfffab82ffaf77e8b",
       "owner": "mcp"
     },
     {
       "path": "backend/src/transports/mcp/healthy_native.rs",
       "mode": "100644",
-      "bytes": 10883,
-      "sha256": "456bfec21cc6b33314356161384f22799c9e5b4c9c2400602e6567ca37c1add1",
+      "bytes": 11903,
+      "sha256": "a7fa40832bc74a3ef11c223f45343ae4dfa29ee44aaa511421cd406a3cba7445",
       "owner": "mcp"
     },
     {
@@ -5509,8 +5509,8 @@
     {
       "path": "backend/src/transports/mcp/native_catalog.rs",
       "mode": "100644",
-      "bytes": 8563,
-      "sha256": "a15760b975ad4c491f91a970fe95f8debb3541b43d3a3ad95eff564efdf4181e",
+      "bytes": 8587,
+      "sha256": "1460125f5b23179eb9cf146bf3f32a3e5653d5a6e2c1e80e4c30ae4c1785e717",
       "owner": "mcp"
     },
     {
@@ -5523,8 +5523,8 @@
     {
       "path": "backend/src/transports/mcp/native_schemas.rs",
       "mode": "100644",
-      "bytes": 8341,
-      "sha256": "560376eec0fa3e9a90a9086ff6a542d24de8244e4d871ea456ff6641d02637fe",
+      "bytes": 9899,
+      "sha256": "7c7ff1493e280663df3d532bcd694d189b7d89fc2e6edb82ce5802274b833191",
       "owner": "mcp"
     },
     {
