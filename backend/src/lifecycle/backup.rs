@@ -18,8 +18,10 @@ use crate::{
     http::contracts::NativeContracts,
     jobs::{CanonicalScope, EnqueueRequest, QueueConfig, QueueRegistration},
     media::{
-        self, AssetVault, WorkBudget, native::NativeMediaRuntime,
-        native_recovery::NativeMediaRecovery, recovery::MAX_DATABASE,
+        self, AssetVault, WorkBudget,
+        native::NativeMediaRuntime,
+        native_recovery::NativeMediaRecovery,
+        recovery::{MAX_DATABASE, restore_recovery, verify_recovery},
     },
     storage::{self, QueueDiscovery, QueueRecoveryAttempt, QueueRecoveryEvidence},
 };
@@ -245,6 +247,126 @@ pub fn capture(selection: &Selection) -> Result<BackupReport, Failure> {
     })
 }
 
+/// Selected only by the explicit `restore-check` CLI. Reads a captured bundle,
+/// never a live data directory, and restores into a fresh private destination.
+pub struct RestoreCheckSelection {
+    bundle: PathBuf,
+    destination: PathBuf,
+}
+impl RestoreCheckSelection {
+    pub fn from_arguments(arguments: &[String]) -> Result<Self, String> {
+        let mut options = BTreeMap::new();
+        let mut remaining = arguments.iter();
+        while let Some(name) = remaining.next() {
+            if !matches!(name.as_str(), "--bundle" | "--destination" | "--profile")
+                || options
+                    .insert(
+                        name.as_str(),
+                        remaining
+                            .next()
+                            .ok_or("Missing restore check option value")?,
+                    )
+                    .is_some()
+            {
+                return Err("Unsupported or repeated restore check option".into());
+            }
+        }
+        if options.get("--profile").map(|v| v.as_str()) != Some(PROFILE) {
+            return Err("Required explicit --profile native-stock-queue-free".into());
+        }
+        let mut paths = ["--bundle", "--destination"].into_iter().map(|name| {
+            let path = PathBuf::from(
+                options
+                    .get(name)
+                    .ok_or(format!("Required {name}"))?
+                    .as_str(),
+            );
+            if !path.is_absolute()
+                || path
+                    .components()
+                    .any(|part| matches!(part, Component::ParentDir | Component::CurDir))
+            {
+                return Err(format!("{name} must be an explicit absolute path"));
+            }
+            Ok(path)
+        });
+        let bundle = paths.next().ok_or("Required --bundle")??;
+        let destination = paths.next().ok_or("Required --destination")??;
+        if destination.starts_with(&bundle) || bundle.starts_with(&destination) {
+            return Err("Restore check destination overlaps the bundle".into());
+        }
+        Ok(Self {
+            bundle,
+            destination,
+        })
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreCheckReport {
+    pub format: &'static str,
+    pub profile: &'static str,
+    pub database_sha256: String,
+    pub database_bytes: u64,
+    pub asset_record_count: usize,
+    pub restored_original_count: usize,
+    pub exclusions: Vec<String>,
+}
+
+/// Restores a captured bundle into a fresh isolated directory with the same
+/// validation peers as capture, then reads every retained original back from
+/// the restored vault and compares it with the bundle. The restored state is
+/// left for the caller to inspect or remove; it is never opened or served.
+pub fn restore_check(selection: &RestoreCheckSelection) -> Result<RestoreCheckReport, Failure> {
+    let budget = WorkBudget::new_offline_backup()?;
+    require_absent(&selection.destination)?;
+    let owners = QueueFreeNativeOwners::for_queue_free_profile()?;
+    let peers = owners.peers()?;
+    let port = NativeMediaRecovery::<
+        NativeContracts,
+        ReadAuthority,
+        NativeMediaRuntime<ServerRuntime>,
+        NativeStockContract,
+        QueueFreeNativeOwners,
+        QueueFreeNativeOwners,
+    >::validator(&NativeContracts, peers.storage());
+    let verified = verify_recovery(&port, &selection.bundle, &budget)?;
+    let restored = restore_recovery(&port, &selection.bundle, &selection.destination, &budget)?;
+    if restored.manifest != verified.manifest {
+        return Err("Restored manifest differs from the verified bundle".into());
+    }
+    let database = fs::read(&restored.database_path)?;
+    if database != fs::read(selection.bundle.join(&verified.manifest.database.file))?
+        || format!("{:x}", Sha256::digest(&database)) != verified.manifest.database.sha256
+    {
+        return Err("Restored database differs from the bundle".into());
+    }
+    let vault = AssetVault::open_existing(&restored.vault_root)?;
+    let mut restored_original_count = 0;
+    for (record, entry) in verified.assets.iter().zip(&verified.manifest.assets) {
+        budget.check()?;
+        let Some(member) = &entry.blob else {
+            continue;
+        };
+        let original = fs::read(selection.bundle.join("originals").join(member))?;
+        if vault.read_retained(record, &budget)? != original {
+            return Err("Restored original differs from the bundle".into());
+        }
+        restored_original_count += 1;
+    }
+    budget.check()?;
+    Ok(RestoreCheckReport {
+        format: "houseatlas-restore-check-report/1",
+        profile: PROFILE,
+        database_sha256: verified.manifest.database.sha256.clone(),
+        database_bytes: verified.manifest.database.byte_size,
+        asset_record_count: verified.manifest.assets.len(),
+        restored_original_count,
+        exclusions: verified.manifest.exclusions,
+    })
+}
+
 struct SourceCut {
     atlas: FileCut,
     receipt: FileCut,
@@ -395,5 +517,72 @@ impl FileCut {
             return Err("Backup source identity or bytes changed".into());
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RestoreCheckSelection;
+
+    fn parse(arguments: &[&str]) -> Result<RestoreCheckSelection, String> {
+        RestoreCheckSelection::from_arguments(
+            &arguments
+                .iter()
+                .map(|s| (*s).to_owned())
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    #[test]
+    fn restore_check_requires_profile_and_separate_absolute_paths() {
+        let ok = parse(&[
+            "--bundle",
+            "/backups/b",
+            "--destination",
+            "/restore/r",
+            "--profile",
+            "native-stock-queue-free",
+        ])
+        .unwrap();
+        assert_eq!(ok.bundle, std::path::Path::new("/backups/b"));
+        assert_eq!(ok.destination, std::path::Path::new("/restore/r"));
+        for bad in [
+            &["--bundle", "/b", "--destination", "/r"][..],
+            &[
+                "--bundle",
+                "b",
+                "--destination",
+                "/r",
+                "--profile",
+                "native-stock-queue-free",
+            ],
+            &[
+                "--bundle",
+                "/b",
+                "--destination",
+                "/b/r",
+                "--profile",
+                "native-stock-queue-free",
+            ],
+            &[
+                "--bundle",
+                "/b",
+                "--destination",
+                "/x/../r",
+                "--profile",
+                "native-stock-queue-free",
+            ],
+            &[
+                "--bundle",
+                "/b",
+                "--bundle",
+                "/c",
+                "--profile",
+                "native-stock-queue-free",
+            ],
+            &["--bundle", "/b", "--profile", "native-stock-queue-free"],
+        ] {
+            assert!(parse(bad).is_err(), "{bad:?}");
+        }
     }
 }
