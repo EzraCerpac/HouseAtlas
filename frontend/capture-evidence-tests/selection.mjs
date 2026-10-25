@@ -59,6 +59,45 @@ if (!args.length) {
       const controller = new AbortController(); controller.abort();
       await assert.rejects(selectEvidenceFile(new File([bytes('synthetic-photo.jpg')], 'synthetic.jpg', { type: 'image/jpeg' }), 'photo-picker', policy, controller.signal)); break;
     }
+    case 'selection-cancel-reselect': {
+      // Hold actual File reads at each async selection boundary. This models
+      // caller cancellation/reselection, not a mounted picker or DOM cancel event.
+      for (const boundary of ['header', 'text']) {
+        let release, entered;
+        const held = new Promise(resolve => { release = resolve; });
+        const reading = new Promise(resolve => { entered = resolve; });
+        class HeldFile extends File {
+          slice(...args) {
+            const part = super.slice(...args);
+            if (boundary === 'header') part.arrayBuffer = async () => { entered(); await held; return Blob.prototype.arrayBuffer.call(part); };
+            return part;
+          }
+          async arrayBuffer() {
+            if (boundary === 'text') { entered(); await held; }
+            return super.arrayBuffer();
+          }
+        }
+        const input = bytes(boundary === 'text' ? 'synthetic-note.txt' : 'synthetic-photo.jpg');
+        const name = boundary === 'text' ? 'synthetic-note.txt' : 'synthetic-photo.jpg';
+        const type = boundary === 'text' ? 'text/plain' : 'image/jpeg';
+        const original = new HeldFile([input], name, { type });
+        const controller = new AbortController();
+        const stale = selectEvidenceFile(original, 'photo-picker', policy, controller.signal);
+        // Attach the rejection observer before aborting the old generation.
+        const rejected = assert.rejects(stale, error => error === controller.signal.reason);
+        await reading;
+        controller.abort();
+        const replacement = new File([input], name, { type });
+        const selected = await select(replacement);
+        assert.equal(selected.original, replacement);
+        release(); await rejected;
+        // The exact same browser File remains selectable after cancellation.
+        const repeated = await select(original);
+        assert.equal(repeated.original, original);
+        assert.equal(sha(new Uint8Array(await repeated.file.arrayBuffer())), sha(input));
+      }
+      break;
+    }
     default: throw new Error('Unlisted regression case');
   }
   console.log(`PASS exact bounded synthetic regression ${args[1]}`);

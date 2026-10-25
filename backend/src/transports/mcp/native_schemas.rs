@@ -9,6 +9,8 @@ use std::collections::BTreeSet;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
+use crate::contracts::stock as wire;
+
 use super::{JsonObject, PortError};
 
 pub const AGENT_SCHEMA_SHA256: &str =
@@ -46,7 +48,44 @@ impl NativeSchemas {
             return Err(PortError::Unavailable);
         }
         let selected = Definition::resolve(Resource::Agent, reference)?;
+        self.materialize(self.definition(&selected)?.clone())
+    }
+
+    /// Discovery describes only host-admitted top-level request arms, just as
+    /// WebMCP does. Keep the pinned family constraints and canonical arm order;
+    /// selecting descriptors grants no authority and does not replace prepare's
+    /// independent admission check on the root and every batch child.
+    pub(super) fn admitted_input_schema(
+        &self,
+        reference: &str,
+        admitted: &BTreeSet<wire::OperationId>,
+    ) -> Result<JsonObject, PortError> {
+        if !reference.starts_with("#/$defs/family_input_") {
+            return Err(PortError::Unavailable);
+        }
+        let allowed: BTreeSet<_> = admitted
+            .iter()
+            .map(|id| wire::operation(*id).map(|operation| operation.input_schema.as_str()))
+            .collect::<Result<_, _>>()
+            .map_err(|_| PortError::Unavailable)?;
+        let selected = Definition::resolve(Resource::Agent, reference)?;
         let mut schema = self.definition(&selected)?.clone();
+        let arms = schema
+            .get_mut("oneOf")
+            .and_then(Value::as_array_mut)
+            .ok_or(PortError::Unavailable)?;
+        arms.retain(|arm| {
+            arm.get("$ref")
+                .and_then(Value::as_str)
+                .is_some_and(|reference| allowed.contains(reference))
+        });
+        if arms.is_empty() {
+            return Err(PortError::Unavailable);
+        }
+        self.materialize(schema)
+    }
+
+    fn materialize(&self, mut schema: Value) -> Result<JsonObject, PortError> {
         let mut pending = BTreeSet::new();
         rewrite_schema(&mut schema, Resource::Agent, &mut pending)?;
         let Value::Object(mut root) = schema else {

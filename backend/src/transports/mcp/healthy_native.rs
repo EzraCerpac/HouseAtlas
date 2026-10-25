@@ -179,6 +179,17 @@ fn healthy_native_catalog_context_and_core_reads() {
         serde_json::to_vec(&page).unwrap().len() <= AdapterConfig::default().max_response_bytes
     );
     let input_validator = descriptor(&page.tools[0].input_schema);
+    assert_eq!(
+        page.tools[0].input_schema["oneOf"],
+        json!([
+            {"$ref":"#/$defs/agent__request_atlas_evidence_get"},
+            {"$ref":"#/$defs/agent__request_atlas_evidence_history"}
+        ])
+    );
+    assert_eq!(
+        page.tools[0].annotations.as_ref().unwrap().read_only_hint,
+        Some(true)
+    );
     let output_validator = descriptor(page.tools[0].output_schema.as_ref().unwrap());
     let selected_target = json!({
         "authority":"atlas", "recordType":"evidence", "recordId":target.record_id
@@ -194,6 +205,19 @@ fn healthy_native_catalog_context_and_core_reads() {
         "context":scope, "target":selected_target,
         "payload":{"cursor":null,"pageSize":20,"includeArchived":false}
     });
+    // A valid shared-family arm absent from this host's admission must not be
+    // offered by discovery. Validate synthetic bytes only; do not dispatch it.
+    let unadmitted_list = json!({
+        "schemaVersion":3, "commandId":"atlas.evidence.list",
+        "requestId":"00000000-0000-4000-8000-000000060040",
+        "context":scope, "target":{"authority":"atlas", "recordType":"evidence"},
+        "payload":{"cursor":null,"pageSize":20,"includeArchived":false}
+    });
+    wire::StockValidation::new()
+        .unwrap()
+        .validate("#/$defs/request_atlas_evidence_list", &unadmitted_list)
+        .unwrap();
+    assert!(!input_validator.is_valid(&unadmitted_list));
     for request in [&read, &history] {
         input_validator.validate(request).unwrap();
         let prepared = catalog

@@ -53,6 +53,8 @@ mod healthy_http;
 #[cfg(test)]
 #[path = "numeric_healthy.rs"]
 mod healthy_numeric;
+#[cfg(test)]
+mod pagination_contract;
 
 #[cfg(test)]
 mod native_capture_healthy;
