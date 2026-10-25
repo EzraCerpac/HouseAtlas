@@ -72,8 +72,7 @@ impl Fixture {
         let scope = access_scope(&core.home.scope)?;
         let receipt: Value =
             serde_json::from_slice(&fs::read(directory.join("smoke-session.json"))?)?;
-        let login_body =
-            serde_json::to_vec(receipt.get("editorLogin").ok_or("Missing login")?)?;
+        let login_body = serde_json::to_vec(receipt.get("editorLogin").ok_or("Missing login")?)?;
         let login = core.access.lock().unwrap().login(
             &observed(None, None),
             &login_body,
@@ -244,12 +243,16 @@ fn cancellation(rpc_id: Value) -> Vec<u8> {
     .unwrap()
 }
 
-fn frame<S>(session: &mut NativeSession<S>, identity: &AuthenticatedIdentity, message: Value) -> Value
+fn frame<S>(
+    session: &mut NativeSession<S>,
+    identity: &AuthenticatedIdentity,
+    message: Value,
+) -> Value
 where
     S: ServicePort<NativePrincipal, NativeOperation, Output = NativeOutput>,
 {
-    let Delivery::Reply(bytes) = ready(session.handle(identity, &serde_json::to_vec(&message).unwrap()))
-        .unwrap()
+    let Delivery::Reply(bytes) =
+        ready(session.handle(identity, &serde_json::to_vec(&message).unwrap())).unwrap()
     else {
         panic!("Expected correlated reply");
     };
@@ -280,7 +283,8 @@ fn rotation_fences_late_result_old_credentials_and_replacement_identity() -> Res
             Err(a::AccessError::Unauthenticated)
         ));
         let new_cookie = replacement.set_cookie().split(';').next().unwrap();
-        let new_identity = fixture.authenticate_with(new_cookie, replacement.info().csrf_token())?;
+        let new_identity =
+            fixture.authenticate_with(new_cookie, replacement.info().csrf_token())?;
         assert_eq!(
             original.release_with(&new_identity),
             Err(PortError::Forbidden)
@@ -392,7 +396,11 @@ fn read_cancellation_preserves_exact_id_and_drains_owner_completion() -> Result<
         NotificationDisposition::Ignored
     );
     assert_eq!(
-        frame(&mut session, &original, json!({"jsonrpc":"2.0", "id":9, "method":"ping"}))["result"],
+        frame(
+            &mut session,
+            &original,
+            json!({"jsonrpc":"2.0", "id":9, "method":"ping"})
+        )["result"],
         json!({})
     );
     Ok(())

@@ -52,11 +52,7 @@ impl Transport for ScriptedPages {
 fn value(text: &str) -> Value {
     serde_json::from_str(text).unwrap()
 }
-fn reader(
-    responses: Vec<Value>,
-    now: &'static str,
-    max_pages: usize,
-) -> (TestReader, Calls) {
+fn reader(responses: Vec<Value>, now: &'static str, max_pages: usize) -> (TestReader, Calls) {
     let fixture = value(include_str!(
         "../../../../../adapters/homebox/fixtures/metadata.normalized-synthetic-v1.json"
     ));

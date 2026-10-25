@@ -483,7 +483,11 @@ mod preparation_tests {
             false,
         );
         for snapshots in [
-            vec![wanted.clone(), other_source.clone(), other_collection.clone()],
+            vec![
+                wanted.clone(),
+                other_source.clone(),
+                other_collection.clone(),
+            ],
             vec![other_collection, other_source, wanted.clone()],
         ] {
             let preparation = Preparation {

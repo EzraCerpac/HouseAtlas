@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "2ac9ff0c2d81e48af461d3ddd30ca7ec06db0c12007708a0cce0babad4849a33",
+  "sourceDigestSha256": "c774182a1869c7ac6675fb5eedd0cdc843b0f93bc82726ab78911cec64bffa2b",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -3465,8 +3465,8 @@
     {
       "path": "backend/src/providers/homebox/read/pagination_contract.rs",
       "mode": "100644",
-      "bytes": 8882,
-      "sha256": "30201a4e1642b6c3df81338bbe32963816273dec85ec4de450da2c6ed1a009ea",
+      "bytes": 8867,
+      "sha256": "a07574f39dc09d337f55756e78962d45ac1b1eb9bc86c76bcb268efd19af3814",
       "owner": "homebox"
     },
     {
@@ -4151,8 +4151,8 @@
     {
       "path": "backend/src/providers/homebox/write/stock/types.rs",
       "mode": "100644",
-      "bytes": 16001,
-      "sha256": "686e621262a56449f7844072c3bc0c11244d1d9c6b4aa5ed7cc17a7856708221",
+      "bytes": 16064,
+      "sha256": "c8377f5d9af5896bc08dad186f30e640352d09778b06d3f86716649812ded238",
       "owner": "homebox"
     },
     {
@@ -5495,8 +5495,8 @@
     {
       "path": "backend/src/transports/mcp/lifecycle/synthetic_contracts.rs",
       "mode": "100644",
-      "bytes": 18028,
-      "sha256": "4d69f350b1006c149c4178634ea34b61c7b2403ec4ff0d447ff7ce45424dc7e7",
+      "bytes": 18088,
+      "sha256": "4bbf2a9370456acc6ca798c5c440031721166e847458101cb7fa30099594904d",
       "owner": "mcp"
     },
     {
