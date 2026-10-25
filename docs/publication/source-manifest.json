@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c07a44bfe710c2ee203782d990bb7d563eca14f8cb8d7b945591b4cec0df9d09",
+  "sourceDigestSha256": "2ac9ff0c2d81e48af461d3ddd30ca7ec06db0c12007708a0cce0babad4849a33",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -11765,6 +11765,13 @@
       "owner": "mcp"
     },
     {
+      "path": "tools/houseatlas-mcp-bridge/maintenance_composition.py",
+      "mode": "100644",
+      "bytes": 8073,
+      "sha256": "dbbef69b49aa2c23b78b7329d6b943ad376a137a2155e6160d2d65969645c171",
+      "owner": "mcp"
+    },
+    {
       "path": "tools/houseatlas-mcp-bridge/native-session-launcher.py",
       "mode": "100644",
       "bytes": 2054,
@@ -11783,6 +11790,13 @@
       "mode": "100644",
       "bytes": 15522,
       "sha256": "5c21030f26d3664093d1dea18615eb613fc555249f46d7a522b8695880754dc5",
+      "owner": "mcp"
+    },
+    {
+      "path": "tools/houseatlas-mcp-bridge/test_maintenance_composition_happy.py",
+      "mode": "100644",
+      "bytes": 14175,
+      "sha256": "1ea7798455aaf8d02c152b6ad6f0c7c4b8e6cda66aa592055cb93c34a860908a",
       "owner": "mcp"
     },
     {
