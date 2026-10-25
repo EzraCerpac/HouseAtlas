@@ -71,13 +71,20 @@ function transaction<T>(db: IDBDatabase, mode: IDBTransactionMode,
 
 export function openNativeGeometryScanCache(factory: IDBFactory | undefined,
   options: { readonly limits?: Partial<ScanCacheLimits> } = {}): NativeGeometryScanCache {
+  return openVerifiedByteCache(factory, SCAN_CACHE_DATABASE, SCAN_CACHE_LIMITS, options.limits);
+}
+
+/** The same bounded, generation-fenced byte store under another database name
+ * and published bounds; the unified Atlas model cache shares this owner. */
+export function openVerifiedByteCache(factory: IDBFactory | undefined, database: string, published: ScanCacheLimits,
+  overrides: Partial<ScanCacheLimits> = {}): NativeGeometryScanCache {
   // Overrides may only tighten the published bounds.
-  const tighter = options.limits ?? {};
+  const tighter = overrides;
   const limits: ScanCacheLimits = Object.freeze({
-    entries: Math.min(SCAN_CACHE_LIMITS.entries, tighter.entries ?? Infinity),
-    bytes: Math.min(SCAN_CACHE_LIMITS.bytes, tighter.bytes ?? Infinity),
-    entryBytes: Math.min(SCAN_CACHE_LIMITS.entryBytes, tighter.entryBytes ?? Infinity),
-    unusedMs: Math.min(SCAN_CACHE_LIMITS.unusedMs, tighter.unusedMs ?? Infinity),
+    entries: Math.min(published.entries, tighter.entries ?? Infinity),
+    bytes: Math.min(published.bytes, tighter.bytes ?? Infinity),
+    entryBytes: Math.min(published.entryBytes, tighter.entryBytes ?? Infinity),
+    unusedMs: Math.min(published.unusedMs, tighter.unusedMs ?? Infinity),
   });
   let connection: Promise<IDBDatabase> | null = null, unavailable = !factory, closed = false;
   let queue: Promise<unknown> = Promise.resolve();
@@ -88,7 +95,7 @@ export function openNativeGeometryScanCache(factory: IDBFactory | undefined,
   };
   const connect = (): Promise<IDBDatabase> => connection ??= new Promise<IDBDatabase>((resolve, reject) => {
     let request: IDBOpenDBRequest;
-    try { request = factory!.open(SCAN_CACHE_DATABASE, 2); } catch (error) { unavailable = true; reject(error); return; }
+    try { request = factory!.open(database, 2); } catch (error) { unavailable = true; reject(error); return; }
     let settled = false;
     const stop = (error: unknown) => {
       if (settled) return;
