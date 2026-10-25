@@ -173,7 +173,11 @@ try {
   const resized = render(false, true);
   assert.equal(dialog.modal, false); assert.equal(dialog.open, true); assert.equal(document.activeElement, key);
   assert.equal(resized.props.role, 'group'); assert.equal(resized.props['aria-modal'], undefined);
+  // Tall compact to short compact with the drawer already open: the held key
+  // was below long content in the dock's scroll; the new body reveals it.
+  const heldReveals = key.reveals; key.offscreen = true;
   render(true, true); assert.equal(dialog.modal, true); assert.equal(document.activeElement, key);
+  assert.equal(key.offscreen, false); assert.equal(key.reveals, heldReveals + 1);
   document.activeElement = closeButton;
   render(false, true); assert.equal(dialog.modal, false); assert.equal(document.activeElement, key);
   trigger.visible = true;

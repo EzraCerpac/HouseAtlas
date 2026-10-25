@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "8d5dd0c4b69ece95ec0bd079897c10be5cea1aa438c799437778bf66e4e70b52",
+  "sourceDigestSha256": "d1e1052f6c5f512c07eb596ef6b1370c0be271f38945c6319ac62015cb03fc6a",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -8225,8 +8225,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-compact-layer-details.mjs",
       "mode": "100644",
-      "bytes": 14790,
-      "sha256": "06ecf0f209c73b9eba76ad817ec5a1ac85ab90da2e9a9c0fcb9791e501299bf6",
+      "bytes": 15082,
+      "sha256": "bc08af6298692e08258252da22242fee1764decd92904e8a0143c7f124ff588d",
       "owner": "web"
     },
     {
@@ -10185,8 +10185,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/LayerDetailsDock.tsx",
       "mode": "100644",
-      "bytes": 6163,
-      "sha256": "b6d57ca0a28660002e04ad9b6f8cb6e14d804f0948c9e2edb9994adee54dfb31",
+      "bytes": 6346,
+      "sha256": "4f8b760e41f94ac32bd6b2ebaad532dffcab383e4af72a74fc27deba2755694c",
       "owner": "web"
     },
     {

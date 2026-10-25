@@ -80,8 +80,10 @@ export function LayerDetailsDock({ dock, trigger, id, short, expanded, close, ch
         // An open nonmodal dialog must close before it can become modal.
         if (dialog.open) dialog.close();
         dialog.showModal();
-        // A focused key remains the same key when the viewport becomes short.
-        (heldFocus ? focused : closeButton.current)?.focus({ preventScroll: true });
+        // A focused key remains the same key when the viewport becomes short,
+        // revealed in the body that now scrolls instead of the dock.
+        if (heldFocus) { focused.focus({ preventScroll: true }); focused.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
+        else closeButton.current?.focus({ preventScroll: true });
       }
       return;
     }
