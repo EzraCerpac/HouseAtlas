@@ -3,7 +3,11 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { admitInViewer } from '../src/admission.mjs';
 import { bakeOverview } from '../src/bake.mjs';
-import { readAccessor, readGlb, writeGlb } from '../src/glb.mjs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { localMatrix, maxScale, multiply, readAccessor, readGlb, writeGlb } from '../src/glb.mjs';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 
@@ -12,7 +16,7 @@ const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
  * terrain exported as triangle soup with sub-millimetre seams (context).
  * Options add an unused mesh before the slab, an accessor nothing reads, and
  * node `semanticRole` extras; `thin` adds a house chain and garden gravel, both
- * made of separate 5 mm cubes. */
+ * made of separate 5 mm cubes, and a strip thinner than the weld distance. */
 export function syntheticMaster({ dead = false, unusedMesh = false, extras = false, thin = false } = {}) {
   const parts = [], accessors = [], views = [];
   let length = 0;
@@ -74,6 +78,13 @@ export function syntheticMaster({ dead = false, unusedMesh = false, extras = fal
     }
     return [positions, indices];
   };
+  // A 1 m strip 0.1 mm wide: welding at 0.5 mm folds every triangle away.
+  const sliver = () => {
+    const positions = [], indices = [];
+    for (let i = 0; i <= 20; i++) positions.push(1 + i * 0.05, 2, 0.5, 1 + i * 0.05, 2, 0.5001);
+    for (let i = 0; i < 20; i++) indices.push(2 * i, 2 * i + 2, 2 * i + 1, 2 * i + 1, 2 * i + 2, 2 * i + 3);
+    return [positions, indices];
+  };
   const named = [
     ['RoomPick', primitive(box, boxIndices), 'room-pick'],
     ...(unusedMesh ? [['Retired', primitive(box, boxIndices), null]] : []),
@@ -82,6 +93,7 @@ export function syntheticMaster({ dead = false, unusedMesh = false, extras = fal
     ['Lamp', primitive(sphere, sphereIndices, normals), 'context'],
     ['Terrain', primitive(soup, soupIndices), 'context'],
     ...(thin ? [['Chain', primitive(...cubes(40, c => [2, 1 + c * 0.012, 1])), 'context'],
+      ['Sliver', primitive(...sliver()), 'context'],
       ['Gravel', primitive(...cubes(60, c => [-4 + (c % 10) * 0.3, -0.45, 6 + Math.floor(c / 10) * 0.3])), 'context']] : []),
   ];
   if (dead) add(new Float32Array(1024), 'VEC3', 5126);
@@ -92,9 +104,9 @@ export function syntheticMaster({ dead = false, unusedMesh = false, extras = fal
   const node = (name, extra = {}) => ({ mesh: meshIndex(name), name, ...extra, ...(extras ? { extras: { semanticRole: role(name), levelIds: levelIds(name) } } : {}) });
   const json = {
     asset: { version: '2.0', generator: 'synthetic' }, scene: 0, scenes: [{ nodes: [0] }],
-    nodes: [{ name: 'House', children: thin ? [1, 2, 3, 4, 5, 6, 7, 8] : [1, 2, 3, 4, 5, 6] }, node('RoomPick'), node('Slab'), node('Wall'),
+    nodes: [{ name: 'House', children: thin ? [1, 2, 3, 4, 5, 6, 7, 8, 9] : [1, 2, 3, 4, 5, 6] }, node('RoomPick'), node('Slab'), node('Wall'),
       { ...node('Lamp'), name: 'LampA', translation: [1, 1.5, 1] }, { ...node('Lamp'), name: 'LampB', translation: [3, 1.5, 2] }, node('Terrain'),
-      ...(thin ? [node('Chain'), node('Gravel')] : [])],
+      ...(thin ? [node('Chain'), node('Sliver'), node('Gravel')] : [])],
     meshes: named.map(([name, p]) => ({ name, primitives: [p] })), accessors, bufferViews: views, buffers: [{ byteLength: length }],
   };
   const bin = new Uint8Array(length); let at = 0;
@@ -104,7 +116,7 @@ export function syntheticMaster({ dead = false, unusedMesh = false, extras = fal
     buildingId: 'b', levelIds: levelIds(name), spaceOccurrenceId: role(name) === 'room-pick' ? 'o1' : null, role: role(name) });
   const companion = { profile: 'houseatlas.unified-atlas-publication.v1', original: { sha256: sha256(glb), bytes: glb.byteLength },
     meshBindings: [binding('RoomPick', 1), binding('Slab', 2), binding('Wall', 3), binding('Lamp', 4), binding('Lamp', 5), binding('Terrain', 6),
-      ...(thin ? [binding('Chain', 7), binding('Gravel', 8)] : [])] };
+      ...(thin ? [binding('Chain', 7), binding('Sliver', 8), binding('Gravel', 9)] : [])] };
   return { glb, companion };
 }
 
@@ -212,5 +224,24 @@ test('never empties a primitive, even when whole parts are below the error', asy
   for (const p of result.report.primitives) assert.ok(p.bakedTriangles >= Math.min(4, p.triangles), `${p.name} kept ${p.bakedTriangles}`);
   assert.ok(result.report.contextErrorMetres > 0.005, `bake error ${result.report.contextErrorMetres} m is above the 5 mm parts`);
   assert.ok(row(result, 'Chain').changed && row(result, 'Gravel').changed);
+  assert.ok(trianglesOf(result.glb, 'Sliver') >= 4);
   await admitInViewer(result.glb);
+});
+
+test('bounds world stretch under a rotation inside a nonuniform scale', () => {
+  const parent = localMatrix({ scale: [2, 1, 1] }), child = localMatrix({ rotation: [0, 0, Math.sin(Math.PI / 8), Math.cos(Math.PI / 8)] });
+  assert.ok(Math.abs(maxScale(multiply(parent, child)) - 2) < 1e-9);
+  assert.ok(Math.abs(maxScale(localMatrix({ scale: [0.5, 3, 1], rotation: [0.2, 0.3, 0.1, Math.sqrt(1 - 0.14)] })) - 3) < 1e-9);
+});
+
+test('the command line never overwrites its inputs', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'model-bake-'));
+  try {
+    const { glb, companion } = syntheticMaster();
+    writeFileSync(join(dir, 'model.glb'), glb); writeFileSync(join(dir, 'atlas-scene.json'), JSON.stringify(companion));
+    const cli = new URL('../bake.mjs', import.meta.url).pathname;
+    assert.throws(() => execFileSync(process.execPath, [cli, '--model', join(dir, 'model.glb'), '--companion', join(dir, 'atlas-scene.json'),
+      '--out', dir, '--triangles', '20000'], { stdio: 'pipe' }), /already exists/);
+    assert.deepEqual(new Uint8Array(readFileSync(join(dir, 'model.glb'))), glb);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });

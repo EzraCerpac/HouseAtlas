@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0a2566f21fce9ba9d5217282532673e4b797d1dcec7007a93ffc4169500dcf94",
+  "sourceDigestSha256": "aeecb6aa6a62128c918915a45400a2c7529f0bbeafae3bac4dc0318a19cc7276",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -12019,15 +12019,15 @@
     {
       "path": "tools/model-bake/README.md",
       "mode": "100644",
-      "bytes": 4719,
-      "sha256": "2cd273c4e6ae4905010fa06c5231e49bd9bd723644e5ee22443a18d289a0d0b5",
+      "bytes": 5298,
+      "sha256": "6ef2218eaed972a6adc7502a8268fac40ef8eb020cd2e420acbfb8869df2bb7f",
       "owner": "media"
     },
     {
       "path": "tools/model-bake/bake.mjs",
       "mode": "100755",
-      "bytes": 3161,
-      "sha256": "ec273c4b5db188ad805f4424781607225b958e876fde6203d325c8df5fd18ce6",
+      "bytes": 3921,
+      "sha256": "aa205d6d20c25d72457d882d5c7f65425522ef62d86fcd9d36f3e09a0b5f2347",
       "owner": "media"
     },
     {
@@ -12054,22 +12054,22 @@
     {
       "path": "tools/model-bake/src/bake.mjs",
       "mode": "100644",
-      "bytes": 17379,
-      "sha256": "47431d03e8341b42f2eb556dd611552bef03f847be9ef3e7c1bb8f56098d3564",
+      "bytes": 17543,
+      "sha256": "dc0545b461a98272c8aeb26c57dbc60a4171143a9f854e3112cd1d6048ae38c3",
       "owner": "media"
     },
     {
       "path": "tools/model-bake/src/glb.mjs",
       "mode": "100644",
-      "bytes": 5452,
-      "sha256": "7c2060155983dac3781f08c39ff916165c63bf40914c8b966a6a03db157dfd29",
+      "bytes": 6140,
+      "sha256": "5f1ac33ca5dedcb2081c9049fb1ae939cbdefdb00fdf525e8de0abab357b3b18",
       "owner": "media"
     },
     {
       "path": "tools/model-bake/test/bake.test.mjs",
       "mode": "100644",
-      "bytes": 14101,
-      "sha256": "218ee5509e72844f98d1c6d8dd5bce4c15e0587647af30b36212050d36ededab",
+      "bytes": 16067,
+      "sha256": "44bc40e3b62da3c0aab603e45415208e7a72890623fbedc1e3262a9c46ba4c36",
       "owner": "media"
     },
     {

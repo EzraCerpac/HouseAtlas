@@ -177,7 +177,9 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     if (LOCKED_ROLES.includes(role) || triangles < 4) { fixedTriangles += triangles * uses.length; return; }
     const scale = Math.max(...uses.map(use => maxScale(use.world)), 1e-9);
     // Welding would merge across UV seams the material path needs; textured slots collapse unwelded.
-    const welded = hasTextures ? indices : weld(positions, indices, options.weld / scale);
+    // A part thinner than the weld distance can weld away entirely; it then stays unwelded.
+    let welded = hasTextures ? indices : weld(positions, indices, options.weld / scale);
+    if (welded.length < floorTriangles(triangles) * 3) welded = indices;
     // The simplifier sees only referenced vertices: unreferenced ones (left by
     // welding or the exporter) stall edge collapse. `vertexIds` maps back to source.
     const vertexIds = [...new Set(welded)].sort((a, b) => a - b), local = new Map(vertexIds.map((v, i) => [v, i]));

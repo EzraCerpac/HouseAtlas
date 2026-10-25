@@ -76,8 +76,25 @@ export function multiply(a, b) {
   for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) out[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k];
   return out;
 }
-/** Largest stretch a world matrix applies to a local length. */
-export const maxScale = m => Math.max(Math.hypot(m[0], m[1], m[2]), Math.hypot(m[4], m[5], m[6]), Math.hypot(m[8], m[9], m[10]));
+/** Largest stretch a world matrix applies to a local length: the largest
+ * singular value of its linear part. Column lengths underestimate it once a
+ * rotation sits under a nonuniform scale, so this iterates on M^T M from each
+ * axis (at least one is not orthogonal to the top eigenvector). */
+export function maxScale(m) {
+  const g = [0, 1, 2].map(i => [0, 1, 2].map(j => m[i * 4] * m[j * 4] + m[i * 4 + 1] * m[j * 4 + 1] + m[i * 4 + 2] * m[j * 4 + 2]));
+  let best = 0;
+  for (let axis = 0; axis < 3; axis++) {
+    let v = [0, 0, 0]; v[axis] = 1;
+    let value = 0;
+    for (let step = 0; step < 64; step++) {
+      const next = g.map(row => row[0] * v[0] + row[1] * v[1] + row[2] * v[2]), length = Math.hypot(...next);
+      if (length === 0) break;
+      value = length; v = next.map(x => x / length);
+    }
+    best = Math.max(best, value);
+  }
+  return Math.sqrt(best);
+}
 
 /** Drawn node instances of each mesh in the default scene, with world matrices. */
 export function meshInstances(json) {

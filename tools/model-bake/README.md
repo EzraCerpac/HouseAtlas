@@ -11,7 +11,9 @@ npm ci --prefix frontend   # the admission check loads the viewer's own prefligh
 node tools/model-bake/bake.mjs --model master.glb --companion atlas-scene.json --out OUT_DIR
 ```
 
-`OUT_DIR` receives `model.glb`, `atlas-scene.json` and `bake-report.json`.
+`OUT_DIR` receives `model.glb`, `atlas-scene.json` and `bake-report.json`. The
+bake only creates files: if any of them already exists there (the master
+itself, a link to it, an earlier bake), it refuses before writing anything.
 Options: `--triangles` (drawn-triangle budget, default 520,000, under the
 viewer's 600,000), `--max-error` (largest context error in metres before the
 bake refuses, default 0.05), `--structure-weight` (structure and roof error as
@@ -50,7 +52,10 @@ metres, default 0.0005).
 - Before simplifying, untextured vertices within 0.5 mm (`--weld`) are welded,
   and the simplifier sees only referenced vertices. Exporters often split every
   triangle into its own three vertices; without this, edge collapse cannot
-  shrink such meshes at all.
+  shrink such meshes at all. A part thinner than the weld distance would weld
+  away entirely, so it stays unwelded. Errors convert to each mesh's local
+  units by the largest stretch of its world transform (its largest singular
+  value), so nested nonuniform scales never loosen the error in metres.
 - Both methods only keep source vertices, so every baked position is a master
   position and every building, level and occurrence bound still holds.
 - Simplified untextured primitives keep only `POSITION`. The viewer draws
@@ -70,13 +75,15 @@ material admission on the result. A refusal there fails the bake.
 node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs
 ```
 
-Five cases on generated geometry: baking to budget (locked footprints,
+Seven cases on generated geometry: baking to budget (locked footprints,
 source-vertex positions, a flat wall and welded terrain soup collapsing, viewer
 admission), a master that already fits (kept as authored while an unused mesh,
 a dead accessor and their bytes drop, with bindings remapped), roles read from
 node extras without a companion, refusals for a foreign companion pin and an
 unreachable budget, and a bake whose error exceeds whole 5 mm parts (house
-chain, garden gravel) that still leaves every primitive non-empty. They do not render anything or touch a real model.
+chain, garden gravel, a strip thinner than the weld) that still leaves every
+primitive non-empty, the world stretch of a rotation under a nonuniform scale,
+and the command line refusing an `--out` that holds its inputs. They do not render anything or touch a real model.
 
 ## Not covered here
 
