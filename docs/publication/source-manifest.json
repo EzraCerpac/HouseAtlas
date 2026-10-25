@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "10dd8bf22fbf9279cf775abc0deb51407adfbf16f83ec6d0cac265809d8143fd",
+  "sourceDigestSha256": "c07a44bfe710c2ee203782d990bb7d563eca14f8cb8d7b945591b4cec0df9d09",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -5474,8 +5474,8 @@
     {
       "path": "backend/src/transports/mcp/lifecycle/mod.rs",
       "mode": "100644",
-      "bytes": 404,
-      "sha256": "cb20d68f8be84143cc9bd731031fe6c220f3924798723406aec4480691fc6951",
+      "bytes": 443,
+      "sha256": "0c0eeac6916d38fdb1857866601deee7d80c4b7b9e92ee1415cc6db1271cd217",
       "owner": "mcp"
     },
     {
@@ -5490,6 +5490,13 @@
       "mode": "100644",
       "bytes": 7187,
       "sha256": "830c06e3896ff719fda5e43c6f0211db18ab6507319dd65fdc6c50fa207e7822",
+      "owner": "mcp"
+    },
+    {
+      "path": "backend/src/transports/mcp/lifecycle/synthetic_contracts.rs",
+      "mode": "100644",
+      "bytes": 18028,
+      "sha256": "4d69f350b1006c149c4178634ea34b61c7b2403ec4ff0d447ff7ce45424dc7e7",
       "owner": "mcp"
     },
     {
