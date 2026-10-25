@@ -35,6 +35,24 @@ response is stored.
    **Try again**. A stale, invalid, absent or too-large answer from the server
    replaces it with that state.
 
+## Room map downloads (Settings)
+
+Settings → **Room map downloads** is a per-device choice kept in
+`localStorage` (`houseatlas.model-updates.v1`):
+
+- **Automatic** (default): the fresh read runs on every open, except where the
+  browser reports mobile data or Data Saver (`navigator.connection`; Chrome on
+  Android). Safari and iOS report neither.
+- **When I ask**: the stored copy opens with **Check for update** and no
+  network read. With nothing stored, the Atlas shows **Download room map**.
+
+## Back online from the Saved viewer
+
+The Saved viewer checks whether the live entry `/` answers on open, every 30
+seconds while visible, on the browser's `online` event and on **Check
+connection**. Any HTTP answer counts as reachable and shows **Connected · Open
+live**; a rejected or 5-second-silent read stays offline. Nothing is cached.
+
 ## Static assets
 
 The backend marks `/assets/*` responses, which the build names by content
@@ -59,3 +77,5 @@ It runs the actual reader and cache on a synthetic IndexedDB disk across
 simulated processes and counts GETs: first open, cold reopen with an unchanged
 model (scene only), offline reopen (stored copy, no GET), a newly published
 model, another actor, changed stored bytes and sign-out clearing.
+`node frontend/lantern-tests/offline-connection-probe-healthy.mjs` checks the
+live-host probe and the download preference.

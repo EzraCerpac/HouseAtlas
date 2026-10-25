@@ -28,6 +28,7 @@ import { atlasLevelName, countClearedLabelY, countMarkerTarget, countMarkerWidth
 import { documentaryOverlayIndex, type BuildingCoverage, type DocumentaryRecord, type PropertyRecords, type SourceFact } from './runtime-overlays';
 import { edgeSpans, estimatedOccurrences, MEASUREMENT_BASIS, placeLabels, roomArea } from './measurements';
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
+import { modelUpdatesAllowed } from './model-updates';
 import { NetworkGraph } from './NetworkGraph';
 import { NetworkStageConnections, networkRoomConnections } from './NetworkStageConnections';
 import type { NetworkConnections } from './network-connections';
@@ -42,9 +43,11 @@ import './unified-atlas.css';
  * action always wins; reduced motion snaps. */
 
 /** A stored copy on screen while its fresh read is still running or has failed in transport. */
-export interface StoredCopy { readonly storedAt: string; readonly refresh: 'pending' | 'failed' }
+export interface StoredCopy { readonly storedAt: string; readonly refresh: 'pending' | 'failed' | 'held' }
 type Outcome = { readonly status: 'ready'; readonly model: AtlasModel; readonly entryBuildingId: string | null | undefined; readonly stored?: StoredCopy }
-  | { readonly status: 'failed'; readonly reason: AtlasReadFailure };
+  | { readonly status: 'failed'; readonly reason: AtlasReadFailure }
+  /** Downloads wait for the user and nothing is stored on this device yet. */
+  | { readonly status: 'held' };
 interface Loaded { readonly selection: AtlasPresentationSelection; readonly attempt: number; readonly outcome: Outcome }
 
 const FAILURE: Record<AtlasReadFailure, { readonly text: string; readonly retry: string | null }> = {
@@ -148,10 +151,17 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
     };
     // Stale while revalidate: this device's last verified copy of the same
     // publication and manifest shows at once; the fresh read still decides.
+    // With downloads held, only an explicit Check for update starts it.
+    const fetchNow = port.kind !== 'live' || attempt > 0 || modelUpdatesAllowed();
     let settled = false;
     const stored: Promise<{ readonly read: StoredAtlasRead; readonly model: AtlasModel } | null> = (async () => {
       if (port.kind !== 'live' || selection.kind !== 'live' || !port.stored) return null;
-      if (storedCopy.current?.selection === selection) return storedCopy.current;
+      if (storedCopy.current?.selection === selection) {
+        const kept = storedCopy.current;
+        if (!fetchNow) setLoaded({ selection, attempt, outcome: { status: 'ready', model: kept.model, entryBuildingId: kept.read.entryBuildingId,
+          stored: { storedAt: kept.read.storedAt, refresh: 'held' } } });
+        return kept;
+      }
       storedCopy.current = null;
       try {
         const read = await port.stored(selection, signal);
@@ -159,10 +169,15 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
         const model = await bind(read);
         if (settled || signal.aborted) return null;
         storedCopy.current = { selection, read, model };
-        setLoaded({ selection, attempt, outcome: { status: 'ready', model, entryBuildingId: read.entryBuildingId, stored: { storedAt: read.storedAt, refresh: 'pending' } } });
+        setLoaded({ selection, attempt, outcome: { status: 'ready', model, entryBuildingId: read.entryBuildingId,
+          stored: { storedAt: read.storedAt, refresh: fetchNow ? 'pending' : 'held' } } });
         return { read, model };
       } catch { return null; }
     })();
+    if (!fetchNow) {
+      void stored.then(shown => { if (!shown && !signal.aborted) setLoaded({ selection, attempt, outcome: { status: 'held' } }); });
+      return () => controller.abort();
+    }
     void (async () => {
       let outcome: Outcome;
       try {
@@ -198,6 +213,13 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
   if (!outcome) return <section className="ua-shell is-loading" aria-label="Atlas" aria-busy="true">
     <div className="ua-state" role="status"><span className="ua-spinner" aria-hidden="true" />Loading the room map…</div>
     <LensStatus lens={environment.lens}>Model rooms and the network graph appear when the room map has loaded.</LensStatus>
+  </section>;
+  if (outcome.status === 'held') return <section className="ua-shell" aria-label="Atlas">
+    <LensStatus lens={environment.lens}>The room map is not on this device yet.</LensStatus>
+    <div className="ua-state" role="status">
+      <p>The room map is not on this device yet.</p>
+      <div className="ua-state-actions"><button type="button" className="btn btn-small" onClick={() => setAttempt(value => value + 1)}>Download room map</button></div>
+    </div>
   </section>;
   if (outcome.status === 'failed') {
     const failure = FAILURE[outcome.reason];
@@ -1226,7 +1248,8 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
           <Icon name="history" size={15} />
           <span className="ua-snapshot-kind">Stored copy</span>
           <time dateTime={stored.storedAt} title={stored.storedAt}>{stampTime(stored.storedAt)}</time>
-          {stored.refresh === 'pending' ? <span>· updating</span> : <>
+          {stored.refresh === 'pending' ? <span>· updating</span> : stored.refresh === 'held'
+            ? retry && <button type="button" className="btn btn-small btn-quiet" onClick={retry}>Check for update</button> : <>
             <span>· not updated</span>
             {retry && <button type="button" className="btn btn-small btn-quiet" onClick={retry}>Try again</button>}
           </>}

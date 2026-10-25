@@ -7,6 +7,7 @@ import { verifySavedShell, removeSavedShell, type SavedShellStatus } from './she
 import { createSavedCatalogAdapter, type SavedCatalogRead } from './saved-catalog';
 import { readSavedPackSections } from './saved-pack-sections';
 import { SavedCatalogView } from './SavedCatalogView';
+import { useLiveHost } from './connection-probe';
 import { LocalEditPanel } from '../local-edit-retention/LocalEditPanel';
 import type { SavedHouseSelection } from '../local-edit-retention/saved-adapter';
 import '../lantern/styles/fonts.css';
@@ -91,6 +92,7 @@ export function SavedAtlasHost({ store: supplied }: { readonly store?: SavedHous
   const mounted = useRef<ReturnType<typeof mountSavedSelection> | null>(null);
   const [shell, setShell] = useState<SavedShellStatus>({ ready: false, buildId: null });
   const [reduced, setReduced] = useState(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const live = useLiveHost();
   useEffect(() => {
     const query = matchMedia('(prefers-reduced-motion: reduce)'), changed = () => setReduced(query.matches);
     query.addEventListener('change', changed); return () => query.removeEventListener('change', changed);
@@ -123,6 +125,9 @@ export function SavedAtlasHost({ store: supplied }: { readonly store?: SavedHous
   const changeView = (next: typeof view) => { if (next !== view) localPanel.current?.(); setView(next); };
   return <main className="lantern-host view-atlas saved-atlas-app">
     <header className="saved-header"><h1>Saved Atlas</h1><span role="status">{shell.ready ? 'Public shell verified' : 'Public shell not verified'}</span>
+      {live.reachable ? <a className="saved-live" href="/">Connected · Open live</a>
+        : <button type="button" className="saved-live" onClick={live.check} disabled={live.checking} aria-live="polite">
+          {live.checking ? 'Checking connection…' : live.reachable === false ? 'Offline · Check connection' : 'Check connection'}</button>}
       {house && <button type="button" onClick={close}>Close saved Atlas</button>}
       <details><summary>Saved scope</summary><p>Captured Atlas, inventory and documents. Local drafts are not submitted. Native editing, sync and fresh native downloads are unavailable here. Saved records do not establish current native authorization.</p>
         {shell.buildId && <><p>Public shell build <code>{shell.buildId}</code></p>
