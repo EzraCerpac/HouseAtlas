@@ -14,6 +14,9 @@ html, body, #root { margin: 0; width: 100%; min-width: 0; height: 100%; }
 .saved-header code, .saved-coverage dd { overflow-wrap: anywhere; }
 
 .saved-header button, .saved-manager button { font: inherit; font-weight: 650; min-height: 36px; padding: 0 12px; border: 1px solid var(--frame-line); border-radius: var(--r-control); background: var(--sheet); color: var(--ink); cursor: pointer; }
+.saved-header .saved-live { display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; border-radius: 999px; font-weight: 650; font-size: var(--fs-xs); }
+.saved-header a.saved-live { background: var(--chrome); color: #fff; text-decoration: none; }
+.saved-header a.saved-live:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 2px; }
 .saved-header button:hover, .saved-manager button:hover { border-color: var(--ink-2); }
 .saved-manager button[aria-pressed='true'] { background: var(--chrome); border-color: var(--chrome); color: #fff; }
 .saved-header button:focus-visible, .saved-manager button:focus-visible, .saved-atlas-app summary:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 2px; }

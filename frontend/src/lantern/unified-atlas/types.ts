@@ -123,8 +123,13 @@ export interface UnifiedAtlasRead {
   /** Optional presentation metadata owned by this exact admitted read. Null is
    * explicitly unconfigured; omitted local ports may supply their own callback. */
   readonly entryBuildingId?: string | null;
+  /** SHA-256 of the exact scene envelope, when the reader has it; equal
+   * digests and model bytes let a fresh read confirm a stored copy in place. */
+  readonly envelopeSha256?: string;
 }
-export type AtlasReadFailure = 'absent' | 'stale' | 'unavailable' | 'invalid' | 'too-large';
+/** A verified copy from this device's own store, shown while the fresh read runs. */
+export interface StoredAtlasRead extends UnifiedAtlasRead { readonly storedAt: string }
+export type AtlasReadFailure = 'absent' | 'stale' | 'unavailable' | 'invalid' | 'too-large' | 'denied';
 export class AtlasReadError extends Error {
   constructor(readonly reason: AtlasReadFailure, message: string = reason) { super(message); }
 }
@@ -134,6 +139,9 @@ export interface UnifiedAtlasPort {
   current(): ModelOverviewSelection | null;
   subscribe(changed: () => void): () => void;
   read(selection: ModelOverviewSelection, signal: AbortSignal): Promise<UnifiedAtlasRead>;
+  /** The last verified read of this exact selection's publication and
+   * manifest kept on this device, or null. Display only: `read` still runs. */
+  stored?(selection: ModelOverviewSelection, signal: AbortSignal): Promise<StoredAtlasRead | null>;
   /** The building the Atlas opens on, bound by the source owner for this
    * publication. Never inferred from names, plan order or size; an absent or
    * unknown ID opens the only building with floors, else the whole property. */
@@ -163,6 +171,7 @@ export interface LiveAtlasPresentationPort {
   current(): LiveAtlasSelection | null;
   subscribe(changed: () => void): () => void;
   read(selection: LiveAtlasSelection, signal: AbortSignal): Promise<UnifiedAtlasRead>;
+  stored?(selection: LiveAtlasSelection, signal: AbortSignal): Promise<StoredAtlasRead | null>;
   entryBuildingId?(scene: AtlasScene): string | null;
   readonly savedDocumentary?: UnifiedAtlasPort['savedDocumentary'];
   createOverlays?(selection: LiveAtlasSelection, scene: AtlasScene, building: AtlasBuilding, signal: AbortSignal): ReturnType<NonNullable<UnifiedAtlasPort['createOverlays']>>;

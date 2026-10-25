@@ -19,6 +19,7 @@ import { createTopologyClient } from "../src/api/topology-client";
 import { createNetworkRelationsClient } from "../src/api/network-relations-client";
 import { createNativeGeometryReadClient, signOutWithScanCleanup } from "./native-geometry-read-client";
 import type { NativeGeometryScanCache } from "./native-geometry-scan-cache";
+import type { UnifiedAtlasCache } from "./unified-atlas-cache";
 import { createNativeEvidenceDocumentClient } from "./native-evidence-document-client";
 import { createNativeSceneAssociationClient } from "./native-scene-association-client";
 import { createNativeSceneSourceClient } from "./native-scene-source-client";
@@ -89,6 +90,13 @@ let sessionGeneration = 0;
 let scanCache: Promise<NativeGeometryScanCache> | undefined;
 const getScanCache = () => scanCache ??= import("./native-geometry-scan-cache").then(module =>
   module.openNativeGeometryScanCache(typeof indexedDB === "undefined" ? undefined : indexedDB));
+// Verified unified Atlas scenes and model bytes, opened on first Atlas read;
+// sign-out deletes them with the scan bytes. Unavailable storage reads afresh.
+let atlasStore: Promise<NativeGeometryScanCache> | undefined;
+const getAtlasStore = () => atlasStore ??= import("./unified-atlas-cache").then(async module => {
+  const store = module.openUnifiedAtlasStore(typeof indexedDB === "undefined" ? undefined : indexedDB);
+  await store.ready(); return store;
+});
 const nativeSignOut = nativeSessions.signOut;
 const nativeLocalAccess = nativeSessions.localAccess;
 const nativeLocalSignIn = nativeLocalAccess?.signIn;
@@ -157,7 +165,9 @@ const sessions: AtlasSessionClient = {
     currentReadyView = null;
     quantityChanged();
     await signOutWithScanCleanup(() => nativeSignOut(signal), async () => {
-      await getScanCache().then(cache => cache.clear()).catch(() => undefined);
+      atlasCacheOwner = null;
+      await Promise.all([getScanCache().then(cache => cache.clear()).catch(() => undefined),
+        getAtlasStore().then(store => store.clear()).catch(() => undefined)]);
       captureDrafts.announceSessionChange();
     });
   } } : {}),
@@ -409,6 +419,17 @@ function subscribeOverview(changed: () => void): () => void {
   if (selected) timer = setTimeout(observe, Math.min(2_147_483_647, Math.max(1, Date.parse(selected.expiresAt) - Date.now() + 1)));
   return () => { unsubscribe(); if (timer !== undefined) clearTimeout(timer); };
 }
+/** The persistent Atlas cache for the authenticated actor and the selection's home, or null. */
+let atlasCacheOwner: { readonly key: string; readonly cache: Promise<UnifiedAtlasCache | null> } | null = null;
+function atlasCache(selection: ModelOverviewSelection): Promise<UnifiedAtlasCache | null> {
+  const session = currentSession;
+  if (!session?.actorId || currentOverview() !== selection) return Promise.resolve(null);
+  const owner = { actorId: session.actorId, workspaceId: selection.scope.workspaceId, homeId: selection.scope.homeId };
+  const key = JSON.stringify(owner);
+  if (atlasCacheOwner?.key !== key) atlasCacheOwner = { key, cache: Promise.all([import('./unified-atlas-cache'), getAtlasStore()])
+    .then(([module, store]) => module.createUnifiedAtlasCache(store, owner), () => null) };
+  return atlasCacheOwner.cache;
+}
 const sourceModels: SourceModelPort = {
   localFiles: "browser-only",
   overview: {
@@ -443,10 +464,19 @@ const sourceModels: SourceModelPort = {
       const controller = new AbortController();
       const unsubscribe = subscribeOverview(() => { if (currentOverview() !== selection) controller.abort(); });
       try {
+        // The cache opens beside the scene GET; slow or unavailable storage never delays it.
         const reader = await import('./unified-atlas-reader');
         return await reader.readUnifiedAtlas({ selection, signal: AbortSignal.any([signal, controller.signal]),
-          origin: window.location.origin, isCurrent: () => currentOverview() === selection });
+          origin: window.location.origin, isCurrent: () => currentOverview() === selection, cache: atlasCache(selection) });
       } finally { unsubscribe(); }
+    },
+    async stored(selection, signal) {
+      const reader = await import('./unified-atlas-reader');
+      // The fresh read waits on this display-only path, so storage that is slow to open is skipped.
+      const cache = await Promise.race([atlasCache(selection),
+        new Promise<null>(resolve => setTimeout(resolve, reader.CACHE_LOOKUP_MS, null))]);
+      signal.throwIfAborted();
+      return cache && currentOverview() === selection ? reader.readCachedUnifiedAtlas({ selection, signal, cache }) : null;
     },
   },
   session: {
