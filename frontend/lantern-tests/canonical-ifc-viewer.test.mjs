@@ -58,7 +58,8 @@ const trackpadURL = await sourceURL(`${base}trackpad-gesture.ts`, 'ts');
 const wheelURL = await sourceURL(`${base}stage-wheel.ts`, 'ts');
 const stageCameraURL = await sourceURL(`${base}useStageCamera.ts`, 'ts', { react, '../atlas/useCamera': cameraURL,
   './stage-pointers': pointersURL, './trackpad-gesture': trackpadURL, './stage-wheel': wheelURL });
-const meshLayerURL = await sourceURL(`${base}MeshLayer.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx, './geometry': geometryURL });
+const gpuBudgetURL = await sourceURL(`${base}gpu-budget.ts`, 'ts');
+const meshLayerURL = await sourceURL(`${base}MeshLayer.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx, './gpu-budget': gpuBudgetURL });
 const stageURL = await sourceURL(`${base}ModelStage.tsx`, 'tsx', { react, 'react/jsx-runtime': jsx, '../components/Icon': iconURL,
   './geometry': geometryURL, './selection': selectionURL, './MeshLayer': meshLayerURL, './tones': tonesURL, './useStageCamera': stageCameraURL });
 const preflightURL = await sourceURL(`${base}glb-preflight.ts`, 'ts');
