@@ -18,8 +18,10 @@ touched. They roll back on their own when gateway verification fails; pass
 
 1. Clones the repository fresh and refuses a commit that is not on `origin/main`.
 2. Diffs the live build's commit against the new one. Changes under
-   `backend/migrations/`, `backend/src/storage/`, any `.sql` file or a backend
-   `schema*.rs` stop the deploy until someone has reviewed them and passes
+   `backend/migrations/`, `backend/src/storage/`, any `.sql` file, a backend
+   `schema*.rs`, the network sidecar and archive stores, or any backend line with
+   embedded SQL DDL or a schema version stop the deploy until someone has
+   reviewed them and passes
    `--storage-reviewed '<reason>'`. The reason is kept with the build.
 3. Builds the backend (`cargo build --release --locked`) and the frontend
    (`npm ci`, `typecheck`, `build`, `check:backend-frontend-compat`), reusing the
@@ -73,13 +75,15 @@ Host paths, hostnames and IDs stay out of Git. The tool reads
 `~/.config/houseatlas/deploy-nas.env` (or `$HOUSEATLAS_DEPLOY_CONFIG`):
 
 ```sh
-SETUP_ROOT=~/path/to/deploy/folders        # build folders, ledger, lock
-TOOLCHAIN_ROOT=~/path/with/cargo/and/rustup # optional; sets CARGO_HOME and RUSTUP_HOME
+# Build folders, ledger and lock
+SETUP_ROOT=~/path/to/deploy/folders
+# Optional: the folder holding cargo/ and rustup/, used as CARGO_HOME and RUSTUP_HOME
+TOOLCHAIN_ROOT=~/path/with/cargo/and/rustup
 PLIST=~/Library/LaunchAgents/<label>.plist
 SERVICE_LABEL=<label>
 GATEWAY_URL=https://<gateway host>
 SMOKE_TEMPLATE=~/.config/houseatlas/smoke-server.json
-# BUILD_TARGET=x86_64-apple-darwin  REPO_URL=...  STOP_TIMEOUT=30  START_TIMEOUT=90
+# Optional: BUILD_TARGET (x86_64-apple-darwin), REPO_URL, STOP_TIMEOUT (30), START_TIMEOUT (90)
 ```
 
 `SMOKE_TEMPLATE` is a server config with `loopback-local` authentication on a

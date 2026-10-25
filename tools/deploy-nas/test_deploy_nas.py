@@ -305,6 +305,14 @@ class SwapAndRollback(unittest.TestCase):
             dep.rollback()
         self.assertTrue(svc.binary.endswith("new/houseatlas"))
 
+    def test_live_commit_skips_model_switches(self):
+        dep = dn.Deployer(self.cfg, FakeService(self.cfg), out=io.StringIO())
+        b = "/srv/houseatlas-main-bbbbbbb-20260101-v1/candidate/houseatlas"
+        dn.save_record(self.cfg.ledger, {"id": "c", "kind": "code", "status": "verified", "binary": b, "sha": "f" * 40})
+        dn.save_record(self.cfg.ledger, {"id": "m", "kind": "model", "status": "verified", "binary": b})
+        self.assertEqual(dep.live_sha(Path(b)), "f" * 40)
+        self.assertEqual(dep.live_sha(Path(SERVICE["ProgramArguments"][0])), "aaaaaaa")
+
     def test_rollback_refuses_a_service_changed_by_hand(self):
         svc = FakeService(self.cfg)
         dep = dn.Deployer(self.cfg, svc, out=io.StringIO())

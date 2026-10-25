@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b00300d6d8634f43ee412ed19cf30dc11cfd05b1bc332e5f5f9455789543325d",
+  "sourceDigestSha256": "b33e2eb5e0ea3c8617bdf15b0e0eb7cfda4c858248fe222684e7b3c654d31164",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -140,8 +140,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 8684,
-      "sha256": "9f8e41313a1a2747b152d409aff2406b656ae57dd09a4e19731266bbfbb31eda",
+      "bytes": 8902,
+      "sha256": "9ce626ddffa4a3934908ba8e30b3533870564ca839aa9eb845c12c258e952a33",
       "owner": "core-integration"
     },
     {
@@ -11524,6 +11524,34 @@
       "mode": "100644",
       "bytes": 4309,
       "sha256": "2f7e25fd6af2a2c0aeab63f336e3c2f934e9e4bb0f996a653f6108a2c65b12a6",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/deploy-nas/README.md",
+      "mode": "100644",
+      "bytes": 5069,
+      "sha256": "6e799490074ed33e8140f60ffa0d2f33e2bee8b77ccbe63933fcfcd5da2ffc7a",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/deploy-nas/deploy-nas",
+      "mode": "100755",
+      "bytes": 143,
+      "sha256": "7e1deeaf2939a523e935ab39c30cbf532b5d80b60c1bfe279e9cd780b744fd4a",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/deploy-nas/deploy_nas.py",
+      "mode": "100644",
+      "bytes": 39854,
+      "sha256": "8173eb5c2f788797dbc7e2997ef294b53eda9aec693bf6cf7f11625af35913c9",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/deploy-nas/test_deploy_nas.py",
+      "mode": "100644",
+      "bytes": 17191,
+      "sha256": "19fdc1065bb148329f1cd6ecf522701d1e43d91c6c68b5f0b82fca87c6f68e37",
       "owner": "core-integration"
     },
     {

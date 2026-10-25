@@ -36,7 +36,10 @@ STORAGE_PATTERNS = (
     re.compile(r"^backend/src/storage/"),
     re.compile(r"\.sql$"),
     re.compile(r"^backend/src/.*schema[^/]*\.rs$"),
+    re.compile(r"^backend/src/providers/network/(durable|archive)\.rs$"),
 )
+# Embedded SQL anywhere in the backend: a changed line matching this also needs review.
+STORAGE_DIFF_REGEX = r"(CREATE|ALTER|DROP) (TABLE|INDEX|VIEW|TRIGGER)|user_version|schema_version|SCHEMA_VERSION"
 MODEL_FLAGS = {
     "publication.json": "--model-overview-manifest",
     "atlas-scene.json": "--atlas-scene-manifest",
@@ -449,8 +452,8 @@ class Deployer:
 
     def live_sha(self, binary: Path) -> str | None:
         for r in reversed(ledger_records(self.cfg.ledger)):
-            if r["status"] in ("live", "verified") and r.get("binary") == str(binary):
-                return r.get("sha")
+            if r["status"] in ("live", "verified") and r.get("binary") == str(binary) and r.get("sha"):
+                return r["sha"]
         m = re.search(r"houseatlas-main-([0-9a-f]{7,40})-", str(binary))
         return m.group(1) if m else None
 
@@ -595,7 +598,8 @@ class Deployer:
         if not old_sha:
             raise DeployError(f"cannot tell which commit {live['binary']} was built from")
         changed = rt.run(["git", "-C", str(src), "diff", "--name-only", old_sha, full]).stdout.split()
-        sensitive = storage_sensitive(changed)
+        sensitive = sorted(set(storage_sensitive(changed)) | set(rt.run(
+            ["git", "-C", str(src), "diff", "--name-only", "-G", STORAGE_DIFF_REGEX, old_sha, full, "--", "backend"]).stdout.split()))
         (inp / "storage-gate.txt").write_text(
             f"live {old_sha}\nnew {full}\nchanged {len(changed)}\n" + "".join(f"storage {p}\n" for p in sensitive)
             + (f"reviewed: {storage_reviewed}\n" if storage_reviewed else ""))
