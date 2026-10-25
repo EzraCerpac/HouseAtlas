@@ -131,7 +131,12 @@ impl ConnectionSnapshot {
             && self.authorization == AuthorizationState::Connected
             && self.account.is_some()
             && self.paid_use_admission != PaidUseAdmission::Held
-            && self.runtime.route != RuntimeRoute::Unset
+            // A sign-in helper owns only the temporary callback. Even an
+            // otherwise ready observation cannot make it an inference runtime.
+            && matches!(
+                self.runtime.route,
+                RuntimeRoute::IssuedWebsiteClient | RuntimeRoute::LocalInferenceCompanion
+            )
             && self.runtime.qualification == RuntimeQualification::Qualified
             && self.runtime.availability == RuntimeAvailability::Ready
     }

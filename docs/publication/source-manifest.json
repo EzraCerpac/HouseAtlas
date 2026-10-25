@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "28e9d8c05597f65b893beba2f51f6a0f2e7f20df6494f4ca9dc9b191ce69180a",
+  "sourceDigestSha256": "560b78473b1fffe6990c1bf159a6ed66b35e4431ea6c6b10a1895a2a0767898a",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -714,8 +714,8 @@
     {
       "path": "backend/src/ai/connection.rs",
       "mode": "100644",
-      "bytes": 4320,
-      "sha256": "fba3fa44199ab8a8b1106040df8890d3c8f32d0db582a0ffaa261b5854642978",
+      "bytes": 4582,
+      "sha256": "791a77551d82f94946fceb51a94e8c4b12f7b2e5ebd3c8813122109b2bc03504",
       "owner": "ai"
     },
     {
@@ -728,8 +728,8 @@
     {
       "path": "backend/src/ai/healthy_examples.rs",
       "mode": "100644",
-      "bytes": 28464,
-      "sha256": "608f5b974ba452aec1935512beb6b020e1e013f11c04932a64de4142c49577ff",
+      "bytes": 32620,
+      "sha256": "891d66da696d5c44868fefcdcfa10e836b8e36a8035e21e195dedfc9a3f7dfe3",
       "owner": "ai"
     },
     {
@@ -6727,8 +6727,8 @@
     {
       "path": "docs/rust-integration/ai-host-integration.md",
       "mode": "100644",
-      "bytes": 3215,
-      "sha256": "aa062c32140e3d255e5ba9c448a9680cde36db1a69d2a9a066e1da678fd90fa0",
+      "bytes": 7691,
+      "sha256": "f9bf5104590661d734dc08346eb2cedce446b3025aa4d4aed4c7abebfa65b003",
       "owner": "core-integration"
     },
     {
@@ -8624,8 +8624,8 @@
     {
       "path": "frontend/src/ai/model.ts",
       "mode": "100644",
-      "bytes": 3851,
-      "sha256": "02350d7358f6f98efe3728fca7fd473edac1837016b60fc267a2fdc321b88dab",
+      "bytes": 4062,
+      "sha256": "d3b05369e708144fab7f110630f2d8778e40b696c28100e271a86375b6b9753b",
       "owner": "ai"
     },
     {
