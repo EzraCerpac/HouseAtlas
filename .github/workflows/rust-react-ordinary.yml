@@ -140,6 +140,10 @@ jobs:
         env:
           HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
         run: node frontend/lantern-tests/run-healthy.mjs
+      - name: Model bake on generated geometry, admitted and bound by the viewer
+        run: |
+          npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund
+          node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs
   # The loopback flows drive the compiled binary through the built React app. Three
   # shards run in parallel; each builds the binary and the app once.
   loopback:

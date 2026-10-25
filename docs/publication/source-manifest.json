@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "f88d8e10b83d00d0c845407759c94cff771c0fee26ec97b474e5d970228cd802",
+  "sourceDigestSha256": "0727eadf8048e863021aaeed9190c9222884396bec4f1862f57623ea6818808c",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -77,8 +77,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 13449,
-      "sha256": "7a277c1d1f879b4595e559dca65686dfc0b5d6f23356fad0121180479a08a4fd",
+      "bytes": 13705,
+      "sha256": "a15eec091091eb7a06864a543a2145e18595aba6b413df87724d6c43680a33bb",
       "owner": "core-integration"
     },
     {
@@ -12054,15 +12054,15 @@
     {
       "path": "tools/model-bake/README.md",
       "mode": "100644",
-      "bytes": 5722,
-      "sha256": "2ded673bc50dc32c0c9a9dab832c540466d301845a1e80f08e1ee1a74212dbc8",
+      "bytes": 6509,
+      "sha256": "39fad634ddce270ed682e9c8202a6193506b4003b22a2baae7bea3398018ddca",
       "owner": "media"
     },
     {
       "path": "tools/model-bake/bake.mjs",
       "mode": "100755",
-      "bytes": 3921,
-      "sha256": "aa205d6d20c25d72457d882d5c7f65425522ef62d86fcd9d36f3e09a0b5f2347",
+      "bytes": 4639,
+      "sha256": "1c34736b15baeaa67b36f5d891697745fe91fafd6000a41853ffbd7700f3df17",
       "owner": "media"
     },
     {
@@ -12082,8 +12082,8 @@
     {
       "path": "tools/model-bake/src/admission.mjs",
       "mode": "100644",
-      "bytes": 2251,
-      "sha256": "295bd3c82491d32e837030c61101c2488bae14ffca6a35330e6341c038f8199e",
+      "bytes": 4859,
+      "sha256": "e152e1726b9a1b96f48d895aa76bbbb32501bdba93886656a80807eb6c4eb1fa",
       "owner": "media"
     },
     {
@@ -12103,8 +12103,8 @@
     {
       "path": "tools/model-bake/test/bake.test.mjs",
       "mode": "100644",
-      "bytes": 21211,
-      "sha256": "41a07523f413594c2d71170499fbb6bf8caa6aef931da245756f046e165bf184",
+      "bytes": 26541,
+      "sha256": "00992ee758a78eebe4ac71a2821b92f1ef4eae3fefb14dcf7c59097a6a0f4c83",
       "owner": "media"
     },
     {
