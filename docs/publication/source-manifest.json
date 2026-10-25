@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b00300d6d8634f43ee412ed19cf30dc11cfd05b1bc332e5f5f9455789543325d",
+  "sourceDigestSha256": "ad62dbd505a143e04db631756caa03465a21dc1b184f9c8a30a87954d8cf3960",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -119,8 +119,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 6616,
-      "sha256": "5799e58bed4c381b2341a8c326a65c9ea376d5a9eca9d52faea69032b7095537",
+      "bytes": 6673,
+      "sha256": "52f6bf28f5d44dbeccdb09242cf39985a786f405f524918a17672f326d44f206",
       "owner": "core-integration"
     },
     {
@@ -6048,8 +6048,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 175604,
-      "sha256": "e7cd5ce6c0546c0fe771b642b62974763b1d16c4dfe413893522eb424028769c",
+      "bytes": 176019,
+      "sha256": "798ea8b959b33b7d2a146441bfdfdf4174d3c9f643fe5b6d86c0ac9a12c616d6",
       "owner": "core-integration"
     },
     {
@@ -7397,6 +7397,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/canonical-mesh-preparation.test.mjs",
+      "mode": "100644",
+      "bytes": 7152,
+      "sha256": "7ea47e5b386117b5ce879761aa13c1352b480336677002cd395f6a1bdab39014",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/check-backend-frontend-compat.mjs",
       "mode": "100644",
       "bytes": 3260,
@@ -7966,8 +7973,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 4628,
-      "sha256": "598bee91d196d7e052c08d84de1ce2cef3c9aa354c429e0fd7403f690ab47c17",
+      "bytes": 4675,
+      "sha256": "74f4e776ce4d5e57d2a56b5935ad0880e8c1d1e92b962f6d4121b0c2a9040f2f",
       "owner": "web"
     },
     {
@@ -9093,8 +9100,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/geometry.ts",
       "mode": "100644",
-      "bytes": 19400,
-      "sha256": "83d13db995730eada4ea4f16ebd02cd6bb2b89bac90057a510bf75b65a9559df",
+      "bytes": 19455,
+      "sha256": "5bc9e5c671c36ad8f6fd66b2188e959c0fc164a73c296c3db677ad48968988f7",
       "owner": "web"
     },
     {
