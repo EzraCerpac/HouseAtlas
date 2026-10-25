@@ -2778,7 +2778,9 @@ the server refuses (the person is asked instead of a blind resend), refusals,
 sign-out, another account or home (including another account's unresolved
 conflict on the same record, which it also cannot keep or discard), a Save
 in a second tab that waits for the first tab's send instead of being
-dropped, "When I ask" (a Save sends only that edit and
+dropped, a stale decision in a second tab that cannot undo the first tab's,
+a session rotated during a lookup (the old token's refusal is not final),
+"When I ask" (a Save sends only that edit and
 earlier edits to the same record), the notice views reload on after a
 background sync, and pruning of synced entries. It runs in `run-healthy.mjs`. The server side of the
 same contract (lookup of a committed envelope, no second write on an identical

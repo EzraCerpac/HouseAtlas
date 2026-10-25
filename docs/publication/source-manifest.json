@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "598f273d93b45079703afa0d7426416a6f7ea01e71db41213f71d306d12aecf6",
+  "sourceDigestSha256": "3f7b9a39f3480becb6e88f1bc86f2a6ca6b82c67db718ae31abb9ad6b2ad468c",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6083,8 +6083,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 169206,
-      "sha256": "cda5fd94ff0c832fbce125d1c67f21940d37f7a001c108bd402e91178bff7eeb",
+      "bytes": 169347,
+      "sha256": "494997cb58bbd6b0df51de0b5c194adb5a1e762154dcd8178ae6bb291d209c7f",
       "owner": "core-integration"
     },
     {
@@ -7959,8 +7959,8 @@
     {
       "path": "frontend/lantern-tests/outbox-healthy.mjs",
       "mode": "100644",
-      "bytes": 15224,
-      "sha256": "55611f618c2b54d8d40e6c5b9287bb469b3cddcc92f8b07db1f72645ccf0102f",
+      "bytes": 17391,
+      "sha256": "7cb8c9e867d1420909d8fcf1713c410954dfc7daaaa9d32c99d6b48ac4154237",
       "owner": "web"
     },
     {
@@ -10682,8 +10682,8 @@
     {
       "path": "frontend/src/outbox/outbox.ts",
       "mode": "100644",
-      "bytes": 12327,
-      "sha256": "26a1ffd63dacb834ce407086f6052604f6dddfd12106480f95eb775879c6273f",
+      "bytes": 13504,
+      "sha256": "42df7c161636bbc6dd09db23e4e91039b87b6e150cd449a8c2c2dfe6c26ac4a7",
       "owner": "web"
     },
     {

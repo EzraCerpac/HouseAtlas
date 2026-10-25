@@ -132,7 +132,9 @@ export function createOutbox(options: OutboxOptions): Outbox {
         };
         if (row.sent) {
           const found = await lookup(row, active);
-          if (found === 'later') return;
+          // A session that changed meanwhile (sign-out, rotation) makes the
+          // answer unreliable: its refusal may only be the old token's.
+          if (found === 'later' || context !== active) return;
           if (found === 'committed') { await synced(); continue; }
           if (found === 'unconfirmed') {
             // Resending blindly could repeat a change the server can no longer
@@ -142,10 +144,16 @@ export function createOutbox(options: OutboxOptions): Outbox {
             continue;
           }
         }
-      // Record the dispatch before it happens: a tab closed mid-send leaves an
-      // entry that is looked up before it is sent again.
+        // Record the dispatch before it happens: a tab closed mid-send leaves
+        // an entry that is looked up before it is sent again.
         await save({ ...row, state: 'sending', sent: true });
+        if (context !== active) return;
         const outcome = await sendEntry(row, active, transport);
+        if (outcome.kind === 'problem' && context !== active) {
+          // Refused under a session that has since been replaced: not final.
+          await save({ ...row, state: 'waiting', sent: true });
+          return;
+        }
         if (outcome.kind === 'committed') {
           await synced();
         } else if (outcome.kind === 'problem') {
@@ -193,6 +201,21 @@ export function createOutbox(options: OutboxOptions): Outbox {
     if (!entry) throw new Error('This change is no longer queued');
     return entry;
   };
+  /** Applies a decision about a conflict only if the stored entry is still
+   * the one the person saw, and in turn with sending, so a stale tab cannot
+   * undo a decision another tab already made. */
+  async function decide(seen: OutboxEntry, write: () => Promise<unknown>): Promise<void> {
+    const current = await lock(async () => {
+      const stored = (await store.list()).find(row => row.id === seen.id);
+      if (!stored || stored.state !== 'needs-you' || stored.requestId !== seen.requestId) return false;
+      await write();
+      return true;
+    });
+    if (!current) {
+      await reload();
+      throw new Error('This change was already decided on another tab');
+    }
+  }
   /** The entry, if the signed-in person may decide about it. */
   const mine = (id: string) => {
     const entry = find(id);
@@ -233,10 +256,10 @@ export function createOutbox(options: OutboxOptions): Outbox {
       const fresh = await adapter(entry).rebase(entry, signal);
       signal.throwIfAborted();
       mine(id); // The person may have signed out while it was prepared.
-      await save({ ...entry, ...fresh, state: 'waiting', sent: false, problem: null, settledAt: null });
+      await decide(entry, () => save({ ...entry, ...fresh, state: 'waiting', sent: false, problem: null, settledAt: null }));
       await sendNow(id);
     },
-    useTheirs: async id => remove(mine(id).id),
+    useTheirs: async id => decide(mine(id), () => remove(id)),
     reload,
   };
 }

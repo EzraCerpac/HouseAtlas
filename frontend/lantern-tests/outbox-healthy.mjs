@@ -19,11 +19,12 @@ const commands = '/api/atlas/stock/v3/workspaces/w1/homes/h1/commands';
 /** A generated server: one revision per record, permanent idempotency keys,
  * refusal of an identical resend, and the retained-intent lookup. */
 function createServer() {
-  const server = { revisions: new Map(), keys: new Map(), posts: [], online: true, loseReplies: 0, status: null, lookupStatus: null };
+  const server = { revisions: new Map(), keys: new Map(), posts: [], online: true, loseReplies: 0, status: null, lookupStatus: null, csrf: 'csrf-1', lookupGate: null };
   server.transport = async (path, init) => {
     if (!server.online) throw new TypeError('Generated network unavailable');
-    assert.equal(init.headers['X-Atlas-CSRF'], 'csrf-1');
     const body = JSON.parse(init.body);
+    if (path === '/api/atlas/retained-intent') await server.lookupGate;
+    if (init.headers['X-Atlas-CSRF'] !== server.csrf) return Response.json({ code: 'CAPABILITY_DENIED' }, { status: 403 });
     if (path === '/api/atlas/retained-intent') {
       if (server.lookupStatus) return Response.json({ code: 'GENERATED' }, { status: server.lookupStatus });
       const committed = server.keys.has(body.idempotencyKey);
@@ -180,6 +181,51 @@ for (const [status, problem] of [[403, 'denied'], [404, 'removed'], [422, 'rejec
   assert.equal(server.posts.filter(post => post.target === 'pantry').length, 0, 'Nothing is resent blindly');
 }
 
+// A session rotated while a lookup is in flight: the old token's refusal is
+// not final, and the new session sends the edit.
+{
+  const disk = createSyntheticDisk(), server = createServer(), outbox = outboxOn(disk, server);
+  outbox.configure(context);
+  server.online = false;
+  const entry = await outbox.submit(submission('lobby', 1));
+  server.online = true;
+  let open;
+  server.lookupGate = new Promise(resolve => { open = resolve; });
+  const draining = outbox.drain();
+  await new Promise(resolve => setTimeout(resolve, 10));
+  server.csrf = 'csrf-2';
+  outbox.configure({ ...context, csrfToken: 'csrf-2' });
+  open(); server.lookupGate = null;
+  await draining;
+  await outbox.drain();
+  const stored = outbox.getSnapshot().entries.find(row => row.id === entry.id);
+  assert.equal(stored.state, 'synced'); assert.equal(stored.problem, null);
+  assert.equal(server.revisions.get('lobby'), 2);
+}
+
+// Two tabs showing one conflict: a decision made in one is not undone by a
+// stale decision in the other.
+{
+  const disk = createSyntheticDisk(), server = createServer();
+  const a = outboxOn(disk, server), b = outboxOn(disk, server);
+  a.configure(context); b.configure(context);
+  server.revisions.set('vault', 3);
+  const entry = await a.submit(submission('vault', 1));
+  await b.reload();
+  assert.equal(b.getSnapshot().entries[0].state, 'needs-you');
+  a.register('place-name', { current: async () => '', rebase: async row => {
+    const requestId = `r${++counter}`;
+    return { requestId, label: row.label, body: JSON.stringify({ commandId: row.commandId, requestId, idempotencyKey: `k${counter}`, target: 'vault', base: 3 }) };
+  } });
+  server.online = false;
+  await a.keepMine(entry.id, AbortSignal.timeout(1000));
+  await assert.rejects(b.useTheirs(entry.id), /another tab/);
+  assert.equal(b.getSnapshot().entries[0].state, 'waiting', 'The other tab now shows the kept change');
+  server.online = true;
+  await a.drain();
+  assert.equal(server.revisions.get('vault'), 4);
+}
+
 // Signed out: nothing is lost and the host hears about it.
 {
   const disk = createSyntheticDisk(), server = createServer();
@@ -290,4 +336,4 @@ for (const [status, problem] of [[403, 'denied'], [404, 'removed'], [422, 'rejec
   assert.equal(kept.at(-1).target.recordId, `room-${KEEP_SYNCED + 2}`);
   assert.equal(syntheticRecords(disk, OUTBOX_DATABASE, 'entries').length, KEEP_SYNCED);
 }
-console.log(JSON.stringify({ outbox: 'healthy', cases: 13 }));
+console.log(JSON.stringify({ outbox: 'healthy', cases: 15 }));
