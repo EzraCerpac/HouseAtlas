@@ -1,0 +1,51 @@
+name: Ordinary job cache save
+description: Publish this job's caches from a verified main push only. Run it as the last step.
+inputs:
+  npm-key:
+    default: ''
+  npm-hit:
+    default: ''
+  registry-key:
+    default: ''
+  registry-hit:
+    default: ''
+  target-key:
+    default: ''
+  target-hit:
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Save npm content cache from verified main
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && inputs.npm-key != '' && inputs.npm-hit != 'true'
+      uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      with:
+        path: ${{ runner.temp }}/houseatlas-npm/_cacache
+        key: ${{ inputs.npm-key }}
+    - name: Save Cargo registry cache from verified main
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && inputs.registry-key != '' && inputs.registry-hit != 'true'
+      uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      with:
+        path: |
+          ~/.cargo/registry/cache
+          ~/.cargo/registry/index
+          ~/.cargo/registry/src
+        key: ${{ inputs.registry-key }}
+    # Keep compiled dependencies only: workspace artifacts always rebuild and are most of the size.
+    - name: Prune workspace build outputs before saving
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && inputs.target-key != '' && inputs.target-hit != 'true'
+      shell: bash
+      run: |
+        target="$RUNNER_TEMP/houseatlas-target"
+        for profile in "$target"/*/; do
+          [ -d "$profile/deps" ] || continue
+          rm -rf "$profile/examples" "$profile/incremental" "$profile"/houseatlas "$profile"/houseatlas.d
+          rm -rf "$profile"/deps/houseatlas* "$profile"/deps/libhouseatlas* "$profile"/.fingerprint/houseatlas-*
+        done
+        du -sh "$target"
+    - name: Save Cargo dependency build cache from verified main
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && inputs.target-key != '' && inputs.target-hit != 'true'
+      uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      with:
+        path: ${{ runner.temp }}/houseatlas-target
+        key: ${{ inputs.target-key }}
