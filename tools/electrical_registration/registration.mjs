@@ -61,8 +61,14 @@ function validateContext(context) {
 }
 function evidence(e) { return e && sha(e.sha256) && text(e.locator); }
 function nominationWithdrawals(context,source,target,featureIds) {
-  return (context.withdrawnNominations??[]).filter(w=>sameSource(w.source,source)&&sameFrame(w.target,target)
-    &&sameBinding(w.target,target)&&w.targetFeatureIds.some(id=>featureIds.includes(id)));
+  return (context.withdrawnNominations??[]).filter(w=>{
+    if(!sameBinding(w.target,target)||!pinEqual(w.target,target,['workspaceId','homeId'])
+      ||!pinEqual(w.source,source,['sheetId','regionId']))return false;
+    // Revision changes cannot reconcile a retained invalid nomination. Keep the
+    // original evidence pinned, without claiming it describes the new geometry.
+    if(!sameSource(w.source,source)||!sameFrame(w.target,target))return true;
+    return w.targetFeatureIds.some(id=>featureIds.includes(id));
+  });
 }
 /** Context is an independently supplied offline observation, never a native grant.
  * Incomplete but well-formed evidence is retained as a withheld registration. */
@@ -76,7 +82,8 @@ export function assessRegistration(proposal, context) {
   for(const c of all) need(text(c.id)&&text(c.targetLandmarkId)&&point(c.sourcePoint)&&point(c.targetPoint),'Named source/target landmarks and finite pairs required');
   const targetFeatureIds=[...new Set(all.map(c=>c.targetFeatureId))];
   const withdrawals=nominationWithdrawals(context,proposal.source,proposal.target,targetFeatureIds);
-  if(withdrawals.length) return {id:proposal.id,status:'withdrawn-invalid-nomination',reasons:withdrawals.map(w=>w.reason),
+  const pendingReconciliation=withdrawals.some(w=>!sameSource(w.source,proposal.source)||!sameFrame(w.target,proposal.target));
+  if(withdrawals.length) return {id:proposal.id,status:pendingReconciliation?'withheld-withdrawal-reconciliation':'withdrawn-invalid-nomination',reasons:[...withdrawals.map(w=>w.reason),...(pendingReconciliation?['Retained invalid nomination requires explicit owner reconciliation after source or target revision change']:[])],
     source:copy(proposal.source),target:copy(proposal.target),reviewEvidence:copy(proposal.reviewEvidence??null),
     layoutQualification:copy(proposal.layoutQualification??null),targetFeatureIds,targetLandmarkIds:all.map(c=>c.targetLandmarkId),
     fit:null,checks:[],maxCheckResidual:null,uncertainty:copy(proposal.uncertainty??null),withdrawnNominations:copy(withdrawals),
@@ -121,15 +128,21 @@ export function projectInventory(records, assessments, currentContext, selection
   need(new Set(records.map(r=>r.fixtureId)).size===records.length,'Unique inventory identities required');
   const output=records.map(row=>{
     need(text(row.fixtureId)&&point(row.sourcePoint)&&Array.isArray(row.bindings),'Explicit source point and bindings required');
+    need(row.sourceToleranceXY===undefined||(point(row.sourceToleranceXY)&&row.sourceToleranceXY.every(n=>n>=0)),'Explicit row tolerance must be a finite nonnegative pair');
     need(row.physicalCoordinate==null&&row.currentCircuitId==null&&row.wireRoute==null&&row.heightMetres==null,'Known physical/circuit facts require a separate contract; they cannot be overwritten by this documentary projector');
+    const placements=[], unsupported=[];
     const matches=assessments.filter(a=>{
       if(a.status!=='reviewed-approximate-scene-registration'||!sameFrame(a.target,currentContext.frame)||!sameSource(a.source,row)||!currentContext.sources.some(s=>sameSource(s,a.source)))return false;
-      if(!Array.isArray(a.targetFeatureIds)||nominationWithdrawals(currentContext,a.source,a.target,a.targetFeatureIds).length)return false;
+      if(!Array.isArray(a.targetFeatureIds))return false;
+      const withdrawals=nominationWithdrawals(currentContext,a.source,a.target,a.targetFeatureIds);
+      if(withdrawals.length){
+        if(row.bindings.some(b=>sameBinding(a.target,b)))unsupported.push({registrationId:a.id,reason:'Retained invalid nomination requires withdrawal or revision reconciliation',withdrawnNominations:copy(withdrawals)});
+        return false;
+      }
       const occurrence=currentContext.occurrences.find(o=>sameBinding(o,a.target));
       return occurrence && evidence(a.reviewEvidence) && text(a.layoutQualification) && Array.isArray(a.targetFeatureIds) && a.targetFeatureIds.every(id=>occurrence.featureIds.includes(id))
         && row.bindings.some(b=>sameBinding(a.target,b));
     });
-    const placements=[], unsupported=[];
     for(const a of matches) {
       if(!inside(row.sourcePoint,a.fit.sourceControlHull)){unsupported.push({registrationId:a.id,reason:'Source point lies outside fitted-control coverage'});continue;}
       const [aa,b,c,d]=a.fit.matrix,u=a.uncertainty;
@@ -137,6 +150,10 @@ export function projectInventory(records, assessments, currentContext, selection
       const sourceTolerance=point(row.sourceToleranceXY)?row.sourceToleranceXY:u.sourceXY;
       need(sourceTolerance.every(n=>n>=0),'Nonnegative source annotation tolerance required');
       const tolerance=sourceTolerance.map((n,i)=>Math.max(n,u.sourceXY[i]));
+      // A convex hull covers the entire annotation rectangle only when all
+      // four corners are covered. A centre inside the hull is insufficient.
+      const covered=[-1,1].every(x=>[-1,1].every(y=>inside([row.sourcePoint[0]+x*tolerance[0],row.sourcePoint[1]+y*tolerance[1]],a.fit.sourceControlHull)));
+      if(!covered){unsupported.push({registrationId:a.id,reason:'Source annotation uncertainty extends outside fitted-control coverage'});continue;}
       placements.push({registrationId:a.id,registrationReviewEvidence:copy(a.reviewEvidence),layoutQualification:copy(a.layoutQualification),registrationUncertainty:copy(a.uncertainty),target:copy(a.target),targetFeatureIds:copy(a.targetFeatureIds),scenePointXZ:applyAffine(a.fit.matrix,row.sourcePoint),
         annotationToleranceXZ:[Math.abs(aa)*tolerance[0]+Math.abs(c)*tolerance[1]+extra,Math.abs(b)*tolerance[0]+Math.abs(d)*tolerance[1]+extra],
         qualification:'reviewed approximate source alignment; tolerance is not surveyed accuracy',physicalCoordinate:null});
