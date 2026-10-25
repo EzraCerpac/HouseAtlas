@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { transformWithOxc } from 'vite';
 import { loadNumericSource } from './load-numeric-source.mjs';
 import { loadIfcGlbProfileSource, loadScanProfileSource } from './scan-mesh-read.mjs';
+import { loadSessionExpirySource } from './native-geometry-read.mjs';
 const dataUrl = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
 async function compile(path, replacements) {
   const file = new URL(path, import.meta.url);
@@ -22,6 +23,7 @@ async function compile(path, replacements) {
 const numeric = Object.fromEntries(await Promise.all(['decimal', 'lossless-json', 'schema-validator'].map(async name =>
   [`../src/numeric/${name}`, await loadNumericSource(`numeric/${name}.ts`)])));
 const readerUrl = await compile('../integration/native-geometry-read-client.ts', {
+  './session-expiry': await loadSessionExpirySource(),
   '../src/numeric/decimal': numeric['../src/numeric/decimal'],
   '../src/lantern/scans/mesh-profile': await loadScanProfileSource(),
   '../src/lantern/scans/ifc-glb-profile': await loadIfcGlbProfileSource(),

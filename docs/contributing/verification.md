@@ -1,5 +1,42 @@
 # HouseAtlas
 
+## Healthy frontend suite
+
+`frontend/lantern-tests/run-healthy.mjs` runs every named healthy frontend
+check listed in it, one process each, and prints per-check timings. The
+`Rust React ordinary core` workflow runs it on Linux after the production build:
+
+```sh
+npm --prefix frontend run build
+HOUSEATLAS_CHROMIUM=/path/to/chrome node frontend/lantern-tests/run-healthy.mjs
+node frontend/lantern-tests/run-healthy.mjs --only offline   # subset by substring
+```
+
+Without `HOUSEATLAS_CHROMIUM` the browser checks are skipped and reported as
+such. The list excludes regression, control, intake and handoff-directory
+commands; those keep their own lanes below. A check added to this directory is
+not run by CI until it is added to the list.
+
+## Real-browser offline launch
+
+`frontend/lantern-tests/offline-launch-browser.mjs` serves the built `dist/` on
+an owned loopback listener, opens `/saved/index.html` once online so the Saved
+and root workers install, then reopens `/` without a network and times how long
+the Saved shell takes to appear. It uses generated build output only.
+
+```sh
+node frontend/lantern-tests/offline-launch-browser.mjs --case offline-launch
+node frontend/lantern-tests/offline-launch-browser.mjs --case hung-network
+```
+
+`offline-launch` closes the listener (connection refused) and must show the
+shell within 2 s with no network bytes; it is in the healthy suite.
+`hung-network` keeps the listener open but never answers `/`, as on a captive
+portal or a weak signal. It must show the shell within 3 s. It currently fails:
+the root worker falls back only when the network read rejects, and a hung read
+never rejects. It is not in the healthy suite until that changes. Neither case
+is iOS, installed-PWA or live-model evidence.
+
 ## Generated annual-session integration regressions
 
 Inspect `frontend/lantern-tests/session-policy-integration.mjs`, the production

@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "e6c41b1e4e7de0ef293b01d19581a7c8a56873c12307dcc0fd2fcadb6675d702",
+  "sourceDigestSha256": "db7ee9d86be8f3d69b81dcb8b255adfd613ea76a830849ac0e6ee5094f5e8983",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -63,8 +63,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 13480,
-      "sha256": "6c32ec75be94723a6ea219c66466e2980ec080953c52c393e5b84a98853757f1",
+      "bytes": 13717,
+      "sha256": "c4bdb74107b691e449f3e227381544b39042c041c8b8cab87107b5059207323d",
       "owner": "core-integration"
     },
     {
@@ -6027,8 +6027,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 169487,
-      "sha256": "7f5b73503f34918c0e78cb7a2013bd52012ab84d3af22abf628c4e05b49a4221",
+      "bytes": 171237,
+      "sha256": "8827670cb698cae587275d4ed0d3b2a9ca4b3846c656ef79cd2820db1ef447a4",
       "owner": "core-integration"
     },
     {
@@ -7609,15 +7609,15 @@
     {
       "path": "frontend/lantern-tests/native-geometry-produced-read.mjs",
       "mode": "100644",
-      "bytes": 10297,
-      "sha256": "02cd834e0180e81c65b4bb8114cd88c8ae4752aee1002def8fcc9f1f1fe2e12e",
+      "bytes": 10426,
+      "sha256": "46f46f32be54f6d0fb26275df6f3313707a08708b804a123f772fd6a7be3b80e",
       "owner": "web"
     },
     {
       "path": "frontend/lantern-tests/native-geometry-read.mjs",
       "mode": "100644",
-      "bytes": 8039,
-      "sha256": "1a0d6aa1fa3896aab2f48c82913b667885fc267c158b725f1da1fc41d20aca50",
+      "bytes": 8480,
+      "sha256": "01f306a6725bfbc8f82dceb30fb53c29ba8dc606723d238dbe3f48d5d9c62369",
       "owner": "web"
     },
     {
@@ -7672,8 +7672,8 @@
     {
       "path": "frontend/lantern-tests/native-scan-succession.mjs",
       "mode": "100644",
-      "bytes": 14410,
-      "sha256": "34cb515d0cffbf25448b9a9cc3825483981e65d0996f52bd191b46ea25174526",
+      "bytes": 14535,
+      "sha256": "5b150484e2584d3b2c77fab6ed729810c7c178b975b0c09fa08f4b3d0f14641c",
       "owner": "web"
     },
     {
@@ -7796,6 +7796,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/offline-launch-browser.mjs",
+      "mode": "100644",
+      "bytes": 8131,
+      "sha256": "e849be0bd6ead3fdbcf468ba99e688c8fb5f22f69981e119f95a11b0b2633d68",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/offline-local-edit-mounting-healthy.mjs",
       "mode": "100644",
       "bytes": 14710,
@@ -7912,6 +7919,13 @@
       "mode": "100644",
       "bytes": 97,
       "sha256": "b8179e6b6102d5eab9d12c2c4d47d7abaf4ed8d380f8378eeeb4fddc40b176b0",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/run-healthy.mjs",
+      "mode": "100644",
+      "bytes": 4669,
+      "sha256": "614a8ec8f2df85e913482b01459f74ba7ed1d64a682630d7b89becee84dab74b",
       "owner": "web"
     },
     {
