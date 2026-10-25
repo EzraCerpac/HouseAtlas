@@ -33,7 +33,8 @@ impl Window {
 }
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 enum LoginClient {
-    Ip(IpAddr),
+    /// The same normalized IPv4 host or IPv6 /64 key as the Access login.
+    Peer(String),
     Gateway,
 }
 struct LoginRates {
@@ -65,7 +66,8 @@ impl Admission {
     }
 
     /// Transport admission, before reading any password/body bytes. AT11 still
-    /// performs its actual persisted global/client/username checks at login.
+    /// performs its actual persisted global/client attempt checks and its
+    /// per-client username failure check at login.
     /// This bounded process-local gate does not mint a login/session capability.
     pub(super) fn login(
         &self,
@@ -74,7 +76,12 @@ impl Admission {
         origin: &str,
         client: IpAddr,
     ) -> AccessResult<()> {
-        self.login_key(headers, method, origin, LoginClient::Ip(client))
+        self.login_key(
+            headers,
+            method,
+            origin,
+            LoginClient::Peer(crate::access::client_key(client)),
+        )
     }
     pub(super) fn login_gateway(
         &self,

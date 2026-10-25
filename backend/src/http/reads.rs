@@ -1,6 +1,7 @@
 //! Canonical frozen record/history/page reads over the actual storage peer.
 use super::{
-    CheckedHeaders, Host, HttpResult, authorized_read, domain_error, failure, json_response,
+    CheckedHeaders, Host, HttpResult, auth::no_query, authorized_read, domain_error, failure,
+    json_response,
 };
 use crate::storage::Contract;
 use crate::{
@@ -201,12 +202,6 @@ fn source_snapshot_cut(
 }
 
 type ScopedRecord = (String, String, String, String);
-fn no_query(uri: &Uri) -> Result<(), super::HttpFailure> {
-    if uri.query().is_some() {
-        return Err(failure(StatusCode::FORBIDDEN));
-    }
-    Ok(())
-}
 fn target(kind: String, id: String) -> Result<d::RecordRef, super::HttpFailure> {
     let raw = json!({"recordType":kind,"recordId":id});
     NativeContracts

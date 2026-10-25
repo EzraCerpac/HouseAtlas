@@ -1,9 +1,9 @@
 # Development composition
 
-The dev branch combines the open development PR snapshot with the root Atlas
-list integration and later original-owner corrections. Donor ancestry is retained.
-Composition precedes review and CI; it does not accept a donor, promote main or
-release deployment gates. The publication manifest verifies the complete source
+Development composition combines the open development PR snapshot with the root
+Atlas list integration and later original-owner corrections in PRs to main.
+Donor ancestry is retained. Review and CI precede merging; composition does not
+accept a donor or release deployment gates. The publication manifest verifies the complete source
 file set, modes, digests and logical owners. Its status remains provisional.
 
 The current composition also mounts the visible Saved receipt action on genuine
@@ -50,7 +50,7 @@ other ordinary loopback scripts. It checks ten REST lists, ten exact invoke
 results, a fresh REST-to-native-WebMCP continuation, visible React completion,
 one literal item filter and read-only comparison against saved SQLite rows.
 It executes no rejection, expiry, replay, revocation, fault or concurrency case.
-The ordinary workflows also run on dev pushes; cache publication stays on main.
+Cache publication stays on main pushes.
 
 The HTTP host also mounts the actual managed Atlas download issuer and
 authenticated scoped GET/HEAD redemption, sharing one native handle cache.

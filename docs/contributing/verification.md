@@ -866,6 +866,35 @@ Existing stopped/unrun descriptions for these three classes record ordinary or
 historical coverage; they do not prohibit an exact case satisfying this separate
 lane. Descriptions of other held classes retain their existing force.
 
+## Login rate keys and multi-home issuance
+
+`backend/src/access/login_regression.rs` holds four ignored exact cases with an
+in-memory Access store, a fixed clock and synthetic identities. They open no
+listener and use no provider or real credential. Inspect the module and its
+`access` imports before each separate command with Rust 1.99.0 and an owned
+disposable Cargo target.
+
+These two healthy cases check client-key normalization (IPv4 host, mapped IPv4,
+IPv6 /64, loopback and link-local) and one authentication and request-rate token
+for a three-home capture with a non-member home:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib access::login_regression::client_keys_normalize_ipv4_hosts_and_ipv6_prefixes -- --ignored --exact --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib access::login_regression::multi_home_capture_authenticates_once -- --ignored --exact --test-threads=1
+```
+
+These two denial cases belong only to the separate regression lane above. They
+check that one client's failed passwords do not refuse a correct password from
+another client, and that a client's own failures for a username still refuse it:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib access::login_regression::another_clients_failures_do_not_lock_out_a_correct_password -- --ignored --exact --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib access::login_regression::a_clients_own_failures_rate_limit_that_username -- --ignored --exact --test-threads=1
+```
+
+They do not test listener admission, a gateway or loopback-local login, expiry,
+revocation, replay, concurrency or deployment, and add no CI entrypoint.
+
 The separately authorized native annual-session policy lane has six exact
 generated commands in [Native session policy](../operations/native-session-policy.md#bounded-generated-verification).
 They cover the approved device-count, idle retention, annual expiry/renewal,
@@ -934,11 +963,10 @@ UI. Read [docs/rust-integration/README.md](../../docs/rust-integration/README.md
 explicit disposable settings, exact ordinary commands and remaining product
 areas. Its positive browser smoke is separate from all stopped controls.
 
-The `dev` branch combines development PRs before review and CI. Its assembled
-source is provisional. The integration writer resolves overlaps, records donor
-heads and tracks review corrections. The same ordinary workflows run on dev
-pushes; cache publication remains restricted to verified main pushes. Main
-acceptance still requires review of the exact candidate and passing CI.
+Development PRs target `main`; there is no separate dev branch. The integration
+writer resolves overlaps, records donor heads and tracks review corrections.
+Cache publication remains restricted to verified main pushes. Main acceptance
+still requires review of the exact candidate and passing CI.
 
 The inspected Network pin fixture uses fresh synthetic state and exactly one
 verified numeric-loopback TLS inventory GET. Its native publication, disclosure

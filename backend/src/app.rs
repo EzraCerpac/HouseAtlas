@@ -74,18 +74,26 @@ pub fn capture_homes(
     request: &a::RequestEvidence<'_>,
     configured: &[d::HomeSummary],
 ) -> a::AccessResult<Vec<CapturedHome>> {
-    let mut homes = Vec::new();
-    for summary in configured {
-        match access.authorize(request, &access_scope(&summary.scope)?, a::Action::Read) {
-            Ok(principal) => homes.push(CapturedHome {
-                summary: summary.clone(),
-                principal,
-            }),
-            Err(a::AccessError::NotFound) => {}
-            Err(error) => return Err(error),
-        }
+    if configured.is_empty() {
+        return Ok(Vec::new());
     }
-    Ok(homes)
+    let scopes = configured
+        .iter()
+        .map(|summary| access_scope(&summary.scope))
+        .collect::<a::AccessResult<Vec<_>>>()?;
+    // One authentication and request-rate token covers every configured home;
+    // non-member homes are skipped and every other denial fails the request.
+    let principals = access.authorize_homes(request, &scopes, a::Action::Read)?;
+    Ok(configured
+        .iter()
+        .zip(principals)
+        .filter_map(|(summary, principal)| {
+            Some(CapturedHome {
+                summary: summary.clone(),
+                principal: principal?,
+            })
+        })
+        .collect())
 }
 pub struct RequestPrincipal {
     pub principal: OriginalPrincipal,
@@ -120,10 +128,7 @@ impl RequestPrincipal {
         }
     }
     pub fn release(&self, access: &a::AccessBoundary) -> a::AccessResult<()> {
-        access.revalidate(&self.principal)?;
-        for choice in &self.home_choices {
-            access.revalidate(&choice.principal)?;
-        }
+        self.revalidate_principals(access)?;
         for grant in self.partitions.borrow().iter() {
             access.revalidate_source_partition(grant)?;
         }
@@ -132,6 +137,15 @@ impl RequestPrincipal {
         }
         for grant in self.network_links.borrow().iter() {
             access.revalidate_network_link(grant)?;
+        }
+        Ok(())
+    }
+    /// Per-capture recheck of the original and home-choice principals. Each
+    /// capture also rechecks its own grant; release/release_guard sweep all.
+    pub(crate) fn revalidate_principals(&self, access: &a::AccessBoundary) -> a::AccessResult<()> {
+        access.revalidate(&self.principal)?;
+        for choice in &self.home_choices {
+            access.revalidate(&choice.principal)?;
         }
         Ok(())
     }
@@ -161,13 +175,14 @@ impl RequestPrincipal {
         access: &a::AccessBoundary,
         source: &a::SourceRef,
     ) -> a::AccessResult<()> {
-        self.release(access)?;
-        if self
+        self.revalidate_principals(access)?;
+        if let Some(grant) = self
             .sources
             .borrow()
             .iter()
-            .any(|grant| grant.reference() == source)
+            .find(|grant| grant.reference() == source)
         {
+            access.revalidate_source(grant)?;
             return Ok(());
         }
         if self.source_capture_sealed.get() {
@@ -183,13 +198,14 @@ impl RequestPrincipal {
         access: &a::AccessBoundary,
         partition: &a::SourcePartition,
     ) -> a::AccessResult<()> {
-        self.release(access)?;
-        if self
+        self.revalidate_principals(access)?;
+        if let Some(grant) = self
             .partitions
             .borrow()
             .iter()
-            .any(|grant| grant.partition() == partition)
+            .find(|grant| grant.partition() == partition)
         {
+            access.revalidate_source_partition(grant)?;
             return Ok(());
         }
         if self.source_capture_sealed.get() {
@@ -225,14 +241,9 @@ impl RequestPrincipal {
         access: &a::AccessBoundary,
         reference: &a::NetworkLinkRef,
     ) -> a::AccessResult<()> {
-        self.release(access)?;
-        if self
-            .network_links
-            .borrow()
-            .iter()
-            .any(|grant| grant.reference() == reference)
-        {
-            return Ok(());
+        self.revalidate_principals(access)?;
+        if self.has_captured_network_link(reference) {
+            return self.revalidate_captured_network_link(access, reference);
         }
         if self.source_capture_sealed.get() {
             return Err(a::AccessError::Unavailable);
@@ -240,6 +251,7 @@ impl RequestPrincipal {
         // Stage both original endpoint grants without mutating the request.
         // A denied second endpoint or typed link must not leave a stray first
         // grant that can suppress unrelated qualified relations at release.
+        // Reused endpoint grants are rechecked by authorize_network_link.
         let sources = self.sources.borrow();
         let member = |member_ref: &a::SourceRef| {
             sources
@@ -275,6 +287,20 @@ impl RequestPrincipal {
             .borrow()
             .iter()
             .any(|grant| grant.reference() == reference)
+    }
+    /// Recheck one captured link grant without sweeping every other grant.
+    pub(crate) fn revalidate_captured_network_link(
+        &self,
+        access: &a::AccessBoundary,
+        reference: &a::NetworkLinkRef,
+    ) -> a::AccessResult<()> {
+        let links = self.network_links.borrow();
+        let grant = links
+            .iter()
+            .find(|grant| grant.reference() == reference)
+            .ok_or(a::AccessError::NotFound)?;
+        access.revalidate_network_link(grant)?;
+        Ok(())
     }
     pub(crate) fn captured_network_members(
         &self,
@@ -364,11 +390,13 @@ impl RequestPrincipal {
         Ok(())
     }
 }
-fn domain_access(error: a::AccessError) -> d::DomainError {
+/// The one Access-to-domain error mapping for domain ports and Atlas commands.
+pub(crate) fn access_domain(error: a::AccessError) -> d::DomainError {
     match error {
         a::AccessError::Unauthenticated => d::DomainError::Unauthenticated,
         a::AccessError::NotFound => d::DomainError::NotFound,
         a::AccessError::Unavailable => d::DomainError::UpstreamUnavailable,
+        a::AccessError::InvalidInput => d::DomainError::InvalidContract,
         _ => d::DomainError::Forbidden,
     }
 }
@@ -453,7 +481,10 @@ impl s::Authorization for NetworkSnapshotAuthority<'_> {
                 .0
                 .try_lock()
                 .map_err(|_| s::Error::new("unavailable", "Access unavailable"))?;
-            p.release(&access).map_err(storage_access)?;
+            // Per-link recheck only; the request's final release sweeps all.
+            p.revalidate_principals(&access).map_err(storage_access)?;
+            p.revalidate_captured_network_link(&access, &matched.reference)
+                .map_err(storage_access)?;
             access
                 .authorize_storage(&p.principal, p.principal.scope(), a::Capability::Read)
                 .map_err(storage_access)?;
@@ -528,7 +559,11 @@ impl s::Authorization for ReadAuthority {
         let scope: a::Scope = serde_json::from_value(serde_json::to_value(request.scope)?)
             .map_err(|_| s::Error::new("invalid-contract", "Invalid scope"))?;
         let principal = &p.principal;
-        p.release(&access).map_err(storage_access)?;
+        // Captures recheck the principals and their own grant; every captured
+        // grant is swept once by the request's final release, not per call.
+        if request.capability != s::Capability::ReadCache {
+            p.revalidate_principals(&access).map_err(storage_access)?;
+        }
         match request.capability {
             s::Capability::Read => {
                 access
@@ -616,8 +651,8 @@ impl d::AccessPort<RequestPrincipal> for HomeAuthority {
             .access
             .lock()
             .map_err(|_| d::DomainError::UpstreamUnavailable)?;
-        let scope = access_scope(scope).map_err(domain_access)?;
-        p.release(&access).map_err(domain_access)?;
+        let scope = access_scope(scope).map_err(access_domain)?;
+        p.release(&access).map_err(access_domain)?;
         let capability = match capability {
             d::Capability::Read => a::Capability::Read,
             d::Capability::ReadHistory => a::Capability::ReadHistory,
@@ -625,7 +660,7 @@ impl d::AccessPort<RequestPrincipal> for HomeAuthority {
         };
         access
             .authorize_storage(&p.principal, &scope, capability)
-            .map_err(domain_access)?;
+            .map_err(access_domain)?;
         Ok(d::AuthorizedHome {
             home: self.home.clone(),
             other_homes: p
@@ -647,7 +682,7 @@ impl d::AccessPort<RequestPrincipal> for HomeAuthority {
             .access
             .lock()
             .map_err(|_| d::DomainError::UpstreamUnavailable)?;
-        p.release(&access).map_err(domain_access)
+        p.release(&access).map_err(access_domain)
     }
 }
 pub struct Reads<'a>(pub &'a mut Store);

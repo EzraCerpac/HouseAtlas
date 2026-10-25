@@ -19,7 +19,9 @@ mod store;
 mod trusted_proxy;
 mod types;
 
-pub use boundary::{AccessBoundary, AccessConfig, AccessLimits, TransactionAuthorization};
+pub use boundary::{
+    AccessBoundary, AccessConfig, AccessLimits, TransactionAuthorization, client_key,
+};
 pub use credentials::{PasswordVerifier, hash_password};
 pub use error::{AccessError, AccessResult};
 pub use lifecycle::{LifecycleCapability, LifecycleGrant, LifecyclePolicy, LifecycleRule};
@@ -60,3 +62,6 @@ mod shared_healthy;
 
 #[cfg(test)]
 mod metadata_healthy;
+
+#[cfg(test)]
+mod login_regression;
