@@ -239,6 +239,15 @@ for (const [status, problem] of [[403, 'denied'], [404, 'removed'], [422, 'rejec
   release();
   assert.equal((await first).state, 'synced');
   assert.equal((await second).state, 'synced', 'The second tab sent its Save once the first was done');
+  // A tab whose edit another tab sent hears about it on its next read.
+  const heard = [];
+  a.onSynced(entries => heard.push(...entries.map(row => row.target.recordId)));
+  server.online = false;
+  await a.submit(submission('bay', 1));
+  server.online = true;
+  await b.drain({ force: true });
+  await a.reload();
+  assert.deepEqual(heard, ['alcove', 'bay'], 'Both edits the other tab sent are reported once');
   server.transport = slow;
   setSyncMode('automatic');
 }

@@ -83,8 +83,18 @@ export function createOutbox(options: OutboxOptions): Outbox {
       needsYou: entries.filter(entry => entry.state === 'needs-you').length };
     for (const changed of [...listeners]) changed();
   }
+  function notifySynced(rows: readonly OutboxEntry[]): void {
+    if (rows.length) for (const listener of [...syncedListeners]) listener(rows);
+  }
+  /** Takes the stored entries as they are now. Entries another tab synced
+   * since this one last looked are reported like this tab's own. */
+  function adopt(rows: OutboxEntry[]): void {
+    const before = new Map(entries.map(row => [row.id, row.state]));
+    entries = rows; loaded = true; publish();
+    notifySynced(rows.filter(row => row.state === 'synced' && before.has(row.id) && before.get(row.id) !== 'synced'));
+  }
   async function reload(): Promise<void> {
-    entries = await store.list(); loaded = true; publish();
+    adopt(await store.list());
   }
   async function save(entry: OutboxEntry): Promise<OutboxEntry> {
     await store.put(entry);
@@ -104,7 +114,7 @@ export function createOutbox(options: OutboxOptions): Outbox {
    * ends the pass and leaves everything queued as it was. */
   async function pass(active: OutboxContext, scope: Scope): Promise<void> {
     const rows = await store.list();
-    entries = rows; loaded = true; publish();
+    adopt(rows);
     // Only this person's decisions hold their edits; another account's
     // conflict on a shared browser does not.
     const held = new Set(rows.filter(row => row.state === 'needs-you' && owns(row, active)).map(targetKey));
@@ -150,7 +160,7 @@ export function createOutbox(options: OutboxOptions): Outbox {
       const synced = entries.filter(row => row.state === 'synced');
       for (const row of synced.slice(0, Math.max(0, synced.length - KEEP_SYNCED))) await remove(row.id);
     } finally {
-      if (background.length) for (const listener of [...syncedListeners]) listener(background);
+      notifySynced(background);
     }
   }
   async function drain({ force = false, only }: { force?: boolean; only?: string } = {}): Promise<void> {
