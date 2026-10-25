@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "541d4e309b2be551e48527e317beb7134667c634d6ed36b0fea53831d60c9c40",
+  "sourceDigestSha256": "b00300d6d8634f43ee412ed19cf30dc11cfd05b1bc332e5f5f9455789543325d",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -8225,8 +8225,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
-      "bytes": 97627,
-      "sha256": "02b9cb5fff11f68a3fa6bf8b85dec75a7f21b6389e723a73445ac1a2c83a3085",
+      "bytes": 98698,
+      "sha256": "e1d99797f87b1e9fe98d66c2f1268e8c536d0c5b043b81a6004481ab64d69112",
       "owner": "web"
     },
     {
@@ -8274,8 +8274,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs",
       "mode": "100644",
-      "bytes": 66787,
-      "sha256": "b309e02e3aa1a2cc8a018b6a8ce67277f2be307ff58488c1a153a7be7bb93960",
+      "bytes": 66788,
+      "sha256": "d8a47bef080e8b77926272812f73efb182c8696b0cc949172a8259095f2b6100",
       "owner": "web"
     },
     {
@@ -8946,8 +8946,8 @@
     {
       "path": "frontend/src/lantern/atlas/AtlasView.tsx",
       "mode": "100644",
-      "bytes": 36404,
-      "sha256": "9f4038c8b0c4859d7bf13bc34f50ec0a275089742ae819a95e5de92f67578e04",
+      "bytes": 36464,
+      "sha256": "17dfbf5ad787a358a9d7de79fbe96145655adec937592e67113b733e59e2bce1",
       "owner": "web"
     },
     {
@@ -9135,8 +9135,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/stage-pointers.ts",
       "mode": "100644",
-      "bytes": 4600,
-      "sha256": "670018b7eadf2dd5eddb158aadb0aa7b556edb584afe9887cba83b18ca8e1760",
+      "bytes": 4708,
+      "sha256": "955e1784690a4241c7b339cd2e66a678e800446f4dbe8b0c0109c61c99206197",
       "owner": "web"
     },
     {
@@ -9836,7 +9836,7 @@
       "path": "frontend/src/lantern/scans/presentation/HouseScanScene.tsx",
       "mode": "100644",
       "bytes": 22185,
-      "sha256": "1dca4d175f642f110736711a9d1f9acf43866f0d97e3745b29f58436de88e482",
+      "sha256": "217bfb1e7e83f453f4f14b70167f1baf3a5ef5b89501bd1832be1eedea82c368",
       "owner": "web"
     },
     {

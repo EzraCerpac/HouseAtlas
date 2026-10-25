@@ -1123,6 +1123,22 @@ for (const firstLift of [1, 2]) {
   assert.deepEqual(h.value().pan, { x: 20, y: 20 }); assert.equal(h.value().orbit.yaw, 0);
   h.handlers.onPointerUp(h.event(1, 'touch', 50, 60)); assert.deepEqual(h.taps, []);
 }
+for (const type of ['touch', 'mouse']) {
+  // The house follows the hand: a drag moves the side facing the viewer with it.
+  const h = gestureHarness(), bounds = { min: [-4, 0, -3], max: [4, 6, 3] };
+  const screen = point => makeProjection(pose(h.value().orbit.pitch, h.value().orbit.yaw), bounds, VIEWPORT, 0).project(...point);
+  const near = [0, 3, 3], far = [0, 3, -3], top = [0, 6, 0];
+  assert.ok(screen(near)[2] > screen(far)[2], 'the near side is the one nearer the viewer');
+  let before = screen(near);
+  h.handlers.onPointerDown(h.event(1, type, 100, 100)); h.handlers.onPointerMove(h.event(1, type, 140, 100));
+  h.handlers.onPointerUp(h.event(1, type, 140, 100));
+  assert.ok(screen(near)[0] > before[0], `${type} drag right moves the near side right`);
+  before = screen(top);
+  h.handlers.onPointerDown(h.event(2, type, 100, 100)); h.handlers.onPointerMove(h.event(2, type, 100, 140));
+  h.handlers.onPointerUp(h.event(2, type, 100, 140));
+  assert.ok(screen(top)[1] > before[1], `${type} drag down moves the top down`);
+  assert.deepEqual(h.taps, []);
+}
 
 console.log('PASS unified Atlas healthy: generated scene/model read through the production reader; standard loader nested, reused and '
   + 'multi-primitive transforms applied once; explicit selector binding; room picks hidden yet pickable; stacked, focused, exploded, '
