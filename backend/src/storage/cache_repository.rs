@@ -4,6 +4,104 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
+/// Registration-only catalog cut. No projection/cache-status table is read.
+/// Every selected text column is gated in SQLite before copying into Rust.
+pub(crate) fn catalog_registrations<C: Contract>(
+    db: &Connection,
+    contract: &C,
+    scope: &Scope,
+    budget: &crate::catalog_budget::Budget,
+) -> crate::catalog_budget::Result<Vec<SourceRegistration>> {
+    use crate::catalog_budget::{MAX_CANDIDATES, MAX_REGISTRATION_BYTES, Unavailable};
+    budget.check()?;
+    let mut statement = db.prepare(
+        "SELECT CASE WHEN length(CAST(body AS BLOB)) BETWEEN 1 AND 65536 THEN body ELSE NULL END,
+                CASE WHEN length(CAST(source_instance_id AS BLOB))=36 THEN source_instance_id ELSE NULL END,
+                CASE WHEN length(CAST(collection_id AS BLOB)) BETWEEN 1 AND 16384 THEN collection_id ELSE NULL END
+         FROM sources WHERE workspace_id=?1 AND home_id=?2
+         ORDER BY source_instance_id,collection_id LIMIT 65"
+    ).map_err(|_| Unavailable)?;
+    budget.check()?;
+    let mut rows = statement.query(params![scope.workspace_id, scope.home_id])
+        .map_err(|_| Unavailable)?;
+    budget.check()?;
+    let mut registrations = Vec::new();
+    while let Some(row) = rows.next().map_err(|_| Unavailable)? {
+        budget.check()?;
+        if registrations.len() == MAX_CANDIDATES { return Err(Unavailable); }
+        let body = row.get::<_, Option<String>>(0).map_err(|_| Unavailable)?.ok_or(Unavailable)?;
+        let instance = row.get::<_, Option<String>>(1).map_err(|_| Unavailable)?.ok_or(Unavailable)?;
+        let collection = row.get::<_, Option<String>>(2).map_err(|_| Unavailable)?.ok_or(Unavailable)?;
+        if body.len() > MAX_REGISTRATION_BYTES { return Err(Unavailable); }
+        budget.check()?;
+        let value: Value = serde_json::from_str(&body).map_err(|_| Unavailable)?;
+        budget.check()?;
+        contract.validate_shape("sourceRegistration", &value).map_err(|_| Unavailable)?;
+        budget.check()?;
+        let registration: SourceRegistration = serde_json::from_value(value).map_err(|_| Unavailable)?;
+        if registration.scope() != *scope || registration.source_instance_id != instance
+            || registration.collection_id != collection
+        { return Err(Unavailable); }
+        budget.check()?;
+        registrations.push(registration);
+    }
+    budget.check()?;
+    Ok(registrations)
+}
+
+#[cfg(test)]
+mod catalog_tests {
+    use super::*;
+    use crate::catalog_budget::Budget;
+    use crate::http::contracts::NativeContracts;
+
+    fn scope() -> Scope {
+        Scope { workspace_id: "10000000-0000-4000-8000-000000000001".into(),
+            home_id: "10000000-0000-4000-8000-000000000002".into() }
+    }
+    fn registration(n: usize) -> SourceRegistration {
+        SourceRegistration { workspace_id: scope().workspace_id, home_id: scope().home_id,
+            source_instance_id: format!("10000000-0000-4000-8000-{n:012}"),
+            collection_id: "Synthetic / α + %".into(), owner: SourceOwner::Homebox,
+            partition_mode: PartitionMode::ExclusiveHome, allowed_external_ids: vec![] }
+    }
+    fn database() -> Connection {
+        let db = Connection::open_in_memory().unwrap();
+        // No records, projections, caches or network tables exist: successful
+        // reads prove this seam needs registration metadata only.
+        db.execute_batch("CREATE TABLE sources(workspace_id TEXT,home_id TEXT,source_instance_id TEXT,collection_id TEXT,body TEXT)").unwrap();
+        db
+    }
+    fn insert(db: &Connection, row: &SourceRegistration) {
+        db.execute("INSERT INTO sources VALUES(?1,?2,?3,?4,?5)", params![
+            row.workspace_id, row.home_id, row.source_instance_id, row.collection_id,
+            serde_json::to_string(row).unwrap()
+        ]).unwrap();
+    }
+    #[test]
+    fn never_published_targets_scope_and_candidate_cap_need_no_projection_rows() {
+        let db = database();
+        for n in 1..=64 { insert(&db, &registration(n)); }
+        let mut foreign = registration(99);
+        foreign.home_id = "10000000-0000-4000-8000-000000000003".into();
+        insert(&db, &foreign);
+        let rows = catalog_registrations(&db, &NativeContracts, &scope(), &Budget::start()).unwrap();
+        assert_eq!(rows.len(), 64);
+        assert_eq!(rows[0], registration(1));
+        insert(&db, &registration(65));
+        assert!(catalog_registrations(&db, &NativeContracts, &scope(), &Budget::start()).is_err());
+    }
+    #[test]
+    fn oversized_registration_and_body_key_mismatch_are_not_empty_success() {
+        let db = database();
+        insert(&db, &registration(1));
+        db.execute("UPDATE sources SET body=?1", ["x".repeat(65_537)]).unwrap();
+        assert!(catalog_registrations(&db, &NativeContracts, &scope(), &Budget::start()).is_err());
+        db.execute("UPDATE sources SET body=?1", [serde_json::to_string(&registration(2)).unwrap()]).unwrap();
+        assert!(catalog_registrations(&db, &NativeContracts, &scope(), &Budget::start()).is_err());
+    }
+}
+
 fn body<T: DeserializeOwned>(db: &Connection, sql: &str, p: &SourcePartition) -> Result<Option<T>> {
     let body: Option<String> = db
         .query_row(

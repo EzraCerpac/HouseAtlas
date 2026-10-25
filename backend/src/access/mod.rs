@@ -10,6 +10,7 @@ mod existing;
 pub mod historical_presence;
 mod lifecycle;
 mod metadata;
+mod partition_catalog;
 mod network;
 mod read;
 mod recovery;

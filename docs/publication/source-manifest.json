@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0c3e8c8c27669398ba9ead6732c9d07b1efeb1c4bbbee0f38154c9368e41a89d",
+  "sourceDigestSha256": "4caac9b12639df13556fb0dc0df32c3165810a328f44caa3415627328b7cc658",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -133,8 +133,8 @@
     {
       "path": "Cargo.toml",
       "mode": "100644",
-      "bytes": 2487,
-      "sha256": "98e71af2e09e234b50c753df95139acd598769b0394357a92b6c60507937a8e3",
+      "bytes": 2496,
+      "sha256": "873fa99ab7b691e5a2ddf3ee4784c717b00a8d8a44027f85ec252172dffcdd3b",
       "owner": "core-integration"
     },
     {
@@ -602,8 +602,8 @@
     {
       "path": "backend/src/access/metadata.rs",
       "mode": "100644",
-      "bytes": 2652,
-      "sha256": "6f435092dc643a0a94cd7f201ede62d2e94a965c7c83f0c3268808479d75aa5a",
+      "bytes": 4436,
+      "sha256": "18368a27b2d3e1663e30dddf4f9c11f5b75cebd17d85003cbf663dd41cea9bcb",
       "owner": "access"
     },
     {
@@ -616,8 +616,8 @@
     {
       "path": "backend/src/access/mod.rs",
       "mode": "100644",
-      "bytes": 2074,
-      "sha256": "9fb23b9f0509337fd431f1cef372e49a7bab8db47c53b88462b62751cc88ecf1",
+      "bytes": 2097,
+      "sha256": "5c3f4b9464504820467ef00cac0e12824bb0631ca6211b374cb455c7045c9c76",
       "owner": "access"
     },
     {
@@ -632,6 +632,13 @@
       "mode": "100644",
       "bytes": 7592,
       "sha256": "8c9c6d8e41d386049643f98ede93cbd8ea99a37b5e22915b1e685ef22eb90dc9",
+      "owner": "access"
+    },
+    {
+      "path": "backend/src/access/partition_catalog.rs",
+      "mode": "100644",
+      "bytes": 5365,
+      "sha256": "6002d1d3b2d93f172d368ad393bbcfb585c1b4672372aa750ed48854569119b4",
       "owner": "access"
     },
     {
@@ -679,15 +686,15 @@
     {
       "path": "backend/src/access/source.rs",
       "mode": "100644",
-      "bytes": 8872,
-      "sha256": "99ac30ad89a0ad118961fabf73370bc748e98b975f43fa9525173823a480e42e",
+      "bytes": 10368,
+      "sha256": "aca6241d685f0f76356fadbc87b59033ad35af99e2518d440cc2621ef0cdaaea",
       "owner": "access"
     },
     {
       "path": "backend/src/access/store.rs",
       "mode": "100644",
-      "bytes": 31025,
-      "sha256": "414e5b53c1d4cf9142329824532fb34f394f4adc59546d69f2e10df804bab64d",
+      "bytes": 32893,
+      "sha256": "007040a945de83b03f07a9d9f69c3d83ff0cd3cbd25aa0c7a834d1d1a0bdd429",
       "owner": "access"
     },
     {
@@ -1099,8 +1106,8 @@
     {
       "path": "backend/src/app.rs",
       "mode": "100644",
-      "bytes": 30543,
-      "sha256": "7597c779f0be0e4a199c65517eee1ee545c25cd1e86db7e215a405cc9fe19395",
+      "bytes": 30585,
+      "sha256": "8d4fb02f25f1cf30fed0de04282632b44584e9fe503939a0ddc06f22eef3a93d",
       "owner": "core-integration"
     },
     {
@@ -1108,6 +1115,13 @@
       "mode": "100644",
       "bytes": 3691,
       "sha256": "4d2a2f14ee34d587d591882c8a05ee9205650154f1af203191afa4509ecd116a",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/app/homebox_partition_catalog.rs",
+      "mode": "100644",
+      "bytes": 10773,
+      "sha256": "d6f4e63419c1dbce0884fd4ea31ea18c53012f06a6aac056364b598187bde209",
       "owner": "core-integration"
     },
     {
@@ -1262,6 +1276,13 @@
       "mode": "100644",
       "bytes": 11602,
       "sha256": "370f3a36b66ae1899a5e368c1dce9a1070f0eaba30b0da3c0a0fb1337fba5c28",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/catalog_budget.rs",
+      "mode": "100644",
+      "bytes": 8058,
+      "sha256": "3e9a2f057fb03f964547fc0bd602a7388e7608b2365a6becc5dc4b36772788da",
       "owner": "core-integration"
     },
     {
@@ -2723,8 +2744,8 @@
     {
       "path": "backend/src/lib.rs",
       "mode": "100644",
-      "bytes": 512,
-      "sha256": "0891b583c00a3c1fb2f7c473bf21bdaf05a3ff82ebd8417a0c97550b9628597d",
+      "bytes": 543,
+      "sha256": "e1fb1bd932448334e4ab2d66e36d5dfb34460d63e0272dffa965c4c8ee676109",
       "owner": "core-integration"
     },
     {
@@ -4592,8 +4613,8 @@
     {
       "path": "backend/src/storage/cache_repository.rs",
       "mode": "100644",
-      "bytes": 7475,
-      "sha256": "94686d80956f6426fc695fe20f30694cad72497c1f0a8220403dd4a5f058b106",
+      "bytes": 12487,
+      "sha256": "2d12a57356f3611b8c8da918999057d56448c53cc6b79cf0b70b236cdc001dad",
       "owner": "storage"
     },
     {
@@ -4881,6 +4902,13 @@
       "mode": "100644",
       "bytes": 2168,
       "sha256": "89cc972a6694b8a046f19ceaf0434ed717b49005e1ab2fe58d6671a80822ef5f",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/partition_catalog.rs",
+      "mode": "100644",
+      "bytes": 2061,
+      "sha256": "e2e33dc076dd63b747870aad26e00bd4974d6244a9b3a95dc3b267b71d253fa7",
       "owner": "storage"
     },
     {
@@ -5369,8 +5397,8 @@
     {
       "path": "backend/src/storage/store.rs",
       "mode": "100644",
-      "bytes": 24259,
-      "sha256": "435478a071a42fa1ac29624ad5c1d18abc1a00e5c224cfbb593764de872cbb1f",
+      "bytes": 24315,
+      "sha256": "e5a16a3d795bc947a4394bbd2a609e5ceeadbbae64135f1487027cc2dc347203",
       "owner": "storage"
     },
     {
@@ -6702,6 +6730,13 @@
       "bytes": 3757,
       "sha256": "d1d4a141bf99a9a7c79287212499ef79841c067c076d566850313ea89b0fd695",
       "owner": "access"
+    },
+    {
+      "path": "docs/providers/internal-homebox-partition-catalog.md",
+      "mode": "100644",
+      "bytes": 6263,
+      "sha256": "57970d6d092415239cad346673e0e7d87d1326d7eda4476004867b2e38719a4c",
+      "owner": "homebox"
     },
     {
       "path": "docs/providers/read-support-matrix.md",
