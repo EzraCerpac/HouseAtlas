@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "f88d46237acecfccc529dc3eac9406ff44588213849a3922d99bb5a71a1ea456",
+  "sourceDigestSha256": "be224b0c092f96742f16a94ec2b5f4bf1c4a9362bc9e8538d1e4ea5b94302c02",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -8827,8 +8827,8 @@
     {
       "path": "frontend/src/app/PlaceEditor.tsx",
       "mode": "100644",
-      "bytes": 18065,
-      "sha256": "3f2916d7e2a90b83c1f07e1d317d3520b72473b60a6e416e86e8f7c92a88986b",
+      "bytes": 18244,
+      "sha256": "b2681d57cdf10eabaf4661422c0af084e93ea9a7026b7f031bfd0004e60272d8",
       "owner": "web"
     },
     {
@@ -10311,8 +10311,8 @@
     {
       "path": "frontend/src/lantern/topology/NativePlaceEditor.tsx",
       "mode": "100644",
-      "bytes": 7709,
-      "sha256": "8046efa976e4a3b0160003ed4c80e61e27f1eeed6282dd8df0075664aa5298d8",
+      "bytes": 7858,
+      "sha256": "638d3c89399e1144d24cb212552d2be823beafb26f137cd7ac907f8b026d8f7c",
       "owner": "web"
     },
     {

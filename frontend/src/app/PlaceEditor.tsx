@@ -240,7 +240,12 @@ function PlaceEditorForTarget({
         requestId: request.requestId,
         body: JSON.stringify(request),
       });
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted) {
+        // The editor closed while the change was sent; the views still need
+        // the saved record.
+        if (queued.state === "synced") void refresh();
+        return;
+      }
       if (queued.state !== "synced") {
         setStatus("");
         setQueuedId(queued.id);

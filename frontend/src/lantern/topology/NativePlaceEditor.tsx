@@ -69,7 +69,11 @@ export function NativePlaceEditor({ client, binding, index, location, refresh }:
         intent: { label: remove ? '' : label, statement, reason, ...(record ? { recordId: record } : { kind }) },
         commandId: prepared.commandId, requestId: prepared.requestId, body: prepared.body,
       });
-      if (controller.signal.aborted || !current()) return;
+      if (controller.signal.aborted || !current()) {
+        // The editor closed while the change was sent; the views still need it.
+        if (queued.state === 'synced') refresh();
+        return;
+      }
       setSaved(true);
       if (queued.state === 'synced') { setStatus('Saved. Reloading Atlas records…'); refresh(); }
       else { setStatus(''); setQueuedId(queued.id); }
