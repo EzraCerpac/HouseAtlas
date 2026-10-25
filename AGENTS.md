@@ -45,6 +45,17 @@ aliases are not released. Do not add wrappers or replacements to execute held
 checks. Report exact source and scope of checks; ordinary success does not
 certify security or deployment.
 
+The owner-authorized healthy frontend aggregate (25 October 2026) permits one
+Linux step in `.github/workflows/rust-react-ordinary.yml` that runs
+`frontend/lantern-tests/run-healthy.mjs`. Its scope is the explicit list in
+that file: named healthy generated checks with fake in-process or owned
+loopback transports, plus the `offline-launch` and `hung-network` cases of
+`offline-launch-browser.mjs` in the runner's Chromium against the built public
+shell. It adds no globbing, concurrency, denial, failure-injection, expiry,
+replay, control or intake case; those stay in their lanes. Adding a check to
+the list changes this scope and needs the same owner review. No credential,
+provider, household data, network permission or deployment is included.
+
 The separately authorized Synthetic README media workflow captures only
 checked-in generated fixtures through the actual React renderer and fake read
 transports on an owned loopback server. Its scoped PR/main triggers and manual
