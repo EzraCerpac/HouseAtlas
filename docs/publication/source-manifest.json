@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "f88d8e10b83d00d0c845407759c94cff771c0fee26ec97b474e5d970228cd802",
+  "sourceDigestSha256": "1389b274b25f496b5dbf3fce900f7b75dc2d6ad40bf9e96b68947a6cda7e05a6",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -4144,8 +4144,8 @@
     {
       "path": "backend/src/providers/homebox/write/stock/types.rs",
       "mode": "100644",
-      "bytes": 10559,
-      "sha256": "977b08212f042ca6068604b3fecb0ad6573f507a861bbd98ef0a044e0d24e84b",
+      "bytes": 16001,
+      "sha256": "686e621262a56449f7844072c3bc0c11244d1d9c6b4aa5ed7cc17a7856708221",
       "owner": "homebox"
     },
     {
