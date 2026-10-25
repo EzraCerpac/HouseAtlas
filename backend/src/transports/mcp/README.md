@@ -136,9 +136,8 @@ child-only descriptor inputs, canonical eligibility versus admission, no-child
 and no-batch profiles, unchanged non-admission constraints, valid offline
 schemas and 0/1/100/101 child arrays. Validation uses schema bytes only, never a
 stock dispatcher. New fixtures are NOT RUN locally. The backend case is in the
-existing unit-test lane; the frontend case is not registered in the explicit
-ordinary runner by this slice. CI registration, publication-manifest integration,
-conflicts and merge remain with Claude. No new CI infrastructure is introduced.
+existing unit-test lane; the frontend case runs in ordinary CI through
+`frontend/lantern-tests/run-healthy.mjs`. No new CI infrastructure is introduced.
 
 ## Exact ordinary positive
 

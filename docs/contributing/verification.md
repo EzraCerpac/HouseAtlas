@@ -3055,3 +3055,19 @@ node frontend/lantern-tests/unified-atlas-control-names-healthy.mjs
 ```
 
 It does not mount React or a browser; identity stays the source ID.
+
+## Named generated WebMCP batch-discovery check
+
+`frontend/lantern-tests/webmcp-batch-discovery.mjs` compiles
+`frontend/src/webmcp/stock-schema.ts` with Vite and checks the batch child
+descriptor against the fictional `fixtures/integration/mcp-batch-discovery.json`
+(shared with the backend `synthetic_admitted_batch_child_descriptors` unit
+case): cross-family and child-only admission, canonical order, no-child and
+no-batch profiles, and 0/1/100/101 child arrays validated as schema bytes. It
+runs in CI through `run-healthy.mjs`:
+
+```sh
+node frontend/lantern-tests/webmcp-batch-discovery.mjs
+```
+
+It never dispatches to a stock service, opens a transport or mounts a browser.

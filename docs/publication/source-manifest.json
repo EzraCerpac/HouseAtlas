@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "5f3f8ccc156187e467bf663cb36b8061b00c4f81a48ad66a686299b05aedf86c",
+  "sourceDigestSha256": "35a730a01d0131d852180306f4a350d6e49cc9b69eb6529b9ca94d4e82040817",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -119,8 +119,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 7068,
-      "sha256": "c4b35e395b14d03916dd33666e7e543f0974d46a2736efb7729f06fae3db8cd0",
+      "bytes": 7143,
+      "sha256": "e05b1b465bab8c216255f23298e6d11458d0d7682384e7c1bc43bdf1069a2210",
       "owner": "core-integration"
     },
     {
@@ -5397,8 +5397,8 @@
     {
       "path": "backend/src/transports/mcp/README.md",
       "mode": "100644",
-      "bytes": 11878,
-      "sha256": "a02dfd92925f0d760973733a09de831be921abefe29cb112fc52b380b94bfdce",
+      "bytes": 11792,
+      "sha256": "24b7f99a40bb00b936f720828a2b08391198c9a2eeb2556b2a641897f5b8692f",
       "owner": "mcp"
     },
     {
@@ -5439,8 +5439,8 @@
     {
       "path": "backend/src/transports/mcp/healthy_mappings.rs",
       "mode": "100644",
-      "bytes": 9362,
-      "sha256": "4b9b02f32a21ad6aeb7e53fd1d6d41f92fe4c614210a93e6d4d2175e80edbddb",
+      "bytes": 9408,
+      "sha256": "70d43f8c8c55a6bf33723eb9d9b7632f72c03673695775b5b030a67fc6f9978d",
       "owner": "mcp"
     },
     {
@@ -6069,8 +6069,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 181215,
-      "sha256": "bf4acd083a99304db731d2178a9ffff906f3751e50ff845442c879b1f9f72f86",
+      "bytes": 181895,
+      "sha256": "39cc7dcb5cafcc577bd4103df235835985056085d5eb6b3c8c951ddb374280ad",
       "owner": "core-integration"
     },
     {
@@ -8085,8 +8085,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 4835,
-      "sha256": "e795c4e2218a21f2e718d4242b423107c01bade9a80e242731c3d442e27ca342",
+      "bytes": 4873,
+      "sha256": "7ef77d2e886b6fb8f046c777bf78e60bf5689fc440d1b292e23b4696acbe2f84",
       "owner": "web"
     },
     {
@@ -8428,8 +8428,8 @@
     {
       "path": "frontend/lantern-tests/webmcp-batch-discovery.mjs",
       "mode": "100644",
-      "bytes": 4035,
-      "sha256": "e78e9f0c7e3f6393565ba5a6837bb2dbed2ea2fb37a79170a601b42d8e690679",
+      "bytes": 4003,
+      "sha256": "ba280c8320a98992991c2aabdbe86e55b86be5696b9d11a36fe522d832e491ac",
       "owner": "web"
     },
     {

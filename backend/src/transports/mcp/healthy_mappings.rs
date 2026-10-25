@@ -71,7 +71,11 @@ fn synthetic_admitted_batch_child_descriptors() {
         } else {
             json!({"oneOf":expected})
         };
-        assert_eq!(schema["$defs"][batch_key], expected_batch, "{}", case["name"]);
+        assert_eq!(
+            schema["$defs"][batch_key], expected_batch,
+            "{}",
+            case["name"]
+        );
         // Validate bytes only. No authority, stock service, durable effects or
         // provider is involved, and array bounds never become batch execution.
         for count in [0, 1, 100, 101] {

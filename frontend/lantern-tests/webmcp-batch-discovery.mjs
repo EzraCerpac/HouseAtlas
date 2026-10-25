@@ -1,5 +1,5 @@
 // Synthetic schema bytes only. No browser, Access, service dispatch or transport.
-// This explicit case is not added to run-healthy.mjs by this source increment.
+// Runs in ordinary CI through run-healthy.mjs.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
