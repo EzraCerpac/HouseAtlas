@@ -20,6 +20,7 @@ const cases = (file, flag, names) => names.map(name => node(file, ...(flag ? [fl
 const SOURCE = [
   node('healthy-read.mjs'),
   node('canonical-ifc-viewer.test.mjs', '--healthy'),
+  node('canonical-mesh-preparation.test.mjs'),
   node('electricity-fixture-read.mjs'), node('electricity-overlay-read.mjs'),
   node('embedded-material-react.mjs'), node('exact-numeric-read.mjs'),
   node('ifc-glb-read.mjs'), node('load-numeric-source.mjs'),

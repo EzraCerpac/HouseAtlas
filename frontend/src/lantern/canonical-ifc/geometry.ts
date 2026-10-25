@@ -96,7 +96,8 @@ export function prepareMeshes(meshes: readonly MeshInput[], binding: (mesh: Mesh
       let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
       const length = Math.hypot(nx, ny, nz);
       if (length > 0) { nx /= length; ny /= length; nz /= length; } else { nx = 0; ny = 1; nz = 0; }
-      for (const [corner, index] of [a, b, c].entries()) {
+      for (let corner = 0; corner < 3; corner++) {
+        const index = corner === 0 ? a : corner === 1 ? b : c;
         const o = (t * 3 + corner) * 6;
         vertices[o] = p[index]!; vertices[o + 1] = p[index + 1]!; vertices[o + 2] = p[index + 2]!;
         vertices[o + 3] = nx; vertices[o + 4] = ny; vertices[o + 5] = nz;
