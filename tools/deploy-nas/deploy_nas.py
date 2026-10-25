@@ -826,7 +826,12 @@ def write_rollback_script(record: dict, cfg: Config) -> None:
         live, parked = q(record["frontend"]), q(record["parked_frontend"])
         # The live frontend can be missing when a deploy stopped right after parking it.
         lines += [f'if [ -e {parked} ]; then',
-                  f'  if [ -e {live} ]; then mv {live} {live}.rolled-back-$(date -u +%Y%m%dT%H%M%SZ); fi',
+                  f'  if [ -e {live} ]; then',
+                  # Keep the newer build's hashed assets so tabs opened on it can still load lazy chunks.
+                  f'    mkdir -p {parked}/assets',
+                  f'    for f in {live}/assets/*; do [ -f "$f" ] && [ ! -e {parked}/assets/"$(basename "$f")" ] && cp -p "$f" {parked}/assets/; done',
+                  f'    mv {live} {live}.rolled-back-$(date -u +%Y%m%dT%H%M%SZ)',
+                  '  fi',
                   f'  mv {parked} {live}', 'fi']
     lines += [f'cp {q(record["before_plist"])} {q(str(cfg.plist))}', f'chmod 600 {q(str(cfg.plist))}',
               f"launchctl bootstrap {domain} {q(str(cfg.plist))}",

@@ -369,12 +369,14 @@ class SwapAndRollback(unittest.TestCase):
                        env=dict(os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}"))
 
     def test_standalone_script_restores_and_tells_the_ledger(self):
+        write(self.root / "fe/frontend.next/assets/lazy-new.js", "chunk")
         dep = dn.Deployer(self.cfg, FakeService(self.cfg), out=io.StringIO())
         dn.save_record(self.cfg.ledger, dict(self.record, id="older", status="verified"))
         dep.swap(self.record, self.root / "events.log", self.moves)
         dn.save_record(self.cfg.ledger, dict(self.record, status="verified"))
         self.run_standalone()
         self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
+        self.assertEqual((self.root / "fe/frontend/assets/lazy-new.js").read_text(), "chunk")
         self.assertEqual(plistlib.loads(self.cfg.plist.read_bytes()), self.old)
         self.assertEqual(dn.rollback_target(dn.ledger_records(self.cfg.ledger))["id"], "older")
 
