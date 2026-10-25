@@ -146,10 +146,42 @@ pub(super) fn worlds(gltf: &Value) -> Result<BTreeMap<usize, Matrix>, String> {
     need(worlds.len() == nodes.len())?;
     Ok(worlds)
 }
+const MIB: usize = 1024 * 1024;
+/// The work one tier admits. The overview is what every device loads; the
+/// detail is the unsimplified master, which only capable devices opt into.
+/// Both match the frontend's tier limits (glb-preflight.ts).
+#[derive(Clone, Copy)]
+pub(super) struct Limits {
+    instances: usize,
+    vertices: usize,
+    triangles: usize,
+    accessor_reads: usize,
+    buffer_bytes: usize,
+    prepared_bytes: usize,
+    gpu_bytes: usize,
+}
+pub(super) const OVERVIEW: Limits = Limits {
+    instances: 20_000,
+    vertices: 1_800_000,
+    triangles: 600_000,
+    accessor_reads: 8_000_000,
+    buffer_bytes: 32 * MIB,
+    prepared_bytes: 96 * MIB,
+    gpu_bytes: 64 * MIB,
+};
+pub(super) const DETAIL: Limits = Limits {
+    instances: 20_000,
+    vertices: 12_000_000,
+    triangles: 4_000_000,
+    accessor_reads: 64_000_000,
+    buffer_bytes: 256 * MIB,
+    prepared_bytes: 640 * MIB,
+    gpu_bytes: 384 * MIB,
+};
 // Match the renderer's allocation budget for every drawn primitive instance,
 // including repeated nodes that share one declared mesh/accessor.
-#[derive(Default)]
 pub(super) struct Work {
+    limits: Limits,
     read: usize,
     accessors: BTreeSet<usize>,
     instances: usize,
@@ -160,10 +192,17 @@ pub(super) struct Work {
     materials: super::atlas_scene_material::Materials,
 }
 impl Work {
-    pub(super) fn new(materials: super::atlas_scene_material::Materials) -> Self {
+    pub(super) fn new(materials: super::atlas_scene_material::Materials, limits: Limits) -> Self {
         Self {
+            limits,
+            read: 0,
+            accessors: BTreeSet::new(),
+            instances: 0,
+            vertices: 0,
+            indices: 0,
+            attribute_copies: 0,
+            expanded_attributes: 0,
             materials,
-            ..Self::default()
         }
     }
     fn primitive(
@@ -177,7 +216,9 @@ impl Work {
         self.vertices = self.vertices.checked_add(vertices).ok_or_else(invalid)?;
         self.indices = self.indices.checked_add(indices).ok_or_else(invalid)?;
         need(
-            self.instances <= 20_000 && self.vertices <= 1_800_000 && self.indices <= 600_000 * 3,
+            self.instances <= self.limits.instances
+                && self.vertices <= self.limits.vertices
+                && self.indices <= self.limits.triangles * 3,
         )?;
         self.attribute_copies = self
             .attribute_copies
@@ -190,7 +231,10 @@ impl Work {
         // Keep the legacy position/flat-normal stream (24 bytes). Textured
         // corners also own UV2/shading-normal3/tangent4 (36 bytes), including
         // fallback tangent values when the material has no normal map.
-        need(self.prepared_bytes() <= 96 * 1024 * 1024 && self.gpu_bytes() <= 64 * 1024 * 1024)
+        need(
+            self.prepared_bytes() <= self.limits.prepared_bytes
+                && self.gpu_bytes() <= self.limits.gpu_bytes,
+        )
     }
     fn prepared_bytes(&self) -> usize {
         self.vertices * 12
@@ -231,7 +275,7 @@ impl Work {
                 need((4..=252).contains(&stride) && stride.is_multiple_of(4))?;
             }
             copied = copied.checked_add(length).ok_or_else(invalid)?;
-            need(copied <= 32 * 1024 * 1024)?;
+            need(copied <= self.limits.buffer_bytes)?;
         }
         Ok(())
     }
@@ -294,7 +338,7 @@ fn accessor<'a>(
     let count = integer(a, "count", None)?;
     work.accessors.insert(index);
     work.read = work.read.checked_add(count).ok_or_else(invalid)?;
-    need(count > 0 && work.read <= 8_000_000)?;
+    need(count > 0 && work.read <= work.limits.accessor_reads)?;
     let view = gltf["bufferViews"]
         .get(integer(a, "bufferView", None)?)
         .ok_or_else(invalid)?;
@@ -705,7 +749,7 @@ mod material_healthy {
         let gltf: Value = serde_json::from_slice(&glb[20..20 + size]).unwrap();
         let materials =
             super::super::atlas_scene_material::materials(&gltf, glb, 20 + size).unwrap();
-        let mut work = Work::new(materials);
+        let mut work = Work::new(materials, OVERVIEW);
         let mut triangles = Vec::new();
         for (node, world) in worlds(&gltf).unwrap() {
             if let Some(mesh) = gltf["nodes"][node]["mesh"].as_u64() {
@@ -848,7 +892,7 @@ mod material_regression {
         super::super::atlas_scene_material::materials(gltf, bytes, end)
     }
     fn primitive(gltf: &Value, bytes: &[u8], end: usize) -> Result<(), String> {
-        let mut work = Work::new(admit(gltf, bytes, end)?);
+        let mut work = Work::new(admit(gltf, bytes, end)?, OVERVIEW);
         positions(
             gltf,
             bytes,
@@ -941,5 +985,144 @@ mod material_regression {
         gltf["materials"][0]["pbrMetallicRoughness"]["baseColorFactor"][3] = json!(0.13);
         replace_attribute(&gltf, &mut bytes, end, "NORMAL", &[0., 0., 0.]);
         assert!(primitive(&gltf, &bytes, end).is_ok());
+    }
+}
+
+// The optional detail GLB is checked against the same companion as the
+// overview, under its own larger budget.
+#[cfg(test)]
+mod detail_tier {
+    use super::*;
+    use crate::config::{
+        atlas_scene::ServerAtlasSceneSelection, model_overview::ServerModelOverviewSelection,
+    };
+    use serde_json::json;
+    use std::{fs, os::unix::fs::PermissionsExt, path::PathBuf};
+
+    struct Publication {
+        _temporary: tempfile::TempDir,
+        root: PathBuf,
+        manifest: String,
+        scene: String,
+    }
+    /// A publication folder with the generated overview, its companion and
+    /// `detail` as detail.glb, declared under the name `file`.
+    fn folder(detail: Option<&[u8]>, file: &str) -> Publication {
+        let scope = json!({"workspaceId":"00000000-0000-4000-8000-000000000002","homeId":"00000000-0000-4000-8000-000000000003"});
+        let (glb, manifest, scene) =
+            fixture::generate(scope, "00000000-0000-4000-8000-000000000006".into());
+        let mut manifest: Value = serde_json::from_slice(&manifest).unwrap();
+        if let Some(detail) = detail {
+            manifest["detail"] = json!({"file":file,"contentType":"model/gltf-binary","sha256":fixture::sha(detail),"bytes":detail.len()});
+        }
+        let manifest = serde_json::to_vec(&manifest).unwrap();
+        let temporary = tempfile::Builder::new()
+            .permissions(fs::Permissions::from_mode(0o700))
+            .tempdir()
+            .unwrap();
+        let root = fs::canonicalize(temporary.path()).unwrap();
+        let mut files = vec![
+            ("overview.glb", glb.as_slice()),
+            ("publication.json", manifest.as_slice()),
+            ("atlas-scene.json", scene.as_slice()),
+        ];
+        if let Some(detail) = detail {
+            files.push(("detail.glb", detail));
+        }
+        for (name, bytes) in files {
+            fs::write(root.join(name), bytes).unwrap();
+            fs::set_permissions(root.join(name), fs::Permissions::from_mode(0o600)).unwrap();
+        }
+        Publication {
+            _temporary: temporary,
+            root,
+            manifest: fixture::sha(&manifest),
+            scene: fixture::sha(&scene),
+        }
+    }
+    impl Publication {
+        fn select(&self) -> Result<ServerModelOverviewSelection, String> {
+            ServerModelOverviewSelection::read_pinned(
+                &self.root.join("publication.json"),
+                &self.manifest,
+            )
+        }
+        fn scene(&self, overview: &ServerModelOverviewSelection) -> Result<(), String> {
+            ServerAtlasSceneSelection::read_pinned(
+                &self.root.join("atlas-scene.json"),
+                &self.scene,
+                overview,
+            )
+            .map(|_| ())
+        }
+    }
+    fn generated() -> Vec<u8> {
+        let scope = json!({"workspaceId":"00000000-0000-4000-8000-000000000002","homeId":"00000000-0000-4000-8000-000000000003"});
+        fixture::generate(scope, "00000000-0000-4000-8000-000000000006".into()).0
+    }
+    /// The generated GLB with the first position's X set to `x`.
+    fn moved(x: f32) -> Vec<u8> {
+        let mut glb = generated();
+        let bin = 28 + u32::from_le_bytes(glb[12..16].try_into().unwrap()) as usize;
+        glb[bin..bin + 4].copy_from_slice(&x.to_le_bytes());
+        glb
+    }
+
+    /// The generated GLB as a different file with the same slots and geometry.
+    fn relabelled() -> Vec<u8> {
+        let glb = generated();
+        let at = glb.windows(13).position(|w| w == b"scene fixture").unwrap();
+        [&glb[..at], b"scene detail ", &glb[at + 13..]].concat()
+    }
+
+    #[test]
+    fn detail_is_selected_validated_and_read() {
+        let detail = relabelled();
+        let publication = folder(Some(&detail), "detail.glb");
+        let overview = publication.select().unwrap();
+        publication.scene(&overview).unwrap();
+        assert_eq!(overview.read_detail().unwrap().unwrap(), detail);
+        assert_ne!(overview.read_original().unwrap(), detail);
+    }
+    #[test]
+    fn without_detail_nothing_changes() {
+        let publication = folder(None, "detail.glb");
+        let overview = publication.select().unwrap();
+        publication.scene(&overview).unwrap();
+        assert!(overview.read_detail().unwrap().is_none());
+    }
+    #[test]
+    fn detail_outside_the_companion_bounds_is_refused() {
+        let publication = folder(Some(&moved(100.)), "detail.glb");
+        let overview = publication.select().unwrap();
+        assert!(publication.scene(&overview).is_err());
+    }
+    #[test]
+    fn detail_must_be_detail_glb() {
+        let detail = relabelled();
+        let publication = folder(Some(&detail), "overview.glb");
+        assert!(publication.select().is_err());
+    }
+    #[test]
+    fn changed_detail_conflicts_the_whole_selection() {
+        let detail = relabelled();
+        let publication = folder(Some(&detail), "detail.glb");
+        let overview = publication.select().unwrap();
+        fs::write(publication.root.join("detail.glb"), generated()).unwrap();
+        assert!(overview.read_detail().is_err());
+        assert!(overview.read_original().is_err());
+    }
+    #[test]
+    fn detail_budget_admits_what_the_overview_refuses() {
+        let triangles = 700_000;
+        let mut overview = Work::new(Default::default(), OVERVIEW);
+        assert!(overview.primitive(triangles, triangles * 3, 0, 0).is_err());
+        let mut detail = Work::new(Default::default(), DETAIL);
+        assert!(detail.primitive(triangles, triangles * 3, 0, 0).is_ok());
+        assert!(
+            detail
+                .primitive(DETAIL.vertices, DETAIL.triangles * 3, 0, 0)
+                .is_err()
+        );
     }
 }

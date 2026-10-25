@@ -105,6 +105,19 @@ class BackupScriptTest(unittest.TestCase):
         with self.assertRaises(hb.StepFailed):
             hb.copy_models(service, hb.private_dir(self.root / "model2"))
 
+    def test_model_copy_checks_the_detail_pin(self):
+        publication = hb.private_dir(self.root / "release" / "publication")
+        (publication / "overview.glb").write_bytes(b"glb")
+        (publication / "detail.glb").write_bytes(b"detail")
+        pin = lambda name: {"file": name, "bytes": (publication / name).stat().st_size, "sha256": hb.sha256_file(publication / name)}
+        (publication / "publication.json").write_text(json.dumps({"original": pin("overview.glb"), "detail": pin("detail.glb")}))
+        service = type("S", (), {"models": [(publication / "publication.json", None)]})()
+        models = hb.copy_models(service, hb.private_dir(self.root / "model"))
+        self.assertIn("release/publication/detail.glb", [m["file"] for m in models])
+        (publication / "detail.glb").write_bytes(b"other!")
+        with self.assertRaises(hb.StepFailed):
+            hb.copy_models(service, hb.private_dir(self.root / "model2"))
+
 
 if __name__ == "__main__":
     unittest.main()

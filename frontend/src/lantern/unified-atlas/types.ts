@@ -106,6 +106,8 @@ export interface AtlasScene {
   readonly selection: Readonly<{ revision: string; publicationId: string }>;
   readonly publication: Readonly<{ publicationId: string; sourceRevisionId: string; sourceSha256: string; semanticsSha256: string }>;
   readonly model: Readonly<{ bytes: number; sha256: string; href: string }>;
+  /** The same publication unsimplified, for devices that opt into Full quality. */
+  readonly detail: Readonly<{ bytes: number; sha256: string; href: string }> | null;
   readonly buildings: readonly AtlasBuilding[];
   readonly levels: readonly AtlasLevel[];
   readonly rooms: readonly AtlasRoom[];

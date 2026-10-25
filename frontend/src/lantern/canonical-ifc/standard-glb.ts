@@ -1,7 +1,7 @@
 import { LoadingManager, Matrix3, Matrix4, Vector3, type Material, type Mesh, type Object3D, type Texture } from 'three';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { prepareMeshes, primitiveBaseColor, type MeshInput, type PreparedMesh } from './geometry';
-import { GlbFormatError, preflightGltf, readGlbContainer, STANDARD_GLB_LIMITS, type GlbAdmission, type GlbContainer } from './glb-preflight';
+import { GlbFormatError, preflightGltf, readGlbContainer, STANDARD_GLB_LIMITS, type GlbAdmission, type GlbContainer, type GlbLimits } from './glb-preflight';
 import type { EmbeddedMaterial } from './embedded-png-material';
 
 /** Standard glTF 2.0 binary preview loading through three.js GLTFLoader.
@@ -65,16 +65,18 @@ function loaderInput({ json, bin }: GlbContainer): { readonly bytes: ArrayBuffer
 
 /** Loads one GLB after preflight. `keyPrefix` names the layer in mesh keys.
  * `admit` sees the admitted work before the loader copy or any extraction
- * allocation; throwing from it refuses the file with nothing loaded. */
+ * allocation; throwing from it refuses the file with nothing loaded.
+ * `limits` selects a tier; only a publication's detail GLB uses the Full one. */
 export async function loadStandardGlb(bytes: Uint8Array, keyPrefix: string, signal: AbortSignal,
-  admit?: (admission: GlbAdmission) => void, options?: Readonly<{ embeddedPngMaterials: true }>): Promise<StandardGlb> {
-  if (bytes.byteLength > STANDARD_GLB_LIMITS.bytes) throw new GlbFormatError('container', 'File is larger than the preview limit');
+  admit?: (admission: GlbAdmission) => void, options?: Readonly<{ embeddedPngMaterials?: true; limits?: GlbLimits }>): Promise<StandardGlb> {
+  const limits = options?.limits ?? STANDARD_GLB_LIMITS;
+  if (bytes.byteLength > limits.bytes) throw new GlbFormatError('container', 'File is larger than the preview limit');
   // The geometry loader still declines every texture. Only this explicit
   // opt-in admits and decodes PNG bytes through a separate, URL-free path.
   const materialReader = options?.embeddedPngMaterials ? await import('./embedded-png-material') : null;
   signal.throwIfAborted();
-  const container = readGlbContainer(bytes), plainAdmission = preflightGltf(container);
-  let plan = materialReader?.admitEmbeddedPngMaterials(container, plainAdmission);
+  const container = readGlbContainer(bytes, limits), plainAdmission = preflightGltf(container, limits);
+  let plan = materialReader?.admitEmbeddedPngMaterials(container, plainAdmission, limits);
   const admission: GlbAdmission = plan ? { ...plainAdmission, work: { ...plainAdmission.work,
     outputBytes: plan.preparedBytes, gpuBytes: plan.gpuBytes } } : plainAdmission;
   admit?.(admission);
@@ -100,14 +102,14 @@ export async function loadStandardGlb(bytes: Uint8Array, keyPrefix: string, sign
       throw new GlbFormatError('load', 'The standard glTF loader could not read this file');
     }
     signal.throwIfAborted();
-    return { ...admission, ...extract(gltf, admission, keyPrefix, container.json, materials, plan) };
+    return { ...admission, ...extract(gltf, admission, keyPrefix, container.json, limits.coordinate, materials, plan) };
   } finally {
     if (gltf) disposeGltf(gltf);
   }
 }
 
 const IDENTITY = new Matrix4();
-function extract(gltf: GLTF, admission: GlbAdmission, keyPrefix: string, json: GlbContainer['json'],
+function extract(gltf: GLTF, admission: GlbAdmission, keyPrefix: string, json: GlbContainer['json'], coordinate: number,
   materials?: ReadonlyMap<string, EmbeddedMaterial>, expectedMaterialWork?: Readonly<{ attributeBytes: number; expandedAttributeBytes: number }>): Pick<StandardGlb, 'drawn' | 'meshes' | 'counts'> {
   const { associations } = gltf.parser;
   const nodeOf = (object: Object3D): number | null => {
@@ -145,7 +147,7 @@ function extract(gltf: GLTF, admission: GlbAdmission, keyPrefix: string, json: G
       for (const vertex of indices) {
         if (vertex >= items) throw new GlbFormatError('load', 'Index out of range');
         for (let axis = 0; axis < 3; axis++) { const value = positions[vertex * 3 + axis]!;
-          if (!Number.isFinite(value) || Math.abs(value) > STANDARD_GLB_LIMITS.coordinate) throw new GlbFormatError('load', 'Position outside the preview range'); }
+          if (!Number.isFinite(value) || Math.abs(value) > coordinate) throw new GlbFormatError('load', 'Position outside the preview range'); }
       }
       triangles += indices.length / 3; vertices += items;
       const reference = associations.get(object), nodeIndex = nodeOf(object);

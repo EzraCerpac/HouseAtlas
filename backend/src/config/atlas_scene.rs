@@ -266,7 +266,15 @@ fn same_keys(input: &Value, typed: &Value) -> bool {
         _ => true,
     }
 }
-fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
+/// The artifact a GLB is checked as. The companion pins the overview; the
+/// optional detail is the same publication unsimplified, so it must draw the
+/// same selectors within the same bounds, under its own larger work budget.
+#[derive(Clone, Copy, PartialEq)]
+enum Tier {
+    Overview,
+    Detail,
+}
+fn validate(value: &Value, glb: &[u8], tier: Tier) -> Result<(), String> {
     let p: Publication = serde_json::from_value(value.clone()).map_err(|_| invalid())?;
     need(same_keys(
         value,
@@ -280,8 +288,8 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
             && id(&p.source_revision_id)
             && digest(&p.source_sha256)
             && digest(&p.original.sha256)
-            && p.original.bytes == glb.len() as u64
-            && hash(glb) == p.original.sha256,
+            && (tier == Tier::Detail
+                || p.original.bytes == glb.len() as u64 && hash(glb) == p.original.sha256),
     )?;
     need(
         p.frame.units == "m"
@@ -297,8 +305,11 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
     need(
         plan_bytes <= 8 * 1024 * 1024
             && serde_json::to_vec(&nonplan).map_err(|_| invalid())?.len() <= 4 * 1024 * 1024
-            && glb.len() + serde_json::to_vec(value).map_err(|_| invalid())?.len()
-                <= 64 * 1024 * 1024,
+            // The detail is fetched on its own, after the scene, so only the
+            // overview shares the first load's aggregate budget.
+            && (tier == Tier::Detail
+                || glb.len() + serde_json::to_vec(value).map_err(|_| invalid())?.len()
+                    <= 64 * 1024 * 1024),
     )?;
     let buildings = index(&p.buildings, |b| &b.building_id, 128)?;
     let levels = index(&p.levels, |l| &l.level_id, 64)?;
@@ -407,7 +418,13 @@ fn validate(value: &Value, glb: &[u8]) -> Result<(), String> {
     let mut work = footprint::Work::default();
     let mut supports: BTreeMap<&str, footprint::Support> = BTreeMap::new();
     let mut footprints: BTreeMap<&str, Vec<footprint::Polygon>> = BTreeMap::new();
-    let mut geometry_work = super::atlas_scene_glb::Work::new(materials);
+    let mut geometry_work = super::atlas_scene_glb::Work::new(
+        materials,
+        match tier {
+            Tier::Overview => super::atlas_scene_glb::OVERVIEW,
+            Tier::Detail => super::atlas_scene_glb::DETAIL,
+        },
+    );
     let mut selectors = BTreeSet::new();
     let mut picks = BTreeSet::new();
     for m in &p.mesh_bindings {
@@ -750,7 +767,11 @@ impl ServerAtlasSceneSelection {
         need(hash(&bytes) == sha)?;
         let value = crate::contracts::v2::parse_value(&bytes).map_err(|_| invalid())?;
         let glb = overview.read_original()?;
-        validate(&value, &glb)?;
+        validate(&value, &glb, Tier::Overview)?;
+        drop(glb);
+        if let Some(detail) = overview.read_detail()? {
+            validate(&value, &detail, Tier::Detail)?;
+        }
         let mut random = [0u8; 32];
         getrandom::fill(&mut random).map_err(|_| invalid())?;
         let selected = Self {
