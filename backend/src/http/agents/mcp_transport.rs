@@ -515,7 +515,7 @@ async fn post_inner(host: Host, scope: d::Scope, request: Request) -> HttpResult
     let capture_scope = scope.clone();
     let auth = tokio::task::spawn_blocking(move || {
         let _admitted = capture_checked.admission_permit()?;
-        let url = format!("{}{}", capture_host.origin, uri.path());
+        let url = crate::http::auth::url(&capture_host, &uri);
         let observed = evidence(&capture_host.origin, &capture_checked, &uri, &url, &method)
             .map_err(access_error)?;
         // Preserve observed Method::Post. AT11 checks actual Origin + Cookie +
@@ -617,11 +617,7 @@ async fn unsupported_inner(host: Host, scope: d::Scope, request: Request) -> Htt
                 .core
                 .lock()
                 .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-            let url = format!(
-                "{}{}",
-                host.origin,
-                uri.path_and_query().map_or("/", |path| path.as_str())
-            );
+            let url = crate::http::auth::url(&host, &uri);
             // Preserve the actual observed GET or HEAD. AT11 performs genuine
             // cookie/origin/membership checks before ANY registry lookup.
             let observed =

@@ -465,7 +465,7 @@ pub(super) async fn issue(
     tokio::task::spawn_blocking(move || {
         let _admitted = checked.admission_permit()?;
         let core = host.core.lock().map_err(|_| unavailable())?;
-        let url = format!("{}{}", host.origin, uri.path());
+        let url = super::auth::url(&host, &uri);
         let observed =
             evidence(&host.origin, &checked, &uri, &url, &method).map_err(access_error)?;
         let original = core

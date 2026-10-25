@@ -105,7 +105,7 @@ fn authorize(
     method: &Method,
     source: &a::SourceRef,
 ) -> Result<RequestPrincipal, super::HttpFailure> {
-    let url = format!("{}{}", host.origin, uri);
+    let url = super::auth::url(host, uri);
     let evidence = evidence(&host.origin, headers, uri, &url, method).map_err(access_error)?;
     let principal = host
         .mcp_access

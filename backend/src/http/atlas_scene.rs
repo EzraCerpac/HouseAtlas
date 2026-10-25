@@ -73,11 +73,7 @@ pub(super) async fn model(
             (Some(scope.clone()), false),
             |core, _, _| {
                 let canonical = core.access.clone();
-                let url = format!(
-                    "{}{}",
-                    host.origin,
-                    uri.path_and_query().map_or("/", |v| v.as_str())
-                );
+                let url = super::auth::url(&host, &uri);
                 let observed =
                     evidence(&host.origin, &headers, &uri, &url, &method).map_err(access_error)?;
                 let retained = crate::media::native::NativeMediaAccess::new(canonical.clone())

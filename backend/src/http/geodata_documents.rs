@@ -143,7 +143,7 @@ fn principal(
     {
         return Err(failure(StatusCode::NOT_FOUND));
     }
-    let url = format!("{}{}", host.origin, uri.path());
+    let url = super::auth::url(host, uri);
     let request = evidence(&host.origin, checked, uri, &url, method).map_err(access_error)?;
     let scope = crate::app::access_scope(&d::Scope {
         workspace_id: scope.workspace_id.clone(),

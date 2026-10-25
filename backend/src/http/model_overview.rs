@@ -79,11 +79,7 @@ pub(super) async fn original(
             (Some(scope.clone()), false),
             |core, _, _| {
                 let canonical = Arc::clone(&core.access);
-                let url = format!(
-                    "{}{}",
-                    host.origin,
-                    uri.path_and_query().map_or("/", |v| v.as_str())
-                );
+                let url = super::auth::url(&host, &uri);
                 let observed =
                     evidence(&host.origin, &headers, &uri, &url, &method).map_err(access_error)?;
                 let access = crate::media::native::NativeMediaAccess::new(Arc::clone(&canonical));

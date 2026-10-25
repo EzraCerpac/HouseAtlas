@@ -113,8 +113,13 @@ authoritative. Safe requests without Origin need same-origin fetch metadata
 and Referer. Rotation retains the original absolute expiry. Explicit trusted-proxy sign-in
 can issue a fresh lifetime only after consuming fresh gateway identity proof; a
 session read never renews the lifetime. Request budgets use
-stable user IDs and persist across rotation/relogin. The synchronous component
-permits one derivation at a time per mutable boundary instance.
+stable user IDs and persist across rotation/relogin. Peer login budgets key the
+actual connection by `client_key`: its IPv4 address, or its IPv6 /64. Peers in one
+/64, including all `fe80::/64` link-local peers, share one budget and can
+throttle each other. Only failed verifications count toward the per-client
+username rate, so another client cannot lock out a correct password. The
+synchronous component permits one derivation at a time per mutable boundary
+instance.
 
 Provisioning, membership/source administration, user-session revocation and
 `invalidate_all_sessions` are trusted local persistence seams only; no routes,
