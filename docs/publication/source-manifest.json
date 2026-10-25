@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "84e2f44b4682fabffaee826d87ee9f63de6956cebbb6905b7f6b99bff84717f2",
+  "sourceDigestSha256": "0ebf4cd24d95ea51c3bd6da82ef0cdafa80b560b07b33d0d213d0c98eacb24fa",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -105,8 +105,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 6088,
-      "sha256": "b3820f69938d231c7e871759d5f136e1167a249b71df8f796c605970d30f1dde",
+      "bytes": 6838,
+      "sha256": "d8c4f34147b8be0129ecedb5b684ceb1bf814f610c33e39f7e6124971a020aff",
       "owner": "core-integration"
     },
     {
