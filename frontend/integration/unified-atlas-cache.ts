@@ -66,6 +66,9 @@ export function createUnifiedAtlasCache(store: NativeGeometryScanCache,
       const { meta, envelope } = parsed;
       if (meta.publicationId !== publicationId || meta.manifestSha256 !== manifestSha256 || typeof meta.storedAt !== 'string'
         || typeof meta.envelopeSha256 !== 'string' || !(meta.entryBuildingId === null || typeof meta.entryBuildingId === 'string')) return null;
+      // Stored bytes must still be the envelope the server sent; anything else is neither shown nor kept.
+      const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', envelope));
+      if (Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join('') !== meta.envelopeSha256) return null;
       persisted = `${sceneKey(publicationId, manifestSha256)}/${meta.envelopeSha256}`;
       return { envelope, entryBuildingId: meta.entryBuildingId, storedAt: meta.storedAt };
     },

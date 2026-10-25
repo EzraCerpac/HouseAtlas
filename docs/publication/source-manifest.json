@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "899821df9fdd0381a2df354df5abac8a037d454cca7041fe8537684e6057fdd3",
+  "sourceDigestSha256": "278554f435678986ae1d1f5ba5408571e072ade5e1f5e0e3932f99710a4aae01",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -7260,8 +7260,8 @@
       "path": "frontend/integration/unified-atlas-cache.ts",
       "mode": "100644",
       "owner": "core-integration",
-      "bytes": 5449,
-      "sha256": "0300e112acd2c43f1db4e284d8fc959cc6c6c628ae5933457296447a4de0c0b2"
+      "bytes": 5762,
+      "sha256": "cefd53faa54a2b286059244497721764bc831791715a9ee2c9427ce44cd30d68"
     },
     {
       "path": "frontend/integration/unified-atlas-overlay-source.ts",
@@ -8184,8 +8184,8 @@
       "path": "frontend/lantern-tests/unified-atlas-cache-healthy.mjs",
       "mode": "100644",
       "owner": "web",
-      "bytes": 9755,
-      "sha256": "dd5294f0e8eedda3eca7be949ac6a5088426e18e8c507c97fbfcf5932cd8b43d"
+      "bytes": 10697,
+      "sha256": "9ae5c6aec668380fc0824108b36647868c04136bca4b2c4c0de20b415f758cf5"
     },
     {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",

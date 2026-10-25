@@ -128,6 +128,22 @@ await openProcess(disk, actorB, async ({ cache }) => {
   record('another actor on the same device', ['scene', 'model']);
 });
 
+// A stored scene envelope that no longer matches its recorded digest is not shown, and a fresh read rewrites it.
+{
+  const sceneDisk = createSyntheticDisk();
+  await openProcess(sceneDisk, actorA, async ({ cache }) => { await fresh(cache, v1); });
+  const records = sceneDisk.databases.get(ATLAS_CACHE_DATABASE).stores.get('blobs').records;
+  for (const value of records.values()) if (value.data.byteLength !== versions[1].glb.byteLength) {
+    const bytes = new Uint8Array(value.data), at = bytes.lastIndexOf(0x22);
+    bytes[at - 1] = bytes[at - 1] === 0x41 ? 0x42 : 0x41; // one character inside the last JSON string
+  }
+  await openProcess(sceneDisk, actorA, async ({ cache }) => {
+    assert.equal(await stored(cache, v1), null, 'a changed stored envelope is not shown');
+    await fresh(cache, v1);
+  });
+  await openProcess(sceneDisk, actorA, async ({ cache }) => assert.ok(await stored(cache, v1), 'the fresh read repaired it'));
+}
+
 // Stored model bytes that no longer hash to the pinned digest are never shown or used.
 const blobs = disk.databases.get(ATLAS_CACHE_DATABASE).stores.get('blobs').records;
 for (const value of blobs.values()) if (value.data.byteLength === versions[1].glb.byteLength) new Uint8Array(value.data)[100] ^= 0xff;
