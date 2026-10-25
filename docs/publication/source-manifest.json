@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "cb7b47c4eccfcfee34184163d79196e290a773bce9538d19cbbdf6eae03c734e",
+  "sourceDigestSha256": "5b1f055e692b9e767ed846c261c51913d7c14456368f8c9126e9b47d08dfc59a",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -714,8 +714,8 @@
     {
       "path": "backend/src/ai/connection.rs",
       "mode": "100644",
-      "bytes": 4320,
-      "sha256": "fba3fa44199ab8a8b1106040df8890d3c8f32d0db582a0ffaa261b5854642978",
+      "bytes": 4582,
+      "sha256": "791a77551d82f94946fceb51a94e8c4b12f7b2e5ebd3c8813122109b2bc03504",
       "owner": "ai"
     },
     {
@@ -728,8 +728,8 @@
     {
       "path": "backend/src/ai/healthy_examples.rs",
       "mode": "100644",
-      "bytes": 28464,
-      "sha256": "608f5b974ba452aec1935512beb6b020e1e013f11c04932a64de4142c49577ff",
+      "bytes": 32620,
+      "sha256": "891d66da696d5c44868fefcdcfa10e836b8e36a8035e21e195dedfc9a3f7dfe3",
       "owner": "ai"
     },
     {
@@ -3311,8 +3311,8 @@
     {
       "path": "backend/src/providers/homebox/read/README.md",
       "mode": "100644",
-      "bytes": 30522,
-      "sha256": "ef4c86f445c169bc828716446a8735d6d595217d152106fbf2b0d3298831707f",
+      "bytes": 31075,
+      "sha256": "58f8dfb2d98a2d7396032d4cf801a7a9f5c8ff0c720735877300cf18ea71d9b1",
       "owner": "homebox"
     },
     {
@@ -3381,8 +3381,8 @@
     {
       "path": "backend/src/providers/homebox/read/mod.rs",
       "mode": "100644",
-      "bytes": 2127,
-      "sha256": "32c9c1c314a3c9f584af2e6e35d70e4ba3e95f7bd37d57dd926ac60ef6cd75ba",
+      "bytes": 2165,
+      "sha256": "661b00bfddb2df322bbf734343775632aefe3844a5875a4a3455cba3ce8997e2",
       "owner": "homebox"
     },
     {
@@ -3460,6 +3460,13 @@
       "mode": "100644",
       "bytes": 6578,
       "sha256": "9c128854f3b5a5f674b7b989614d8093dbd2f62bc065c5678d0490fa5c4d4461",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/read/pagination_contract.rs",
+      "mode": "100644",
+      "bytes": 8867,
+      "sha256": "a07574f39dc09d337f55756e78962d45ac1b1eb9bc86c76bcb268efd19af3814",
       "owner": "homebox"
     },
     {
@@ -4144,8 +4151,8 @@
     {
       "path": "backend/src/providers/homebox/write/stock/types.rs",
       "mode": "100644",
-      "bytes": 10559,
-      "sha256": "977b08212f042ca6068604b3fecb0ad6573f507a861bbd98ef0a044e0d24e84b",
+      "bytes": 16064,
+      "sha256": "c8377f5d9af5896bc08dad186f30e640352d09778b06d3f86716649812ded238",
       "owner": "homebox"
     },
     {
@@ -4256,8 +4263,8 @@
     {
       "path": "backend/src/providers/network/healthy.rs",
       "mode": "100644",
-      "bytes": 15057,
-      "sha256": "535e7157862dbb5763f62dfe6c1c19df808852caf91df7f70e0e364d640eb33a",
+      "bytes": 16068,
+      "sha256": "809fd6a431f866e6d60f3e428e25abf7ea168b4983c64d15fe6d3286bdbe28f9",
       "owner": "network"
     },
     {
@@ -5390,8 +5397,8 @@
     {
       "path": "backend/src/transports/mcp/README.md",
       "mode": "100644",
-      "bytes": 7308,
-      "sha256": "878e015e40915a116f7fab652e6a90d9ecc837203ee32402104e26d0c28bf060",
+      "bytes": 10620,
+      "sha256": "fe530670547a11e5cc122021b562e84695bcec0b5f0c473ece01ee561e241f6d",
       "owner": "mcp"
     },
     {
@@ -5432,15 +5439,15 @@
     {
       "path": "backend/src/transports/mcp/healthy_mappings.rs",
       "mode": "100644",
-      "bytes": 3755,
-      "sha256": "0f35f923fbf5aaf3bb98eb8ae10fdbe988baa5873be2529ec81ba6b6963496f1",
+      "bytes": 5878,
+      "sha256": "b1f08c094233ca4d06fa72e335d3e44256142befbf8f205cfffab82ffaf77e8b",
       "owner": "mcp"
     },
     {
       "path": "backend/src/transports/mcp/healthy_native.rs",
       "mode": "100644",
-      "bytes": 10883,
-      "sha256": "456bfec21cc6b33314356161384f22799c9e5b4c9c2400602e6567ca37c1add1",
+      "bytes": 11903,
+      "sha256": "a7fa40832bc74a3ef11c223f45343ae4dfa29ee44aaa511421cd406a3cba7445",
       "owner": "mcp"
     },
     {
@@ -5467,8 +5474,8 @@
     {
       "path": "backend/src/transports/mcp/lifecycle/mod.rs",
       "mode": "100644",
-      "bytes": 404,
-      "sha256": "cb20d68f8be84143cc9bd731031fe6c220f3924798723406aec4480691fc6951",
+      "bytes": 443,
+      "sha256": "0c0eeac6916d38fdb1857866601deee7d80c4b7b9e92ee1415cc6db1271cd217",
       "owner": "mcp"
     },
     {
@@ -5483,6 +5490,13 @@
       "mode": "100644",
       "bytes": 7187,
       "sha256": "830c06e3896ff719fda5e43c6f0211db18ab6507319dd65fdc6c50fa207e7822",
+      "owner": "mcp"
+    },
+    {
+      "path": "backend/src/transports/mcp/lifecycle/synthetic_contracts.rs",
+      "mode": "100644",
+      "bytes": 18088,
+      "sha256": "4bbf2a9370456acc6ca798c5c440031721166e847458101cb7fa30099594904d",
       "owner": "mcp"
     },
     {
@@ -5502,8 +5516,8 @@
     {
       "path": "backend/src/transports/mcp/native_catalog.rs",
       "mode": "100644",
-      "bytes": 8563,
-      "sha256": "a15760b975ad4c491f91a970fe95f8debb3541b43d3a3ad95eff564efdf4181e",
+      "bytes": 8587,
+      "sha256": "1460125f5b23179eb9cf146bf3f32a3e5653d5a6e2c1e80e4c30ae4c1785e717",
       "owner": "mcp"
     },
     {
@@ -5516,8 +5530,8 @@
     {
       "path": "backend/src/transports/mcp/native_schemas.rs",
       "mode": "100644",
-      "bytes": 8341,
-      "sha256": "560376eec0fa3e9a90a9086ff6a542d24de8244e4d871ea456ff6641d02637fe",
+      "bytes": 9899,
+      "sha256": "7c7ff1493e280663df3d532bcd694d189b7d89fc2e6edb82ce5802274b833191",
       "owner": "mcp"
     },
     {
@@ -6032,6 +6046,13 @@
       "owner": "contracts"
     },
     {
+      "path": "docs/contracts/measurement-linear-proposal.md",
+      "mode": "100644",
+      "bytes": 7985,
+      "sha256": "c9b3e7de3d090ec1bca15204aafc6bcb7c4e9f9c7a328ed7852ec0b856eaecef",
+      "owner": "contracts"
+    },
+    {
       "path": "docs/contracts/mutations-and-api.md",
       "mode": "100644",
       "bytes": 9337,
@@ -6466,6 +6487,20 @@
       "owner": "web"
     },
     {
+      "path": "docs/operations/acceptance-300.json",
+      "mode": "100644",
+      "bytes": 13648,
+      "sha256": "c562d7af6a5c353e0cf8b616638ef254a9681f82908636dac7557e7d89428e66",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "docs/operations/acceptance-300.md",
+      "mode": "100644",
+      "bytes": 10932,
+      "sha256": "48d4e98462846d53d886569c7356a9eacc52fa3670930b354a63a5cfbb8db181",
+      "owner": "operations-policy"
+    },
+    {
       "path": "docs/operations/adoption-and-decisions.md",
       "mode": "100644",
       "bytes": 1244,
@@ -6482,8 +6517,8 @@
     {
       "path": "docs/operations/contextual-evidence-capture.md",
       "mode": "100644",
-      "bytes": 9743,
-      "sha256": "48e451e8ab62e68b22e1359c9a1bcf4c4441a71b1227a76a351a0c02f99d95a2",
+      "bytes": 12374,
+      "sha256": "df8848606010a0729baad824870747bc18d125f12462172285034f2da2d5ab5a",
       "owner": "core-integration"
     },
     {
@@ -6655,6 +6690,13 @@
       "owner": "access"
     },
     {
+      "path": "docs/providers/read-support-matrix.md",
+      "mode": "100644",
+      "bytes": 7851,
+      "sha256": "40d334638d047d3324fcbf5079031c2d236ea88fea5fc426fa9e696d5f1debad",
+      "owner": "homebox"
+    },
+    {
       "path": "docs/publication/provenance.md",
       "mode": "100644",
       "bytes": 3039,
@@ -6720,8 +6762,8 @@
     {
       "path": "docs/rust-integration/ai-host-integration.md",
       "mode": "100644",
-      "bytes": 3215,
-      "sha256": "aa062c32140e3d255e5ba9c448a9680cde36db1a69d2a9a066e1da678fd90fa0",
+      "bytes": 7691,
+      "sha256": "f9bf5104590661d734dc08346eb2cedce446b3025aa4d4aed4c7abebfa65b003",
       "owner": "core-integration"
     },
     {
@@ -7089,10 +7131,17 @@
       "owner": "core-integration"
     },
     {
+      "path": "frontend/capture-evidence-tests/foreground.mjs",
+      "mode": "100644",
+      "bytes": 13227,
+      "sha256": "f4ffb55b01de9c748b41132bf2e65b82942301b2aaebb6d24f28a8be0fb7ec32",
+      "owner": "core-integration"
+    },
+    {
       "path": "frontend/capture-evidence-tests/selection.mjs",
       "mode": "100644",
-      "bytes": 4711,
-      "sha256": "89239ad2d002160b1eafec7e9c1f0ee62ed9e89f91ccbbf10d477b3200c5113a",
+      "bytes": 6773,
+      "sha256": "bca6c906f423f9286b007defee4a536132243b830eca008908591d62fa4b212a",
       "owner": "core-integration"
     },
     {
@@ -7957,6 +8006,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/recorded-pdf-page.test.mjs",
+      "mode": "100644",
+      "bytes": 2726,
+      "sha256": "c1c5d6ade9319b68d7adf81ef6d4da882480a58109926823f7b150b12a51be8c",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/render-bench/index.html",
       "mode": "100644",
       "bytes": 450,
@@ -8624,8 +8680,8 @@
     {
       "path": "frontend/src/ai/model.ts",
       "mode": "100644",
-      "bytes": 3851,
-      "sha256": "02350d7358f6f98efe3728fca7fd473edac1837016b60fc267a2fdc321b88dab",
+      "bytes": 4062,
+      "sha256": "d3b05369e708144fab7f110630f2d8778e40b696c28100e271a86375b6b9753b",
       "owner": "ai"
     },
     {
@@ -9870,8 +9926,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx",
       "mode": "100644",
-      "bytes": 22544,
-      "sha256": "0d04a951d084f4966ab857057165a68191254f2f908e77408614c1f70ce53589",
+      "bytes": 25034,
+      "sha256": "6477aa5728a3bad0da7750ee7b7b331130421e17dcfda501b0da4951d1c4e274",
       "owner": "web"
     },
     {
@@ -9893,6 +9949,13 @@
       "mode": "100644",
       "bytes": 3158,
       "sha256": "61bf95bb565bdbf1b47c17141b853f41b949481c65a142cbe0d274409fefcb3d",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/native-ui/recorded-pdf-page.ts",
+      "mode": "100644",
+      "bytes": 324,
+      "sha256": "5dfd423d177ec8db6be825ff57bdd76f2ad17bbe076df376f30b244a92c25635",
       "owner": "web"
     },
     {
@@ -11044,6 +11107,27 @@
       "owner": "contracts"
     },
     {
+      "path": "packages/contracts/proposals/linear-v1/examples.json",
+      "mode": "100644",
+      "bytes": 8315,
+      "sha256": "c89b9692efb2b755b6c325e511d64a6b8840ff5bb02c186f579bb1de03a95f48",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/proposals/linear-v1/examples.test.mjs",
+      "mode": "100644",
+      "bytes": 3915,
+      "sha256": "97f38099bd6d094a9fa399beddcc160e795a2c4bbfd13f59050127a09e851048",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/proposals/linear-v1/schema.json",
+      "mode": "100644",
+      "bytes": 16520,
+      "sha256": "d6f22eca883a5b51672f04df0667a8f9dc5939d639847877eaa8804daedc352d",
+      "owner": "contracts"
+    },
+    {
       "path": "packages/contracts/schemas/atlas.schema.json",
       "mode": "100644",
       "bytes": 97701,
@@ -11569,6 +11653,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "tools/acceptance/prepare-300.py",
+      "mode": "100644",
+      "bytes": 937,
+      "sha256": "a467b883040e3173aceba7c352708356492f74af0b63bed75f126ac9b41cb767",
+      "owner": "operations-policy"
+    },
+    {
       "path": "tools/backup/houseatlas_backup.py",
       "mode": "100644",
       "bytes": 17091,
@@ -11751,6 +11842,13 @@
       "owner": "mcp"
     },
     {
+      "path": "tools/houseatlas-mcp-bridge/maintenance_composition.py",
+      "mode": "100644",
+      "bytes": 8073,
+      "sha256": "dbbef69b49aa2c23b78b7329d6b943ad376a137a2155e6160d2d65969645c171",
+      "owner": "mcp"
+    },
+    {
       "path": "tools/houseatlas-mcp-bridge/native-session-launcher.py",
       "mode": "100644",
       "bytes": 2054,
@@ -11769,6 +11867,13 @@
       "mode": "100644",
       "bytes": 15522,
       "sha256": "5c21030f26d3664093d1dea18615eb613fc555249f46d7a522b8695880754dc5",
+      "owner": "mcp"
+    },
+    {
+      "path": "tools/houseatlas-mcp-bridge/test_maintenance_composition_happy.py",
+      "mode": "100644",
+      "bytes": 14175,
+      "sha256": "1ea7798455aaf8d02c152b6ad6f0c7c4b8e6cda66aa592055cb93c34a860908a",
       "owner": "mcp"
     },
     {

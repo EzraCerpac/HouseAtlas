@@ -62,15 +62,15 @@ NativeContext retains opaque original authority. NativePrincipalPort delegates
 provenance, scoped capability, mutation issuance and current revalidation to
 Access. Annotations and client metadata establish no authority.
 
-OperationMapping joins all 164 published IDs in the shared/domain catalogs.
+OperationMapping joins all 168 published IDs in the shared/domain catalogs.
 ToolName wraps their existing ten-family enum. Mapping coverage is distinct
 from actual host admission. NativeSchemas accepts the exact offline resources
 and retains their transitive definitions and literal values:
 
 - Agent schema SHA-256:
-  `314ee5f5effca941b3be92cb5cc37150aa17a3ab5dd8646255cebc74767b602d`.
+  `44afff94ad51135282e0a34c1efd1ad77e240dd55bd8dff13cfb8120cdf4b5ca`.
 - Atlas schema SHA-256:
-  `ba73d972c87391fe06cd41d68e73bc2d73fc3fcac322889cfb3b8d909c3f3f72`.
+  `c7c380b317e3cc640c8c437bf360e5f04d443f91ec03a54cc0f23a98b5a13b0c`.
 
 Full wire3 envelopes remain tools/call arguments. Shared StockRequest and domain
 ValidatedRequest preserve original IDs, intent digests, explicit unknowns/nulls,
@@ -88,6 +88,40 @@ MCP revision is `2025-11-25`, with initialize/initialized, ping, tools/list and
 tools/call over a serialized host-framed session. The bounded decoder retains
 arbitrary-precision Numbers, request IDs and literal object keys. The host owns
 framing, connection lifetime, idle clocks and transport-level admission.
+
+## Catalog-to-admission parity, version 1
+
+Source baseline: public main `b7abc9d87b90d3a6eab9efb386edf252f72daf60`,
+25 October 2026; related issue #288. The shared wire3 catalog contains 168
+operations in ten families. This bounded change addresses discovery of top-level
+request arms, not the complete operation qualification matrix.
+
+Previously `NativeCatalog` published the full family input union even when the
+host admitted only two reads. It now selects the host-admitted operation schema
+references in canonical family order before materializing their offline
+definition closure. Empty families remain absent. This matches WebMCP's existing
+top-level arm selection in `frontend/src/webmcp/stock.ts`. The shared catalog,
+full `NativeSchemas::schema` API and family output schemas remain unchanged.
+
+| Surface | Actual admission/service owner | Disposition and evidence boundary |
+| --- | --- | --- |
+| Native discovery | `NativeCatalog` with the host's exact operation set | Only admitted top-level input arms; unadmitted arms are omitted. Synthetic descriptor fixtures cover all ten families and an admitted two-read catalog. Checks NOT RUN locally; existing CI owns execution. |
+| Native read profile | `http::agents::mcp::bind_read`, shared StockService | Existing Atlas/cached HomeBox and configured-history admission retained; mapping an ID alone supplies no provider binding. |
+| Mounted native profile | `bind_owned_admission`, OwnedStockService | Existing scoped Network/HomeBox bindings, Editor profile and download owner retained. No new admission or owner is supplied here. |
+| Local Atlas profile | `bind_local_atlas`, shared native stock dispatcher | Existing Access/SQLite read, command, batch and reopened-history fixture retained. Core-only binding still has no asset-download issuer/redemption owner. |
+| WebMCP | Current session/scope, injected schema/service/catalog/download owners | Existing top-level input selection retained. Browser registration, visible completion and installed integration remain NOT RUN here; interactive browser/device acceptance is DEFERRED. |
+| Batch children | Canonical batch schema and native recursive admission | Nested request unions are unchanged in both transports; native `prepare` checks every ordered child separately. Nested discovery narrowing and full batch outcome qualification remain open. |
+| Upload/remap/large operations | Existing dedicated capability/domain owners | No new binding or support claim. Complete transfer, limits, delayed/unknown outcomes and live qualification remain open under #288. Access lifecycle #289 and maintenance callers #290 are separate. |
+
+`healthy_admitted_family_input_descriptors` checks single-arm selection with an
+unrelated admitted family, unchanged reachable definitions, offline descriptor
+compilation and an absent-family result. The existing
+`healthy_native_catalog_context_and_core_reads` fixture now checks that its
+two admitted read arms are exactly advertised, while another schema-valid read
+is excluded without dispatching it. These are synthetic in-process unit cases
+in the existing backend test lane. No local compilation, Clippy or tests were
+run for this change; CI results must be tied to the eventual PR head. Existing
+source fixtures are not evidence of installed or live acceptance.
 
 ## Exact ordinary positive
 
