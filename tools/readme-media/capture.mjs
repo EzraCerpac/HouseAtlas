@@ -22,6 +22,17 @@ async function sourceTreeSnapshot() {
   return { algorithm: 'SHA256 of sorted tracked path TAB bytes TAB file-SHA256 LF', fileCount: paths.length, exclusions: sourceTreeExclusions, sha256: createHash('sha256').update(rows.join('')).digest('hex') };
 }
 const sourceTree = await sourceTreeSnapshot();
+/** Page init script: counts draw submissions on every 3D API: the scan scene's WebGL, and
+ * whichever of WebGPU or WebGL2 the canonical 3D layer chose. */
+function countDraws(counter) {
+  window[counter] = 0;
+  const wrap = (proto, names) => { if (proto) for (const name of names) {
+    const original = proto[name];
+    proto[name] = function (...args) { window[counter]++; return original.apply(this, args); };
+  } };
+  for (const context of [globalThis.WebGLRenderingContext, globalThis.WebGL2RenderingContext]) wrap(context?.prototype, ['drawArrays', 'drawElements']);
+  wrap(globalThis.GPURenderPassEncoder?.prototype, ['draw', 'drawIndexed']);
+}
 const errors = [], requests = [];
 let browser, server;
 const deadline = setTimeout(() => { server?.kill('SIGTERM'); void browser?.close(); }, 90_000);
@@ -71,13 +82,7 @@ try {
   assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
   const house = await context.newPage();
   house.on('pageerror', error => errors.push(error.message));
-  await house.addInitScript(() => {
-    window.syntheticDrawCalls = 0;
-    for (const name of ['drawArrays', 'drawElements']) {
-      const original = WebGLRenderingContext.prototype[name];
-      WebGLRenderingContext.prototype[name] = function (...args) { window.syntheticDrawCalls++; return original.apply(this, args); };
-    }
-  });
+  await house.addInitScript(countDraws, 'syntheticDrawCalls');
   await house.goto(`${origin}/lantern-tests/readme-house-visual/?renderer=mesh`, { waitUntil: 'networkidle' });
   await house.evaluate(() => document.fonts.ready);
   await house.waitForFunction(() => window.syntheticDrawCalls > 0);
@@ -128,13 +133,7 @@ try {
   const unifiedEntry = '/lantern-tests/source-host-visual/?atlas=generated';
   const atlas = await context.newPage();
   atlas.on('pageerror', error => errors.push(error.message));
-  await atlas.addInitScript(() => {
-    window.syntheticAtlasDrawCalls = 0;
-    for (const name of ['drawArrays', 'drawElements']) {
-      const original = WebGLRenderingContext.prototype[name];
-      WebGLRenderingContext.prototype[name] = function (...args) { window.syntheticAtlasDrawCalls++; return original.apply(this, args); };
-    }
-  });
+  await atlas.addInitScript(countDraws, 'syntheticAtlasDrawCalls');
   await atlas.goto(`${origin}${unifiedEntry}`, { waitUntil: 'networkidle' });
   await atlas.evaluate(() => document.fonts.ready);
   assert.equal(await atlas.locator('nav.navrail .nav-btn[aria-current="page"] .nav-label').textContent(), 'Atlas');
@@ -143,7 +142,7 @@ try {
   // Real drawing is required; the 3D-unavailable note is reported, never captured.
   const firstDraw = await atlas.waitForFunction(() => window.syntheticAtlasDrawCalls > 0 ? 'drawn'
     : document.querySelector('.ua-viewport .cifc-stage-note')?.textContent || false);
-  assert.equal(await firstDraw.jsonValue(), 'drawn', 'Unified Atlas WebGL must draw before capture');
+  assert.equal(await firstDraw.jsonValue(), 'drawn', 'Unified Atlas 3D must draw before capture');
   const frames = page => page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(done)))));
   // Normal keyboard use of the visible source disclosure, without changing source.
   const sourceDisclosure = async () => {
@@ -257,10 +256,8 @@ try {
       canvasHidden: canvas.hidden, stageNote: text('.ua-viewport .cifc-stage-note'),
     };
   });
-  const atlasWebgl = () => atlas.locator('.ua-viewport canvas.cifc-canvas').evaluate(canvas => {
-    const gl = canvas.getContext('webgl');
-    return { version: gl.getParameter(gl.VERSION), drawCalls: window.syntheticAtlasDrawCalls, pixels: [canvas.width, canvas.height], cssPixels: [canvas.clientWidth, canvas.clientHeight] };
-  });
+  const atlasDrawing = () => atlas.locator('.ua-viewport canvas.cifc-canvas').evaluate(canvas =>
+    ({ renderer: canvas.dataset.renderer, drawCalls: window.syntheticAtlasDrawCalls, pixels: [canvas.width, canvas.height], cssPixels: [canvas.clientWidth, canvas.clientHeight] }));
   // Generated identity: two buildings with floors; the boundary wall is context only.
   const buildings = (await shell.locator('nav.ua-buildings button').allTextContents()).map(name => name.trim());
   assert.deepEqual(buildings, ['All buildings', 'Synthetic house', 'Synthetic studio']);
@@ -292,8 +289,8 @@ try {
     assert.deepEqual([facts.buildingInView, facts.floorInView], [true, true], 'The current building and floor must be in view');
   };
   clearOfPanels(desktop);
-  const desktopWebgl = await atlasWebgl();
-  assert(desktopWebgl.pixels[0] > 1 && desktopWebgl.pixels[1] > 1);
+  const desktopDrawing = await atlasDrawing();
+  assert(desktopDrawing.pixels[0] > 1 && desktopDrawing.pixels[1] > 1);
   await atlas.mouse.move(1430, 10);
   await frames(atlas);
   await atlas.screenshot({ path: resolve(output, 'synthetic-unified-3d.png'), animations: 'disabled' });
@@ -306,7 +303,7 @@ try {
     [['3D'], 'false', ['Ground floor: 3 rooms, has the selected room'], 'Living room', 'Ground floor, Synthetic house']);
   assert(collapsed.labels.includes('Select room: Living room'));
   clearOfPanels(collapsed);
-  const collapsedWebgl = await atlasWebgl();
+  const collapsedDrawing = await atlasDrawing();
   await atlas.mouse.move(1430, 10);
   await atlas.screenshot({ path: resolve(output, 'synthetic-unified-collapsed.png'), animations: 'disabled' });
   // Plan of the selected room's floor, with the published electrical counts.
@@ -377,7 +374,7 @@ try {
   for (const field of ['view', 'overlay', 'building', 'buildingControl', 'floor', 'selectedRoom', 'selectedFloor', 'inspector', 'markers', 'markerKeys', 'stageNote', 'menusClosed'])
     assert.deepEqual(phone[field], beforeDetails[field], `Layer details preserves ${field}`);
   clearOfPanels(phone);
-  const phoneWebgl = await atlasWebgl();
+  const phoneDrawing = await atlasDrawing();
   await atlas.screenshot({ path: resolve(output, 'synthetic-unified-phone.png'), animations: 'disabled' });
   // Normal modified-wheel zoom preserves keyboard focus on Hall while its full
   // target collides with selected Living. Culling must recover focus honestly.
@@ -400,7 +397,7 @@ try {
   clearOfPanels(phoneCrowded);
   assert.equal(await viewport.evaluate(node => document.activeElement === node), true, 'A culled focused badge returns focus to the viewport');
   assert.deepEqual(await atlas.evaluate(() => [scrollX, scrollY]), scrollBefore, 'Focus recovery does not scroll the page');
-  const phoneCrowdedWebgl = await atlasWebgl();
+  const phoneCrowdedDrawing = await atlasDrawing();
   await atlas.mouse.move(385, 5);
   await atlas.screenshot({ path: resolve(output, 'synthetic-unified-phone-crowded.png'), animations: 'disabled' });
   await shell.getByRole('button', { name: 'Clear room', exact: true }).click();
@@ -414,7 +411,7 @@ try {
   assert.deepEqual(phoneHall.markerKeys, ['marker:electrical:syn-occ-hall']);
   assert.match(phoneHall.key, /4 records/);
   clearOfPanels(phoneHall);
-  const phoneHallWebgl = await atlasWebgl();
+  const phoneHallDrawing = await atlasDrawing();
   await atlas.screenshot({ path: resolve(output, 'synthetic-unified-phone-hall.png'), animations: 'disabled' });
   await shell.getByRole('button', { name: 'Show details', exact: true }).click();
   const references = shell.getByRole('complementary', { name: 'Selected room' }).locator('.ua-record').filter({ has: atlas.getByRole('heading', { name: 'Electrical', exact: true }) });
@@ -444,7 +441,7 @@ try {
   assert.deepEqual(stacked.markerKeys, ['marker:network:syn-occ-stairs-ground']);
   assert.match(stacked.key, /1 record/);
   clearOfPanels(stacked);
-  const stackedWebgl = await atlasWebgl();
+  const stackedDrawing = await atlasDrawing();
   await atlas.mouse.move(1430, 10);
   await atlas.screenshot({ path: resolve(output, 'synthetic-unified-stacked.png'), animations: 'disabled' });
   assert.deepEqual(errors, [], 'No renderer error or external browser request allowed');
@@ -457,7 +454,7 @@ try {
     const path = file.startsWith('docs/demo/') ? resolve(output, file.split('/').at(-1)) : resolve(root, file);
     hashes[file] = createHash('sha256').update(await readFile(path)).digest('hex');
   }
-  const unifiedSourcePaths = ['tools/readme-media/capture.mjs', 'frontend/lantern-tests/source-host-visual/index.html', 'frontend/lantern-tests/source-host-visual/main.tsx', 'frontend/lantern-tests/source-host-visual/synthetic-site.ts', 'frontend/lantern-tests/source-host-visual/synthetic-documents.ts', 'frontend/lantern-tests/unified-atlas/synthetic-atlas.ts', 'frontend/integration/unified-atlas-reader.ts', 'frontend/src/lantern/Host.tsx', 'frontend/src/lantern/atlas/AtlasView.tsx', 'frontend/src/lantern/atlas/useCamera.ts', 'frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx', 'frontend/src/lantern/unified-atlas/scene.ts', 'frontend/src/lantern/unified-atlas/runtime-overlays.ts', 'frontend/src/lantern/unified-atlas/unified-atlas.css', 'frontend/src/lantern/unified-atlas/PublishedOverlayDetails.tsx', 'frontend/src/lantern/unified-atlas/labels.ts', 'frontend/src/lantern/unified-atlas/types.ts', 'frontend/src/lantern/canonical-ifc/MeshLayer.tsx', 'frontend/src/lantern/canonical-ifc/geometry.ts', 'frontend/src/lantern/canonical-ifc/useStageCamera.ts', 'frontend/src/lantern/canonical-ifc/stage-pointers.ts', 'frontend/src/lantern/canonical-ifc/standard-glb.ts', 'frontend/src/lantern/canonical-ifc/glb-preflight.ts', 'frontend/src/lantern/canonical-ifc/canonical-ifc.css'];
+  const unifiedSourcePaths = ['tools/readme-media/capture.mjs', 'frontend/lantern-tests/source-host-visual/index.html', 'frontend/lantern-tests/source-host-visual/main.tsx', 'frontend/lantern-tests/source-host-visual/synthetic-site.ts', 'frontend/lantern-tests/source-host-visual/synthetic-documents.ts', 'frontend/lantern-tests/unified-atlas/synthetic-atlas.ts', 'frontend/integration/unified-atlas-reader.ts', 'frontend/src/lantern/Host.tsx', 'frontend/src/lantern/atlas/AtlasView.tsx', 'frontend/src/lantern/atlas/useCamera.ts', 'frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx', 'frontend/src/lantern/unified-atlas/scene.ts', 'frontend/src/lantern/unified-atlas/runtime-overlays.ts', 'frontend/src/lantern/unified-atlas/unified-atlas.css', 'frontend/src/lantern/unified-atlas/PublishedOverlayDetails.tsx', 'frontend/src/lantern/unified-atlas/labels.ts', 'frontend/src/lantern/unified-atlas/types.ts', 'frontend/src/lantern/canonical-ifc/MeshLayer.tsx', 'frontend/src/lantern/canonical-ifc/mesh-scene.ts', 'frontend/src/lantern/canonical-ifc/mesh-appearance.ts', 'frontend/src/lantern/canonical-ifc/gpu-budget.ts', 'frontend/src/lantern/canonical-ifc/geometry.ts', 'frontend/src/lantern/canonical-ifc/useStageCamera.ts', 'frontend/src/lantern/canonical-ifc/stage-pointers.ts', 'frontend/src/lantern/canonical-ifc/standard-glb.ts', 'frontend/src/lantern/canonical-ifc/glb-preflight.ts', 'frontend/src/lantern/canonical-ifc/canonical-ifc.css'];
   const unifiedSourceHashes = {}, unifiedArtifactHashes = {};
   for (const file of unifiedSourcePaths) unifiedSourceHashes[file] = createHash('sha256').update(await readFile(resolve(root, file))).digest('hex');
   for (const name of unifiedNames) unifiedArtifactHashes[`docs/demo/synthetic-${name}.png`] = createHash('sha256').update(await readFile(resolve(output, `synthetic-${name}.png`))).digest('hex');
@@ -468,15 +465,15 @@ try {
     sourceDisclosure: { desktop: desktopDisclosure, phone: phoneDisclosure },
     buildingChooser: { phone: phoneChooser },
     states: [
-      { image: 'synthetic-unified-3d.png', viewport: [1440, 1000], ...desktop, webgl: desktopWebgl },
-      { image: 'synthetic-unified-collapsed.png', viewport: [1440, 1000], ...collapsed, webgl: collapsedWebgl },
+      { image: 'synthetic-unified-3d.png', viewport: [1440, 1000], ...desktop, drawing: desktopDrawing },
+      { image: 'synthetic-unified-collapsed.png', viewport: [1440, 1000], ...collapsed, drawing: collapsedDrawing },
       { image: 'synthetic-unified-plan.png', viewport: [1440, 1000], ...plan },
-      { image: 'synthetic-unified-phone.png', viewport: [390, 844], ...phone, webgl: phoneWebgl },
-      { image: 'synthetic-unified-phone-crowded.png', viewport: [390, 844], ...phoneCrowded, webgl: phoneCrowdedWebgl, focusRecoveredWithoutScroll: true },
-      { image: 'synthetic-unified-phone-hall.png', viewport: [390, 844], ...phoneHall, webgl: phoneHallWebgl, recordReferences: ['syn-circuit-1', 'syn-outlet-1', 'syn-outlet-2'] },
-      { image: 'synthetic-unified-stacked.png', viewport: [1440, 1000], ...stacked, webgl: stackedWebgl },
+      { image: 'synthetic-unified-phone.png', viewport: [390, 844], ...phone, drawing: phoneDrawing },
+      { image: 'synthetic-unified-phone-crowded.png', viewport: [390, 844], ...phoneCrowded, drawing: phoneCrowdedDrawing, focusRecoveredWithoutScroll: true },
+      { image: 'synthetic-unified-phone-hall.png', viewport: [390, 844], ...phoneHall, drawing: phoneHallDrawing, recordReferences: ['syn-circuit-1', 'syn-outlet-1', 'syn-outlet-2'] },
+      { image: 'synthetic-unified-stacked.png', viewport: [1440, 1000], ...stacked, drawing: stackedDrawing },
     ],
-    checks: ['Atlas section current', 'two navigable generated buildings and three house floors in height order', 'Living room selected on Ground floor through the room list', 'fresh WebGL draws after Fit view before 3D capture', 'explicit explosion and collapse preserve the selected room and its complete floor ancestry', 'Ground floor plan with three rooms, one selected and the canvas hidden', 'published electrical counts for Hall and Living room', 'both counts remain at fitted phone width with the room panel as a closed sheet', 'selected count wins a zoomed-out phone touch-target collision without reducing the four-record total', 'Hall remains selectable with its three original record references', 'culled focused count returns focus to the viewport without scrolling', 'whole-building Network deterministically retains one context-qualified count and one distinct source record', 'no room or enlarged count target under a floating panel', 'no enlarged count target over another', 'current building and floor in view in every state'],
+    checks: ['Atlas section current', 'two navigable generated buildings and three house floors in height order', 'Living room selected on Ground floor through the room list', 'fresh 3D draws after Fit view before 3D capture', 'explicit explosion and collapse preserve the selected room and its complete floor ancestry', 'Ground floor plan with three rooms, one selected and the canvas hidden', 'published electrical counts for Hall and Living room', 'both counts remain at fitted phone width with the room panel as a closed sheet', 'selected count wins a zoomed-out phone touch-target collision without reducing the four-record total', 'Hall remains selectable with its three original record references', 'culled focused count returns focus to the viewport without scrolling', 'whole-building Network deterministically retains one context-qualified count and one distinct source record', 'no room or enlarged count target under a floating panel', 'no enlarged count target over another', 'current building and floor in view in every state'],
     scope: ['Generated fictional data only; no household, native, backend admission or private reference', 'Reduced motion: settled states only; no animation, transition or mid-sweep evidence', 'Playwright headless Chromium; no iPhone, PWA, native document, PDF or device acceptance'],
     sourceHashes: unifiedSourceHashes, artifactHashes: unifiedArtifactHashes,
   };
