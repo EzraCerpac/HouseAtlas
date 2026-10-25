@@ -127,6 +127,18 @@ function PlaceEditorForTarget({
     setStatus(progress);
     return controller;
   };
+  // A classification of this place that synced later (reconnect, Send now,
+  // Keep mine, another tab) moved its revision on: the open editor reloads
+  // so the next save is not based on the old one.
+  const recordId = admission?.record.recordId;
+  useEffect(() => getOutbox().onSynced(rows => {
+    if (!open || busy || !rows.some(row => row.kind === PLACE_CLASSIFICATION && row.target.recordId === recordId)) return;
+    const controller = begin("Reloading Atlas information…");
+    load(controller.signal).then(
+      next => { if (!controller.signal.aborted) setStatus(next ? "" : "Atlas classification is unavailable."); },
+      () => { if (!controller.signal.aborted) { setAdmission(null); setStatus("Editing information could not be refreshed."); } },
+    ).finally(() => { if (!controller.signal.aborted) setBusy(false); });
+  }), [open, busy, recordId]);
   const show = async (forEvidence = false) => {
     setEvidenceOnly(forEvidence);
     setSelection(null);

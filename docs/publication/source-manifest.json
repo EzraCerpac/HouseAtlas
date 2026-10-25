@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "28a8e683e665c28dad4b81f4bdb23c863b1d8401aa00852160368b5c4c601c7f",
+  "sourceDigestSha256": "fe743024eba8cc40700681e91a71b60b5b599af552f0f265499bb0b7472f3a32",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -8862,8 +8862,8 @@
     {
       "path": "frontend/src/app/PlaceEditor.tsx",
       "mode": "100644",
-      "bytes": 18244,
-      "sha256": "b2681d57cdf10eabaf4661422c0af084e93ea9a7026b7f031bfd0004e60272d8",
+      "bytes": 19114,
+      "sha256": "c8372cce093539dbfc37431984c0270c166e342b6f9f72bc1aab0f6364b0556c",
       "owner": "web"
     },
     {
