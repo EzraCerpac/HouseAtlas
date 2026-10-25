@@ -10,7 +10,15 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+# Independent jobs run in parallel; each one compiles only what its checks need.
+# CI builds skip debug info (smaller, faster to link and cache); panics still name file:line.
+env:
+  CARGO_INCREMENTAL: '0'
+  CARGO_PROFILE_DEV_DEBUG: '0'
+  SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 jobs:
+  # Source integrity, generated contracts, fmt, clippy and the named healthy examples.
+  # macOS also builds the binary and the React app; on Linux the jobs below do that.
   source:
     strategy:
       fail-fast: false
@@ -18,207 +26,55 @@ jobs:
         os: [ubuntu-24.04, macos-15]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
-    env:
-      CARGO_INCREMENTAL: '0'
-      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ env.SOURCE_SHA }}
           fetch-depth: 1
           fetch-tags: false
           persist-credentials: false
-      - name: Set exact Node runtime
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - name: Exact runtimes, caches and npm locks
+        id: setup
+        uses: ./.github/actions/ordinary-setup
         with:
-          node-version: '26.10.0'
-          check-latest: false
-          package-manager-cache: false
-      - name: Verify revision and runtime
-        run: |
-          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          test "$(node --version)" = "v26.10.0"
-          test "$(npm --version)" = "11.19.1"
-          printf 'CARGO_TARGET_DIR=%s/houseatlas-target\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
-          rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
-          test "$(rustc --version | cut -d ' ' -f 2)" = "1.99.0"
-      - name: Set isolated npm content cache
-        run: printf 'npm_config_cache=%s/houseatlas-npm\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
-      # Cache public package content only, never node_modules, npm logs or credentials.
-      # PRs restore exact keys; only successful main pushes may publish caches.
-      - name: Restore exact npm content cache
-        id: npm-cache
-        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
-        with:
-          path: ${{ runner.temp }}/houseatlas-npm/_cacache
-          key: npm-v1-${{ matrix.os }}-${{ runner.arch }}-node-26.10.0-npm-11.19.1-${{ hashFiles('package-lock.json', 'packages/contracts/package-lock.json', 'frontend/package-lock.json') }}
-      # No broad restore keys: registry and compiled outputs are lock/toolchain/OS specific.
-      - name: Restore exact Cargo registry cache
-        id: cargo-registry-cache
-        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
-        with:
-          path: |
-            ~/.cargo/registry/cache
-            ~/.cargo/registry/index
-            ~/.cargo/registry/src
-          key: cargo-registry-v1-${{ matrix.os }}-${{ runner.arch }}-rust-1.99.0-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', '.cargo/**') }}
-      # Compiled outputs also pin source, embedded schemas/fixtures and build configuration.
-      # Disposable runtime state is created outside this build directory and never cached.
-      - name: Restore exact Cargo build cache
-        id: cargo-target-cache
-        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
-        with:
-          path: ${{ runner.temp }}/houseatlas-target
-          key: cargo-target-v1-${{ matrix.os }}-${{ runner.arch }}-rust-1.99.0-no-incremental-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-${{ hashFiles('.github/workflows/rust-react-ordinary.yml', 'tools/rust-integration/check-source.mjs', 'Cargo.toml', '.cargo/**', 'backend/**', 'tools/rust-baseline/**', 'tools/rust-integration/examples/**', 'packages/contracts/**', 'contracts/**', 'adapters/homebox/fixtures/**', 'adapters/network/fixtures/**') }}
-      - name: Install exact npm locks without scripts
-        run: |
-          npm ci --ignore-scripts --no-audit --no-fund
-          npm ci --prefix packages/contracts --ignore-scripts --no-audit --no-fund
-          npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
+          image: ${{ matrix.os }}
+          rust: 'true'
+          target-cache: source
       - name: Verify source allowlist and unconfigured template
         run: npm run verify:publication
       - name: Compile actual Rust and React source and named healthy examples
+        if: runner.os != 'Linux'
         run: node tools/rust-integration/check-source.mjs
+      - name: Compile actual Rust source and named healthy examples (binary and React app in their own jobs)
+        if: runner.os == 'Linux'
+        run: node tools/rust-integration/check-source.mjs --skip-binary --skip-frontend
       - name: Verify the named Lantern healthy read
         run: node frontend/lantern-tests/healthy-read.mjs
-      - name: All named healthy frontend checks and real-browser offline launch
-        if: runner.os == 'Linux'
-        env:
-          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
-        run: node frontend/lantern-tests/run-healthy.mjs
-      - name: Backend library unit tests (default set)
-        if: runner.os == 'Linux'
-        run: >-
-          cargo test --locked -p houseatlas-backend --lib --
-          --skip http::quantity_http_healthy::
-          --skip providers::homebox::write::stock::quantity_flow_healthy::
-          --skip providers::homebox::write::stock::quantity_installation_healthy::
       - name: Genuine native MCP stock get and audit page after fresh circuit commit
         if: runner.os == 'Linux'
         run: cargo run --locked -p houseatlas-backend --example healthy-agent-stock
-      - name: Real disposable loopback TLS browser read slice
-        if: runner.os == 'Linux'
-        env:
-          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
-          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
-        run: node tools/rust-integration/healthy-loopback.mjs
-      - name: Real disposable auth reads and fresh local writes
-        if: runner.os == 'Linux'
-        env:
-          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
-          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
-        run: node tools/rust-integration/healthy-core-loopback.mjs
-      - name: Real disposable owned media commits and GET HEAD delivery
-        if: runner.os == 'Linux'
-        env:
-          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
-          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
-        run: node tools/rust-integration/healthy-media-loopback.mjs
-      - name: Real disposable native stock circuit and asset reads
-        if: runner.os == 'Linux'
-        env:
-          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
-          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
-        run: node tools/rust-integration/healthy-stock-loopback.mjs
-      - name: Real disposable fresh stock singles and atomic direct-map batches
-        if: runner.os == 'Linux'
-        env:
-          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
-          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
-        run: node tools/rust-integration/healthy-stock-write-loopback.mjs
-      - name: Real disposable native stock audit first pages and search
-        if: runner.os == 'Linux'
-        env:
-          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
-          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
-        run: node tools/rust-integration/healthy-stock-history-loopback.mjs
-      - name: Real native browser WebMCP stock read fresh create and audit page
-        if: runner.os == 'Linux'
-        env:
-          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
-          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
-        run: node tools/rust-integration/healthy-agent-loopback.mjs
-      - name: Real cached HomeBox read native WebMCP classification and mounted MCP audit
-        if: runner.os == 'Linux'
-        env:
-          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
-          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
-        run: node tools/rust-integration/healthy-agent-host-loopback.mjs
-      - name: Real React human classification cached read and mounted MCP audit
-        if: runner.os == 'Linux'
-        env:
-          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
-          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
-        run: node tools/rust-integration/healthy-human-host-loopback.mjs
-      - name: Real React fresh attachment and existing-original reuse
-        if: runner.os == 'Linux'
-        env:
-          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
-          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
-        run: node tools/rust-integration/healthy-upload-loopback.mjs
-      - name: Real cached Unicode collection read with complete SQLite facts
-        if: runner.os == 'Linux'
-        env:
-          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
-          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
-        run: node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs
-      - name: Real Atlas ten lists, invoke parity and native WebMCP cursor continuation
-        if: runner.os == 'Linux'
-        env:
-          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
-          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
-        run: node tools/rust-integration/healthy-atlas-lists-loopback.mjs
-      - name: Real mounted MCP sessions across one Access rotation
-        if: runner.os == 'Linux'
-        env:
-          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
-          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
-        run: node tools/rust-integration/healthy-mcp-lifecycle-loopback.mjs
-      - name: Real aggregate stock operation events and read-only Changes view
-        if: runner.os == 'Linux'
-        env:
-          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
-          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
-        run: node tools/rust-integration/healthy-operation-events-loopback.mjs
-      - name: Real standalone text asset through Access, Media, stock and SQLite
-        if: runner.os == 'Linux'
-        env:
-          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
-          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
-        run: node tools/rust-integration/healthy-standalone-asset-loopback.mjs
       - name: Real root Network router TLS inventory GET and archive reopen
         if: runner.os == 'Linux'
         run: |
           cargo build --locked -p houseatlas-backend --example healthy-network-root-router
           python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"
-      - name: Save npm content cache from verified main
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.npm-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      - name: Save caches from verified main
+        uses: ./.github/actions/ordinary-save
         with:
-          path: ${{ runner.temp }}/houseatlas-npm/_cacache
-          key: ${{ steps.npm-cache.outputs.cache-primary-key }}
-      - name: Save Cargo registry cache from verified main
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cargo-registry-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
-        with:
-          path: |
-            ~/.cargo/registry/cache
-            ~/.cargo/registry/index
-            ~/.cargo/registry/src
-          key: ${{ steps.cargo-registry-cache.outputs.cache-primary-key }}
-      - name: Save Cargo build cache from verified main
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cargo-target-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
-        with:
-          path: ${{ runner.temp }}/houseatlas-target
-          key: ${{ steps.cargo-target-cache.outputs.cache-primary-key }}
+          npm-key: ${{ steps.setup.outputs.npm-key }}
+          npm-hit: ${{ steps.setup.outputs.npm-hit }}
+          registry-key: ${{ steps.setup.outputs.registry-key }}
+          registry-hit: ${{ steps.setup.outputs.registry-hit }}
+          target-key: ${{ steps.setup.outputs.target-key }}
+          target-hit: ${{ steps.setup.outputs.target-hit }}
       - name: Record scope
         # Stock read/write/history runners add four/ten/three healthy requests respectively.
         if: always()
         run: |
           printf '%s\n' 'Actual locked Rust/TS source compilation and four named healthy examples; Linux additionally runs the explicitly named genuine in-process MCP stock get/history after a fresh native circuit commit, actual SQLite/access/domain/React loopback TLS reads, session/login/logout, fresh circuit create, atomic local identity batch, fresh owned PNG/text commits, actual download GET/HEAD and safe-rendered PNG preview; genuine native stock circuit/asset reads compared with actual frozen SQLite rows, and managed stock PNG/text handles issued through native WebMCP/HTTP then redeemed with authenticated GET/HEAD.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'The separately named upload runner submits two fresh React attachment intents for one generated PNG, verifies the existing-original plan and unchanged original provenance, exact asset revision guard, canonical receipts and actual SQLite rows, with one original consumption and zero pending stages. It is not replay, fault or cleanup-failure qualification.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'On Linux the binary build, unit tests, frontend checks and loopback flows run in the parallel jobs of this workflow; their outcomes are in those jobs.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'macOS source compilation is separate from target NAS build/runtime qualification and supplies no target release.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'All stopped rejection, guards, replay, expiry, revocation, fault, crash, concurrency and provider controls remain unrun.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'The separate host runner performs one authorized cached HomeBox read with the original full projections, dates and generation preserved; one fresh native WebMCP location classification replacement with full references and canonical React completion; actual record/admission readback; mounted MCP HTTP initialization/discovery/get/first audit page; and read-only SQLite reason observation. It does not submit the human form.' >> "$GITHUB_STEP_SUMMARY"
@@ -227,3 +83,143 @@ jobs:
           printf '%s\n' 'The named stock history runner adds three first-page/search reads over genuine stock-owned audits; nonnull cursor continuation is not demonstrated.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'The named native WebMCP runner uses actual document.modelContext discovery and invocation, genuine stock identity get, fresh circuit and identity singles, one mixed identity/circuit batch, record readback and first circuit audit page, with canonical results committed to React before tool return. No modelContext or stock service stub is installed.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'The separately named Unicode cache runner uses the fixed public opaque-collection profile, actual Viewer authority and one cached-only query GET. It compares both complete projections and original cache metadata with read-only SQLite source/cache/projection rows. No HTTP authentication mutation, editing, MCP, old-path comparison or provider I/O runs in that flow.' >> "$GITHUB_STEP_SUMMARY"
+  unit-tests:
+    name: backend unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Exact runtimes, caches and npm locks
+        id: setup
+        uses: ./.github/actions/ordinary-setup
+        with:
+          image: ubuntu-24.04
+          rust: 'true'
+          target-cache: unit-tests
+      - name: Backend library unit tests (default set)
+        run: >-
+          cargo test --locked -p houseatlas-backend --lib --
+          --skip http::quantity_http_healthy::
+          --skip providers::homebox::write::stock::quantity_flow_healthy::
+          --skip providers::homebox::write::stock::quantity_installation_healthy::
+      - name: Save caches from verified main
+        uses: ./.github/actions/ordinary-save
+        with:
+          target-key: ${{ steps.setup.outputs.target-key }}
+          target-hit: ${{ steps.setup.outputs.target-hit }}
+  frontend:
+    name: frontend checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Exact runtimes, caches and npm locks
+        id: setup
+        uses: ./.github/actions/ordinary-setup
+        with:
+          image: ubuntu-24.04
+          rust: 'false'
+          target-cache: ''
+      - name: Strict TypeScript and production React build
+        run: |
+          npm --prefix frontend run typecheck
+          npm --prefix frontend run build
+      - name: All named healthy frontend checks and real-browser offline launch
+        env:
+          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+        run: node frontend/lantern-tests/run-healthy.mjs
+  # The loopback flows drive the compiled binary through the built React app. Three
+  # shards run in parallel; each builds the binary and the app once.
+  loopback:
+    name: loopback flows (${{ matrix.shard }}/3)
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
+      - name: Exact runtimes, caches and npm locks
+        id: setup
+        uses: ./.github/actions/ordinary-setup
+        with:
+          image: ubuntu-24.04
+          rust: 'true'
+          target-cache: loopback
+      - name: Build the houseatlas binary and the production React app
+        run: |
+          cargo build --locked -p houseatlas-backend --bin houseatlas
+          npm --prefix frontend run build
+          printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"
+      - name: Real disposable loopback TLS browser read slice
+        if: matrix.shard == 1
+        run: node tools/rust-integration/healthy-loopback.mjs
+      - name: Real disposable auth reads and fresh local writes
+        if: matrix.shard == 1
+        run: node tools/rust-integration/healthy-core-loopback.mjs
+      - name: Real disposable fresh stock singles and atomic direct-map batches
+        if: matrix.shard == 1
+        run: node tools/rust-integration/healthy-stock-write-loopback.mjs
+      - name: Real disposable native stock audit first pages and search
+        if: matrix.shard == 1
+        run: node tools/rust-integration/healthy-stock-history-loopback.mjs
+      - name: Real standalone text asset through Access, Media, stock and SQLite
+        if: matrix.shard == 1
+        run: node tools/rust-integration/healthy-standalone-asset-loopback.mjs
+      - name: Real disposable owned media commits and GET HEAD delivery
+        if: matrix.shard == 2
+        run: node tools/rust-integration/healthy-media-loopback.mjs
+      - name: Real disposable native stock circuit and asset reads
+        if: matrix.shard == 2
+        run: node tools/rust-integration/healthy-stock-loopback.mjs
+      - name: Real React human classification cached read and mounted MCP audit
+        if: matrix.shard == 2
+        run: node tools/rust-integration/healthy-human-host-loopback.mjs
+      - name: Real React fresh attachment and existing-original reuse
+        if: matrix.shard == 2
+        run: node tools/rust-integration/healthy-upload-loopback.mjs
+      - name: Real mounted MCP sessions across one Access rotation
+        if: matrix.shard == 2
+        run: node tools/rust-integration/healthy-mcp-lifecycle-loopback.mjs
+      - name: Real native browser WebMCP stock read fresh create and audit page
+        if: matrix.shard == 3
+        run: node tools/rust-integration/healthy-agent-loopback.mjs
+      - name: Real cached HomeBox read native WebMCP classification and mounted MCP audit
+        if: matrix.shard == 3
+        run: node tools/rust-integration/healthy-agent-host-loopback.mjs
+      - name: Real cached Unicode collection read with complete SQLite facts
+        if: matrix.shard == 3
+        run: node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs
+      - name: Real Atlas ten lists, invoke parity and native WebMCP cursor continuation
+        if: matrix.shard == 3
+        run: node tools/rust-integration/healthy-atlas-lists-loopback.mjs
+      - name: Real aggregate stock operation events and read-only Changes view
+        if: matrix.shard == 3
+        run: node tools/rust-integration/healthy-operation-events-loopback.mjs
+      - name: Save caches from verified main
+        if: matrix.shard == 1
+        uses: ./.github/actions/ordinary-save
+        with:
+          target-key: ${{ steps.setup.outputs.target-key }}
+          target-hit: ${{ steps.setup.outputs.target-hit }}

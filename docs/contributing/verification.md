@@ -1,5 +1,18 @@
 # HouseAtlas
 
+## CI layout
+
+The `Rust React ordinary core` workflow splits its checks into parallel jobs:
+`source` (publication allowlist, generated contracts, fmt, clippy and the named
+healthy examples; on macOS also the binary and the React app), `backend unit
+tests`, `frontend checks`, and three `loopback flows` shards that each build
+the binary and the React app. The commands are the ones listed in this guide.
+CI builds use `CARGO_PROFILE_DEV_DEBUG=0`. Only main pushes save caches; the
+Cargo cache holds compiled dependencies keyed by `Cargo.lock` and the toolchain.
+Locally, `node tools/rust-integration/check-source.mjs` still runs everything;
+the Linux `source` job passes `--skip-binary --skip-frontend` because other
+jobs build those.
+
 ## Healthy frontend suite
 
 `frontend/lantern-tests/run-healthy.mjs` runs every named healthy frontend
