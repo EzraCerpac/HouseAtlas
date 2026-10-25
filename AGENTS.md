@@ -49,7 +49,8 @@ Ordinary CI runs the existing workflows on pushes to `main` and pull requests
 targeting `main`. In `.github/workflows/rust-react-ordinary.yml` that includes
 the named Lantern healthy read; `frontend/lantern-tests/run-healthy.mjs` with
 its explicit list, including the `offline-launch` and `hung-network` cases in
-the runner's Chromium against the built public shell; and
+the runner's Chromium against the built public shell and the generated CPU
+mesh-preparation equivalence check; and
 `cargo test --locked -p houseatlas-backend --lib` with its default
 (non-`#[ignore]`) set, skipping the three quantity tests that need
 `HOUSEATLAS_QUANTITY_REFERENCE_DIR`; and the healthy `tools/rust-integration`
