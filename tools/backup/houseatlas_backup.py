@@ -147,7 +147,12 @@ class Service:
         raise StepFailed("stop service", "service still loaded after 120s")
 
     def start(self) -> None:
-        run("start service", ["launchctl", "bootstrap", self.domain, str(self.plist)], 120)
+        try:
+            run("start service", ["launchctl", "bootstrap", self.domain, str(self.plist)], 120)
+        except StepFailed:
+            # A failed stop can leave the service loaded; that is the goal state.
+            if self.pid() is None:
+                raise
 
 
 def wait_healthy(service: Service, health_url: str | None) -> None:
@@ -172,8 +177,8 @@ def capture(service: Service, config: Config, bundle: Path) -> dict:
     """Stop, back up, start. The start always runs, even if the backup fails."""
     if service.pid() is None:
         raise StepFailed("stop service", "service is not running; refusing to touch it")
-    service.stop()
     try:
+        service.stop()
         report = run(
             "native backup",
             [str(service.binary), "backup", "--server-config", str(service.server_config),
@@ -186,28 +191,28 @@ def capture(service: Service, config: Config, bundle: Path) -> dict:
 
 
 def copy_models(service: Service, destination: Path) -> list[dict]:
-    copied = []
-    seen: set[Path] = set()
+    """Copy each served publication folder and record every file's hash, after
+    checking the manifests against the hashes the service was started with."""
+    folders: list[Path] = []
     for manifest, expected in service.models:
-        actual = sha256_file(manifest)
-        if expected and actual != expected:
+        if expected and sha256_file(manifest) != expected:
             raise StepFailed("model release", f"{manifest.name} hash differs from the service")
-        folder = manifest.parent
-        target = destination / folder.parent.name / folder.name
-        if folder not in seen:
-            seen.add(folder)
-            shutil.copytree(folder, target, symlinks=False)
-        copied.append({
-            "manifest": f"{folder.parent.name}/{folder.name}/{manifest.name}",
-            "sha256": actual,
-        })
+        if manifest.parent not in folders:
+            folders.append(manifest.parent)
+    copied = []
+    for folder in folders:
+        name = Path(folder.parent.name) / folder.name
+        shutil.copytree(folder, destination / name, symlinks=False)
+        for path in sorted(p for p in folder.rglob("*") if p.is_file()):
+            copied.append({"file": str(name / path.relative_to(folder)), "sha256": sha256_file(path)})
+    check_models(destination, copied)
     return copied
 
 
 def check_models(root: Path, models: list[dict]) -> None:
     for model in models:
-        if sha256_file(root / model["manifest"]) != model["sha256"]:
-            raise StepFailed("model release", f"{model['manifest']} differs after restore")
+        if sha256_file(root / model["file"]) != model["sha256"]:
+            raise StepFailed("model release", f"{model['file']} differs from the served copy")
 
 
 def restore_check(binary: Path, bundle: Path, destination: Path, step: str) -> dict:
@@ -253,12 +258,16 @@ def upload_and_round_trip(config: Config, archive: Path, checksum: str, work: Pa
     folder = config.icloud_directory
     folder.mkdir(exist_ok=True)
     target = folder / archive.name
-    if target.exists():
-        raise StepFailed("iCloud copy", f"{target.name} already exists; not overwriting")
-    partial = folder / f".{archive.name}.partial"
-    shutil.copyfile(archive, partial)
-    os.replace(partial, target)
-    (folder / f"{archive.name}.sha256").write_text(f"{checksum}  {archive.name}\n")
+    try:
+        # Exclusive creation: an existing file in iCloud is never replaced.
+        with archive.open("rb") as source, target.open("xb") as copy:
+            shutil.copyfileobj(source, copy, 1 << 20)
+            copy.flush()
+            os.fsync(copy.fileno())
+        with (folder / f"{archive.name}.sha256").open("x") as sidecar:
+            sidecar.write(f"{checksum}  {archive.name}\n")
+    except FileExistsError:
+        raise StepFailed("iCloud copy", f"{archive.name} already exists; not overwriting") from None
 
     wait_for(config, target, "iCloud upload", lambda s: s.get("uploaded"))
     icloud(config, "evict", target)
@@ -280,6 +289,13 @@ def prune_local(archives: Path, keep: int) -> None:
         old.unlink()
 
 
+def prune_runs(runs: Path, keep: int) -> None:
+    """Failed runs keep their work folder for inspection; cap how many stay."""
+    failed = sorted(path for path in runs.iterdir() if path.is_dir())
+    for old in failed[: max(0, len(failed) - keep)]:
+        shutil.rmtree(old)
+
+
 def report_failure(config: Config, message: str) -> None:
     if not config.report_command:
         return
@@ -296,8 +312,10 @@ def backup(config: Config) -> dict:
     started = now()
     stamp = started.strftime("%Y%m%dT%H%M%SZ")
     state = private_dir(config.state_directory)
+    prune_runs(private_dir(state / "runs"), 2)
     work = private_dir(state / "runs" / stamp)
     archives = private_dir(state / "archives")
+    prune_local(archives, config.keep_local_archives)
     timings: dict[str, float] = {}
 
     def timed(name: str, function, *args):

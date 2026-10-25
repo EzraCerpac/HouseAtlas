@@ -63,6 +63,42 @@ class BackupScriptTest(unittest.TestCase):
             "other.tar.gz",
         ])
 
+    def test_failed_stop_still_restarts_service(self):
+        calls = []
+
+        class FakeService:
+            binary = Path("/bin/false")
+            server_config = Path("/nonexistent")
+
+            def pid(self):
+                return 1
+
+            def stop(self):
+                calls.append("stop")
+                raise hb.StepFailed("stop service", "timed out")
+
+            def start(self):
+                calls.append("start")
+
+        config = type("C", (), {"health_url": None})()
+        with self.assertRaises(hb.StepFailed):
+            hb.capture(FakeService(), config, self.root / "bundle")
+        self.assertEqual(calls, ["stop", "start"])
+
+    def test_model_copy_hashes_every_file_and_detects_changes(self):
+        publication = hb.private_dir(self.root / "release" / "publication")
+        (publication / "publication.json").write_text("{}")
+        (publication / "overview.glb").write_bytes(b"glb")
+        service = type("S", (), {"models": [(publication / "publication.json", None)]})()
+        out = hb.private_dir(self.root / "model")
+        models = hb.copy_models(service, out)
+        self.assertEqual(sorted(m["file"] for m in models), [
+            "release/publication/overview.glb", "release/publication/publication.json",
+        ])
+        (out / "release/publication/overview.glb").write_bytes(b"changed")
+        with self.assertRaises(hb.StepFailed):
+            hb.check_models(out, models)
+
 
 if __name__ == "__main__":
     unittest.main()
