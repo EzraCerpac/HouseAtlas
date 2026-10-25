@@ -37,7 +37,6 @@ export function createCaptureDraftAdapter(options: Options) {
   let generation = 0, pending = false, quarantined = false;
   let controller: ReturnType<typeof createCaptureDrafts> | null = null;
   const operations = new Set<AbortController>();
-  const verifiedReceipts = new WeakSet<object>();
   const listeners = new Set<(reason: 'boundary' | 'review') => void>();
   let channel: BroadcastChannel | null = null;
   let coordinationUnavailable = false;
@@ -108,7 +107,6 @@ export function createCaptureDraftAdapter(options: Options) {
       if (value['status'] !== 'committed' || value['requestId'] !== intent.requestId || value['commandId'] !== 'atlas.batch.execute'
         || resolved['workspaceId'] !== intent.context.workspaceId || resolved['homeId'] !== intent.context.homeId)
         throw new TypeError('A committed correlated acknowledgement is required');
-      verifiedReceipts.add(value);
     },
   };
   const drafts = () => controller ??= createCaptureDrafts((options.openStore ?? openDraftStore)(), host);
@@ -148,13 +146,10 @@ export function createCaptureDraftAdapter(options: Options) {
       if (result['commandId'] !== 'atlas.batch.execute' || resolved['workspaceId'] !== target.workspaceId || resolved['homeId'] !== target.homeId)
         throw new TypeError('Attachment completion scope differs');
       if (result['status'] !== 'committed') return { result, localCleanup: 'unconfirmed' };
-      try { await drafts().acknowledge(submission, result); return { result, localCleanup: 'removed' }; }
-      catch (error) {
-        // Only a receipt whose private attempt correlation already passed can
-        // be reported as saved when the subsequent local deletion fails.
-        if (!verifiedReceipts.has(result)) throw error;
-        return { result, localCleanup: 'unconfirmed' };
-      }
+      // The controller distinguishes a known commit from failed local cleanup
+      // within this acknowledgement, after validating this attempt's identity.
+      const completion = await drafts().acknowledge(submission, result);
+      return { result, localCleanup: completion.localCleanup };
     },
   };
   return {

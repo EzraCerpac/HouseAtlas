@@ -1936,6 +1936,16 @@ mod healthy_examples {
         healthy_local_callback(false);
     }
 
+    // The scenario module reuses these synthetic peers without installing live
+    // adapters or changing the separate historical regression entrypoints.
+    mod lifecycle_scenarios {
+        use super::*;
+        include!("oauth_lifecycle_scenarios.rs");
+    }
+    mod connection_readiness_scenarios {
+        include!("connection_readiness_scenarios.rs");
+    }
+
     #[test]
     fn healthy_received_exchange_verification() {
         // A valid received checkpoint is a positive storage fixture, not a

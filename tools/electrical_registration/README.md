@@ -12,11 +12,15 @@ Inspect `registration.mjs` and `healthy.test.mjs`, then use Node 26.10.0:
 node --test --test-concurrency=1 tools/electrical_registration/healthy.test.mjs
 ```
 
-These five generated healthy examples exercise a known affine transform,
+The original five generated healthy examples exercise a known affine transform,
 overdetermined approximate residuals, property-wide inventory with selection
 highlighting, a legitimate documentary-only input awaiting controls, and a reviewed nomination withdrawal that retains inventory and provenance. No
 malformed, denial, omission, expiry, replay or crash cases are included. This
 local task-specific command changes no shared ordinary CI or runtime gate.
+Three additional generated regression cases cover each stale current identity,
+retained withdrawal history across revisions, and whole-annotation hull coverage
+(including explicit malformed row tolerances). These cases add no CI runner or
+interactive browser scope; report them separately from the original five.
 
 `fitAffine(controls)` accepts explicit `id`, `sourcePoint: [u,v]` and
 `targetPoint: [X,Z]` pairs. Source coordinates are normalized upright image
@@ -71,7 +75,11 @@ An accepted assessment missing its layout qualification cannot yield a scene
 placement. The generic approximate-alignment label does not replace the source's
 historical-change and layout-limitations review.
 The top-level output also carries the independently supplied current frame.
-Points outside the fitted control hull remain unsupported. There is no
+Points outside the fitted control hull remain unsupported. The full rectangle
+of the larger source/row axis tolerances must also fit within that hull, including
+slanted hull edges. An explicitly supplied row tolerance must be a finite
+nonnegative pair; malformed values cannot silently fall back to source tolerance.
+There is no
 room-centre fallback or fallback from an older publication to stable room UUIDs.
 
 The registration ID identifies the reviewed affine transform within its exact
@@ -105,7 +113,7 @@ carry evidence qualifications, and withdraw stale publication/model bindings.
 No reusable source mapper, historical association promotion, source media URL,
 accepted registration receipt, physical placement or circuit colour is created.
 
-The same inspected five healthy examples may also be invoked directly on pinned
+The same fixture file may also be invoked directly on pinned
 Node 26.10.0 to retain their individual names when a test subprocess reports
 only a file-level result:
 
@@ -113,7 +121,7 @@ only a file-level result:
 node tools/electrical_registration/healthy.test.mjs
 ```
 
-This changes no test body, fixture or scope; record each invocation separately.
+This alternate invocation changes no test body or scope; record each invocation separately.
 
 ## Persisted invalid nomination evidence
 
@@ -133,8 +141,16 @@ source/feature contexts continue independently. This is an ordinary corrected-
 evidence lifecycle, not a native revocation/security boundary. The input owner
 must retain the complete reviewed withdrawal ledger in every later context;
 omitting or rewriting that context is not made safe by this pure helper.
-A new model/frame needs explicit owner reconciliation, not an implicit revival
-of the old proposal or automatic substitution of a nearby feature.
+A changed source byte tuple or publication/model/semantic/frame revision in the
+same workspace/home, sheet/region and complete occurrence binding returns
+`withheld-withdrawal-reconciliation` before fitting. It retains the original
+withdrawal pins without claiming they describe successor geometry, even if
+feature IDs change. The projector also withholds previously assessed successor
+results and carries the original withdrawal evidence in unsupported output.
+This helper does not authorize reconciliation or infer correspondence across
+renamed source/binding IDs; the owner must explicitly reconcile those histories
+upstream. A new model/frame cannot implicitly revive the old nomination or
+automatically substitute a nearby feature.
 
 Private successor candidate ledgers retain invalid original proposals as
 history and keep the source rows unchanged. Candidate alternative openings
