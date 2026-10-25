@@ -29,8 +29,10 @@ without a query or fragment. It attempts the original request with
 `cache: no-store` first, bypassing an HTTP-cached native root document while
 preserving the request's credentials and authentication behavior.
 Every resolved response passes through unchanged, including HTTP authentication
-and server errors. A rejected network read can redirect to the exact
-`/saved/index.html` only while the complete public Saved closure still verifies.
+and server errors. A rejected network read, or one with no response after
+2 seconds (a host that accepts the connection but never answers), can redirect
+to the exact `/saved/index.html` only while the complete public Saved closure
+still verifies. Without a verified closure the slow read is still awaited.
 This is a local network-read outcome, not a WAN availability detector. The
 narrower Saved registration exclusively serves its verified public entry and
 assets and does not redirect back to root. The root registration leaves all

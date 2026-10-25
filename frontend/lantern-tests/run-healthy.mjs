@@ -39,9 +39,9 @@ const SOURCE = [
   node('offline-atlas-presentation-healthy.mjs'), node('offline-catalog-mounting-healthy.mjs'),
   ...cases('offline-catalog-healthy.mjs', '--case', ['complete', 'partial']),
   node('offline-local-edit-mounting-healthy.mjs'), node('offline-retained-identity-healthy.mjs'),
-  node('offline-root-entry-healthy.mjs'), node('offline-stage-discard-healthy.mjs'),
+  node('offline-root-entry-healthy.mjs'), node('offline-connection-probe-healthy.mjs'), node('offline-stage-discard-healthy.mjs'),
   // Unified Atlas
-  node('unified-atlas-healthy.mjs'), node('unified-atlas-network-connections-healthy.mjs'),
+  node('unified-atlas-healthy.mjs'), node('unified-atlas-cache-healthy.mjs'), node('unified-atlas-network-connections-healthy.mjs'),
   node('unified-atlas-overlay-source-healthy.mjs'), node('unified-atlas-room-links-healthy.mjs'),
   // Named healthy cases
   ...cases('embedded-png-material-healthy.mjs', '--case', ['slots', 'image-sharing', 'png-filters',
@@ -50,7 +50,7 @@ const SOURCE = [
 ];
 const BUILD = [node('check-backend-frontend-compat.mjs')];
 const BROWSER = [
-  ...cases('offline-launch-browser.mjs', '--case', ['offline-launch']),
+  ...cases('offline-launch-browser.mjs', '--case', ['offline-launch', 'hung-network']),
 ];
 
 const only = process.argv[2] === '--only' ? process.argv[3] : null;

@@ -55,7 +55,7 @@ use crate::{
 use axum::{
     Json, Router,
     extract::{Extension, Path, Request, State},
-    http::{Method, StatusCode, Uri, header},
+    http::{HeaderValue, Method, StatusCode, Uri, header},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -606,7 +606,31 @@ async fn response_adapter(State(host): State<Host>, mut request: Request, next: 
         }
     }
     private_headers(&mut response);
+    if response.status() == StatusCode::OK
+        && response.extensions().get::<ImmutableAsset>().is_some()
+    {
+        // Content-hashed build output never changes under its name, so a
+        // returning page reuses it without a request.
+        let headers = response.headers_mut();
+        headers.insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("public, max-age=31536000, immutable"),
+        );
+        headers.remove(header::PRAGMA);
+        // The bytes do not depend on the cookie or origin of the request.
+        headers.remove(header::VARY);
+    }
     response
+}
+/// Marks a static response whose path is content-hashed build output.
+#[derive(Clone, Copy)]
+struct ImmutableAsset;
+/// Every emitted `/assets/` file is named `<name>-<hash>.<ext>` by the
+/// frontend build (vite.config.ts), and release retention keeps older ones
+/// under their own names, so a name never changes its bytes.
+fn immutable_asset_path(path: &str) -> bool {
+    path.strip_prefix("/assets/")
+        .is_some_and(|name| !name.is_empty() && !name.contains('/'))
 }
 fn evidence<'a>(
     origin: &str,
@@ -1146,6 +1170,9 @@ async fn static_file(State(host): State<Host>, uri: Uri) -> HttpResult {
         kind.parse()
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
     );
+    if immutable_asset_path(key) {
+        response.extensions_mut().insert(ImmutableAsset);
+    }
     Ok(response)
 }
 pub fn router(host: Host) -> Router {
@@ -1254,4 +1281,28 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         response_adapter,
     ))
     .with_state(host)
+}
+#[cfg(test)]
+mod static_cache_tests {
+    use super::immutable_asset_path;
+
+    #[test]
+    fn only_hashed_build_assets_are_immutable() {
+        assert!(immutable_asset_path("/assets/index-B3x_9kQz.js"));
+        assert!(immutable_asset_path("/assets/pdf.worker.min-Da1-xY2b.js"));
+        for path in [
+            "/",
+            "/index.html",
+            "/saved/index.html",
+            "/saved/service-worker.js",
+            "/offline-entry-worker.js",
+            "/manifest.webmanifest",
+            "/icons/houseatlas-192.png",
+            "/assets/",
+            "/assets/nested/file.js",
+            "/api/assets/x.js",
+        ] {
+            assert!(!immutable_asset_path(path), "{path}");
+        }
+    }
 }

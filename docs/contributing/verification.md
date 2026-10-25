@@ -33,10 +33,9 @@ node frontend/lantern-tests/offline-launch-browser.mjs --case hung-network
 `offline-launch` closes the listener (connection refused) and must show the
 shell within 2 s with no network bytes; it is in the healthy suite.
 `hung-network` keeps the listener open but never answers `/`, as on a captive
-portal or a weak signal. It must show the shell within 3 s. It currently fails:
-the root worker falls back only when the network read rejects, and a hung read
-never rejects. It is not in the healthy suite until that changes. Neither case
-is iOS, installed-PWA or live-model evidence.
+portal or a weak signal. It must show the shell within 3 s; the root worker
+hands a silent navigation to Saved after 2 s. Both cases are in the healthy
+suite. Neither case is iOS, installed-PWA or live-model evidence.
 
 ## Generated annual-session integration regressions
 
