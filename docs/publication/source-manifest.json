@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b00300d6d8634f43ee412ed19cf30dc11cfd05b1bc332e5f5f9455789543325d",
+  "sourceDigestSha256": "61b368f7ec9c56fbfab9968f37cf16fe37873e47b9525771238c6b08c9ff1611",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -1400,8 +1400,8 @@
     {
       "path": "backend/src/config/server.rs",
       "mode": "100644",
-      "bytes": 16146,
-      "sha256": "c37777ff1bdedbfc5409d81564a24f514a61900eb0ed3c14ac5232c3af043579",
+      "bytes": 16452,
+      "sha256": "a144808c502d172c209eb8d579e0c22b04398734a7b647a015d4b3d8d4e720b5",
       "owner": "core-integration"
     },
     {
@@ -2723,8 +2723,8 @@
     {
       "path": "backend/src/lifecycle/backup.rs",
       "mode": "100644",
-      "bytes": 14406,
-      "sha256": "8c62d20dcff50f7444cc4dcaff09bb2faa59c8b7f9a0e0d350b28e0237dc385e",
+      "bytes": 21249,
+      "sha256": "5b4de02593a17ea7cc5d1d3b22fb3dbd404701f38814e74a4f1b749acd5838c8",
       "owner": "core-integration"
     },
     {
@@ -2912,8 +2912,8 @@
     {
       "path": "backend/src/main.rs",
       "mode": "100644",
-      "bytes": 23873,
-      "sha256": "db623ea8fe7d6caa81a83da4f31c75460d0fe3f2874847cdfca2f67c7303b92a",
+      "bytes": 24356,
+      "sha256": "a343d61f9fca47e2df85ff32a22d43192a63685389cc60392a35a7a468c1b7c4",
       "owner": "core-integration"
     },
     {
@@ -6529,6 +6529,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/operations/icloud-backup.md",
+      "mode": "100644",
+      "bytes": 3805,
+      "sha256": "0353e5d8cc1142e9b3791a3aff03aee7fa255246c9d29cab1539d52ca08c1b5d",
+      "owner": "operations-policy"
+    },
+    {
       "path": "docs/operations/local-capture-drafts.md",
       "mode": "100644",
       "bytes": 16617,
@@ -6601,8 +6608,8 @@
     {
       "path": "docs/operations/recovery-and-rollback.md",
       "mode": "100644",
-      "bytes": 1756,
-      "sha256": "2f7543cda851fd24fa742c2ce0a3e1afde9244036738f86b1a2450284df688ef",
+      "bytes": 1887,
+      "sha256": "2aec58c61d07a81e55228b7d0c2779e5a5e5b3fe50dbe78aed16c6d05a26a1a7",
       "owner": "operations-policy"
     },
     {
@@ -11490,6 +11497,48 @@
       "bytes": 8441,
       "sha256": "50a3b3425bee4bacf763d1660e04d8f424e2147c3722a5ab00cd5a1668fcdb2a",
       "owner": "core-integration"
+    },
+    {
+      "path": "tools/backup/houseatlas_backup.py",
+      "mode": "100644",
+      "bytes": 16123,
+      "sha256": "6d6f604f45a842a79e23b2d2f7702d781b545d8f6f0f936b4044eafa4e9fb0c7",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "tools/backup/icloud.swift",
+      "mode": "100644",
+      "bytes": 2038,
+      "sha256": "f42430d8f28b7f705dcda405bd2f8dada538b71f4073aa3141cbe8d1692d5162",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "tools/backup/install.sh",
+      "mode": "100755",
+      "bytes": 1509,
+      "sha256": "e8bdfead45f1e60d9b7850dd6c2bb6a572ebb8a15579d5fd011b201e32413413",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "tools/backup/launchd.plist.template",
+      "mode": "100644",
+      "bytes": 789,
+      "sha256": "05ea018e89af27afdc2035d99428fd2fd7b94fb6666c5f11f20552f165244233",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "tools/backup/launcher.c",
+      "mode": "100644",
+      "bytes": 949,
+      "sha256": "7377c78af5257cece2da7cdb323b1969153efaa849d825373d85f4060b2b8004",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "tools/backup/test_houseatlas_backup.py",
+      "mode": "100644",
+      "bytes": 4380,
+      "sha256": "d5a389215b937703f8771fd97f22dd49ed369665f3acca875f3d0010b876e655",
+      "owner": "operations-policy"
     },
     {
       "path": "tools/core-integration/browser-harness.mjs",
