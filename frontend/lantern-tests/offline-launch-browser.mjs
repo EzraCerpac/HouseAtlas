@@ -31,12 +31,12 @@ for (const path of ['index.html', 'offline-entry-worker.js', 'saved/index.html',
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
   '.woff2': 'font/woff2', '.json': 'application/json', '.webmanifest': 'application/manifest+json',
   '.png': 'image/png', '.svg': 'image/svg+xml', '.wasm': 'application/wasm' };
-let mode = 'online', served = 0, stalled = 0;
+let mode = 'online', served = 0, stalled = 0, servedPaths = [];
 const sockets = new Set(), held = new Set();
 const server = createServer((request, response) => {
   const path = new URL(request.url, 'http://127.0.0.1').pathname;
   if (mode === 'hung' && (path === '/' || path === '/index.html')) { stalled++; held.add(response); return; }
-  served++;
+  served++; servedPaths.push(path);
   const relative = path === '/' ? 'index.html' : path === '/saved/' ? 'saved/index.html' : path.slice(1);
   const file = normalize(join(dist, relative));
   if (!file.startsWith(dist + '/') || !existsSync(file) || !statSync(file).isFile()) {
@@ -118,7 +118,7 @@ try {
   if (selected === 'offline-launch') {
     await new Promise(done => { server.close(done); for (const socket of sockets) socket.destroy(); });
   } else mode = 'hung';
-  served = 0;
+  served = 0; servedPaths = [];
   await send('Page.navigate', { url: 'about:blank' });
   const started = Date.now();
   send('Page.navigate', { url: origin + '/' }).catch(() => {});
@@ -129,10 +129,10 @@ try {
   ]).catch(() => null);
   const launchMs = shown === null ? null : shown - started;
   console.log(JSON.stringify({ case: selected, installRequests: installed, launchMs, budgetMs,
-    reopenRequestsServed: served, stalledRootRequests: stalled }));
+    reopenRequestsServed: served, reopenPaths: servedPaths, stalledRootRequests: stalled }));
   assert.notEqual(launchMs, null, `Offline reopen never showed the Saved shell within ${budgetMs + 5_000} ms`);
   assert(launchMs <= budgetMs, `Offline reopen took ${launchMs} ms; budget ${budgetMs} ms`);
-  assert.equal(served, 0, 'Offline reopen fetched public shell bytes from the network');
+  assert.deepEqual(servedPaths, [], 'Offline reopen fetched public shell bytes from the network');
   console.log(`PASS ${selected}: Saved shell shown ${launchMs} ms after reopening /; generated build only, not iOS or installed-PWA proof`);
 } finally {
   for (const response of held) response.destroy();

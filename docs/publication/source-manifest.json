@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b53d966e4785a9ba099e5835137fc2feec97a807fe1e5e7ce6de66ae6e798ff5",
+  "sourceDigestSha256": "d71dc192d94288f516d994dc9e38197dc079bead319156bd537925332e1869e1",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -7840,8 +7840,8 @@
     {
       "path": "frontend/lantern-tests/offline-launch-browser.mjs",
       "mode": "100644",
-      "bytes": 8131,
-      "sha256": "e849be0bd6ead3fdbcf468ba99e688c8fb5f22f69981e119f95a11b0b2633d68",
+      "bytes": 8227,
+      "sha256": "87f38f98f9550cca7a9f9c3db77acf90a79467b84cb1c0e31bf99259b2974c98",
       "owner": "web"
     },
     {
@@ -12670,8 +12670,8 @@
     {
       "path": "tools/rust-integration/healthy-atlas-lists-loopback.mjs",
       "mode": "100644",
-      "bytes": 33936,
-      "sha256": "b35671f8fb4e7c79ab0c24c9cfbd6473a642c68abca134a766495e50b955d150",
+      "bytes": 34001,
+      "sha256": "923e911b3ea539d54d4bde8741d016860f046a9f9342811b39e06b4a29336460",
       "owner": "core-integration"
     },
     {
