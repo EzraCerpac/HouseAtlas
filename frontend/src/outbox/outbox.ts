@@ -87,11 +87,12 @@ export function createOutbox(options: OutboxOptions): Outbox {
     if (rows.length) for (const listener of [...syncedListeners]) listener(rows);
   }
   /** Takes the stored entries as they are now. Entries another tab synced
-   * since this one last looked are reported like this tab's own. */
+   * since this one last looked, including ones it never saw waiting, are
+   * reported like this tab's own; the first read reports nothing. */
   function adopt(rows: OutboxEntry[]): void {
-    const before = new Map(entries.map(row => [row.id, row.state]));
+    const before = new Map(entries.map(row => [row.id, row.state])), hydrated = loaded;
     entries = rows; loaded = true; publish();
-    notifySynced(rows.filter(row => row.state === 'synced' && before.has(row.id) && before.get(row.id) !== 'synced'));
+    if (hydrated) notifySynced(rows.filter(row => row.state === 'synced' && before.get(row.id) !== 'synced'));
   }
   async function reload(): Promise<void> {
     adopt(await store.list());

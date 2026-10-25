@@ -294,6 +294,16 @@ for (const [status, problem] of [[403, 'denied'], [404, 'removed'], [422, 'rejec
   await b.drain({ force: true });
   await a.reload();
   assert.deepEqual(heard, ['alcove', 'bay'], 'Both edits the other tab sent are reported once');
+  // Also an edit this tab never saw waiting, made and synced by the other.
+  heard.length = 0;
+  await b.submit(submission('cove', 1));
+  await a.reload(); await a.reload();
+  assert.deepEqual(heard, ['cove'], 'Reported once, even if first seen already synced');
+  // A fresh page reports nothing for history it reads the first time.
+  const fresh = outboxOn(disk, server), none = [];
+  fresh.onSynced(entries => none.push(...entries));
+  await fresh.reload();
+  assert.deepEqual(none, []);
   server.transport = slow;
   setSyncMode('automatic');
 }
