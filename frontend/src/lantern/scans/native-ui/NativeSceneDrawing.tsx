@@ -7,6 +7,7 @@ import type { ElectricalFixtureSheet } from '../../overlays/electricity/fixture-
 import type { NativeEvidenceDocumentClient, NativeEvidenceDocumentFrame } from '../native-evidence-document-types';
 import type { NativeSceneDrawingPdfReference, NativeSceneDrawingProvenance } from '../native-scene-source-types';
 import { stageMark, stageSpan } from '../../observability/stage-timing';
+import { resolveRecordedPdfPage } from './recorded-pdf-page';
 
 const referencePageSize = 64;
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -31,6 +32,14 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
   const pdfCanvasHost = useRef<HTMLDivElement>(null), pdfCanvas = useRef<HTMLCanvasElement>(null);
   const pdfRenderQueue = useRef<Promise<void>>(Promise.resolve());
   const activePdfRender = useRef<{ cancel(): void; promise: Promise<void> } | null>(null);
+  const pdfDocumentOwner = useRef<{ document: PDFDocumentProxy; frame: NativeEvidenceDocumentFrame; generation: number } | null>(null);
+  const pdfPaintGeneration = useRef(0);
+  const hidePdf = () => {
+    ++pdfPaintGeneration.current;
+    if (pdfCanvas.current) pdfCanvas.current.style.visibility = 'hidden';
+    const rendering = activePdfRender.current; activePdfRender.current = null;
+    rendering?.cancel();
+  };
   const [cursor, setCursor] = useState<{ client: NativeEvidenceDocumentClient; sheet: ElectricalFixtureSheet;
     evidenceIds: readonly string[]; reference: NativeSceneDrawingPdfReference | undefined; start: number; unreadable: boolean } | null>(null);
   const [continuation, setContinuation] = useState<{ generation: number; next: number; unreadable: boolean } | null>(null);
@@ -41,8 +50,13 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
   const currentRef = useRef(current); currentRef.current = current;
   const generationRef = useRef(0);
   const activeDrawing = useRef<{ frame: NativeEvidenceDocumentFrame; url: string; generation: number; withdraw: () => boolean } | null>(null);
+  const drawingCurrent = (expected: NonNullable<typeof shown>) => currentRef.current()
+    && generationRef.current === expected.generation && client.isCurrent(expected.frame)
+    && activeDrawing.current?.generation === expected.generation
+    && activeDrawing.current.frame === expected.frame;
   const goToPdfPage = (page: number) => {
-    const selected = Math.max(1, Math.min(Number.MAX_SAFE_INTEGER, Math.trunc(page)));
+    const selected = resolveRecordedPdfPage(page, pdfPageCount ?? 0);
+    if (selected === null) return;
     setPdfPage(selected); setPdfPageInput(String(selected));
   };
   useLayoutEffect(() => {
@@ -63,6 +77,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
       // Withdraw the action synchronously before release can notify or reenter.
       if (generationRef.current === generation) {
         if (payload.current) payload.current.hidden = true;
+        pdfDocumentOwner.current = null; hidePdf();
         if (activeDrawing.current?.generation === generation) activeDrawing.current = null;
       }
       const unsubscribe = stop; stop = null;
@@ -73,6 +88,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
       if (hadResources) setShown(null);
       return hadResources;
     };
+    pdfDocumentOwner.current = null; hidePdf(); setPdfDocument(null); setPdfPageCount(null);
     closer.current?.focus(); setShown(null); setContinuation(null); setZoom(1);
     setPdfPage(sheet.pdfPage); setPdfPageInput(String(sheet.pdfPage)); setStatus('Checking saved drawing…');
     void (async () => {
@@ -154,8 +170,10 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
   useEffect(() => {
     if (!shown || shown.frame.mode !== 'original-download') return;
     let disposed = false;
+    const live = () => !disposed && drawingCurrent(shown);
+    pdfDocumentOwner.current = null; hidePdf();
     const blob = client.getBlob(shown.frame);
-    if (!blob || blob.type !== 'application/pdf' || !client.isCurrent(shown.frame)) {
+    if (!blob || blob.type !== 'application/pdf' || !live()) {
       setPdfDocument(null); setPdfPageCount(null); setPdfStatus('This reference PDF is no longer current. Close it and reload scans.');
       return;
     }
@@ -164,84 +182,116 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
     let task: ReturnType<typeof pdfjs.getDocument> | null = null;
     void (async () => {
       const data = new Uint8Array(await blob.arrayBuffer());
-      if (disposed || !currentRef.current() || !client.isCurrent(shown.frame)) return;
+      if (!live()) return;
       task = pdfjs.getDocument({ data, enableXfa: false, useWasm: true, useWorkerFetch: false,
         wasmUrl: pdfjsDecoderUrl, cMapUrl: 'houseatlas:/', standardFontDataUrl: 'houseatlas:/',
         BinaryDataFactory: HouseAtlasPdfBinaryDataFactory });
       return task.promise;
     })().then(document => {
-      if (!document || disposed || !currentRef.current() || !client.isCurrent(shown.frame)) { pdfTiming({ status: 'withdrawn' }); return; }
+      if (!document || !live()) { pdfTiming({ status: 'withdrawn' }); return; }
       pdfTiming({ status: 'shown', pages: document.numPages });
+      pdfDocumentOwner.current = { document, frame: shown.frame, generation: shown.generation };
       setPdfDocument(document); setPdfPageCount(document.numPages);
-      const page = Math.max(1, Math.min(document.numPages, sheet.pdfPage));
-      setPdfPage(page); setPdfPageInput(String(page)); setPdfStatus('');
+      setPdfPage(sheet.pdfPage); setPdfPageInput(String(sheet.pdfPage));
+      setPdfStatus(resolveRecordedPdfPage(sheet.pdfPage, document.numPages) === null
+        ? `Recorded reference PDF page ${sheet.pdfPage} is unavailable in this document. You can still download the original.`
+        : '');
     }).catch(() => {
       pdfTiming({ status: 'failed' });
-      if (!disposed && currentRef.current() && client.isCurrent(shown.frame)) {
+      if (live()) {
+        pdfDocumentOwner.current = null; hidePdf();
         setPdfDocument(null); setPdfPageCount(null); setPdfStatus('The saved reference PDF could not be rendered. You can still download the original.');
       }
     });
-    return () => { disposed = true; if (task) void task.destroy(); };
+    return () => {
+      disposed = true;
+      if (pdfDocumentOwner.current?.generation === shown.generation
+        && pdfDocumentOwner.current.frame === shown.frame) {
+        pdfDocumentOwner.current = null; hidePdf();
+      }
+      if (task) void task.destroy();
+    };
   }, [client, shown, sheet.pdfPage]);
   useLayoutEffect(() => {
-    const canvas = pdfCanvas.current;
-    if (!canvas || !pdfDocument) return;
-    canvas.style.visibility = 'hidden';
-    activePdfRender.current?.cancel();
-    setPdfStatus('Rendering reference PDF page…');
-  }, [pdfDocument, pdfPage, zoom]);
+    hidePdf();
+    if (pdfDocument && shown && drawingCurrent(shown)) {
+      setPdfStatus(resolveRecordedPdfPage(pdfPage, pdfDocument.numPages) === null
+        ? `Recorded reference PDF page ${sheet.pdfPage} is unavailable in this document. You can still download the original.`
+        : 'Rendering reference PDF page…');
+    }
+  }, [client, shown, pdfDocument, pdfPage, zoom, sheet.pdfPage]);
   useEffect(() => {
-    if (!pdfDocument || !pdfCanvasHost.current || !pdfCanvas.current) return;
+    if (!pdfDocument || !shown || !pdfCanvasHost.current || !pdfCanvas.current) return;
     let cancelled = false, request = 0;
+    const paintGeneration = pdfPaintGeneration.current;
+    const live = () => !cancelled && paintGeneration === pdfPaintGeneration.current
+      && drawingCurrent(shown) && pdfDocumentOwner.current?.document === pdfDocument
+      && pdfDocumentOwner.current.frame === shown.frame
+      && pdfDocumentOwner.current.generation === shown.generation;
+    const selectedPage = resolveRecordedPdfPage(pdfPage, pdfDocument.numPages);
+    if (!live() || selectedPage === null) return;
     let baseWidth = 0, pageHandle: Awaited<ReturnType<PDFDocumentProxy['getPage']>> | null = null;
     const paint = () => {
-      if (cancelled || !pageHandle || !pdfCanvasHost.current || !pdfCanvas.current) return;
-      const paintRequest = ++request;
-      const canvas = pdfCanvas.current;
-      canvas.style.visibility = 'hidden';
+      if (!live() || !pageHandle || !pdfCanvasHost.current || !pdfCanvas.current) return;
+      const paintRequest = ++request, selectedHandle = pageHandle;
+      pdfCanvas.current.style.visibility = 'hidden';
       activePdfRender.current?.cancel();
-      const base = pageHandle.getViewport({ scale: 1 });
-      const available = Math.max(120, pdfCanvasHost.current.clientWidth - 24);
-      const scale = Math.min(4, (available / base.width) * zoom);
-      const viewport = pageHandle.getViewport({ scale });
       const queued = pdfRenderQueue.current.catch(() => {}).then(async () => {
-        if (cancelled || paintRequest !== request || !pdfCanvasHost.current || !pdfCanvas.current) return;
-        const activeCanvas = pdfCanvas.current, context = activeCanvas.getContext('2d');
-        if (!context) { setPdfStatus('The saved reference PDF could not be rendered. You can still download the original.'); return; }
-        const ratio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-        activeCanvas.width = Math.ceil(viewport.width * ratio); activeCanvas.height = Math.ceil(viewport.height * ratio);
-        activeCanvas.style.width = `${Math.ceil(viewport.width)}px`; activeCanvas.style.height = `${Math.ceil(viewport.height)}px`;
-        context.setTransform(ratio, 0, 0, ratio, 0, 0);
-        const rendering = pageHandle!.render({ canvas: activeCanvas, canvasContext: context, viewport });
-        activePdfRender.current = rendering;
+        if (!live() || paintRequest !== request || !pdfCanvasHost.current || !pdfCanvas.current) return;
+        const activeCanvas = pdfCanvas.current;
+        let rendering: { cancel(): void; promise: Promise<void> } | null = null;
         const paintTiming = stageSpan('scene-drawing', 'pdf-paint', { zoom });
         try {
+          const context = activeCanvas.getContext('2d');
+          if (!context) throw new Error('PDF canvas unavailable');
+          const base = selectedHandle.getViewport({ scale: 1 });
+          const available = Math.max(120, pdfCanvasHost.current.clientWidth - 24);
+          const scale = Math.min(4, (available / base.width) * zoom);
+          const viewport = selectedHandle.getViewport({ scale });
+          const ratio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+          activeCanvas.width = Math.ceil(viewport.width * ratio); activeCanvas.height = Math.ceil(viewport.height * ratio);
+          activeCanvas.style.width = `${Math.ceil(viewport.width)}px`; activeCanvas.style.height = `${Math.ceil(viewport.height)}px`;
+          context.setTransform(ratio, 0, 0, ratio, 0, 0);
+          rendering = selectedHandle.render({ canvas: activeCanvas, canvasContext: context, viewport });
+          activePdfRender.current = rendering;
           await rendering.promise;
-          paintTiming({ status: 'shown' });
-          if (!cancelled && paintRequest === request && activePdfRender.current === rendering) {
+          if (live() && paintRequest === request && activePdfRender.current === rendering
+            && pdfCanvas.current === activeCanvas) {
+            paintTiming({ status: 'shown' });
             activeCanvas.style.visibility = 'visible';
             setPdfStatus('');
-          }
+          } else paintTiming({ status: 'withdrawn' });
         } catch (error) {
           paintTiming({ status: 'withdrawn' });
           const wasCancelled = typeof error === 'object' && error !== null
             && 'name' in error && error.name === 'RenderingCancelledException';
-          if (!cancelled && paintRequest === request && !wasCancelled)
-            setPdfStatus('The saved reference PDF page could not be rendered. You can still download the original.');
+          if (live() && paintRequest === request) {
+            hidePdf();
+            if (!wasCancelled)
+              setPdfStatus('The saved reference PDF page could not be rendered. You can still download the original.');
+          }
         } finally {
           if (activePdfRender.current === rendering) activePdfRender.current = null;
         }
       });
       pdfRenderQueue.current = queued;
     };
-    void pdfDocument.getPage(Math.max(1, Math.min(pdfDocument.numPages, pdfPage))).then(page => {
-      if (cancelled) return;
+    void pdfDocument.getPage(selectedPage).then(page => {
+      if (!live()) return;
       pageHandle = page; baseWidth = page.getViewport({ scale: 1 }).width; paint();
-    }).catch(() => { if (!cancelled) setPdfStatus('The saved reference PDF page could not be rendered. You can still download the original.'); });
+    }).catch(() => {
+      if (live()) {
+        hidePdf();
+        setPdfStatus('The saved reference PDF page could not be rendered. You can still download the original.');
+      }
+    });
     const observer = new ResizeObserver(() => { if (baseWidth) paint(); });
     observer.observe(pdfCanvasHost.current);
-    return () => { cancelled = true; observer.disconnect(); activePdfRender.current?.cancel(); };
-  }, [pdfDocument, pdfPage, zoom]);
+    return () => {
+      cancelled = true; observer.disconnect();
+      if (paintGeneration === pdfPaintGeneration.current) hidePdf();
+    };
+  }, [client, shown, pdfDocument, pdfPage, zoom]);
   const renderFailed = (expected: NonNullable<typeof shown>) => {
     const active = activeDrawing.current;
     if (!active || active.generation !== expected.generation || generationRef.current !== expected.generation
@@ -282,10 +332,12 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
       }}>Check next references</button>}
     {shown && currentRef.current() && client.isCurrent(shown.frame) && <div ref={payload}>
       {shown.frame.mode === 'original-download' ? <>
-        <p>Reference PDF · page {pdfPageCount ? `${pdfPage} of ${pdfPageCount}` : sheet.pdfPage}</p>
+        <p>{pdfPageCount && resolveRecordedPdfPage(pdfPage, pdfPageCount) === null
+          ? `Reference PDF · recorded page ${sheet.pdfPage} unavailable`
+          : `Reference PDF · page ${pdfPageCount ? `${pdfPage} of ${pdfPageCount}` : sheet.pdfPage}`}</p>
         <div className="native-scene-pdf-controls">
           <div className="native-scene-pdf-page">
-            <button type="button" className="chip-btn" aria-label="Previous PDF page" disabled={!pdfPageCount || pdfPage <= 1}
+            <button type="button" className="chip-btn" aria-label="Previous PDF page" disabled={!pdfPageCount || resolveRecordedPdfPage(pdfPage - 1, pdfPageCount) === null}
               onClick={() => goToPdfPage(pdfPage - 1)}>Previous page</button>
             <label>Page <input type="number" min="1" max={pdfPageCount ?? undefined} step="1" value={pdfPageInput} disabled={!pdfPageCount} onChange={event => {
               const value = event.currentTarget.value, page = Number(value);
@@ -295,7 +347,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
               const page = Number(pdfPageInput);
               if (!pdfPageInput || !Number.isSafeInteger(page) || page < 1 || page > (pdfPageCount ?? 0)) setPdfPageInput(String(pdfPage));
             }} /></label>
-            <button type="button" className="chip-btn" aria-label="Next PDF page" disabled={!pdfPageCount || pdfPage >= pdfPageCount}
+            <button type="button" className="chip-btn" aria-label="Next PDF page" disabled={!pdfPageCount || resolveRecordedPdfPage(pdfPage + 1, pdfPageCount) === null}
               onClick={() => goToPdfPage(pdfPage + 1)}>Next page</button>
           </div>
           <div role="group" aria-label="PDF zoom" className="native-scene-pdf-zoom">
