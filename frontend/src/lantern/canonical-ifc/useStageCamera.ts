@@ -60,10 +60,16 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape, minimum
     max: ZOOM.max,
   };
   const previousMinimum = useRef(ZOOM.min);
+  // A restored zoom is held against the floor while the destination view's
+  // limits ease in, until the user zooms (or the scope is framed) again.
+  const held = useRef<{ readonly target: number; zoom: number } | null>(null);
   useLayoutEffect(() => {
     const minimum = zoomLimits.min;
+    if (held.current && held.current.zoom !== zoom) held.current = null;
     if (minimum === previousMinimum.current) return;
     previousMinimum.current = minimum;
+    const hold = held.current;
+    if (hold) { hold.zoom = Math.max(minimum, hold.target); setZoom(hold.zoom); return; }
     setZoom(value => Math.min(ZOOM.max, Math.max(minimum, value)));
   });
   // Pinch and ctrl/cmd + wheel zoom; ordinary wheel pans only in the opted-in
@@ -117,13 +123,15 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape, minimum
   const turn = (delta: number) => setOrbit(value => ({ ...value, yaw: value.yaw + delta }));
   const tilt = (delta: number) => setOrbit(value => ({ ...value, pitch: Math.min(PITCH_3D.max, Math.max(PITCH_3D.min, value.pitch + delta)) }));
   const zoomBy = (factor: number) => setZoom(value => Math.min(zoomLimits.max, Math.max(zoomLimits.min, value * factor)));
-  const fit = () => { setZoom(1); setPan({ x: 0, y: 0 }); if (!top) setOrbit(DEFAULT_ORBIT); };
+  const fit = () => { held.current = null; setZoom(1); setPan({ x: 0, y: 0 }); if (!top) setOrbit(DEFAULT_ORBIT); };
   /** Zoom and pan back to the framed scope; the chosen orbit stays. */
-  const reframe = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
+  const reframe = () => { held.current = null; setZoom(1); setPan({ x: 0, y: 0 }); };
   /** Zoom and pan as the user left them, for a caller that returns to a view. */
   const framing: StageFraming = { zoom, panX: pan.x, panY: pan.y };
   const restore = (saved: StageFraming) => {
-    setZoom(Math.min(zoomLimits.max, Math.max(zoomLimits.min, saved.zoom))); setPan({ x: saved.panX, y: saved.panY });
+    const target = Math.min(zoomLimits.max, saved.zoom);
+    held.current = { target, zoom: Math.max(zoomLimits.min, target) };
+    setZoom(held.current.zoom); setPan({ x: saved.panX, y: saved.panY });
   };
   const bind = {
     ...createStagePointers({ gesture: gesture.current, top, onTap, dragging: setDragging, zoom: setZoom, zoomLimits, pan: setPan, orbit: setOrbit }),

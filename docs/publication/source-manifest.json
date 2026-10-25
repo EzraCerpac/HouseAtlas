@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "71bfd25ccc3ddf63e5432359036bca9c750947e0a4b2c8a4154b973007013805",
+  "sourceDigestSha256": "d38b74e59d20e3569da49e8721dc3f1bad7679827153f02509f0aa292190ce08",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -9303,8 +9303,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/useStageCamera.ts",
       "mode": "100644",
-      "bytes": 8700,
-      "sha256": "3e1e78f861676f341ca0bdd9a7647b93af3e3354966a340a18c5f2b543b79332",
+      "bytes": 9248,
+      "sha256": "0cb677cbe54ab5c24e8646e7bffc284fea433b5724cc46a9b622e1e648a20463",
       "owner": "web"
     },
     {
