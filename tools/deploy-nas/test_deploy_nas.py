@@ -275,6 +275,26 @@ class SwapAndRollback(unittest.TestCase):
         self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
         self.assertEqual(svc.binary, SERVICE["ProgramArguments"][0])
 
+    def test_interrupted_rollback_can_be_retried(self):
+        svc = FakeService(self.cfg)
+        dep = dn.Deployer(self.cfg, svc, out=io.StringIO())
+        dep.swap(self.record, self.root / "events.log", self.moves)
+        dn.save_record(self.cfg.ledger, self.record)
+        real = dep.swap
+        def interrupted(record, events, moves):
+            for src, dst in moves:
+                src.rename(dst)
+            raise KeyboardInterrupt
+        dep.swap = interrupted
+        with self.assertRaises(KeyboardInterrupt):
+            dep.rollback()
+        dep.swap = real
+        self.assertEqual(dn.ledger_records(self.cfg.ledger)[-1]["status"], "rolling-back")
+        dep.rollback()
+        self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
+        self.assertEqual(svc.binary, SERVICE["ProgramArguments"][0])
+        self.assertEqual(dn.ledger_records(self.cfg.ledger)[-1]["status"], "rolled-back")
+
     def test_rollback_refuses_without_the_parked_frontend(self):
         svc = FakeService(self.cfg)
         dep = dn.Deployer(self.cfg, svc, out=io.StringIO())

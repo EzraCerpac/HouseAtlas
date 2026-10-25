@@ -270,7 +270,7 @@ def save_record(path: Path, record: dict) -> None:
 
 
 def rollback_target(records: list[dict]) -> dict | None:
-    live = [r for r in records if r["status"] in ("swapping", "swap-failed", "live", "verified", "verify-failed")]
+    live = [r for r in records if r["status"] in ("swapping", "swap-failed", "live", "verified", "verify-failed", "rolling-back")]
     return live[-1] if live else None
 
 
@@ -518,8 +518,10 @@ class Deployer:
                 raise DeployError(f"{dst} already exists")
             src.rename(dst)
             ev(f"MOVED {src.name} -> {dst.name}")
-        shutil.copyfile(record["after_plist"], self.cfg.plist)
-        self.cfg.plist.chmod(0o600)
+        tmp = self.cfg.plist.with_name(f".{self.cfg.plist.name}.deploy-nas")
+        shutil.copyfile(record["after_plist"], tmp)
+        tmp.chmod(0o600)
+        os.replace(tmp, self.cfg.plist)  # atomic: an interruption leaves the whole old or new plist
         ev("PLIST_SWAPPED")
         self.rt.bootstrap()
         ev("BOOTSTRAPPED")
@@ -727,7 +729,7 @@ class Deployer:
                 raise DeployError("no live deploy-nas record to roll back")
             current = sha256_file(cfg.plist)
             expected = {sha256_file(Path(record["after_plist"]))}
-            if record["status"] in ("swapping", "swap-failed"):  # interrupted: either side is consistent
+            if record["status"] in ("swapping", "swap-failed", "rolling-back"):  # interrupted: either side is consistent
                 expected.add(sha256_file(Path(record["before_plist"])))
             if not force and current not in expected:
                 raise DeployError(f"the service no longer matches {record['id']}; inspect it, or pass --force")
@@ -745,6 +747,8 @@ class Deployer:
                 if live.exists():
                     moves.append((live, live.parent / f"frontend.rolled-back-{record['id']}-{stamp}"))
                 moves.append((parked, live))
+        record["status"] = "rolling-back"  # a retry after an interruption picks this record up again
+        save_record(cfg.ledger, record)
         restore = dict(record, after_plist=record["before_plist"])
         self.swap(restore, d / "events.log", moves)
         record["status"] = "rolled-back"
