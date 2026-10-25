@@ -2147,9 +2147,10 @@
   .lantern-host.app,
   .lantern-host.app.has-detail {
     /* The navigation row owns the bottom inset in this layout. */
+    --nav-row: 60px;
     padding-bottom: 0;
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: var(--topbar) minmax(0, 1fr) calc(60px + env(safe-area-inset-bottom));
+    grid-template-rows: var(--topbar) minmax(0, 1fr) calc(var(--nav-row) + env(safe-area-inset-bottom));
     grid-template-areas:
       'top tools'
       'main main'
@@ -2301,9 +2302,9 @@
     top: auto;
     left: env(safe-area-inset-left);
     right: env(safe-area-inset-right);
-    bottom: calc(60px + env(safe-area-inset-bottom));
+    bottom: calc(var(--nav-row) + env(safe-area-inset-bottom));
     width: auto;
-    height: min(80dvh, calc(100dvh - var(--topbar) - 70px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+    height: min(80dvh, calc(100dvh - var(--topbar) - var(--nav-row) - 10px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
     border: 0;
     border-radius: 18px 18px 0 0;
     box-shadow: 0 0 0 1px var(--frame-line), 0 -18px 40px -18px rgba(40, 30, 14, 0.45);
@@ -2357,7 +2358,32 @@
   }
 
   .lantern-host .toasts {
-    bottom: calc(76px + env(safe-area-inset-bottom));
+    bottom: calc(var(--nav-row) + 16px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Short landscape phones: like a compact-height tab bar, each tab sets its
+   name beside its icon on one slim row, so the work sheet keeps the height. */
+@media (max-width: 759px) and (max-height: 480px) {
+  .lantern-host.app,
+  .lantern-host.app.has-detail {
+    --nav-row: 44px;
+  }
+
+  .lantern-host .navrail {
+    padding-top: 2px;
+  }
+
+  .lantern-host .nav-btn,
+  .lantern-host .nav-btn.is-current {
+    flex-direction: row;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 4px;
+  }
+
+  .lantern-host .nav-btn.is-current::before {
+    top: -2px;
   }
 }
 
