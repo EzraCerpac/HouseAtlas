@@ -75,6 +75,7 @@ const calls = [];
 class Dialog extends Element {
   open = true;
   modal = false;
+  style = { values: new Map(), setProperty(name, value) { this.values.set(name, value); }, removeProperty(name) { this.values.delete(name); } };
   contains(element) { return element === key || element === closeButton; }
   matches(selector) { assert.equal(selector, ':modal'); return this.modal; }
   getClientRects() { return this.open ? [{}] : []; }
@@ -113,7 +114,11 @@ try {
   globalThis.HTMLElement = Element;
   globalThis.document = { activeElement: trigger, body: new Element('body') };
   globalThis.getComputedStyle = element => ({ visibility: element.visible ? 'visible' : 'hidden' });
-  globalThis.window = { matchMedia(query) {
+  const resizeListeners = new Set();
+  globalThis.window = { innerHeight: 320,
+    addEventListener(type, listener) { assert.equal(type, 'resize'); resizeListeners.add(listener); },
+    removeEventListener(type, listener) { assert.equal(type, 'resize'); resizeListeners.delete(listener); },
+    matchMedia(query) {
     assert.equal(query, '(max-height: 480px)');
     return { matches: height <= 480,
       addEventListener(type, listener) { assert.equal(type, 'change'); mediaListener = listener; },

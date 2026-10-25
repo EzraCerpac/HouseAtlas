@@ -81,7 +81,7 @@ export async function runStockHealthyReact(container: HTMLElement, supplied: Sto
     check(family, "Name comes from exact stock family catalog");
     check(!JSON.stringify(tool).includes(supplied.session.csrfToken), "Session CSRF is absent from public tool metadata");
     const commands = stockCatalog.commands.filter(command => family.commandIds.includes(command.commandId) && commandIds.includes(command.commandId));
-    check(JSON.stringify(tool.inputSchema) === JSON.stringify(stockInputSchema(commands.map(command => command.inputSchema))), "Browser schema comes from exact shared arms");
+    check(JSON.stringify(tool.inputSchema) === JSON.stringify(stockInputSchema(commands.map(command => command.inputSchema), commandIds)), "Browser schema comes from exact shared arms and full host admission");
   }
   const passed = ["canonical families and offline schemas mounted with the existing React App"];
   for (const [index, request] of supplied.requests.entries()) {

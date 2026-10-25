@@ -28,6 +28,7 @@ import type { NativeSceneHost } from "../src/lantern/scans/native-ui/native-scen
 import { createSourceDocumentsService } from "./source-documents-service";
 import { createOfflineHouseAcquisition } from "./offline-house-acquisition";
 import type { SourceModelPort } from "../src/lantern/source-ports";
+import type { ElectricalLibraryPort } from "../src/lantern/electrical-library/types";
 import type { ModelOverviewSelection } from "../src/lantern/source-models/overview-types";
 import { createNativeGeometryWriteClient } from "./native-geometry-write-client";
 import { createNativeGeometryAssociationClient } from "./native-geometry-association-client";
@@ -325,6 +326,23 @@ const makeSceneDocumentOwner = () => createNativeEvidenceDocumentClient({
     return () => quantityEvents.removeEventListener("changed", changed);
   },
 });
+// Electrical Library discovery uses existing current read authority and separate
+// original-document leases. Neither geometry nor a Document v2 facet admits it.
+const sourceElectricalLibrary: ElectricalLibraryPort = {
+  async createReader() {
+    const { createNativeElectricalLibraryReader } = await import("./native-electrical-library-reader");
+    return createNativeElectricalLibraryReader({
+      getContext: () => currentSession && currentReadyView && currentQuantityScope
+        && currentReadyView.scope === currentQuantityScope
+        ? { sessionIdentity: currentSession, session: currentSession, view: currentReadyView, admission: currentStockAdmission } : null,
+      subscribeContext: changed => {
+        quantityEvents.addEventListener("changed", changed);
+        return () => quantityEvents.removeEventListener("changed", changed);
+      },
+      createDocuments: makeSceneDocumentOwner,
+    });
+  },
+};
 const scenePrimaryReview = makeSceneDocumentOwner(), sceneHistoricalReview = makeSceneDocumentOwner();
 const sceneReadDocuments = makeSceneDocumentOwner(), sceneDrawings = makeSceneDocumentOwner();
 const sceneAssociations = createNativeSceneAssociationClient({
@@ -727,6 +745,6 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
   }, []);
   // Keep the concrete editing port stable through view/catalog refreshes.
   // Each place admission and command obtains the actual request authority.
-  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp initialHomeBootstrap={initialHomeBootstrap} onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} nativeGeometry={nativeGeometry} nativeGeometryWrite={nativeGeometryWrite} nativeGeometryAssociation={nativeGeometryAssociation} nativeEvidenceDocuments={nativeEvidenceDocuments} nativeScene={nativeScene} sourceModels={sourceModels} sourceDocuments={sourceDocuments.current()} houseAcquisition={houseAcquisition.port} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
+  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp initialHomeBootstrap={initialHomeBootstrap} onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} nativeGeometry={nativeGeometry} nativeGeometryWrite={nativeGeometryWrite} nativeGeometryAssociation={nativeGeometryAssociation} nativeEvidenceDocuments={nativeEvidenceDocuments} nativeScene={nativeScene} sourceModels={sourceModels} sourceDocuments={sourceDocuments.current()} sourceElectricalLibrary={sourceElectricalLibrary} houseAcquisition={houseAcquisition.port} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
 }
 createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);

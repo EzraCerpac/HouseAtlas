@@ -31,6 +31,17 @@ commands, including the session-policy, capture-draft controller and
 native-place-levels-intake (concurrency) selections; those keep their own lanes below. A check added to this directory is
 not run by CI until it is added to the list.
 
+The same `frontend checks` job then runs the model bake tests
+(`tools/model-bake/test/bake.test.mjs`) on generated geometry. They bake
+generated masters to budget and run the viewer's own preflight, scene admission
+and selector binding on the results, including the generated unified Atlas
+publication densified and baked:
+
+```sh
+npm ci --prefix tools/model-bake
+node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs
+```
+
 ## Real-browser offline launch
 
 `frontend/lantern-tests/offline-launch-browser.mjs` serves the built `dist/` on
@@ -2366,7 +2377,13 @@ only a file-level result:
 node tools/electrical_registration/healthy.test.mjs
 ```
 
-This changes no test body, fixture or scope; record each invocation separately.
+This alternate invocation changes no test body or scope; record each invocation separately.
+
+The fixture file additionally defines three generated regression cases for
+stale current identities, retained withdrawal reconciliation across revisions,
+and source-uncertainty rectangles crossing the fitted hull (including malformed
+explicit row tolerances). Report those separately from the original five
+healthy cases. No workflow or shared runner is added by these definitions.
 
 
 ## Named generated updater transport/runtime/MCP positives
@@ -3020,6 +3037,11 @@ scrolling to its last row, composing Escape ignored, Escape and Close
 returning focus to the Layer details fold, the selected room and camera
 controls unchanged across five open/close cycles and a short-desktop-short
 resize while open. That pass is evidence for that PR, not a standing check.
+A second one-off pass for the follow-up to the Mac app check (568x320 with
+the stage filling the viewport, and 390x844) observed: Plan zoom and pan
+unchanged after Plan, 3D and back; the short sheet ending above the selected
+room's row; Tab and Shift-Tab wrapping inside the sheet; and Escape inside the
+portrait drawer folding it, with focus on its fold and the room still selected.
 
 ## Named generated Atlas control names check
 
@@ -3038,3 +3060,19 @@ node frontend/lantern-tests/unified-atlas-control-names-healthy.mjs
 ```
 
 It does not mount React or a browser; identity stays the source ID.
+
+## Named generated WebMCP batch-discovery check
+
+`frontend/lantern-tests/webmcp-batch-discovery.mjs` compiles
+`frontend/src/webmcp/stock-schema.ts` with Vite and checks the batch child
+descriptor against the fictional `fixtures/integration/mcp-batch-discovery.json`
+(shared with the backend `synthetic_admitted_batch_child_descriptors` unit
+case): cross-family and child-only admission, canonical order, no-child and
+no-batch profiles, and 0/1/100/101 child arrays validated as schema bytes. It
+runs in CI through `run-healthy.mjs`:
+
+```sh
+node frontend/lantern-tests/webmcp-batch-discovery.mjs
+```
+
+It never dispatches to a stock service, opens a transport or mounts a browser.

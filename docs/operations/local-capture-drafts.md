@@ -67,7 +67,9 @@ const submission = await drafts.beginAttempt(review.token, { confirmed: true }, 
 const intent = submission.takeForForegroundSubmit();
 try {
   const result = await editingClient.uploadPlaceEvidence!(intent, signal);
-  await drafts.acknowledge(submission, result);
+  const completion = await drafts.acknowledge(submission, result);
+  // Report the known commit separately from completion.localCleanup.
+  // 'unconfirmed' leaves any retained local attempt locked; never upload again.
 } catch {
   // If the row remains outcome-unknown, inspect later with a current signal.
   // const unknown = await drafts.inspectUnknown(draftId, currentSignal);
@@ -141,12 +143,21 @@ The required user flow is:
 5. Call `acknowledge(submission, result)` only with the actual callback result.
    The adapter validates its real schema; the controller checks the request ID,
    command, resolved workspace/home and matching local attempt. Only then does
-   it remove the local original and return `server-acknowledged`.
+   it attempt local removal and return `server-acknowledged` with a separate
+   `localCleanup` result (`removed` or `unconfirmed`).
 
 `acknowledge` requires the original in-memory submission capability after its
 one-use handoff. The trusted host upload callback's actual result is then
 validated against its closed schema and correlation fields. Only after that
 validated, correlated result does the controller remove the local original.
+Validation failure rejects the acknowledgement and keeps the outcome unknown.
+After successful validation, local transaction or boundary failure returns
+`localCleanup: 'unconfirmed'` without turning the known commit into a server
+uncertainty. The acknowledgement capability is consumed; this is no cleanup or
+upload retry permission. Any retained row stays locked as `outcome-unknown`.
+Receipt validation is scoped to this call and attempt, rather than remembered
+by response-object identity across submissions. Reusing an earlier response
+object with its earlier request ID cannot certify a later attempt.
 The server acknowledgement is a result from one explicit online action. It is
 not evidence of an offline queue, later sync, or eventual delivery guarantee.
 
@@ -262,6 +273,15 @@ explain local loss and cleanup before opt-in and must report failed sign-out
 cleanup honestly; it may still end the session and immediately hide all drafts.
 
 ## Verification boundary
+
+The prepared `reused-receipt-object-keeps-unknown` case in
+`frontend/capture-drafts-tests/combined-host.mjs` uses two deliberately separate
+synthetic saves and fake foreground handoffs. It returns the identical first
+receipt object for the second attempt and requires rejection, retained exact
+bytes, no second cleanup, and no redispatch from inspection or the consumed
+review. The controller regression fixture also separates a correlated commit
+with failed local cleanup from missing/noncommitted statuses. These are source
+fixtures, not new CI entries or executed browser/device evidence.
 
 The repository README keeps ordinary CI unchanged and requires separate review
 before any named checks in the isolated regression lane. A future capture-draft
