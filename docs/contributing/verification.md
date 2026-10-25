@@ -53,6 +53,28 @@ worker-script update check (`/offline-entry-worker.js`,
 case. Both cases are in the healthy
 suite. Neither case is iOS, installed-PWA or live-model evidence.
 
+## Real-browser 3D drawing
+
+`frontend/lantern-tests/mesh-layer-browser.mjs` builds two generated pages (a
+house of boxes and the embedded-material samples), serves them on an owned
+loopback listener and draws them through MeshLayer, which renders with
+three.js. It checks the backend, that a frame costs a handful of GPU calls
+however many primitives there are, the selection tone, the ghost veil and the
+texture detail in the screenshots.
+
+```sh
+node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2   # in the healthy suite
+node frontend/lantern-tests/mesh-layer-browser.mjs --case webgpu   # local: Chromium headless shell
+node frontend/lantern-tests/mesh-layer-browser.mjs --case bench    # prints per-frame CPU time and calls
+```
+
+`webgl2` offers no WebGPU adapter, so three.js uses its WebGL2 backend; it is in
+the healthy suite. `webgpu` enables WebGPU on SwiftShader Vulkan. Full Chrome's
+`--headless=new` draws it but leaves it out of screenshots, so run it with
+Playwright's `chrome-headless-shell`. `bench` throttles the CPU 4× and prints
+CPU time and GPU API calls per frame while the camera turns; it asserts nothing.
+None of these cases is device, Safari or live-model evidence.
+
 ## Backend unit tests
 
 The `Rust React ordinary core` workflow runs the backend library unit tests on

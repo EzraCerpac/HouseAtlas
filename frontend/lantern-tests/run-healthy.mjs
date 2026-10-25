@@ -53,6 +53,7 @@ const SOURCE = [
 const BUILD = [node('check-backend-frontend-compat.mjs')];
 const BROWSER = [
   ...cases('offline-launch-browser.mjs', '--case', ['offline-launch', 'hung-network']),
+  ...cases('mesh-layer-browser.mjs', '--case', ['webgl2']),
 ];
 
 const only = process.argv[2] === '--only' ? process.argv[3] : null;
