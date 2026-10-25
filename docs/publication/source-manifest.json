@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "bef52661562e68749c8e98123f8c8c625509f7707dcf5dfb5fe6df32c1749429",
+  "sourceDigestSha256": "5846e51ffa8b48fc5868f3a43d91a6c4b1616b17933a763164b134ebff0e817b",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -119,8 +119,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 6798,
-      "sha256": "857543a84c14b218d312f0865eee7a8741f267e57ca3466c9f7b36442b278957",
+      "bytes": 6920,
+      "sha256": "51dfc99f8f4db3ae8e73e3ba425097bf85d95fbcfd6c3d916a03c27b75485bd6",
       "owner": "core-integration"
     },
     {
@@ -6048,8 +6048,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 164095,
-      "sha256": "407013c5a759be5cf85abbfa0a6e5f48a077b3a1c90bc5ec8ffaae86750c62db",
+      "bytes": 167253,
+      "sha256": "e02f5c652a55e8f6764f74f5ab9a9a9c48f04e5e96573801dd6892c09145b2d3",
       "owner": "core-integration"
     },
     {
@@ -7959,8 +7959,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 4527,
-      "sha256": "d2b828579f8e2daaee821f6a1f49fc602c06ab7f6f2650659f4487acb6e59e7a",
+      "bytes": 4627,
+      "sha256": "f7c6857b7fefc7de5e87a59ec7d319b82d9c317b8c4d4cbdbf0f67cdfdaae52d",
       "owner": "web"
     },
     {
@@ -8213,6 +8213,20 @@
       "mode": "100644",
       "bytes": 10697,
       "sha256": "9ae5c6aec668380fc0824108b36647868c04136bca4b2c4c0de20b415f758cf5",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/unified-atlas-compact-layer-details.mjs",
+      "mode": "100644",
+      "bytes": 15082,
+      "sha256": "bc08af6298692e08258252da22242fee1764decd92904e8a0143c7f124ff588d",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/unified-atlas-control-names-healthy.mjs",
+      "mode": "100644",
+      "bytes": 6260,
+      "sha256": "b253f76e71f84c98a8d80d882049daab979c741d4dfa2e094bab327af2287987",
       "owner": "web"
     },
     {
@@ -10183,6 +10197,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/unified-atlas/LayerDetailsDock.tsx",
+      "mode": "100644",
+      "bytes": 6346,
+      "sha256": "4f8b760e41f94ac32bd6b2ebaad532dffcab383e4af72a74fc27deba2755694c",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/unified-atlas/NetworkGraph.tsx",
       "mode": "100644",
       "bytes": 31508,
@@ -10206,15 +10227,15 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 139898,
-      "sha256": "434cf92f4c9a71c714378c064310ef453c79dff8ec75e32728c344129c1bebd8",
+      "bytes": 140230,
+      "sha256": "a1d7ed516123ff55ca7308ff30d313eb44497ca487d632582904f205b7659ed3",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/unified-atlas/labels.ts",
       "mode": "100644",
-      "bytes": 28761,
-      "sha256": "615057fe034bc5c521911c48acdd36c9955b920d116c3317d680d80dcbc84c6c",
+      "bytes": 31819,
+      "sha256": "1a0cc1264c43dd1b5d6f1822ace88ef0325a7349057e1c5dc79c46ffc89ae3c6",
       "owner": "web"
     },
     {
@@ -10276,8 +10297,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/unified-atlas.css",
       "mode": "100644",
-      "bytes": 79276,
-      "sha256": "5153440280cb7c1999015ae7911625c006f96287359dfca2d70ab789e09fb3de",
+      "bytes": 82403,
+      "sha256": "9dd6c76c0ad49b82b4b93e2788322a1e638d4b13160f9f758e7dac931a614884",
       "owner": "web"
     },
     {
@@ -12810,8 +12831,8 @@
     {
       "path": "tools/rust-integration/healthy-loopback.mjs",
       "mode": "100644",
-      "bytes": 15292,
-      "sha256": "199ed42ed1aa26a23b497d98303d2f53fea640fa3ace8cde3e20a3ce94108b8f",
+      "bytes": 15500,
+      "sha256": "77d6086566a45c524768e77e39bb9307a2198cc5f0a4e89a3d24428a2ac23200",
       "owner": "core-integration"
     },
     {
