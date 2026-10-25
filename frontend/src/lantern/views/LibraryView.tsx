@@ -8,8 +8,9 @@ import { Icon } from '../components/Icon';
 import { Empty, StorageTag } from '../components/ui';
 import { useSourcePorts } from '../source-ports';
 import { SourceDocuments } from '../source-documents/SourceDocuments';
+import { ElectricalLibrary } from '../electrical-library/ElectricalLibrary';
 
-type Filter = 'all' | 'manual' | 'photo' | 'report' | 'receipt' | 'link';
+type Filter = 'all' | 'manual' | 'photo' | 'report' | 'receipt' | 'link' | 'electrical';
 
 const FILTERS: { id: Filter; label: string; test: (d: Doc) => boolean }[] = [
   { id: 'all', label: 'Everything', test: () => true },
@@ -18,6 +19,7 @@ const FILTERS: { id: Filter; label: string; test: (d: Doc) => boolean }[] = [
   { id: 'report', label: 'Reports and records', test: (d) => ['report', 'export', 'schedule', 'note'].includes(d.kind) },
   { id: 'receipt', label: 'Receipts', test: (d) => d.kind === 'receipt' },
   { id: 'link', label: 'External links', test: (d) => d.storage === 'link' },
+  { id: 'electrical', label: 'Electrical drawings', test: () => false },
 ];
 
 function Thumb({ d }: { d: Doc }) {
@@ -76,7 +78,7 @@ function docQualifiers(d: Doc, entry: Entry | undefined): string[] {
 
 export function LibraryView() {
   const { house, dispatch, projection } = useStore();
-  const { documents } = useSourcePorts();
+  const { documents, electricalLibrary } = useSourcePorts();
   const select = useSelect();
   const [filter, setFilter] = useState<Filter>('all');
   const test = FILTERS.find((f) => f.id === filter)!.test;
@@ -92,14 +94,14 @@ export function LibraryView() {
         </p>
       </header>
       <div className="filter-row" role="group" aria-label="Filter documents">
-        {FILTERS.map((f) => (
+        {FILTERS.filter(f => f.id !== 'electrical' || electricalLibrary).map((f) => (
           <button key={f.id} type="button" className="chip-btn" aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>
             {f.label}
-            <span className="chip-count">{house.docs.filter(f.test).length}</span>
+            {f.id !== 'electrical' && <span className="chip-count">{house.docs.filter(f.test).length}</span>}
           </button>
         ))}
       </div>
-      {docs.length === 0 ? (
+      {filter === 'electrical' ? (!electricalLibrary && <Empty>Electrical drawings are unavailable for this view.</Empty>) : docs.length === 0 ? (
         <Empty>No documents of this kind in the supplied view.</Empty>
       ) : (() => {
         const rows = docs.map(d => ({ d, qualifiers: docQualifiers(d, projection.entries.get(d.id)) }));
@@ -130,7 +132,8 @@ export function LibraryView() {
           </ul>
         </>;
       })()}
-      {documents && <SourceDocuments port={documents} />}
+      {documents && filter !== 'electrical' && <SourceDocuments port={documents} />}
+      {electricalLibrary && (filter === 'all' || filter === 'electrical') && <ElectricalLibrary port={electricalLibrary} />}
     </div>
   );
 }

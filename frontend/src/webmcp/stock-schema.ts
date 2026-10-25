@@ -12,7 +12,12 @@ export const stockSchemaId = agentSchema.$id;
 /** Materialize only reachable canonical definitions for a browser schema. All
  * references become local; no browser schema fetch or authority is introduced.
  */
-export function stockInputSchema(refs: readonly string[]): JsonObject {
+export function stockInputSchema(refs: readonly string[], admittedCommandIds: readonly string[] = []): JsonObject {
+  // Family refs describe top-level exposure only. Children intersect the FULL
+  // host set against the canonical union, including cross-family/child-only IDs.
+  const admittedInputs = new Set(stockCatalog.commands
+    .filter(command => admittedCommandIds.includes(command.commandId))
+    .map(command => command.inputSchema));
   const definitions: Record<string, JsonValue> = {};
   const sources: Record<string, JsonObject> = {
     agent: agentSchema as JsonObject,
@@ -31,8 +36,26 @@ export function stockInputSchema(refs: readonly string[]): JsonObject {
     const key = `${source}__${name}`;
     if (!Object.hasOwn(definitions, key)) {
       const defs = sources[source]?.["$defs"] as JsonObject | undefined;
-      const node = defs?.[name];
+      let node = defs?.[name];
       if (node === undefined) throw new TypeError("Missing shared stock schema definition");
+      if (source === "agent" && name === "request_atlas_batch_execute") {
+        const batch = node as JsonObject;
+        const properties = batch["properties"] as JsonObject;
+        const payload = properties["payload"] as JsonObject;
+        const payloadProperties = payload["properties"] as JsonObject;
+        const commands = payloadProperties["commands"] as JsonObject;
+        const items = commands["items"] as JsonObject;
+        const arms = (items["oneOf"] as readonly JsonObject[])
+          .filter(arm => typeof arm["$ref"] === "string" && admittedInputs.has(arm["$ref"]));
+        // Preserve all other canonical constraints, including minItems/maxItems.
+        // With no admitted child, false items is a valid unsatisfiable schema;
+        // an empty oneOf would be invalid and minItems still forbids zero items.
+        node = { ...batch, properties: { ...properties, payload: { ...payload,
+          properties: { ...payloadProperties, commands: { ...commands,
+            items: arms.length ? { ...items, oneOf: arms } : false,
+          } },
+        } } };
+      }
       // Placeholder admits recursive schema references while retaining originals.
       definitions[key] = {};
       definitions[key] = rewrite(node, source);

@@ -76,6 +76,87 @@ test('healthy reviewed nomination withdrawal retains provenance and inventory wi
   const rowsBefore=structuredClone(rows),r=projectInventory(rows,[prior,unrelated],current);
   assert.deepEqual(r.counts,{inventory:2,withApproximateScenePlacement:1,withoutApproximateScenePlacement:1,surveyedPhysicalPoints:0,currentCircuits:0});
   assert.equal(r.records[0].placements.length,0);assert.equal(r.records[1].placements[0].registrationId,other.id);
-  assert.equal(projectInventory(rows,[withdrawn,unrelated],current).records[0].placements.length,0);
+  const fresh=projectInventory(rows,[withdrawn,unrelated],current);
+  assert.equal(fresh.records[0].placements.length,0);
+  assert.equal(fresh.records[0].unsupported.length,1);
+  assert.equal(fresh.records[0].unsupported[0].registrationId,p.id);
+  assert.equal(fresh.records[0].unsupported[0].status,'withdrawn-invalid-nomination');
+  assert.deepEqual(fresh.records[0].unsupported[0].withdrawnNominations,[withdrawal]);
+  assert.deepEqual(fresh.records[0].unsupported[0].source,p.source);
+  assert.deepEqual(fresh.records[0].unsupported[0].target,p.target);
+  assert.equal(fresh.records[1].placements[0].registrationId,other.id);
   assert.deepEqual(rows,rowsBefore);assert.deepEqual(current,before);assert.deepEqual(p,proposalBefore);
+});
+
+test('retained withdrawal requires reconciliation after each source or target revision change',()=>{
+  const withdrawal={id:'historical-withdrawal',status:'invalid-nomination',source,target:{...frame,...binding},targetFeatureIds:['feature'],
+    reason:'Generated withdrawn nomination',evidence};
+  const row={...source,fixtureId:'retained',sourcePoint:[0.5,0.5],bindings:[binding]};
+  for(const key of ['publicationId','semanticsSha256','modelSha256','coordinateFrameId','originalPhotoSha256','renderedPhotoSha256']) {
+    const p=example();p.id=`revised-${key}`;
+    const nextFrame={...frame},nextSource={...source};
+    const value=key.endsWith('Sha256')?'2'.repeat(64):`revised-${key}`;
+    if(key in nextFrame)nextFrame[key]=value;else nextSource[key]=value;
+    p.source=nextSource;p.target={...nextFrame,...binding};
+    for(const c of [...p.controls,...p.checks]){
+      c.sourceEvidence={...c.sourceEvidence,sha256:nextSource.originalPhotoSha256};
+      c.targetEvidence={...c.targetEvidence,sha256:nextFrame.semanticsSha256};
+    }
+    const revised={frame:nextFrame,sources:[nextSource],occurrences:context.occurrences};
+    // Without the retained history this numerically valid candidate is accepted.
+    const prior=assessRegistration(p,revised);
+    assert.equal(prior.status,'reviewed-approximate-scene-registration',key);
+    const current={...revised,withdrawnNominations:[withdrawal]};
+    const a=assessRegistration(p,current);
+    assert.equal(a.status,'withheld-withdrawal-reconciliation',key);
+    assert.equal(a.fit,null);assert.deepEqual(a.withdrawnNominations,[withdrawal]);
+    const result=projectInventory([{...row,...nextSource}],[prior],current);
+    assert.equal(result.records.length,1);assert.equal(result.records[0].placements.length,0,key);
+    assert.deepEqual(result.records[0].unsupported[0].withdrawnNominations,[withdrawal]);
+    // Exercise the normal assess-then-project path, whose fit is null, rather
+    // than supplying only a cached accepted assessment to the projector.
+    const freshRow={...row,...nextSource},unboundRow={...freshRow,fixtureId:'unbound',bindings:[]};
+    const freshRows=[freshRow,unboundRow],before=structuredClone({freshRows,a,current});
+    const fresh=projectInventory(freshRows,[a],current,{roomId:'another-room'});
+    assert.equal(fresh.counts.inventory,2);assert.equal(fresh.counts.withApproximateScenePlacement,0);
+    assert.equal(fresh.records[0].placements.length,0);assert.equal(fresh.records[0].highlighted,false);
+    assert.deepEqual(fresh.records[0].unsupported,[{
+      registrationId:p.id,status:'withheld-withdrawal-reconciliation',
+      reason:'Retained invalid nomination requires withdrawal or revision reconciliation',
+      reasons:a.reasons,source:p.source,target:p.target,targetFeatureIds:a.targetFeatureIds,withdrawnNominations:[withdrawal]
+    }]);
+    assert.equal(fresh.records[1].unsupported[0].registrationId,null);
+    assert.ok(!('withdrawnNominations' in fresh.records[1].unsupported[0]));
+    assert.ok(fresh.records.every(r=>r.placements.length===0&&r.physicalCoordinate===null&&r.nativeQualified===false));
+    assert.deepEqual({freshRows,a,current},before);
+  }
+});
+
+test('cached assessment loses placement on every changed current identity while retaining inventory',()=>{
+  const a=assessRegistration(example(),context),row={...source,fixtureId:'retained',sourcePoint:[0.5,0.5],bindings:[binding]};
+  for(const key of ['workspaceId','homeId','publicationId','semanticsSha256','modelSha256','coordinateFrameId',
+    'sheetId','regionId','originalPhotoSha256','renderedPhotoSha256',...Object.keys(binding),'featureIds']) {
+    const current=structuredClone(context);
+    if(key in frame)current.frame[key]=key.endsWith('Sha256')?'2'.repeat(64):`changed-${key}`;
+    else if(key in source)current.sources[0][key]=key.endsWith('Sha256')?'2'.repeat(64):`changed-${key}`;
+    else current.occurrences[0][key]=key==='featureIds'?['different-feature']:`changed-${key}`;
+    const r=projectInventory([row],[a],current);
+    assert.equal(r.counts.inventory,1,key);assert.equal(r.records[0].placements.length,0,key);
+    assert.deepEqual(r.records[0].sourcePoint,row.sourcePoint);assert.equal(r.records[0].nativeQualified,false);
+  }
+});
+
+test('source uncertainty must fit entirely within control coverage including slanted edges',()=>{
+  const p=example();p.controls=[[0,0],[1,0],[0,1]].map((v,i)=>landmark(`triangle-${i}`,v));
+  p.checks=[[0.2,0.2],[0.4,0.3]].map((v,i)=>landmark(`check-${i}`,v));
+  const a=assessRegistration(p,context);assert.equal(a.status,'reviewed-approximate-scene-registration');
+  const rows=[[0.3,0.3],[0.49,0.49],[0.6,0.6]].map((sourcePoint,i)=>({...source,fixtureId:`coverage-${i}`,sourcePoint,bindings:[binding]}));
+  const r=projectInventory(rows,[a],context);
+  assert.equal(r.records[0].placements.length,1);
+  assert.equal(r.records[1].placements.length,0);assert.match(r.records[1].unsupported[0].reason,/uncertainty/);
+  assert.equal(r.records[2].placements.length,0);assert.match(r.records[2].unsupported[0].reason,/outside/);
+  const larger=projectInventory([{...rows[0],sourceToleranceXY:[0.5,0.5]}],[a],context);
+  assert.equal(larger.records[0].placements.length,0);
+  for(const sourceToleranceXY of [null,[0.1],[-1,0],[NaN,0],[Infinity,0]])
+    assert.throws(()=>projectInventory([{...rows[0],sourceToleranceXY}],[a],context),/finite nonnegative pair/);
 });
