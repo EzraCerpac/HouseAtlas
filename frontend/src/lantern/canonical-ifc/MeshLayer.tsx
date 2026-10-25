@@ -76,7 +76,7 @@ export function MeshLayer(props: Props) {
     const resize = new ResizeObserver(schedule); resize.observe(element);
     try { materialGpuResources(props.meshes, usesMaterials); } catch { fail('The 3D model cannot be rendered.'); }
     if (!disposed) {
-      void import('./mesh-scene').then(({ createMeshScene }) => createMeshScene(element, props.meshes, usesMaterials, lost)).then(created => {
+      void import('./mesh-scene').then(({ createMeshScene }) => createMeshScene(element, props.meshes, usesMaterials, lost, (globalThis as { houseatlasLook?: import('./mesh-scene').MeshLook }).houseatlasLook /* PROTOTYPE */)).then(created => {
         if (disposed) { created.dispose(); return; }
         scene = created; stale.current = true; element.dataset.renderer = created.backend;
         redraw.current = schedule; schedule();
