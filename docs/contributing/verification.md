@@ -20,6 +20,13 @@ seed report tests with the runner's `python3` (stdlib only, no install):
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/homebox-quantity-seed-report -p test_report.py -v
 ```
 
+It also checks the NAS deploy tool against temp folders and a fake service,
+without launchd, network access or real data:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'
+```
+
 ## Healthy frontend suite
 
 `frontend/lantern-tests/run-healthy.mjs` runs every named healthy frontend
