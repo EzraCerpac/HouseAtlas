@@ -35,7 +35,7 @@ STORAGE_PATTERNS = (
     re.compile(r"^backend/migrations/"),
     re.compile(r"^backend/src/storage/"),
     re.compile(r"\.sql$"),
-    re.compile(r"^backend/src/.*schema[^/]*\.rs$"),
+    re.compile(r"^backend/src/(?!transports/).*schema[^/]*\.rs$"),  # transports hold wire JSON schemas
     re.compile(r"^backend/src/providers/network/(durable|archive)\.rs$"),
 )
 # Embedded SQL anywhere in the backend: a changed line matching this also needs review.
@@ -769,9 +769,11 @@ class Deployer:
                 restored = live.parent / f"frontend.restored-{record['id']}-{stamp}"
                 union = union_frontend(parked, live, restored)
                 self.say(f"  restored frontend keeps {union['retainedAssets']} assets from the rolled-back build")
+                record["restored_frontend"] = str(restored)  # saved below, so a retry can finish this move
                 moves = [(live, live.parent / f"frontend.rolled-back-{record['id']}-{stamp}"), (restored, live)]
-            elif parked.exists():  # interrupted after the live frontend was moved aside
-                moves = [(parked, live)]
+            elif not live.exists():  # interrupted after the live frontend was moved aside
+                prepared = Path(record.get("restored_frontend", ""))
+                moves = [(prepared if record.get("restored_frontend") and prepared.exists() else parked, live)]
         record["status"] = "rolling-back"  # a retry after an interruption picks this record up again
         save_record(cfg.ledger, record)
         restore = dict(record, after_plist=record["before_plist"])

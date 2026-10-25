@@ -63,7 +63,7 @@ class Pure(unittest.TestCase):
 
     def test_storage_gate(self):
         changed = ["frontend/src/App.tsx", "backend/migrations/0009_x.sql", "backend/src/storage/mod.rs",
-                   "backend/src/access/schema.sql", "backend/src/contracts/stock/schema.rs", "backend/src/http/mod.rs",
+                   "backend/src/access/schema.sql", "backend/src/contracts/stock/schema.rs", "backend/src/transports/mcp/native_schemas.rs",
                    "docs/x.md"]
         self.assertEqual(dn.storage_sensitive(changed), changed[1:5])
 
@@ -302,6 +302,24 @@ class SwapAndRollback(unittest.TestCase):
         dep = dn.Deployer(self.cfg, svc, out=io.StringIO())
         dep.swap(self.record, self.root / "events.log", self.moves)
         dn.save_record(self.cfg.ledger, self.record)
+        dep.rollback()
+        self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
+        self.assertEqual((self.root / "fe/frontend/assets/lazy-new.js").read_text(), "chunk")
+
+    def test_rollback_interrupted_between_moves_resumes_the_union(self):
+        write(self.root / "fe/frontend.next/assets/lazy-new.js", "chunk")
+        svc = FakeService(self.cfg)
+        dep = dn.Deployer(self.cfg, svc, out=io.StringIO())
+        dep.swap(self.record, self.root / "events.log", self.moves)
+        dn.save_record(self.cfg.ledger, self.record)
+        real = dep.swap
+        def first_move_only(record, events, moves, expect=None):
+            moves[0][0].rename(moves[0][1])
+            raise KeyboardInterrupt
+        dep.swap = first_move_only
+        with self.assertRaises(KeyboardInterrupt):
+            dep.rollback()
+        dep.swap = real
         dep.rollback()
         self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
         self.assertEqual((self.root / "fe/frontend/assets/lazy-new.js").read_text(), "chunk")
