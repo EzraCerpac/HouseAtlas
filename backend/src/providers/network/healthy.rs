@@ -139,6 +139,12 @@ async fn healthy_transport_complete_proposal_and_sidecar_reopen() {
     let mut provider = NetworkProvider::new(source.clone(), review(), Limits::default()).unwrap();
     let prior = RetainedState::empty(source.scope.clone());
     assert_eq!(provider.read(&prior).unwrap(), prior);
+    let empty = build_facet(&source, &prior, AT, 1000).unwrap();
+    assert_eq!(empty.status, FacetStatus::Unavailable);
+    assert_eq!(empty.age_ms, None);
+    assert!(empty.cache.generation_id.is_none());
+    assert!(empty.devices.is_empty());
+    assert_eq!(transport.calls.load(Ordering::SeqCst), 0);
     let RefreshOutcome::Complete(proposal) = provider
         .prepare_refresh(&prior, 7, ID, &transport, || AT.into())
         .await
@@ -163,8 +169,23 @@ async fn healthy_transport_complete_proposal_and_sidecar_reopen() {
         reopen_sidecar(&source, &complete.cache, relations, &row, Some(&review())).unwrap();
     assert_eq!(reopened, *complete);
     assert_eq!(provider.read(&reopened).unwrap(), reopened);
-    build_facet(&source, &reopened, AT, 300_000).unwrap();
-    build_facet(&source, &reopened, "2026-01-02T13:00:00Z", 300_000).unwrap();
+    // Browsing an immutable retained generation has no transport input. Crossing
+    // the freshness threshold changes the facet, never the source/cache times.
+    for (now, status, age) in [
+        ("2026-01-02T12:00:01Z", FacetStatus::Fresh, 1000),
+        ("2026-01-02T12:00:01.001Z", FacetStatus::Stale, 1001),
+    ] {
+        let facet = build_facet(&source, &reopened, now, 1000).unwrap();
+        assert_eq!(facet.status, status);
+        assert_eq!(facet.age_ms, Some(age));
+        assert_eq!(facet.cache, complete.cache);
+        assert!(facet.read_only);
+        assert!(!facet.capabilities.demand);
+        assert!(!facet.capabilities.diagnostics);
+        assert!(!facet.capabilities.writes);
+        assert_eq!(provider.read(&reopened).unwrap(), *complete);
+        assert_eq!(transport.calls.load(Ordering::SeqCst), 1);
+    }
     let packet = SidecarPacket {
         format: SIDECAR_FORMAT.into(),
         rows: vec![row],
