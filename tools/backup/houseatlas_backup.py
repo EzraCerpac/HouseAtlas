@@ -101,6 +101,8 @@ class Config:
         )
         self.upload_timeout = float(raw.get("uploadTimeoutSeconds", 3600))
         self.keep_local_archives = int(raw.get("keepLocalArchives", 3))
+        if self.keep_local_archives < 1:
+            raise ValueError("keepLocalArchives must be at least 1")
         self.report_command: list[str] | None = raw.get("reportCommand")
 
 
@@ -197,6 +199,7 @@ def copy_models(service: Service, destination: Path) -> list[dict]:
     for manifest, expected in service.models:
         if expected and sha256_file(manifest) != expected:
             raise StepFailed("model release", f"{manifest.name} hash differs from the service")
+        check_pinned_original(manifest)
         if manifest.parent not in folders:
             folders.append(manifest.parent)
     copied = []
@@ -209,10 +212,24 @@ def copy_models(service: Service, destination: Path) -> list[dict]:
     return copied
 
 
+def check_pinned_original(manifest: Path) -> None:
+    """The served manifests pin the model file by digest and size; a copy whose
+    model no longer matches would not load, so it is not a valid backup."""
+    original = json.loads(manifest.read_text()).get("original")
+    if not isinstance(original, dict):
+        return
+    path = manifest.parent / original.get("file", "overview.glb")
+    if (not path.is_file() or path.stat().st_size != original.get("bytes")
+            or sha256_file(path) != original.get("sha256")):
+        raise StepFailed("model release", f"{path.name} differs from {manifest.name}")
+
+
 def check_models(root: Path, models: list[dict]) -> None:
     for model in models:
         if sha256_file(root / model["file"]) != model["sha256"]:
             raise StepFailed("model release", f"{model['file']} differs from the served copy")
+        if model["file"].endswith(".json"):
+            check_pinned_original(root / model["file"])
 
 
 def restore_check(binary: Path, bundle: Path, destination: Path, step: str) -> dict:
@@ -270,6 +287,7 @@ def upload_and_round_trip(config: Config, archive: Path, checksum: str, work: Pa
         raise StepFailed("iCloud copy", f"{archive.name} already exists; not overwriting") from None
 
     wait_for(config, target, "iCloud upload", lambda s: s.get("uploaded"))
+    wait_for(config, folder / f"{archive.name}.sha256", "iCloud upload", lambda s: s.get("uploaded"))
     icloud(config, "evict", target)
     wait_for(config, target, "iCloud evict", lambda s: s.get("downloadingStatus") != "NSURLUbiquitousItemDownloadingStatusCurrent")
     icloud(config, "download", target)

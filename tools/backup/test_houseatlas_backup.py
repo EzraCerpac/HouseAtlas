@@ -1,5 +1,6 @@
 """Synthetic checks for the parts of the backup script that need no service,
 backend binary or iCloud: plist parsing, packing and local pruning."""
+import json
 import os
 import plistlib
 import sys
@@ -87,8 +88,10 @@ class BackupScriptTest(unittest.TestCase):
 
     def test_model_copy_hashes_every_file_and_detects_changes(self):
         publication = hb.private_dir(self.root / "release" / "publication")
-        (publication / "publication.json").write_text("{}")
         (publication / "overview.glb").write_bytes(b"glb")
+        (publication / "publication.json").write_text(json.dumps({"original": {
+            "file": "overview.glb", "bytes": 3, "sha256": hb.sha256_file(publication / "overview.glb"),
+        }}))
         service = type("S", (), {"models": [(publication / "publication.json", None)]})()
         out = hb.private_dir(self.root / "model")
         models = hb.copy_models(service, out)
@@ -98,6 +101,9 @@ class BackupScriptTest(unittest.TestCase):
         (out / "release/publication/overview.glb").write_bytes(b"changed")
         with self.assertRaises(hb.StepFailed):
             hb.check_models(out, models)
+        (publication / "overview.glb").write_bytes(b"bad")
+        with self.assertRaises(hb.StepFailed):
+            hb.copy_models(service, hb.private_dir(self.root / "model2"))
 
 
 if __name__ == "__main__":

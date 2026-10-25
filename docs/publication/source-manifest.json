@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "3fd79a9e33a3c1e96e8cc1858f04557043145ebe58a309ad28a8e5597f31058d",
+  "sourceDigestSha256": "cb7b47c4eccfcfee34184163d79196e290a773bce9538d19cbbdf6eae03c734e",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -11571,8 +11571,8 @@
     {
       "path": "tools/backup/houseatlas_backup.py",
       "mode": "100644",
-      "bytes": 16123,
-      "sha256": "6d6f604f45a842a79e23b2d2f7702d781b545d8f6f0f936b4044eafa4e9fb0c7",
+      "bytes": 17091,
+      "sha256": "6d1559c005125ad0931289fb2fca22748fcb170ee2dbb471a9d485feb849b746",
       "owner": "operations-policy"
     },
     {
@@ -11606,8 +11606,8 @@
     {
       "path": "tools/backup/test_houseatlas_backup.py",
       "mode": "100644",
-      "bytes": 4380,
-      "sha256": "d5a389215b937703f8771fd97f22dd49ed369665f3acca875f3d0010b876e655",
+      "bytes": 4709,
+      "sha256": "54cbff3c2d983c631c145a876a65dccfcc6861d45045ede5c3f1514abc7a1652",
       "owner": "operations-policy"
     },
     {
