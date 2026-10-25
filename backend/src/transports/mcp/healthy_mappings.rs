@@ -5,7 +5,57 @@ use std::collections::BTreeSet;
 
 use crate::{contracts::stock as wire, domain::stock as domain, http::agents::capabilities};
 
-use super::{OperationMapping, ToolName};
+use super::{NativeSchemas, OperationMapping, PortError, ToolName};
+
+#[test]
+fn healthy_admitted_family_input_descriptors() {
+    let schemas = NativeSchemas::from_bytes(
+        include_bytes!("../../../../contracts/stock-wire3/agent/agent.schema.json"),
+        include_bytes!("../../../../packages/contracts/schemas/atlas.schema.json"),
+    )
+    .unwrap();
+    let families = wire::families().unwrap();
+    for family in families {
+        // Synthetic descriptor selection only, never a runtime grant or call.
+        // Include another family's operation to exercise the intersection.
+        let selected = family.command_ids[0];
+        let other = families
+            .iter()
+            .find(|other| other.name != family.name)
+            .unwrap()
+            .command_ids[0];
+        let admitted = BTreeSet::from([selected, other]);
+        let schema = schemas
+            .admitted_input_schema(&family.input_schema, &admitted)
+            .unwrap();
+        let original = schemas.schema(&family.input_schema).unwrap();
+        assert_eq!(
+            original["oneOf"].as_array().unwrap().len(),
+            family.command_ids.len()
+        );
+        let reference = wire::operation(selected).unwrap().input_schema.as_str();
+        let local = format!(
+            "#/$defs/agent__{}",
+            reference.strip_prefix("#/$defs/").unwrap()
+        );
+        assert_eq!(schema["oneOf"], serde_json::json!([{"$ref":local}]));
+        assert_eq!(schema["type"], "object");
+        for (name, definition) in schema["$defs"].as_object().unwrap() {
+            assert_eq!(Some(definition), original["$defs"].get(name));
+        }
+        // Selected definitions stay identical to the full family's definitions;
+        // materialization must still provide a closed, offline schema.
+        jsonschema::options()
+            .with_draft(jsonschema::Draft::Draft202012)
+            .offline()
+            .build(&serde_json::Value::Object(schema))
+            .unwrap();
+        assert!(matches!(
+            schemas.admitted_input_schema(&family.input_schema, &BTreeSet::from([other])),
+            Err(PortError::Unavailable)
+        ));
+    }
+}
 
 #[test]
 fn healthy_finite_operation_mappings() {
