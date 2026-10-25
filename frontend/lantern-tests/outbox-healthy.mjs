@@ -52,7 +52,7 @@ function submission(target, base, label = `Rename ${target}`) {
 }
 let clock = Date.parse('2026-10-25T18:00:00Z');
 function outboxOn(disk, server, extra = {}) {
-  return createOutbox({ store: openOutboxStore(createSyntheticIndexedDB(disk)), transport: server.transport, now: () => clock++, ...extra });
+  return createOutbox({ store: openOutboxStore(createSyntheticIndexedDB(disk)), transport: (path, init) => server.transport(path, init), now: () => clock++, ...extra });
 }
 
 // Online: Save sends at once.
@@ -210,8 +210,37 @@ for (const [status, problem] of [[403, 'denied'], [404, 'removed'], [422, 'rejec
   outbox.configure(context);
   server.revisions.set('den', 5);
   assert.equal((await outbox.submit(submission('den', 1))).state, 'needs-you');
+  const theirs = outbox.getSnapshot().entries[0];
   outbox.configure({ ...context, actorId: 'a2' });
   assert.equal((await outbox.submit(submission('den', 5))).state, 'synced');
+  // Nor can it decide about that conflict for them.
+  outbox.register('place-name', { current: async () => '', rebase: async () => assert.fail('Rebased for another account') });
+  assert.equal(outbox.isMine(theirs.id), false);
+  await assert.rejects(outbox.keepMine(theirs.id, AbortSignal.timeout(1000)));
+  await assert.rejects(outbox.useTheirs(theirs.id));
+  assert.equal(outbox.getSnapshot().entries.find(row => row.id === theirs.id).state, 'needs-you');
+}
+
+// Two tabs: a Save made while the other tab is sending waits for its turn
+// instead of being dropped, also in "When I ask" mode.
+{
+  const disk = createSyntheticDisk(), server = createServer();
+  let tail = Promise.resolve();
+  const lock = work => { const run = tail.then(work); tail = run.catch(() => undefined); return run; };
+  const a = outboxOn(disk, server, { lock }), b = outboxOn(disk, server, { lock });
+  a.configure(context); b.configure(context);
+  setSyncMode('ask');
+  let release;
+  const slow = server.transport;
+  server.transport = async (path, init) => { if (!release) await new Promise(resolve => { release = resolve; }); return slow(path, init); };
+  const first = a.submit(submission('nook', 1));
+  await new Promise(resolve => setTimeout(resolve, 10));
+  const second = b.submit(submission('alcove', 1));
+  release();
+  assert.equal((await first).state, 'synced');
+  assert.equal((await second).state, 'synced', 'The second tab sent its Save once the first was done');
+  server.transport = slow;
+  setSyncMode('automatic');
 }
 
 // "When I ask": reconnecting sends nothing until the person presses Send.
@@ -252,4 +281,4 @@ for (const [status, problem] of [[403, 'denied'], [404, 'removed'], [422, 'rejec
   assert.equal(kept.at(-1).target.recordId, `room-${KEEP_SYNCED + 2}`);
   assert.equal(syntheticRecords(disk, OUTBOX_DATABASE, 'entries').length, KEEP_SYNCED);
 }
-console.log(JSON.stringify({ outbox: 'healthy', cases: 12 }));
+console.log(JSON.stringify({ outbox: 'healthy', cases: 13 }));

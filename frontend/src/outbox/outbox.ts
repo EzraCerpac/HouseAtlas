@@ -29,6 +29,9 @@ export interface Outbox {
   drain(options?: { force?: boolean }): Promise<void>;
   /** Whether Keep mine can prepare this entry again here. */
   canKeepMine(id: string): boolean;
+  /** Whether the signed-in person may decide about this entry: only the
+   * account and home that made it can keep or discard it. */
+  isMine(id: string): boolean;
   /** Entries that reached the server in the background (on reconnect, Send
    * now or Keep mine), once per pass, so views of those records can reload.
    * A Save that syncs at once refreshes its own view instead. */
@@ -46,8 +49,9 @@ export interface OutboxOptions {
   readonly store: OutboxStore;
   readonly transport?: typeof fetch;
   readonly now?: () => number;
-  /** Serializes sending across tabs. Absent: this page is the only sender. */
-  readonly lock?: <T>(work: () => Promise<T>) => Promise<T | null>;
+  /** Serializes sending across tabs, waiting for another tab's pass to end.
+   * Absent: this page is the only sender. */
+  readonly lock?: <T>(work: () => Promise<T>) => Promise<T>;
   /** Tells other tabs that the stored entries changed. */
   readonly announce?: () => void;
   /** The server answered 401 during a send. */
@@ -179,6 +183,12 @@ export function createOutbox(options: OutboxOptions): Outbox {
     if (!entry) throw new Error('This change is no longer queued');
     return entry;
   };
+  /** The entry, if the signed-in person may decide about it. */
+  const mine = (id: string) => {
+    const entry = find(id);
+    if (!context || !owns(entry, context)) throw new Error('Only the account that made this change can decide about it');
+    return entry;
+  };
   return {
     getSnapshot: () => snapshot,
     subscribe(changed) { listeners.add(changed); return () => { listeners.delete(changed); }; },
@@ -187,6 +197,7 @@ export function createOutbox(options: OutboxOptions): Outbox {
         && next.workspaceId === context.workspaceId && next.homeId === context.homeId;
       if (same) return;
       context = next;
+      publish();
       if (next) void drain();
     },
     register(kind, value) { kinds.set(kind, value); },
@@ -204,16 +215,18 @@ export function createOutbox(options: OutboxOptions): Outbox {
     },
     drain: options => drain(options),
     canKeepMine: id => { const entry = entries.find(row => row.id === id); return !!entry && kinds.has(entry.kind); },
+    isMine: id => { const entry = entries.find(row => row.id === id); return !!entry && !!context && owns(entry, context); },
     onSynced(listener) { syncedListeners.add(listener); return () => { syncedListeners.delete(listener); }; },
     current: (id, signal) => { const entry = find(id); return adapter(entry).current(entry, signal); },
     async keepMine(id, signal) {
-      const entry = find(id);
+      const entry = mine(id);
       const fresh = await adapter(entry).rebase(entry, signal);
       signal.throwIfAborted();
+      mine(id); // The person may have signed out while it was prepared.
       await save({ ...entry, ...fresh, state: 'waiting', sent: false, problem: null, settledAt: null });
       await sendNow(id);
     },
-    useTheirs: id => remove(find(id).id),
+    useTheirs: async id => remove(mine(id).id),
     reload,
   };
 }

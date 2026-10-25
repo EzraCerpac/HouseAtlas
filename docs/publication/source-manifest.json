@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "5523b99fc1b148a34f88363ea5ff6969b159dd8fae0ca12f6bb903700e266434",
+  "sourceDigestSha256": "f2646b028ce7b7159ab8413e2450c6f28853129da5c8b39309312a5f6803a167",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6069,8 +6069,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 168008,
-      "sha256": "bdc04b05f39650554ba10671a49f37c07675705c1665f16329efad2f3615673f",
+      "bytes": 168131,
+      "sha256": "867b0c2930159286f090e6c85d31e63da6a7630d32ae29e6760a19e7e5014744",
       "owner": "core-integration"
     },
     {
@@ -7917,8 +7917,8 @@
     {
       "path": "frontend/lantern-tests/outbox-healthy.mjs",
       "mode": "100644",
-      "bytes": 13221,
-      "sha256": "56dbdc511caf1cc4ed27cf108331397f0efb30629e48c7b0d38185b56839a988",
+      "bytes": 14811,
+      "sha256": "18f977358e01ed8e5064895f12643dc322e050c6080c7822507e0b4bb1e7ed49",
       "owner": "web"
     },
     {
@@ -10577,8 +10577,8 @@
     {
       "path": "frontend/src/outbox/index.ts",
       "mode": "100644",
-      "bytes": 2729,
-      "sha256": "5e4db7d6b384908cbf63d6d8cb442db4db459dfec6c6d692487880c891898fc5",
+      "bytes": 2827,
+      "sha256": "908282160e91c10e12427b7e448e1d2b1564d3c032dd352ddd78a0b3cb7abdc8",
       "owner": "web"
     },
     {
@@ -10605,15 +10605,15 @@
     {
       "path": "frontend/src/outbox/outbox.ts",
       "mode": "100644",
-      "bytes": 11177,
-      "sha256": "6bc1debcd002967c9a16f7a4fa76a8adaa6e75419e4c362ea6239e1f5ab7024d",
+      "bytes": 11873,
+      "sha256": "a12de8cdad88e5801198abf98a2fa1ba855656aae1edf06ed704c499a10b70bd",
       "owner": "web"
     },
     {
       "path": "frontend/src/outbox/preference.ts",
       "mode": "100644",
-      "bytes": 1104,
-      "sha256": "2fa583fe3a3125ac872eb3c9e2a8b323b51f5ed2a9fcb5748032dba018198165",
+      "bytes": 1439,
+      "sha256": "5995656b6065e527b8e3db53a2fdfdb86a1918e287d7adcfe36bba908755f3b3",
       "owner": "web"
     },
     {
@@ -10640,8 +10640,8 @@
     {
       "path": "frontend/src/outbox/ui.tsx",
       "mode": "100644",
-      "bytes": 9992,
-      "sha256": "fa8f36bf030dca9fb078e57573211375a2dffd1a604ec4220f8b73f1c858f8d9",
+      "bytes": 10123,
+      "sha256": "215d8f1fafa3024254e962f4ec6fc1fac59bc38fa20202a85a275cfca077bbc6",
       "owner": "web"
     },
     {

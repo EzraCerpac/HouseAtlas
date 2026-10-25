@@ -23,7 +23,9 @@ export function getOutbox(): Outbox {
   const outbox = createOutbox({
     store: openOutboxStore(),
     announce: () => channel?.postMessage('changed'),
-    ...(locks ? { lock: work => locks.request(CHANNEL, { ifAvailable: true }, lock => lock ? work() : null) } : {}),
+    // Waiting for the lock, not skipping it, keeps a Save or Send now made
+    // while another tab sends: it runs as soon as that tab is done.
+    ...(locks ? { lock: work => locks.request(CHANNEL, work) } : {}),
   });
   shared = outbox;
   channel?.addEventListener('message', () => { void outbox.reload().catch(() => undefined); });

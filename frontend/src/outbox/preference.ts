@@ -21,4 +21,11 @@ export function subscribeSyncMode(changed: () => void): () => void {
   listeners.add(changed);
   return () => { listeners.delete(changed); };
 }
+// The choice is per device: another tab changing it changes it here too,
+// before this tab's next reconnect or retry.
+if (typeof addEventListener === 'function') addEventListener('storage', event => {
+  if (event.key !== KEY && event.key !== null) return;
+  memory = readSyncMode();
+  for (const changed of listeners) changed();
+});
 export function useSyncMode(): SyncMode { return useSyncExternalStore(subscribeSyncMode, syncMode, () => 'automatic'); }

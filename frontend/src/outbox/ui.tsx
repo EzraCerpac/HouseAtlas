@@ -72,7 +72,7 @@ export function SyncStatus({ outbox = getOutbox() }: { readonly outbox?: Outbox 
 function NeedsYou({ entry, outbox }: { readonly entry: OutboxEntry; readonly outbox: Outbox }) {
   const [current, setCurrent] = useState<string | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState('');
   // Keep mine needs this app to know how to prepare the change again.
-  const rebase = entry.problem === 'changed' && outbox.canKeepMine(entry.id);
+  const own = outbox.isMine(entry.id), rebase = own && entry.problem === 'changed' && outbox.canKeepMine(entry.id);
   useEffect(() => {
     if (!rebase) return;
     const controller = new AbortController();
@@ -89,13 +89,13 @@ function NeedsYou({ entry, outbox }: { readonly entry: OutboxEntry; readonly out
     <span>{problemText[entry.problem ?? 'rejected']}</span>
     {current && <span>Now: {current}</span>}
     {error && <span role="alert">{error}</span>}
-    <div className="sync-actions">
+    {own ? <div className="sync-actions">
       {rebase && <button type="button" className="btn btn-primary" disabled={busy}
         onClick={() => void act(() => outbox.keepMine(entry.id, AbortSignal.timeout(30_000)))}>Keep mine</button>}
       <button type="button" className="btn" disabled={busy} onClick={() => void act(() => outbox.useTheirs(entry.id))}>
         {rebase ? 'Use theirs' : 'Discard'}
       </button>
-    </div>
+    </div> : <span>Made by another account or for another home; sign in there to decide.</span>}
   </li>;
 }
 

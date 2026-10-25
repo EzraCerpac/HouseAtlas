@@ -2770,7 +2770,9 @@ mid-send, a conflict that holds later edits to the same record, Keep mine
 (offered only for kinds this app can prepare again) and Use theirs, a lookup
 the server refuses (the person is asked instead of a blind resend), refusals,
 sign-out, another account or home (including another account's unresolved
-conflict on the same record), "When I ask" (a Save sends only that edit and
+conflict on the same record, which it also cannot keep or discard), a Save
+in a second tab that waits for the first tab's send instead of being
+dropped, "When I ask" (a Save sends only that edit and
 earlier edits to the same record), the notice views reload on after a
 background sync, and pruning of synced entries. It runs in `run-healthy.mjs`. The server side of the
 same contract (lookup of a committed envelope, no second write on an identical
