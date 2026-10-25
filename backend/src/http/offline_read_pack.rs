@@ -126,11 +126,7 @@ fn prepare(
         .clone();
     let (snapshot, metadata) = reads::retained_pack_cut(&mut core, host, p, &scope_storage(scope))?;
     p.seal_source_capture();
-    let url = format!(
-        "{}{}",
-        host.origin,
-        uri.path_and_query().map_or("/", |v| v.as_str())
-    );
+    let url = super::auth::url(host, uri);
     let observed = evidence(&host.origin, headers, uri, &url, method).map_err(access_error)?;
     let media = NativeMediaAccess::new(core.access.clone())
         .authorize_request(&observed, &media_scope(scope))

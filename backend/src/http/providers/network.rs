@@ -55,11 +55,7 @@ pub(in crate::http) async fn cached(
             return Err(failure(StatusCode::UNPROCESSABLE_ENTITY));
         }
         let core = host.core.lock().map_err(|_| unavailable())?;
-        let url = format!(
-            "{}{}",
-            host.origin,
-            uri.path_and_query().map_or("/", |path| path.as_str())
-        );
+        let url = crate::http::auth::url(&host, &uri);
         let request =
             evidence(&host.origin, &headers, &uri, &url, &method).map_err(access_error)?;
         // Fresh issuance is owned directly by the native disclosure. Never copy

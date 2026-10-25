@@ -44,14 +44,15 @@ fn receipt_response(receipt: SessionReceipt) -> HttpResult {
     );
     Ok(response)
 }
-fn url(host: &Host, uri: &Uri) -> String {
+/// Request URL evidence: the configured origin plus the actual path and query.
+pub(super) fn url(host: &Host, uri: &Uri) -> String {
     format!(
         "{}{}",
         host.origin,
         uri.path_and_query().map_or("/", |p| p.as_str())
     )
 }
-fn no_query(uri: &Uri) -> Result<(), HttpFailure> {
+pub(super) fn no_query(uri: &Uri) -> Result<(), HttpFailure> {
     if uri.query().is_some() {
         return Err(failure(StatusCode::FORBIDDEN));
     }
@@ -115,13 +116,14 @@ pub(super) async fn login(
         let request_url = url(&host, &uri);
         let observed =
             evidence(&host.origin, &checked, &uri, &request_url, &method).map_err(access_error)?;
-        // The transport's actual connection IP is the client key; source ports
-        // and forwarded metadata never establish a separate client identity.
+        // The transport's actual connection IP, normalized to its IPv4 host or
+        // IPv6 /64, is the client key; source ports and forwarded metadata
+        // never establish a separate client identity.
         let receipt = core
             .access
             .lock()
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
-            .login(&observed, &body, &address.ip().to_string())
+            .login(&observed, &body, &crate::access::client_key(address.ip()))
             .map_err(access_error)?;
         receipt_response(receipt)
     })
@@ -285,12 +287,19 @@ pub(super) async fn session(
     .await
     .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?
 }
-pub(super) async fn session_head() -> Response {
+fn method_not_allowed(allow: &'static str) -> Response {
     let mut response = HttpFailure::for_status(StatusCode::METHOD_NOT_ALLOWED).into_response();
     response
         .headers_mut()
-        .insert(header::ALLOW, HeaderValue::from_static("GET"));
+        .insert(header::ALLOW, HeaderValue::from_static(allow));
     response
+}
+pub(super) async fn session_head() -> Response {
+    method_not_allowed("GET")
+}
+/// Method fallback for POST-only routes, including HEAD.
+pub(super) async fn post_only() -> Response {
+    method_not_allowed("POST")
 }
 pub(super) async fn rotate(
     State(host): State<Host>,

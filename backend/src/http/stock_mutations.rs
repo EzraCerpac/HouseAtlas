@@ -622,7 +622,7 @@ impl Transaction<'_, '_, '_, '_, '_> {
                 .map_err(domain)?,
         };
         p.release_guard(self.guard, &closure)
-            .map_err(|e| domain(mutations::access_domain(e)))?;
+            .map_err(|e| domain(crate::app::access_domain(e)))?;
         let expected = match self.phase.get() {
             None => s::MutationPhase::Intake,
             Some(s::MutationPhase::Intake) => s::MutationPhase::Validate,
@@ -1157,7 +1157,7 @@ impl<'p> st::StockCommandPort<RequestPrincipal, Witness<'p>, Graph> for Commands
             })
             .map_err(|e| domain(e.0))?;
         p.release(&access)
-            .map_err(|e| domain(mutations::access_domain(e)))?;
+            .map_err(|e| domain(crate::app::access_domain(e)))?;
         let commit = output.ok_or_else(unavailable)?;
         w.committed.set(true);
         Ok(commit.owner_result())
@@ -1547,7 +1547,7 @@ pub(super) async fn command(
             .core
             .lock()
             .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-        let url = format!("{}{}", capture_host.origin, uri.path());
+        let url = super::auth::url(&capture_host, &uri);
         let observed = evidence(&capture_host.origin, &capture_checked, &uri, &url, &method)
             .map_err(access_error)?;
         let principal = core

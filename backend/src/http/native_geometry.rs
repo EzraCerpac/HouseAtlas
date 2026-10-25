@@ -84,7 +84,7 @@ fn authorize(
     if !core.homes.iter().any(|h| h.scope == *scope) {
         return Err(failure(StatusCode::NOT_FOUND));
     }
-    let url = format!("{}{}", host.origin, uri.path());
+    let url = super::auth::url(host, uri);
     let observed = evidence(&host.origin, checked, uri, &url, method).map_err(access_error)?;
     let issued = core
         .access

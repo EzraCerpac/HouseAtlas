@@ -1,5 +1,5 @@
 use std::{
-    net::IpAddr,
+    net::{IpAddr, Ipv6Addr},
     path::Path,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
@@ -167,6 +167,25 @@ impl AccessConfig {
     }
 }
 
+/// Login/admission client key for an actual connection peer. One IPv6 host
+/// usually controls a whole /64, so it cannot rotate addresses for budget.
+/// Mapped and deprecated compatible IPv6 forms key their embedded IPv4.
+/// Peers in one /64, including all `fe80::/64` link-local peers (scope ids are
+/// not part of the key), share one budget and can throttle each other.
+pub fn client_key(peer: IpAddr) -> String {
+    match peer {
+        IpAddr::V4(ip) => ip.to_string(),
+        IpAddr::V6(ip) => match ip.to_ipv4() {
+            // `::1` and `::` are IPv6 loopback/unspecified, not IPv4 hosts.
+            Some(ip4) if !ip.is_loopback() && !ip.is_unspecified() => ip4.to_string(),
+            _ => {
+                let [a, b, c, d, ..] = ip.segments();
+                format!("{}/64", Ipv6Addr::new(a, b, c, d, 0, 0, 0, 0))
+            }
+        },
+    }
+}
+
 fn validate_local_identity(identity: &LoopbackLocalIdentity) -> AccessResult<()> {
     const NIL: &str = "00000000-0000-0000-0000-000000000000";
     if [
@@ -290,14 +309,14 @@ impl AccessBoundary {
             return Err(AccessError::MethodNotAllowed);
         }
         let username = identity.username.clone();
-        let origin = self.check_origin(request, true, None)?;
+        let origin = self.check_origin(request, true)?;
         self.rate(
             "login:global",
             self.config.limits.global_login_limit,
             60_000,
         )?;
         self.rate(
-            &format!("login:client:{actual_peer}"),
+            &format!("login:client:{}", client_key(actual_peer)),
             self.config.limits.login_limit,
             300_000,
         )?;
@@ -345,7 +364,7 @@ impl AccessBoundary {
             .ok_or(AccessError::Unauthenticated)?
             .username
             .clone();
-        let origin = self.check_origin(request, true, None)?;
+        let origin = self.check_origin(request, true)?;
         self.rate(
             "login:global",
             self.config.limits.global_login_limit,
@@ -478,7 +497,7 @@ impl AccessBoundary {
         if request.method != Method::Post {
             return Err(AccessError::MethodNotAllowed);
         }
-        let origin = self.check_origin(request, true, None)?;
+        let origin = self.check_origin(request, true)?;
         if client_key.is_empty() || client_key.len() > 256 {
             return Err(AccessError::InvalidInput);
         }
@@ -505,11 +524,11 @@ impl AccessBoundary {
             serde_json::from_slice(body).map_err(|_| AccessError::InvalidInput)?;
         let username =
             store::username_key(&body.username).map_err(|_| AccessError::Unauthenticated)?;
-        self.rate(
-            &format!("login:username:{username}"),
-            self.config.limits.login_limit,
-            300_000,
-        )?;
+        // Only this client's failed verifications count against the username,
+        // so another client cannot lock out a correct password. The global and
+        // per-client attempt buckets above remain the brute-force cap.
+        let failures = format!("login:failure:{client_key}:{username}");
+        self.check_rate(&failures, self.config.limits.login_limit)?;
         if self.config.loopback_local.is_some() {
             return Err(AccessError::Unauthenticated);
         }
@@ -522,9 +541,10 @@ impl AccessBoundary {
                 UserVerifier::LoopbackLocal => None,
             });
         let verified = verify_password(&body.password, verifier)?;
-        let user = user
-            .filter(|u| verified && u.enabled)
-            .ok_or(AccessError::Unauthenticated)?;
+        let Some(user) = user.filter(|u| verified && u.enabled) else {
+            self.rate(&failures, self.config.limits.login_limit, 300_000)?;
+            return Err(AccessError::Unauthenticated);
+        };
         let previous = token_hash(request, false)?;
         self.issue(&user, &origin, previous.as_deref(), false)
     }
@@ -537,38 +557,15 @@ impl AccessBoundary {
         scope: &Scope,
         action: Action,
     ) -> AccessResult<Principal> {
-        let unsafe_request = action == Action::Mutate;
-        if if unsafe_request {
-            request.method != Method::Post
-        } else {
-            !matches!(request.method, Method::Get | Method::Head)
-        } {
-            return Err(AccessError::MethodNotAllowed);
-        }
-        let (session, user, now) = self.authenticate(request, unsafe_request)?;
-        let member = store::membership(&self.store.db, &user.user_id, scope)?
-            .filter(|m| m.enabled)
-            .ok_or(AccessError::NotFound)?;
-        if unsafe_request && member.role != Role::Editor {
-            return Err(AccessError::Forbidden);
-        }
-        let principal = Principal {
-            instance: self.instance,
-            token_hash: session.token_hash.clone(),
-            origin: session.origin,
-            user_id: user.user_id,
-            actor_id: user.actor_id,
-            scope: scope.clone(),
-            role: member.role,
-            membership_version: member.version,
+        self.authorize_scopes(
+            request,
+            std::slice::from_ref(scope),
             action,
-        };
-        self.revalidate(&principal)?;
-        self.store.db.execute(
-            "UPDATE access_sessions SET last_seen=MAX(last_seen,?1) WHERE token_hash=?2",
-            params![now, principal.token_hash],
-        )?;
-        Ok(principal)
+            action == Action::Mutate,
+        )?
+        .pop()
+        .flatten()
+        .ok_or(AccessError::NotFound)
     }
 
     /// Authorize the retained-intent transport's explicitly read-only POST.
@@ -579,30 +576,72 @@ impl AccessBoundary {
         request: &RequestEvidence<'_>,
         scope: &Scope,
     ) -> AccessResult<Principal> {
-        if request.method != Method::Post {
+        self.authorize_scopes(request, std::slice::from_ref(scope), Action::Read, true)?
+            .pop()
+            .flatten()
+            .ok_or(AccessError::NotFound)
+    }
+
+    /// One request's principals for several configured scopes, in order. The
+    /// same checks as `authorize` run, but authentication, its request rate and
+    /// last_seen happen once. A non-member scope is None; other denials fail.
+    pub fn authorize_homes(
+        &mut self,
+        request: &RequestEvidence<'_>,
+        scopes: &[Scope],
+        action: Action,
+    ) -> AccessResult<Vec<Option<Principal>>> {
+        self.authorize_scopes(request, scopes, action, action == Action::Mutate)
+    }
+
+    /// Unsafe requests require POST and current CSRF; Mutate requires editor.
+    fn authorize_scopes(
+        &mut self,
+        request: &RequestEvidence<'_>,
+        scopes: &[Scope],
+        action: Action,
+        unsafe_request: bool,
+    ) -> AccessResult<Vec<Option<Principal>>> {
+        if if unsafe_request {
+            request.method != Method::Post
+        } else {
+            !matches!(request.method, Method::Get | Method::Head)
+        } {
             return Err(AccessError::MethodNotAllowed);
         }
-        let (session, user, now) = self.authenticate(request, true)?;
-        let member = store::membership(&self.store.db, &user.user_id, scope)?
-            .filter(|m| m.enabled)
-            .ok_or(AccessError::NotFound)?;
-        let principal = Principal {
-            instance: self.instance,
-            token_hash: session.token_hash.clone(),
-            origin: session.origin,
-            user_id: user.user_id,
-            actor_id: user.actor_id,
-            scope: scope.clone(),
-            role: member.role,
-            membership_version: member.version,
-            action: Action::Read,
-        };
-        self.revalidate(&principal)?;
-        self.store.db.execute(
-            "UPDATE access_sessions SET last_seen=MAX(last_seen,?1) WHERE token_hash=?2",
-            params![now, principal.token_hash],
-        )?;
-        Ok(principal)
+        let (session, user, now) = self.authenticate(request, unsafe_request)?;
+        let mut principals = Vec::with_capacity(scopes.len());
+        for scope in scopes {
+            let Some(member) =
+                store::membership(&self.store.db, &user.user_id, scope)?.filter(|m| m.enabled)
+            else {
+                principals.push(None);
+                continue;
+            };
+            if action == Action::Mutate && member.role != Role::Editor {
+                return Err(AccessError::Forbidden);
+            }
+            let principal = Principal {
+                instance: self.instance,
+                token_hash: session.token_hash.clone(),
+                origin: session.origin.clone(),
+                user_id: user.user_id.clone(),
+                actor_id: user.actor_id.clone(),
+                scope: scope.clone(),
+                role: member.role,
+                membership_version: member.version,
+                action,
+            };
+            self.revalidate(&principal)?;
+            principals.push(Some(principal));
+        }
+        if principals.iter().any(Option::is_some) {
+            self.store.db.execute(
+                "UPDATE access_sessions SET last_seen=MAX(last_seen,?1) WHERE token_hash=?2",
+                params![now, session.token_hash],
+            )?;
+        }
+        Ok(principals)
     }
 
     pub fn revalidate<'p>(&self, principal: &'p Principal) -> AccessResult<&'p Principal> {
@@ -794,7 +833,7 @@ impl AccessBoundary {
         request: &RequestEvidence<'_>,
         unsafe_request: bool,
     ) -> AccessResult<(Session, User, i64)> {
-        let origin = self.check_origin(request, unsafe_request, None)?;
+        let origin = self.check_origin(request, unsafe_request)?;
         let token = token_hash(request, true)?.ok_or(AccessError::Unauthenticated)?;
         let state = self.current().session_state(&token, &origin)?;
         if unsafe_request {
@@ -811,6 +850,11 @@ impl AccessBoundary {
     fn rate(&mut self, bucket: &str, limit: u32, window: i64) -> AccessResult<()> {
         self.store
             .consume_rate(&digest(bucket), self.config.now()?, window, limit)
+    }
+
+    fn check_rate(&self, bucket: &str, limit: u32) -> AccessResult<()> {
+        self.store
+            .check_rate(&digest(bucket), self.config.now()?, limit)
     }
 
     fn issue(
@@ -895,12 +939,10 @@ impl AccessBoundary {
         &self,
         request: &RequestEvidence<'_>,
         unsafe_request: bool,
-        expected: Option<&str>,
     ) -> AccessResult<String> {
         let url = Url::parse(request.url).map_err(|_| AccessError::Forbidden)?;
         let origin = url.origin().ascii_serialization();
         if !self.config.origins.contains(&origin)
-            || expected.is_some_and(|e| e != origin)
             || !url.username().is_empty()
             || url.password().is_some()
             || request

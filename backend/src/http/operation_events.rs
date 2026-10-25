@@ -389,11 +389,7 @@ pub(super) async fn events(
             serde_json::to_value(&scope).map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?,
         )
         .map_err(|_| failure(StatusCode::SERVICE_UNAVAILABLE))?;
-        let url = format!(
-            "{}{}",
-            host.origin,
-            uri.path_and_query().map_or("/", |path| path.as_str())
-        );
+        let url = super::auth::url(&host, &uri);
         let request =
             evidence(&host.origin, &headers, &uri, &url, &Method::GET).map_err(access_error)?;
         let (current, session) = {
@@ -649,11 +645,7 @@ pub(super) async fn reconcile_intent(State(host): State<Host>, request: Request)
         {
             return Err(failure(StatusCode::FORBIDDEN));
         }
-        let url = format!(
-            "{}{}",
-            host.origin,
-            uri.path_and_query().map_or("/", |path| path.as_str())
-        );
+        let url = super::auth::url(&host, &uri);
         let request =
             evidence(&host.origin, &headers, &uri, &url, &method).map_err(access_error)?;
         let (principal, session) = {
