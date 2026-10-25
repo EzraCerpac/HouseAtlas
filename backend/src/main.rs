@@ -128,6 +128,17 @@ async fn run(
                 println!("{}", serde_json::to_string(&report)?);
                 Ok(())
             }
+            ServerCommand::RestoreCheck(selection) => {
+                if ai_account.is_some() {
+                    return Err("Restore check accepts no AI account selection".into());
+                }
+                let report = tokio::task::spawn_blocking(move || {
+                    lifecycle::backup::restore_check(&selection)
+                })
+                .await??;
+                println!("{}", serde_json::to_string(&report)?);
+                Ok(())
+            }
             ServerCommand::Initialize {
                 config,
                 provisioning,

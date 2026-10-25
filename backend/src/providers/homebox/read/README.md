@@ -141,7 +141,11 @@ Store errors expose only a fixed publication failure.
 
 Lists use `/api/v1/entities`, explicit `isLocation=true/false`,
 `includeArchived=true`, bounded offset pages, and repeated `parentIds` for views.
-Detail and maintenance decode the pinned normalized synthetic dialect. JSON parsing
+`HomeBoxReader::new` selects the normalized synthetic dialect; `new_stock` selects
+the existing `homebox-stock-v0.26.2` endpoint bridge for lists, detail and
+maintenance. These are distinct source contracts, not installed-build detection.
+The current [read support matrix](../../../../../docs/providers/read-support-matrix.md)
+records their source and live-evidence limits. JSON parsing
 checks UTF-8, duplicate keys including extras, finite numbers, escaped surrogates
 and depth 64. RawValue distinguishes actual JSON containers from arbitrary-precision
 Serde numeric maps. AT51 classifies integral lexical tokens before checked u64
@@ -213,15 +217,18 @@ provider authority B remains root/access host integration. No permissive replace
 supplied. Publication futures impose no extra Send/Sync bounds on those borrowed
 handles; the shared host must reconcile their execution context.
 
-The published fixture catalog marks actual detail/maintenance/attachment wire
-unqualified. Exact missing inputs are sanitized healthy responses plus matching
-HomeBox version/build/API evidence: location/item list pages including archived
+The original normalized fixture catalog marks actual provider wire unqualified.
+The stock wire successor now supplies source-derived synthetic list/detail/
+attachment/maintenance fixtures and a decoder pinned by `wire/source-pins.json`;
+it is not a target capture. Exact remaining live inputs are sanitized responses
+plus matching HomeBox version/build/API evidence: location/item list pages including archived
 rows; an entity detail with null metadata and stored-file/external-link attachments;
 and maintenance with schedules/completions/cost. Capture method/path, pagination,
 status/content type/encoding and tenant semantics, sanitizing headers. Therefore
-this decoder still implements `atlas-normalized-synthetic-v1` with reference version
-`v0.26.2`; it does not demonstrate native wire compatibility. TLS handshakes, actual
-credential retrieval, tenant enforcement and native routes need separate authorized
+the normalized constructor still implements `atlas-normalized-synthetic-v1`,
+while `new_stock` implements the separate `homebox-stock-v0.26.2` source contract.
+Neither demonstrates compatibility with the installed provider. TLS handshakes,
+actual credential retrieval, tenant enforcement and native routes need separate authorized
 qualification. Published Atlas/history schemas remain unchanged.
 
 ## Scoped healthy verification

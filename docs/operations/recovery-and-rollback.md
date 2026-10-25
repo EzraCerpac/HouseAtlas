@@ -1,7 +1,9 @@
 # Recovery and rollback requirements
 
-Recovery objectives/retention are proposed and unmeasured. Recovery owner and
-encrypted off-host destination are unconfigured. Keep secrets and permission
+Recovery objectives are proposed and unmeasured. The off-host destination is
+the owner's iCloud Drive through the nightly job in
+[icloud-backup.md](icloud-backup.md), which keeps every copy and proves each one
+restores after downloading it back from iCloud. Keep secrets and permission
 recovery under a separate private procedure with current revocation reconciliation.
 
 A coherent point drains all writers, fences owned blob deletion, captures a
