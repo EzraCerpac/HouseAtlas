@@ -9,6 +9,7 @@ import { RealPreview } from './components/RealPreview';
 import { SourceDetails } from './components/SourceDetails';
 import { SearchPalette } from './components/SearchPalette';
 import { SettingsDialog } from './components/SettingsDialog';
+import { SyncStatus } from '../outbox/ui';
 import { Modal } from './components/Modal';
 import { ShellMenu } from './components/ShellMenu';
 import { attentionCount } from './components/DetailPanel';
@@ -251,6 +252,7 @@ export function App() {
       </nav>
 
       <div className="shell-tools">
+        <SyncStatus />
         <OverviewToggle expanded={sheetExpanded && !state.selection} onToggle={toggleOverview} />
         {/* Atlas tools holds the saved house copy and the native tools; on
             phones it shares one menu with Settings. */}

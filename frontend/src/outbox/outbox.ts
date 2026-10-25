@@ -151,6 +151,9 @@ export function createOutbox(options: OutboxOptions): Outbox {
     getSnapshot: () => snapshot,
     subscribe(changed) { listeners.add(changed); return () => { listeners.delete(changed); }; },
     configure(next) {
+      const same = next && context && next.actorId === context.actorId && next.csrfToken === context.csrfToken
+        && next.workspaceId === context.workspaceId && next.homeId === context.homeId;
+      if (same) return;
       context = next;
       if (next) void drain();
     },

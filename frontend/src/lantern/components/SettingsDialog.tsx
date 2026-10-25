@@ -4,6 +4,7 @@ import { AiSettingsSection } from '../../ai/host/index.js';
 import { useStore } from '../state/store';
 import { Modal } from './Modal';
 import { setModelUpdates, useModelUpdates } from '../unified-atlas/model-updates';
+import { SyncSettings } from '../../outbox/ui';
 
 export function SettingsDialog() {
   const { state, dispatch, actions } = useStore();
@@ -76,6 +77,8 @@ export function SettingsDialog() {
             ? 'The stored copy opens; the model downloads only when you choose Check for update.'
             : 'Checks for a newer model on each open, except on mobile data where the browser reports it.'}</p>
         </fieldset>
+
+        <SyncSettings />
 
         <fieldset className="field">
           <legend>Motion</legend>

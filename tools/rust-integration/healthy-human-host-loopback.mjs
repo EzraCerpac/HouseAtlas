@@ -231,8 +231,13 @@ try {
   assert.equal(completionResponse?.status, 200);
   const completionBody = await send('Network.getResponseBody', { requestId: captured.requestId });
   const receipt = JSON.parse(completionBody.base64Encoded ? Buffer.from(completionBody.body, 'base64').toString('utf8') : completionBody.body);
-  const renderedReceipt = await evaluate("document.querySelector('section[aria-label=\"Atlas place editing\"] details pre')?.textContent");
-  assert.deepEqual(JSON.parse(renderedReceipt), receipt, 'Actual HTTP canonical receipt is displayed after normal form refresh');
+  // The form saves through the device outbox, which settles the entry once committed.
+  const queued = await evaluate(`new Promise((resolve, reject) => { const open = indexedDB.open('houseatlas-outbox-v1');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => { const read = open.result.transaction('entries').objectStore('entries').getAll();
+      read.onerror = () => reject(read.error); read.onsuccess = () => resolve(read.result.map(entry => ({ state: entry.state, requestId: entry.requestId, label: entry.label, body: entry.body }))); }; })`);
+  assert.deepEqual(queued, [{ state: 'synced', requestId: submitted.requestId, label: `Mark ${room.entity.name} as floor`, body: JSON.stringify(submitted) }],
+    'The classification went through the device outbox, stored byte for byte, and settled');
   assert.equal(receipt.schemaVersion, 3); assert.equal(receipt.commandId, submitted.commandId);
   assert.equal(receipt.requestId, submitted.requestId); assert.deepEqual(receipt.resolvedScope, submitted.context);
   assert.equal(receipt.status, 'committed'); assert.equal(receipt.replayed, false);

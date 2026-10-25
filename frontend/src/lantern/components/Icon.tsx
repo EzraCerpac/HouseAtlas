@@ -32,6 +32,7 @@ const PATHS: Record<string, string> = {
   calendar: 'M4.5 6h15v13.5h-15Z M4.5 10h15 M8.5 3.5v4 M15.5 3.5v4',
   external: 'M14 4.5h5.5V10 M19.5 4.5 11 13 M17 14v5.5H4.5V7H10',
   copy: 'M8 8h11v12H8Z M5 16V4h11',
+  sync: 'M4.5 12a7.5 7.5 0 0 1 13.3-4.8L20 9.5 M20 4.5v5h-5 M19.5 12a7.5 7.5 0 0 1-13.3 4.8L4 14.5 M4 19.5v-5h5',
   cloudOff: 'M7 18h10a4 4 0 0 0 1-7.9A6 6 0 0 0 6.6 9 4.5 4.5 0 0 0 7 18Z M4 4l16 16',
   info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z M12 11v5.5 M12 7.5v.1',
   menu: 'M4 7h16 M4 12h16 M4 17h16',
