@@ -16,7 +16,8 @@ const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
  * terrain exported as triangle soup with sub-millimetre seams (context).
  * Options add an unused mesh before the slab, an accessor nothing reads, and
  * node `semanticRole` extras; `thin` adds a house chain and garden gravel, both
- * made of separate 5 mm cubes, and a strip thinner than the weld distance. */
+ * made of separate 5 mm cubes, a strip thinner than the weld distance, and a
+ * patch whose many slivers weld away. */
 export function syntheticMaster({ dead = false, unusedMesh = false, extras = false, thin = false } = {}) {
   const parts = [], accessors = [], views = [];
   let length = 0;
@@ -85,6 +86,19 @@ export function syntheticMaster({ dead = false, unusedMesh = false, extras = fal
     for (let i = 0; i < 20; i++) indices.push(2 * i, 2 * i + 2, 2 * i + 1, 2 * i + 1, 2 * i + 2, 2 * i + 3);
     return [positions, indices];
   };
+  // A flat 10 x 10 grid (200 triangles) plus 1,800 slivers shorter than the weld:
+  // welding leaves 200 triangles, yet the floor is a hundredth of all 2,000.
+  const fringe = () => {
+    const positions = [], indices = [];
+    for (let j = 0; j <= 10; j++) for (let i = 0; i <= 10; i++) positions.push(3 + i * 0.05, 0.5 + j * 0.05, 2.5);
+    for (let j = 0; j < 10; j++) for (let i = 0; i < 10; i++) { const a = j * 11 + i; indices.push(a, a + 1, a + 12, a, a + 12, a + 11); }
+    for (let k = 0; k < 1800; k++) {
+      const base = positions.length / 3, x = 3 + (k % 40) * 0.0125, y = 0.5 + Math.floor(k / 40) * 0.0111;
+      positions.push(x, y, 2.6, x + 0.0001, y, 2.6, x, y + 0.0001, 2.6);
+      indices.push(base, base + 1, base + 2);
+    }
+    return [positions, indices];
+  };
   const named = [
     ['RoomPick', primitive(box, boxIndices), 'room-pick'],
     ...(unusedMesh ? [['Retired', primitive(box, boxIndices), null]] : []),
@@ -94,6 +108,7 @@ export function syntheticMaster({ dead = false, unusedMesh = false, extras = fal
     ['Terrain', primitive(soup, soupIndices), 'context'],
     ...(thin ? [['Chain', primitive(...cubes(40, c => [2, 1 + c * 0.012, 1])), 'context'],
       ['Sliver', primitive(...sliver()), 'context'],
+      ['Fringe', primitive(...fringe()), 'context'],
       ['Gravel', primitive(...cubes(60, c => [-4 + (c % 10) * 0.3, -0.45, 6 + Math.floor(c / 10) * 0.3])), 'context']] : []),
   ];
   if (dead) add(new Float32Array(1024), 'VEC3', 5126);
@@ -104,9 +119,9 @@ export function syntheticMaster({ dead = false, unusedMesh = false, extras = fal
   const node = (name, extra = {}) => ({ mesh: meshIndex(name), name, ...extra, ...(extras ? { extras: { semanticRole: role(name), levelIds: levelIds(name) } } : {}) });
   const json = {
     asset: { version: '2.0', generator: 'synthetic' }, scene: 0, scenes: [{ nodes: [0] }],
-    nodes: [{ name: 'House', children: thin ? [1, 2, 3, 4, 5, 6, 7, 8, 9] : [1, 2, 3, 4, 5, 6] }, node('RoomPick'), node('Slab'), node('Wall'),
+    nodes: [{ name: 'House', children: thin ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] : [1, 2, 3, 4, 5, 6] }, node('RoomPick'), node('Slab'), node('Wall'),
       { ...node('Lamp'), name: 'LampA', translation: [1, 1.5, 1] }, { ...node('Lamp'), name: 'LampB', translation: [3, 1.5, 2] }, node('Terrain'),
-      ...(thin ? [node('Chain'), node('Sliver'), node('Gravel')] : [])],
+      ...(thin ? [node('Chain'), node('Sliver'), node('Fringe'), node('Gravel')] : [])],
     meshes: named.map(([name, p]) => ({ name, primitives: [p] })), accessors, bufferViews: views, buffers: [{ byteLength: length }],
   };
   const bin = new Uint8Array(length); let at = 0;
@@ -116,7 +131,7 @@ export function syntheticMaster({ dead = false, unusedMesh = false, extras = fal
     buildingId: 'b', levelIds: levelIds(name), spaceOccurrenceId: role(name) === 'room-pick' ? 'o1' : null, role: role(name) });
   const companion = { profile: 'houseatlas.unified-atlas-publication.v1', original: { sha256: sha256(glb), bytes: glb.byteLength },
     meshBindings: [binding('RoomPick', 1), binding('Slab', 2), binding('Wall', 3), binding('Lamp', 4), binding('Lamp', 5), binding('Terrain', 6),
-      ...(thin ? [binding('Chain', 7), binding('Sliver', 8), binding('Gravel', 9)] : [])] };
+      ...(thin ? [binding('Chain', 7), binding('Sliver', 8), binding('Fringe', 9), binding('Gravel', 10)] : [])] };
   return { glb, companion };
 }
 
@@ -229,6 +244,8 @@ test('never empties a primitive, even when whole parts are below the error', asy
   assert.ok(result.report.contextErrorMetres > 0.005, `bake error ${result.report.contextErrorMetres} m is above the 5 mm parts`);
   assert.ok(row(result, 'Chain').changed && row(result, 'Gravel').changed);
   assert.ok(trianglesOf(result.glb, 'Sliver') >= 4);
+  // The floor is a hundredth of the authored 2,000 triangles, not of what welding left.
+  assert.ok(row(result, 'Fringe').bakedTriangles >= 20, `Fringe kept ${row(result, 'Fringe').bakedTriangles}`);
   await admitInViewer(result.glb);
 });
 

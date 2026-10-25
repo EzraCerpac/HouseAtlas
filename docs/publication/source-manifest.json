@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "e3c6c3ee60e0f5a82968e20586ec7fb4f95462273210cc013bd910047bd396d0",
+  "sourceDigestSha256": "c69662e72bb6746b8dfbec4013655c6d0dc5164abaf1989c055cf27e49195592",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -12068,8 +12068,8 @@
     {
       "path": "tools/model-bake/src/bake.mjs",
       "mode": "100644",
-      "bytes": 18371,
-      "sha256": "7835fe4acf001bcde291ef81e380e7ca14538beb5505bee425a69072d10ad4c4",
+      "bytes": 18465,
+      "sha256": "4a52d1dfcd6955a3a73202f7280997cd380ee99d4925ffd350c65ca2ab8f4f46",
       "owner": "media"
     },
     {
@@ -12082,8 +12082,8 @@
     {
       "path": "tools/model-bake/test/bake.test.mjs",
       "mode": "100644",
-      "bytes": 20086,
-      "sha256": "1ac6e2d615a8e0240419532cc42ac293fc35e2321dd896b3a72e51db02c4ad29",
+      "bytes": 21211,
+      "sha256": "41a07523f413594c2d71170499fbb6bf8caa6aef931da245756f046e165bf184",
       "owner": "media"
     },
     {

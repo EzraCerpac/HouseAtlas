@@ -195,7 +195,8 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
       indices: welded.map(v => local.get(v)),
       extent: MeshoptSimplifier.getScale(compact, 3),
       weight: role !== 'context' ? options.structureWeight : site ? options.siteWeight : 1,
-      floor: floorTriangles(welded.length / 3),
+      // The floor follows the authored count: welding may already have dropped degenerate triangles.
+      floor: floorTriangles(triangles),
       // Pruning and clustering are for site context only. House context may still
       // collapse parts smaller than the error, but never below the floor.
       sloppy: site,
