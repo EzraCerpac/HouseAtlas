@@ -52,8 +52,9 @@ its explicit list, including the `offline-launch` and `hung-network` cases in
 the runner's Chromium against the built public shell; and
 `cargo test --locked -p houseatlas-backend --lib` with its default
 (non-`#[ignore]`) set, skipping the three quantity tests that need
-`HOUSEATLAS_QUANTITY_REFERENCE_DIR`. A PR that extends CI names the added scope
-here and in the verification guide.
+`HOUSEATLAS_QUANTITY_REFERENCE_DIR`; and the healthy `tools/rust-integration`
+loopback flows named in the workflow and in the verification guide. A PR that
+extends CI names the added scope here and in the verification guide.
 
 The separately authorized Synthetic README media workflow captures only
 checked-in generated fixtures through the actual React renderer and fake read
