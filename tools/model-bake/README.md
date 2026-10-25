@@ -56,12 +56,18 @@ metres, default 0.0005).
   away entirely, so it stays unwelded. Errors convert to each mesh's local
   units by the largest stretch of its world transform (its largest singular
   value), so nested nonuniform scales never loosen the error in metres.
+  Welding can move a vertex by up to one cell diagonal (0.87 mm at the
+  default), so every reported error includes that displacement and
+  `--max-error` caps the context error with it; a weld that leaves no room
+  under the cap is refused.
 - Both methods only keep source vertices, so every baked position is a master
   position and every building, level and occurrence bound still holds.
-- Simplified untextured primitives keep only `POSITION`. The viewer draws
-  untextured geometry with flat normals it derives itself, so normals, UVs and
-  colours on those primitives were never displayed. Textured primitives keep all
-  attributes and are simplified without welding, so UV seams stay intact.
+- Simplified primitives keep only `POSITION`. The viewer draws untextured
+  geometry with flat normals it derives itself, so normals, UVs and colours on
+  those primitives were never displayed.
+- Textured primitives are kept as authored. A flat surface can lose the
+  vertices that carry a non-affine UV mapping at zero position error, and the
+  texture drift that causes is not bounded by an error in metres.
 - Every buffer is rewritten tightly: meshes no node draws, accessors nothing
   reads and the bytes behind them are dropped, because the viewer and backend
   refuse unused declarations. Untouched accessors keep their exact values.
@@ -75,15 +81,17 @@ material admission on the result. A refusal there fails the bake.
 node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs
 ```
 
-Seven cases on generated geometry: baking to budget (locked footprints,
+Eight cases on generated geometry: baking to budget (locked footprints,
 source-vertex positions, a flat wall and welded terrain soup collapsing, viewer
 admission), a master that already fits (kept as authored while an unused mesh,
 a dead accessor and their bytes drop, with bindings remapped), roles read from
 node extras without a companion, refusals for a foreign companion pin and an
-unreachable budget, and a bake whose error exceeds whole 5 mm parts (house
+unreachable budget or a weld larger than the cap, a bake whose error exceeds whole 5 mm parts (house
 chain, garden gravel, a strip thinner than the weld) that still leaves every
 primitive non-empty, the world stretch of a rotation under a nonuniform scale,
-and the command line refusing an `--out` that holds its inputs. They do not render anything or touch a real model.
+the command line refusing an `--out` that holds its inputs, and a textured
+panel with non-affine UVs kept as authored. They do not render anything or
+touch a real model.
 
 ## Not covered here
 

@@ -7,8 +7,9 @@
  * losing the same percentage. Both edge collapse and the clustering fallback
  * keep only original vertices, so every baked position is a source position
  * and every source bound still contains the baked geometry. Room-pick and slab
- * primitives carry plan footprints and are never changed; structure and roof
- * are held to a tighter error than context.
+ * primitives carry plan footprints and textured primitives carry UV mappings,
+ * so neither is changed; structure and roof are held to a tighter error than
+ * context. Reported errors include the welding displacement.
  */
 import { createHash } from 'node:crypto';
 import { MeshoptSimplifier } from 'meshoptimizer';
@@ -28,6 +29,7 @@ export const BAKE_DEFAULTS = Object.freeze({
    * before simplification, so exporter-split or clipped surfaces collapse as
    * one surface. Welding keeps the first source vertex of each cell. */
   weld: 0.0005,
+
 });
 /** Roles whose primitives must stay byte-identical. */
 export const LOCKED_ROLES = Object.freeze(['room-pick', 'slab']);
@@ -106,14 +108,15 @@ function simplifyAt(candidate, error) {
 }
 
 /** Collapses each candidate at the smallest global error that meets the budget. */
-function search(candidates, fixedTriangles, options) {
+function search(candidates, fixedTriangles, options, cap) {
   const total = error => candidates.reduce((sum, c) => sum + simplifyAt(c, error * c.weight).length / 3 * c.instances, fixedTriangles);
   const authored = candidates.reduce((sum, c) => sum + c.original.length / 3 * c.instances, fixedTriangles);
   if (authored <= options.triangles) return { error: 0, triangles: authored };
-  const atCap = total(options.maxError);
+  if (cap <= 0) throw new Error(`--weld ${options.weld} m can move vertices up to ${options.maxError - cap} m, which leaves no room under --max-error ${options.maxError} m`);
+  const atCap = total(cap);
   if (atCap > options.triangles)
     throw new Error(`Cannot reach ${options.triangles} triangles within ${options.maxError} m (${atCap} remain); lower detail in the source or raise --max-error`);
-  let low = 0, high = options.maxError;
+  let low = 0, high = cap;
   // 20 halvings resolve the error to about 0.05 mm at a 5 cm cap.
   for (let step = 0; step < 20; step++) {
     const mid = (low + high) / 2;
@@ -161,7 +164,7 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     if (!meshMap.has(binding.meshIndex)) throw new Error(`Companion binds mesh ${binding.meshIndex}, which no node draws`);
 
   const candidates = [], report = [];
-  let fixedTriangles = 0;
+  let fixedTriangles = 0, weldedAny = false;
   for (const [meshIndex] of meshMap) source.meshes[meshIndex].primitives.forEach((primitive, primitiveIndex) => {
     const uses = instances.get(meshIndex), slot = key(meshIndex, primitiveIndex);
     const role = roles.get(slot) ?? (companion ? null : 'context');
@@ -174,12 +177,15 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     const entry = { mesh: meshIndex, primitive: primitiveIndex, name: source.meshes[meshIndex].name ?? null, role, site, instances: uses.length,
       textured: hasTextures, triangles, bakedTriangles: triangles, changed: false };
     report.push(entry);
-    if (LOCKED_ROLES.includes(role) || triangles < 4) { fixedTriangles += triangles * uses.length; return; }
+    // Textured primitives are kept as authored: a flat surface can lose the
+    // vertices that carry a non-affine UV mapping at zero position error, and
+    // the texture drift that causes is not bounded by the error in metres.
+    if (LOCKED_ROLES.includes(role) || hasTextures || triangles < 4) { fixedTriangles += triangles * uses.length; return; }
     const scale = Math.max(...uses.map(use => maxScale(use.world)), 1e-9);
-    // Welding would merge across UV seams the material path needs; textured slots collapse unwelded.
     // A part thinner than the weld distance can weld away entirely; it then stays unwelded.
-    let welded = hasTextures ? indices : weld(positions, indices, options.weld / scale);
+    let welded = weld(positions, indices, options.weld / scale);
     if (welded.length < floorTriangles(triangles) * 3) welded = indices;
+    else weldedAny = true;
     // The simplifier sees only referenced vertices: unreferenced ones (left by
     // welding or the exporter) stall edge collapse. `vertexIds` maps back to source.
     const vertexIds = [...new Set(welded)].sort((a, b) => a - b), local = new Map(vertexIds.map((v, i) => [v, i]));
@@ -192,11 +198,15 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
       floor: floorTriangles(welded.length / 3),
       // Pruning and clustering are for site context only. House context may still
       // collapse parts smaller than the error, but never below the floor.
-      sloppy: site && !hasTextures,
+      sloppy: site,
       flags: site ? ['ErrorAbsolute', 'Prune'] : ['ErrorAbsolute'] });
   });
 
-  const result = search(candidates, fixedTriangles, options);
+  // Welding moves a vertex by at most one weld cell diagonal before simplifying,
+  // so --max-error bounds the context error plus that displacement.
+  const weldDisplacement = weldedAny ? options.weld * Math.sqrt(3) : 0;
+  const result = search(candidates, fixedTriangles, options, options.maxError - weldDisplacement);
+  const displaced = result.error > 0 ? weldDisplacement : 0;
   const baked = new Map();
   // A master that already fits keeps every primitive as authored.
   for (const c of result.error === 0 ? [] : candidates) {
@@ -207,7 +217,7 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
   }
 
   // Rebuild every buffer tightly: untouched accessors keep their exact values,
-  // baked primitives get compact positions (plus every attribute when textured).
+  // baked primitives (never textured) get compact positions only.
   const json = structuredClone(source), writer = new BinWriter(), accessors = [], views = [];
   const addView = (bytes, extra = {}) => { views.push({ buffer: 0, byteOffset: writer.add(bytes), byteLength: bytes.byteLength, ...extra }); return views.length - 1; };
   const addAccessor = (array, from, extra = {}) => {
@@ -237,7 +247,7 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
       for (const v of indices) used[v] = 0;
       let count = 0;
       for (let v = 0; v < vertexCount; v++) if (used[v] === 0) used[v] = count++;
-      const names = textured(source, from.material) ? Object.keys(from.attributes) : ['POSITION'];
+      const names = ['POSITION'];
       const attributes = {};
       for (const name of names) {
         const accessor = source.accessors[from.attributes[name]], width = COMPONENTS[accessor.type];
@@ -276,7 +286,10 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
       overview: { sha256: sha256(outBytes), bytes: outBytes.byteLength, binBytes: outBin.byteLength, drawnTriangles: drawn(report) },
       budget: { triangles: options.triangles, maxError: options.maxError, structureWeight: options.structureWeight, siteWeight: options.siteWeight, weld: options.weld },
       rolesFrom: companion ? 'companion' : 'node-extras',
-      contextErrorMetres: result.error, structureErrorMetres: result.error * options.structureWeight, siteErrorMetres: result.error * options.siteWeight,
+      // Upper bounds on how far baked geometry departs from the master: simplification plus welding.
+      weldDisplacementMetres: displaced,
+      contextErrorMetres: result.error + displaced, structureErrorMetres: result.error * options.structureWeight + displaced,
+      siteErrorMetres: result.error * options.siteWeight + displaced,
       lockedRoles: LOCKED_ROLES, unusedMeshesDropped: unusedMeshes,
       primitives: report,
     },

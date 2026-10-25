@@ -151,11 +151,13 @@ test('bakes to the budget with one shared error and locked footprints', async ()
     assert.equal(row(result, name).changed, false); assert.equal(row(result, name).bakedTriangles, row(result, name).triangles);
   }
   // The flat wall loses nearly all its triangles at a sub-millimetre error.
-  assert.ok(result.report.structureErrorMetres < 0.001);
+  const welding = result.report.weldDisplacementMetres;
+  assert.ok(Math.abs(welding - 0.0005 * Math.sqrt(3)) < 1e-12);
+  assert.ok(result.report.structureErrorMetres - welding < 0.001);
   assert.ok(row(result, 'Wall').bakedTriangles < 28_800 / 20);
   // The terrain soup collapses once its seams are welded; as site context it takes four times the error.
   assert.equal(row(result, 'Terrain').site, true); assert.equal(row(result, 'Lamp').site, false);
-  assert.equal(result.report.siteErrorMetres, result.report.contextErrorMetres * 4);
+  assert.ok(Math.abs((result.report.siteErrorMetres - welding) - (result.report.contextErrorMetres - welding) * 4) < 1e-12);
   assert.ok(row(result, 'Terrain').bakedTriangles < 20_000 / 5, `terrain kept ${row(result, 'Terrain').bakedTriangles}`);
 
   // Simplification keeps source vertices: every baked position is a master position.
@@ -214,6 +216,8 @@ test('refuses a companion that pins other bytes and a budget it cannot meet', as
   const { glb, companion } = syntheticMaster();
   await assert.rejects(bakeOverview(glb, { ...companion, original: { sha256: '0'.repeat(64), bytes: 1 } }), /does not pin/);
   await assert.rejects(bakeOverview(glb, companion, { triangles: 10, maxError: 0.001 }), /Cannot reach 10 triangles/);
+  // Welding alone may move a vertex 0.87 mm, more than a 0.5 mm cap allows.
+  await assert.rejects(bakeOverview(glb, companion, { triangles: 20_000, maxError: 0.0005 }), /leaves no room under --max-error/);
 });
 
 test('never empties a primitive, even when whole parts are below the error', async () => {
@@ -244,4 +248,54 @@ test('the command line never overwrites its inputs', () => {
       '--out', dir, '--triangles', '20000'], { stdio: 'pipe' }), /already exists/);
     assert.deepEqual(new Uint8Array(readFileSync(join(dir, 'model.glb'))), glb);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+/** A flat 60 x 60 textured panel whose U wobbles along x (a non-affine
+ * mapping), beside a dense untextured relief wall that sets the bake error. */
+function texturedMaster() {
+  const parts = [], accessors = [], views = [];
+  let length = 0;
+  const add = (array, type, componentType, extra = {}) => {
+    const bytes = new Uint8Array(array.buffer.slice(0));
+    views.push({ buffer: 0, byteOffset: length, byteLength: bytes.byteLength });
+    parts.push(bytes); length += (bytes.byteLength + 3) & ~3;
+    accessors.push({ bufferView: views.length - 1, componentType, count: array.length / { SCALAR: 1, VEC2: 2, VEC3: 3 }[type], type, ...extra });
+    return accessors.length - 1;
+  };
+  const grid = (n, at, uv) => {
+    const positions = [], uvs = [], indices = [];
+    for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) { positions.push(...at(i / n, j / n)); uvs.push(...uv(i / n, j / n)); }
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const a = j * (n + 1) + i; indices.push(a, a + 1, a + n + 2, a, a + n + 2, a + n + 1); }
+    return { positions: Float32Array.from(positions), uvs: Float32Array.from(uvs), indices: Uint32Array.from(indices) };
+  };
+  const minMax = p => ({ min: [0, 1, 2].map(k => Math.min(...p.filter((_, i) => i % 3 === k))), max: [0, 1, 2].map(k => Math.max(...p.filter((_, i) => i % 3 === k))) });
+  const panel = grid(60, (x, y) => [x * 2, y * 2, 1], (x, y) => [x + 0.05 * Math.sin(x * 40), y]);
+  // Gentle 5 mm relief, so the bake error lands in millimetres.
+  const wall = grid(120, (x, y) => [x * 4, y * 2.6, 0.005 * Math.sin(x * 40) * Math.sin(y * 40)], () => [0, 0]);
+  const png = Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
+  const meshes = [
+    { name: 'Panel', primitives: [{ attributes: { POSITION: add(panel.positions, 'VEC3', 5126, minMax([...panel.positions])), TEXCOORD_0: add(panel.uvs, 'VEC2', 5126) },
+      indices: add(panel.indices, 'SCALAR', 5125), material: 0, mode: 4 }] },
+    { name: 'Wall', primitives: [{ attributes: { POSITION: add(wall.positions, 'VEC3', 5126, minMax([...wall.positions])) }, indices: add(wall.indices, 'SCALAR', 5125), mode: 4 }] },
+  ];
+  views.push({ buffer: 0, byteOffset: length, byteLength: png.byteLength }); parts.push(png); length += (png.byteLength + 3) & ~3;
+  const json = { asset: { version: '2.0' }, scene: 0, scenes: [{ nodes: [0, 1] }], nodes: [{ mesh: 0, name: 'Panel' }, { mesh: 1, name: 'Wall' }], meshes,
+    materials: [{ pbrMetallicRoughness: { baseColorTexture: { index: 0 } } }], textures: [{ source: 0 }], images: [{ bufferView: views.length - 1, mimeType: 'image/png' }],
+    accessors, bufferViews: views, buffers: [{ byteLength: length }] };
+  const bin = new Uint8Array(length); let at = 0;
+  for (const part of parts) { bin.set(part, at); at += (part.byteLength + 3) & ~3; }
+  return writeGlb(json, bin);
+}
+
+test('keeps textured primitives as authored', async () => {
+  const glb = texturedMaster();
+  const result = await bakeOverview(glb, null, { triangles: 8_000 });
+  // The flat panel would cost no position error, yet its UVs are non-affine.
+  assert.equal(row(result, 'Panel').changed, false);
+  assert.equal(trianglesOf(result.glb, 'Panel'), trianglesOf(glb, 'Panel'));
+  const { json, bin } = readGlb(result.glb), master = readGlb(glb);
+  const uv = (g, at) => readAccessor(g.json, g.bin, g.json.meshes[0].primitives[0].attributes[at]);
+  assert.deepEqual(uv({ json, bin }, 'TEXCOORD_0'), uv(master, 'TEXCOORD_0'));
+  assert.equal(json.images.length, 1);
+  assert.ok(row(result, 'Wall').changed);
 });
