@@ -46,7 +46,9 @@ unit tests with such names can run with everything else. Prefer explicit lists
 to globbing so CI scope stays readable.
 
 Ordinary CI runs the existing workflows on pushes to `main` and pull requests
-targeting `main`. In `.github/workflows/rust-react-ordinary.yml` that includes
+targeting `main`. `.github/workflows/ordinary-core.yml` also runs the 14
+synthetic `tools/homebox-quantity-seed-report` unit tests with the runner's
+`python3` (stdlib only). In `.github/workflows/rust-react-ordinary.yml` that includes
 the named Lantern healthy read; `frontend/lantern-tests/run-healthy.mjs` with
 its explicit list, including the `offline-launch` and `hung-network` cases in
 the runner's Chromium against the built public shell, the generated CPU
