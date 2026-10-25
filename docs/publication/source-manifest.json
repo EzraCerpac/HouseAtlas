@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "dac23fddd472a1fcd8bc0ca9429152a6cd2808ecad536b1c5a3fd7fb9567de6f",
+  "sourceDigestSha256": "dfd06ffb5c0f15dbd0137fa9c57a3b2a37675c02b6231d7e7d97b8cf1b84ffe7",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -11973,6 +11973,62 @@
       "bytes": 4070,
       "sha256": "9f963f128058d05cc32cf9e380ccde984cf1c98e34903b23b3b4d6e8fe583e86",
       "owner": "core-integration"
+    },
+    {
+      "path": "tools/model-bake/README.md",
+      "mode": "100644",
+      "bytes": 3085,
+      "sha256": "067930477d7c5e08d6c2c000b3c2685e42709cfcffb214a9a21f49d0ce477e2b",
+      "owner": "media"
+    },
+    {
+      "path": "tools/model-bake/bake.mjs",
+      "mode": "100755",
+      "bytes": 2801,
+      "sha256": "ddea7b82bf83f744827e315df37d48b3c30cd0d32303a5c4a2c968f1962c25dc",
+      "owner": "media"
+    },
+    {
+      "path": "tools/model-bake/package-lock.json",
+      "mode": "100644",
+      "bytes": 639,
+      "sha256": "8bfbb4b0ce1d8bbe84622ec970cf2283bb0e80fff8d93e8ccfdb2fc28cd05a95",
+      "owner": "media"
+    },
+    {
+      "path": "tools/model-bake/package.json",
+      "mode": "100644",
+      "bytes": 321,
+      "sha256": "c7456801847f1757947c506905f8273c42751a9cc22c00d1e6d74c277eb1b213",
+      "owner": "media"
+    },
+    {
+      "path": "tools/model-bake/src/admission.mjs",
+      "mode": "100644",
+      "bytes": 2251,
+      "sha256": "295bd3c82491d32e837030c61101c2488bae14ffca6a35330e6341c038f8199e",
+      "owner": "media"
+    },
+    {
+      "path": "tools/model-bake/src/bake.mjs",
+      "mode": "100644",
+      "bytes": 13756,
+      "sha256": "b06bc8bf8292d2e5732dd5db18e6cde5b29ac019e87edc9da4f6fe0ab21624af",
+      "owner": "media"
+    },
+    {
+      "path": "tools/model-bake/src/glb.mjs",
+      "mode": "100644",
+      "bytes": 5452,
+      "sha256": "7c2060155983dac3781f08c39ff916165c63bf40914c8b966a6a03db157dfd29",
+      "owner": "media"
+    },
+    {
+      "path": "tools/model-bake/test/bake.test.mjs",
+      "mode": "100644",
+      "bytes": 8734,
+      "sha256": "e139b3539930861a0b47ac57f9bcd2ccdf0414e6866891be9ba09a378aab858e",
+      "owner": "media"
     },
     {
       "path": "tools/perf/backend-response/README.md",
