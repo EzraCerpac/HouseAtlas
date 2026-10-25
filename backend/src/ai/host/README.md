@@ -334,3 +334,44 @@ and synthetic action DTOs; they execute no callback, credential or provider port
 They verify both preserved return value and durable journal disclosure. Ordinary
 CI has no new test alias. Current root dev composition and outcomes are pinned
 in the owner handoff, separately from operational qualification.
+
+## Synthetic lifecycle scenarios for #295
+
+The existing source already preserves uncertain refresh checkpoints and remote
+revocation obligations. `oauth_lifecycle_scenarios.rs` fills missing in-process
+scenario coverage through the actual `OAuthLifecycle`, reusing the private
+synthetic peers in `oauth.rs`. Its three unit tests observe invocation persistence
+before the fake refresh, transport/general-rejection holds without a second
+submission, invalid-grant reauthorization with local credential clearing, and
+local disconnect persisted before an unconfirmed fake revocation. A subsequent
+refresh remains locally held and cannot reconnect or retry remote revocation.
+Retained material after unconfirmed revocation is intentional; this is not a
+claim of local credential removal or remote success.
+
+Each lifecycle case also attempts to acquire the actual `StoredSession` with a
+deliberately stale ready observation. Record state still denies an inference
+lease; the fixture never invokes a Responses transport.
+
+Two `connection_readiness_scenarios.rs` unit tests independently cover signed-in
+snapshots with unknown/sleeping/unreachable runtime observations across helper,
+website and companion candidates, plus held consent, authorization, workspace,
+runtime qualification and spending admission. Round trips retain availability
+uncertainty. A helper bootstrap supplies no runtime qualification; these fixtures
+do not claim that any candidate is a supported or configured runtime.
+
+These five ordinary in-process unit tests are part of the existing backend
+library test discovery. No workflow, explicit runner list, listener or adapter is
+added. Their source was prepared on 25 October 2026; execution is **NOT RUN**
+locally under the owner's git-first workflow. CI must establish compilation,
+formatting, Clippy and execution on the exact PR head. Existing unmounted PR108
+cases above retain their separate scope and are not enabled by this module.
+
+The memory peer models serial record persistence, not encrypted storage,
+exclusive native refresh leases or process/device recovery. Account eligibility,
+actual model discovery, inference/spend, helper lifetime on desktop/phone/PWA,
+asleep/offline devices, callback interruption, foreground return, local removal
+and live remote revocation remain **NOT RUN / DEFERRED** with their original
+owners. Account-only source observation remains independent of workspace and
+inference readiness. Dispatcher/startup/router composition stays with #294;
+recovery and endpoint acceptance stay with #286/#289. No live account, token
+read, sign-in, refresh, revoke, inference or device session accompanies this work.

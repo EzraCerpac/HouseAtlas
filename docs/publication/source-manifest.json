@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b00300d6d8634f43ee412ed19cf30dc11cfd05b1bc332e5f5f9455789543325d",
+  "sourceDigestSha256": "f7148061b789991a8e9d554fb1964402ae4df916b7b9571ed0686486e2bdf445",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -719,6 +719,13 @@
       "owner": "ai"
     },
     {
+      "path": "backend/src/ai/connection_readiness_scenarios.rs",
+      "mode": "100644",
+      "bytes": 4359,
+      "sha256": "e41974b2fa3ab4b6dd41ebf3d23e9cc828714208e24c32d0a871c50a36b1456c",
+      "owner": "ai"
+    },
+    {
       "path": "backend/src/ai/fixtures/stock-read-tools.json",
       "mode": "100644",
       "bytes": 4048,
@@ -735,8 +742,8 @@
     {
       "path": "backend/src/ai/host/README.md",
       "mode": "100644",
-      "bytes": 21935,
-      "sha256": "17f6c813855f710be4a5064df3de7e218725379a10e4eea69cbe1baae7000c30",
+      "bytes": 24594,
+      "sha256": "cb263e8d31e792307eb9498788c7cac13c5869ef8c13b38b5e83b30877014bcf",
       "owner": "ai"
     },
     {
@@ -1022,8 +1029,8 @@
     {
       "path": "backend/src/ai/oauth.rs",
       "mode": "100644",
-      "bytes": 79310,
-      "sha256": "82a2e891ec94ca182a9e8746eed908d317c78bcd063c9a49d904c03b78e6a027",
+      "bytes": 79677,
+      "sha256": "deb97b75630dd96da90cf324def06248235137afd01fe432a50dd17bbda5b259",
       "owner": "ai"
     },
     {
@@ -1031,6 +1038,13 @@
       "mode": "100644",
       "bytes": 395,
       "sha256": "e7c4f2c329f8cee40bd011f7b529d11e92c0f7d7f4437e190432e66d4d0a2976",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/oauth_lifecycle_scenarios.rs",
+      "mode": "100644",
+      "bytes": 10861,
+      "sha256": "c7664343b6866df9a791f891dd67dffe15022d658b00e79a11a62df78e2758df",
       "owner": "ai"
     },
     {
