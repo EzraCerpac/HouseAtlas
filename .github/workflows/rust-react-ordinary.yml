@@ -87,6 +87,13 @@ jobs:
         env:
           HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
         run: node frontend/lantern-tests/run-healthy.mjs
+      - name: Backend library unit tests (default set)
+        if: runner.os == 'Linux'
+        run: >-
+          cargo test --locked -p houseatlas-backend --lib --
+          --skip http::quantity_http_healthy::
+          --skip providers::homebox::write::stock::quantity_flow_healthy::
+          --skip providers::homebox::write::stock::quantity_installation_healthy::
       - name: Genuine native MCP stock get and audit page after fresh circuit commit
         if: runner.os == 'Linux'
         run: cargo run --locked -p houseatlas-backend --example healthy-agent-stock

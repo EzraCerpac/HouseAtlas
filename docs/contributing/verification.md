@@ -37,6 +37,22 @@ portal or a weak signal. It must show the shell within 3 s; the root worker
 hands a silent navigation to Saved after 2 s. Both cases are in the healthy
 suite. Neither case is iOS, installed-PWA or live-model evidence.
 
+## Backend unit tests
+
+The `Rust React ordinary core` workflow runs the backend library unit tests on
+Linux, with Node 26.10.0 on `PATH` for the media fixture peers:
+
+```sh
+cargo test --locked -p houseatlas-backend --lib -- \
+  --skip http::quantity_http_healthy:: \
+  --skip providers::homebox::write::stock::quantity_flow_healthy:: \
+  --skip providers::homebox::write::stock::quantity_installation_healthy::
+```
+
+Tests marked `#[ignore]` stay in their held lanes. The three skipped quantity
+tests need `HOUSEATLAS_QUANTITY_REFERENCE_DIR` pointing at the pinned public
+HomeBox source and remain a manual check.
+
 ## Generated annual-session integration regressions
 
 Inspect `frontend/lantern-tests/session-policy-integration.mjs`, the production

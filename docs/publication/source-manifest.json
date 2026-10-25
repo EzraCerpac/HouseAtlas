@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0ebf4cd24d95ea51c3bd6da82ef0cdafa80b560b07b33d0d213d0c98eacb24fa",
+  "sourceDigestSha256": "b5b40f0efd5e7421b8a4d9e6c0d77a799d16b9c1a40ae00cfffc44436e28998b",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -63,8 +63,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 13712,
-      "sha256": "ea6d91e3b3a3efbdc9bdd57e17c5069849df4b2576fda46e97de4266dd99cf07",
+      "bytes": 14082,
+      "sha256": "3cbf6f9c8b1376a61043ba868499df19c46275382320478cffa03940cbd8ea90",
       "owner": "core-integration"
     },
     {
@@ -3024,8 +3024,8 @@
     {
       "path": "backend/src/media/healthy_native_examples.rs",
       "mode": "100644",
-      "bytes": 14519,
-      "sha256": "2c7c25d8d94b19c6067d910c04ef1f49a1f384efee21a8019cc441c8df49f95d",
+      "bytes": 15164,
+      "sha256": "aaa1125f307db4730fb84ab552920e66d7e51824f7f227349a2ea2e4affe89c8",
       "owner": "media"
     },
     {
@@ -6034,8 +6034,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 172898,
-      "sha256": "ed5152749b94f557f7581c9f9c4035c47bbf7475c5eabfbe29572c854f9280b9",
+      "bytes": 173512,
+      "sha256": "f93e602833d65331fe58b194f71ae0ffe8e4dbd94529c46e9e0f0fafdef3b4ac",
       "owner": "core-integration"
     },
     {
