@@ -11543,15 +11543,15 @@
     {
       "path": "tools/electrical_registration/healthy.test.mjs",
       "mode": "100644",
-      "bytes": 12711,
-      "sha256": "c0402d37cc281f6becbf6fcb15f80733889b4196d97ce6b6dbf2cbedcfa2765f",
+      "bytes": 14541,
+      "sha256": "7c9703a394a07d58bb8ccb54d63fb1df28dcb88f194b53347c6af9b3fb1166b3",
       "owner": "media"
     },
     {
       "path": "tools/electrical_registration/registration.mjs",
       "mode": "100644",
-      "bytes": 17369,
-      "sha256": "dfb2e58cf07932f13c14dce0f5be727781ee31d6a86c67a9b7321388649ac489",
+      "bytes": 18092,
+      "sha256": "a289c64926c0fe91856eb6d50bf89ed9cd9531762136f8c4696e67357e042851",
       "owner": "media"
     },
     {

@@ -132,7 +132,17 @@ export function projectInventory(records, assessments, currentContext, selection
     need(row.physicalCoordinate==null&&row.currentCircuitId==null&&row.wireRoute==null&&row.heightMetres==null,'Known physical/circuit facts require a separate contract; they cannot be overwritten by this documentary projector');
     const placements=[], unsupported=[];
     const matches=assessments.filter(a=>{
-      if(a.status!=='reviewed-approximate-scene-registration'||!sameFrame(a.target,currentContext.frame)||!sameSource(a.source,row)||!currentContext.sources.some(s=>sameSource(s,a.source)))return false;
+      if(!sameFrame(a.target,currentContext.frame)||!sameSource(a.source,row)||!currentContext.sources.some(s=>sameSource(s,a.source))
+        ||!row.bindings.some(b=>sameBinding(a.target,b)))return false;
+      // Fresh assessment results withhold the transform before fitting. Retain
+      // their documentary state before applying the accepted-placement filter.
+      if(a.status==='withdrawn-invalid-nomination'||a.status==='withheld-withdrawal-reconciliation'){
+        unsupported.push({registrationId:a.id,status:a.status,reason:'Retained invalid nomination requires withdrawal or revision reconciliation',
+          reasons:copy(a.reasons),source:copy(a.source),target:copy(a.target),targetFeatureIds:copy(a.targetFeatureIds),
+          withdrawnNominations:copy(a.withdrawnNominations)});
+        return false;
+      }
+      if(a.status!=='reviewed-approximate-scene-registration')return false;
       if(!Array.isArray(a.targetFeatureIds))return false;
       const withdrawals=nominationWithdrawals(currentContext,a.source,a.target,a.targetFeatureIds);
       if(withdrawals.length){
@@ -158,7 +168,7 @@ export function projectInventory(records, assessments, currentContext, selection
         annotationToleranceXZ:[Math.abs(aa)*tolerance[0]+Math.abs(c)*tolerance[1]+extra,Math.abs(b)*tolerance[0]+Math.abs(d)*tolerance[1]+extra],
         qualification:'reviewed approximate source alignment; tolerance is not surveyed accuracy',physicalCoordinate:null});
     }
-    if(!matches.length)unsupported.push({registrationId:null,reason:'No reviewed registration matching the explicit current publication/model/frame, source and complete occurrence binding'});
+    if(!matches.length&&!unsupported.length)unsupported.push({registrationId:null,reason:'No reviewed registration matching the explicit current publication/model/frame, source and complete occurrence binding'});
     const highlighted=row.bindings.some(b=>Object.entries(selection).every(([k,v])=>v==null||b[k]===v));
     return {...copy(row),placements,unsupported,highlighted,physicalCoordinate:null,currentCircuitId:null,wireRoute:null,heightMetres:null,nativeQualified:false};
   });

@@ -76,7 +76,15 @@ test('healthy reviewed nomination withdrawal retains provenance and inventory wi
   const rowsBefore=structuredClone(rows),r=projectInventory(rows,[prior,unrelated],current);
   assert.deepEqual(r.counts,{inventory:2,withApproximateScenePlacement:1,withoutApproximateScenePlacement:1,surveyedPhysicalPoints:0,currentCircuits:0});
   assert.equal(r.records[0].placements.length,0);assert.equal(r.records[1].placements[0].registrationId,other.id);
-  assert.equal(projectInventory(rows,[withdrawn,unrelated],current).records[0].placements.length,0);
+  const fresh=projectInventory(rows,[withdrawn,unrelated],current);
+  assert.equal(fresh.records[0].placements.length,0);
+  assert.equal(fresh.records[0].unsupported.length,1);
+  assert.equal(fresh.records[0].unsupported[0].registrationId,p.id);
+  assert.equal(fresh.records[0].unsupported[0].status,'withdrawn-invalid-nomination');
+  assert.deepEqual(fresh.records[0].unsupported[0].withdrawnNominations,[withdrawal]);
+  assert.deepEqual(fresh.records[0].unsupported[0].source,p.source);
+  assert.deepEqual(fresh.records[0].unsupported[0].target,p.target);
+  assert.equal(fresh.records[1].placements[0].registrationId,other.id);
   assert.deepEqual(rows,rowsBefore);assert.deepEqual(current,before);assert.deepEqual(p,proposalBefore);
 });
 
@@ -105,6 +113,22 @@ test('retained withdrawal requires reconciliation after each source or target re
     const result=projectInventory([{...row,...nextSource}],[prior],current);
     assert.equal(result.records.length,1);assert.equal(result.records[0].placements.length,0,key);
     assert.deepEqual(result.records[0].unsupported[0].withdrawnNominations,[withdrawal]);
+    // Exercise the normal assess-then-project path, whose fit is null, rather
+    // than supplying only a cached accepted assessment to the projector.
+    const freshRow={...row,...nextSource},unboundRow={...freshRow,fixtureId:'unbound',bindings:[]};
+    const freshRows=[freshRow,unboundRow],before=structuredClone({freshRows,a,current});
+    const fresh=projectInventory(freshRows,[a],current,{roomId:'another-room'});
+    assert.equal(fresh.counts.inventory,2);assert.equal(fresh.counts.withApproximateScenePlacement,0);
+    assert.equal(fresh.records[0].placements.length,0);assert.equal(fresh.records[0].highlighted,false);
+    assert.deepEqual(fresh.records[0].unsupported,[{
+      registrationId:p.id,status:'withheld-withdrawal-reconciliation',
+      reason:'Retained invalid nomination requires withdrawal or revision reconciliation',
+      reasons:a.reasons,source:p.source,target:p.target,targetFeatureIds:a.targetFeatureIds,withdrawnNominations:[withdrawal]
+    }]);
+    assert.equal(fresh.records[1].unsupported[0].registrationId,null);
+    assert.ok(!('withdrawnNominations' in fresh.records[1].unsupported[0]));
+    assert.ok(fresh.records.every(r=>r.placements.length===0&&r.physicalCoordinate===null&&r.nativeQualified===false));
+    assert.deepEqual({freshRows,a,current},before);
   }
 });
 
