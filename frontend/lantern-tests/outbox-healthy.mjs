@@ -14,7 +14,7 @@ globalThis.localStorage = { getItem: key => memory.get(key) ?? null, setItem: (k
 
 const scope = { workspaceId: 'w1', homeId: 'h1' };
 const context = { actorId: 'a1', csrfToken: 'csrf-1', ...scope };
-const commands = '/api/atlas/stock/v3/workspaces/w1/homes/h1/commands';
+const commands = /^\/api\/atlas\/stock\/v3\/workspaces\/w1\/homes\/h[12]\/commands$/;
 
 /** A generated server: one revision per record, permanent idempotency keys,
  * refusal of an identical resend, and the retained-intent lookup. */
@@ -31,7 +31,7 @@ function createServer() {
       return Response.json({ lookupRequestId: body.requestId, inspection: { commandId: body.commandId,
         outcome: committed ? 'retained-commit' : 'not-retained-at-snapshot' } });
     }
-    assert.equal(path, commands);
+    assert.match(path, commands);
     server.posts.push(body);
     if (server.status) return Response.json({ code: 'GENERATED' }, { status: server.status });
     if (server.keys.has(body.idempotencyKey)) return Response.json({ code: 'SOURCE_UNAVAILABLE' }, { status: 503 });
@@ -383,6 +383,34 @@ for (const lateChange of ['sign-out', 'abort']) {
   setSyncMode('automatic');
 }
 
+// A Save queued behind another tab's send belongs to its own home: if the
+// person switches to "When I ask" and to another home before its turn, the
+// other home's waiting edits stay put.
+{
+  const disk = createSyntheticDisk(), server = createServer();
+  let tail = Promise.resolve(), hold;
+  const lock = work => { const run = tail.then(work); tail = run.catch(() => undefined); return run; };
+  const outbox = outboxOn(disk, server, { lock });
+  const homeB = { ...context, homeId: 'h2' };
+  server.online = false;
+  outbox.configure(homeB);
+  const waitingB = await outbox.submit(submission('shed', 1));
+  server.online = true;
+  outbox.configure(context);
+  await outbox.drain({ force: true }); // Nothing of home A waits yet.
+  lock(() => new Promise(resolve => { hold = resolve; })); // Another tab is sending.
+  const retry = outbox.drain(); // A retry for home A waits its turn.
+  const saving = outbox.submit(submission('hall', 1));
+  await new Promise(resolve => setTimeout(resolve, 10));
+  setSyncMode('ask');
+  outbox.configure(homeB);
+  hold();
+  await retry; await saving;
+  assert.equal(outbox.getSnapshot().entries.find(row => row.id === waitingB.id).state, 'waiting');
+  assert.equal(server.posts.filter(post => post.target === 'shed').length, 0, "Home A's Save sent nothing for home B");
+  setSyncMode('automatic');
+}
+
 // Only the most recent synced entries are kept for the recent list.
 {
   const disk = createSyntheticDisk(), server = createServer(), outbox = outboxOn(disk, server);
@@ -393,4 +421,4 @@ for (const lateChange of ['sign-out', 'abort']) {
   assert.equal(kept.at(-1).target.recordId, `room-${KEEP_SYNCED + 2}`);
   assert.equal(syntheticRecords(disk, OUTBOX_DATABASE, 'entries').length, KEEP_SYNCED);
 }
-console.log(JSON.stringify({ outbox: 'healthy', cases: 17 }));
+console.log(JSON.stringify({ outbox: 'healthy', cases: 18 }));

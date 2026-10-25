@@ -2782,7 +2782,8 @@ dropped, a stale decision in a second tab that cannot undo the first tab's,
 a session rotated during a lookup (the old token's refusal is not final),
 "When I ask" (a Save sends only that edit and
 earlier edits to the same record, and an automatic retry still waiting for
-another tab's send when the person switches to it sends nothing), the notice views reload on after a
+another tab's send when the person switches to it sends nothing; a Save queued
+behind that send is not carried over to another home), the notice views reload on after a
 background sync, and pruning of synced entries. It runs in `run-healthy.mjs`. The server side of the
 same contract (lookup of a committed envelope, no second write on an identical
 resend, 412 for a stale revision) is asserted in

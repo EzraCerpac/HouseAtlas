@@ -75,8 +75,9 @@ export function createOutbox(options: OutboxOptions): Outbox {
   const syncedListeners = new Set<(entries: readonly OutboxEntry[]) => void>(), immediate = new Set<string>();
   let entries: OutboxEntry[] = [], context: OutboxContext | null = null, syncing = false, loaded = false;
   let snapshot: OutboxSnapshot = { entries, waiting: 0, needsYou: 0, syncing, loaded };
-  // Sends the person asked for, and whether an automatic retry is due.
-  let draining: Promise<void> | null = null, asked: Scope | null = null, automatic = false;
+  // Sends the person asked for (and the session they asked under), and
+  // whether an automatic retry is due.
+  let draining: Promise<void> | null = null, asked: Scope | null = null, askedBy: OutboxContext | null = null, automatic = false;
 
   function publish(): void {
     snapshot = { entries, syncing, loaded,
@@ -176,12 +177,18 @@ export function createOutbox(options: OutboxOptions): Outbox {
   async function drain({ force = false, only }: { force?: boolean; only?: string } = {}): Promise<void> {
     if (!force && syncMode() === 'ask') return;
     if (!force) automatic = true;
-    else asked = asked === 'all' || !only ? 'all' : new Set([...(asked ?? []), only]);
+    else {
+      // A request belongs to the session it was made in; one left over from
+      // another account or home is dropped rather than sent under this one.
+      if (askedBy !== context) asked = null;
+      askedBy = context;
+      asked = asked === 'all' || !only ? 'all' : new Set([...(asked ?? []), only]);
+    }
     if (draining) return draining;
     draining = (async () => {
       while (asked || automatic) {
-        const requested = asked, retry = automatic, active = context;
-        asked = null; automatic = false;
+        const active = context, requested = askedBy === active ? asked : null, retry = automatic;
+        asked = null; askedBy = null; automatic = false;
         if (!active) break;
         syncing = true; publish();
         // A retry that waited for another tab's send asks again: the person
@@ -194,9 +201,12 @@ export function createOutbox(options: OutboxOptions): Outbox {
     })().finally(() => { draining = null; });
     return draining;
   }
-  /** Sends one entry the person just acted on; in "When I ask" mode nothing
-   * else that waits goes with it. */
-  const sendNow = (id: string) => drain(syncMode() === 'ask' ? { force: true, only: id } : { force: true });
+  /** Sends one entry the person just acted on. Anything else that waits goes
+   * with it as an automatic retry, so not in "When I ask" mode. */
+  const sendNow = (id: string) => {
+    if (syncMode() !== 'ask') automatic = true;
+    return drain({ force: true, only: id });
+  };
   function adapter(entry: OutboxEntry): OutboxKind {
     const kind = kinds.get(entry.kind);
     if (!kind) throw new Error('This change can only be reviewed in the app that made it');
