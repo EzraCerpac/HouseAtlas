@@ -1,0 +1,74 @@
+.lantern-host .sync-pill {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--frame-line);
+  background: var(--sheet);
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.lantern-host .sync-pill:hover {
+  border-color: var(--ink-2);
+}
+
+.lantern-host .sync-pill.is-attention {
+  border-color: var(--lantern-edge);
+  background: var(--lantern-soft);
+  color: var(--lantern-ink);
+}
+
+.lantern-host .sync-list {
+  display: grid;
+  gap: 14px;
+}
+
+.lantern-host .sync-list h3 {
+  margin: 0 0 6px;
+  font-size: var(--fs-s);
+}
+
+.lantern-host .sync-list ul {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.lantern-host .sync-row {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-panel);
+  background: var(--card);
+  font-size: var(--fs-s);
+}
+
+.lantern-host .sync-row span {
+  color: var(--muted);
+}
+
+.lantern-host .sync-row.is-attention {
+  border-color: var(--lantern-edge);
+  background: var(--lantern-soft);
+}
+
+.lantern-host .sync-row.is-attention span {
+  color: var(--lantern-ink);
+}
+
+.lantern-host .sync-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.lantern-host.sync-layer { display: contents; }
