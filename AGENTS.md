@@ -34,7 +34,7 @@ isolated disposable synthetic environments,
 fake/local-only transports, no real credentials, live providers, user data,
 populated production restore or deployment. This permission releases no G1–G5
 and grants no new secrets or network permissions. The approved ordinary CI
-scope is the existing workflows on pushes to `main` or `dev` and pull requests
+scope is the existing workflows on pushes to `main` and pull requests
 targeting `main`, including the existing `Verify the named Lantern healthy
 read` step. This documentation correction adds no workflow, step or command.
 Guard reversal, mutation/omission controls, adversarial and private-intake checks
@@ -85,8 +85,8 @@ web/AGENTS.md governs interface text. Preserve accessible names, scope,
 uncertainty, freshness, access and file availability. Use short functional
 headings and guidance only when needed for the current action or state.
 
-The shared dev branch composes scoped development PRs before review and CI.
-Use one integration writer and preserve donor ancestry. Resolve overlaps against
-the current owner APIs, track review findings, and run only inspected authorized
-checks. Development composition does not accept donors or release main, product
-or deployment gates; main still requires exact candidate review and CI.
+Scoped development PRs target main; there is no separate dev branch. Use one
+integration writer and preserve donor ancestry. Resolve overlaps against the
+current owner APIs, track review findings, and run only inspected authorized
+checks. Composition does not accept donors or release product or deployment
+gates; main still requires exact candidate review and CI.

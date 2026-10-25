@@ -963,11 +963,10 @@ UI. Read [docs/rust-integration/README.md](../../docs/rust-integration/README.md
 explicit disposable settings, exact ordinary commands and remaining product
 areas. Its positive browser smoke is separate from all stopped controls.
 
-The `dev` branch combines development PRs before review and CI. Its assembled
-source is provisional. The integration writer resolves overlaps, records donor
-heads and tracks review corrections. The same ordinary workflows run on dev
-pushes; cache publication remains restricted to verified main pushes. Main
-acceptance still requires review of the exact candidate and passing CI.
+Development PRs target `main`; there is no separate dev branch. The integration
+writer resolves overlaps, records donor heads and tracks review corrections.
+Cache publication remains restricted to verified main pushes. Main acceptance
+still requires review of the exact candidate and passing CI.
 
 The inspected Network pin fixture uses fresh synthetic state and exactly one
 verified numeric-loopback TLS inventory GET. Its native publication, disclosure
