@@ -2,7 +2,10 @@
 use std::{
     io::{self, Write},
     panic::{AssertUnwindSafe, catch_unwind, resume_unwind},
-    sync::{Arc, Mutex, MutexGuard, atomic::{AtomicBool, Ordering}},
+    sync::{
+        Arc, Mutex, MutexGuard,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -40,7 +43,11 @@ impl Budget {
         false
     }
     pub(crate) fn check(&self) -> Result<()> {
-        if self.stopped() { Err(Unavailable) } else { Ok(()) }
+        if self.stopped() {
+            Err(Unavailable)
+        } else {
+            Ok(())
+        }
     }
     pub(crate) fn cancel(&self) {
         self.0.stopped.store(true, Ordering::Release);
@@ -48,7 +55,9 @@ impl Budget {
 }
 pub(crate) struct CancelOnDrop(pub(crate) Budget);
 impl Drop for CancelOnDrop {
-    fn drop(&mut self) { self.0.cancel(); }
+    fn drop(&mut self) {
+        self.0.cancel();
+    }
 }
 
 pub(crate) struct PolicyOutcome<T> {
@@ -68,14 +77,29 @@ pub(crate) fn sqlite_policy<T>(
     operation: impl FnOnce(&mut rusqlite::Connection) -> Result<T>,
 ) -> PolicyOutcome<T> {
     if budget.check().is_err() {
-        return PolicyOutcome { result: Err(Unavailable), clean: true };
+        return PolicyOutcome {
+            result: Err(Unavailable),
+            clean: true,
+        };
     }
     if !db.is_autocommit() || db.is_busy() {
         // No slot was touched. An unexpectedly non-idle owner cannot be certified.
-        return PolicyOutcome { result: Err(Unavailable), clean: false };
+        return PolicyOutcome {
+            result: Err(Unavailable),
+            clean: false,
+        };
     }
     let callback_budget = budget.clone();
-    db.progress_handler(1000, Some(move || callback_budget.stopped()));
+    if db
+        .progress_handler(1000, Some(move || callback_budget.stopped()))
+        .is_err()
+    {
+        // The slot state is unknown after a failed install, so it is not certified.
+        return PolicyOutcome {
+            result: Err(Unavailable),
+            clean: false,
+        };
+    }
     let attempted = catch_unwind(AssertUnwindSafe(|| {
         db.busy_timeout(Duration::ZERO).map_err(|_| Unavailable)?;
         budget.check()?;
@@ -84,38 +108,49 @@ pub(crate) fn sqlite_policy<T>(
     // All operation-local statements have finished/dropped. Manual transactions
     // deliberately have no Transaction destructor that could roll back early.
     // Cleanup is mandatory and has no expired-budget early return.
-    db.progress_handler(0, None::<fn() -> bool>);
+    let handler_cleared = db.progress_handler(0, None::<fn() -> bool>).is_ok();
     let rolled_back = db.is_autocommit() || db.execute_batch("ROLLBACK").is_ok();
     let idle = db.is_autocommit() && !db.is_busy();
     let restored = db.busy_timeout(Duration::from_millis(restore_ms)).is_ok()
-        && db.query_row("PRAGMA busy_timeout", [], |row| row.get::<_, u64>(0))
-            .is_ok_and(|actual| actual == restore_ms);
-    let clean = rolled_back && idle && restored && attempted.is_ok();
+        && db
+            .query_row("PRAGMA busy_timeout", [], |row| row.get::<_, i64>(0))
+            .is_ok_and(|actual| u64::try_from(actual) == Ok(restore_ms));
+    let clean = handler_cleared && rolled_back && idle && restored && attempted.is_ok();
     let result = attempted.unwrap_or(Err(Unavailable));
     PolicyOutcome {
-        result: if clean && budget.check().is_ok() { result } else { Err(Unavailable) },
+        result: if clean && budget.check().is_ok() {
+            result
+        } else {
+            Err(Unavailable)
+        },
         clean,
     }
 }
 
 /// Consume only the affected ORIGINAL guard in a contained hook-free unwind.
 /// Other owner guards remain outside this unwind. No poison recovery/reopen.
-pub(crate) fn quarantine<T>(
-    mutex: &Mutex<T>,
-    guard: &mut Option<MutexGuard<'_, T>>,
-) -> Result<()> {
+pub(crate) fn quarantine<T>(mutex: &Mutex<T>, guard: &mut Option<MutexGuard<'_, T>>) -> Result<()> {
     let affected = guard.take().ok_or(Unavailable)?;
-    if !cfg!(panic = "unwind") { return Err(Unavailable); }
+    if !cfg!(panic = "unwind") {
+        return Err(Unavailable);
+    }
     let _contained = catch_unwind(AssertUnwindSafe(move || {
         let _affected = affected;
         resume_unwind(Box::new(Unavailable));
     }));
-    if mutex.is_poisoned() { Ok(()) } else { Err(Unavailable) }
+    if mutex.is_poisoned() {
+        Ok(())
+    } else {
+        Err(Unavailable)
+    }
 }
 
 /// Private capped encoding; no byte is handed off until the whole DTO fits.
 pub(crate) fn encode<T: serde::Serialize>(value: &T, budget: &Budget) -> Result<Vec<u8>> {
-    struct Capped<'a> { bytes: Vec<u8>, budget: &'a Budget }
+    struct Capped<'a> {
+        bytes: Vec<u8>,
+        budget: &'a Budget,
+    }
     impl Write for Capped<'_> {
         fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
             if self.budget.check().is_err()
@@ -126,10 +161,15 @@ pub(crate) fn encode<T: serde::Serialize>(value: &T, budget: &Budget) -> Result<
             self.bytes.extend_from_slice(bytes);
             Ok(bytes.len())
         }
-        fn flush(&mut self) -> io::Result<()> { Ok(()) }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
     }
     budget.check()?;
-    let mut out = Capped { bytes: Vec::new(), budget };
+    let mut out = Capped {
+        bytes: Vec::new(),
+        budget,
+    };
     serde_json::to_writer(&mut out, value).map_err(|_| Unavailable)?;
     budget.check()?;
     Ok(out.bytes)
@@ -152,7 +192,10 @@ mod tests {
         assert!(result.clean);
         assert_eq!(result.result, Err(Unavailable));
         assert!(!entered.load(Ordering::Relaxed));
-        let expired = Budget(Arc::new(State { deadline: Instant::now(), stopped: AtomicBool::new(false) }));
+        let expired = Budget(Arc::new(State {
+            deadline: Instant::now(),
+            stopped: AtomicBool::new(false),
+        }));
         assert_eq!(expired.check(), Err(Unavailable));
         assert!(expired.0.stopped.load(Ordering::Acquire));
     }
@@ -171,10 +214,14 @@ mod tests {
         assert_eq!(result.result, Err(Unavailable));
         assert!(db.is_autocommit());
         assert!(!db.is_busy());
-        assert_eq!(db.query_row("PRAGMA busy_timeout", [], |r| r.get::<_, u64>(0)).unwrap(), 731);
+        assert_eq!(
+            db.query_row("PRAGMA busy_timeout", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            731
+        );
         // More than one callback interval: a still-installed cancelled callback
         // would interrupt this independent, bounded synthetic query.
-        let sum: u64 = db.query_row(
+        let sum: i64 = db.query_row(
             "WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<1000) SELECT sum(x) FROM n",
             [], |r| r.get(0),
         ).unwrap();

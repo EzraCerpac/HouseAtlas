@@ -26,18 +26,30 @@ struct Held<'a, 'g> {
 }
 impl s::Authorization for Held<'_, '_> {
     type Principal = RequestPrincipal;
-    fn authorize(&self, p: &RequestPrincipal, request: s::AuthorizationRequest<'_>) -> s::Result<s::VerifiedActor> {
+    fn authorize(
+        &self,
+        p: &RequestPrincipal,
+        request: s::AuthorizationRequest<'_>,
+    ) -> s::Result<s::VerifiedActor> {
         let fail = || s::Error::new("unavailable", "Catalog unavailable");
         self.budget.check().map_err(|_| fail())?;
         if !std::ptr::eq(self.guard.principal(), p.principal.principal())
             || !matches!(request.capability, s::Capability::Read)
-            || request.source.is_some() || request.source_partition.is_some()
-            || request.mutation.is_some() || !request.targets.is_empty()
-        { return Err(fail()); }
+            || request.source.is_some()
+            || request.source_partition.is_some()
+            || request.mutation.is_some()
+            || !request.targets.is_empty()
+        {
+            return Err(fail());
+        }
         let scope = super::access_scope(&d::Scope {
-            workspace_id: request.scope.workspace_id.clone(), home_id: request.scope.home_id.clone(),
-        }).map_err(|_| fail())?;
-        self.guard.authorize(&scope, a::Capability::Read).map_err(|_| fail())?;
+            workspace_id: request.scope.workspace_id.clone(),
+            home_id: request.scope.home_id.clone(),
+        })
+        .map_err(|_| fail())?;
+        self.guard
+            .authorize(&scope, a::Capability::Read)
+            .map_err(|_| fail())?;
         self.budget.check().map_err(|_| fail())?;
         Ok(s::VerifiedActor {
             workspace_id: scope.workspace_id.as_str().into(),
@@ -49,13 +61,23 @@ impl s::Authorization for Held<'_, '_> {
 
 impl RequestPrincipal {
     fn capture_catalog(
-        &self, guard: &a::TransactionAuthorization<'_>, partition: &a::SourcePartition, budget: &b::Budget,
+        &self,
+        guard: &a::TransactionAuthorization<'_>,
+        partition: &a::SourcePartition,
+        budget: &b::Budget,
     ) -> a::AccessResult<a::PartitionGrant> {
         budget.check().map_err(|_| a::AccessError::Unavailable)?;
-        if !std::ptr::eq(guard.principal(), self.principal.principal()) || self.source_capture_sealed.get() {
+        if !std::ptr::eq(guard.principal(), self.principal.principal())
+            || self.source_capture_sealed.get()
+        {
             return Err(a::AccessError::Unavailable);
         }
-        if let Some(existing) = self.partitions.borrow().iter().find(|g| g.partition() == partition) {
+        if let Some(existing) = self
+            .partitions
+            .borrow()
+            .iter()
+            .find(|g| g.partition() == partition)
+        {
             guard.catalog_source_metadata(existing, budget)?;
             return Ok(existing.clone());
         }
@@ -72,17 +94,29 @@ impl RequestPrincipal {
     ) -> b::Result<()> {
         budget.check()?;
         if !std::ptr::eq(guard.principal(), self.principal.principal())
-            || !self.sources.borrow().is_empty() || !self.network_links.borrow().is_empty()
+            || !self.sources.borrow().is_empty()
+            || !self.network_links.borrow().is_empty()
             || !self.home_choices.is_empty()
-        { return Err(b::Unavailable); }
-        guard.authorize(self.principal.scope(), a::Capability::Read).map_err(|_| b::Unavailable)?;
+        {
+            return Err(b::Unavailable);
+        }
+        guard
+            .authorize(self.principal.scope(), a::Capability::Read)
+            .map_err(|_| b::Unavailable)?;
         let grants = self.partitions.borrow();
-        if grants.len() != retained.len() { return Err(b::Unavailable); }
+        if grants.len() != retained.len() {
+            return Err(b::Unavailable);
+        }
         for (grant, (expected, before)) in grants.iter().zip(retained) {
             budget.check()?;
             if grant.partition() != expected.partition()
-                || &guard.catalog_source_metadata(grant, budget).map_err(|_| b::Unavailable)? != before
-            { return Err(b::Unavailable); }
+                || &guard
+                    .catalog_source_metadata(grant, budget)
+                    .map_err(|_| b::Unavailable)?
+                    != before
+            {
+                return Err(b::Unavailable);
+            }
             budget.check()?;
         }
         budget.check()
@@ -108,13 +142,20 @@ pub(crate) async fn read(
         let _admission = admission;
         worker(core, original, &worker_budget)
     })
-        .await.map_err(|_| b::Unavailable)?;
+    .await
+    .map_err(|_| b::Unavailable)?;
     budget.check()?;
     result
 }
 
-fn worker(core_owner: Arc<Mutex<Core>>, original: OriginalPrincipal, budget: &b::Budget) -> b::Result<Vec<u8>> {
-    if !cfg!(panic = "unwind") { return Err(b::Unavailable); }
+fn worker(
+    core_owner: Arc<Mutex<Core>>,
+    original: OriginalPrincipal,
+    budget: &b::Budget,
+) -> b::Result<Vec<u8>> {
+    if !cfg!(panic = "unwind") {
+        return Err(b::Unavailable);
+    }
     budget.check()?;
     // One attempt per original mutex, in the fixed Core -> Store -> Access order.
     let core = core_owner.try_lock().map_err(|_| b::Unavailable)?;
@@ -132,10 +173,17 @@ fn worker(core_owner: Arc<Mutex<Core>>, original: OriginalPrincipal, budget: &b:
     // Neither authorization nor source capture runs until BOTH native policies
     // have been installed. The original selected scope is never defaulted.
     let p = RequestPrincipal::from_retained(original.retained().clone());
-    let scope = d::Scope { workspace_id: p.principal.scope().workspace_id.as_str().into(),
-        home_id: p.principal.scope().home_id.as_str().into() };
-    if !core.homes.iter().any(|home| home.scope == scope) { return Err(b::Unavailable); }
-    let native_scope = s::Scope { workspace_id: scope.workspace_id.clone(), home_id: scope.home_id.clone() };
+    let scope = d::Scope {
+        workspace_id: p.principal.scope().workspace_id.as_str().into(),
+        home_id: p.principal.scope().home_id.as_str().into(),
+    };
+    if !core.homes.iter().any(|home| home.scope == scope) {
+        return Err(b::Unavailable);
+    }
+    let native_scope = s::Scope {
+        workspace_id: scope.workspace_id.clone(),
+        home_id: scope.home_id.clone(),
+    };
     let mut access_bad = false;
     let outcome = store.with_partition_catalog(budget, |read| {
         let access = access_guard.as_mut().ok_or(b::Unavailable)?;
@@ -148,40 +196,66 @@ fn worker(core_owner: Arc<Mutex<Core>>, original: OriginalPrincipal, budget: &b:
             let mut retained = Vec::new();
             for registration in &cut {
                 budget.check()?;
-                if registration.owner != s::SourceOwner::Homebox { continue; }
+                if registration.owner != s::SourceOwner::Homebox {
+                    continue;
+                }
                 let access_registration: a::SourceRegistration = serde_json::from_value(
-                    serde_json::to_value(registration).map_err(|_| b::Unavailable)?
-                ).map_err(|_| b::Unavailable)?;
+                    serde_json::to_value(registration).map_err(|_| b::Unavailable)?,
+                )
+                .map_err(|_| b::Unavailable)?;
                 budget.check()?;
-                let grant = match p.capture_catalog(guard, &access_registration.partition(), budget) {
+                let grant = match p.capture_catalog(guard, &access_registration.partition(), budget)
+                {
                     Ok(grant) => grant,
                     Err(a::AccessError::NotFound | a::AccessError::Forbidden) => continue,
                     Err(_) => return Err(b::Unavailable),
                 };
-                let metadata = guard.catalog_source_metadata(&grant, budget).map_err(|_| b::Unavailable)?;
+                let metadata = guard
+                    .catalog_source_metadata(&grant, budget)
+                    .map_err(|_| b::Unavailable)?;
                 budget.check()?;
-                if metadata.registration() != &access_registration || partitions.len() == b::MAX_RESULTS {
+                if metadata.registration() != &access_registration
+                    || partitions.len() == b::MAX_RESULTS
+                {
                     return Err(b::Unavailable);
                 }
                 retained.push((grant, metadata));
-                partitions.push(Partition { owner: "homebox", source_instance_id: registration.source_instance_id.clone(),
-                    collection_id: registration.collection_id.clone() });
+                partitions.push(Partition {
+                    owner: "homebox",
+                    source_instance_id: registration.source_instance_id.clone(),
+                    collection_id: registration.collection_id.clone(),
+                });
             }
             p.seal_source_capture();
             budget.check()?;
-            if read.cut(&authority, &p, &native_scope)? != cut { return Err(b::Unavailable); }
+            if read.cut(&authority, &p, &native_scope)? != cut {
+                return Err(b::Unavailable);
+            }
             budget.check()?;
             for (grant, before) in &retained {
                 budget.check()?;
-                if &guard.catalog_source_metadata(grant, budget).map_err(|_| b::Unavailable)? != before {
+                if &guard
+                    .catalog_source_metadata(grant, budget)
+                    .map_err(|_| b::Unavailable)?
+                    != before
+                {
                     return Err(b::Unavailable);
                 }
                 budget.check()?;
             }
             p.release_catalog(guard, budget, &retained)?;
-            let bytes = b::encode(&Catalog { schema_version: 1, scope, partitions }, budget)?;
+            let bytes = b::encode(
+                &Catalog {
+                    schema_version: 1,
+                    scope,
+                    partitions,
+                },
+                budget,
+            )?;
             // Encoding cannot turn a prior check into a later disclosure grant.
-            if read.cut(&authority, &p, &native_scope)? != cut { return Err(b::Unavailable); }
+            if read.cut(&authority, &p, &native_scope)? != cut {
+                return Err(b::Unavailable);
+            }
             p.release_catalog(guard, budget, &retained)?;
             read.finish()?;
             p.release_catalog(guard, budget, &retained)?;
@@ -194,10 +268,16 @@ fn worker(core_owner: Arc<Mutex<Core>>, original: OriginalPrincipal, budget: &b:
     // Helpers have removed callbacks and completed/rolled back their native
     // transactions before quarantine. Other guards stay outside each unwind.
     let mut quarantine_ok = true;
-    if access_bad { quarantine_ok &= b::quarantine(&access_owner, &mut access_guard).is_ok(); }
-    if !outcome.clean { quarantine_ok &= b::quarantine(&store_owner, &mut store_guard).is_ok(); }
+    if access_bad {
+        quarantine_ok &= b::quarantine(&access_owner, &mut access_guard).is_ok();
+    }
+    if !outcome.clean {
+        quarantine_ok &= b::quarantine(&store_owner, &mut store_guard).is_ok();
+    }
     budget.check()?;
-    if !quarantine_ok || access_bad || !outcome.clean { return Err(b::Unavailable); }
+    if !quarantine_ok || access_bad || !outcome.clean {
+        return Err(b::Unavailable);
+    }
     budget.check()?;
     outcome.result
 }
@@ -207,13 +287,20 @@ mod tests {
     use super::*;
     #[test]
     fn closed_catalog_contains_selectors_only_and_preserves_opaque_collection() {
-        let catalog = Catalog { schema_version: 1,
-            scope: d::Scope { workspace_id: "10000000-0000-4000-8000-000000000001".into(),
-                home_id: "10000000-0000-4000-8000-000000000002".into() },
-            partitions: vec![Partition { owner: "homebox",
+        let catalog = Catalog {
+            schema_version: 1,
+            scope: d::Scope {
+                workspace_id: "10000000-0000-4000-8000-000000000001".into(),
+                home_id: "10000000-0000-4000-8000-000000000002".into(),
+            },
+            partitions: vec![Partition {
+                owner: "homebox",
                 source_instance_id: "10000000-0000-4000-8000-000000000008".into(),
-                collection_id: "Synthetic / α + %".into() }] };
-        let value: serde_json::Value = serde_json::from_slice(&b::encode(&catalog, &b::Budget::start()).unwrap()).unwrap();
+                collection_id: "Synthetic / α + %".into(),
+            }],
+        };
+        let value: serde_json::Value =
+            serde_json::from_slice(&b::encode(&catalog, &b::Budget::start()).unwrap()).unwrap();
         assert_eq!(value.as_object().unwrap().len(), 3);
         assert_eq!(value["partitions"][0].as_object().unwrap().len(), 3);
         assert_eq!(value["partitions"][0]["collectionId"], "Synthetic / α + %");

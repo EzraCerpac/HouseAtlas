@@ -1,5 +1,6 @@
 //! The actual access/storage/domain composition and original request authority.
 pub mod ai_native_startup;
+pub(crate) mod homebox_partition_catalog;
 pub mod homebox_presence;
 pub mod homebox_presence_command;
 pub mod homebox_presence_history;
@@ -17,7 +18,6 @@ pub mod homebox_queued_upload_history_catalog_admission;
 pub mod homebox_queued_upload_history_catalog_recovery;
 pub mod homebox_queued_upload_history_publication;
 pub mod homebox_stock_host;
-pub(crate) mod homebox_partition_catalog;
 pub mod media_policy_recovery;
 pub mod quantity_approval;
 pub mod stock_activity_principal;

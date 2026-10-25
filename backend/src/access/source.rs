@@ -140,9 +140,14 @@ impl CurrentAuthority<'_> {
             return Err(AccessError::NotFound);
         }
         let row = store::catalog_source(self.db, partition, budget)?
-            .filter(|row| row.enabled).ok_or(AccessError::NotFound)?;
+            .filter(|row| row.enabled)
+            .ok_or(AccessError::NotFound)?;
         super::partition_catalog::check(budget)?;
-        Ok(PartitionGrant { principal: principal.clone(), partition: partition.clone(), version: row.version })
+        Ok(PartitionGrant {
+            principal: principal.clone(),
+            partition: partition.clone(),
+            version: row.version,
+        })
     }
 
     pub(super) fn catalog_partition_row(

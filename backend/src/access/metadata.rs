@@ -38,7 +38,8 @@ impl TransactionAuthorization<'_> {
         partition: &super::SourcePartition,
         budget: &crate::catalog_budget::Budget,
     ) -> AccessResult<PartitionGrant> {
-        self.authority.catalog_partition_grant(self.principal(), partition, budget)
+        self.authority
+            .catalog_partition_grant(self.principal(), partition, budget)
     }
 
     /// Catalog-only equivalent: every registration read uses the byte-gated
@@ -49,23 +50,30 @@ impl TransactionAuthorization<'_> {
         original: &PartitionGrant,
         budget: &crate::catalog_budget::Budget,
     ) -> AccessResult<SourceAuthorityMetadata> {
-        let row = self.authority.catalog_partition_row(self.principal(), original, budget)?;
+        let row = self
+            .authority
+            .catalog_partition_row(self.principal(), original, budget)?;
         super::partition_catalog::check(budget)?;
         let access_epoch = store::epoch(self.authority.db)?;
-        let source_registration_version = u64::try_from(row.version.0)
-            .map_err(|_| AccessError::Unavailable)?;
+        let source_registration_version =
+            u64::try_from(row.version.0).map_err(|_| AccessError::Unavailable)?;
         if !(1..=9_007_199_254_740_991).contains(&source_registration_version) {
             return Err(AccessError::Unavailable);
         }
         super::partition_catalog::check(budget)?;
-        let registration_value = serde_json::to_value(&row.registration)
-            .map_err(|_| AccessError::Unavailable)?;
+        let registration_value =
+            serde_json::to_value(&row.registration).map_err(|_| AccessError::Unavailable)?;
         super::partition_catalog::check(budget)?;
-        let source_registration_sha256 = crate::contracts::semantics::canonical_digest(&registration_value)
-            .map_err(|_| AccessError::Unavailable)?;
+        let source_registration_sha256 =
+            crate::contracts::semantics::canonical_digest(&registration_value)
+                .map_err(|_| AccessError::Unavailable)?;
         super::partition_catalog::check(budget)?;
-        Ok(SourceAuthorityMetadata { access_epoch: access_epoch.0, source_registration_version,
-            source_registration_sha256, registration: row.registration })
+        Ok(SourceAuthorityMetadata {
+            access_epoch: access_epoch.0,
+            source_registration_version,
+            source_registration_sha256,
+            registration: row.registration,
+        })
     }
 
     /// Revalidate the retained partition against this guard's original principal

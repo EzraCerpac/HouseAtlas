@@ -22,26 +22,46 @@ pub(crate) fn catalog_registrations<C: Contract>(
          ORDER BY source_instance_id,collection_id LIMIT 65"
     ).map_err(|_| Unavailable)?;
     budget.check()?;
-    let mut rows = statement.query(params![scope.workspace_id, scope.home_id])
+    let mut rows = statement
+        .query(params![scope.workspace_id, scope.home_id])
         .map_err(|_| Unavailable)?;
     budget.check()?;
     let mut registrations = Vec::new();
     while let Some(row) = rows.next().map_err(|_| Unavailable)? {
         budget.check()?;
-        if registrations.len() == MAX_CANDIDATES { return Err(Unavailable); }
-        let body = row.get::<_, Option<String>>(0).map_err(|_| Unavailable)?.ok_or(Unavailable)?;
-        let instance = row.get::<_, Option<String>>(1).map_err(|_| Unavailable)?.ok_or(Unavailable)?;
-        let collection = row.get::<_, Option<String>>(2).map_err(|_| Unavailable)?.ok_or(Unavailable)?;
-        if body.len() > MAX_REGISTRATION_BYTES { return Err(Unavailable); }
+        if registrations.len() == MAX_CANDIDATES {
+            return Err(Unavailable);
+        }
+        let body = row
+            .get::<_, Option<String>>(0)
+            .map_err(|_| Unavailable)?
+            .ok_or(Unavailable)?;
+        let instance = row
+            .get::<_, Option<String>>(1)
+            .map_err(|_| Unavailable)?
+            .ok_or(Unavailable)?;
+        let collection = row
+            .get::<_, Option<String>>(2)
+            .map_err(|_| Unavailable)?
+            .ok_or(Unavailable)?;
+        if body.len() > MAX_REGISTRATION_BYTES {
+            return Err(Unavailable);
+        }
         budget.check()?;
         let value: Value = serde_json::from_str(&body).map_err(|_| Unavailable)?;
         budget.check()?;
-        contract.validate_shape("sourceRegistration", &value).map_err(|_| Unavailable)?;
+        contract
+            .validate_shape("sourceRegistration", &value)
+            .map_err(|_| Unavailable)?;
         budget.check()?;
-        let registration: SourceRegistration = serde_json::from_value(value).map_err(|_| Unavailable)?;
-        if registration.scope() != *scope || registration.source_instance_id != instance
+        let registration: SourceRegistration =
+            serde_json::from_value(value).map_err(|_| Unavailable)?;
+        if registration.scope() != *scope
+            || registration.source_instance_id != instance
             || registration.collection_id != collection
-        { return Err(Unavailable); }
+        {
+            return Err(Unavailable);
+        }
         budget.check()?;
         registrations.push(registration);
     }
@@ -56,14 +76,21 @@ mod catalog_tests {
     use crate::http::contracts::NativeContracts;
 
     fn scope() -> Scope {
-        Scope { workspace_id: "10000000-0000-4000-8000-000000000001".into(),
-            home_id: "10000000-0000-4000-8000-000000000002".into() }
+        Scope {
+            workspace_id: "10000000-0000-4000-8000-000000000001".into(),
+            home_id: "10000000-0000-4000-8000-000000000002".into(),
+        }
     }
     fn registration(n: usize) -> SourceRegistration {
-        SourceRegistration { workspace_id: scope().workspace_id, home_id: scope().home_id,
+        SourceRegistration {
+            workspace_id: scope().workspace_id,
+            home_id: scope().home_id,
             source_instance_id: format!("10000000-0000-4000-8000-{n:012}"),
-            collection_id: "Synthetic / α + %".into(), owner: SourceOwner::Homebox,
-            partition_mode: PartitionMode::ExclusiveHome, allowed_external_ids: vec![] }
+            collection_id: "Synthetic / α + %".into(),
+            owner: SourceOwner::Homebox,
+            partition_mode: PartitionMode::ExclusiveHome,
+            allowed_external_ids: vec![],
+        }
     }
     fn database() -> Connection {
         let db = Connection::open_in_memory().unwrap();
@@ -73,19 +100,29 @@ mod catalog_tests {
         db
     }
     fn insert(db: &Connection, row: &SourceRegistration) {
-        db.execute("INSERT INTO sources VALUES(?1,?2,?3,?4,?5)", params![
-            row.workspace_id, row.home_id, row.source_instance_id, row.collection_id,
-            serde_json::to_string(row).unwrap()
-        ]).unwrap();
+        db.execute(
+            "INSERT INTO sources VALUES(?1,?2,?3,?4,?5)",
+            params![
+                row.workspace_id,
+                row.home_id,
+                row.source_instance_id,
+                row.collection_id,
+                serde_json::to_string(row).unwrap()
+            ],
+        )
+        .unwrap();
     }
     #[test]
     fn never_published_targets_scope_and_candidate_cap_need_no_projection_rows() {
         let db = database();
-        for n in 1..=64 { insert(&db, &registration(n)); }
+        for n in 1..=64 {
+            insert(&db, &registration(n));
+        }
         let mut foreign = registration(99);
         foreign.home_id = "10000000-0000-4000-8000-000000000003".into();
         insert(&db, &foreign);
-        let rows = catalog_registrations(&db, &NativeContracts, &scope(), &Budget::start()).unwrap();
+        let rows =
+            catalog_registrations(&db, &NativeContracts, &scope(), &Budget::start()).unwrap();
         assert_eq!(rows.len(), 64);
         assert_eq!(rows[0], registration(1));
         insert(&db, &registration(65));
@@ -95,9 +132,14 @@ mod catalog_tests {
     fn oversized_registration_and_body_key_mismatch_are_not_empty_success() {
         let db = database();
         insert(&db, &registration(1));
-        db.execute("UPDATE sources SET body=?1", ["x".repeat(65_537)]).unwrap();
+        db.execute("UPDATE sources SET body=?1", ["x".repeat(65_537)])
+            .unwrap();
         assert!(catalog_registrations(&db, &NativeContracts, &scope(), &Budget::start()).is_err());
-        db.execute("UPDATE sources SET body=?1", [serde_json::to_string(&registration(2)).unwrap()]).unwrap();
+        db.execute(
+            "UPDATE sources SET body=?1",
+            [serde_json::to_string(&registration(2)).unwrap()],
+        )
+        .unwrap();
         assert!(catalog_registrations(&db, &NativeContracts, &scope(), &Budget::start()).is_err());
     }
 }

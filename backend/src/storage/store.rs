@@ -1,12 +1,12 @@
 use super::{migrations, repository as repo, *};
 #[path = "cache.rs"]
 mod cache;
-#[path = "partition_catalog.rs"]
-mod partition_catalog;
 #[path = "cache_custody.rs"]
 mod cache_custody;
 #[path = "cache_presence_publication.rs"]
 mod cache_presence_publication;
+#[path = "partition_catalog.rs"]
+mod partition_catalog;
 #[path = "quantity_installation.rs"]
 mod quantity_installation;
 pub use cache_custody::*;

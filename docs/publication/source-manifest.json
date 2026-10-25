@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "653970c905c1561d3bac8a37d2571c3ef8b3f6998e63c32bb39249fac0ba421e",
+  "sourceDigestSha256": "fea44b195e6e48ffeca61275c0fc4f17c5d198cef7a08b92a1de8b3e7ca80719",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -602,8 +602,8 @@
     {
       "path": "backend/src/access/metadata.rs",
       "mode": "100644",
-      "bytes": 4436,
-      "sha256": "18368a27b2d3e1663e30dddf4f9c11f5b75cebd17d85003cbf663dd41cea9bcb",
+      "bytes": 4534,
+      "sha256": "42ca1231fffb2c17ddcd80f0796379add03eda3452d7f3d1031720134e088fc1",
       "owner": "access"
     },
     {
@@ -617,7 +617,7 @@
       "path": "backend/src/access/mod.rs",
       "mode": "100644",
       "bytes": 2097,
-      "sha256": "5c3f4b9464504820467ef00cac0e12824bb0631ca6211b374cb455c7045c9c76",
+      "sha256": "666eb4640d33669dc3b94ea9bbf32cfc8a6a04bb272cb636c1cff0866197876e",
       "owner": "access"
     },
     {
@@ -637,8 +637,8 @@
     {
       "path": "backend/src/access/partition_catalog.rs",
       "mode": "100644",
-      "bytes": 5365,
-      "sha256": "6002d1d3b2d93f172d368ad393bbcfb585c1b4672372aa750ed48854569119b4",
+      "bytes": 6177,
+      "sha256": "9d4a05dd16e8f7470a4ed30bdeaa6eead5b4e4c11a4f969763159d3176648e4a",
       "owner": "access"
     },
     {
@@ -686,15 +686,15 @@
     {
       "path": "backend/src/access/source.rs",
       "mode": "100644",
-      "bytes": 10368,
-      "sha256": "aca6241d685f0f76356fadbc87b59033ad35af99e2518d440cc2621ef0cdaaea",
+      "bytes": 10426,
+      "sha256": "0a004a620e6c20cf88ad67616a4ae07796f219187f189e056fd3549f3e209651",
       "owner": "access"
     },
     {
       "path": "backend/src/access/store.rs",
       "mode": "100644",
-      "bytes": 32893,
-      "sha256": "007040a945de83b03f07a9d9f69c3d83ff0cd3cbd25aa0c7a834d1d1a0bdd429",
+      "bytes": 33176,
+      "sha256": "a556b02c898b0bfc46df6d17cdba6137f4a919cffb21861cc264fdc26ee52ac7",
       "owner": "access"
     },
     {
@@ -1107,7 +1107,7 @@
       "path": "backend/src/app.rs",
       "mode": "100644",
       "bytes": 30585,
-      "sha256": "8d4fb02f25f1cf30fed0de04282632b44584e9fe503939a0ddc06f22eef3a93d",
+      "sha256": "a3af3c05ed5e1387a224b04235bb9a9a9b1b60b8e37566c60bdacd012ab9a043",
       "owner": "core-integration"
     },
     {
@@ -1120,8 +1120,8 @@
     {
       "path": "backend/src/app/homebox_partition_catalog.rs",
       "mode": "100644",
-      "bytes": 10773,
-      "sha256": "d6f4e63419c1dbce0884fd4ea31ea18c53012f06a6aac056364b598187bde209",
+      "bytes": 11831,
+      "sha256": "d9df5e07f7deb4928c51ca2b83cf35d5745f7f34766f2a3ce5bc7113d8b7f070",
       "owner": "core-integration"
     },
     {
@@ -1281,8 +1281,8 @@
     {
       "path": "backend/src/catalog_budget.rs",
       "mode": "100644",
-      "bytes": 8058,
-      "sha256": "3e9a2f057fb03f964547fc0bd602a7388e7608b2365a6becc5dc4b36772788da",
+      "bytes": 8723,
+      "sha256": "5b9279bebacda1940b4239fc7bbc8edc1545cf434863d2a04dc1c0d751bc843c",
       "owner": "core-integration"
     },
     {
@@ -4613,8 +4613,8 @@
     {
       "path": "backend/src/storage/cache_repository.rs",
       "mode": "100644",
-      "bytes": 12487,
-      "sha256": "2d12a57356f3611b8c8da918999057d56448c53cc6b79cf0b70b236cdc001dad",
+      "bytes": 12994,
+      "sha256": "5398402232289ded2458968a26fef363771d5f0cd480ed57382e29aa89e280a0",
       "owner": "storage"
     },
     {
@@ -4907,8 +4907,8 @@
     {
       "path": "backend/src/storage/partition_catalog.rs",
       "mode": "100644",
-      "bytes": 2061,
-      "sha256": "e2e33dc076dd63b747870aad26e00bd4974d6244a9b3a95dc3b267b71d253fa7",
+      "bytes": 2330,
+      "sha256": "35c70d6b8ec05e370f9050187966cbc1e877454a22a5277ad9899ec969a62fe1",
       "owner": "storage"
     },
     {
@@ -5398,7 +5398,7 @@
       "path": "backend/src/storage/store.rs",
       "mode": "100644",
       "bytes": 24315,
-      "sha256": "e5a16a3d795bc947a4394bbd2a609e5ceeadbbae64135f1487027cc2dc347203",
+      "sha256": "18c90a4b1cac9bfc55987727784dd7941acf8ac9545b35e009768a997617a3e0",
       "owner": "storage"
     },
     {
