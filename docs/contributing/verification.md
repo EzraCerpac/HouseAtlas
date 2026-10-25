@@ -2377,7 +2377,13 @@ only a file-level result:
 node tools/electrical_registration/healthy.test.mjs
 ```
 
-This changes no test body, fixture or scope; record each invocation separately.
+This alternate invocation changes no test body or scope; record each invocation separately.
+
+The fixture file additionally defines three generated regression cases for
+stale current identities, retained withdrawal reconciliation across revisions,
+and source-uncertainty rectangles crossing the fitted hull (including malformed
+explicit row tolerances). Report those separately from the original five
+healthy cases. No workflow or shared runner is added by these definitions.
 
 
 ## Named generated updater transport/runtime/MCP positives
