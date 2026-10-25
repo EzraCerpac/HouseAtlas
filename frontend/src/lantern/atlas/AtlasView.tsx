@@ -413,8 +413,9 @@ function Stage() {
       setDragging(true);
       setHover(null);
     }
-    setYaw(d.yaw + dx * 0.4);
-    if (e.pointerType === 'mouse') setTilt(clamp(d.tilt - dy * 0.2, 18, 64));
+    // The house follows the hand, as in the stage viewers.
+    setYaw(d.yaw - dx * 0.4);
+    if (e.pointerType === 'mouse') setTilt(clamp(d.tilt + dy * 0.2, 18, 64));
   };
   const endDrag = () => {
     drag.current = null;
