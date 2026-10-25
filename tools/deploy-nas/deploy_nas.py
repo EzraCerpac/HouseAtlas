@@ -16,6 +16,7 @@ import json
 import os
 import plistlib
 import re
+import shlex
 import shutil
 import signal
 import stat
@@ -815,16 +816,24 @@ class Deployer:
 
 def write_rollback_script(record: dict, cfg: Config) -> None:
     """A standalone undo that works without this checkout. Prefer `deploy-nas rollback`."""
+    q = shlex.quote
     d = Path(record["dir"])
     domain = f"gui/{os.getuid()}"
     lines = ["#!/bin/bash", f"# Undo {record['id']} without deploy-nas. Prefer `deploy-nas rollback`.", "set -eu",
              f"launchctl bootout {domain}/{cfg.label} || true",
              f"while launchctl print {domain}/{cfg.label} >/dev/null 2>&1; do sleep 1; done"]
     if record["kind"] == "code":
-        live, parked = record["frontend"], record["parked_frontend"]
-        lines += [f'mv "{live}" "{live}.rolled-back-$(date -u +%Y%m%dT%H%M%SZ)"', f'mv "{parked}" "{live}"']
-    lines += [f'cp "{record["before_plist"]}" "{cfg.plist}"', f'chmod 600 "{cfg.plist}"',
-              f"launchctl bootstrap {domain} \"{cfg.plist}\""]
+        live, parked = q(record["frontend"]), q(record["parked_frontend"])
+        # The live frontend can be missing when a deploy stopped right after parking it.
+        lines += [f'if [ -e {parked} ]; then',
+                  f'  if [ -e {live} ]; then mv {live} {live}.rolled-back-$(date -u +%Y%m%dT%H%M%SZ); fi',
+                  f'  mv {parked} {live}', 'fi']
+    lines += [f'cp {q(record["before_plist"])} {q(str(cfg.plist))}', f'chmod 600 {q(str(cfg.plist))}',
+              f"launchctl bootstrap {domain} {q(str(cfg.plist))}",
+              "# Tell the ledger, so `deploy-nas rollback` moves on to the record before this one.",
+              f"mkdir -p {q(str(cfg.ledger.parent))}",
+              f"printf '%s\\n' {q(json.dumps(dict(record, status='rolled-back', updated='standalone'), sort_keys=True))}"
+              f" >> {q(str(cfg.ledger))}"]
     p = d / "recovery" / "rollback.sh"
     p.write_text("\n".join(lines) + "\n")
     p.chmod(0o700)

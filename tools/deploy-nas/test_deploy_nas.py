@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import subprocess
 import tempfile
 import unittest
 
@@ -359,6 +360,28 @@ class SwapAndRollback(unittest.TestCase):
             dep.deploy("abcdef0")
         with self.assertRaises(dn.DeployError):
             dep.model(self.root / "release")
+
+    def run_standalone(self):
+        dn.write_rollback_script(self.record, self.cfg)
+        bin_dir = self.root / "bin"
+        write(bin_dir / "launchctl", "#!/bin/sh\n[ \"$1\" = print ] && exit 1\nexit 0\n", mode=0o755)
+        subprocess.run([str(Path(self.record["dir"]) / "recovery/rollback.sh")], check=True,
+                       env=dict(os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}"))
+
+    def test_standalone_script_restores_and_tells_the_ledger(self):
+        dep = dn.Deployer(self.cfg, FakeService(self.cfg), out=io.StringIO())
+        dn.save_record(self.cfg.ledger, dict(self.record, id="older", status="verified"))
+        dep.swap(self.record, self.root / "events.log", self.moves)
+        dn.save_record(self.cfg.ledger, dict(self.record, status="verified"))
+        self.run_standalone()
+        self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
+        self.assertEqual(plistlib.loads(self.cfg.plist.read_bytes()), self.old)
+        self.assertEqual(dn.rollback_target(dn.ledger_records(self.cfg.ledger))["id"], "older")
+
+    def test_standalone_script_handles_an_already_parked_frontend(self):
+        self.moves[0][0].rename(self.moves[0][1])  # deploy stopped right after parking
+        self.run_standalone()
+        self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
 
     def test_rollback_refuses_a_service_changed_by_hand(self):
         svc = FakeService(self.cfg)
