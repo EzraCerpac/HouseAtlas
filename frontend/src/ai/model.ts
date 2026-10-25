@@ -18,7 +18,8 @@ export function canInfer(connection: ConnectionSnapshot): boolean {
     && connection.authorization === 'connected'
     && connection.eligibility !== 'ineligible'
     && connection.paidUseAdmission !== 'held'
-    && connection.runtime.route !== 'unset'
+    && (connection.runtime.route === 'issued-website-client'
+      || connection.runtime.route === 'local-inference-companion')
     && connection.runtime.qualification === 'qualified'
     && connection.runtime.availability === 'ready'
     && (connection.permission === 'granted'
@@ -36,6 +37,7 @@ export function readinessMessage(connection: ConnectionSnapshot): string {
     && (connection.method === 'sign-in-with-chatgpt' || connection.permission !== 'not-applicable')) return 'Inference permission is unknown.';
   if (connection.paidUseAdmission === 'held') return 'Inference is disabled until zero paid use is verified or specific credit spending is approved.';
   if (connection.runtime.route === 'unset') return 'An inference runtime has not been selected.';
+  if (connection.runtime.route === 'local-sign-in-helper') return 'The sign-in helper does not provide an inference runtime.';
   if (connection.runtime.qualification === 'held') return 'The selected inference runtime is awaiting qualification.';
   if (connection.runtime.availability === 'sleeping') return 'The runtime is sleeping.';
   if (connection.runtime.availability === 'unreachable') return 'The runtime is unreachable.';
