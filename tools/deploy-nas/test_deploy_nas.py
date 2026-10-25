@@ -282,7 +282,7 @@ class SwapAndRollback(unittest.TestCase):
         dep.swap(self.record, self.root / "events.log", self.moves)
         dn.save_record(self.cfg.ledger, self.record)
         real = dep.swap
-        def interrupted(record, events, moves):
+        def interrupted(record, events, moves, expect=None):
             for src, dst in moves:
                 src.rename(dst)
             raise KeyboardInterrupt
@@ -295,6 +295,26 @@ class SwapAndRollback(unittest.TestCase):
         self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
         self.assertEqual(svc.binary, SERVICE["ProgramArguments"][0])
         self.assertEqual(dn.ledger_records(self.cfg.ledger)[-1]["status"], "rolled-back")
+
+    def test_rollback_keeps_the_newer_builds_lazy_chunks(self):
+        write(self.root / "fe/frontend.next/assets/lazy-new.js", "chunk")
+        svc = FakeService(self.cfg)
+        dep = dn.Deployer(self.cfg, svc, out=io.StringIO())
+        dep.swap(self.record, self.root / "events.log", self.moves)
+        dn.save_record(self.cfg.ledger, self.record)
+        dep.rollback()
+        self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
+        self.assertEqual((self.root / "fe/frontend/assets/lazy-new.js").read_text(), "chunk")
+
+    def test_swap_refuses_a_plist_changed_during_preparation(self):
+        svc = FakeService(self.cfg)
+        dep = dn.Deployer(self.cfg, svc, out=io.StringIO())
+        baseline = dn.sha256_file(self.cfg.plist)
+        self.cfg.plist.write_bytes(plistlib.dumps(dict(self.old, Label="edited")))
+        with self.assertRaises(dn.DeployError):
+            dep.swap(self.record, self.root / "events.log", self.moves, expect={baseline})
+        self.assertEqual(svc.calls, [])
+        self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
 
     def test_rollback_refuses_without_the_parked_frontend(self):
         svc = FakeService(self.cfg)

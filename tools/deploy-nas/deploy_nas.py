@@ -201,6 +201,7 @@ def union_frontend(dist: Path, live: Path, out: Path) -> dict:
                 identical += 1
             continue
         if rel.startswith("assets/") and "/" not in rel[len("assets/"):]:
+            (out / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(p, out / rel)
             retained += 1
         else:
@@ -503,11 +504,15 @@ class Deployer:
 
     # -- launchd swap
 
-    def swap(self, record: dict, events: Path, frontend_moves: list[tuple[Path, Path]]) -> None:
+    def swap(self, record: dict, events: Path, frontend_moves: list[tuple[Path, Path]],
+             expect: set[str] | None = None) -> None:
+        """Stop, move frontends, write the plist, start. `expect`: plist hashes the service may have now."""
         def ev(msg):
             with open(events, "a") as f:
                 f.write(f"{now()} {msg}\n")
             self.say(f"  {msg}")
+        if expect is not None and sha256_file(self.cfg.plist) not in expect:
+            raise DeployError("the service plist changed while this run was preparing; nothing was stopped")
         old = self.rt.service_pid()
         ev(f"STOP_OLD {old}")
         self.rt.bootout()
@@ -582,6 +587,7 @@ class Deployer:
     def deploy(self, sha: str, *, prepare_only=False, storage_reviewed: str | None = None, auto_rollback=True) -> dict:
         cfg, rt = self.cfg, self.rt
         self.require_settled()
+        baseline = sha256_file(cfg.plist)
         live = self.live()
         if not re.fullmatch(r"[0-9a-f]{7,40}", sha):
             raise DeployError("give a commit SHA from main")
@@ -654,6 +660,8 @@ class Deployer:
 
         before, after = d / "recovery/service.before.plist", d / "recovery/service.after.plist"
         shutil.copy2(cfg.plist, before)
+        if sha256_file(before) != baseline:
+            raise DeployError("the service plist changed during the build; nothing live was touched, run deploy again")
         with open(after, "wb") as f:
             plistlib.dump(with_binary(live["service"], binary), f)
         rt.run(["plutil", "-lint", str(after)])
@@ -672,7 +680,7 @@ class Deployer:
         record["status"] = "swapping"
         save_record(cfg.ledger, record)
         try:
-            self.swap(record, d / "events.log", [(live["frontend"], parked), (stage, live["frontend"])])
+            self.swap(record, d / "events.log", [(live["frontend"], parked), (stage, live["frontend"])], expect={baseline})
         except Exception:
             record["status"] = "swap-failed"
             save_record(cfg.ledger, record)
@@ -686,6 +694,7 @@ class Deployer:
     def model(self, release: Path, *, prepare_only=False, auto_rollback=True) -> dict:
         cfg = self.cfg
         self.require_settled()
+        baseline = sha256_file(cfg.plist)
         live = self.live()
         release = release.expanduser()
         files = validate_release(release, live["data_dir"])
@@ -704,6 +713,8 @@ class Deployer:
             raise DeployError("smoke test failed; nothing live was touched")
         before, after = d / "recovery/service.before.plist", d / "recovery/service.after.plist"
         shutil.copy2(cfg.plist, before)
+        if sha256_file(before) != baseline:
+            raise DeployError("the service plist changed during the smoke test; nothing live was touched, run model again")
         with open(after, "wb") as f:
             plistlib.dump(service, f)
         self.rt.run(["plutil", "-lint", str(after)])
@@ -719,7 +730,7 @@ class Deployer:
         record["status"] = "swapping"
         save_record(cfg.ledger, record)
         try:
-            self.swap(record, d / "events.log", [])
+            self.swap(record, d / "events.log", [], expect={baseline})
         except Exception:
             record["status"] = "swap-failed"
             save_record(cfg.ledger, record)
@@ -736,12 +747,13 @@ class Deployer:
             record = rollback_target(ledger_records(cfg.ledger))
             if record is None:
                 raise DeployError("no live deploy-nas record to roll back")
-            current = sha256_file(cfg.plist)
-            expected = {sha256_file(Path(record["after_plist"]))}
-            if record["status"] in ("swapping", "swap-failed", "rolling-back"):  # interrupted: either side is consistent
-                expected.add(sha256_file(Path(record["before_plist"])))
-            if not force and current not in expected:
-                raise DeployError(f"the service no longer matches {record['id']}; inspect it, or pass --force")
+        expected = {sha256_file(Path(record["after_plist"]))}
+        if record["status"] in ("swapping", "swap-failed", "rolling-back"):  # interrupted: either side is consistent
+            expected.add(sha256_file(Path(record["before_plist"])))
+        if force:
+            expected = None
+        elif sha256_file(cfg.plist) not in expected:
+            raise DeployError(f"the service no longer matches {record['id']}; inspect it, or pass --force")
         if (record["kind"] == "code" and record["status"] in ("live", "verified", "verify-failed")
                 and not Path(record["parked_frontend"]).exists() and not force):
             raise DeployError(f"the parked frontend {record['parked_frontend']} is missing; rolling back would mix "
@@ -751,15 +763,19 @@ class Deployer:
         moves = []
         if record["kind"] == "code":
             live, parked = Path(record["frontend"]), Path(record["parked_frontend"])
-            if parked.exists():
-                stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-                if live.exists():
-                    moves.append((live, live.parent / f"frontend.rolled-back-{record['id']}-{stamp}"))
-                moves.append((parked, live))
+            stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ") + f"-{uuid.uuid4().hex[:6]}"
+            if parked.exists() and live.exists():
+                # The old build plus the newer build's hashed assets, so tabs opened on it keep loading chunks.
+                restored = live.parent / f"frontend.restored-{record['id']}-{stamp}"
+                union = union_frontend(parked, live, restored)
+                self.say(f"  restored frontend keeps {union['retainedAssets']} assets from the rolled-back build")
+                moves = [(live, live.parent / f"frontend.rolled-back-{record['id']}-{stamp}"), (restored, live)]
+            elif parked.exists():  # interrupted after the live frontend was moved aside
+                moves = [(parked, live)]
         record["status"] = "rolling-back"  # a retry after an interruption picks this record up again
         save_record(cfg.ledger, record)
         restore = dict(record, after_plist=record["before_plist"])
-        self.swap(restore, d / "events.log", moves)
+        self.swap(restore, d / "events.log", moves, expect=expected)
         record["status"] = "rolled-back"
         save_record(cfg.ledger, record)
         restored = Path(record["before_plist"])
@@ -767,7 +783,8 @@ class Deployer:
         try:
             pid = self.wait_running(binary)
             ws, home = self.scope()
-            assets = entry_scripts(Path(record.get("frontend") or self.live()["frontend"]) / "index.html")
+            assets = sorted(set(entry_scripts(Path(record.get("frontend") or self.live()["frontend"]) / "index.html"))
+                            | set(record.get("assets", [])))
             c = http_checks(self.rt, cfg.gateway_url, assets=assets, ws=ws, home=home)
             c.lines.insert(0, f"PASS service pid {pid} runs {binary}")
         except Exception as e:
