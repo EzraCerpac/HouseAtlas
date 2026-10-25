@@ -361,12 +361,14 @@ class SwapAndRollback(unittest.TestCase):
         with self.assertRaises(dn.DeployError):
             dep.model(self.root / "release")
 
-    def run_standalone(self):
+    def run_standalone(self, check=True, fail_bootstrap=False):
         dn.write_rollback_script(self.record, self.cfg)
         bin_dir = self.root / "bin"
-        write(bin_dir / "launchctl", "#!/bin/sh\n[ \"$1\" = print ] && exit 1\nexit 0\n", mode=0o755)
-        subprocess.run([str(Path(self.record["dir"]) / "recovery/rollback.sh")], check=True,
-                       env=dict(os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}"))
+        calls = self.root / "launchctl.calls"
+        write(bin_dir / "launchctl", f"#!/bin/sh\necho \"$1\" >> {calls}\n[ \"$1\" = print ] && exit 1\n"
+              + ("[ \"$1\" = bootstrap ] && exit 1\n" if fail_bootstrap else "") + "exit 0\n", mode=0o755)
+        return subprocess.run([str(Path(self.record["dir"]) / "recovery/rollback.sh")], check=check,
+                              capture_output=not check, env=dict(os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}"))
 
     def test_standalone_script_restores_and_tells_the_ledger(self):
         write(self.root / "fe/frontend.next/assets/lazy-new.js", "chunk")
@@ -384,6 +386,28 @@ class SwapAndRollback(unittest.TestCase):
         self.moves[0][0].rename(self.moves[0][1])  # deploy stopped right after parking
         self.run_standalone()
         self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
+
+    def test_standalone_script_refuses_without_the_parked_frontend(self):
+        dep = dn.Deployer(self.cfg, FakeService(self.cfg), out=io.StringIO())
+        dep.swap(self.record, self.root / "events.log", self.moves)
+        dn.save_record(self.cfg.ledger, dict(self.record, status="verified"))
+        (self.root / "fe/frontend.before-rec").rename(self.root / "fe/elsewhere")
+        plist = self.cfg.plist.read_bytes()
+        self.assertNotEqual(self.run_standalone(check=False).returncode, 0)
+        self.assertFalse((self.root / "launchctl.calls").exists())
+        self.assertEqual(self.cfg.plist.read_bytes(), plist)
+        self.assertIn("new.js", (self.root / "fe/frontend/index.html").read_text())
+        self.assertEqual(dn.ledger_records(self.cfg.ledger)[-1]["status"], "verified")
+
+    def test_standalone_script_can_be_retried_after_restoring_the_frontend(self):
+        dep = dn.Deployer(self.cfg, FakeService(self.cfg), out=io.StringIO())
+        dep.swap(self.record, self.root / "events.log", self.moves)
+        dn.save_record(self.cfg.ledger, dict(self.record, status="verified"))
+        self.assertNotEqual(self.run_standalone(check=False, fail_bootstrap=True).returncode, 0)
+        self.assertFalse((self.root / "fe/frontend.before-rec").exists())
+        self.run_standalone()
+        self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
+        self.assertEqual(plistlib.loads(self.cfg.plist.read_bytes()), self.old)
 
     def test_rollback_refuses_a_service_changed_by_hand(self):
         svc = FakeService(self.cfg)

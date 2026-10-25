@@ -66,8 +66,9 @@ when the plist has changed since the record was made (someone edited it by hand)
 unless you pass `--force`. Run it again to step back one more record.
 
 Each record folder also holds `recovery/rollback.sh`, a standalone shell undo for
-when this checkout is unavailable, plus `events.log`, `gateway-verify.txt` and
-the smoke results. Only one deploy-nas command runs at a time.
+when this checkout is unavailable (it refuses, before stopping anything, when the
+parked frontend is gone and it did not restore it itself), plus `events.log`,
+`gateway-verify.txt` and the smoke results. Only one deploy-nas command runs at a time.
 
 ## Host config
 
