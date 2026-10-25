@@ -42,7 +42,8 @@ MODEL_FLAGS = {
     "atlas-scene.json": "--atlas-scene-manifest",
     "reviewed-room-links.json": "--atlas-room-links-manifest",
 }
-REQUIRED_MODEL_FILES = ("publication.json", "atlas-scene.json")
+# The server refuses room links that do not match the selected scene, so a release carries both.
+REQUIRED_MODEL_FILES = ("publication.json", "atlas-scene.json", "reviewed-room-links.json")
 NO_STORE = "private, no-store"
 IMMUTABLE = "public, max-age=31536000, immutable"
 
@@ -140,6 +141,8 @@ def with_flag(args: list[str], flag: str, value: str) -> list[str]:
 def with_binary(service: dict, binary: Path) -> dict:
     out = dict(service)
     out["ProgramArguments"] = [str(binary)] + list(service["ProgramArguments"][1:])
+    if "Program" in out:  # launchd runs Program, not ProgramArguments[0], when both exist
+        out["Program"] = str(binary)
     return out
 
 
@@ -267,7 +270,7 @@ def save_record(path: Path, record: dict) -> None:
 
 
 def rollback_target(records: list[dict]) -> dict | None:
-    live = [r for r in records if r["status"] in ("live", "verified", "verify-failed")]
+    live = [r for r in records if r["status"] in ("swapping", "swap-failed", "live", "verified", "verify-failed")]
     return live[-1] if live else None
 
 
@@ -320,7 +323,7 @@ class Runner:
             return False
 
     def curl(self, url: str, *, method="GET", headers=(), cookie=None, data=None, insecure=False, timeout=30):
-        cmd = ["curl", "-s", "--max-time", str(timeout), "-X", method, "-D", "-", "-o", "-", "-w", "\n%{http_code}"]
+        cmd = ["curl", "-s", "--max-time", str(timeout), "-X", method, "-D", "/dev/stderr", "-o", "-"]
         if insecure:
             cmd.append("-k")
         for h in headers:
@@ -330,17 +333,23 @@ class Runner:
         if data is not None:
             cmd += ["-H", "Content-Type: application/json", "--data", data]
         res = subprocess.run(cmd + [url], capture_output=True)
-        raw = res.stdout
-        body_end = raw.rfind(b"\n")
-        code = int(raw[body_end + 1:] or 0)
-        raw = raw[:body_end]
-        sep = raw.find(b"\r\n\r\n")
-        head, body = (raw[:sep].decode("latin-1"), raw[sep + 4:]) if sep >= 0 else ("", raw)
-        hdrs = {}
-        for line in head.split("\r\n")[1:]:
-            k, _, val = line.partition(":")
-            hdrs.setdefault(k.strip().lower(), val.strip())
-        return code, hdrs, body
+        if res.returncode != 0:  # refused, timed out or truncated: never a pass
+            return 0, {}, b""
+        return (*parse_head(res.stderr.decode("latin-1")), res.stdout)
+
+
+def parse_head(text: str) -> tuple[int, dict]:
+    """Status and headers of the final response; skips 1xx and proxy CONNECT blocks."""
+    blocks = [b for b in text.replace("\r\n", "\n").split("\n\n") if b.startswith("HTTP/")]
+    if not blocks:
+        return 0, {}
+    lines = blocks[-1].split("\n")
+    parts = lines[0].split()
+    hdrs = {}
+    for line in lines[1:]:
+        k, _, val = line.partition(":")
+        hdrs.setdefault(k.strip().lower(), val.strip())
+    return (int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0), hdrs
 
 
 # ------------------------------------------------------------------- checks
@@ -361,17 +370,25 @@ def http_checks(rt: Runner, base: str, *, assets: list[str], ws: str, home: str,
                 expect_publication: str | None = None, insecure=False) -> Checks:
     """What a phone needs after a deploy: login, shell pages, old and new assets, model, logout."""
     c = Checks()
+    try:
+        _http_checks(c, rt, base, assets, ws, home, expect_publication, insecure)
+    except (ValueError, KeyError, TypeError, AttributeError) as e:  # malformed answer from the server
+        c.expect(False, f"unexpected response: {type(e).__name__}: {e}")
+    return c
+
+
+def _http_checks(c: Checks, rt: Runner, base: str, assets, ws, home, expect_publication, insecure) -> None:
     hdr = [f"Origin: {base}", "Sec-Fetch-Site: same-origin"]
     get = lambda path, **kw: rt.curl(base + path, headers=hdr, insecure=insecure, **kw)
     code, _, body = get("/api/atlas/auth/mode")
     mode = json.loads(body or b"{}").get("mode") if code == 200 else None
     if not c.expect(mode is not None, f"auth mode answers ({code}, {mode})"):
-        return c
+        return
     login = "/api/atlas/auth/" + ("proxy" if mode == "trusted-proxy" else "local")
     code, h, _ = get(login, method="POST", data="{}")
     cookie = h.get("set-cookie", "").split(";")[0]
     if not c.expect(code == 200 and bool(cookie), f"login via {login} ({code})"):
-        return c
+        return
     for path in ("/", "/saved/index.html", "/saved/service-worker.js", "/offline-entry-worker.js"):
         code, h, _ = get(path, cookie=cookie)
         c.expect(code == 200 and h.get("cache-control") == NO_STORE, f"{path} {code} {h.get('cache-control')}")
@@ -395,7 +412,6 @@ def http_checks(rt: Runner, base: str, *, assets: list[str], ws: str, home: str,
                          headers=hdr + [f"X-Atlas-CSRF: {csrf}"], insecure=insecure)
     after, _, _ = get("/api/atlas/auth/session", cookie=cookie)
     c.expect(code == 200 and after == 401, f"logout {code}, session afterwards {after}")
-    return c
 
 
 # -------------------------------------------------------------------- deploy
@@ -536,7 +552,7 @@ class Deployer:
         d = Path(record["dir"])
         try:
             c = self.verify(record, assets)
-        except DeployError as e:
+        except Exception as e:
             c = Checks()
             c.expect(False, str(e))
         self.report(c, d / "gateway-verify.txt")
@@ -643,6 +659,8 @@ class Deployer:
             return record
 
         self.say("[6/6] Swapping the service and verifying through the gateway")
+        record["status"] = "swapping"
+        save_record(cfg.ledger, record)
         try:
             self.swap(record, d / "events.log", [(live["frontend"], parked), (stage, live["frontend"])])
         except Exception:
@@ -687,6 +705,8 @@ class Deployer:
             self.say(f"Prepared {name}; nothing live was touched.")
             return record
         self.say("[2/3] Restarting the service on the new model")
+        record["status"] = "swapping"
+        save_record(cfg.ledger, record)
         try:
             self.swap(record, d / "events.log", [])
         except Exception:
@@ -705,8 +725,16 @@ class Deployer:
             record = rollback_target(ledger_records(cfg.ledger))
             if record is None:
                 raise DeployError("no live deploy-nas record to roll back")
-            if not force and sha256_file(cfg.plist) != sha256_file(Path(record["after_plist"])):
+            current = sha256_file(cfg.plist)
+            expected = {sha256_file(Path(record["after_plist"]))}
+            if record["status"] in ("swapping", "swap-failed"):  # interrupted: either side is consistent
+                expected.add(sha256_file(Path(record["before_plist"])))
+            if not force and current not in expected:
                 raise DeployError(f"the service no longer matches {record['id']}; inspect it, or pass --force")
+        if (record["kind"] == "code" and record["status"] in ("live", "verified", "verify-failed")
+                and not Path(record["parked_frontend"]).exists() and not force):
+            raise DeployError(f"the parked frontend {record['parked_frontend']} is missing; rolling back would mix "
+                              "the old binary with the new frontend. Restore it, or pass --force")
         self.say(f"Rolling back {record['id']}")
         d = Path(record["dir"])
         moves = []
@@ -729,7 +757,7 @@ class Deployer:
             assets = entry_scripts(Path(record.get("frontend") or self.live()["frontend"]) / "index.html")
             c = http_checks(self.rt, cfg.gateway_url, assets=assets, ws=ws, home=home)
             c.lines.insert(0, f"PASS service pid {pid} runs {binary}")
-        except DeployError as e:
+        except Exception as e:
             c = Checks()
             c.expect(False, str(e))
         self.report(c, d / "rollback-verify.txt")

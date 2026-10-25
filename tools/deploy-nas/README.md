@@ -45,10 +45,11 @@ frontend is kept, so any record can be undone.
 Follows the release contract on #304: a release folder is `0700`, its files are
 `0600` with one link each, everything is owned by the service user, the path is
 canonical and outside the native data folder. It must hold `publication.json`,
-`atlas-scene.json` and `overview.glb`; `reviewed-room-links.json` is optional and
-the live one is kept when it is absent. The command repoints
-`--model-overview-manifest`, `--atlas-scene-manifest` (and room links when
-present) with freshly computed SHA-256 pins, smoke-tests the live binary with
+`atlas-scene.json`, `overview.glb` and `reviewed-room-links.json`: the server
+refuses to start when the room links do not match the selected scene, so a
+release carries its own copy. The command repoints `--model-overview-manifest`,
+`--atlas-scene-manifest` and `--atlas-room-links-manifest` with freshly computed
+SHA-256 pins, smoke-tests the live binary with
 those flags, restarts the service and checks through the gateway that the new
 `publicationId` is served and its GLB matches. Rolling back restores the
 previous flags.

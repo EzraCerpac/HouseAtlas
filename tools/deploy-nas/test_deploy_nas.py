@@ -43,6 +43,16 @@ class Pure(unittest.TestCase):
         self.assertEqual(out["ProgramArguments"][1:], SERVICE["ProgramArguments"][1:])
         self.assertEqual(SERVICE["ProgramArguments"][0][-10:], "houseatlas")  # input untouched
 
+    def test_binary_swap_also_moves_an_explicit_program(self):
+        out = dn.with_binary(dict(SERVICE, Program="/srv/old/houseatlas"), Path("/srv/new/houseatlas"))
+        self.assertEqual(out["Program"], "/srv/new/houseatlas")
+
+    def test_final_response_headers_win(self):
+        head = ("HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 Connection established\r\n\r\n"
+                "HTTP/2 401 \r\ncache-control: private, no-store\r\n\r\n")
+        self.assertEqual(dn.parse_head(head), (401, {"cache-control": "private, no-store"}))
+        self.assertEqual(dn.parse_head(""), (0, {}))
+
     def test_model_args_drop_only_the_server_config(self):
         args = dn.model_args(SERVICE["ProgramArguments"])
         self.assertNotIn("--server-config", args)
@@ -106,6 +116,7 @@ class ModelRelease(unittest.TestCase):
         write(self.rel / "publication.json", json.dumps({"publicationId": "p-1"}))
         write(self.rel / "atlas-scene.json", "{}")
         write(self.rel / "overview.glb", "glb")
+        write(self.rel / "reviewed-room-links.json", "{}")
         self.data = self.root / "data"
 
     def tearDown(self):
@@ -113,12 +124,12 @@ class ModelRelease(unittest.TestCase):
 
     def test_accepts_the_server_shape_and_pins_hashes(self):
         files = dn.validate_release(self.rel, self.data)
-        self.assertEqual(sorted(files), ["atlas-scene.json", "publication.json"])
+        self.assertEqual(sorted(files), ["atlas-scene.json", "publication.json", "reviewed-room-links.json"])
         out = dn.with_model(SERVICE, files)["ProgramArguments"]
         pub = hashlib.sha256((self.rel / "publication.json").read_bytes()).hexdigest()
         self.assertEqual(dn.flag_value(out, "--model-overview-manifest"), str(self.rel / "publication.json"))
         self.assertEqual(dn.flag_value(out, "--model-overview-manifest-sha256"), pub)
-        self.assertEqual(dn.flag_value(out, "--atlas-room-links-manifest"), "/srv/model/reviewed-room-links.json")
+        self.assertEqual(dn.flag_value(out, "--atlas-room-links-manifest"), str(self.rel / "reviewed-room-links.json"))
 
     def test_rejections(self):
         (self.rel / "overview.glb").chmod(0o644)
@@ -240,6 +251,39 @@ class SwapAndRollback(unittest.TestCase):
         self.assertEqual(svc.binary, SERVICE["ProgramArguments"][0])
         self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
         self.assertEqual(dn.ledger_records(self.cfg.ledger)[-1]["status"], "rolled-back")
+
+    def test_malformed_gateway_answer_rolls_back(self):
+        svc = FakeService(self.cfg)
+        real = svc.curl
+        svc.curl = lambda url, **kw: (200, {}, b"<html>") if url.endswith("/overview") and svc.binary.endswith("new/houseatlas") \
+            else real(url, **kw)
+        dep = dn.Deployer(self.cfg, svc, out=io.StringIO())
+        dep.swap(self.record, self.root / "events.log", self.moves)
+        with self.assertRaises(dn.DeployError):
+            dep.finish(self.record, ["assets/new.js"], auto_rollback=True)
+        self.assertEqual(svc.binary, SERVICE["ProgramArguments"][0])
+
+    def test_interrupted_swap_is_still_the_rollback_target(self):
+        svc = FakeService(self.cfg)
+        dep = dn.Deployer(self.cfg, svc, out=io.StringIO())
+        dn.save_record(self.cfg.ledger, dict(self.record, id="older", status="verified"))
+        self.record["status"] = "swapping"
+        dn.save_record(self.cfg.ledger, self.record)
+        (self.root / "fe/frontend").rename(self.root / "fe/frontend.before-rec")  # stopped after parking
+        self.assertEqual(dn.rollback_target(dn.ledger_records(self.cfg.ledger))["id"], "rec")
+        dep.rollback()
+        self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
+        self.assertEqual(svc.binary, SERVICE["ProgramArguments"][0])
+
+    def test_rollback_refuses_without_the_parked_frontend(self):
+        svc = FakeService(self.cfg)
+        dep = dn.Deployer(self.cfg, svc, out=io.StringIO())
+        dep.swap(self.record, self.root / "events.log", self.moves)
+        dn.save_record(self.cfg.ledger, self.record)
+        (self.root / "fe/frontend.before-rec").rename(self.root / "fe/elsewhere")
+        with self.assertRaises(dn.DeployError):
+            dep.rollback()
+        self.assertTrue(svc.binary.endswith("new/houseatlas"))
 
     def test_rollback_refuses_a_service_changed_by_hand(self):
         svc = FakeService(self.cfg)
