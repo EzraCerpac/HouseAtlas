@@ -3,7 +3,7 @@
  */
 import { MaintenanceCaller } from './caller';
 import type { MaintenanceTransport } from './caller';
-import { need } from './contract';
+import { decode, need } from './contract';
 import type { Operation, Phase, Result, Selection, Status } from './contract';
 
 const selected: Selection = { expectedInstalledRevision: 'a'.repeat(64), release: {
@@ -103,5 +103,75 @@ export async function maintenanceSyntheticCases(): Promise<string[]> {
   finishStatus(response({ ...selected, operationId: id(15), action: 'apply' }, 'succeeded', 2)); await reading;
   need(lateStatus.snapshot().result === null && lateStatus.pending()?.operation.operationId === id(15));
   done.push('late status after retirement cannot repaint or erase unknown identity');
+
+  // Response reactions can be queued before abort rejection, but retirement
+  // still runs before the exchange's await continuation. Cover both mutation
+  // sites through a Promise-returning transport, not a manually late resolver.
+  for (const terminalCommand of ['apply', 'status'] as const) {
+    let settled!: MaintenanceCaller; let dispatched: Operation | null = null;
+    const commands: string[] = [];
+    const operationId = id(terminalCommand === 'apply' ? 17 : 19);
+    settled = new MaintenanceCaller((command, raw) => {
+      commands.push(command);
+      if (command === 'check') return Promise.resolve(response(operation(raw, 'check'), 'checked'));
+      if (command === 'apply') dispatched = operation(raw, 'apply');
+      need(dispatched);
+      if (command === 'apply' && terminalCommand === 'status') return Promise.reject(new Error('Generated lost reply'));
+      queueMicrotask(() => queueMicrotask(() => queueMicrotask(() => settled.retire())));
+      return Promise.resolve(response(dispatched, 'succeeded', 2));
+    });
+    settled.select('generated-owner', selected); await settled.check(id(terminalCommand === 'apply' ? 16 : 18));
+    await settled.apply(operationId);
+    if (terminalCommand === 'status') await settled.poll();
+    need(settled.pending()?.operation.operationId === operationId && settled.pending()?.last === null);
+    need(settled.snapshot().result === null && settled.snapshot().selection === null);
+    need(commands.join(',') === (terminalCommand === 'apply' ? 'check,apply' : 'check,apply,status'));
+  }
+  done.push('settled apply/status responses cannot mutate retired pending ownership');
+
+  type EnumFixture = { code: unknown; status: Record<string, unknown> };
+  const fixture = () => JSON.parse(response({ ...selected, operationId: id(20), action: 'apply' }, 'succeeded', 2)) as EnumFixture;
+  const enumFields = [
+    { key: 'code', values: ['none', 'boundary-failed'], top: true },
+    { key: 'code', values: ['none', 'health-failed'], top: false },
+    { key: 'action', values: ['check', 'apply'], top: false },
+    { key: 'phase', values: ['checking', 'checked', 'staging', 'staged', 'stopping', 'publishing',
+      'starting', 'verifying', 'rolling-back', 'succeeded', 'rolled-back', 'rejected', 'recovery-needed'], top: false },
+    { key: 'compatibility', values: ['unknown', 'compatible', 'incompatible'], top: false },
+    { key: 'rollback', values: ['unknown', 'eligible', 'blocked'], top: false },
+    { key: 'bundleContract', values: ['unverified', 'provisional-fixture', 'houseatlas.release-bundle.v1'], top: false },
+  ];
+  for (const field of enumFields) for (const literal of field.values) {
+    const valid = fixture();
+    if (field.top) valid.code = literal; else valid.status[field.key] = literal;
+    if (field.key === 'phase') valid.status.recoveryNeeded = literal === 'recovery-needed';
+    decode(JSON.stringify(valid)); // Literal enum arms retain their original type.
+    for (const malformed of [[literal], 1, true, null, {}]) {
+      const invalid = structuredClone(valid);
+      if (field.top) invalid.code = malformed; else invalid.status[field.key] = malformed;
+      await refused(async () => { decode(JSON.stringify(invalid)); });
+    }
+  }
+  done.push('enum decoding accepts literal strings and rejects arrays and other non-strings');
+
+  // Malformed correlated terminal status must retain the original apply ID,
+  // its unknown outcome and its ability to consult status without resending.
+  for (const field of enumFields) {
+    let invalid!: MaintenanceCaller; let attempts = 0;
+    invalid = new MaintenanceCaller(async (command, raw) => {
+      if (command === 'check') return response(operation(raw, 'check'), 'checked');
+      if (command === 'apply') { attempts++; throw new Error('Generated lost reply'); }
+      need(JSON.parse(raw).operationId === id(20));
+      const terminalResponse = fixture();
+      const literal = field.top ? terminalResponse.code : terminalResponse.status[field.key];
+      if (field.top) terminalResponse.code = [literal]; else terminalResponse.status[field.key] = [literal];
+      return JSON.stringify(terminalResponse);
+    });
+    invalid.select('generated-owner', selected); await invalid.check(id(21)); await invalid.apply(id(20));
+    await invalid.poll();
+    need(invalid.pending()?.operation.operationId === id(20) && invalid.pending()?.last === null);
+    need(invalid.snapshot().outcome === 'unknown' && invalid.snapshot().canPoll && attempts === 1);
+  }
+  done.push('malformed terminal enum fields never clear retained apply identity');
   return done;
 }

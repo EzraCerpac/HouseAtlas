@@ -100,6 +100,10 @@ export class MaintenanceCaller {
         return transport(command, raw, abort.signal);
       })]));
       correlate(result, op);
+      // A settled response may win the race before retirement queues its abort
+      // rejection. Fence retained-operation mutations as well as repaint.
+      if (epoch !== this.epoch || this.active !== abort || abort.signal.aborted ||
+          (pending && this.unresolved !== pending)) return null;
       if (pending && result.ok && result.status) {
         need(!pending.last?.status || result.status.sequence >= pending.last.status.sequence);
         pending.last = result;
@@ -107,15 +111,17 @@ export class MaintenanceCaller {
         // unknowns and recovery-needed fenced for owner reconciliation.
         if (terminal(result.status) && !result.status.recoveryNeeded && this.unresolved === pending) this.unresolved = null;
       }
-      if (epoch === this.epoch) this.result = result;
+      this.result = result;
       return result;
     } catch {
-      if (epoch === this.epoch) this.result = null;
+      if (epoch === this.epoch && this.active === abort) this.result = null;
       return null;
     } finally {
       clearTimeout(timer); abort.abort();
-      if (this.active === abort) this.active = null;
-      if (epoch === this.epoch) this.waiting = false;
+      if (this.active === abort) {
+        this.active = null;
+        if (epoch === this.epoch) this.waiting = false;
+      }
     }
   }
 }

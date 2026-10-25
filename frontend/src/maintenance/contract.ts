@@ -44,6 +44,9 @@ export function identifier(value: unknown): asserts value is string {
   need(typeof value === 'string' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(value));
 }
 function integer(value: unknown): asserts value is number { need(Number.isSafeInteger(value) && Number(value) > 0); }
+function member(value: unknown, values: readonly string[]): value is string {
+  return typeof value === 'string' && values.includes(value);
+}
 export function release(value: unknown): Release {
   const r = object(value, ['version', 'commit', 'tree', 'releaseId', 'assetId', 'assetName', 'archiveSha256', 'manifestSha256']);
   text(r.version, 80); need(/^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.-]+)?$/.test(r.version));
@@ -73,17 +76,17 @@ export function request(command: Command, operation: Operation): string {
 export function decode(raw: string): Result {
   text(raw, 2 * 1024 * 1024); need(new TextEncoder().encode(raw).length <= 2 * 1024 * 1024);
   const r = object(JSON.parse(raw), ['format', 'ok', 'code', 'status']);
-  need(r.format === 'houseatlas.updater.result.v1' && typeof r.ok === 'boolean' && codes.includes(String(r.code)));
+  need(r.format === 'houseatlas.updater.result.v1' && typeof r.ok === 'boolean' && member(r.code, codes));
   if (r.status !== null) {
     const s = object(r.status, ['format', 'operationId', 'action', 'sequence', 'updatedAt', 'phase', 'code',
       'expectedInstalledRevision', 'requested', 'previous', 'active', 'compatibility', 'rollback',
       'healthVerified', 'recoveryNeeded', 'bundleContract']);
     need(s.format === 'houseatlas.updater.status.v1'); identifier(s.operationId); integer(s.sequence); text(s.updatedAt, 40);
-    need(['check', 'apply'].includes(String(s.action)) && phases.includes(String(s.phase)) && codes.includes(String(s.code)));
+    need(member(s.action, ['check', 'apply']) && member(s.phase, phases) && member(s.code, codes));
     hash(s.expectedInstalledRevision); release(s.requested); installed(s.previous); installed(s.active);
-    need(['unknown', 'compatible', 'incompatible'].includes(String(s.compatibility)) && ['unknown', 'eligible', 'blocked'].includes(String(s.rollback)));
+    need(member(s.compatibility, ['unknown', 'compatible', 'incompatible']) && member(s.rollback, ['unknown', 'eligible', 'blocked']));
     need(typeof s.healthVerified === 'boolean' && typeof s.recoveryNeeded === 'boolean' && s.recoveryNeeded === (s.phase === 'recovery-needed'));
-    need(['unverified', 'provisional-fixture', 'houseatlas.release-bundle.v1'].includes(String(s.bundleContract)));
+    need(member(s.bundleContract, ['unverified', 'provisional-fixture', 'houseatlas.release-bundle.v1']));
   }
   return r as unknown as Result;
 }
