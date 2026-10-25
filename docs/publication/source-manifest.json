@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "8fcccc80dd304f3ba5c23156bac2fa8455a6005a7175f4528276946c46206d82",
+  "sourceDigestSha256": "0d8c4188c2694f9b6bf201a18014c6ed8a2675bab10260f4b15edf66749b7bd2",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -3311,8 +3311,8 @@
     {
       "path": "backend/src/providers/homebox/read/README.md",
       "mode": "100644",
-      "bytes": 30522,
-      "sha256": "ef4c86f445c169bc828716446a8735d6d595217d152106fbf2b0d3298831707f",
+      "bytes": 31075,
+      "sha256": "58f8dfb2d98a2d7396032d4cf801a7a9f5c8ff0c720735877300cf18ea71d9b1",
       "owner": "homebox"
     },
     {
@@ -3381,8 +3381,8 @@
     {
       "path": "backend/src/providers/homebox/read/mod.rs",
       "mode": "100644",
-      "bytes": 2127,
-      "sha256": "32c9c1c314a3c9f584af2e6e35d70e4ba3e95f7bd37d57dd926ac60ef6cd75ba",
+      "bytes": 2165,
+      "sha256": "661b00bfddb2df322bbf734343775632aefe3844a5875a4a3455cba3ce8997e2",
       "owner": "homebox"
     },
     {
@@ -3460,6 +3460,13 @@
       "mode": "100644",
       "bytes": 6578,
       "sha256": "9c128854f3b5a5f674b7b989614d8093dbd2f62bc065c5678d0490fa5c4d4461",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/read/pagination_contract.rs",
+      "mode": "100644",
+      "bytes": 8882,
+      "sha256": "30201a4e1642b6c3df81338bbe32963816273dec85ec4de450da2c6ed1a009ea",
       "owner": "homebox"
     },
     {
@@ -4256,8 +4263,8 @@
     {
       "path": "backend/src/providers/network/healthy.rs",
       "mode": "100644",
-      "bytes": 15057,
-      "sha256": "535e7157862dbb5763f62dfe6c1c19df808852caf91df7f70e0e364d640eb33a",
+      "bytes": 16068,
+      "sha256": "809fd6a431f866e6d60f3e428e25abf7ea168b4983c64d15fe6d3286bdbe28f9",
       "owner": "network"
     },
     {
@@ -6646,6 +6653,13 @@
       "bytes": 3757,
       "sha256": "d1d4a141bf99a9a7c79287212499ef79841c067c076d566850313ea89b0fd695",
       "owner": "access"
+    },
+    {
+      "path": "docs/providers/read-support-matrix.md",
+      "mode": "100644",
+      "bytes": 7851,
+      "sha256": "40d334638d047d3324fcbf5079031c2d236ea88fea5fc426fa9e696d5f1debad",
+      "owner": "homebox"
     },
     {
       "path": "docs/publication/provenance.md",
