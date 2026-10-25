@@ -15,6 +15,7 @@ export function useReducedMotionPreference(): boolean {
 
 const PITCH_3D = { min: 12, max: 68 }, ZOOM = { min: .6, max: 8 };
 export const DEFAULT_ORBIT = { yaw: -32, pitch: 36 } as const;
+export interface StageFraming { readonly zoom: number; readonly panX: number; readonly panY: number }
 
 /** Camera state and interaction shared by the canonical stage and the local
  * preview. Every change re-targets the eased pose, so navigation is always
@@ -119,6 +120,11 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape, minimum
   const fit = () => { setZoom(1); setPan({ x: 0, y: 0 }); if (!top) setOrbit(DEFAULT_ORBIT); };
   /** Zoom and pan back to the framed scope; the chosen orbit stays. */
   const reframe = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
+  /** Zoom and pan as the user left them, for a caller that returns to a view. */
+  const framing: StageFraming = { zoom, panX: pan.x, panY: pan.y };
+  const restore = (saved: StageFraming) => {
+    setZoom(Math.min(zoomLimits.max, Math.max(zoomLimits.min, saved.zoom))); setPan({ x: saved.panX, y: saved.panY });
+  };
   const bind = {
     ...createStagePointers({ gesture: gesture.current, top, onTap, dragging: setDragging, zoom: setZoom, zoomLimits, pan: setPan, orbit: setOrbit }),
     onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
@@ -134,5 +140,5 @@ export function useStageCamera({ element, top, reduced, onTap, onEscape, minimum
       event.preventDefault(); action();
     },
   };
-  return { size, eased, planBlend, dragging, zoom, zoomLimits, turn, zoomBy, fit, reframe, bind };
+  return { size, eased, planBlend, dragging, zoom, zoomLimits, turn, zoomBy, fit, reframe, framing, restore, bind };
 }

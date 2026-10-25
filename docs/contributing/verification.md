@@ -3031,6 +3031,11 @@ scrolling to its last row, composing Escape ignored, Escape and Close
 returning focus to the Layer details fold, the selected room and camera
 controls unchanged across five open/close cycles and a short-desktop-short
 resize while open. That pass is evidence for that PR, not a standing check.
+A second one-off pass for the follow-up to the Mac app check (568x320 with
+the stage filling the viewport, and 390x844) observed: Plan zoom and pan
+unchanged after Plan, 3D and back; the short sheet ending above the selected
+room's row; Tab and Shift-Tab wrapping inside the sheet; and Escape inside the
+portrait drawer folding it, with focus on its fold and the room still selected.
 
 ## Named generated Atlas control names check
 

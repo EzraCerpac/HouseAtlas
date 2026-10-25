@@ -55,6 +55,29 @@ export function useLayerDetailsFocus({ compact, drawer, dock, trigger, focusOrig
   }, [drawer, dock]);
 }
 
+const TABBABLE = 'button, [href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])';
+/** Tab past either end of the modal sheet wraps inside it. A native modal
+ * leaves the page inert but still lets Tab reach the browser's own controls. */
+function wrapTab(dialog: HTMLElement, event: { readonly shiftKey: boolean; preventDefault(): void }) {
+  const stops = [...dialog.querySelectorAll<HTMLElement>(TABBABLE)].filter(element => !element.matches(':disabled')
+    && element.getClientRects().length > 0 && !element.closest('[inert], [hidden]'));
+  const first = stops[0], last = stops.at(-1), active = document.activeElement;
+  if (!first || !last) return;
+  if (event.shiftKey ? active === first || !dialog.contains(active) : active === last) {
+    event.preventDefault(); (event.shiftKey ? last : first).focus();
+  }
+}
+
+/** A short sheet stops above the selected room's row, so the room stays in
+ * view while its layers are read; at most half the height is held back. */
+function reserveRoomRow(dialog: HTMLDialogElement) {
+  const head = dialog.closest('.ua-shell')?.querySelector<HTMLElement>('.ua-inspector .ua-sheet-head');
+  const rect = head && head.getClientRects().length > 0 ? head.getBoundingClientRect() : null;
+  const height = window.innerHeight;
+  const reserve = rect && rect.top < height && rect.bottom > 0 ? Math.min(height / 2, Math.ceil(height - rect.top)) : 0;
+  dialog.style.setProperty('--ua-room-row', `${reserve}px`);
+}
+
 /** Keep one dock and one set of keys mounted across the responsive boundary.
  * Only showModal enters the top layer; native modal behavior makes the rest
  * of the document inert and contains keyboard focus until close or resize. */
@@ -104,6 +127,14 @@ export function LayerDetailsDock({ dock, trigger, id, short, expanded, close, ch
 
   useLayoutEffect(() => {
     const dialog = dock.current;
+    if (!dialog || !short || !expanded) return;
+    const measure = () => reserveRoomRow(dialog);
+    measure(); window.addEventListener('resize', measure);
+    return () => { window.removeEventListener('resize', measure); dialog.style.removeProperty('--ua-room-row'); };
+  }, [dock, short, expanded]);
+
+  useLayoutEffect(() => {
+    const dialog = dock.current;
     return () => { if (dialog?.open) dialog.close(); };
   }, [dock]);
 
@@ -112,6 +143,7 @@ export function LayerDetailsDock({ dock, trigger, id, short, expanded, close, ch
     aria-label={short ? undefined : 'Layer details'} aria-labelledby={short ? `${id}-title` : undefined}
     onCancel={event => { event.preventDefault(); event.stopPropagation(); close(); }}
     onKeyDown={event => {
+      if (short && expanded && event.key === 'Tab') { wrapTab(event.currentTarget, event); return; }
       if (!short || event.key !== 'Escape') return;
       event.stopPropagation();
       if (event.nativeEvent.isComposing) return;

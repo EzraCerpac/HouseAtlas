@@ -10,7 +10,7 @@ import { BIRCH, BIRCH_DARK, CARD, LANTERN } from '../atlas/palette';
 import { frameZoomMinimum, makeProjection, relativePath, type DrawRules, type Projection, type Viewport } from '../canonical-ifc/geometry';
 import { GlbFormatError } from '../canonical-ifc/glb-preflight';
 import { MeshLayer, RENDER_LIMITS, type MeshPalette } from '../canonical-ifc/MeshLayer';
-import { useStageCamera } from '../canonical-ifc/useStageCamera';
+import { useStageCamera, type StageFraming } from '../canonical-ifc/useStageCamera';
 import { TONE_COLOR, badgeFill, toneTint } from '../canonical-ifc/tones';
 import { PREPARED_BYTES_PER_TRIANGLE } from '../site-artifacts/site-budget';
 import { createLiveAtlasPresentationPort, savedAtlasInitialState } from '../../offline/saved-atlas-presentation';
@@ -675,14 +675,21 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   const site = useMemo(() => ({ keys: new Set(model.parts.filter(part => part.role === 'context').map(part => part.mesh.meshKey)), tone: ATLAS_SITE }), [model]);
   const showCanvas = planBlend < 1 && failure === null;
 
-  // A new scope is framed whole: zoom and pan return, the chosen orbit stays.
-  const scope = `${state.buildingId}\n${state.levelId}\n${state.view}\n${state.exploded}`;
-  const framed = useRef(scope);
+  // A new place is framed whole: zoom and pan return, the chosen orbit stays.
+  // Within one place, Plan and 3D each keep the user's own zoom and pan, so a
+  // look at the other view and back returns to the same framing.
+  const place = `${state.buildingId}\n${state.levelId}\n${state.exploded}`;
+  const framed = useRef({ place, view: state.view });
+  const viewFraming = useRef(new Map<AtlasViewState['view'], StageFraming>());
   useEffect(() => {
-    if (framed.current === scope) return;
-    framed.current = scope; camera.reframe();
+    const left = framed.current;
+    if (left.place === place && left.view === state.view) return;
+    if (left.place === place) viewFraming.current.set(left.view, camera.framing); else viewFraming.current.clear();
+    framed.current = { place, view: state.view };
+    const saved = viewFraming.current.get(state.view);
+    if (saved) camera.restore(saved); else camera.reframe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope]);
+  }, [place, state.view]);
 
   // Plans relative to the fixed origin; one translate follows the eased centre.
   // Each drawn floor keeps its own height, so the property plan never stacks floors.
@@ -1054,9 +1061,21 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
   // out: it folds back and focus returns to its opener. The compact folds
   // keep their own behaviour.
   const stripEscape = (event: ReactKeyboardEvent<HTMLElement>) => {
-    if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing || compact || drawer !== 'floors'
+    if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing || drawer === null
       || (event.target as HTMLElement).closest('.ua-layer-dialog[aria-modal="true"]')) return;
     if ((event.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]')) return;
+    // A compact drawer folds before Escape reaches the map, from inside it or
+    // from its fold, and focus returns to the fold that opened it.
+    if (compact) {
+      const fold = drawer === 'layers' ? layersFold.current : floorsFold.current;
+      const panel = drawer === 'layers' ? keysDock.current : shell.current?.querySelector('.ua-tiles.is-unfolded');
+      const target = event.target as Node;
+      if (!panel?.contains(target) && !fold?.contains(target)) return;
+      event.preventDefault(); event.stopPropagation();
+      setDrawer(null); fold?.focus({ preventScroll: true });
+      return;
+    }
+    if (drawer !== 'floors') return;
     // A strip stepped aside under an open card is not the target.
     const strip = shell.current?.querySelector('.ua-tiles.is-unfolded');
     if (!strip || strip.getClientRects().length === 0 || getComputedStyle(strip).visibility !== 'visible') return;
