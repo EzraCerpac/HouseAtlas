@@ -205,14 +205,19 @@ export function createOutbox(options: OutboxOptions): Outbox {
   /** Applies a decision about a conflict only if the stored entry is still
    * the one the person saw, and in turn with sending, so a stale tab cannot
    * undo a decision another tab already made. */
-  async function decide(seen: OutboxEntry, write: () => Promise<unknown>): Promise<void> {
-    const current = await lock(async () => {
+  async function decide(seen: OutboxEntry, write: () => Promise<unknown>, signal?: AbortSignal): Promise<void> {
+    const outcome = await lock(async () => {
       const stored = (await store.list()).find(row => row.id === seen.id);
-      if (!stored || stored.state !== 'needs-you' || stored.requestId !== seen.requestId) return false;
+      // Everything the decision rests on is checked again right before the
+      // write: waiting for the lock may have outlasted it.
+      signal?.throwIfAborted();
+      if (!context || !owns(seen, context)) return 'not-mine';
+      if (!stored || stored.state !== 'needs-you' || stored.requestId !== seen.requestId) return 'decided';
       await write();
-      return true;
+      return 'done';
     });
-    if (!current) {
+    if (outcome === 'not-mine') throw new Error('Only the account that made this change can decide about it');
+    if (outcome === 'decided') {
       await reload();
       throw new Error('This change was already decided on another tab');
     }
@@ -257,7 +262,7 @@ export function createOutbox(options: OutboxOptions): Outbox {
       const fresh = await adapter(entry).rebase(entry, signal);
       signal.throwIfAborted();
       mine(id); // The person may have signed out while it was prepared.
-      await decide(entry, () => save({ ...entry, ...fresh, state: 'waiting', sent: false, problem: null, settledAt: null }));
+      await decide(entry, () => save({ ...entry, ...fresh, state: 'waiting', sent: false, problem: null, settledAt: null }), signal);
       await sendNow(id);
     },
     useTheirs: async id => decide(mine(id), () => remove(id)),

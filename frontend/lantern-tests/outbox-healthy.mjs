@@ -226,6 +226,28 @@ for (const [status, problem] of [[403, 'denied'], [404, 'removed'], [422, 'rejec
   assert.equal(server.revisions.get('vault'), 4);
 }
 
+// A decision waiting for another tab's send is checked again once its turn
+// comes: a sign-out or a cancelled request in the meantime writes nothing.
+for (const lateChange of ['sign-out', 'abort']) {
+  const disk = createSyntheticDisk(), server = createServer();
+  let tail = Promise.resolve(), hold;
+  const lock = work => { const run = tail.then(work); tail = run.catch(() => undefined); return run; };
+  const outbox = outboxOn(disk, server, { lock });
+  outbox.configure(context);
+  server.revisions.set('loft', 3);
+  const entry = await outbox.submit(submission('loft', 1));
+  outbox.register('place-name', { current: async () => '', rebase: async row => ({ requestId: 'late', label: row.label, body: row.body }) });
+  lock(() => new Promise(resolve => { hold = resolve; })); // Another tab is sending.
+  const controller = new AbortController();
+  const deciding = lateChange === 'abort' ? outbox.keepMine(entry.id, controller.signal) : outbox.useTheirs(entry.id);
+  await new Promise(resolve => setTimeout(resolve, 10));
+  if (lateChange === 'abort') controller.abort(); else outbox.configure(null);
+  hold();
+  await assert.rejects(deciding);
+  const stored = syntheticRecords(disk, OUTBOX_DATABASE, 'entries').find(row => row.id === entry.id);
+  assert.equal(stored.state, 'needs-you'); assert.equal(stored.requestId, entry.requestId, `Nothing written after ${lateChange}`);
+}
+
 // Signed out: nothing is lost and the host hears about it.
 {
   const disk = createSyntheticDisk(), server = createServer();
@@ -346,4 +368,4 @@ for (const [status, problem] of [[403, 'denied'], [404, 'removed'], [422, 'rejec
   assert.equal(kept.at(-1).target.recordId, `room-${KEEP_SYNCED + 2}`);
   assert.equal(syntheticRecords(disk, OUTBOX_DATABASE, 'entries').length, KEEP_SYNCED);
 }
-console.log(JSON.stringify({ outbox: 'healthy', cases: 15 }));
+console.log(JSON.stringify({ outbox: 'healthy', cases: 16 }));
