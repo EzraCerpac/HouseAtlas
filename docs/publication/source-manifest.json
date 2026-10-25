@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "639cd465cf749073345e666333e85a8dcc4808157656a4fd6b1f8f94fa93282c",
+  "sourceDigestSha256": "980fd4f09b9ae69fbe3ffb8867a56c2fb730b6b36b0430e1491f7706ef37a627",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -133,8 +133,8 @@
     {
       "path": "Cargo.toml",
       "mode": "100644",
-      "bytes": 2487,
-      "sha256": "98e71af2e09e234b50c753df95139acd598769b0394357a92b6c60507937a8e3",
+      "bytes": 2496,
+      "sha256": "873fa99ab7b691e5a2ddf3ee4784c717b00a8d8a44027f85ec252172dffcdd3b",
       "owner": "core-integration"
     },
     {
@@ -602,8 +602,8 @@
     {
       "path": "backend/src/access/metadata.rs",
       "mode": "100644",
-      "bytes": 2652,
-      "sha256": "6f435092dc643a0a94cd7f201ede62d2e94a965c7c83f0c3268808479d75aa5a",
+      "bytes": 4534,
+      "sha256": "42ca1231fffb2c17ddcd80f0796379add03eda3452d7f3d1031720134e088fc1",
       "owner": "access"
     },
     {
@@ -616,8 +616,8 @@
     {
       "path": "backend/src/access/mod.rs",
       "mode": "100644",
-      "bytes": 2074,
-      "sha256": "9fb23b9f0509337fd431f1cef372e49a7bab8db47c53b88462b62751cc88ecf1",
+      "bytes": 2097,
+      "sha256": "666eb4640d33669dc3b94ea9bbf32cfc8a6a04bb272cb636c1cff0866197876e",
       "owner": "access"
     },
     {
@@ -632,6 +632,13 @@
       "mode": "100644",
       "bytes": 7592,
       "sha256": "8c9c6d8e41d386049643f98ede93cbd8ea99a37b5e22915b1e685ef22eb90dc9",
+      "owner": "access"
+    },
+    {
+      "path": "backend/src/access/partition_catalog.rs",
+      "mode": "100644",
+      "bytes": 6177,
+      "sha256": "9d4a05dd16e8f7470a4ed30bdeaa6eead5b4e4c11a4f969763159d3176648e4a",
       "owner": "access"
     },
     {
@@ -679,15 +686,15 @@
     {
       "path": "backend/src/access/source.rs",
       "mode": "100644",
-      "bytes": 8872,
-      "sha256": "99ac30ad89a0ad118961fabf73370bc748e98b975f43fa9525173823a480e42e",
+      "bytes": 10426,
+      "sha256": "0a004a620e6c20cf88ad67616a4ae07796f219187f189e056fd3549f3e209651",
       "owner": "access"
     },
     {
       "path": "backend/src/access/store.rs",
       "mode": "100644",
-      "bytes": 31025,
-      "sha256": "414e5b53c1d4cf9142329824532fb34f394f4adc59546d69f2e10df804bab64d",
+      "bytes": 33176,
+      "sha256": "a556b02c898b0bfc46df6d17cdba6137f4a919cffb21861cc264fdc26ee52ac7",
       "owner": "access"
     },
     {
@@ -1099,8 +1106,8 @@
     {
       "path": "backend/src/app.rs",
       "mode": "100644",
-      "bytes": 30543,
-      "sha256": "7597c779f0be0e4a199c65517eee1ee545c25cd1e86db7e215a405cc9fe19395",
+      "bytes": 30585,
+      "sha256": "a3af3c05ed5e1387a224b04235bb9a9a9b1b60b8e37566c60bdacd012ab9a043",
       "owner": "core-integration"
     },
     {
@@ -1108,6 +1115,13 @@
       "mode": "100644",
       "bytes": 3691,
       "sha256": "4d2a2f14ee34d587d591882c8a05ee9205650154f1af203191afa4509ecd116a",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/app/homebox_partition_catalog.rs",
+      "mode": "100644",
+      "bytes": 11831,
+      "sha256": "d9df5e07f7deb4928c51ca2b83cf35d5745f7f34766f2a3ce5bc7113d8b7f070",
       "owner": "core-integration"
     },
     {
@@ -1262,6 +1276,13 @@
       "mode": "100644",
       "bytes": 11602,
       "sha256": "370f3a36b66ae1899a5e368c1dce9a1070f0eaba30b0da3c0a0fb1337fba5c28",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/catalog_budget.rs",
+      "mode": "100644",
+      "bytes": 8723,
+      "sha256": "5b9279bebacda1940b4239fc7bbc8edc1545cf434863d2a04dc1c0d751bc843c",
       "owner": "core-integration"
     },
     {
@@ -2723,8 +2744,8 @@
     {
       "path": "backend/src/lib.rs",
       "mode": "100644",
-      "bytes": 512,
-      "sha256": "0891b583c00a3c1fb2f7c473bf21bdaf05a3ff82ebd8417a0c97550b9628597d",
+      "bytes": 543,
+      "sha256": "e1fb1bd932448334e4ab2d66e36d5dfb34460d63e0272dffa965c4c8ee676109",
       "owner": "core-integration"
     },
     {
@@ -4592,8 +4613,8 @@
     {
       "path": "backend/src/storage/cache_repository.rs",
       "mode": "100644",
-      "bytes": 7475,
-      "sha256": "94686d80956f6426fc695fe20f30694cad72497c1f0a8220403dd4a5f058b106",
+      "bytes": 12994,
+      "sha256": "5398402232289ded2458968a26fef363771d5f0cd480ed57382e29aa89e280a0",
       "owner": "storage"
     },
     {
@@ -4881,6 +4902,13 @@
       "mode": "100644",
       "bytes": 2168,
       "sha256": "89cc972a6694b8a046f19ceaf0434ed717b49005e1ab2fe58d6671a80822ef5f",
+      "owner": "storage"
+    },
+    {
+      "path": "backend/src/storage/partition_catalog.rs",
+      "mode": "100644",
+      "bytes": 2330,
+      "sha256": "35c70d6b8ec05e370f9050187966cbc1e877454a22a5277ad9899ec969a62fe1",
       "owner": "storage"
     },
     {
@@ -5369,8 +5397,8 @@
     {
       "path": "backend/src/storage/store.rs",
       "mode": "100644",
-      "bytes": 24259,
-      "sha256": "435478a071a42fa1ac29624ad5c1d18abc1a00e5c224cfbb593764de872cbb1f",
+      "bytes": 24315,
+      "sha256": "18c90a4b1cac9bfc55987727784dd7941acf8ac9545b35e009768a997617a3e0",
       "owner": "storage"
     },
     {
@@ -6702,6 +6730,13 @@
       "bytes": 3757,
       "sha256": "d1d4a141bf99a9a7c79287212499ef79841c067c076d566850313ea89b0fd695",
       "owner": "access"
+    },
+    {
+      "path": "docs/providers/internal-homebox-partition-catalog.md",
+      "mode": "100644",
+      "bytes": 6263,
+      "sha256": "57970d6d092415239cad346673e0e7d87d1326d7eda4476004867b2e38719a4c",
+      "owner": "homebox"
     },
     {
       "path": "docs/providers/read-support-matrix.md",
@@ -10575,6 +10610,34 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/maintenance/README.md",
+      "mode": "100644",
+      "bytes": 3462,
+      "sha256": "5d8d96ab9821ae1be03d42cab67e67cce67d0133249541736ad90be1e3a562e1",
+      "owner": "core-integration"
+    },
+    {
+      "path": "frontend/src/maintenance/caller.ts",
+      "mode": "100644",
+      "bytes": 7189,
+      "sha256": "dd2c0193b3e4eb4b256d25c4f49cc6370ae767f7324738f3ecd210c3666b9bb0",
+      "owner": "core-integration"
+    },
+    {
+      "path": "frontend/src/maintenance/contract.ts",
+      "mode": "100644",
+      "bytes": 7693,
+      "sha256": "f3f0db205dc0bb4d66d0f18cc3ea464a333e928016035993b12223b5464d3df7",
+      "owner": "core-integration"
+    },
+    {
+      "path": "frontend/src/maintenance/synthetic.ts",
+      "mode": "100644",
+      "bytes": 11600,
+      "sha256": "c5991f7d99ae25dcbc135a2131cb5b6903db6be822e3e10b5fbe6838f7371696",
+      "owner": "core-integration"
+    },
+    {
       "path": "frontend/src/numeric/decimal.ts",
       "mode": "100644",
       "bytes": 4709,
@@ -11924,6 +11987,41 @@
       "bytes": 53938,
       "sha256": "789e3f49b841d160928ed076ee831ff91ae295f175789ab03971ce3a516b7e72",
       "owner": "media"
+    },
+    {
+      "path": "tools/homebox-quantity-seed-report/README.md",
+      "mode": "100644",
+      "bytes": 9804,
+      "sha256": "4d10081dd7942b11d7ef7ff684af9bff53057c02de666fa9313a568ce6a1833b",
+      "owner": "homebox"
+    },
+    {
+      "path": "tools/homebox-quantity-seed-report/cli.py",
+      "mode": "100644",
+      "bytes": 1061,
+      "sha256": "28f3b099912b2b56c1aab155e1948b594939998ff7fcc65e5db252d8bcbd36c5",
+      "owner": "homebox"
+    },
+    {
+      "path": "tools/homebox-quantity-seed-report/fixtures.json",
+      "mode": "100644",
+      "bytes": 4087,
+      "sha256": "1c65725947a24e1be1f0192b9ee7b1b07e4dbd4d16780a7c97535acd577790a4",
+      "owner": "homebox"
+    },
+    {
+      "path": "tools/homebox-quantity-seed-report/report.py",
+      "mode": "100644",
+      "bytes": 13615,
+      "sha256": "3f4f0135e000bfbf9f1b39e29a1d73f39219ce82fdf4bea8afb7773b0a27befc",
+      "owner": "homebox"
+    },
+    {
+      "path": "tools/homebox-quantity-seed-report/test_report.py",
+      "mode": "100644",
+      "bytes": 15610,
+      "sha256": "b559fd84d52142662cd4e8d31e2c3221e4eb4613ed0f3bad6eb6a1b7656ffded",
+      "owner": "homebox"
     },
     {
       "path": "tools/houseatlas-mcp-bridge/bridge.py",
