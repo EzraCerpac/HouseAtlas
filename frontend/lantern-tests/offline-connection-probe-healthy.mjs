@@ -53,4 +53,12 @@ assert.equal(updates.readModelUpdates(), 'automatic', 'unavailable storage leave
 const atlas = readFileSync(new URL('../src/lantern/unified-atlas/UnifiedAtlas.tsx', import.meta.url), 'utf8');
 assert.ok(atlas.includes("asked === selection || modelUpdatesAllowed()"), 'held downloads are released per selection');
 assert.ok(!/attempt > 0 \|\|/.test(atlas), 'a past retry does not release later selections');
+assert.ok(atlas.includes("was === 'ask' && updates === 'automatic' && held"), 'switching to Automatic starts a held read in place');
+assert.ok(atlas.includes("if (reason === 'denied') { refused.current = selection; storedCopy.current = null; }"), 'a refusal retires the stored copy');
+assert.ok(atlas.includes('refused.current === selection) return null'), 'a retry does not restore a refused stored copy');
+// Open live uses a query the root worker leaves to the network, so a slow host is not sent back to Saved.
+const host = readFileSync(new URL('../src/offline/SavedAtlasHost.tsx', import.meta.url), 'utf8');
+const rootWorker = readFileSync(new URL('../build/root-offline-worker-source.js', import.meta.url), 'utf8');
+assert.ok(host.includes("const LIVE_ENTRY = '/?live';") && host.includes('href={LIVE_ENTRY}'));
+assert.ok(rootWorker.includes('|| url.search ||'), 'the root worker passes query-qualified entries through');
 console.log('PASS live-host probe and room map download preference');

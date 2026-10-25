@@ -28,7 +28,7 @@ import { atlasLevelName, countClearedLabelY, countMarkerTarget, countMarkerWidth
 import { documentaryOverlayIndex, type BuildingCoverage, type DocumentaryRecord, type PropertyRecords, type SourceFact } from './runtime-overlays';
 import { edgeSpans, estimatedOccurrences, MEASUREMENT_BASIS, placeLabels, roomArea } from './measurements';
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
-import { modelUpdatesAllowed } from './model-updates';
+import { modelUpdatesAllowed, useModelUpdates } from './model-updates';
 import { NetworkGraph } from './NetworkGraph';
 import { NetworkStageConnections, networkRoomConnections } from './NetworkStageConnections';
 import type { NetworkConnections } from './network-connections';
@@ -139,6 +139,17 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   // The stored copy bound for this selection, reused by a retry without a second parse.
   const storedCopy = useRef<{ readonly selection: AtlasPresentationSelection; readonly read: StoredAtlasRead; readonly model: AtlasModel } | null>(null);
+  // A selection the server refused: its stored copy stays hidden until an authorized read succeeds.
+  const refused = useRef<AtlasPresentationSelection | null>(null);
+  // Switching Settings from When I ask to Automatic starts a held read in place.
+  const updates = useModelUpdates();
+  const previousUpdates = useRef(updates);
+  useEffect(() => {
+    const was = previousUpdates.current;
+    previousUpdates.current = updates;
+    const held = loaded?.selection === selection && (loaded.outcome.status === 'held' || loaded.outcome.status === 'ready' && loaded.outcome.stored?.refresh === 'held');
+    if (was === 'ask' && updates === 'automatic' && held) setAttempt(value => value + 1);
+  }, [updates]); // Only a change of preference starts it.
 
   useEffect(() => {
     if (!selection) return;
@@ -159,7 +170,7 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
     const fetchNow = port.kind !== 'live' || asked === selection || modelUpdatesAllowed();
     let settled = false;
     const stored: Promise<{ readonly read: StoredAtlasRead; readonly model: AtlasModel } | null> = (async () => {
-      if (port.kind !== 'live' || selection.kind !== 'live' || !port.stored) return null;
+      if (port.kind !== 'live' || selection.kind !== 'live' || !port.stored || refused.current === selection) return null;
       if (storedCopy.current?.selection === selection) {
         const kept = storedCopy.current;
         if (!fetchNow) setLoaded({ selection, attempt, outcome: { status: 'ready', model: kept.model, entryBuildingId: kept.read.entryBuildingId,
@@ -194,10 +205,12 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
           && read.scene.model.sha256 === shown.read.scene.model.sha256 && read.entryBuildingId === shown.read.entryBuildingId;
         outcome = { status: 'ready', model: same ? shown.model : await bind(read), entryBuildingId: read.entryBuildingId };
         storedCopy.current = null;
+        refused.current = null;
       } catch (error) {
         if (signal.aborted) return;
         // A model file the standard loader refuses does not match its room map.
         const reason = error instanceof AtlasReadError ? error.reason : error instanceof GlbFormatError ? 'invalid' : 'unavailable';
+        if (reason === 'denied') { refused.current = selection; storedCopy.current = null; }
         // Only a transport failure keeps a verified stored copy on screen, marked as not updated.
         const shown = reason === 'unavailable' ? await stored : null;
         outcome = shown ? { status: 'ready', model: shown.model, entryBuildingId: shown.read.entryBuildingId, stored: { storedAt: shown.read.storedAt, refresh: 'failed' } }

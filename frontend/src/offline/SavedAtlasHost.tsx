@@ -17,6 +17,10 @@ import './saved-host.css';
 import './saved-catalog.css';
 import '../styles/session.css';
 
+/** The live entry with a query, which the root worker leaves to the network
+ * without its offline timeout, so a slow but reachable host still opens. */
+const LIVE_ENTRY = '/?live';
+
 type Allocation = NonNullable<Awaited<ReturnType<typeof openSavedAtlasPresentation>>>;
 export interface SavedCatalogSelection {
   readonly read: SavedCatalogRead;
@@ -125,7 +129,7 @@ export function SavedAtlasHost({ store: supplied }: { readonly store?: SavedHous
   const changeView = (next: typeof view) => { if (next !== view) localPanel.current?.(); setView(next); };
   return <main className="lantern-host view-atlas saved-atlas-app">
     <header className="saved-header"><h1>Saved Atlas</h1><span role="status">{shell.ready ? 'Public shell verified' : 'Public shell not verified'}</span>
-      {live.reachable ? <a className="saved-live" href="/">Connected · Open live</a>
+      {live.reachable ? <a className="saved-live" href={LIVE_ENTRY}>Connected · Open live</a>
         : <button type="button" className="saved-live" onClick={live.check} disabled={live.checking} aria-live="polite">
           {live.checking ? 'Checking connection…' : live.reachable === false ? 'Offline · Check connection' : 'Check connection'}</button>}
       {house && <button type="button" onClick={close}>Close saved Atlas</button>}

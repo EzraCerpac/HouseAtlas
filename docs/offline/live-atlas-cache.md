@@ -46,12 +46,18 @@ Settings → **Room map downloads** is a per-device choice kept in
 - **When I ask**: the stored copy opens with **Check for update** and no
   network read. With nothing stored, the Atlas shows **Download room map**.
 
+An explicit download or retry covers only the selection it was pressed for.
+Switching back to **Automatic** starts a held read in place. A 401 or 403
+retires the stored copy for that selection until an authorized read succeeds.
+
 ## Back online from the Saved viewer
 
 The Saved viewer checks whether the live entry `/` answers on open, every 30
 seconds while visible, on the browser's `online` event and on **Check
 connection**. Any HTTP answer counts as reachable and shows **Connected · Open
 live**; a rejected or 5-second-silent read stays offline. Nothing is cached.
+**Open live** goes to `/?live`: the root worker leaves query-qualified entries
+to the network, so a host slower than its 2-second offline timeout still opens.
 
 ## Static assets
 

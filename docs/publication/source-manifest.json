@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0934b3448fc0df09ed757c82705942f1ccb895ad8b17a22d64b6c15ecf6eeb24",
+  "sourceDigestSha256": "d28ea1454624e5a2ce7dbbfa8fed5d996ea2fac1a187f1644ab1b2fd3eefb6fa",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -6406,8 +6406,8 @@
       "path": "docs/offline/live-atlas-cache.md",
       "mode": "100644",
       "owner": "web",
-      "bytes": 3718,
-      "sha256": "31539d04dfac4f9d95f5d4a4461ca1f811dfa328931eae994f4939ee3b07ea18"
+      "bytes": 4106,
+      "sha256": "47613f50e30b9ced6a9b545c767c780baca3a5c8494c6831559bca61901d030c"
     },
     {
       "path": "docs/offline/native-house-acquisition.md",
@@ -7813,8 +7813,8 @@
       "path": "frontend/lantern-tests/offline-connection-probe-healthy.mjs",
       "mode": "100644",
       "owner": "web",
-      "bytes": 3837,
-      "sha256": "8bb96ce3535a176c0d0cf473b344b5ff0c942324b8ffa998da1acfdea83e22e1"
+      "bytes": 4765,
+      "sha256": "6b07b658c4fc840d4bf3859ad5b10c69d33080639deab75f0a36fcfdf79e3f0e"
     },
     {
       "path": "frontend/lantern-tests/offline-house-acquisition-healthy.mjs",
@@ -10164,8 +10164,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 138974,
-      "sha256": "5cc09d4b80ffd9df4accd97ff369390270217f9aa4ae454ae09930e15ca49846",
+      "bytes": 139898,
+      "sha256": "434cf92f4c9a71c714378c064310ef453c79dff8ec75e32728c344129c1bebd8",
       "owner": "web"
     },
     {
@@ -10367,8 +10367,8 @@
     {
       "path": "frontend/src/offline/SavedAtlasHost.tsx",
       "mode": "100644",
-      "bytes": 11163,
-      "sha256": "5ba8b18e848967e1bd0d3c7e33cfe16843bda4f8b32ac5504ca3e2cb34f4f0bd",
+      "bytes": 11356,
+      "sha256": "b90ecbc201d93a3ebe2fc23bcda32b448bde1702ef3606e902385aa8ae750372",
       "owner": "web"
     },
     {
