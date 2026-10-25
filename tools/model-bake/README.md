@@ -72,8 +72,15 @@ metres, default 0.0005).
   reads and the bytes behind them are dropped, because the viewer and backend
   refuse unused declarations. Untouched accessors keep their exact values.
 
-After writing, the bake runs the frontend's own `preflightGltf` and embedded-PNG
-material admission on the result. A refusal there fails the bake.
+Before writing, the bake runs the frontend's own `preflightGltf` and embedded-PNG
+material admission on the result. With a companion it also composes the read
+envelope the server sends, runs the app's scene admission (`admitAtlasScene`),
+loads the overview through the app's standard loader and binds every selector
+to exactly one drawn primitive (`bindAtlasModel`), the join that room selection,
+Plan↔3D, floors and exploded views rely on. A refusal there fails the bake;
+`bake-report.json` records the bound primitives, room picks, selectable rooms,
+levels and buildings under `viewerBinding`. An `--out` that already holds an
+output is refused before any work.
 
 ## Checks
 
@@ -81,7 +88,7 @@ material admission on the result. A refusal there fails the bake.
 node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs
 ```
 
-Eight cases on generated geometry: baking to budget (locked footprints,
+Nine cases on generated geometry: baking to budget (locked footprints,
 source-vertex positions, a flat wall and welded terrain soup collapsing, viewer
 admission), a master that already fits (kept as authored while an unused mesh,
 a dead accessor and their bytes drop, with bindings remapped), roles read from
@@ -90,8 +97,11 @@ unreachable budget or a weld larger than the cap, a bake whose error exceeds who
 chain, garden gravel, a strip thinner than the weld) that still leaves every
 primitive non-empty, the world stretch of a rotation under a nonuniform scale,
 the command line refusing an `--out` that holds its inputs, and a textured
-panel with non-affine UVs kept as authored. They do not render anything or
-touch a real model.
+panel with non-affine UVs kept as authored, and the frontend's generated unified
+Atlas publication, densified and baked, binding in the viewer with the same
+primitive slots, roles, buildings, levels, room picks and selectable rooms as
+before the bake (and refusing a companion that leaves a primitive unclaimed).
+They do not render anything or touch a real model.
 
 ## Not covered here
 

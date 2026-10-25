@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "5b1f055e692b9e767ed846c261c51913d7c14456368f8c9126e9b47d08dfc59a",
+  "sourceDigestSha256": "9fe159e27306f7006fe27e54611a5d3b14c1aaec28e6ac65a66e57041d2fd63b",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -77,8 +77,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 13449,
-      "sha256": "7a277c1d1f879b4595e559dca65686dfc0b5d6f23356fad0121180479a08a4fd",
+      "bytes": 13705,
+      "sha256": "a15eec091091eb7a06864a543a2145e18595aba6b413df87724d6c43680a33bb",
       "owner": "core-integration"
     },
     {
@@ -119,8 +119,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 6920,
-      "sha256": "51dfc99f8f4db3ae8e73e3ba425097bf85d95fbcfd6c3d916a03c27b75485bd6",
+      "bytes": 7068,
+      "sha256": "c4b35e395b14d03916dd33666e7e543f0974d46a2736efb7729f06fae3db8cd0",
       "owner": "core-integration"
     },
     {
@@ -6069,8 +6069,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 180383,
-      "sha256": "57376d142c3231187b40217482145adc838eb43e1b477e40910d3e1e824be493",
+      "bytes": 180820,
+      "sha256": "abeb43d6228c1914072e8433d7df47365b79d4501d2f50d686c65158df7cc949",
       "owner": "core-integration"
     },
     {
@@ -12271,15 +12271,15 @@
     {
       "path": "tools/model-bake/README.md",
       "mode": "100644",
-      "bytes": 5722,
-      "sha256": "2ded673bc50dc32c0c9a9dab832c540466d301845a1e80f08e1ee1a74212dbc8",
+      "bytes": 6509,
+      "sha256": "39fad634ddce270ed682e9c8202a6193506b4003b22a2baae7bea3398018ddca",
       "owner": "media"
     },
     {
       "path": "tools/model-bake/bake.mjs",
       "mode": "100755",
-      "bytes": 3921,
-      "sha256": "aa205d6d20c25d72457d882d5c7f65425522ef62d86fcd9d36f3e09a0b5f2347",
+      "bytes": 4639,
+      "sha256": "1c34736b15baeaa67b36f5d891697745fe91fafd6000a41853ffbd7700f3df17",
       "owner": "media"
     },
     {
@@ -12299,8 +12299,8 @@
     {
       "path": "tools/model-bake/src/admission.mjs",
       "mode": "100644",
-      "bytes": 2251,
-      "sha256": "295bd3c82491d32e837030c61101c2488bae14ffca6a35330e6341c038f8199e",
+      "bytes": 5089,
+      "sha256": "beca343d6c59aee48933b891ad5e04552e0a190ab2d6cfd064304d469a0a5814",
       "owner": "media"
     },
     {
@@ -12320,8 +12320,8 @@
     {
       "path": "tools/model-bake/test/bake.test.mjs",
       "mode": "100644",
-      "bytes": 21211,
-      "sha256": "41a07523f413594c2d71170499fbb6bf8caa6aef931da245756f046e165bf184",
+      "bytes": 26541,
+      "sha256": "00992ee758a78eebe4ac71a2821b92f1ef4eae3fefb14dcf7c59097a6a0f4c83",
       "owner": "media"
     },
     {
