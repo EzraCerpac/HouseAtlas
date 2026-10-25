@@ -322,7 +322,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       const geometryPass = pass(solidScene, solidCamera, { samples: 0 }), colorPass = pass(scene, camera);
       const depth = geometryPass.getTextureNode('depth'), normal = geometryPass.getTextureNode('output');
       const occlusion = ao(depth, normal, solidCamera);
-      occlusion.radius.value = .5;
+      occlusion.radius.value = .8; occlusion.samples.value = 8;
       const debug = (globalThis as { lookDebug?: { radius?: number; samples?: number; plain?: boolean; view?: string } }).lookDebug ?? {}; // PROTOTYPE
       if (debug.radius) occlusion.radius.value = debug.radius; if (debug.samples) occlusion.samples.value = debug.samples;
       const smooth = (debug.plain ? occlusion.getTextureNode() : denoise(occlusion.getTextureNode(), depth, normal, solidCamera)) as unknown as V4;
