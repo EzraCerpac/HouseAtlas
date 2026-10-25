@@ -408,6 +408,22 @@ class SwapAndRollback(unittest.TestCase):
         self.run_standalone()
         self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
         self.assertEqual(plistlib.loads(self.cfg.plist.read_bytes()), self.old)
+        self.assertNotEqual(self.run_standalone(check=False).returncode, 0)  # finished: nothing left to retry
+
+    def test_standalone_retry_refuses_after_a_later_deployment(self):
+        dep = dn.Deployer(self.cfg, FakeService(self.cfg), out=io.StringIO())
+        dep.swap(self.record, self.root / "events.log", self.moves)
+        dn.save_record(self.cfg.ledger, dict(self.record, status="verified"))
+        self.assertNotEqual(self.run_standalone(check=False, fail_bootstrap=True).returncode, 0)
+        write(self.root / "fe/frontend/index.html", '<script src="/assets/newer.js">')  # a later deploy
+        later = self.cfg.plist.read_bytes()
+        self.assertNotEqual(self.run_standalone(check=False).returncode, 0)
+        self.assertIn("newer.js", (self.root / "fe/frontend/index.html").read_text())
+        self.assertEqual(self.cfg.plist.read_bytes(), later)
+        self.assertEqual(dn.ledger_records(self.cfg.ledger)[-1]["status"], "verified")
+        write(self.root / "fe/frontend/index.html", '<script src="/assets/old.js">')  # frontend back, service not
+        self.cfg.plist.write_bytes(plistlib.dumps(dn.with_binary(SERVICE, self.root / "newer/houseatlas")))
+        self.assertNotEqual(self.run_standalone(check=False).returncode, 0)
 
     def test_rollback_refuses_a_service_changed_by_hand(self):
         svc = FakeService(self.cfg)

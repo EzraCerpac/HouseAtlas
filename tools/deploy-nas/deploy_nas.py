@@ -825,11 +825,15 @@ def write_rollback_script(record: dict, cfg: Config) -> None:
     if record["kind"] == "code":
         live, parked = q(record["frontend"]), q(record["parked_frontend"])
         restored = q(str(d / "recovery" / "frontend-restored"))
-        # Without the parked frontend (and no earlier run of this script restoring it), the old binary would
-        # pair with the newer frontend, so stop before touching the service.
-        lines += [f'if [ ! -e {parked} ] && [ ! -e {restored} ]; then',
-                  f'  echo "refusing: the parked frontend is missing, nothing was changed:" {parked} >&2',
-                  '  exit 1', 'fi']
+        plist = q(str(cfg.plist))
+        # Without the parked frontend the old binary would pair with whatever frontend is live, so stop before
+        # touching the service. The one exception is a retry of this script after it restored the frontend:
+        # the marker holds that frontend's checksum, and the plist must still be this record's.
+        lines += [f'if [ ! -e {parked} ]; then',
+                  f'  if [ ! -e {restored} ] || [ "$(cksum 2>/dev/null < {live}/index.html)" != "$(cat {restored})" ] \\',
+                  f'     || ! {{ cmp -s {plist} {q(record["before_plist"])} || cmp -s {plist} {q(record["after_plist"])}; }}; then',
+                  f'    echo "refusing: the parked frontend is missing, nothing was changed:" {parked} >&2',
+                  '    exit 1', '  fi', 'fi']
     lines += [f"launchctl bootout {domain}/{cfg.label} || true",
               f"while launchctl print {domain}/{cfg.label} >/dev/null 2>&1; do sleep 1; done"]
     if record["kind"] == "code":
@@ -841,13 +845,15 @@ def write_rollback_script(record: dict, cfg: Config) -> None:
                   f'    for f in {live}/assets/*; do [ -f "$f" ] && [ ! -e {parked}/assets/"$(basename "$f")" ] && cp -p "$f" {parked}/assets/; done',
                   f'    mv {live} {live}.rolled-back-$(date -u +%Y%m%dT%H%M%SZ)',
                   '  fi',
-                  f'  mv {parked} {live}', f'  touch {restored}', 'fi']
+                  f'  mv {parked} {live}', f'  cksum < {live}/index.html > {restored}', 'fi']
     lines += [f'cp {q(record["before_plist"])} {q(str(cfg.plist))}', f'chmod 600 {q(str(cfg.plist))}',
               f"launchctl bootstrap {domain} {q(str(cfg.plist))}",
               "# Tell the ledger, so `deploy-nas rollback` moves on to the record before this one.",
               f"mkdir -p {q(str(cfg.ledger.parent))}",
               f"printf '%s\\n' {q(json.dumps(dict(record, status='rolled-back', updated='standalone'), sort_keys=True))}"
               f" >> {q(str(cfg.ledger))}"]
+    if record["kind"] == "code":
+        lines.append(f"rm -f {restored}")  # done: a later run must find the parked frontend again
     p = d / "recovery" / "rollback.sh"
     p.write_text("\n".join(lines) + "\n")
     p.chmod(0o700)
