@@ -437,7 +437,7 @@ mod tests {
         use crate::media::{Cancellation, WorkBudget};
         use std::time::Duration;
         let root = tempfile::tempdir().unwrap();
-        let vault = AssetVault::open(root.path()).unwrap();
+        let vault = AssetVault::open(&root.path().join("vault")).unwrap();
         let budget = WorkBudget::new(Duration::from_secs(5), Cancellation::default()).unwrap();
         let scope = Scope {
             workspace_id: W.into(),

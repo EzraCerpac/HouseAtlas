@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import { transformWithOxc } from 'vite';
 import { loadNumericSource } from './load-numeric-source.mjs';
 import { loadIfcGlbProfileSource, loadScanProfileSource } from './scan-mesh-read.mjs';
+import { loadSessionExpirySource } from './native-geometry-read.mjs';
 
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const dataUrl = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
@@ -20,6 +21,7 @@ async function loadClientSource() {
   let { code } = await transformWithOxc(readFileSync(file, 'utf8'), file.pathname,
     { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
   for (const [specifier, target] of [
+    ['./session-expiry', await loadSessionExpirySource()],
     ['../src/numeric/decimal', await loadNumericSource('numeric/decimal.ts')],
     ['../src/lantern/scans/mesh-profile', await loadScanProfileSource()],
     ['../src/lantern/scans/ifc-glb-profile', await loadIfcGlbProfileSource()],

@@ -1,0 +1,87 @@
+name: Ordinary job setup
+description: Exact Node and Rust runtimes, isolated caches and locked npm installs for one Rust React ordinary job.
+inputs:
+  image:
+    description: Runner image label, part of every cache key
+    required: true
+  rust:
+    description: Install the exact Rust toolchain and restore the Cargo registry cache
+    default: 'true'
+  target-cache:
+    description: Name of this job's Cargo build cache; empty restores none
+    default: ''
+outputs:
+  npm-key:
+    value: ${{ steps.npm-cache.outputs.cache-primary-key }}
+  npm-hit:
+    value: ${{ steps.npm-cache.outputs.cache-hit }}
+  registry-key:
+    value: ${{ steps.cargo-registry-cache.outputs.cache-primary-key }}
+  registry-hit:
+    value: ${{ steps.cargo-registry-cache.outputs.cache-hit }}
+  target-key:
+    value: ${{ steps.cargo-target-cache.outputs.cache-primary-key }}
+  target-hit:
+    value: ${{ steps.cargo-target-cache.outputs.cache-hit }}
+runs:
+  using: composite
+  steps:
+    - name: Set exact Node runtime
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      with:
+        node-version: '26.10.0'
+        check-latest: false
+        package-manager-cache: false
+    - name: Verify revision and runtime
+      shell: bash
+      env:
+        INSTALL_RUST: ${{ inputs.rust }}
+      run: |
+        test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+        test "$(node --version)" = "v26.10.0"
+        test "$(npm --version)" = "11.19.1"
+        printf 'CARGO_TARGET_DIR=%s/houseatlas-target\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+        printf 'npm_config_cache=%s/houseatlas-npm\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+        if [ "$INSTALL_RUST" = true ]; then
+          rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
+          test "$(rustc --version | cut -d ' ' -f 2)" = "1.99.0"
+        fi
+    # Cache public package content only, never node_modules, npm logs or credentials.
+    # PRs only restore; only successful main pushes may publish caches.
+    - name: Restore exact npm content cache
+      id: npm-cache
+      uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      with:
+        path: ${{ runner.temp }}/houseatlas-npm/_cacache
+        key: npm-v1-${{ inputs.image }}-${{ runner.arch }}-node-26.10.0-npm-11.19.1-${{ hashFiles('package-lock.json', 'packages/contracts/package-lock.json', 'frontend/package-lock.json') }}
+    # No broad restore keys: registry and compiled outputs are lock/toolchain/OS specific.
+    - name: Restore exact Cargo registry cache
+      id: cargo-registry-cache
+      if: inputs.rust == 'true'
+      uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      with:
+        path: |
+          ~/.cargo/registry/cache
+          ~/.cargo/registry/index
+          ~/.cargo/registry/src
+        key: cargo-registry-v1-${{ inputs.image }}-${{ runner.arch }}-rust-1.99.0-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', '.cargo/**') }}
+    # Saved caches hold compiled dependencies only (the workspace crate is pruned before
+    # saving, and checkout mtimes force it to rebuild anyway), so the key pins the lock,
+    # toolchain, OS and CI build settings. The fallback keeps the same lock and toolchain
+    # and only lets a changed CI configuration start from the last main dependencies;
+    # Cargo fingerprints rebuild anything whose profile or features differ.
+    - name: Restore Cargo dependency build cache
+      id: cargo-target-cache
+      if: inputs.rust == 'true' && inputs.target-cache != ''
+      uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      with:
+        path: ${{ runner.temp }}/houseatlas-target
+        key: cargo-target-v2-${{ inputs.target-cache }}-${{ inputs.image }}-${{ runner.arch }}-rust-1.99.0-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', '.cargo/**') }}-${{ hashFiles('.github/workflows/rust-react-ordinary.yml', '.github/actions/ordinary-setup/action.yml', '.github/actions/ordinary-save/action.yml') }}
+        restore-keys: |
+          cargo-target-v2-${{ inputs.target-cache }}-${{ inputs.image }}-${{ runner.arch }}-rust-1.99.0-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', '.cargo/**') }}-
+    - name: Install exact npm locks without scripts
+      shell: bash
+      run: |
+        npm ci --ignore-scripts --no-audit --no-fund
+        npm ci --prefix packages/contracts --ignore-scripts --no-audit --no-fund
+        npm ci --prefix frontend --ignore-scripts --no-audit --no-fund

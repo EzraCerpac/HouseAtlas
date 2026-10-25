@@ -1,5 +1,97 @@
 # HouseAtlas
 
+## CI layout
+
+The `Rust React ordinary core` workflow splits its checks into parallel jobs:
+`source` (publication allowlist, generated contracts, fmt, clippy and the named
+healthy examples; on macOS also the binary and the React app), `backend unit
+tests`, `frontend checks`, and three `loopback flows` shards that each build
+the binary and the React app. The commands are the ones listed in this guide.
+CI builds use `CARGO_PROFILE_DEV_DEBUG=0`. Only main pushes save caches; the
+Cargo cache holds compiled dependencies keyed by `Cargo.lock` and the toolchain.
+Locally, `node tools/rust-integration/check-source.mjs` still runs everything;
+the Linux `source` job passes `--skip-binary --skip-frontend` because other
+jobs build those.
+
+## Healthy frontend suite
+
+`frontend/lantern-tests/run-healthy.mjs` runs every named healthy frontend
+check listed in it, one process each, and prints per-check timings. The
+`Rust React ordinary core` workflow runs it on Linux after the production build:
+
+```sh
+npm --prefix frontend run build
+HOUSEATLAS_CHROMIUM=/path/to/chrome node frontend/lantern-tests/run-healthy.mjs
+node frontend/lantern-tests/run-healthy.mjs --only offline   # subset by substring
+```
+
+Without `HOUSEATLAS_CHROMIUM` the browser checks are skipped and reported as
+such. The list excludes regression, control, expiry, intake and handoff-directory
+commands, including the session-policy, capture-draft controller and
+native-place-levels-intake (concurrency) selections; those keep their own lanes below. A check added to this directory is
+not run by CI until it is added to the list.
+
+## Real-browser offline launch
+
+`frontend/lantern-tests/offline-launch-browser.mjs` serves the built `dist/` on
+an owned loopback listener, opens `/saved/index.html` once online so the Saved
+and root workers install, then reopens `/` without a network and times how long
+the Saved shell takes to appear. It uses generated build output only.
+
+```sh
+node frontend/lantern-tests/offline-launch-browser.mjs --case offline-launch
+node frontend/lantern-tests/offline-launch-browser.mjs --case hung-network
+```
+
+`offline-launch` closes the listener (connection refused) and must show the
+shell within 2 s with no network bytes; it is in the healthy suite.
+`hung-network` keeps the listener open but never answers `/`, as on a captive
+portal or a weak signal. It must show the shell within 3 s; the root worker
+hands a silent navigation to Saved after 2 s. The listener may answer a
+worker-script update check (`/offline-entry-worker.js`,
+`/saved/service-worker.js`) during the reopen; any other served path fails the
+case. Both cases are in the healthy
+suite. Neither case is iOS, installed-PWA or live-model evidence.
+
+## Backend unit tests
+
+The `Rust React ordinary core` workflow runs the backend library unit tests on
+Linux, with Node 26.10.0 on `PATH` for the media fixture peers:
+
+```sh
+cargo test --locked -p houseatlas-backend --lib -- \
+  --skip http::quantity_http_healthy:: \
+  --skip providers::homebox::write::stock::quantity_flow_healthy:: \
+  --skip providers::homebox::write::stock::quantity_installation_healthy::
+```
+
+Tests marked `#[ignore]` stay in their held lanes. The three skipped quantity
+tests need `HOUSEATLAS_QUANTITY_REFERENCE_DIR` pointing at the pinned public
+HomeBox source and remain a manual check.
+
+## Loopback integration tests in CI
+
+On Linux the `Rust React ordinary core` workflow also runs these healthy
+loopback flows against the compiled `houseatlas` binary, a disposable TLS
+loopback host and the runner's Chrome:
+
+```sh
+node tools/rust-integration/healthy-atlas-lists-loopback.mjs
+node tools/rust-integration/healthy-mcp-lifecycle-loopback.mjs
+node tools/rust-integration/healthy-operation-events-loopback.mjs
+node tools/rust-integration/healthy-standalone-asset-loopback.mjs
+cargo build --locked -p houseatlas-backend --example healthy-network-root-router
+python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"
+```
+
+They need `HOUSEATLAS_BINARY`, `HOUSEATLAS_CHROMIUM` (for atlas-lists and
+operation-events) and a built `frontend/dist`. Five loopback flows stay manual
+because they need inputs that this repository does not carry: the three
+native-place flows (`healthy-native-place-ui`, `healthy-native-place-evidence`,
+`healthy-native-place-evidence-ui`) take a private Root artifact packet, and
+`healthy-building-ui` and `healthy-contextual-capture` pin source commits from
+the private development history.
+
 ## Generated annual-session integration regressions
 
 Inspect `frontend/lantern-tests/session-policy-integration.mjs`, the production
