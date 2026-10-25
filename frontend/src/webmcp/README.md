@@ -26,6 +26,14 @@ second domain schema or generated operation list is added. Annotation hints
 reflect the selected metadata and grant no authority. Catalog dispositions
 alone enable no operation.
 
+`stockInputSchema(refs, admittedCommandIds)` receives the full host command set
+separately from top-level family references. Its batch child descriptor
+intersects that set with canonical child eligibility, preserving canonical order,
+other constraints and the 1–100 child bound. No eligible child (or no admission
+argument) yields `items: false`; the helper never expands grants. Shared
+synthetic fixture coverage and unrun/CI boundaries are recorded in the native
+[parity matrix](../../../backend/src/transports/mcp/README.md#catalog-to-admission-parity-version-2).
+
 `stock.ts` reuses generated `Scope` from `../api/generated/contracts.ts` and
 existing `AtlasSessionInfo` from `../app/session.ts`. Its wire3 request/result
 types are outer transport views, not generated 164-arm domain DTOs. Shared

@@ -11,7 +11,8 @@ assert.equal(args.length, 2); assert.equal(args[0], '--case');
 const cases = new Set(['healthy-save-review-commit', 'healthy-canonical-published-binding', 'pending-canonical-late-context',
   'home-change-denies-reviewed-submit', 'target-change-denies-submit', 'malformed-receipt-keeps-original',
   'noncommitted-receipt-keeps-original', 'lost-fake-reply-inspect-only', 'cleanup-failure-known-commit',
-  'explicit-clear-before-signout', 'cross-tab-invalidation-signal', 'unavailable-probe-explicit-recheck', 'wrong-correlation-keeps-original']);
+  'explicit-clear-before-signout', 'cross-tab-invalidation-signal', 'unavailable-probe-explicit-recheck', 'wrong-correlation-keeps-original',
+  'reused-receipt-object-keeps-unknown']);
 assert(cases.has(args[1]), 'Only an exact named case is allowed');
 const realFetch = globalThis.fetch;
 globalThis.fetch = () => { throw new Error('Network is prohibited in combined fake-port cases'); };
@@ -137,6 +138,36 @@ try {
     const done = await port.submit(review, source, recordId, f.signal);
     assert.equal(done.result.status, 'committed'); assert.equal(done.localCleanup, 'unconfirmed'); assert.equal(f.rows()[0].state, 'outcome-unknown');
     await assert.rejects(f.review()); assert.equal(f.calls.upload, 1);
+  } else if (caseName === 'reused-receipt-object-keeps-unknown') {
+    let firstReceipt;
+    const requests = [];
+    f.upload(async intent => {
+      f.calls.upload++; requests.push(intent.requestId);
+      assert.equal(f.rows()[0].state, 'outcome-unknown');
+      assert.equal(f.rows()[0].attempt.requestId, intent.requestId);
+      firstReceipt ??= f.receipt(intent);
+      return firstReceipt;
+    });
+    await f.save();
+    const first = await port.submit(await f.review(), source, recordId, f.signal);
+    assert.equal(first.localCleanup, 'removed');
+    assert.deepEqual(f.rows(), []);
+    await f.save();
+    const secondReview = await f.review();
+    await assert.rejects(port.submit(secondReview, source, recordId, f.signal), /differs from the local attempt/);
+    assert.equal(f.calls.upload, 2);
+    assert.notEqual(requests[0], requests[1]);
+    assert.equal(firstReceipt.requestId, requests[0]);
+    assert.equal(f.calls.acknowledgementDelete, 1, 'Only the first correlated receipt allowed cleanup');
+    assert.equal(f.rows()[0].state, 'outcome-unknown');
+    assert.equal(f.rows()[0].attempt.requestId, requests[1]);
+    assert.deepEqual(new Uint8Array(await f.rows()[0].original.arrayBuffer()), new Uint8Array(await original.arrayBuffer()));
+    const inspection = await port.inspectUnknown(localId, f.signal);
+    assert.equal(inspection.outcome, 'unknown');
+    assert.equal(inspection.retrySafety, 'not-established');
+    await assert.rejects(f.review());
+    await assert.rejects(port.submit(secondReview, source, recordId, f.signal));
+    assert.equal(f.calls.upload, 2, 'Neither inspection nor the consumed review can dispatch again');
   } else if (caseName === 'explicit-clear-before-signout') {
     await f.save();
     const other = structuredClone(f.rows()[0]); other.id='99999999-9999-4999-8999-999999999999'; other.owner.actorId='synthetic-other-actor';

@@ -1,0 +1,74 @@
+{
+  "format": "houseatlas-synthetic-batch-discovery/1",
+  "synthetic": true,
+  "cases": [
+    {
+      "name": "full-host-cross-family",
+      "topLevelCommandIds": ["atlas.batch.execute"],
+      "admittedCommandIds": ["atlas.batch.execute", "atlas.circuit.create", "atlas.binding.review", "atlas.identity.create", "atlas.evidence.replace", "homebox.entity.get", "atlas.circuit.get"],
+      "expectedChildCommandIds": ["atlas.identity.create", "atlas.binding.review", "atlas.circuit.create"]
+    },
+    {
+      "name": "single-child",
+      "topLevelCommandIds": ["atlas.batch.execute"],
+      "admittedCommandIds": ["atlas.batch.execute", "atlas.circuit.create"],
+      "expectedChildCommandIds": ["atlas.circuit.create"]
+    },
+    {
+      "name": "no-eligible-child",
+      "topLevelCommandIds": ["atlas.batch.execute"],
+      "admittedCommandIds": ["atlas.batch.execute", "atlas.evidence.get", "atlas.evidence.replace"],
+      "expectedChildCommandIds": []
+    },
+    {
+      "name": "batch-only",
+      "topLevelCommandIds": ["atlas.batch.execute"],
+      "admittedCommandIds": ["atlas.batch.execute"],
+      "expectedChildCommandIds": []
+    },
+    {
+      "name": "batch-not-admitted",
+      "topLevelCommandIds": ["atlas.circuit.create"],
+      "admittedCommandIds": ["atlas.circuit.create"],
+      "expectedChildCommandIds": null
+    }
+  ],
+  "batch": {
+    "schemaVersion": 3,
+    "commandId": "atlas.batch.execute",
+    "requestId": "00000000-0000-4000-8000-000000000111",
+    "context": {
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002"
+    },
+    "target": {
+      "authority": "atlas",
+      "kind": "batch",
+      "batchId": "00000000-0000-4000-8000-000000000112"
+    },
+    "idempotencyKey": "00000000-0000-4000-8000-000000000113",
+    "reason": "Synthetic batch discovery fixture only",
+    "approvalReceiptId": null,
+    "preconditions": {"target": null, "guards": []},
+    "payload": {"commands": []}
+  },
+  "child": {
+    "schemaVersion": 3,
+    "commandId": "atlas.circuit.create",
+    "requestId": "00000000-0000-4000-8000-000000000121",
+    "context": {
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002"
+    },
+    "target": {
+      "authority": "atlas",
+      "recordType": "circuit",
+      "recordId": "00000000-0000-4000-8000-000000000122"
+    },
+    "idempotencyKey": "00000000-0000-4000-8000-000000000123",
+    "reason": "Synthetic schema validation only; never dispatched",
+    "approvalReceiptId": null,
+    "preconditions": {"target": null, "guards": []},
+    "payload": {"label": null, "panel": null, "evidenceIds": ["00000000-0000-4000-8000-000000000124"]}
+  }
+}

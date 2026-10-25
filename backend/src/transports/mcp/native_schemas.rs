@@ -48,11 +48,11 @@ impl NativeSchemas {
             return Err(PortError::Unavailable);
         }
         let selected = Definition::resolve(Resource::Agent, reference)?;
-        self.materialize(self.definition(&selected)?.clone())
+        self.materialize(self.definition(&selected)?.clone(), None)
     }
 
-    /// Discovery describes only host-admitted top-level request arms, just as
-    /// WebMCP does. Keep the pinned family constraints and canonical arm order;
+    /// Discovery describes host-admitted request arms and batch children, just
+    /// as WebMCP does. Keep the pinned constraints and canonical arm order;
     /// selecting descriptors grants no authority and does not replace prepare's
     /// independent admission check on the root and every batch child.
     pub(super) fn admitted_input_schema(
@@ -82,10 +82,14 @@ impl NativeSchemas {
         if arms.is_empty() {
             return Err(PortError::Unavailable);
         }
-        self.materialize(schema)
+        self.materialize(schema, Some(&allowed))
     }
 
-    fn materialize(&self, mut schema: Value) -> Result<JsonObject, PortError> {
+    fn materialize(
+        &self,
+        mut schema: Value,
+        admitted_inputs: Option<&BTreeSet<&str>>,
+    ) -> Result<JsonObject, PortError> {
         let mut pending = BTreeSet::new();
         rewrite_schema(&mut schema, Resource::Agent, &mut pending)?;
         let Value::Object(mut root) = schema else {
@@ -104,6 +108,30 @@ impl NativeSchemas {
                 continue;
             }
             let mut schema = self.definition(&definition)?.clone();
+            if definition.resource == Resource::Agent
+                && definition.name == "request_atlas_batch_execute"
+                && let Some(admitted) = admitted_inputs
+            {
+                // The canonical union defines child eligibility; the complete
+                // host set defines admission, including other tool families.
+                let items = schema
+                    .pointer_mut("/properties/payload/properties/commands/items")
+                    .ok_or(PortError::Unavailable)?;
+                let arms = items
+                    .get_mut("oneOf")
+                    .and_then(Value::as_array_mut)
+                    .ok_or(PortError::Unavailable)?;
+                arms.retain(|arm| {
+                    arm.get("$ref")
+                        .and_then(Value::as_str)
+                        .is_some_and(|reference| admitted.contains(reference))
+                });
+                if arms.is_empty() {
+                    // Empty oneOf is invalid JSON Schema. False items admits no
+                    // children; canonical minItems still refuses an empty batch.
+                    *items = Value::Bool(false);
+                }
+            }
             rewrite_schema(&mut schema, definition.resource, &mut pending)?;
             definitions.insert(definition.local_name(), schema);
         }
