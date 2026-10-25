@@ -380,7 +380,7 @@ describe('capture draft controller synthetic regressions', () => {
 
     await assert.rejects(controller.acknowledge(submission, { localCompletion: true }), /differs from the local attempt/);
     const wrongScope = {
-      commandId: 'atlas.batch.execute', requestId: intent.requestId,
+      status: 'committed', commandId: 'atlas.batch.execute', requestId: intent.requestId,
       resolvedScope: { workspaceId, homeId: homeB }, syntheticServerReceipt: true,
     };
     await assert.rejects(controller.acknowledge(submission, wrongScope), /differs from the local attempt/);
@@ -388,11 +388,11 @@ describe('capture draft controller synthetic regressions', () => {
     assert.equal(host.acknowledgementChecks, 0);
 
     const receipt = {
-      commandId: 'atlas.batch.execute', requestId: intent.requestId,
+      status: 'committed', commandId: 'atlas.batch.execute', requestId: intent.requestId,
       resolvedScope: { workspaceId, homeId: homeA }, syntheticServerReceipt: true,
     };
     const result = await controller.acknowledge(submission, receipt);
-    assert.deepEqual(result, { state: 'server-acknowledged', requestId: intent.requestId });
+    assert.deepEqual(result, { state: 'server-acknowledged', requestId: intent.requestId, localCleanup: 'removed' });
     assert.equal(host.acknowledgementChecks, 1);
     assert.deepEqual(await store.read(), []);
 
@@ -402,12 +402,47 @@ describe('capture draft controller synthetic regressions', () => {
     const secondIntent = secondSubmission.takeForForegroundSubmit();
     host.setBoundary(makeBoundary(actorA, homeA, {}));
     const freshLookingReceipt = {
-      commandId: 'atlas.batch.execute', requestId: secondIntent.requestId,
+      status: 'committed', commandId: 'atlas.batch.execute', requestId: secondIntent.requestId,
       resolvedScope: { workspaceId, homeId: homeA }, syntheticServerReceipt: true,
     };
     await assert.rejects(controller.acknowledge(secondSubmission, freshLookingReceipt), /current foreground session/);
     assert.equal((await store.read()).find(row => row.id === secondId).state, 'outcome-unknown');
     assert.equal(host.acknowledgementChecks, 1);
+  });
+
+  it('commit-cleanup-is-per-attempt: cleanup failure retains a locked original after a correlated commit', async () => {
+    const store = memoryStore();
+    const host = makeHost();
+    const controller = makeController(store, host);
+    controllers.push(controller);
+    const id = await save(controller);
+    const reviewed = await controller.review(id, abortController().signal);
+    const submission = await controller.beginAttempt(reviewed.token, { confirmed: true }, abortController().signal);
+    const intent = submission.takeForForegroundSubmit();
+    const receipt = {
+      status: 'committed', commandId: 'atlas.batch.execute', requestId: intent.requestId,
+      resolvedScope: { workspaceId, homeId: homeA }, syntheticServerReceipt: true,
+    };
+    for (const status of [undefined, 'rejected', 'conflict']) {
+      await assert.rejects(controller.acknowledge(submission, { ...receipt, status }), /differs from the local attempt/);
+    }
+    assert.equal(host.acknowledgementChecks, 0);
+    store.shared.failNextCommit = new Error('Synthetic local cleanup failure');
+    assert.deepEqual(await controller.acknowledge(submission, receipt), {
+      state: 'server-acknowledged', requestId: intent.requestId, localCleanup: 'unconfirmed',
+    });
+    assert.equal(host.acknowledgementChecks, 1);
+    const remaining = (await store.read())[0];
+    assert.equal(remaining.state, 'outcome-unknown');
+    assert.equal(remaining.attempt.requestId, intent.requestId);
+    assert.deepEqual(new Uint8Array(await remaining.original.arrayBuffer()), originalBytes);
+    await assert.rejects(controller.acknowledge(submission, receipt), /Original foreground attempt is unavailable/);
+    await assert.rejects(controller.review(id, abortController().signal), /outcome is unknown/);
+    assert.throws(() => submission.takeForForegroundSubmit(), /already handed off/);
+    const inspection = await controller.inspectUnknown(id, abortController().signal);
+    assert.equal(inspection.outcome, 'unknown');
+    assert.equal(inspection.retrySafety, 'not-established');
+    assert.deepEqual(inspection.attempt, remaining.attempt);
   });
 
   it('cancellation-before/after-handoff: pre-cancel blocks before state change; post-marker cancellation keeps unknown state and fails handoff', async () => {

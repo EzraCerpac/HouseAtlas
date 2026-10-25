@@ -174,29 +174,38 @@ export function createCaptureDrafts(store: DraftStore, host: DraftHost, now: () 
       submissions.set(submission, privateAttempt);
       return submission;
     },
-    /** Only a genuine correlated server acknowledgement releases local originals. */
-    async acknowledge(submission: DraftSubmission, result: unknown): Promise<{ state: 'server-acknowledged'; requestId: string }> {
+    /** Only a genuine correlated server acknowledgement releases local originals.
+     * A known commit and its local cleanup result are distinct outcomes. */
+    async acknowledge(submission: DraftSubmission, result: unknown): Promise<{
+      state: 'server-acknowledged'; requestId: string; localCleanup: 'removed' | 'unconfirmed';
+    }> {
       const privateAttempt = submissions.get(submission);
       if (!privateAttempt || !privateAttempt.taken) throw new Error('Original foreground attempt is unavailable');
       const atGeneration = privateAttempt.generation; check(privateAttempt.boundary, atGeneration);
       const response = result as Record<string, unknown> | null;
       const scope = response?.['resolvedScope'] as Record<string, unknown> | undefined;
-      if (!response || response['requestId'] !== privateAttempt.intent.requestId || response['commandId'] !== 'atlas.batch.execute'
+      if (!response || response['status'] !== 'committed' || response['requestId'] !== privateAttempt.intent.requestId || response['commandId'] !== 'atlas.batch.execute'
         || scope?.['workspaceId'] !== privateAttempt.boundary.workspaceId || scope?.['homeId'] !== privateAttempt.boundary.homeId)
         throw new TypeError('Server acknowledgement differs from the local attempt');
       host.validateAcknowledgement(result, privateAttempt.intent);
-      check(privateAttempt.boundary, atGeneration);
-      await store.change(rows => {
-        check(privateAttempt.boundary, atGeneration); validateRows(rows);
-        const stored = rows.find(row => row.id === submission.draftId);
-        if (!stored || !sameOwner(stored.owner, privateAttempt.boundary) || stored.state !== 'outcome-unknown'
-          || stored.attempt?.requestId !== privateAttempt.intent.requestId || stored.attempt?.idempotencyKey !== privateAttempt.intent.idempotencyKey)
-          throw new Error('Local attempt no longer matches');
-        return { rows: rows.filter(row => row.id !== submission.draftId), value: undefined };
-      });
+      // Validation belongs to this exact attempt. A response object validated
+      // during an earlier acknowledgement cannot certify another attempt.
       submissions.delete(submission);
-      check(privateAttempt.boundary, atGeneration);
-      return { state: 'server-acknowledged', requestId: privateAttempt.intent.requestId };
+      let localCleanup: 'removed' | 'unconfirmed' = 'unconfirmed';
+      try {
+        check(privateAttempt.boundary, atGeneration);
+        await store.change(rows => {
+          check(privateAttempt.boundary, atGeneration); validateRows(rows);
+          const stored = rows.find(row => row.id === submission.draftId);
+          if (!stored || !sameOwner(stored.owner, privateAttempt.boundary) || stored.state !== 'outcome-unknown'
+            || stored.attempt?.requestId !== privateAttempt.intent.requestId || stored.attempt?.idempotencyKey !== privateAttempt.intent.idempotencyKey)
+            throw new Error('Local attempt no longer matches');
+          return { rows: rows.filter(row => row.id !== submission.draftId), value: undefined };
+        });
+        check(privateAttempt.boundary, atGeneration);
+        localCleanup = 'removed';
+      } catch { /* The correlated commit is known; local cleanup is not. */ }
+      return { state: 'server-acknowledged', requestId: privateAttempt.intent.requestId, localCleanup };
     },
     /** Read-only assistance after interruption/reopen. Never turns absence or
      * current evidence into retry permission, and never reconstructs a request. */
