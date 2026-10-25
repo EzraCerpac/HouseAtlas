@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "6bd2572d9a97a777f54d8ea0bda5b7829377fb0cd9a6707e9abbd5533f96fda1",
+  "sourceDigestSha256": "8fcccc80dd304f3ba5c23156bac2fa8455a6005a7175f4528276946c46206d82",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -7950,6 +7950,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/recorded-pdf-page.test.mjs",
+      "mode": "100644",
+      "bytes": 2726,
+      "sha256": "c1c5d6ade9319b68d7adf81ef6d4da882480a58109926823f7b150b12a51be8c",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/render-bench/index.html",
       "mode": "100644",
       "bytes": 450,
@@ -9849,8 +9856,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx",
       "mode": "100644",
-      "bytes": 22544,
-      "sha256": "0d04a951d084f4966ab857057165a68191254f2f908e77408614c1f70ce53589",
+      "bytes": 25034,
+      "sha256": "6477aa5728a3bad0da7750ee7b7b331130421e17dcfda501b0da4951d1c4e274",
       "owner": "web"
     },
     {
@@ -9872,6 +9879,13 @@
       "mode": "100644",
       "bytes": 3158,
       "sha256": "61bf95bb565bdbf1b47c17141b853f41b949481c65a142cbe0d274409fefcb3d",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/scans/native-ui/recorded-pdf-page.ts",
+      "mode": "100644",
+      "bytes": 324,
+      "sha256": "5dfd423d177ec8db6be825ff57bdd76f2ad17bbe076df376f30b244a92c25635",
       "owner": "web"
     },
     {
