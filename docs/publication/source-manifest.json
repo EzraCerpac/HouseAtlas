@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "06e399d8324e0bf8ad6486a743c6bbfbf6ba27f5d9e45765b668a14275f0568f",
+  "sourceDigestSha256": "ed16a57ed665f44dedf50f82d8aaabdf1afed172d94ec25ad6c48fd36c7cfa2a",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -6034,8 +6034,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 172844,
-      "sha256": "c3aab0999ca1147687847903ac8b9bd633040c0de1add9dc4ad837a5746885fd",
+      "bytes": 172922,
+      "sha256": "374fcb7c4987d951a70c6577061f3f74b5766ba5f932dfea3779fabfd238c253",
       "owner": "core-integration"
     },
     {
@@ -7931,8 +7931,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 4669,
-      "sha256": "614a8ec8f2df85e913482b01459f74ba7ed1d64a682630d7b89becee84dab74b",
+      "bytes": 4596,
+      "sha256": "2a63879fae5f7949338195bec58bcec7d8ab41701301879bd4417193ca6358e3",
       "owner": "web"
     },
     {

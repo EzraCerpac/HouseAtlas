@@ -4,7 +4,8 @@
  * Browser checks run only when HOUSEATLAS_CHROMIUM is set; checks that read the
  * production build need `npm --prefix frontend run build` first. Not listed:
  * session-bootstrap (external jsdom path) and scene-controls-keyboard-browser
- * (pinned Chrome build).
+ * (pinned Chrome build). Session-expiry regressions and capture-draft
+ * controller controls stay in their held lanes per AGENTS.md.
  *
  *   node frontend/lantern-tests/run-healthy.mjs [--only <substring>] */
 import { spawnSync } from 'node:child_process';
@@ -47,8 +48,6 @@ const SOURCE = [
   ...cases('embedded-png-material-healthy.mjs', '--case', ['slots', 'image-sharing', 'png-filters',
     'png-adam7', 'accounting-1024', 'legacy-geometry', 'gpu-owner', 'precedence']),
   ...cases('native-evidence-request-read.mjs', '', ['healthy-committed-observation', 'healthy-unknown-observation']),
-  ...cases('session-policy-integration.mjs', '--case', ['annual-expiry', 'expiry-cancel', 'explicit-rotation']),
-  ['frontend/capture-drafts-tests/controller.regression.test.mjs'],
 ];
 const BUILD = [node('check-backend-frontend-compat.mjs')];
 const BROWSER = [
