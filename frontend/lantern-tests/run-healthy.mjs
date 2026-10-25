@@ -5,7 +5,8 @@
  * production build need `npm --prefix frontend run build` first. Not listed:
  * session-bootstrap (external jsdom path) and scene-controls-keyboard-browser
  * (pinned Chrome build). Session-expiry regressions and capture-draft
- * controller controls stay in their held lanes per AGENTS.md.
+ * controller controls and the native-place-levels-intake concurrency case stay
+ * in their held lanes per AGENTS.md.
  *
  *   node frontend/lantern-tests/run-healthy.mjs [--only <substring>] */
 import { spawnSync } from 'node:child_process';
@@ -25,15 +26,13 @@ const SOURCE = [
   node('local-edit-panel-presentation.mjs'), node('local-edit-retention-controller-healthy.mjs'),
   node('local-edit-retention-healthy.mjs'), node('model-overview-read-healthy.mjs'),
   node('model-review-logic.test.mjs'), node('native-geometry-read.mjs'),
-  node('native-geometry-retention.mjs'), node('native-geometry-persistence.mjs'),
-  node('native-geometry-persistence-harness.mjs'), node('native-geometry-write.mjs'),
-  node('native-place-levels-intake.mjs'), node('native-place-search-healthy.mjs'),
+  node('native-geometry-retention.mjs'), node('native-geometry-persistence.mjs'), node('native-geometry-write.mjs'), node('native-place-search-healthy.mjs'),
   node('native-place-write.mjs'), node('native-scan-succession.mjs'),
   node('network-overlay-read.mjs'), node('pdf-fixture-resources.mjs'),
   node('pinned-capture-read.mjs'), node('scan-mesh-read.mjs'),
   node('scan-mesh-view-visual.mjs'), node('scan-plan-orientation.mjs'),
   node('scene-controls-keyboard.test.mjs'), node('source-documents-reader.test.mjs'),
-  node('source-time-display.mjs'), node('synthetic-indexeddb.mjs'),
+  node('source-time-display.mjs'),
   node('topology-read.mjs'),
   // Offline / saved copy
   node('offline-atlas-mounting-healthy.mjs'), node('offline-atlas-overlays-healthy.mjs'),

@@ -14,7 +14,8 @@ node frontend/lantern-tests/run-healthy.mjs --only offline   # subset by substri
 
 Without `HOUSEATLAS_CHROMIUM` the browser checks are skipped and reported as
 such. The list excludes regression, control, expiry, intake and handoff-directory
-commands, including the session-policy and capture-draft controller selections; those keep their own lanes below. A check added to this directory is
+commands, including the session-policy, capture-draft controller and
+native-place-levels-intake (concurrency) selections; those keep their own lanes below. A check added to this directory is
 not run by CI until it is added to the list.
 
 ## Real-browser offline launch
