@@ -143,10 +143,23 @@ pub struct NativeClear {
 }
 impl Preparation {
     pub fn snapshot(&self, target: &StockTarget) -> Result<&NativeSnapshot, StockMappingError> {
-        self.snapshots
+        let mut matching = self
+            .snapshots
             .iter()
-            .find(|s| &s.target == target && s.complete)
-            .ok_or(StockMappingError::CompleteNativeObservationRequired)
+            .filter(|snapshot| &snapshot.target == target);
+        let snapshot = matching
+            .next()
+            .ok_or(StockMappingError::CompleteNativeObservationRequired)?;
+        // Do not choose an observation by vector order or discard a competing
+        // incomplete capture. Fresh decoding also checks uniqueness, but other
+        // preparation ports reach the shared mapper through this boundary.
+        if matching.next().is_some() {
+            return Err(StockMappingError::ObservationConflict);
+        }
+        if !snapshot.complete {
+            return Err(StockMappingError::CompleteNativeObservationRequired);
+        }
+        Ok(snapshot)
     }
     pub fn clear(&self, command_id: &str, field: &str) -> Result<&Value, StockMappingError> {
         let mut found = self
@@ -345,5 +358,152 @@ pub(super) fn readback(
         selector,
         expected,
         absence,
+    }
+}
+
+#[cfg(test)]
+mod preparation_tests {
+    use super::super::{
+        healthy_examples::{healthy_cases, healthy_command},
+        map_stock,
+    };
+    use super::*;
+    use serde_json::json;
+
+    fn fixture_id(value: u128) -> Uuid {
+        Uuid::from_u128(0x00000000_0000_4000_8000_000000000000 | value)
+    }
+
+    fn target() -> StockTarget {
+        StockTarget {
+            source_instance_id: fixture_id(0x10),
+            collection_id: fixture_id(0x11),
+            resource_kind: ResourceKind::Entity,
+            resource_id: Some(fixture_id(0x500)),
+            entity_id: None,
+        }
+    }
+
+    fn snapshot(target: StockTarget, quantity: u64, complete: bool) -> NativeSnapshot {
+        NativeSnapshot {
+            value: json!({"id":target.resource_id.unwrap(),"quantity":quantity}),
+            target,
+            // Typed synthetic placeholder; not a claimed digest of these bytes.
+            digest: Digest::parse("a".repeat(64)).unwrap(),
+            complete,
+            hidden_fields_preserved: false,
+        }
+    }
+
+    fn command() -> StockCommand {
+        healthy_command(
+            "homebox.entity.quantity.set",
+            target(),
+            json!({"quantity":2}),
+        )
+    }
+
+    #[test]
+    fn duplicate_complete_observations_block_native_plan() {
+        let (command, base) = healthy_cases()
+            .into_iter()
+            .find(|(command, _)| command.command_id == "homebox.entity.archive")
+            .unwrap();
+        assert_eq!(
+            map_stock(&command, &base).unwrap().request.method,
+            NativeMethod::Put
+        );
+        for other_quantity in [1, 3] {
+            let first = base.snapshot(&command.target).unwrap().clone();
+            let mut second = first.clone();
+            second.value["quantity"] = json!(other_quantity);
+            for snapshots in [vec![first.clone(), second.clone()], vec![second, first]] {
+                let preparation = Preparation {
+                    snapshots,
+                    ..Preparation::default()
+                };
+                let original = preparation.clone();
+                assert_eq!(
+                    map_stock(&command, &preparation),
+                    Err(StockMappingError::ObservationConflict)
+                );
+                assert_eq!(preparation, original);
+            }
+        }
+    }
+
+    #[test]
+    fn incomplete_duplicate_is_not_discarded_during_preparation() {
+        for (first_complete, second_complete) in [(true, false), (false, true), (false, false)] {
+            let preparation = Preparation {
+                snapshots: vec![
+                    snapshot(target(), 1, first_complete),
+                    snapshot(target(), 3, second_complete),
+                ],
+                ..Preparation::default()
+            };
+            assert_eq!(
+                map_stock(&command(), &preparation),
+                Err(StockMappingError::ObservationConflict)
+            );
+        }
+    }
+
+    #[test]
+    fn missing_or_incomplete_observation_cannot_prepare_native_plan() {
+        for snapshots in [Vec::new(), vec![snapshot(target(), 1, false)]] {
+            let preparation = Preparation {
+                snapshots,
+                ..Preparation::default()
+            };
+            assert_eq!(
+                map_stock(&command(), &preparation),
+                Err(StockMappingError::CompleteNativeObservationRequired)
+            );
+        }
+    }
+
+    #[test]
+    fn exact_target_observation_keeps_quantity_patch_narrow() {
+        let wanted = snapshot(target(), 1, true);
+        let other_source = snapshot(
+            StockTarget {
+                source_instance_id: fixture_id(0x12),
+                ..target()
+            },
+            3,
+            true,
+        );
+        let other_collection = snapshot(
+            StockTarget {
+                collection_id: fixture_id(0x13),
+                ..target()
+            },
+            4,
+            false,
+        );
+        for snapshots in [
+            vec![
+                wanted.clone(),
+                other_source.clone(),
+                other_collection.clone(),
+            ],
+            vec![other_collection, other_source, wanted.clone()],
+        ] {
+            let preparation = Preparation {
+                snapshots,
+                ..Preparation::default()
+            };
+            assert_eq!(preparation.snapshot(&target()), Ok(&wanted));
+            let plan = map_stock(&command(), &preparation).unwrap();
+            assert_eq!(plan.request.method, NativeMethod::Patch);
+            assert_eq!(
+                plan.request.path,
+                format!("/api/v1/entities/{}", target().resource_id.unwrap())
+            );
+            assert!(plan.request.query.is_empty());
+            assert_eq!(plan.request.body, NativeBody::Json(json!({"quantity":2})));
+            assert_eq!(plan.readback.expected, json!({"quantity":2}));
+        }
     }
 }

@@ -1,0 +1,765 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://houseatlas.invalid/proposals/linear-v1",
+  "title": "Unadopted linear measurement proposal; no mutation or persistence authority",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "target",
+    "quantity",
+    "definition",
+    "coverage",
+    "value",
+    "provenance"
+  ],
+  "properties": {
+    "contract": {
+      "const": "houseatlas-linear-proposal/1"
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "homeId",
+        "logicalTargetId",
+        "sourceId",
+        "artifactSha256",
+        "occurrenceId",
+        "correspondence",
+        "observedArtifactSha256"
+      ],
+      "properties": {
+        "homeId": {
+          "$ref": "#/$defs/token"
+        },
+        "logicalTargetId": {
+          "$ref": "#/$defs/token"
+        },
+        "sourceId": {
+          "$ref": "#/$defs/token"
+        },
+        "artifactSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "occurrenceId": {
+          "$ref": "#/$defs/token"
+        },
+        "correspondence": {
+          "enum": [
+            "unreviewed",
+            "same-target-reviewed",
+            "replaced",
+            "missing",
+            "unresolved"
+          ]
+        },
+        "observedArtifactSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "quantity": {
+      "enum": [
+        "length",
+        "width",
+        "depth",
+        "height",
+        "perimeter"
+      ]
+    },
+    "definition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "reason"
+          ],
+          "properties": {
+            "kind": {
+              "const": "unresolved"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "pattern": ".*\\S.*"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "endpointRefs",
+            "metric",
+            "frameRef"
+          ],
+          "properties": {
+            "kind": {
+              "const": "selected-span"
+            },
+            "endpointRefs": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/token"
+              }
+            },
+            "metric": {
+              "enum": [
+                "planar-straight",
+                "spatial-straight"
+              ]
+            },
+            "frameRef": {
+              "$ref": "#/$defs/token"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "lowerDatumRef",
+            "upperDatumRef",
+            "directionRef",
+            "sampleLocationRef"
+          ],
+          "properties": {
+            "kind": {
+              "const": "height-between-datums"
+            },
+            "lowerDatumRef": {
+              "$ref": "#/$defs/token"
+            },
+            "upperDatumRef": {
+              "$ref": "#/$defs/token"
+            },
+            "directionRef": {
+              "$ref": "#/$defs/token"
+            },
+            "sampleLocationRef": {
+              "$ref": "#/$defs/token"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "outerRingRefs",
+            "holeRingRefs",
+            "excludedBoundaryRefs",
+            "exclusionReason",
+            "metric",
+            "frameRef"
+          ],
+          "properties": {
+            "kind": {
+              "const": "explicit-boundary-sum"
+            },
+            "outerRingRefs": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 64,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/token"
+              }
+            },
+            "holeRingRefs": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 64,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/token"
+              }
+            },
+            "excludedBoundaryRefs": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 64,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/token"
+              }
+            },
+            "exclusionReason": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/token"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "metric": {
+              "enum": [
+                "planar",
+                "spatial"
+              ]
+            },
+            "frameRef": {
+              "$ref": "#/$defs/token"
+            }
+          }
+        }
+      ]
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "missing"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "complete-for-definition",
+            "partial",
+            "unknown"
+          ]
+        },
+        "missing": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": ".*\\S.*"
+          }
+        }
+      }
+    },
+    "value": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "decimal",
+            "unit"
+          ],
+          "properties": {
+            "decimal": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "not": {
+                "pattern": "^0(\\.0+)?$",
+                "type": "string"
+              }
+            },
+            "unit": {
+              "enum": [
+                "m",
+                "cm",
+                "mm",
+                "ft",
+                "in"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "testimony",
+        "support",
+        "evidenceRefs",
+        "methodRef",
+        "sourceFactAt",
+        "recordedAt",
+        "uncertainty"
+      ],
+      "properties": {
+        "origin": {
+          "enum": [
+            "model-derived",
+            "document-supplied",
+            "manual-entry",
+            "unknown"
+          ]
+        },
+        "testimony": {
+          "enum": [
+            "not-declared",
+            "user-reported-measured"
+          ]
+        },
+        "support": {
+          "enum": [
+            "unverified",
+            "evidence-linked"
+          ]
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/token"
+          }
+        },
+        "methodRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/token"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceFactAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "maxLength": 64
+        },
+        "recordedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "maxLength": 64
+        },
+        "uncertainty": {
+          "enum": [
+            "approximate",
+            "unspecified",
+            "unknown"
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "token": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": ".*\\S.*"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "quantity": {
+            "const": "height"
+          }
+        },
+        "required": [
+          "quantity"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "definition": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "height-between-datums",
+                  "unresolved"
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "quantity": {
+            "const": "perimeter"
+          }
+        },
+        "required": [
+          "quantity"
+        ],
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "definition": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "explicit-boundary-sum",
+                  "unresolved"
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "quantity": {
+            "enum": [
+              "length",
+              "width",
+              "depth"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "definition": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "selected-span",
+                  "unresolved"
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "definition": {
+            "properties": {
+              "kind": {
+                "const": "unresolved"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "type": "null"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "coverage": {
+            "properties": {
+              "status": {
+                "const": "complete-for-definition"
+              }
+            },
+            "required": [
+              "status"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "coverage": {
+            "properties": {
+              "missing": {
+                "maxItems": 0,
+                "type": "array"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "coverage": {
+            "properties": {
+              "status": {
+                "const": "partial"
+              }
+            },
+            "required": [
+              "status"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "coverage": {
+            "properties": {
+              "missing": {
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "origin": {
+                "const": "unknown"
+              }
+            },
+            "required": [
+              "origin"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "type": "null"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "origin": {
+                "const": "model-derived"
+              }
+            },
+            "required": [
+              "origin"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "uncertainty": {
+                "const": "approximate"
+              },
+              "methodRef": {
+                "$ref": "#/$defs/token"
+              },
+              "testimony": {
+                "const": "not-declared"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "origin": {
+                "const": "document-supplied"
+              }
+            },
+            "required": [
+              "origin"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "evidenceRefs": {
+                "minItems": 1,
+                "type": "array"
+              },
+              "testimony": {
+                "const": "not-declared"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "testimony": {
+                "const": "user-reported-measured"
+              }
+            },
+            "required": [
+              "testimony"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "origin": {
+                "const": "manual-entry"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "support": {
+                "const": "evidence-linked"
+              }
+            },
+            "required": [
+              "support"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "evidenceRefs": {
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "definition": {
+            "properties": {
+              "kind": {
+                "const": "explicit-boundary-sum"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "definition": {
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "excludedBoundaryRefs": {
+                      "minItems": 1,
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                },
+                "then": {
+                  "properties": {
+                    "exclusionReason": {
+                      "$ref": "#/$defs/token"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            ]
+          }
+        },
+        "type": "object"
+      }
+    }
+  ]
+}
