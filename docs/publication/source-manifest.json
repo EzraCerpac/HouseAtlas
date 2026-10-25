@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "35a730a01d0131d852180306f4a350d6e49cc9b69eb6529b9ca94d4e82040817",
+  "sourceDigestSha256": "0c3e8c8c27669398ba9ead6732c9d07b1efeb1c4bbbee0f38154c9368e41a89d",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -719,6 +719,13 @@
       "owner": "ai"
     },
     {
+      "path": "backend/src/ai/connection_readiness_scenarios.rs",
+      "mode": "100644",
+      "bytes": 4359,
+      "sha256": "e41974b2fa3ab4b6dd41ebf3d23e9cc828714208e24c32d0a871c50a36b1456c",
+      "owner": "ai"
+    },
+    {
       "path": "backend/src/ai/fixtures/stock-read-tools.json",
       "mode": "100644",
       "bytes": 4048,
@@ -735,8 +742,8 @@
     {
       "path": "backend/src/ai/host/README.md",
       "mode": "100644",
-      "bytes": 21935,
-      "sha256": "17f6c813855f710be4a5064df3de7e218725379a10e4eea69cbe1baae7000c30",
+      "bytes": 24594,
+      "sha256": "cb263e8d31e792307eb9498788c7cac13c5869ef8c13b38b5e83b30877014bcf",
       "owner": "ai"
     },
     {
@@ -1022,8 +1029,8 @@
     {
       "path": "backend/src/ai/oauth.rs",
       "mode": "100644",
-      "bytes": 79310,
-      "sha256": "82a2e891ec94ca182a9e8746eed908d317c78bcd063c9a49d904c03b78e6a027",
+      "bytes": 79677,
+      "sha256": "deb97b75630dd96da90cf324def06248235137afd01fe432a50dd17bbda5b259",
       "owner": "ai"
     },
     {
@@ -1031,6 +1038,13 @@
       "mode": "100644",
       "bytes": 395,
       "sha256": "e7c4f2c329f8cee40bd011f7b529d11e92c0f7d7f4437e190432e66d4d0a2976",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/oauth_lifecycle_scenarios.rs",
+      "mode": "100644",
+      "bytes": 10861,
+      "sha256": "c7664343b6866df9a791f891dd67dffe15022d658b00e79a11a62df78e2758df",
       "owner": "ai"
     },
     {
@@ -6573,8 +6587,8 @@
     {
       "path": "docs/operations/local-capture-drafts.md",
       "mode": "100644",
-      "bytes": 16617,
-      "sha256": "9e6666e92edc008cb4265f5af43423b7493f6a63cc9b6e13b0c51517474a7b8d",
+      "bytes": 18053,
+      "sha256": "151a369f85c95e7d735be51b85648aecd6e2962fb373ff030446ace04d664a3a",
       "owner": "core-integration"
     },
     {
@@ -7084,8 +7098,8 @@
     {
       "path": "frontend/capture-drafts-tests/combined-host.mjs",
       "mode": "100644",
-      "bytes": 13237,
-      "sha256": "2421ae1cb78b4a4a67cf6c16ae3ad4bff1c4790ffd9558654eb22e737bafc41c",
+      "bytes": 14938,
+      "sha256": "e5f29ac5e808a179694468985a8e5689fcacfaba1ae179ec1acfcdb78aaf97a4",
       "owner": "core-integration"
     },
     {
@@ -7098,8 +7112,8 @@
     {
       "path": "frontend/capture-drafts-tests/controller.regression.test.mjs",
       "mode": "100644",
-      "bytes": 22243,
-      "sha256": "5023866ba9cdd3637b1d34c276c0b87bb494146e61e41481cb9a4fa6ca59b33f",
+      "bytes": 24459,
+      "sha256": "09d5a17beecfadea0f50a6a77d107acfab7934930b8015b66c25dc11caca0ad5",
       "owner": "core-integration"
     },
     {
@@ -7161,8 +7175,8 @@
     {
       "path": "frontend/integration/capture-drafts-adapter.ts",
       "mode": "100644",
-      "bytes": 12386,
-      "sha256": "08e90558859fd16cb33272391573f1ee4b07dd89135e643e20541e5ec371b9f8",
+      "bytes": 12196,
+      "sha256": "0ee2669427052e3413f3043cde2f4909a61a5fbe19b8e5dca74897a9952d5ab7",
       "owner": "core-integration"
     },
     {
@@ -9002,8 +9016,8 @@
     {
       "path": "frontend/src/capture-drafts/controller.ts",
       "mode": "100644",
-      "bytes": 17959,
-      "sha256": "29d2703c765f7a9a6baef6e8c794d9a158db272aa7588c14ccacf263f72d5e10",
+      "bytes": 18502,
+      "sha256": "3875bd8227ab94867632025a932bb7bba72051e4c35255de9c202b6f810568c7",
       "owner": "core-integration"
     },
     {
