@@ -161,17 +161,15 @@ def with_model(service: dict, files: dict[str, Path]) -> dict:
     return out
 
 
+SMOKE_FLAGS = {*MODEL_FLAGS.values(), *(f + "-sha256" for f in MODEL_FLAGS.values()), "--atlas-entry-building-id"}
+
+
 def model_args(args: list[str]) -> list[str]:
-    """The serve arguments after --server-config <path>: model pins and entry building."""
-    out, skip = [], False
-    for i, a in enumerate(args[2:]):
-        if skip:
-            skip = False
-            continue
-        if a == "--server-config":
-            skip = True
-            continue
-        out.append(a)
+    """Only the model pins and entry building: live-only selections (accounts, custody) need the live data."""
+    out = []
+    for i, a in enumerate(args[:-1]):
+        if a in SMOKE_FLAGS:
+            out += [a, args[i + 1]]
     return out
 
 
@@ -438,6 +436,11 @@ class Deployer:
 
     # -- live state
 
+    def require_settled(self) -> None:
+        for r in ledger_records(self.cfg.ledger):
+            if r["status"] in ("swapping", "swap-failed", "rolling-back"):
+                raise DeployError(f"{r['id']} was interrupted ({r['status']}); finish it with `deploy-nas rollback` first")
+
     def live(self) -> dict:
         service = read_plist(self.cfg.plist)
         args = service["ProgramArguments"]
@@ -578,6 +581,7 @@ class Deployer:
 
     def deploy(self, sha: str, *, prepare_only=False, storage_reviewed: str | None = None, auto_rollback=True) -> dict:
         cfg, rt = self.cfg, self.rt
+        self.require_settled()
         live = self.live()
         if not re.fullmatch(r"[0-9a-f]{7,40}", sha):
             raise DeployError("give a commit SHA from main")
@@ -681,6 +685,7 @@ class Deployer:
 
     def model(self, release: Path, *, prepare_only=False, auto_rollback=True) -> dict:
         cfg = self.cfg
+        self.require_settled()
         live = self.live()
         release = release.expanduser()
         files = validate_release(release, live["data_dir"])

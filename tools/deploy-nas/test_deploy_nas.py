@@ -53,12 +53,13 @@ class Pure(unittest.TestCase):
         self.assertEqual(dn.parse_head(head), (401, {"cache-control": "private, no-store"}))
         self.assertEqual(dn.parse_head(""), (0, {}))
 
-    def test_model_args_drop_only_the_server_config(self):
-        args = dn.model_args(SERVICE["ProgramArguments"])
+    def test_smoke_args_keep_only_model_pins_and_entry_building(self):
+        live = SERVICE["ProgramArguments"] + ["--ai-account-selection", "/srv/ai.json"]
+        args = dn.model_args(live)
         self.assertNotIn("--server-config", args)
-        self.assertNotIn("/srv/server-config.json", args)
+        self.assertNotIn("--ai-account-selection", args)
         self.assertEqual(args[-2:], ["--atlas-entry-building-id", "main_house"])
-        self.assertEqual(len(args), len(SERVICE["ProgramArguments"]) - 4)
+        self.assertEqual(args, SERVICE["ProgramArguments"][4:])
 
     def test_storage_gate(self):
         changed = ["frontend/src/App.tsx", "backend/migrations/0009_x.sql", "backend/src/storage/mod.rs",
@@ -312,6 +313,14 @@ class SwapAndRollback(unittest.TestCase):
         dn.save_record(self.cfg.ledger, {"id": "m", "kind": "model", "status": "verified", "binary": b})
         self.assertEqual(dep.live_sha(Path(b)), "f" * 40)
         self.assertEqual(dep.live_sha(Path(SERVICE["ProgramArguments"][0])), "aaaaaaa")
+
+    def test_no_new_change_while_one_is_unfinished(self):
+        dep = dn.Deployer(self.cfg, FakeService(self.cfg), out=io.StringIO())
+        dn.save_record(self.cfg.ledger, dict(self.record, status="swapping"))
+        with self.assertRaises(dn.DeployError):
+            dep.deploy("abcdef0")
+        with self.assertRaises(dn.DeployError):
+            dep.model(self.root / "release")
 
     def test_rollback_refuses_a_service_changed_by_hand(self):
         svc = FakeService(self.cfg)
