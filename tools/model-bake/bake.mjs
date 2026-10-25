@@ -9,11 +9,11 @@ import { BAKE_DEFAULTS, bakeOverview } from './src/bake.mjs';
 
 const { values } = parseArgs({ options: {
   model: { type: 'string' }, companion: { type: 'string' }, out: { type: 'string' },
-  triangles: { type: 'string' }, 'max-error': { type: 'string' }, 'structure-weight': { type: 'string' },
+  triangles: { type: 'string' }, 'max-error': { type: 'string' }, 'structure-weight': { type: 'string' }, weld: { type: 'string' },
 } });
 if (!values.model || !values.out) {
   console.error('Usage: bake.mjs --model master.glb [--companion atlas-scene.json] --out DIR '
-    + `[--triangles ${BAKE_DEFAULTS.triangles}] [--max-error ${BAKE_DEFAULTS.maxError}] [--structure-weight ${BAKE_DEFAULTS.structureWeight}]`);
+    + `[--triangles ${BAKE_DEFAULTS.triangles}] [--max-error ${BAKE_DEFAULTS.maxError}] [--structure-weight ${BAKE_DEFAULTS.structureWeight}] [--weld ${BAKE_DEFAULTS.weld}]`);
   process.exit(2);
 }
 const number = (text, name) => { const n = Number(text); if (!Number.isFinite(n) || n <= 0) throw new Error(`--${name} must be a positive number`); return n; };
@@ -21,6 +21,7 @@ const overrides = {
   ...(values.triangles ? { triangles: Math.floor(number(values.triangles, 'triangles')) } : {}),
   ...(values['max-error'] ? { maxError: number(values['max-error'], 'max-error') } : {}),
   ...(values['structure-weight'] ? { structureWeight: number(values['structure-weight'], 'structure-weight') } : {}),
+  ...(values.weld ? { weld: number(values.weld, 'weld') } : {}),
 };
 const started = Date.now();
 const master = new Uint8Array(readFileSync(values.model));

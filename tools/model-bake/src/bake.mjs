@@ -1,18 +1,18 @@
 /** Overview bake: one detailed master GLB in, one display GLB out that fits a
- * triangle budget, with the same nodes, meshes and primitive slots so every
+ * triangle budget, with the same nodes and drawn mesh/primitive slots so every
  * companion mesh binding keeps pointing at the same thing.
  *
- * Simplification uses meshoptimizer edge collapse with an absolute error in
- * metres, searched globally so the whole house shares one error bound instead
- * of each mesh losing the same percentage. Edge collapse only keeps original
- * vertices, so every baked position is a source position and every source
- * bound still contains the baked geometry. Room-pick and slab primitives carry
- * plan footprints and are never changed; structure and roof are held to a
- * tighter error than context. Untouched primitives keep their exact accessors.
+ * Simplification uses meshoptimizer with an absolute error in metres, searched
+ * globally so the whole house shares one error bound instead of each mesh
+ * losing the same percentage. Both edge collapse and the clustering fallback
+ * keep only original vertices, so every baked position is a source position
+ * and every source bound still contains the baked geometry. Room-pick and slab
+ * primitives carry plan footprints and are never changed; structure and roof
+ * are held to a tighter error than context.
  */
 import { createHash } from 'node:crypto';
 import { MeshoptSimplifier } from 'meshoptimizer';
-import { COMPONENT_BYTES, COMPONENTS, maxScale, meshInstances, readAccessor, readGlb, writeGlb } from './glb.mjs';
+import { COMPONENTS, maxScale, meshInstances, readAccessor, readGlb, writeGlb } from './glb.mjs';
 
 export const BAKE_DEFAULTS = Object.freeze({
   /** Drawn triangles, counted per node instance like the viewer counts them. */
@@ -21,6 +21,10 @@ export const BAKE_DEFAULTS = Object.freeze({
   maxError: 0.05,
   /** Structure and roof errors are this share of the context error. */
   structureWeight: 0.25,
+  /** Untextured vertices closer than this (metres, per axis cell) are welded
+   * before simplification, so exporter-split or clipped surfaces collapse as
+   * one surface. Welding keeps the first source vertex of each cell. */
+  weld: 0.0005,
 });
 /** Roles whose primitives must stay byte-identical. */
 export const LOCKED_ROLES = Object.freeze(['room-pick', 'slab']);
@@ -29,13 +33,23 @@ const ROLE_RANK = { 'room-pick': 4, slab: 3, structure: 2, roof: 2, context: 1 }
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const key = (mesh, primitive) => `${mesh}/${primitive}`;
 
-/** The most protective role bound to each primitive slot. */
-function primitiveRoles(companion) {
-  const roles = new Map();
-  for (const binding of companion?.meshBindings ?? [])
-    for (const primitive of binding.primitiveIndices) {
-      const slot = key(binding.meshIndex, primitive), current = roles.get(slot);
-      if (!current || ROLE_RANK[binding.role] > ROLE_RANK[current]) roles.set(slot, binding.role);
+/** The most protective role per primitive slot: companion bindings when given,
+ * otherwise the producer's `semanticRole` node extras, otherwise context. */
+function primitiveRoles(json, companion, instances) {
+  const roles = new Map(), keep = (slot, role) => {
+    if (!(role in ROLE_RANK)) return;
+    const current = roles.get(slot);
+    if (!current || ROLE_RANK[role] > ROLE_RANK[current]) roles.set(slot, role);
+  };
+  if (companion) {
+    for (const binding of companion.meshBindings ?? [])
+      for (const primitive of binding.primitiveIndices) keep(key(binding.meshIndex, primitive), binding.role);
+    return roles;
+  }
+  for (const [meshIndex, uses] of instances)
+    for (const { nodeIndex } of uses) {
+      const role = json.nodes[nodeIndex].extras?.semanticRole;
+      json.meshes[meshIndex].primitives.forEach((_, primitive) => keep(key(meshIndex, primitive), role));
     }
   return roles;
 }
@@ -48,39 +62,55 @@ const textured = (json, materialIndex) => {
     .some(texture => texture !== undefined);
 };
 
-/** Indices welded by exact position, so collapse crosses split normals and UVs. */
-function weld(positions, indices) {
-  const remap = MeshoptSimplifier.generatePositionRemap(positions, 3);
-  return indices.map(i => remap[i]);
+/** Indices welded on a grid of `cell` local units, dropping triangles that weld shut. */
+function weld(positions, indices, cell) {
+  const remap = new Uint32Array(positions.length / 3), seen = new Map();
+  for (let v = 0; v < remap.length; v++) {
+    const id = cell > 0
+      ? `${Math.round(positions[v * 3] / cell)},${Math.round(positions[v * 3 + 1] / cell)},${Math.round(positions[v * 3 + 2] / cell)}`
+      : `${positions[v * 3]},${positions[v * 3 + 1]},${positions[v * 3 + 2]}`;
+    let at = seen.get(id);
+    if (at === undefined) { at = v; seen.set(id, v); }
+    remap[v] = at;
+  }
+  const out = [];
+  for (let t = 0; t < indices.length; t += 3) {
+    const a = remap[indices[t]], b = remap[indices[t + 1]], c = remap[indices[t + 2]];
+    if (a !== b && b !== c && a !== c) out.push(a, b, c);
+  }
+  return Uint32Array.from(out);
 }
 
 function simplifyAt(candidate, error) {
   if (error <= 0) return candidate.indices;
   const local = error / candidate.scale;
-  const [indices] = MeshoptSimplifier.simplify(candidate.indices, candidate.positions, 3, 0, local, candidate.flags);
+  let [indices] = MeshoptSimplifier.simplify(candidate.indices, candidate.positions, 3, 0, local, candidate.flags);
+  // Edge collapse stalls on disconnected soup (foliage cards, clipped terrain
+  // cells). Clustering also keeps source vertices; use it when it does better.
+  if (candidate.sloppy && indices.length > candidate.indices.length / 2) {
+    const [clustered] = MeshoptSimplifier.simplifySloppy(candidate.indices, candidate.positions, 3, null, 0, local / candidate.extent);
+    if (clustered.length < indices.length) indices = clustered;
+  }
   return indices;
 }
 
 /** Collapses each candidate at the smallest global error that meets the budget. */
 function search(candidates, fixedTriangles, options) {
-  const total = error => candidates.reduce((sum, c) => {
-    const triangles = simplifyAt(c, error * c.weight).length / 3;
-    c.cache = { error, triangles }; return sum + triangles * c.instances;
-  }, fixedTriangles);
-  const original = total(0);
-  if (original <= options.triangles) return { error: 0, triangles: original };
-  if (total(options.maxError) > options.triangles)
-    throw new Error(`Cannot reach ${options.triangles} triangles within ${options.maxError} m; lower detail in the source or raise --max-error`);
+  const total = error => candidates.reduce((sum, c) => sum + simplifyAt(c, error * c.weight).length / 3 * c.instances, fixedTriangles);
+  const authored = candidates.reduce((sum, c) => sum + c.original.length / 3 * c.instances, fixedTriangles);
+  if (authored <= options.triangles) return { error: 0, triangles: authored };
+  const atCap = total(options.maxError);
+  if (atCap > options.triangles)
+    throw new Error(`Cannot reach ${options.triangles} triangles within ${options.maxError} m (${atCap} remain); lower detail in the source or raise --max-error`);
   let low = 0, high = options.maxError;
-  // 24 halvings resolve the error to well under a millimetre at a 5 cm cap.
-  for (let step = 0; step < 24; step++) {
+  // 20 halvings resolve the error to about 0.05 mm at a 5 cm cap.
+  for (let step = 0; step < 20; step++) {
     const mid = (low + high) / 2;
     if (total(mid) > options.triangles) low = mid; else high = mid;
   }
   return { error: high, triangles: total(high) };
 }
 
-/** New accessor bytes appended after the retained buffer views. */
 class BinWriter {
   constructor() { this.parts = []; this.length = 0; }
   add(bytes) {
@@ -91,6 +121,12 @@ class BinWriter {
   }
   bytes() { const out = new Uint8Array(this.length); let at = 0; for (const part of this.parts) { out.set(part, at); at += part.byteLength; } return out; }
 }
+
+const bounds = values => {
+  const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < values.length; i++) { min[i % 3] = Math.min(min[i % 3], values[i]); max[i % 3] = Math.max(max[i % 3], values[i]); }
+  return { min, max };
+};
 
 /**
  * @param {Uint8Array} masterBytes detailed GLB
@@ -103,134 +139,129 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     throw new Error('The companion does not pin this master GLB');
   const { json: source, bin } = readGlb(masterBytes);
   for (const name of source.extensionsUsed ?? []) throw new Error(`The master uses glTF extension ${name}; the overview profile admits none`);
-  const json = structuredClone(source), roles = primitiveRoles(companion), instances = meshInstances(json);
+  for (const accessor of source.accessors ?? []) if (accessor.sparse) throw new Error('Sparse accessors are not supported');
+  const instances = meshInstances(source), roles = primitiveRoles(source, companion, instances);
   await MeshoptSimplifier.ready;
+
+  // Meshes no drawn node uses are left out; the viewer and backend refuse unused declarations.
+  const meshMap = new Map(), unusedMeshes = [];
+  (source.meshes ?? []).forEach((_, at) => { if (instances.has(at)) meshMap.set(at, meshMap.size); else unusedMeshes.push(at); });
+  for (const binding of companion?.meshBindings ?? [])
+    if (!meshMap.has(binding.meshIndex)) throw new Error(`Companion binds mesh ${binding.meshIndex}, which no node draws`);
 
   const candidates = [], report = [];
   let fixedTriangles = 0;
-  (json.meshes ?? []).forEach((mesh, meshIndex) => mesh.primitives.forEach((primitive, primitiveIndex) => {
-    const uses = instances.get(meshIndex) ?? [];
-    const slot = key(meshIndex, primitiveIndex), role = roles.get(slot) ?? (companion ? null : 'context');
+  for (const [meshIndex] of meshMap) source.meshes[meshIndex].primitives.forEach((primitive, primitiveIndex) => {
+    const uses = instances.get(meshIndex), slot = key(meshIndex, primitiveIndex);
+    const role = roles.get(slot) ?? (companion ? null : 'context');
     if (role === null) throw new Error(`Primitive ${slot} has no companion binding`);
-    const positions = Float32Array.from(readAccessor(json, bin, primitive.attributes.POSITION));
+    const positions = Float32Array.from(readAccessor(source, bin, primitive.attributes.POSITION));
     const indices = primitive.indices === undefined ? Uint32Array.from({ length: positions.length / 3 }, (_, i) => i)
-      : Uint32Array.from(readAccessor(json, bin, primitive.indices));
-    const triangles = indices.length / 3, hasTextures = textured(json, primitive.material);
-    const entry = { mesh: meshIndex, primitive: primitiveIndex, name: mesh.name ?? null, role, instances: uses.length,
+      : Uint32Array.from(readAccessor(source, bin, primitive.indices));
+    const triangles = indices.length / 3, hasTextures = textured(source, primitive.material);
+    const entry = { mesh: meshIndex, primitive: primitiveIndex, name: source.meshes[meshIndex].name ?? null, role, instances: uses.length,
       textured: hasTextures, triangles, bakedTriangles: triangles, changed: false };
     report.push(entry);
-    if (LOCKED_ROLES.includes(role) || uses.length === 0 || triangles < 4) { fixedTriangles += triangles * uses.length; return; }
-    candidates.push({ entry, primitive, positions, original: indices, instances: uses.length,
-      // Welding would merge across UV seams the material path needs; textured slots collapse unwelded.
-      indices: hasTextures ? indices : weld(positions, indices),
-      scale: Math.max(...uses.map(use => maxScale(use.world)), 1e-9),
+    if (LOCKED_ROLES.includes(role) || triangles < 4) { fixedTriangles += triangles * uses.length; return; }
+    const scale = Math.max(...uses.map(use => maxScale(use.world)), 1e-9);
+    // Welding would merge across UV seams the material path needs; textured slots collapse unwelded.
+    const welded = hasTextures ? indices : weld(positions, indices, options.weld / scale);
+    // The simplifier sees only referenced vertices: unreferenced ones (left by
+    // welding or the exporter) stall edge collapse. `vertexIds` maps back to source.
+    const vertexIds = [...new Set(welded)].sort((a, b) => a - b), local = new Map(vertexIds.map((v, i) => [v, i]));
+    const compact = new Float32Array(vertexIds.length * 3);
+    vertexIds.forEach((v, i) => compact.set(positions.subarray(v * 3, v * 3 + 3), i * 3));
+    candidates.push({ entry, positions: compact, vertexIds: Uint32Array.from(vertexIds), original: indices, instances: uses.length, scale,
+      indices: welded.map(v => local.get(v)),
+      extent: MeshoptSimplifier.getScale(compact, 3),
       weight: role === 'context' ? 1 : options.structureWeight,
+      sloppy: role === 'context' && !hasTextures,
       flags: role === 'context' ? ['ErrorAbsolute', 'Prune'] : ['ErrorAbsolute'] });
-  }));
+  });
 
   const result = search(candidates, fixedTriangles, options);
-  const writer = new BinWriter(), added = [];
-  const addAccessor = (array, type, componentType, extra = {}) => {
-    const view = { buffer: 0, byteLength: array.byteLength };
-    added.push({ view, offset: writer.add(new Uint8Array(array.buffer, array.byteOffset, array.byteLength)) });
-    json.accessors.push({ bufferView: -added.length, componentType, count: array.length / COMPONENTS[type], type, ...extra });
-    return json.accessors.length - 1;
-  };
-  for (const c of candidates) {
-    const baked = simplifyAt(c, result.error * c.weight);
-    if (baked.length === c.original.length) continue;
-    // Compact to the vertices still referenced, keeping their original order.
-    const used = new Int32Array(c.positions.length / 3).fill(-1);
-    let count = 0;
-    for (const v of baked) if (used[v] < 0) used[v] = 0;
-    for (let v = 0; v < used.length; v++) if (used[v] === 0) used[v] = count++;
-    const attributes = {};
-    const sources = c.entry.textured ? Object.entries(c.primitive.attributes) : [['POSITION', c.primitive.attributes.POSITION]];
-    for (const [name, accessorIndex] of sources) {
-      const accessor = source.accessors[accessorIndex], width = COMPONENTS[accessor.type];
-      const values = readAccessor(source, bin, accessorIndex), out = new values.constructor(count * width);
-      for (let v = 0; v < used.length; v++) if (used[v] >= 0) out.set(values.subarray(v * width, v * width + width), used[v] * width);
-      const extra = { ...(accessor.normalized ? { normalized: true } : {}) };
-      if (name === 'POSITION') {
-        const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
-        for (let i = 0; i < out.length; i++) { min[i % 3] = Math.min(min[i % 3], out[i]); max[i % 3] = Math.max(max[i % 3], out[i]); }
-        Object.assign(extra, { min, max });
-      }
-      attributes[name] = addAccessor(out, accessor.type, accessor.componentType, extra);
-    }
-    const remapped = baked.map(v => used[v]);
-    const indices = count <= 0xffff ? Uint16Array.from(remapped) : Uint32Array.from(remapped);
-    c.primitive.attributes = attributes;
-    c.primitive.indices = addAccessor(indices, 'SCALAR', count <= 0xffff ? 5123 : 5125);
-    c.entry.bakedTriangles = baked.length / 3; c.entry.changed = true;
-    c.entry.droppedAttributes = Object.keys(c.entry.textured ? {} : source.meshes[c.entry.mesh].primitives[c.entry.primitive].attributes)
-      .filter(name => name !== 'POSITION');
+  const baked = new Map();
+  // A master that already fits keeps every primitive as authored.
+  for (const c of result.error === 0 ? [] : candidates) {
+    const indices = simplifyAt(c, result.error * c.weight).map(v => c.vertexIds[v]);
+    if (indices.length === c.original.length && indices.every((v, i) => v === c.original[i])) continue;
+    baked.set(key(c.entry.mesh, c.entry.primitive), indices);
+    c.entry.bakedTriangles = indices.length / 3; c.entry.changed = true;
   }
 
-  const out = repack(json, bin, writer, added, referencedViews(source));
-  const outBytes = writeGlb(out.json, out.bin);
-  const bakedCompanion = companion ? { ...companion, original: { sha256: sha256(outBytes), bytes: outBytes.byteLength } } : null;
+  // Rebuild every buffer tightly: untouched accessors keep their exact values,
+  // baked primitives get compact positions (plus every attribute when textured).
+  const json = structuredClone(source), writer = new BinWriter(), accessors = [], views = [];
+  const addView = (bytes, extra = {}) => { views.push({ buffer: 0, byteOffset: writer.add(bytes), byteLength: bytes.byteLength, ...extra }); return views.length - 1; };
+  const addAccessor = (array, from, extra = {}) => {
+    const bufferView = addView(new Uint8Array(array.buffer, array.byteOffset, array.byteLength), from.target ? { target: from.target } : {});
+    accessors.push({ bufferView, componentType: from.componentType, count: array.length / COMPONENTS[from.type], type: from.type,
+      ...(from.normalized ? { normalized: true } : {}), ...extra });
+    return accessors.length - 1;
+  };
+  const copied = new Map(), copy = at => {
+    if (!copied.has(at)) {
+      const accessor = source.accessors[at], values = readAccessor(source, bin, at);
+      const extra = { ...(accessor.min ? { min: accessor.min } : {}), ...(accessor.max ? { max: accessor.max } : {}), ...(accessor.name ? { name: accessor.name } : {}) };
+      copied.set(at, addAccessor(values, { ...accessor, target: source.bufferViews[accessor.bufferView].target }, extra));
+    }
+    return copied.get(at);
+  };
+  json.meshes = [...meshMap.keys()].map(meshIndex => {
+    const mesh = json.meshes[meshIndex];
+    mesh.primitives = mesh.primitives.map((primitive, primitiveIndex) => {
+      const indices = baked.get(key(meshIndex, primitiveIndex)), from = source.meshes[meshIndex].primitives[primitiveIndex];
+      if (!indices) {
+        const attributes = Object.fromEntries(Object.entries(from.attributes).map(([name, at]) => [name, copy(at)]));
+        return { ...primitive, attributes, ...(from.indices === undefined ? {} : { indices: copy(from.indices) }) };
+      }
+      // Compact to the vertices still referenced, keeping their source order.
+      const vertexCount = source.accessors[from.attributes.POSITION].count, used = new Int32Array(vertexCount).fill(-1);
+      for (const v of indices) used[v] = 0;
+      let count = 0;
+      for (let v = 0; v < vertexCount; v++) if (used[v] === 0) used[v] = count++;
+      const names = textured(source, from.material) ? Object.keys(from.attributes) : ['POSITION'];
+      const attributes = {};
+      for (const name of names) {
+        const accessor = source.accessors[from.attributes[name]], width = COMPONENTS[accessor.type];
+        const values = readAccessor(source, bin, from.attributes[name]), out = new values.constructor(count * width);
+        for (let v = 0; v < vertexCount; v++) if (used[v] >= 0) out.set(values.subarray(v * width, v * width + width), used[v] * width);
+        attributes[name] = addAccessor(out, { ...accessor, target: 34962 }, name === 'POSITION' ? bounds(out) : {});
+      }
+      const wide = count > 0xffff, remapped = indices.map(v => used[v]);
+      const index = addAccessor(wide ? Uint32Array.from(remapped) : Uint16Array.from(remapped),
+        { componentType: wide ? 5125 : 5123, type: 'SCALAR', target: 34963 });
+      const entry = report.find(row => row.mesh === meshIndex && row.primitive === primitiveIndex);
+      entry.droppedAttributes = Object.keys(from.attributes).filter(name => !names.includes(name));
+      return { ...primitive, attributes, indices: index };
+    });
+    return mesh;
+  });
+  for (const node of json.nodes ?? []) if (node.mesh !== undefined) node.mesh = meshMap.get(node.mesh);
+  for (const image of json.images ?? []) if (image.bufferView !== undefined) {
+    const view = source.bufferViews[image.bufferView], start = view.byteOffset ?? 0;
+    image.bufferView = addView(bin.subarray(start, start + view.byteLength));
+  }
+  json.accessors = accessors; json.bufferViews = views;
+  const outBin = writer.bytes();
+  if (views.length === 0) { delete json.accessors; delete json.bufferViews; delete json.buffers; }
+  else json.buffers = [{ byteLength: outBin.byteLength }];
+  const outBytes = writeGlb(json, views.length === 0 ? null : outBin);
+
+  const bakedCompanion = companion ? { ...companion, original: { sha256: sha256(outBytes), bytes: outBytes.byteLength },
+    meshBindings: companion.meshBindings.map(binding => ({ ...binding, meshIndex: meshMap.get(binding.meshIndex) })) } : null;
   const drawn = rows => rows.reduce((sum, row) => sum + row.bakedTriangles * row.instances, 0);
   return {
     glb: outBytes, companion: bakedCompanion,
     report: {
-      profile: 'houseatlas.overview-bake-report.v1',
-      master: { sha256: sha256(masterBytes), bytes: masterBytes.byteLength, drawnTriangles: report.reduce((s, r) => s + r.triangles * r.instances, 0) },
-      overview: { sha256: sha256(outBytes), bytes: outBytes.byteLength, drawnTriangles: drawn(report) },
-      budget: { triangles: options.triangles, maxError: options.maxError, structureWeight: options.structureWeight },
+      profile: 'houseatlas.overview-bake-report.v2',
+      master: { sha256: sha256(masterBytes), bytes: masterBytes.byteLength, binBytes: bin?.byteLength ?? 0, drawnTriangles: drawn(report.map(r => ({ ...r, bakedTriangles: r.triangles }))) },
+      overview: { sha256: sha256(outBytes), bytes: outBytes.byteLength, binBytes: outBin.byteLength, drawnTriangles: drawn(report) },
+      budget: { triangles: options.triangles, maxError: options.maxError, structureWeight: options.structureWeight, weld: options.weld },
+      rolesFrom: companion ? 'companion' : 'node-extras',
       contextErrorMetres: result.error, structureErrorMetres: result.error * options.structureWeight,
-      lockedRoles: LOCKED_ROLES, masterOrphanBytesDropped: out.orphanBytes, replacedBytesDropped: out.replacedBytes,
+      lockedRoles: LOCKED_ROLES, unusedMeshesDropped: unusedMeshes,
       primitives: report,
     },
   };
-}
-
-const usedAccessors = json => {
-  const used = new Set();
-  for (const mesh of json.meshes ?? []) for (const primitive of mesh.primitives) {
-    for (const accessor of Object.values(primitive.attributes)) used.add(accessor);
-    if (primitive.indices !== undefined) used.add(primitive.indices);
-  }
-  return used;
-};
-/** Buffer views a scene's primitives and images read. */
-function referencedViews(json) {
-  const views = new Set();
-  for (const at of usedAccessors(json)) if (json.accessors[at].bufferView !== undefined) views.add(json.accessors[at].bufferView);
-  for (const image of json.images ?? []) if (image.bufferView !== undefined) views.add(image.bufferView);
-  return views;
-}
-
-/** Keeps only referenced buffer views (original bytes, original order) and appends new ones.
- * Dropped views are counted as master orphans (unreferenced before the bake) or replaced. */
-function repack(json, bin, writer, added, masterViews) {
-  const used = usedAccessors(json), accessorMap = new Map(), accessors = [];
-  json.accessors.forEach((accessor, at) => { if (used.has(at)) { accessorMap.set(at, accessors.length); accessors.push(accessor); } });
-  const usedViews = new Set();
-  for (const accessor of accessors) if (accessor.bufferView >= 0) usedViews.add(accessor.bufferView);
-  for (const image of json.images ?? []) if (image.bufferView !== undefined) usedViews.add(image.bufferView);
-  const viewMap = new Map(), views = [], kept = new BinWriter();
-  let orphanBytes = 0, replacedBytes = 0;
-  (json.bufferViews ?? []).forEach((view, at) => {
-    if (!usedViews.has(at)) { if (masterViews.has(at)) replacedBytes += view.byteLength; else orphanBytes += view.byteLength; return; }
-    const start = view.byteOffset ?? 0;
-    viewMap.set(at, views.length);
-    // Keep 4-byte alignment for strided and float views.
-    views.push({ ...view, byteOffset: kept.add(bin.subarray(start, start + view.byteLength)) });
-  });
-  const appended = writer.bytes(), base = kept.length;
-  for (const { view, offset } of added) views.push({ ...view, byteOffset: base + offset });
-  for (const accessor of accessors)
-    accessor.bufferView = accessor.bufferView >= 0 ? viewMap.get(accessor.bufferView) : views.length - added.length + (-accessor.bufferView - 1);
-  for (const image of json.images ?? []) if (image.bufferView !== undefined) image.bufferView = viewMap.get(image.bufferView);
-  for (const mesh of json.meshes ?? []) for (const primitive of mesh.primitives) {
-    for (const name of Object.keys(primitive.attributes)) primitive.attributes[name] = accessorMap.get(primitive.attributes[name]);
-    if (primitive.indices !== undefined) primitive.indices = accessorMap.get(primitive.indices);
-  }
-  const keptBytes = kept.bytes(), out = new Uint8Array(keptBytes.byteLength + appended.byteLength);
-  out.set(keptBytes); out.set(appended, keptBytes.byteLength);
-  json.accessors = accessors; json.bufferViews = views;
-  if (views.length === 0) { delete json.bufferViews; delete json.buffers; return { json, bin: null, orphanBytes, replacedBytes }; }
-  json.buffers = [{ byteLength: out.byteLength }];
-  return { json, bin: out, orphanBytes, replacedBytes };
 }

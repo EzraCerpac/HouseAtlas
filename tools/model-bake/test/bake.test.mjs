@@ -8,8 +8,11 @@ import { readAccessor, readGlb, writeGlb } from '../src/glb.mjs';
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 
 /** Generated house-like master: an exact room-pick box and slab, a dense flat
- * wall (structure), and a dense sphere (context) drawn by two nodes. */
-export function syntheticMaster({ orphan = false } = {}) {
+ * wall (structure), a dense sphere (context) drawn by two nodes and clipped
+ * terrain exported as triangle soup with sub-millimetre seams (context).
+ * Options add an unused mesh before the slab, an accessor nothing reads, and
+ * node `semanticRole` extras. */
+export function syntheticMaster({ dead = false, unusedMesh = false, extras = false } = {}) {
   const parts = [], accessors = [], views = [];
   let length = 0;
   const add = (array, type, componentType, extra = {}) => {
@@ -52,35 +55,51 @@ export function syntheticMaster({ orphan = false } = {}) {
     if (r > 0) sphereIndices.push(a, b, a + 1);
     if (r < rings - 1) sphereIndices.push(a + 1, b, b + 1);
   }
-  const meshes = [
-    { name: 'RoomPick', primitives: [primitive(box, boxIndices)] },
-    { name: 'Slab', primitives: [primitive(slab, [0, 2, 1, 0, 3, 2])] },
-    { name: 'Wall', primitives: [primitive(wall, wallIndices)] },
-    { name: 'Lamp', primitives: [primitive(sphere, sphereIndices, normals)] },
+  // Gently sloped terrain, 100 x 100 cells, every triangle with its own three
+  // vertices and corners jittered by up to 0.05 mm, as cell-clipped exports are.
+  const soup = [], soupIndices = [], m = 100, jitter = (i, j, k) => ((i * 7919 + j * 104729 + k * 1299709) % 101 - 50) * 1e-6;
+  const ground = (i, j, k) => [-5 + 20 * i / m + jitter(i, j, k), -0.5 + 0.02 * i + jitter(j, i, k), 5 + 20 * j / m + jitter(k, j, i)];
+  for (let j = 0; j < m; j++) for (let i = 0; i < m; i++)
+    for (const tri of [[[i, j], [i + 1, j], [i + 1, j + 1]], [[i, j], [i + 1, j + 1], [i, j + 1]]])
+      tri.forEach(([x, z], k) => { soup.push(...ground(x, z, k)); soupIndices.push(soupIndices.length); });
+
+  const named = [
+    ['RoomPick', primitive(box, boxIndices), 'room-pick'],
+    ...(unusedMesh ? [['Retired', primitive(box, boxIndices), null]] : []),
+    ['Slab', primitive(slab, [0, 2, 1, 0, 3, 2]), 'slab'],
+    ['Wall', primitive(wall, wallIndices), 'structure'],
+    ['Lamp', primitive(sphere, sphereIndices, normals), 'context'],
+    ['Terrain', primitive(soup, soupIndices), 'context'],
   ];
-  if (orphan) add(new Float32Array(1024), 'VEC3', 5126);
+  if (dead) add(new Float32Array(1024), 'VEC3', 5126);
+  const meshIndex = name => named.findIndex(([n]) => n === name);
+  const role = name => named[meshIndex(name)][2];
+  const node = (name, extra = {}) => ({ mesh: meshIndex(name), name, ...extra, ...(extras ? { extras: { semanticRole: role(name) } } : {}) });
   const json = {
     asset: { version: '2.0', generator: 'synthetic' }, scene: 0, scenes: [{ nodes: [0] }],
-    nodes: [{ name: 'House', children: [1, 2, 3, 4, 5] }, { mesh: 0, name: 'RoomPick' }, { mesh: 1, name: 'Slab' },
-      { mesh: 2, name: 'Wall' }, { mesh: 3, name: 'LampA', translation: [1, 1.5, 1] }, { mesh: 3, name: 'LampB', translation: [3, 1.5, 2] }],
-    meshes, accessors: orphan ? accessors.slice(0, -1) : accessors, bufferViews: views, buffers: [{ byteLength: length }],
+    nodes: [{ name: 'House', children: [1, 2, 3, 4, 5, 6] }, node('RoomPick'), node('Slab'), node('Wall'),
+      { ...node('Lamp'), name: 'LampA', translation: [1, 1.5, 1] }, { ...node('Lamp'), name: 'LampB', translation: [3, 1.5, 2] }, node('Terrain')],
+    meshes: named.map(([name, p]) => ({ name, primitives: [p] })), accessors, bufferViews: views, buffers: [{ byteLength: length }],
   };
   const bin = new Uint8Array(length); let at = 0;
   for (const part of parts) { bin.set(part, at); at += part.byteLength; }
   const glb = writeGlb(json, bin);
-  const binding = (meshIndex, nodeIndex, role) => ({ artifactId: 'model', nodeIndex, meshIndex, primitiveIndices: [0],
-    buildingId: 'b', levelIds: ['l0'], spaceOccurrenceId: role === 'room-pick' ? 'o1' : null, role });
+  const binding = (name, nodeIndex) => ({ artifactId: 'model', nodeIndex, meshIndex: meshIndex(name), primitiveIndices: [0],
+    buildingId: 'b', levelIds: ['l0'], spaceOccurrenceId: role(name) === 'room-pick' ? 'o1' : null, role: role(name) });
   const companion = { profile: 'houseatlas.unified-atlas-publication.v1', original: { sha256: sha256(glb), bytes: glb.byteLength },
-    meshBindings: [binding(0, 1, 'room-pick'), binding(1, 2, 'slab'), binding(2, 3, 'structure'), binding(3, 4, 'context'), binding(3, 5, 'context')] };
+    meshBindings: [binding('RoomPick', 1), binding('Slab', 2), binding('Wall', 3), binding('Lamp', 4), binding('Lamp', 5), binding('Terrain', 6)] };
   return { glb, companion };
 }
 
-const primitivePositions = (glb, mesh) => { const { json, bin } = readGlb(glb); return readAccessor(json, bin, json.meshes[mesh].primitives[0].attributes.POSITION); };
+const mesh = (glb, name) => { const { json } = readGlb(glb); return json.meshes.findIndex(m => m.name === name); };
+const positionsOf = (glb, name) => { const { json, bin } = readGlb(glb); return readAccessor(json, bin, json.meshes[mesh(glb, name)].primitives[0].attributes.POSITION); };
+const trianglesOf = (glb, name) => { const { json, bin } = readGlb(glb); return readAccessor(json, bin, json.meshes[mesh(glb, name)].primitives[0].indices).length / 3; };
 const drawnTriangles = glb => {
   const { json, bin } = readGlb(glb);
   return json.nodes.filter(node => node.mesh !== undefined)
     .reduce((sum, node) => sum + readAccessor(json, bin, json.meshes[node.mesh].primitives[0].indices).length / 3, 0);
 };
+const row = (result, name) => result.report.primitives.find(p => p.name === name);
 
 test('bakes to the budget with one shared error and locked footprints', async () => {
   const { glb, companion } = syntheticMaster();
@@ -92,31 +111,32 @@ test('bakes to the budget with one shared error and locked footprints', async ()
   assert.equal(after, result.report.overview.drawnTriangles);
   assert.ok(result.report.contextErrorMetres > 0 && result.report.contextErrorMetres < 0.05);
 
-  // Same node, mesh and primitive slots, so companion selectors stay valid.
+  // Same nodes, meshes and primitive slots, so companion selectors stay valid.
   const master = readGlb(glb).json, baked = readGlb(result.glb).json;
   assert.deepEqual(baked.nodes, master.nodes);
   assert.deepEqual(baked.meshes.map(m => [m.name, m.primitives.length]), master.meshes.map(m => [m.name, m.primitives.length]));
 
   // Room-pick and slab keep their exact positions and triangles.
-  for (const mesh of [0, 1]) {
-    assert.deepEqual(primitivePositions(result.glb, mesh), primitivePositions(glb, mesh));
-    const row = result.report.primitives.find(p => p.mesh === mesh);
-    assert.equal(row.changed, false); assert.equal(row.bakedTriangles, row.triangles);
+  for (const name of ['RoomPick', 'Slab']) {
+    assert.deepEqual(positionsOf(result.glb, name), positionsOf(glb, name));
+    assert.equal(row(result, name).changed, false); assert.equal(row(result, name).bakedTriangles, row(result, name).triangles);
   }
   // The flat wall loses nearly all its triangles at a sub-millimetre error.
   assert.ok(result.report.structureErrorMetres < 0.001);
-  assert.ok(result.report.primitives.find(p => p.mesh === 2).bakedTriangles < 28_800 / 20);
+  assert.ok(row(result, 'Wall').bakedTriangles < 28_800 / 20);
+  // The terrain soup collapses once its seams are welded.
+  assert.ok(row(result, 'Terrain').bakedTriangles < 20_000 / 5, `terrain kept ${row(result, 'Terrain').bakedTriangles}`);
 
-  // Edge collapse keeps source vertices: every baked position is a master position.
-  for (const mesh of [2, 3]) {
-    const source = new Set(), positions = primitivePositions(glb, mesh), out = primitivePositions(result.glb, mesh);
+  // Simplification keeps source vertices: every baked position is a master position.
+  for (const name of ['Wall', 'Lamp', 'Terrain']) {
+    const source = new Set(), positions = positionsOf(glb, name), out = positionsOf(result.glb, name);
     for (let v = 0; v < positions.length; v += 3) source.add(`${positions[v]},${positions[v + 1]},${positions[v + 2]}`);
     for (let v = 0; v < out.length; v += 3) assert.ok(source.has(`${out[v]},${out[v + 1]},${out[v + 2]}`));
   }
   // Untextured simplified primitives keep positions only; the viewer derives flat normals.
-  assert.deepEqual(Object.keys(baked.meshes[3].primitives[0].attributes), ['POSITION']);
+  assert.deepEqual(Object.keys(baked.meshes[mesh(result.glb, 'Lamp')].primitives[0].attributes), ['POSITION']);
 
-  // The companion pins the overview bytes and nothing else changes.
+  // The companion pins the overview bytes; bindings are unchanged.
   assert.deepEqual(result.companion.original, { sha256: sha256(result.glb), bytes: result.glb.byteLength });
   assert.deepEqual(result.companion.meshBindings, companion.meshBindings);
 
@@ -125,15 +145,37 @@ test('bakes to the budget with one shared error and locked footprints', async ()
   assert.equal(work.triangles, after);
 });
 
-test('leaves a master that already fits unchanged apart from dropping orphan bytes', async () => {
-  const { glb, companion } = syntheticMaster({ orphan: true });
+test('keeps a master that already fits as authored and drops what nothing reads', async () => {
+  const { glb, companion } = syntheticMaster({ dead: true, unusedMesh: true });
   const result = await bakeOverview(glb, companion, { triangles: 1_000_000 });
   assert.equal(result.report.contextErrorMetres, 0);
   assert.ok(result.report.primitives.every(p => !p.changed));
-  assert.equal(result.report.masterOrphanBytesDropped, 1024 * 4); assert.equal(result.report.replacedBytesDropped, 0);
-  assert.equal(readGlb(result.glb).bin.byteLength, readGlb(glb).bin.byteLength - 1024 * 4);
-  for (const mesh of [0, 1, 2, 3]) assert.deepEqual(primitivePositions(result.glb, mesh), primitivePositions(glb, mesh));
+  // The unused mesh is gone, later mesh indices shift down and the bindings follow them.
+  assert.deepEqual(result.report.unusedMeshesDropped, [1]);
+  const baked = readGlb(result.glb).json;
+  assert.deepEqual(baked.meshes.map(m => m.name), ['RoomPick', 'Slab', 'Wall', 'Lamp', 'Terrain']);
+  assert.deepEqual(baked.nodes.filter(n => n.mesh !== undefined).map(n => baked.meshes[n.mesh].name), ['RoomPick', 'Slab', 'Wall', 'Lamp', 'Lamp', 'Terrain']);
+  assert.deepEqual(result.companion.meshBindings.map(b => baked.meshes[b.meshIndex].name), ['RoomPick', 'Slab', 'Wall', 'Lamp', 'Lamp', 'Terrain']);
+  // Every remaining accessor is read, so the dead accessor and its bytes are gone.
+  assert.ok(result.report.overview.binBytes < result.report.master.binBytes - 1024 * 4);
+  for (const name of ['RoomPick', 'Slab', 'Wall', 'Lamp', 'Terrain']) {
+    assert.deepEqual(positionsOf(result.glb, name), positionsOf(glb, name));
+    assert.equal(trianglesOf(result.glb, name), trianglesOf(glb, name));
+  }
   await admitInViewer(result.glb);
+});
+
+test('reads roles from node extras when there is no companion', async () => {
+  const { glb } = syntheticMaster({ extras: true });
+  const result = await bakeOverview(glb, null, { triangles: 20_000 });
+  assert.equal(result.report.rolesFrom, 'node-extras');
+  assert.equal(result.companion, null);
+  for (const name of ['RoomPick', 'Slab']) {
+    assert.equal(row(result, name).role, name === 'Slab' ? 'slab' : 'room-pick');
+    assert.deepEqual(positionsOf(result.glb, name), positionsOf(glb, name));
+  }
+  assert.equal(row(result, 'Wall').role, 'structure');
+  assert.ok(drawnTriangles(result.glb) <= 20_000);
 });
 
 test('refuses a companion that pins other bytes and a budget it cannot meet', async () => {
