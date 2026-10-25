@@ -61,7 +61,7 @@ generated WebMCP batch-discovery descriptor check (schema bytes only), and
 the generated offline outbox check (synthetic IndexedDB and a generated
 server, no browser or network); the `tools/model-bake` tests on generated
 geometry, including viewer admission and selector binding of a baked generated
-unified Atlas publication; and
+unified Atlas publication and its detail tier; and
 `cargo test --locked -p houseatlas-backend --lib` with its default
 (non-`#[ignore]`) set, skipping the three quantity tests that need
 `HOUSEATLAS_QUANTITY_REFERENCE_DIR`; and the healthy `tools/rust-integration`

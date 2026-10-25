@@ -147,6 +147,15 @@ const bounds = values => {
  * @param {object|null} companion atlas-scene.json, or null for a model without bindings
  * @param {Partial<typeof BAKE_DEFAULTS>} [overrides]
  */
+/** The Full tier: the master with the overview's compaction and nothing
+ * simplified. It keeps the overview's node, mesh and primitive slots, so the
+ * overview's companion binds both; the returned companion differs from it
+ * only in `original`, which pins this GLB instead. */
+export async function bakeDetail(masterBytes, companion) {
+  const { glb, companion: baked, report } = await bakeOverview(masterBytes, companion, { triangles: Infinity });
+  return { glb, companion: baked, drawnTriangles: report.overview.drawnTriangles };
+}
+
 export async function bakeOverview(masterBytes, companion, overrides = {}) {
   const options = { ...BAKE_DEFAULTS, ...overrides };
   if (companion && companion.original?.sha256 !== sha256(masterBytes))
