@@ -94,8 +94,20 @@ fn tombstone(mutation: u32) -> Value {
     })
 }
 
+/// Safe-rendered previews are recoverable only with the independent producer
+/// evidence that a genuine upload or review retains. A synthetic bootstrap has
+/// none, so the compatibility capture must refuse an image that holds one.
+#[test]
+fn healthy_native_rendered_png_delivery_refuses_compatibility_capture() {
+    native_owned_media_records_and_history(true);
+}
+
 #[test]
 fn healthy_native_owned_media_records_and_history() {
+    native_owned_media_records_and_history(false);
+}
+
+fn native_owned_media_records_and_history(with_rendered_png: bool) {
     let temp = tempfile::Builder::new()
         .prefix("houseatlas-at12-native-")
         // Recovery capture requires a private (0700) destination parent.
@@ -118,7 +130,10 @@ fn healthy_native_owned_media_records_and_history() {
             ContentType::Pdf,
             b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n".as_slice(),
         ),
-    ] {
+    ]
+    .into_iter()
+    .filter(|(id, ..)| with_rendered_png || *id != 610)
+    {
         let prepared = vault
             .prepare_original(
                 &scope(),
@@ -225,34 +240,36 @@ fn healthy_native_owned_media_records_and_history() {
         Ok(())
     }).unwrap();
     let descriptor = OwnedDescriptor::AtlasAsset { asset_id: u(610) };
-    let original = service
-        .deliver(
-            &reader,
-            &scope(),
-            &descriptor,
-            ReadMethod::Get,
-            DeliveryMode::Download,
-            &budget(),
-        )
-        .unwrap();
-    assert_eq!(original.body, png);
-    assert_eq!(original.status, 200);
-    let head = service
-        .deliver(
-            &reader.clone(),
-            &scope(),
-            &descriptor,
-            ReadMethod::Head,
-            DeliveryMode::Preview,
-            &budget(),
-        )
-        .unwrap();
-    assert!(head.body.is_empty());
-    assert!(
-        head.headers
-            .iter()
-            .any(|(key, value)| *key == "cache-control" && value == "private, no-store")
-    );
+    if with_rendered_png {
+        let original = service
+            .deliver(
+                &reader,
+                &scope(),
+                &descriptor,
+                ReadMethod::Get,
+                DeliveryMode::Download,
+                &budget(),
+            )
+            .unwrap();
+        assert_eq!(original.body, png);
+        assert_eq!(original.status, 200);
+        let head = service
+            .deliver(
+                &reader.clone(),
+                &scope(),
+                &descriptor,
+                ReadMethod::Head,
+                DeliveryMode::Preview,
+                &budget(),
+            )
+            .unwrap();
+        assert!(head.body.is_empty());
+        assert!(
+            head.headers
+                .iter()
+                .any(|(key, value)| *key == "cache-control" && value == "private, no-store")
+        );
+    }
     for id in [611, 612] {
         let target = s::RecordRef {
             record_type: s::RecordType::Asset,
@@ -281,6 +298,17 @@ fn healthy_native_owned_media_records_and_history() {
         .read_snapshot(&reader, &storage_scope)
         .unwrap();
     let captured_path = root.join("native-bundle");
+    if with_rendered_png {
+        assert!(matches!(
+            capture_recovery(&adapter, &vault, &captured_path, &budget()),
+            Err(super::MediaError::Unavailable)
+        ));
+        assert!(!captured_path.exists());
+        println!(
+            "healthy native SafeRendered PNG download/preview HEAD; compatibility capture refuses without producer evidence and leaves no bundle"
+        );
+        return;
+    }
     let manifest = capture_recovery(&adapter, &vault, &captured_path, &budget()).unwrap();
     assert_eq!(manifest.format, "houseatlas-rust-owned-recovery/1");
     assert_eq!(manifest.database_schema, s::DATABASE_VERSION);
@@ -289,7 +317,7 @@ fn healthy_native_owned_media_records_and_history() {
         manifest.database_lineage.as_deref(),
         Some(s::DATABASE_LINEAGE)
     );
-    assert_eq!(manifest.assets.len(), 4);
+    assert_eq!(manifest.assets.len(), 3);
     let missing = manifest
         .assets
         .iter()
@@ -374,21 +402,8 @@ fn healthy_native_owned_media_records_and_history() {
             serde_json::to_value(before).unwrap()
         );
     }
-    let restored_adapter = NativeMediaStorage::new(&restored_store);
-    let restored_service = MediaService::new(&restored_adapter, &access, &restored_vault);
-    let restored_original = restored_service
-        .deliver(
-            &reader,
-            &scope(),
-            &descriptor,
-            ReadMethod::Get,
-            DeliveryMode::Download,
-            &budget(),
-        )
-        .unwrap();
-    assert_eq!(restored_original.body, png);
     println!(
-        "healthy native Rust storage + actual AT11 login/principals/fenced single+batch mutation; SafeRendered PNG download/preview HEAD and DownloadOnly text download; actual native schema{} owned backup, read-only image validation, capture/verify/restore with missing original and retained tombstones; closed database/audit/receipt bytes, originals, scoped graph and ordered history preserved; stock journals EMPTY, queue state ABSENT; actual native semantic/JCS/timestamp peers",
+        "healthy native Rust storage + actual AT11 login/principals/fenced single+batch mutation; DownloadOnly text download; actual native schema{} owned backup, read-only image validation, capture/verify/restore with missing original and retained tombstones; closed database/audit/receipt bytes, originals, scoped graph and ordered history preserved; stock journals EMPTY, queue state ABSENT; actual native semantic/JCS/timestamp peers",
         manifest.database_schema
     );
 }

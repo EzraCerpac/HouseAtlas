@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "98e67ecd2b63d5ce5f4931135e156673762ed80cf3cbdfdbd11c3001f7fa5a8b",
+  "sourceDigestSha256": "e3c6c3ee60e0f5a82968e20586ec7fb4f95462273210cc013bd910047bd396d0",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -63,8 +63,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 13712,
-      "sha256": "ea6d91e3b3a3efbdc9bdd57e17c5069849df4b2576fda46e97de4266dd99cf07",
+      "bytes": 15784,
+      "sha256": "81d97bb09e039f16839e57fa1bc48a6c1b17d750938aa01b4597689431584765",
       "owner": "core-integration"
     },
     {
@@ -105,8 +105,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 6838,
-      "sha256": "d8c4f34147b8be0129ecedb5b684ceb1bf814f610c33e39f7e6124971a020aff",
+      "bytes": 6616,
+      "sha256": "5799e58bed4c381b2341a8c326a65c9ea376d5a9eca9d52faea69032b7095537",
       "owner": "core-integration"
     },
     {
@@ -3024,8 +3024,8 @@
     {
       "path": "backend/src/media/healthy_native_examples.rs",
       "mode": "100644",
-      "bytes": 14519,
-      "sha256": "2c7c25d8d94b19c6067d910c04ef1f49a1f384efee21a8019cc441c8df49f95d",
+      "bytes": 15164,
+      "sha256": "aaa1125f307db4730fb84ab552920e66d7e51824f7f227349a2ea2e4affe89c8",
       "owner": "media"
     },
     {
@@ -6034,8 +6034,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 172898,
-      "sha256": "ed5152749b94f557f7581c9f9c4035c47bbf7475c5eabfbe29572c854f9280b9",
+      "bytes": 174701,
+      "sha256": "b3de5e3ee06bc5d799ec0be2a002ec2ce47af25a7dd49027212a9ea2b8a9d2bc",
       "owner": "core-integration"
     },
     {
@@ -7826,8 +7826,8 @@
     {
       "path": "frontend/lantern-tests/offline-launch-browser.mjs",
       "mode": "100644",
-      "bytes": 8131,
-      "sha256": "e849be0bd6ead3fdbcf468ba99e688c8fb5f22f69981e119f95a11b0b2633d68",
+      "bytes": 8227,
+      "sha256": "87f38f98f9550cca7a9f9c3db77acf90a79467b84cb1c0e31bf99259b2974c98",
       "owner": "web"
     },
     {
@@ -12712,8 +12712,8 @@
     {
       "path": "tools/rust-integration/healthy-atlas-lists-loopback.mjs",
       "mode": "100644",
-      "bytes": 33606,
-      "sha256": "bce283473f1d0314c11842e46464e3090da23be27da4e675dfd5d6e344d52d44",
+      "bytes": 34001,
+      "sha256": "923e911b3ea539d54d4bde8741d016860f046a9f9342811b39e06b4a29336460",
       "owner": "core-integration"
     },
     {

@@ -87,6 +87,13 @@ jobs:
         env:
           HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
         run: node frontend/lantern-tests/run-healthy.mjs
+      - name: Backend library unit tests (default set)
+        if: runner.os == 'Linux'
+        run: >-
+          cargo test --locked -p houseatlas-backend --lib --
+          --skip http::quantity_http_healthy::
+          --skip providers::homebox::write::stock::quantity_flow_healthy::
+          --skip providers::homebox::write::stock::quantity_installation_healthy::
       - name: Genuine native MCP stock get and audit page after fresh circuit commit
         if: runner.os == 'Linux'
         run: cargo run --locked -p houseatlas-backend --example healthy-agent-stock
@@ -156,6 +163,35 @@ jobs:
           HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
           HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
         run: node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs
+      - name: Real Atlas ten lists, invoke parity and native WebMCP cursor continuation
+        if: runner.os == 'Linux'
+        env:
+          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
+          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+        run: node tools/rust-integration/healthy-atlas-lists-loopback.mjs
+      - name: Real mounted MCP sessions across one Access rotation
+        if: runner.os == 'Linux'
+        env:
+          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
+          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+        run: node tools/rust-integration/healthy-mcp-lifecycle-loopback.mjs
+      - name: Real aggregate stock operation events and read-only Changes view
+        if: runner.os == 'Linux'
+        env:
+          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
+          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+        run: node tools/rust-integration/healthy-operation-events-loopback.mjs
+      - name: Real standalone text asset through Access, Media, stock and SQLite
+        if: runner.os == 'Linux'
+        env:
+          HOUSEATLAS_BINARY: ${{ runner.temp }}/houseatlas-target/debug/houseatlas
+          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
+        run: node tools/rust-integration/healthy-standalone-asset-loopback.mjs
+      - name: Real root Network router TLS inventory GET and archive reopen
+        if: runner.os == 'Linux'
+        run: |
+          cargo build --locked -p houseatlas-backend --example healthy-network-root-router
+          python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"
       - name: Save npm content cache from verified main
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.npm-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4

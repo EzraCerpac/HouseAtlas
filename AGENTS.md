@@ -25,36 +25,36 @@ after actual user acceptance and operational handoff. This repository releases
 none of these gates. Secrets, real media, inventories, accounts, host settings
 and recovery/evidence packets remain outside Git.
 
-Inspect script bodies before running them. Use only the commands in README.md
-and its linked [complete verification guide](docs/contributing/verification.md)
-for ordinary verification. Healthy mutations are scoped synthetic examples.
-Concurrency, denial and failure-injection tests are allowed only in the separate
-regression lane bounded in README.md and its linked complete verification guide:
-isolated disposable synthetic environments,
-fake/local-only transports, no real credentials, live providers, user data,
-populated production restore or deployment. This permission releases no G1–G5
-and grants no new secrets or network permissions. The approved ordinary CI
-scope is the existing workflows on pushes to `main` and pull requests
-targeting `main`, including the existing `Verify the named Lantern healthy
-read` step. This documentation correction adds no workflow, step or command.
-Guard reversal, mutation/omission controls, adversarial and private-intake checks
-remain held; replay, expiry, revocation and crash cases are not blanket released.
-A case overlapping a held class must genuinely fit the exact approved three-class
-scope and lane safeguards; otherwise it remains held. Broad suites and runtime
-aliases are not released. Do not add wrappers or replacements to execute held
-checks. Report exact source and scope of checks; ordinary success does not
-certify security or deployment.
+Inspect script bodies before running them. README.md and its linked
+[complete verification guide](docs/contributing/verification.md) list the
+ordinary verification commands. Healthy mutations are scoped synthetic examples.
 
-The owner-authorized healthy frontend aggregate (25 October 2026) permits one
-Linux step in `.github/workflows/rust-react-ordinary.yml` that runs
-`frontend/lantern-tests/run-healthy.mjs`. Its scope is the explicit list in
-that file: named healthy generated checks with fake in-process or owned
-loopback transports, plus the `offline-launch` and `hung-network` cases of
-`offline-launch-browser.mjs` in the runner's Chromium against the built public
-shell. It adds no globbing, concurrency, denial, failure-injection, expiry,
-replay, control or intake case; those stay in their lanes. Adding a check to
-the list changes this scope and needs the same owner review. No credential,
-provider, household data, network permission or deployment is included.
+Rules for every test, locally or in CI: isolated disposable synthetic
+environments, fake or local-only transports, and no real credentials, live
+providers, user data, populated production restore or deployment. Running a
+test releases no G1–G5 and grants no new secrets or network permissions.
+Report the exact source and scope of the checks you ran; ordinary success does
+not certify security or deployment.
+
+Suggestion, not a rule (owner, 25 October 2026): concurrency, denial,
+failure-injection, guard-reversal, mutation/omission-control, adversarial,
+private-intake, replay, expiry, revocation and crash cases may stay in the
+separate regression lane described in the verification guide when they are
+slow, noisy or need special setup. Keep a test out of default runs with
+`#[ignore]` or by leaving it off an explicit runner list. Ordinary in-process
+unit tests with such names can run with everything else. Prefer explicit lists
+to globbing so CI scope stays readable.
+
+Ordinary CI runs the existing workflows on pushes to `main` and pull requests
+targeting `main`. In `.github/workflows/rust-react-ordinary.yml` that includes
+the named Lantern healthy read; `frontend/lantern-tests/run-healthy.mjs` with
+its explicit list, including the `offline-launch` and `hung-network` cases in
+the runner's Chromium against the built public shell; and
+`cargo test --locked -p houseatlas-backend --lib` with its default
+(non-`#[ignore]`) set, skipping the three quantity tests that need
+`HOUSEATLAS_QUANTITY_REFERENCE_DIR`; and the healthy `tools/rust-integration`
+loopback flows named in the workflow and in the verification guide. A PR that
+extends CI names the added scope here and in the verification guide.
 
 The separately authorized Synthetic README media workflow captures only
 checked-in generated fixtures through the actual React renderer and fake read

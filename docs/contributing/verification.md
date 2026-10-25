@@ -37,6 +37,45 @@ portal or a weak signal. It must show the shell within 3 s; the root worker
 hands a silent navigation to Saved after 2 s. Both cases are in the healthy
 suite. Neither case is iOS, installed-PWA or live-model evidence.
 
+## Backend unit tests
+
+The `Rust React ordinary core` workflow runs the backend library unit tests on
+Linux, with Node 26.10.0 on `PATH` for the media fixture peers:
+
+```sh
+cargo test --locked -p houseatlas-backend --lib -- \
+  --skip http::quantity_http_healthy:: \
+  --skip providers::homebox::write::stock::quantity_flow_healthy:: \
+  --skip providers::homebox::write::stock::quantity_installation_healthy::
+```
+
+Tests marked `#[ignore]` stay in their held lanes. The three skipped quantity
+tests need `HOUSEATLAS_QUANTITY_REFERENCE_DIR` pointing at the pinned public
+HomeBox source and remain a manual check.
+
+## Loopback integration tests in CI
+
+On Linux the `Rust React ordinary core` workflow also runs these healthy
+loopback flows against the compiled `houseatlas` binary, a disposable TLS
+loopback host and the runner's Chrome:
+
+```sh
+node tools/rust-integration/healthy-atlas-lists-loopback.mjs
+node tools/rust-integration/healthy-mcp-lifecycle-loopback.mjs
+node tools/rust-integration/healthy-operation-events-loopback.mjs
+node tools/rust-integration/healthy-standalone-asset-loopback.mjs
+cargo build --locked -p houseatlas-backend --example healthy-network-root-router
+python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"
+```
+
+They need `HOUSEATLAS_BINARY`, `HOUSEATLAS_CHROMIUM` (for atlas-lists and
+operation-events) and a built `frontend/dist`. Five loopback flows stay manual
+because they need inputs that this repository does not carry: the three
+native-place flows (`healthy-native-place-ui`, `healthy-native-place-evidence`,
+`healthy-native-place-evidence-ui`) take a private Root artifact packet, and
+`healthy-building-ui` and `healthy-contextual-capture` pin source commits from
+the private development history.
+
 ## Generated annual-session integration regressions
 
 Inspect `frontend/lantern-tests/session-policy-integration.mjs`, the production
