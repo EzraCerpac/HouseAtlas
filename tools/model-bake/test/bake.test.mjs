@@ -11,8 +11,9 @@ const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
  * wall (structure), a dense sphere (context) drawn by two nodes and clipped
  * terrain exported as triangle soup with sub-millimetre seams (context).
  * Options add an unused mesh before the slab, an accessor nothing reads, and
- * node `semanticRole` extras. */
-export function syntheticMaster({ dead = false, unusedMesh = false, extras = false } = {}) {
+ * node `semanticRole` extras; `thin` adds a house chain and garden gravel, both
+ * made of separate 5 mm cubes. */
+export function syntheticMaster({ dead = false, unusedMesh = false, extras = false, thin = false } = {}) {
   const parts = [], accessors = [], views = [];
   let length = 0;
   const add = (array, type, componentType, extra = {}) => {
@@ -63,6 +64,16 @@ export function syntheticMaster({ dead = false, unusedMesh = false, extras = fal
     for (const tri of [[[i, j], [i + 1, j], [i + 1, j + 1]], [[i, j], [i + 1, j + 1], [i, j + 1]]])
       tri.forEach(([x, z], k) => { soup.push(...ground(x, z, k)); soupIndices.push(soupIndices.length); });
 
+  // Separate 5 mm cubes: 40 chain links on a line, 60 gravel stones on the ground.
+  const cubes = (count, at) => {
+    const positions = [], indices = [];
+    for (let c = 0; c < count; c++) {
+      const [x, y, z] = at(c), base = positions.length / 3;
+      for (let k = 0; k < 8; k++) positions.push(x + (box[k * 3] ? 0.005 : 0), y + (box[k * 3 + 1] ? 0.005 : 0), z + (box[k * 3 + 2] ? 0.005 : 0));
+      indices.push(...boxIndices.map(i => base + i));
+    }
+    return [positions, indices];
+  };
   const named = [
     ['RoomPick', primitive(box, boxIndices), 'room-pick'],
     ...(unusedMesh ? [['Retired', primitive(box, boxIndices), null]] : []),
@@ -70,17 +81,20 @@ export function syntheticMaster({ dead = false, unusedMesh = false, extras = fal
     ['Wall', primitive(wall, wallIndices), 'structure'],
     ['Lamp', primitive(sphere, sphereIndices, normals), 'context'],
     ['Terrain', primitive(soup, soupIndices), 'context'],
+    ...(thin ? [['Chain', primitive(...cubes(40, c => [2, 1 + c * 0.012, 1])), 'context'],
+      ['Gravel', primitive(...cubes(60, c => [-4 + (c % 10) * 0.3, -0.45, 6 + Math.floor(c / 10) * 0.3])), 'context']] : []),
   ];
   if (dead) add(new Float32Array(1024), 'VEC3', 5126);
   const meshIndex = name => named.findIndex(([n]) => n === name);
   const role = name => named[meshIndex(name)][2];
   // Terrain is site context: bound to no level.
-  const levelIds = name => name === 'Terrain' ? [] : ['l0'];
+  const levelIds = name => ['Terrain', 'Gravel'].includes(name) ? [] : ['l0'];
   const node = (name, extra = {}) => ({ mesh: meshIndex(name), name, ...extra, ...(extras ? { extras: { semanticRole: role(name), levelIds: levelIds(name) } } : {}) });
   const json = {
     asset: { version: '2.0', generator: 'synthetic' }, scene: 0, scenes: [{ nodes: [0] }],
-    nodes: [{ name: 'House', children: [1, 2, 3, 4, 5, 6] }, node('RoomPick'), node('Slab'), node('Wall'),
-      { ...node('Lamp'), name: 'LampA', translation: [1, 1.5, 1] }, { ...node('Lamp'), name: 'LampB', translation: [3, 1.5, 2] }, node('Terrain')],
+    nodes: [{ name: 'House', children: thin ? [1, 2, 3, 4, 5, 6, 7, 8] : [1, 2, 3, 4, 5, 6] }, node('RoomPick'), node('Slab'), node('Wall'),
+      { ...node('Lamp'), name: 'LampA', translation: [1, 1.5, 1] }, { ...node('Lamp'), name: 'LampB', translation: [3, 1.5, 2] }, node('Terrain'),
+      ...(thin ? [node('Chain'), node('Gravel')] : [])],
     meshes: named.map(([name, p]) => ({ name, primitives: [p] })), accessors, bufferViews: views, buffers: [{ byteLength: length }],
   };
   const bin = new Uint8Array(length); let at = 0;
@@ -89,7 +103,8 @@ export function syntheticMaster({ dead = false, unusedMesh = false, extras = fal
   const binding = (name, nodeIndex) => ({ artifactId: 'model', nodeIndex, meshIndex: meshIndex(name), primitiveIndices: [0],
     buildingId: 'b', levelIds: levelIds(name), spaceOccurrenceId: role(name) === 'room-pick' ? 'o1' : null, role: role(name) });
   const companion = { profile: 'houseatlas.unified-atlas-publication.v1', original: { sha256: sha256(glb), bytes: glb.byteLength },
-    meshBindings: [binding('RoomPick', 1), binding('Slab', 2), binding('Wall', 3), binding('Lamp', 4), binding('Lamp', 5), binding('Terrain', 6)] };
+    meshBindings: [binding('RoomPick', 1), binding('Slab', 2), binding('Wall', 3), binding('Lamp', 4), binding('Lamp', 5), binding('Terrain', 6),
+      ...(thin ? [binding('Chain', 7), binding('Gravel', 8)] : [])] };
   return { glb, companion };
 }
 
@@ -187,4 +202,15 @@ test('refuses a companion that pins other bytes and a budget it cannot meet', as
   const { glb, companion } = syntheticMaster();
   await assert.rejects(bakeOverview(glb, { ...companion, original: { sha256: '0'.repeat(64), bytes: 1 } }), /does not pin/);
   await assert.rejects(bakeOverview(glb, companion, { triangles: 10, maxError: 0.001 }), /Cannot reach 10 triangles/);
+});
+
+test('never empties a primitive, even when whole parts are below the error', async () => {
+  const { glb, companion } = syntheticMaster({ thin: true });
+  const result = await bakeOverview(glb, companion, { triangles: 1_450, maxError: 0.5 });
+  // The viewer refuses an empty buffer view, so every primitive keeps at least
+  // four triangles (or all of them), house chain and garden gravel included.
+  for (const p of result.report.primitives) assert.ok(p.bakedTriangles >= Math.min(4, p.triangles), `${p.name} kept ${p.bakedTriangles}`);
+  assert.ok(result.report.contextErrorMetres > 0.005, `bake error ${result.report.contextErrorMetres} m is above the 5 mm parts`);
+  assert.ok(row(result, 'Chain').changed && row(result, 'Gravel').changed);
+  await admitInViewer(result.glb);
 });

@@ -86,17 +86,23 @@ function weld(positions, indices, cell) {
   return Uint32Array.from(out);
 }
 
+/** Triangles every simplified primitive keeps: a hundredth of its own, at least
+ * four, so no bound part ever vanishes and no empty accessor is written. */
+const floorTriangles = triangles => Math.min(triangles, Math.max(4, Math.ceil(triangles / 100)));
+
 function simplifyAt(candidate, error) {
   if (error <= 0) return candidate.indices;
-  const local = error / candidate.scale;
-  let [indices] = MeshoptSimplifier.simplify(candidate.indices, candidate.positions, 3, 0, local, candidate.flags);
+  const local = error / candidate.scale, floor = candidate.floor * 3;
+  let [indices] = MeshoptSimplifier.simplify(candidate.indices, candidate.positions, 3, floor, local, candidate.flags);
   // Edge collapse stalls on disconnected soup (foliage cards, clipped terrain
   // cells). Clustering also keeps source vertices; use it when it does better.
   if (candidate.sloppy && indices.length > candidate.indices.length / 2) {
-    const [clustered] = MeshoptSimplifier.simplifySloppy(candidate.indices, candidate.positions, 3, null, 0, local / candidate.extent);
-    if (clustered.length < indices.length) indices = clustered;
+    const [clustered] = MeshoptSimplifier.simplifySloppy(candidate.indices, candidate.positions, 3, null, floor, local / candidate.extent);
+    if (clustered.length >= floor && clustered.length < indices.length) indices = clustered;
   }
-  return indices;
+  // Pruning can still remove every component of a small part; keep its shape instead.
+  if (indices.length < floor) [indices] = MeshoptSimplifier.simplify(candidate.indices, candidate.positions, 3, floor, local, ['ErrorAbsolute']);
+  return indices.length > 0 ? indices : candidate.indices;
 }
 
 /** Collapses each candidate at the smallest global error that meets the budget. */
@@ -181,8 +187,11 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
       indices: welded.map(v => local.get(v)),
       extent: MeshoptSimplifier.getScale(compact, 3),
       weight: role !== 'context' ? options.structureWeight : site ? options.siteWeight : 1,
-      sloppy: role === 'context' && !hasTextures,
-      flags: role === 'context' ? ['ErrorAbsolute', 'Prune'] : ['ErrorAbsolute'] });
+      floor: floorTriangles(welded.length / 3),
+      // Pruning and clustering are for site context only. House context may still
+      // collapse parts smaller than the error, but never below the floor.
+      sloppy: site && !hasTextures,
+      flags: site ? ['ErrorAbsolute', 'Prune'] : ['ErrorAbsolute'] });
   });
 
   const result = search(candidates, fixedTriangles, options);

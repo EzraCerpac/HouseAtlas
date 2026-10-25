@@ -39,9 +39,14 @@ metres, default 0.0005).
   wall lose detail by the same visible amount rather than the same percentage.
   Structure and roof get a quarter of the context error. Site context (bound to
   no level: garden, terrain, surroundings) gets four times it (`--site-weight`),
-  so the budget goes to the house. Context may also drop
-  disconnected parts smaller than that error, and falls back to vertex
-  clustering where edge collapse stalls (foliage cards, clipped soup).
+  so the budget goes to the house. Site context may also drop disconnected
+  parts smaller than its error, and falls back to vertex clustering where edge
+  collapse stalls (foliage cards, clipped soup). House context is only edge
+  collapsed; parts smaller than the error (a 5 mm chain link at 10 mm) can
+  still fold away, as they would be under a pixel in the overview anyway.
+- Every simplified primitive keeps at least a hundredth of its triangles and
+  never fewer than four, so no bound part disappears and no empty accessor is
+  written (the viewer refuses zero-length buffer views).
 - Before simplifying, untextured vertices within 0.5 mm (`--weld`) are welded,
   and the simplifier sees only referenced vertices. Exporters often split every
   triangle into its own three vertices; without this, edge collapse cannot
@@ -65,12 +70,13 @@ material admission on the result. A refusal there fails the bake.
 node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs
 ```
 
-Four cases on generated geometry: baking to budget (locked footprints,
+Five cases on generated geometry: baking to budget (locked footprints,
 source-vertex positions, a flat wall and welded terrain soup collapsing, viewer
 admission), a master that already fits (kept as authored while an unused mesh,
 a dead accessor and their bytes drop, with bindings remapped), roles read from
-node extras without a companion, and refusals for a foreign companion pin and an
-unreachable budget. They do not render anything or touch a real model.
+node extras without a companion, refusals for a foreign companion pin and an
+unreachable budget, and a bake whose error exceeds whole 5 mm parts (house
+chain, garden gravel) that still leaves every primitive non-empty. They do not render anything or touch a real model.
 
 ## Not covered here
 
