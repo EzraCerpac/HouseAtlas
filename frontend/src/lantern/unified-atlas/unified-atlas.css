@@ -2750,7 +2750,8 @@
 .lantern-host dialog.ua-layer-dialog:not([open]) { display: none; }
 .lantern-host .ua-bottom > dialog.ua-layer-dialog:modal {
   position: fixed;
-  inset: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  inset: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    calc(env(safe-area-inset-bottom, 0px) + var(--ua-room-row, 0px)) env(safe-area-inset-left, 0px);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -2761,7 +2762,7 @@
   width: min(560px, calc(100vw - 24px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
   height: auto;
   max-width: none;
-  max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--ua-room-row, 0px));
   margin: auto;
   padding: 0;
   border: 1px solid var(--ua-line);
@@ -2774,7 +2775,10 @@
   pointer-events: auto;
   animation: none;
 }
-.lantern-host .ua-layer-dialog::backdrop { background: rgb(30 24 18 / 45%); }
+.lantern-host .ua-layer-dialog::backdrop {
+  /* The reserved room row stays undimmed beneath the sheet. */
+  background: linear-gradient(to top, transparent var(--ua-room-row, 0px), rgb(30 24 18 / 45%) var(--ua-room-row, 0px));
+}
 .lantern-host .ua-layer-dialog:modal .ua-layer-details-head {
   flex: none;
   display: flex;
