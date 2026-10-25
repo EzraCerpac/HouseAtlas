@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d6b5b5f3d93f3346562ddf7d918023c2d3d2b083897b2c66e10ce0674246e51d",
+  "sourceDigestSha256": "bfab039dbde80e3d6171cd18f2c3777a2fed9e02eb8da3c35ea424ff129d627f",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -7183,8 +7183,8 @@
       "path": "frontend/integration/native-electrical-library-reader.ts",
       "owner": "web",
       "mode": "100644",
-      "bytes": 17533,
-      "sha256": "b560d08b064651198b42e3edbff81711f9f8f7e79480392b4d0b27c3fe388472"
+      "bytes": 17773,
+      "sha256": "58b36c18149a9f6833ef0ad92dddca1b4cc4f3922a4d8bfa6acab917ec17b975"
     },
     {
       "path": "frontend/integration/native-evidence-document-client.ts",
@@ -7491,15 +7491,15 @@
       "path": "frontend/lantern-tests/electrical-library-read.mjs",
       "owner": "web",
       "mode": "100644",
-      "bytes": 9053,
-      "sha256": "9da22217305209f1f6ca62aa8ff32ea3bb954625376a4c3adc54573b2cd9353a"
+      "bytes": 12495,
+      "sha256": "b069d860a441ac3b4ea52ab6e58ea86ef347273d61f4f6b171142a89e4cd3e63"
     },
     {
       "path": "frontend/lantern-tests/electrical-library-visual/synthetic-electrical.ts",
       "owner": "web",
       "mode": "100644",
-      "bytes": 16497,
-      "sha256": "dd6cb04539260d6df1d87162c3e2d4cddbe44e2fa3a5d73e096cb8850798ee91"
+      "bytes": 16701,
+      "sha256": "3ca620c11e726e3c679244226a1a9d1f6a047d6debb9687784116ba41501169d"
     },
     {
       "path": "frontend/lantern-tests/electricity-fixture-read.mjs",
@@ -9577,8 +9577,8 @@
       "path": "frontend/src/lantern/electrical-library/ElectricalLibrary.tsx",
       "owner": "web",
       "mode": "100644",
-      "bytes": 11646,
-      "sha256": "ffacdaabce65a9f6956fbcdc837b13755dc02afae64a85e678ad296989a83445"
+      "bytes": 12367,
+      "sha256": "ff4204259ace34c94000df23d6522964244bd874203efe61289836a31158eb30"
     },
     {
       "path": "frontend/src/lantern/electrical-library/electrical-library.css",

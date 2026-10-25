@@ -150,15 +150,16 @@ export function createNativeElectricalLibraryReader(options: NativeElectricalLib
       const support = await readDocumentarySupport(historical.bytes, pin); pin();
       if (support && support.originalSha256 === historicalPin.originalSha256 && text(payload.reviewStatement).endsWith(support.reviewMarker)
         && support.pdf.workspaceId === selection.workspaceId && support.pdf.homeId === selection.homeId && support.pdf.buildingId === buildingId) {
+        // Qualification of the retained documentary ledger does not grant PDF access.
+        selection = Object.freeze({ ...selection, drawingReferences: documentaryReferences(support, selection),
+          drawingSupport: Object.freeze({ evidenceId: historical.frame.evidenceId, evidenceRevision: historical.frame.evidenceRevision,
+            assetId: historical.frame.asset.assetId, assetRevision: historical.frame.asset.revision,
+            originalSha256: support.originalSha256, reviewMarker: support.reviewMarker }) });
         const check = new AbortController(), forward = () => check.abort();
         attempt.controller.signal.addEventListener('abort', forward, { once: true }); const timer = setTimeout(forward, READ_MS);
         try {
           if (await buildingHas(support.pdf.evidenceId, check.signal)) {
             attempt.pdfAt = Date.now();
-            selection = Object.freeze({ ...selection, drawingReferences: documentaryReferences(support, selection), drawingSupport: Object.freeze({
-              evidenceId: historical.frame.evidenceId, evidenceRevision: historical.frame.evidenceRevision,
-              assetId: historical.frame.asset.assetId, assetRevision: historical.frame.asset.revision,
-              originalSha256: support.originalSha256, reviewMarker: support.reviewMarker }) });
           }
         } catch { pin(); /* Optional correlation remains unavailable; preserve sheet metadata. */ }
         finally { clearTimeout(timer); attempt.controller.signal.removeEventListener('abort', forward); check.abort(); }
@@ -171,9 +172,11 @@ export function createNativeElectricalLibraryReader(options: NativeElectricalLib
       attempt.headAt = Date.now();
       // The association read cannot renew the separate PDF membership proof.
       if (attempt.pdfAt !== null && Date.now() - attempt.pdfAt > MAX_AGE) {
-        attempt.pdfAt = null; selection = association.selection;
-        details = await readNativeOverlayDetails(selection, primary.bytes, historical.bytes, pin); pin();
+        attempt.pdfAt = null;
       }
+      // Only the separate, fresh building-membership proof enables PDF actions.
+      // Keep qualified metadata/provenance when it is absent, failed or expired.
+      if (attempt.pdfAt === null) details = Object.freeze({ ...details, drawingReferences: Object.freeze([]) });
       const projection = projectElectricalLibrary(selection, details);
       const expected = await abortable(nativeSceneAssociationPayloadDigest(association.payload), attempt.controller.signal); pin();
       const frame: ElectricalLibraryFrame = Object.freeze({ status: 'available', lease: Object.freeze({}),
@@ -213,7 +216,7 @@ export function createNativeElectricalLibraryReader(options: NativeElectricalLib
       const listeners = active!.listeners; listeners.add(callback); return () => { listeners.delete(callback); };
     },
     createDrawingClient(frame: ElectricalLibraryFrame) {
-      need(isCurrent(frame)); const attempt = active!, client = makeClient(); let ended = false;
+      need(isCurrent(frame) && frame.documents.length > 0); const attempt = active!, client = makeClient(); let ended = false;
       if (!isCurrent(frame)) { client.dispose(); throw new Error('Current electrical documents are unavailable'); }
       const owned: NativeEvidenceDocumentClient = { ...client, dispose() {
         if (ended) return; ended = true; attempt.drawings.delete(owned); client.dispose();

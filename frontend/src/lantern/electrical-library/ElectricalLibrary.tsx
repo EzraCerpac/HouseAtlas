@@ -8,6 +8,13 @@ import './electrical-library.css';
 import '../scans/native-ui/native-scene.css';
 
 const Drawing = lazy(() => import('../scans/native-ui/NativeSceneDrawing').then(module => ({ default: module.NativeSceneDrawing })));
+/** Deliberate-close restoration only; scope replacement must not steal focus. */
+export function restoreElectricalLibraryOpener(opener: HTMLElement, activeAtClose: Element | null, current: () => boolean) {
+  queueMicrotask(() => {
+    if (opener.isConnected && current() && (document.activeElement === document.body
+      || document.activeElement === activeAtClose || document.activeElement === opener)) opener.focus();
+  });
+}
 const CHANGED = 'The drawing references changed or are no longer available. Reload drawings.';
 
 /** Optional native evidence collection, separate from HomeBox attachments and
@@ -74,7 +81,7 @@ function BuildingDrawings({ reader, buildingId, query }: { readonly reader: Elec
   const owner = useSyncExternalStore(reader.subscribeOwner, reader.owner);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<{ owner: object; frame: ElectricalLibraryFrame | null; message: string } | null>(null);
-  const [opened, setOpened] = useState<{ frame: ElectricalLibraryFrame; page: ElectricalLibraryPage } | null>(null);
+  const [opened, setOpened] = useState<{ frame: ElectricalLibraryFrame; page: ElectricalLibraryPage; opener: HTMLElement } | null>(null);
   const surface = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!owner) return;
@@ -122,8 +129,8 @@ function BuildingDrawings({ reader, buildingId, query }: { readonly reader: Elec
             <dt>Original SHA-256</dt><dd>{document.sha256}</dd>
           </dl></details>
           <ul>{pages.map(page => <li key={page.sheet.id}>
-            <button type="button" className="row-title" onClick={() => {
-              if (reader.isCurrent(current)) setOpened({ frame: current, page });
+            <button type="button" className="row-title" onClick={event => {
+              if (reader.isCurrent(current)) setOpened({ frame: current, page, opener: event.currentTarget });
             }} aria-label={`Open ${page.sheet.title}, PDF page ${page.reference.pdfPage}`}>{page.sheet.title} · Page {page.reference.pdfPage}</button>
             <SheetFacts entry={page} />
           </li>)}</ul>
@@ -134,16 +141,21 @@ function BuildingDrawings({ reader, buildingId, query }: { readonly reader: Elec
             {entry.sheet.title} · Referenced page {entry.sheet.pdfPage}<SheetFacts entry={entry} />
           </li>)}</ul>
         </div>}
-        {shown && <DrawingDialog key={shown.page.sheet.id} reader={reader} frame={shown.frame} page={shown.page} onClose={() => setOpened(null)} />}
+        {shown && <DrawingDialog key={shown.page.sheet.id} reader={reader} frame={shown.frame} page={shown.page} opener={shown.opener} onClose={() => setOpened(null)} />}
       </>}
     </div>
   </>;
 }
 
-function DrawingDialog({ reader, frame, page, onClose }: { readonly reader: ElectricalLibraryReader; readonly frame: ElectricalLibraryFrame;
-  readonly page: ElectricalLibraryPage; readonly onClose: () => void }) {
+function DrawingDialog({ reader, frame, page, opener, onClose }: { readonly reader: ElectricalLibraryReader; readonly frame: ElectricalLibraryFrame;
+  readonly page: ElectricalLibraryPage; readonly opener: HTMLElement; readonly onClose: () => void }) {
   const [client, setClient] = useState<NativeEvidenceDocumentClient | null>(null);
   const [failed, setFailed] = useState(false);
+  const close = () => {
+    const activeAtClose = document.activeElement;
+    onClose();
+    restoreElectricalLibraryOpener(opener, activeAtClose, () => reader.isCurrent(frame));
+  };
   const evidenceIds = useMemo(() => Object.freeze([page.reference.evidenceId]), [page]);
   useEffect(() => {
     if (!reader.isCurrent(frame)) return;
@@ -153,11 +165,11 @@ function DrawingDialog({ reader, frame, page, onClose }: { readonly reader: Elec
     } catch { setFailed(true); }
   }, [reader, frame]);
   return <div className="electrical-library-backdrop">
-    {failed && <div role="status">The drawing source is unavailable. <button type="button" onClick={onClose}>Close drawing</button></div>}
-    <Suspense fallback={<div role="status">Preparing drawing… <button type="button" onClick={onClose}>Close drawing</button></div>}>
+    {failed && <div role="status">The drawing source is unavailable. <button type="button" onClick={close}>Close drawing</button></div>}
+    <Suspense fallback={<div role="status">Preparing drawing… <button type="button" onClick={close}>Close drawing</button></div>}>
       {client && <Drawing client={client} sheet={page.sheet} reference={page.reference}
         evidenceIds={evidenceIds} {...(frame.provenance ? { provenance: frame.provenance } : {})}
-        current={() => reader.isCurrent(frame)} onClose={onClose} />}
+        current={() => reader.isCurrent(frame)} onClose={close} />}
     </Suspense>
   </div>;
 }

@@ -36,7 +36,7 @@ export function syntheticElectricalPdf(): Uint8Array<ArrayBuffer> {
   return encode(document);
 }
 
-export async function createSyntheticElectricalLibrary(mode: 'pdf' | 'legacy' = 'pdf') {
+export async function createSyntheticElectricalLibrary(mode: 'pdf' | 'legacy' = 'pdf', pdfMembership: 'available' | 'absent' | 'failed' = 'available') {
   const scope = Object.freeze({ workspaceId: U(1), homeId: U(2) }), buildingId = U(3), pdfEvidenceId = U(7), pdfAssetId = U(8);
   const session = Object.freeze({ schemaVersion: 1 as const, actorId: U(90), csrfToken: 'fictional-unused', expiresAt: '2099-01-01T00:00:00Z' });
   const view: ReadyView = { status: 'ready', scope, homeLabel: 'Fictional electrical home', now: '2026-01-02T12:00:00Z',
@@ -134,9 +134,10 @@ export async function createSyntheticElectricalLibrary(mode: 'pdf' | 'legacy' = 
     else if (path === `${prefix}/head`) { counts.heads++; output = head; }
     else {
       need(path === `/api/atlas/stock/v3/workspaces/${scope.workspaceId}/homes/${scope.homeId}/records/identity/${buildingId}`);
+      if (pdfMembership === 'failed') throw new Error('Fictional PDF membership read failure');
       output = { schemaVersion: 3, commandId: 'atlas.identity.get', requestId: U(13), resolvedScope: scope, status: 'read', replayed: false,
         data: { sourceStatus: 'current', nextCursor: null, records: [{ target: { authority: 'atlas', recordType: 'identity', recordId: buildingId },
-          revision: 1, lifecycle: 'active', payload: { kind: 'location', evidenceIds: [U(4), U(9), pdfEvidenceId] } }] } };
+          revision: 1, lifecycle: 'active', payload: { kind: 'location', evidenceIds: pdfMembership === 'absent' ? [U(4), U(9)] : [U(4), U(9), pdfEvidenceId] } }] } };
     }
     return new Response(JSON.stringify(output), { headers: { 'content-type': 'application/json' } });
   };

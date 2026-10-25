@@ -12,7 +12,7 @@ import { build } from 'vite';
 
 assert.equal(process.version, 'v26.10.0');
 const selectedCase = process.argv.length === 2 ? 'healthy' : process.argv.length === 4 && process.argv[2] === '--case' ? process.argv[3] : null;
-assert(['healthy', 'reentrant-retirement'].includes(selectedCase), 'Select the healthy example or the separately registered retirement case');
+assert(['healthy', 'reentrant-retirement', 'pdf-unavailable-metadata', 'dialog-focus-restoration'].includes(selectedCase), 'Select the healthy example or the separately registered retirement case');
 const root = resolve(fileURLToPath(new URL('../../', import.meta.url)));
 const scratch = mkdtempSync(join(tmpdir(), 'houseatlas-electrical-library-read-'));
 const paths = ['frontend/integration/native-electrical-library-reader.ts', 'frontend/src/lantern/electrical-library/project.ts',
@@ -20,13 +20,57 @@ const paths = ['frontend/integration/native-electrical-library-reader.ts', 'fron
 let reader;
 try {
   const entry = join(scratch, 'entry.ts');
-  writeFileSync(entry, `export {createNativeElectricalLibraryReader} from ${JSON.stringify(join(root, paths[0]))};\nexport {projectElectricalLibrary, filterElectricalLibrary} from ${JSON.stringify(join(root, paths[1]))};\nexport {createSyntheticElectricalLibrary} from ${JSON.stringify(join(root, paths[3]))};\n`);
+  writeFileSync(entry, `export {createNativeElectricalLibraryReader} from ${JSON.stringify(join(root, paths[0]))};\nexport {projectElectricalLibrary, filterElectricalLibrary} from ${JSON.stringify(join(root, paths[1]))};\nexport {createSyntheticElectricalLibrary} from ${JSON.stringify(join(root, paths[3]))};\nexport {restoreElectricalLibraryOpener} from ${JSON.stringify(join(root, 'frontend/src/lantern/electrical-library/ElectricalLibrary.tsx'))};\n`);
   const built = await build({ root: join(root, 'frontend'), configFile: false, logLevel: 'silent',
-    build: { write: false, target: 'node26', minify: false, lib: { entry, formats: ['es'] } } });
+    build: { write: false, target: 'node26', minify: false, lib: { entry, formats: ['es'] }, rollupOptions: { external: id => id.endsWith('/NativeSceneDrawing') || id.endsWith('/NativeSceneDrawing.tsx') } } });
   const output = Array.isArray(built) ? built[0] : built;
   const modulePath = join(scratch, 'reader.mjs'); writeFileSync(modulePath, output.output.find(item => item.type === 'chunk' && item.isEntry).code);
-  const { createNativeElectricalLibraryReader, createSyntheticElectricalLibrary, filterElectricalLibrary } = await import(pathToFileURL(modulePath).href);
-  if (selectedCase === 'reentrant-retirement') {
+  const { createNativeElectricalLibraryReader, createSyntheticElectricalLibrary, filterElectricalLibrary, restoreElectricalLibraryOpener } = await import(pathToFileURL(modulePath).href);
+  if (selectedCase === 'pdf-unavailable-metadata') {
+    for (const membership of ['absent', 'failed']) {
+      const fixture = await createSyntheticElectricalLibrary('pdf', membership);
+      reader = createNativeElectricalLibraryReader(fixture.options);
+      const frame = await reader.read(fixture.buildingId, new AbortController().signal);
+      assert.equal(frame.status, 'available');
+      assert.equal(frame.documents.length, 0, 'no PDF open reference without current membership');
+      assert.equal(frame.unlinkedSheets.length, 3, 'qualified historical metadata survives optional PDF failure');
+      assert.equal(frame.unlinkedSheets[0].sheet.title, fixture.sheets[0].title);
+      assert.equal(frame.unlinkedSheets[0].rooms[0].nativePlaceId, '00000000-0000-4000-8000-000000000041');
+      assert.equal(frame.provenance.historicalRoomMappingReceipt.id, 'fictional-historical-room-map');
+      assert.equal(filterElectricalLibrary(frame.documents, frame.unlinkedSheets, fixture.sheets[0].title).unlinkedSheets[0], frame.unlinkedSheets[0]);
+      assert.throws(() => reader.createDrawingClient(frame), 'unlinked metadata cannot issue a PDF drawing client');
+      assert.equal(fixture.counts.opens.includes(fixture.pdfEvidenceId), false);
+      reader.release(frame); reader.dispose(); reader = null;
+      assert.equal(fixture.counts.owners, fixture.counts.disposes);
+    }
+  } else if (selectedCase === 'dialog-focus-restoration') {
+    // Actual production restoration helper, fictional focus objects only.
+    // No React mount, DOM implementation, PDF module or browser is executed.
+    const priorDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    try {
+      for (const closePath of ['loading-fallback', 'reader-creation-error']) {
+        let focused = 0, current = true;
+        const body = {}, closeButton = {}, elsewhere = {};
+        const opener = { isConnected: true, focus() { focused++; fake.activeElement = opener; } };
+        const fake = { body, activeElement: closeButton };
+        Object.defineProperty(globalThis, 'document', { configurable: true, value: fake });
+        restoreElectricalLibraryOpener(opener, closeButton, () => current);
+        await Promise.resolve(); assert.equal(focused, 1, closePath);
+        fake.activeElement = closeButton; current = false;
+        restoreElectricalLibraryOpener(opener, closeButton, () => current);
+        await Promise.resolve(); assert.equal(focused, 1, 'retired scope never restores');
+        current = true; opener.isConnected = false;
+        restoreElectricalLibraryOpener(opener, closeButton, () => current);
+        await Promise.resolve(); assert.equal(focused, 1, 'disconnected opener');
+        opener.isConnected = true; fake.activeElement = elsewhere;
+        restoreElectricalLibraryOpener(opener, closeButton, () => current);
+        await Promise.resolve(); assert.equal(focused, 1, 'unrelated focus is preserved');
+      }
+    } finally {
+      if (priorDocument) Object.defineProperty(globalThis, 'document', priorDocument);
+      else delete globalThis.document;
+    }
+  } else if (selectedCase === 'reentrant-retirement') {
     const results = [];
     for (const trigger of ['retirement', 'binding-change', 'initial-owner']) {
       const fixture = await createSyntheticElectricalLibrary();
