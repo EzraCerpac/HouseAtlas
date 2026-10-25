@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c5cf788f1efa25099b24c2d7c3b41bec94a70c5ecfc5eaedbb15737d8a765504",
+  "sourceDigestSha256": "d6b5b5f3d93f3346562ddf7d918023c2d3d2b083897b2c66e10ce0674246e51d",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -7161,8 +7161,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 42884,
-      "sha256": "89bbe51084646b577b337a97afdbb65fee46b67f7ae8bd37867eeab535a3f04e",
+      "bytes": 43944,
+      "sha256": "205d2bbcf4f8f591284442bea277d3ecfbf3adc3f2cb806dbdeb2bee4b29cbb0",
       "owner": "core-integration"
     },
     {
@@ -7178,6 +7178,13 @@
       "bytes": 20391,
       "sha256": "2a9513a0da2fed82bc15e8ea05179382847e139d29ae734a34a030328f81a42e",
       "owner": "web"
+    },
+    {
+      "path": "frontend/integration/native-electrical-library-reader.ts",
+      "owner": "web",
+      "mode": "100644",
+      "bytes": 17533,
+      "sha256": "b560d08b064651198b42e3edbff81711f9f8f7e79480392b4d0b27c3fe388472"
     },
     {
       "path": "frontend/integration/native-evidence-document-client.ts",
@@ -7479,6 +7486,20 @@
       "bytes": 6107,
       "sha256": "74080f5eecddffc8932c57bef1184cb4b6556bf349c52adf746b4ba3ddc4c631",
       "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/electrical-library-read.mjs",
+      "owner": "web",
+      "mode": "100644",
+      "bytes": 9053,
+      "sha256": "9da22217305209f1f6ca62aa8ff32ea3bb954625376a4c3adc54573b2cd9353a"
+    },
+    {
+      "path": "frontend/lantern-tests/electrical-library-visual/synthetic-electrical.ts",
+      "owner": "web",
+      "mode": "100644",
+      "bytes": 16497,
+      "sha256": "dd6cb04539260d6df1d87162c3e2d4cddbe44e2fa3a5d73e096cb8850798ee91"
     },
     {
       "path": "frontend/lantern-tests/electricity-fixture-read.mjs",
@@ -9023,8 +9044,8 @@
     {
       "path": "frontend/src/lantern/Host.tsx",
       "mode": "100644",
-      "bytes": 9435,
-      "sha256": "f84c30811eeaf4ab4d2835219d9326c787a961aaf9ca48189639a377469c3b9b",
+      "bytes": 9779,
+      "sha256": "73663cc0570c9a92330a8a5f747c086d04de3df3ce27e950d6f33f445b68be97",
       "owner": "web"
     },
     {
@@ -9551,6 +9572,34 @@
       "bytes": 3237,
       "sha256": "19723f3b75dd752c76ad8dd7b207180dbfe1cd3a7a1fa23b9a47043e3758f328",
       "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/electrical-library/ElectricalLibrary.tsx",
+      "owner": "web",
+      "mode": "100644",
+      "bytes": 11646,
+      "sha256": "ffacdaabce65a9f6956fbcdc837b13755dc02afae64a85e678ad296989a83445"
+    },
+    {
+      "path": "frontend/src/lantern/electrical-library/electrical-library.css",
+      "owner": "web",
+      "mode": "100644",
+      "bytes": 986,
+      "sha256": "a5807d28c1c1c5fbca6c907d3e6c9d3358c61a67280ba6bb798cc95d694cdb48"
+    },
+    {
+      "path": "frontend/src/lantern/electrical-library/project.ts",
+      "owner": "web",
+      "mode": "100644",
+      "bytes": 7054,
+      "sha256": "390ab925f72cc90156c7c8cb45fca504170e981ffad3266dd5ba765d32b19479"
+    },
+    {
+      "path": "frontend/src/lantern/electrical-library/types.ts",
+      "owner": "web",
+      "mode": "100644",
+      "bytes": 2992,
+      "sha256": "ee9e04a8715dcccaa3f3f9bcba3d441e5224b68df7586f50b89408f00ee2cbe6"
     },
     {
       "path": "frontend/src/lantern/fonts/bricolage-grotesque/LICENSE",
@@ -10192,8 +10241,8 @@
     {
       "path": "frontend/src/lantern/source-ports.ts",
       "mode": "100644",
-      "bytes": 1403,
-      "sha256": "b5392f49e2b250b5626f8e71ed3d0fd8960536667d02802a1adaae4c43ad213e",
+      "bytes": 1535,
+      "sha256": "67c0413affca774bad99957ffa3e99f6ddbd7d116e78ead7e923523b98f568b1",
       "owner": "web"
     },
     {
@@ -10416,8 +10465,8 @@
     {
       "path": "frontend/src/lantern/views/LibraryView.tsx",
       "mode": "100644",
-      "bytes": 6026,
-      "sha256": "c124d8082d274f18f3659fc643d2d37e555221671d89b54ef85dc3598d73a495",
+      "bytes": 6563,
+      "sha256": "516a4c179991689fded30f1898faf0af9590a7da42fdc601b8945224d890a2a6",
       "owner": "web"
     },
     {
