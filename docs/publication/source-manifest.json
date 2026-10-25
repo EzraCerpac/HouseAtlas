@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "ff08318815fda0662db23b7b477ec2aebb2a64a3458db883eb929cf218de1f27",
+  "sourceDigestSha256": "bcab71ea277df64abc22f65092ef649d733aed6ffbc81ca9a5ada44504cfb3a9",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -12838,8 +12838,8 @@
     {
       "path": "tools/rust-integration/healthy-loopback.mjs",
       "mode": "100644",
-      "bytes": 15292,
-      "sha256": "199ed42ed1aa26a23b497d98303d2f53fea640fa3ace8cde3e20a3ce94108b8f",
+      "bytes": 15500,
+      "sha256": "77d6086566a45c524768e77e39bb9307a2198cc5f0a4e89a3d24428a2ac23200",
       "owner": "core-integration"
     },
     {
