@@ -97,7 +97,7 @@ export function mountStockWebMcp(options: StockMountOptions): WebMcpHandle {
           tools.push({
             name: family.toolName,
             description: `Execute current host-admitted ${family.toolName} stock commands. Return wire3 status after the visible result is committed.`,
-            inputSchema: stockInputSchema(commands.map(command => command.inputSchema)),
+            inputSchema: stockInputSchema(commands.map(command => command.inputSchema), current.commandIds),
             annotations: {
               readOnlyHint: commands.every(command => command.effect === "read"),
               untrustedContentHint: true,

@@ -8,6 +8,93 @@ use crate::{contracts::stock as wire, domain::stock as domain, http::agents::cap
 use super::{NativeSchemas, OperationMapping, PortError, ToolName};
 
 #[test]
+fn synthetic_admitted_batch_child_descriptors() {
+    use serde_json::{Value, json};
+
+    let fixtures: Value = serde_json::from_slice(include_bytes!(
+        "../../../../fixtures/integration/mcp-batch-discovery.json"
+    ))
+    .unwrap();
+    assert_eq!(fixtures["synthetic"], true);
+    let schemas = NativeSchemas::from_bytes(
+        include_bytes!("../../../../contracts/stock-wire3/agent/agent.schema.json"),
+        include_bytes!("../../../../packages/contracts/schemas/atlas.schema.json"),
+    )
+    .unwrap();
+    let family = "#/$defs/family_input_atlas_records";
+    let original = schemas.schema(family).unwrap();
+    let batch_key = "agent__request_atlas_batch_execute";
+    let items_path = "/properties/payload/properties/commands/items";
+    let canonical = &original["$defs"][batch_key];
+    assert_eq!(
+        canonical.pointer(items_path).unwrap()["oneOf"]
+            .as_array()
+            .unwrap()
+            .len(),
+        39
+    );
+    for case in fixtures["cases"].as_array().unwrap() {
+        let admitted: BTreeSet<_> = case["admittedCommandIds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|id| wire::OperationId::parse(id.as_str().unwrap()).unwrap())
+            .collect();
+        let schema = schemas.admitted_input_schema(family, &admitted).unwrap();
+        let validator = jsonschema::options()
+            .with_draft(jsonschema::Draft::Draft202012)
+            .offline()
+            .build(&Value::Object(schema.clone()))
+            .unwrap();
+        let expected = &case["expectedChildCommandIds"];
+        if expected.is_null() {
+            assert!(schema["$defs"].get(batch_key).is_none());
+            continue;
+        }
+        let expected: Vec<_> = expected
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|id| {
+                let id = wire::OperationId::parse(id.as_str().unwrap()).unwrap();
+                let reference = wire::operation(id).unwrap().input_schema.as_str();
+                let local = format!(
+                    "#/$defs/agent__{}",
+                    reference.strip_prefix("#/$defs/").unwrap()
+                );
+                json!({"$ref":local})
+            })
+            .collect();
+        let mut expected_batch = canonical.clone();
+        *expected_batch.pointer_mut(items_path).unwrap() = if expected.is_empty() {
+            Value::Bool(false)
+        } else {
+            json!({"oneOf":expected})
+        };
+        assert_eq!(schema["$defs"][batch_key], expected_batch, "{}", case["name"]);
+        // Validate bytes only. No authority, stock service, durable effects or
+        // provider is involved, and array bounds never become batch execution.
+        for count in [0, 1, 100, 101] {
+            let mut request = fixtures["batch"].clone();
+            request["payload"]["commands"] = json!(vec![fixtures["child"].clone(); count]);
+            let has_circuit = admitted.contains(&wire::OperationId::AtlasCircuitCreate);
+            assert_eq!(
+                validator.is_valid(&request),
+                has_circuit && (1..=100).contains(&count)
+            );
+        }
+    }
+    let all = wire::OperationId::ALL.iter().copied().collect();
+    let full = schemas.admitted_input_schema(family, &all).unwrap();
+    assert_eq!(&full["$defs"][batch_key], canonical);
+    assert_eq!(
+        schemas.schema(family).unwrap(),
+        original,
+        "canonical resource is unchanged"
+    );
+}
+
+#[test]
 fn healthy_admitted_family_input_descriptors() {
     let schemas = NativeSchemas::from_bytes(
         include_bytes!("../../../../contracts/stock-wire3/agent/agent.schema.json"),

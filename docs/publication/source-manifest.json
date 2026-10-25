@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "05f97ec1a22ea282d2a7a7774add6cba3ad79d2b2c1d94ac14de3b1c5ef1186b",
+  "sourceDigestSha256": "5f3f8ccc156187e467bf663cb36b8061b00c4f81a48ad66a686299b05aedf86c",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -5397,8 +5397,8 @@
     {
       "path": "backend/src/transports/mcp/README.md",
       "mode": "100644",
-      "bytes": 10620,
-      "sha256": "fe530670547a11e5cc122021b562e84695bcec0b5f0c473ece01ee561e241f6d",
+      "bytes": 11878,
+      "sha256": "a02dfd92925f0d760973733a09de831be921abefe29cb112fc52b380b94bfdce",
       "owner": "mcp"
     },
     {
@@ -5439,8 +5439,8 @@
     {
       "path": "backend/src/transports/mcp/healthy_mappings.rs",
       "mode": "100644",
-      "bytes": 5878,
-      "sha256": "b1f08c094233ca4d06fa72e335d3e44256142befbf8f205cfffab82ffaf77e8b",
+      "bytes": 9362,
+      "sha256": "4b9b02f32a21ad6aeb7e53fd1d6d41f92fe4c614210a93e6d4d2175e80edbddb",
       "owner": "mcp"
     },
     {
@@ -5530,8 +5530,8 @@
     {
       "path": "backend/src/transports/mcp/native_schemas.rs",
       "mode": "100644",
-      "bytes": 9899,
-      "sha256": "7c7ff1493e280663df3d532bcd694d189b7d89fc2e6edb82ce5802274b833191",
+      "bytes": 11186,
+      "sha256": "a4e36f9e7da888cbef1d038ded4d84da9135957eb5823e44b22eab1e2a209f44",
       "owner": "mcp"
     },
     {
@@ -6991,6 +6991,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "fixtures/integration/mcp-batch-discovery.json",
+      "mode": "100644",
+      "bytes": 2729,
+      "sha256": "dcca4922e609eee182a6946d117272c84837dffd2853e2f154ce2c694c7fc9ec",
+      "owner": "core-integration"
+    },
+    {
       "path": "fixtures/integration/multi-home-unplaced.snapshot.json",
       "mode": "100644",
       "bytes": 29372,
@@ -8416,6 +8423,13 @@
       "mode": "100644",
       "bytes": 31772,
       "sha256": "098cda0194627bfe9a3cb8727c88eea39a5267721eb9094b94f5e2b2021aad84",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/webmcp-batch-discovery.mjs",
+      "mode": "100644",
+      "bytes": 4035,
+      "sha256": "e78e9f0c7e3f6393565ba5a6837bb2dbed2ea2fb37a79170a601b42d8e690679",
       "owner": "web"
     },
     {
@@ -10724,8 +10738,8 @@
     {
       "path": "frontend/src/webmcp/README.md",
       "mode": "100644",
-      "bytes": 6124,
-      "sha256": "8e5f015225781cf3135ffdf1fdd5a93713ac5000230cb3e3bb3db86dc11ad183",
+      "bytes": 6694,
+      "sha256": "6e93dfe73e39956690d1c1a511802a78ee860d8773f92914d5397e3f3f0c9fdd",
       "owner": "webmcp"
     },
     {
@@ -10878,22 +10892,22 @@
     {
       "path": "frontend/src/webmcp/stock-schema.ts",
       "mode": "100644",
-      "bytes": 2617,
-      "sha256": "5542c23eff66c0bfca68cdc7b0ad04671d5b4bc707afc97bfb694988788602e2",
+      "bytes": 4081,
+      "sha256": "9708ac58ce5212e331dce96836b77ebae9533c19dd8250a6b0a365a2d2d4d826",
       "owner": "webmcp"
     },
     {
       "path": "frontend/src/webmcp/stock.healthy.tsx",
       "mode": "100644",
-      "bytes": 7019,
-      "sha256": "949e125e34c2a43852ab88901b71f219a72d266b4e30430519004040411ae221",
+      "bytes": 7055,
+      "sha256": "6ed0237b2ae7c94e570a426480e07d7229c6f4c24e51e8b9c80b4e67cd91a9c2",
       "owner": "webmcp"
     },
     {
       "path": "frontend/src/webmcp/stock.ts",
       "mode": "100644",
-      "bytes": 7682,
-      "sha256": "625c682048d0753ed73ae49d65f92d1211823f870dbcf4d1dd88405e9e9f9264",
+      "bytes": 7702,
+      "sha256": "eec7a9d2260f5592327d135e3060810544313a256862a93767e538319e671255",
       "owner": "webmcp"
     },
     {
