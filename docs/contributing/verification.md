@@ -154,6 +154,16 @@ admission, cancellation and artifact/manifest refusal controls. The default
 mixed runner is not the ordinary command; this selection grants no permission
 to execute held controls and changes no CI workflow.
 
+The canonical mesh preparation check compares `prepareMeshes` byte for byte
+with the frozen pre-optimization implementation on generated geometry only:
+all six windings, signed zero, empty, degenerate, tiny and far-coordinate
+triangles, unused vertices and 128 deterministic irregular meshes. It runs in
+the healthy frontend suite:
+
+```sh
+node --test frontend/lantern-tests/canonical-mesh-preparation.test.mjs
+```
+
 The same `--healthy` command loads valid generated opaque core glTF materials
 on a multi-primitive mesh reused by two nodes. It checks exact primitive colour
 selectors, immutable linear RGBA factors, unchanged geometry and vertex bytes,
