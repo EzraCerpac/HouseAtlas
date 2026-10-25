@@ -98,6 +98,8 @@ fn tombstone(mutation: u32) -> Value {
 fn healthy_native_owned_media_records_and_history() {
     let temp = tempfile::Builder::new()
         .prefix("houseatlas-at12-native-")
+        // Recovery capture requires a private (0700) destination parent.
+        .permissions(std::os::unix::fs::PermissionsExt::from_mode(0o700))
         .tempdir()
         .unwrap();
     let root = fs::canonicalize(temp.path()).unwrap();
@@ -131,10 +133,8 @@ fn healthy_native_owned_media_records_and_history() {
             prepared.with_provenance(license(), vec![u(100)]).unwrap(),
         ));
     }
-    let fixture = Path::new(file!())
-        .parent()
-        .unwrap()
-        .join("../../../packages/contracts/fixtures/optional-geometry.snapshot.json");
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../packages/contracts/fixtures/optional-geometry.snapshot.json");
     let mut snapshot: s::Snapshot = serde_json::from_slice(&fs::read(fixture).unwrap()).unwrap();
     for asset in &assets {
         snapshot

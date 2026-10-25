@@ -10,7 +10,7 @@ use super::{OperationMapping, ToolName};
 #[test]
 fn healthy_finite_operation_mappings() {
     let mappings = OperationMapping::all().expect("published finite catalogs agree");
-    assert_eq!(mappings.len(), 164);
+    assert_eq!(mappings.len(), 168);
     assert_eq!(mappings.len(), wire::OperationId::ALL.len());
 
     let mut operations = BTreeSet::new();
@@ -41,7 +41,7 @@ fn healthy_finite_operation_mappings() {
         held_metadata |= matches!(native.disposition, domain::Disposition::Held);
         unsupported_metadata |= matches!(native.disposition, domain::Disposition::Unsupported);
     }
-    assert_eq!(operations.len(), 164);
+    assert_eq!(operations.len(), 168);
     assert_eq!(families.len(), 10);
     assert_eq!(
         families,
@@ -60,6 +60,16 @@ fn healthy_finite_operation_mappings() {
     assert_eq!(
         capabilities::reads(),
         vec![
+            AtlasIdentityList,
+            AtlasBindingList,
+            AtlasEvidenceList,
+            AtlasLocationSemanticsList,
+            AtlasCircuitList,
+            AtlasValveList,
+            AtlasRelationList,
+            AtlasGeometryList,
+            AtlasAssetList,
+            AtlasReconciliationList,
             AtlasIdentityGet,
             AtlasBindingGet,
             AtlasEvidenceGet,
@@ -80,6 +90,10 @@ fn healthy_finite_operation_mappings() {
             AtlasGeometryHistory,
             AtlasAssetHistory,
             AtlasReconciliationHistory,
+            HomeboxEntityGet,
+            HomeboxEntityList,
+            HomeboxLocationGet,
+            HomeboxLocationList,
         ]
     );
 }

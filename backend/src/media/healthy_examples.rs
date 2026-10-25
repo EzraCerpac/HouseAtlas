@@ -133,7 +133,8 @@ fn assert_preview_pixels(preview: &[u8], expected: &[u8], rgba: bool) {
         kinds.push(kind.to_vec());
         if kind == b"IHDR" {
             assert_eq!(&data[..8], &[0, 0, 0, 2, 0, 0, 0, 2]);
-            assert_eq!(data[9], if rgba { 6 } else { 2 });
+            // Previews are always normalized to 8-bit RGBA.
+            assert_eq!(&data[8..], &[8, 6, 0, 0, 0]);
         }
         if kind == b"IDAT" {
             compressed.extend_from_slice(data);
@@ -148,7 +149,18 @@ fn assert_preview_pixels(preview: &[u8], expected: &[u8], rgba: bool) {
     ZlibDecoder::new(compressed.as_slice())
         .read_to_end(&mut raw)
         .unwrap();
-    let stride = if rgba { 8 } else { 6 };
+    let expected: Vec<u8> = if rgba {
+        expected.to_vec()
+    } else {
+        expected
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .flat_map(|[r, g, b]| [*r, *g, *b, 255])
+            .collect()
+    };
+    let stride = 8;
+    assert_eq!(raw.len(), 2 * (stride + 1));
     for y in 0..2 {
         assert_eq!(raw[y * (stride + 1)], 0);
         assert_eq!(
@@ -224,10 +236,7 @@ impl MediaAccessPort<SyntheticPrincipal> for SyntheticAccess {
 }
 
 fn public_peer(mode: &str, path: &Path, input: Option<&Path>) -> MediaResult<Vec<u8>> {
-    let helper = Path::new(file!())
-        .parent()
-        .ok_or(MediaError::Unavailable)?
-        .join("checks/public-fixture.mjs");
+    let helper = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/media/checks/public-fixture.mjs");
     let mut command = Command::new("node");
     command.arg(helper).arg(mode).arg(path);
     if let Some(input) = input {
@@ -286,6 +295,8 @@ impl RecoveryDatabasePort for PublicFixtureDatabase {
 fn healthy_owned_delivery_public_sqlite_capture_restore_and_receipt_bytes() {
     let temp = tempfile::Builder::new()
         .prefix("houseatlas-at12-healthy-")
+        // Recovery capture requires a private (0700) destination parent.
+        .permissions(std::os::unix::fs::PermissionsExt::from_mode(0o700))
         .tempdir()
         .unwrap();
     // macOS temporary roots can use /var or /tmp aliases; production directory

@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "db7ee9d86be8f3d69b81dcb8b255adfd613ea76a830849ac0e6ee5094f5e8983",
+  "sourceDigestSha256": "ed9b4c9386f50d61e6e211a98d55a9488ed200fdb5a8dd722bb8d56372fa1139",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -2912,15 +2912,15 @@
     {
       "path": "backend/src/media/canonical_ifc_source.rs",
       "mode": "100644",
-      "bytes": 20356,
-      "sha256": "8ca0509db22290e78aee4678b0d91c4a207bd0cb046f1bced269b9bcad9a6820",
+      "bytes": 20371,
+      "sha256": "c3ca66e35401881f9b6c91011ba6bcaa2b0473219bdceafacdf68f32cb933abb",
       "owner": "media"
     },
     {
       "path": "backend/src/media/checks/public-fixture.mjs",
       "mode": "100644",
-      "bytes": 5999,
-      "sha256": "e0b26bdb0533ed304aa3d92eb58694b94c8e217b63935b5baf182594be893f9a",
+      "bytes": 6096,
+      "sha256": "0e50ec47eaa4afcf8b8519b8194773d97fb356cd0fdb6ead69614cf66d6f45d5",
       "owner": "media"
     },
     {
@@ -3003,8 +3003,8 @@
     {
       "path": "backend/src/media/healthy_examples.rs",
       "mode": "100644",
-      "bytes": 26670,
-      "sha256": "3e9bd8a67259c2279f649dc59414b4f97a408d63a791b6d9fc1b06e812bf853d",
+      "bytes": 27099,
+      "sha256": "943ce1ea98312c774f3351db6af0543d6130da95abf5fcb628939ad7363e061e",
       "owner": "media"
     },
     {
@@ -3017,8 +3017,8 @@
     {
       "path": "backend/src/media/healthy_native_examples.rs",
       "mode": "100644",
-      "bytes": 14394,
-      "sha256": "8abc9d6b07fffafa2a7d2d74bdff11b70951159e8c6ff9a59ef4a8dc4e069853",
+      "bytes": 14519,
+      "sha256": "2c7c25d8d94b19c6067d910c04ef1f49a1f384efee21a8019cc441c8df49f95d",
       "owner": "media"
     },
     {
@@ -5411,8 +5411,8 @@
     {
       "path": "backend/src/transports/mcp/healthy_mappings.rs",
       "mode": "100644",
-      "bytes": 3312,
-      "sha256": "36590e869e1f7ad0a5f9f479bb92735fda40fba47bc38e3809f16469e0fcd84b",
+      "bytes": 3755,
+      "sha256": "0f35f923fbf5aaf3bb98eb8ae10fdbe988baa5873be2529ec81ba6b6963496f1",
       "owner": "mcp"
     },
     {
