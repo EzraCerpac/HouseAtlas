@@ -1,0 +1,350 @@
+{
+  "profile": "houseatlas.acceptance-preparation.v1",
+  "synthetic": true,
+  "sourceCommit": "4ef733dc5b01259e7555e20cc2493da515506df3",
+  "observedMain": "b7abc9d87b90d3a6eab9efb386edf252f72daf60",
+  "reviewDate": "2026-10-25",
+  "ownerResumed": false,
+  "installedIdentity": null,
+  "deviceIdentity": null,
+  "decision": null,
+  "scenarios": [
+    {
+      "id": "entry",
+      "journey": "Authenticated entry and direct URLs",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/frontend/src/app/SessionApp.tsx",
+      "owners": [
+        303,
+        289
+      ],
+      "requiredObservation": "Current authorized entry, denied/expired entry and direct URLs preserve scope; no cached grant.",
+      "content": [],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "navigation",
+      "journey": "Building/room and Plan/3D journeys",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
+      "owners": [
+        298,
+        312
+      ],
+      "requiredObservation": "Select building, floor, room; switch Plan/3D and back; verify intended selection/camera retention, overlays, unknowns and source dates.",
+      "content": [],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "interaction",
+      "journey": "Keyboard, touch, wheel and small landscape",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
+      "owners": [
+        292,
+        207,
+        312
+      ],
+      "requiredObservation": "Named controls, focus, Escape, touch/pan/wheel and short landscape remain usable; verify stored refresh during an open detail surface.",
+      "content": [],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "interruptions",
+      "journey": "Repeated and interrupted navigation",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/frontend/src/app/SessionApp.tsx",
+      "owners": [
+        282,
+        289,
+        303
+      ],
+      "requiredObservation": "Login/close/reopen/back/forward, scope change and lost response preserve honest state; unknown effects never imply safe replay.",
+      "content": [],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "provider-outage",
+      "journey": "Independent source outages and first generation",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/docs/operations/media-and-offline.md",
+      "owners": [
+        285
+      ],
+      "requiredObservation": "Retain last complete permitted generation and original success dates; first-run unavailable stays explicit; no collection demand.",
+      "content": [
+        "inventory",
+        "network"
+      ],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "shell",
+      "journey": "Cold standalone/icon root entry",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/docs/offline/root-offline-entry.md",
+      "owners": [
+        301
+      ],
+      "requiredObservation": "After separately authorized preparation, terminate the app, remove network availability and cold-launch the installed icon; distinguish public shell from retained private content.",
+      "content": [
+        "public-shell"
+      ],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "pack",
+      "journey": "Choose exact retained pack and reopen",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/frontend/src/offline/SavedHouseManager.tsx",
+      "owners": [
+        300
+      ],
+      "requiredObservation": "Select a verified saved copy, reload/reopen after process termination and verify snapshot/local revision, capture date, exclusions and all listed resource bytes.",
+      "content": [
+        "all-retained"
+      ],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "model",
+      "journey": "Saved complete model, plans and room map",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/docs/offline/saved-atlas-consumer-v2.md",
+      "owners": [
+        298,
+        304
+      ],
+      "requiredObservation": "Verify GLB, exact raw companion, plans and optional room-links closure; absent map/model stays explicit; no inferred placement.",
+      "content": [
+        "model",
+        "plans",
+        "room-links"
+      ],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "records",
+      "journey": "Saved records, inventory and logical overlays",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/docs/offline/saved-atlas-overlays.md",
+      "owners": [
+        285,
+        299
+      ],
+      "requiredObservation": "Every claimed retained section opens with dates, uncertainty, supported coverage and honest unplaced counts; source metadata is not attachment bytes.",
+      "content": [
+        "atlas",
+        "inventory",
+        "network"
+      ],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "documents",
+      "journey": "Saved originals, previews and PDF references",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/docs/offline/saved-atlas-mounting.md",
+      "owners": [
+        283,
+        296
+      ],
+      "requiredObservation": "Verify original size/MIME/digest and explicit download; preview/reference availability stays separate; invalid recorded PDF page cannot show substitute pixels.",
+      "content": [
+        "documents",
+        "originals",
+        "previews"
+      ],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "coverage",
+      "journey": "Missing, partial, unavailable and unconfigured pack",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/frontend/src/offline/manifest.ts",
+      "owners": [
+        300
+      ],
+      "requiredObservation": "No copy is not an empty complete home; downloaded partial coverage remains partial. Every non-null reference has listed verified bytes.",
+      "content": [
+        "all-retained"
+      ],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "storage",
+      "journey": "Quota, eviction, replacement and removal",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/frontend/src/offline/store.ts",
+      "owners": [
+        300
+      ],
+      "requiredObservation": "Browser storage failure/eviction is visible; no durability or backup guarantee; replacement/removal retires stale views and file URLs.",
+      "content": [
+        "all-retained"
+      ],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "versions",
+      "journey": "Stale copies, worker updates and live return",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/docs/offline/live-atlas-cache.md",
+      "owners": [
+        301
+      ],
+      "requiredObservation": "Distinguish stored live model cache from Saved copies; record shell/controller/build identity across reopen; live return does not replay drafts.",
+      "content": [
+        "public-shell",
+        "model"
+      ],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "local-edit",
+      "journey": "Local edits and explicit reconnect",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/frontend/src/local-edit-retention/controller.ts",
+      "owners": [
+        282
+      ],
+      "requiredObservation": "Consume owner-qualified original/proposal/base/conflict behavior; local draft is unsubmitted, never an automatic replay queue.",
+      "content": [],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "roles",
+      "journey": "Existing viewer/editor/operator roles",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/docs/operations/target-and-access.md",
+      "owners": [
+        289,
+        287
+      ],
+      "requiredObservation": "Privately bind existing roles to allowed home/source actions and verify separation; no new membership, grants or invitations.",
+      "content": [],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "native-effects",
+      "journey": "Native edit conflict, repeated action and lost receipt",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/docs/operations/scenario-validation.md",
+      "owners": [
+        287,
+        282
+      ],
+      "requiredObservation": "Use owner-qualified exact write scope and outcome correlation; stop on unknown effects and inspect before retry. Separate authorization required.",
+      "content": [],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "measurement",
+      "journey": "Measurement entry, history and reconciliation",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/docs/operations/quantity-application.md",
+      "owners": [
+        279,
+        280,
+        281
+      ],
+      "requiredObservation": "Use exact owner-qualified measurement subset, provenance/history and model-change results; unsupported dimensions remain excluded.",
+      "content": [],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "updates",
+      "journey": "Update status and rollback eligibility",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/docs/operations/houseatlas-updater.md",
+      "owners": [
+        284,
+        290,
+        291
+      ],
+      "requiredObservation": "Consume qualified application/caller/delivery handoff; verify status and compatible rollback explanation without authorizing a deployment.",
+      "content": [],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "capture",
+      "journey": "Photo/file/PDF original readback",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/docs/operations/contextual-evidence-capture.md",
+      "owners": [
+        296,
+        283
+      ],
+      "requiredObservation": "Consume exact owner-qualified capture/cancel/original/PDF result; camera and native effects require separate resumption.",
+      "content": [],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "drafts",
+      "journey": "UNSENT evidence and deliberate send",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/docs/operations/combined-capture-drafts.md",
+      "owners": [
+        297,
+        296
+      ],
+      "requiredObservation": "Confirm identity-bound unsent state, one explicit foreground send and unknown-outcome handling from owning issue.",
+      "content": [],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "ai-agent",
+      "journey": "AI/account/agent availability and revocation",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/docs/rust-integration/agents.md",
+      "owners": [
+        288,
+        289,
+        294,
+        295
+      ],
+      "requiredObservation": "Consume supported runtime/account lifecycle and operation matrix; unsupported phone/runtime actions are explicit exclusions; no paid call.",
+      "content": [],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "electrical",
+      "journey": "Evidence-backed electrical placement",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/docs/offline/saved-atlas-overlays.md",
+      "owners": [
+        299,
+        298
+      ],
+      "requiredObservation": "Verify exact reviewed evidence/map association; ambiguous records remain unplaced and physical wiring unknown.",
+      "content": [],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "operations",
+      "journey": "Backup, restore, login, startup, TLS and support",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/docs/operations/recovery-and-rollback.md",
+      "owners": [
+        286,
+        291,
+        284
+      ],
+      "requiredObservation": "Private owner handoff names current backup freshness, recoverability, loss scope, restore/rollback, restart/login, TLS renewal, updates and outage support; no operational execution.",
+      "content": [],
+      "status": "DEFERRED",
+      "evidence": null
+    },
+    {
+      "id": "decision",
+      "journey": "Limited pilot or full acceptance",
+      "source": "https://github.com/EzraCerpac/HouseAtlas/blob/4ef733dc5b01259e7555e20cc2493da515506df3/docs/operations/qualification-and-rollout.md",
+      "owners": [
+        300
+      ],
+      "requiredObservation": "Owner selects audience and required rows, explicitly accepts exclusions/residual risks; incomplete or synthetic evidence cannot establish full acceptance.",
+      "content": [],
+      "status": "DEFERRED",
+      "evidence": null
+    }
+  ]
+}
