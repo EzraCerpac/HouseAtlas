@@ -5,9 +5,9 @@ import { readFileSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync, backup } from 'node:sqlite';
 import { AtlasStore } from '../../../../packages/storage/src/index.mjs';
-import { DATABASE_VERSION, MIGRATIONS } from '../../../../packages/storage/src/migrations.mjs';
+import { DATABASE_CONTRACT_VERSION, DATABASE_VERSION, MIGRATIONS } from '../../../../packages/storage/src/migrations.mjs';
 import { AssetVault } from '../../../../packages/media/src/vault.mjs';
-import { canonicalJson, validateSnapshot, CONTRACT_VERSION } from '../../../../packages/contracts/src/index.mjs';
+import { canonicalJson, validateSnapshot } from '../../../../packages/contracts/src/index.mjs';
 
 assert.equal(process.versions.node, '26.10.0');
 const [mode, path, input] = process.argv.slice(2);
@@ -60,7 +60,8 @@ if (mode === 'bootstrap') {
       assert.equal(migration.sha256, MIGRATIONS[i].sha256);
     }
     const contractVersion = db.prepare("SELECT value FROM atlas_metadata WHERE key='contractVersion'").get().value;
-    assert.equal(contractVersion, CONTRACT_VERSION);
+    // The stored database contract is versioned apart from the wire contract.
+    assert.equal(contractVersion, DATABASE_CONTRACT_VERSION);
     const snapshot = {contractVersion, synthetic: true};
     for (const [field, table] of [['sources', 'sources'], ['records', 'records'], ['homeboxEntities', 'projections'], ['caches', 'caches'], ['networkRelations', 'network_relations']]) {
       snapshot[field] = db.prepare(`SELECT body FROM ${table} ORDER BY rowid`).all().map(row => JSON.parse(row.body));

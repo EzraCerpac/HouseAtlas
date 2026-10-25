@@ -9,11 +9,19 @@ import { loadNumericSource } from './load-numeric-source.mjs';
 import { loadIfcGlbProfileSource, loadScanProfileSource, syntheticMeshFixture } from './scan-mesh-read.mjs';
 
 const dataUrl = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
+/** The production session expiry timer has no imports of its own. */
+export async function loadSessionExpirySource() {
+  const file = new URL('../integration/session-expiry.ts', import.meta.url);
+  const { code } = await transformWithOxc(readFileSync(file, 'utf8'), file.pathname,
+    { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
+  return dataUrl(code);
+}
 export async function loadClientSource() {
   const file = new URL('../integration/native-geometry-read-client.ts', import.meta.url);
   let { code } = await transformWithOxc(readFileSync(file, 'utf8'), file.pathname,
     { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
   for (const [specifier, target] of [
+    ['./session-expiry', await loadSessionExpirySource()],
     ['../src/numeric/decimal', await loadNumericSource('numeric/decimal.ts')],
     ['../src/lantern/scans/mesh-profile', await loadScanProfileSource()],
     ['../src/lantern/scans/ifc-glb-profile', await loadIfcGlbProfileSource()],
