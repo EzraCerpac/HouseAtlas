@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0c3e8c8c27669398ba9ead6732c9d07b1efeb1c4bbbee0f38154c9368e41a89d",
+  "sourceDigestSha256": "8de54a2826fedcc6ea3a64f788f6cf508f6582bae6926bc462ab35a43e63e09e",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -11896,6 +11896,41 @@
       "bytes": 53938,
       "sha256": "789e3f49b841d160928ed076ee831ff91ae295f175789ab03971ce3a516b7e72",
       "owner": "media"
+    },
+    {
+      "path": "tools/homebox-quantity-seed-report/README.md",
+      "mode": "100644",
+      "bytes": 9804,
+      "sha256": "4d10081dd7942b11d7ef7ff684af9bff53057c02de666fa9313a568ce6a1833b",
+      "owner": "homebox"
+    },
+    {
+      "path": "tools/homebox-quantity-seed-report/cli.py",
+      "mode": "100644",
+      "bytes": 1061,
+      "sha256": "28f3b099912b2b56c1aab155e1948b594939998ff7fcc65e5db252d8bcbd36c5",
+      "owner": "homebox"
+    },
+    {
+      "path": "tools/homebox-quantity-seed-report/fixtures.json",
+      "mode": "100644",
+      "bytes": 4087,
+      "sha256": "1c65725947a24e1be1f0192b9ee7b1b07e4dbd4d16780a7c97535acd577790a4",
+      "owner": "homebox"
+    },
+    {
+      "path": "tools/homebox-quantity-seed-report/report.py",
+      "mode": "100644",
+      "bytes": 13615,
+      "sha256": "3f4f0135e000bfbf9f1b39e29a1d73f39219ce82fdf4bea8afb7773b0a27befc",
+      "owner": "homebox"
+    },
+    {
+      "path": "tools/homebox-quantity-seed-report/test_report.py",
+      "mode": "100644",
+      "bytes": 15610,
+      "sha256": "b559fd84d52142662cd4e8d31e2c3221e4eb4613ed0f3bad6eb6a1b7656ffded",
+      "owner": "homebox"
     },
     {
       "path": "tools/houseatlas-mcp-bridge/bridge.py",
