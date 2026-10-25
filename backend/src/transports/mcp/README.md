@@ -89,18 +89,24 @@ tools/call over a serialized host-framed session. The bounded decoder retains
 arbitrary-precision Numbers, request IDs and literal object keys. The host owns
 framing, connection lifetime, idle clocks and transport-level admission.
 
-## Catalog-to-admission parity, version 1
+## Catalog-to-admission parity, version 2
 
-Source baseline: public main `b7abc9d87b90d3a6eab9efb386edf252f72daf60`,
+Source baseline: public main `c2f4ed32d10019664338de4cc1fede2e63e2f468`,
 25 October 2026; related issue #288. The shared wire3 catalog contains 168
-operations in ten families. This bounded change addresses discovery of top-level
-request arms, not the complete operation qualification matrix.
+operations in ten families. This bounded change addresses discovery of admitted
+request arms and batch children, not the complete operation qualification matrix.
 
 Previously `NativeCatalog` published the full family input union even when the
 host admitted only two reads. It now selects the host-admitted operation schema
 references in canonical family order before materializing their offline
-definition closure. Empty families remain absent. This matches WebMCP's existing
-top-level arm selection in `frontend/src/webmcp/stock.ts`. The shared catalog,
+definition closure. Empty families remain absent. Both transports now also
+intersect the canonical batch's 39 eligible child references with the complete
+host-admitted command set, retaining canonical order and other constraints.
+WebMCP receives that full set separately from the current family's top-level
+references, so eligible children in other families are retained. No eligible
+child produces `items: false`, preserving the canonical 1–100 item bound without
+an invalid empty `oneOf`. Omitted WebMCP admission supplies no child support.
+The shared catalog,
 full `NativeSchemas::schema` API and family output schemas remain unchanged.
 
 | Surface | Actual admission/service owner | Disposition and evidence boundary |
@@ -110,7 +116,7 @@ full `NativeSchemas::schema` API and family output schemas remain unchanged.
 | Mounted native profile | `bind_owned_admission`, OwnedStockService | Existing scoped Network/HomeBox bindings, Editor profile and download owner retained. No new admission or owner is supplied here. |
 | Local Atlas profile | `bind_local_atlas`, shared native stock dispatcher | Existing Access/SQLite read, command, batch and reopened-history fixture retained. Core-only binding still has no asset-download issuer/redemption owner. |
 | WebMCP | Current session/scope, injected schema/service/catalog/download owners | Existing top-level input selection retained. Browser registration, visible completion and installed integration remain NOT RUN here; interactive browser/device acceptance is DEFERRED. |
-| Batch children | Canonical batch schema and native recursive admission | Nested request unions are unchanged in both transports; native `prepare` checks every ordered child separately. Nested discovery narrowing and full batch outcome qualification remain open. |
+| Batch children | Canonical eligibility union intersected with full host admission | Both input descriptors narrow nested children. Native `prepare` still checks every ordered child separately. Synthetic shared profiles/bounds are source fixtures; execution and full batch outcome qualification remain open. |
 | Upload/remap/large operations | Existing dedicated capability/domain owners | No new binding or support claim. Complete transfer, limits, delayed/unknown outcomes and live qualification remain open under #288. Access lifecycle #289 and maintenance callers #290 are separate. |
 
 `healthy_admitted_family_input_descriptors` checks single-arm selection with an
@@ -122,6 +128,17 @@ is excluded without dispatching it. These are synthetic in-process unit cases
 in the existing backend test lane. No local compilation, Clippy or tests were
 run for this change; CI results must be tied to the eventual PR head. Existing
 source fixtures are not evidence of installed or live acceptance.
+
+The version 2 `synthetic_admitted_batch_child_descriptors` backend unit case and
+`frontend/lantern-tests/webmcp-batch-discovery.mjs` consume the same fictional
+`fixtures/integration/mcp-batch-discovery.json`. They cover cross-family and
+child-only descriptor inputs, canonical eligibility versus admission, no-child
+and no-batch profiles, unchanged non-admission constraints, valid offline
+schemas and 0/1/100/101 child arrays. Validation uses schema bytes only, never a
+stock dispatcher. New fixtures are NOT RUN locally. The backend case is in the
+existing unit-test lane; the frontend case is not registered in the explicit
+ordinary runner by this slice. CI registration, publication-manifest integration,
+conflicts and merge remain with Claude. No new CI infrastructure is introduced.
 
 ## Exact ordinary positive
 
