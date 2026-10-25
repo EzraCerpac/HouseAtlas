@@ -410,6 +410,24 @@ class SwapAndRollback(unittest.TestCase):
         self.assertEqual(plistlib.loads(self.cfg.plist.read_bytes()), self.old)
         self.assertNotEqual(self.run_standalone(check=False).returncode, 0)  # finished: nothing left to retry
 
+    def test_standalone_retry_after_an_interruption_right_after_the_restore(self):
+        dep = dn.Deployer(self.cfg, FakeService(self.cfg), out=io.StringIO())
+        dep.swap(self.record, self.root / "events.log", self.moves)
+        dn.save_record(self.cfg.ledger, dict(self.record, status="verified"))
+        dn.write_rollback_script(self.record, self.cfg)
+        script = (Path(self.record["dir"]) / "recovery/rollback.sh").read_text()
+        move = script.index("  mv ", script.index("cksum <"))
+        end = script.index("\n", move)
+        partial = self.root / "partial.sh"  # stops right after the restoring move
+        write(partial, script[:end] + "; exit 1" + script[end:], mode=0o755)
+        bin_dir = self.root / "bin"
+        write(bin_dir / "launchctl", "#!/bin/sh\n[ \"$1\" = print ] && exit 1\nexit 0\n", mode=0o755)
+        subprocess.run(["bash", str(partial)], env=dict(os.environ, PATH=f"{bin_dir}:{os.environ['PATH']}"))
+        self.assertFalse((self.root / "fe/frontend.before-rec").exists())
+        self.run_standalone()
+        self.assertIn("old.js", (self.root / "fe/frontend/index.html").read_text())
+        self.assertEqual(plistlib.loads(self.cfg.plist.read_bytes()), self.old)
+
     def test_standalone_retry_refuses_after_a_later_deployment(self):
         dep = dn.Deployer(self.cfg, FakeService(self.cfg), out=io.StringIO())
         dep.swap(self.record, self.root / "events.log", self.moves)

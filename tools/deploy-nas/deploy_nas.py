@@ -845,7 +845,8 @@ def write_rollback_script(record: dict, cfg: Config) -> None:
                   f'    for f in {live}/assets/*; do [ -f "$f" ] && [ ! -e {parked}/assets/"$(basename "$f")" ] && cp -p "$f" {parked}/assets/; done',
                   f'    mv {live} {live}.rolled-back-$(date -u +%Y%m%dT%H%M%SZ)',
                   '  fi',
-                  f'  mv {parked} {live}', f'  cksum < {live}/index.html > {restored}', 'fi']
+                  # Mark before the move, so a run interrupted right after it can still be retried.
+                  f'  cksum < {parked}/index.html > {restored}', f'  mv {parked} {live}', 'fi']
     lines += [f'cp {q(record["before_plist"])} {q(str(cfg.plist))}', f'chmod 600 {q(str(cfg.plist))}',
               f"launchctl bootstrap {domain} {q(str(cfg.plist))}",
               "# Tell the ledger, so `deploy-nas rollback` moves on to the record before this one.",
