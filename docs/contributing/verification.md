@@ -13,6 +13,13 @@ Locally, `node tools/rust-integration/check-source.mjs` still runs everything;
 the Linux `source` job passes `--skip-binary --skip-frontend` because other
 jobs build those.
 
+The `Ordinary synthetic core` workflow also runs the synthetic HomeBox quantity
+seed report tests with the runner's `python3` (stdlib only, no install):
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/homebox-quantity-seed-report -p test_report.py -v
+```
+
 ## Healthy frontend suite
 
 `frontend/lantern-tests/run-healthy.mjs` runs every named healthy frontend
