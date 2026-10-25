@@ -3,6 +3,7 @@
 pub mod access;
 pub mod ai;
 pub mod app;
+pub(crate) mod catalog_budget;
 pub mod config;
 pub mod contracts;
 pub mod credential_boundary;

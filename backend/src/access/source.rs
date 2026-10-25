@@ -127,6 +127,42 @@ pub(super) fn write_source(
 }
 
 impl CurrentAuthority<'_> {
+    pub(super) fn catalog_partition_grant(
+        &self,
+        principal: &Principal,
+        partition: &SourcePartition,
+        budget: &crate::catalog_budget::Budget,
+    ) -> AccessResult<PartitionGrant> {
+        super::partition_catalog::check(budget)?;
+        self.revalidate(principal)?;
+        partition.validate().map_err(|_| AccessError::NotFound)?;
+        if partition.scope() != principal.scope {
+            return Err(AccessError::NotFound);
+        }
+        let row = store::catalog_source(self.db, partition, budget)?
+            .filter(|row| row.enabled).ok_or(AccessError::NotFound)?;
+        super::partition_catalog::check(budget)?;
+        Ok(PartitionGrant { principal: principal.clone(), partition: partition.clone(), version: row.version })
+    }
+
+    pub(super) fn catalog_partition_row(
+        &self,
+        principal: &Principal,
+        original: &PartitionGrant,
+        budget: &crate::catalog_budget::Budget,
+    ) -> AccessResult<store::Source> {
+        super::partition_catalog::check(budget)?;
+        self.check_grant_principal(principal, &original.principal)?;
+        if original.partition.scope() != principal.scope {
+            return Err(AccessError::NotFound);
+        }
+        let row = store::catalog_source(self.db, &original.partition, budget)?
+            .filter(|row| row.enabled && row.version == original.version)
+            .ok_or(AccessError::NotFound)?;
+        super::partition_catalog::check(budget)?;
+        Ok(row)
+    }
+
     pub(super) fn partition_grant(
         &self,
         principal: &Principal,

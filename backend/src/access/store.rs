@@ -508,6 +508,44 @@ pub(super) fn insert_session(
     Ok(next)
 }
 
+/// Catalog-only byte gate runs inside the held native Access transaction.
+/// CASE withholds oversized registration text before rusqlite copies it.
+pub(super) fn catalog_source(
+    db: &Connection,
+    partition: &SourcePartition,
+    budget: &crate::catalog_budget::Budget,
+) -> AccessResult<Option<Source>> {
+    super::partition_catalog::check(budget)?;
+    let mut statement = db.prepare(
+        "SELECT CASE WHEN length(CAST(registration AS BLOB)) BETWEEN 1 AND 65536
+                 THEN registration ELSE NULL END,enabled,version FROM access_sources
+         WHERE workspace_id=?1 AND home_id=?2 AND instance_id=?3 AND collection_id=?4"
+    )?;
+    super::partition_catalog::check(budget)?;
+    let row = statement.query_row(
+        params![partition.workspace_id.as_str(), partition.home_id.as_str(),
+            partition.source_instance_id.as_str(), partition.collection_id],
+        |row| Ok((row.get::<_, Option<String>>(0)?, row.get::<_, bool>(1)?, row.get::<_, i64>(2)?)),
+    ).optional()?;
+    super::partition_catalog::check(budget)?;
+    row.map(|(body, enabled, version)| {
+        let body = body.ok_or(AccessError::Unavailable)?;
+        if body.len() > crate::catalog_budget::MAX_REGISTRATION_BYTES {
+            return Err(AccessError::Unavailable);
+        }
+        super::partition_catalog::check(budget)?;
+        let registration: SourceRegistration = serde_json::from_str(&body)
+            .map_err(|_| AccessError::Unavailable)?;
+        super::partition_catalog::check(budget)?;
+        registration.validate().map_err(|_| AccessError::Unavailable)?;
+        super::partition_catalog::check(budget)?;
+        if registration.partition() != *partition || version < 1 {
+            return Err(AccessError::Unavailable);
+        }
+        Ok(Source { registration, enabled, version: AuthorityVersion(version) })
+    }).transpose()
+}
+
 pub(super) fn source(db: &Connection, partition: &SourcePartition) -> AccessResult<Option<Source>> {
     let row = db
         .query_row(
