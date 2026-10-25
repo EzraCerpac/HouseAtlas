@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "35a730a01d0131d852180306f4a350d6e49cc9b69eb6529b9ca94d4e82040817",
+  "sourceDigestSha256": "927dc52e2cea8cac891bb1f1e2237853d75e9227bffb06ad7db3057e5e7c47d0",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6573,8 +6573,8 @@
     {
       "path": "docs/operations/local-capture-drafts.md",
       "mode": "100644",
-      "bytes": 16617,
-      "sha256": "9e6666e92edc008cb4265f5af43423b7493f6a63cc9b6e13b0c51517474a7b8d",
+      "bytes": 18053,
+      "sha256": "151a369f85c95e7d735be51b85648aecd6e2962fb373ff030446ace04d664a3a",
       "owner": "core-integration"
     },
     {
@@ -7084,8 +7084,8 @@
     {
       "path": "frontend/capture-drafts-tests/combined-host.mjs",
       "mode": "100644",
-      "bytes": 13237,
-      "sha256": "2421ae1cb78b4a4a67cf6c16ae3ad4bff1c4790ffd9558654eb22e737bafc41c",
+      "bytes": 14938,
+      "sha256": "e5f29ac5e808a179694468985a8e5689fcacfaba1ae179ec1acfcdb78aaf97a4",
       "owner": "core-integration"
     },
     {
@@ -7098,8 +7098,8 @@
     {
       "path": "frontend/capture-drafts-tests/controller.regression.test.mjs",
       "mode": "100644",
-      "bytes": 22243,
-      "sha256": "5023866ba9cdd3637b1d34c276c0b87bb494146e61e41481cb9a4fa6ca59b33f",
+      "bytes": 24459,
+      "sha256": "09d5a17beecfadea0f50a6a77d107acfab7934930b8015b66c25dc11caca0ad5",
       "owner": "core-integration"
     },
     {
@@ -7161,8 +7161,8 @@
     {
       "path": "frontend/integration/capture-drafts-adapter.ts",
       "mode": "100644",
-      "bytes": 12386,
-      "sha256": "08e90558859fd16cb33272391573f1ee4b07dd89135e643e20541e5ec371b9f8",
+      "bytes": 12196,
+      "sha256": "0ee2669427052e3413f3043cde2f4909a61a5fbe19b8e5dca74897a9952d5ab7",
       "owner": "core-integration"
     },
     {
@@ -9002,8 +9002,8 @@
     {
       "path": "frontend/src/capture-drafts/controller.ts",
       "mode": "100644",
-      "bytes": 17959,
-      "sha256": "29d2703c765f7a9a6baef6e8c794d9a158db272aa7588c14ccacf263f72d5e10",
+      "bytes": 18502,
+      "sha256": "3875bd8227ab94867632025a932bb7bba72051e4c35255de9c202b6f810568c7",
       "owner": "core-integration"
     },
     {
