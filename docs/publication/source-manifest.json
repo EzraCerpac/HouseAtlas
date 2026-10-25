@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "36c2cec2f0a1c9278212183fd49c2a47e2648212858edaf567613788c35aa618",
+  "sourceDigestSha256": "05f97ec1a22ea282d2a7a7774add6cba3ad79d2b2c1d94ac14de3b1c5ef1186b",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -7168,8 +7168,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 42884,
-      "sha256": "89bbe51084646b577b337a97afdbb65fee46b67f7ae8bd37867eeab535a3f04e",
+      "bytes": 43944,
+      "sha256": "205d2bbcf4f8f591284442bea277d3ecfbf3adc3f2cb806dbdeb2bee4b29cbb0",
       "owner": "core-integration"
     },
     {
@@ -7184,6 +7184,13 @@
       "mode": "100644",
       "bytes": 20391,
       "sha256": "2a9513a0da2fed82bc15e8ea05179382847e139d29ae734a34a030328f81a42e",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/integration/native-electrical-library-reader.ts",
+      "mode": "100644",
+      "bytes": 17773,
+      "sha256": "58b36c18149a9f6833ef0ad92dddca1b4cc4f3922a4d8bfa6acab917ec17b975",
       "owner": "web"
     },
     {
@@ -7485,6 +7492,20 @@
       "mode": "100644",
       "bytes": 6107,
       "sha256": "74080f5eecddffc8932c57bef1184cb4b6556bf349c52adf746b4ba3ddc4c631",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/electrical-library-read.mjs",
+      "mode": "100644",
+      "bytes": 12495,
+      "sha256": "b069d860a441ac3b4ea52ab6e58ea86ef347273d61f4f6b171142a89e4cd3e63",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/electrical-library-visual/synthetic-electrical.ts",
+      "mode": "100644",
+      "bytes": 16701,
+      "sha256": "3ca620c11e726e3c679244226a1a9d1f6a047d6debb9687784116ba41501169d",
       "owner": "web"
     },
     {
@@ -9030,8 +9051,8 @@
     {
       "path": "frontend/src/lantern/Host.tsx",
       "mode": "100644",
-      "bytes": 9435,
-      "sha256": "f84c30811eeaf4ab4d2835219d9326c787a961aaf9ca48189639a377469c3b9b",
+      "bytes": 9779,
+      "sha256": "73663cc0570c9a92330a8a5f747c086d04de3df3ce27e950d6f33f445b68be97",
       "owner": "web"
     },
     {
@@ -9557,6 +9578,34 @@
       "mode": "100644",
       "bytes": 3237,
       "sha256": "19723f3b75dd752c76ad8dd7b207180dbfe1cd3a7a1fa23b9a47043e3758f328",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/electrical-library/ElectricalLibrary.tsx",
+      "mode": "100644",
+      "bytes": 12367,
+      "sha256": "ff4204259ace34c94000df23d6522964244bd874203efe61289836a31158eb30",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/electrical-library/electrical-library.css",
+      "mode": "100644",
+      "bytes": 986,
+      "sha256": "a5807d28c1c1c5fbca6c907d3e6c9d3358c61a67280ba6bb798cc95d694cdb48",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/electrical-library/project.ts",
+      "mode": "100644",
+      "bytes": 7054,
+      "sha256": "390ab925f72cc90156c7c8cb45fca504170e981ffad3266dd5ba765d32b19479",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/electrical-library/types.ts",
+      "mode": "100644",
+      "bytes": 2992,
+      "sha256": "ee9e04a8715dcccaa3f3f9bcba3d441e5224b68df7586f50b89408f00ee2cbe6",
       "owner": "web"
     },
     {
@@ -10199,8 +10248,8 @@
     {
       "path": "frontend/src/lantern/source-ports.ts",
       "mode": "100644",
-      "bytes": 1403,
-      "sha256": "b5392f49e2b250b5626f8e71ed3d0fd8960536667d02802a1adaae4c43ad213e",
+      "bytes": 1535,
+      "sha256": "67c0413affca774bad99957ffa3e99f6ddbd7d116e78ead7e923523b98f568b1",
       "owner": "web"
     },
     {
@@ -10423,8 +10472,8 @@
     {
       "path": "frontend/src/lantern/views/LibraryView.tsx",
       "mode": "100644",
-      "bytes": 6026,
-      "sha256": "c124d8082d274f18f3659fc643d2d37e555221671d89b54ef85dc3598d73a495",
+      "bytes": 6563,
+      "sha256": "516a4c179991689fded30f1898faf0af9590a7da42fdc601b8945224d890a2a6",
       "owner": "web"
     },
     {

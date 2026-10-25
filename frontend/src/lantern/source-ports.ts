@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { SourceDocumentsPort } from './source-documents/types';
+import type { ElectricalLibraryPort } from './electrical-library/types';
 import type { LocalModelReviewOptions } from './electrical-documentary/types';
 import type { SiteSourcePort } from './site-artifacts/types';
 import type { ModelOverviewPort } from './source-models/overview-types';
@@ -19,6 +20,10 @@ export interface SourceModelPort extends LocalModelReviewOptions {
   readonly site?: SiteSourcePort;
 }
 /** Optional source-export ports. Absence leaves every native capability intact. */
-export interface SourcePorts { readonly models?: SourceModelPort; readonly documents?: SourceDocumentsPort }
+export interface SourcePorts {
+  readonly models?: SourceModelPort;
+  readonly documents?: SourceDocumentsPort;
+  readonly electricalLibrary?: ElectricalLibraryPort;
+}
 export const SourcePortsContext = createContext<SourcePorts>({});
 export const useSourcePorts = () => useContext(SourcePortsContext);
