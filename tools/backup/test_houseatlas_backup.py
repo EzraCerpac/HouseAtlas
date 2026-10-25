@@ -174,11 +174,26 @@ printf '{{"ubiquitous": true, "uploaded": true, "downloadingStatus": "%s"}}\\n' 
         store = self.root / "store"
         listed = hb.list_models(self.release())
         stored = hb.store_models(store, listed, "20261001T040000Z")
-        hb.settle_new_blobs(config, stored)
-        self.assertEqual(len(list(evicted.iterdir())), 3)
         models = [{k: m[k] for k in ("file", "sha256", "bytes")} for m in listed]
+        hb.settle_blobs(config, store, models, stored)
+        self.assertEqual(len(list(evicted.iterdir())), 3)
         hb.restore_models(store, models, hb.private_dir(self.root / "out"), hb.fetch_from_icloud(config))
         self.assertEqual(list(evicted.iterdir()), [])
+
+    def test_a_reused_blob_that_never_uploaded_stops_the_run(self):
+        helper = self.root / "not-uploaded"
+        helper.write_text("#!/bin/sh\necho '{\"ubiquitous\": true, \"uploaded\": false}'\n")
+        helper.chmod(0o700)
+        store = self.root / "store"
+        listed = hb.list_models(self.release())
+        hb.store_models(store, listed, "20261001T040000Z")
+        models = [{k: m[k] for k in ("file", "sha256", "bytes")} for m in listed]
+        # Nothing new this run, but the reused blobs are still checked.
+        self.assertEqual(hb.store_models(store, listed, "20261002T040000Z"), [])
+        config = type("C", (), {"icloud_helper": helper, "upload_timeout": 0})()
+        with self.assertRaises(hb.StepFailed) as failure:
+            hb.settle_blobs(config, store, models, [])
+        self.assertEqual(failure.exception.step, "iCloud upload")
 
     def test_restore_command_refuses_an_existing_destination(self):
         store = self.root / "store"

@@ -23,8 +23,9 @@ Network source state; recover those through their own private procedures.
    its SHA-256, and only if no file of that name is there yet. A release that
    did not change since the last run therefore adds nothing; a new release adds
    only the files whose bytes differ, so a byte-identical `detail.glb` carried
-   into a new release is not stored twice. New files are uploaded, checked, and
-   evicted locally before the nightly archive that names them goes up.
+   into a new release is not stored twice. Before the nightly archive goes up, iCloud
+   must report every file it names as uploaded, reused ones included, and this
+   run's new files are evicted locally.
 5. Packs the bundle and report into one `.tar.gz` and copies it, with a
    `.sha256` file, into the configured iCloud Drive folder. The report lists the
    model files and their hashes; the archive does not carry them. Existing files

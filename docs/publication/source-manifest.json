@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "05a0dc392070b04accb32f1c621ea3897f7dc2236840cc15747313fb5a2bef3e",
+  "sourceDigestSha256": "a8f1e86ea66820f1f768e2998582a7041dba6da596cd5b9066e16be1a3f7f5cf",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6608,8 +6608,8 @@
     {
       "path": "docs/operations/icloud-backup.md",
       "mode": "100644",
-      "bytes": 5275,
-      "sha256": "097a573c8b0c686613e5fc070a609ca25ff7ccd813f5bf5cd2e9e534e8c41337",
+      "bytes": 5329,
+      "sha256": "331fb20b8a7bf6140bfe40b0cad9037b3dadce426d183eea94584b522de7bba1",
       "owner": "operations-policy"
     },
     {
@@ -11802,8 +11802,8 @@
     {
       "path": "tools/backup/houseatlas_backup.py",
       "mode": "100644",
-      "bytes": 23470,
-      "sha256": "18539a9bb1739bf90a5d308d7234145ec0ad89e6cd045b33f8340f9cd04498e3",
+      "bytes": 23682,
+      "sha256": "2e01b1b0fb3ffcc3de4fb8c7bb44c27cadcb96420aa3ee29c82354927cc152aa",
       "owner": "operations-policy"
     },
     {
@@ -11837,8 +11837,8 @@
     {
       "path": "tools/backup/test_houseatlas_backup.py",
       "mode": "100644",
-      "bytes": 11431,
-      "sha256": "c74aa504dc245f03b10f49fec3129f3561201d04c0f5ba7a7b527ffe61a2ab77",
+      "bytes": 12314,
+      "sha256": "08a834a15ccac37d5ad5c917147d62c715dfed19633f3e5bced9aaceb779d918",
       "owner": "operations-policy"
     },
     {

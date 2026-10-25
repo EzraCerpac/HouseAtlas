@@ -372,12 +372,13 @@ def upload_and_round_trip(config: Config, archive: Path, checksum: str, work: Pa
     return downloaded
 
 
-def settle_new_blobs(config: Config, blobs: list[Path]) -> None:
-    """Wait until every new blob is uploaded, then evict the local copies, so
-    the restore check below reads them back from iCloud."""
-    for blob in blobs:
+def settle_blobs(config: Config, store: Path, models: list[dict], created: list[Path]) -> None:
+    """Wait until every blob the archive names is uploaded, reused ones too (a
+    blob an earlier run created may never have finished uploading), then evict
+    this run's new blobs, so the restore check below reads them back from iCloud."""
+    for blob in dict.fromkeys(store / "blobs" / model["sha256"] for model in models):
         wait_for(config, blob, "iCloud upload", lambda s: s.get("uploaded"))
-    for blob in blobs:
+    for blob in created:
         icloud(config, "evict", blob)
         wait_for(config, blob, "iCloud evict", lambda s: s.get("downloadingStatus") != "NSURLUbiquitousItemDownloadingStatusCurrent")
 
@@ -455,7 +456,7 @@ def backup(config: Config) -> dict:
     config.icloud_directory.mkdir(exist_ok=True)
     store = config.icloud_directory / MODEL_STORE
     stored = timed("modelStoreSeconds", store_models, store, listed, stamp)
-    timed("modelUploadSeconds", settle_new_blobs, config, stored)
+    timed("modelUploadSeconds", settle_blobs, config, store, models, stored)
 
     archive = archives / f"{ARCHIVE_PREFIX}{stamp}.tar.gz"
     timed("packSeconds", pack, work, archive)
