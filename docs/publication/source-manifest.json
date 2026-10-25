@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "560b78473b1fffe6990c1bf159a6ed66b35e4431ea6c6b10a1895a2a0767898a",
+  "sourceDigestSha256": "64ebe8f9e344d63c25dada2ab21a91a4bef57bfaf23d43e1c9a7488beb83f4d1",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6473,6 +6473,20 @@
       "owner": "web"
     },
     {
+      "path": "docs/operations/acceptance-300.json",
+      "mode": "100644",
+      "bytes": 13648,
+      "sha256": "c562d7af6a5c353e0cf8b616638ef254a9681f82908636dac7557e7d89428e66",
+      "owner": "operations-policy"
+    },
+    {
+      "path": "docs/operations/acceptance-300.md",
+      "mode": "100644",
+      "bytes": 10932,
+      "sha256": "48d4e98462846d53d886569c7356a9eacc52fa3670930b354a63a5cfbb8db181",
+      "owner": "operations-policy"
+    },
+    {
       "path": "docs/operations/adoption-and-decisions.md",
       "mode": "100644",
       "bytes": 1244,
@@ -11567,6 +11581,13 @@
       "bytes": 8441,
       "sha256": "50a3b3425bee4bacf763d1660e04d8f424e2147c3722a5ab00cd5a1668fcdb2a",
       "owner": "core-integration"
+    },
+    {
+      "path": "tools/acceptance/prepare-300.py",
+      "mode": "100644",
+      "bytes": 937,
+      "sha256": "a467b883040e3173aceba7c352708356492f74af0b63bed75f126ac9b41cb767",
+      "owner": "operations-policy"
     },
     {
       "path": "tools/core-integration/browser-harness.mjs",
