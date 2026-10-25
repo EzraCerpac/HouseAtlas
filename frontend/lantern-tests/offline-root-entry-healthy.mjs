@@ -181,7 +181,7 @@ try {
   const hung = workerRuntime(first, 'root', storage, () => new Promise(() => {}));
   const started = Date.now(), handoff = await hung.fetchEvent(request('/'));
   assert.equal(handoff.status, 302); assert.equal(handoff.headers.get('location'), origin + '/saved/index.html');
-  assert.ok(Date.now() - started < 5_000, 'a silent host hands off within the navigation budget');
+  assert.ok(Date.now() - started < 3_000, 'a silent host hands off within the navigation budget');
   cases.push('silent-root-host-hands-off-to-saved');
   const savedRuntime = savedRegistration.active.runtime;
   const savedResponse = await savedRuntime.fetchEvent(request('/saved/index.html'));

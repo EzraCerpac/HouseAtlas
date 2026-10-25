@@ -1,7 +1,7 @@
 /* No root/application response is cached. Reuse the exact public Saved closure. */
 importScripts('/saved/service-worker.js');
 if (BUILD !== ROOT_BUILD) throw Error('Root entry and Saved shell builds differ');
-const NAVIGATION_TIMEOUT_MS = 3_000;
+const NAVIGATION_TIMEOUT_MS = 2_000;
 self.addEventListener('message', event => {
   if (event.data !== 'root-entry-status' || !event.ports[0]) return;
   event.waitUntil((async () => {
