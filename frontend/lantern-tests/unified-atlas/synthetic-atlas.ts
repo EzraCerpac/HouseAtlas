@@ -370,10 +370,14 @@ export function createAtlasTransport(options: {
   readonly origin: string; readonly scenePath: string; readonly envelopeBytes: Uint8Array<ArrayBuffer>;
   readonly href: string; readonly glb: Uint8Array<ArrayBuffer>; readonly sha256: string; readonly revision: string;
   readonly manifestSha256: string;
+  /** An optional detail artifact, served at its own href like the model. */
+  readonly detail?: { readonly href: string; readonly glb: Uint8Array<ArrayBuffer>; readonly sha256: string };
   readonly onRequest?: (url: string) => void;
 }): typeof fetch {
   const common = { 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' };
-  const digest = `sha-256=:${base64(Uint8Array.from(options.sha256.match(/../g)!, pair => parseInt(pair, 16)))}:`;
+  const contentDigest = (sha256: string) => `sha-256=:${base64(Uint8Array.from(sha256.match(/../g)!, pair => parseInt(pair, 16)))}:`;
+  const model = (glb: Uint8Array<ArrayBuffer>, sha256: string) => new Response(glb.slice(), { headers: { ...common, 'content-type': 'model/gltf-binary',
+    'content-length': String(glb.byteLength), 'x-atlas-selection-revision': options.revision, 'content-digest': contentDigest(sha256) } });
   return (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     options.onRequest?.(url);
@@ -384,9 +388,8 @@ export function createAtlasTransport(options: {
       return new Response(options.envelopeBytes.slice(), { headers: { ...common, 'content-type': 'application/json',
         'content-length': String(options.envelopeBytes.byteLength), 'x-atlas-selection-revision': options.revision,
         'x-atlas-overview-manifest-sha256': options.manifestSha256 } });
-    if (url === `${options.origin}${options.href}`)
-      return new Response(options.glb.slice(), { headers: { ...common, 'content-type': 'model/gltf-binary',
-        'content-length': String(options.glb.byteLength), 'x-atlas-selection-revision': options.revision, 'content-digest': digest } });
+    if (url === `${options.origin}${options.href}`) return model(options.glb, options.sha256);
+    if (options.detail && url === `${options.origin}${options.detail.href}`) return model(options.detail.glb, options.detail.sha256);
     return new Response(null, { status: 404 });
   }) as typeof fetch;
 }

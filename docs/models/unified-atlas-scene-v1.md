@@ -130,6 +130,18 @@ The frontend uses the same numbers (`STANDARD_GLB_LIMITS` and
 after the scene and the overview, so it stays outside the first load's 64 MiB
 aggregate, and the reader never fetches it with the scene. A changed
 `detail.glb` changes the whole selection, exactly like a changed overview.
+
+Settings → Model quality chooses the tier per device (`model-quality.ts`):
+Light never reads the detail; Full reads it on every device; Auto reads it only
+with WebGPU, a mouse or trackpad and no touch screen, at least 8 GB where the
+browser reports memory, and neither mobile data nor Data Saver. The overview
+always loads and shows first. Only then does `readUnifiedAtlasDetail` fetch the
+detail (same checks as the model, 300 s deadline), which is admitted under the
+Full budget, bound to the same scene and swapped into the same stage, so the
+view, floors and selection carry over. MeshLayer builds the new mesh set on a
+hidden canvas behind the one on screen, so the swap never blanks the view. A
+failed read, admission or GPU build keeps the overview. The detail is never
+stored offline: a stored copy and saved houses show the overview only.
 Reuse the existing Read/Media, same-origin, retained-principal and final-current
 checks. Return private no-store bytes with exact type, length and digest. This
 adds no accounts, grants, tokens or native writes. A changed selection is stale;

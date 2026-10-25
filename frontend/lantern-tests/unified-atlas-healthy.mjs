@@ -64,7 +64,7 @@ const { makeProjection, pointInShape, sourceMeshColor } = await import(geometryU
 const { readGlbContainer } = await import(preflightURL);
 const { loadStandardGlb } = await import(standardURL);
 const scene = await import(sceneURL);
-const { readUnifiedAtlas } = await import(readerURL);
+const { readUnifiedAtlas, readUnifiedAtlasDetail } = await import(readerURL);
 const { buildSyntheticAtlas, buildSingleFloorBuildingsAtlas, composeAtlasEnvelope, createAtlasTransport, atlasScenePath, SYNTHETIC_ATLAS, SYNTHETIC_OCCURRENCES,
   SYNTHETIC_ATLAS_DRAWN_PRIMITIVES } = await import(syntheticURL);
 const { bindAtlasModel, presentAtlas, partLifts, levelLift, frameBox, pickOccurrence, planPoint, planPickOccurrence, labelHeight,
@@ -154,6 +154,33 @@ const detailRead = await readUnifiedAtlas({ selection, signal: new AbortControll
 assert.deepEqual(detailCalls, calls.slice(0, 2), 'the detail is never fetched with the scene');
 assert.equal(detailRead.scene.detail.href, detailHref);
 assert.deepEqual(Buffer.from(detailRead.model), Buffer.from(glb));
+
+// Full quality reads the detail on its own, after the scene: one GET of the
+// exact href the scene pins, with the model's length, digest and revision checks.
+const servedDetail = { ...withDetail[1], bytes: glb.byteLength, sha256: composed.sha256,
+  href: composed.href.replace('/artifacts/model?', '/artifacts/model-detail?') };
+const servedEnvelopeBytes = new TextEncoder().encode(JSON.stringify({ ...composed.envelope, artifacts: [withDetail[0], servedDetail] }));
+const readDetail = async (served, sceneOf = detailScene) => {
+  const urls = [];
+  const transport = createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(scope), envelopeBytes: servedEnvelopeBytes,
+    href: composed.href, glb, sha256: composed.sha256, manifestSha256: composed.manifestSha256, revision: SYNTHETIC_ATLAS.revision,
+    detail: { href: servedDetail.href, glb: served, sha256: composed.sha256 }, onRequest: url => urls.push(url) });
+  const bytes = await readUnifiedAtlasDetail({ selection, scene: sceneOf, signal: new AbortController().signal, origin: SYNTHETIC_ATLAS.origin,
+    isCurrent: () => true, transport });
+  return { bytes, urls };
+};
+const detailScene = (await readUnifiedAtlas({ selection, signal: new AbortController().signal, origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true,
+  transport: createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(scope), envelopeBytes: servedEnvelopeBytes,
+    href: composed.href, glb, sha256: composed.sha256, manifestSha256: composed.manifestSha256, revision: SYNTHETIC_ATLAS.revision }) })).scene;
+const fullRead = await readDetail(glb);
+assert.deepEqual(fullRead.urls, [`${SYNTHETIC_ATLAS.origin}${servedDetail.href}`], 'only the detail is fetched');
+assert.deepEqual(Buffer.from(fullRead.bytes), Buffer.from(glb));
+const tampered = glb.slice(); tampered[tampered.length - 1] ^= 1;
+await assert.rejects(readDetail(tampered), { reason: 'invalid' }, 'bytes that miss the pinned digest are refused');
+await assert.rejects(readDetail(glb.slice(1)), { reason: 'unavailable' }, 'a short body is refused');
+await assert.rejects(readDetail(glb, read.scene), { reason: 'absent' }, 'a scene without a detail has nothing to read');
+await assert.rejects(readDetail(glb, { ...detailScene, detail: { ...detailScene.detail, href: composed.href } }), { reason: 'invalid' },
+  'only the detail route is read');
 
 // Admission-only projection at the 4,096-occurrence bound: four differently
 // ordered room/non-room feature references each, plus an empty occurrence and

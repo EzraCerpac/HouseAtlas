@@ -8,7 +8,7 @@ import { useReducedMotion, useStore } from '../state/store';
 import { useEased } from '../atlas/useCamera';
 import { BIRCH, BIRCH_DARK, CARD, LANTERN } from '../atlas/palette';
 import { frameZoomMinimum, makeProjection, relativePath, type DrawRules, type Projection, type Viewport } from '../canonical-ifc/geometry';
-import { GlbFormatError } from '../canonical-ifc/glb-preflight';
+import { DETAIL_GLB_LIMITS, GlbFormatError } from '../canonical-ifc/glb-preflight';
 import { MeshLayer, RENDER_LIMITS, type MeshPalette } from '../canonical-ifc/MeshLayer';
 import { useStageCamera, type StageFraming } from '../canonical-ifc/useStageCamera';
 import { TONE_COLOR, badgeFill, toneTint } from '../canonical-ifc/tones';
@@ -29,6 +29,7 @@ import { documentaryOverlayIndex, type BuildingCoverage, type DocumentaryRecord,
 import { edgeSpans, estimatedOccurrences, MEASUREMENT_BASIS, placeLabels, roomArea } from './measurements';
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
 import { modelUpdatesAllowed, useModelUpdates } from './model-updates';
+import { fullModelWanted, useModelQuality } from './model-quality';
 import { NetworkGraph } from './NetworkGraph';
 import { LayerDetailsDock, useLayerDetailsFocus, useShortLayerDetails } from './LayerDetailsDock';
 import { NetworkStageConnections, networkRoomConnections } from './NetworkStageConnections';
@@ -50,6 +51,10 @@ type Outcome = { readonly status: 'ready'; readonly model: AtlasModel; readonly 
   /** Downloads wait for the user and nothing is stored on this device yet. */
   | { readonly status: 'held' };
 interface Loaded { readonly selection: AtlasPresentationSelection; readonly attempt: number; readonly outcome: Outcome }
+/** The Full tier for one Light model on screen: loading, swapped in, or kept on Light after a failure. */
+interface Detail { readonly light: AtlasModel; readonly model: AtlasModel | null; readonly failed: boolean }
+/** What the stage says about the Full tier while it applies. */
+export type DetailStatus = 'loading' | 'full' | 'failed';
 
 const FAILURE: Record<AtlasReadFailure, { readonly text: string; readonly retry: string | null }> = {
   absent: { text: 'No room map is published for this model yet.', retry: null },
@@ -223,6 +228,39 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
     return () => controller.abort();
   }, [port, selection, attempt, asked]);
 
+  // Full quality: once a fresh Light model is on screen, the publication's
+  // detail model loads behind it and replaces it with the same selectors, so
+  // the view, selection and floors stay as they are. A stored copy, a held
+  // download or a failure keeps Light.
+  const quality = useModelQuality();
+  const fresh = loaded?.selection === selection && loaded.outcome.status === 'ready' && !loaded.outcome.stored ? loaded.outcome.model : null;
+  const wantsFull = fresh !== null && fresh.scene.detail !== null && port.kind === 'live' && port.readDetail !== undefined
+    && selection?.kind === 'live' && fullModelWanted(quality);
+  const [detail, setDetail] = useState<Detail | null>(null);
+  useEffect(() => {
+    if (!wantsFull || port.kind !== 'live' || !port.readDetail || selection?.kind !== 'live') return;
+    const light = fresh, controller = new AbortController(), signal = controller.signal;
+    setDetail({ light, model: null, failed: false });
+    void (async () => {
+      try {
+        const bytes = await port.readDetail!(selection, light.scene, signal);
+        const { loadStandardGlb } = await import('../canonical-ifc/standard-glb');
+        signal.throwIfAborted();
+        const glb = await loadStandardGlb(bytes, 'atlas', signal, admission => {
+          if ((admission.work.gpuBytes ?? admission.work.triangles * PREPARED_BYTES_PER_TRIANGLE) > RENDER_LIMITS.detailUploadBytes) throw new AtlasReadError('too-large');
+        }, { embeddedPngMaterials: true, limits: DETAIL_GLB_LIMITS });
+        signal.throwIfAborted();
+        const model = bindAtlasModel(light.scene, glb);
+        if (!signal.aborted) setDetail({ light, model, failed: false });
+      } catch { if (!signal.aborted) setDetail({ light, model: null, failed: true }); }
+    })();
+    return () => controller.abort();
+    // The Light model identifies the read; the selection and port come with it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantsFull, fresh]);
+  const full = wantsFull && detail?.light === fresh ? detail : null;
+  const keepLight = useCallback(() => setDetail(value => value && { ...value, model: null, failed: true }), []);
+
   if (!selection) return <section className="ua-shell" aria-label="Atlas"><p className="ua-state" role="status">No model is selected.</p>
     <LensStatus lens={environment.lens}>No model is selected, so no model rooms or network graph are shown.</LensStatus></section>;
   // A retry keeps a stored copy on screen while it runs.
@@ -253,8 +291,12 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
     </section>;
   }
   const stored = outcome.stored && (loaded!.attempt === attempt ? outcome.stored : { ...outcome.stored, refresh: 'pending' as const });
-  return <AtlasStage key={memoryKey(outcome.model, selection)} model={outcome.model} port={port} selection={selection} entryBuildingId={outcome.entryBuildingId}
-    otherSources={otherSources ?? []} environment={environment} {...(stored ? { stored, retry: ask } : {})} />;
+  const shown = full?.light === outcome.model && full.model ? full.model : outcome.model;
+  const detailStatus: DetailStatus | null = full?.light !== outcome.model ? null : full.model ? 'full' : full.failed ? 'failed' : 'loading';
+  // Same scene, so the same view-state key: the Full model takes over the Light stage in place.
+  return <AtlasStage key={memoryKey(outcome.model, selection)} model={shown} port={port} selection={selection} entryBuildingId={outcome.entryBuildingId}
+    otherSources={otherSources ?? []} environment={environment} {...(stored ? { stored, retry: ask } : {})}
+    {...(detailStatus ? { detail: detailStatus, keepLight } : {})} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -458,9 +500,11 @@ interface StageMarker extends CountMarker {
   readonly context: boolean;
 }
 
-function AtlasStage({ model, port, selection, entryBuildingId, otherSources, environment, stored, retry }: { readonly model: AtlasModel; readonly port: AtlasPresentationPort;
+function AtlasStage({ model, port, selection, entryBuildingId, otherSources, environment, stored, retry, detail, keepLight }: { readonly model: AtlasModel; readonly port: AtlasPresentationPort;
   readonly selection: AtlasPresentationSelection; readonly entryBuildingId: string | null | undefined; readonly otherSources: readonly OtherSource[]; readonly environment: AtlasPresentationEnvironment;
-  readonly stored?: StoredCopy; readonly retry?: () => void }) {
+  readonly stored?: StoredCopy; readonly retry?: () => void;
+  /** The Full tier's state; with 'full', a 3D failure goes back to Light through `keepLight`. */
+  readonly detail?: DetailStatus; readonly keepLight?: () => void }) {
   const archive = environment.archive;
   const reduced = environment.reducedMotion;
   const key = memoryKey(model, selection);
@@ -1282,6 +1326,11 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
             {retry && <button type="button" className="btn btn-small btn-quiet" onClick={retry}>Try again</button>}
           </>}
         </p>}
+        {(detail === 'loading' || detail === 'failed') && <p className="ua-snapshot-note ua-detail-note" role="status" aria-busy={detail === 'loading'}>
+          <Icon name="atlas" size={15} />
+          <span className="ua-snapshot-kind">{detail === 'loading' ? 'Loading full detail' : 'Full detail unavailable'}</span>
+          <span>{detail === 'loading' ? 'the lighter model is shown meanwhile' : 'showing the lighter model'}</span>
+        </p>}
         {showBack && <button type="button" className="chip-btn ua-back" onClick={out} aria-label={`Back to ${backTo}`}>
           <Icon name="back" size={15} /><span>{backTo}</span></button>}
         {/* Compact: one chooser names the current building and opens the list below it. */}
@@ -1384,7 +1433,8 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
             selectedOccurrenceId={selected} contextOccurrenceIds={context} tints={tints} hidden={!showCanvas}
             hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} sourceColors sourceMaterials sourceDim={ATLAS_SOURCE_DIM} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE} light={light} pitch={ATLAS_PITCH}
             pitchKeys={roofKeys} site={site} ghostAlpha={ATLAS_GHOST_ALPHA}
-            onUnavailable={message => setFailure(message)} />
+            uploadBytes={detail === 'full' ? RENDER_LIMITS.detailUploadBytes : RENDER_LIMITS.uploadBytes}
+            onUnavailable={message => { if (detail === 'full' && keepLight) keepLight(); else setFailure(message); }} />
         </div>
         <svg className="cifc-svg" width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`} aria-hidden="true">
           {planes.map(row => <polygon key={row.key} className="ua-section" points={row.points} style={{ opacity: row.opacity }} />)}

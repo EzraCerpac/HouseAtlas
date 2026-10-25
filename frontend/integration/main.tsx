@@ -488,6 +488,15 @@ const sourceModels: SourceModelPort = {
           origin: window.location.origin, isCurrent: () => currentOverview() === selection, cache: atlasCache(selection) });
       } finally { unsubscribe(); }
     },
+    async readDetail(selection, scene, signal) {
+      const controller = new AbortController();
+      const unsubscribe = subscribeOverview(() => { if (currentOverview() !== selection) controller.abort(); });
+      try {
+        const reader = await import('./unified-atlas-reader');
+        return await reader.readUnifiedAtlasDetail({ selection, scene, signal: AbortSignal.any([signal, controller.signal]),
+          origin: window.location.origin, isCurrent: () => currentOverview() === selection });
+      } finally { unsubscribe(); }
+    },
     async stored(selection, signal) {
       const reader = await import('./unified-atlas-reader');
       // The fresh read waits on this display-only path, so storage that is slow to open is skipped.

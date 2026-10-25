@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import type { PreparedMesh, Projection } from './geometry';
 import { materialGpuResources, RENDER_LIMITS } from './gpu-budget';
 import type { AppearanceInput } from './mesh-appearance';
@@ -12,6 +12,8 @@ interface Props extends AppearanceInput {
   readonly projection: Projection;
   readonly hidden: boolean;
   readonly onUnavailable: (message: string) => void;
+  /** GPU upload budget for this mesh set; RENDER_LIMITS.uploadBytes unless the host admitted a larger tier. */
+  readonly uploadBytes?: number;
 }
 
 /** Whether this browser offers any 3D drawing API the renderer can use. */
@@ -30,8 +32,19 @@ const meshSetId = (meshes: readonly PreparedMesh[]) => {
 
 /** Shared-frame orthographic 3D layer, drawn by three.js on WebGPU (WebGL2
  * where WebGPU is unavailable). Draws on demand only; owns and releases every
- * GPU object, listener and frame callback it creates. */
+ * GPU object, listener and frame callback it creates. A new mesh set builds on
+ * its own canvas behind the one on screen, which stays until the new scene is
+ * ready, so swapping in a more detailed model never blanks the view. */
 export function MeshLayer(props: Props) {
+  const [shown, setShown] = useState<readonly PreparedMesh[] | null>(null);
+  const wanted = useRef(props.meshes); wanted.current = props.meshes;
+  const ready = useCallback((meshes: readonly PreparedMesh[]) => { if (wanted.current === meshes) setShown(meshes); }, []);
+  const sets = shown !== null && shown !== props.meshes ? [shown, props.meshes] : [props.meshes];
+  return <>{sets.map(meshes => <MeshCanvas key={meshSetId(meshes)} {...props} meshes={meshes}
+    building={meshes !== (shown ?? meshes)} onReady={ready} />)}</>;
+}
+
+function MeshCanvas(props: Props & { readonly building: boolean; readonly onReady: (meshes: readonly PreparedMesh[]) => void }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const latest = useRef(props); latest.current = props;
   const redraw = useRef<(() => void) | null>(null);
@@ -74,17 +87,19 @@ export function MeshLayer(props: Props) {
     };
     document.addEventListener('visibilitychange', visibility);
     const resize = new ResizeObserver(schedule); resize.observe(element);
-    try { materialGpuResources(props.meshes, usesMaterials); } catch { fail('The 3D model cannot be rendered.'); }
+    try { materialGpuResources(props.meshes, usesMaterials, props.uploadBytes); } catch { fail('The 3D model cannot be rendered.'); }
     if (!disposed) {
       void import('./mesh-scene').then(({ createMeshScene }) => createMeshScene(element, props.meshes, usesMaterials, lost)).then(created => {
         if (disposed) { created.dispose(); return; }
         scene = created; stale.current = true; element.dataset.renderer = created.backend;
-        redraw.current = schedule; schedule();
+        redraw.current = schedule; schedule(); latest.current.onReady(props.meshes);
       }, () => fail(drawable() ? 'The 3D model cannot be rendered.' : 'This browser cannot draw the 3D model. Update the browser to view it.'));
     }
     return () => { release(); resize.disconnect(); document.removeEventListener('visibilitychange', visibility); };
     // The GPU scene is owned by one prepared mesh set; other props redraw only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
-  return <canvas key={key} ref={canvas} className="cifc-canvas" hidden={props.hidden} aria-hidden="true" />;
+  // A canvas still building keeps its layout size, so it draws at full size before it is shown.
+  return <canvas key={key} ref={canvas} className="cifc-canvas" hidden={props.hidden} aria-hidden="true"
+    style={props.building ? { visibility: 'hidden' } : undefined} />;
 }

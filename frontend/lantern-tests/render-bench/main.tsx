@@ -77,8 +77,30 @@ function house(): MeshInput[] {
   return meshes;
 }
 
+/** Swaps in a second prepared set, as a Full model replaces Light, and records
+ * the fewest canvases on screen at any moment until the new set is shown alone. */
+function watchSwap(root: HTMLElement) {
+  const visible = () => [...root.querySelectorAll('canvas')].filter(canvas => !canvas.hidden && canvas.style.visibility !== 'hidden').length;
+  const report = { fewestVisible: visible(), mostCanvases: root.querySelectorAll('canvas').length, done: false };
+  const observer = new MutationObserver(() => {
+    report.fewestVisible = Math.min(report.fewestVisible, visible());
+    report.mostCanvases = Math.max(report.mostCanvases, root.querySelectorAll('canvas').length);
+    const canvases = root.querySelectorAll('canvas');
+    if (report.mostCanvases > 1 && canvases.length === 1 && visible() === 1) { report.done = true; observer.disconnect(); }
+  });
+  observer.observe(root, { subtree: true, childList: true, attributes: true });
+  return report;
+}
+
 function Bench() {
-  const meshes = useMemo(() => prepareMeshes(house()), []);
+  const [generation, setGeneration] = useState(0);
+  // Each generation is a new prepared set of the same house.
+  const meshes = useMemo(() => prepareMeshes(house()), [generation]);
+  useEffect(() => {
+    (window as unknown as { swap: () => unknown }).swap = () => {
+      const report = watchSwap(document.getElementById('root')!); setGeneration(value => value + 1); return report;
+    };
+  }, []);
   const bounds = useMemo(() => {
     const min: [number, number, number] = [Infinity, Infinity, Infinity], max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
     for (const m of meshes) for (let a = 0; a < 3; a++) { min[a] = Math.min(min[a]!, m.bounds.min[a]!); max[a] = Math.max(max[a]!, m.bounds.max[a]!); }
@@ -111,7 +133,9 @@ function Bench() {
         renderer: document.querySelector('canvas')?.dataset.renderer, triangles: meshes.reduce((s, m) => s + m.triangles, 0), pieces: meshes.length };
     }, 40);
     return () => clearInterval(id);
-  }, [meshes]);
+    // Measured once, on the first set.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return <><output>{failure}</output>
     <MeshLayer meshes={meshes} projection={projection} rules={RULES} currentFloorId="L1" selectedOccurrenceId={selected}
       contextOccurrenceIds={CONTEXT} tints={TINTS} hidden={false} sourceColors sourceDim={.6} ambient={.55}

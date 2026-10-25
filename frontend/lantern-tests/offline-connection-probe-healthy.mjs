@@ -47,6 +47,31 @@ delete connection.saveData;
 updates.setModelUpdates('ask');
 assert.equal(updates.readModelUpdates(), 'ask');
 assert.equal(updates.modelUpdatesAllowed(), false);
+// Model quality: Auto loads the detail model only on a WebGPU desktop that
+// reports neither low memory, mobile data nor Data Saver; any device may choose Full.
+const pointers = { '(pointer: fine)': true, '(any-pointer: coarse)': false };
+globalThis.matchMedia = query => ({ matches: pointers[query] ?? false });
+const quality = await import(await sourceURL('../src/lantern/unified-atlas/model-quality.ts'));
+assert.equal(quality.readModelQuality(), 'auto');
+assert.equal(quality.autoPrefersFull(), false, 'no WebGPU, no Full');
+navigator.gpu = {};
+assert.equal(quality.autoPrefersFull(), true);
+assert.equal(quality.fullModelWanted('auto'), true);
+assert.equal(quality.fullModelWanted('light'), false);
+pointers['(any-pointer: coarse)'] = true;
+assert.equal(quality.autoPrefersFull(), false, 'a touch screen stays Light');
+pointers['(any-pointer: coarse)'] = false; navigator.deviceMemory = 4;
+assert.equal(quality.autoPrefersFull(), false, 'reported memory under 8 GB stays Light');
+navigator.deviceMemory = 8; connection.type = 'cellular';
+assert.equal(quality.autoPrefersFull(), false, 'mobile data stays Light');
+delete connection.type; connection.saveData = true;
+assert.equal(quality.autoPrefersFull(), false, 'Data Saver stays Light');
+delete connection.saveData; delete navigator.gpu;
+assert.equal(quality.fullModelWanted('full'), true, 'an explicit Full needs no hints');
+quality.setModelQuality('light');
+assert.equal(quality.readModelQuality(), 'light');
+storage.set('houseatlas.model-quality.v1', 'ultra');
+assert.equal(quality.readModelQuality(), 'auto', 'an unknown stored value is the default');
 globalThis.localStorage = { getItem() { throw new Error('Generated storage denied'); }, setItem() { throw new Error('Generated storage denied'); } };
 assert.equal(updates.readModelUpdates(), 'automatic', 'unavailable storage leaves the default');
 // An explicit download or retry authorizes only the selection it was asked for.
@@ -61,4 +86,4 @@ const host = readFileSync(new URL('../src/offline/SavedAtlasHost.tsx', import.me
 const rootWorker = readFileSync(new URL('../build/root-offline-worker-source.js', import.meta.url), 'utf8');
 assert.ok(host.includes("const LIVE_ENTRY = '/?live';") && host.includes('href={LIVE_ENTRY}'));
 assert.ok(rootWorker.includes('|| url.search ||'), 'the root worker passes query-qualified entries through');
-console.log('PASS live-host probe and room map download preference');
+console.log('PASS live-host probe, room map download and model quality preferences');
