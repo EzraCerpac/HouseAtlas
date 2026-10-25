@@ -74,9 +74,12 @@ try {
   browser = spawn(chromium, ['--headless=new', '--enable-experimental-web-platform-features', '--enable-features=WebMCP', '--no-sandbox', '--disable-gpu', '--remote-debugging-pipe', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-features=MediaRouter,OptimizationHints', '--ignore-certificate-errors', '--user-data-dir=' + join(scratch, 'browser'), 'about:blank'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
   cdp = new Pipe(browser);
   const version = await cdp.send('Browser.getVersion');
-  // Both inspected release IDLs take DOMString input_arguments. A browser
-  // version change requires source inspection before this ordinary flow runs.
-  assert(['Chrome/151.0.7922.173', 'Chrome/154.0.8037.57', 'Chrome/154.0.8037.97', 'Chrome/154.0.8037.98'].includes(version.product), 'Inspected native WebMCP browser version');
+  // Exact source-inspected native executeTool input forms: the 151/154 IDLs take
+  // DOMString JSON text; inspected 155.0.8059.39/.84 take a structured object. Any other
+  // version requires source inspection before this ordinary flow runs.
+  const nativeInputForm = new Map([['Chrome/151.0.7922.173', 'json-text'], ['Chrome/154.0.8037.57', 'json-text'], ['Chrome/154.0.8037.97', 'json-text'],
+    ['Chrome/154.0.8037.98', 'json-text'], ['Chrome/155.0.8059.39', 'object'], ['Chrome/155.0.8059.84', 'object']]).get(version.product);
+  assert(nativeInputForm, 'Inspected native WebMCP browser version');
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params) => cdp.send(method, params, sessionId);
@@ -156,7 +159,7 @@ try {
   assert.equal(native.getTools,'function','Actual document WebMCP discovery');
   await until(async()=>await evaluate("document.modelContext.getTools().then(tools=>tools.some(tool=>tool.name==='atlas_records'))"),'Actual admitted list registration');
   const request={schemaVersion:3,commandId:'atlas.identity.list',requestId:'00000000-0000-4000-8000-000000002200',context:view.scope,target:{authority:'atlas',recordType:'identity'},payload:{pageSize:1,cursor:result.first.data.nextCursor,includeArchived:false}};
-  const second=await evaluate(`(async()=>{const tools=await document.modelContext.getTools();const tool=tools.find(tool=>tool.name==='atlas_records');const value=await document.modelContext.executeTool(tool,${JSON.stringify(JSON.stringify(request))});const wire=typeof value==='string'?JSON.parse(value):value;return {wire,visible:document.querySelector('.stock-completion pre')?.textContent,tools:tools.map(tool=>tool.name)};})()`);
+  const second=await evaluate(`(async()=>{const tools=await document.modelContext.getTools();const tool=tools.find(tool=>tool.name==='atlas_records');const value=await document.modelContext.executeTool(tool,${nativeInputForm === 'object' ? JSON.stringify(request) : JSON.stringify(JSON.stringify(request))});const wire=typeof value==='string'?JSON.parse(value):value;return {wire,visible:document.querySelector('.stock-completion pre')?.textContent,tools:tools.map(tool=>tool.name)};})()`);
   assert.equal(second.wire.requestId,request.requestId);
   assert.equal(second.wire.commandId,request.commandId);
   assert.equal(second.wire.status,'read');
