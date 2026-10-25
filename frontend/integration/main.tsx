@@ -16,7 +16,7 @@ import { createQuantityClient } from "./quantity-client";
 import { createPinnedFileClient } from "./pinned-file-client";
 import { createNativePlaceClient } from "../src/api/native-place-client";
 import { classificationRequest, kindLabel } from "../src/app/editing";
-import { getOutbox } from "../src/outbox";
+import { getOutbox, type OutboxEntry } from "../src/outbox";
 import { PLACE_CLASSIFICATION, PLACE_NAME } from "../src/outbox/kinds";
 import { createTopologyClient } from "../src/api/topology-client";
 import { createNetworkRelationsClient } from "../src/api/network-relations-client";
@@ -300,15 +300,18 @@ function configureOutbox(): void {
   outbox.configure(currentSession && currentQuantityScope ? { actorId: currentSession.actorId, csrfToken: currentSession.csrfToken,
     workspaceId: currentQuantityScope.workspaceId, homeId: currentQuantityScope.homeId } : null);
 }
-const placeAdmission = async (source: string, signal: AbortSignal) => {
-  const admission = await editing.loadPlace(JSON.parse(source), signal);
+// A source whose link was moved to another place meanwhile does not carry
+// the queued edit along: that place is edited on its own.
+const placeAdmission = async (entry: OutboxEntry, signal: AbortSignal) => {
+  const admission = await editing.loadPlace(JSON.parse(entry.intent.source!), signal);
   if (!admission?.canReplaceClassification) throw new Error("This place can no longer be edited");
+  if (admission.record.recordId !== entry.target.recordId) throw new Error("This now points to a different place; edit that place on its own");
   return admission;
 };
 outbox.register(PLACE_CLASSIFICATION, {
-  current: async (entry, signal) => kindLabel((await placeAdmission(entry.intent.source!, signal)).record.payload.semanticKind),
+  current: async (entry, signal) => kindLabel((await placeAdmission(entry, signal)).record.payload.semanticKind),
   async rebase(entry, signal) {
-    const request = classificationRequest(await placeAdmission(entry.intent.source!, signal),
+    const request = classificationRequest(await placeAdmission(entry, signal),
       entry.intent.semanticKind as Parameters<typeof classificationRequest>[1], entry.intent.reason!);
     return { requestId: request.requestId, body: JSON.stringify(request), label: entry.label };
   },

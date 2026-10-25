@@ -115,19 +115,22 @@ export function createOutbox(options: OutboxOptions): Outbox {
   /** One pass over the queue, oldest first. A refused entry holds back later
    * edits to the same record until the person decides; an unreachable server
    * ends the pass and leaves everything queued as it was. */
-  async function pass(active: OutboxContext, scope: Scope): Promise<void> {
+  async function pass(active: OutboxContext, requested: Scope | null, retry: boolean): Promise<void> {
     const rows = await store.list();
     adopt(rows);
     // Only this person's decisions hold their edits; another account's
     // conflict on a shared browser does not.
     const held = new Set(rows.filter(row => row.state === 'needs-you' && owns(row, active)).map(targetKey));
-    // Earlier edits to a record the person asked to send go first.
-    const targets = scope === 'all' ? null : new Set(rows.filter(row => scope.has(row.id)).map(targetKey));
+    // Earlier edits to a record the person asked to send go first. The rest
+    // go only as an automatic retry, asked again before each send since the
+    // person may choose "When I ask" meanwhile.
+    const targets = requested === 'all' ? null : new Set(rows.filter(row => requested?.has(row.id)).map(targetKey));
+    const wanted = (row: OutboxEntry) => !targets || targets.has(targetKey(row)) || (retry && syncMode() !== 'ask');
     const background: OutboxEntry[] = [];
     try {
       for (const row of rows) {
         if (row.state !== 'waiting' && row.state !== 'sending') continue;
-        if (!owns(row, active) || held.has(targetKey(row)) || (targets && !targets.has(targetKey(row)))) continue;
+        if (!owns(row, active) || held.has(targetKey(row)) || !wanted(row)) continue;
         if (context !== active) return;
         const synced = async () => {
           const done = await save({ ...row, state: 'synced', sent: true, problem: null, settledAt: settled() });
@@ -191,10 +194,7 @@ export function createOutbox(options: OutboxOptions): Outbox {
         asked = null; askedBy = null; automatic = false;
         if (!active) break;
         syncing = true; publish();
-        // A retry that waited for another tab's send asks again: the person
-        // may have chosen "When I ask" meanwhile.
-        const scope = () => retry && syncMode() !== 'ask' ? 'all' : requested;
-        try { await lock(async () => { const now = scope(); if (now) await pass(active, now); }); }
+        try { await lock(() => pass(active, requested, retry)); }
         catch { /* Storage failed; queued entries stay as they are. */ }
         finally { syncing = false; publish(); }
       }

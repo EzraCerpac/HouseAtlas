@@ -383,6 +383,24 @@ for (const lateChange of ['sign-out', 'abort']) {
   setSyncMode('automatic');
 }
 
+// Choosing "When I ask" while an automatic retry is sending stops it before
+// the next edit.
+{
+  const disk = createSyntheticDisk(), server = createServer(), outbox = outboxOn(disk, server);
+  server.online = false;
+  outbox.configure(context);
+  const first = await outbox.submit(submission('pantry', 1)), second = await outbox.submit(submission('scullery', 1));
+  server.online = true;
+  const plain = server.transport;
+  server.transport = async (path, init) => { setSyncMode('ask'); return plain(path, init); };
+  await outbox.drain();
+  server.transport = plain;
+  const state = id => outbox.getSnapshot().entries.find(row => row.id === id).state;
+  assert.equal(state(first.id), 'synced'); assert.equal(state(second.id), 'waiting', 'The second edit waits for Send now');
+  assert.equal(server.posts.length, 1);
+  setSyncMode('automatic');
+}
+
 // A Save queued behind another tab's send belongs to its own home: if the
 // person switches to "When I ask" and to another home before its turn, the
 // other home's waiting edits stay put.
@@ -421,4 +439,4 @@ for (const lateChange of ['sign-out', 'abort']) {
   assert.equal(kept.at(-1).target.recordId, `room-${KEEP_SYNCED + 2}`);
   assert.equal(syntheticRecords(disk, OUTBOX_DATABASE, 'entries').length, KEEP_SYNCED);
 }
-console.log(JSON.stringify({ outbox: 'healthy', cases: 18 }));
+console.log(JSON.stringify({ outbox: 'healthy', cases: 19 }));
