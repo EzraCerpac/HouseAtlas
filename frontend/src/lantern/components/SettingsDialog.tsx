@@ -3,9 +3,11 @@ import { formatDate } from '../../app/copy';
 import { AiSettingsSection } from '../../ai/host/index.js';
 import { useStore } from '../state/store';
 import { Modal } from './Modal';
+import { setModelUpdates, useModelUpdates } from '../unified-atlas/model-updates';
 
 export function SettingsDialog() {
   const { state, dispatch, actions } = useStore();
+  const modelUpdates = useModelUpdates();
   const [checking, setChecking] = useState(false);
   const [checkResult, setCheckResult] = useState<'success' | 'failed' | null>(null);
   const close = () => dispatch({ type: 'settingsOpen', open: false });
@@ -47,6 +49,33 @@ export function SettingsDialog() {
         <div className="field">
           <AiSettingsSection />
         </div>
+
+        <fieldset className="field">
+          <legend>Room map downloads</legend>
+          <div className="seg" role="radiogroup" aria-label="Room map downloads">
+            {([['automatic', 'Automatic'], ['ask', 'When I ask']] as const).map(([value, label]) => (
+              <button key={value} type="button" role="radio" aria-checked={modelUpdates === value}
+                tabIndex={modelUpdates === value ? 0 : -1}
+                onKeyDown={(event) => {
+                  const values = ['automatic', 'ask'] as const;
+                  const current = values.indexOf(value);
+                  const next = event.key === 'Home' ? 0 : event.key === 'End' ? values.length - 1
+                    : event.key === 'ArrowRight' || event.key === 'ArrowDown' ? (current + 1) % values.length
+                    : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? (current + values.length - 1) % values.length : -1;
+                  if (next < 0) return;
+                  event.preventDefault();
+                  setModelUpdates(values[next]!);
+                  event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus();
+                }}
+                onClick={() => setModelUpdates(value)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="setting-static">{modelUpdates === 'ask'
+            ? 'The stored copy opens; the model downloads only when you choose Check for update.'
+            : 'Checks for a newer model on each open, except on mobile data where the browser reports it.'}</p>
+        </fieldset>
 
         <fieldset className="field">
           <legend>Motion</legend>

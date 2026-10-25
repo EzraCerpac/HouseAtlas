@@ -56,7 +56,7 @@ function generatedBuild(version) {
 function workerRuntime(build, kind, storage, wire) {
   const listeners = new Map(), calls = [], imports = [];
   let skipped = 0, claimed = 0;
-  const context = vm.createContext({ URL, Response, Map, Uint8Array, crypto: webcrypto, caches: storage,
+  const context = vm.createContext({ URL, Response, Map, Uint8Array, crypto: webcrypto, caches: storage, setTimeout, clearTimeout,
     fetch: async (input, init) => { calls.push({ input, init }); return wire(input, init); },
     self: { location: { origin }, skipWaiting: async () => { skipped++; }, clients: { claim: async () => { claimed++; } },
       addEventListener(type, listener) { const rows = listeners.get(type) ?? []; rows.push(listener); listeners.set(type, rows); } },
@@ -177,6 +177,18 @@ try {
   }
   assert.equal(offline.calls.length, 2);
   for (const call of offline.calls) assert.deepEqual(JSON.parse(JSON.stringify(call.init)), { cache: 'no-store' });
+  // A host that accepts the connection but never answers is unavailable too.
+  const hung = workerRuntime(first, 'root', storage, () => new Promise(() => {}));
+  const started = Date.now(), handoff = await hung.fetchEvent(request('/'));
+  assert.equal(handoff.status, 302); assert.equal(handoff.headers.get('location'), origin + '/saved/index.html');
+  assert.ok(Date.now() - started < 3_000, 'a silent host hands off within the navigation budget');
+  cases.push('silent-root-host-hands-off-to-saved');
+  // Saved verification that throws is no handoff: a slow host's answer still arrives.
+  const slowAnswer = new Response('generated slow native root');
+  const unverifiable = workerRuntime(first, 'root', { open: async () => { throw new Error('Generated storage failure'); } },
+    () => new Promise(resolve => setTimeout(resolve, 2_500, slowAnswer)));
+  assert.equal(await unverifiable.fetchEvent(request('/')), slowAnswer);
+  cases.push('slow-root-host-without-verified-saved-keeps-network-answer');
   const savedRuntime = savedRegistration.active.runtime;
   const savedResponse = await savedRuntime.fetchEvent(request('/saved/index.html'));
   assert.equal(await savedResponse.text(), await first.responses.get('/saved/index.html').clone().text());
