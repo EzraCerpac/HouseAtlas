@@ -1,4 +1,4 @@
-import { lazy, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { lazy, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useReducedMotion, useStore, type ViewId } from './state/store';
 import { Icon } from './components/Icon';
 import { AtlasView } from './atlas/AtlasView';
@@ -10,6 +10,8 @@ import { SourceDetails } from './components/SourceDetails';
 import { SearchPalette } from './components/SearchPalette';
 import { SettingsDialog } from './components/SettingsDialog';
 import { SyncStatus } from '../outbox/ui';
+import { useOutboxSynced } from '../outbox/index.ts';
+import { PLACE_CLASSIFICATION } from '../outbox/kinds.ts';
 import { Modal } from './components/Modal';
 import { ShellMenu } from './components/ShellMenu';
 import { attentionCount } from './components/DetailPanel';
@@ -117,8 +119,12 @@ function Toasts() {
   );
 }
 
+const classificationKinds = [PLACE_CLASSIFICATION];
+
 export function App() {
-  const { state, dispatch, house } = useStore();
+  const { state, dispatch, house, actions } = useStore();
+  const reloadSaved = useCallback(() => { void actions.reload(); }, [actions]);
+  useOutboxSynced(classificationKinds, reloadSaved);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [homesOpen, setHomesOpen] = useState(false);
   // The strip's own tools, where the phone menu hands focus when it is hidden.

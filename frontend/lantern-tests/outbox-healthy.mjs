@@ -19,12 +19,13 @@ const commands = '/api/atlas/stock/v3/workspaces/w1/homes/h1/commands';
 /** A generated server: one revision per record, permanent idempotency keys,
  * refusal of an identical resend, and the retained-intent lookup. */
 function createServer() {
-  const server = { revisions: new Map(), keys: new Map(), posts: [], online: true, loseReplies: 0, status: null };
+  const server = { revisions: new Map(), keys: new Map(), posts: [], online: true, loseReplies: 0, status: null, lookupStatus: null };
   server.transport = async (path, init) => {
     if (!server.online) throw new TypeError('Generated network unavailable');
     assert.equal(init.headers['X-Atlas-CSRF'], 'csrf-1');
     const body = JSON.parse(init.body);
     if (path === '/api/atlas/retained-intent') {
+      if (server.lookupStatus) return Response.json({ code: 'GENERATED' }, { status: server.lookupStatus });
       const committed = server.keys.has(body.idempotencyKey);
       return Response.json({ lookupRequestId: body.requestId, inspection: { commandId: body.commandId,
         outcome: committed ? 'retained-commit' : 'not-retained-at-snapshot' } });
@@ -68,16 +69,21 @@ function outboxOn(disk, server, extra = {}) {
 // Offline: the edit waits, then goes out on reconnect after a lookup.
 {
   const disk = createSyntheticDisk(), server = createServer(), outbox = outboxOn(disk, server);
+  const background = [];
+  outbox.onSynced(entries => background.push(entries.map(row => row.label)));
   outbox.configure(context);
+  await outbox.submit(submission('barn', 1, 'Rename Barn'));
+  assert.deepEqual(background, [], 'A Save that syncs at once refreshes its own view');
   server.online = false;
   const entry = await outbox.submit(submission('shed', 1, 'Rename Schuur to Werkplaats'));
   assert.equal(entry.state, 'waiting'); assert.equal(entry.sent, true, 'A failed dispatch counts as possibly sent');
   assert.equal(outbox.getSnapshot().waiting, 1);
   server.online = true;
   await outbox.drain();
-  const [stored] = outbox.getSnapshot().entries;
-  assert.equal(stored.state, 'synced'); assert.equal(server.posts.length, 1);
+  const stored = outbox.getSnapshot().entries.at(-1);
+  assert.equal(stored.state, 'synced'); assert.equal(server.posts.length, 2);
   assert.equal(stored.label, 'Rename Schuur to Werkplaats');
+  assert.deepEqual(background, [['Rename Schuur to Werkplaats']], 'A change synced on reconnect tells the views once');
 }
 
 // A lost reply: the server committed, the lookup says so, nothing is resent.
@@ -127,6 +133,7 @@ function outboxOn(disk, server, extra = {}) {
   assert.equal(state(behind.id).state, 'waiting', 'An edit queued behind a conflict on the same record waits');
   assert.equal(state(other.id).state, 'synced', 'Other records are not held up');
   assert.equal(outbox.getSnapshot().needsYou, 1);
+  assert.equal(outbox.canKeepMine(stale.id), false, 'Keep mine needs this app to know the kind');
 
   // Keep mine: prepared again against the current revision, with a new key.
   outbox.register('place-name', {
@@ -136,6 +143,7 @@ function outboxOn(disk, server, extra = {}) {
       return { requestId, label: entry.label, body: JSON.stringify({ commandId: entry.commandId, requestId, idempotencyKey: `k${counter}`, target: 'garage', base: server.revisions.get('garage') }) };
     },
   });
+  assert.equal(outbox.canKeepMine(stale.id), true);
   assert.equal(await outbox.current(stale.id, AbortSignal.timeout(1000)), 'Werkplaats (changed elsewhere)');
   await outbox.keepMine(stale.id, AbortSignal.timeout(1000));
   assert.equal(state(stale.id).state, 'synced'); assert.equal(server.revisions.get('garage'), 3);
@@ -152,6 +160,24 @@ for (const [status, problem] of [[403, 'denied'], [404, 'removed'], [422, 'rejec
   server.status = status;
   const entry = await outbox.submit(submission('loft', 1));
   assert.equal(entry.state, 'needs-you'); assert.equal(entry.problem, problem);
+}
+
+// A sent change the server will no longer vouch for asks the person instead
+// of being resent blindly, and does not hold up other records.
+{
+  const disk = createSyntheticDisk(), server = createServer(), outbox = outboxOn(disk, server);
+  outbox.configure(context);
+  server.online = false;
+  const lost = await outbox.submit(submission('pantry', 1));
+  const next = await outbox.submit(submission('larder', 1));
+  server.online = true; server.lookupStatus = 403;
+  await outbox.drain();
+  const state = id => outbox.getSnapshot().entries.find(row => row.id === id);
+  assert.equal(state(lost.id).state, 'needs-you'); assert.equal(state(lost.id).problem, 'unconfirmed');
+  assert.equal(next.sent, false); assert.equal(state(next.id).state, 'synced', 'A never-sent entry behind it goes out');
+  const fresh = await outbox.submit(submission('scullery', 1));
+  assert.equal(fresh.state, 'synced', 'Unconfirmed entries do not block the queue');
+  assert.equal(server.posts.filter(post => post.target === 'pantry').length, 0, 'Nothing is resent blindly');
 }
 
 // Signed out: nothing is lost and the host hears about it.
@@ -178,6 +204,16 @@ for (const [status, problem] of [[403, 'denied'], [404, 'removed'], [422, 'rejec
   assert.equal(server.posts.length, 0);
 }
 
+// One account's unresolved conflict does not hold another account's edits.
+{
+  const disk = createSyntheticDisk(), server = createServer(), outbox = outboxOn(disk, server);
+  outbox.configure(context);
+  server.revisions.set('den', 5);
+  assert.equal((await outbox.submit(submission('den', 1))).state, 'needs-you');
+  outbox.configure({ ...context, actorId: 'a2' });
+  assert.equal((await outbox.submit(submission('den', 5))).state, 'synced');
+}
+
 // "When I ask": reconnecting sends nothing until the person presses Send.
 {
   const disk = createSyntheticDisk(), server = createServer(), outbox = outboxOn(disk, server);
@@ -189,8 +225,20 @@ for (const [status, problem] of [[403, 'denied'], [404, 'removed'], [422, 'rejec
   outbox.configure(context);
   await outbox.drain();
   assert.equal(outbox.getSnapshot().entries[0].state, 'waiting');
+  // Saving another edit sends that one only.
+  const office = await outbox.submit(submission('office', 1));
+  assert.equal(office.state, 'synced');
+  assert.equal(outbox.getSnapshot().entries[0].state, 'waiting', 'An unrelated waiting edit still waits for Send now');
   await outbox.drain({ force: true });
   assert.equal(outbox.getSnapshot().entries[0].state, 'synced');
+  // An edit to a record with an earlier waiting edit sends both, in order.
+  server.online = false;
+  const first = await outbox.submit(submission('porch', 1));
+  server.online = true;
+  const second = await outbox.submit(submission('porch', 2));
+  const state = id => outbox.getSnapshot().entries.find(row => row.id === id);
+  assert.equal(state(first.id).state, 'synced'); assert.equal(state(second.id).state, 'synced');
+  assert.equal(server.revisions.get('porch'), 3);
   setSyncMode('automatic');
 }
 
@@ -204,4 +252,4 @@ for (const [status, problem] of [[403, 'denied'], [404, 'removed'], [422, 'rejec
   assert.equal(kept.at(-1).target.recordId, `room-${KEEP_SYNCED + 2}`);
   assert.equal(syntheticRecords(disk, OUTBOX_DATABASE, 'entries').length, KEEP_SYNCED);
 }
-console.log(JSON.stringify({ outbox: 'healthy', cases: 10 }));
+console.log(JSON.stringify({ outbox: 'healthy', cases: 12 }));

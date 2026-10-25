@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { createOutbox, type Outbox, type OutboxSnapshot } from './outbox.ts';
 import { subscribeSyncMode, syncMode } from './preference.ts';
 import { openOutboxStore } from './store.ts';
@@ -40,4 +40,13 @@ const empty: OutboxSnapshot = { entries: [], waiting: 0, needsYou: 0, syncing: f
 const noop = () => () => {};
 export function useOutbox(outbox: Outbox | null = getOutbox()): OutboxSnapshot {
   return useSyncExternalStore(outbox?.subscribe ?? noop, outbox?.getSnapshot ?? (() => empty), () => empty);
+}
+
+/** Reloads a view when edits of these kinds reach the server in the
+ * background, so a change that synced on reconnect shows up without a reload. */
+export function useOutboxSynced(kinds: readonly string[], reload: () => void, outbox: Outbox = getOutbox()): void {
+  const key = kinds.join('\n');
+  useEffect(() => outbox.onSynced(entries => {
+    if (entries.some(entry => key.split('\n').includes(entry.kind))) reload();
+  }), [key, reload, outbox]);
 }

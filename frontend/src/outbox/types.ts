@@ -30,7 +30,8 @@ export type OutboxState = 'waiting' | 'sending' | 'needs-you' | 'synced';
 /** changed: the record changed elsewhere since the edit. removed: it no
  * longer exists. denied: this account may no longer make the change.
  * rejected: the server refused the change itself. */
-export type OutboxProblem = 'changed' | 'removed' | 'denied' | 'rejected';
+/** unconfirmed: sent, but the server refuses to say whether it arrived. */
+export type OutboxProblem = 'changed' | 'removed' | 'denied' | 'rejected' | 'unconfirmed';
 export interface OutboxOwner {
   readonly actorId: string;
   readonly workspaceId: string;

@@ -51,8 +51,9 @@ export async function sendEntry(entry: OutboxEntry, context: OutboxContext, tran
 
 /** committed: an earlier send arrived. absent: none did, so sending is safe;
  * the permanent idempotency key still rules out a second write if an old send
- * lands late. later: the server could not say. */
-export type LookupOutcome = 'committed' | 'absent' | 'later';
+ * lands late. later: the server could not say now. unconfirmed: it refuses to
+ * say at all (history access gone, home removed, request no longer valid). */
+export type LookupOutcome = 'committed' | 'absent' | 'later' | 'unconfirmed';
 
 /** Asks the server whether it already holds this envelope. Needed before a
  * resend because the server refuses an identical resend instead of replaying
@@ -65,7 +66,10 @@ export async function lookupEntry(entry: OutboxEntry, context: OutboxContext, tr
       headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Atlas-CSRF': context.csrfToken },
       body: entry.body,
     });
-    if (!response.ok) { void response.body?.cancel().catch(() => undefined); return 'later'; }
+    if (!response.ok) {
+      void response.body?.cancel().catch(() => undefined);
+      return [403, 404, 422].includes(response.status) ? 'unconfirmed' : 'later';
+    }
     const value = await response.json() as { lookupRequestId?: unknown; inspection?: { commandId?: unknown; outcome?: unknown } };
     if (value.lookupRequestId !== entry.requestId || value.inspection?.commandId !== entry.commandId) return 'later';
     return value.inspection.outcome === 'retained-commit' ? 'committed'

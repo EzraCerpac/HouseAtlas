@@ -27,6 +27,12 @@ export interface Outbox {
   /** Sends what is waiting. Automatic mode calls this on its own; "When I
    * ask" waits for the person to press Send, which passes force. */
   drain(options?: { force?: boolean }): Promise<void>;
+  /** Whether Keep mine can prepare this entry again here. */
+  canKeepMine(id: string): boolean;
+  /** Entries that reached the server in the background (on reconnect, Send
+   * now or Keep mine), once per pass, so views of those records can reload.
+   * A Save that syncs at once refreshes its own view instead. */
+  onSynced(listener: (entries: readonly OutboxEntry[]) => void): () => void;
   current(id: string, signal: AbortSignal): Promise<string | null>;
   /** Prepares the person's version again against the current record, with a
    * new request identity, and sends it. */
@@ -52,15 +58,20 @@ export interface OutboxOptions {
 export const KEEP_SYNCED = 20;
 
 const targetKey = (entry: OutboxEntry) => `${entry.owner.workspaceId}/${entry.owner.homeId}/${entry.target.recordType}/${entry.target.recordId}`;
+/** Which waiting entries a pass may send: all, or those the person asked
+ * for by saving them in "When I ask" mode. */
+type Scope = 'all' | ReadonlySet<string>;
+
 const owns = (entry: OutboxEntry, context: OutboxContext) => entry.owner.actorId === context.actorId
   && entry.owner.workspaceId === context.workspaceId && entry.owner.homeId === context.homeId;
 
 export function createOutbox(options: OutboxOptions): Outbox {
   const { store, transport = fetch, lookup = (entry, active) => lookupEntry(entry, active, transport), now = Date.now, lock = work => work(), announce = () => {}, signedOut = () => {} } = options;
   const listeners = new Set<() => void>(), kinds = new Map<string, OutboxKind>();
+  const syncedListeners = new Set<(entries: readonly OutboxEntry[]) => void>(), immediate = new Set<string>();
   let entries: OutboxEntry[] = [], context: OutboxContext | null = null, syncing = false, loaded = false;
   let snapshot: OutboxSnapshot = { entries, waiting: 0, needsYou: 0, syncing, loaded };
-  let draining: Promise<void> | null = null, again = false;
+  let draining: Promise<void> | null = null, wanted: Scope | null = null;
 
   function publish(): void {
     snapshot = { entries, syncing, loaded,
@@ -87,56 +98,77 @@ export function createOutbox(options: OutboxOptions): Outbox {
   /** One pass over the queue, oldest first. A refused entry holds back later
    * edits to the same record until the person decides; an unreachable server
    * ends the pass and leaves everything queued as it was. */
-  async function pass(active: OutboxContext): Promise<void> {
+  async function pass(active: OutboxContext, scope: Scope): Promise<void> {
     const rows = await store.list();
     entries = rows; loaded = true; publish();
-    const held = new Set(rows.filter(row => row.state === 'needs-you').map(targetKey));
-    for (const row of rows) {
-      if (row.state !== 'waiting' && row.state !== 'sending') continue;
-      if (!owns(row, active) || held.has(targetKey(row))) continue;
-      if (context !== active) return;
-      if (row.sent) {
-        const found = await lookup(row, active);
-        if (found === 'later') return;
-        if (found === 'committed') {
-          await save({ ...row, state: 'synced', problem: null, settledAt: settled() });
-          continue;
+    // Only this person's decisions hold their edits; another account's
+    // conflict on a shared browser does not.
+    const held = new Set(rows.filter(row => row.state === 'needs-you' && owns(row, active)).map(targetKey));
+    // Earlier edits to a record the person asked to send go first.
+    const targets = scope === 'all' ? null : new Set(rows.filter(row => scope.has(row.id)).map(targetKey));
+    const background: OutboxEntry[] = [];
+    try {
+      for (const row of rows) {
+        if (row.state !== 'waiting' && row.state !== 'sending') continue;
+        if (!owns(row, active) || held.has(targetKey(row)) || (targets && !targets.has(targetKey(row)))) continue;
+        if (context !== active) return;
+        const synced = async () => {
+          const done = await save({ ...row, state: 'synced', sent: true, problem: null, settledAt: settled() });
+          if (!immediate.has(row.id)) background.push(done);
+        };
+        if (row.sent) {
+          const found = await lookup(row, active);
+          if (found === 'later') return;
+          if (found === 'committed') { await synced(); continue; }
+          if (found === 'unconfirmed') {
+            // Resending blindly could repeat a change the server can no longer
+            // vouch for, so the person checks the record and dismisses it.
+            held.add(targetKey(row));
+            await save({ ...row, state: 'needs-you', problem: 'unconfirmed', settledAt: settled() });
+            continue;
+          }
         }
-      }
       // Record the dispatch before it happens: a tab closed mid-send leaves an
       // entry that is looked up before it is sent again.
-      await save({ ...row, state: 'sending', sent: true });
-      const outcome = await sendEntry(row, active, transport);
-      if (outcome.kind === 'committed') {
-        await save({ ...row, state: 'synced', sent: true, problem: null, settledAt: settled() });
-      } else if (outcome.kind === 'problem') {
-        held.add(targetKey(row));
-        await save({ ...row, state: 'needs-you', sent: true, problem: outcome.problem, settledAt: settled() });
-      } else {
-        await save({ ...row, state: 'waiting', sent: true });
-        if (outcome.signedOut) signedOut();
-        return;
+        await save({ ...row, state: 'sending', sent: true });
+        const outcome = await sendEntry(row, active, transport);
+        if (outcome.kind === 'committed') {
+          await synced();
+        } else if (outcome.kind === 'problem') {
+          held.add(targetKey(row));
+          await save({ ...row, state: 'needs-you', sent: true, problem: outcome.problem, settledAt: settled() });
+        } else {
+          await save({ ...row, state: 'waiting', sent: true });
+          if (outcome.signedOut) signedOut();
+          return;
+        }
       }
+      const synced = entries.filter(row => row.state === 'synced');
+      for (const row of synced.slice(0, Math.max(0, synced.length - KEEP_SYNCED))) await remove(row.id);
+    } finally {
+      if (background.length) for (const listener of [...syncedListeners]) listener(background);
     }
-    const synced = entries.filter(row => row.state === 'synced');
-    for (const row of synced.slice(0, Math.max(0, synced.length - KEEP_SYNCED))) await remove(row.id);
   }
-  async function drain({ force = false } = {}): Promise<void> {
+  async function drain({ force = false, only }: { force?: boolean; only?: string } = {}): Promise<void> {
     if (!force && syncMode() === 'ask') return;
-    if (draining) { again = true; return draining; }
+    wanted = wanted === 'all' || !only ? 'all' : new Set([...(wanted ?? []), only]);
+    if (draining) return draining;
     draining = (async () => {
-      do {
-        again = false;
-        const active = context;
+      while (wanted) {
+        const scope = wanted, active = context;
+        wanted = null;
         if (!active) break;
         syncing = true; publish();
-        try { await lock(() => pass(active)); }
+        try { await lock(() => pass(active, scope)); }
         catch { /* Storage failed; queued entries stay as they are. */ }
         finally { syncing = false; publish(); }
-      } while (again);
+      }
     })().finally(() => { draining = null; });
     return draining;
   }
+  /** Sends one entry the person just acted on; in "When I ask" mode nothing
+   * else that waits goes with it. */
+  const sendNow = (id: string) => drain(syncMode() === 'ask' ? { force: true, only: id } : { force: true });
   function adapter(entry: OutboxEntry): OutboxKind {
     const kind = kinds.get(entry.kind);
     if (!kind) throw new Error('This change can only be reviewed in the app that made it');
@@ -166,17 +198,20 @@ export function createOutbox(options: OutboxOptions): Outbox {
       const entry = await save({ ...submission, id: crypto.randomUUID(), seq,
         owner: { actorId: owner.actorId, workspaceId: owner.workspaceId, homeId: owner.homeId },
         createdAt: new Date(now()).toISOString(), state: 'waiting', sent: false, problem: null, settledAt: null });
-      await drain({ force: true });
+      immediate.add(entry.id);
+      try { await sendNow(entry.id); } finally { immediate.delete(entry.id); }
       return entries.find(row => row.id === entry.id) ?? entry;
     },
-    drain,
+    drain: options => drain(options),
+    canKeepMine: id => { const entry = entries.find(row => row.id === id); return !!entry && kinds.has(entry.kind); },
+    onSynced(listener) { syncedListeners.add(listener); return () => { syncedListeners.delete(listener); }; },
     current: (id, signal) => { const entry = find(id); return adapter(entry).current(entry, signal); },
     async keepMine(id, signal) {
       const entry = find(id);
       const fresh = await adapter(entry).rebase(entry, signal);
       signal.throwIfAborted();
       await save({ ...entry, ...fresh, state: 'waiting', sent: false, problem: null, settledAt: null });
-      await drain({ force: true });
+      await sendNow(id);
     },
     useTheirs: id => remove(find(id).id),
     reload,

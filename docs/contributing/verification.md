@@ -2755,9 +2755,13 @@ generated server that keeps one revision per record, permanent idempotency
 keys, refuses an identical resend and answers the retained-intent lookup. It
 covers sending at once when online, queueing offline and sending on reconnect,
 a lost reply settled by the lookup without a second post, a page closed
-mid-send, a conflict that holds later edits to the same record, Keep mine and
-Use theirs, refusals, sign-out, another account or home, "When I ask" and
-pruning of synced entries. It runs in `run-healthy.mjs`. The server side of the
+mid-send, a conflict that holds later edits to the same record, Keep mine
+(offered only for kinds this app can prepare again) and Use theirs, a lookup
+the server refuses (the person is asked instead of a blind resend), refusals,
+sign-out, another account or home (including another account's unresolved
+conflict on the same record), "When I ask" (a Save sends only that edit and
+earlier edits to the same record), the notice views reload on after a
+background sync, and pruning of synced entries. It runs in `run-healthy.mjs`. The server side of the
 same contract (lookup of a committed envelope, no second write on an identical
 resend, 412 for a stale revision) is asserted in
 `tools/rust-integration/healthy-human-host-loopback.mjs`.

@@ -15,7 +15,9 @@ import { NativeActions } from './components/NativeActions';
 import { App } from './App';
 import type { NativePlaceClient } from '../api/native-place-client';
 import type { TopologyClient } from '../api/topology-client';
-import { TopologyProvider } from './topology/TopologyProvider';
+import { TopologyProvider, useTopology } from './topology/TopologyProvider';
+import { useOutboxSynced } from '../outbox/index.ts';
+import { PLACE_CREATE, PLACE_NAME } from '../outbox/kinds.ts';
 import type { NativeGeometryReadClient } from './scans/native-read-types';
 import type { NativeEvidenceDocumentClient } from './scans/native-evidence-document-types';
 import type { NativeGeometryWriteClient } from './scans/native-write-types';
@@ -124,9 +126,16 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   } }), [view, session, includeArchived]);
   const ports = useMemo(() => ({ ...actions, nativeContent: <>{houseAcquisition && <SaveHouseCopy port={houseAcquisition} />}{nativeContent}</>, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, nativeContent, archiveVisibility, pinnedFiles, networkRelations, houseAcquisition]);
   return <StoreProvider key={projection.house.id} projection={projection} actions={ports}>
-    <TopologyProvider client={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments}><NativeGeometryProvider client={nativeGeometry} writeClient={nativeGeometryWrite} associationClient={nativeGeometryAssociation} scene={nativeScene}><SourcePortsContext value={sources}><App /></SourcePortsContext></NativeGeometryProvider></TopologyProvider>
+    <TopologyProvider client={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments}><NativeGeometryProvider client={nativeGeometry} writeClient={nativeGeometryWrite} associationClient={nativeGeometryAssociation} scene={nativeScene}><SourcePortsContext value={sources}><App /></SourcePortsContext><ReloadPlacesOnSync /></NativeGeometryProvider></TopologyProvider>
     <NativeActions />
     {quantityWebMcp && actions.quantity && <QuantityHandoffLeaf client={actions.quantity} admission={quantityWebMcp.admission} modelContext={quantityWebMcp.modelContext} />}
     {actions.notice && <p className="lantern-reload-notice" role="status">{actions.notice}</p>}
   </StoreProvider>;
+}
+
+const placeKinds = [PLACE_NAME, PLACE_CREATE];
+/** Atlas places renamed or added offline show up once they reach the server. */
+function ReloadPlacesOnSync() {
+  useOutboxSynced(placeKinds, useTopology().reload);
+  return null;
 }

@@ -12,6 +12,7 @@ const problemText: Readonly<Record<NonNullable<OutboxEntry['problem']>, string>>
   removed: 'This no longer exists on the server.',
   denied: 'Your account can no longer make this change.',
   rejected: 'The server did not accept this change.',
+  unconfirmed: 'Sent, but the server can no longer say whether it arrived. Check the record, then discard this.',
 };
 const openers = new Set<() => void>();
 /** Opens the list from anywhere, such as an editor inside Atlas tools, which
@@ -70,12 +71,14 @@ export function SyncStatus({ outbox = getOutbox() }: { readonly outbox?: Outbox 
 
 function NeedsYou({ entry, outbox }: { readonly entry: OutboxEntry; readonly outbox: Outbox }) {
   const [current, setCurrent] = useState<string | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState('');
+  // Keep mine needs this app to know how to prepare the change again.
+  const rebase = entry.problem === 'changed' && outbox.canKeepMine(entry.id);
   useEffect(() => {
-    if (entry.problem !== 'changed') return;
+    if (!rebase) return;
     const controller = new AbortController();
     outbox.current(entry.id, controller.signal).then(value => setCurrent(value), () => setCurrent(null));
     return () => controller.abort();
-  }, [entry.id, entry.problem, outbox]);
+  }, [entry.id, rebase, outbox]);
   const act = async (work: () => Promise<void>) => {
     setBusy(true); setError('');
     try { await work(); } catch { setError('That did not work. Check the connection and try again.'); }
@@ -87,10 +90,10 @@ function NeedsYou({ entry, outbox }: { readonly entry: OutboxEntry; readonly out
     {current && <span>Now: {current}</span>}
     {error && <span role="alert">{error}</span>}
     <div className="sync-actions">
-      {entry.problem === 'changed' && <button type="button" className="btn btn-primary" disabled={busy}
+      {rebase && <button type="button" className="btn btn-primary" disabled={busy}
         onClick={() => void act(() => outbox.keepMine(entry.id, AbortSignal.timeout(30_000)))}>Keep mine</button>}
       <button type="button" className="btn" disabled={busy} onClick={() => void act(() => outbox.useTheirs(entry.id))}>
-        {entry.problem === 'changed' ? 'Use theirs' : 'Discard'}
+        {rebase ? 'Use theirs' : 'Discard'}
       </button>
     </div>
   </li>;
