@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d71dc192d94288f516d994dc9e38197dc079bead319156bd537925332e1869e1",
+  "sourceDigestSha256": "541d4e309b2be551e48527e317beb7134667c634d6ed36b0fea53831d60c9c40",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6048,8 +6048,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 175437,
-      "sha256": "377e8e7d59812848865e021c8f11f0328c12c971255a5a2919445fbdf1d00b3a",
+      "bytes": 175604,
+      "sha256": "e7cd5ce6c0546c0fe771b642b62974763b1d16c4dfe413893522eb424028769c",
       "owner": "core-integration"
     },
     {
@@ -7840,8 +7840,8 @@
     {
       "path": "frontend/lantern-tests/offline-launch-browser.mjs",
       "mode": "100644",
-      "bytes": 8227,
-      "sha256": "87f38f98f9550cca7a9f9c3db77acf90a79467b84cb1c0e31bf99259b2974c98",
+      "bytes": 8612,
+      "sha256": "d1b8bdcd2edbc731994c10fb088ecee63175377e90087891d381b35315e0dd59",
       "owner": "web"
     },
     {

@@ -47,7 +47,10 @@ node frontend/lantern-tests/offline-launch-browser.mjs --case hung-network
 shell within 2 s with no network bytes; it is in the healthy suite.
 `hung-network` keeps the listener open but never answers `/`, as on a captive
 portal or a weak signal. It must show the shell within 3 s; the root worker
-hands a silent navigation to Saved after 2 s. Both cases are in the healthy
+hands a silent navigation to Saved after 2 s. The listener may answer a
+worker-script update check (`/offline-entry-worker.js`,
+`/saved/service-worker.js`) during the reopen; any other served path fails the
+case. Both cases are in the healthy
 suite. Neither case is iOS, installed-PWA or live-model evidence.
 
 ## Backend unit tests

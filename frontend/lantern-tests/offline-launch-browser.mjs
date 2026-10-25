@@ -132,7 +132,11 @@ try {
     reopenRequestsServed: served, reopenPaths: servedPaths, stalledRootRequests: stalled }));
   assert.notEqual(launchMs, null, `Offline reopen never showed the Saved shell within ${budgetMs + 5_000} ms`);
   assert(launchMs <= budgetMs, `Offline reopen took ${launchMs} ms; budget ${budgetMs} ms`);
-  assert.deepEqual(servedPaths, [], 'Offline reopen fetched public shell bytes from the network');
+  // A page in a worker's scope may ask for that worker's script (registration.update(),
+  // updateViaCache 'none'); in hung-network the listener answers it. That is an update
+  // check, not shell bytes: the shell itself must still come from the cache.
+  const updateChecks = new Set(['/offline-entry-worker.js', '/saved/service-worker.js']);
+  assert.deepEqual(servedPaths.filter(path => !updateChecks.has(path)), [], 'Offline reopen fetched public shell bytes from the network');
   console.log(`PASS ${selected}: Saved shell shown ${launchMs} ms after reopening /; generated build only, not iOS or installed-PWA proof`);
 } finally {
   for (const response of held) response.destroy();
