@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "4caf7df4755d959dee3c96a653577db35acf57c92d624256a0f0ac0aa3a11a2d",
+  "sourceDigestSha256": "eae9293fc5c3afa7216284573996b108370d2b8cd93c952c633abf5266e3b6a4",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -49,8 +49,8 @@
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
-      "bytes": 4183,
-      "sha256": "4af1a3b5c7a29ff2cf6aacbddff9de3acb165b51a3db53db16bad01e3109e5f6",
+      "bytes": 4346,
+      "sha256": "3798e84f71fcba993ee3665cc8c2c02d7ac9a000752e9890fab4e71ef0fd918c",
       "owner": "core-integration"
     },
     {
@@ -119,8 +119,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 7299,
-      "sha256": "c7ad639f201382b361521f53b907e6edb764f0fa1875ad813dd8fc76cba1f4f3",
+      "bytes": 7410,
+      "sha256": "9953e30222fdf89c56d7c5a70d278039a651110c4aee5f314f956bb0aadb46ae",
       "owner": "core-integration"
     },
     {
@@ -6111,8 +6111,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 182558,
-      "sha256": "c2407b121bca30d27a56efb0283933677c51c8d6837d5a9d323c58ca5a74d0f8",
+      "bytes": 182782,
+      "sha256": "59104d6b6220055d0ea3b262992e52258d821aa8a11b786e974caea78e508b98",
       "owner": "core-integration"
     },
     {
