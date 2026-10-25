@@ -48,7 +48,7 @@ They mount the actual `UnifiedAtlas` through `LanternHost` at
 `/lantern-tests/source-host-visual/?atlas=generated`. The production scene
 reader reads the generated fictional publication from an in-page fake HTTPS
 transport. Its optional external file parameters are not used. Each 3D image
-requires actual WebGL drawing after **Fit view** and subsequent interaction; if 3D is unavailable, the capture
+requires actual drawing (WebGPU, or its WebGL2 fallback) after **Fit view** and subsequent interaction; if 3D is unavailable, the capture
 fails instead of recording the fallback. Every state also requires that no room
 or enlarged count target overlaps a floating panel, and no mounted label action
 overlaps another label action or enlarged count target. The current
@@ -89,7 +89,7 @@ browser and server. A 90-second budget bounds capture. Browser downloads use
 normal verified TLS. Review pixels before copying regenerated files into Git.
 
 `capture.json` records source HEAD, tracked-change status, runtime, browser,
-WebGL draw evidence, viewport, checks and source/image
+WebGL and WebGPU draw evidence, viewport, checks and source/image
 SHA256 digests without local paths or timestamps. Its `sourceTree` digest binds
 every tracked source file, including stylesheets and transitive components,
 and is checked unchanged across capture. The explicitly listed exclusions are

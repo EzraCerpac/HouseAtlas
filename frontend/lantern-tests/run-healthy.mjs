@@ -20,6 +20,7 @@ const cases = (file, flag, names) => names.map(name => node(file, ...(flag ? [fl
 const SOURCE = [
   node('healthy-read.mjs'),
   node('canonical-ifc-viewer.test.mjs', '--healthy'),
+  node('canonical-mesh-preparation.test.mjs'),
   node('electricity-fixture-read.mjs'), node('electricity-overlay-read.mjs'),
   node('embedded-material-react.mjs'), node('exact-numeric-read.mjs'),
   node('ifc-glb-read.mjs'), node('load-numeric-source.mjs'),
@@ -43,6 +44,7 @@ const SOURCE = [
   // Unified Atlas
   node('unified-atlas-healthy.mjs'), node('unified-atlas-cache-healthy.mjs'), node('unified-atlas-network-connections-healthy.mjs'),
   node('unified-atlas-overlay-source-healthy.mjs'), node('unified-atlas-room-links-healthy.mjs'),
+  node('unified-atlas-compact-layer-details.mjs'), node('unified-atlas-control-names-healthy.mjs'),
   // Named healthy cases
   ...cases('embedded-png-material-healthy.mjs', '--case', ['slots', 'image-sharing', 'png-filters',
     'png-adam7', 'accounting-1024', 'legacy-geometry', 'gpu-owner', 'precedence']),
@@ -51,6 +53,7 @@ const SOURCE = [
 const BUILD = [node('check-backend-frontend-compat.mjs')];
 const BROWSER = [
   ...cases('offline-launch-browser.mjs', '--case', ['offline-launch', 'hung-network']),
+  ...cases('mesh-layer-browser.mjs', '--case', ['webgl2']),
 ];
 
 const only = process.argv[2] === '--only' ? process.argv[3] : null;

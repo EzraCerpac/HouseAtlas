@@ -53,6 +53,28 @@ worker-script update check (`/offline-entry-worker.js`,
 case. Both cases are in the healthy
 suite. Neither case is iOS, installed-PWA or live-model evidence.
 
+## Real-browser 3D drawing
+
+`frontend/lantern-tests/mesh-layer-browser.mjs` builds two generated pages (a
+house of boxes and the embedded-material samples), serves them on an owned
+loopback listener and draws them through MeshLayer, which renders with
+three.js. It checks the backend, that a frame costs a handful of GPU calls
+however many primitives there are, the selection tone, the ghost veil and the
+texture detail in the screenshots.
+
+```sh
+node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2   # in the healthy suite
+node frontend/lantern-tests/mesh-layer-browser.mjs --case webgpu   # local: Chromium headless shell
+node frontend/lantern-tests/mesh-layer-browser.mjs --case bench    # prints per-frame CPU time and calls
+```
+
+`webgl2` offers no WebGPU adapter, so three.js uses its WebGL2 backend; it is in
+the healthy suite. `webgpu` enables WebGPU on SwiftShader Vulkan. Full Chrome's
+`--headless=new` draws it but leaves it out of screenshots, so run it with
+Playwright's `chrome-headless-shell`. `bench` throttles the CPU 4× and prints
+CPU time and GPU API calls per frame while the camera turns; it asserts nothing.
+None of these cases is device, Safari or live-model evidence.
+
 ## Backend unit tests
 
 The `Rust React ordinary core` workflow runs the backend library unit tests on
@@ -153,6 +175,16 @@ The `--healthy` selection excludes the script's malformed-record, duplicate
 admission, cancellation and artifact/manifest refusal controls. The default
 mixed runner is not the ordinary command; this selection grants no permission
 to execute held controls and changes no CI workflow.
+
+The canonical mesh preparation check compares `prepareMeshes` byte for byte
+with the frozen pre-optimization implementation on generated geometry only:
+all six windings, signed zero, empty, degenerate, tiny and far-coordinate
+triangles, unused vertices and 128 deterministic irregular meshes. It runs in
+the healthy frontend suite:
+
+```sh
+node --test frontend/lantern-tests/canonical-mesh-preparation.test.mjs
+```
 
 The same `--healthy` command loads valid generated opaque core glTF materials
 on a multi-primitive mesh reused by two nodes. It checks exact primitive colour
@@ -2948,3 +2980,61 @@ use household data or establish browser/device, native/current-base, recovery,
 retry, crash, replay or deployment acceptance. PR268 lifecycle regressions remain
 separate. This registration defines the command and bounded source scope, not an
 execution outcome. Other held cases and broad suites are not released.
+
+## Named generated compact layer-details focus check
+
+Inspect `frontend/lantern-tests/unified-atlas-compact-layer-details.mjs`,
+`LayerDetailsDock.tsx`, the coordinated focus and Escape handlers in
+`UnifiedAtlas.tsx`, and the layer-details CSS before execution. Use Node
+26.10.0, npm 11.19.1 and unchanged locked frontend dependencies. It runs in
+CI through `frontend/lantern-tests/run-healthy.mjs`; the single command is:
+
+```sh
+node frontend/lantern-tests/unified-atlas-compact-layer-details.mjs
+```
+
+This generated check compiles the actual dock/helper and shell Escape handlers
+with Vite and uses React server rendering plus an explicit synchronous hook
+seam. Synthetic elements model desktop and short compact transitions, including
+drawer=null and drawer=floors, queued key restoration after initial Close focus,
+nearest scroll reveal, modal close/reopen, composing Escape containment and
+ordinary Escape dismissal. It checks unchanged key children, generated long
+text, markup and named CSS constraints. Run once; stop on failure without an
+automatic retry or substitute suite.
+
+The hook seam models child-first layout-effect order; it does not mount React
+or prove actual browser event ordering, native modal top-layer/inert behavior,
+Tab containment, focus restoration, layout, hit targets, camera or selection
+preservation. The scroll observation is a synthetic method-call assertion,
+not measured visibility. No listener, browser, provider, household input,
+native target, failure injection, deployment or security-setting change is
+included. This registration defines source and command scope only; actual
+ordinary-check results and separately released sole-GUI acceptance remain open.
+
+A one-off real-browser pass (Chromium through Playwright, generated saved
+Atlas fixture, 740x360, 1280x800 and 390x844 at 125% text) on the PR that
+landed this check observed: native `:modal` dialog named by its heading,
+initial focus on Close, 50 Tab/Shift-Tab steps never reaching the
+background, background hits landing on the dialog, the unfolded body
+scrolling to its last row, composing Escape ignored, Escape and Close
+returning focus to the Layer details fold, the selected room and camera
+controls unchanged across five open/close cycles and a short-desktop-short
+resize while open. That pass is evidence for that PR, not a standing check.
+
+## Named generated Atlas control names check
+
+`frontend/lantern-tests/unified-atlas-control-names-healthy.mjs` compiles
+`labels.ts` alone and checks generated names: buildings sharing a label add
+their source position, rooms sharing a label on one floor add their source
+room position, parts of one room on a floor count off in source order, final
+collisions get a source-order suffix, and exclusion notes show only the
+source ID and reason (no invented name). It also checks that the shell uses
+those names for the building chooser, room list and map label targets and
+shows the whole model SHA-256 as selectable text. It runs in CI through
+`run-healthy.mjs`:
+
+```sh
+node frontend/lantern-tests/unified-atlas-control-names-healthy.mjs
+```
+
+It does not mount React or a browser; identity stays the source ID.
