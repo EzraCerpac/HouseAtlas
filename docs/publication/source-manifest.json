@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "be224b0c092f96742f16a94ec2b5f4bf1c4a9362bc9e8538d1e4ea5b94302c02",
+  "sourceDigestSha256": "35c7c53a24fc91778dd7c439b2572e96920fce91674ecf0fdf289b5e72bd2f05",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -140,8 +140,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 8684,
-      "sha256": "9f8e41313a1a2747b152d409aff2406b656ae57dd09a4e19731266bbfbb31eda",
+      "bytes": 8902,
+      "sha256": "9ce626ddffa4a3934908ba8e30b3533870564ca839aa9eb845c12c258e952a33",
       "owner": "core-integration"
     },
     {
@@ -6083,8 +6083,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 169347,
-      "sha256": "494997cb58bbd6b0df51de0b5c194adb5a1e762154dcd8178ae6bb291d209c7f",
+      "bytes": 169731,
+      "sha256": "48f6efed6c65877a1ab257e1edd2222756d1b94c091bcdb85e9ee5caa0dad488",
       "owner": "core-integration"
     },
     {
@@ -7168,8 +7168,8 @@
     {
       "path": "frontend/index.html",
       "mode": "100644",
-      "bytes": 802,
-      "sha256": "af97159d1d27442a35128c1311f9dcc290d36bda55171267afb8f96bfc3b827c",
+      "bytes": 859,
+      "sha256": "6def8d7195651630ac7196bc34327feb9ff2dab85b8032ef0e7683b0d1c341c7",
       "owner": "core-integration"
     },
     {
@@ -8323,8 +8323,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-compact-layer-details.mjs",
       "mode": "100644",
-      "bytes": 15082,
-      "sha256": "bc08af6298692e08258252da22242fee1764decd92904e8a0143c7f124ff588d",
+      "bytes": 15498,
+      "sha256": "bc0ecf3acb7367d7ccaa11ceec1d79d14acd7a6519844eb4a612a2262923dd35",
       "owner": "web"
     },
     {
@@ -9317,8 +9317,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/useStageCamera.ts",
       "mode": "100644",
-      "bytes": 8261,
-      "sha256": "4274f56a0e851db9da46be9989079276add3868769fe7ba3f5888871d56f6e74",
+      "bytes": 9248,
+      "sha256": "0cb677cbe54ab5c24e8646e7bffc284fea433b5724cc46a9b622e1e648a20463",
       "owner": "web"
     },
     {
@@ -10346,8 +10346,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/LayerDetailsDock.tsx",
       "mode": "100644",
-      "bytes": 6346,
-      "sha256": "4f8b760e41f94ac32bd6b2ebaad532dffcab383e4af72a74fc27deba2755694c",
+      "bytes": 8275,
+      "sha256": "d453534029cd109f73dcda4d471b3f454a8e1eb8060d411cbaa571934a443922",
       "owner": "web"
     },
     {
@@ -10374,8 +10374,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 140230,
-      "sha256": "a1d7ed516123ff55ca7308ff30d313eb44497ca487d632582904f205b7659ed3",
+      "bytes": 141421,
+      "sha256": "f5724626b769287639181926602b8bafd15735137db47a3f7a0fb0c384be9d00",
       "owner": "web"
     },
     {
@@ -10444,8 +10444,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/unified-atlas.css",
       "mode": "100644",
-      "bytes": 82403,
-      "sha256": "9dd6c76c0ad49b82b4b93e2788322a1e638d4b13160f9f758e7dac931a614884",
+      "bytes": 82617,
+      "sha256": "c2b0fa2918f320ee675cbafc6499e54fef958b65fb8d38604ad5037249d9d31d",
       "owner": "web"
     },
     {
@@ -11804,6 +11804,34 @@
       "mode": "100644",
       "bytes": 4309,
       "sha256": "2f7e25fd6af2a2c0aeab63f336e3c2f934e9e4bb0f996a653f6108a2c65b12a6",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/deploy-nas/README.md",
+      "mode": "100644",
+      "bytes": 5175,
+      "sha256": "773d16e6dad153d1a29b8e70d776d242ab5ab41d53c65e06dde29dcada3d2a2c",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/deploy-nas/deploy-nas",
+      "mode": "100755",
+      "bytes": 143,
+      "sha256": "7e1deeaf2939a523e935ab39c30cbf532b5d80b60c1bfe279e9cd780b744fd4a",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/deploy-nas/deploy_nas.py",
+      "mode": "100644",
+      "bytes": 44138,
+      "sha256": "636aaf4dd33f92279377fa54d888c7132dbcf2234a0f263f045d3f029b5b14ea",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/deploy-nas/test_deploy_nas.py",
+      "mode": "100644",
+      "bytes": 25395,
+      "sha256": "4b2aa6d1f27288ab03a463d147e92c5162a796baafa265c1f14de1af01739fc1",
       "owner": "core-integration"
     },
     {

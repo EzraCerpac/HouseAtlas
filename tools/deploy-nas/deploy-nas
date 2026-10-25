@@ -1,0 +1,3 @@
+#!/bin/sh
+# Deploy, roll back and switch models for HouseAtlas on the NAS. See README.md.
+exec python3 -I "$(dirname "$0")/deploy_nas.py" "$@"

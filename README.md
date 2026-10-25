@@ -116,5 +116,6 @@ The current development snapshot includes a Rust backend, SQLite persistence and
 - [UI integration](web/README.md): source ownership, access, freshness and host seams.
 - [Repository coordination](docs/coordination/worker-handoff.md) and [publication provenance](docs/publication/provenance.md).
 - [Operations and rollout](docs/operations/qualification-and-rollout.md): target and acceptance requirements.
+- [NAS deploy tool](tools/deploy-nas/README.md): deploy a `main` commit or a model release to the NAS, and roll it back; `python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'` checks it with a fake service.
 
 This is a development snapshot. No household configuration, credentials or real media belong in Git. Ordinary CI uses no secrets and performs no deployment. Product, recovery, pilot and production acceptance remain separate. Open-source licensing is a future release decision; no license has been selected.
