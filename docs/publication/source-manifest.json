@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "e6c41b1e4e7de0ef293b01d19581a7c8a56873c12307dcc0fd2fcadb6675d702",
+  "sourceDigestSha256": "e1e81a7a476d2248423db58f458cba6d4264b17b9ff5ea5682a0843d505fab59",
   "files": [
     {
       "path": ".github/workflows/current-source-intel-qualification.yml",
@@ -2352,8 +2352,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 56299,
-      "sha256": "48b7a8a57b58902b96cd76d897993784987e589ed1bc94e106639636cd9a903d",
+      "bytes": 58210,
+      "sha256": "70c066344747f4c710d251d3082b61899bae697213d1667010bbfc92ae27227c",
       "owner": "core-integration"
     },
     {
@@ -6396,6 +6396,13 @@
       "owner": "storage"
     },
     {
+      "path": "docs/offline/live-atlas-cache.md",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 2751,
+      "sha256": "79853de4367321f078d7901d693045a7f263d7cdbe68c62f94ca4000e45c2e2d"
+    },
+    {
       "path": "docs/offline/native-house-acquisition.md",
       "mode": "100644",
       "bytes": 7156,
@@ -7084,8 +7091,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 40755,
-      "sha256": "46d9780921eb869e0777c7c9b758a0a393e19df45e72344ccc0e85ba1b11732e",
+      "bytes": 42628,
+      "sha256": "715ef5f13ceb2064da4edfd4af8c0571f95211b948c08e9700ac2eab840399b0",
       "owner": "core-integration"
     },
     {
@@ -7126,8 +7133,8 @@
     {
       "path": "frontend/integration/native-geometry-scan-cache.ts",
       "mode": "100644",
-      "bytes": 13102,
-      "sha256": "03e9eec52454b70cd9b507fd32e6ba0d11f4adc94e065e94f70d390c439f340e",
+      "bytes": 13492,
+      "sha256": "2b481407460a25cee6b3e140d711171b449db7060d5b366a59d976fccf5d3246",
       "owner": "web"
     },
     {
@@ -7250,6 +7257,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "frontend/integration/unified-atlas-cache.ts",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 5437,
+      "sha256": "11b0a8370ea93a16700a55b92178a513b13adcce9b641e065e8f269a0b866bc2"
+    },
+    {
       "path": "frontend/integration/unified-atlas-overlay-source.ts",
       "mode": "100644",
       "bytes": 22346,
@@ -7259,8 +7273,8 @@
     {
       "path": "frontend/integration/unified-atlas-reader.ts",
       "mode": "100644",
-      "bytes": 7565,
-      "sha256": "f3d8e04416544a4a2783de65a1cfb2f1d901f8475bfbf8511e84c888e8434fb2",
+      "bytes": 10984,
+      "sha256": "402e1804be180708563b46a0d781a564e6c4fc969e4cec0dbf88bd532169131a",
       "owner": "core-integration"
     },
     {
@@ -8158,6 +8172,13 @@
       "bytes": 1763,
       "sha256": "b2160ec3755e5296b91cdf1bf894b24f731576207879a60581df6163affbc849",
       "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/unified-atlas-cache-healthy.mjs",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 8430,
+      "sha256": "6b2f7548975755a50a54442c5ac2a72342054cf82c4a668e9a6d70387f45fc8f"
     },
     {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
@@ -10129,8 +10150,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 133787,
-      "sha256": "e8bbd47d1a4f92266abbabf1ad63f79d23c1e7e60a5fca5905983718584fde83",
+      "bytes": 137212,
+      "sha256": "a660a5dfa99df5ffbdb8565c38f762cff72e88b191a3c0990a69ea68f30cfa5b",
       "owner": "web"
     },
     {
@@ -10185,8 +10206,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/types.ts",
       "mode": "100644",
-      "bytes": 8582,
-      "sha256": "9a36408bf2919c3fd8ed1a25b481125b4b0e0bc640536364c3b41561144da550",
+      "bytes": 9293,
+      "sha256": "346a70fb758c48d0b8ee482219e7ef098b28465ae1defeb6ac411ab6eed91ab7",
       "owner": "web"
     },
     {
@@ -10388,8 +10409,8 @@
     {
       "path": "frontend/src/offline/saved-atlas-presentation.ts",
       "mode": "100644",
-      "bytes": 6467,
-      "sha256": "51366ea826121d6e1f403049e78057d27026a4682960e07c3467fa75e6f2e266",
+      "bytes": 6617,
+      "sha256": "9870771c06530b7740aacc1ecc2e40fc6b9f22e130bc22ebe8591ec136862b1e",
       "owner": "web"
     },
     {

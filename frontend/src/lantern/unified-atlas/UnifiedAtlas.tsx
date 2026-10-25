@@ -20,7 +20,8 @@ import {
   levelLift, occurrenceLiftLevel, partLifts, pickTarget, planFeaturesForLevel, planPickTarget, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
   targetAction, unplacedByReason, type AtlasAction, type AtlasLayer, type AtlasModel, type AtlasViewState, type OverlayLayerIndex, type UnplacedReason,
 } from './scene';
-import { AtlasReadError, type AtlasLevel, type AtlasOccurrence, type AtlasReadFailure, type AtlasRoom, type OverlayKind, type UnifiedAtlasPort } from './types';
+import { AtlasReadError, type AtlasLevel, type AtlasOccurrence, type AtlasReadFailure, type AtlasRoom, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
+  type UnifiedAtlasRead } from './types';
 import { PublishedOverlayDetails, PublishedUnplacedBinding } from './PublishedOverlayDetails';
 import { atlasLevelName, countClearedLabelY, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, labelHitWidth, placePlanRoomLabels, planLabelFrame, planLabelObstacles,
   planRoomLabelFits, preparePlanLabelPaper, preparePlanLabelShape, visibleCountMarkers, visibleLabelHits, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
@@ -40,7 +41,9 @@ import './unified-atlas.css';
  * (frame, explosion, each building's section plane, camera), so the latest
  * action always wins; reduced motion snaps. */
 
-type Outcome = { readonly status: 'ready'; readonly model: AtlasModel; readonly entryBuildingId: string | null | undefined }
+/** A stored copy on screen while its fresh read is still running or has failed in transport. */
+export interface StoredCopy { readonly storedAt: string; readonly refresh: 'pending' | 'failed' }
+type Outcome = { readonly status: 'ready'; readonly model: AtlasModel; readonly entryBuildingId: string | null | undefined; readonly stored?: StoredCopy }
   | { readonly status: 'failed'; readonly reason: AtlasReadFailure };
 interface Loaded { readonly selection: AtlasPresentationSelection; readonly attempt: number; readonly outcome: Outcome }
 
@@ -126,29 +129,61 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
   const selection = useSyncExternalStore(subscribe, current, current);
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
+  // The stored copy bound for this selection, reused by a retry without a second parse.
+  const storedCopy = useRef<{ readonly selection: AtlasPresentationSelection; readonly read: StoredAtlasRead; readonly model: AtlasModel } | null>(null);
 
   useEffect(() => {
     if (!selection) return;
     const controller = new AbortController(), signal = controller.signal;
+    const bind = async (read: UnifiedAtlasRead) => {
+      const { loadStandardGlb } = await import('../canonical-ifc/standard-glb');
+      signal.throwIfAborted();
+      // Prepared geometry is reserved from the preflight counts before the loader allocates.
+      const glb = await loadStandardGlb(read.model, 'atlas', signal, admission => {
+        if ((admission.work.gpuBytes ?? admission.work.triangles * PREPARED_BYTES_PER_TRIANGLE) > RENDER_LIMITS.uploadBytes) throw new AtlasReadError('too-large');
+      }, { embeddedPngMaterials: true });
+      signal.throwIfAborted();
+      return bindAtlasModel(read.scene, glb);
+    };
+    // Stale while revalidate: this device's last verified copy of the same
+    // publication and manifest shows at once; the fresh read still decides.
+    let settled = false;
+    const stored: Promise<{ readonly read: StoredAtlasRead; readonly model: AtlasModel } | null> = (async () => {
+      if (port.kind !== 'live' || selection.kind !== 'live' || !port.stored) return null;
+      if (storedCopy.current?.selection === selection) return storedCopy.current;
+      storedCopy.current = null;
+      try {
+        const read = await port.stored(selection, signal);
+        if (!read || settled) return null;
+        const model = await bind(read);
+        if (settled || signal.aborted) return null;
+        storedCopy.current = { selection, read, model };
+        setLoaded({ selection, attempt, outcome: { status: 'ready', model, entryBuildingId: read.entryBuildingId, stored: { storedAt: read.storedAt, refresh: 'pending' } } });
+        return { read, model };
+      } catch { return null; }
+    })();
     void (async () => {
       let outcome: Outcome;
       try {
         const read = port.kind === 'saved' && selection.kind === 'saved' ? await port.read(selection, signal)
           : port.kind === 'live' && selection.kind === 'live' ? await port.read(selection, signal) : (() => { throw new AtlasReadError('stale'); })();
-        const { loadStandardGlb } = await import('../canonical-ifc/standard-glb');
+        const shown = await stored;
         signal.throwIfAborted();
-        // Prepared geometry is reserved from the preflight counts before the loader allocates.
-        const glb = await loadStandardGlb(read.model, 'atlas', signal, admission => {
-          if ((admission.work.gpuBytes ?? admission.work.triangles * PREPARED_BYTES_PER_TRIANGLE) > RENDER_LIMITS.uploadBytes) throw new AtlasReadError('too-large');
-        }, { embeddedPngMaterials: true });
-        signal.throwIfAborted();
-        outcome = { status: 'ready', model: bindAtlasModel(read.scene, glb), entryBuildingId: read.entryBuildingId };
+        // The same scene and model bytes confirm the copy on screen in place.
+        const same = shown && read.envelopeSha256 !== undefined && read.envelopeSha256 === shown.read.envelopeSha256
+          && read.scene.model.sha256 === shown.read.scene.model.sha256 && read.entryBuildingId === shown.read.entryBuildingId;
+        outcome = { status: 'ready', model: same ? shown.model : await bind(read), entryBuildingId: read.entryBuildingId };
+        storedCopy.current = null;
       } catch (error) {
         if (signal.aborted) return;
         // A model file the standard loader refuses does not match its room map.
-        outcome = { status: 'failed', reason: error instanceof AtlasReadError ? error.reason
-          : error instanceof GlbFormatError ? 'invalid' : 'unavailable' };
+        const reason = error instanceof AtlasReadError ? error.reason : error instanceof GlbFormatError ? 'invalid' : 'unavailable';
+        // Only a transport failure keeps a verified stored copy on screen, marked as not updated.
+        const shown = reason === 'unavailable' ? await stored : null;
+        outcome = shown ? { status: 'ready', model: shown.model, entryBuildingId: shown.read.entryBuildingId, stored: { storedAt: shown.read.storedAt, refresh: 'failed' } }
+          : { status: 'failed', reason };
       }
+      settled = true;
       if (!signal.aborted) setLoaded({ selection, attempt, outcome });
     })();
     return () => controller.abort();
@@ -156,7 +191,9 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
 
   if (!selection) return <section className="ua-shell" aria-label="Atlas"><p className="ua-state" role="status">No model is selected.</p>
     <LensStatus lens={environment.lens}>No model is selected, so no model rooms or network graph are shown.</LensStatus></section>;
-  const outcome = loaded && loaded.selection === selection && loaded.attempt === attempt ? loaded.outcome : null;
+  // A retry keeps a stored copy on screen while it runs.
+  const outcome = loaded && loaded.selection === selection && (loaded.attempt === attempt
+    || loaded.outcome.status === 'ready' && loaded.outcome.stored) ? loaded.outcome : null;
   if (!outcome) return <section className="ua-shell is-loading" aria-label="Atlas" aria-busy="true">
     <div className="ua-state" role="status"><span className="ua-spinner" aria-hidden="true" />Loading the room map…</div>
     <LensStatus lens={environment.lens}>Model rooms and the network graph appear when the room map has loaded.</LensStatus>
@@ -174,8 +211,9 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
       </div>
     </section>;
   }
+  const stored = outcome.stored && (loaded!.attempt === attempt ? outcome.stored : { ...outcome.stored, refresh: 'pending' as const });
   return <AtlasStage key={memoryKey(outcome.model, selection)} model={outcome.model} port={port} selection={selection} entryBuildingId={outcome.entryBuildingId}
-    otherSources={otherSources ?? []} environment={environment} />;
+    otherSources={otherSources ?? []} environment={environment} {...(stored ? { stored, retry: () => setAttempt(value => value + 1) } : {})} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -378,8 +416,9 @@ interface StageMarker extends CountMarker {
   readonly context: boolean;
 }
 
-function AtlasStage({ model, port, selection, entryBuildingId, otherSources, environment }: { readonly model: AtlasModel; readonly port: AtlasPresentationPort;
-  readonly selection: AtlasPresentationSelection; readonly entryBuildingId: string | null | undefined; readonly otherSources: readonly OtherSource[]; readonly environment: AtlasPresentationEnvironment }) {
+function AtlasStage({ model, port, selection, entryBuildingId, otherSources, environment, stored, retry }: { readonly model: AtlasModel; readonly port: AtlasPresentationPort;
+  readonly selection: AtlasPresentationSelection; readonly entryBuildingId: string | null | undefined; readonly otherSources: readonly OtherSource[]; readonly environment: AtlasPresentationEnvironment;
+  readonly stored?: StoredCopy; readonly retry?: () => void }) {
   const archive = environment.archive;
   const reduced = environment.reducedMotion;
   const key = memoryKey(model, selection);
@@ -1181,6 +1220,15 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
           <Icon name="history" size={15} />
           <span className="ua-snapshot-kind">Saved <span className="ua-snapshot-wide">documentary </span>snapshot</span>
           <time dateTime={port.savedDocumentary.observedAt} title={port.savedDocumentary.observedAt}>observed {stampTime(port.savedDocumentary.observedAt)}</time>
+        </p>}
+        {stored && <p className="ua-snapshot-note ua-stored-note" role="status" aria-busy={stored.refresh === 'pending'}>
+          <Icon name="history" size={15} />
+          <span className="ua-snapshot-kind">Stored copy</span>
+          <time dateTime={stored.storedAt} title={stored.storedAt}>{stampTime(stored.storedAt)}</time>
+          {stored.refresh === 'pending' ? <span>· updating</span> : <>
+            <span>· not updated</span>
+            {retry && <button type="button" className="btn btn-small btn-quiet" onClick={retry}>Try again</button>}
+          </>}
         </p>}
         {showBack && <button type="button" className="chip-btn ua-back" onClick={out} aria-label={`Back to ${backTo}`}>
           <Icon name="back" size={15} /><span>{backTo}</span></button>}
