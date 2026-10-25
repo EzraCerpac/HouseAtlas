@@ -1,5 +1,5 @@
 import type { AtlasModel } from './scene';
-import type { AtlasPlanFeature, AtlasPolygon } from './types';
+import type { AtlasExclusion, AtlasPlanFeature, AtlasPolygon } from './types';
 
 /** Display names and projected control layout only. Source identities stay unchanged. */
 export function floorLabel(source: string): string {
@@ -56,7 +56,58 @@ export function atlasLevelNames(model: AtlasModel): ReadonlyMap<string, string> 
 }
 export function atlasLevelName(model: AtlasModel, id: string, scope = false): string {
   const level = model.levelsById.get(id)!;
-  return `${atlasLevelNames(model).get(id)!}${scope ? `, ${model.buildingsById.get(level.buildingId)!.label}` : ''}`;
+  return `${atlasLevelNames(model).get(id)!}${scope ? `, ${atlasBuildingName(model, level.buildingId)}` : ''}`;
+}
+
+/** Final display strings that still collide get a source-order suffix on every member. */
+function distinguish(names: Map<string, string>, keys: readonly string[], suffix: (at: number) => string) {
+  if (new Set(keys.map(key => names.get(key))).size !== keys.length)
+    keys.forEach((key, at) => names.set(key, `${names.get(key)} · ${suffix(at)}`));
+}
+
+const buildingNames = new WeakMap<AtlasModel, ReadonlyMap<string, string>>();
+/** Source labels stay first; buildings sharing one add their source position. */
+export function atlasBuildingName(model: AtlasModel, id: string): string {
+  let names = buildingNames.get(model);
+  if (!names) {
+    const own = new Map<string, string>(), rows = model.scene.buildings;
+    rows.forEach((row, at) => own.set(row.buildingId, rows.filter(other => other.label === row.label).length > 1
+      ? `${row.label} · source building ${at + 1}` : row.label));
+    distinguish(own, rows.map(row => row.buildingId), at => `source building ${at + 1}`);
+    buildingNames.set(model, names = own);
+  }
+  return names.get(id) ?? model.buildingsById.get(id)!.label;
+}
+
+const occurrenceNames = new WeakMap<AtlasModel, ReadonlyMap<string, string>>();
+/** One floor's room controls never share a name. Distinct rooms sharing a
+ * label add their source room position; the parts of one room count off in
+ * source order. Identity stays the occurrence ID, never the label. */
+export function atlasOccurrenceName(model: AtlasModel, occurrenceId: string): string {
+  let names = occurrenceNames.get(model);
+  if (!names) {
+    const own = new Map<string, string>();
+    const roomAt = new Map(model.scene.rooms.map((room, at) => [room.roomId, at + 1]));
+    for (const level of model.scene.levels) {
+      const rows = level.occurrenceIds.map(id => ({ id, room: model.roomsById.get(model.occurrencesById.get(id)!.roomId)! }));
+      for (const { id, room } of rows) {
+        const namesakes = new Set(rows.filter(row => row.room.label === room.label).map(row => row.room.roomId));
+        const parts = rows.filter(row => row.room.roomId === room.roomId);
+        own.set(id, `${room.label}${namesakes.size > 1 ? ` · source room ${roomAt.get(room.roomId)}` : ''}${parts.length > 1
+          ? ` · part ${parts.findIndex(row => row.id === id) + 1} of ${parts.length}` : ''}`);
+      }
+      distinguish(own, level.occurrenceIds, at => `source part ${at + 1}`);
+    }
+    occurrenceNames.set(model, names = own);
+  }
+  return names.get(occurrenceId) ?? model.roomsById.get(model.occurrencesById.get(occurrenceId)!.roomId)!.label;
+}
+
+/** A known occurrence by its control name, another source ID as given, then
+ * the source reason. A row with neither ID nor reason says so; no name is invented. */
+export function atlasExclusionText(model: AtlasModel, row: AtlasExclusion): string {
+  const name = row.id !== null && model.occurrencesById.has(row.id) ? atlasOccurrenceName(model, row.id) : row.id;
+  return [name, row.reason].filter(part => part !== null && part !== '').join(': ') || 'No source ID or reason given.';
 }
 
 /** Greedy, source-honest suppression: never move anchors or merge room counts.
