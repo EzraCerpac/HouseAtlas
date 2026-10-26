@@ -602,6 +602,39 @@ impl AccessBoundary {
         action: Action,
         unsafe_request: bool,
     ) -> AccessResult<Vec<Option<Principal>>> {
+        self.authorize_scopes_checked(request, scopes, action, unsafe_request, &|| Ok(()))
+    }
+
+    /// The catalog uses the existing issuance logic, with its immutable budget.
+    /// Ordinary callers retain the same checks and transaction behavior.
+    pub(crate) fn authorize_catalog_read(
+        &mut self,
+        request: &RequestEvidence<'_>,
+        scope: &Scope,
+        budget: &crate::catalog_budget::Budget,
+    ) -> AccessResult<Principal> {
+        let check = || super::partition_catalog::check(budget);
+        self.authorize_scopes_checked(
+            request,
+            std::slice::from_ref(scope),
+            Action::Read,
+            false,
+            &check,
+        )?
+        .pop()
+        .flatten()
+        .ok_or(AccessError::NotFound)
+    }
+
+    fn authorize_scopes_checked(
+        &mut self,
+        request: &RequestEvidence<'_>,
+        scopes: &[Scope],
+        action: Action,
+        unsafe_request: bool,
+        checkpoint: &impl Fn() -> AccessResult<()>,
+    ) -> AccessResult<Vec<Option<Principal>>> {
+        checkpoint()?;
         if if unsafe_request {
             request.method != Method::Post
         } else {
@@ -609,15 +642,19 @@ impl AccessBoundary {
         } {
             return Err(AccessError::MethodNotAllowed);
         }
-        let (session, user, now) = self.authenticate(request, unsafe_request)?;
+        let (session, user, now) =
+            self.authenticate_checked(request, unsafe_request, checkpoint)?;
+        checkpoint()?;
         let mut principals = Vec::with_capacity(scopes.len());
         for scope in scopes {
+            checkpoint()?;
             let Some(member) =
                 store::membership(&self.store.db, &user.user_id, scope)?.filter(|m| m.enabled)
             else {
                 principals.push(None);
                 continue;
             };
+            checkpoint()?;
             if action == Action::Mutate && member.role != Role::Editor {
                 return Err(AccessError::Forbidden);
             }
@@ -632,15 +669,19 @@ impl AccessBoundary {
                 membership_version: member.version,
                 action,
             };
+            checkpoint()?;
             self.revalidate(&principal)?;
+            checkpoint()?;
             principals.push(Some(principal));
         }
+        checkpoint()?;
         if principals.iter().any(Option::is_some) {
             self.store.db.execute(
                 "UPDATE access_sessions SET last_seen=MAX(last_seen,?1) WHERE token_hash=?2",
                 params![now, session.token_hash],
             )?;
         }
+        checkpoint()?;
         Ok(principals)
     }
 
@@ -833,17 +874,31 @@ impl AccessBoundary {
         request: &RequestEvidence<'_>,
         unsafe_request: bool,
     ) -> AccessResult<(Session, User, i64)> {
+        self.authenticate_checked(request, unsafe_request, &|| Ok(()))
+    }
+
+    fn authenticate_checked(
+        &mut self,
+        request: &RequestEvidence<'_>,
+        unsafe_request: bool,
+        checkpoint: &impl Fn() -> AccessResult<()>,
+    ) -> AccessResult<(Session, User, i64)> {
+        checkpoint()?;
         let origin = self.check_origin(request, unsafe_request)?;
         let token = token_hash(request, true)?.ok_or(AccessError::Unauthenticated)?;
+        checkpoint()?;
         let state = self.current().session_state(&token, &origin)?;
+        checkpoint()?;
         if unsafe_request {
             check_csrf(request, &state.0)?;
         }
+        checkpoint()?;
         self.rate(
             &format!("request:user:{}", state.1.user_id.as_str()),
             self.config.limits.request_limit,
             60_000,
         )?;
+        checkpoint()?;
         Ok(state)
     }
 

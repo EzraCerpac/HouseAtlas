@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "12fae2e439f36b1536aa086103880e71acaa7c9402bb82995e424f1b9cf59c95",
+  "sourceDigestSha256": "24a470f10dca2959389a8454a181ad19d5bbfb9c6c14a41793872d5d27411d96",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -546,8 +546,8 @@
     {
       "path": "backend/src/access/boundary.rs",
       "mode": "100644",
-      "bytes": 43464,
-      "sha256": "dfe0b21c89ff2ed3962b25fb54329b10c48cf1d1caa076079cb853cd393c7224",
+      "bytes": 45154,
+      "sha256": "539f811b9fb47fed26ef97774d8129cec2e1636244f4d4327b22fabbe7031091",
       "owner": "access"
     },
     {
@@ -637,8 +637,8 @@
     {
       "path": "backend/src/access/partition_catalog.rs",
       "mode": "100644",
-      "bytes": 6177,
-      "sha256": "9d4a05dd16e8f7470a4ed30bdeaa6eead5b4e4c11a4f969763159d3176648e4a",
+      "bytes": 7153,
+      "sha256": "424a641965229f101025f53aa282aeba511553932a915ba21a368cf3da211cf1",
       "owner": "access"
     },
     {
@@ -1120,8 +1120,8 @@
     {
       "path": "backend/src/app/homebox_partition_catalog.rs",
       "mode": "100644",
-      "bytes": 11831,
-      "sha256": "d9df5e07f7deb4928c51ca2b83cf35d5745f7f34766f2a3ce5bc7113d8b7f070",
+      "bytes": 13413,
+      "sha256": "92b089ed6690efefbfa70da3dba32d06b83985d9b57c68ed96df991e5566d634",
       "owner": "core-integration"
     },
     {
@@ -1281,8 +1281,8 @@
     {
       "path": "backend/src/catalog_budget.rs",
       "mode": "100644",
-      "bytes": 8723,
-      "sha256": "5b9279bebacda1940b4239fc7bbc8edc1545cf434863d2a04dc1c0d751bc843c",
+      "bytes": 9427,
+      "sha256": "f2f911026db9893c50140b9fb68af80be210c22d1fa5ef8bd826a9fd9a423a7c",
       "owner": "core-integration"
     },
     {
@@ -2245,6 +2245,20 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/http/agents/homebox_partition_catalog.rs",
+      "mode": "100644",
+      "bytes": 2585,
+      "sha256": "e376044bdcac5a57100d1417a650542231ab00c7d38dad3b882a52bf149cc6c9",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/http/agents/homebox_partition_catalog/tests.rs",
+      "mode": "100644",
+      "bytes": 12357,
+      "sha256": "6b0851a8e57189484ebc2b5ef5a844b262843ced9d617345aea7cd92b3dcd4f3",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/http/agents/mcp.rs",
       "mode": "100644",
       "bytes": 10819,
@@ -2261,8 +2275,8 @@
     {
       "path": "backend/src/http/agents/mod.rs",
       "mode": "100644",
-      "bytes": 17372,
-      "sha256": "a4a7a085ecc1669091e71c0624d19ca073b2b440ac9fddf17941bf57fead9857",
+      "bytes": 17720,
+      "sha256": "e837c55d5d66883392279a2555b02bd2784b4c7648eb8d613d66962b6af9f7bb",
       "owner": "core-integration"
     },
     {
@@ -6732,10 +6746,17 @@
       "owner": "access"
     },
     {
+      "path": "docs/providers/homebox-partition-admission-view.md",
+      "mode": "100644",
+      "bytes": 6123,
+      "sha256": "e9d59a83e2d3d6b4241adddf25d37dd03bc6a99a5e23d8eda9ed4425828d8f2d",
+      "owner": "homebox"
+    },
+    {
       "path": "docs/providers/internal-homebox-partition-catalog.md",
       "mode": "100644",
-      "bytes": 6263,
-      "sha256": "57970d6d092415239cad346673e0e7d87d1326d7eda4476004867b2e38719a4c",
+      "bytes": 6465,
+      "sha256": "0475973eb19d3d2403578bbbd884b18bc22c6f0bf6ca59afe7a0150c0acbc614",
       "owner": "homebox"
     },
     {
@@ -12033,8 +12054,8 @@
     {
       "path": "tools/houseatlas-mcp-bridge/bridge.py",
       "mode": "100644",
-      "bytes": 59767,
-      "sha256": "b808fa8508ef320fd2072fffff4fcd622bb4c35fb7390d10312b650c80b97891",
+      "bytes": 66225,
+      "sha256": "3d2f89138167821e9f70c3d628212c5b5a89d4cb0d1a4468bb96a78640cbc3b1",
       "owner": "mcp"
     },
     {
@@ -12068,8 +12089,15 @@
     {
       "path": "tools/houseatlas-mcp-bridge/test_bridge.py",
       "mode": "100644",
-      "bytes": 80289,
-      "sha256": "6792520a436d64d7813c29b1f825f05e0e48f107b68db6f6ac8f7d6e83c782d0",
+      "bytes": 80522,
+      "sha256": "030badbfa4bc601759b08cd1f11fa2badc9446a332e470b1d19008a0e230b057",
+      "owner": "mcp"
+    },
+    {
+      "path": "tools/houseatlas-mcp-bridge/test_homebox_catalog.py",
+      "mode": "100644",
+      "bytes": 10763,
+      "sha256": "886122a15bf6bf0324b2df01ebe592616726b8d49cbd22e15b4cb439f12589ce",
       "owner": "mcp"
     },
     {
