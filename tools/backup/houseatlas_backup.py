@@ -308,10 +308,10 @@ def restore_models(store: Path, models: list[dict], destination: Path, fetch=Non
     for model in models:
         parts = Path(model["file"]).parts
         blob = store / "blobs" / model["sha256"]
+        if fetch:
+            fetch(blob)  # before the check: an evicted item may not be local yet
         if not blob.is_file():
             raise StepFailed("model restore", f"blob for {model['file']} is missing")
-        if fetch:
-            fetch(blob)
         folder = destination
         for part in parts[:-1]:
             folder = private_dir(folder / part)
