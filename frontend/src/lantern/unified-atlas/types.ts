@@ -1,6 +1,7 @@
 import type { PlanRing } from '../canonical-ifc/model';
 import type { ModelOverviewSelection } from '../source-models/overview-types';
 import type { UnifiedAtlasOverlayOpen, UnifiedAtlasOverlaySource } from '../../../integration/unified-atlas-overlay-source';
+import type { StoredOverlays } from './stored-overlays';
 
 /** One selected Blender/Bonsai publication read as `houseatlas.unified-atlas-scene.v1`.
  * Every coordinate is in the glTF world frame after node transforms were
@@ -165,6 +166,12 @@ export interface UnifiedAtlasPort {
   createOverlays?(selection: ModelOverviewSelection, scene: AtlasScene, building: AtlasBuilding, signal: AbortSignal): Promise<{
     readonly source: UnifiedAtlasOverlaySource; readonly request: UnifiedAtlasOverlayOpen;
   } | null>;
+  /** Overlay records this device last projected from current frames of this
+   * exact scene, or null. Display only: never a frame, lease or grant, and
+   * shown only while no current frame is held for that building. */
+  storedOverlays?(selection: ModelOverviewSelection, scene: AtlasScene, selectable: ReadonlySet<string>, signal: AbortSignal): Promise<StoredOverlays | null>;
+  /** Keep the records just projected from current frames; best effort. */
+  keepOverlays?(selection: ModelOverviewSelection, scene: AtlasScene, overlays: StoredOverlays): void;
 }
 
 /** Presentation ownership is separate from the unchanged native read contract. */
@@ -186,6 +193,8 @@ export interface LiveAtlasPresentationPort {
   entryBuildingId?(scene: AtlasScene): string | null;
   readonly savedDocumentary?: UnifiedAtlasPort['savedDocumentary'];
   createOverlays?(selection: LiveAtlasSelection, scene: AtlasScene, building: AtlasBuilding, signal: AbortSignal): ReturnType<NonNullable<UnifiedAtlasPort['createOverlays']>>;
+  storedOverlays?(selection: LiveAtlasSelection, scene: AtlasScene, selectable: ReadonlySet<string>, signal: AbortSignal): Promise<StoredOverlays | null>;
+  keepOverlays?(selection: LiveAtlasSelection, scene: AtlasScene, overlays: StoredOverlays): void;
 }
 export interface SavedAtlasPresentationPort {
   readonly kind: 'saved';

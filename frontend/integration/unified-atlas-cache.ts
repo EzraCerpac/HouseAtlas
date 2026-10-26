@@ -1,19 +1,22 @@
 import { openVerifiedByteCache, type NativeGeometryScanCache, type ScanCacheLimits } from './native-geometry-scan-cache';
 
 /** Persistent unified Atlas cache: the last verified scene envelope for each
- * publication and overview manifest, and the model bytes it pins, in this
- * origin's IndexedDB. Records are partitioned by the signed-in actor and home
- * and named by digests, as in the scan cache, and sign-out deletes them all.
+ * publication and overview manifest, the model bytes it pins, and the overlay
+ * records last projected for that scene, in this origin's IndexedDB. Records
+ * are partitioned by the signed-in actor and home and named by digests, as in
+ * the scan cache, and sign-out deletes them all.
  * Holding a record grants nothing. Model bytes stand in for a GET only after a
  * fresh scene pins their exact digest; a stored scene is shown only as the
- * last loaded copy while the fresh read runs. No session, token, descriptor
- * header or other API response is stored. Every operation is best effort. */
+ * last loaded copy while the fresh read runs, and stored overlay records only
+ * while no current overlay frame is held. No session, token, descriptor header,
+ * native document or other API response is stored. Every operation is best effort. */
 
 export const ATLAS_CACHE_DATABASE = 'houseatlas-atlas-model-cache-v1';
 const MiB = 1024 * 1024;
-/** Room for two models with their scenes; the oldest used records give way first. */
+/** Room for two models with their scenes, plus one stored overlay copy; the
+ * oldest used records give way first. */
 export const ATLAS_CACHE_LIMITS: ScanCacheLimits = Object.freeze({
-  entries: 8, bytes: 96 * MiB, entryBytes: 33 * MiB, unusedMs: 30 * 24 * 60 * 60 * 1000,
+  entries: 10, bytes: 96 * MiB, entryBytes: 33 * MiB, unusedMs: 30 * 24 * 60 * 60 * 1000,
 });
 
 export interface StoredAtlasScene {
@@ -28,6 +31,9 @@ export interface UnifiedAtlasCache {
   model(sha256: string, bytes: number): Promise<Uint8Array<ArrayBuffer> | null>;
   keepScene(publicationId: string, manifestSha256: string, envelope: Uint8Array, envelopeSha256: string, entryBuildingId: string | null): void;
   keepModel(sha256: string, bytes: Uint8Array): void;
+  /** The overlay records stored for exactly this scene, as their kept bytes. Display only. */
+  overlays(publicationId: string, revision: string, semanticsSha256: string): Promise<Uint8Array<ArrayBuffer> | null>;
+  keepOverlays(publicationId: string, revision: string, semanticsSha256: string, bytes: Uint8Array): void;
 }
 
 export function openUnifiedAtlasStore(factory: IDBFactory | undefined, limits?: Partial<ScanCacheLimits>): NativeGeometryScanCache {
@@ -56,6 +62,8 @@ export function createUnifiedAtlasCache(store: NativeGeometryScanCache,
   owner: { readonly actorId: string; readonly workspaceId: string; readonly homeId: string }): UnifiedAtlasCache {
   const partition = JSON.stringify(['unified-atlas', owner.actorId, owner.workspaceId, owner.homeId]);
   const sceneKey = (publicationId: string, manifestSha256: string) => JSON.stringify(['scene', publicationId, manifestSha256]);
+  const overlaysKey = (publicationId: string, revision: string, semanticsSha256: string) =>
+    JSON.stringify(['overlays', publicationId, revision, semanticsSha256]);
   // The scene this page knows is in the one scene slot, so an unchanged scene is not written again.
   let persisted: string | null = null;
   return Object.freeze({
@@ -85,6 +93,17 @@ export function createUnifiedAtlasCache(store: NativeGeometryScanCache,
     },
     keepModel(sha256: string, bytes: Uint8Array) {
       store.write(partition, 'model', JSON.stringify(['model', sha256]), bytes);
+    },
+    async overlays(publicationId: string, revision: string, semanticsSha256: string) {
+      const record = await store.read(partition, overlaysKey(publicationId, revision, semanticsSha256));
+      const parsed = record && unpack(record);
+      // The reader checks the records themselves; these pins only name the scene.
+      return parsed && parsed.meta.publicationId === publicationId && parsed.meta.revision === revision
+        && parsed.meta.semanticsSha256 === semanticsSha256 ? parsed.envelope : null;
+    },
+    keepOverlays(publicationId: string, revision: string, semanticsSha256: string, bytes: Uint8Array) {
+      // One slot: the newest scene's overlays replace earlier ones.
+      store.write(partition, 'overlays', overlaysKey(publicationId, revision, semanticsSha256), pack({ publicationId, revision, semanticsSha256 }, bytes));
     },
   });
 }
