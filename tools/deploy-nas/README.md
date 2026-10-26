@@ -8,6 +8,7 @@ tools/deploy-nas/deploy-nas status                  # live binary, commit, model
 tools/deploy-nas/deploy-nas deploy <main-sha>       # build, smoke-test, swap, verify
 tools/deploy-nas/deploy-nas model <release-dir>     # switch the served model, verify
 tools/deploy-nas/deploy-nas rollback                # undo the newest live record, verify
+tools/deploy-nas/deploy-nas prune [--dry-run]       # remove caches and frontends no rollback needs
 ```
 
 `deploy` and `model` take `--prepare-only` to stop before the live service is
@@ -39,8 +40,10 @@ touched. They roll back on their own when gateway verification fails; pass
    moves the staged one in, writes the new plist and bootstraps it. Then it runs
    the same checks through the gateway against the real service.
 
-Nothing live is touched before step 6. Every earlier build folder and parked
-frontend is kept, so any record can be undone.
+Nothing live is touched before step 6. Every earlier build folder is kept.
+
+7. Once the gateway checks pass, prunes what no build or rollback will read again
+   (see below) and logs it in the record. `--no-prune` skips this.
 
 ## What `model <release-dir>` does
 
@@ -69,6 +72,30 @@ Each record folder also holds `recovery/rollback.sh`, a standalone shell undo fo
 when this checkout is unavailable (it refuses, before stopping anything, when the
 parked frontend is gone and it did not restore it itself), plus `events.log`,
 `gateway-verify.txt` and the smoke results. Only one deploy-nas command runs at a time.
+
+## Pruning
+
+A deploy seeds `target/` and `npm-cache/` from the live build's inputs only, so
+older copies just fill the disk. After a verified deploy, and with
+`deploy-nas prune`, the tool removes:
+
+- `target/` and `npm-cache/` in every `houseatlas-main-*-inputs/` folder except
+  the live build's and the build `rollback` returns to. Sources, logs, smoke
+  results and the reports stay.
+- `frontend.before-*` next to the live frontend, except those of the newest 3
+  code records `rollback` can still undo (rolled-back records do not count). So
+  `rollback` can step back 3 code records; past that it refuses, as it does
+  whenever a parked frontend is gone.
+- `frontend.next-*`, `frontend.rolled-back-*` and `frontend.restored-*` leftovers.
+
+It never removes a folder that a path in the service plist, the live server config
+or the smoke template points into, a frontend an unfinished record (or the newest
+prepared one) names, or anything reached through a symlink. Release folders, the
+ledger, model releases and anything outside those two folders are not candidates.
+`--dry-run` lists what would go. The record's `prune` entry lists each removed
+folder with its allocated size, and `freedBytes` is the space the volume actually
+gained (clones share blocks, so it is less than the sum). A failed prune is
+reported and never fails the deploy.
 
 ## Host config
 
