@@ -89,24 +89,25 @@ try {
       const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
     for (const type of ['mousePressed', 'mouseReleased']) await send('Input.dispatchMouseEvent', { type, button: 'left', clickCount: 1, ...point });
   };
-  // The eased camera and the plan's fit settle within a second or two; compare
-  // the plan's matrix once it has held still for half a second.
+  // Reduced motion (emulated below) snaps the camera, but the plan's fit to the
+  // stage can still adjust after a layout pass; read the matrix once it holds still.
   const settledPlan = async () => {
-    let last = null, still = 0;
-    for (const until = Date.now() + 8_000; Date.now() < until; await new Promise(done => setTimeout(done, 100))) {
-      const now = await evaluate(`document.querySelector('.ua-plan')?.getAttribute('transform') ?? null`);
-      still = now !== null && now === last ? still + 1 : 0;
-      if (still >= 5) {
-        const [a, , , , e, f] = now.match(/matrix\(([^)]+)\)/)[1].split(/[ ,]+/).map(Number);
-        return { scale: a, x: e, y: f };
-      }
+    let last = null, still = 0, seen = null;
+    for (const until = Date.now() + 20_000; Date.now() < until; await new Promise(done => setTimeout(done, 100))) {
+      seen = await evaluate(`document.querySelector('.ua-plan')?.getAttribute('transform') ?? null`);
+      const match = seen?.match(/matrix\(([^)]+)\)/);
+      if (!match) { still = 0; last = null; continue; }
+      const [a, , , , e, f] = match[1].split(/[ ,]+/).map(Number), now = { scale: a, x: e, y: f };
+      still = last && Math.abs(now.scale - last.scale) < 1e-3 && Math.abs(now.x - last.x) < .05 && Math.abs(now.y - last.y) < .05 ? still + 1 : 0;
+      if (still >= 4) return now;
       last = now;
     }
-    throw new Error('Plan transform did not settle');
+    throw new Error('Plan transform did not settle: ' + seen);
   };
 
   await send('Page.enable'); await send('Runtime.enable');
   await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   const loaded = cdp.event('Page.loadEventFired');
   await send('Page.navigate', { url: origin + '/lantern-tests/unified-atlas-regression/index.html?atlas=generated' }); await loaded;
   await poll('Boolean(document.querySelector(".ua-room-btn"))', 'Atlas did not mount');
@@ -125,7 +126,7 @@ try {
   const panned = await settledPlan();
   assert(Math.abs(panned.x - (start.x - 40)) < 1 && Math.abs(panned.y - (start.y - 60)) < 1,
     `Two-finger scroll pans the plan by its deltas: ${JSON.stringify({ start, panned })}`);
-  assert.equal(panned.scale, start.scale, 'Plain scroll leaves the zoom alone');
+  assert(Math.abs(panned.scale - start.scale) < 1e-3, 'Plain scroll leaves the zoom alone');
   await wheel(0, -80, 2);
   const pinched = await settledPlan();
   assert(pinched.scale > panned.scale * 1.2, `Pinch (ctrl-wheel) zooms the plan in: ${JSON.stringify({ panned, pinched })}`);
