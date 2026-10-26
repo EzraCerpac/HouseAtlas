@@ -7,7 +7,7 @@ import { Icon } from '../components/Icon';
 import { useReducedMotion, useStore } from '../state/store';
 import { useEased } from '../atlas/useCamera';
 import { BIRCH, BIRCH_DARK, CARD, LANTERN } from '../atlas/palette';
-import { frameZoomMinimum, makeProjection, relativePath, type DrawRules, type Projection, type Viewport } from '../canonical-ifc/geometry';
+import { frameZoomMinimum, makeProjection, relativePath, type DrawRules, type PreparedMesh, type Projection, type Viewport } from '../canonical-ifc/geometry';
 import { DETAIL_GLB_LIMITS, GlbFormatError } from '../canonical-ifc/glb-preflight';
 import { MeshLayer, RENDER_LIMITS, type MeshPalette } from '../canonical-ifc/MeshLayer';
 import { useStageCamera, type StageFraming } from '../canonical-ifc/useStageCamera';
@@ -30,6 +30,7 @@ import { edgeSpans, estimatedOccurrences, MEASUREMENT_BASIS, placeLabels, roomAr
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
 import { modelUpdatesAllowed, useModelUpdates } from './model-updates';
 import { fullModelWanted, useModelQuality } from './model-quality';
+import { shownTier, stageTier } from './model-tier';
 import { NetworkGraph } from './NetworkGraph';
 import { LayerDetailsDock, useLayerDetailsFocus, useShortLayerDetails } from './LayerDetailsDock';
 import { NetworkStageConnections, networkRoomConnections } from './NetworkStageConnections';
@@ -53,8 +54,8 @@ type Outcome = { readonly status: 'ready'; readonly model: AtlasModel; readonly 
 interface Loaded { readonly selection: AtlasPresentationSelection; readonly attempt: number; readonly outcome: Outcome }
 /** The Full tier for one Light model on screen: loading, swapped in, or kept on Light after a failure. */
 interface Detail { readonly light: AtlasModel; readonly model: AtlasModel | null; readonly failed: boolean }
-/** What the stage says about the Full tier while it applies. */
-export type DetailStatus = 'loading' | 'full' | 'failed';
+/** The Full tier offered to one stage: its model once bound, or that it failed. */
+interface StageDetail { readonly model: AtlasModel | null; readonly failed: boolean }
 
 const FAILURE: Record<AtlasReadFailure, { readonly text: string; readonly retry: string | null }> = {
   absent: { text: 'No room map is published for this model yet.', retry: null },
@@ -292,12 +293,11 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
     </section>;
   }
   const stored = outcome.stored && (loaded!.attempt === attempt ? outcome.stored : { ...outcome.stored, refresh: 'pending' as const });
-  const shown = full?.light === outcome.model && full.model ? full.model : outcome.model;
-  const detailStatus: DetailStatus | null = full?.light !== outcome.model ? null : full.model ? 'full' : full.failed ? 'failed' : 'loading';
+  const stageDetail: StageDetail | null = full?.light === outcome.model ? { model: full.model, failed: full.failed } : null;
   // Same scene, so the same view-state key: the Full model takes over the Light stage in place.
-  return <AtlasStage key={memoryKey(outcome.model, selection)} model={shown} port={port} selection={selection} entryBuildingId={outcome.entryBuildingId}
+  return <AtlasStage key={memoryKey(outcome.model, selection)} model={outcome.model} port={port} selection={selection} entryBuildingId={outcome.entryBuildingId}
     otherSources={otherSources ?? []} environment={environment} {...(stored ? { stored, retry: ask } : {})}
-    {...(detailStatus ? { detail: detailStatus, keepLight } : {})} />;
+    {...(stageDetail ? { detail: stageDetail, keepLight } : {})} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -501,11 +501,19 @@ interface StageMarker extends CountMarker {
   readonly context: boolean;
 }
 
-function AtlasStage({ model, port, selection, entryBuildingId, otherSources, environment, stored, retry, detail, keepLight }: { readonly model: AtlasModel; readonly port: AtlasPresentationPort;
+function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSources, environment, stored, retry, detail, keepLight }: { readonly model: AtlasModel; readonly port: AtlasPresentationPort;
   readonly selection: AtlasPresentationSelection; readonly entryBuildingId: string | null | undefined; readonly otherSources: readonly OtherSource[]; readonly environment: AtlasPresentationEnvironment;
   readonly stored?: StoredCopy; readonly retry?: () => void;
-  /** The Full tier's state; with 'full', a 3D failure goes back to Light through `keepLight`. */
-  readonly detail?: DetailStatus; readonly keepLight?: () => void }) {
+  /** The Full tier for this Light model; a 3D failure while it applies goes back to Light through `keepLight`. */
+  readonly detail?: StageDetail; readonly keepLight?: () => void }) {
+  // The model on screen owns the stage; see stageTier.
+  const [displayed, setDisplayed] = useState<AtlasModel | null>(null);
+  const { model, target } = stageTier(lighter, detail?.model ?? null, displayed);
+  const wanted = useRef(target); wanted.current = target;
+  const onShown = useCallback((meshes: readonly PreparedMesh[]) => {
+    const shown = shownTier(wanted.current, meshes); if (shown) setDisplayed(shown);
+  }, []);
+  const detailNote = !detail || (detail.model !== null && model === detail.model) ? null : detail.failed ? 'failed' : 'loading';
   const archive = environment.archive;
   const reduced = environment.reducedMotion;
   const key = memoryKey(model, selection);
@@ -1327,10 +1335,10 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
             {retry && <button type="button" className="btn btn-small btn-quiet" onClick={retry}>Try again</button>}
           </>}
         </p>}
-        {(detail === 'loading' || detail === 'failed') && <p className="ua-snapshot-note ua-detail-note" role="status" aria-busy={detail === 'loading'}>
+        {detailNote && <p className="ua-snapshot-note ua-detail-note" role="status" aria-busy={detailNote === 'loading'}>
           <Icon name="atlas" size={15} />
-          <span className="ua-snapshot-kind">{detail === 'loading' ? 'Loading full detail' : 'Full detail unavailable'}</span>
-          <span>{detail === 'loading' ? 'the lighter model is shown meanwhile' : 'showing the lighter model'}</span>
+          <span className="ua-snapshot-kind">{detailNote === 'loading' ? 'Loading full detail' : 'Full detail unavailable'}</span>
+          <span>{detailNote === 'loading' ? 'the lighter model is shown meanwhile' : 'showing the lighter model'}</span>
         </p>}
         {showBack && <button type="button" className="chip-btn ua-back" onClick={out} aria-label={`Back to ${backTo}`}>
           <Icon name="back" size={15} /><span>{backTo}</span></button>}
@@ -1430,12 +1438,12 @@ function AtlasStage({ model, port, selection, entryBuildingId, otherSources, env
           </g>
         </svg>
         <div className="cifc-canvas-wrap" style={{ opacity: 1 - planBlend }}>
-          <MeshLayer meshes={model.meshes} projection={projection} rules={RULES} currentFloorId={presentation.focusLevelId}
+          <MeshLayer meshes={target.meshes} onShown={onShown} projection={projection} rules={RULES} currentFloorId={presentation.focusLevelId}
             selectedOccurrenceId={selected} contextOccurrenceIds={context} tints={tints} hidden={!showCanvas}
             hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} sourceColors sourceMaterials sourceDim={ATLAS_SOURCE_DIM} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE} light={light} pitch={ATLAS_PITCH}
             pitchKeys={roofKeys} site={site} ghostAlpha={ATLAS_GHOST_ALPHA}
-            uploadBytes={detail === 'full' ? RENDER_LIMITS.detailUploadBytes : RENDER_LIMITS.uploadBytes}
-            onUnavailable={message => { if (detail === 'full' && keepLight) keepLight(); else setFailure(message); }} />
+            uploadBytes={target !== lighter || model !== lighter ? RENDER_LIMITS.detailUploadBytes : RENDER_LIMITS.uploadBytes}
+            onUnavailable={message => { if (target !== lighter && keepLight) keepLight(); else setFailure(message); }} />
         </div>
         <svg className="cifc-svg" width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`} aria-hidden="true">
           {planes.map(row => <polygon key={row.key} className="ua-section" points={row.points} style={{ opacity: row.opacity }} />)}

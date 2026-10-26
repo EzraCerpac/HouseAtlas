@@ -2,7 +2,7 @@
 // served overview (about 1,900 primitives, 260k triangles), drawn by MeshLayer
 // while the camera turns. Reports CPU time per frame and GPU API calls per
 // frame. Synthetic geometry only; it qualifies no model, device or deployment.
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MeshLayer } from '../../src/lantern/canonical-ifc/MeshLayer';
 import { makeProjection, prepareMeshes, type MeshInput } from '../../src/lantern/canonical-ifc/geometry';
@@ -107,6 +107,10 @@ function Bench() {
   const [generation, setGeneration] = useState(0);
   // Each generation is a new prepared set of the same house.
   const meshes = useMemo(() => prepareMeshes(house()), [generation]);
+  const generations = useMemo(() => new WeakMap<object, number>(), []); generations.set(meshes, generation);
+  const onShown = useCallback((set: readonly object[]) => {
+    const log = (window as unknown as { shownSets?: number[] }); (log.shownSets ??= []).push(generations.get(set) ?? -1);
+  }, [generations]);
   useEffect(() => {
     (window as unknown as { swap: () => unknown }).swap = () => {
       const report = watchSwap(document.getElementById('root')!); setGeneration(value => value + 1); return report;
@@ -150,6 +154,6 @@ function Bench() {
   return <><output>{failure}</output>
     <MeshLayer meshes={meshes} projection={projection} rules={RULES} currentFloorId="L1" selectedOccurrenceId={selected}
       contextOccurrenceIds={CONTEXT} tints={TINTS} hidden={false} sourceColors sourceDim={.6} ambient={.55}
-      twoSided shade="#5F6B7E" light={LIGHT} pitch="#C9A27E" ghostAlpha={.2} {...look} onUnavailable={setFailure} /></>;
+      twoSided shade="#5F6B7E" light={LIGHT} pitch="#C9A27E" ghostAlpha={.2} {...look} onUnavailable={setFailure} onShown={onShown} /></>;
 }
 createRoot(document.getElementById('root')!).render(<Bench />);

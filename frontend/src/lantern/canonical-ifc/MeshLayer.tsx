@@ -14,6 +14,8 @@ interface Props extends AppearanceInput {
   readonly onUnavailable: (message: string) => void;
   /** GPU upload budget for this mesh set; RENDER_LIMITS.uploadBytes unless the host admitted a larger tier. */
   readonly uploadBytes?: number;
+  /** A mesh set is on screen: drawn once, and the set it replaced is gone. */
+  readonly onShown?: (meshes: readonly PreparedMesh[]) => void;
 }
 
 /** Whether this browser offers any 3D drawing API the renderer can use. */
@@ -38,7 +40,10 @@ const meshSetId = (meshes: readonly PreparedMesh[]) => {
 export function MeshLayer(props: Props) {
   const [shown, setShown] = useState<readonly PreparedMesh[] | null>(null);
   const wanted = useRef(props.meshes); wanted.current = props.meshes;
-  const ready = useCallback((meshes: readonly PreparedMesh[]) => { if (wanted.current === meshes) setShown(meshes); }, []);
+  const onShown = useRef(props.onShown); onShown.current = props.onShown;
+  const ready = useCallback((meshes: readonly PreparedMesh[]) => {
+    if (wanted.current === meshes) { setShown(meshes); onShown.current?.(meshes); }
+  }, []);
   const sets = shown !== null && shown !== props.meshes ? [shown, props.meshes] : [props.meshes];
   return <>{sets.map(meshes => <MeshCanvas key={meshSetId(meshes)} {...props} meshes={meshes}
     building={meshes !== (shown ?? meshes)} onReady={ready} />)}</>;

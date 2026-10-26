@@ -139,7 +139,11 @@ always loads and shows first. Only then does `readUnifiedAtlasDetail` fetch the
 detail (same checks as the model, 300 s deadline), which is admitted under the
 Full budget, bound to the same scene and swapped into the same stage, so the
 view, floors and selection carry over. MeshLayer builds the new mesh set on a
-hidden canvas behind the one on screen, so the swap never blanks the view. A
+hidden canvas behind the one on screen and shows it only after its first
+frame, so the swap never blanks the view. Picking, labels and every other read
+of the stage follow the model whose meshes are on screen (`model-tier.ts`), so
+drawing and picking never use different tiers, and Light is drawn before Full
+is built, however fast Full arrives. A
 failed read, admission or GPU build keeps the overview. The detail is never
 stored offline: a stored copy and saved houses show the overview only.
 Reuse the existing Read/Media, same-origin, retained-principal and final-current

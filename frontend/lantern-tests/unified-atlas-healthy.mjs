@@ -59,6 +59,7 @@ const { NetworkGraph } = await import(graphURL);
 const readerURL = await sourceURL('../integration/unified-atlas-reader.ts',
   { '../src/lantern/unified-atlas/scene': sceneURL, '../src/lantern/unified-atlas/types': typesURL });
 const syntheticURL = await sourceURL('./unified-atlas/synthetic-atlas.ts');
+const { stageTier, shownTier } = await import(await sourceURL('../src/lantern/unified-atlas/model-tier.ts'));
 
 const { makeProjection, pointInShape, sourceMeshColor } = await import(geometryURL);
 const { readGlbContainer } = await import(preflightURL);
@@ -213,6 +214,21 @@ assert.equal(admittedWide.coverage.unselectableCount, 4096);
 const loaded = await loadStandardGlb(read.model, 'atlas', new AbortController().signal);
 assert.equal(loaded.drawn.length, SYNTHETIC_ATLAS_DRAWN_PRIMITIVES, 'every primitive of every node use is drawn once');
 const model = bindAtlasModel(read.scene, loaded);
+
+// Tier ownership: the stage reads the model whose meshes are on screen. Light
+// draws first even when Full is already bound; Full is drawn behind it and owns
+// picking only once its meshes are shown; leaving Full draws Light behind Full.
+{
+  const light = model, full = { ...model, meshes: model.meshes.map(mesh => ({ ...mesh })) };
+  assert.deepEqual(stageTier(light, full, null), { model: light, target: light }, 'nothing shown yet: Light first, however fast Full arrived');
+  assert.equal(shownTier(light, light.meshes), light);
+  assert.deepEqual(stageTier(light, full, light), { model: light, target: full }, 'Full builds behind; Light still owns picks');
+  assert.equal(shownTier(full, light.meshes), null, 'a set the stage no longer wants does not take over');
+  assert.equal(shownTier(full, full.meshes), full);
+  assert.deepEqual(stageTier(light, full, full), { model: full, target: full });
+  assert.deepEqual(stageTier(light, null, full), { model: full, target: light }, 'back to Light: Full owns picks until Light is drawn');
+  assert.deepEqual(stageTier(light, null, null), { model: light, target: light });
+}
 const near = (a, b, label) => a.forEach((value, at) => assert.ok(Math.abs(value - b[at]) < 1e-4, `${label}: ${a} vs ${b}`));
 const drawnAt = (node, primitive) => model.parts[loaded.drawn.findIndex(row => row.nodeIndex === node && row.primitiveIndex === primitive)];
 // Nested translations (site > house > rooms) land at the companion's world coordinates, not twice.
