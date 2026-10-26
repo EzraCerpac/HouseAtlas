@@ -20,6 +20,10 @@ const drawable = () => 'gpu' in navigator || document.createElement('canvas').ge
 /** A lost GPU device is rebuilt this many times before the view gives up. */
 const REBUILDS = 2;
 
+/** Contact shading waits until the camera has been still this long, then fades in over FADE_MS.
+ * Frames drawn while the camera moves skip it, so orbiting costs no more than before. */
+const SETTLE_MS = 180, FADE_MS = 240;
+
 /** A stable number per prepared mesh set, for the canvas key. */
 const meshSets = new WeakMap<readonly PreparedMesh[], number>();
 let lastMeshSet = 0;
@@ -39,8 +43,8 @@ export function MeshLayer(props: Props) {
   const [rebuilds, setRebuilds] = useState(0);
   const key = `${meshSetId(props.meshes)}:${props.sourceMaterials === true}:${rebuilds}`;
   // Camera moves redraw only; any other presentation change also rewrites the per-mesh state.
-  const stale = useRef(true);
-  useLayoutEffect(() => { redraw.current?.(); }, [props.projection, props.hidden]);
+  const stale = useRef(true), moved = useRef(false);
+  useLayoutEffect(() => { moved.current = true; redraw.current?.(); }, [props.projection, props.hidden]);
   useLayoutEffect(() => { stale.current = true; redraw.current?.(); },
     [props.rules, props.currentFloorId, props.selectedOccurrenceId, props.contextOccurrenceIds, props.tints, props.referenceKeys,
       props.hiddenKeys, props.selectedKeys, props.lifts, props.clips, props.dims, props.ghosts, props.palette, props.sourceColors, props.sourceMaterials, props.sourceDim, props.ambient, props.twoSided, props.shade, props.light, props.pitch, props.pitchKeys, props.site, props.ghostAlpha]);
@@ -48,6 +52,9 @@ export function MeshLayer(props: Props) {
     const element = canvas.current; if (!element || props.meshes.length === 0) return;
     const usesMaterials = props.sourceMaterials === true && props.meshes.some(mesh => mesh.sourceMaterial !== undefined);
     let disposed = false, frame: number | null = null, scene: MeshScene | null = null;
+    // Contact shading strength (0 to 1), the pending settle timer, and when the fade-in began.
+    let shading = 0, settle: ReturnType<typeof setTimeout> | null = null, fading: number | null = null;
+    const still = () => { settle = null; fading = performance.now(); schedule(); };
     const schedule = () => {
       if (disposed || !scene || frame !== null || document.hidden) return;
       frame = requestAnimationFrame(() => { frame = null; try { render(); } catch { fail('The 3D model cannot be rendered.'); } });
@@ -55,6 +62,7 @@ export function MeshLayer(props: Props) {
     const release = () => {
       if (disposed) return; disposed = true;
       if (frame !== null) cancelAnimationFrame(frame); frame = null;
+      if (settle !== null) clearTimeout(settle); settle = null;
       if (redraw.current === schedule) redraw.current = null;
       scene?.dispose(); scene = null;
     };
@@ -70,13 +78,18 @@ export function MeshLayer(props: Props) {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       let w = Math.max(1, Math.round(element.clientWidth * dpr)), h = Math.max(1, Math.round(element.clientHeight * dpr));
       const fit = Math.min(1, Math.sqrt(RENDER_LIMITS.pixels / (w * h))); w = Math.max(1, Math.floor(w * fit)); h = Math.max(1, Math.floor(h * fit));
-      scene.render(p.projection, stale.current ? p : null, w, h); stale.current = false;
+      if (moved.current) { moved.current = false; shading = 0; fading = null; if (settle !== null) clearTimeout(settle); settle = null; }
+      if (fading !== null) {
+        shading = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 1 : Math.min(1, (performance.now() - fading) / FADE_MS);
+        if (shading < 1) schedule(); else fading = null;
+      } else if (shading < 1 && settle === null) settle = setTimeout(still, SETTLE_MS);
+      scene.render(p.projection, stale.current ? p : null, w, h, shading); stale.current = false;
     };
     document.addEventListener('visibilitychange', visibility);
     const resize = new ResizeObserver(schedule); resize.observe(element);
     try { materialGpuResources(props.meshes, usesMaterials); } catch { fail('The 3D model cannot be rendered.'); }
     if (!disposed) {
-      void import('./mesh-scene').then(({ createMeshScene }) => createMeshScene(element, props.meshes, usesMaterials, lost, (globalThis as { houseatlasLook?: import('./mesh-scene').MeshLook }).houseatlasLook /* PROTOTYPE */)).then(created => {
+      void import('./mesh-scene').then(({ createMeshScene }) => createMeshScene(element, props.meshes, usesMaterials, lost)).then(created => {
         if (disposed) { created.dispose(); return; }
         scene = created; stale.current = true; element.dataset.renderer = created.backend;
         redraw.current = schedule; schedule();

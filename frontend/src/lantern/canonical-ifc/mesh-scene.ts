@@ -24,26 +24,22 @@ type F = Node<'float'>; type V3 = Node<'vec3'>; type V4 = Node<'vec4'>; type B =
  * is a handful of draws however many meshes there are. */
 export interface MeshScene {
   readonly backend: 'webgpu' | 'webgl2';
-  /** Draw one frame. `appearance` is null when only the camera moved since the last frame. */
-  render(projection: Projection, appearance: AppearanceInput | null, width: number, height: number): void;
+  /** Draw one frame. `appearance` is null when only the camera moved since the last frame.
+   * `occlusion` (0 to 1) blends in contact shading; 0 skips its passes entirely. */
+  render(projection: Projection, appearance: AppearanceInput | null, width: number, height: number, occlusion: number): void;
   dispose(): void;
 }
 
-/** Optional lighting upgrades, each off by default (the original look). */
-export interface MeshLook {
-  /** Hemisphere sky and ground light instead of one flat ambient term. */
-  readonly sky: boolean;
-  /** Sun shadows from a shadow map, redrawn only when the scene changes, not when the camera moves. */
-  readonly shadows: boolean;
-  /** Screen-space ambient occlusion (GTAO) in contact corners. */
-  readonly occlusion: boolean;
-}
-export const ORIGINAL_LOOK: MeshLook = Object.freeze({ sky: false, shadows: false, occlusion: false });
 /** Shadow map edge in texels, receiver offset along the face normal in metres, and filter radius in texels. */
 const SUN_MAP = 2048, SUN_OFFSET = .04, SUN_SOFTNESS = 2.5, SUN_TAPS = 5;
+/** Contact shading: reach in metres and how dark a fully enclosed corner gets.
+ * Eight samples march three steps per direction, so the first step lands a
+ * pixel or more out; more steps start inside one depth texel and read flat
+ * walls as speckled self-occlusion. */
+const OCCLUSION_RADIUS = .8, OCCLUSION_SAMPLES = 8, OCCLUSION_STRENGTH = .6;
 
 export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonly PreparedMesh[], useMaterials: boolean,
-  onLost: (message: string) => void, look: MeshLook = ORIGINAL_LOOK): Promise<MeshScene> {
+  onLost: (message: string) => void): Promise<MeshScene> {
   // Choose the backend here: WebGL2 is an expected fallback, not something for three.js to warn about.
   const webgpu = await navigator.gpu?.requestAdapter().then(adapter => adapter !== null, () => false) ?? false;
   const renderer = new WebGPURenderer({ canvas, antialias: true, alpha: true, forceWebGL: !webgpu });
@@ -61,9 +57,11 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
 
   async function build(): Promise<MeshScene> {
     await renderer.init();
-    // three.js runs its own requestAnimationFrame clock from init. This view draws
-    // only on demand and uses no per-frame nodes, so the idle loop is stopped.
-    (renderer as unknown as { _animation?: { stop(): void } })._animation?.stop();
+    // three.js runs its own requestAnimationFrame clock from init, which also
+    // advances its node frame. This view draws only on demand, so the idle loop
+    // is stopped and render() advances the frame itself.
+    const internals = renderer as unknown as { _animation?: { stop(): void }; _nodes: { nodeFrame: { update(): void } } };
+    internals._animation?.stop();
     const backend = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'webgpu' : 'webgl2';
 
     const rows = Math.max(1, Math.ceil(meshes.length / ROW));
@@ -94,13 +92,10 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     // so the map is redrawn only when the scene changes, never while the camera turns.
     const sun = new OrthographicCamera(), sunMatrix = uniform(new Matrix4());
     sun.coordinateSystem = renderer.coordinateSystem;
-    const sunTarget = look.shadows ? new RenderTarget(SUN_MAP, SUN_MAP) : null;
-    if (sunTarget) {
-      const map = sunTarget.depthTexture = new DepthTexture(SUN_MAP, SUN_MAP);
-      // A comparison sampler with linear filtering: each tap is a bilinear 2 × 2 test in hardware.
-      map.type = FloatType; map.compareFunction = LessEqualCompare; map.minFilter = map.magFilter = LinearFilter;
-      owned.push(sunTarget);
-    }
+    const sunTarget = new RenderTarget(SUN_MAP, SUN_MAP), sunDepth = sunTarget.depthTexture = new DepthTexture(SUN_MAP, SUN_MAP);
+    // A comparison sampler with linear filtering: each tap is a bilinear 2 × 2 test in hardware.
+    sunDepth.type = FloatType; sunDepth.compareFunction = LessEqualCompare; sunDepth.minFilter = sunDepth.magFilter = LinearFilter;
+    owned.push(sunTarget);
     /** Fraction of the light reaching the point: a few hardware-filtered taps on a disc turned per pixel, as three.js does. */
     const sunShadow = (world: V3): F => {
       const clip = sunMatrix.mul(vec4(world.add(normalize(vNormal).mul(SUN_OFFSET)), 1));
@@ -109,21 +104,21 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       const depth = toUnitDepth ? clip.z : clip.z.mul(.5).add(.5);
       const turn = interleavedGradientNoise(screenCoordinate.xy).mul(2 * Math.PI);
       let sum: F = float(0);
-      for (let i = 0; i < SUN_TAPS; i++) sum = sum.add(texture(sunTarget!.depthTexture!, at.add(vogelDiskSample(int(i), int(SUN_TAPS), turn).mul(SUN_SOFTNESS / SUN_MAP))).compare(depth).x);
+      for (let i = 0; i < SUN_TAPS; i++) sum = sum.add(texture(sunDepth, at.add(vogelDiskSample(int(i), int(SUN_TAPS), turn).mul(SUN_SOFTNESS / SUN_MAP))).compare(depth).x);
       return sum.div(SUN_TAPS);
     };
     const encode = (c: V3): V3 => mix(c.mul(12.92), pow(max(c, vec3(0)), vec3(1 / 2.4)).mul(1.055).sub(.055), step(vec3(.0031308), c));
     const display = (c: V3, useSource: F): V3 => select(useSource.greaterThan(.5), encode(c), c);
     const facing = (n: V3): V3 => select(u.twoSided.greaterThan(.5).and(frontFacing.not()), n.negate(), n);
-    const sky = (n: V3): F => look.sky ? mix(float(.7), float(1.1), n.y.mul(.5).add(.5)) : float(1);
-    const vWorld = varying(positionGeometry.add(vec3(0, read(meshId, 4).w, 0)));
-    const sunlit = look.shadows ? sunShadow(vWorld) : float(1);
+    /** Sky light: faces looking up get more of the ambient term than faces looking down. */
+    const sky = (n: V3): F => mix(float(.7), float(1.1), n.y.mul(.5).add(.5));
+    const sunlit = sunShadow(varying(positionGeometry.add(vec3(0, read(meshId, 4).w, 0))));
     const lit = (n: V3): F => {
       const facingSun = dot(n, u.light);
       return clamp(u.ambient.mul(sky(n)).add(float(1).sub(u.ambient).mul(facingSun).mul(select(facingSun.greaterThan(0), sunlit, 1))), 0, 1);
     };
     /** Flat tops keep their tone and darken towards the shade tone in shadow. */
-    const top = (tone: V3, shade: V3): V3 => look.shadows ? mix(tone, shade, float(1).sub(sunlit).mul(.45)) : tone;
+    const top = (tone: V3, shade: V3): V3 => mix(tone, shade, float(1).sub(sunlit).mul(.45));
 
     /** Architectural face tones: flat tops, pitched faces and lit walls. */
     const shaded = (s: readonly V4[], n: V3): V3 => {
@@ -273,7 +268,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const add = (geometry: BufferGeometry, pass: MeshPass | 'ghost', material: NodeMaterial, order: number) => {
       const mesh = new Mesh(geometry, material); mesh.frustumCulled = false; mesh.matrixAutoUpdate = false; mesh.renderOrder = order;
       scene.add(mesh); layers.push({ pass, mesh });
-      if ((look.shadows || look.occlusion) && pass === MeshPass.Reference) {
+      if (pass === MeshPass.Reference) {
         const body = new Mesh(geometry, solid); body.frustumCulled = false; body.matrixAutoUpdate = false; solidScene.add(body);
       }
     };
@@ -314,28 +309,24 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       renderer.setRenderTarget(sunTarget); renderer.render(solidScene, sun); renderer.setRenderTarget(null);
     };
 
-    // Ambient occlusion: a depth-and-normal pass without multisampling feeds GTAO
-    // (it cannot read multisampled depth on WebGPU), then the antialiased colour
-    // pass is darkened in contact corners on its way to the canvas.
-    let pipeline: RenderPipeline | null = null;
-    if (look.occlusion) {
-      const geometryPass = pass(solidScene, solidCamera, { samples: 0 }), colorPass = pass(scene, camera);
-      const depth = geometryPass.getTextureNode('depth'), normal = geometryPass.getTextureNode('output');
-      const occlusion = ao(depth, normal, solidCamera);
-      occlusion.radius.value = .8; occlusion.samples.value = 8;
-      const debug = (globalThis as { lookDebug?: { radius?: number; samples?: number; plain?: boolean; view?: string } }).lookDebug ?? {}; // PROTOTYPE
-      if (debug.radius) occlusion.radius.value = debug.radius; if (debug.samples) occlusion.samples.value = debug.samples;
-      const smooth = (debug.plain ? occlusion.getTextureNode() : denoise(occlusion.getTextureNode(), depth, normal, solidCamera)) as unknown as V4;
-      const color = colorPass.getTextureNode('output'), shade = select(depth.r.lessThan(1), mix(float(1), smooth.r, .6), 1);
-      const debugOut = debug.view === 'color' ? color : debug.view === 'normal' ? vec4(normal.rgb.mul(.5).add(.5), 1) : debug.view === 'ao' ? vec4(vec3(smooth.r), 1) : vec4(color.rgb.mul(shade), color.a);
-      pipeline = new RenderPipeline(renderer, debugOut); pipeline.outputColorTransform = false;
-      owned.push(geometryPass, colorPass, occlusion, pipeline);
-    }
+    // Contact shading (GTAO): a depth-and-normal pass without multisampling feeds
+    // it (GTAO cannot read multisampled depth on WebGPU), then the antialiased
+    // colour pass is darkened in corners on its way to the canvas.
+    const geometryPass = pass(solidScene, solidCamera, { samples: 0 }), colorPass = pass(scene, camera);
+    const depth = geometryPass.getTextureNode('depth'), normal = geometryPass.getTextureNode('output');
+    const occlusion = ao(depth, normal, solidCamera);
+    occlusion.radius.value = OCCLUSION_RADIUS; occlusion.samples.value = OCCLUSION_SAMPLES;
+    const smooth = denoise(occlusion.getTextureNode(), depth, normal, solidCamera) as unknown as V4;
+    const strength = uniform(0), color = colorPass.getTextureNode('output');
+    const shade = select(depth.r.lessThan(1), mix(float(1), smooth.r, strength.mul(OCCLUSION_STRENGTH)), 1);
+    const pipeline = new RenderPipeline(renderer, vec4(color.rgb.mul(shade), color.a));
+    pipeline.outputColorTransform = false;
+    owned.push(geometryPass, colorPass, occlusion, pipeline);
 
     let disposed = false, sunStale = true;
     return {
       backend,
-      render(q, appearance, width, height) {
+      render(q, appearance, width, height, shading) {
         if (disposed) return;
         if (appearance) {
           const frame = writeAppearance(meshes, appearance, table); state.needsUpdate = true;
@@ -347,10 +338,11 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
         }
         frame(q); u.viewDir.value.set(q.st * q.cf, q.sf, q.ct * q.cf);
         if (canvas.width !== width || canvas.height !== height) renderer.setSize(width, height, false);
-        if (look.shadows && sunStale) { drawSun(); sunStale = false; }
-        if (pipeline) {
-          // Post-processing passes redraw once per three.js frame, which only its own (stopped) loop advances.
-          (renderer as unknown as { _nodes: { nodeFrame: { update(): void } } })._nodes.nodeFrame.update();
+        if (sunStale) { drawSun(); sunStale = false; }
+        if (shading > 0) {
+          strength.value = Math.min(1, shading);
+          // Post-processing passes redraw once per three.js frame.
+          internals._nodes.nodeFrame.update();
           pipeline.render();
         } else renderer.render(scene, camera);
       },
