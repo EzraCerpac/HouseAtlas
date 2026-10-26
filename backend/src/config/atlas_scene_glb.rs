@@ -842,6 +842,17 @@ mod material_healthy {
         );
     }
     #[test]
+    fn rgb8_four_maps() {
+        positive(
+            "rgb8-four-maps",
+            23_128,
+            16_777_216,
+            22_369_616,
+            25_213_960,
+            22_387_616,
+        );
+    }
+    #[test]
     fn rgb8_adam7_narrow() {
         positive("rgb8-adam7-narrow", 216, 84, 132, 8_413_916, 18_132);
     }

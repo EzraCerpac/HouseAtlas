@@ -404,11 +404,13 @@ Other callers remain opted out unless they explicitly enable this profile.
 The Three loader still declines its own texture requests and disposes its
 resources; the bounded decoder and copied streams supply the Unified renderer.
 
-The profile accepts only embedded RGB8 PNG bufferViews in the GLB BIN chunk,
-with at most three images. Image URIs remain forbidden. Each image is at most
-1,024 by 1,024 pixels, 1,048,576 pixels and 2,097,152 encoded bytes; unique
-encoded image bytes total at most 4,194,304. Aggregate decoded RGBA is at most
-12,582,912 bytes and application decoder scratch at most 8,388,608 bytes.
+The profile accepts only embedded RGB8 PNG bufferViews in the GLB BIN chunk.
+Image URIs remain forbidden. Each image is at most 1,024 by 1,024 pixels,
+1,048,576 pixels and 2,097,152 encoded bytes, and application decoder scratch
+is at most 8,388,608 bytes. There is no fixed image count or aggregate image
+cap: how many textures fit is the quality tier's prepared and GPU budget below,
+which charges every image. A sanity cap of 64 images only bounds the identity
+scan. A refusal states the textures' and geometry's MiB against the tier.
 PNG framing and CRC, supported filters and noninterlaced/Adam7 decoding are
 checked by the application decoder; browser image decoding is not used.
 
@@ -424,8 +426,8 @@ indexed attributes and expanded corner attributes in the prepared-byte ledger.
 The renderer keeps the legacy position/flat-normal stream for picking and a
 separate UV/shading-normal/tangent stream for material drawing. GPU accounting
 includes both streams and complete mip chains, deduplicated by image, sampler
-and color role. The existing 96 MiB prepared and 64 MiB GPU limits remain in
-force; the renderer checks its resource ledger before allocating GL resources.
+and color role. The tier's prepared and GPU limits (Light 96/64 MiB, Full
+640/384 MiB) are in force; the renderer checks its resource ledger before allocating GL resources.
 These are bounded application ledgers, not measurements of total browser,
 driver or process peak memory.
 

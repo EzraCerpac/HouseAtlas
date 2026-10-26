@@ -9,6 +9,7 @@ import { makeProjection, prepareMeshes, type MeshInput } from '../../src/lantern
 import { GlbFormatError } from '../../src/lantern/canonical-ifc/glb-preflight';
 import { loadStandardGlb } from '../../src/lantern/canonical-ifc/standard-glb';
 import { loadStandardGlbInWorker } from '../../src/lantern/canonical-ifc/standard-glb-thread';
+import { sha256OffThread } from '../../integration/sha256-thread';
 import { BufferGeometry } from 'three/webgpu';
 import { box as sampleBox, buildGlb } from '../canonical-ifc-visual/standard-glb-sample';
 
@@ -146,6 +147,20 @@ async function checkWorker() {
     meshes: there.meshes.length, refused, aborted, malformed };
 }
 
+/** The Full model's digest in its worker: the same SHA-256 as this thread,
+ * the bytes moved there and back unchanged, and cancellation reaching the caller. */
+async function checkDigestWorker() {
+  const signal = new AbortController().signal, bytes = new Uint8Array(24 * 1024 * 1024);
+  for (let at = 0, seed = 1; at < bytes.length; at++) { seed = (seed * 1103515245 + 12345) >>> 0; bytes[at] = seed >>> 24; }
+  const kept = bytes.slice(), here = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+  const there = await sha256OffThread(bytes, signal);
+  const reason = new Error('withdrawn'), controller = new AbortController();
+  const pending = sha256OffThread(kept.slice(), controller.signal); controller.abort(reason);
+  const aborted = await pending.then(() => 'hashed', error => error === reason ? 'aborted' : String(error));
+  return { same: there.digest.every((value, at) => value === here[at]) && there.digest.length === 32,
+    unchanged: there.bytes.length === kept.length && there.bytes.every((value, at) => value === kept[at]), moved: bytes.byteLength === 0, aborted };
+}
+
 function Bench() {
   // Each generation is a new prepared set of the same house, or of a larger one,
   // prepared before the swap starts, as the Full model arrives prepared from its worker.
@@ -162,6 +177,7 @@ function Bench() {
       return report;
     };
     (window as unknown as { checkWorker: typeof checkWorker }).checkWorker = checkWorker;
+    (window as unknown as { checkDigestWorker: typeof checkDigestWorker }).checkDigestWorker = checkDigestWorker;
   }, []);
   const bounds = useMemo(() => {
     const min: [number, number, number] = [Infinity, Infinity, Infinity], max: [number, number, number] = [-Infinity, -Infinity, -Infinity];

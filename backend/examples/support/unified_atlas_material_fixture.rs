@@ -83,7 +83,7 @@ pub fn generate(scope: Value, publication_id: String, name: &str) -> (Vec<u8>, V
     let mut binary = original[28 + json_len..].to_vec();
     let (width, height, interlaced, shared, normal) = match name {
         "rgb8-three-maps" => (2, 2, false, false, true),
-        "rgb8-max-dimension" => (1024, 1024, false, false, true),
+        "rgb8-max-dimension" | "rgb8-four-maps" => (1024, 1024, false, false, true),
         "rgb8-adam7-narrow" => (1, 7, true, false, true),
         "rgb8-adam7-odd" => (5, 3, true, false, true),
         "rgb8-shared-roles" => (2, 2, false, true, true),
@@ -113,11 +113,15 @@ pub fn generate(scope: Value, publication_id: String, name: &str) -> (Vec<u8>, V
         }
     }
     let pixels = if name == "rgb8-duplicate-images" {
-        [[192, 64, 32]; 3]
+        [[192, 64, 32]; 4]
     } else {
-        [[192, 64, 32], [128, 128, 255], [0, 96, 224]]
+        [[192, 64, 32], [128, 128, 255], [0, 96, 224], [64, 160, 96]]
     };
-    let image_count = if shared || !normal { 1 } else { 3 };
+    let image_count = match name {
+        _ if shared || !normal => 1,
+        "rgb8-four-maps" => 4,
+        _ => 3,
+    };
     document["images"] = json!([]);
     document["textures"] = json!([]);
     document["samplers"] = json!([{"magFilter":9729,"minFilter":9987}]);
@@ -141,6 +145,13 @@ pub fn generate(scope: Value, publication_id: String, name: &str) -> (Vec<u8>, V
             json!({"index":if shared {0} else {1},"texCoord":0,"scale":1});
         document["materials"][0]["pbrMetallicRoughness"]["metallicRoughnessTexture"] =
             json!({"index":if shared {0} else {2},"texCoord":0});
+    }
+    if image_count == 4 {
+        // A fourth map, beyond one material's three slots, on its own material.
+        document["materials"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"pbrMetallicRoughness":{"baseColorTexture":{"index":3,"texCoord":0}}}));
     }
     document["buffers"][0]["byteLength"] = json!(binary.len());
     while !binary.len().is_multiple_of(4) {

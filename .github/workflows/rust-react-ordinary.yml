@@ -17,9 +17,30 @@ env:
   CARGO_PROFILE_DEV_DEBUG: '0'
   SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 jobs:
+  changes:
+    name: PR change selection
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      backend: ${{ steps.select.outputs.backend }}
+      frontend: ${{ steps.select.outputs.frontend }}
+      loopback: ${{ steps.select.outputs.loopback }}
+    steps:
+      - name: Checkout event merge graph for fork-safe comparison
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          fetch-tags: false
+          persist-credentials: false
+      - name: Select conservative lanes
+        id: select
+        run: python3 tools/ci/select_pr_checks.py
   # Source integrity, generated contracts, fmt, clippy and the named healthy examples.
   # macOS also builds the binary and the React app; on Linux the jobs below do that.
   source:
+    needs: changes
+    if: ${{ !cancelled() }}
     strategy:
       fail-fast: false
       matrix:
@@ -27,7 +48,17 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     steps:
+      - name: Select this stable check
+        id: lane
+        env:
+          RUN_LANE: ${{ needs.changes.result != 'success' || (needs.changes.outputs.backend != 'false') }}
+        run: |
+          printf 'run=%s\n' "$RUN_LANE" >> "$GITHUB_OUTPUT"
+          if [ "$RUN_LANE" != true ]; then
+            printf '%s\n' 'Not selected by changed paths; publication checks remain in ordinary-core.' >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Checkout exact candidate
+        if: steps.lane.outputs.run == 'true'
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ env.SOURCE_SHA }}
@@ -35,6 +66,7 @@ jobs:
           fetch-tags: false
           persist-credentials: false
       - name: Exact runtimes, caches and npm locks
+        if: steps.lane.outputs.run == 'true'
         id: setup
         uses: ./.github/actions/ordinary-setup
         with:
@@ -42,24 +74,34 @@ jobs:
           rust: 'true'
           target-cache: source
       - name: Verify source allowlist and unconfigured template
+        if: steps.lane.outputs.run == 'true'
         run: npm run verify:publication
       - name: Compile actual Rust and React source and named healthy examples
-        if: runner.os != 'Linux'
-        run: node tools/rust-integration/check-source.mjs
+        if: steps.lane.outputs.run == 'true' && (runner.os != 'Linux')
+        env:
+          CHECK_FRONTEND: ${{ needs.changes.result != 'success' || needs.changes.outputs.frontend != 'false' }}
+        run: |
+          if [ "$CHECK_FRONTEND" = true ]; then
+            node tools/rust-integration/check-source.mjs
+          else
+            node tools/rust-integration/check-source.mjs --skip-frontend
+          fi
       - name: Compile actual Rust source and named healthy examples (binary and React app in their own jobs)
-        if: runner.os == 'Linux'
+        if: steps.lane.outputs.run == 'true' && (runner.os == 'Linux')
         run: node tools/rust-integration/check-source.mjs --skip-binary --skip-frontend
       - name: Verify the named Lantern healthy read
+        if: steps.lane.outputs.run == 'true'
         run: node frontend/lantern-tests/healthy-read.mjs
       - name: Genuine native MCP stock get and audit page after fresh circuit commit
-        if: runner.os == 'Linux'
+        if: steps.lane.outputs.run == 'true' && (runner.os == 'Linux')
         run: cargo run --locked -p houseatlas-backend --example healthy-agent-stock
       - name: Real root Network router TLS inventory GET and archive reopen
-        if: runner.os == 'Linux'
+        if: steps.lane.outputs.run == 'true' && (runner.os == 'Linux')
         run: |
           cargo build --locked -p houseatlas-backend --example healthy-network-root-router
           python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"
       - name: Save caches from verified main
+        if: steps.lane.outputs.run == 'true'
         uses: ./.github/actions/ordinary-save
         with:
           npm-key: ${{ steps.setup.outputs.npm-key }}
@@ -70,7 +112,7 @@ jobs:
           target-hit: ${{ steps.setup.outputs.target-hit }}
       - name: Record scope
         # Stock read/write/history runners add four/ten/three healthy requests respectively.
-        if: always()
+        if: steps.lane.outputs.run == 'true' && (always())
         run: |
           printf '%s\n' 'Actual locked Rust/TS source compilation and four named healthy examples; Linux additionally runs the explicitly named genuine in-process MCP stock get/history after a fresh native circuit commit, actual SQLite/access/domain/React loopback TLS reads, session/login/logout, fresh circuit create, atomic local identity batch, fresh owned PNG/text commits, actual download GET/HEAD and safe-rendered PNG preview; genuine native stock circuit/asset reads compared with actual frozen SQLite rows, and managed stock PNG/text handles issued through native WebMCP/HTTP then redeemed with authenticated GET/HEAD.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'The separately named upload runner submits two fresh React attachment intents for one generated PNG, verifies the existing-original plan and unchanged original provenance, exact asset revision guard, canonical receipts and actual SQLite rows, with one original consumption and zero pending stages. It is not replay, fault or cleanup-failure qualification.' >> "$GITHUB_STEP_SUMMARY"
@@ -84,11 +126,23 @@ jobs:
           printf '%s\n' 'The named native WebMCP runner uses actual document.modelContext discovery and invocation, genuine stock identity get, fresh circuit and identity singles, one mixed identity/circuit batch, record readback and first circuit audit page, with canonical results committed to React before tool return. No modelContext or stock service stub is installed.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'The separately named Unicode cache runner uses the fixed public opaque-collection profile, actual Viewer authority and one cached-only query GET. It compares both complete projections and original cache metadata with read-only SQLite source/cache/projection rows. No HTTP authentication mutation, editing, MCP, old-path comparison or provider I/O runs in that flow.' >> "$GITHUB_STEP_SUMMARY"
   unit-tests:
+    needs: changes
+    if: ${{ !cancelled() }}
     name: backend unit tests
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
+      - name: Select this stable check
+        id: lane
+        env:
+          RUN_LANE: ${{ needs.changes.result != 'success' || (needs.changes.outputs.backend != 'false') }}
+        run: |
+          printf 'run=%s\n' "$RUN_LANE" >> "$GITHUB_OUTPUT"
+          if [ "$RUN_LANE" != true ]; then
+            printf '%s\n' 'Not selected by changed paths; publication checks remain in ordinary-core.' >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Checkout exact candidate
+        if: steps.lane.outputs.run == 'true'
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ env.SOURCE_SHA }}
@@ -96,6 +150,7 @@ jobs:
           fetch-tags: false
           persist-credentials: false
       - name: Exact runtimes, caches and npm locks
+        if: steps.lane.outputs.run == 'true'
         id: setup
         uses: ./.github/actions/ordinary-setup
         with:
@@ -103,22 +158,36 @@ jobs:
           rust: 'true'
           target-cache: unit-tests
       - name: Backend library unit tests (default set)
+        if: steps.lane.outputs.run == 'true'
         run: >-
           cargo test --locked -p houseatlas-backend --lib --
           --skip http::quantity_http_healthy::
           --skip providers::homebox::write::stock::quantity_flow_healthy::
           --skip providers::homebox::write::stock::quantity_installation_healthy::
       - name: Save caches from verified main
+        if: steps.lane.outputs.run == 'true'
         uses: ./.github/actions/ordinary-save
         with:
           target-key: ${{ steps.setup.outputs.target-key }}
           target-hit: ${{ steps.setup.outputs.target-hit }}
   frontend:
+    needs: changes
+    if: ${{ !cancelled() }}
     name: frontend checks
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
+      - name: Select this stable check
+        id: lane
+        env:
+          RUN_LANE: ${{ needs.changes.result != 'success' || (needs.changes.outputs.frontend != 'false') }}
+        run: |
+          printf 'run=%s\n' "$RUN_LANE" >> "$GITHUB_OUTPUT"
+          if [ "$RUN_LANE" != true ]; then
+            printf '%s\n' 'Not selected by changed paths; publication checks remain in ordinary-core.' >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Checkout exact candidate
+        if: steps.lane.outputs.run == 'true'
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ env.SOURCE_SHA }}
@@ -126,6 +195,7 @@ jobs:
           fetch-tags: false
           persist-credentials: false
       - name: Exact runtimes, caches and npm locks
+        if: steps.lane.outputs.run == 'true'
         id: setup
         uses: ./.github/actions/ordinary-setup
         with:
@@ -133,20 +203,25 @@ jobs:
           rust: 'false'
           target-cache: ''
       - name: Strict TypeScript and production React build
+        if: steps.lane.outputs.run == 'true'
         run: |
           npm --prefix frontend run typecheck
           npm --prefix frontend run build
       - name: All named healthy frontend checks and real-browser offline launch
+        if: steps.lane.outputs.run == 'true'
         env:
           HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
         run: node frontend/lantern-tests/run-healthy.mjs
       - name: Model bake on generated geometry, admitted and bound by the viewer
+        if: steps.lane.outputs.run == 'true'
         run: |
           npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund
           node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs
   # The loopback flows drive the compiled binary through the built React app. Three
   # shards run in parallel; each builds the binary and the app once.
   loopback:
+    needs: changes
+    if: ${{ !cancelled() }}
     name: loopback flows (${{ matrix.shard }}/3)
     strategy:
       fail-fast: false
@@ -157,7 +232,17 @@ jobs:
     env:
       HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
     steps:
+      - name: Select this stable check
+        id: lane
+        env:
+          RUN_LANE: ${{ needs.changes.result != 'success' || (needs.changes.outputs.loopback != 'none' && (needs.changes.outputs.loopback != 'smoke' || matrix.shard == 1)) }}
+        run: |
+          printf 'run=%s\n' "$RUN_LANE" >> "$GITHUB_OUTPUT"
+          if [ "$RUN_LANE" != true ]; then
+            printf '%s\n' 'Not selected by changed paths; publication checks remain in ordinary-core.' >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Checkout exact candidate
+        if: steps.lane.outputs.run == 'true'
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ env.SOURCE_SHA }}
@@ -165,6 +250,7 @@ jobs:
           fetch-tags: false
           persist-credentials: false
       - name: Exact runtimes, caches and npm locks
+        if: steps.lane.outputs.run == 'true'
         id: setup
         uses: ./.github/actions/ordinary-setup
         with:
@@ -172,57 +258,58 @@ jobs:
           rust: 'true'
           target-cache: loopback
       - name: Build the houseatlas binary and the production React app
+        if: steps.lane.outputs.run == 'true'
         run: |
           cargo build --locked -p houseatlas-backend --bin houseatlas
           npm --prefix frontend run build
           printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"
       - name: Real disposable loopback TLS browser read slice
-        if: matrix.shard == 1
+        if: steps.lane.outputs.run == 'true' && (matrix.shard == 1)
         run: node tools/rust-integration/healthy-loopback.mjs
       - name: Real disposable auth reads and fresh local writes
-        if: matrix.shard == 1
+        if: steps.lane.outputs.run == 'true' && (matrix.shard == 1)
         run: node tools/rust-integration/healthy-core-loopback.mjs
       - name: Real disposable fresh stock singles and atomic direct-map batches
-        if: matrix.shard == 1
+        if: steps.lane.outputs.run == 'true' && (matrix.shard == 1)
         run: node tools/rust-integration/healthy-stock-write-loopback.mjs
       - name: Real disposable native stock audit first pages and search
-        if: matrix.shard == 1
+        if: steps.lane.outputs.run == 'true' && (matrix.shard == 1)
         run: node tools/rust-integration/healthy-stock-history-loopback.mjs
       - name: Real standalone text asset through Access, Media, stock and SQLite
-        if: matrix.shard == 1
+        if: steps.lane.outputs.run == 'true' && (matrix.shard == 1)
         run: node tools/rust-integration/healthy-standalone-asset-loopback.mjs
       - name: Real disposable owned media commits and GET HEAD delivery
-        if: matrix.shard == 2
+        if: steps.lane.outputs.run == 'true' && (matrix.shard == 2)
         run: node tools/rust-integration/healthy-media-loopback.mjs
       - name: Real disposable native stock circuit and asset reads
-        if: matrix.shard == 2
+        if: steps.lane.outputs.run == 'true' && (matrix.shard == 2)
         run: node tools/rust-integration/healthy-stock-loopback.mjs
       - name: Real React human classification cached read and mounted MCP audit
-        if: matrix.shard == 2
+        if: steps.lane.outputs.run == 'true' && (matrix.shard == 2)
         run: node tools/rust-integration/healthy-human-host-loopback.mjs
       - name: Real React fresh attachment and existing-original reuse
-        if: matrix.shard == 2
+        if: steps.lane.outputs.run == 'true' && (matrix.shard == 2)
         run: node tools/rust-integration/healthy-upload-loopback.mjs
       - name: Real mounted MCP sessions across one Access rotation
-        if: matrix.shard == 2
+        if: steps.lane.outputs.run == 'true' && (matrix.shard == 2)
         run: node tools/rust-integration/healthy-mcp-lifecycle-loopback.mjs
       - name: Real native browser WebMCP stock read fresh create and audit page
-        if: matrix.shard == 3
+        if: steps.lane.outputs.run == 'true' && (matrix.shard == 3)
         run: node tools/rust-integration/healthy-agent-loopback.mjs
       - name: Real cached HomeBox read native WebMCP classification and mounted MCP audit
-        if: matrix.shard == 3
+        if: steps.lane.outputs.run == 'true' && (matrix.shard == 3)
         run: node tools/rust-integration/healthy-agent-host-loopback.mjs
       - name: Real cached Unicode collection read with complete SQLite facts
-        if: matrix.shard == 3
+        if: steps.lane.outputs.run == 'true' && (matrix.shard == 3)
         run: node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs
       - name: Real Atlas ten lists, invoke parity and native WebMCP cursor continuation
-        if: matrix.shard == 3
+        if: steps.lane.outputs.run == 'true' && (matrix.shard == 3)
         run: node tools/rust-integration/healthy-atlas-lists-loopback.mjs
       - name: Real aggregate stock operation events and read-only Changes view
-        if: matrix.shard == 3
+        if: steps.lane.outputs.run == 'true' && (matrix.shard == 3)
         run: node tools/rust-integration/healthy-operation-events-loopback.mjs
       - name: Save caches from verified main
-        if: matrix.shard == 1
+        if: steps.lane.outputs.run == 'true' && (matrix.shard == 1)
         uses: ./.github/actions/ordinary-save
         with:
           target-key: ${{ steps.setup.outputs.target-key }}
