@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "dc3c328d5f67bcac9e853dd8b7783a007f7399e6f254405abe5aa1bb6a8981b5",
+  "sourceDigestSha256": "10c3d4c8b91ccce3b0bc19ee4a06bf108b35d0dc78f4bebb937a723b4799e50e",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6454,8 +6454,8 @@
     {
       "path": "docs/models/unified-atlas-scene-v1.md",
       "mode": "100644",
-      "bytes": 26797,
-      "sha256": "fef4e151ff413d9078bc4c237d65fbb25a0a1b1a8436a6b8f9fa1261eab04990",
+      "bytes": 26985,
+      "sha256": "d7513546313de18056d161f317b0a0d0541e90726cbab653cfa6753b774b0c84",
       "owner": "core-integration"
     },
     {

@@ -386,7 +386,10 @@ below 1, not `KHR_materials_transmission`, which is refused; it shows the
 lamp-lit room behind it. Until a model carries these marks, a material whose
 own name (never its mesh's or node's) holds a generic glass word counts as
 glass, or as a lamp when the name also holds a lamp word and the material
-states no `emissiveFactor`; a stated zero factor keeps it unlit. Day lighting ignores all of it.
+states no `emissiveFactor`. A stated zero factor stops a name from making a
+lamp, but a glass word still makes the material building glass. Every lamp
+glows one fixed warm colour; the hue of `emissiveFactor` is not used yet, only
+whether it is nonzero. Day lighting ignores all of it.
 
 ## Existing bounded embedded-PNG material consumer
 
