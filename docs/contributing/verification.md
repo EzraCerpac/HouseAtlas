@@ -2472,6 +2472,7 @@ node frontend/lantern-tests/embedded-png-material-healthy.mjs --case image-shari
 node frontend/lantern-tests/embedded-png-material-healthy.mjs --case png-filters
 node frontend/lantern-tests/embedded-png-material-healthy.mjs --case png-adam7
 node frontend/lantern-tests/embedded-png-material-healthy.mjs --case accounting-1024
+node frontend/lantern-tests/embedded-png-material-healthy.mjs --case four-maps-1024
 node frontend/lantern-tests/embedded-png-material-healthy.mjs --case legacy-geometry
 node frontend/lantern-tests/embedded-png-material-healthy.mjs --case gpu-owner
 node frontend/lantern-tests/embedded-png-material-healthy.mjs --case precedence

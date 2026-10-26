@@ -38,9 +38,10 @@ export async function generatedRgbPng(width: number, height: number, interlace =
   return { png, rgba };
 }
 
-export async function generatedMaterialGlb(size = 3, sharedImages = false) {
+/** Maps beyond three back base-colour-only materials on extra primitives. */
+export async function generatedMaterialGlb(size = 3, sharedImages = false, maps = 3) {
   const unique = sharedImages ? await generatedRgbPng(size, size === 3 ? 5 : size) : null;
-  const images = unique ? [unique, unique, unique] : await Promise.all([0, 1, 2].map(role => generatedRgbPng(size, size === 3 ? 5 : size, role === 1, role + 1, role)));
+  const images = unique ? [unique, unique, unique] : await Promise.all(Array.from({ length: maps }, (_, role) => generatedRgbPng(size, size === 3 ? 5 : size, role === 1, (role + 1) % 5, role)));
   const pieces: Uint8Array<ArrayBuffer>[] = [], views: { buffer: number; byteOffset: number; byteLength: number }[] = []; let length = 0;
   const add = (bytes: Uint8Array<ArrayBuffer>) => { const padding = (4 - length % 4) % 4; if (padding) { pieces.push(new Uint8Array(padding)); length += padding; }
     const id = views.length; views.push({ buffer: 0, byteOffset: length, byteLength: bytes.length }); pieces.push(bytes); length += bytes.length; return id; };
@@ -54,12 +55,13 @@ export async function generatedMaterialGlb(size = 3, sharedImages = false) {
     accessors: [{ bufferView: positions, componentType: 5126, count: 3, type: 'VEC3', min: [0, 0, 0], max: [1, 1, 0] },
       { bufferView: normals, componentType: 5126, count: 3, type: 'VEC3' }, { bufferView: uv, componentType: 5126, count: 3, type: 'VEC2' },
       { bufferView: tangents, componentType: 5126, count: 3, type: 'VEC4' }, { bufferView: indices, componentType: 5123, count: 3, type: 'SCALAR' }],
-    images: imageViews.map(bufferView => ({ bufferView, mimeType: 'image/png' })), textures: [0, 1, 2].map(source => ({ source, sampler: 0 })),
+    images: imageViews.map(bufferView => ({ bufferView, mimeType: 'image/png' })), textures: images.map((_, source) => ({ source, sampler: 0 })),
     samplers: [{ magFilter: 9729, minFilter: 9987 }],
     materials: [{ alphaMode: 'OPAQUE', doubleSided: true, pbrMetallicRoughness: { baseColorFactor: [.8, .6, .4, 1], metallicFactor: .3, roughnessFactor: .7,
       baseColorTexture: { index: 0 }, metallicRoughnessTexture: { index: 2 } }, normalTexture: { index: 1, scale: 1 } },
-      { alphaMode: 'BLEND', pbrMetallicRoughness: { baseColorFactor: [.2, .4, .6, .25] } }],
-    meshes: [{ primitives: [0, 1].map(material => ({ attributes: { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2, TANGENT: 3 }, indices: 4, material })) }],
+      { alphaMode: 'BLEND', pbrMetallicRoughness: { baseColorFactor: [.2, .4, .6, .25] } },
+      ...images.slice(3).map((_, i) => ({ pbrMetallicRoughness: { baseColorTexture: { index: 3 + i } } }))],
+    meshes: [{ primitives: [0, 1, ...images.slice(3).map((_, i) => 2 + i)].map(material => ({ attributes: { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2, TANGENT: 3 }, indices: 4, material })) }],
     nodes: [{ mesh: 0 }, { mesh: 0, translation: [4, 0, 0], scale: [2, 3, -1] }], scenes: [{ nodes: [0, 1] }], scene: 0 };
   const text = new TextEncoder().encode(JSON.stringify(json)), paddedJson = (text.length + 3) & ~3, paddedBin = (length + 3) & ~3;
   const bytes = new Uint8Array(28 + paddedJson + paddedBin), view = new DataView(bytes.buffer);

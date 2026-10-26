@@ -4,8 +4,12 @@ import type { SourceBaseColor } from './geometry';
 /** Frozen houseatlas.embedded-png-material.v1. No browser image decoder, URL,
  * canvas colour management or ImageBitmap enters this path. PNG samples remain
  * RGB8; the GPU's explicitly selected sRGB format handles base colour only. */
-export const EMBEDDED_PNG_LIMITS = Object.freeze({ images: 3, dimension: 1024, pixels: 1_048_576,
-  encodedPerImage: 2_097_152, encodedTotal: 4_194_304, rgba: 12_582_912, scratch: 8_388_608 });
+export const EMBEDDED_PNG_LIMITS = Object.freeze({ images: 64, dimension: 1024, pixels: 1_048_576,
+  encodedPerImage: 2_097_152, scratch: 8_388_608 });
+// Per-image bounds cap decoder memory; the image count only bounds the identity
+// scan. How many textures fit is the tier's prepared and GPU budget, which
+// charges every encoded image, its decoded RGBA and its complete mip chains.
+const mib = (bytes: number) => (bytes / 1_048_576).toFixed(1);
 type Row = Record<string, unknown>;
 function need(value: unknown, message: string): asserts value { if (!value) throw new GlbFormatError('preflight', message); }
 const row = (value: unknown): Row => { need(value !== null && typeof value === 'object' && !Array.isArray(value), 'Invalid embedded material record'); return value as Row; };
@@ -99,7 +103,7 @@ export interface EmbeddedMaterialPlan {
 /** Called only by the explicit Unified opt-in, after ordinary GLB preflight. */
 export function admitEmbeddedPngMaterials(container: GlbContainer, admission: GlbAdmission, limits: GlbLimits = STANDARD_GLB_LIMITS): EmbeddedMaterialPlan {
   const { json, bin } = container, views = list(json.bufferViews), rawImages = list(json.images), images: EmbeddedPng[] = [], imageIds: number[] = [];
-  need(rawImages.length <= EMBEDDED_PNG_LIMITS.images, 'Too many embedded PNG images');
+  need(rawImages.length <= EMBEDDED_PNG_LIMITS.images, `More than ${EMBEDDED_PNG_LIMITS.images} embedded PNG images`);
   let encodedBytes = 0, rgbaBytes = 0, scratchBytes = 0;
   for (const image of rawImages) {
     need(image.uri === undefined && image.mimeType === 'image/png' && bin !== null, 'Only PNG bufferViews in the retained GLB BIN are supported');
@@ -113,7 +117,6 @@ export function admitEmbeddedPngMaterials(container: GlbContainer, admission: Gl
     }
     imageIds.push(found.key);
   }
-  need(encodedBytes <= EMBEDDED_PNG_LIMITS.encodedTotal && rgbaBytes <= EMBEDDED_PNG_LIMITS.rgba, 'Embedded PNG aggregate exceeds the profile');
   const samplers = list(json.samplers), textures = list(json.textures);
   const textureImages = textures.map(texture => {
     const sampler = samplers[at(texture.sampler, samplers.length)]!;
@@ -179,8 +182,13 @@ export function admitEmbeddedPngMaterials(container: GlbContainer, admission: Gl
     });
   }
   const preparedBytes = admission.work.outputBytes + attributeBytes + expandedAttributeBytes + encodedBytes + rgbaBytes + scratchBytes;
-  const gpuBytes = admission.work.triangles * 72 + expandedAttributeBytes + [...usedTextures.values()].reduce((n, pin) => n + images[pin.image]!.mipBytes, 0);
-  need(preparedBytes <= limits.outputBytes && gpuBytes <= limits.gpuBytes, 'Textured model exceeds the unchanged work budget');
+  const textureGpuBytes = [...usedTextures.values()].reduce((n, pin) => n + images[pin.image]!.mipBytes, 0);
+  const gpuBytes = admission.work.triangles * 72 + expandedAttributeBytes + textureGpuBytes;
+  const textureBytes = encodedBytes + rgbaBytes + scratchBytes;
+  need(preparedBytes <= limits.outputBytes, `Textured model needs ${mib(preparedBytes)} MiB prepared (${images.length} textures ${mib(textureBytes)} MiB,`
+    + ` geometry ${mib(preparedBytes - textureBytes)} MiB); this quality tier allows ${mib(limits.outputBytes)} MiB`);
+  need(gpuBytes <= limits.gpuBytes, `Textured model needs ${mib(gpuBytes)} MiB of GPU memory (${usedTextures.size} texture resources ${mib(textureGpuBytes)} MiB,`
+    + ` geometry ${mib(gpuBytes - textureGpuBytes)} MiB); this quality tier allows ${mib(limits.gpuBytes)} MiB`);
   return { images, primitives, encodedBytes, rgbaBytes, scratchBytes, attributeBytes, expandedAttributeBytes, preparedBytes, gpuBytes };
 }
 
