@@ -5,7 +5,7 @@ import {
   Vector4, WebGPUCoordinateSystem, WebGPURenderer, type Node,
 } from 'three/webgpu';
 import {
-  attribute, cameraProjectionMatrix, cameraViewMatrix, clamp, cross, dot, float, Fn, If, int, ivec2, length, Loop, mat3, max, mix, normalize, pow, select, smoothstep, step,
+  attribute, cameraProjectionMatrix, cameraViewMatrix, clamp, cross, dot, float, Fn, int, ivec2, length, Loop, mat3, max, mix, normalize, pow, select, smoothstep, step,
   texture, textureLoad, uniform, uniformArray, varying, vec2, vec3, vec4, Discard, frontFacing, interleavedGradientNoise, pass, positionGeometry, screenCoordinate, vogelDiskSample,
 } from 'three/tsl';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
@@ -196,18 +196,18 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     };
 
     /** After dusk, the light the lamps throw on a face: by distance, a little more where
-     * it faces them, and for an aimed lamp only inside its beam. */
+     * it faces them, and for an aimed lamp only inside its beam. Unlit lamp slots have no
+     * strength; the loop is a plain fixed one, since an If around it or a uniform bound
+     * drops every tone in the WebGL2 backend. */
     const pool = (n: V3): F => {
       const sum = float(0).toVar('pool');
-      If(u.lamp.greaterThan(0), () => {
-        Loop(MAX_LAMPS, ({ i }) => {
-          const lamp = u.lamps.element(i) as unknown as V4, aim = u.lampAims.element(i) as unknown as V4;
-          const toward = lamp.xyz.sub(lifted), distance = length(toward), unit = toward.div(max(distance, .001));
-          const radius = mix(float(POOL_RADIUS), float(BEAM_RADIUS), aim.w), reach = mix(float(POOL_REACH), float(BEAM_REACH), aim.w);
-          const beam = mix(float(1), smoothstep(BEAM_EDGE, BEAM_CORE, dot(unit.negate(), aim.xyz)), aim.w);
-          const fall = lamp.w.div(distance.mul(distance).div(radius.mul(radius)).add(1)).mul(float(1).sub(smoothstep(reach.div(2), reach, distance)));
-          sum.addAssign(fall.mul(beam).mul(max(dot(n, unit), 0).mul(.7).add(.3)));
-        });
+      Loop(MAX_LAMPS, ({ i }) => {
+        const lamp = u.lamps.element(i) as unknown as V4, aim = u.lampAims.element(i) as unknown as V4;
+        const toward = lamp.xyz.sub(lifted), distance = length(toward), unit = toward.div(max(distance, .001));
+        const radius = mix(float(POOL_RADIUS), float(BEAM_RADIUS), aim.w), reach = mix(float(POOL_REACH), float(BEAM_REACH), aim.w);
+        const beam = mix(float(1), smoothstep(BEAM_EDGE, BEAM_CORE, dot(unit.negate(), aim.xyz)), aim.w);
+        const fall = lamp.w.div(distance.mul(distance).div(radius.mul(radius)).add(1)).mul(float(1).sub(smoothstep(reach.div(2), reach, distance)));
+        sum.addAssign(fall.mul(beam).mul(max(dot(n, unit), 0).mul(.7).add(.3)));
       });
       return sum;
     };
