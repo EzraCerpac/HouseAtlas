@@ -232,6 +232,14 @@ try {
         && status.includes('Stored copy') && status.includes('not updated')
         && offline.includes('Offline') && offline.includes('1 change waiting');
     })()`, 15_000, 'Reopened app did not show the generated cached Atlas and its waiting outbox count');
+    // Above the Atlas only the one connection pill; the page itself is locked like the live app's.
+    assert.deepEqual(await evaluate(`(() => {
+      const root = getComputedStyle(document.documentElement), body = getComputedStyle(document.body);
+      return { header: [...document.querySelector('.saved-header').children].map(child => child.className),
+        chrome: [...document.querySelectorAll('.saved-header h1, .saved-header details, .saved-manager, .saved-message')].length,
+        overflow: [root.overflow, body.overflow], overscroll: [root.overscrollBehaviorY, body.overscrollBehaviorY] };
+    })()`), { header: ['saved-live'], chrome: 0, overflow: ['hidden', 'hidden'], overscroll: ['none', 'none'] },
+    'the offline reopen shows one pill above the Atlas and the page does not scroll');
     assert.deepEqual(await evaluate(`(async () => {
       const { openOutboxStore } = await import(${JSON.stringify(seeded.outboxURL)});
       const store = openOutboxStore(indexedDB);

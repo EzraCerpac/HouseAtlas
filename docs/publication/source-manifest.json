@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "02633470d86d2bf7b1cc403ff2c66196b61ca463e70fe2811636a84204d9b2ae",
+  "sourceDigestSha256": "9be5d20ae5c627f1e0582d619c89cdeb902d79facd96c2eb4fc80e716d277150",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6482,8 +6482,8 @@
     {
       "path": "docs/offline/root-offline-entry.md",
       "mode": "100644",
-      "bytes": 8770,
-      "sha256": "4f6683aee57885332fc1b2d31b00601019ed169f46e6a5cf1a716f26f90ee1cd",
+      "bytes": 9071,
+      "sha256": "ea5cc86bbdfaff1f00b12e30bcd954c25687b1af216b22b098c354f9c7d1b86c",
       "owner": "web"
     },
     {
@@ -7903,8 +7903,8 @@
     {
       "path": "frontend/lantern-tests/offline-launch-browser.mjs",
       "mode": "100644",
-      "bytes": 16047,
-      "sha256": "51fea69c3e916751838f4e375a960c1e307a7e815d499cf784784fa82b680dd6",
+      "bytes": 16852,
+      "sha256": "5ee742d5093bee1d9c72333807ea4dc0fb54a77b275514abf0e6f0a5d660520f",
       "owner": "web"
     },
     {
@@ -10598,8 +10598,8 @@
     {
       "path": "frontend/src/offline/SavedAtlasHost.tsx",
       "mode": "100644",
-      "bytes": 12122,
-      "sha256": "eea3407153c943c62f39d8e7830e3ad01234021eba4708d18e6078702c0e5792",
+      "bytes": 12830,
+      "sha256": "9d1977d5ae79c1f359ac95f11c8c758f2442e4af50c0fb8f558fb278676e87f4",
       "owner": "web"
     },
     {
@@ -10612,8 +10612,8 @@
     {
       "path": "frontend/src/offline/SavedHouseManager.tsx",
       "mode": "100644",
-      "bytes": 1883,
-      "sha256": "cb5126011f862e849d1417d220e030ff52bcb2cd3c990ca94d3047e6040fc4ad",
+      "bytes": 2058,
+      "sha256": "00697b6a3c260d9bc923fd3381908dad35fdf250711721c77e2b0a7434e0f075",
       "owner": "web"
     },
     {
@@ -10689,8 +10689,8 @@
     {
       "path": "frontend/src/offline/saved-host.css",
       "mode": "100644",
-      "bytes": 4993,
-      "sha256": "39c1710854cfbd5795cb43a90b3be626a3b3087087c7ec14a7e005ce72c6ee5c",
+      "bytes": 5933,
+      "sha256": "632453f8ffa23af5ea8250dfea0f7680aebdf599e5b92266cfa1bd6ce6492cf7",
       "owner": "web"
     },
     {
