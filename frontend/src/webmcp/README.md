@@ -79,10 +79,15 @@ The stock host bindings are specific:
 
 The stock root now supplies envelope-preserving dispatch through
 `frontend/integration/stock-dispatch.ts`, with genuine admission/schema ports
-mounted by `frontend/integration/main.tsx`. `coverage/bindAtlasService` still
-supports exactly three native Atlas families. Catalog IDs alone do not bind
-HomeBox or Network services. Gateway bindings require their own actual catalog,
-service, admission and download owners before root activation.
+mounted by `frontend/integration/main.tsx`. `coverage/bindAtlasService` can split
+an owner-supplied executor across seven families: `atlas_records`,
+`atlas_bindings`, `atlas_media_geometry`, `homebox_entities_locations`,
+`homebox_tags_fields`, `homebox_maintenance` and `network_queries`. Each binding
+contains only the executor owner's supplied command IDs; `bindCommandFamilies`
+intersects those bindings with current host admission. Listing a family does not
+establish service availability or runtime acceptance for all its operations.
+Gateway bindings require their own actual catalog, service, admission and
+download owners before root activation.
 
 ## Healthy checks
 

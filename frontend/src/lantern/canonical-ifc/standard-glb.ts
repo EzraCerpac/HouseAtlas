@@ -63,12 +63,15 @@ function loaderInput({ json, bin }: GlbContainer): { readonly bytes: ArrayBuffer
   return { bytes: out.buffer, bin: bin === null ? null : out.subarray(28 + jsonLength, 28 + jsonLength + bin.byteLength) };
 }
 
+export type StandardGlbOptions = Readonly<{ embeddedPngMaterials?: true; limits?: GlbLimits }>;
+
 /** Loads one GLB after preflight. `keyPrefix` names the layer in mesh keys.
  * `admit` sees the admitted work before the loader copy or any extraction
- * allocation; throwing from it refuses the file with nothing loaded.
- * `limits` selects a tier; only a publication's detail GLB uses the Full one. */
+ * allocation; throwing (or rejecting) from it refuses the file with nothing loaded.
+ * `limits` selects a tier; only a publication's detail GLB uses the Full one,
+ * and it loads through standard-glb-thread so the page keeps drawing. */
 export async function loadStandardGlb(bytes: Uint8Array, keyPrefix: string, signal: AbortSignal,
-  admit?: (admission: GlbAdmission) => void, options?: Readonly<{ embeddedPngMaterials?: true; limits?: GlbLimits }>): Promise<StandardGlb> {
+  admit?: (admission: GlbAdmission) => void | Promise<void>, options?: StandardGlbOptions): Promise<StandardGlb> {
   const limits = options?.limits ?? STANDARD_GLB_LIMITS;
   if (bytes.byteLength > limits.bytes) throw new GlbFormatError('container', 'File is larger than the preview limit');
   // The geometry loader still declines every texture. Only this explicit
@@ -79,7 +82,7 @@ export async function loadStandardGlb(bytes: Uint8Array, keyPrefix: string, sign
   let plan = materialReader?.admitEmbeddedPngMaterials(container, plainAdmission, limits);
   const admission: GlbAdmission = plan ? { ...plainAdmission, work: { ...plainAdmission.work,
     outputBytes: plan.preparedBytes, gpuBytes: plan.gpuBytes } } : plainAdmission;
-  admit?.(admission);
+  await admit?.(admission);
   signal.throwIfAborted();
   // Reserve all work first, then reuse the loader's existing owned BIN copy.
   // Rebase every admitted PNG byte view; decoding never reads caller storage.
