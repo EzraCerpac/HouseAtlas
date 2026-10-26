@@ -1,6 +1,6 @@
 import {
   useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type FocusEvent,
-  type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent,
+  type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../components/Icon';
@@ -347,6 +347,7 @@ const OVERLAY_LABEL: Record<OverlayKind, string> = { electrical: 'Electrical', n
 const OVERLAY_ICON: Record<OverlayKind, 'plug' | 'wifi'> = { electrical: 'plug', network: 'wifi' };
 const LAYER_LABEL: Record<AtlasLayer, string> = { ...OVERLAY_LABEL, measurements: 'Measurements' };
 const LAYER_TONE: Record<AtlasLayer, string> = { electrical: TONE_COLOR.electrical, network: TONE_COLOR.network, measurements: BIRCH_DARK };
+const LAYER_KINDS = ['electrical', 'network', 'measurements'] as const satisfies readonly AtlasLayer[];
 /** Side by side when both layers count the same room. */
 const MARKER_SPREAD = 24;
 const UNPLACED_LABEL: Record<UnplacedReason, string> = {
@@ -454,7 +455,7 @@ function measureCover(root: HTMLElement, stage: HTMLElement): { readonly cover: 
   // The floor list never shrinks below its first rows, so the current floor
   // stays a usable target; past that the whole rail scrolls.
   const rail = root.querySelector<HTMLElement>('.ua-scope');
-  const ladder = rail?.querySelector<HTMLElement>(':scope > .ua-ladder') ?? null;
+  const ladder = rail?.querySelector<HTMLElement>('.ua-stack.is-rail .ua-stack-floors') ?? null;
   const floor = ladder && laidOut(ladder) ? Math.min(ladder.scrollHeight + ladder.offsetHeight - ladder.clientHeight, LADDER_FLOOR) : null;
   if (floor !== null) root.style.setProperty('--ua-ladder-floor', `${floor}px`);
   else root.style.removeProperty('--ua-ladder-floor');
@@ -622,12 +623,14 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   const [graphCovers, setGraphCovers] = useState(false);
   const graphStageFocus = useRef<HTMLElement | null>(null);
   const [cover, setCover] = useState<readonly Box[]>([]);
-  // A phone-sized stage keeps two slim rows above the model and one below it:
-  // the camera, the archive filter and the other sources fold into one menu,
-  // the buildings into one chooser. One of them opens at a time.
+  // A phone-sized stage keeps one slim row above the model and one below it:
+  // the camera, the lenses, the archive filter and the other sources fold into
+  // one menu, building and floor into the Floor Stack, the view and layers
+  // into one dock. One of them opens at a time; on a wide stage only the
+  // stack, pinned open, uses the same state.
   const [compact, setCompact] = useState(false);
   const shortLayerDetails = useShortLayerDetails(compact);
-  const [menu, setMenu] = useState<'view' | 'buildings' | null>(null);
+  const [menu, setMenu] = useState<'view' | 'stack' | 'layers' | null>(null);
   const layersKey = `${state.layers.electrical}${state.layers.network}${state.layers.measurements}`;
   const chrome = `${plan}\n${sheetOpen}\n${layersKey}\n${selected}\n${state.buildingId}\n${state.levelId}\n${state.exploded}\n${drawer}\n${showGraph}\n${compact}\n${lens?.kind}\n${readingInset}`;
   useLayoutEffect(() => {
@@ -1033,27 +1036,17 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
     queueMicrotask(() => { if (node.isConnected && stageFocus.current === key) stageFocus.current = null; });
   };
 
-  // Keep the current choice inside its own row, never scrolling the page.
-  // The chooser and host disclosures can change that row's width independently
-  // of the viewport, including one commit after a breakpoint transition. On a
-  // wide stage a floor list cut short beside the docked keys keeps a floor in
-  // view: the focused one, through the scrolling rail too, else the current one.
+  // On a wide stage a floor list cut short beside the docked keys keeps a
+  // floor in view: the focused one, through the scrolling rail too, else the
+  // current one. The page itself never scrolls.
   useLayoutEffect(() => {
-    const rows = [...(shell.current?.querySelectorAll<HTMLElement>('.ua-buildings, .ua-ladder') ?? [])];
-    const ladders = compact ? [] : rows.filter(row => row.classList.contains('ua-ladder'));
+    const ladders = compact ? [] : [...(shell.current?.querySelectorAll<HTMLElement>('.ua-stack-floors') ?? [])];
     const reveal = (frame: HTMLElement, target: HTMLElement) => {
       const box = target.getBoundingClientRect(), edge = frame.getBoundingClientRect();
       if (box.top < edge.top) frame.scrollTop -= edge.top - box.top + 6;
       else if (box.bottom > edge.bottom) frame.scrollTop += box.bottom - edge.bottom + 6;
     };
     const align = () => {
-      for (const row of rows) {
-        const current = row.querySelector<HTMLElement>('[aria-pressed="true"]');
-        if (!current || row.scrollWidth <= row.clientWidth || row.getClientRects().length === 0) continue;
-        const box = current.getBoundingClientRect(), edge = row.getBoundingClientRect();
-        if (box.left < edge.left) row.scrollLeft -= edge.left - box.left + 12;
-        else if (box.right > edge.right) row.scrollLeft += box.right - edge.right + 12;
-      }
       for (const row of ladders) {
         if (row.getClientRects().length === 0) continue;
         const active = document.activeElement;
@@ -1068,9 +1061,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
     };
     align();
     const observer = new ResizeObserver(align);
-    for (const row of rows) observer.observe(row);
-    // The rail can shorten while its floor list keeps its least height.
-    for (const row of ladders) { const rail = row.closest('.ua-scope'); if (rail) observer.observe(rail); }
+    for (const row of ladders) { observer.observe(row); const rail = row.closest('.ua-scope'); if (rail) observer.observe(rail); }
     return () => observer.disconnect();
   }, [state.buildingId, state.levelId, plan, size.width, compact]);
 
@@ -1091,12 +1082,13 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
     : state.levelId !== null ? buildingName
     : state.buildingId !== null ? 'All buildings' : null;
   const buildingNav = model.scene.buildings.length > 1 && buildings.length > 0;
-  // One building chosen: the All buildings choice right below is the same step out, so Back would only repeat it.
-  const showBack = backTo !== null && !(buildingNav && state.occurrenceId === null && state.levelId === null);
-  // Other planned floors of the property as small plans beside the focus.
-  const tiles = useMemo(() => !plan ? [] : planTileLevels(model, [...(ladderBuildingId === null ? [] : [ladderBuildingId]),
+  // The Floor Stack already steps out of a floor or building (All floors, All buildings); Back only leaves a room.
+  const showBack = backTo !== null && state.occurrenceId !== null;
+  // Other planned floors of the property as small plans beside the focus; a
+  // phone already steps floors from the stack chip, so it keeps the map whole.
+  const tiles = useMemo(() => !plan || compact ? [] : planTileLevels(model, [...(ladderBuildingId === null ? [] : [ladderBuildingId]),
     ...buildings.map(row => row.buildingId).filter(id => id !== ladderBuildingId)]
-    .flatMap(id => [...(model.levelsByBuilding.get(id) ?? [])].reverse()), planned), [plan, ladderBuildingId, buildings, model, planned]);
+    .flatMap(id => [...(model.levelsByBuilding.get(id) ?? [])].reverse()), planned), [plan, compact, ladderBuildingId, buildings, model, planned]);
   const hasKeys = active.length > 0 || measuring;
   const keysCount = active.length + (measuring ? 1 : 0);
   // A fold whose content is gone closes, so it never reopens by itself later.
@@ -1208,9 +1200,11 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
       graphHeading.current?.focus({ preventScroll: true });
   }, [underGraph]);
 
-  // The compact menu and building chooser close on Escape, on a tap elsewhere
-  // or when focus leaves them; Escape returns focus to the control that opened them.
-  const menuButton = useRef<HTMLButtonElement>(null), pickButton = useRef<HTMLButtonElement>(null);
+  // The compact menu, the Floor Stack and the layer tray close on Escape, on a
+  // tap elsewhere (a drag of the model included) or when focus leaves them;
+  // Escape returns focus to the control that opened them.
+  const menuButton = useRef<HTMLButtonElement>(null), stackHead = useRef<HTMLButtonElement>(null), layersButton = useRef<HTMLButtonElement>(null);
+  const opener = (which: 'view' | 'stack' | 'layers') => which === 'view' ? menuButton : which === 'stack' ? stackHead : layersButton;
   const menuIds = useId();
   // Remember only focus in controls which can disappear across the breakpoint
   // or when the host archive filter is unchecked. Deliberate focus moves and
@@ -1219,7 +1213,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   useEffect(() => {
     const host = shell.current?.closest('.lantern-host');
     if (!host) return;
-    const owner = (target: HTMLElement) => target.closest('.archive-filter, .atlas-source-details, .ua-menu, .ua-pick, .ua-buildings, .ua-tools > .ctrl-group, .ua-explode');
+    const owner = (target: HTMLElement) => target.closest('.archive-filter, .atlas-source-details, .ua-menu, .ua-stack, .ua-tools > .seg, .ua-tools > .ctrl-group, .ua-dock');
     const focused = (event: globalThis.FocusEvent) => {
       const target = event.target;
       chromeFocus.current = target instanceof HTMLElement && host.contains(target) && owner(target) ? target : null;
@@ -1263,11 +1257,11 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
     const target = compact ? menuButton.current : viewport.current;
     if (available(target)) target.focus({ preventScroll: true });
   });
-  useEffect(() => { if (!compact || underGraph) setMenu(null); }, [compact, underGraph]);
+  useEffect(() => { setMenu(value => underGraph || (!compact && value !== 'stack') ? null : value); }, [compact, underGraph]);
   useEffect(() => {
     if (menu === null) return;
     const away = (event: PointerEvent) => {
-      const owner = shell.current?.querySelector(menu === 'view' ? '.ua-menu' : '.ua-scope');
+      const owner = shell.current?.querySelector(menu === 'view' ? '.ua-menu' : menu === 'stack' ? '.ua-stack' : '.ua-dock');
       if (!(event.target instanceof Node) || !owner?.contains(event.target)) setMenu(null);
     };
     document.addEventListener('pointerdown', away, true);
@@ -1275,7 +1269,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   }, [menu]);
   // Focus moving to another control closes it; focus lost to nothing (a control
   // that became disabled) leaves it open, and taps elsewhere close it above.
-  const menuBlur = (which: 'view' | 'buildings') => (event: FocusEvent<HTMLElement>) => {
+  const menuBlur = (which: 'view' | 'stack' | 'layers') => (event: FocusEvent<HTMLElement>) => {
     if (menu === which && event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setMenu(null);
   };
   // A lens chosen from the menu returns focus to the menu button when it closes.
@@ -1285,7 +1279,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   };
   const chooseBuilding = (buildingId: string | null) => {
     dispatch({ type: 'building', buildingId });
-    if (menu === 'buildings') { setMenu(null); pickButton.current?.focus({ preventScroll: true }); }
+    if (menu === 'stack' && compact) { setMenu(null); stackHead.current?.focus({ preventScroll: true }); }
   };
 
   // An open compact menu, then the graph, is the first Escape target across
@@ -1296,7 +1290,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
     if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing) return;
     if (menu !== null) {
       event.preventDefault(); event.stopPropagation();
-      (menu === 'view' ? menuButton : pickButton).current?.focus({ preventScroll: true }); setMenu(null);
+      opener(menu).current?.focus({ preventScroll: true }); setMenu(null);
       return;
     }
     if (!showGraph) return;
@@ -1311,7 +1305,14 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
     event.preventDefault(); out();
   };
 
-  const pickLabel = state.buildingId === null ? 'All buildings' : buildingName ?? 'All buildings';
+  const layerChips = LAYER_KINDS.map(kind => {
+    const on = state.layers[kind], index = kind === 'measurements' ? null : overlays.get(kind)!;
+    return <button key={kind} type="button" className="layer-chip" aria-pressed={on}
+      style={{ '--layer': LAYER_TONE[kind] } as CSSProperties} onClick={() => dispatch({ type: 'layer', layer: kind, on: !on })}>
+      <span className="layer-swatch" aria-hidden="true" />{LAYER_LABEL[kind]}
+      {on && kind !== 'measurements' && index!.records === 0 && <span className="ua-chip-note">{!runtimeConfigured || runtime.records?.[kind] === 'available' ? '0' : runtime.reason === 'loading' ? 'loading' : runtime.records?.[kind] === 'partial' ? 'partial' : 'unavailable'}</span>}</button>;
+  });
+
   return <section ref={shell} className={`ua-shell is-stage${plan ? ' is-plan' : ''}${sheetOpen ? ' is-sheet-open' : ''}${showGraph ? ' is-graph-open' : ''}${underGraph ? ' is-graph-covering' : ''}${compact ? ' is-compact' : ''}${lens ? ' has-lens' : ''}${readingInset ? ' is-inset' : ''}`}
     aria-label="Atlas" onKeyDownCapture={graphEscape} onKeyDown={escape}
     onFocusCapture={event => {
@@ -1328,7 +1329,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
       });
     }}>
     <div className="ua-stage" style={stageStyle} onKeyDownCapture={stripEscape}>
-      <div className="ua-scope" inert={stageInert} onBlur={menuBlur('buildings')}>
+      <div className="ua-scope" inert={stageInert} onBlur={menuBlur('stack')}>
         {port.savedDocumentary && <p className="ua-snapshot-note" role="note">
           <Icon name="history" size={15} />
           <span className="ua-snapshot-kind">Saved <span className="ua-snapshot-wide">documentary </span>snapshot</span>
@@ -1351,30 +1352,20 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
         </p>}
         {showBack && <button type="button" className="chip-btn ua-back" onClick={out} aria-label={`Back to ${backTo}`}>
           <Icon name="back" size={15} /><span>{backTo}</span></button>}
-        {/* Compact: one chooser names the current building and opens the list below it. */}
-        {buildingNav && compact && <button ref={pickButton} type="button" className="chip-btn ua-pick" aria-expanded={menu === 'buildings'}
-          aria-controls={`${menuIds}-buildings`} onClick={() => setMenu(value => value === 'buildings' ? null : 'buildings')}>
-          <Icon name={state.buildingId === null ? 'atlas' : 'building'} size={15} />
-          <span className="sr-only">Building: </span><span className="ua-pick-name">{pickLabel}</span>
-          <Icon name="chevronDown" size={15} /></button>}
-        {buildingNav && <nav id={`${menuIds}-buildings`} className={`ua-buildings${menu === 'buildings' ? ' is-open' : ''}`} aria-label="Buildings">
-          <button type="button" className="chip-btn" aria-pressed={state.buildingId === null}
-            onClick={() => chooseBuilding(null)}><Icon name="atlas" size={15} />All buildings</button>
-          {buildings.map(row => <button key={row.buildingId} type="button" className="chip-btn" aria-pressed={state.buildingId === row.buildingId}
-            onClick={() => chooseBuilding(row.buildingId)}><Icon name="building" size={15} />{atlasBuildingName(model, row.buildingId)}</button>)}
-        </nav>}
-        <DatumLadder model={model} levels={ladderLevels} building={buildingName === null ? null : { label: buildingName }} state={state} dispatch={dispatch}
-          shownLevel={plan ? presentation.focusLevelId : null} selectionLevel={selectionLevel} contextLevels={contextLevels} />
+        <FloorStack model={model} levels={ladderLevels} buildings={buildings} buildingNav={buildingNav}
+          building={building && buildingName ? { buildingId: building.buildingId, label: buildingName } : null}
+          state={state} dispatch={dispatch} chooseBuilding={chooseBuilding}
+          shownLevel={plan ? presentation.focusLevelId : null} selectionLevel={selectionLevel} contextLevels={contextLevels}
+          canExplode={canExplode} compact={compact} open={menu === 'stack'} setOpen={open => setMenu(open ? 'stack' : null)}
+          head={stackHead} panelId={`${menuIds}-stack`} />
       </div>
 
       <div className="ua-tools" inert={stageInert}>
-        <div className="seg" role="group" aria-label="Atlas view">
+        {/* Compact: the view moves to the dock below, by the thumb. */}
+        {!compact && <div className="seg" role="group" aria-label="Atlas view">
           <button type="button" aria-pressed={!plan} onClick={() => dispatch({ type: 'view', view: '3d' })}>3D</button>
           <button type="button" aria-pressed={plan} onClick={() => dispatch({ type: 'view', view: 'plan' })}>Plan</button>
-        </div>
-        {canExplode && !compact && <button type="button" className="ctrl-btn ctrl-wide ua-explode" aria-pressed={state.exploded}
-          onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}>
-          <Icon name="explode" size={17} /><span>Exploded</span></button>}
+        </div>}
         <div className="ctrl-group" role="group" aria-label="Camera">
           {!plan && <>
             <button type="button" className="ctrl-btn ua-turn" aria-label="Turn left" onClick={() => camera.turn(-45)}><Icon name="rotl" size={17} /></button>
@@ -1386,8 +1377,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
         </div>
         {!plan && <DaylightControl at={lightingTime.at} live={lightingTime.live} night={daylight.night} place={sunPlace} onChange={lightingTime.set} />}
         {/* Compact: the snapshot stamp takes the free width, and one menu holds
-            the camera, Exploded, the lenses, the archive filter and the other
-            sources. */}
+            the camera, the lenses, the archive filter and the other sources. */}
         {compact && port.savedDocumentary && <p className="ua-stamp" role="note">
           <span className="ua-stamp-kind">Saved snapshot</span>
           <time dateTime={port.savedDocumentary.observedAt} title={port.savedDocumentary.observedAt}>
@@ -1408,9 +1398,6 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
               <button type="button" className="ctrl-btn" aria-label="Zoom out" title="Zoom out" disabled={camera.zoom <= camera.zoomLimits.min} onClick={() => camera.zoomBy(1 / 1.3)}><Icon name="minus" size={18} /></button>
               <button type="button" className="ctrl-btn ua-menu-fit" onClick={camera.fit}><Icon name="fit" size={18} /><span>Fit view</span></button>
             </div>
-            {canExplode && <button type="button" className="ua-menu-row" aria-pressed={state.exploded}
-              onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}>
-              <Icon name="explode" size={16} /><span>Exploded floors</span></button>}
             {archive && <label className="ua-menu-check"><input type="checkbox" checked={archive.included}
               onChange={event => archive.setIncluded(event.currentTarget.checked)} /><span>Include archived HomeBox records</span></label>}
             {/* The host's lens row gives way on a phone; its lenses open from here. */}
@@ -1579,15 +1566,22 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
             <Icon name="info" size={16} /><span>Layer details</span>{' '}<span className="ua-fold-count">{keysCount.toLocaleString()}</span>
             <Icon name="chevronDown" size={15} /></button>}
         </div>}
-        <div className="layer-bar" role="group" aria-label="Layers">
-          {(['electrical', 'network', 'measurements'] as const).map(kind => {
-            const on = state.layers[kind], index = kind === 'measurements' ? null : overlays.get(kind)!;
-            return <button key={kind} type="button" className="layer-chip" aria-pressed={on}
-              style={{ '--layer': LAYER_TONE[kind] } as CSSProperties} onClick={() => dispatch({ type: 'layer', layer: kind, on: !on })}>
-              <span className="layer-swatch" aria-hidden="true" />{LAYER_LABEL[kind]}
-              {on && kind !== 'measurements' && index!.records === 0 && <span className="ua-chip-note">{!runtimeConfigured || runtime.records?.[kind] === 'available' ? '0' : runtime.reason === 'loading' ? 'loading' : runtime.records?.[kind] === 'partial' ? 'partial' : 'unavailable'}</span>}</button>;
-          })}
-        </div>
+        {/* Compact: one dock holds Plan and the layers, as three dots that open
+            the labelled layer chips above them. */}
+        {compact ? <div className="ua-dock" onBlur={menuBlur('layers')}>
+          <button type="button" className="ua-dock-btn ua-dock-view" aria-pressed={plan}
+            onClick={() => dispatch({ type: 'view', view: plan ? '3d' : 'plan' })}><Icon name="rooms" size={16} /><span>Plan</span></button>
+          <button ref={layersButton} type="button" className="ua-dock-btn ua-dock-layers" aria-expanded={menu === 'layers'} aria-controls={`${menuIds}-layers`}
+            aria-label={`Layers: ${LAYER_KINDS.filter(kind => state.layers[kind]).map(kind => LAYER_LABEL[kind]).join(', ') || 'none shown'}`}
+            onClick={() => setMenu(value => value === 'layers' ? null : 'layers')}>
+            <span className="ua-dock-dots" aria-hidden="true">{LAYER_KINDS.map(kind => <i key={kind} className={state.layers[kind] ? 'is-on' : undefined}
+              style={{ '--layer': LAYER_TONE[kind] } as CSSProperties} />)}</span>
+          </button>
+          {/* A short landscape stage shows the chips inline, always open. */}
+          <div id={`${menuIds}-layers`} className="layer-bar ua-dock-tray" role="group" aria-label="Layers" hidden={menu !== 'layers' && !shortLayerDetails}>
+            {layerChips}
+          </div>
+        </div> : <div className="layer-bar" role="group" aria-label="Layers">{layerChips}</div>}
       </div>
 
       {/* The logical network in its own frame: beside the model on wide stages,
@@ -1660,51 +1654,143 @@ const stop = (event: ReactPointerEvent) => event.stopPropagation();
 
 // ---------------------------------------------------------------------------
 
-/** Floors at their actual scene heights: spacing follows the lowest room
- * floor of each level, with a minimum touch gap. Each rung names its floor,
- * its selectable rooms and whether it has a plan. */
-function DatumLadder({ model, levels, building, state, dispatch, shownLevel, selectionLevel, contextLevels }: {
-  readonly model: AtlasModel; readonly levels: readonly AtlasLevel[]; readonly building: { readonly label: string } | null;
+/** Short building marks for the rail: the initials of each building's name,
+ * numbered where two buildings share them. */
+function buildingMarks(model: AtlasModel, buildings: readonly { readonly buildingId: string }[]): ReadonlyMap<string, string> {
+  const marks = buildings.map(row => atlasBuildingName(model, row.buildingId).split(' · ')[0]!.split(/\s+/).filter(Boolean)
+    .map(word => /[\p{L}\p{N}]/u.exec(word)?.[0] ?? '').join('').slice(0, 2).toUpperCase() || '·');
+  return new Map(buildings.map((row, at) => {
+    const mark = marks[at]!, same = marks.filter(other => other === mark).length;
+    return [row.buildingId, same > 1 ? `${mark}${marks.slice(0, at + 1).filter(other => other === mark).length}` : mark];
+  }));
+}
+
+/** The Floor Stack: where you are, building and floor, in one small control.
+ * Its head names the scope with a slab glyph, the current floor lit. On a
+ * phone the head is a chip that unfolds the stack below it and folds again
+ * after a choice, a tap elsewhere or Escape; on a wide stage the stack is a
+ * rail of marks that widens to names on hover, focus or a click of its head.
+ * Floors hang at their actual relative heights, top floor first; buildings
+ * stand above them when there is more than one, and Spread floors (Exploded)
+ * closes the stack in 3D. Arrow up and down on the head, or a swipe of the
+ * chip, step one floor, "All floors" standing above the top floor. */
+function FloorStack({ model, levels, buildings, buildingNav, building, state, dispatch, chooseBuilding, shownLevel, selectionLevel, contextLevels,
+  canExplode, compact, open, setOpen, head, panelId }: {
+  readonly model: AtlasModel; readonly levels: readonly AtlasLevel[];
+  readonly buildings: readonly { readonly buildingId: string }[]; readonly buildingNav: boolean;
+  readonly building: { readonly buildingId: string; readonly label: string } | null;
   readonly state: AtlasViewState; readonly dispatch: (action: AtlasAction) => void;
+  readonly chooseBuilding: (buildingId: string | null) => void;
   /** The floor Plan draws for a whole-building scope. */
   readonly shownLevel: string | null;
   readonly selectionLevel: string | null; readonly contextLevels: ReadonlySet<string>;
+  readonly canExplode: boolean; readonly compact: boolean;
+  readonly open: boolean; readonly setOpen: (open: boolean) => void;
+  readonly head: RefObject<HTMLButtonElement | null>; readonly panelId: string;
 }) {
   const top = [...levels].reverse();
   const marks = useMemo(() => floorMarks(model, levels), [model, levels]);
+  const buildingMark = useMemo(() => buildingMarks(model, buildings), [model, buildings]);
   const gaps = top.map((level, at) => {
     const below = top[at + 1]; if (!below) return 0;
-    return Math.max(50, (model.floorY.get(level.levelId)! - model.floorY.get(below.levelId)!) * 22);
+    return Math.max(48, (model.floorY.get(level.levelId)! - model.floorY.get(below.levelId)!) * 22);
   });
   const whole = state.levelId === null && state.buildingId !== null;
-  return <nav className="ua-ladder" aria-label={building ? `Floors of ${building.label}` : 'Floors'}>
-    <button type="button" className={`ua-rung ua-rung-all${whole ? ' is-current' : ''}`} aria-pressed={whole} disabled={levels.length === 0}
-      onClick={() => dispatch({ type: 'level', levelId: null })}>
-      {/* Compact rows show "All" beside the floor marks; the name stays whole. */}
-      <span className="ua-rung-name">All<span className="ua-rung-all-rest"> floors</span></span>
-    </button>
-    <ol className="ua-rungs">
-      {top.map((level, at) => {
-        const current = state.levelId === level.levelId;
-        const drawn = !current && state.levelId === null && shownLevel === level.levelId;
-        const holds = selectionLevel === level.levelId, also = !holds && contextLevels.has(level.levelId);
-        const rooms = level.occurrenceIds.filter(key => model.selectable.has(key)).length;
-        const hasPlan = model.plansByLevel.has(level.levelId);
-        // Spacing above this floor: its height difference to the floor listed before it.
-        return <li key={level.levelId} style={at > 0 ? { '--rung-gap': `${gaps[at - 1]}px` } as CSSProperties : undefined}>
-          <button type="button" className={`ua-rung${current ? ' is-current' : drawn ? ' is-shown' : ''}`} aria-pressed={current}
-            title={level.elevationBasis ?? undefined}
-            aria-label={`${atlasLevelName(model, level.levelId)}: ${plural(rooms, 'room')}${hasPlan ? '' : ', no plan'}${drawn ? ', plan shown' : ''}${holds ? ', has the selected room' : also ? ', has another part of the selected room' : ''}`}
-            onClick={() => dispatch({ type: 'level', levelId: level.levelId })}>
-            <span className="ua-rung-tick" aria-hidden="true">{marks.get(level.levelId)}</span>
-            <span className="ua-rung-name">{atlasLevelName(model, level.levelId)}</span>
-            <span className="ua-rung-sub">{plural(rooms, 'room')}{hasPlan ? '' : ', no plan'}</span>
-            {(holds || also) && <span className={`ua-rung-mark${also ? ' is-context' : ''}`} aria-hidden="true" />}
-          </button>
-        </li>;
-      })}
-    </ol>
-  </nav>;
+  const current = state.levelId === null ? null : model.levelsById.get(state.levelId) ?? null;
+  const floorName = current ? atlasLevelName(model, current.levelId) : null;
+  const mark = current ? marks.get(current.levelId) ?? '·' : building && levels.length > 0 ? 'All' : null;
+  const where = building ? `${building.label}, ${floorName ?? 'all floors'}` : 'All buildings';
+  // Low to high, then the whole building above the top floor.
+  const steps: readonly (string | null)[] = [...levels.map(level => level.levelId), null];
+  const step = (by: 1 | -1) => {
+    if (levels.length === 0) return;
+    const at = steps.indexOf(state.levelId), next = steps[Math.max(0, Math.min(steps.length - 1, at + by))]!;
+    if (next !== state.levelId || at === -1) dispatch({ type: 'level', levelId: next });
+  };
+  const pick = (levelId: string | null) => {
+    dispatch({ type: 'level', levelId });
+    if (compact && open) { setOpen(false); head.current?.focus({ preventScroll: true }); }
+  };
+  // A vertical swipe on the head steps a floor instead of opening the stack.
+  const swipe = useRef<{ readonly y: number; moved: boolean } | null>(null);
+  const keys = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+    event.preventDefault(); event.stopPropagation();
+    step(event.key === 'ArrowUp' ? 1 : -1);
+  };
+  const slabs = top.slice(0, 5);
+  // The paper widens over the stage while the stack's own box keeps its size,
+  // so opening the rail never re-fits the model.
+  return <div className={`ua-stack${compact ? ' is-chip' : ' is-rail'}${open ? ' is-open' : ''}${levels.length === 0 ? ' is-site' : ''}`}>
+    <div className="ua-stack-paper">
+      <button ref={head} type="button" className="ua-stack-head" aria-expanded={open} aria-controls={panelId}
+        aria-label={`Building and floor: ${where}`} title={compact ? undefined : where} onKeyDown={keys}
+        onPointerDown={event => { swipe.current = { y: event.clientY, moved: false }; }}
+        onPointerMove={event => {
+          // A press released elsewhere never reached click: no button held, no swipe.
+        const start = swipe.current; if (start && event.buttons === 0) { swipe.current = null; return; }
+        if (!start || start.moved || Math.abs(event.clientY - start.y) < 16) return;
+          start.moved = true; step(event.clientY < start.y ? 1 : -1);
+        }}
+        onPointerCancel={() => { swipe.current = null; }}
+        onClick={() => { const moved = swipe.current?.moved; swipe.current = null; if (!moved) setOpen(!open); }}>
+        {/* Keyed by floor: a new floor nudges the glyph once. */}
+        <svg key={state.levelId ?? state.buildingId ?? 'site'} className="ua-stack-glyph" width={26} height={26} viewBox="0 0 26 26" aria-hidden="true">
+          {slabs.length > 0 ? slabs.map((level, at) => <rect key={level.levelId} x={4} width={18} rx={1.4}
+            y={4 + at * (19 / slabs.length)} height={Math.max(2.5, 19 / slabs.length - 1.6)}
+            className={whole || state.levelId === level.levelId ? 'is-lit' : selectionLevel === level.levelId ? 'is-held' : undefined} />)
+            : <path d="M4 21V11l9-7 9 7v10Z M10 21v-6h6v6" />}
+        </svg>
+        {mark && <span className="ua-stack-mark">{mark}</span>}
+        <span className="ua-stack-where">
+          {buildingNav && <span className="ua-stack-building">{building?.label ?? 'All buildings'}</span>}
+          {floorName && <span className="ua-stack-floor">{floorName}</span>}
+        </span>
+        {compact && <Icon name="chevronDown" size={15} className="ua-stack-chevron" />}
+      </button>
+      <div id={panelId} className="ua-stack-card" role="group" aria-label="Building and floor" hidden={compact && !open}>
+        {buildingNav && <ul className="ua-stack-buildings" aria-label="Buildings">
+          <li><button type="button" className="ua-rung ua-stack-row" aria-pressed={state.buildingId === null} onClick={() => chooseBuilding(null)}>
+            <span className="ua-rung-tick" aria-hidden="true"><Icon name="atlas" size={16} /></span>
+            <span className="ua-rung-name">All buildings</span></button></li>
+          {buildings.map(row => <li key={row.buildingId}><button type="button" className="ua-rung ua-stack-row" aria-pressed={state.buildingId === row.buildingId}
+            onClick={() => chooseBuilding(row.buildingId)}>
+            <span className="ua-rung-tick" aria-hidden="true">{buildingMark.get(row.buildingId)}</span>
+            <span className="ua-rung-name">{atlasBuildingName(model, row.buildingId)}</span></button></li>)}
+        </ul>}
+        {levels.length > 0 && <ol className="ua-stack-floors" aria-label={building ? `Floors of ${building.label}` : 'Floors'}>
+          <li><button type="button" className={`ua-rung ua-stack-row${whole ? ' is-current' : ''}`} aria-pressed={whole}
+            onClick={() => pick(null)}>
+            <span className="ua-rung-tick ua-rung-tick-all" aria-hidden="true">All</span>
+            <span className="ua-rung-name">All floors</span></button></li>
+          {top.map((level, at) => {
+            const here = state.levelId === level.levelId;
+            const drawn = !here && state.levelId === null && shownLevel === level.levelId;
+            const holds = selectionLevel === level.levelId, also = !holds && contextLevels.has(level.levelId);
+            const rooms = level.occurrenceIds.filter(key => model.selectable.has(key)).length;
+            const hasPlan = model.plansByLevel.has(level.levelId);
+            // Spacing above this floor: its height difference to the floor listed before it.
+            return <li key={level.levelId} style={at > 0 ? { '--rung-gap': `${gaps[at - 1]}px` } as CSSProperties : undefined}>
+              <button type="button" className={`ua-rung ua-stack-row${here ? ' is-current' : drawn ? ' is-shown' : ''}`} aria-pressed={here}
+                title={level.elevationBasis ?? undefined}
+                aria-label={`${atlasLevelName(model, level.levelId)}: ${plural(rooms, 'room')}${hasPlan ? '' : ', no plan'}${drawn ? ', plan shown' : ''}${holds ? ', has the selected room' : also ? ', has another part of the selected room' : ''}`}
+                onClick={() => pick(level.levelId)}>
+                <span className="ua-rung-tick" aria-hidden="true">{marks.get(level.levelId)}</span>
+                <span className="ua-rung-name">{atlasLevelName(model, level.levelId)}</span>
+                <span className="ua-rung-sub">{rooms.toLocaleString()}{hasPlan ? '' : ' · no plan'}</span>
+                {(holds || also) && <span className={`ua-rung-mark${also ? ' is-context' : ''}`} aria-hidden="true" />}
+              </button>
+            </li>;
+          })}
+        </ol>}
+        {canExplode && <button type="button" className="ua-rung ua-stack-row ua-stack-spread" aria-pressed={state.exploded}
+          onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}>
+          <span className="ua-rung-tick" aria-hidden="true"><Icon name="explode" size={17} /></span>
+          <span className="ua-rung-name">Spread floors</span>
+          <span className="ua-stack-switch" aria-hidden="true" /></button>}
+      </div>
+    </div>
+  </div>;
 }
 
 // ---------------------------------------------------------------------------
