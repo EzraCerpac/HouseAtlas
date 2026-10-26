@@ -185,6 +185,11 @@ assert.deepEqual(beamFrame.lamps.slice(1).map(lamp => lamp.aim), [[1, 0, 0], nul
 const many = Array.from({ length: MAX_LAMPS + 4 }, (_, index) => at(`lamp-${index}`, index * 2));
 assert.equal(writeAppearance(many, { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight, emitterKeys: new Set(many.map(row => row.meshKey)) },
   new Float32Array(many.length * STATE_FLOATS)).lamps.length, MAX_LAMPS);
+// Room volumes are flagged only with daylight, and the frame says whether any exist.
+const roomed = writeAppearance(lit7, { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight, roomKeys: new Set(['glass']) }, nightTable);
+assert.equal(roomed.rooms, true); assert.deepEqual(lit7.map((_, index) => nightTable[index * STATE_FLOATS + 26]), [1, 0, 0, 0, 0]);
+assert.equal(writeAppearance(lit7, { ...base, twoSided: true, light: [0, 1, 0], roomKeys: new Set(['glass']) }, nightTable).rooms, false);
+assert.equal(nightTable[26], 0, 'no room flag without daylight');
 // A lamp the section cuts away whole throws no light; one the cut reaches still does.
 const ceiling = { ...mesh('ceiling-lamp'), bounds: { min: [0, 2.8, 0], max: [.2, 3, .2] } }, wall = { ...at('wall-lamp', 5), bounds: { min: [5, 1.5, 0], max: [5.2, 2.5, .2] } };
 assert.equal(writeAppearance([ceiling, wall], { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight, rules: { ...base.rules, clipY: 2 },
