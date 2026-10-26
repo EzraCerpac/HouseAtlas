@@ -354,8 +354,10 @@ def prune_plan(setup_root: Path, frontend_parent: Path, records: list[dict], kee
     # A name that contains a whole prune area (a home or working folder) pins nothing inside it.
     pins = {p: "named by the service plist, live server config or smoke template" for p in named
             if not any(p == root or p in root.parents for root in (setup_root, frontend_parent))}
-    for i, r in enumerate(records):
-        if r["status"] in UNFINISHED or (i == len(records) - 1 and r["status"] == "prepared"):
+    # The newest change record may be a prepared one someone is inspecting; prune runs don't count as changes.
+    newest = next((r for r in reversed(records) if r.get("kind") != "prune"), None)
+    for r in records:
+        if r["status"] in UNFINISHED or (r is newest and r["status"] == "prepared"):
             pins.update({real(r[k]): f"named by unfinished record {r['id']}" for k in FRONTEND_KEYS if r.get(k)})
 
     remove, pinned = [], []
@@ -945,6 +947,16 @@ class Deployer:
                  + (f"; {len(errors)} could not be removed" if errors else ""))
         return report
 
+    def prune_alone(self, *, dry_run=False) -> dict:
+        """`deploy-nas prune`: a real run becomes its own ledger record, so what it freed is on file like a deploy's."""
+        self.require_settled()
+        report = self.prune(dry_run=dry_run)
+        if not dry_run:
+            stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ") + f"-{uuid.uuid4().hex[:6]}"
+            save_record(self.cfg.ledger, dict(id=f"prune-{stamp}", kind="prune", status="pruned",
+                                              created=now(), prune=report))
+        return report
+
     def prune_into(self, record: dict) -> None:
         """Prune after a verified deploy. The deploy already succeeded, so a failure here is only reported."""
         try:
@@ -1045,8 +1057,7 @@ def main(argv=None) -> int:
             elif a.cmd == "model":
                 dep.model(a.release, prepare_only=a.prepare_only, auto_rollback=not a.no_auto_rollback)
             elif a.cmd == "prune":
-                dep.require_settled()
-                dep.prune(dry_run=a.dry_run)
+                dep.prune_alone(dry_run=a.dry_run)
             else:
                 dep.rollback(force=a.force)
         return 0
