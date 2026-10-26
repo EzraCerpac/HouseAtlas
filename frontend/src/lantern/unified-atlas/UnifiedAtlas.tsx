@@ -1414,7 +1414,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
             {archive && <label className="ua-menu-check"><input type="checkbox" checked={archive.included}
               onChange={event => archive.setIncluded(event.currentTarget.checked)} /><span>Include archived HomeBox records</span></label>}
             {/* The host's lens row gives way on a phone; its lenses open from here. */}
-            {hostLens && <nav className="ua-menu-sources ua-menu-lenses" aria-labelledby={`${menuIds}-lenses`}>
+            {hostLens && compact && <nav className="ua-menu-lenses" aria-labelledby={`${menuIds}-lenses`}>
               <p id={`${menuIds}-lenses`} className="ua-menu-label">Lists</p>
               {(['places', 'network'] as const).map(kind => <button key={kind} type="button" className="ua-menu-row" aria-pressed={lens?.kind === kind}
                 aria-controls={lens ? hostLens.panelId : undefined} onClick={() => openLens(kind)}>

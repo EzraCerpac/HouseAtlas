@@ -820,7 +820,7 @@
 .lantern-host .ua-menu-check:hover { background: var(--ua-hover); }
 .lantern-host .ua-menu-check input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--chrome); }
 
-.lantern-host .ua-menu-sources {
+.lantern-host :is(.ua-menu-sources, .ua-menu-lenses) {
   display: grid;
   padding-top: 4px;
   border-top: 1px solid var(--hair);
