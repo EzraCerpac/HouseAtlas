@@ -111,7 +111,7 @@ try {
   const loaded = cdp.event('Page.loadEventFired');
   await send('Page.navigate', { url: origin + '/lantern-tests/unified-atlas-regression/index.html?atlas=generated' }); await loaded;
   await poll('Boolean(document.querySelector(".ua-room-btn"))', 'Atlas did not mount');
-  await click('.ua-buildings button', 'Synthetic house');
+  await click('.ua-stack-buildings .ua-rung-name', 'Synthetic house');
   await click('[aria-label="Atlas view"] button', 'Plan');
   await poll('document.querySelectorAll(".ua-plan path").length > 0', 'Plan did not draw');
 

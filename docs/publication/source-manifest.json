@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "f14675db6545df6212b7499e2c07d53f3096e5ed9469b440dc1cb772e4ea473d",
+  "sourceDigestSha256": "edcb0184aabc746469822f7638380129d28afde4731664da75aae10b05b3e92a",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -8344,8 +8344,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-plan-wheel-browser.mjs",
       "mode": "100644",
-      "bytes": 9227,
-      "sha256": "f4be1d8b7132ef99a85b826bace7267bcae226e6c96f5eebe6afa6f4c3af898d",
+      "bytes": 9240,
+      "sha256": "91dd32f1d0781d8c9edc7f3f0c98c471f6d09b6a2c62269cbdf70fe0c69c17d9",
       "owner": "web"
     },
     {
@@ -8365,8 +8365,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-regression/browser.mjs",
       "mode": "100644",
-      "bytes": 17071,
-      "sha256": "f0f95b7e68774eeff777feaba1369496c48c94e984040657c4c0b6257b02f24a",
+      "bytes": 17216,
+      "sha256": "39d25562fa1848db7dc77562164b7e901e6504bdd95a8bfc65b2b649eaaad324",
       "owner": "web"
     },
     {
