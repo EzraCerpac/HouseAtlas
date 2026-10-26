@@ -468,7 +468,8 @@ test('the command line writes the detail beside the overview', async () => {
     const out = join(dir, 'out'), cli = new URL('../bake.mjs', import.meta.url).pathname;
     const args = ['--model', join(dir, 'master.glb'), '--companion', join(dir, 'master.json'), '--out', out, '--detail',
       '--triangles', String(Math.floor(trianglesIn(glb) * 0.6))];
-    assert.throws(() => execFileSync(process.execPath, [cli, ...args, '--geographic', '91,0,0'], { stdio: 'pipe' }), /--geographic takes/);
+    for (const wrong of ['91,0,0', '51.48,,0', ',,', '51.48,0'])
+      assert.throws(() => execFileSync(process.execPath, [cli, ...args, '--geographic', wrong], { stdio: 'pipe' }), /--geographic takes/, wrong);
     // A neutral reference place, not any household location.
     execFileSync(process.execPath, [cli, ...args, '--geographic', '51.48,0,-12.5'], { stdio: 'pipe' });
     assert.deepEqual(readdirSync(out).sort(), ['atlas-scene.json', 'bake-report.json', 'detail.glb', 'model.glb']);

@@ -40,8 +40,8 @@ const companion = values.companion ? JSON.parse(readFileSync(values.companion, '
 // -Z: written into the companion's frame for the viewer's sun, so it travels
 // with this release only.
 if (values.geographic !== undefined) {
-  const parts = values.geographic.split(',').map(Number), limits = [90, 180, 360];
-  if (!companion || parts.length !== 3 || !parts.every((value, at) => Number.isFinite(value) && Math.abs(value) <= limits[at]))
+  const texts = values.geographic.split(',').map(text => text.trim()), parts = texts.map(Number), limits = [90, 180, 360];
+  if (!companion || parts.length !== 3 || texts.includes('') || !parts.every((value, at) => Number.isFinite(value) && Math.abs(value) <= limits[at]))
     throw new Error('--geographic takes LAT,LON,NORTH in degrees (|lat| ≤ 90, |lon| ≤ 180, |north| ≤ 360) and needs --companion');
   const [latitude, longitude, northDeg] = parts;
   companion.frame = { ...companion.frame, geographic: { latitude, longitude, northDeg } };

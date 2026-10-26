@@ -4,7 +4,8 @@ import type { AtlasGeographic } from './types';
 
 /** This device's own sun location, like Model quality, and the shown
  * release's geographic frame; resolveSunPlace says which one lights the view. */
-const KEY = 'houseatlas.sun-location.v1';
+// The key #367 stored a whole place under; only its latitude and longitude are read now.
+const KEY = 'houseatlas.sun-place.v1';
 
 const finite = (value: unknown, limit: number): value is number => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= limit;
 /** The stored device location, or null where it is missing or out of range. */
@@ -36,7 +37,8 @@ export function updateSunLocation(patch: Partial<SunLocation> | null): void {
   catch { /* The choice lasts for this page only. */ }
   publish({ ...current(), device: location });
 }
-/** The shown release's geographic frame, so Settings can say where the sun is from. */
+/** The shown release's geographic frame, so Settings can say where the sun is from.
+ * It stays after the 3D view unmounts, until another release is shown. */
 export function showModelGeographic(model: AtlasGeographic | null): void {
   if (current().model !== model) publish({ ...current(), model });
 }

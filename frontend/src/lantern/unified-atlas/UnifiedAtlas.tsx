@@ -721,7 +721,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   // The real sun for the chosen moment, fixed to the house: shadows fall where they would.
   // Where the release says the house stands, unless this device set its own location.
   const sunLocation = useSunLocation(), geographic = model.scene.geographic, lightingTime = useLightingTime();
-  useEffect(() => { showModelGeographic(geographic); return () => showModelGeographic(null); }, [geographic]);
+  useEffect(() => showModelGeographic(geographic), [geographic]);
   const sunPlace = useMemo(() => resolveSunPlace(sunLocation, geographic), [sunLocation, geographic]);
   const daylight = useMemo(() => daylightAt(lightingTime.at, sunPlace), [lightingTime.at, sunPlace]);
   const light = daylight.toward, across = Math.max(1e-6, Math.hypot(light[0], light[2]));

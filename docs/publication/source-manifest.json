@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "6151c2dae3f9148a65fc5274ba5bc834437af159d718068c34d3fe9ed58450c8",
+  "sourceDigestSha256": "d028ae38bfee8c13923ba0ef34642687dc9a34d7e14a646ff01b4afc55dccc55",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -10388,8 +10388,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 146960,
-      "sha256": "6b2ec6c99bf5596331357807c68d54625f8bb1459b5580d10d548e5679b1e260",
+      "bytes": 146915,
+      "sha256": "407da8120679f6a6f8cf67c9c15a54b8429611662ed4a8a49f9967e8c866f148",
       "owner": "web"
     },
     {
@@ -10472,8 +10472,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/sun-place.ts",
       "mode": "100644",
-      "bytes": 2977,
-      "sha256": "5e36ffbea103eabe242b0666362657791ebabbe1678b7a126ccc87a9737f2e7e",
+      "bytes": 3136,
+      "sha256": "56acccf19dcf03e971a8017592a00e9a064ab576cb0af98a330e2e690420918b",
       "owner": "web"
     },
     {
@@ -12180,8 +12180,8 @@
     {
       "path": "tools/model-bake/bake.mjs",
       "mode": "100755",
-      "bytes": 6552,
-      "sha256": "51b3108c09b5ac902ec2526999acf695535748c0579c9196c3335c672e223759",
+      "bytes": 6614,
+      "sha256": "5455f212b8f9a6331be1b4ed1b454da3335d06091453199c89f84d1446bd71dd",
       "owner": "media"
     },
     {
@@ -12222,8 +12222,8 @@
     {
       "path": "tools/model-bake/test/bake.test.mjs",
       "mode": "100644",
-      "bytes": 33194,
-      "sha256": "b3ea2997883f539501f5b96214abe67219be1b74c69742746403a9929453b2a9",
+      "bytes": 33265,
+      "sha256": "d02ad4931421d964f26bfb1be9e7246200c5d62ecc565c10d853c2839c51c6ac",
       "owner": "media"
     },
     {
