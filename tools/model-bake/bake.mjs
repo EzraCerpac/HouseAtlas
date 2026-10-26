@@ -7,15 +7,17 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { admitInViewer, bindInViewer } from './src/admission.mjs';
-import { BAKE_DEFAULTS, bakeDetail, bakeOverview } from './src/bake.mjs';
+import { BAKE_DEFAULTS, bakeDetail, bakeOverview, LOCKED_ROLES } from './src/bake.mjs';
+import { COMPRESS_DEFAULTS, compressGlb } from './src/compress.mjs';
 
 const { values } = parseArgs({ options: {
   model: { type: 'string' }, companion: { type: 'string' }, out: { type: 'string' }, detail: { type: 'boolean' },
   geographic: { type: 'string' }, triangles: { type: 'string' }, 'max-error': { type: 'string' }, 'structure-weight': { type: 'string' }, 'site-weight': { type: 'string' }, weld: { type: 'string' },
+  grid: { type: 'string' }, plain: { type: 'boolean' },
 } });
 if (!values.model || !values.out) {
   console.error('Usage: bake.mjs --model master.glb [--companion atlas-scene.json [--geographic LAT,LON,NORTH]] --out DIR [--detail] '
-    + `[--triangles ${BAKE_DEFAULTS.triangles}] [--max-error ${BAKE_DEFAULTS.maxError}] [--structure-weight ${BAKE_DEFAULTS.structureWeight}] [--site-weight ${BAKE_DEFAULTS.siteWeight}] [--weld ${BAKE_DEFAULTS.weld}]`);
+    + `[--triangles ${BAKE_DEFAULTS.triangles}] [--max-error ${BAKE_DEFAULTS.maxError}] [--structure-weight ${BAKE_DEFAULTS.structureWeight}] [--site-weight ${BAKE_DEFAULTS.siteWeight}] [--weld ${BAKE_DEFAULTS.weld}] [--grid ${COMPRESS_DEFAULTS.grid} | --plain]`);
   process.exit(2);
 }
 const isSymlink = path => { try { return lstatSync(path).isSymbolicLink(); } catch { return false; } };
@@ -49,18 +51,37 @@ if (values.geographic !== undefined) {
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const binding = model => ({ boundPrimitives: model.parts.length, roomPickPrimitives: model.parts.filter(part => part.occurrenceId !== null).length,
   selectableOccurrences: model.selectable.size, levels: model.levelsById.size, buildings: model.buildingsById.size });
-const { glb, companion: baked, report } = await bakeOverview(master, companion, overrides);
+if (values.plain && values.grid) throw new Error('--grid snaps positions for compression; --plain writes uncompressed files');
+const grid = values.grid ? number(values.grid, 'grid') : COMPRESS_DEFAULTS.grid;
+const plain = await bakeOverview(master, companion, overrides), { report } = plain;
+// Transfer compression (EXT_meshopt_compression). The viewer and the server
+// expand it before any check, so admission below runs on the decoded file;
+// the companion pins the compressed bytes that are served.
+const locked = new Set(report.primitives.filter(row => LOCKED_ROLES.includes(row.role)).map(row => `${row.mesh}/${row.primitive}`));
+const compress = async (bytes, pinned) => {
+  if (values.plain) return { glb: bytes, companion: pinned };
+  const compressed = await compressGlb(bytes, { companion: pinned, locked, grid });
+  return { glb: compressed.glb, report: compressed.report,
+    companion: pinned && { ...pinned, original: { sha256: sha256(compressed.glb), bytes: compressed.glb.byteLength } } };
+};
+const overview = await compress(plain.glb, plain.companion), { glb, companion: baked } = overview;
+if (overview.report) {
+  report.compression = overview.report;
+  report.overview = { ...report.overview, sha256: sha256(glb), bytes: glb.byteLength, plainSha256: report.overview.sha256, plainBytes: report.overview.bytes };
+}
 report.viewerAdmission = await admitInViewer(glb);
 // The app's own scene admission and selector binding on the baked pair.
 if (baked) report.viewerBinding = binding(await bindInViewer(glb, baked));
 let detail = null;
 if (values.detail) {
-  detail = await bakeDetail(master, companion);
+  const plainDetail = await bakeDetail(master, companion), compressedDetail = await compress(plainDetail.glb, plainDetail.companion);
+  detail = { ...plainDetail, glb: compressedDetail.glb, companion: compressedDetail.companion };
   const apart = value => value && JSON.stringify({ ...value, original: null });
   if (apart(detail.companion) !== apart(baked)) throw new Error('The detail does not keep the overview companion');
   // The publication.json `detail` pin, then the Full tier's own admission and binding.
   report.detail = { file: 'detail.glb', contentType: 'model/gltf-binary', sha256: sha256(detail.glb), bytes: detail.glb.byteLength,
-    drawnTriangles: detail.drawnTriangles, viewerAdmission: await admitInViewer(detail.glb, 'detail') };
+    drawnTriangles: detail.drawnTriangles, ...(compressedDetail.report ? { compression: compressedDetail.report } : {}),
+    viewerAdmission: await admitInViewer(detail.glb, 'detail') };
   if (baked) report.detail.viewerBinding = binding(await bindInViewer(glb, baked, detail.glb));
 }
 report.seconds = (Date.now() - started) / 1000;
@@ -76,7 +97,8 @@ const mib = bytes => (bytes / 1048576).toFixed(1);
 console.log(`master   ${mib(report.master.bytes)} MiB, ${report.master.drawnTriangles} triangles`);
 console.log(`overview ${mib(report.overview.bytes)} MiB, ${report.overview.drawnTriangles} triangles (budget ${report.budget.triangles})`);
 console.log(`error    house context ${(report.contextErrorMetres * 1000).toFixed(1)} mm, structure ${(report.structureErrorMetres * 1000).toFixed(1)} mm, site ${(report.siteErrorMetres * 1000).toFixed(1)} mm`);
+if (report.compression) console.log(`meshopt  ${mib(report.compression.plainBytes)} → ${mib(report.compression.bytes)} MiB (${(report.compression.ratio * 100).toFixed(0)}%), positions within ${(report.compression.maxDisplacementMetres * 1000).toFixed(2)} mm, decoded in ${report.viewerAdmission.decodeMs} ms`);
 console.log(`admitted by the viewer preflight; GPU ledger ${mib(report.viewerAdmission.gpuBytes)} MiB`);
 if (report.viewerBinding) console.log(`bound in the viewer: ${report.viewerBinding.boundPrimitives} primitives, ${report.viewerBinding.selectableOccurrences} selectable rooms`);
-if (report.detail) console.log(`detail   ${mib(report.detail.bytes)} MiB, ${report.detail.drawnTriangles} triangles, admitted at Full; GPU ledger ${mib(report.detail.viewerAdmission.gpuBytes)} MiB`);
+if (report.detail) console.log(`detail   ${mib(report.detail.bytes)} MiB${report.detail.compression ? ` (plain ${mib(report.detail.compression.plainBytes)} MiB)` : ''}, ${report.detail.drawnTriangles} triangles, admitted at Full; GPU ledger ${mib(report.detail.viewerAdmission.gpuBytes)} MiB`);
 if (baked) console.log(`companion sha256 ${sha256(JSON.stringify(baked))}`);

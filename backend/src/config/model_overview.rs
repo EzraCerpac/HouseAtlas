@@ -296,7 +296,16 @@ impl ServerModelOverviewSelection {
         Ok(bytes)
     }
 }
+/// A meshopt-compressed file is checked as the plain GLB it expands to.
 fn validate_glb(bytes: &[u8], max: u64) -> Result<(), String> {
+    let invalid = || "Unsupported self-contained GLB v2".to_owned();
+    let limit = usize::try_from(max).map_err(|_| invalid())?;
+    if let Some(plain) = super::atlas_scene_meshopt::expand(bytes, limit).map_err(|_| invalid())? {
+        return validate_plain_glb(&plain, max);
+    }
+    validate_plain_glb(bytes, max)
+}
+fn validate_plain_glb(bytes: &[u8], max: u64) -> Result<(), String> {
     let invalid = || "Unsupported self-contained GLB v2".to_owned();
     let word = |offset: usize| -> Result<u32, String> {
         Ok(u32::from_le_bytes(

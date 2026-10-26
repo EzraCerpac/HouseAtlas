@@ -58,8 +58,12 @@ if (process.version !== 'v26.10.0' || process.env.NODE_ENV !== 'production') {
     // explicit mapping through the same strict compiler; measurements opt out.
     const materialImports = present(base + 'embedded-png-material.ts')
       ? { './embedded-png-material': await compile(base + 'embedded-png-material.ts', { './glb-preflight': preflight }) } : {};
+    // Meshopt expansion, mapped the same way where the source has it.
+    const meshoptImports = present(base + 'glb-meshopt.ts')
+      ? { './glb-meshopt': await compile(base + 'glb-meshopt.ts', { './glb-preflight': preflight,
+        'three/examples/jsm/libs/meshopt_decoder.module.js': dependencyUrl('three/examples/jsm/libs/meshopt_decoder.module.js') }) } : {};
     const standard = await import(await compile(base + 'standard-glb.ts', { './geometry': geometryUrl, './glb-preflight': preflight,
-      ...materialImports, three: threeUrl, 'three/examples/jsm/loaders/GLTFLoader.js': dependencyUrl('three/examples/jsm/loaders/GLTFLoader.js') }));
+      ...materialImports, ...meshoptImports, three: threeUrl, 'three/examples/jsm/loaders/GLTFLoader.js': dependencyUrl('three/examples/jsm/loaders/GLTFLoader.js') }));
     const geometry = await import(geometryUrl), signal = new AbortController().signal;
     let loaded = await standard.loadStandardGlb(inputs[1].bytes, 'synthetic', signal);
     await time('frontend.standard_glb.load_ms', async () => { loaded = await standard.loadStandardGlb(inputs[1].bytes, 'synthetic', signal); sink += loaded.counts.triangles; });
