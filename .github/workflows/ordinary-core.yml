@@ -22,6 +22,8 @@ jobs:
           fetch-depth: 1
           fetch-tags: false
           persist-credentials: false
+      - name: Synthetic PR selector regressions (stdlib and disposable Git histories)
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/ci -p 'test_*.py' -v
       - name: Set exact Node runtime
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:

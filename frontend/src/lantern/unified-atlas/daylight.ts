@@ -6,6 +6,22 @@ type Rgb = readonly [number, number, number];
 /** Where the house stands and how the model is turned: true north, in degrees
  * clockwise seen from above, from the model's -Z axis (Blender's +Y). */
 export interface SunPlace { readonly latitude: number; readonly longitude: number; readonly northDeg: number }
+export type SunLocation = Pick<SunPlace, 'latitude' | 'longitude'>;
+export type SunPlaceSource = 'device' | 'model' | 'default';
+export interface ResolvedSunPlace extends SunPlace { readonly source: SunPlaceSource }
+export const DEFAULT_SUN_LOCATION: SunLocation = Object.freeze({ latitude: 51.48, longitude: 0 });
+
+/** Where the sun is computed for. The model release may say where the house
+ * stands and where north is (`frame.geographic`); a device may set its own
+ * location over the release's; otherwise the location is the Greenwich
+ * meridian, a neutral reference rather than a guess. North comes only from the
+ * release, else it is the model's -Z. */
+export function resolveSunPlace(device: SunLocation | null, model: SunPlace | null): ResolvedSunPlace {
+  const northDeg = model?.northDeg ?? 0;
+  if (device) return { latitude: device.latitude, longitude: device.longitude, northDeg, source: 'device' };
+  if (model) return { latitude: model.latitude, longitude: model.longitude, northDeg, source: 'model' };
+  return { ...DEFAULT_SUN_LOCATION, northDeg, source: 'default' };
+}
 
 /** The house's light at one moment, from the real sun's position. */
 export interface Daylight extends SceneDaylight {

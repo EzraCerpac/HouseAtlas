@@ -31,8 +31,8 @@ import { useDocumentaryOverlays } from './useDocumentaryOverlays';
 import type { OverlayFeedSnapshot } from './overlay-feed';
 import { modelUpdatesAllowed, useModelUpdates } from './model-updates';
 import { fullModelWanted, useModelQuality } from './model-quality';
-import { daylightAt, stageColors } from './daylight';
-import { useSunPlace } from './sun-place';
+import { daylightAt, resolveSunPlace, stageColors } from './daylight';
+import { showModelGeographic, useSunLocation } from './sun-place';
 import { DaylightControl, useLightingTime } from './DaylightControl';
 import { shownTier, stageTier } from './model-tier';
 import { NetworkGraph } from './NetworkGraph';
@@ -113,7 +113,6 @@ export interface AtlasPresentationEnvironment {
 }
 interface AtlasProps {
   readonly port: UnifiedAtlasPort | AtlasPresentationPort;
-  readonly onOpenModel?: () => void;
   readonly otherSources?: readonly OtherSource[];
   readonly environment?: AtlasPresentationEnvironment;
   /** The live host's lens; an explicit environment supplies its own. */
@@ -137,7 +136,7 @@ function LiveAtlasPresentation(props: AtlasProps) {
 function LensStatus({ lens, children }: { readonly lens: AtlasLensHost | undefined; readonly children: string }) {
   return lens?.value && lens.target ? createPortal(<p className="ua-lens-status" role="status">{children}</p>, lens.target) : null;
 }
-function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, environment }: AtlasProps & { readonly environment: AtlasPresentationEnvironment }) {
+function AtlasPresentation({ port: suppliedPort, otherSources, environment }: AtlasProps & { readonly environment: AtlasPresentationEnvironment }) {
   const port = useMemo(() => 'kind' in suppliedPort ? suppliedPort : createLiveAtlasPresentationPort(suppliedPort), [suppliedPort]);
   const subscribe = useCallback((changed: () => void) => port.subscribe(changed), [port]);
   const current = useCallback(() => port.current(), [port]);
@@ -290,10 +289,7 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
       <LensStatus lens={environment.lens}>The room map is unavailable, so its model rooms and network graph are not shown.</LensStatus>
       <div className="ua-state" role="alert">
         <p>{failure.text}</p>
-        <div className="ua-state-actions">
-          {failure.retry && <button type="button" className="btn btn-small" onClick={ask}>{failure.retry}</button>}
-          {onOpenModel && <button type="button" className="btn btn-small btn-quiet" onClick={onOpenModel}>Open model overview</button>}
-        </div>
+        {failure.retry && <div className="ua-state-actions"><button type="button" className="btn btn-small" onClick={ask}>{failure.retry}</button></div>}
       </div>
     </section>;
   }
@@ -331,6 +327,8 @@ const ATLAS_SITE = '#E0CFA6', ATLAS_GHOST_ALPHA = .05;
 const ATLAS_SOURCE_DIM = .45;
 /** Meshes that roof the house over: at night a face beneath them is indoors and lamp-lit. */
 const SHELTER_ROLES: ReadonlySet<MeshRole> = new Set(['structure', 'roof', 'slab']);
+/** Of those, the ones whose glass shows lit rooms at night; glass in the context never does. */
+const GLAZED_ROLES: ReadonlySet<MeshRole> = new Set(['structure', 'roof']);
 /** The birch board under the property: its thickness below the lowest floor, in metres. */
 const BOARD_DEPTH = .4;
 /** Contact shadow of each building's lowest floor on the board, cast away from the sun, in metres. */
@@ -723,7 +721,11 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
     return insetProjection(centred, inset.l, inset.t, size);
   }, [camera.eased, bounds, size, planBlend, inset, readable]);
   // The real sun for the chosen moment, fixed to the house: shadows fall where they would.
-  const sunPlace = useSunPlace(), lightingTime = useLightingTime();
+  // Where the release says the house stands, unless this device set its own location.
+  const sunLocation = useSunLocation(), geographic = model.scene.geographic, lightingTime = useLightingTime();
+  const { workspaceId, homeId } = model.scene.scope, { publicationId } = model.scene.publication;
+  useEffect(() => showModelGeographic({ workspaceId, homeId, publicationId }, geographic), [workspaceId, homeId, publicationId, geographic]);
+  const sunPlace = useMemo(() => resolveSunPlace(sunLocation, geographic), [sunLocation, geographic]);
   const daylight = useMemo(() => daylightAt(lightingTime.at, sunPlace), [lightingTime.at, sunPlace]);
   const light = daylight.toward, across = Math.max(1e-6, Math.hypot(light[0], light[2]));
   const shadowOffset = [-light[0] / across * SHADOW_LENGTH, -light[2] / across * SHADOW_LENGTH] as const;
@@ -733,6 +735,11 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   const roofKeys = useMemo(() => new Set(model.parts.filter(part => part.role === 'roof').map(part => part.mesh.meshKey)), [model]);
   const site = useMemo(() => ({ keys: new Set(model.parts.filter(part => part.role === 'context').map(part => part.mesh.meshKey)), tone: ATLAS_SITE }), [model]);
   const shelterKeys = useMemo(() => new Set(model.parts.filter(part => SHELTER_ROLES.has(part.role)).map(part => part.mesh.meshKey)), [model]);
+  const roomKeys = useMemo(() => new Set(model.parts.filter(part => part.role === 'room-pick').map(part => part.mesh.meshKey)), [model]);
+  // After dusk the house's own glass shows its lit rooms, and every lamp glows.
+  const glazingKeys = useMemo(() => new Set(model.parts.filter(part => GLAZED_ROLES.has(part.role) && part.mesh.sourceNight === 'glazing')
+    .map(part => part.mesh.meshKey)), [model]);
+  const emitterKeys = useMemo(() => new Set(model.parts.filter(part => part.mesh.sourceNight === 'emitter').map(part => part.mesh.meshKey)), [model]);
   const showCanvas = planBlend < 1 && failure === null;
 
   // A new place is framed whole: zoom and pan return, the chosen orbit stays.
@@ -1450,7 +1457,8 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
           <MeshLayer meshes={target.meshes} onShown={onShown} projection={projection} rules={RULES} currentFloorId={presentation.focusLevelId}
             selectedOccurrenceId={selected} contextOccurrenceIds={context} tints={tints} hidden={!showCanvas}
             hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} sourceColors sourceMaterials sourceDim={ATLAS_SOURCE_DIM} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE} light={light} pitch={ATLAS_PITCH}
-            pitchKeys={roofKeys} site={site} ghostAlpha={ATLAS_GHOST_ALPHA} daylight={daylight} shelterKeys={shelterKeys}
+            pitchKeys={roofKeys} site={site} ghostAlpha={ATLAS_GHOST_ALPHA} daylight={daylight} shelterKeys={shelterKeys} roomKeys={roomKeys}
+            glazingKeys={glazingKeys} emitterKeys={emitterKeys}
             uploadBytes={target !== lighter || model !== lighter ? RENDER_LIMITS.detailUploadBytes : RENDER_LIMITS.uploadBytes}
             onUnavailable={message => { if (target !== lighter && keepLight) keepLight(); else setFailure(message); }} />
         </div>

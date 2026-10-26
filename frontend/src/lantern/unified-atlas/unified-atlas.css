@@ -840,39 +840,137 @@
 
 .lantern-host .ua-menu-panel[hidden] { display: none; }
 
-/* Lighting time: the hour the model is lit for, and a panel to move through the day. */
-.lantern-host .ua-daylight { position: relative; flex: none; }
-.lantern-host .ua-tools:has(.ua-daylight-panel:not([hidden])) { z-index: 8; }
-.lantern-host .ua-daylight-btn { background: var(--ua-panel); font-variant-numeric: tabular-nums; }
-.lantern-host .ua-daylight-btn.is-picked { border-color: var(--lantern-edge); background: var(--lantern-soft); }
-.lantern-host .ua-daylight-btn[aria-expanded='true'] { background: var(--ink); border-color: var(--ink); color: #fff; }
+/* Lighting time: a chip in the Floor Stack's family. Drag sideways on it to
+   move through today; a tap unfolds a strip of the day's sky below it. */
+.lantern-host .ua-time { position: relative; flex: none; }
+.lantern-host .ua-tools:has(.ua-time-card:not([hidden])) { z-index: 8; }
 
-.lantern-host .ua-daylight-panel {
-  min-width: 272px;
-  gap: 10px;
-  padding: 12px;
-}
-
-.lantern-host .ua-daylight-row {
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) auto;
+.lantern-host .ua-time-paper {
+  display: flex;
   align-items: center;
-  gap: 10px;
-  color: var(--ink-2);
-  font-weight: 650;
+  border-radius: 14px;
+  border: 1px solid var(--ua-line);
+  background: var(--ua-panel);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--ua-shadow);
+  color: var(--ink);
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
-.lantern-host .ua-daylight-row input[type='range'] { width: 100%; min-height: 32px; accent-color: var(--ink); }
-.lantern-host .ua-daylight-row input[type='date'] { grid-column: 2 / -1; min-height: 34px; font: inherit; color: var(--ink); }
-.lantern-host .ua-daylight-row output { min-width: 3em; color: var(--ink); font-variant-numeric: tabular-nums; text-align: right; }
+.lantern-host .ua-time.is-picked .ua-time-paper { border-color: var(--lantern-edge); }
 
-.lantern-host .ua-daylight-sun {
+.lantern-host .ua-time-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 4px 11px 4px 8px;
+  border: 0;
+  border-radius: 13px;
+  background: transparent;
+  color: inherit;
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.lantern-host .ua-time-head:hover { background: var(--ua-hover); }
+.lantern-host .ua-time-head:focus-visible { outline-offset: -2px; }
+.lantern-host .ua-time:is(.is-open, .is-scrubbing) .ua-time-head { background: var(--ink); color: #fff; }
+
+.lantern-host .ua-time-clock {
+  min-width: 2.9em;
+  font: 700 var(--fs-s)/1 var(--display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* The glyph: today's sun path over the horizon, and the sun on it. */
+.lantern-host .ua-time-glyph { flex: none; overflow: visible; }
+.lantern-host .ua-time-horizon { stroke: var(--hair-2); stroke-width: 1.4; stroke-linecap: round; }
+.lantern-host .ua-time-path { fill: none; stroke: var(--ink-2); stroke-width: 1.3; stroke-linejoin: round; opacity: 0.55; }
+.lantern-host .ua-time-sun { fill: var(--lantern-edge); stroke: var(--ua-panel); stroke-width: 1.4; }
+.lantern-host .ua-time-glyph.is-night .ua-time-sun { fill: var(--ua-panel); stroke: var(--ink-2); }
+.lantern-host .ua-time:is(.is-open, .is-scrubbing) :is(.ua-time-horizon, .ua-time-path) { stroke: rgba(255, 255, 255, 0.6); }
+.lantern-host .ua-time:is(.is-open, .is-scrubbing) .ua-time-sun { stroke: var(--ink); }
+.lantern-host .ua-time:is(.is-open, .is-scrubbing) .ua-time-glyph:not(.is-night) .ua-time-sun { fill: var(--lantern); }
+
+.lantern-host .ua-time-now {
+  align-self: stretch;
+  margin: 4px 4px 4px 0;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--lantern-soft);
+  color: var(--lantern-ink);
+  font: 700 var(--fs-xs)/1 var(--text);
+  cursor: pointer;
+  animation: ua-settle 0.18s ease-out;
+}
+
+.lantern-host .ua-time-now:hover { background: var(--lantern); }
+
+/* The strip hangs from the chip's right edge; while a drag scrubs, it shows
+   where in the day the time is without taking the pointer. */
+.lantern-host .ua-time-card {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(18rem, calc(100cqw - 16px));
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px 8px;
+  border-radius: 14px;
+  border: 1px solid var(--ua-line);
+  background: var(--ua-paper);
+  box-shadow: 0 1px 2px rgba(64, 46, 16, 0.1), 0 18px 36px -20px rgba(64, 46, 16, 0.6);
+  animation: ua-settle 0.18s ease-out;
+}
+
+.lantern-host .ua-time-card[hidden] { display: none; }
+.lantern-host .ua-time.is-scrubbing:not(.is-open) .ua-time-card { pointer-events: none; }
+
+.lantern-host .ua-time-strip {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 30px;
   margin: 0;
-  color: var(--ink-2);
+  border-radius: 9px;
+  background: var(--time-sky);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.lantern-host .ua-time-strip::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 8px;
+  height: 36px;
+  border-radius: 4px;
+  border: 2px solid #fff;
+  background: var(--ink);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.lantern-host .ua-time-strip::-moz-range-thumb {
+  width: 4px;
+  height: 32px;
+  border-radius: 4px;
+  border: 2px solid #fff;
+  background: var(--ink);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.lantern-host .ua-time-hours {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 1px;
+  color: var(--muted);
+  font: 650 10.5px/1 var(--text);
   font-variant-numeric: tabular-nums;
 }
-
-.lantern-host .ua-daylight-now { justify-self: end; }
 
 .lantern-host .ua-menu-camera {
   display: flex;
@@ -2353,10 +2451,9 @@
   }
 
   .lantern-host .ua-tools .ctrl-group { display: none; }
-  /* The panel hangs from the right of the tools row at a width of its own,
-     whatever the row holds, and never wider than the stage. */
-  .lantern-host .ua-daylight { position: static; }
-  .lantern-host .ua-daylight-panel { left: auto; right: 0; width: min(22rem, calc(100cqw - 16px)); min-width: 0; }
+  /* The time strip hangs from the right of the tools row at a width of its
+     own, whatever the row holds, and never wider than the stage. */
+  .lantern-host .ua-time { position: static; }
   /* The snapshot stamp steps below the menu, so the chip keeps the row. */
   .lantern-host .ua-tools { flex-wrap: wrap; }
   .lantern-host .ua-tools > .ua-stamp { order: 1; flex: 1 0 100%; text-align: right; }
