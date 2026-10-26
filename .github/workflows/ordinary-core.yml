@@ -2,8 +2,8 @@ name: Ordinary synthetic core
 on:
   push:
     branches: [main]
+  # Every PR runs, including stacked PRs whose base is another branch; pushes run on main only.
   pull_request:
-    branches: [main]
 permissions:
   contents: read
 # Cancel superseded candidates for one PR; every main/release event keeps its own group.
