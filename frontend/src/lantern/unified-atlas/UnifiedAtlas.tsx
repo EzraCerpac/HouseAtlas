@@ -1381,7 +1381,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
           <button type="button" className="ctrl-btn" aria-label="Zoom out" disabled={camera.zoom <= camera.zoomLimits.min} onClick={() => camera.zoomBy(1 / 1.3)}><Icon name="minus" size={17} /></button>
           <button type="button" className="ctrl-btn" aria-label="Fit view" title="Fit view" onClick={camera.fit}><Icon name="fit" size={17} /></button>
         </div>
-        {!plan && <DaylightControl at={lightingTime.at} live={lightingTime.live} night={daylight.night} onChange={lightingTime.set} />}
+        {!plan && <DaylightControl at={lightingTime.at} live={lightingTime.live} night={daylight.night} place={sunPlace} onChange={lightingTime.set} />}
         {/* Compact: the snapshot stamp takes the free width, and one menu holds
             the camera, the lenses, the archive filter and the other sources. */}
         {compact && port.savedDocumentary && <p className="ua-stamp" role="note">
