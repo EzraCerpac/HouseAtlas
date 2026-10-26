@@ -62,6 +62,23 @@ struct Frame {
     horizontal_axes: [String; 2],
     geometry_placement: String,
     physical_registration: (),
+    /// Where the model stands on Earth, for the sun; absent when unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    geographic: Option<Geographic>,
+}
+/// Degrees; north is clockwise from the model's -Z to true north, seen from above.
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct Geographic {
+    latitude: f64,
+    longitude: f64,
+    north_deg: f64,
+}
+impl Geographic {
+    fn valid(&self) -> bool {
+        let within = |v: f64, limit: f64| v.is_finite() && v.abs() <= limit;
+        within(self.latitude, 90.) && within(self.longitude, 180.) && within(self.north_deg, 360.)
+    }
 }
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -295,7 +312,8 @@ fn validate(value: &Value, glb: &[u8], tier: Tier) -> Result<(), String> {
         p.frame.units == "m"
             && p.frame.up_axis == "Y"
             && p.frame.horizontal_axes == ["X", "Z"]
-            && p.frame.geometry_placement == "gltf-world-after-node-transforms-once",
+            && p.frame.geometry_placement == "gltf-world-after-node-transforms-once"
+            && p.frame.geographic.as_ref().is_none_or(Geographic::valid),
     )?;
     let plan_bytes = serde_json::to_vec(&value["plans"])
         .map_err(|_| invalid())?
@@ -846,5 +864,46 @@ impl ServerAtlasSceneSelection {
                 Identity::capture(&self.path, false)?,
             ] == self.identities,
         )
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    /// Admits a frame as `validate` does: typed, the same keys, values in range.
+    fn admits(geographic: Option<Value>) -> bool {
+        let mut frame = json!({"units":"m","upAxis":"Y","horizontalAxes":["X","Z"],
+            "geometryPlacement":"gltf-world-after-node-transforms-once","physicalRegistration":null});
+        if let Some(value) = geographic {
+            frame["geographic"] = value;
+        }
+        serde_json::from_value::<Frame>(frame.clone()).is_ok_and(|typed| {
+            same_keys(&frame, &serde_json::to_value(&typed).unwrap())
+                && typed.geographic.as_ref().is_none_or(Geographic::valid)
+        })
+    }
+    #[test]
+    fn geographic_frame_is_optional_complete_and_in_range() {
+        assert!(admits(None));
+        assert!(admits(Some(
+            json!({"latitude":51.48,"longitude":0,"northDeg":0})
+        )));
+        assert!(admits(Some(
+            json!({"latitude":-90,"longitude":180,"northDeg":-360})
+        )));
+        assert!(!admits(Some(Value::Null)), "absent, never null");
+        assert!(!admits(Some(json!({"latitude":51.48,"longitude":0}))));
+        assert!(!admits(Some(
+            json!({"latitude":51.48,"longitude":0,"northDeg":0,"altitude":0})
+        )));
+        assert!(!admits(Some(
+            json!({"latitude":91,"longitude":0,"northDeg":0})
+        )));
+        assert!(!admits(Some(
+            json!({"latitude":0,"longitude":180.5,"northDeg":0})
+        )));
+        assert!(!admits(Some(
+            json!({"latitude":0,"longitude":0,"northDeg":"0"})
+        )));
     }
 }

@@ -73,7 +73,9 @@ endpoint, fetch, ReadyView facet or source-schema field.
   publication:{publicationId,sourceRevisionId,sourceSha256,semanticsSha256},
   frame:{units:"m",upAxis:"Y",horizontalAxes:["X","Z"],
          geometryPlacement:"gltf-world-after-node-transforms-once",
-         physicalRegistration:null},
+         physicalRegistration:null,
+         // only when the release says where the house stands:
+         geographic:{latitude,longitude,northDeg}},
   artifacts:[{artifactId:"model",role:"model",contentType:"model/gltf-binary",
               bytes,sha256,href},
              // only when the publication has a detail GLB:
@@ -191,6 +193,18 @@ All building, level and occurrence bounds, plan X/Z coordinates and qualified
 overlay source positions use the same glTF world frame after node transforms
 have been applied once. A source-to-geographic origin is provenance, not an
 additional renderer translation.
+
+`frame.geographic` is optional and only lights the 3D view for the real sun.
+When present it has exactly `latitude` and `longitude` in WGS84 degrees
+(|latitude| ≤ 90, |longitude| ≤ 180) and `northDeg`, the angle clockwise from
+the model's −Z (Blender's +Y) to true north, seen from above (|northDeg| ≤ 360).
+It is absent, never `null`, when unknown. It moves no geometry and claims no
+physical registration. The server and the viewer refuse it when incomplete or
+out of range. Without it the viewer uses a neutral reference place with north
+along −Z, and a device may always set its own location over the release's.
+The values live in the private release only; public fixtures use neutral
+reference places. A companion without the field can be given one at bake time
+with `--geographic LAT,LON,NORTH` (tools/model-bake).
 
 ## Exact mesh membership and matching plans
 
@@ -353,6 +367,29 @@ app browser: default Atlas, individual room picks, all-level explosion, building
 entry/return, same-room 2D/3D navigation and electrical/network overlays. Record
 desktop/mobile pixels and a real interaction playthrough. CPU parsing, static
 Blender renders, synthetic fixtures and obsolete-head CI do not replace this.
+
+## Night marks for time-of-day lighting
+
+After dusk the 3D view lights lamps and building glass from core glTF material
+properties the server already admits; no extension, extra or name is needed.
+A primitive is a lamp's glowing glass or bulb when its material has a nonzero
+`emissiveFactor` (the producer keeps emission strength at or below 1, since
+`KHR_materials_emissive_strength` is refused). It glows and lights the faces
+near it, up to 16 lamps at a time. Its glowing faces also set its direction,
+with no separate mark: when their area-weighted outward normals (front faces,
+counter-clockwise) keep at least half of their total area, as a flat or
+one-sided lens does, the lamp throws a beam about 40° wide that way, as
+headlights or a downlight do. A closed or all-round glowing surface, such as a
+bulb or a glass box, lights all around. Building glass, bound as `structure` or
+`roof`, is a material with `alphaMode: "BLEND"` and a `baseColorFactor` alpha
+below 1, not `KHR_materials_transmission`, which is refused; it shows the
+lamp-lit room behind it. Until a model carries these marks, a material whose
+own name (never its mesh's or node's) holds a generic glass word counts as
+glass, or as a lamp when the name also holds a lamp word and the material
+states no `emissiveFactor`. A stated zero factor stops a name from making a
+lamp, but a glass word still makes the material building glass. Every lamp
+glows one fixed warm colour; the hue of `emissiveFactor` is not used yet, only
+whether it is nonzero. Day lighting ignores all of it.
 
 ## Existing bounded embedded-PNG material consumer
 

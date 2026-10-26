@@ -2,7 +2,7 @@ import type { PlanRing, PlanShape } from '../canonical-ifc/model';
 import { LABEL_WORK, labelPoint, pointInShape, type PreparedMesh, type Projection } from '../canonical-ifc/geometry';
 import type { StandardGlb } from '../canonical-ifc/standard-glb';
 import {
-  AtlasReadError, type AtlasBuilding, type AtlasCoverage, type AtlasExclusion, type AtlasLevel, type AtlasMeshBinding, type AtlasOccurrence,
+  AtlasReadError, type AtlasBuilding, type AtlasCoverage, type AtlasExclusion, type AtlasGeographic, type AtlasLevel, type AtlasMeshBinding, type AtlasOccurrence,
   type AtlasOverlayBinding, type AtlasPlan, type AtlasPlanFeature, type AtlasPolygon, type AtlasRoom, type AtlasScene, type Box, type MeshRole,
   type OverlayAnchor, type OverlayKind, type PlanRole, type Vec3,
 } from './types';
@@ -52,6 +52,14 @@ function row(value: unknown, keys: readonly string[]): Row {
 }
 function list(value: unknown, max: number): readonly unknown[] {
   need(Array.isArray(value)); budget(value.length <= max); return value;
+}
+/** The optional `frame.geographic`: present means all three values, in range. */
+function admitGeographic(value: unknown): AtlasGeographic {
+  const place = row(value, ['latitude', 'longitude', 'northDeg']);
+  const degrees = (degree: unknown, limit: number): number => {
+    need(typeof degree === 'number' && Number.isFinite(degree) && Math.abs(degree) <= limit); return degree;
+  };
+  return { latitude: degrees(place.latitude, 90), longitude: degrees(place.longitude, 180), northDeg: degrees(place.northDeg, 360) };
 }
 // eslint-disable-next-line no-control-regex
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
@@ -120,7 +128,8 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
   const selection = row(envelope.selection, ['revision', 'publicationId']);
   const publication = row(envelope.publication, ['publicationId', 'sourceRevisionId', 'sourceSha256', 'semanticsSha256']);
   need(selection.publicationId === expected.publicationId && publication.publicationId === expected.publicationId);
-  const frame = row(envelope.frame, ['units', 'upAxis', 'horizontalAxes', 'geometryPlacement', 'physicalRegistration']);
+  const frameKeys = ['units', 'upAxis', 'horizontalAxes', 'geometryPlacement', 'physicalRegistration'];
+  const frame = row(envelope.frame, isRow(envelope.frame) && Object.hasOwn(envelope.frame, 'geographic') ? [...frameKeys, 'geographic'] : frameKeys);
   need(frame.units === 'm' && frame.upAxis === 'Y' && Array.isArray(frame.horizontalAxes) && frame.horizontalAxes.length === 2
     && frame.horizontalAxes[0] === 'X' && frame.horizontalAxes[1] === 'Z'
     && frame.geometryPlacement === 'gltf-world-after-node-transforms-once' && frame.physicalRegistration === null);
@@ -278,6 +287,7 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
     selection: { revision: revisionText(selection.revision), publicationId: expected.publicationId },
     publication: { publicationId: expected.publicationId, sourceRevisionId: text(publication.sourceRevisionId, 256),
       sourceSha256: sha(publication.sourceSha256), semanticsSha256: sha(publication.semanticsSha256) },
+    geographic: frame.geographic === undefined ? null : admitGeographic(frame.geographic),
     model: { bytes: modelBytes, sha256: sha(artifact.sha256), href: text(artifact.href, 2048) },
     detail: detailArtifact ? { bytes: detailBytes, sha256: sha(detailArtifact.sha256), href: text(detailArtifact.href, 2048) } : null,
     buildings, levels, rooms, occurrences, meshBindings, plans, overlayBindings, coverage,
