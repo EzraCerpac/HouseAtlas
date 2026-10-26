@@ -81,7 +81,7 @@ export function openNativeGeometryScanCache(factory: IDBFactory | undefined,
 /** The same bounded, generation-fenced byte store under another database name
  * and published bounds; the unified Atlas model cache shares this owner. */
 export function openVerifiedByteCache(factory: IDBFactory | undefined, database: string, published: ScanCacheLimits,
-  overrides: Partial<ScanCacheLimits> = {}): NativeGeometryScanCache {
+  overrides: Partial<ScanCacheLimits> = {}, protectedRecord?: Readonly<{ partition: string; key: string }>): NativeGeometryScanCache {
   // Overrides may only tighten the published bounds.
   const tighter = overrides;
   const limits: ScanCacheLimits = Object.freeze({
@@ -90,6 +90,12 @@ export function openVerifiedByteCache(factory: IDBFactory | undefined, database:
     entryBytes: Math.min(published.entryBytes, tighter.entryBytes ?? Infinity),
     unusedMs: Math.min(published.unusedMs, tighter.unusedMs ?? Infinity),
   });
+  // Owner configuration, never a persisted flag. Generic scan caches protect
+  // nothing; the Atlas cache reserves only its existing actor witness. The row
+  // still counts toward every limit and expires or clears normally.
+  const protection = protectedRecord ? { partition: protectedRecord.partition, key: protectedRecord.key } : null;
+  let protectedIdentity: Promise<string | null> | null = null;
+  const protectedKey = () => protectedIdentity ??= protection ? digest(protection.partition, protection.key) : Promise.resolve(null);
   let connection: Promise<IDBDatabase> | null = null, unavailable = !factory, closed = false;
   let queue: Promise<unknown> = Promise.resolve();
   // One operation at a time keeps recency and bounds exact across reads and writes.
@@ -156,7 +162,9 @@ export function openVerifiedByteCache(factory: IDBFactory | undefined, database:
     return new Uint8Array(blob.data);
   });
   const storeRows = async (entries: IDBObjectStore, blobs: IDBObjectStore,
-    partitionId: string, slotId: string, id: string, data: ArrayBuffer) => {
+    partitionId: string, slotId: string, id: string, data: ArrayBuffer, preserve: string | null) => {
+    if (!(limits.entries >= 1) || !(data.byteLength <= limits.bytes) || !(data.byteLength <= limits.entryBytes))
+      throw new Error('Cache capacity unavailable');
     const rows: unknown[] = await ask(entries.getAll()), now = Date.now(), kept: Entry[] = [];
     const usedAt = stamp(rows);
     // Contents in an unknown shape are dropped as a whole.
@@ -170,23 +178,35 @@ export function openVerifiedByteCache(factory: IDBFactory | undefined, database:
     }
     kept.sort((a, b) => a.usedAt - b.usedAt);
     let total = kept.reduce((sum, row) => sum + row.bytes, 0);
-    while (kept.length && (kept.length >= limits.entries || total + data.byteLength > limits.bytes)) {
-      const oldest = kept.shift()!; removeRows(entries, blobs, oldest.id); total -= oldest.bytes;
+    while (kept.length + 1 > limits.entries || total + data.byteLength > limits.bytes) {
+      const index = kept.findIndex(row => row.id !== preserve);
+      // Abort the transaction rather than drop protected metadata or exceed
+      // the bounds when no removable row can make room for this write.
+      if (index < 0) throw new Error('Cache capacity unavailable');
+      const oldest = kept.splice(index, 1)[0]!;
+      removeRows(entries, blobs, oldest.id); total -= oldest.bytes;
     }
     blobs.put({ id, data } satisfies Blob);
     entries.put({ id, partition: partitionId, slot: slotId, bytes: data.byteLength, usedAt } satisfies Entry);
   };
-  const store = async (partitionId: string, slotId: string, id: string, data: ArrayBuffer, expected: string | null) => transaction(await connect(), 'readwrite', async (entries, blobs, control) => {
-    if (!await matches(control, expected)) return;
-    await storeRows(entries, blobs, partitionId, slotId, id, data);
-  });
+  const store = async (partitionId: string, slotId: string, id: string, data: ArrayBuffer, expected: string | null) => {
+    const preserve = await protectedKey();
+    return transaction(await connect(), 'readwrite', async (entries, blobs, control) => {
+      if (!await matches(control, expected)) return;
+      await storeRows(entries, blobs, partitionId, slotId, id, data, preserve);
+    });
+  };
   /** Frees the least recently used half of this cache's records (at least one). */
-  const shrink = async (expected: string | null) => transaction(await connect(), 'readwrite', async (entries, blobs, control) => {
-    if (!await matches(control, expected)) return false;
-    const rows = (await ask(entries.getAll()) as unknown[]).filter(row => entry(row, limits)).sort((a, b) => a.usedAt - b.usedAt);
-    for (const row of rows.slice(0, Math.max(1, Math.ceil(rows.length / 2)))) removeRows(entries, blobs, row.id);
-    return rows.length > 0;
-  });
+  const shrink = async (expected: string | null) => {
+    const preserve = await protectedKey();
+    return transaction(await connect(), 'readwrite', async (entries, blobs, control) => {
+      if (!await matches(control, expected)) return false;
+      const rows = (await ask(entries.getAll()) as unknown[]).filter(row => entry(row, limits))
+        .filter(row => row.id !== preserve || !(row.usedAt + limits.unusedMs > Date.now())).sort((a, b) => a.usedAt - b.usedAt);
+      for (const row of rows.slice(0, Math.max(1, Math.ceil(rows.length / 2)))) removeRows(entries, blobs, row.id);
+      return rows.length > 0;
+    });
+  };
   const empty = async () => {
     const next = crypto.randomUUID();
     await transaction(await connect(), 'readwrite', async (entries, blobs, control) => {
@@ -225,6 +245,7 @@ export function openVerifiedByteCache(factory: IDBFactory | undefined, database:
       const previous = expected?.slice() ?? null, data = bytes.slice().buffer;
       return enqueue(async () => {
         const [partitionId, slotId, id] = await Promise.all([digest(partition), digest(partition, slot), digest(partition, key)]);
+        const preserve = await protectedKey();
         return transaction(await connect(), 'readwrite', async (entries, blobs, control) => {
           if (!await matches(control, expectedGeneration)) return false;
           const row: unknown = await ask(entries.get(id));
@@ -240,7 +261,7 @@ export function openVerifiedByteCache(factory: IDBFactory | undefined, database:
           // The preimage, generation and replacement share this transaction;
           // another handle cannot change the witness between them. Existing
           // bounds and eviction apply, and any quota/abort fails the exchange.
-          await storeRows(entries, blobs, partitionId, slotId, id, data);
+          await storeRows(entries, blobs, partitionId, slotId, id, data, preserve);
           return true;
         });
       }, false);

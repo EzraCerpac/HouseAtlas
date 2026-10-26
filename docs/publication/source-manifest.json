@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "09f6e632a7be30b3aa5ae6a96c7fc162980b18fea25a0aca8922c54b36105efc",
+  "sourceDigestSha256": "daa9e7edef95d7c2327b46574337fcef6731ad4841cc73f3d8e6d66782c292b3",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -7210,8 +7210,8 @@
     {
       "path": "frontend/integration/native-geometry-scan-cache.ts",
       "mode": "100644",
-      "bytes": 15978,
-      "sha256": "e2dab9fc49d3e65aede2630d1df36847bbd0030c76bf77c75d40d18316379f9d",
+      "bytes": 17353,
+      "sha256": "be248dceaaab6412aaa09cf0c9892ff7823ef8e29a3ff733846a0348f120584a",
       "owner": "web"
     },
     {
@@ -7336,8 +7336,8 @@
     {
       "path": "frontend/integration/unified-atlas-cache.ts",
       "mode": "100644",
-      "bytes": 12726,
-      "sha256": "92b17b5361509e3196c65d01a4680749addaac8e0ed2c80ad9ebe6d2e54c89c2",
+      "bytes": 12815,
+      "sha256": "2495fdf45db7b56dd254805e10257885b37419f04d2423eb70c6e3ce9f67181c",
       "owner": "core-integration"
     },
     {
@@ -8288,8 +8288,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-cache-healthy.mjs",
       "mode": "100644",
-      "bytes": 28247,
-      "sha256": "c10ef15e934c604e24ebca9be79612b8e99a9b6f6c3c906914f15931a56d0855",
+      "bytes": 32837,
+      "sha256": "735729c5207f345e6ec3094f421ba567a0c82e266ff9de56e8e0d43b7d310180",
       "owner": "web"
     },
     {

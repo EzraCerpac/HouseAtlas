@@ -16,8 +16,8 @@ import { openVerifiedByteCache, type NativeGeometryScanCache, type ScanCacheLimi
 
 export const ATLAS_CACHE_DATABASE = 'houseatlas-atlas-model-cache-v1';
 const MiB = 1024 * 1024;
-/** Room for two models with their scenes, plus one stored overlay copy; the
- * oldest used records give way first. */
+/** Room for models, scenes, overlays and display metadata. The actor witness
+ * counts within these bounds; older content gives way before that witness. */
 export const ATLAS_CACHE_LIMITS: ScanCacheLimits = Object.freeze({
   entries: 10, bytes: 96 * MiB, entryBytes: 33 * MiB, unusedMs: 30 * 24 * 60 * 60 * 1000,
 });
@@ -40,7 +40,8 @@ export interface UnifiedAtlasCache {
 }
 
 export function openUnifiedAtlasStore(factory: IDBFactory | undefined, limits?: Partial<ScanCacheLimits>): NativeGeometryScanCache {
-  return openVerifiedByteCache(factory, ATLAS_CACHE_DATABASE, ATLAS_CACHE_LIMITS, limits);
+  return openVerifiedByteCache(factory, ATLAS_CACHE_DATABASE, ATLAS_CACHE_LIMITS, limits,
+    { partition: LAST_PARTITION, key: ACTOR_KEY });
 }
 
 const HEAD = 4;

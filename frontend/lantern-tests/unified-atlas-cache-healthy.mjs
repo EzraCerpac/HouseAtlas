@@ -445,6 +445,73 @@ for (const previousActor of [undefined, null, 'synthetic-prior-actor']) {
   }
 }
 
+// One canonical observation must survive ordinary LRU pressure. Three homes
+// contribute nine model/scene/overlay rows, plus the witness and last pointer:
+// the default ten-entry cache must evict old content, not lose the newest copy.
+{
+  const pressureDisk = createSyntheticDisk(), factory = () => createSyntheticIndexedDB(pressureDisk);
+  const store = openUnifiedAtlasStore(factory()); await store.ready();
+  const actor = await observeUnifiedAtlasActor(store, actorA);
+  assert.equal(actor.actorId, actorA);
+  let newest;
+  try {
+    for (let index = 0; index < 3; index++) {
+      const homeScope = { workspaceId: scope.workspaceId, homeId: `00000000-0000-4000-8000-00000000081${index}` };
+      const { glb, companionBytes } = await buildSyntheticAtlas(homeScope, index / 4);
+      const composed = await composeAtlasEnvelope(companionBytes, glb, SYNTHETIC_ATLAS.revision);
+      const selection = Object.freeze({ owner: {}, scope: homeScope, expiresAt: new Date(Date.now() + 600_000).toISOString(),
+        publicationId: SYNTHETIC_ATLAS.publicationId, manifestSha256: composed.manifestSha256 });
+      const cache = createUnifiedAtlasCache(store, { actorId: actorA, ...homeScope }, actor);
+      const read = await readUnifiedAtlas({ selection, signal: signal(), origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true, cache,
+        transport: createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(homeScope),
+          envelopeBytes: composed.envelopeBytes, href: composed.href, glb, sha256: composed.sha256,
+          manifestSha256: composed.manifestSha256, revision: SYNTHETIC_ATLAS.revision }) });
+      const building = read.scene.buildings.find(row => row.levelIds.length > 0);
+      assert.ok(building);
+      const overlays = new Map([[building.buildingId, { storedAt: '2026-10-26T12:00:00.000Z', records: {
+        rooms: new Map(), network: 'unavailable', electrical: 'unavailable', sourceFacts: [],
+        unplaced: { network: [], electrical: [] }, networkGraphs: [],
+      } }]]);
+      cache.keepOverlays(read.scene.publication.publicationId, read.scene.selection.revision,
+        read.scene.publication.semanticsSha256, encodeStoredOverlays(read.scene, overlays));
+      newest = { scope: homeScope, glb, overlays };
+    }
+  } finally { await store.close(); }
+  const entries = pressureDisk.databases.get(ATLAS_CACHE_DATABASE).stores.get('entries').records;
+  assert.equal(entries.size, 10, 'three homes reach the unchanged default entry bound');
+  const copy = await openLastAtlasCopy(factory(), signal());
+  try {
+    assert.ok(copy, 'LRU content pressure must retain the current actor witness and newest last copy');
+    const selected = copy.port.current(), read = await copy.port.stored(selected, signal());
+    assert.deepEqual({ ...selected.overview.scope }, newest.scope, 'cold reopen selects the newest home');
+    assert.deepEqual(Buffer.from(read.model), Buffer.from(newest.glb), 'the newest pinned model remains available');
+    assert.deepEqual(await copy.port.storedOverlays(selected, read.scene,
+      new Set(read.scene.occurrences.map(row => row.spaceOccurrenceId)), signal()), newest.overlays,
+    'the newest home retains its documentary overlays under the same bound');
+  } finally { await copy?.close(); }
+  results.push('default ten-entry LRU: one account observation, three homes, newest cold copy and overlays retained');
+}
+
+// Tightening the entry bound below witness+content capacity must refuse the
+// content write instead of evicting ownership or exceeding the caller's bound.
+{
+  const tightDisk = createSyntheticDisk(), store = openUnifiedAtlasStore(createSyntheticIndexedDB(tightDisk), { entries: 1 });
+  await store.ready();
+  try {
+    const actor = await observeUnifiedAtlasActor(store, actorA);
+    assert.equal(actor.actorId, actorA);
+    const cache = createUnifiedAtlasCache(store, { actorId: actorA, ...scope }, actor);
+    cache.keepModel(versions[1].composed.sha256, versions[1].glb);
+    const witness = await store.read(JSON.stringify(['unified-atlas-last']), 'actor');
+    assert.deepEqual(JSON.parse(new TextDecoder().decode(witness)), actor,
+      'content pressure cannot replace the retained canonical witness');
+    assert.equal(await cache.model(versions[1].composed.sha256, versions[1].glb.byteLength), null,
+      'content that cannot fit beside ownership is refused');
+    assert.equal(tightDisk.databases.get(ATLAS_CACHE_DATABASE).stores.get('entries').records.size, 1,
+      'protected ownership counts toward the tightened entry bound');
+  } finally { await store.close(); }
+}
+
 await openProcess(disk, actorA, async ({ cache, store }) => {
   assert.ok(await stored(cache, v1));
   await store.clear();
