@@ -90,8 +90,10 @@ export function mountSavedSelection(store: SavedHouseStore, key: string, sink: S
   return { dispose() { if (disposed) return; disposed = true; stop(); retire(); } };
 }
 
-export function SavedAtlasHost({ store: supplied, openLastCopy }: { readonly store?: SavedHouseStore;
-  readonly openLastCopy?: (signal: AbortSignal) => Promise<LastAtlasCopy | null> }) {
+export function SavedAtlasHost({ store: supplied, openLastCopy, explicit = false }: { readonly store?: SavedHouseStore;
+  readonly openLastCopy?: (signal: AbortSignal) => Promise<LastAtlasCopy | null>;
+  /** Opened on purpose from the live app: always the full Saved view. */
+  readonly explicit?: boolean }) {
   const store = useMemo(() => supplied ?? createSavedHouseStore(globalThis.indexedDB), [supplied]);
   const [house, setHouse] = useState<SavedHouse | null>(null), [allocation, setAllocation] = useState<Allocation | null>(null);
   const [error, setError] = useState<string | null>(null), [opening, setOpening] = useState(false);
@@ -150,7 +152,7 @@ export function SavedAtlasHost({ store: supplied, openLastCopy }: { readonly sto
   const changeView = (next: typeof view) => setView(next);
   // An offline reopen of the app shows its last Atlas as the app itself would:
   // one connection pill above it and none of the Saved entry's own chrome.
-  const compact = !house && last !== null;
+  const compact = !explicit && !house && last !== null;
   const pill = compact
     ? live.reachable ? <a className="saved-live" href={LIVE_ENTRY}><Icon name="sync" size={16} />{waiting > 0 ? `Back online · Open live to sync ${changes}` : 'Back online · Open live'}</a>
       : <button type="button" className="saved-live" onClick={live.check} disabled={live.checking} aria-live="polite" title="Check connection">
@@ -177,7 +179,10 @@ export function SavedAtlasHost({ store: supplied, openLastCopy }: { readonly sto
     {view === 'atlas' && error && <p className="saved-message" role="alert">{error}</p>}
     {house && (view === 'inventory' || view === 'documents') && !catalog && <p className="saved-message" role={catalogError ? 'alert' : 'status'}>{catalogError ?? 'Opening saved catalog…'}</p>}
     {catalog && (view === 'inventory' || view === 'documents') && <SavedCatalogView key={view + catalog.read.catalog.localRevision} selection={catalog} section={view} />}
-    {compact && <div className="saved-stage"><UnifiedAtlas port={last.port} environment={{ reducedMotion: reduced }} /></div>}
+    {!house && last && <>
+      {!compact && <p className="saved-message" role="note">Last opened in the live app on this device. Open live when connected to update this copy.</p>}
+      <div className="saved-stage"><UnifiedAtlas port={last.port} environment={{ reducedMotion: reduced }} /></div>
+    </>}
     {allocation && selectedHouse && <>
       <details className="saved-coverage" hidden={view !== 'atlas'}><summary>Saved coverage: {allocation.saved.completeness} pack; {allocation.coverage.state} supported overlays</summary>
         <p>Captured <time dateTime={selectedHouse.capturedAt}>{selectedHouse.capturedAt}</time>. Historical records are not current native authorization.</p>

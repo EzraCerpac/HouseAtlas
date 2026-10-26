@@ -240,6 +240,15 @@ try {
         overflow: [root.overflow, body.overflow], overscroll: [root.overscrollBehaviorY, body.overscrollBehaviorY] };
     })()`), { header: ['saved-live'], chrome: 0, overflow: ['hidden', 'hidden'], overscroll: ['none', 'none'] },
     'the offline reopen shows one pill above the Atlas and the page does not scroll');
+    // Opened on purpose from the live app (its link marks the tab session), the
+    // same page keeps the full Saved view with Saved scope and shell removal.
+    await evaluate(`sessionStorage.setItem('houseatlas.saved-entry.v1', '1')`);
+    await send('Page.reload', {});
+    await poll(`(() => document.querySelector('.saved-header h1')?.textContent === 'Saved Atlas'
+      && document.querySelector('.saved-header details summary')?.textContent === 'Saved scope'
+      && document.querySelector('.saved-message[role="note"]') !== null
+      && document.querySelector('.saved-stage .ua-shell.is-stage') !== null)()`, 15_000,
+      'the explicit Saved entry lost its full view');
     assert.deepEqual(await evaluate(`(async () => {
       const { openOutboxStore } = await import(${JSON.stringify(seeded.outboxURL)});
       const store = openOutboxStore(indexedDB);

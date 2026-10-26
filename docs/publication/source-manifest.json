@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d1947025fbba8bb19547c93da52428440b593f447fd766e7635ea77fd2c1a6aa",
+  "sourceDigestSha256": "2c99b7ccf27b39158124a05832668b9a35391d1742d3757f2ba4694186365770",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6482,8 +6482,8 @@
     {
       "path": "docs/offline/root-offline-entry.md",
       "mode": "100644",
-      "bytes": 9071,
-      "sha256": "ea5cc86bbdfaff1f00b12e30bcd954c25687b1af216b22b098c354f9c7d1b86c",
+      "bytes": 9293,
+      "sha256": "a9e559057b5e9cfd284a24360a1188c3ccd072a9e1434aca572e4f671b1c71df",
       "owner": "web"
     },
     {
@@ -7161,8 +7161,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 49815,
-      "sha256": "5017cf5fac239184078134cf414fc917195a00f50b49782f33308409112520af",
+      "bytes": 49898,
+      "sha256": "8d8505de67325c87424ac298d68dd222bfca701500b2c13d825e0d98162e5bc0",
       "owner": "core-integration"
     },
     {
@@ -7301,8 +7301,8 @@
     {
       "path": "frontend/integration/saved-main.tsx",
       "mode": "100644",
-      "bytes": 527,
-      "sha256": "8b69de41daf02ef78c658f1584c83b63f2fc9e1c21798f0aac9db303d0dd421b",
+      "bytes": 620,
+      "sha256": "947fdc801adc31fac6b97c66a454dd5754d4f9cd88a3ec8236085240fb23086d",
       "owner": "web"
     },
     {
@@ -7903,8 +7903,8 @@
     {
       "path": "frontend/lantern-tests/offline-launch-browser.mjs",
       "mode": "100644",
-      "bytes": 16852,
-      "sha256": "5ee742d5093bee1d9c72333807ea4dc0fb54a77b275514abf0e6f0a5d660520f",
+      "bytes": 17535,
+      "sha256": "31e52a5b19df4df53c6bda0b591f5c02fe4a82bb4c8574fa22a29a48276a4550",
       "owner": "web"
     },
     {
@@ -7917,8 +7917,8 @@
     {
       "path": "frontend/lantern-tests/offline-root-entry-healthy.mjs",
       "mode": "100644",
-      "bytes": 22709,
-      "sha256": "1d9278de33795ee11015959351b2da248bd6194fa5fc91493f09d632fdb53133",
+      "bytes": 22975,
+      "sha256": "1e8dd020ac229630dde6ac23ba0ac529e1e21a5247d6d86658041ca21f1b0e01",
       "owner": "web"
     },
     {
@@ -10598,15 +10598,15 @@
     {
       "path": "frontend/src/offline/SaveHouseCopy.tsx",
       "mode": "100644",
-      "bytes": 4253,
-      "sha256": "ced67f74a604b1195bf8ffab6719c8d0f85bdb8e402cd4527fb2182eceae4b81",
+      "bytes": 4326,
+      "sha256": "7754e9f32ff95dd5a0f97bfadafc3584ff6017932cef7f12a3c9c7a1b691eff7",
       "owner": "web"
     },
     {
       "path": "frontend/src/offline/SavedAtlasHost.tsx",
       "mode": "100644",
-      "bytes": 12830,
-      "sha256": "9d1977d5ae79c1f359ac95f11c8c758f2442e4af50c0fb8f558fb278676e87f4",
+      "bytes": 13145,
+      "sha256": "8874bc23ec24d6378ffe5bcdc6be307a38e9f72ccdd56176859c203aa7fa1376",
       "owner": "web"
     },
     {
@@ -10691,6 +10691,13 @@
       "mode": "100644",
       "bytes": 13538,
       "sha256": "7934acd4e9ecdf0ce06367e40228902ee8f51dea2216640f8518dad7d5679b4e",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/offline/saved-entry.ts",
+      "mode": "100644",
+      "bytes": 690,
+      "sha256": "d58fb525279cb79362a1014f73b2011d77a83e71f5587878f7e1b4e2f0bf27a8",
       "owner": "web"
     },
     {
