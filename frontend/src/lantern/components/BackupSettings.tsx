@@ -16,10 +16,20 @@ export function BackupSettings({ transport = browserFetch }: { readonly transpor
   }, [transport]);
 
   if (load.kind === 'absent') return null;
-  const view = load.kind === 'ready' ? load.view : null;
-  const retention = view?.retention ?? { keep: 'forever' };
+  if (load.kind !== 'ready') {
+    // The saved choice is unknown until the server answers; never show a default as if it were saved.
+    return (
+      <fieldset className="field backup-settings">
+        <legend>Backups</legend>
+        <p className="setting-static" role="status" aria-live="polite">{load.kind === 'loading'
+          ? 'Checking the backup settings…'
+          : 'Backups can be seen and changed when the server can be reached.'}</p>
+      </fieldset>
+    );
+  }
+  const view = load.view, retention = view.retention;
   const choose = async (next: Retention) => {
-    if (!view || saving) return;
+    if (saving) return;
     setSaving(true);
     setError(null);
     setLoad({ kind: 'ready', view: { ...view, retention: next } });
@@ -38,7 +48,7 @@ export function BackupSettings({ transport = browserFetch }: { readonly transpor
   const options = (values: readonly number[], current: number) => [...new Set([...values, current])].sort((a, b) => a - b);
 
   return (
-    <fieldset className="field backup-settings" disabled={!view || saving}>
+    <fieldset className="field backup-settings" disabled={saving}>
       <legend>Backups</legend>
       <Choice label="Keep backups" value={retention.keep}
         onChange={keep => { if (keep !== retention.keep) void choose(keep === 'forever' ? { keep } : RECENT); }}
@@ -57,9 +67,7 @@ export function BackupSettings({ transport = browserFetch }: { readonly transpor
       </div>}
       <p className="setting-static">{describeRetention(retention)}</p>
       <div className="setting-static" role="status" aria-live="polite">
-        {load.kind === 'loading' ? <p>Checking the last backup…</p>
-          : load.kind === 'unreachable' ? <p>Backups can be seen and changed when the server can be reached.</p>
-          : describeStatus(load.view.status).map(line => <p key={line}>{line}</p>)}
+        {describeStatus(view.status).map(line => <p key={line}>{line}</p>)}
         {error && <p className="backup-error">{error}</p>}
       </div>
     </fieldset>

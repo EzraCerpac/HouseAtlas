@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d1bbca46189aa130064581aa2d78a3ee2b4c6bfb9280785c7fe6a52b982a7694",
+  "sourceDigestSha256": "4117c23b315c61b11ecb5b59758d41362928bc382fd55559337d5f8a987ea119",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -9373,8 +9373,8 @@
     {
       "path": "frontend/src/lantern/components/BackupSettings.tsx",
       "mode": "100644",
-      "bytes": 3347,
-      "sha256": "4732ae7baa0b81a461909611d391c8c10d73328d732b6ef624ea78a3937190e3",
+      "bytes": 3560,
+      "sha256": "b3daabfb4a82b90aa1e67ecb112cb045aa5958ef0beb6bfcbae5f245aff364c8",
       "owner": "web"
     },
     {
@@ -11837,8 +11837,8 @@
     {
       "path": "tools/backup/houseatlas_backup.py",
       "mode": "100644",
-      "bytes": 35033,
-      "sha256": "0c04e9154d78c85692293532afe9e1cfb07c711716b313406780d08963cd53f7",
+      "bytes": 36028,
+      "sha256": "7a5fc9223102bc6d89a3b853bbd6cc414c789a20457075c17aecfa9397b2a4c9",
       "owner": "operations-policy"
     },
     {
@@ -11872,8 +11872,8 @@
     {
       "path": "tools/backup/test_houseatlas_backup.py",
       "mode": "100644",
-      "bytes": 22114,
-      "sha256": "6cc6aef34e517e2aaa976a9bb6d95e6846679f9dbf58bb3ca66c1584b26fd423",
+      "bytes": 23547,
+      "sha256": "66f76eb05ffe9d8ecb6dad0a231d4f02d444ce9e494cf873f892a0b8bd57994e",
       "owner": "operations-policy"
     },
     {

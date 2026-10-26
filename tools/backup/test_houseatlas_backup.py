@@ -319,13 +319,16 @@ class RetentionTest(unittest.TestCase):
         self.assertEqual(hb.read_retention(None), ({"keep": "forever"}, None))
         self.assertEqual(hb.read_retention(self.root), ({"keep": "forever"}, None))
         for bad in ('{"keep": "recent", "nights": 3, "months": 12}', '{"keep": "recent", "nights": 30}',
+                    '{"keep": "recent", "nights": 7, "months": 0, "extra": true}', '{"keep": "forever", "nights": 7}',
                     '{"keep": "recent", "nights": true, "months": 1}', '[]', 'not json'):
             (self.root / "retention.json").write_text(bad)
             choice, problem = hb.read_retention(self.root)
             self.assertEqual(choice, {"keep": "forever"}, bad)
             self.assertIsNotNone(problem, bad)
-        (self.root / "retention.json").write_text('{"keep": "recent", "nights": 30, "months": 12}')
+        (self.root / "retention.json").write_text('{"schemaVersion": 1, "keep": "recent", "nights": 30, "months": 12}')
         self.assertEqual(hb.read_retention(self.root), ({"keep": "recent", "nights": 30, "months": 12}, None))
+        (self.root / "retention.json").write_text('{"schemaVersion": 1, "keep": "forever"}')
+        self.assertEqual(hb.read_retention(self.root), ({"keep": "forever"}, None))
 
     def test_keeps_last_nights_and_first_of_each_month(self):
         days = [dt.date(2026, 8, 20) + dt.timedelta(days=n) for n in range(70)]
@@ -382,6 +385,24 @@ class RetentionTest(unittest.TestCase):
         with self.assertRaises(hb.StepFailed):
             hb.apply_retention(self.config, {"keep": "recent", "nights": 7, "months": 0}, target, [blob])
         self.assertEqual((self.names(), sorted(p.name for p in self.blobs.iterdir())), before)
+
+    def test_a_damaged_sidecar_on_an_old_archive_does_not_block_cleanup(self):
+        blob = self.blob("a")
+        stamps = [f"202610{day:02d}T040000Z" for day in range(1, 11)]
+        for stamp in stamps[:-1]:
+            self.archive(stamp, [blob])
+        target = self.archive(stamps[-1], [blob])
+        (self.icloud / f"{hb.ARCHIVE_PREFIX}{stamps[0]}.tar.gz{hb.MODELS_SIDECAR}").write_text("")
+        removed = hb.apply_retention(self.config, {"keep": "recent", "nights": 7, "months": 0}, target, [blob])
+        self.assertEqual(removed["archives"], 3)
+        self.assertEqual([p for p in self.icloud.iterdir() if p.name.endswith(".partial")], [])
+
+    def test_sidecars_never_replace_an_existing_one(self):
+        target = self.archive("20261001T040000Z", [self.blob("a")])
+        with self.assertRaises(FileExistsError):
+            hb.write_models_sidecar(target, [], verified=False)
+        self.assertEqual(json.loads((self.icloud / f"{target.name}{hb.MODELS_SIDECAR}").read_text())["verified"], True)
+        self.assertEqual([p.name for p in self.icloud.iterdir() if p.name.startswith(".")], [])
 
     def test_an_unverified_current_archive_stops_retention(self):
         blob = self.blob("a")

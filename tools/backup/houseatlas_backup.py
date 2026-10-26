@@ -455,13 +455,13 @@ def read_retention(folder: Path | None) -> tuple[dict, str | None]:
         return forever, None
     except (OSError, ValueError):
         return forever, "The retention choice could not be read, so every backup was kept."
-    if not isinstance(raw, dict):
-        raw = {}
-    if raw.get("keep") == "forever":
+    # Exactly the fields the server writes, as strictly as the server reads them.
+    raw = {key: value for key, value in raw.items() if key != "schemaVersion"} if isinstance(raw, dict) else {}
+    if raw == {"keep": "forever"}:
         return forever, None
     nights, months = raw.get("nights"), raw.get("months")
-    if (raw.get("keep") == "recent" and type(nights) is int and nights in NIGHTS
-            and type(months) is int and months in MONTHS):
+    if (set(raw) == {"keep", "nights", "months"} and raw["keep"] == "recent"
+            and type(nights) is int and nights in NIGHTS and type(months) is int and months in MONTHS):
         return {"keep": "recent", "nights": nights, "months": months}, None
     return forever, "The retention choice was not valid, so every backup was kept."
 
@@ -497,8 +497,20 @@ def archive_groups(folder: Path) -> dict[str, list[Path]]:
 def write_models_sidecar(target: Path, models: list[dict], verified: bool) -> None:
     sidecar = {"format": "houseatlas-backup-models/1", "archive": target.name, "verified": verified,
                "blobs": sorted({model["sha256"] for model in models})}
-    with target.with_name(target.name + MODELS_SIDECAR).open("x") as handle:
-        handle.write(json.dumps(sidecar, indent=2) + "\n")
+    # Written whole under a hidden name first, so an interruption never leaves
+    # a truncated sidecar under the name retention reads.
+    final = target.with_name(target.name + MODELS_SIDECAR)
+    partial = target.with_name(f".{final.name}.partial")
+    try:
+        with partial.open("x") as handle:
+            handle.write(json.dumps(sidecar, indent=2) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        if final.exists():
+            raise FileExistsError(final)
+        partial.rename(final)
+    finally:
+        partial.unlink(missing_ok=True)
 
 
 def read_sidecar(config: Config, sidecar: Path) -> dict:
@@ -510,6 +522,16 @@ def read_sidecar(config: Config, sidecar: Path) -> dict:
     if not (isinstance(blobs, list) and all(isinstance(b, str) and BLOB_NAME.fullmatch(b) for b in blobs)):
         raise StepFailed("retention", f"{sidecar.name} is malformed")
     return value
+
+
+def verified(config: Config, sidecar: Path, files: list[Path]) -> bool:
+    """Whether the run that made an archive verified it. A sidecar that cannot
+    be read counts as unverified, so a damaged old one never blocks cleanup;
+    a kept archive's blob list is still read strictly below."""
+    try:
+        return sidecar in files and read_sidecar(config, sidecar).get("verified") is True
+    except (StepFailed, OSError, ValueError):
+        return False
 
 
 def archive_blobs(config: Config, archive: Path) -> set[str]:
@@ -542,11 +564,8 @@ def apply_retention(config: Config, retention: dict, archive: Path, models: list
     folder = config.icloud_directory
     groups = archive_groups(folder)
     current = ARCHIVE_FILE.fullmatch(archive.name).group(1)
-    archives = {}
-    for stamp, files in groups.items():
-        if folder / f"{ARCHIVE_PREFIX}{stamp}.tar.gz" in files:
-            sidecar = folder / f"{ARCHIVE_PREFIX}{stamp}.tar.gz{MODELS_SIDECAR}"
-            archives[stamp] = sidecar in files and read_sidecar(config, sidecar).get("verified") is True
+    archives = {stamp: verified(config, folder / f"{ARCHIVE_PREFIX}{stamp}.tar.gz{MODELS_SIDECAR}", files)
+                for stamp, files in groups.items() if folder / f"{ARCHIVE_PREFIX}{stamp}.tar.gz" in files}
     if not archives.get(current):
         raise StepFailed("retention", "tonight's verified archive is not in the iCloud folder")
     keep = kept_stamps(archives, retention["nights"], retention["months"], current)
