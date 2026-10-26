@@ -58,6 +58,8 @@ mesh-preparation equivalence check, the `webgl2` case of
 `mesh-layer-browser.mjs`, which draws generated meshes through MeshLayer in the
 runner's software GPU and swaps in a second mesh set without a blank frame, and the generated Unified Atlas compact layer-details
 and control-names checks (compiled source and markup only, no browser), the
+generated time-of-day lighting check (sun positions for a neutral reference
+place and appearance tables only, no browser or GPU), the
 generated WebMCP batch-discovery descriptor check (schema bytes only), and
 the generated offline outbox check (synthetic IndexedDB and a generated
 server, no browser or network), the generated Unified Atlas overlay feed check
