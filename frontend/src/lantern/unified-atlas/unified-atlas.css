@@ -48,6 +48,12 @@
 /* A compact stage carries the other sources in its own menu. */
 .lantern-host.view-atlas .main:has(.atlas-map .ua-shell.is-compact) .atlas-lens-bar > .atlas-source-details { display: none; }
 
+/* On a phone the lens row gives the map its height: Rooms & places and
+   Network open from the stage's menu, and an open lens closes itself. */
+@media (max-width: 720px) {
+  .lantern-host.view-atlas .main:has(.atlas-map .ua-shell.is-compact) .atlas-lens-bar { display: none; }
+}
+
 /* ---- Beside a lens, and as its inset ------------------------------------- */
 
 /* On a phone the lens stands below a short map band: the room sheet and the
@@ -131,10 +137,11 @@
   /* Focus never scrolls the stage away from the camera. */
   overflow: clip;
   /* Lamplight pooled on the model, the room falling off to warm umber at the
-     edges, so the pale architecture stands against its surroundings. */
+     edges, so the pale architecture stands against its surroundings. The
+     colours follow the hour the model is lit for, toward a blue slate at night. */
   background:
-    radial-gradient(ellipse 72% 64% at 46% 40%, #fffaf0 0%, rgba(255, 250, 240, 0.6) 42%, rgba(255, 250, 240, 0) 78%),
-    linear-gradient(176deg, #f1e9da 0%, #ddd0b7 100%);
+    radial-gradient(ellipse 72% 64% at 46% 40%, var(--ua-glow, #fffaf0) 0%, color-mix(in srgb, var(--ua-glow, #fffaf0) 60%, transparent) 42%, transparent 78%),
+    linear-gradient(176deg, var(--ua-sky-top, #f1e9da) 0%, var(--ua-sky-bottom, #ddd0b7) 100%);
 }
 
 /* Plan lays a drafting sheet over the lamplight; it fades with the camera. */
@@ -180,9 +187,9 @@
   stroke-width: 1;
 }
 
-.lantern-host .ua-board-lit { stop-color: #ecdbb4; }
-.lantern-host .ua-board-shade { stop-color: #d4b988; }
-.lantern-host .ua-ground-edge { fill: #8f7046; }
+.lantern-host .ua-board-lit { stop-color: var(--ua-board-lit, #ecdbb4); }
+.lantern-host .ua-board-shade { stop-color: var(--ua-board-shade, #d4b988); }
+.lantern-host .ua-ground-edge { fill: var(--ua-board-edge, #8f7046); }
 
 .lantern-host .ua-grid-line {
   fill: none;
@@ -746,6 +753,40 @@
 
 .lantern-host .ua-menu-panel[hidden] { display: none; }
 
+/* Lighting time: the hour the model is lit for, and a panel to move through the day. */
+.lantern-host .ua-daylight { position: relative; flex: none; }
+.lantern-host .ua-tools:has(.ua-daylight-panel:not([hidden])) { z-index: 8; }
+.lantern-host .ua-daylight-btn { background: var(--ua-panel); font-variant-numeric: tabular-nums; }
+.lantern-host .ua-daylight-btn.is-picked { border-color: var(--lantern-edge); background: var(--lantern-soft); }
+.lantern-host .ua-daylight-btn[aria-expanded='true'] { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+.lantern-host .ua-daylight-panel {
+  min-width: 272px;
+  gap: 10px;
+  padding: 12px;
+}
+
+.lantern-host .ua-daylight-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-2);
+  font-weight: 650;
+}
+
+.lantern-host .ua-daylight-row input[type='range'] { width: 100%; min-height: 32px; accent-color: var(--ink); }
+.lantern-host .ua-daylight-row input[type='date'] { grid-column: 2 / -1; min-height: 34px; font: inherit; color: var(--ink); }
+.lantern-host .ua-daylight-row output { min-width: 3em; color: var(--ink); font-variant-numeric: tabular-nums; text-align: right; }
+
+.lantern-host .ua-daylight-sun {
+  margin: 0;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.lantern-host .ua-daylight-now { justify-self: end; }
+
 .lantern-host .ua-menu-camera {
   display: flex;
   gap: 2px;
@@ -779,7 +820,7 @@
 .lantern-host .ua-menu-check:hover { background: var(--ua-hover); }
 .lantern-host .ua-menu-check input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--chrome); }
 
-.lantern-host .ua-menu-sources {
+.lantern-host :is(.ua-menu-sources, .ua-menu-lenses) {
   display: grid;
   padding-top: 4px;
   border-top: 1px solid var(--hair);
@@ -812,6 +853,11 @@
 .lantern-host .ua-menu-row:hover { background: var(--ua-hover); }
 .lantern-host .ua-menu-row > svg { flex: none; color: var(--faint); }
 .lantern-host .ua-menu-row:focus-visible { outline-offset: -2px; }
+/* Rows with a leading glyph: the name takes the free width. A pressed row,
+   Exploded on or the open lens, wears the floor rail's lantern mark. */
+.lantern-host .ua-menu-row > span { flex: 1; }
+.lantern-host .ua-menu-row[aria-pressed="true"] { background: var(--lantern-soft); box-shadow: inset 3px 0 0 var(--lantern-edge); }
+.lantern-host .ua-menu-row[aria-pressed="true"] > svg { color: var(--ink); }
 
 /* ---- Layers: plans, keys and the layer bar ---------------------------------- */
 
@@ -1050,6 +1096,15 @@
 .lantern-host .ua-key-body[hidden] { display: none; }
 .lantern-host .ua-key p { margin: 0; }
 .lantern-host .ua-key-body > p:first-child { color: var(--ink-2); }
+/* A stored copy says so, quietly, above the layer's own explanation. */
+.lantern-host .ua-key-body > .ua-key-stored {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.lantern-host .ua-key-stored > svg { flex: none; margin-top: 1px; color: var(--birch-dark); }
 .lantern-host .ua-key-body > details > ul { margin: 6px 0 0; padding-left: 18px; }
 
 .lantern-host .ua-key-body > details {
@@ -1946,30 +2001,28 @@
   .lantern-host .ua-bottom { bottom: calc(var(--ua-peek) + 8px); }
   .lantern-host .ua-graph { inset: 6px; }
 
-  @media (max-height: 480px) {
-    /* One line: the floor follows the name and gives way first, so the head
-       fits below the view tools and side strips. The room's tag starts at the
-       head's edge, so its own width is the name's column. */
-    .lantern-host .ua-sheet-head {
-      grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto auto;
-      padding-top: 10px;
-      padding-bottom: 5px;
-    }
-
-    .lantern-host .ua-inspector.is-room .ua-sheet-head { padding-left: 8px; }
-    .lantern-host .ua-inspector.is-room h2 { margin-left: 0; }
-    .lantern-host .ua-sheet-head::before { top: 3px; }
-
-    .lantern-host .ua-sheet-title > h2,
-    .lantern-host .ua-sheet-title > p {
-      max-width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .lantern-host .ua-sheet-title > p { grid-area: 1 / 2; }
+  /* One line, so the closed sheet is a slim peek and the model keeps the
+     stage: the floor follows the name and gives way first. The room's tag
+     starts at the head's edge, so its own width is the name's column. */
+  .lantern-host .ua-sheet-head {
+    grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto auto;
+    padding-top: 10px;
+    padding-bottom: 5px;
   }
+
+  .lantern-host .ua-inspector.is-room .ua-sheet-head { padding-left: 8px; }
+  .lantern-host .ua-inspector.is-room h2 { margin-left: 0; }
+  .lantern-host .ua-sheet-head::before { top: 3px; }
+
+  .lantern-host .ua-sheet-title > h2,
+  .lantern-host .ua-sheet-title > p {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .lantern-host .ua-sheet-title > p { grid-area: 1 / 2; }
 }
 
 /* Smallest phones: the sheet toggle is its chevron alone, its name kept for
@@ -2252,6 +2305,9 @@
   }
 
   .lantern-host .ua-tools .ctrl-group { display: none; }
+  /* The panel spans the tools row, whichever control it opened from. */
+  .lantern-host .ua-daylight { position: static; }
+  .lantern-host .ua-daylight-panel { left: 0; right: 0; width: auto; min-width: 0; }
   .lantern-host .ua-tools .ctrl-wide { height: 42px; padding: 0 10px; }
   .lantern-host .ua-tools .seg button { min-width: 44px; padding: 0 10px; }
 

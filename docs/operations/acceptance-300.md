@@ -13,6 +13,14 @@ features. It is a reusable blank plan; owner labels and PR status must be checke
 again before a handoff. No public installed identities or household data are
 selected or collected here.
 
+**Update — 26 October 2026:** Merged [PR #371](https://github.com/EzraCerpac/HouseAtlas/pull/371)
+removed the unused in-repo updater and its optional MCP/app callers;
+[issue #284](https://github.com/EzraCerpac/HouseAtlas/issues/284) is retired,
+with its binding checklist superseded rather than completed. Existing updater
+and caller references in this document and the scenario matrix describe the
+pinned historical inventory, not current updater capabilities. This correction
+changes no scenario, source pin or DEFERRED acceptance evidence.
+
 ## Source and version matrix
 
 | Identity | Preparation value / required private observation |

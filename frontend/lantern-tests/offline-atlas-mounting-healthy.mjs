@@ -17,7 +17,8 @@ assert(fixture.includes('await store.begin(')); assert(fixture.includes('await s
 assert(fixture.indexOf('generateSavedPack(mode') > fixture.indexOf('const save = async'));
 const worker = read('../build/offline-worker-source.js');
 assert(worker.includes("url.pathname !== '/saved/index.html'")); assert(worker.includes('url.search || url.hash'));
-assert(worker.includes('await verified(response, pin); await cache.put')); assert(worker.includes("headers.get('content-type')"));
+assert(worker.includes("await verified(await fetch(url, { credentials: 'omit', redirect: 'error', cache: 'reload' }), pin)"));
+assert(worker.includes('return await verified(await old.match(url), pin)')); assert(worker.includes('await cache.put(url, response)')); assert(worker.includes("headers.get('content-type')"));
 const shell = read('../src/offline/shell.ts'); assert(shell.includes("{ scope: '/saved/'"));
 assert(shell.includes('worker.postMessage(message, [channel.port2])'));
 assert(shell.includes("status(worker, 'saved-shell-status')"));

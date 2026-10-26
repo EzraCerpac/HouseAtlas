@@ -80,6 +80,37 @@ const admittedAttributes = (json, materialIndex) => {
   return mapped ? ['POSITION', 'NORMAL', 'TEXCOORD_0', 'TANGENT'] : ['POSITION', 'NORMAL'];
 };
 
+/** Area-weighted mean of a primitive's COLOR_0, linear RGB in 0–1, or null
+ * without vertex colours. glTF multiplies COLOR_0 into the base colour, and
+ * the viewer draws neither vertex colours nor anything but the factor and
+ * admitted textures, so the bake folds this mean into the material factor
+ * before dropping the attribute; an export that keeps a surface's colour only
+ * in vertex colours would otherwise lose it. Alpha is not folded: the viewer
+ * draws opaque surfaces. */
+function meanVertexColour(json, bin, primitive) {
+  if (primitive.attributes.COLOR_0 === undefined) return null;
+  const accessor = json.accessors[primitive.attributes.COLOR_0], width = COMPONENTS[accessor.type];
+  const scale = accessor.componentType === 5121 ? 255 : accessor.componentType === 5123 ? 65535 : 1;
+  const colours = readAccessor(json, bin, primitive.attributes.COLOR_0), positions = readAccessor(json, bin, primitive.attributes.POSITION);
+  const indices = primitive.indices === undefined ? Uint32Array.from({ length: positions.length / 3 }, (_, i) => i) : readAccessor(json, bin, primitive.indices);
+  const sum = [0, 0, 0];
+  let weight = 0;
+  for (let t = 0; t < indices.length; t += 3) {
+    const [a, b, c] = [indices[t], indices[t + 1], indices[t + 2]];
+    const u = [0, 1, 2].map(k => positions[b * 3 + k] - positions[a * 3 + k]), v = [0, 1, 2].map(k => positions[c * 3 + k] - positions[a * 3 + k]);
+    const area = Math.hypot(u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]);
+    for (let k = 0; k < 3; k++) sum[k] += area * (colours[a * width + k] + colours[b * width + k] + colours[c * width + k]) / (3 * scale);
+    weight += area;
+  }
+  // Degenerate geometry has no area to weigh by; every vertex then counts once.
+  if (weight === 0) {
+    const count = colours.length / width;
+    for (let i = 0; i < count; i++) for (let k = 0; k < 3; k++) sum[k] += colours[i * width + k] / scale;
+    weight = count;
+  }
+  return weight > 0 ? sum.map(value => Math.min(1, Math.max(0, value / weight))) : null;
+}
+
 /** Indices welded on a grid of `cell` local units, dropping triangles that weld shut. */
 function weld(positions, indices, cell) {
   const remap = new Uint32Array(positions.length / 3), seen = new Map();
@@ -255,11 +286,27 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     }
     return copied.get(at);
   };
+  // One material per source material and folded vertex colour, appended after the source materials.
+  const folded = new Map(), replaced = new Set(), foldMaterial = (materialIndex, colour) => {
+    if (materialIndex !== undefined) replaced.add(materialIndex);
+    const id = `${materialIndex ?? ''}|${colour.map(v => v.toFixed(4)).join(',')}`;
+    if (!folded.has(id)) {
+      const material = structuredClone(materialIndex === undefined ? {} : source.materials[materialIndex]);
+      const pbr = material.pbrMetallicRoughness ??= {}, base = pbr.baseColorFactor ?? [1, 1, 1, 1];
+      pbr.baseColorFactor = [...colour.map((v, k) => Number((base[k] * v).toFixed(4))), base[3]];
+      (json.materials ??= []).push(material);
+      folded.set(id, json.materials.length - 1);
+    }
+    return folded.get(id);
+  };
   json.meshes = [...meshMap.keys()].map(meshIndex => {
     const mesh = json.meshes[meshIndex];
-    mesh.primitives = mesh.primitives.map((primitive, primitiveIndex) => {
+    mesh.primitives = mesh.primitives.map((sourcePrimitive, primitiveIndex) => {
       const indices = baked.get(key(meshIndex, primitiveIndex)), from = source.meshes[meshIndex].primitives[primitiveIndex];
       const entry = report.find(row => row.mesh === meshIndex && row.primitive === primitiveIndex);
+      const colour = meanVertexColour(source, bin, from);
+      if (colour) entry.foldedVertexColour = colour;
+      const primitive = colour ? { ...sourcePrimitive, material: foldMaterial(from.material, colour) } : sourcePrimitive;
       if (!indices) {
         const admitted = admittedAttributes(source, from.material);
         const dropped = Object.keys(from.attributes).filter(name => !admitted.includes(name));
@@ -289,6 +336,17 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     return mesh;
   });
   for (const node of json.nodes ?? []) if (node.mesh !== undefined) node.mesh = meshMap.get(node.mesh);
+  // Drop originals that folding left unreferenced, so they never count against
+  // the server's material limit. Their textures stay referenced by the folded
+  // copies; materials the master already left unused are kept as authored.
+  if (replaced.size > 0) {
+    const used = new Set(json.meshes.flatMap(mesh => mesh.primitives.map(p => p.material)));
+    const kept = json.materials.map((_, at) => at).filter(at => used.has(at) || !replaced.has(at));
+    const index = new Map(kept.map((at, i) => [at, i])), materials = json.materials;
+    for (const mesh of json.meshes) for (const primitive of mesh.primitives)
+      if (primitive.material !== undefined) primitive.material = index.get(primitive.material);
+    json.materials = kept.map(at => materials[at]);
+  }
   for (const image of json.images ?? []) if (image.bufferView !== undefined) {
     const view = source.bufferViews[image.bufferView], start = view.byteOffset ?? 0;
     image.bufferView = addView(bin.subarray(start, start + view.byteLength));

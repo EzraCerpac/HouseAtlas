@@ -69,11 +69,13 @@ node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs
 `frontend/lantern-tests/offline-launch-browser.mjs` serves the built `dist/` on
 an owned loopback listener, opens `/saved/index.html` once online so the Saved
 and root workers install, then reopens `/` without a network and times how long
-the Saved shell takes to appear. It uses generated build output only.
+the Saved shell takes to appear. It uses public generated build output and, in
+`live-launch`, a generated Atlas and a waiting synthetic outbox record.
 
 ```sh
 node frontend/lantern-tests/offline-launch-browser.mjs --case offline-launch
 node frontend/lantern-tests/offline-launch-browser.mjs --case hung-network
+node frontend/lantern-tests/offline-launch-browser.mjs --case live-launch
 ```
 
 `offline-launch` closes the listener (connection refused) and must show the
@@ -83,8 +85,17 @@ portal or a weak signal. It must show the shell within 3 s; the root worker
 hands a silent navigation to Saved after 2 s. The listener may answer a
 worker-script update check (`/offline-entry-worker.js`,
 `/saved/service-worker.js`) during the reopen; any other served path fails the
-case. Both cases are in the healthy
-suite. Neither case is iOS, installed-PWA or live-model evidence.
+case. `live-launch` is `offline-launch` with the live entry `/` opened online
+instead of the Saved entry: the live app registers both workers after every
+launch (no backend answers it here). That case seeds a generated Atlas and one
+waiting edit through the production storage APIs, closes the application tab,
+then opens a new tab offline. It checks the actual cached Atlas and waiting
+count, unchanged full queue record, and absence of write dispatch. It does not
+simulate a canonical session or claim an edit was accepted by a native backend.
+All three cases remain in the existing healthy suite. Reconnect synchronization
+through a canonical signed-in live session, iOS, installed-PWA and real content
+remain separate acceptance. `unified-atlas-cache-healthy.mjs` checks the cached
+copy's actor isolation and lifecycle without a browser.
 
 ## Real-browser 3D drawing
 
@@ -108,6 +119,20 @@ the healthy suite. `webgpu` enables WebGPU on SwiftShader Vulkan. Full Chrome's
 Playwright's `chrome-headless-shell`. `bench` throttles the CPU 4× and prints
 CPU time and GPU API calls per frame while the camera turns; it asserts nothing.
 None of these cases is device, Safari or live-model evidence.
+
+## Real-browser Plan wheel
+
+`frontend/lantern-tests/unified-atlas-plan-wheel-browser.mjs` builds the
+generated Atlas host, opens Plan and sends trusted wheel input at the stage
+centre. A plain wheel (two-finger scroll) must pan the plan by its deltas and a
+ctrl-wheel (Chromium's trackpad pinch) must zoom it, and the point under the
+cursor must not resolve to a hidden element such as the 3D canvas that Plan
+hides. It is in the healthy suite. It is not physical trackpad, Safari gesture
+or momentum evidence.
+
+```sh
+node frontend/lantern-tests/unified-atlas-plan-wheel-browser.mjs
+```
 
 ## Backend unit tests
 
@@ -2231,41 +2256,6 @@ real IndexedDB/provider, held denial/foreign-token/expiry/revocation/crash/fault
 guard-reversal or broad alias is included. This check establishes no genuine
 offline/device/PWA or deployment acceptance and adds no workflow.
 
-## Generated software release bundle check
-
-Read [software release bundles](../operations/release-bundles.md), then inspect
-`tools/release/bundle.py`, `fixtures.py`, `workflow.py` and `test_bundle.py`
-before this exact focused command:
-
-```sh
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/release -p test_bundle.py -v
-```
-
-Seven generated happy-path cases check deterministic software-only packaging,
-exact file closure, the retained-component/storage declarations, producer
-identity and a fake local draft/upload/download/publish sequence. They open no
-listener, execute no native binary and use no actual GitHub write, credential,
-household data or runtime. Held crash, replay, expiry, adversarial and rollback
-controls remain separate. The release workflow validates scoped PRs; actual
-main build and promotion are explicit manual operations with separate reviewed
-native-profile, storage-compatibility, producer and publication gates. Source
-checks do not qualify a NAS binary, deployment or device.
-
-The two reviewed packaging repairs additionally have this explicitly selected,
-separate generated regression command:
-
-```sh
-PYTHONDONTWRITEBYTECODE=1 python3 tools/release/test_bundle.py --repair-regressions
-```
-
-Exactly three cases use fake subprocesses with simulated transfer durations and
-disposable generated USTAR paths. They check the three transfer ceilings versus
-the short inspection timeout, valid filename/prefix boundaries, and pre-output
-rejection of unencodable paths in producer and manifest admission. They run no
-network, wall-clock timeout, native binary, credential, provider or household
-operation. These cases remain excluded from ordinary seven-test discovery and
-add no CI step or broader control permission.
-
 ## Named generated root and saved offline-entry lifecycle positive
 
 Read [root offline entry](../offline/root-offline-entry.md), then inspect
@@ -2324,25 +2314,6 @@ and source-uncertainty rectangles crossing the fitted hull (including malformed
 explicit row tolerances). Report those separately from the original five
 healthy cases. No workflow or shared runner is added by these definitions.
 
-
-## Named generated frontend asset-retention producer positive
-
-Read [the frontend asset-retention producer contract](../operations/frontend-asset-retention.md),
-then inspect `tools/release/frontend_retention.py`, the selected generated case,
-its existing packaging fixture helpers and `bundle.py`. From the repository root:
-
-```sh
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tools/release python3 tools/release/tests/test_frontend_retention_happy.py FrontendRetentionHappyPaths.test_generated_prior_assets_union_pack_and_verify -v
-```
-
-This one positive prepares a new disposable frontend from generated current
-assets and a separately pinned, generated prior release, then packages and
-verifies the exact declared union through the existing producer. It retains
-current entrypoints and prior immutable assets with distinct public provenance.
-No actual release, network, native binary, service, private input, denial,
-rollback or failure-injection case is used. Runtime publication never adds
-undeclared files; genuine producer approval and native update qualification
-remain separate. This adds no workflow or deployment authority.
 
 ## Named generated native Access read-only validation positive
 
@@ -2664,6 +2635,43 @@ node frontend/lantern-tests/unified-atlas-control-names-healthy.mjs
 
 It does not mount React or a browser; identity stays the source ID.
 
+## Named generated Atlas overlay feed check
+
+`frontend/lantern-tests/unified-atlas-overlay-feed-healthy.mjs` compiles the
+overlay feed (`overlay-feed.ts`), the stored-overlay codec and the Atlas cache
+and drives them with a counting fake overlay source owner and a synthetic
+IndexedDB disk (#356): with nothing stored, one background read after the
+model draws, kept and released, and none while downloads wait for the user;
+with a stored copy, the first toggle shows it before the fresh read ends,
+repeat toggles read nothing, a dropped frame falls back to the copy and is
+read again later and on `online`; exact scene pins, rooms limited to the
+current scene, malformed copies ignored, and a per-actor slot that sign-out
+clears. It runs in CI through `run-healthy.mjs`:
+
+```sh
+node frontend/lantern-tests/unified-atlas-overlay-feed-healthy.mjs
+```
+
+It does not mount React, a browser or real storage, and reads no real source.
+
+## Named generated time-of-day lighting check
+
+`frontend/lantern-tests/unified-atlas-daylight-healthy.mjs` compiles
+`daylight.ts` and `mesh-appearance.ts` with the pinned SunCalc and checks, for
+a neutral reference place: model-frame sun bearings and their turn with the
+model's north, the midsummer noon sun in the south at full daylight, the
+zenith map and full lamps at midnight, a minute-by-minute day in June,
+October and December with no jumps, a readable floor on the sky light and
+lamps only after sunset, the stage colours' stylesheet fallbacks, and the
+appearance table's shelter and kept-tone flags, which other viewers never
+receive. It runs in CI through `run-healthy.mjs`:
+
+```sh
+node frontend/lantern-tests/unified-atlas-daylight-healthy.mjs
+```
+
+It does not mount React, a browser or a GPU, and uses no household location.
+
 ## Named generated WebMCP batch-discovery check
 
 `frontend/lantern-tests/webmcp-batch-discovery.mjs` compiles
@@ -2679,3 +2687,18 @@ node frontend/lantern-tests/webmcp-batch-discovery.mjs
 ```
 
 It never dispatches to a stock service, opens a transport or mounts a browser.
+
+## Named synthetic WebMCP adapter bootstrap
+
+`frontend/lantern-tests/webmcp-adapter-healthy.mjs` bundles the current
+`frontend/src/webmcp/index.ts` with the locked Vite into a temporary ES module,
+then runs the unchanged `frontend/src/webmcp/healthy.examples.mjs` fixture
+against it (6 synthetic adapter, session and history cases, validated with the
+`packages/contracts` Ajv schemas). It runs in CI through `run-healthy.mjs`:
+
+```sh
+node frontend/lantern-tests/webmcp-adapter-healthy.mjs
+```
+
+It never opens a browser, listener, native service or provider, and removes
+only its own temporary output.

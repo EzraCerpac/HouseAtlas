@@ -72,6 +72,13 @@ metres, default 0.0005).
   colours and further UV sets are dropped (the viewer never draws them) and
   listed per primitive under `droppedAttributes` in the report. Without this,
   a detail tier keeps them and the server refuses the publication.
+- Vertex colours are folded into the material first. glTF multiplies `COLOR_0`
+  into the base colour, so a surface whose colour lives only in its vertex
+  colours would otherwise fall back to the viewer's presentation tone. Each
+  such primitive gets a copy of its material whose `baseColorFactor` is the
+  source factor times the area-weighted mean vertex colour (alpha unchanged);
+  the mean is reported as `foldedVertexColour`. Per-vertex variation within a
+  primitive is flattened to that mean.
 - Textured primitives are kept as authored. A flat surface can lose the
   vertices that carry a non-affine UV mapping at zero position error, and the
   texture drift that causes is not bounded by an error in metres.
@@ -133,3 +140,12 @@ They do not render anything or touch a real model.
 Simplified geometry is a display tier, not a parity copy. Loading the detail
 in the app (the device-aware Auto/Light/Full quality setting), meshopt/quantized
 transfer and per-floor detail loading are later steps in #304.
+
+## Colour sources
+
+`node colours.mjs model.glb [--json]` lists, per role and material, whether
+drawn triangles take their colour from `baseColorFactor`, a texture,
+`COLOR_0` or nothing, with the mean vertex colour. Run it on a master and its
+bake to find surfaces that lose their colour. It uses only Node built-ins, so
+it runs outside a checkout too.
+

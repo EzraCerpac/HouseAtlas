@@ -84,7 +84,7 @@ export function mergeRuntimeRecords(model: AtlasModel, rows: readonly { readonly
     unplaced[kind] = all.filter(record => !placed.has(record.key));
   }
   const buildings = rows.map<BuildingCoverage>(row => ({ buildingId: row.buildingId, label: model.buildingsById.get(row.buildingId)!.label,
-    reason: row.records ? 'available' : row.reason, network: row.records?.network ?? 'unavailable', electrical: row.records?.electrical ?? 'unavailable' }));
+    reason: row.records ? row.reason === 'stored-copy' ? row.reason : 'available' : row.reason, network: row.records?.network ?? 'unavailable', electrical: row.records?.electrical ?? 'unavailable' }));
   const several = rows.length > 1;
   return { rooms, unplaced, buildings,
     networkGraphs: [...new Map(rows.flatMap(row => (row.records?.networkGraphs ?? []).map(graph => [graph.key, graph] as const))).values()],

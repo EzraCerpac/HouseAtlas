@@ -96,6 +96,26 @@ lock: TypeScript 7.0.2, React 19.3.0, Node 26.10.0/npm 11.19.1, strict settings,
 exact optional properties and unchecked index access. Inspect scripts and
 exact examples before execution.
 
+The standalone current-source adapter bootstrap is:
+
+```sh
+node frontend/lantern-tests/webmcp-adapter-healthy.mjs
+```
+
+Use the existing pinned Node 26.10.0 and locked frontend Vite plus
+`packages/contracts` Ajv dependencies. This new bootstrap bundles current
+`frontend/src/webmcp/index.ts` into a uniquely owned temporary ES module
+namespace, then runs the unchanged `healthy.examples.mjs` fixture with
+`HOUSEATLAS_AT39_BUILD` pointing there. It propagates fixture failures and removes
+only its own temporary output. Dependency/import failures are reported without
+installing packages or substituting another namespace.
+
+This is a new current-source bootstrap, not recovery of the historical external
+build harness. It runs in ordinary CI through `frontend/lantern-tests/run-healthy.mjs`.
+It exercises synthetic adapter/session/history ports only: no browser,
+listener, native service, provider, mutation, grant or deployment. It does not
+qualify React/jsdom, gateway integration or installed/browser/device acceptance.
+
 An externally supplied successor harness locks React/react-dom
 19.3.0, jsdom 30.1.2 and esbuild 0.28.2. It bundles actual lane TS/TSX and `App`,
 then runs `stock.healthy.tsx` in jsdom. Validation uses unchanged shared schemas

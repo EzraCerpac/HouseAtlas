@@ -20,7 +20,7 @@ import {
   levelLift, occurrenceLiftLevel, partLifts, pickTarget, planFeaturesForLevel, planPickTarget, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
   targetAction, unplacedByReason, type AtlasAction, type AtlasLayer, type AtlasModel, type AtlasViewState, type OverlayLayerIndex, type UnplacedReason,
 } from './scene';
-import { AtlasReadError, type AtlasLevel, type AtlasOccurrence, type AtlasReadFailure, type AtlasRoom, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
+import { AtlasReadError, type AtlasLevel, type AtlasOccurrence, type AtlasReadFailure, type AtlasRoom, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
   type UnifiedAtlasRead } from './types';
 import { PublishedOverlayDetails, PublishedUnplacedBinding } from './PublishedOverlayDetails';
 import { atlasLevelName, countClearedLabelY, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, labelHitWidth, placePlanRoomLabels, planLabelFrame, planLabelObstacles,
@@ -28,8 +28,12 @@ import { atlasLevelName, countClearedLabelY, countMarkerTarget, countMarkerWidth
 import { documentaryOverlayIndex, type BuildingCoverage, type DocumentaryRecord, type PropertyRecords, type SourceFact } from './runtime-overlays';
 import { edgeSpans, estimatedOccurrences, MEASUREMENT_BASIS, placeLabels, roomArea } from './measurements';
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
+import type { OverlayFeedSnapshot } from './overlay-feed';
 import { modelUpdatesAllowed, useModelUpdates } from './model-updates';
 import { fullModelWanted, useModelQuality } from './model-quality';
+import { daylightAt, stageColors } from './daylight';
+import { useSunPlace } from './sun-place';
+import { DaylightControl, useLightingTime } from './DaylightControl';
 import { shownTier, stageTier } from './model-tier';
 import { NetworkGraph } from './NetworkGraph';
 import { LayerDetailsDock, useLayerDetailsFocus, useShortLayerDetails } from './LayerDetailsDock';
@@ -325,17 +329,11 @@ const ATLAS_SITE = '#E0CFA6', ATLAS_GHOST_ALPHA = .05;
  * grass stays green, the fence and glazing stay dark, and neighbours keep
  * their own colours, while the focused building alone is at full strength. */
 const ATLAS_SOURCE_DIM = .45;
-/** The light stands to the viewer's upper left, a little toward them, and turns
- * with the camera: of the two wall planes in view one is always lit and one in
- * shade, at every orbit. Shares across, toward the viewer and up. */
-const LIGHT = { side: .68, front: .5, up: .54 } as const;
-function viewLight(ct: number, st: number): readonly [number, number, number] {
-  const x = -LIGHT.side * ct + LIGHT.front * st, z = LIGHT.side * st + LIGHT.front * ct, l = Math.hypot(x, LIGHT.up, z);
-  return [x / l, LIGHT.up / l, z / l];
-}
+/** Meshes that roof the house over: at night a face beneath them is indoors and lamp-lit. */
+const SHELTER_ROLES: ReadonlySet<MeshRole> = new Set(['structure', 'roof', 'slab']);
 /** The birch board under the property: its thickness below the lowest floor, in metres. */
 const BOARD_DEPTH = .4;
-/** Contact shadow of each building's lowest floor on the board, cast away from the light, in metres. */
+/** Contact shadow of each building's lowest floor on the board, cast away from the sun, in metres. */
 const SHADOW_LENGTH = .55;
 /** Plan Fit keeps rooms at a readable drawing scale, in pixels per metre: a
  * room part 1.5 m clear has the 18 px a plain room name needs. */
@@ -721,12 +719,17 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
       panX: pose.panX - base.k * (dx * base.ct - dz * base.st), panY: pose.panY - base.k * (dx * base.st + dz * base.ct) * base.sf }, bounds, view, planBlend);
     return insetProjection(centred, inset.l, inset.t, size);
   }, [camera.eased, bounds, size, planBlend, inset, readable]);
-  const light = useMemo(() => viewLight(projection.ct, projection.st), [projection.ct, projection.st]);
-  const shadowOffset = [-light[0] / Math.hypot(light[0], light[2]) * SHADOW_LENGTH, -light[2] / Math.hypot(light[0], light[2]) * SHADOW_LENGTH] as const;
+  // The real sun for the chosen moment, fixed to the house: shadows fall where they would.
+  const sunPlace = useSunPlace(), lightingTime = useLightingTime();
+  const daylight = useMemo(() => daylightAt(lightingTime.at, sunPlace), [lightingTime.at, sunPlace]);
+  const light = daylight.toward, across = Math.max(1e-6, Math.hypot(light[0], light[2]));
+  const shadowOffset = [-light[0] / across * SHADOW_LENGTH, -light[2] / across * SHADOW_LENGTH] as const;
+  const stageStyle = useMemo(() => stageColors(daylight.dusk) as CSSProperties, [daylight.dusk]);
   const lifts = useMemo(() => partLifts(model, presentation, t), [model, presentation, t]);
   // Roof slopes take the pitch tone; site terrain the flat board tone. By role only, never by name.
   const roofKeys = useMemo(() => new Set(model.parts.filter(part => part.role === 'roof').map(part => part.mesh.meshKey)), [model]);
   const site = useMemo(() => ({ keys: new Set(model.parts.filter(part => part.role === 'context').map(part => part.mesh.meshKey)), tone: ATLAS_SITE }), [model]);
+  const shelterKeys = useMemo(() => new Set(model.parts.filter(part => SHELTER_ROLES.has(part.role)).map(part => part.mesh.meshKey)), [model]);
   const showCanvas = planBlend < 1 && failure === null;
 
   // A new place is framed whole: zoom and pan return, the chosen orbit stays.
@@ -1216,7 +1219,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   useEffect(() => {
     const host = shell.current?.closest('.lantern-host');
     if (!host) return;
-    const owner = (target: HTMLElement) => target.closest('.archive-filter, .atlas-source-details, .ua-menu, .ua-pick, .ua-buildings, .ua-tools > .ctrl-group');
+    const owner = (target: HTMLElement) => target.closest('.archive-filter, .atlas-source-details, .ua-menu, .ua-pick, .ua-buildings, .ua-tools > .ctrl-group, .ua-explode');
     const focused = (event: globalThis.FocusEvent) => {
       const target = event.target;
       chromeFocus.current = target instanceof HTMLElement && host.contains(target) && owner(target) ? target : null;
@@ -1275,6 +1278,11 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   const menuBlur = (which: 'view' | 'buildings') => (event: FocusEvent<HTMLElement>) => {
     if (menu === which && event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setMenu(null);
   };
+  // A lens chosen from the menu returns focus to the menu button when it closes.
+  const openLens = (kind: 'places' | 'network') => {
+    setMenu(null); menuButton.current?.focus({ preventScroll: true });
+    hostLens?.set(lens?.kind === kind ? null : { kind, reading: false });
+  };
   const chooseBuilding = (buildingId: string | null) => {
     dispatch({ type: 'building', buildingId });
     if (menu === 'buildings') { setMenu(null); pickButton.current?.focus({ preventScroll: true }); }
@@ -1319,7 +1327,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
           && !origin.closest('[inert], [hidden], [aria-hidden="true"]') && getComputedStyle(origin).visibility === 'visible') graphStageFocus.current = null;
       });
     }}>
-    <div className="ua-stage" onKeyDownCapture={stripEscape}>
+    <div className="ua-stage" style={stageStyle} onKeyDownCapture={stripEscape}>
       <div className="ua-scope" inert={stageInert} onBlur={menuBlur('buildings')}>
         {port.savedDocumentary && <p className="ua-snapshot-note" role="note">
           <Icon name="history" size={15} />
@@ -1364,7 +1372,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
           <button type="button" aria-pressed={!plan} onClick={() => dispatch({ type: 'view', view: '3d' })}>3D</button>
           <button type="button" aria-pressed={plan} onClick={() => dispatch({ type: 'view', view: 'plan' })}>Plan</button>
         </div>
-        {canExplode && <button type="button" className="ctrl-btn ctrl-wide" aria-pressed={state.exploded}
+        {canExplode && !compact && <button type="button" className="ctrl-btn ctrl-wide ua-explode" aria-pressed={state.exploded}
           onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}>
           <Icon name="explode" size={17} /><span>Exploded</span></button>}
         <div className="ctrl-group" role="group" aria-label="Camera">
@@ -1376,15 +1384,17 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
           <button type="button" className="ctrl-btn" aria-label="Zoom out" disabled={camera.zoom <= camera.zoomLimits.min} onClick={() => camera.zoomBy(1 / 1.3)}><Icon name="minus" size={17} /></button>
           <button type="button" className="ctrl-btn" aria-label="Fit view" title="Fit view" onClick={camera.fit}><Icon name="fit" size={17} /></button>
         </div>
+        {!plan && <DaylightControl at={lightingTime.at} live={lightingTime.live} night={daylight.night} place={sunPlace} onChange={lightingTime.set} />}
         {/* Compact: the snapshot stamp takes the free width, and one menu holds
-            the camera, the archive filter and the other sources. */}
+            the camera, Exploded, the lenses, the archive filter and the other
+            sources. */}
         {compact && port.savedDocumentary && <p className="ua-stamp" role="note">
           <span className="ua-stamp-kind">Saved snapshot</span>
           <time dateTime={port.savedDocumentary.observedAt} title={port.savedDocumentary.observedAt}>
             <span className="sr-only">observed </span>{stampTime(port.savedDocumentary.observedAt)}</time>
         </p>}
         {compact && <div className="ua-menu" onBlur={menuBlur('view')}>
-          <button ref={menuButton} type="button" className="ctrl-btn ua-menu-btn" aria-label="View and sources" title="View and sources"
+          <button ref={menuButton} type="button" className="ctrl-btn ua-menu-btn" data-lens-return="" aria-label="View and sources" title="View and sources"
             aria-expanded={menu === 'view'} aria-controls={`${menuIds}-view`} onClick={() => setMenu(value => value === 'view' ? null : 'view')}>
             <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden="true"><circle cx={5} cy={12} r={1.9} /><circle cx={12} cy={12} r={1.9} /><circle cx={19} cy={12} r={1.9} /></svg>
           </button>
@@ -1398,8 +1408,19 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
               <button type="button" className="ctrl-btn" aria-label="Zoom out" title="Zoom out" disabled={camera.zoom <= camera.zoomLimits.min} onClick={() => camera.zoomBy(1 / 1.3)}><Icon name="minus" size={18} /></button>
               <button type="button" className="ctrl-btn ua-menu-fit" onClick={camera.fit}><Icon name="fit" size={18} /><span>Fit view</span></button>
             </div>
+            {canExplode && <button type="button" className="ua-menu-row" aria-pressed={state.exploded}
+              onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}>
+              <Icon name="explode" size={16} /><span>Exploded floors</span></button>}
             {archive && <label className="ua-menu-check"><input type="checkbox" checked={archive.included}
               onChange={event => archive.setIncluded(event.currentTarget.checked)} /><span>Include archived HomeBox records</span></label>}
+            {/* The host's lens row gives way on a phone; its lenses open from here. */}
+            {hostLens && compact && <nav className="ua-menu-lenses" aria-labelledby={`${menuIds}-lenses`}>
+              <p id={`${menuIds}-lenses`} className="ua-menu-label">Lists</p>
+              {(['places', 'network'] as const).map(kind => <button key={kind} type="button" className="ua-menu-row" aria-pressed={lens?.kind === kind}
+                aria-controls={lens ? hostLens.panelId : undefined} onClick={() => openLens(kind)}>
+                <Icon name={kind === 'places' ? 'rooms' : 'network'} size={16} /><span>{kind === 'places' ? 'Rooms & places' : 'Network'}</span>
+                <Icon name="chevron" size={15} /></button>)}
+            </nav>}
             {otherSources.length > 0 && <nav className="ua-menu-sources" aria-labelledby={`${menuIds}-sources`}>
               <p id={`${menuIds}-sources`} className="ua-menu-label">Other sources</p>
               {otherSources.map(row => <button key={row.id} type="button" className="ua-menu-row" onClick={() => { setMenu(null); row.open(); }}>
@@ -1432,7 +1453,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
               fill={`url(#${gridId}-board)`} vectorEffect="non-scaling-stroke" />
             {projection.k >= 10 && planBlend < .5 && <rect className="ua-ground-grid" x={ground.x} y={ground.z} width={ground.w} height={ground.h} fill={`url(#${gridId})`} />}
             {/* One group opacity, so overlapping rooms and walls shade the board once. */}
-            {planBlend < 1 && footprints.length > 0 && <g className="ua-ground-shadow" style={{ opacity: .2 * (1 - planBlend) }}
+            {planBlend < 1 && footprints.length > 0 && daylight.direct > 0 && <g className="ua-ground-shadow" style={{ opacity: .2 * (1 - planBlend) * daylight.direct }}
               transform={`translate(${shadowOffset[0]} ${shadowOffset[1]})`}>
               {footprints.map(row => <path key={row.key} d={row.path} fillRule="evenodd" />)}
             </g>}
@@ -1442,7 +1463,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
           <MeshLayer meshes={target.meshes} onShown={onShown} projection={projection} rules={RULES} currentFloorId={presentation.focusLevelId}
             selectedOccurrenceId={selected} contextOccurrenceIds={context} tints={tints} hidden={!showCanvas}
             hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} sourceColors sourceMaterials sourceDim={ATLAS_SOURCE_DIM} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE} light={light} pitch={ATLAS_PITCH}
-            pitchKeys={roofKeys} site={site} ghostAlpha={ATLAS_GHOST_ALPHA}
+            pitchKeys={roofKeys} site={site} ghostAlpha={ATLAS_GHOST_ALPHA} daylight={daylight} shelterKeys={shelterKeys}
             uploadBytes={target !== lighter || model !== lighter ? RENDER_LIMITS.detailUploadBytes : RENDER_LIMITS.uploadBytes}
             onUnavailable={message => { if (target !== lighter && keepLight) keepLight(); else setFailure(message); }} />
         </div>
@@ -1525,7 +1546,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
             floors strip sits just before the fold that opens it. */}
         {hasKeys && <LayerDetailsDock dock={keysDock} trigger={layersFold} id={`${foldIds}-layers`}
           short={shortLayerDetails} expanded={drawer === 'layers'} close={() => setDrawer(null)}>
-          {active.map(layer => <OverlayKey key={layer.kind} layer={layer} records={runtime.records}
+          {active.map(layer => <OverlayKey key={layer.kind} layer={layer} records={runtime.records} stored={runtime.stored}
             connectionCoverage={layer.kind === 'network' ? networkConnections.coverage : null}
             buildings={runtime.buildings}
             publishedOnly={!runtimeConfigured} openDocuments={environment.openDocuments && (() => {
@@ -1946,9 +1967,11 @@ function SourceDetails({ model, occurrence, room, renderFailure, overlayReason, 
 
 const COVERAGE_TEXT = { available: 'Available', partial: 'Partial', unavailable: 'Unavailable' } as const;
 
-function OverlayKey({ layer, openNetwork, availability, records, buildings, openDocuments, publishedOnly, graph, connectionCoverage }: {
+function OverlayKey({ layer, openNetwork, availability, records, stored, buildings, openDocuments, publishedOnly, graph, connectionCoverage }: {
   readonly layer: OverlayLayerIndex; readonly openNetwork: (() => void) | undefined; readonly openDocuments: (() => void) | undefined;
   readonly records: PropertyRecords | null; readonly availability: 'available' | 'partial' | 'unavailable' | 'loading';
+  /** Set while some building shows the copy last loaded on this device. */
+  readonly stored: OverlayFeedSnapshot['stored'];
   readonly publishedOnly: boolean;
   readonly buildings: readonly BuildingCoverage[];
   readonly connectionCoverage: NetworkConnections['coverage'] | null;
@@ -1970,11 +1993,14 @@ function OverlayKey({ layer, openNetwork, availability, records, buildings, open
       {/* A count only where the source answered; unavailable is not zero. */}
       <span className={`ua-key-count${availability === 'unavailable' || availability === 'partial' ? ' is-warn' : ''}`}>
         {availability === 'loading' ? 'Loading' : availability === 'unavailable' ? 'Unavailable'
-          : `${plural(layer.records, 'record')}${availability === 'partial' ? ', partial' : ''}${layer.unplacedRecords > 0 ? `, ${layer.unplacedRecords.toLocaleString()} not placed` : ''}`}
+          : `${plural(layer.records, 'record')}${availability === 'partial' ? ', partial' : ''}${layer.unplacedRecords > 0 ? `, ${layer.unplacedRecords.toLocaleString()} not placed` : ''}${stored ? ', stored' : ''}`}
       </span>
       <Icon name="chevronDown" size={16} />
     </button>
     <div className="ua-key-body" id={bodyId} hidden={closed}>
+      {stored && <p className="ua-key-stored" role="status" aria-busy={stored.refreshing}><Icon name="history" size={15} />
+        <span>Copy last loaded on this device, <time dateTime={stored.storedAt} title={stored.storedAt}>{stampTime(stored.storedAt)}</time>
+          {stored.refreshing ? '; updating.' : '; not updated, the source is unreachable.'}</span></p>}
       <p>{availability === 'loading' ? 'Loading room sources…' : availability === 'unavailable' ? 'Current room sources are unavailable.'
         : availability === 'partial' ? 'Some buildings or sources are unavailable; their records are not counted.'
         : publishedOnly && layer.records === 0 ? 'No source references in this publication.'

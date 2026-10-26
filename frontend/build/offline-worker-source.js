@@ -21,11 +21,18 @@ self.addEventListener('install', event => event.waitUntil((async () => {
   // Changed worker code has a distinct BUILD/name; never delete active bytes.
   if (await ready()) { await self.skipWaiting(); return; }
   const cache = await caches.open(NAME);
+  // Hashed assets an earlier build already verified are copied, not downloaded
+  // again; each copy passes this build's own pin like a network response.
+  const earlier = await Promise.all((await caches.keys()).filter(name => name.startsWith(PREFIX) && name !== NAME).map(name => caches.open(name)));
+  const reuse = async (url, pin) => {
+    for (const old of earlier) { try { return await verified(await old.match(url), pin); } catch { /* not held or changed */ } }
+    return null;
+  };
   try {
     for (const pin of TABLE) {
       const url = new URL(pin.path, self.location.origin);
-      const response = await fetch(url, { credentials: 'omit', redirect: 'error', cache: 'reload' });
-      await verified(response, pin); await cache.put(url, response);
+      const response = await reuse(url, pin) ?? await verified(await fetch(url, { credentials: 'omit', redirect: 'error', cache: 'reload' }), pin);
+      await cache.put(url, response);
     }
     await cache.put(MARKER, new Response(BUILD, { headers: { 'content-type': 'text/plain' } }));
     await self.skipWaiting();

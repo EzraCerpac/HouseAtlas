@@ -48,6 +48,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
   const pageStart = selectedCursor?.start ?? 0, previouslyUnreadable = selectedCursor?.unreadable ?? false;
   const payload = useRef<HTMLDivElement>(null), closer = useRef<HTMLButtonElement>(null);
   const currentRef = useRef(current); currentRef.current = current;
+  const deliberateClose = useRef(false);
   const generationRef = useRef(0);
   const activeDrawing = useRef<{ frame: NativeEvidenceDocumentFrame; url: string; generation: number; withdraw: () => boolean } | null>(null);
   const drawingCurrent = (expected: NonNullable<typeof shown>) => currentRef.current()
@@ -61,7 +62,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
   };
   useLayoutEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    return () => { if (opener?.isConnected) opener.focus(); };
+    return () => { if (deliberateClose.current && currentRef.current() && opener?.isConnected) opener.focus(); };
   }, []);
   useLayoutEffect(() => {
     if (!selectedCursor && cursor) setCursor(null);
@@ -300,7 +301,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
     setStatus('The saved PNG could not be rendered. Close it and try again.');
   };
   const keys = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key === 'Escape') { event.preventDefault(); stageMark('scene-drawing', 'drawing-close', { input: 'keyboard' }); onClose(); return; }
+    if (event.key === 'Escape') { event.preventDefault(); stageMark('scene-drawing', 'drawing-close', { input: 'keyboard' }); deliberateClose.current = true; onClose(); return; }
     if (event.key !== 'Tab') return;
     const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), summary, [tabindex="0"]')];
     const first = controls[0], last = controls.at(-1);
@@ -311,7 +312,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
     aria-label={sheet.title} onKeyDown={keys}>
     <header><div><h3>{sheet.title}</h3><p>Historical drawing · reference PDF page {sheet.pdfPage}</p></div>
       <button ref={closer} type="button" className="chip-btn" onClick={event => {
-        stageMark('scene-drawing', 'drawing-close', { input: event.detail === 0 ? 'keyboard' : 'pointer' }); onClose();
+        stageMark('scene-drawing', 'drawing-close', { input: event.detail === 0 ? 'keyboard' : 'pointer' }); deliberateClose.current = true; onClose();
       }}>Close drawing</button></header>
     {provenance && <details className="native-drawing-provenance" style={{ overflowWrap: 'anywhere' }}>
       <summary>Drawing source review</summary>

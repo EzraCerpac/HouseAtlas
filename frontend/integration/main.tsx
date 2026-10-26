@@ -22,7 +22,7 @@ import { createTopologyClient } from "../src/api/topology-client";
 import { createNetworkRelationsClient } from "../src/api/network-relations-client";
 import { createNativeGeometryReadClient, signOutWithScanCleanup } from "./native-geometry-read-client";
 import type { NativeGeometryScanCache } from "./native-geometry-scan-cache";
-import type { UnifiedAtlasCache } from "./unified-atlas-cache";
+import type { AtlasCacheActor, UnifiedAtlasCache } from "./unified-atlas-cache";
 import { createNativeEvidenceDocumentClient } from "./native-evidence-document-client";
 import { createNativeSceneAssociationClient } from "./native-scene-association-client";
 import { createNativeSceneSourceClient } from "./native-scene-source-client";
@@ -50,6 +50,14 @@ import "../src/ai/ai.css";
 import "../src/ai/host/host.css";
 import type { AiApplicationPort } from "../src/ai/host/index.js";
 
+// After each launch, keep the public Saved shell and the root offline entry on
+// this build, so a later launch without the server opens the Saved entry with
+// the last Atlas copy and the waiting outbox. Registered before anything else
+// here can fail. Public build files only; a failure leaves every launch to the
+// network, as before.
+addEventListener("load", () => setTimeout(() => {
+  void import("../src/offline/shell").then(module => module.verifySavedShell()).catch(() => undefined);
+}, 3_000), { once: true });
 const element = document.getElementById("root");
 if (!element) throw new Error("HouseAtlas root missing");
 const root = element;
@@ -102,6 +110,18 @@ const getAtlasStore = () => atlasStore ??= import("./unified-atlas-cache").then(
   const store = module.openUnifiedAtlasStore(typeof indexedDB === "undefined" ? undefined : indexedDB);
   await store.ready(); return store;
 });
+let atlasActor: Promise<AtlasCacheActor | null> = Promise.resolve(null);
+/** Only completed canonical observations select the account whose historical
+ * copy may open offline. An unavailable session read keeps the prior witness;
+ * pending reads, cached IDs and outbox rows never become live authority. */
+function observeAtlasActor(value: AtlasSessionInfo | null): void {
+  const generation = sessionGeneration;
+  const current = () => generation === sessionGeneration && currentSession === value;
+  atlasCacheOwner = null;
+  atlasActor = Promise.all([import("./unified-atlas-cache"), getAtlasStore()])
+    .then(([module, store]) => current() ? module.observeUnifiedAtlasActor(store, value?.actorId ?? null, current) : null)
+    .catch(() => null);
+}
 const nativeSignOut = nativeSessions.signOut;
 const nativeLocalAccess = nativeSessions.localAccess;
 const nativeLocalSignIn = nativeLocalAccess?.signIn;
@@ -131,6 +151,7 @@ const sessions: AtlasSessionClient = {
     signal.throwIfAborted();
     if (generation !== sessionGeneration) throw new Error("Session changed during rotation");
     currentSession = value;
+    observeAtlasActor(value);
     captureDrafts.observeCanonical(value);
     quantityChanged();
     return value;
@@ -144,7 +165,7 @@ const sessions: AtlasSessionClient = {
     currentReadyView = null;
     quantityChanged();
     const value = await nativeSessions.session(signal);
-    if (!signal.aborted && generation === sessionGeneration) { currentSession = value; captureDrafts.observeCanonical(value); quantityChanged(); }
+    if (!signal.aborted && generation === sessionGeneration) { currentSession = value; observeAtlasActor(value); captureDrafts.observeCanonical(value); quantityChanged(); }
     return value;
   },
   async signIn(credentials, signal) {
@@ -158,7 +179,7 @@ const sessions: AtlasSessionClient = {
     let value: AtlasSessionInfo;
     try { value = await canonicalSignIn(await nativeSessions.signIn(credentials, signal), signal); }
     finally { captureDrafts.announceSessionChange(); }
-    if (!signal.aborted && generation === sessionGeneration) { currentSession = value; captureDrafts.observeCanonical(value); quantityChanged(); }
+    if (!signal.aborted && generation === sessionGeneration) { currentSession = value; observeAtlasActor(value); captureDrafts.observeCanonical(value); quantityChanged(); }
     return value;
   },
   ...(nativeSignOut ? { async signOut(signal: AbortSignal) {
@@ -171,6 +192,7 @@ const sessions: AtlasSessionClient = {
     quantityChanged();
     await signOutWithScanCleanup(() => nativeSignOut(signal), async () => {
       atlasCacheOwner = null;
+      atlasActor = Promise.resolve(null);
       await Promise.all([getScanCache().then(cache => cache.clear()).catch(() => undefined),
         getAtlasStore().then(store => store.clear()).catch(() => undefined)]);
       captureDrafts.announceSessionChange();
@@ -192,7 +214,7 @@ const sessions: AtlasSessionClient = {
       let value: AtlasSessionInfo;
       try { value = await canonicalSignIn(await nativeLocalSignIn(signal), signal); }
       finally { captureDrafts.announceSessionChange(); }
-      if (!signal.aborted && generation === sessionGeneration) { currentSession = value; captureDrafts.observeCanonical(value); quantityChanged(); }
+      if (!signal.aborted && generation === sessionGeneration) { currentSession = value; observeAtlasActor(value); captureDrafts.observeCanonical(value); quantityChanged(); }
       return value;
     } } : {}),
     ...(nativeProxySignIn ? { async proxySignIn(signal: AbortSignal) {
@@ -207,7 +229,7 @@ const sessions: AtlasSessionClient = {
       let value: AtlasSessionInfo;
       try { value = await canonicalSignIn(await nativeProxySignIn(signal), signal); }
       finally { captureDrafts.announceSessionChange(); }
-      if (!signal.aborted && generation === sessionGeneration) { currentSession = value; captureDrafts.observeCanonical(value); quantityChanged(); }
+      if (!signal.aborted && generation === sessionGeneration) { currentSession = value; observeAtlasActor(value); captureDrafts.observeCanonical(value); quantityChanged(); }
       return value;
     } } : {}),
   } } : {}),
@@ -485,8 +507,8 @@ function atlasCache(selection: ModelOverviewSelection): Promise<UnifiedAtlasCach
   if (!session?.actorId || currentOverview() !== selection) return Promise.resolve(null);
   const owner = { actorId: session.actorId, workspaceId: selection.scope.workspaceId, homeId: selection.scope.homeId };
   const key = JSON.stringify(owner);
-  if (atlasCacheOwner?.key !== key) atlasCacheOwner = { key, cache: Promise.all([import('./unified-atlas-cache'), getAtlasStore()])
-    .then(([module, store]) => module.createUnifiedAtlasCache(store, owner), () => null) };
+  if (atlasCacheOwner?.key !== key) atlasCacheOwner = { key, cache: Promise.all([import('./unified-atlas-cache'), getAtlasStore(), atlasActor])
+    .then(([module, store, actor]) => module.createUnifiedAtlasCache(store, owner, actor), () => null) };
   return atlasCacheOwner.cache;
 }
 const sourceModels: SourceModelPort = {
@@ -518,6 +540,22 @@ const sourceModels: SourceModelPort = {
       return createUnifiedAtlasReviewedOverlays({ selection, scene, building, signal,
         native: Object.freeze({ sessionIdentity: session, session, view, admission }),
         origin: window.location.origin, isCurrent: current, subscribe: subscribeOverview, createDocuments: makeSceneDocumentOwner });
+    },
+    // Overlay records last projected on this device for the same scene; the
+    // Atlas shows them only where no current frame is held.
+    async storedOverlays(selection, scene, selectable, signal) {
+      const [cache, codec] = await Promise.all([atlasCache(selection), import('../src/lantern/unified-atlas/stored-overlays')]);
+      signal.throwIfAborted();
+      if (!cache || currentOverview() !== selection || scene.scope.homeId !== selection.scope.homeId) return null;
+      const bytes = await cache.overlays(scene.publication.publicationId, scene.selection.revision, scene.publication.semanticsSha256);
+      signal.throwIfAborted();
+      return bytes && currentOverview() === selection ? codec.decodeStoredOverlays(bytes, scene, selectable) : null;
+    },
+    keepOverlays(selection, scene, overlays) {
+      void Promise.all([atlasCache(selection), import('../src/lantern/unified-atlas/stored-overlays')]).then(([cache, codec]) => {
+        if (!cache || currentOverview() !== selection || scene.scope.homeId !== selection.scope.homeId) return;
+        cache.keepOverlays(scene.publication.publicationId, scene.selection.revision, scene.publication.semanticsSha256, codec.encodeStoredOverlays(scene, overlays));
+      }, () => undefined);
     },
     async read(selection, signal) {
       const controller = new AbortController();
