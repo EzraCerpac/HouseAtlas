@@ -144,6 +144,9 @@ export interface UnifiedAtlasPort {
   /** The last verified read of this exact selection's publication and
    * manifest kept on this device, or null. Display only: `read` still runs. */
   stored?(selection: ModelOverviewSelection, signal: AbortSignal): Promise<StoredAtlasRead | null>;
+  /** The scene's optional detail GLB bytes (`scene.detail`), verified against
+   * its pin, for a device on Full quality. `scene` is from a fresh `read`. */
+  readDetail?(selection: ModelOverviewSelection, scene: AtlasScene, signal: AbortSignal): Promise<Uint8Array<ArrayBuffer>>;
   /** The building the Atlas opens on, bound by the source owner for this
    * publication. Never inferred from names, plan order or size; an absent or
    * unknown ID opens the only building with floors, else the whole property. */
@@ -174,6 +177,7 @@ export interface LiveAtlasPresentationPort {
   subscribe(changed: () => void): () => void;
   read(selection: LiveAtlasSelection, signal: AbortSignal): Promise<UnifiedAtlasRead>;
   stored?(selection: LiveAtlasSelection, signal: AbortSignal): Promise<StoredAtlasRead | null>;
+  readDetail?(selection: LiveAtlasSelection, scene: AtlasScene, signal: AbortSignal): Promise<Uint8Array<ArrayBuffer>>;
   entryBuildingId?(scene: AtlasScene): string | null;
   readonly savedDocumentary?: UnifiedAtlasPort['savedDocumentary'];
   createOverlays?(selection: LiveAtlasSelection, scene: AtlasScene, building: AtlasBuilding, signal: AbortSignal): ReturnType<NonNullable<UnifiedAtlasPort['createOverlays']>>;

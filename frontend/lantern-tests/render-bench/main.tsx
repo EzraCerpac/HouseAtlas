@@ -2,7 +2,7 @@
 // served overview (about 1,900 primitives, 260k triangles), drawn by MeshLayer
 // while the camera turns. Reports CPU time per frame and GPU API calls per
 // frame. Synthetic geometry only; it qualifies no model, device or deployment.
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MeshLayer } from '../../src/lantern/canonical-ifc/MeshLayer';
 import { makeProjection, prepareMeshes, type MeshInput } from '../../src/lantern/canonical-ifc/geometry';
@@ -15,6 +15,8 @@ const PIECES = Number(params.get('pieces') ?? 1882);
 
 /** Calls per frame, counted on the prototypes so every context is included. */
 const calls = { gl: 0, gpu: 0 };
+/** WebGL draw calls per canvas, so a swap can tell which canvas drew. */
+const canvasDraws = new WeakMap<object, number>();
 for (const proto of [globalThis.WebGLRenderingContext?.prototype, globalThis.WebGL2RenderingContext?.prototype]) {
   if (!proto) continue;
   for (const name of Object.getOwnPropertyNames(proto)) {
@@ -22,7 +24,9 @@ for (const proto of [globalThis.WebGLRenderingContext?.prototype, globalThis.Web
     if (!d || typeof d.value !== 'function' || name === 'constructor') continue;
     // getError forces a round trip to the GPU process; skip it so frames measure submission, not the software GPU.
     const fn = d.value; Object.defineProperty(proto, name, { ...d, value: name === 'getError' ? function () { calls.gl++; return 0; }
-      : function (this: unknown, ...a: unknown[]) { calls.gl++; return fn.apply(this, a); } });
+      : name.startsWith('draw') ? function (this: WebGLRenderingContext, ...a: unknown[]) {
+        calls.gl++; canvasDraws.set(this.canvas, (canvasDraws.get(this.canvas) ?? 0) + 1); return fn.apply(this, a);
+      } : function (this: unknown, ...a: unknown[]) { calls.gl++; return fn.apply(this, a); } });
   }
 }
 for (const cls of ['GPURenderPassEncoder', 'GPUCommandEncoder', 'GPUQueue', 'GPURenderBundleEncoder'] as const) {
@@ -77,8 +81,41 @@ function house(): MeshInput[] {
   return meshes;
 }
 
+/** Swaps in a second prepared set, as a Full model replaces Light, and records
+ * the fewest canvases on screen at any moment until the new set is shown alone,
+ * and how many WebGL draws the new canvas made before the old one went. */
+function watchSwap(root: HTMLElement) {
+  const visible = () => [...root.querySelectorAll('canvas')].filter(canvas => !canvas.hidden && canvas.style.visibility !== 'hidden').length;
+  const old = root.querySelector('canvas');
+  let next: HTMLCanvasElement | null = null;
+  const report = { fewestVisible: visible(), mostCanvases: root.querySelectorAll('canvas').length, newDrawsWhenShown: -1, done: false };
+  const observer = new MutationObserver(() => {
+    const canvases = [...root.querySelectorAll('canvas')];
+    next ??= canvases.find(canvas => canvas !== old) ?? null;
+    report.fewestVisible = Math.min(report.fewestVisible, visible());
+    report.mostCanvases = Math.max(report.mostCanvases, canvases.length);
+    if (report.mostCanvases > 1 && canvases.length === 1 && visible() === 1) {
+      // WebGL draws only; WebGPU submissions carry no canvas.
+      report.newDrawsWhenShown = next ? canvasDraws.get(next) ?? 0 : -1; report.done = true; observer.disconnect();
+    }
+  });
+  observer.observe(root, { subtree: true, childList: true, attributes: true });
+  return report;
+}
+
 function Bench() {
-  const meshes = useMemo(() => prepareMeshes(house()), []);
+  const [generation, setGeneration] = useState(0);
+  // Each generation is a new prepared set of the same house.
+  const meshes = useMemo(() => prepareMeshes(house()), [generation]);
+  const generations = useMemo(() => new WeakMap<object, number>(), []); generations.set(meshes, generation);
+  const onShown = useCallback((set: readonly object[]) => {
+    const log = (window as unknown as { shownSets?: number[] }); (log.shownSets ??= []).push(generations.get(set) ?? -1);
+  }, [generations]);
+  useEffect(() => {
+    (window as unknown as { swap: () => unknown }).swap = () => {
+      const report = watchSwap(document.getElementById('root')!); setGeneration(value => value + 1); return report;
+    };
+  }, []);
   const bounds = useMemo(() => {
     const min: [number, number, number] = [Infinity, Infinity, Infinity], max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
     for (const m of meshes) for (let a = 0; a < 3; a++) { min[a] = Math.min(min[a]!, m.bounds.min[a]!); max[a] = Math.max(max[a]!, m.bounds.max[a]!); }
@@ -111,10 +148,12 @@ function Bench() {
         renderer: document.querySelector('canvas')?.dataset.renderer, triangles: meshes.reduce((s, m) => s + m.triangles, 0), pieces: meshes.length };
     }, 40);
     return () => clearInterval(id);
-  }, [meshes]);
+    // Measured once, on the first set.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return <><output>{failure}</output>
     <MeshLayer meshes={meshes} projection={projection} rules={RULES} currentFloorId="L1" selectedOccurrenceId={selected}
       contextOccurrenceIds={CONTEXT} tints={TINTS} hidden={false} sourceColors sourceDim={.6} ambient={.55}
-      twoSided shade="#5F6B7E" light={LIGHT} pitch="#C9A27E" ghostAlpha={.2} {...look} onUnavailable={setFailure} /></>;
+      twoSided shade="#5F6B7E" light={LIGHT} pitch="#C9A27E" ghostAlpha={.2} {...look} onUnavailable={setFailure} onShown={onShown} /></>;
 }
 createRoot(document.getElementById('root')!).render(<Bench />);

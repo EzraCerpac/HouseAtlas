@@ -93,7 +93,8 @@ house of boxes and the embedded-material samples), serves them on an owned
 loopback listener and draws them through MeshLayer, which renders with
 three.js. It checks the backend, that a frame costs a handful of GPU calls
 however many primitives there are, the selection tone, the ghost veil and the
-texture detail in the screenshots.
+texture detail in the screenshots. It also swaps in a second mesh set, as the
+Full model replaces Light, and checks that a canvas stays on screen throughout.
 
 ```sh
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2   # in the healthy suite

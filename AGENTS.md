@@ -56,7 +56,7 @@ its explicit list, including the `offline-launch` and `hung-network` cases in
 the runner's Chromium against the built public shell, the generated CPU
 mesh-preparation equivalence check, the `webgl2` case of
 `mesh-layer-browser.mjs`, which draws generated meshes through MeshLayer in the
-runner's software GPU, and the generated Unified Atlas compact layer-details
+runner's software GPU and swaps in a second mesh set without a blank frame, and the generated Unified Atlas compact layer-details
 and control-names checks (compiled source and markup only, no browser), the
 generated WebMCP batch-discovery descriptor check (schema bytes only), and
 the generated offline outbox check (synthetic IndexedDB and a generated
