@@ -187,7 +187,8 @@ try {
   }
 } finally {
   await cdp.send('Browser.close').catch(() => {});
-  browser.kill();
+  if (browser.exitCode === null) await new Promise(done => { browser.once('exit', done); browser.kill(); setTimeout(done, 5000); });
   server.close();
-  rmSync(scratch, { recursive: true, force: true });
+  // Chromium's helpers can still be closing profile files for a moment after the browser exits.
+  rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
