@@ -540,11 +540,16 @@ const gridTriangles = (glb, grid) => {
     return out.sort();
   }));
 };
-const lockedSlots = result => new Set(result.report.primitives.filter(p => ['room-pick', 'slab'].includes(p.role)).map(p => `${p.mesh}/${p.primitive}`));
+const lockedSlots = result => new Set(result.report.primitives.filter(p => ['room-pick', 'slab'].includes(p.role)).map(p => `${p.bakedMesh}/${p.primitive}`));
 
 test('compresses with the same triangles, positions on the grid and locked parts byte for byte', async () => {
-  const { glb: master, companion } = syntheticMaster();
-  for (const plain of [await bakeOverview(master, companion, { triangles: 20000 }), await bakeDetail(master, companion)]) {
+  // An unused mesh before the slab shifts every baked mesh index: the locks follow the baked slots.
+  const plains = [];
+  for (const options of [{}, { unusedMesh: true }]) {
+    const { glb: master, companion } = syntheticMaster(options);
+    plains.push(await bakeOverview(master, companion, { triangles: 20000 }), await bakeDetail(master, companion));
+  }
+  for (const plain of plains) {
     const { glb, report } = await compressGlb(plain.glb, { companion: plain.companion, locked: lockedSlots(plain) });
     const { json } = readGlb(glb);
     assert.deepEqual(json.extensionsRequired, [MESHOPT]);
@@ -567,6 +572,27 @@ test('compresses with the same triangles, positions on the grid and locked parts
     assert.ok(after.decodedBytes > glb.byteLength && after.decodeMs >= 0);
     assert.equal(before.decodedBytes, undefined);
   }
+});
+
+test('copies one-byte indices as authored and writes a file with nothing to encode plainly', async () => {
+  // Four vertices, the first unreferenced, and one triangle with unsigned-byte indices.
+  const positions = Float32Array.from([9, 9, 9, 0, 0, 0, 1, 0, 0, 0, 1, 0]), indices = Uint8Array.from([3, 1, 2, 0]);
+  const bin = new Uint8Array(positions.byteLength + 4);
+  bin.set(new Uint8Array(positions.buffer)); bin.set(indices, positions.byteLength);
+  const glb = writeGlb({ asset: { version: '2.0' }, scene: 0, scenes: [{ nodes: [0] }], nodes: [{ mesh: 0 }],
+    meshes: [{ primitives: [{ attributes: { POSITION: 0 }, indices: 1 }] }],
+    accessors: [{ bufferView: 0, componentType: 5126, count: 4, type: 'VEC3', min: [0, 0, 0], max: [9, 9, 9] }, { bufferView: 1, componentType: 5121, count: 3, type: 'SCALAR' }],
+    bufferViews: [{ buffer: 0, byteOffset: 0, byteLength: positions.byteLength }, { buffer: 0, byteOffset: positions.byteLength, byteLength: 3 }],
+    buffers: [{ byteLength: bin.byteLength }] }, bin);
+  const { glb: compressed, report } = await compressGlb(glb);
+  assert.equal(report.reorderedPrimitives, 0);
+  const { json, bin: out } = readGlb(await expandInViewer(compressed));
+  assert.deepEqual([...readAccessor(json, out, 1)], [3, 1, 2]);
+  assert.deepEqual(readAccessor(json, out, 0), positions);
+  // Locked throughout: no view is encoded, so the plain bytes come back unchanged.
+  const locked = await compressGlb(glb, { locked: new Set(['0/0']) });
+  assert.equal(locked.glb, glb);
+  assert.equal(locked.report.compressedViews, 0);
 });
 
 test('a snapped vertex never leaves a bound the server checks', async () => {

@@ -89,10 +89,29 @@ export async function compressGlb(plainBytes, { companion = null, locked = new S
   const values = new Map();
   const read = at => values.get(at) ?? readAccessor(source, bin, at);
   let reordered = 0, snapped = 0, kept = 0, displacement = 0;
+  // One stream per view: the accessor it holds, or the image bytes.
+  const viewAccessor = new Map();
+  source.accessors.forEach((accessor, at) => viewAccessor.set(accessor.bufferView, viewAccessor.has(accessor.bufferView) ? null : at));
+  const indexAccessors = new Set(source.meshes.flatMap(mesh => mesh.primitives.map(p => p.indices)).filter(at => at !== undefined));
+  // Locked primitives stay byte for byte, so their views are not encoded at all.
+  const lockedAccessors = new Set(source.meshes.flatMap((mesh, m) => mesh.primitives.flatMap((p, i) => locked.has(key(m, i))
+    ? [...Object.values(p.attributes), ...(p.indices === undefined ? [] : [p.indices])] : [])));
+  const element = accessor => COMPONENTS[accessor.type] * COMPONENT_BYTES[accessor.componentType];
+  /** How an accessor's view is encoded, or null when it is copied as it is: a
+   * view it shares, an offset or interleaved layout, a locked primitive, or a
+   * layout meshopt cannot hold (one-byte indices, vertices not a multiple of 4). */
+  const modeOf = at => {
+    const accessor = source.accessors[at], view = source.bufferViews[accessor.bufferView], size = element(accessor);
+    if (viewAccessor.get(accessor.bufferView) !== at || accessor.byteOffset || lockedAccessors.has(at)
+      || view.byteStride !== undefined && view.byteStride !== size) return null;
+    if (indexAccessors.has(at)) return size !== 1 && accessor.count % 3 === 0 ? 'TRIANGLES' : null;
+    return size % 4 === 0 ? 'ATTRIBUTES' : null;
+  };
 
   json.meshes.forEach((mesh, meshIndex) => mesh.primitives.forEach((primitive, primitiveIndex) => {
     const slot = key(meshIndex, primitiveIndex), accessors = [...Object.values(primitive.attributes), primitive.indices];
-    if (locked.has(slot) || primitive.indices === undefined || !accessors.every(at => sole.get(at) === slot)) return;
+    // Only primitives whose every view is encoded are rewritten; copied views keep their source bytes.
+    if (locked.has(slot) || primitive.indices === undefined || !accessors.every(at => sole.get(at) === slot && modeOf(at) !== null)) return;
     // Same triangles in vertex-cache order, vertices in first-use order; unreferenced vertices drop.
     const indices = Uint32Array.from(read(primitive.indices)), [remap, unique] = MeshoptEncoder.reorderMesh(indices, true, false);
     for (const [name, at] of Object.entries(primitive.attributes)) {
@@ -118,39 +137,31 @@ export async function compressGlb(plainBytes, { companion = null, locked = new S
     reordered++;
   }));
 
-  // One stream per view: the accessor it holds, or the image bytes.
-  const viewAccessor = new Map();
-  json.accessors.forEach((accessor, at) => viewAccessor.set(accessor.bufferView, viewAccessor.has(accessor.bufferView) ? null : at));
-  const indexAccessors = new Set(json.meshes.flatMap(mesh => mesh.primitives.map(p => p.indices)).filter(at => at !== undefined));
-  // Locked primitives stay byte for byte, so their views are not encoded at all.
-  const lockedAccessors = new Set(json.meshes.flatMap((mesh, m) => mesh.primitives.flatMap((p, i) => locked.has(key(m, i))
-    ? [...Object.values(p.attributes), ...(p.indices === undefined ? [] : [p.indices])] : [])));
   const out = [];
   let binLength = 0, fallbackLength = 0, compressedViews = 0;
   const place = bytes => { const offset = binLength; out.push(bytes); binLength += pad(bytes.byteLength); return offset; };
   json.bufferViews = source.bufferViews.map((view, at) => {
     const accessorIndex = viewAccessor.get(at), accessor = accessorIndex == null ? null : json.accessors[accessorIndex];
     const start = view.byteOffset ?? 0, original = bin.subarray(start, start + view.byteLength);
-    if (!accessor || accessor.byteOffset || lockedAccessors.has(accessorIndex)) return { ...view, buffer: 0, byteOffset: place(original) };
-    // Only tightly packed views are encoded; reordering only touches those.
-    if (view.byteStride !== undefined && view.byteStride !== COMPONENTS[accessor.type] * COMPONENT_BYTES[accessor.componentType])
-      return { ...view, buffer: 0, byteOffset: place(original) };
-    const array = read(accessorIndex), bytes = new Uint8Array(array.buffer, array.byteOffset, array.byteLength);
-    const element = COMPONENTS[accessor.type] * COMPONENT_BYTES[accessor.componentType], isIndex = indexAccessors.has(accessorIndex);
-    const mode = isIndex && element !== 1 && accessor.count % 3 === 0 ? 'TRIANGLES' : !isIndex && element % 4 === 0 ? 'ATTRIBUTES' : null;
+    const mode = accessorIndex == null ? null : modeOf(accessorIndex);
     if (!mode) return { ...view, buffer: 0, byteOffset: place(original) };
-    const encoded = MeshoptEncoder.encodeGltfBuffer(bytes, accessor.count, element, mode, 0);
+    const array = read(accessorIndex), bytes = new Uint8Array(array.buffer, array.byteOffset, array.byteLength), size = element(accessor);
+    const encoded = MeshoptEncoder.encodeGltfBuffer(bytes, accessor.count, size, mode, 0);
     const check = new Uint8Array(bytes.byteLength);
-    MeshoptDecoder.decodeGltfBuffer(check, accessor.count, element, encoded, mode);
+    MeshoptDecoder.decodeGltfBuffer(check, accessor.count, size, encoded, mode);
     // The index codec may rotate a triangle's corners (winding kept); vertex streams decode byte for byte.
     if (!(mode === 'TRIANGLES' ? sameTriangles(array, new array.constructor(check.buffer)) : check.every((byte, i) => byte === bytes[i])))
       throw new Error(`Buffer view ${at} did not survive its meshopt round trip`);
     compressedViews++;
     const decodedAt = fallbackLength; fallbackLength += pad(bytes.byteLength);
     const { byteStride: _stride, ...rest } = view;
-    return { ...rest, buffer: 1, byteOffset: decodedAt, byteLength: bytes.byteLength, ...(mode === 'ATTRIBUTES' ? { byteStride: element } : {}),
-      extensions: { [MESHOPT]: { buffer: 0, byteOffset: place(encoded), byteLength: encoded.byteLength, byteStride: element, count: accessor.count, mode } } };
+    return { ...rest, buffer: 1, byteOffset: decodedAt, byteLength: bytes.byteLength, ...(mode === 'ATTRIBUTES' ? { byteStride: size } : {}),
+      extensions: { [MESHOPT]: { buffer: 0, byteOffset: place(encoded), byteLength: encoded.byteLength, byteStride: size, count: accessor.count, mode } } };
   });
+  // Nothing to encode (only locked or unencodable views): the plain file is the output.
+  if (compressedViews === 0) return { glb: plainBytes, report: { codec: null, plainBytes: plainBytes.byteLength, bytes: plainBytes.byteLength, ratio: 1,
+    gridMetres: grid, maxDisplacementMetres: 0, snappedPrimitives: 0, verticesKeptInsideBounds: 0, reorderedPrimitives: 0, compressedViews: 0,
+    plainViews: source.bufferViews.length } };
   const outBin = new Uint8Array(binLength);
   let at = 0;
   for (const part of out) { outBin.set(part, at); at += pad(part.byteLength); }

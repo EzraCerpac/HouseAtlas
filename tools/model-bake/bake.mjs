@@ -57,7 +57,7 @@ const plain = await bakeOverview(master, companion, overrides), { report } = pla
 // Transfer compression (EXT_meshopt_compression). The viewer and the server
 // expand it before any check, so admission below runs on the decoded file;
 // the companion pins the compressed bytes that are served.
-const locked = new Set(report.primitives.filter(row => LOCKED_ROLES.includes(row.role)).map(row => `${row.mesh}/${row.primitive}`));
+const locked = new Set(report.primitives.filter(row => LOCKED_ROLES.includes(row.role)).map(row => `${row.bakedMesh}/${row.primitive}`));
 const compress = async (bytes, pinned) => {
   if (values.plain) return { glb: bytes, companion: pinned };
   const compressed = await compressGlb(bytes, { companion: pinned, locked, grid });

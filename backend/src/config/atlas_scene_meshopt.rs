@@ -42,8 +42,10 @@ pub(super) fn expand(glb: &[u8], buffer_bytes: usize) -> Result<Option<Vec<u8>>,
                 .map_err(|_| invalid())?,
         ) as usize)
     };
+    // The served container itself must be valid: its replacement header is new.
+    need(glb.get(..4) == Some(b"glTF") && word(4)? == 2 && word(8)? == glb.len())?;
     let json_len = word(12)?;
-    need(json_len <= 8 * 1024 * 1024 && word(16)? == 0x4e4f_534a)?;
+    need(json_len <= 8 * 1024 * 1024 && json_len.is_multiple_of(4) && word(16)? == 0x4e4f_534a)?;
     let mut gltf =
         crate::contracts::v2::parse_value(glb.get(20..20 + json_len).ok_or_else(invalid)?)
             .map_err(|_| invalid())?;
@@ -507,5 +509,11 @@ mod healthy {
                 .remove("extensions");
         });
         assert!(expand(&plain_on_fallback, 32 << 20).is_err());
+        // A served header that lies about the file is refused before expansion.
+        for (at, value) in [(0usize, 0u32), (4, 1), (8, 7)] {
+            let mut broken = compressed.clone();
+            broken[at..at + 4].copy_from_slice(&value.to_le_bytes());
+            assert!(expand(&broken, 32 << 20).is_err());
+        }
     }
 }
