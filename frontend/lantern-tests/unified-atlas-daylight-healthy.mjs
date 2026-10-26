@@ -140,7 +140,10 @@ assert.deepEqual(night([
   { emissiveFactor: [.9, .7, .4] }, { emissiveFactor: [0, 0, 0] }, { alphaMode: 'BLEND', pbrMetallicRoughness: { baseColorFactor: [.5, .6, .7, .3] } },
   { alphaMode: 'BLEND', pbrMetallicRoughness: { baseColorFactor: [.5, .6, .7, 1] } }, { name: 'Clear glazing' }, { name: 'Porch lamp glass' },
   { name: 'Bulb' }, { name: 'Lamp housing metal' }, { name: 'Glassy paint', emissiveFactor: [0, 0, 0] }, {},
-]), ['emitter', undefined, 'glazing', undefined, 'glazing', 'emitter', 'emitter', undefined, undefined, undefined]);
+  { name: 'Lamp lens backing', emissiveFactor: [0, 0, 0] },
+]), ['emitter', undefined, 'glazing', undefined, 'glazing', 'emitter', 'emitter', undefined, undefined, undefined, 'glazing']);
+// The name fallback reads the material's own name only, never its mesh's or node's.
+assert.equal(primitiveNight({ meshes: [{ name: 'Lamp lens', primitives: [{ material: 0 }] }], nodes: [{ name: 'Headlamp', mesh: 0 }], materials: [{ name: 'Backing' }] }, 0, 0), undefined);
 assert.equal(primitiveNight(gltf([{}]), 0, 1), undefined, 'a primitive without a material');
 assert.equal(primitiveNight({ meshes: [{ primitives: [{}] }] }, 0, 0), undefined);
 

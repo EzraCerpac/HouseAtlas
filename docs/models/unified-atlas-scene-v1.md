@@ -384,8 +384,9 @@ bulb or a glass box, lights all around. Building glass, bound as `structure` or
 `roof`, is a material with `alphaMode: "BLEND"` and a `baseColorFactor` alpha
 below 1, not `KHR_materials_transmission`, which is refused; it shows the
 lamp-lit room behind it. Until a model carries these marks, a material whose
-name holds a generic glass word counts as glass, or as a lamp when the name
-also holds a lamp word. Day lighting ignores all of it.
+own name (never its mesh's or node's) holds a generic glass word counts as
+glass, or as a lamp when the name also holds a lamp word and the material
+states no `emissiveFactor`; a stated zero factor keeps it unlit. Day lighting ignores all of it.
 
 ## Existing bounded embedded-PNG material consumer
 

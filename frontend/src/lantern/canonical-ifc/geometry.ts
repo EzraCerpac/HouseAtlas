@@ -61,7 +61,8 @@ export function primitiveNight(json: Record<string, unknown>, meshIndex: number 
   const alpha: unknown = (pbrMetallicRoughness as { baseColorFactor?: unknown[] } | undefined)?.baseColorFactor?.[3];
   if (alphaMode === 'BLEND' && finite(alpha) && alpha < 1) return 'glazing';
   if (typeof name !== 'string' || !GLASS_WORD.test(name)) return;
-  return LAMP_WORD.test(name) ? 'emitter' : 'glazing';
+  // Only the material's own name counts, and a stated emissiveFactor (zero here) is the producer's word that it does not glow.
+  return LAMP_WORD.test(name) && emissiveFactor === undefined ? 'emitter' : 'glazing';
 }
 
 /** Source appearance never displaces an explicit selection, reference or

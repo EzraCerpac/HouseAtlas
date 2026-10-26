@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "f410dd6b1b6c23df857fe409da47d9986344214a7e1ab44cf21db02528e0fc9a",
+  "sourceDigestSha256": "4522a2b44acd10ce98550848d59ed5d0f3a561d94a3242cc41c92ad340658f6f",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6454,8 +6454,8 @@
     {
       "path": "docs/models/unified-atlas-scene-v1.md",
       "mode": "100644",
-      "bytes": 26683,
-      "sha256": "14efc34735d82b0b345b350606c9a5ad6c60148770f811aa3ac7853761bbbfda",
+      "bytes": 26797,
+      "sha256": "fef4e151ff413d9078bc4c237d65fbb25a0a1b1a8436a6b8f9fa1261eab04990",
       "owner": "core-integration"
     },
     {
@@ -8309,8 +8309,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-daylight-healthy.mjs",
       "mode": "100644",
-      "bytes": 15329,
-      "sha256": "2c29cc1eca7c5e42573d694942e6366e82926e30a217ad6fe1c3dfe7135edb5c",
+      "bytes": 15674,
+      "sha256": "1872f88ce91c34f831f645e4683ef7e74dc80f63528042520c2d9699bcf4bc5c",
       "owner": "web"
     },
     {
@@ -9212,8 +9212,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/geometry.ts",
       "mode": "100644",
-      "bytes": 22131,
-      "sha256": "d7d6194beb889d69e0cbd097bfa22c2219adb608b46a8b3d7a9d1c4f976a8ea1",
+      "bytes": 22291,
+      "sha256": "f05f5eddae237c0a1e4114ccf8e37321edf7aafe1749396eeb6a5d490aea81f9",
       "owner": "web"
     },
     {
