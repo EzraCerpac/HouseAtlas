@@ -303,11 +303,22 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const basis = new Matrix4();
     /** Places the camera so its view and projection reproduce `projection` exactly:
      * x to screen right, y to screen up, z toward the viewer, one unit = k pixels. */
-    const frame = ({ ct, st, sf, cf, k, ox, oy, center, depthRadius: r, viewport }: Projection) => {
+    // Mesh bounds, for the depth slab and the sun's view; lifts are added per frame.
+    const low = new Vector3(Infinity, Infinity, Infinity), high = new Vector3(-Infinity, -Infinity, -Infinity);
+    for (const mesh of meshes) { low.min(new Vector3(...mesh.bounds.min)); high.max(new Vector3(...mesh.bounds.max)); }
+    const frame = ({ ct, st, sf, cf, k, ox, oy, center, depthRadius, viewport }: Projection) => {
+      // The depth slab holds every mesh, not only the framed buildings: the site and its
+      // context beyond them would otherwise clamp to one far depth and overdraw each other.
+      let r = depthRadius;
+      for (let c = 0; c < 8; c++) {
+        const reach = Math.hypot((c & 1 ? high.x : low.x) - center[0], (c & 2 ? high.y : low.y) - center[1], (c & 4 ? high.z : low.z) - center[2]);
+        if (Number.isFinite(reach)) r = Math.max(r, reach * 1.05);
+      }
       camera.left = -ox / k; camera.right = (viewport.width - ox) / k; camera.top = oy / k; camera.bottom = (oy - viewport.height) / k;
-      // Far away along the view axis with the same depth slab: view rays are parallel to
-      // within 1%, which screen-space occlusion assumes, and depth stays exactly -d / r.
-      const away = 100 * r;
+      // Far away along the view axis: view rays are parallel to within 1%, which
+      // screen-space occlusion assumes. The distance follows the framed buildings, not
+      // the wider slab, so their view depth keeps its float precision on the GPU.
+      const away = 100 * depthRadius;
       camera.near = away - r; camera.far = away + r; camera.updateProjectionMatrix();
       basis.set(ct, -st * sf, st * cf, 0, 0, cf, sf, 0, -st, -ct * sf, ct * cf, 0, 0, 0, 0, 1);
       camera.quaternion.setFromRotationMatrix(basis);
@@ -417,9 +428,6 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       add(geometry, MeshPass.Reference, shared.reference, 0); add(geometry, pass, material, pass); add(geometry, 'ghost', shared.ghost, 4);
     }
 
-    // Mesh bounds, for fitting the sun's view; lifts are added per frame.
-    const low = new Vector3(Infinity, Infinity, Infinity), high = new Vector3(-Infinity, -Infinity, -Infinity);
-    for (const mesh of meshes) { low.min(new Vector3(...mesh.bounds.min)); high.max(new Vector3(...mesh.bounds.max)); }
     const corner = new Vector3();
     const drawSun = () => {
       // At night the map reaches past the house by more than a probe, so a probe
