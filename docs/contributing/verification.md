@@ -27,6 +27,13 @@ without launchd, network access or real data:
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'
 ```
 
+and the nightly backup script, including its content-addressed model store,
+against temp folders and a fake iCloud helper:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/backup -p 'test_*.py'
+```
+
 ## Healthy frontend suite
 
 `frontend/lantern-tests/run-healthy.mjs` runs every named healthy frontend

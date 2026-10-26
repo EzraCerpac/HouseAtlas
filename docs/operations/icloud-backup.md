@@ -12,20 +12,34 @@ Network source state; recover those through their own private procedures.
 1. Stops the HouseAtlas launchd service, runs `houseatlas backup` against the
    live data directory, and starts the service again. The service is offline for
    the few seconds the capture takes, and the start runs even if capture fails.
-2. Copies the model publication folders named in the service's plist and checks
-   their manifests against the hashes the service was started with.
+2. Lists every file of the model publication folders named in the service's
+   plist with its SHA-256 and size, after checking the manifests against the
+   hashes the service was started with and the model files (`overview.glb`, and
+   `detail.glb` when the manifest pins one) against the manifests' pins.
 3. Runs `houseatlas restore-check` on the bundle: a full restore into a fresh
    private folder with the capture's validation peers, then every retained
    original is read back from the restored vault and compared byte for byte.
-4. Packs the bundle, model and report into one `.tar.gz` and copies it, with a
-   `.sha256` file, into the configured iCloud Drive folder. Existing files are
-   never overwritten and nothing in iCloud is ever deleted.
-5. Waits until iCloud reports the archive uploaded, evicts the local copy,
+4. Stores each model file in the iCloud folder's `models/blobs/` once, named by
+   its SHA-256, and only if no file of that name is there yet. A release that
+   did not change since the last run therefore adds nothing; a new release adds
+   only the files whose bytes differ, so a byte-identical `detail.glb` carried
+   into a new release is not stored twice. Before the nightly archive goes up, iCloud
+   must report every file it names as uploaded, reused ones included, and this
+   run's new files are evicted locally.
+5. Packs the bundle and report into one `.tar.gz` and copies it, with a
+   `.sha256` file, into the configured iCloud Drive folder. The report lists the
+   model files and their hashes; the archive does not carry them. Existing files
+   are never overwritten and nothing in iCloud is ever deleted.
+6. Waits until iCloud reports the archive uploaded, evicts the local copy,
    downloads it again from iCloud, compares its hash, unpacks it and repeats the
-   restore check and model check on the downloaded copy.
+   restore check on the downloaded copy. It then rebuilds the full model
+   folders from `models/blobs/`, downloading any evicted blob, and checks every
+   file's hash and every manifest's pins again.
 
-Success writes `last-success.json` (recovery point, sizes, durations) in the
-state directory. Any failure writes `last-failure.json` and runs the optional
+Success writes `last-success.json` (recovery point, sizes, how many model
+files were newly stored, durations) in the state directory. A blob that exists
+but no longer matches its name fails the model rebuild loudly; it is never
+replaced automatically. Any failure writes `last-failure.json` and runs the optional
 `reportCommand`. The NAS keeps the last `keepLocalArchives` archives locally.
 
 ## iCloud Drive permission
@@ -65,7 +79,17 @@ Never restore over the live data directory. Download an archive from the iCloud
 folder, check it against its `.sha256`, unpack it into a new private folder, and
 run `houseatlas restore-check --bundle <folder>/bundle --destination <new folder>
 --profile native-stock-queue-free`. It leaves the restored database and media
-vault in the destination for inspection. To serve a restored copy, build
+vault in the destination for inspection. Then rebuild the model release from
+the blob store into another new folder:
+
+```sh
+python3 tools/backup/houseatlas_backup.py --restore-models <folder>/backup-report.json \
+  --store "<iCloud folder>/models" --destination <new model folder>
+```
+
+It writes `releases/<version>/` with every file the served release had (modes
+0700/0600) and checks each hash and model pin. Archives made before the blob
+store carry the release in their own `model/` folder instead. To serve a restored copy, build
 a fresh data directory from it with compatible code and supply current Access
 state, configuration and credentials separately, as
 [recovery-and-rollback.md](recovery-and-rollback.md) describes.

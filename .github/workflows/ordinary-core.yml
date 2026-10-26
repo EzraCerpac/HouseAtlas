@@ -59,6 +59,8 @@ jobs:
         run: npm run test:ordinary
       - name: Check the NAS deploy tool with a fake service
         run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'
+      - name: Check the nightly backup script with a fake service and iCloud helper
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/backup -p 'test_*.py'
       # Stdlib-only synthetic tests; the runner's python3, not the pinned 3.14.8.
       - name: Run the HomeBox quantity seed report's synthetic unit tests
         run: |
