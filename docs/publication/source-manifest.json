@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "17f1df8a80c626292dc54dda92a6bf201e58f3ef7c8c60b03f3e3832fe5603f8",
+  "sourceDigestSha256": "90d32034212344cd957c3f8d18f1e861be853de4e596712e7c935b3790dbaabc",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -119,8 +119,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 7632,
-      "sha256": "3fb23d31cfd1c9a1b0f27ba2e1cdaf4a39af1350ee234d8f9c7f1370857d3049",
+      "bytes": 7734,
+      "sha256": "250c0527aa0bf1029cd236a491c896765d78d9fa2b59f21e755babd95d1f30de",
       "owner": "core-integration"
     },
     {
@@ -6125,8 +6125,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 171123,
-      "sha256": "c62d91243677ae159f5937be6266983c0aa2f13245724728cf3bb401d5f0b228",
+      "bytes": 171725,
+      "sha256": "57f5c75cdae3713efb1685f7faed40c678300ea3ac1e6e593b74b665acee828f",
       "owner": "core-integration"
     },
     {
@@ -8120,8 +8120,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 4665,
-      "sha256": "76b4c5c449dc9a1a7e14220fd2adfecfc45ae54e57e10dd1a57567ded074d8eb",
+      "bytes": 4701,
+      "sha256": "8b20ab6e047503c6469b7cfec3c3cf2234a27594c55217dfeab18a4e664bd402",
       "owner": "web"
     },
     {
@@ -8458,6 +8458,13 @@
       "mode": "100644",
       "bytes": 32204,
       "sha256": "f413ca56df54267f49af161be5ed85439a652691b448db3b3197dc360b587408",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/webmcp-adapter-healthy.mjs",
+      "mode": "100644",
+      "bytes": 2072,
+      "sha256": "e8a77424ac7ca06d69dfb10d86fe7e5982f293b103975106c2867e39de74359d",
       "owner": "web"
     },
     {
@@ -10857,8 +10864,8 @@
     {
       "path": "frontend/src/webmcp/README.md",
       "mode": "100644",
-      "bytes": 7050,
-      "sha256": "78ffbbffdf821aab6245fdc5206c92e2234ca2bae3441a4d8a0f14feca71b680",
+      "bytes": 8072,
+      "sha256": "01ba9830a22ee4888798a6608582f2c2298b661471b77df11835693ba4e6fb08",
       "owner": "webmcp"
     },
     {
