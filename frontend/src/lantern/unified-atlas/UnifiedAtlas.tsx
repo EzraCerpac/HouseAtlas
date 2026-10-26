@@ -28,6 +28,7 @@ import { atlasLevelName, countClearedLabelY, countMarkerTarget, countMarkerWidth
 import { documentaryOverlayIndex, type BuildingCoverage, type DocumentaryRecord, type PropertyRecords, type SourceFact } from './runtime-overlays';
 import { edgeSpans, estimatedOccurrences, MEASUREMENT_BASIS, placeLabels, roomArea } from './measurements';
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
+import type { OverlayFeedSnapshot } from './overlay-feed';
 import { modelUpdatesAllowed, useModelUpdates } from './model-updates';
 import { fullModelWanted, useModelQuality } from './model-quality';
 import { shownTier, stageTier } from './model-tier';
@@ -1524,7 +1525,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
             floors strip sits just before the fold that opens it. */}
         {hasKeys && <LayerDetailsDock dock={keysDock} trigger={layersFold} id={`${foldIds}-layers`}
           short={shortLayerDetails} expanded={drawer === 'layers'} close={() => setDrawer(null)}>
-          {active.map(layer => <OverlayKey key={layer.kind} layer={layer} records={runtime.records}
+          {active.map(layer => <OverlayKey key={layer.kind} layer={layer} records={runtime.records} stored={runtime.stored}
             connectionCoverage={layer.kind === 'network' ? networkConnections.coverage : null}
             buildings={runtime.buildings}
             publishedOnly={!runtimeConfigured} openDocuments={environment.openDocuments && (() => {
@@ -1945,9 +1946,11 @@ function SourceDetails({ model, occurrence, room, renderFailure, overlayReason, 
 
 const COVERAGE_TEXT = { available: 'Available', partial: 'Partial', unavailable: 'Unavailable' } as const;
 
-function OverlayKey({ layer, openNetwork, availability, records, buildings, openDocuments, publishedOnly, graph, connectionCoverage }: {
+function OverlayKey({ layer, openNetwork, availability, records, stored, buildings, openDocuments, publishedOnly, graph, connectionCoverage }: {
   readonly layer: OverlayLayerIndex; readonly openNetwork: (() => void) | undefined; readonly openDocuments: (() => void) | undefined;
   readonly records: PropertyRecords | null; readonly availability: 'available' | 'partial' | 'unavailable' | 'loading';
+  /** Set while some building shows the copy last loaded on this device. */
+  readonly stored: OverlayFeedSnapshot['stored'];
   readonly publishedOnly: boolean;
   readonly buildings: readonly BuildingCoverage[];
   readonly connectionCoverage: NetworkConnections['coverage'] | null;
@@ -1969,11 +1972,14 @@ function OverlayKey({ layer, openNetwork, availability, records, buildings, open
       {/* A count only where the source answered; unavailable is not zero. */}
       <span className={`ua-key-count${availability === 'unavailable' || availability === 'partial' ? ' is-warn' : ''}`}>
         {availability === 'loading' ? 'Loading' : availability === 'unavailable' ? 'Unavailable'
-          : `${plural(layer.records, 'record')}${availability === 'partial' ? ', partial' : ''}${layer.unplacedRecords > 0 ? `, ${layer.unplacedRecords.toLocaleString()} not placed` : ''}`}
+          : `${plural(layer.records, 'record')}${availability === 'partial' ? ', partial' : ''}${layer.unplacedRecords > 0 ? `, ${layer.unplacedRecords.toLocaleString()} not placed` : ''}${stored ? ', stored' : ''}`}
       </span>
       <Icon name="chevronDown" size={16} />
     </button>
     <div className="ua-key-body" id={bodyId} hidden={closed}>
+      {stored && <p className="ua-key-stored" role="status" aria-busy={stored.refreshing}><Icon name="history" size={15} />
+        <span>Copy last loaded on this device, <time dateTime={stored.storedAt} title={stored.storedAt}>{stampTime(stored.storedAt)}</time>
+          {stored.refreshing ? '; updating.' : '; not updated, the source is unreachable.'}</span></p>}
       <p>{availability === 'loading' ? 'Loading room sources…' : availability === 'unavailable' ? 'Current room sources are unavailable.'
         : availability === 'partial' ? 'Some buildings or sources are unavailable; their records are not counted.'
         : publishedOnly && layer.records === 0 ? 'No source references in this publication.'

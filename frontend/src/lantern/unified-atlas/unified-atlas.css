@@ -1050,6 +1050,15 @@
 .lantern-host .ua-key-body[hidden] { display: none; }
 .lantern-host .ua-key p { margin: 0; }
 .lantern-host .ua-key-body > p:first-child { color: var(--ink-2); }
+/* A stored copy says so, quietly, above the layer's own explanation. */
+.lantern-host .ua-key-body > .ua-key-stored {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.lantern-host .ua-key-stored > svg { flex: none; margin-top: 1px; color: var(--birch-dark); }
 .lantern-host .ua-key-body > details > ul { margin: 6px 0 0; padding-left: 18px; }
 
 .lantern-host .ua-key-body > details {

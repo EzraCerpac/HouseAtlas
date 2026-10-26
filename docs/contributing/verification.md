@@ -2879,6 +2879,25 @@ node frontend/lantern-tests/unified-atlas-control-names-healthy.mjs
 
 It does not mount React or a browser; identity stays the source ID.
 
+## Named generated Atlas overlay feed check
+
+`frontend/lantern-tests/unified-atlas-overlay-feed-healthy.mjs` compiles the
+overlay feed (`overlay-feed.ts`), the stored-overlay codec and the Atlas cache
+and drives them with a counting fake overlay source owner and a synthetic
+IndexedDB disk (#356): with nothing stored, one background read after the
+model draws, kept and released, and none while downloads wait for the user;
+with a stored copy, the first toggle shows it before the fresh read ends,
+repeat toggles read nothing, a dropped frame falls back to the copy and is
+read again later and on `online`; exact scene pins, rooms limited to the
+current scene, malformed copies ignored, and a per-actor slot that sign-out
+clears. It runs in CI through `run-healthy.mjs`:
+
+```sh
+node frontend/lantern-tests/unified-atlas-overlay-feed-healthy.mjs
+```
+
+It does not mount React, a browser or real storage, and reads no real source.
+
 ## Named generated WebMCP batch-discovery check
 
 `frontend/lantern-tests/webmcp-batch-discovery.mjs` compiles
