@@ -81,34 +81,6 @@ they add no ordinary check scope, persistent access, household intake, native
 qualification or deployment. Generated media requires inspection before any
 coordinated commit; the workflow never commits it automatically.
 
-The separately authorized software release implementation permits
-`.github/workflows/release-bundle.yml`: read-only validation of its scoped PR
-paths with the inspected generated happy-path packaging checks, and explicit
-`workflow_dispatch` build/promote operations on trusted `main`. Native build
-profile, source/producer identity, storage compatibility and publication gates
-remain enforced by that workflow. This exception adds no other ordinary CI
-workflow, broad control suite, paid runner, credential/grant or settings change.
-It authorizes no automatic NAS installation, service restart, household intake
-or deployment; those remain with the existing runtime owner and target gates.
-
-The owner-authorized standard-runner native qualification exception permits
-`.github/workflows/current-source-intel-qualification.yml` on pull requests to
-`main` touching that workflow or `tools/release/current-source-intel-qualification.py`.
-Its scope is one standard `macos-15-intel` job per run, at most 60 minutes,
-read-only repository permissions, exact Rust 1.99.0 and seven-day review artifacts.
-The recipe pins product source `7cae5db05389cb5ca5cc97403975fa60d8f4cbcb`, its tree,
-dependency lock and native-input digest. It may build that native binary, inspect
-its ABI/provenance and run only these four generated healthy examples:
-`healthy-native-full-geodata-profile`, `healthy-model-overview-read`,
-`healthy-unified-atlas-read` and `healthy-unified-atlas-room-links-read`.
-Standing permission for this bounded qualification class does not broaden the
-checked-in trigger, runner, check set or immutable input pins. Changes to those
-bounds need source-owner review before execution. No premium/paid runner,
-new credential, access, security/network setting, household input, held control
-suite, target operation or deployment is included. Actual artifact review,
-release-profile adoption, storage compatibility and runtime/target acceptance
-remain separate gates.
-
 web/AGENTS.md governs interface text. Preserve accessible names, scope,
 uncertainty, freshness, access and file availability. Use short functional
 headings and guidance only when needed for the current action or state.
