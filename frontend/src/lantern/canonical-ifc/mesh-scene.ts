@@ -10,6 +10,7 @@ import {
 } from 'three/tsl';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { denoise } from 'three/addons/tsl/display/DenoiseNode.js';
+import { occlusionHistory } from './occlusion-history';
 import type { PreparedMesh, Projection } from './geometry';
 import type { EmbeddedTexture } from './embedded-png-material';
 import { MeshPass, STATE_FLOATS, STATE_TEXELS, writeAppearance, type AppearanceInput } from './mesh-appearance';
@@ -25,8 +26,9 @@ type F = Node<'float'>; type V3 = Node<'vec3'>; type V4 = Node<'vec4'>; type B =
 export interface MeshScene {
   readonly backend: 'webgpu' | 'webgl2';
   /** Draw one frame. `appearance` is null when only the camera moved since the last frame.
-   * `occlusion` (0 to 1) blends in contact shading; 0 skips its passes entirely. */
-  render(projection: Projection, appearance: AppearanceInput | null, width: number, height: number, occlusion: number): void;
+   * `occlusion` (0 to 1) blends in contact shading; 0 skips its passes entirely.
+   * Returns true while another frame of the same view would still refine the contact shading. */
+  render(projection: Projection, appearance: AppearanceInput | null, width: number, height: number, occlusion: number): boolean;
   dispose(): void;
 }
 
@@ -35,8 +37,12 @@ const SUN_MAP = 2048, SUN_OFFSET = .04, SUN_SOFTNESS = 2.5, SUN_TAPS = 5;
 /** Contact shading: reach in metres and how dark a fully enclosed corner gets.
  * Eight samples march three steps per direction, so the first step lands a
  * pixel or more out; more steps start inside one depth texel and read flat
- * walls as speckled self-occlusion. */
-const OCCLUSION_RADIUS = .8, OCCLUSION_SAMPLES = 8, OCCLUSION_STRENGTH = .6;
+ * walls as speckled self-occlusion. The reach is also capped on screen at
+ * about what it spans in the whole-house view: close up, nine samples spread
+ * over hundreds of pixels read as grain and a smoky haze across whole floors,
+ * while contact shading belongs in the corners.
+ * A still view averages OCCLUSION_FRAMES differently rotated estimates. */
+const OCCLUSION_RADIUS = .8, OCCLUSION_REACH_PX = 40, OCCLUSION_SAMPLES = 8, OCCLUSION_STRENGTH = .6, OCCLUSION_FRAMES = 16;
 /** At night a face is indoors when the point this far out along its normal, in metres,
  * still has the house above it: inner wall faces and floors pass, outer walls under
  * the eaves do not. */
@@ -402,13 +408,14 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const geometryPass = pass(solidScene, solidCamera, { samples: 0 }), colorPass = pass(scene, camera);
     const depth = geometryPass.getTextureNode('depth'), normal = geometryPass.getTextureNode('output');
     const occlusion = ao(depth, normal, solidCamera);
-    occlusion.radius.value = OCCLUSION_RADIUS; occlusion.samples.value = OCCLUSION_SAMPLES;
-    const smooth = denoise(occlusion.getTextureNode(), depth, normal, solidCamera) as unknown as V4;
+    occlusion.samples.value = OCCLUSION_SAMPLES; occlusion.useTemporalFiltering = true;
+    const history = occlusionHistory(occlusion.getTextureNode(), OCCLUSION_FRAMES);
+    const smooth = denoise(history.getTextureNode(), depth, normal, solidCamera) as unknown as V4;
     const strength = uniform(0), color = colorPass.getTextureNode('output');
     const shade = select(depth.r.lessThan(1), mix(float(1), smooth.r, strength.mul(OCCLUSION_STRENGTH)), 1);
     const pipeline = new RenderPipeline(renderer, vec4(color.rgb.mul(shade), color.a));
     pipeline.outputColorTransform = false;
-    owned.push(geometryPass, colorPass, occlusion, pipeline);
+    owned.push(geometryPass, colorPass, occlusion, history, pipeline);
 
     // Upload every piece and compile every pipeline ahead of the first frame,
     // at most a piece's worth of buffers per frame, so a large model never
@@ -433,11 +440,12 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       signal?.throwIfAborted(); if (slice.due()) await slice.next();
     }
 
-    let disposed = false, sunStale = true;
+    // The view the contact shading history belongs to; any change starts it over.
+    let disposed = false, sunStale = true, averaged: Projection | null = null;
     return {
       backend,
       render(q, appearance, width, height, shading) {
-        if (disposed) return;
+        if (disposed) return false;
         if (appearance) {
           const frame = writeAppearance(meshes, appearance, table); state.needsUpdate = true;
           u.paper.value.set(...frame.materialPaper); u.ambient.value = frame.ambient; u.twoSided.value = frame.twoSided ? 1 : 0;
@@ -449,14 +457,18 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
           sunStale = true;
         }
         frame(q); u.viewDir.value.set(q.st * q.cf, q.sf, q.ct * q.cf);
-        if (canvas.width !== width || canvas.height !== height) renderer.setSize(width, height, false);
+        if (canvas.width !== width || canvas.height !== height) { renderer.setSize(width, height, false); averaged = null; }
         if (sunStale) { drawSun(); sunStale = false; }
-        if (shading > 0) {
-          strength.value = Math.min(1, shading);
-          // Post-processing passes redraw once per three.js frame.
-          internals._nodes.nodeFrame.update();
-          pipeline.render();
-        } else renderer.render(scene, camera);
+        if (appearance) averaged = null;
+        if (shading <= 0) { averaged = null; renderer.render(scene, camera); return false; }
+        if (averaged !== q) { averaged = q; history.count = 0; }
+        // Reach: OCCLUSION_RADIUS metres, at most OCCLUSION_REACH_PX layout pixels (k is pixels per metre).
+        occlusion.radius.value = Math.min(OCCLUSION_RADIUS, OCCLUSION_REACH_PX / q.k);
+        strength.value = Math.min(1, shading);
+        // Post-processing passes redraw once per three.js frame.
+        internals._nodes.nodeFrame.update();
+        pipeline.render();
+        return history.settling;
       },
       dispose() {
         if (disposed) return; disposed = true;
