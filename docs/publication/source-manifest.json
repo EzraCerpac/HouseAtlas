@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "a2adf7354feabab7df94c362a7a1e6f7f792d163c305bdfb7ad14ca5e4670307",
+  "sourceDigestSha256": "098e26e8be6d6530d0a20eacf8af46f01e1b844b754e4adc16b001fbb634d62a",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6468,8 +6468,8 @@
     {
       "path": "docs/models/unified-atlas-scene-v1.md",
       "mode": "100644",
-      "bytes": 28752,
-      "sha256": "af80a273185bbe7e1ca8a60cd7bc7de1a8416e21b68971a1e0d4ba02281832ca",
+      "bytes": 29000,
+      "sha256": "13d0a69cf473012d616f7816b9edc213fa036dd11511ca0a9df273d6ed9e1a01",
       "owner": "core-integration"
     },
     {
@@ -8344,8 +8344,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-daylight-healthy.mjs",
       "mode": "100644",
-      "bytes": 20112,
-      "sha256": "5a6a56ad3520091e2b45af39e60f1e4deccd1ec47e7c3bf07c6375d3c343c728",
+      "bytes": 22204,
+      "sha256": "e9de374bba1a3aeeab9b27d56deaaa0fcbd7f7106e65e786da464e532b8cc9c3",
       "owner": "web"
     },
     {
@@ -9254,8 +9254,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/geometry.ts",
       "mode": "100644",
-      "bytes": 23339,
-      "sha256": "bff874aa3c003b53b9a08e4482818d054fe6508cec530b7efbb959257788b062",
+      "bytes": 24744,
+      "sha256": "436db645c2e040cf0d90b435bf9351b978e2d2e6c8e820a7cc60baf05b8f1ede",
       "owner": "web"
     },
     {
@@ -9282,15 +9282,15 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-appearance.ts",
       "mode": "100644",
-      "bytes": 18303,
-      "sha256": "cc61dae46bcf1f42461f2884e86212634b69235425e6fd030df4a58c24a984ef",
+      "bytes": 18791,
+      "sha256": "703f37f95640a852518e5fd6b5a12a8e693340f61a12ac411e2dbfe3ddf060bb",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-scene.ts",
       "mode": "100644",
-      "bytes": 44237,
-      "sha256": "98433672ae97a802bdaf485b28c74053ba9e350746391d33ee8b36776f364659",
+      "bytes": 44583,
+      "sha256": "b7652972fbc294f718c1d3ed5017c858b86de22c1882184153a5a417d400ed91",
       "owner": "web"
     },
     {
@@ -9352,8 +9352,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/standard-glb.ts",
       "mode": "100644",
-      "bytes": 14457,
-      "sha256": "11aa9e17175029c9dd8093fa501ab9bb3b32fa8ee5cf30c8a0d74565826b9077",
+      "bytes": 14655,
+      "sha256": "f7691403793e1c380881222dca6ad50f9496871a6a569d1ed123c0cd505e6381",
       "owner": "web"
     },
     {
