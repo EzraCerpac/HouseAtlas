@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "cbec84bca0c51cf17b25b77437f9a130c3cf9500bd87fbef91c9286a5dee87ae",
+  "sourceDigestSha256": "5d564cce7e36661599904e3ea89a4dea6683ff0bc51f2092513c0eaf063b6195",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -9135,8 +9135,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/MeshLayer.tsx",
       "mode": "100644",
-      "bytes": 8547,
-      "sha256": "51d9bda60c21cc80fc56c2ad1490be63305e138a376fadb7d92433076f807fe5",
+      "bytes": 9329,
+      "sha256": "5dc2a56a23172c92434978ac2de2045a9ec568c46f25e59993c51f92630fca83",
       "owner": "web"
     },
     {
