@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "1f53411de55bb9176be43afa390df7803198514b211cb2625a85143f5edc5109",
+  "sourceDigestSha256": "641f8d92b12882a9680044fc62b63acff469c346ce778c2f4ddc1d951ee73e94",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -546,8 +546,8 @@
     {
       "path": "backend/src/access/boundary.rs",
       "mode": "100644",
-      "bytes": 45057,
-      "sha256": "c3f63ffd4ea06d3c74f43cf441719ce06c3999c8d76575c2ea0a9d5bb8b98048",
+      "bytes": 45154,
+      "sha256": "539f811b9fb47fed26ef97774d8129cec2e1636244f4d4327b22fabbe7031091",
       "owner": "access"
     },
     {
@@ -637,8 +637,8 @@
     {
       "path": "backend/src/access/partition_catalog.rs",
       "mode": "100644",
-      "bytes": 7034,
-      "sha256": "421adce72cd55eedd637e5d96f2c2c3419514285a6a88e12addde326c4ae8db6",
+      "bytes": 7153,
+      "sha256": "424a641965229f101025f53aa282aeba511553932a915ba21a368cf3da211cf1",
       "owner": "access"
     },
     {
@@ -1120,8 +1120,8 @@
     {
       "path": "backend/src/app/homebox_partition_catalog.rs",
       "mode": "100644",
-      "bytes": 12991,
-      "sha256": "35fada1b58ab72c90e6aa08e914a66b6d21759b455aaaa2a3f6be57561b2ae97",
+      "bytes": 13413,
+      "sha256": "92b089ed6690efefbfa70da3dba32d06b83985d9b57c68ed96df991e5566d634",
       "owner": "core-integration"
     },
     {
@@ -1281,8 +1281,8 @@
     {
       "path": "backend/src/catalog_budget.rs",
       "mode": "100644",
-      "bytes": 9357,
-      "sha256": "2a6e70be610e7b76d3c423031520c8d89487e86dc4e636a8b931159c9889f28d",
+      "bytes": 9427,
+      "sha256": "f2f911026db9893c50140b9fb68af80be210c22d1fa5ef8bd826a9fd9a423a7c",
       "owner": "core-integration"
     },
     {
@@ -2247,15 +2247,15 @@
     {
       "path": "backend/src/http/agents/homebox_partition_catalog.rs",
       "mode": "100644",
-      "bytes": 2469,
-      "sha256": "c5ef04bdcdc277012dc69b09af5065897cad49fa8361a7ac07cc2d18daa79415",
+      "bytes": 2585,
+      "sha256": "e376044bdcac5a57100d1417a650542231ab00c7d38dad3b882a52bf149cc6c9",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/http/agents/homebox_partition_catalog/tests.rs",
       "mode": "100644",
-      "bytes": 10837,
-      "sha256": "34d1a5119d94d15eab320f29a6488a2a92a3c293efa1429ae69ec52595f441a3",
+      "bytes": 12357,
+      "sha256": "6b0851a8e57189484ebc2b5ef5a844b262843ced9d617345aea7cd92b3dcd4f3",
       "owner": "core-integration"
     },
     {
@@ -2275,8 +2275,8 @@
     {
       "path": "backend/src/http/agents/mod.rs",
       "mode": "100644",
-      "bytes": 17595,
-      "sha256": "bad51856b20199546891a10f1eb0970fa2685ba6bd2b3bb610a914fc8b24f492",
+      "bytes": 17720,
+      "sha256": "e837c55d5d66883392279a2555b02bd2784b4c7648eb8d613d66962b6af9f7bb",
       "owner": "core-integration"
     },
     {
