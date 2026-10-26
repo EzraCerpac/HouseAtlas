@@ -79,11 +79,17 @@ or overwrite separate competing assertions. Unknown origin or an unresolved
 physical definition cannot carry a number.
 
 The schema validates bounded structure, compatible definition/quantity pairs,
-units and those provenance rules. It does **not** validate reference existence,
-same-home graph closure, distinct height datums, disjoint ring lists, topology,
-holes, discontinuity, source admission, unit/frame truth, mathematical accuracy,
+units and those provenance rules, with an absolute decimal terminator that
+rejects trailing LF, CR and CRLF. The pure `validateLinearProposal` checker in
+`packages/contracts/proposals/linear-v1/validate.mjs` first validates that shape,
+then rejects equal lower/upper datum tokens and each pairwise token overlap
+among outer, hole and excluded boundary lists. It preserves its input and
+compares opaque tokens exactly, without resolving or inferring physical identity.
+It does **not** validate reference existence, same-home graph closure, physically
+distinct datums or boundaries behind different tokens, topology, holes,
+discontinuity, source admission, unit/frame truth, mathematical accuracy,
 current authorization or truthful testimony. Those require reviewed source
-resolvers and the native contract; shape validation must never grant write
+resolvers and the native contract; passing this checker must never grant write
 eligibility or promote a proposal into an accepted measurement.
 
 ## Synthetic cases and handoff

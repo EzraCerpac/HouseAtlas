@@ -65,3 +65,6 @@ mod native_query_healthy;
 pub use credentials::{NativeReadCredentialConfig, NativeReadCredentials};
 #[cfg(test)]
 mod credentials_healthy;
+
+#[cfg(test)]
+mod stock_response_contract;

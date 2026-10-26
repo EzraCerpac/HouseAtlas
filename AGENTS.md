@@ -52,8 +52,12 @@ synthetic `tools/homebox-quantity-seed-report` unit tests and the synthetic
 a fake iCloud helper; no launchd, network or real data) with the runner's
 `python3` (stdlib only). In `.github/workflows/rust-react-ordinary.yml` that includes
 the named Lantern healthy read; `frontend/lantern-tests/run-healthy.mjs` with
-its explicit list, including the `offline-launch` and `hung-network` cases in
-the runner's Chromium against the built public shell, the generated CPU
+its explicit list, including the `offline-launch`, `hung-network` and
+`live-launch` cases in the runner's Chromium against the built public shell
+(generated build output on a loopback listener, no backend; live-launch also
+seeds a generated Atlas and waiting outbox entry through production storage APIs,
+closes and reopens the tab, and checks cached content, exact queue retention and
+no write dispatch), the generated CPU
 mesh-preparation equivalence check, the `webgl2` case of
 `mesh-layer-browser.mjs`, which draws generated meshes through MeshLayer in the
 runner's software GPU and swaps in a second mesh set without a blank frame,
@@ -62,7 +66,9 @@ unified Atlas Plan with trusted wheel input in the runner's Chromium, and the ge
 and control-names checks (compiled source and markup only, no browser), the
 generated time-of-day lighting check (sun positions for a neutral reference
 place and appearance tables only, no browser or GPU), the
-generated WebMCP batch-discovery descriptor check (schema bytes only), and
+generated WebMCP batch-discovery descriptor check (schema bytes only), the
+synthetic WebMCP adapter bootstrap (current `index.ts` bundled with Vite, no
+browser or service), and
 the generated offline outbox check (synthetic IndexedDB and a generated
 server, no browser or network), the generated Unified Atlas overlay feed check
 (compiled feed, stored-overlay codec and Atlas cache against a counting fake
