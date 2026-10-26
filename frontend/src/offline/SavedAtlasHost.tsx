@@ -8,8 +8,7 @@ import { createSavedCatalogAdapter, type SavedCatalogRead } from './saved-catalo
 import { readSavedPackSections } from './saved-pack-sections';
 import { SavedCatalogView } from './SavedCatalogView';
 import { useLiveHost } from './connection-probe';
-import { LocalEditPanel } from '../local-edit-retention/LocalEditPanel';
-import type { SavedHouseSelection } from '../local-edit-retention/saved-adapter';
+import { useOutbox } from '../outbox';
 import '../lantern/styles/fonts.css';
 import '../lantern/styles/tokens.css';
 import '../lantern/styles/app.css';
@@ -30,7 +29,6 @@ export interface SavedCatalogSelection {
 interface SelectionSink {
   clear(): void;
   house(house: SavedHouse): void;
-  houseSelection?(selection: SavedHouseSelection): void;
   catalog(selection: SavedCatalogSelection): void;
   atlas(port: Allocation | null): void;
   catalogError(): void;
@@ -63,9 +61,6 @@ export function mountSavedSelection(store: SavedHouseStore, key: string, sink: S
       if (!selected) { retire(); sink.missing(); return; }
       const house = structuredClone(selected); sink.house(house);
       if (!isCurrent()) return;
-      sink.houseSelection?.({ house: structuredClone(house), signal, isCurrent,
-        resources: { list: () => store.list(), asset: (saved, id) => store.asset(saved, id) } });
-      if (!isCurrent()) return;
       // Catalog admission is independent of optional model/Atlas admission.
       void readSavedPackSections(store, house, signal)
         .then(sections => { signal.throwIfAborted(); return createSavedCatalogAdapter(store).read(sections, signal); })
@@ -90,13 +85,14 @@ export function SavedAtlasHost({ store: supplied }: { readonly store?: SavedHous
   const [selectedHouse, setSelectedHouse] = useState<SavedHouse | null>(null);
   const [catalog, setCatalog] = useState<SavedCatalogSelection | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [localSelection, setLocalSelection] = useState<SavedHouseSelection | null>(null);
-  const localPanel = useRef<(() => void) | null>(null);
-  const [view, setView] = useState<'atlas' | 'inventory' | 'documents' | 'local-drafts'>('atlas');
+  const [view, setView] = useState<'atlas' | 'inventory' | 'documents'>('atlas');
   const mounted = useRef<ReturnType<typeof mountSavedSelection> | null>(null);
   const [shell, setShell] = useState<SavedShellStatus>({ ready: false, buildId: null });
   const [reduced, setReduced] = useState(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
   const live = useLiveHost();
+  // Edits made in the live app that are still waiting; the live app sends them.
+  const { waiting } = useOutbox();
+  const changes = waiting === 1 ? '1 change' : `${waiting} changes`;
   useEffect(() => {
     const query = matchMedia('(prefers-reduced-motion: reduce)'), changed = () => setReduced(query.matches);
     query.addEventListener('change', changed); return () => query.removeEventListener('change', changed);
@@ -109,9 +105,8 @@ export function SavedAtlasHost({ store: supplied }: { readonly store?: SavedHous
   useLayoutEffect(() => {
     if (!house) return;
     const owner = mountSavedSelection(store, house.key, {
-      clear() { localPanel.current?.(); setLocalSelection(null); setAllocation(null); setCatalog(null); setSelectedHouse(null); setError(null); setCatalogError(null); setOpening(true); },
+      clear() { setAllocation(null); setCatalog(null); setSelectedHouse(null); setError(null); setCatalogError(null); setOpening(true); },
       house(selected) { setSelectedHouse(selected); },
-      houseSelection(selected) { setLocalSelection(selected); },
       catalog(selected) { setCatalog(selected); },
       atlas(port) { setAllocation(port); setOpening(false); if (!port) setError('This saved copy has no supported Atlas room map.'); },
       catalogError() { setCatalogError('The saved inventory and documents are unavailable or changed.'); },
@@ -125,15 +120,15 @@ export function SavedAtlasHost({ store: supplied }: { readonly store?: SavedHous
   useEffect(() => allocation?.subscribe(() => {
     if (allocation.current() === null) { setAllocation(null); setError('The saved copy changed. Open the retained copy again.'); }
   }), [allocation]);
-  const close = () => { localPanel.current?.(); mounted.current?.dispose(); mounted.current = null; setLocalSelection(null); setAllocation(null); setCatalog(null); setSelectedHouse(null); setHouse(null); setError(null); setCatalogError(null); setOpening(false); };
-  const changeView = (next: typeof view) => { if (next !== view) localPanel.current?.(); setView(next); };
+  const close = () => { mounted.current?.dispose(); mounted.current = null; setAllocation(null); setCatalog(null); setSelectedHouse(null); setHouse(null); setError(null); setCatalogError(null); setOpening(false); };
+  const changeView = (next: typeof view) => setView(next);
   return <main className="lantern-host view-atlas saved-atlas-app">
     <header className="saved-header"><h1>Saved Atlas</h1><span role="status">{shell.ready ? 'Public shell verified' : 'Public shell not verified'}</span>
-      {live.reachable ? <a className="saved-live" href={LIVE_ENTRY}>Connected · Open live</a>
+      {live.reachable ? <a className="saved-live" href={LIVE_ENTRY}>{waiting > 0 ? `Connected · Open live to sync ${changes}` : 'Connected · Open live'}</a>
         : <button type="button" className="saved-live" onClick={live.check} disabled={live.checking} aria-live="polite">
-          {live.checking ? 'Checking connection…' : live.reachable === false ? 'Offline · Check connection' : 'Check connection'}</button>}
+          {live.checking ? 'Checking connection…' : live.reachable === false ? `Offline${waiting > 0 ? ` · ${changes} waiting` : ''} · Check connection` : 'Check connection'}</button>}
       {house && <button type="button" onClick={close}>Close saved Atlas</button>}
-      <details><summary>Saved scope</summary><p>Captured Atlas, inventory and documents. Local drafts are not submitted. Native editing, sync and fresh native downloads are unavailable here. Saved records do not establish current native authorization.</p>
+      <details><summary>Saved scope</summary><p>Captured Atlas, inventory and documents. Editing and fresh downloads happen in the live app; changes made there while offline are sent when you open it again.</p>
         {shell.buildId && <><p>Public shell build <code>{shell.buildId}</code></p>
           <button type="button" onClick={() => { void removeSavedShell(shell.buildId!).then(() => setShell({ ready: false, buildId: null }), () => setError('The saved public shell could not be removed.')); }}>Remove saved public shell</button></>}</details>
     </header>
@@ -142,13 +137,11 @@ export function SavedAtlasHost({ store: supplied }: { readonly store?: SavedHous
       <button type="button" aria-pressed={view === 'atlas'} onClick={() => changeView('atlas')}>Atlas</button>
       <button type="button" aria-pressed={view === 'inventory'} onClick={() => changeView('inventory')}>Inventory</button>
       <button type="button" aria-pressed={view === 'documents'} onClick={() => changeView('documents')}>Documents</button>
-      <button type="button" aria-pressed={view === 'local-drafts'} onClick={() => changeView('local-drafts')}>Local drafts</button>
     </nav>}
     {view === 'atlas' && opening && <p className="saved-message" role="status">Opening saved Atlas…</p>}
     {view === 'atlas' && error && <p className="saved-message" role="alert">{error}</p>}
     {house && (view === 'inventory' || view === 'documents') && !catalog && <p className="saved-message" role={catalogError ? 'alert' : 'status'}>{catalogError ?? 'Opening saved catalog…'}</p>}
     {catalog && (view === 'inventory' || view === 'documents') && <SavedCatalogView key={view + catalog.read.catalog.localRevision} selection={catalog} section={view} />}
-    {view === 'local-drafts' && localSelection && <LocalEditPanel selection={localSelection} lifetime={localPanel} />}
     {allocation && selectedHouse && <>
       <details className="saved-coverage" hidden={view !== 'atlas'}><summary>Saved coverage: {allocation.saved.completeness} pack; {allocation.coverage.state} supported overlays</summary>
         <p>Captured <time dateTime={selectedHouse.capturedAt}>{selectedHouse.capturedAt}</time>. Historical records are not current native authorization.</p>

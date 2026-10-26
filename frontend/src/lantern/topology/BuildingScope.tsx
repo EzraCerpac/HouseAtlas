@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { NativePlaceEditor, NativePlaceReceipts } from './NativePlaceEditor';
+import { NativePlaceEditor } from './NativePlaceEditor';
 import { NativePlaceEvidence } from './NativePlaceEvidence';
 import { useTopology } from './TopologyProvider';
 import { metres, type Access, type BuildingModel, type Location, type Membership, type TopologyIndex, type LevelGroup } from './model';
@@ -113,7 +113,6 @@ export function BuildingScope() {
         aria-pressed={buildingId === b.id} onClick={() => topology.chooseBuilding(b.id)}>{b.label}</button>)}
     </div>
     <p className="body-text" role="status">{status !== 'ready' ? messages[status] : buildingId && memberStatus !== 'ready' ? messages[memberStatus] : topology.notice || (model ? `${model.building.label}: ${model.memberCount} locations in reviewed membership` : index?.buildings.length ? '' : 'No reviewed buildings in this home.')}</p>
-    {topology.nativePlaces && topology.nativeBinding && <NativePlaceReceipts client={topology.nativePlaces} binding={topology.nativeBinding} refresh={topology.reload} />}
     {status === 'ready' && index && topology.nativePlaces && topology.nativeBinding && <NativePlaceEditor client={topology.nativePlaces} binding={topology.nativeBinding} index={index} refresh={topology.reload} />}
     {buildingId === null && index && <Rows rows={[...index.locations.values()].map(location => ({ location }))} index={index} selected={new Set()} />}
     {buildingId && model && index && <>

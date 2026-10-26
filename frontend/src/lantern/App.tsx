@@ -1,4 +1,4 @@
-import { lazy, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { lazy, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useReducedMotion, useStore, type ViewId } from './state/store';
 import { Icon } from './components/Icon';
 import { AtlasView } from './atlas/AtlasView';
@@ -9,6 +9,9 @@ import { RealPreview } from './components/RealPreview';
 import { SourceDetails } from './components/SourceDetails';
 import { SearchPalette } from './components/SearchPalette';
 import { SettingsDialog } from './components/SettingsDialog';
+import { SyncStatus } from '../outbox/ui';
+import { useOutboxSynced } from '../outbox/index.ts';
+import { PLACE_CLASSIFICATION } from '../outbox/kinds.ts';
 import { Modal } from './components/Modal';
 import { ShellMenu } from './components/ShellMenu';
 import { attentionCount } from './components/DetailPanel';
@@ -116,8 +119,12 @@ function Toasts() {
   );
 }
 
+const classificationKinds = [PLACE_CLASSIFICATION];
+
 export function App() {
-  const { state, dispatch, house } = useStore();
+  const { state, dispatch, house, actions } = useStore();
+  const reloadSaved = useCallback(() => { void actions.reload(); }, [actions]);
+  useOutboxSynced(classificationKinds, reloadSaved);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [homesOpen, setHomesOpen] = useState(false);
   // The strip's own tools, where the phone menu hands focus when it is hidden.
@@ -251,6 +258,7 @@ export function App() {
       </nav>
 
       <div className="shell-tools">
+        <SyncStatus />
         <OverviewToggle expanded={sheetExpanded && !state.selection} onToggle={toggleOverview} />
         {/* Atlas tools holds the saved house copy and the native tools; on
             phones it shares one menu with Settings. */}

@@ -7,7 +7,10 @@ import {
 } from "react";
 import type { LocationSemanticsPayloadSemanticKind } from "../api/generated/contracts.js";
 import type { StockResultEnvelope } from "../webmcp/stock.js";
-import type { AtlasEditingClient, PlaceEditAdmission } from "./editing";
+import { classificationRequest, kindLabel, type AtlasEditingClient, type PlaceEditAdmission } from "./editing";
+import { getOutbox } from "../outbox/index.ts";
+import { PLACE_CLASSIFICATION } from "../outbox/kinds.ts";
+import { QueuedNote } from "../outbox/ui.tsx";
 import type { Entry } from "./types";
 import { EvidencePicker } from "../capture-evidence/EvidencePicker";
 import type { EvidenceSelection } from "../capture-evidence/selection";
@@ -69,7 +72,8 @@ function PlaceEditorForTarget({
   const [kind, setKind] =
     useState<LocationSemanticsPayloadSemanticKind>("unclassified");
   const [status, setStatus] = useState(""),
-    [receipt, setReceipt] = useState<StockResultEnvelope | null>(null);
+    [receipt, setReceipt] = useState<StockResultEnvelope | null>(null),
+    [queuedId, setQueuedId] = useState<string | null>(null);
   const [licenseSelection, setLicenseSelection] = useState("");
   const [selection, setSelection] = useState<EvidenceSelection | null>(null);
   const [evidenceOnly, setEvidenceOnly] = useState(false);
@@ -123,6 +127,18 @@ function PlaceEditorForTarget({
     setStatus(progress);
     return controller;
   };
+  // A classification of this place that synced later (reconnect, Send now,
+  // Keep mine, another tab) moved its revision on: the open editor reloads
+  // so the next save is not based on the old one.
+  const recordId = admission?.record.recordId;
+  useEffect(() => getOutbox().onSynced(rows => {
+    if (!open || busy || !rows.some(row => row.kind === PLACE_CLASSIFICATION && row.target.recordId === recordId)) return;
+    const controller = begin("Reloading Atlas information…");
+    load(controller.signal).then(
+      next => { if (!controller.signal.aborted) setStatus(next ? "" : "Atlas classification is unavailable."); },
+      () => { if (!controller.signal.aborted) { setAdmission(null); setStatus("Editing information could not be refreshed."); } },
+    ).finally(() => { if (!controller.signal.aborted) setBusy(false); });
+  }), [open, busy, recordId]);
   const show = async (forEvidence = false) => {
     setEvidenceOnly(forEvidence);
     setSelection(null);
@@ -158,6 +174,7 @@ function PlaceEditorForTarget({
     submitting.current = true;
     const controller = begin(progress);
     setReceipt(null);
+    setQueuedId(null);
     let saved = false,
       viewRefreshed = false;
     try {
@@ -213,53 +230,53 @@ function PlaceEditorForTarget({
       if (!controller.signal.aborted) setBusy(false);
     }
   };
-  const replace = (event: FormEvent<HTMLFormElement>) => {
+  const replace = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (busy || !admission?.canReplaceClassification) return;
+    if (busy || submitting.current || !admission?.canReplaceClassification) return;
     const reason = readReason(event.currentTarget);
     if (!reason) return;
-    const requestId = crypto.randomUUID(),
-      record = admission.record,
-      { elevation, ...payload } = record.payload;
-    void commit(async (signal) => {
-      const result = await client.replacePlace(
-        {
-          schemaVersion: 3,
-          commandId: "atlas.location-semantics.replace",
-          requestId,
-          context: { workspaceId: record.workspaceId, homeId: record.homeId },
-          target: {
-            authority: "atlas",
-            recordType: "location-semantics",
-            recordId: record.recordId,
-          },
-          payload: {
-            ...payload,
-            semanticKind: kind,
-            ...(kind === "floor" && elevation !== undefined
-              ? { elevation: { ...elevation } }
-              : {}),
-          },
-          idempotencyKey: crypto.randomUUID(),
-          reason,
-          approvalReceiptId: null,
-          preconditions: {
-            target: { kind: "atlas", value: record.revision },
-            guards: admission.guards.map((guard) => ({
-              target: { authority: "atlas", ...guard.record },
-              revision: { kind: "atlas", value: guard.expectedRevision },
-            })),
-          },
-        },
-        signal,
-      );
-      if (
-        result.requestId !== requestId ||
-        result["commandId"] !== "atlas.location-semantics.replace"
-      )
-        throw new TypeError("Place completion correlation differs");
-      return result;
-    }, "Saving classification…");
+    const request = classificationRequest(admission, kind, reason);
+    submitting.current = true;
+    const controller = begin("Saving classification…");
+    setReceipt(null);
+    setQueuedId(null);
+    try {
+      // Every edit goes through the device's outbox: it is sent at once when
+      // the server answers and waits on this device when it does not.
+      const queued = await getOutbox().submit({
+        kind: PLACE_CLASSIFICATION,
+        label: `Mark ${entry.entity.name} as ${kindLabel(kind).toLowerCase()}`,
+        target: { recordType: "location-semantics", recordId: admission.record.recordId },
+        intent: { source: JSON.stringify(source), semanticKind: kind, reason },
+        commandId: request.commandId,
+        requestId: request.requestId,
+        body: JSON.stringify(request),
+      });
+      if (controller.signal.aborted) {
+        // The editor closed while the change was sent; the views still need
+        // the saved record.
+        if (queued.state === "synced") void refresh();
+        return;
+      }
+      if (queued.state !== "synced") {
+        setStatus("");
+        setQueuedId(queued.id);
+        return;
+      }
+      if (!(await refresh()) || controller.signal.aborted) {
+        setAdmission(null);
+        if (!controller.signal.aborted) setStatus("The change was saved. Saved information could not be refreshed.");
+        return;
+      }
+      const next = await load(controller.signal);
+      if (!controller.signal.aborted)
+        setStatus(next ? "Saved. Information refreshed." : "Saved. Editing is unavailable.");
+    } catch {
+      if (!controller.signal.aborted) setStatus("The change could not be saved on this device. Sign in and try again.");
+    } finally {
+      submitting.current = false;
+      if (!controller.signal.aborted) setBusy(false);
+    }
   };
   const upload = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -364,12 +381,13 @@ function PlaceEditorForTarget({
       <p role="status" aria-live="polite">
         {status}
       </p>
+      {queuedId && <QueuedNote id={queuedId} />}
       {admission?.canReplaceClassification && !evidenceOnly && (
         <div className="setting">
           <form
             className="session-form"
             aria-label="Place classification"
-            onSubmit={replace}
+            onSubmit={(event) => void replace(event)}
           >
             <label>
               <span>Classification</span>
@@ -385,8 +403,7 @@ function PlaceEditorForTarget({
               >
                 {kinds.map((value) => (
                   <option key={value} value={value}>
-                    {value[0]?.toUpperCase()}
-                    {value.slice(1)}
+                    {kindLabel(value)}
                   </option>
                 ))}
               </select>
@@ -460,6 +477,7 @@ function PlaceEditorForTarget({
           setOpen(false);
           setAdmission(null);
           setReceipt(null);
+          setQueuedId(null);
           setSelection(null);
         }}
       >

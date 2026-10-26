@@ -187,54 +187,14 @@ Existing authorization, source restrictions, byte ownership and final/resumed
 revalidation remain authoritative. This producer adds no frontend admission,
 draft creation UI, local-store schema, native mutation, submission or replay.
 The shared frontend lossless JSON parser's last-wins object handling alone is
-insufficient for exact-original admission; the saved identity consumer below
-adds an admission-only duplicate-decoded-key preflight.
+insufficient for exact-original admission.
 
 ### Saved identity draft consumer
 
-The saved Local drafts panel can explicitly read this optional identity
-descriptor through a read-only local resource port. It does not derive originals
-from catalog trees, aggregate hashes or the generic section reader's parsed
-projection. Before using either existing last-wins parser, an admission-only
-scanner rejects duplicate decoded keys throughout the raw manifest, raw Atlas
-section and individual body, including escaped-equivalent keys. Shared parser,
-schema, saved-house storage and local-edit store/controller contracts are
-unchanged.
-
-Admission binds the complete selected saved copy, exact manifest bytes, resource
-descriptors and current local revision across asynchronous reads. It checks the
-complete identity set against members plus omissions, strict native identity
-shape/scope/ID, exact safe-integer revision values and original lexical tokens,
-ordered contiguous offsets, captured-byte bounds, the complete aggregate
-length/hash/MIME and each included member's hash and full documentary equality.
-The binary aggregate never enters the generic JSON section parser. Each
-included member supplies a detached exact original and its individual digest;
-the selected resource remains the actual aggregate descriptor. A single-member
-aggregate can legitimately have equal resource and original digests.
-
-Construction and rendering perform no resource reads or retention. After an
-explicit memory-only local draft-space choice, the user selects Read saved
-identity originals, then an admitted candidate. Selection first reads the
-matching local draft: an existing row opens without replacement. Only a verified
-absent read enables the separate Retain local draft action. The unchanged
-controller/store preserves transaction-completion verification, immutable
-originals and exact manifest bytes, separate reversible proposals, and targeted
-discard. An uncertain completion establishes no safe retry. Discard never
-automatically re-enables retention. All changes remain local and unsubmitted;
-the partition supplies isolation, not actor/session/grant authority.
-
-Older packs without the optional descriptor, unavailable resource ports or
-failed candidate admission expose a separate candidate-unavailable state.
-Already-retained local drafts remain independently readable/editable. No
-automatic online request, new source capture, saved-pack upgrade, native
-mutation, submission or replay is introduced. Consumers must acquire a separately
-qualified new saved pack to obtain newly exported identity originals.
-
-The generated serial positives and panel SSR described in the verification
-guide do not establish DOM events/focus/effects, actual mounted-host lifetime,
-pending retirement/stale completion/reentrant observer behavior, uncertain
-writes, corruption/denial/fault/concurrency/replay/crash controls, browser/device
-durability, live-base reconciliation or installed acceptance.
+The Saved viewer's Local drafts tab, which read this descriptor to retain
+identity records as raw JSON, was removed in favour of the offline outbox
+(`frontend/src/outbox/`, issue #282). The producer above is unchanged; the
+aggregate stays available to a future offline editor.
 
 ### Model section v2 amendment
 

@@ -5,6 +5,7 @@ import { useStore } from '../state/store';
 import { Modal } from './Modal';
 import { setModelUpdates, useModelUpdates } from '../unified-atlas/model-updates';
 import { autoPrefersFull, setModelQuality, useModelQuality } from '../unified-atlas/model-quality';
+import { SyncSettings } from '../../outbox/ui';
 
 export function SettingsDialog() {
   const { state, dispatch, actions } = useStore();
@@ -60,6 +61,8 @@ export function SettingsDialog() {
             ? 'The stored copy opens; the model downloads only when you choose Check for update.'
             : 'Checks for a newer model on each open, except on mobile data where the browser reports it.'}</p>
         </fieldset>
+
+        <SyncSettings />
 
         <fieldset className="field">
           <legend>Model quality</legend>
