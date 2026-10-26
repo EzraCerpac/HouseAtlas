@@ -59,8 +59,10 @@ replay actions, resume inference, or authorize work. Omitting it preserves the
 older full-scope isolation behavior. Do not construct it from `scopeKey`, labels,
 or browser role.
 
-Connection facts come only from trusted connection/action DTOs. Null binding
-shows “AI host is unavailable.” The CSS uses the existing Settings geometry and
+Connection facts come only from trusted connection/action DTOs. With a null
+binding nothing renders: `AiSettingsSection` returns null and
+`useAiHostAvailable()` lets entry points such as the Lantern Ask button hide, so
+an install without a host shows no dead AI panel or account block. The CSS uses the existing Settings geometry and
 HouseAtlas colour/type tokens. All interface copy is English.
 
 ## Native host API

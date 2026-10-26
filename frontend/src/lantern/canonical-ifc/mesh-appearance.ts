@@ -53,8 +53,28 @@ export interface AppearanceInput {
   readonly site?: { readonly keys: ReadonlySet<string>; readonly tone: string } | undefined;
   /** With twoSided only: opacity of the faded cutaway, 0–1, instead of the default. */
   readonly ghostAlpha?: number | undefined;
+  /** With twoSided only: time-of-day lighting. `light` is then the sun, or the zenith once it has set. */
+  readonly daylight?: SceneDaylight | undefined;
+  /** With daylight only: meshes that roof the house over (structure, floors, roofs). At night a
+   * face with one of them above it reads as indoors and takes the lamp light. Hiding or cutting
+   * them away leaves the rooms beneath lit. */
+  readonly shelterKeys?: ReadonlySet<string> | undefined;
   /** Colour overrides (hex); omitted entries keep the default tones. */
   readonly palette?: Partial<MeshPalette> | undefined;
+}
+
+/** Lighting for one moment of the day. Every colour is a multiplier on the drawn tone. */
+export interface SceneDaylight {
+  /** Share of direct sunlight, 0–1; 0 leaves only the sky. */
+  readonly direct: number;
+  /** The sun has set: `light` points to the zenith, and its shadow map tells indoors from out. */
+  readonly night: boolean;
+  /** How far the lamps are on indoors, 0–1; only after sunset. */
+  readonly lamp: number;
+  /** Colours of the sky light, of direct sun on the faces it reaches, and of lamp light indoors. */
+  readonly tint: readonly [number, number, number];
+  readonly sunTint: readonly [number, number, number];
+  readonly lampTint: readonly [number, number, number];
 }
 
 export interface MeshPalette {
@@ -88,7 +108,7 @@ export type MeshPass = typeof MeshPass[keyof typeof MeshPass];
 export const STATE_TEXELS = 8;
 /** Floats per mesh in the state table. Layout, by texel:
  * 0 top.rgb, usePitch · 1 base.rgb, useSourceColor · 2 cut.rgb, useClip · 3 pitch.rgb, clipY
- * 4 shade.rgb, lift · 5 pass, ghost, ghostUseFloor, ghostFloorY · 6 useMaterial, materialDim · 7 unused */
+ * 4 shade.rgb, lift · 5 pass, ghost, ghostUseFloor, ghostFloorY · 6 useMaterial, materialDim · 7 shelter, keepTone */
 export const STATE_FLOATS = STATE_TEXELS * 4;
 
 /** Uniform values shared by every mesh in a frame. */
@@ -101,6 +121,12 @@ export interface FrameAppearance {
   readonly ghostAlpha: number;
   readonly ghostColor: Rgb;
   readonly ghostShade: Rgb;
+  readonly direct: number;
+  readonly night: boolean;
+  readonly lamp: number;
+  readonly tint: Rgb;
+  readonly sunTint: Rgb;
+  readonly lampTint: Rgb;
   /** Passes with at least one mesh this frame; empty passes are skipped. */
   readonly passes: ReadonlySet<MeshPass>;
   readonly ghosts: boolean;
@@ -116,6 +142,7 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
   const PITCH = p.twoSided && p.pitch ? rgb(p.pitch) : null;
   const SITE = p.twoSided && p.site ? rgb(p.site.tone) : null;
   const SOURCE_DIM = clamp01(p.sourceDim ?? 1);
+  const DAY = p.twoSided && p.daylight ? p.daylight : null;
   const passes = new Set<MeshPass>(); let ghosts = false;
   meshes.forEach((mesh, index) => {
     const o = index * STATE_FLOATS, key = mesh.meshKey;
@@ -129,6 +156,9 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     const source = sourceMeshColor(mesh, { enabled: p.sourceColors, selected, reference: kind === MeshPass.Reference,
       selectedOccurrenceId: p.selectedOccurrenceId, contextOccurrenceIds: p.contextOccurrenceIds, tints: p.tints });
     let top: Rgb, base: Rgb, cut: Rgb, pitch: Rgb | null = null, shade = SHADE;
+    // Selection and overlay tints keep most of their strength in any light.
+    const keep = selected || mesh.occurrenceId !== null && kind !== MeshPass.Reference && (mesh.occurrenceId === p.selectedOccurrenceId
+      || p.contextOccurrenceIds.includes(mesh.occurrenceId) || p.tints.has(mesh.occurrenceId));
     if (selected) { top = LANTERN; base = LANTERN; cut = mix(LANTERN, CUT, .18); }
     else if (kind === MeshPass.Reference) { top = REFERENCE_TOP; base = REFERENCE; cut = mix(REFERENCE, CUT, .3); }
     else if (source) {
@@ -161,6 +191,7 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     put(4, shade, p.lifts?.get(key) ?? 0);
     out[o + 20] = pass; out[o + 21] = ghost ? 1 : 0; out[o + 22] = above === null ? 0 : 1; out[o + 23] = above ?? 0;
     out[o + 24] = source && p.sourceMaterials && mesh.sourceMaterial ? 1 : 0; out[o + 25] = clamp01(dim * SOURCE_DIM);
+    out[o + 28] = DAY && p.shelterKeys?.has(key) ? 1 : 0; out[o + 29] = DAY && keep ? 1 : 0;
   });
   // An opt-in ghost opacity also keeps the ghost nearly flat, so stacked faded floors stay one quiet veil.
   const quiet = p.twoSided === true && p.ghostAlpha !== undefined;
@@ -168,6 +199,8 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     ambient: clamp01(p.ambient ?? DEFAULT_AMBIENT), twoSided: p.twoSided === true,
     light: p.twoSided && p.light ? [...p.light] as Rgb : FIXED_LIGHT, materialPaper: linearRgb(PAPER),
     ghostAlpha: quiet ? clamp01(p.ghostAlpha!) : GHOST_ALPHA, ghostColor: GHOST, ghostShade: quiet ? mix(SHADE, GHOST, .8) : SHADE,
+    direct: DAY ? clamp01(DAY.direct) : 1, night: DAY?.night === true, lamp: DAY ? clamp01(DAY.lamp) : 0,
+    tint: DAY ? [...DAY.tint] as Rgb : [1, 1, 1], sunTint: DAY ? [...DAY.sunTint] as Rgb : [1, 1, 1], lampTint: DAY ? [...DAY.lampTint] as Rgb : [1, 1, 1],
     passes, ghosts,
   };
 }
