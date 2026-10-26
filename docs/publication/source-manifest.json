@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "e66a17f44bd9bda59b22f0e3505fdee7ee9c983f60e71240cd1a36bb4d9fa60e",
+  "sourceDigestSha256": "7364c77e5b628d890c76595dc91c4d536c694605dd629302458d7c0f5d44c133",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -9310,8 +9310,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/standard-glb.ts",
       "mode": "100644",
-      "bytes": 14380,
-      "sha256": "92fccf9786d12ad9535bc94b82380b0af7a6e27340c45d9dcd0ddbc94a0e3021",
+      "bytes": 14457,
+      "sha256": "11aa9e17175029c9dd8093fa501ab9bb3b32fa8ee5cf30c8a0d74565826b9077",
       "owner": "web"
     },
     {

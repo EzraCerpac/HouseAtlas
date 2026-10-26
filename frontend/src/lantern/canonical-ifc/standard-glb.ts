@@ -182,7 +182,8 @@ function extract(gltf: GLTF, admission: GlbAdmission, keyPrefix: string, json: G
         attributeBytes += uvs.byteLength + normals.byteLength + (tangents?.byteLength ?? 0); expandedAttributeBytes += indices.length * 36;
       }
       const sourceNight = primitiveNight(json, reference?.meshes ?? null, reference?.primitives ?? null);
-      const sourceRoughness = sourceNight === 'glazing' ? sourceMaterial?.roughness ?? primitiveRoughness(json, reference?.meshes ?? null, reference?.primitives ?? null) : undefined;
+      // Only a stated factor frosts glass; an admitted material's roughness already holds the default 1.
+      const sourceRoughness = sourceNight === 'glazing' ? primitiveRoughness(json, reference?.meshes ?? null, reference?.primitives ?? null) : undefined;
       inputs.push({ meshKey, floorId: null, occurrenceId: null, positions, indices, ...(sourceBaseColor ? { sourceBaseColor } : {}),
         ...(sourceNight ? { sourceNight } : {}), ...(sourceRoughness !== undefined ? { sourceRoughness } : {}),
         ...(sourceMaterial && sourceAttributes ? { sourceMaterial, sourceAttributes } : {}) });
