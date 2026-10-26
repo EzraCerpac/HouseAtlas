@@ -10,7 +10,7 @@ use std::{
     pin::{Pin, pin},
     sync::{
         Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     task::{Context, Poll, Waker},
 };
@@ -111,6 +111,25 @@ impl Fixture {
         identity: &AuthenticatedIdentity,
         gate: &Arc<Gate>,
     ) -> NativeSession<HeldStock<'_>> {
+        self.open_configured(
+            identity,
+            gate,
+            AdapterConfig::default(),
+            &[
+                wire::OperationId::AtlasIdentityGet,
+                wire::OperationId::AtlasCircuitCreate,
+                wire::OperationId::AtlasCircuitHistory,
+            ],
+        )
+    }
+
+    fn open_configured(
+        &self,
+        identity: &AuthenticatedIdentity,
+        gate: &Arc<Gate>,
+        config: AdapterConfig,
+        admitted: &[wire::OperationId],
+    ) -> NativeSession<HeldStock<'_>> {
         let schemas = NativeSchemas::from_bytes(
             include_bytes!("../../../../../contracts/stock-wire3/agent/agent.schema.json"),
             include_bytes!("../../../../../packages/contracts/schemas/atlas.schema.json"),
@@ -119,16 +138,12 @@ impl Fixture {
         let mut session = ready(NativeSession::new(
             identity.clone(),
             &schemas,
-            [
-                wire::OperationId::AtlasIdentityGet,
-                wire::OperationId::AtlasCircuitCreate,
-                wire::OperationId::AtlasCircuitHistory,
-            ],
+            admitted.iter().copied(),
             HeldStock {
                 stock: StockService { core: &self.core },
                 gate: Arc::clone(gate),
             },
-            AdapterConfig::default(),
+            config,
         ))
         .unwrap();
         let init = frame(
@@ -171,6 +186,7 @@ impl Fixture {
 
 #[derive(Default)]
 struct Gate {
+    dispatches: AtomicUsize,
     reached: AtomicBool,
     released: AtomicBool,
     drained: AtomicBool,
@@ -198,6 +214,7 @@ impl ServicePort<NativePrincipal, NativeOperation> for HeldStock<'_> {
         operation: NativeOperation,
     ) -> PortFuture<'a, NativeOutput> {
         Box::pin(async move {
+            self.gate.dispatches.fetch_add(1, Ordering::SeqCst);
             *self.gate.original_actor.lock().unwrap() =
                 Some(principal.original().actor_id().as_str().to_owned());
             let result = self.stock.execute(principal, operation).await?;
@@ -481,5 +498,160 @@ fn cancellation_close_and_future_drop_preserve_committed_audit() -> Result<(), F
         assert_eq!(entries[0]["requestDigest"], parsed.intent_digest());
         assert_eq!(entries[0]["state"], "committed");
     }
+    Ok(())
+}
+
+#[test]
+fn configured_input_byte_ceiling_accepts_exact_and_closes_one_over() -> Result<(), Failure> {
+    let fixture = Fixture::new()?;
+    let original = fixture.authenticate()?;
+    let bytes = call(fixture.read(), json!("input-ceiling"));
+    let ceiling = bytes.len();
+    for extra in [0, 1] {
+        let gate = Arc::new(Gate::default());
+        gate.release();
+        let mut session = fixture.open_configured(
+            &original,
+            &gate,
+            AdapterConfig {
+                max_message_bytes: ceiling,
+                ..AdapterConfig::default()
+            },
+            &[
+                wire::OperationId::AtlasIdentityGet,
+                wire::OperationId::AtlasCircuitCreate,
+                wire::OperationId::AtlasCircuitHistory,
+            ],
+        );
+        // Trailing whitespace remains valid JSON; only byte admission differs.
+        let mut input = bytes.clone();
+        input.extend(std::iter::repeat_n(b' ', extra));
+        assert_eq!(input.len(), ceiling + extra);
+        let delivery = ready(session.handle(&original, &input))?;
+        if extra == 0 {
+            let Delivery::Reply(reply) = delivery else {
+                panic!("Exact input ceiling must reach the real read owner");
+            };
+            let reply: Value = serde_json::from_slice(&reply)?;
+            assert_eq!(reply["id"], "input-ceiling");
+            assert_eq!(reply["result"]["structuredContent"]["status"], "read");
+            assert_eq!(session.state(), SessionState::Ready);
+            assert_eq!(gate.dispatches.load(Ordering::SeqCst), 1);
+        } else {
+            assert_eq!(delivery, Delivery::Closed);
+            assert_eq!(session.state(), SessionState::Closed);
+            assert_eq!(ready(session.handle(&original, &bytes))?, Delivery::Closed);
+            assert_eq!(gate.dispatches.load(Ordering::SeqCst), 0);
+            assert!(!gate.reached.load(Ordering::SeqCst));
+            assert!(gate.owner_wire.lock().unwrap().is_none());
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn configured_response_ceiling_preserves_committed_circuit_without_redispatch() -> Result<(), Failure> {
+    let fixture = Fixture::new()?;
+    let original = fixture.authenticate()?;
+    let gate = Arc::new(Gate::default());
+    gate.release();
+    let label = "L".repeat(4096);
+    let mut request = fixture.create(20);
+    request["payload"]["label"] = json!(label);
+    let validation = wire::StockValidation::new()?;
+    let parsed = wire::StockRequest::parse(&validation, request.clone())?;
+    let bytes = call(request.clone(), json!("bounded-create"));
+    let input_bound = bytes.len();
+    let response_bound = input_bound + 1024;
+    let mut session = fixture.open_configured(
+        &original,
+        &gate,
+        AdapterConfig {
+            max_message_bytes: input_bound,
+            max_response_bytes: response_bound,
+            ..AdapterConfig::default()
+        },
+        &[
+            wire::OperationId::AtlasIdentityGet,
+            wire::OperationId::AtlasCircuitCreate,
+            wire::OperationId::AtlasCircuitHistory,
+        ],
+    );
+    let Delivery::Reply(reply_bytes) = ready(session.handle(&original, &bytes))? else {
+        panic!("Expected bounded correlated protocol error after owner completion");
+    };
+    assert!(reply_bytes.len() <= response_bound);
+    let reply: Value = serde_json::from_slice(&reply_bytes)?;
+    assert_eq!(reply["jsonrpc"], "2.0");
+    assert_eq!(reply["id"], "bounded-create");
+    assert_eq!(reply["error"]["code"], -32603);
+    assert_eq!(reply["error"]["message"], "MCP response size limit exceeded");
+    assert!(reply.get("result").is_none());
+    assert_eq!(session.state(), SessionState::Ready);
+    assert_eq!(gate.dispatches.load(Ordering::SeqCst), 1);
+    let committed = gate.owner_wire.lock().unwrap().clone().unwrap();
+    assert_eq!(committed["status"], "committed");
+    assert_eq!(committed["replayed"], false);
+    assert_eq!(committed["requestId"], request["requestId"]);
+    assert_eq!(committed["commandId"], request["commandId"]);
+    assert_eq!(committed["resolvedScope"], request["context"]);
+    assert_eq!(committed["data"]["records"].as_array().unwrap().len(), 1);
+    assert_eq!(committed["data"]["auditIds"].as_array().unwrap().len(), 1);
+    assert_eq!(committed["data"]["records"][0]["target"], request["target"]);
+    assert_eq!(committed["data"]["requestDigest"], parsed.intent_digest());
+    assert_eq!(*gate.original_actor.lock().unwrap(), Some(id(7)));
+    // Use the real committed wire and the same ToolResult constructor used by
+    // NativeCatalog::render. Measure its complete JSON-RPC envelope, rather than
+    // assuming the label alone proves the configured response ceiling exceeded.
+    let rendered = super::super::ToolResult::json(committed.clone());
+    let owner_reply = json!({"jsonrpc":"2.0", "id":"bounded-create", "result":rendered});
+    assert!(serde_json::to_vec(&owner_reply)?.len() > response_bound);
+    assert_eq!(committed["data"]["records"][0]["payload"]["label"], label);
+    let duplicate: Value = serde_json::from_slice(&call(request.clone(), json!("bounded-create")))?;
+    let duplicate = frame(&mut session, &original, duplicate);
+    assert_eq!(duplicate["error"]["code"], -32600);
+    assert_eq!(gate.dispatches.load(Ordering::SeqCst), 1);
+    assert_eq!(*gate.owner_wire.lock().unwrap(), Some(committed.clone()));
+
+    // Independent, default-bounds readback. Only this session adds CircuitGet;
+    // the default three-operation fixture profile stays unchanged.
+    let readback_gate = Arc::new(Gate::default());
+    readback_gate.release();
+    let fresh_identity = fixture.authenticate()?;
+    let mut fresh = fixture.open_configured(
+        &fresh_identity,
+        &readback_gate,
+        AdapterConfig::default(),
+        &[
+            wire::OperationId::AtlasIdentityGet,
+            wire::OperationId::AtlasCircuitCreate,
+            wire::OperationId::AtlasCircuitHistory,
+            wire::OperationId::AtlasCircuitGet,
+        ],
+    );
+    let get = json!({"schemaVersion":3, "commandId":"atlas.circuit.get", "requestId":id(29401),
+        "context":fixture.core.home.scope, "target":request["target"], "payload":{}});
+    let get: Value = serde_json::from_slice(&call(get, json!("durable-get")))?;
+    let got = frame(&mut fresh, &fresh_identity, get);
+    let got = &got["result"]["structuredContent"];
+    assert_eq!(got["resolvedScope"], request["context"]);
+    assert_eq!(got["data"]["records"][0], committed["data"]["records"][0]);
+    assert_eq!(got["data"]["records"][0]["payload"]["label"], label);
+    assert_eq!(got["data"]["records"][0]["revision"], 1);
+    let history = json!({"schemaVersion":3, "commandId":"atlas.circuit.history", "requestId":id(29402),
+        "context":fixture.core.home.scope, "target":request["target"],
+        "payload":{"pageSize":10,"cursor":null,"includeArchived":false}});
+    let history: Value = serde_json::from_slice(&call(history, json!("durable-history")))?;
+    let history = frame(&mut fresh, &fresh_identity, history);
+    let entries = history["result"]["structuredContent"]["data"]["entries"]
+        .as_array()
+        .ok_or("Missing durable circuit history")?;
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0]["eventId"], committed["data"]["auditIds"][0]);
+    assert_eq!(entries[0]["actorId"], id(7));
+    assert_eq!(entries[0]["target"], request["target"]);
+    assert_eq!(entries[0]["commandId"], request["commandId"]);
+    assert_eq!(entries[0]["requestDigest"], parsed.intent_digest());
+    assert_eq!(entries[0]["state"], "committed");
     Ok(())
 }
