@@ -163,7 +163,20 @@ try {
     assert.equal(swap.mostCanvases, 2, 'the new set builds on its own canvas');
     assert.equal(swap.fewestVisible, 1, 'a canvas stays on screen throughout the swap');
     if (expected === 'webgl2') assert(swap.newDrawsWhenShown >= 1, 'the new set has drawn before the old one is removed');
+    assert(swap.sphereVertices < 100, `the scene supplies the model's bounding spheres, so no frame walks its vertices (${swap.sphereVertices})`);
     assert.deepEqual(await evaluate('window.shownSets'), [0, 1], 'each set is reported shown once, in order');
+    // A much larger set, as the Full model replaces Light: it merges, uploads and
+    // compiles over several frames while the old set stays on screen.
+    await evaluate('window.bigSwap = window.swap(6000), true');
+    await poll('window.bigSwap.done', 120_000, 'The larger mesh set was not shown');
+    const big = await evaluate('window.bigSwap');
+    assert.equal(big.fewestVisible, 1, 'a canvas stays on screen throughout the larger swap');
+    assert(big.sphereVertices < 100, `no frame walks the larger set's vertices for a bounding sphere (${big.sphereVertices})`);
+    assert(big.framesMeanwhile >= 3, `the page keeps drawing while the larger set builds (${big.framesMeanwhile} frames)`);
+    assert.deepEqual(await evaluate('window.shownSets'), [0, 1, 2], 'the larger set is reported shown once');
+    assert.equal(await evaluate(`document.querySelector('output').textContent`), '', 'MeshLayer reported a failure after the larger swap');
+    // The Full model's GLB parses and prepares in a worker with the same result and refusals.
+    assert.deepEqual(await evaluate('window.checkWorker()'), { same: true, moved: true, admitted: true, meshes: 24, refused: 'refused', aborted: 'aborted', malformed: 'container' });
     assert.equal(await evaluate(`document.querySelector('canvas').dataset.renderer`), expected);
     assert.equal(await evaluate(`document.querySelector('output').textContent`), '', 'MeshLayer reported a failure after the swap');
 
@@ -183,7 +196,7 @@ try {
       const at = ((y + Math.round(h * .55) + dy) * samples.width + x + Math.round(w * .3) + dx) * 3; tones.add(samples.pixels.subarray(at, at + 3).join());
     }
     assert(tones.size > 20, `Textured sample shows no texture detail (${tones.size} tones)`);
-    console.log(`PASS ${selected}: generated house (${result.pieces} primitives, ${calls} calls per frame, swapped to a new set without a blank frame) and material samples drawn by three.js on ${expected}; software GPU only, not device proof`);
+    console.log(`PASS ${selected}: generated house (${result.pieces} primitives, ${calls} calls per frame, swapped to a new set without a blank frame; a 6,000-primitive set swapped in over ${big.framesMeanwhile} frames, longest task ${big.longestTaskMs} ms; worker GLB load matches) and material samples drawn by three.js on ${expected}; software GPU only, not device proof`);
   }
 } finally {
   await cdp.send('Browser.close').catch(() => {});
