@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "24a470f10dca2959389a8454a181ad19d5bbfb9c6c14a41793872d5d27411d96",
+  "sourceDigestSha256": "a70e62ccc6c5492219e80e9f54c3ef6f5f38987a1f140aa90a82ab0c327fb690",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -12054,8 +12054,8 @@
     {
       "path": "tools/houseatlas-mcp-bridge/bridge.py",
       "mode": "100644",
-      "bytes": 66225,
-      "sha256": "3d2f89138167821e9f70c3d628212c5b5a89d4cb0d1a4468bb96a78640cbc3b1",
+      "bytes": 66823,
+      "sha256": "c6e3372a046e88f605c4b973122dc97560548fec0e392fe09a250993c12a6fd7",
       "owner": "mcp"
     },
     {
