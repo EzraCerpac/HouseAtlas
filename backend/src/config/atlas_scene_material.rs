@@ -10,6 +10,9 @@ use std::{collections::BTreeSet, io::Cursor};
 
 const MIB: usize = 1024 * 1024;
 const DECODE_SCRATCH: usize = 8 * MIB;
+// Bounds only the identity scan below. How many textures fit is the tier's
+// prepared and GPU budget (atlas_scene_glb.rs), which charges every image.
+const MAX_IMAGES: usize = 64;
 #[derive(Clone, Copy, Default)]
 pub(super) struct Material {
     pub textured: bool,
@@ -80,12 +83,11 @@ pub(super) fn materials(gltf: &Value, glb: &[u8], json_end: usize) -> Result<Mat
     let samplers = array(gltf, "samplers")?;
     let materials = array(gltf, "materials")?;
     need(
-        images.len() <= 3
+        images.len() <= MAX_IMAGES
             && textures.len() <= 8192
             && samplers.len() <= 8192
             && materials.len() <= 8192,
     )?;
-    let mut encoded_bytes = 0usize;
     let mut encoded_reservation = 0usize;
     let mut retained_rgba = 0usize;
     let mut decoded: Vec<Image<'_>> = Vec::new();
@@ -101,13 +103,9 @@ pub(super) fn materials(gltf: &Value, glb: &[u8], json_end: usize) -> Result<Mat
         let offset = integer(view, "byteOffset", Some(0))?;
         let length = integer(view, "byteLength", None)?;
         need(length > 0 && length <= 2 * MIB)?;
-        encoded_bytes = encoded_bytes.checked_add(length).ok_or_else(invalid)?;
-        need(
-            encoded_bytes <= 4 * MIB
-                && offset.checked_add(length).is_some_and(|end| {
-                    integer(&gltf["buffers"][0], "byteLength", None).is_ok_and(|n| end <= n)
-                }),
-        )?;
+        need(offset.checked_add(length).is_some_and(|end| {
+            integer(&gltf["buffers"][0], "byteLength", None).is_ok_and(|n| end <= n)
+        }))?;
         let start = json_end
             .checked_add(8)
             .and_then(|n| n.checked_add(offset))
@@ -125,7 +123,7 @@ pub(super) fn materials(gltf: &Value, glb: &[u8], json_end: usize) -> Result<Mat
             w = (w / 2).max(1);
             h = (h / 2).max(1);
         }
-        // At most three exact byte comparisons intern the image identities;
+        // Exact byte comparisons (length first) intern the image identities;
         // material references then use small keys rather than repeated PNG scans.
         let canonical = decoded
             .iter()
@@ -256,8 +254,7 @@ pub(super) fn materials(gltf: &Value, glb: &[u8], json_end: usize) -> Result<Mat
     need(
         image_refs.len() == images.len()
             && sampler_refs.len() == samplers.len()
-            && texture_refs.len() == textures.len()
-            && result.retained_bytes <= 12 * MIB,
+            && texture_refs.len() == textures.len(),
     )?;
     if !images.is_empty() {
         // Conservative workspace reservation once per owner. This maximum is

@@ -47,7 +47,7 @@ const SOURCE = [
   node('unified-atlas-compact-layer-details.mjs'), node('unified-atlas-control-names-healthy.mjs'), node('unified-atlas-daylight-healthy.mjs'),
   // Named healthy cases
   ...cases('embedded-png-material-healthy.mjs', '--case', ['slots', 'image-sharing', 'png-filters',
-    'png-adam7', 'accounting-1024', 'legacy-geometry', 'gpu-owner', 'precedence']),
+    'png-adam7', 'accounting-1024', 'four-maps-1024', 'legacy-geometry', 'gpu-owner', 'precedence']),
   ...cases('native-evidence-request-read.mjs', '', ['healthy-committed-observation', 'healthy-unknown-observation']),
 ];
 const BUILD = [node('check-backend-frontend-compat.mjs')];
