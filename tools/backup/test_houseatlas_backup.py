@@ -242,6 +242,10 @@ printf '{{"ubiquitous": true, "uploaded": true, "downloadingStatus": "%s"}}\\n' 
         config = hb.Config(config_file)
         release = self.release()
         release.binary = helper
+        release.server_config = self.root / "server.json"
+        release.server_config.write_text(json.dumps({"dataDirectory": str(self.root / "data")}))
+        shared = hb.private_dir(self.root / "data" / hb.SHARED_FOLDER)
+        (shared / "retention.json").write_text('{"keep": "recent", "nights": 7, "months": 1}')
 
         def capture(service, config, bundle):
             hb.private_dir(bundle)
@@ -271,6 +275,138 @@ printf '{{"ubiquitous": true, "uploaded": true, "downloadingStatus": "%s"}}\\n' 
             names = tar.getnames()
         self.assertFalse(any(name.startswith("model") for name in names))
         self.assertIn("backup-report.json", names)
+        sidecar = json.loads((icloud / f"{second['archive']}{hb.MODELS_SIDECAR}").read_text())
+        self.assertEqual((sidecar["verified"], len(sidecar["blobs"])), (True, 3))
+        status = json.loads((shared / "status.json").read_text())
+        self.assertEqual(status["lastSuccess"]["finished"], second["finished"])
+        self.assertEqual((status["lastFailure"], status["problem"]), (None, None))
+        self.assertEqual(status["retention"], {"keep": "recent", "nights": 7, "months": 1})
+        self.assertEqual(status["removed"], {"archives": 0, "modelFiles": 0, "bytes": 0})
+        self.assertEqual(status["stored"]["archives"], 2)
+
+
+class RetentionTest(unittest.TestCase):
+    """The owner's retention choice from Settings, applied after a verified run."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp()).resolve()
+        self.icloud = hb.private_dir(self.root / "icloud")
+        self.blobs = hb.private_dir(self.icloud / hb.MODEL_STORE / "blobs")
+        helper, _ = BackupScriptTest.fake_icloud_helper(self)
+        self.config = type("C", (), {"icloud_helper": helper, "upload_timeout": 5,
+                                     "icloud_directory": self.icloud})()
+
+    def blob(self, letter):
+        (self.blobs / (letter * 64)).write_bytes(letter.encode() * 10)
+        return {"file": f"releases/{letter}/overview.glb", "sha256": letter * 64, "bytes": 10}
+
+    def archive(self, stamp, models, sidecar=True, verified=True):
+        work = hb.private_dir(self.root / "work" / stamp)
+        hb.private_dir(work / "bundle")
+        (work / "backup-report.json").write_text(json.dumps(
+            {"modelStore": hb.MODEL_STORE, "models": models}))
+        target = self.icloud / f"{hb.ARCHIVE_PREFIX}{stamp}.tar.gz"
+        hb.pack(work, target)
+        (self.icloud / f"{target.name}.sha256").write_text("x\n")
+        if sidecar:
+            hb.write_models_sidecar(target, models, verified)
+        return target
+
+    def names(self):
+        return sorted(p.name for p in self.icloud.iterdir() if p.is_file())
+
+    def test_retention_choice_defaults_to_forever(self):
+        self.assertEqual(hb.read_retention(None), ({"keep": "forever"}, None))
+        self.assertEqual(hb.read_retention(self.root), ({"keep": "forever"}, None))
+        for bad in ('{"keep": "recent", "nights": 3, "months": 12}', '{"keep": "recent", "nights": 30}',
+                    '{"keep": "recent", "nights": true, "months": 1}', '[]', 'not json'):
+            (self.root / "retention.json").write_text(bad)
+            choice, problem = hb.read_retention(self.root)
+            self.assertEqual(choice, {"keep": "forever"}, bad)
+            self.assertIsNotNone(problem, bad)
+        (self.root / "retention.json").write_text('{"keep": "recent", "nights": 30, "months": 12}')
+        self.assertEqual(hb.read_retention(self.root), ({"keep": "recent", "nights": 30, "months": 12}, None))
+
+    def test_keeps_last_nights_and_first_of_each_month(self):
+        days = [dt.date(2026, 8, 20) + dt.timedelta(days=n) for n in range(70)]
+        stamps = {d.strftime("%Y%m%dT040000Z"): True for d in days}
+        current = max(stamps)
+        keep = hb.kept_stamps(stamps, 30, 3, current)
+        nights = sorted(stamps)[-30:]
+        self.assertEqual(keep, set(nights) | {"20260820T040000Z", "20260901T040000Z"})
+        self.assertEqual(hb.kept_stamps(stamps, 30, 2, current), set(nights) | {"20260901T040000Z"})
+        self.assertEqual(hb.kept_stamps(stamps, 7, 0, current), set(sorted(stamps)[-7:]))
+        # Of two archives on one day the verified one stays, even if older.
+        stamps["20261027T100000Z"] = False
+        stamps["20261027T040000Z"] = True
+        keep = hb.kept_stamps(stamps, 7, 0, current)
+        self.assertIn("20261027T040000Z", keep)
+        self.assertNotIn("20261027T100000Z", keep)
+
+    def test_recent_retention_deletes_old_archives_and_unused_blobs(self):
+        old, legacy, current = self.blob("a"), self.blob("b"), self.blob("c")
+        self.blob("d")  # in no archive at all
+        (self.icloud / "notes.txt").write_text("not ours")
+        (self.blobs / ("e" * 64 + ".partial-x")).write_bytes(b"")
+        stamps = [f"202610{day:02d}T040000Z" for day in range(1, 11)]
+        for stamp in stamps[:2]:
+            self.archive(stamp, [old])
+        self.archive(stamps[2], [old], sidecar=False)  # pruned before it is ever opened
+        self.archive(stamps[3], [legacy], sidecar=False)  # kept: opened once for its blobs
+        for stamp in stamps[4:-1]:
+            self.archive(stamp, [legacy])
+        target = self.archive(stamps[-1], [current])
+        removed = hb.apply_retention(self.config, {"keep": "recent", "nights": 7, "months": 0}, target, [current])
+        self.assertEqual((removed["archives"], removed["modelFiles"]), (3, 2))
+        self.assertGreater(removed["bytes"], 0)
+        kept = [f"{hb.ARCHIVE_PREFIX}{s}.tar.gz" for s in stamps[3:]]
+        self.assertEqual(self.names(), sorted(["notes.txt"] + kept + [k + ".sha256" for k in kept]
+                                              + [k + hb.MODELS_SIDECAR for k in kept]))
+        backfilled = json.loads((self.icloud / (kept[0] + hb.MODELS_SIDECAR)).read_text())
+        self.assertEqual((backfilled["verified"], backfilled["blobs"]), (False, ["b" * 64]))
+        self.assertEqual(sorted(p.name for p in self.blobs.iterdir()), ["b" * 64, "c" * 64, "e" * 64 + ".partial-x"])
+        totals = hb.stored_totals(self.icloud)
+        self.assertEqual(totals["archives"], 7)
+
+    def test_forever_and_unreadable_lists_delete_nothing(self):
+        blob = self.blob("a")
+        self.blob("d")
+        stamps = [f"202610{day:02d}T040000Z" for day in range(1, 11)]
+        for stamp in stamps[:-1]:
+            self.archive(stamp, [blob])
+        target = self.archive(stamps[-1], [blob])
+        before = self.names(), sorted(p.name for p in self.blobs.iterdir())
+        self.assertEqual(hb.apply_retention(self.config, {"keep": "forever"}, target, [blob]),
+                         {"archives": 0, "modelFiles": 0, "bytes": 0})
+        (self.icloud / f"{hb.ARCHIVE_PREFIX}{stamps[5]}.tar.gz{hb.MODELS_SIDECAR}").write_text('{"blobs": ["../x"]}')
+        with self.assertRaises(hb.StepFailed):
+            hb.apply_retention(self.config, {"keep": "recent", "nights": 7, "months": 0}, target, [blob])
+        self.assertEqual((self.names(), sorted(p.name for p in self.blobs.iterdir())), before)
+
+    def test_an_unverified_current_archive_stops_retention(self):
+        blob = self.blob("a")
+        target = self.archive("20261001T040000Z", [blob], verified=False)
+        with self.assertRaises(hb.StepFailed):
+            hb.apply_retention(self.config, {"keep": "recent", "nights": 7, "months": 0}, target, [blob])
+        self.assertTrue(target.exists())
+
+    def test_status_keeps_the_last_success_when_a_run_fails(self):
+        folder = self.root / "data" / hb.SHARED_FOLDER
+        hb.write_status(folder, {"lastSuccess": {"finished": "s"}, "lastFailure": None})
+        hb.write_status(folder, {"lastFailure": {"at": "f", "step": "iCloud upload"}})
+        status = json.loads((folder / "status.json").read_text())
+        self.assertEqual(status, {"schemaVersion": 1, "lastSuccess": {"finished": "s"},
+                                  "lastFailure": {"at": "f", "step": "iCloud upload"}})
+        self.assertEqual((folder / "status.json").stat().st_mode & 0o777, 0o600)
+        self.assertEqual(sorted(p.name for p in folder.iterdir()), ["status.json"])
+
+    def test_shared_folder_comes_from_the_server_config(self):
+        config = self.root / "server.json"
+        config.write_text(json.dumps({"dataDirectory": "/srv/data"}))
+        service = type("S", (), {"server_config": config})()
+        self.assertEqual(hb.shared_folder(service), Path("/srv/data/backup"))
+        config.write_text("{}")
+        self.assertIsNone(hb.shared_folder(service))
 
 
 if __name__ == "__main__":

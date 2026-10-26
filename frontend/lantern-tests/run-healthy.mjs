@@ -40,7 +40,7 @@ const SOURCE = [
   node('offline-atlas-presentation-healthy.mjs'), node('offline-catalog-mounting-healthy.mjs'),
   ...cases('offline-catalog-healthy.mjs', '--case', ['complete', 'partial']),
   node('offline-root-entry-healthy.mjs'), node('offline-connection-probe-healthy.mjs'), node('offline-stage-discard-healthy.mjs'),
-  node('outbox-healthy.mjs'),
+  node('outbox-healthy.mjs'), node('backup-settings-healthy.mjs'),
   // Unified Atlas
   node('unified-atlas-healthy.mjs'), node('unified-atlas-cache-healthy.mjs'), node('unified-atlas-network-connections-healthy.mjs'),
   node('unified-atlas-overlay-source-healthy.mjs'), node('unified-atlas-room-links-healthy.mjs'),

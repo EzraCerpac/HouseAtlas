@@ -2583,6 +2583,24 @@ same contract (lookup of a committed envelope, no second write on an identical
 resend, 412 for a stale revision) is asserted in
 `tools/rust-integration/healthy-human-host-loopback.mjs`.
 
+## Named generated backup settings positive
+
+Inspect `frontend/src/lantern/backups.ts`, `BackupSettings.tsx` and
+`frontend/lantern-tests/backup-settings-healthy.mjs` before execution. With
+Node 26.10.0:
+
+```sh
+node frontend/lantern-tests/backup-settings-healthy.mjs
+```
+
+It decodes the server's answer (an exact retention choice; a job summary whose
+odd parts are dropped), checks the sentences Settings → Backups shows, and
+drives the save exchange against a generated server: the session read for
+CSRF, the POST, a refusal for a non-editor, an unreachable server and a server
+without the route. It runs in `run-healthy.mjs`. The route itself
+(`backend/src/http/backup_settings.rs`) has library unit tests, and the job
+side has synthetic `tools/backup` tests.
+
 ## Named generated compact layer-details focus check
 
 Inspect `frontend/lantern-tests/unified-atlas-compact-layer-details.mjs`,

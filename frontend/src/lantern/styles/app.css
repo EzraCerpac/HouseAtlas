@@ -1376,6 +1376,37 @@
   justify-self: start;
 }
 
+.lantern-host .backup-keep {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.lantern-host .backup-keep label {
+  display: grid;
+  gap: 4px;
+  font-size: var(--fs-s);
+  color: var(--muted);
+}
+
+.lantern-host .field .backup-keep select {
+  width: auto;
+  min-width: 96px;
+}
+
+.lantern-host .backup-settings p {
+  margin: 0;
+}
+
+.lantern-host .backup-settings [role='status'] {
+  display: grid;
+  gap: 4px;
+}
+
+.lantern-host .backup-error {
+  color: var(--alert);
+}
+
 .lantern-host .media-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));

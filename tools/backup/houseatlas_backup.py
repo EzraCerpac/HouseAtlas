@@ -12,9 +12,13 @@ One run:
   6. waits until iCloud reports the uploads done, evicts the local copies,
      downloads them again from iCloud, compares the bytes, repeats the
      restore check on the downloaded bundle, and rebuilds the model folders
-     from the stored blobs.
+     from the stored blobs;
+  7. only then applies the retention the owner chose in the app's Settings:
+     "forever" (the default) deletes nothing; otherwise older archives and the
+     model files no kept archive names are deleted from iCloud.
 
-Nothing in iCloud is ever deleted or overwritten. The live database is only
+Nothing in iCloud is ever overwritten, and nothing is deleted except by the
+owner's retention choice after a fully verified run. The live database is only
 read through the backup CLI while the service is stopped. All private paths
 come from a JSON config outside the repository (see docs/operations/icloud-backup.md).
 Standard library only; the iCloud steps need the `houseatlas-icloud` helper and
@@ -44,6 +48,16 @@ PROFILE = "native-stock-queue-free"
 ARCHIVE_PREFIX = "houseatlas-backup-"
 # Model files are stored once in this iCloud subfolder, under blobs/<sha256>.
 MODEL_STORE = "models"
+# Each verified archive gets this sidecar listing the blobs it needs, so
+# retention can tell which blobs are still in use without opening archives.
+MODELS_SIDECAR = ".models.json"
+ARCHIVE_FILE = re.compile(r"houseatlas-backup-(\d{8}T\d{6}Z)\.tar\.gz(\.sha256|\.models\.json)?")
+BLOB_NAME = re.compile(r"[0-9a-f]{64}")
+# The server's data directory holds this folder; the server writes the owner's
+# retention choice there and shows this job's status from it in Settings.
+SHARED_FOLDER = "backup"
+NIGHTS = range(7, 366)
+MONTHS = range(0, 121)
 MODEL_FLAGS = (
     "--model-overview-manifest",
     "--atlas-scene-manifest",
@@ -406,7 +420,7 @@ def fetch_from_icloud(config: Config):
 
 
 def prune_local(archives: Path, keep: int) -> None:
-    """Local copies on the NAS only. iCloud copies are never deleted."""
+    """Local copies on the NAS only; iCloud copies follow the owner's retention."""
     local = sorted(archives.glob(f"{ARCHIVE_PREFIX}*.tar.gz"))
     for old in local[: max(0, len(local) - keep)]:
         old.unlink()
@@ -417,6 +431,175 @@ def prune_runs(runs: Path, keep: int) -> None:
     failed = sorted(path for path in runs.iterdir() if path.is_dir())
     for old in failed[: max(0, len(failed) - keep)]:
         shutil.rmtree(old)
+
+
+def shared_folder(service: Service) -> Path | None:
+    """The backup folder in the server's data directory, or None when the
+    server config does not name one."""
+    try:
+        data = json.loads(service.server_config.read_text())["dataDirectory"]
+    except (AttributeError, OSError, ValueError, KeyError, TypeError):
+        return None
+    return Path(data) / SHARED_FOLDER if isinstance(data, str) else None
+
+
+def read_retention(folder: Path | None) -> tuple[dict, str | None]:
+    """The owner's choice from Settings and any problem reading it. Anything
+    missing or malformed means keep everything."""
+    forever = {"keep": "forever"}
+    if folder is None:
+        return forever, None
+    try:
+        raw = json.loads((folder / "retention.json").read_text())
+    except FileNotFoundError:
+        return forever, None
+    except (OSError, ValueError):
+        return forever, "The retention choice could not be read, so every backup was kept."
+    if not isinstance(raw, dict):
+        raw = {}
+    if raw.get("keep") == "forever":
+        return forever, None
+    nights, months = raw.get("nights"), raw.get("months")
+    if (raw.get("keep") == "recent" and type(nights) is int and nights in NIGHTS
+            and type(months) is int and months in MONTHS):
+        return {"keep": "recent", "nights": nights, "months": months}, None
+    return forever, "The retention choice was not valid, so every backup was kept."
+
+
+def kept_stamps(archives: dict[str, bool], nights: int, months: int, current: str) -> set[str]:
+    """Tonight's archive, the newest archive of each of the last `nights` days
+    that have one, and the first archive of each of the last `months` months
+    that have one. `archives` maps a stamp to whether its run was verified;
+    within a day or month a verified archive wins over an unverified one."""
+    keep = {current}
+    for width, count, newest in ((8, nights, True), (6, months, False)):
+        chosen: dict[str, str] = {}
+        for stamp in sorted(archives, reverse=newest):
+            best = chosen.get(stamp[:width])
+            if best is None or (archives[stamp] and not archives[best]):
+                chosen[stamp[:width]] = stamp
+        if count:
+            keep.update(chosen[period] for period in sorted(chosen)[-count:])
+    return keep
+
+
+def archive_groups(folder: Path) -> dict[str, list[Path]]:
+    """Every archive and sidecar in the iCloud folder, by stamp. Other files
+    are never touched."""
+    groups: dict[str, list[Path]] = {}
+    for path in folder.iterdir():
+        match = ARCHIVE_FILE.fullmatch(path.name)
+        if match and path.is_file():
+            groups.setdefault(match.group(1), []).append(path)
+    return groups
+
+
+def write_models_sidecar(target: Path, models: list[dict], verified: bool) -> None:
+    sidecar = {"format": "houseatlas-backup-models/1", "archive": target.name, "verified": verified,
+               "blobs": sorted({model["sha256"] for model in models})}
+    with target.with_name(target.name + MODELS_SIDECAR).open("x") as handle:
+        handle.write(json.dumps(sidecar, indent=2) + "\n")
+
+
+def read_sidecar(config: Config, sidecar: Path) -> dict:
+    """A models sidecar, brought back from iCloud first if it was evicted."""
+    if icloud(config, "status", sidecar).get("downloadingStatus") != "NSURLUbiquitousItemDownloadingStatusCurrent":
+        fetch_from_icloud(config)(sidecar)
+    value = json.loads(sidecar.read_text())
+    blobs = value.get("blobs") if isinstance(value, dict) else None
+    if not (isinstance(blobs, list) and all(isinstance(b, str) and BLOB_NAME.fullmatch(b) for b in blobs)):
+        raise StepFailed("retention", f"{sidecar.name} is malformed")
+    return value
+
+
+def archive_blobs(config: Config, archive: Path) -> set[str]:
+    """The blobs an archive needs, from its sidecar. An archive made before
+    sidecars existed is downloaded once to read its report, and gets one."""
+    sidecar = archive.with_name(archive.name + MODELS_SIDECAR)
+    if sidecar.exists():
+        return set(read_sidecar(config, sidecar)["blobs"])
+    fetch_from_icloud(config)(archive)
+    with tarfile.open(archive, "r:gz") as tar:
+        member = tar.extractfile("backup-report.json")
+        if member is None:
+            raise StepFailed("retention", f"{archive.name} has no report")
+        report = json.load(member)
+    # Archives from before the blob store carry their model files inside.
+    models = report.get("models", []) if "modelStore" in report else []
+    check_model_list(models)
+    write_models_sidecar(archive, models, verified=False)
+    icloud(config, "evict", archive)
+    return {model["sha256"] for model in models}
+
+
+def apply_retention(config: Config, retention: dict, archive: Path, models: list[dict]) -> dict:
+    """Deletes what the owner's retention no longer keeps, after a verified
+    run: archives first, then the blobs no kept archive needs. Any blob list
+    that cannot be read stops the run before a single blob is deleted."""
+    removed = {"archives": 0, "modelFiles": 0, "bytes": 0}
+    if retention["keep"] != "recent":
+        return removed
+    folder = config.icloud_directory
+    groups = archive_groups(folder)
+    current = ARCHIVE_FILE.fullmatch(archive.name).group(1)
+    archives = {}
+    for stamp, files in groups.items():
+        if folder / f"{ARCHIVE_PREFIX}{stamp}.tar.gz" in files:
+            sidecar = folder / f"{ARCHIVE_PREFIX}{stamp}.tar.gz{MODELS_SIDECAR}"
+            archives[stamp] = sidecar in files and read_sidecar(config, sidecar).get("verified") is True
+    if not archives.get(current):
+        raise StepFailed("retention", "tonight's verified archive is not in the iCloud folder")
+    keep = kept_stamps(archives, retention["nights"], retention["months"], current)
+    # Read every kept archive's blob list before deleting anything.
+    needed = {model["sha256"] for model in models}
+    for stamp in sorted(keep):
+        needed |= archive_blobs(config, folder / f"{ARCHIVE_PREFIX}{stamp}.tar.gz")
+    for stamp, files in sorted(groups.items()):
+        if stamp in keep:
+            continue
+        # The archive goes first; a sidecar left by an interruption goes next run.
+        for path in sorted(files, key=lambda p: not p.name.endswith(".tar.gz")):
+            removed["bytes"] += path.stat().st_size
+            path.unlink()
+        removed["archives"] += folder / f"{ARCHIVE_PREFIX}{stamp}.tar.gz" in files
+    blobs = folder / MODEL_STORE / "blobs"
+    for blob in sorted(blobs.iterdir()) if blobs.is_dir() else []:
+        if BLOB_NAME.fullmatch(blob.name) and blob.name not in needed:
+            removed["bytes"] += blob.stat().st_size
+            blob.unlink()
+            removed["modelFiles"] += 1
+    return removed
+
+
+def stored_totals(folder: Path) -> dict:
+    """What the iCloud folder holds now; evicted files still report their size."""
+    groups = archive_groups(folder) if folder.is_dir() else {}
+    blobs = folder / MODEL_STORE / "blobs"
+    files = [p for group in groups.values() for p in group]
+    files += [p for p in blobs.iterdir() if BLOB_NAME.fullmatch(p.name)] if blobs.is_dir() else []
+    return {"archives": sum(any(p.name.endswith(".tar.gz") for p in g) for g in groups.values()),
+            "bytes": sum(p.stat().st_size for p in files)}
+
+
+def write_status(folder: Path | None, update: dict) -> None:
+    """The summary Settings shows. Written whole and renamed into place."""
+    if folder is None:
+        return
+    try:
+        folder = private_dir(folder)
+        path = folder / "status.json"
+        try:
+            status = json.loads(path.read_text())
+            status = status if isinstance(status, dict) else {}
+        except (OSError, ValueError):
+            status = {}
+        status.update(update, schemaVersion=1)
+        partial = folder / f".status.json.{os.getpid()}"
+        partial.write_text(json.dumps(status, indent=2) + "\n")
+        partial.chmod(0o600)
+        partial.rename(path)
+    except OSError:
+        pass  # The backup itself stands; Settings just shows an older summary.
 
 
 def report_failure(config: Config, message: str) -> None:
@@ -491,6 +674,19 @@ def backup(config: Config) -> dict:
         raise StepFailed("model restore", "downloaded report lists other model files")
     timed("modelRestoreSeconds", restore_models, store, restored,
           private_dir(work / "restore-model"), fetch_from_icloud(config))
+    # Only a run that got this far counts as verified for retention.
+    target = config.icloud_directory / archive.name
+    write_models_sidecar(target, models, verified=True)
+
+    shared = shared_folder(service)
+    retention, problem = read_retention(shared)
+    removed = {"archives": 0, "modelFiles": 0, "bytes": 0}
+    try:
+        removed = timed("retentionSeconds", apply_retention, config, retention, target, models)
+    except (StepFailed, OSError, ValueError, tarfile.TarError) as error:
+        problem = f"Older backups were not cleaned up this time ({error})."
+    if problem:
+        report_failure(config, "HouseAtlas iCloud backup succeeded but kept every older copy; see Settings.")
 
     shutil.rmtree(work)
     prune_local(archives, config.keep_local_archives)
@@ -506,11 +702,30 @@ def backup(config: Config) -> dict:
         "modelFileCount": len(models),
         "modelBlobsStored": len(stored),
         "modelBytesStored": sum({m["sha256"]: m["bytes"] for m in models}[blob.name] for blob in stored),
+        "retention": retention,
+        "removed": removed,
         "timings": timings,
         "finished": now().isoformat(timespec="seconds"),
     }
     (state / "last-success.json").write_text(json.dumps(result, indent=2) + "\n")
+    write_status(shared, {
+        "lastSuccess": {key: result[key] for key in (
+            "finished", "recoveryPoint", "archiveBytes", "modelBytesStored")}
+        | {"offlineSeconds": timings["captureSeconds"]},
+        "lastFailure": None,
+        "retention": retention,
+        "removed": removed,
+        "problem": problem,
+        "stored": stored_totals(config.icloud_directory),
+    })
     return result
+
+
+def status_folder(config: Config) -> Path | None:
+    try:
+        return shared_folder(Service(config))
+    except Exception:  # noqa: BLE001 - a broken plist is reported as the failure itself
+        return None
 
 
 def restore_models_command(report: Path, store: Path, destination: Path) -> int:
@@ -558,6 +773,7 @@ def main() -> int:
             failure = {"status": "failed", "step": error.step, "detail": error.detail,
                        "at": now().isoformat(timespec="seconds")}
             (state / "last-failure.json").write_text(json.dumps(failure, indent=2) + "\n")
+            write_status(status_folder(config), {"lastFailure": {"at": failure["at"], "step": error.step}})
             print(json.dumps(failure), file=sys.stderr)
             report_failure(config, f"HouseAtlas iCloud backup failed at step '{error.step}'.")
             return 1
@@ -565,6 +781,7 @@ def main() -> int:
             failure = {"status": "failed", "step": "unexpected", "detail": repr(error),
                        "at": now().isoformat(timespec="seconds")}
             (state / "last-failure.json").write_text(json.dumps(failure, indent=2) + "\n")
+            write_status(status_folder(config), {"lastFailure": {"at": failure["at"], "step": "unexpected"}})
             print(json.dumps(failure), file=sys.stderr)
             report_failure(config, "HouseAtlas iCloud backup failed unexpectedly.")
             return 1
