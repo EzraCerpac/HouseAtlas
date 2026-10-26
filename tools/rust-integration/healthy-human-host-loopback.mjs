@@ -231,13 +231,38 @@ try {
   assert.equal(completionResponse?.status, 200);
   const completionBody = await send('Network.getResponseBody', { requestId: captured.requestId });
   const receipt = JSON.parse(completionBody.base64Encoded ? Buffer.from(completionBody.body, 'base64').toString('utf8') : completionBody.body);
-  const renderedReceipt = await evaluate("document.querySelector('section[aria-label=\"Atlas place editing\"] details pre')?.textContent");
-  assert.deepEqual(JSON.parse(renderedReceipt), receipt, 'Actual HTTP canonical receipt is displayed after normal form refresh');
+  // The form saves through the device outbox, which settles the entry once committed.
+  const queued = await evaluate(`new Promise((resolve, reject) => { const open = indexedDB.open('houseatlas-outbox-v1');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => { const read = open.result.transaction('entries').objectStore('entries').getAll();
+      read.onerror = () => reject(read.error); read.onsuccess = () => resolve(read.result.map(entry => ({ state: entry.state, requestId: entry.requestId, label: entry.label, body: entry.body }))); }; })`);
+  assert.deepEqual(queued, [{ state: 'synced', requestId: submitted.requestId, label: `Mark ${room.entity.name} as floor`, body: JSON.stringify(submitted) }],
+    'The classification went through the device outbox, stored byte for byte, and settled');
   assert.equal(receipt.schemaVersion, 3); assert.equal(receipt.commandId, submitted.commandId);
   assert.equal(receipt.requestId, submitted.requestId); assert.deepEqual(receipt.resolvedScope, submitted.context);
   assert.equal(receipt.status, 'committed'); assert.equal(receipt.replayed, false);
   assert.deepEqual(receipt.data.records, [{ target, revision: 2, lifecycle: 'active', payload: expectedPayload }]);
   assert.equal(receipt.data.auditIds.length, 1);
+  // Reconnect sync: a queued envelope whose reply was lost is looked up by its
+  // original bytes before anything is resent. Its permanent idempotency key
+  // means an identical resend can never write a second time, and a fresh key
+  // against the old revision is a conflict for the person to review.
+  const resend = await evaluate(`(async()=>{
+    const session=await (await fetch('/api/atlas/auth/session',{credentials:'same-origin',cache:'no-store',redirect:'error'})).json();
+    const post=async(path,body)=>{const r=await fetch(path,{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',headers:{Accept:'application/json','Content-Type':'application/json','X-Atlas-CSRF':session.csrfToken},body});return {status:r.status,body:await r.json()};};
+    const commands=${JSON.stringify(`/api/atlas/stock/v3/${scopePath}/commands`)}, original=${JSON.stringify(JSON.stringify(submitted))};
+    const lookup=await post('/api/atlas/retained-intent',original);
+    const again=await post(commands,original);
+    const stale=JSON.parse(original);stale.requestId=crypto.randomUUID();stale.idempotencyKey=crypto.randomUUID();
+    return {lookup,again,stale:await post(commands,JSON.stringify(stale))};
+  })()`);
+  assert.equal(resend.lookup.status, 200);
+  assert.equal(resend.lookup.body.lookupRequestId, submitted.requestId);
+  assert.equal(resend.lookup.body.inspection.outcome, 'retained-commit');
+  assert.equal(resend.lookup.body.inspection.operationId, receipt.operationId);
+  assert.deepEqual(resend.lookup.body.committedResult.wire.data.records, receipt.data.records);
+  assert.notEqual(resend.again.status, 200, 'An identical resend is not committed again');
+  assert.equal(resend.stale.status, 412); assert.equal(resend.stale.body.code, 'CONFLICT');
   const get = { schemaVersion: 3, commandId: 'atlas.location-semantics.get', requestId: U(1803), context: view.scope, target, payload: {} };
   const record = await invoke(get);
   assert.equal(record.wire.requestId, get.requestId); assert.equal(record.wire.commandId, get.commandId);
@@ -352,7 +377,11 @@ try {
 
   assert.equal(runtimeErrors.length, 0, 'No browser runtime exceptions in the healthy flow');
   assert(observedUrls.every(url => url.startsWith(origin + '/')), 'Observed page requests stay on the actual loopback origin');
-  assert(responses.every(response => response.status === 200 || (response.status === 202 && response.url === origin + mcpPath) || (response.status === 204 && response.url === origin + '/favicon.ico')), 'Only the inspected ordinary successful response statuses occurred');
+  // The two deliberate refusals above are the only command responses that are not 200.
+  const commandPath = origin + `/api/atlas/stock/v3/${scopePath}/commands`;
+  const refused = responses.filter(response => response.url === commandPath && response.status !== 200);
+  assert.deepEqual(refused.map(response => response.status).sort(), [412, resend.again.status].sort());
+  assert(responses.filter(response => !refused.includes(response)).every(response => response.status === 200 || (response.status === 202 && response.url === origin + mcpPath) || (response.status === 204 && response.url === origin + '/favicon.ico')), 'Only the inspected ordinary successful response statuses occurred');
   // Ordinary persistence observation only: query the actual synthetic database
   // read-only after successful human/native-read/MCP operations, without mutating its guards.
   const sql = [

@@ -1,6 +1,7 @@
 import type {
   Guard,
   License,
+  LocationSemanticsPayloadSemanticKind,
   LocationSemanticsRecord,
   Scope,
   SourceRef,
@@ -54,4 +55,47 @@ export interface AtlasEditingClient {
     intent: UploadPlaceEvidence,
     signal: AbortSignal,
   ) => Promise<StockResultEnvelope>;
+}
+
+export const kindLabel = (kind: LocationSemanticsPayloadSemanticKind): string =>
+  `${kind[0]?.toUpperCase()}${kind.slice(1)}`;
+
+/** The replace command for a new classification, guarded by the admitted
+ * record's revision and its evidence. A floor keeps its elevation; any other
+ * kind drops it. Fresh request identity on every call. */
+export function classificationRequest(
+  admission: PlaceEditAdmission,
+  kind: LocationSemanticsPayloadSemanticKind,
+  reason: string,
+): StockRequestEnvelope {
+  const record = admission.record,
+    { elevation, ...payload } = record.payload;
+  return {
+    schemaVersion: 3,
+    commandId: "atlas.location-semantics.replace",
+    requestId: crypto.randomUUID(),
+    context: { workspaceId: record.workspaceId, homeId: record.homeId },
+    target: {
+      authority: "atlas",
+      recordType: "location-semantics",
+      recordId: record.recordId,
+    },
+    payload: {
+      ...payload,
+      semanticKind: kind,
+      ...(kind === "floor" && elevation !== undefined
+        ? { elevation: { ...elevation } }
+        : {}),
+    },
+    idempotencyKey: crypto.randomUUID(),
+    reason,
+    approvalReceiptId: null,
+    preconditions: {
+      target: { kind: "atlas", value: record.revision },
+      guards: admission.guards.map((guard) => ({
+        target: { authority: "atlas", ...guard.record },
+        revision: { kind: "atlas", value: guard.expectedRevision },
+      })),
+    },
+  } as StockRequestEnvelope;
 }
