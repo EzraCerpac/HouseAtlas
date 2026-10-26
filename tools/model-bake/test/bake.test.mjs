@@ -444,6 +444,41 @@ test('drops vertex attributes the server refuses, also where nothing is simplifi
   }
 });
 
+test('folds vertex colours into the material colour before dropping them', async () => {
+  const painted = readGlb(paint(paint(texturedMaster(), 'Wall', { COLOR_0: 'VEC4' }), 'Panel', { COLOR_0: 'VEC4' }));
+  // A material the master already leaves unused stays declared, so its texture keeps a reference.
+  painted.json.materials.push({ name: 'Unused', pbrMetallicRoughness: { baseColorTexture: { index: 0 } } });
+  const glb = writeGlb(painted.json, painted.bin);
+  for (const result of [await bakeDetail(glb, null), await bakeOverview(glb, null)]) {
+    const { json } = readGlb(result.glb), material = name => json.materials[json.meshes[mesh(result.glb, name)].primitives[0].material];
+    // No material: the colour alone. A textured material keeps its map, now tinted.
+    assert.deepEqual(material('Wall').pbrMetallicRoughness, { baseColorFactor: [0.5, 0.5, 0.5, 1] });
+    assert.deepEqual(material('Panel').pbrMetallicRoughness, { baseColorTexture: { index: 0 }, baseColorFactor: [0.5, 0.5, 0.5, 1] });
+    assert.deepEqual(row(result, 'Wall').foldedVertexColour, [0.5, 0.5, 0.5]);
+    // The replaced textured original is no longer declared; the unused one is.
+    assert.deepEqual(json.materials.map(m => m.name ?? null), ['Unused', null, null]);
+  }
+});
+
+test('weighs folded vertex colours by area and reads normalized bytes', async () => {
+  // Two triangles of area 1/2 (green) and 3/2 (red), each sharing no vertex.
+  const positions = Float32Array.from([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 1, 0, 1, 1]);
+  const colours = Uint8Array.from([0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255, 255, 0, 0, 255]);
+  const bin = new Uint8Array(positions.byteLength + colours.byteLength);
+  bin.set(new Uint8Array(positions.buffer)); bin.set(colours, positions.byteLength);
+  const glb = writeGlb({ asset: { version: '2.0' }, scene: 0, scenes: [{ nodes: [0] }], nodes: [{ mesh: 0 }],
+    materials: [{ pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 0.5] } }],
+    meshes: [{ primitives: [{ attributes: { POSITION: 0, COLOR_0: 1 }, material: 0 }] }],
+    accessors: [{ bufferView: 0, componentType: 5126, count: 6, type: 'VEC3', min: [0, 0, 0], max: [3, 1, 1] },
+      { bufferView: 1, componentType: 5121, normalized: true, count: 6, type: 'VEC4' }],
+    bufferViews: [{ buffer: 0, byteOffset: 0, byteLength: positions.byteLength }, { buffer: 0, byteOffset: positions.byteLength, byteLength: colours.byteLength }],
+    buffers: [{ byteLength: bin.byteLength }] }, bin);
+  const { json } = readGlb((await bakeDetail(glb, null)).glb);
+  // Alpha stays the material's own: the viewer draws opaque surfaces.
+  assert.deepEqual(json.materials[json.meshes[0].primitives[0].material].pbrMetallicRoughness.baseColorFactor, [0.75, 0.25, 0, 0.5]);
+  assert.deepEqual(Object.keys(json.meshes[0].primitives[0].attributes), ['POSITION']);
+});
+
 test('the Full tier admits what the overview refuses', async () => {
   // 700,000 triangles over one shared triangle: over the overview's 600,000.
   const triangles = 700_000, positions = Float32Array.from([0, 0, 0, 1, 0, 0, 0, 1, 0]), indices = new Uint32Array(triangles * 3);
