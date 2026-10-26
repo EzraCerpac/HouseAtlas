@@ -99,7 +99,7 @@ class FakeOwner:
                 'committedResult': {'originalRequestId': req['requestId'], 'wire': wire, 'children': list(children),
                                     'originalMediaRelease': 'not-established', 'originalHttpDelivery': 'not-established'}}
 
-    def exchange(self, method, path, body=None, csrf=None, limit=b.MAX_JSON):
+    def exchange(self, method, path, body=None, csrf=None, limit=b.MAX_JSON, **options):
         self.calls.append((method, path))
         if method == 'POST' and path == '/api/atlas/retained-intent':
             self.lookup_calls.append(body)
@@ -121,6 +121,8 @@ class FakeOwner:
                 raise b.BridgeError('Synthetic post-dispatch session failure')
             result = {'schemaVersion': 1, 'actorId': uid(9), 'csrfToken': 'synthetic-only-not-a-real-token',
                       'expiresAt': '2099-01-01T00:00:00Z'}
+        elif path.endswith('/admission' + b.CATALOG_QUERY):
+            result = {'schemaVersion': 1, 'scope': SCOPE, 'partitions': []}
         elif path.endswith('/admission'):
             result = {'schemaVersion': 3, 'scope': SCOPE, 'commandIds': sorted(b.WRITES | {b.BATCH,
                       'atlas.evidence.get', 'atlas.asset.get', 'atlas.identity.get',
@@ -151,7 +153,8 @@ class FakeOwner:
             result['requestId'] = uid(777)
         raw = b.decimal_json(result).encode()
         assert len(raw) <= limit
-        return {'content-type': 'application/json'}, raw
+        response = ({'content-type': 'application/json'}, raw)
+        return (*response, 200) if options.get('metadata_status') else response
 
 
 class Cases(unittest.TestCase):

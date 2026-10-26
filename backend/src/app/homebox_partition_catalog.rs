@@ -1,4 +1,4 @@
-//! Internal native metadata catalog. Intentionally has no route/tool binding.
+//! Bounded native metadata catalog shared by retained and HTTP Read issuance.
 use super::{Core, OriginalPrincipal, RequestPrincipal};
 use crate::{access as a, catalog_budget as b, domain as d, storage as s};
 use serde::Serialize;
@@ -126,7 +126,7 @@ impl RequestPrincipal {
 /// The future owns sticky cancellation before scheduling. Dropping it cannot
 /// stop a running spawn_blocking closure: the worker must finish native cleanup.
 /// The caller supplies the original selected-home issuance, not public actor IDs.
-#[allow(dead_code)] // Deliberately internal and unmounted until separate exposure review.
+#[allow(dead_code)] // Retained-principal entry; HTTP owns its separate issuance handoff.
 pub(crate) async fn read(
     core: Arc<Mutex<Core>>,
     original: OriginalPrincipal,
@@ -153,11 +153,25 @@ fn worker(
     original: OriginalPrincipal,
     budget: &b::Budget,
 ) -> b::Result<Vec<u8>> {
+    read_with_issuance(core_owner, budget, |_, _| {
+        Ok(RequestPrincipal::from_retained(original.retained().clone()))
+    })?
+    .map_err(|_| b::Unavailable)
+}
+
+/// Called inside the HTTP handler's single blocking worker, using its budget.
+/// The issuance closure uses only the held original Access owner after BOTH
+/// policies are installed. Authentication errors remain distinct from catalog
+/// unavailability and are returned only after mandatory owner cleanup.
+pub(crate) fn read_with_issuance(
+    core_owner: Arc<Mutex<Core>>,
+    budget: &b::Budget,
+    issue: impl FnOnce(&mut a::AccessBoundary, &b::Budget) -> a::AccessResult<RequestPrincipal>,
+) -> b::Result<a::AccessResult<Vec<u8>>> {
     if !cfg!(panic = "unwind") {
         return Err(b::Unavailable);
     }
     budget.check()?;
-    // One attempt per original mutex, in the fixed Core -> Store -> Access order.
     let core = core_owner.try_lock().map_err(|_| b::Unavailable)?;
     budget.check()?;
     let store_owner = Arc::clone(&core.store);
@@ -170,97 +184,108 @@ fn worker(
     if !Arc::ptr_eq(&store.configured_authorization().0, &access_owner) {
         return Err(b::Unavailable);
     }
-    // Neither authorization nor source capture runs until BOTH native policies
-    // have been installed. The original selected scope is never defaulted.
-    let p = RequestPrincipal::from_retained(original.retained().clone());
-    let scope = d::Scope {
-        workspace_id: p.principal.scope().workspace_id.as_str().into(),
-        home_id: p.principal.scope().home_id.as_str().into(),
-    };
-    if !core.homes.iter().any(|home| home.scope == scope) {
-        return Err(b::Unavailable);
-    }
-    let native_scope = s::Scope {
-        workspace_id: scope.workspace_id.clone(),
-        home_id: scope.home_id.clone(),
-    };
     let mut access_bad = false;
     let outcome = store.with_partition_catalog(budget, |read| {
         let access = access_guard.as_mut().ok_or(b::Unavailable)?;
-        let checked = access.with_partition_catalog(p.principal.principal(), budget, |guard| {
-            let authority = Held { guard, budget };
+        let checked = access.with_partition_catalog_policy(budget, |access| {
             budget.check()?;
-            read.begin()?;
-            let cut = read.cut(&authority, &p, &native_scope)?;
-            let mut partitions = Vec::new();
-            let mut retained = Vec::new();
-            for registration in &cut {
-                budget.check()?;
-                if registration.owner != s::SourceOwner::Homebox {
-                    continue;
-                }
-                let access_registration: a::SourceRegistration = serde_json::from_value(
-                    serde_json::to_value(registration).map_err(|_| b::Unavailable)?,
-                )
-                .map_err(|_| b::Unavailable)?;
-                budget.check()?;
-                let grant = match p.capture_catalog(guard, &access_registration.partition(), budget)
-                {
-                    Ok(grant) => grant,
-                    Err(a::AccessError::NotFound | a::AccessError::Forbidden) => continue,
-                    Err(_) => return Err(b::Unavailable),
-                };
-                let metadata = guard
-                    .catalog_source_metadata(&grant, budget)
-                    .map_err(|_| b::Unavailable)?;
-                budget.check()?;
-                if metadata.registration() != &access_registration
-                    || partitions.len() == b::MAX_RESULTS
-                {
-                    return Err(b::Unavailable);
-                }
-                retained.push((grant, metadata));
-                partitions.push(Partition {
-                    owner: "homebox",
-                    source_instance_id: registration.source_instance_id.clone(),
-                    collection_id: registration.collection_id.clone(),
-                });
-            }
-            p.seal_source_capture();
+            let p = match issue(access, budget) {
+                Ok(p) => p,
+                Err(error) => return Ok(Err(error)),
+            };
             budget.check()?;
-            if read.cut(&authority, &p, &native_scope)? != cut {
-                return Err(b::Unavailable);
+            let scope = d::Scope {
+                workspace_id: p.principal.scope().workspace_id.as_str().into(),
+                home_id: p.principal.scope().home_id.as_str().into(),
+            };
+            if !core.homes.iter().any(|home| home.scope == scope) {
+                return Ok(Err(a::AccessError::NotFound));
             }
-            budget.check()?;
-            for (grant, before) in &retained {
-                budget.check()?;
-                if &guard
-                    .catalog_source_metadata(grant, budget)
-                    .map_err(|_| b::Unavailable)?
-                    != before
-                {
-                    return Err(b::Unavailable);
-                }
-                budget.check()?;
-            }
-            p.release_catalog(guard, budget, &retained)?;
-            let bytes = b::encode(
-                &Catalog {
-                    schema_version: 1,
-                    scope,
-                    partitions,
-                },
-                budget,
-            )?;
-            // Encoding cannot turn a prior check into a later disclosure grant.
-            if read.cut(&authority, &p, &native_scope)? != cut {
-                return Err(b::Unavailable);
-            }
-            p.release_catalog(guard, budget, &retained)?;
-            read.finish()?;
-            p.release_catalog(guard, budget, &retained)?;
-            budget.check()?;
-            Ok(bytes)
+            let native_scope = s::Scope {
+                workspace_id: scope.workspace_id.clone(),
+                home_id: scope.home_id.clone(),
+            };
+            // Authentication's committed bookkeeping precedes this transaction.
+            access
+                .partition_catalog_fence(p.principal.principal(), budget, |guard| {
+                    let authority = Held { guard, budget };
+                    budget.check()?;
+                    read.begin()?;
+                    let cut = read.cut(&authority, &p, &native_scope)?;
+                    let mut partitions = Vec::new();
+                    let mut retained = Vec::new();
+                    for registration in &cut {
+                        budget.check()?;
+                        if registration.owner != s::SourceOwner::Homebox {
+                            continue;
+                        }
+                        let access_registration: a::SourceRegistration = serde_json::from_value(
+                            serde_json::to_value(registration).map_err(|_| b::Unavailable)?,
+                        )
+                        .map_err(|_| b::Unavailable)?;
+                        budget.check()?;
+                        let grant = match p.capture_catalog(
+                            guard,
+                            &access_registration.partition(),
+                            budget,
+                        ) {
+                            Ok(grant) => grant,
+                            Err(a::AccessError::NotFound | a::AccessError::Forbidden) => continue,
+                            Err(_) => return Err(b::Unavailable),
+                        };
+                        let metadata = guard
+                            .catalog_source_metadata(&grant, budget)
+                            .map_err(|_| b::Unavailable)?;
+                        budget.check()?;
+                        if metadata.registration() != &access_registration
+                            || partitions.len() == b::MAX_RESULTS
+                        {
+                            return Err(b::Unavailable);
+                        }
+                        retained.push((grant, metadata));
+                        partitions.push(Partition {
+                            owner: "homebox",
+                            source_instance_id: registration.source_instance_id.clone(),
+                            collection_id: registration.collection_id.clone(),
+                        });
+                    }
+                    p.seal_source_capture();
+                    budget.check()?;
+                    if read.cut(&authority, &p, &native_scope)? != cut {
+                        return Err(b::Unavailable);
+                    }
+                    budget.check()?;
+                    for (grant, before) in &retained {
+                        budget.check()?;
+                        if &guard
+                            .catalog_source_metadata(grant, budget)
+                            .map_err(|_| b::Unavailable)?
+                            != before
+                        {
+                            return Err(b::Unavailable);
+                        }
+                        budget.check()?;
+                    }
+                    p.release_catalog(guard, budget, &retained)?;
+                    let bytes = b::encode(
+                        &Catalog {
+                            schema_version: 1,
+                            scope,
+                            partitions,
+                        },
+                        budget,
+                    )?;
+                    // Encoding cannot turn a prior check into a later disclosure grant.
+                    if read.cut(&authority, &p, &native_scope)? != cut {
+                        return Err(b::Unavailable);
+                    }
+                    p.release_catalog(guard, budget, &retained)?;
+                    read.finish()?;
+                    p.release_catalog(guard, budget, &retained)?;
+                    budget.check()?;
+                    Ok(bytes)
+                })
+                .map(Ok)
         });
         access_bad = !checked.clean;
         checked.result

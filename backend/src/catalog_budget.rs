@@ -76,13 +76,25 @@ pub(crate) fn sqlite_policy<T>(
     restore_ms: u64,
     operation: impl FnOnce(&mut rusqlite::Connection) -> Result<T>,
 ) -> PolicyOutcome<T> {
+    sqlite_owner_policy(db, |db| db, budget, restore_ms, operation)
+}
+
+/// Keep the actual owner borrow while installing its one connection policy.
+/// Only native Store/Access helpers call this; no policy is nested or retained.
+pub(crate) fn sqlite_owner_policy<O, T>(
+    owner: &mut O,
+    connection: impl Fn(&mut O) -> &mut rusqlite::Connection,
+    budget: &Budget,
+    restore_ms: u64,
+    operation: impl FnOnce(&mut O) -> Result<T>,
+) -> PolicyOutcome<T> {
     if budget.check().is_err() {
         return PolicyOutcome {
             result: Err(Unavailable),
             clean: true,
         };
     }
-    if !db.is_autocommit() || db.is_busy() {
+    if !connection(owner).is_autocommit() || connection(owner).is_busy() {
         // No slot was touched. An unexpectedly non-idle owner cannot be certified.
         return PolicyOutcome {
             result: Err(Unavailable),
@@ -90,7 +102,7 @@ pub(crate) fn sqlite_policy<T>(
         };
     }
     let callback_budget = budget.clone();
-    if db
+    if connection(owner)
         .progress_handler(1000, Some(move || callback_budget.stopped()))
         .is_err()
     {
@@ -101,18 +113,25 @@ pub(crate) fn sqlite_policy<T>(
         };
     }
     let attempted = catch_unwind(AssertUnwindSafe(|| {
-        db.busy_timeout(Duration::ZERO).map_err(|_| Unavailable)?;
+        connection(owner)
+            .busy_timeout(Duration::ZERO)
+            .map_err(|_| Unavailable)?;
         budget.check()?;
-        operation(db)
+        operation(owner)
     }));
     // All operation-local statements have finished/dropped. Manual transactions
     // deliberately have no Transaction destructor that could roll back early.
     // Cleanup is mandatory and has no expired-budget early return.
-    let handler_cleared = db.progress_handler(0, None::<fn() -> bool>).is_ok();
-    let rolled_back = db.is_autocommit() || db.execute_batch("ROLLBACK").is_ok();
-    let idle = db.is_autocommit() && !db.is_busy();
-    let restored = db.busy_timeout(Duration::from_millis(restore_ms)).is_ok()
-        && db
+    let handler_cleared = connection(owner)
+        .progress_handler(0, None::<fn() -> bool>)
+        .is_ok();
+    let rolled_back =
+        connection(owner).is_autocommit() || connection(owner).execute_batch("ROLLBACK").is_ok();
+    let idle = connection(owner).is_autocommit() && !connection(owner).is_busy();
+    let restored = connection(owner)
+        .busy_timeout(Duration::from_millis(restore_ms))
+        .is_ok()
+        && connection(owner)
             .query_row("PRAGMA busy_timeout", [], |row| row.get::<_, i64>(0))
             .is_ok_and(|actual| u64::try_from(actual) == Ok(restore_ms));
     let clean = handler_cleared && rolled_back && idle && restored && attempted.is_ok();

@@ -1,6 +1,7 @@
 //! Same-origin stock host with exact caller envelopes and original AT11 authority.
 pub mod capabilities;
 mod errors;
+mod homebox_partition_catalog;
 pub mod mcp;
 pub(crate) mod mcp_transport;
 pub mod stock_dispatch;
@@ -30,6 +31,19 @@ pub(super) async fn admission(
     uri: Uri,
     method: Method,
 ) -> HttpResult {
+    if uri.query() == Some(homebox_partition_catalog::QUERY) {
+        return homebox_partition_catalog::admission(
+            host,
+            headers,
+            uri,
+            method,
+            d::Scope {
+                workspace_id,
+                home_id,
+            },
+        )
+        .await;
+    }
     if uri.query().is_some() {
         return Err(failure(StatusCode::FORBIDDEN));
     }
