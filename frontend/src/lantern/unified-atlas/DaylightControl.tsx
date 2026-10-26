@@ -26,7 +26,7 @@ const DAY = 24 * 60;
 const STEP = 5;
 /** Minutes a one-pixel drag on the chip moves the time: a day is about 360 px. */
 const PER_PX = 4;
-/** The sun's altitude every half hour of `at`'s day, in degrees. */
+/** The sun's altitude every half hour of `at`'s day, in degrees (as SunCalc gives it). */
 const SAMPLES = 48;
 
 /** `at`'s day at `minutes` after local midnight. */
@@ -50,7 +50,7 @@ export function DaylightControl({ at, live, night, place, onChange }: {
   const minutes = at.getHours() * 60 + at.getMinutes();
   const dayKey = `${at.getFullYear()}-${at.getMonth()}-${at.getDate()}`;
   const altitudes = useMemo(() => Array.from({ length: SAMPLES + 1 },
-    (_, k) => getPosition(onDay(at, Math.min(DAY - 1, k * DAY / SAMPLES)), place.latitude, place.longitude).altitude * 180 / Math.PI),
+    (_, k) => getPosition(onDay(at, Math.min(DAY - 1, k * DAY / SAMPLES)), place.latitude, place.longitude).altitude),
   // One path per day and place, not per minute.
   [dayKey, place.latitude, place.longitude]);
   const set = (value: number) => onChange(onDay(at, ((Math.round(value / STEP) * STEP) % DAY + DAY) % DAY));
@@ -80,7 +80,7 @@ export function DaylightControl({ at, live, night, place, onChange }: {
   const up = Math.max(5, ...altitudes), down = Math.max(5, ...altitudes.map(altitude => -altitude));
   const y = (altitude: number) => 14 - (altitude > 0 ? altitude / up * 9 : altitude / down * 6);
   const path = altitudes.map((altitude, k) => `${k ? 'L' : 'M'}${(2 + k * 22 / SAMPLES).toFixed(2)} ${y(altitude).toFixed(2)}`).join('');
-  const here = getPosition(at, place.latitude, place.longitude).altitude * 180 / Math.PI;
+  const here = getPosition(at, place.latitude, place.longitude).altitude;
   const strip = { '--time-sky': `linear-gradient(90deg, ${altitudes.map((altitude, k) => `${sky(altitude)} ${(k / SAMPLES * 100).toFixed(1)}%`).join(', ')})` } as CSSProperties;
   return (
     <div className={`ua-time${open ? ' is-open' : ''}${live ? '' : ' is-picked'}${scrubbing ? ' is-scrubbing' : ''}`} onKeyDown={keys} onBlur={blur}>
