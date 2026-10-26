@@ -354,8 +354,10 @@ def prune_plan(setup_root: Path, frontend_parent: Path, records: list[dict], kee
     # A name that contains a whole prune area (a home or working folder) pins nothing inside it.
     pins = {p: "named by the service plist, live server config or smoke template" for p in named
             if not any(p == root or p in root.parents for root in (setup_root, frontend_parent))}
-    for i, r in enumerate(records):
-        if r["status"] in UNFINISHED or (i == len(records) - 1 and r["status"] == "prepared"):
+    # The newest change record may be a prepared one someone is inspecting; prune runs don't count as changes.
+    newest = next((r for r in reversed(records) if r.get("kind") != "prune"), None)
+    for r in records:
+        if r["status"] in UNFINISHED or (r is newest and r["status"] == "prepared"):
             pins.update({real(r[k]): f"named by unfinished record {r['id']}" for k in FRONTEND_KEYS if r.get(k)})
 
     remove, pinned = [], []

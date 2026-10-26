@@ -624,6 +624,14 @@ class Prune(unittest.TestCase):
         self.dep.prune_alone()  # a second run is a second record
         self.assertEqual(sum(r["kind"] == "prune" for r in dn.ledger_records(self.cfg.ledger)), 2)
 
+    def test_repeated_prunes_keep_the_newest_prepared_frontend(self):
+        write(self.fe / "frontend.next-prep/index.html", "inspecting")
+        dn.save_record(self.cfg.ledger, dict(id="prep", kind="code", status="prepared",
+                                             staged_frontend=str(self.fe / "frontend.next-prep")))
+        self.dep.prune_alone()
+        self.dep.prune_alone()
+        self.assertTrue((self.fe / "frontend.next-prep/index.html").exists())
+
     def test_a_standalone_prune_waits_for_an_unfinished_record(self):
         dn.save_record(self.cfg.ledger, dict(dn.ledger_records(self.cfg.ledger)[-1], status="swapping"))
         with self.assertRaises(dn.DeployError):
