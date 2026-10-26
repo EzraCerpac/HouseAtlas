@@ -25,10 +25,14 @@ function cacheStorage() {
     async open(name) {
       if (!stores.has(name)) stores.set(name, new Map());
       const rows = stores.get(name);
-      return { match: async input => rows.get(key(input))?.clone(),
+      return { match: async input => rows.get(key(input))?.clone(), delete: async input => rows.delete(key(input)),
         async put(input, response) { rows.set(key(input), response.clone()); } };
     },
     keys: async () => [...stores.keys()], delete: async name => stores.delete(name),
+    // One origin-wide exclusive lock queue, as the Web Locks API grants it.
+    locks: { tail: Promise.resolve(), request(_name, task) {
+      const run = this.tail.then(() => task()); this.tail = run.catch(() => {}); return run;
+    } },
   };
 }
 function generatedBuild(version) {
@@ -61,7 +65,7 @@ function workerRuntime(build, kind, storage, wire) {
   const context = vm.createContext({ URL, Response, Map, Uint8Array, crypto: webcrypto, caches: storage, setTimeout, clearTimeout,
     Date: { now: () => ++clock },
     fetch: async (input, init) => { calls.push({ input, init }); return wire(input, init); },
-    self: { location: { origin }, skipWaiting: async () => { skipped++; }, clients: { claim: async () => { claimed++; } },
+    self: { location: { origin }, navigator: { locks: storage.locks }, skipWaiting: async () => { skipped++; }, clients: { claim: async () => { claimed++; } },
       addEventListener(type, listener) { const rows = listeners.get(type) ?? []; rows.push(listener); listeners.set(type, rows); } },
     importScripts(path) { assert.equal(path, '/saved/service-worker.js'); imports.push(path); vm.runInContext(build.saved, context); },
   });
@@ -320,6 +324,23 @@ try {
   assert.equal((await lagOffline.fetchEvent(request('/'))).headers.get('location'), origin + '/saved/index.html');
   await lagRoot.update(); assert.equal(lagRoot.active.buildId, third.buildId);
   assert.deepEqual(public_(lagStorage), [prefix + second.buildId, prefix + third.buildId].sort());
+  // Root and Saved activate independently. Whether a Saved prune runs before
+  // or alongside a lagging root's update, the root's build survives or is
+  // refilled by its own install, and its offline handoff stays verified.
+  for (const order of ['saved-first', 'concurrent']) {
+    const raceStorage = cacheStorage(), raceAPI = serviceWorkers(); raceAPI.setTarget(first, raceStorage);
+    await shellPage(raceAPI, raceStorage, first).verifySavedShell();
+    const raceSaved = raceAPI.registrations.get(origin + '/saved/');
+    for (const build of [second, third]) { raceAPI.setTarget(build, raceStorage); await raceSaved.update(); }
+    const serve = build => async input => build.responses.get(new URL(input).pathname).clone();
+    const rootB = workerRuntime(second, 'root', raceStorage, serve(second)), savedC = workerRuntime(fourth, 'saved', raceStorage, serve(fourth));
+    const step = async runtime => { await runtime.lifecycle('install'); await runtime.lifecycle('activate'); };
+    if (order === 'saved-first') { await step(savedC); assert(!raceStorage.stores.has(prefix + second.buildId), 'Saved prune ran first'); await step(rootB); }
+    else await Promise.all([step(rootB), step(savedC)]);
+    assert(raceStorage.stores.has(prefix + second.buildId) && raceStorage.stores.has(prefix + fourth.buildId), order);
+    const raceOffline = workerRuntime(second, 'root', raceStorage, async () => { throw new TypeError('Generated network unavailable'); });
+    assert.equal((await raceOffline.fetchEvent(request('/'))).headers.get('location'), origin + '/saved/index.html', order);
+  }
   // Before both scopes have pinned a build (a root never registered, or still
   // on a worker from before pins), nothing is pruned.
   const unpinned = cacheStorage();
@@ -328,7 +349,7 @@ try {
     await runtime.lifecycle('install'); await runtime.lifecycle('activate');
   }
   assert.equal(public_(unpinned).length, 3);
-  cases.push('lagging-or-unpinned-root-keeps-its-shell');
+  cases.push('lagging-racing-or-unpinned-root-keeps-its-shell');
   console.log(JSON.stringify({ result: 'healthy', cases, generatedBuilds: [first.buildId, second.buildId, concurrent.buildId, third.buildId, fourth.buildId],
     evidence: 'source/generated VM cache and worker lifecycle; capture labeling inspected at existing component seams; no browser/device claim' }));
 } finally { rmSync(scratch, { recursive: true, force: true }); }
