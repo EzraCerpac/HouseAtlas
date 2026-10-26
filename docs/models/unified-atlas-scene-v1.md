@@ -382,14 +382,31 @@ one-sided lens does, the lamp throws a beam about 40° wide that way, as
 headlights or a downlight do. A closed or all-round glowing surface, such as a
 bulb or a glass box, lights all around. Building glass, bound as `structure` or
 `roof`, is a material with `alphaMode: "BLEND"` and a `baseColorFactor` alpha
-below 1, not `KHR_materials_transmission`, which is refused; it shows the
-lamp-lit room behind it. Until a model carries these marks, a material whose
+below 1, not `KHR_materials_transmission`, which is refused. At every hour the
+3D view draws it as glass, after the solid house: the alpha is how much of what
+lies behind the pane it covers (a light default when the material states none
+below 1, and never more than 0.85), and a stated `roughnessFactor` above 0.5
+frosts it, fully by 0.9. It reflects the hour's sky, faintly head-on and
+strongly at a grazing angle, lets the sun through onto the floors inside, and
+after dusk shows the lamp-lit room behind it. Until a model carries these marks, a material whose
 own name (never its mesh's or node's) holds a generic glass word counts as
 glass, or as a lamp when the name also holds a lamp word and the material
 states no `emissiveFactor`. A stated zero factor stops a name from making a
 lamp, but a glass word still makes the material building glass. Every lamp
 glows one fixed warm colour; the hue of `emissiveFactor` is not used yet, only
-whether it is nonzero. Day lighting ignores all of it.
+whether it is nonzero. Day lighting ignores the lamp marks.
+
+Glass is depth-tested over the solid scene and never writes depth. Each source
+glass primitive remains an independently sortable draw, ordered from far to
+near by its bounds centre in the current camera, including its display lift.
+This supports overlapping panes authored as separate primitives. It does not
+sort triangles within a primitive or solve intersecting geometry: multiple
+disconnected panes packed into one primitive can still composite incorrectly.
+An author who needs independent pane ordering should supply separate primitives;
+no order-independent transparency or producer-side subdivision is implied.
+Selected or highlighted panes retain the solid selection/overlay appearance and
+occlude room picking. Other building glass lets CPU room picks pass through,
+using the same current presentation, clips and lifts as the drawing.
 
 ## Existing bounded embedded-PNG material consumer
 
@@ -418,8 +435,13 @@ Supported slots are base color (sRGB), normal (data, scale 1) and metallic/
 roughness (data), using texCoord 0. Sampling is REPEAT with linear magnification
 and linear mipmapped minification. Textured materials require OPAQUE mode and
 base alpha 1. Their matching Float32 UVs and shading normals are retained;
-normal mapping additionally requires Float32 tangents. Untextured BLEND retains
-its legacy opaque appearance: this path does not add transparency rendering.
+normal mapping additionally requires Float32 tangents. Building glass selected
+by the marks above samples its admitted base-colour, normal and roughness maps
+when source materials are enabled. Only an explicitly stated roughness factor
+controls frosting; an omitted factor keeps the clear-glass fallback even when
+material admission supplies the standard PBR default. Other BLEND materials
+retain their legacy opaque appearance; material admission does not add general
+transparency support.
 
 Material admission includes encoded images, decoded RGBA, decoder scratch,
 indexed attributes and expanded corner attributes in the prepared-byte ledger.

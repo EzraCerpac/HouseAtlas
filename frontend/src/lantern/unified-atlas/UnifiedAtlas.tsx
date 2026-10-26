@@ -16,7 +16,7 @@ import { PREPARED_BYTES_PER_TRIANGLE } from '../site-artifacts/site-budget';
 import { createLiveAtlasPresentationPort, savedAtlasInitialState } from '../../offline/saved-atlas-presentation';
 import type { AtlasPresentationPort, AtlasPresentationSelection } from './types';
 import {
-  atlasOrigin, atlasReducer, bindAtlasModel, contextOccurrenceIds, easePresentation, frameBox, hasExplodableLevels, initialAtlasState, labelHeight,
+  atlasOrigin, atlasReducer, bindAtlasModel, contextOccurrenceIds, easePresentation, frameBox, hasExplodableLevels, initialAtlasState, isAtlasGlazing, labelHeight,
   levelLift, occurrenceLiftLevel, partLifts, pickTarget, planFeaturesForLevel, planPickTarget, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
   targetAction, unplacedByReason, type AtlasAction, type AtlasLayer, type AtlasModel, type AtlasViewState, type OverlayLayerIndex, type UnplacedReason,
 } from './scene';
@@ -328,7 +328,6 @@ const ATLAS_SOURCE_DIM = .45;
 /** Meshes that roof the house over: at night a face beneath them is indoors and lamp-lit. */
 const SHELTER_ROLES: ReadonlySet<MeshRole> = new Set(['structure', 'roof', 'slab']);
 /** Of those, the ones whose glass shows lit rooms at night; glass in the context never does. */
-const GLAZED_ROLES: ReadonlySet<MeshRole> = new Set(['structure', 'roof']);
 /** The birch board under the property: its thickness below the lowest floor, in metres. */
 const BOARD_DEPTH = .4;
 /** Contact shadow of each building's lowest floor on the board, cast away from the sun, in metres. */
@@ -737,7 +736,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   const shelterKeys = useMemo(() => new Set(model.parts.filter(part => SHELTER_ROLES.has(part.role)).map(part => part.mesh.meshKey)), [model]);
   const roomKeys = useMemo(() => new Set(model.parts.filter(part => part.role === 'room-pick').map(part => part.mesh.meshKey)), [model]);
   // After dusk the house's own glass shows its lit rooms, and every lamp glows.
-  const glazingKeys = useMemo(() => new Set(model.parts.filter(part => GLAZED_ROLES.has(part.role) && part.mesh.sourceNight === 'glazing')
+  const glazingKeys = useMemo(() => new Set(model.parts.filter(isAtlasGlazing)
     .map(part => part.mesh.meshKey)), [model]);
   const emitterKeys = useMemo(() => new Set(model.parts.filter(part => part.mesh.sourceNight === 'emitter').map(part => part.mesh.meshKey)), [model]);
   const showCanvas = planBlend < 1 && failure === null;

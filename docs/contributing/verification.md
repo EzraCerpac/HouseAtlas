@@ -107,6 +107,15 @@ however many primitives there are, the selection tone, the ghost veil and the
 texture detail in the screenshots. It also swaps in a second mesh set, as the
 Full model replaces Light, and checks that a canvas stays on screen throughout.
 
+The existing embedded-material page also supplies generated glass samples:
+admitted base-colour, normal and roughness maps have a visible effect when
+materials are enabled; two differently tinted, fully frosted glass primitives
+composite in the same order when their source array is reversed; and the
+foreground tint reverses when the camera views them from the opposite side.
+These cases stay inside the existing `webgl2`/`webgpu` selections. They cover
+separately authored primitives, not intersecting or disconnected panes inside
+one primitive; the rendering limitation is stated in the scene contract.
+
 ```sh
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2   # in the healthy suite
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgpu   # local: Chromium headless shell
@@ -1556,6 +1565,11 @@ highlights preserve the source colour. This checks CPU data and routing only;
 shader encoding, rendered pixels, PBR and transparency remain separate evidence.
 It introduces no malformed, refusal, lifecycle or held omission case.
 
+The same healthy runner supplies generated CPU picks through an unselected
+transparent pane, then checks that an opaque wall or highlighted pane drawn
+solid still occludes the room. It uses the current presentation and production
+projection/picker; no browser or shader execution is involved in these picks.
+
 The named `node frontend/lantern-tests/unified-atlas-healthy.mjs` also checks
 normal generated pointer tap/drag, viewport capture handoff, descendant-to-viewport
 capture transfer, pinch with either-finger release, and plan pan through the
@@ -2665,7 +2679,9 @@ zenith map and full lamps at midnight, a minute-by-minute day in June,
 October and December with no jumps, a readable floor on the sky light and
 lamps only after sunset, the stage colours' stylesheet fallbacks, and the
 appearance table's shelter and kept-tone flags, which other viewers never
-receive. It runs in CI through `run-healthy.mjs`:
+receive. The same runner checks the glass pass, opacity/frost encoding,
+selected panes returning to the solid pass, explicit core roughness reading,
+and unchanged appearance for viewers without daylight. It runs in CI through `run-healthy.mjs`:
 
 ```sh
 node frontend/lantern-tests/unified-atlas-daylight-healthy.mjs

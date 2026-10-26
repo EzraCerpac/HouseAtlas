@@ -198,6 +198,37 @@ try {
       const at = ((y + Math.round(h * .55) + dy) * samples.width + x + Math.round(w * .3) + dx) * 3; tones.add(samples.pixels.subarray(at, at + 3).join());
     }
     assert(tones.size > 20, `Textured sample shows no texture detail (${tones.size} tones)`);
+    // The same generated material entry also exercises the glass shader. The
+    // two source orders must agree, while orbiting reverses the foreground tint.
+    await open('/lantern-tests/embedded-png-material-visual/index.html?glass', 1400, 900);
+    await poll(`document.querySelectorAll('canvas[data-renderer]').length === 4`, 120_000, 'Glass samples did not draw');
+    assert.deepEqual(await evaluate(`[...document.querySelectorAll('canvas')].map(c => c.dataset.renderer)`), Array(4).fill(expected));
+    assert.equal(await evaluate(`[...document.querySelectorAll('output')].map(o => o.textContent).join('')`), '');
+    await new Promise(done => setTimeout(done, 500));
+    const glassShot = await shot(), glassBoxes = await evaluate(`[...document.querySelectorAll('canvas')].map(c => { const r = c.getBoundingClientRect(); return [r.x, r.y, r.width, r.height].map(Math.round); })`);
+    const glassPixel = (capture, box, dx = 0, dy = 0) => {
+      const [x, y, w, h] = box, at = ((y + Math.round(h * .62) + dy) * capture.width + x + Math.round(w * .38) + dx) * 3;
+      return [...capture.pixels.subarray(at, at + 3)];
+    };
+    const redFront = glassPixel(glassShot, glassBoxes[0]), blueFront = glassPixel(glassShot, glassBoxes[2]);
+    assert(redFront[0] > redFront[2] + 40, `Near red pane did not composite in front: ${redFront}`);
+    assert(blueFront[2] > blueFront[0] + 40, `Orbit did not put the blue pane in front: ${blueFront}`);
+    let orderError = 0;
+    for (let dy = -10; dy < 10; dy++) for (let dx = -10; dx < 10; dx++) {
+      const a = glassPixel(glassShot, glassBoxes[0], dx, dy), b = glassPixel(glassShot, glassBoxes[1], dx, dy);
+      orderError += a.reduce((sum, channel, at) => sum + Math.abs(channel - b[at]), 0);
+    }
+    assert(orderError / 1200 < 2, `Glass depends on source submission order (${orderError / 1200} mean channel difference)`);
+    await evaluate(`document.querySelector('#toggle-glass-materials').click()`);
+    await poll(`document.querySelectorAll('canvas[data-renderer]').length === 4`, 120_000, 'Glass material toggle did not draw');
+    await new Promise(done => setTimeout(done, 500));
+    const unmapped = await shot(); let mapDifference = 0;
+    for (let dy = -10; dy < 10; dy++) for (let dx = -10; dx < 10; dx++) {
+      const a = glassPixel(glassShot, glassBoxes[3], dx, dy), b = glassPixel(unmapped, glassBoxes[3], dx, dy);
+      mapDifference += a.reduce((sum, channel, at) => sum + Math.abs(channel - b[at]), 0);
+    }
+    assert(mapDifference / 1200 > 4, `Admitted glass maps had no visible effect (${mapDifference / 1200} mean channel difference)`);
+    assert.equal(await evaluate(`[...document.querySelectorAll('output')].map(o => o.textContent).join('')`), '');
     console.log(`PASS ${selected}: generated house (${result.pieces} primitives, ${calls} calls per frame, swapped to a new set without a blank frame; a 6,000-primitive set swapped in over ${big.framesMeanwhile} frames, longest task ${big.longestTaskMs} ms; worker GLB load and digest match) and material samples drawn by three.js on ${expected}; software GPU only, not device proof`);
   }
 } finally {

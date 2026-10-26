@@ -61,11 +61,16 @@ no write dispatch), the generated CPU
 mesh-preparation equivalence check, the `webgl2` case of
 `mesh-layer-browser.mjs`, which draws generated meshes through MeshLayer in the
 runner's software GPU and swaps in a second mesh set without a blank frame,
+including generated mapped-glass samples and differently tinted/frosted panes
+under reversed primitive submission order and opposite camera views,
 `unified-atlas-plan-wheel-browser.mjs`, which pans and pinch-zooms the generated
 unified Atlas Plan with trusted wheel input in the runner's Chromium, and the generated Unified Atlas compact layer-details
 and control-names checks (compiled source and markup only, no browser), the
 generated time-of-day lighting check (sun positions for a neutral reference
-place and appearance tables only, no browser or GPU), the generated
+place and appearance tables only, including glass-pass opacity/frost and
+selected-pane precedence, no browser or GPU), the generated Unified Atlas
+CPU room-picking cases through transparent glass and behind opaque or
+highlighted solid panes (no browser or GPU), the generated
 embedded-PNG `four-maps-1024` case (four 1024 px maps admitted and accounted
 under the tier budget, and refused with stated MiB under a reduced GPU budget;
 no browser or GPU), the
