@@ -276,8 +276,12 @@ def save_record(path: Path, record: dict) -> None:
         f.write(json.dumps(record, sort_keys=True) + "\n")
 
 
+# Records `rollback` can still undo, newest last.
+ROLLBACK_ELIGIBLE = ("swapping", "swap-failed", "live", "verified", "verify-failed", "rolling-back")
+
+
 def rollback_target(records: list[dict]) -> dict | None:
-    live = [r for r in records if r["status"] in ("swapping", "swap-failed", "live", "verified", "verify-failed", "rolling-back")]
+    live = [r for r in records if r["status"] in ROLLBACK_ELIGIBLE]
     return live[-1] if live else None
 
 
@@ -297,7 +301,7 @@ def inputs_of(binary: Path) -> Path:
 
 # Build caches a deploy seeds from the live build's inputs; nothing else reads an older one.
 PRUNE_CACHES = ("target", "npm-cache")
-KEEP_PARKED = 3  # parked frontends kept, newest first in ledger order: how far `rollback` can step back
+KEEP_PARKED = 3  # code records `rollback` can step back through before a parked frontend is gone
 LEFTOVER_FRONTENDS = ("frontend.next-*", "frontend.rolled-back-*", "frontend.restored-*")
 FRONTEND_KEYS = ("frontend", "staged_frontend", "parked_frontend", "restored_frontend")
 UNFINISHED = ("swapping", "swap-failed", "live", "verify-failed", "rolling-back")
@@ -338,11 +342,13 @@ def prune_plan(setup_root: Path, frontend_parent: Path, records: list[dict], kee
     candidates = [inp / c for inp in sorted(setup_root.glob("houseatlas-main-*-inputs"))
                   if inp not in keep_inputs for c in PRUNE_CACHES]
 
-    order = {real(r["parked_frontend"]): i for i, r in enumerate(records) if r.get("parked_frontend")}
-    # Parked frontends the ledger does not know predate it, so they count as the oldest.
-    parked = sorted(frontend_parent.glob("frontend.before-*"), key=lambda p: (order.get(p, -1), p.name))
-    keep = {real(p) for p in keep_parked}
-    candidates += [p for p in parked[:-KEEP_PARKED] if p not in keep]
+    # The parked frontends of the newest code records `rollback` would still undo, in the order it walks
+    # them. Rolled-back records are skipped, so they never shorten that window; frontends the ledger
+    # does not know predate it.
+    eligible = [r for r in records if r.get("kind") == "code" and r["status"] in ROLLBACK_ELIGIBLE
+                and r.get("parked_frontend")]
+    keep = {real(r["parked_frontend"]) for r in eligible[-KEEP_PARKED:]} | {real(p) for p in keep_parked}
+    candidates += [p for p in sorted(frontend_parent.glob("frontend.before-*")) if p not in keep]
     candidates += sorted(p for pattern in LEFTOVER_FRONTENDS for p in frontend_parent.glob(pattern))
 
     # A name that contains a whole prune area (a home or working folder) pins nothing inside it.

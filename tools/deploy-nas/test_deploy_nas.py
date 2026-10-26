@@ -542,6 +542,18 @@ class Prune(unittest.TestCase):
         self.assertIn("freedBytes", report)
         self.assertEqual(report["errors"], [])
 
+    def test_rolled_back_records_do_not_shorten_the_rollback_window(self):
+        # Deploy a-f, roll back f, deploy g: rollback walks g, e, d, so those parked frontends stay.
+        records = dn.ledger_records(self.cfg.ledger)
+        dn.save_record(self.cfg.ledger, dict(records[-1], status="rolled-back"))
+        g = "houseatlas-main-ggggggg-20260101-v1"
+        write(self.fe / f"frontend.before-{g}/index.html", "parked")
+        dn.save_record(self.cfg.ledger, dict(records[-1], id=g, previous_binary=records[-2]["binary"],
+                                             parked_frontend=str(self.fe / f"frontend.before-{g}")))
+        self.dep.prune()
+        parked = sorted(p.name for p in self.fe.glob("frontend.before-*"))
+        self.assertEqual(parked, sorted(f"frontend.before-{n}" for n in (self.ids[3], self.ids[4], g)))
+
     def test_never_touches_what_the_plist_or_smoke_template_names(self):
         report = self.dep.prune()
         self.assertTrue(self.inputs(1, "npm-cache/_cacache/x").exists())  # named by the plist

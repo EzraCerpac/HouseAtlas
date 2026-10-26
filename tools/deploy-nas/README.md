@@ -82,9 +82,10 @@ older copies just fill the disk. After a verified deploy, and with
 - `target/` and `npm-cache/` in every `houseatlas-main-*-inputs/` folder except
   the live build's and the build `rollback` returns to. Sources, logs, smoke
   results and the reports stay.
-- `frontend.before-*` next to the live frontend, except the newest 3 in ledger
-  order and the one the rollback target restores. So `rollback` can step back 3
-  code records; past that it refuses, as it does whenever a parked frontend is gone.
+- `frontend.before-*` next to the live frontend, except those of the newest 3
+  code records `rollback` can still undo (rolled-back records do not count). So
+  `rollback` can step back 3 code records; past that it refuses, as it does
+  whenever a parked frontend is gone.
 - `frontend.next-*`, `frontend.rolled-back-*` and `frontend.restored-*` leftovers.
 
 It never removes a folder that a path in the service plist, the live server config
