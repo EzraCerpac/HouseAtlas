@@ -276,8 +276,12 @@ def save_record(path: Path, record: dict) -> None:
         f.write(json.dumps(record, sort_keys=True) + "\n")
 
 
+# Records `rollback` can still undo, newest last.
+ROLLBACK_ELIGIBLE = ("swapping", "swap-failed", "live", "verified", "verify-failed", "rolling-back")
+
+
 def rollback_target(records: list[dict]) -> dict | None:
-    live = [r for r in records if r["status"] in ("swapping", "swap-failed", "live", "verified", "verify-failed", "rolling-back")]
+    live = [r for r in records if r["status"] in ROLLBACK_ELIGIBLE]
     return live[-1] if live else None
 
 
@@ -286,6 +290,103 @@ def next_name(root: Path, stem: str) -> str:
     while (root / f"{stem}-v{n}").exists() or (root / f"{stem}-v{n}-inputs").exists():
         n += 1
     return f"{stem}-v{n}"
+
+
+def inputs_of(binary: Path) -> Path:
+    """`<root>/<name>/candidate/houseatlas` was built in `<root>/<name>-inputs`."""
+    return Path(str(binary.parent.parent) + "-inputs")
+
+
+# ------------------------------------------------------------------- pruning
+
+# Build caches a deploy seeds from the live build's inputs; nothing else reads an older one.
+PRUNE_CACHES = ("target", "npm-cache")
+KEEP_PARKED = 3  # code records `rollback` can step back through before a parked frontend is gone
+LEFTOVER_FRONTENDS = ("frontend.next-*", "frontend.rolled-back-*", "frontend.restored-*")
+FRONTEND_KEYS = ("frontend", "staged_frontend", "parked_frontend", "restored_frontend")
+UNFINISHED = ("swapping", "swap-failed", "live", "verify-failed", "rolling-back")
+
+
+def real(path) -> Path:
+    return Path(os.path.realpath(os.path.expanduser(str(path))))
+
+
+def named_paths(*docs) -> set[Path]:
+    """Every absolute path a plist or JSON document names, anywhere in it."""
+    out = set()
+
+    def walk(v):
+        if isinstance(v, str):
+            if os.path.isabs(os.path.expanduser(v)):
+                out.add(real(v))
+        elif isinstance(v, dict):
+            for x in v.values():
+                walk(x)
+        elif isinstance(v, (list, tuple)):
+            for x in v:
+                walk(x)
+    for d in docs:
+        walk(d)
+    return out
+
+
+def overlaps(a: Path, b: Path) -> bool:
+    return a == b or a in b.parents or b in a.parents
+
+
+def prune_plan(setup_root: Path, frontend_parent: Path, records: list[dict], keep_binaries: list[Path],
+               keep_parked: list[Path], named: set[Path]) -> tuple[list[Path], list[tuple[Path, str]]]:
+    """What a prune removes, and what it would have removed but must keep (with why)."""
+    setup_root, frontend_parent = real(setup_root), real(frontend_parent)
+    keep_inputs = {real(inputs_of(b)) for b in keep_binaries}
+    candidates = [inp / c for inp in sorted(setup_root.glob("houseatlas-main-*-inputs"))
+                  if inp not in keep_inputs for c in PRUNE_CACHES]
+
+    # The parked frontends of the newest code records `rollback` would still undo, in the order it walks
+    # them. Rolled-back records are skipped, so they never shorten that window; frontends the ledger
+    # does not know predate it.
+    eligible = [r for r in records if r.get("kind") == "code" and r["status"] in ROLLBACK_ELIGIBLE
+                and r.get("parked_frontend")]
+    keep = {real(r["parked_frontend"]) for r in eligible[-KEEP_PARKED:]} | {real(p) for p in keep_parked}
+    candidates += [p for p in sorted(frontend_parent.glob("frontend.before-*")) if p not in keep]
+    candidates += sorted(p for pattern in LEFTOVER_FRONTENDS for p in frontend_parent.glob(pattern))
+
+    # A name that contains a whole prune area (a home or working folder) pins nothing inside it.
+    pins = {p: "named by the service plist, live server config or smoke template" for p in named
+            if not any(p == root or p in root.parents for root in (setup_root, frontend_parent))}
+    for i, r in enumerate(records):
+        if r["status"] in UNFINISHED or (i == len(records) - 1 and r["status"] == "prepared"):
+            pins.update({real(r[k]): f"named by unfinished record {r['id']}" for k in FRONTEND_KEYS if r.get(k)})
+
+    remove, pinned = [], []
+    for p in candidates:
+        if not p.is_dir():
+            continue
+        if p.is_symlink() or real(p) != p:  # only ever delete what physically sits in the prune area
+            pinned.append((p, "reached through a symlink"))
+            continue
+        why = next((reason for pin, reason in pins.items() if overlaps(p, pin)), None)
+        if why:
+            pinned.append((p, why))
+        else:
+            remove.append(p)
+    return remove, pinned
+
+
+def disk_bytes(path: Path) -> int:
+    """Allocated bytes under `path`, each inode once; APFS clones count in full, like du."""
+    seen, total = set(), 0
+    for dirpath, dirs, files in os.walk(path):
+        for name in [".", *dirs, *files]:
+            st = os.lstat(os.path.join(dirpath, name))
+            if (st.st_dev, st.st_ino) not in seen:
+                seen.add((st.st_dev, st.st_ino))
+                total += st.st_blocks * 512
+    return total
+
+
+def gb(n: int) -> str:
+    return f"{n / 1e9:.2f} GB"
 
 
 # ------------------------------------------------------------------- runtime
@@ -589,7 +690,8 @@ class Deployer:
 
     # -- commands
 
-    def deploy(self, sha: str, *, prepare_only=False, storage_reviewed: str | None = None, auto_rollback=True) -> dict:
+    def deploy(self, sha: str, *, prepare_only=False, storage_reviewed: str | None = None, auto_rollback=True,
+               prune=True) -> dict:
         cfg, rt = self.cfg, self.rt
         self.require_settled()
         baseline = sha256_file(cfg.plist)
@@ -598,7 +700,7 @@ class Deployer:
             raise DeployError("give a commit SHA from main")
         name = next_name(cfg.setup_root, f"houseatlas-main-{sha[:7]}-{dt.date.today():%Y%m%d}")
         d, inp = cfg.setup_root / name, cfg.setup_root / f"{name}-inputs"
-        prev_inputs = Path(str(live["binary"].parent.parent) + "-inputs")
+        prev_inputs = inputs_of(live["binary"])
         inp.mkdir(parents=True)
         self.say(f"[1/6] Fetching {sha} into {inp.name}")
         src = inp / "src"
@@ -694,7 +796,10 @@ class Deployer:
             raise
         record["status"] = "live"
         save_record(cfg.ledger, record)
-        return self.finish(record, assets, auto_rollback)
+        record = self.finish(record, assets, auto_rollback)
+        if prune:
+            self.prune_into(record)
+        return record
 
     def model(self, release: Path, *, prepare_only=False, auto_rollback=True) -> dict:
         cfg = self.cfg
@@ -803,6 +908,52 @@ class Deployer:
         self.say(f"Rolled back {record['id']} and verified the restored service through the gateway.")
         return record
 
+    def prune(self, *, dry_run=False) -> dict:
+        """Remove build caches and frontends that neither the live build nor `rollback` will use."""
+        live = self.live()
+        records = ledger_records(self.cfg.ledger)
+        target = rollback_target(records) or {}
+        keep_binaries = [live["binary"], *([Path(target["previous_binary"])] if target.get("previous_binary") else [])]
+        keep_parked = [Path(target["parked_frontend"])] if target.get("parked_frontend") else []
+        named = named_paths(live["service"], json.loads(live["server_config"].read_text()),
+                            json.loads(self.cfg.smoke_template.read_text()))
+        remove, pinned = prune_plan(self.cfg.setup_root, live["frontend"].parent, records,
+                                    keep_binaries, keep_parked, named)
+        volumes = {os.stat(p).st_dev: p for p in (self.cfg.setup_root, live["frontend"].parent)}
+        free = lambda: sum(shutil.disk_usage(p).free for p in volumes.values())
+        before = free()
+        removed, errors = [], []
+        self.say(("Would remove" if dry_run else "Pruning") + f" {len(remove)} folders no rollback needs")
+        for p in remove:
+            size = disk_bytes(p)
+            if not dry_run:
+                try:
+                    shutil.rmtree(p)
+                except OSError as e:
+                    errors.append(f"{p}: {e}")
+                    continue
+            removed.append(dict(path=str(p), bytes=size))
+            self.say(f"  {gb(size):>9}  {p}")
+        for p, why in pinned:
+            self.say(f"  kept {p}: {why}")
+        report = dict(dryRun=dry_run, removed=removed, allocatedBytes=sum(r["bytes"] for r in removed),
+                      pinned=[dict(path=str(p), reason=why) for p, why in pinned], errors=errors)
+        if not dry_run:
+            report["freedBytes"] = max(0, free() - before)  # clones share blocks, so this is the real gain
+        self.say(f"  {gb(report['allocatedBytes'])} allocated"
+                 + (f", {gb(report['freedBytes'])} freed on disk" if not dry_run else "")
+                 + (f"; {len(errors)} could not be removed" if errors else ""))
+        return report
+
+    def prune_into(self, record: dict) -> None:
+        """Prune after a verified deploy. The deploy already succeeded, so a failure here is only reported."""
+        try:
+            record["prune"] = self.prune()
+        except Exception as e:
+            record["prune"] = dict(errors=[f"{type(e).__name__}: {e}"])
+            self.say(f"Pruning failed, nothing else is affected: {e}")
+        save_record(self.cfg.ledger, record)
+
     def status(self) -> None:
         live = self.live()
         pid = self.rt.service_pid()
@@ -872,12 +1023,15 @@ def main(argv=None) -> int:
     p.add_argument("--prepare-only", action="store_true", help="stop before touching the live service")
     p.add_argument("--storage-reviewed", metavar="REASON", help="accept reviewed storage-sensitive changes")
     p.add_argument("--no-auto-rollback", action="store_true", help="leave a failed release live for inspection")
+    p.add_argument("--no-prune", action="store_true", help="keep every older build cache and parked frontend")
     p = sub.add_parser("model", help="switch the served model to a release folder")
     p.add_argument("release", type=Path)
     p.add_argument("--prepare-only", action="store_true")
     p.add_argument("--no-auto-rollback", action="store_true")
     p = sub.add_parser("rollback", help="undo the newest live record")
     p.add_argument("--force", action="store_true", help="roll back even if the service plist changed since")
+    p = sub.add_parser("prune", help="remove build caches and frontends that no rollback needs")
+    p.add_argument("--dry-run", action="store_true", help="only list what would be removed")
     a = ap.parse_args(argv)
     try:
         dep = Deployer(load_config(a.config))
@@ -887,9 +1041,12 @@ def main(argv=None) -> int:
         with dep.lock():
             if a.cmd == "deploy":
                 dep.deploy(a.sha, prepare_only=a.prepare_only, storage_reviewed=a.storage_reviewed,
-                           auto_rollback=not a.no_auto_rollback)
+                           auto_rollback=not a.no_auto_rollback, prune=not a.no_prune)
             elif a.cmd == "model":
                 dep.model(a.release, prepare_only=a.prepare_only, auto_rollback=not a.no_auto_rollback)
+            elif a.cmd == "prune":
+                dep.require_settled()
+                dep.prune(dry_run=a.dry_run)
             else:
                 dep.rollback(force=a.force)
         return 0
