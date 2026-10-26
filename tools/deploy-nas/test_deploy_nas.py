@@ -610,6 +610,26 @@ class Prune(unittest.TestCase):
         self.assertTrue(saved["prune"]["errors"])
         self.assertTrue(self.inputs(0, "target").exists())
 
+    def test_a_standalone_prune_is_its_own_ledger_record(self):
+        target = dn.rollback_target(dn.ledger_records(self.cfg.ledger))["id"]
+        self.dep.prune_alone(dry_run=True)
+        self.assertEqual(dn.ledger_records(self.cfg.ledger)[-1]["id"], target)  # a dry run records nothing
+        self.dep.prune_alone()
+        records = dn.ledger_records(self.cfg.ledger)
+        self.assertEqual((records[-1]["kind"], records[-1]["status"]), ("prune", "pruned"))
+        self.assertIn(str(self.inputs(0, "target")), [r["path"] for r in records[-1]["prune"]["removed"]])
+        self.assertGreaterEqual(records[-1]["prune"]["freedBytes"], 0)
+        self.assertEqual(dn.rollback_target(records)["id"], target)  # rollback still undoes the newest deploy
+        self.assertEqual(self.dep.live_sha(Path(records[-2]["binary"])), "f" * 7)
+        self.dep.prune_alone()  # a second run is a second record
+        self.assertEqual(sum(r["kind"] == "prune" for r in dn.ledger_records(self.cfg.ledger)), 2)
+
+    def test_a_standalone_prune_waits_for_an_unfinished_record(self):
+        dn.save_record(self.cfg.ledger, dict(dn.ledger_records(self.cfg.ledger)[-1], status="swapping"))
+        with self.assertRaises(dn.DeployError):
+            self.dep.prune_alone()
+        self.assertTrue(self.inputs(0, "target").exists())
+
     def test_the_deploy_record_logs_what_was_removed(self):
         record = dict(dn.ledger_records(self.cfg.ledger)[-1])
         self.dep.prune_into(record)
