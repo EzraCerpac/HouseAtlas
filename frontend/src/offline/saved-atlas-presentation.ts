@@ -40,6 +40,14 @@ export function createLiveAtlasPresentationPort(native: UnifiedAtlasPort): LiveA
       const selected = overview(selection);
       return native.createOverlays!(selected, ...args);
     } } : {}),
+    ...(native.storedOverlays ? { storedOverlays(selection: LiveAtlasSelection, ...args: Parameters<NonNullable<UnifiedAtlasPort['storedOverlays']>> extends
+      [ModelOverviewSelection, ...infer Rest] ? Rest : never) {
+      return native.storedOverlays!(overview(selection), ...args);
+    } } : {}),
+    ...(native.keepOverlays ? { keepOverlays(selection: LiveAtlasSelection, ...args: Parameters<NonNullable<UnifiedAtlasPort['keepOverlays']>> extends
+      [ModelOverviewSelection, ...infer Rest] ? Rest : never) {
+      native.keepOverlays!(overview(selection), ...args);
+    } } : {}),
   };
   livePorts.set(native, port); return port;
 }

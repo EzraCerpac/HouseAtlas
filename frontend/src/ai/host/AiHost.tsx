@@ -58,12 +58,16 @@ function BoundHost({ context, children }: {
   </HostContext.Provider>;
 }
 
+/** True only when the authenticated host supplied an AI binding. Entry points
+ * (Ask, Settings rows) hide without one rather than showing a dead panel. */
+export function useAiHostAvailable(): boolean {
+  return useContext(HostContext) !== null;
+}
+
 /** Mount only in the existing Settings list. All policy/status copy is donor-owned. */
 export function AiSettingsSection() {
   const host = useContext(HostContext);
-  if (!host) return <><section className="setting ai-host" aria-label="AI">
-    <div className="setting-text"><h2>AI</h2><p role="status">AI host is unavailable.</p></div>
-  </section><AccountObservationSection /></>;
+  if (!host) return null;
   const { session } = host;
   return <><div className="setting ai-host">
     <AiPanelView
