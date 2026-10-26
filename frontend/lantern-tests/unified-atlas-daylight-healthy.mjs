@@ -28,7 +28,7 @@ const suncalc = new URL('./node_modules/suncalc/index.js', frontend).href;
 const { daylightAt, modelDirection, resolveSunPlace, stageColors } = await import(await sourceURL('../src/lantern/unified-atlas/daylight.ts', { suncalc }));
 const geometryURL = await sourceURL('../src/lantern/canonical-ifc/geometry.ts');
 const { writeAppearance, STATE_FLOATS, MAX_LAMPS } = await import(await sourceURL('../src/lantern/canonical-ifc/mesh-appearance.ts', { './geometry': geometryURL }));
-const { primitiveNight } = await import(geometryURL);
+const { prepareMeshes, primitiveNight } = await import(geometryURL);
 
 const near = (actual, expected, tolerance, label) => assert.ok(Math.abs(actual - expected) <= tolerance, `${label}: ${actual} not within ${tolerance} of ${expected}`);
 const vec = (actual, expected, label) => expected.forEach((value, at) => near(actual[at], value, 1e-9, `${label}[${at}]`));
@@ -155,8 +155,30 @@ const nightFrame = writeAppearance(lit7, { ...base, selectedOccurrenceId: null, 
 const marks = index => [...nightTable.subarray(index * STATE_FLOATS + 30, index * STATE_FLOATS + 32)];
 assert.deepEqual(lit7.map((_, index) => marks(index)), [[1, 0], [0, 1], [0, 1], [0, 1], [0, 1]]);
 assert.equal(nightFrame.lamps.length, 2, 'two close lamps light as one; a hidden one throws no light');
-vec(nightFrame.lamps[0], [4.25, .1, .1], 'merged lamp point');
-vec(nightFrame.lamps[1], [9.1, 3.1, .1], 'lifted lamp point');
+vec(nightFrame.lamps[0].at, [4.25, .1, .1], 'merged lamp point');
+vec(nightFrame.lamps[1].at, [9.1, 3.1, .1], 'lifted lamp point');
+assert.deepEqual(nightFrame.lamps.map(lamp => lamp.aim), [null, null], 'unaimed lamps light all around');
+
+// Aimed lamps: an emitter whose glowing faces mostly face one way (a lens) beams
+// that way; a closed or all-round one (a bulb, a glass box) does not; nothing else aims.
+const quad = (x, z) => new Float32Array([x, 0, z, x, 1, z, x, 0, z + 1, x, 1, z + 1]);
+const box = new Float32Array([0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1]);
+const boxFaces = new Uint32Array([0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 3, 7, 6, 3, 6, 2, 0, 4, 7, 0, 7, 3, 1, 2, 6, 1, 6, 5]);
+const [lens, lensFlipped, bulb, pane] = prepareMeshes([
+  { meshKey: 'lens', floorId: null, occurrenceId: null, positions: quad(0, 0), indices: new Uint32Array([0, 1, 2, 1, 3, 2]), sourceNight: 'emitter' },
+  { meshKey: 'lens-back', floorId: null, occurrenceId: null, positions: quad(0, 0), indices: new Uint32Array([0, 2, 1, 1, 2, 3]), sourceNight: 'emitter' },
+  { meshKey: 'bulb', floorId: null, occurrenceId: null, positions: box, indices: boxFaces, sourceNight: 'emitter' },
+  { meshKey: 'pane', floorId: null, occurrenceId: null, positions: quad(0, 0), indices: new Uint32Array([0, 2, 1, 1, 2, 3]), sourceNight: 'glazing' },
+]);
+vec(lens.aim, [1, 0, 0], 'a lens aims along its outward face'); vec(lensFlipped.aim, [-1, 0, 0], 'its winding decides which way');
+assert.equal(bulb.aim, undefined, 'a closed emitter lights all around'); assert.equal(pane.aim, undefined, 'only emitters aim');
+const aimed = (key, x, aim) => ({ ...at(key, x), aim });
+const beams = [aimed('left', 0, [0, 0, 1]), aimed('left-b', .3, [0, .6, .8]), aimed('right', .5, [1, 0, 0]), at('round', .2)];
+const beamFrame = writeAppearance(beams, { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight, emitterKeys: new Set(beams.map(row => row.meshKey)) },
+  new Float32Array(beams.length * STATE_FLOATS));
+assert.equal(beamFrame.lamps.length, 3, 'close beams merge only when aimed alike, and never with an all-round lamp');
+vec(beamFrame.lamps[0].aim, [0, .6 / Math.hypot(.6, 1.8), 1.8 / Math.hypot(.6, 1.8)], 'merged beams share their direction');
+assert.deepEqual(beamFrame.lamps.slice(1).map(lamp => lamp.aim), [[1, 0, 0], null]);
 const many = Array.from({ length: MAX_LAMPS + 4 }, (_, index) => at(`lamp-${index}`, index * 2));
 assert.equal(writeAppearance(many, { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight, emitterKeys: new Set(many.map(row => row.meshKey)) },
   new Float32Array(many.length * STATE_FLOATS)).lamps.length, MAX_LAMPS);

@@ -118,6 +118,9 @@ export const STATE_FLOATS = STATE_TEXELS * 4;
 /** Emitters that light their surroundings in one frame, and how close two must be to count as one. */
 export const MAX_LAMPS = 16;
 const LAMP_MERGE = .75;
+/** Beams merge only when their directions are this close (a cosine). */
+const AIM_MERGE = .8;
+export interface Lamp { readonly at: Rgb; readonly aim: Rgb | null }
 
 /** Uniform values shared by every mesh in a frame. */
 export interface FrameAppearance {
@@ -135,8 +138,9 @@ export interface FrameAppearance {
   readonly tint: Rgb;
   readonly sunTint: Rgb;
   readonly lampTint: Rgb;
-  /** Up to MAX_LAMPS shown emitters, merged when close, as lifted points that light their surroundings. */
-  readonly lamps: readonly Rgb[];
+  /** Up to MAX_LAMPS shown emitters, merged when close and aimed alike, as lifted
+   * points that light their surroundings, or a cone along `aim`. */
+  readonly lamps: readonly Lamp[];
   /** Passes with at least one mesh this frame; empty passes are skipped. */
   readonly passes: ReadonlySet<MeshPass>;
   readonly ghosts: boolean;
@@ -154,7 +158,7 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
   const SOURCE_DIM = clamp01(p.sourceDim ?? 1);
   const DAY = p.twoSided && p.daylight ? p.daylight : null;
   const passes = new Set<MeshPass>(); let ghosts = false;
-  const lamps: { at: Rgb; count: number }[] = [];
+  const lamps: { at: Rgb; aim: Rgb | null; count: number }[] = [];
   meshes.forEach((mesh, index) => {
     const o = index * STATE_FLOATS, key = mesh.meshKey;
     const kind: MeshPass = p.referenceKeys?.has(key) ? MeshPass.Reference : mesh.occurrenceId !== null ? MeshPass.Bound : MeshPass.Unbound;
@@ -208,9 +212,17 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     if (emitter && pass !== MeshPass.None) {
       const { min, max } = mesh.bounds, lift = p.lifts?.get(key) ?? 0;
       const at: Rgb = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2 + lift, (min[2] + max[2]) / 2];
-      const near = lamps.find(lamp => Math.hypot(lamp.at[0] - at[0], lamp.at[1] - at[1], lamp.at[2] - at[2]) < LAMP_MERGE);
-      if (near) { near.at = near.at.map((value, axis) => (value * near.count + at[axis]!) / (near.count + 1)) as unknown as Rgb; near.count++; }
-      else lamps.push({ at, count: 1 });
+      const aim = mesh.aim ?? null;
+      const near = lamps.find(lamp => Math.hypot(lamp.at[0] - at[0], lamp.at[1] - at[1], lamp.at[2] - at[2]) < LAMP_MERGE
+        && (lamp.aim === null ? aim === null : aim !== null && lamp.aim[0] * aim[0] + lamp.aim[1] * aim[1] + lamp.aim[2] * aim[2] >= AIM_MERGE));
+      if (near) {
+        near.at = near.at.map((value, axis) => (value * near.count + at[axis]!) / (near.count + 1)) as unknown as Rgb;
+        if (near.aim && aim) {
+          const sum = near.aim.map((value, axis) => value * near.count + aim[axis]!), length = Math.hypot(...sum);
+          near.aim = sum.map(value => value / length) as unknown as Rgb;
+        }
+        near.count++;
+      } else lamps.push({ at, aim: aim && [...aim] as Rgb, count: 1 });
     }
   });
   // An opt-in ghost opacity also keeps the ghost nearly flat, so stacked faded floors stay one quiet veil.
@@ -221,7 +233,7 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     ghostAlpha: quiet ? clamp01(p.ghostAlpha!) : GHOST_ALPHA, ghostColor: GHOST, ghostShade: quiet ? mix(SHADE, GHOST, .8) : SHADE,
     direct: DAY ? clamp01(DAY.direct) : 1, night: DAY?.night === true, lamp: DAY ? clamp01(DAY.lamp) : 0,
     tint: DAY ? [...DAY.tint] as Rgb : [1, 1, 1], sunTint: DAY ? [...DAY.sunTint] as Rgb : [1, 1, 1], lampTint: DAY ? [...DAY.lampTint] as Rgb : [1, 1, 1],
-    lamps: lamps.sort((a, b) => b.count - a.count).slice(0, MAX_LAMPS).map(lamp => lamp.at),
+    lamps: lamps.sort((a, b) => b.count - a.count).slice(0, MAX_LAMPS).map(({ at, aim }) => ({ at, aim })),
     passes, ghosts,
   };
 }

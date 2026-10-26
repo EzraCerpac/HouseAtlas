@@ -101,11 +101,18 @@ export interface PreparedMesh {
   readonly bounds: Bounds;
   readonly sourceBaseColor?: SourceBaseColor;
   readonly sourceNight?: SourceNight;
+  /** For an emitter whose glowing faces mostly face one way, that way: its beam. */
+  readonly aim?: readonly [number, number, number];
   readonly sourceMaterial?: EmbeddedMaterial;
   /** Separate UV(2), source shading normal(3), tangent(4) stream. Picking keeps
    * the original 24-byte position/flat-normal stream without any layout change. */
   readonly materialVertices?: Float32Array;
 }
+
+/** An emitter aims a beam when its faces' area-weighted normals keep at least
+ * this share of their total area: a lens or one-sided lamp glass, not a bulb or a
+ * glass box, which light all around. */
+const AIM_SHARE = .5;
 
 export function prepareMeshes(meshes: readonly MeshInput[], binding: (mesh: MeshInput) => string | null = mesh => mesh.occurrenceId): readonly PreparedMesh[] {
   return meshes.map(mesh => {
@@ -114,12 +121,14 @@ export function prepareMeshes(meshes: readonly MeshInput[], binding: (mesh: Mesh
     const materialVertices = attributes ? new Float32Array(triangles * 27) : null;
     const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
     const p = mesh.positions, at = (t: number, corner: number) => mesh.indices[t * 3 + corner]! * 3;
+    let fx = 0, fy = 0, fz = 0, area = 0;
     for (let t = 0; t < triangles; t++) {
       const a = at(t, 0), b = at(t, 1), c = at(t, 2);
       const ux = p[b]! - p[a]!, uy = p[b + 1]! - p[a + 1]!, uz = p[b + 2]! - p[a + 2]!;
       const vx = p[c]! - p[a]!, vy = p[c + 1]! - p[a + 1]!, vz = p[c + 2]! - p[a + 2]!;
       let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
       const length = Math.hypot(nx, ny, nz);
+      fx += nx; fy += ny; fz += nz; area += length;
       if (length > 0) { nx /= length; ny /= length; nz /= length; } else { nx = 0; ny = 1; nz = 0; }
       for (let corner = 0; corner < 3; corner++) {
         const index = corner === 0 ? a : corner === 1 ? b : c;
@@ -138,9 +147,12 @@ export function prepareMeshes(meshes: readonly MeshInput[], binding: (mesh: Mesh
         for (let axis = 0; axis < 3; axis++) { const v = p[index + axis]!; if (v < min[axis]!) min[axis] = v; if (v > max[axis]!) max[axis] = v; }
       }
     }
+    const aimed = Math.hypot(fx, fy, fz);
+    const aim = mesh.sourceNight === 'emitter' && area > 0 && aimed >= area * AIM_SHARE
+      ? [fx / aimed, fy / aimed, fz / aimed] as const : null;
     return { meshKey: mesh.meshKey, floorId: mesh.floorId, occurrenceId: binding(mesh), vertices, triangles,
       ...(mesh.sourceBaseColor ? { sourceBaseColor: mesh.sourceBaseColor } : {}),
-      ...(mesh.sourceNight ? { sourceNight: mesh.sourceNight } : {}),
+      ...(mesh.sourceNight ? { sourceNight: mesh.sourceNight } : {}), ...(aim ? { aim } : {}),
       ...(mesh.sourceMaterial && materialVertices ? { sourceMaterial: mesh.sourceMaterial, materialVertices } : {}),
       yRange: [min[1]!, max[1]!], bounds: { min: [min[0]!, min[1]!, min[2]!], max: [max[0]!, max[1]!, max[2]!] } };
   });

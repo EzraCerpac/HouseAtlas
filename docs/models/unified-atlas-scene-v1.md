@@ -375,7 +375,12 @@ properties the server already admits; no extension, extra or name is needed.
 A primitive is a lamp's glowing glass or bulb when its material has a nonzero
 `emissiveFactor` (the producer keeps emission strength at or below 1, since
 `KHR_materials_emissive_strength` is refused). It glows and lights the faces
-near it, up to 16 lamps at a time. Building glass, bound as `structure` or
+near it, up to 16 lamps at a time. Its glowing faces also set its direction,
+with no separate mark: when their area-weighted outward normals (front faces,
+counter-clockwise) keep at least half of their total area, as a flat or
+one-sided lens does, the lamp throws a beam about 40° wide that way, as
+headlights or a downlight do. A closed or all-round glowing surface, such as a
+bulb or a glass box, lights all around. Building glass, bound as `structure` or
 `roof`, is a material with `alphaMode: "BLEND"` and a `baseColorFactor` alpha
 below 1, not `KHR_materials_transmission`, which is refused; it shows the
 lamp-lit room behind it. Until a model carries these marks, a material whose

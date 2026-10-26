@@ -59,6 +59,9 @@ const SUN_TINT_GAIN = 2.5;
  * strength up to POOL_RADIUS metres away and gone by POOL_REACH. */
 const WINDOW_GLOW = [.95, .72, .4] as const, WINDOW_SHARE = .85, EMITTER_GLOW = [1, .93, .74] as const;
 const POOL_TINT = [1, .72, .42] as const, POOL_RADIUS = 1.2, POOL_REACH = 4;
+/** An aimed lamp's beam instead: full inside BEAM_CORE (a cosine, about 20°) of its
+ * aim, gone past BEAM_EDGE (about 42°), and carried further. */
+const BEAM_CORE = .94, BEAM_EDGE = .74, BEAM_RADIUS = 3, BEAM_REACH = 10;
 /** Merged vertices per GPU buffer set (18 MiB across the three streams), cut at
  * a triangle boundary: the Light model stays a few draws, and no single upload
  * of the Full model holds up a frame. */
@@ -127,6 +130,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       direct: uniform(1), night: uniform(0), lamp: uniform(0),
       tint: uniform(new Vector3(1, 1, 1)), sunTint: uniform(new Vector3(1, 1, 1)), lampTint: uniform(new Vector3(1, 1, 1)),
       lamps: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
+      lampAims: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
     };
     const toUnitDepth = renderer.coordinateSystem === WebGPUCoordinateSystem;
     const meshId = attribute('meshIndex', 'float');
@@ -191,14 +195,18 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       return clamp(c.mul(mix(light, vec3(1), s7.y.mul(KEEP_TONE))), 0, 1);
     };
 
-    /** After dusk, the light the lamps throw on a face: by distance, a little more where it faces them. */
+    /** After dusk, the light the lamps throw on a face: by distance, a little more where
+     * it faces them, and for an aimed lamp only inside its beam. */
     const pool = (n: V3): F => {
       const sum = float(0).toVar('pool');
       If(u.lamp.greaterThan(0), () => {
         Loop(MAX_LAMPS, ({ i }) => {
-          const lamp = u.lamps.element(i) as unknown as V4, toward = lamp.xyz.sub(lifted), distance = length(toward);
-          const fall = lamp.w.div(distance.mul(distance).div(POOL_RADIUS * POOL_RADIUS).add(1)).mul(float(1).sub(smoothstep(POOL_REACH / 2, POOL_REACH, distance)));
-          sum.addAssign(fall.mul(max(dot(n, toward.div(max(distance, .001))), 0).mul(.7).add(.3)));
+          const lamp = u.lamps.element(i) as unknown as V4, aim = u.lampAims.element(i) as unknown as V4;
+          const toward = lamp.xyz.sub(lifted), distance = length(toward), unit = toward.div(max(distance, .001));
+          const radius = mix(float(POOL_RADIUS), float(BEAM_RADIUS), aim.w), reach = mix(float(POOL_REACH), float(BEAM_REACH), aim.w);
+          const beam = mix(float(1), smoothstep(BEAM_EDGE, BEAM_CORE, dot(unit.negate(), aim.xyz)), aim.w);
+          const fall = lamp.w.div(distance.mul(distance).div(radius.mul(radius)).add(1)).mul(float(1).sub(smoothstep(reach.div(2), reach, distance)));
+          sum.addAssign(fall.mul(beam).mul(max(dot(n, unit), 0).mul(.7).add(.3)));
         });
       });
       return sum;
@@ -482,8 +490,10 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
           u.ghostAlpha.value = frame.ghostAlpha; u.ghost.value.set(...frame.ghostColor); u.ghostShade.value.set(...frame.ghostShade);
           u.direct.value = frame.direct; u.night.value = frame.night ? 1 : 0; u.lamp.value = frame.lamp;
           u.tint.value.set(...frame.tint); u.sunTint.value.set(...frame.sunTint); u.lampTint.value.set(...frame.lampTint);
-          (u.lamps.array as Vector4[]).forEach((lamp, at) => { const point = frame.lamps[at];
-            lamp.set(point?.[0] ?? 0, point?.[1] ?? 0, point?.[2] ?? 0, point ? frame.lamp : 0); });
+          (u.lamps.array as Vector4[]).forEach((point, at) => { const lamp = frame.lamps[at];
+            point.set(lamp?.at[0] ?? 0, lamp?.at[1] ?? 0, lamp?.at[2] ?? 0, lamp ? frame.lamp : 0); });
+          (u.lampAims.array as Vector4[]).forEach((aim, at) => { const toward = frame.lamps[at]?.aim;
+            aim.set(toward?.[0] ?? 0, toward?.[1] ?? 0, toward?.[2] ?? 0, toward ? 1 : 0); });
           for (const { pass, mesh } of layers) mesh.visible = pass === 'ghost' ? frame.ghosts : frame.passes.has(pass);
           sunStale = true;
         }
