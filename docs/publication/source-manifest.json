@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "ad37d6e3bade4511b667d6477a1c346568a3c89c71333c8d24a491cfc5b0a3ae",
+  "sourceDigestSha256": "3c024359c3097bcdbf619d140180fdf143fb19d205e24253d397d31ef19a8203",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -9065,8 +9065,8 @@
     {
       "path": "frontend/src/lantern/atlas/AtlasView.tsx",
       "mode": "100644",
-      "bytes": 36778,
-      "sha256": "866d450caea0ca525250273e15697457aaccb28a69578a7985034118396961d1",
+      "bytes": 36814,
+      "sha256": "d9f2844104998f88e6f9d681c3daa39bf5da9ba3addd70dd5cba5f2e0da84cec",
       "owner": "web"
     },
     {
@@ -10276,8 +10276,8 @@
     {
       "path": "frontend/src/lantern/styles/app.css",
       "mode": "100644",
-      "bytes": 54354,
-      "sha256": "471265c0eb54028a833a7880b4c8fa749117b3b3b97f1348fd7235aa5bafa5a7",
+      "bytes": 54009,
+      "sha256": "549e7739d62097b5299ffe05b6368fed4ab47f879ddb6a0ad800eb3924259228",
       "owner": "web"
     },
     {
