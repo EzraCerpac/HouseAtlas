@@ -1577,7 +1577,8 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
             <span className="ua-dock-dots" aria-hidden="true">{LAYER_KINDS.map(kind => <i key={kind} className={state.layers[kind] ? 'is-on' : undefined}
               style={{ '--layer': LAYER_TONE[kind] } as CSSProperties} />)}</span>
           </button>
-          <div id={`${menuIds}-layers`} className="layer-bar ua-dock-tray" role="group" aria-label="Layers" hidden={menu !== 'layers'}>
+          {/* A short landscape stage shows the chips inline, always open. */}
+          <div id={`${menuIds}-layers`} className="layer-bar ua-dock-tray" role="group" aria-label="Layers" hidden={menu !== 'layers' && !shortLayerDetails}>
             {layerChips}
           </div>
         </div> : <div className="layer-bar" role="group" aria-label="Layers">{layerChips}</div>}

@@ -2734,8 +2734,7 @@
 
     .lantern-host .ua-dock-layers { display: none; }
 
-    .lantern-host .ua-bottom .ua-dock-tray,
-    .lantern-host .ua-bottom .ua-dock-tray[hidden] {
+    .lantern-host .ua-bottom .ua-dock-tray {
       position: static;
       display: flex;
       flex-direction: row;
