@@ -2245,41 +2245,6 @@ real IndexedDB/provider, held denial/foreign-token/expiry/revocation/crash/fault
 guard-reversal or broad alias is included. This check establishes no genuine
 offline/device/PWA or deployment acceptance and adds no workflow.
 
-## Generated software release bundle check
-
-Read [software release bundles](../operations/release-bundles.md), then inspect
-`tools/release/bundle.py`, `fixtures.py`, `workflow.py` and `test_bundle.py`
-before this exact focused command:
-
-```sh
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/release -p test_bundle.py -v
-```
-
-Seven generated happy-path cases check deterministic software-only packaging,
-exact file closure, the retained-component/storage declarations, producer
-identity and a fake local draft/upload/download/publish sequence. They open no
-listener, execute no native binary and use no actual GitHub write, credential,
-household data or runtime. Held crash, replay, expiry, adversarial and rollback
-controls remain separate. The release workflow validates scoped PRs; actual
-main build and promotion are explicit manual operations with separate reviewed
-native-profile, storage-compatibility, producer and publication gates. Source
-checks do not qualify a NAS binary, deployment or device.
-
-The two reviewed packaging repairs additionally have this explicitly selected,
-separate generated regression command:
-
-```sh
-PYTHONDONTWRITEBYTECODE=1 python3 tools/release/test_bundle.py --repair-regressions
-```
-
-Exactly three cases use fake subprocesses with simulated transfer durations and
-disposable generated USTAR paths. They check the three transfer ceilings versus
-the short inspection timeout, valid filename/prefix boundaries, and pre-output
-rejection of unencodable paths in producer and manifest admission. They run no
-network, wall-clock timeout, native binary, credential, provider or household
-operation. These cases remain excluded from ordinary seven-test discovery and
-add no CI step or broader control permission.
-
 ## Named generated root and saved offline-entry lifecycle positive
 
 Read [root offline entry](../offline/root-offline-entry.md), then inspect
@@ -2338,25 +2303,6 @@ and source-uncertainty rectangles crossing the fitted hull (including malformed
 explicit row tolerances). Report those separately from the original five
 healthy cases. No workflow or shared runner is added by these definitions.
 
-
-## Named generated frontend asset-retention producer positive
-
-Read [the frontend asset-retention producer contract](../operations/frontend-asset-retention.md),
-then inspect `tools/release/frontend_retention.py`, the selected generated case,
-its existing packaging fixture helpers and `bundle.py`. From the repository root:
-
-```sh
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tools/release python3 tools/release/tests/test_frontend_retention_happy.py FrontendRetentionHappyPaths.test_generated_prior_assets_union_pack_and_verify -v
-```
-
-This one positive prepares a new disposable frontend from generated current
-assets and a separately pinned, generated prior release, then packages and
-verifies the exact declared union through the existing producer. It retains
-current entrypoints and prior immutable assets with distinct public provenance.
-No actual release, network, native binary, service, private input, denial,
-rollback or failure-injection case is used. Runtime publication never adds
-undeclared files; genuine producer approval and native update qualification
-remain separate. This adds no workflow or deployment authority.
 
 ## Named generated native Access read-only validation positive
 
