@@ -185,6 +185,18 @@ assert.deepEqual(beamFrame.lamps.slice(1).map(lamp => lamp.aim), [[1, 0, 0], nul
 const many = Array.from({ length: MAX_LAMPS + 4 }, (_, index) => at(`lamp-${index}`, index * 2));
 assert.equal(writeAppearance(many, { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight, emitterKeys: new Set(many.map(row => row.meshKey)) },
   new Float32Array(many.length * STATE_FLOATS)).lamps.length, MAX_LAMPS);
+// Lamps are gathered only while they are on, and many far-apart emitters stay cheap.
+assert.deepEqual(writeAppearance(lit7, { ...base, twoSided: true, light: [0, 1, 0], daylight: { ...midnight, lamp: 0 },
+  emitterKeys: new Set(['lamp-a']) }, new Float32Array(lit7.length * STATE_FLOATS)).lamps, []);
+const crowd = Array.from({ length: 20_000 }, (_, index) => at(`crowd-${index}`, (index % 200) * 2, Math.floor(index / 200) * 2));
+const timed = emitterKeys => {
+  const started = performance.now();
+  const frame = writeAppearance(crowd, { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight, emitterKeys }, new Float32Array(crowd.length * STATE_FLOATS));
+  return { frame, ms: performance.now() - started };
+};
+const unlit = timed(new Set()), crowded = timed(new Set(crowd.map(row => row.meshKey)));
+assert.equal(crowded.frame.lamps.length, MAX_LAMPS);
+assert.ok(crowded.ms < unlit.ms * 6 + 100, `20,000 separate emitters took ${Math.round(crowded.ms)} ms, against ${Math.round(unlit.ms)} ms without lamps`);
 const dayless = new Float32Array(lit7.length * STATE_FLOATS);
 assert.deepEqual(writeAppearance(lit7, { ...base, glazingKeys: new Set(['glass']), emitterKeys: new Set(['lamp-a']) }, dayless).lamps, []);
 assert.ok(dayless.every((value, index) => index % STATE_FLOATS < 30 || value === 0), 'other viewers never get night marks');
