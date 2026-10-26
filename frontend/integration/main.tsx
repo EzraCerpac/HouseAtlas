@@ -22,7 +22,7 @@ import { createTopologyClient } from "../src/api/topology-client";
 import { createNetworkRelationsClient } from "../src/api/network-relations-client";
 import { createNativeGeometryReadClient, signOutWithScanCleanup } from "./native-geometry-read-client";
 import type { NativeGeometryScanCache } from "./native-geometry-scan-cache";
-import type { UnifiedAtlasCache } from "./unified-atlas-cache";
+import type { AtlasCacheActor, UnifiedAtlasCache } from "./unified-atlas-cache";
 import { createNativeEvidenceDocumentClient } from "./native-evidence-document-client";
 import { createNativeSceneAssociationClient } from "./native-scene-association-client";
 import { createNativeSceneSourceClient } from "./native-scene-source-client";
@@ -110,6 +110,18 @@ const getAtlasStore = () => atlasStore ??= import("./unified-atlas-cache").then(
   const store = module.openUnifiedAtlasStore(typeof indexedDB === "undefined" ? undefined : indexedDB);
   await store.ready(); return store;
 });
+let atlasActor: Promise<AtlasCacheActor | null> = Promise.resolve(null);
+/** Only completed canonical observations select the account whose historical
+ * copy may open offline. An unavailable session read keeps the prior witness;
+ * pending reads, cached IDs and outbox rows never become live authority. */
+function observeAtlasActor(value: AtlasSessionInfo | null): void {
+  const generation = sessionGeneration;
+  const current = () => generation === sessionGeneration && currentSession === value;
+  atlasCacheOwner = null;
+  atlasActor = Promise.all([import("./unified-atlas-cache"), getAtlasStore()])
+    .then(([module, store]) => current() ? module.observeUnifiedAtlasActor(store, value?.actorId ?? null, current) : null)
+    .catch(() => null);
+}
 const nativeSignOut = nativeSessions.signOut;
 const nativeLocalAccess = nativeSessions.localAccess;
 const nativeLocalSignIn = nativeLocalAccess?.signIn;
@@ -139,6 +151,7 @@ const sessions: AtlasSessionClient = {
     signal.throwIfAborted();
     if (generation !== sessionGeneration) throw new Error("Session changed during rotation");
     currentSession = value;
+    observeAtlasActor(value);
     captureDrafts.observeCanonical(value);
     quantityChanged();
     return value;
@@ -152,7 +165,7 @@ const sessions: AtlasSessionClient = {
     currentReadyView = null;
     quantityChanged();
     const value = await nativeSessions.session(signal);
-    if (!signal.aborted && generation === sessionGeneration) { currentSession = value; captureDrafts.observeCanonical(value); quantityChanged(); }
+    if (!signal.aborted && generation === sessionGeneration) { currentSession = value; observeAtlasActor(value); captureDrafts.observeCanonical(value); quantityChanged(); }
     return value;
   },
   async signIn(credentials, signal) {
@@ -166,7 +179,7 @@ const sessions: AtlasSessionClient = {
     let value: AtlasSessionInfo;
     try { value = await canonicalSignIn(await nativeSessions.signIn(credentials, signal), signal); }
     finally { captureDrafts.announceSessionChange(); }
-    if (!signal.aborted && generation === sessionGeneration) { currentSession = value; captureDrafts.observeCanonical(value); quantityChanged(); }
+    if (!signal.aborted && generation === sessionGeneration) { currentSession = value; observeAtlasActor(value); captureDrafts.observeCanonical(value); quantityChanged(); }
     return value;
   },
   ...(nativeSignOut ? { async signOut(signal: AbortSignal) {
@@ -179,6 +192,7 @@ const sessions: AtlasSessionClient = {
     quantityChanged();
     await signOutWithScanCleanup(() => nativeSignOut(signal), async () => {
       atlasCacheOwner = null;
+      atlasActor = Promise.resolve(null);
       await Promise.all([getScanCache().then(cache => cache.clear()).catch(() => undefined),
         getAtlasStore().then(store => store.clear()).catch(() => undefined)]);
       captureDrafts.announceSessionChange();
@@ -200,7 +214,7 @@ const sessions: AtlasSessionClient = {
       let value: AtlasSessionInfo;
       try { value = await canonicalSignIn(await nativeLocalSignIn(signal), signal); }
       finally { captureDrafts.announceSessionChange(); }
-      if (!signal.aborted && generation === sessionGeneration) { currentSession = value; captureDrafts.observeCanonical(value); quantityChanged(); }
+      if (!signal.aborted && generation === sessionGeneration) { currentSession = value; observeAtlasActor(value); captureDrafts.observeCanonical(value); quantityChanged(); }
       return value;
     } } : {}),
     ...(nativeProxySignIn ? { async proxySignIn(signal: AbortSignal) {
@@ -215,7 +229,7 @@ const sessions: AtlasSessionClient = {
       let value: AtlasSessionInfo;
       try { value = await canonicalSignIn(await nativeProxySignIn(signal), signal); }
       finally { captureDrafts.announceSessionChange(); }
-      if (!signal.aborted && generation === sessionGeneration) { currentSession = value; captureDrafts.observeCanonical(value); quantityChanged(); }
+      if (!signal.aborted && generation === sessionGeneration) { currentSession = value; observeAtlasActor(value); captureDrafts.observeCanonical(value); quantityChanged(); }
       return value;
     } } : {}),
   } } : {}),
@@ -493,8 +507,8 @@ function atlasCache(selection: ModelOverviewSelection): Promise<UnifiedAtlasCach
   if (!session?.actorId || currentOverview() !== selection) return Promise.resolve(null);
   const owner = { actorId: session.actorId, workspaceId: selection.scope.workspaceId, homeId: selection.scope.homeId };
   const key = JSON.stringify(owner);
-  if (atlasCacheOwner?.key !== key) atlasCacheOwner = { key, cache: Promise.all([import('./unified-atlas-cache'), getAtlasStore()])
-    .then(([module, store]) => module.createUnifiedAtlasCache(store, owner), () => null) };
+  if (atlasCacheOwner?.key !== key) atlasCacheOwner = { key, cache: Promise.all([import('./unified-atlas-cache'), getAtlasStore(), atlasActor])
+    .then(([module, store, actor]) => module.createUnifiedAtlasCache(store, owner, actor), () => null) };
   return atlasCacheOwner.cache;
 }
 const sourceModels: SourceModelPort = {

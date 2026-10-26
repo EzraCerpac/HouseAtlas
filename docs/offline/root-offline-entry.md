@@ -66,11 +66,11 @@ Saved receipt.
 An update copies each public file an earlier build's cache already verified
 for the same path and digest, and downloads only the rest. Activation retains
 other build caches because either registration may still serve an older build
-during an ordinary update. Once both owned workers answer for the same build
-and neither scope has an installing or waiting worker, the page that verified
-them deletes every other completed `houseatlas-saved-public-` cache (one whose
-verification marker names its own build), so frequent deploys do not leave a
-full copy each. A cache still being filled by an install has no marker and stays. Explicit Remove saved public
+during an ordinary update. Verification does not automatically delete other
+build caches: an installation can finish after registration checks, and a
+completed marker proves integrity rather than obsolescence. Older caches can
+therefore remain until explicit cleanup; reused verified bytes still avoid
+unnecessary downloads. Explicit Remove saved public
 shell checks both exact scopes, fixed script ownership and the displayed build
 reported over MessageChannel before unregistering. It preserves registrations
 for foreign scripts, newer builds and workers still installing. It deletes only
@@ -86,7 +86,7 @@ the existing Saved capture-label components before this exact command:
 node frontend/lantern-tests/offline-root-entry-healthy.mjs
 ```
 
-It emits two small synthetic public closures into a disposable temporary
+It emits small synthetic public closures into a disposable temporary
 folder through the actual plugin, executes the actual worker sources and
 TypeScript shell helper in isolated VM contexts, and models CacheStorage and
 ordinary registration/activation/message operations. It checks normal root
@@ -102,10 +102,16 @@ suites are outside this command.
 
 ## Last Atlas copy
 
-Each fresh Atlas read in the live app also writes one small pointer (actor,
-home, publication and overview manifest) beside the scenes and models in the
-live Atlas cache (`frontend/integration/unified-atlas-cache.ts`). The Saved
-entry opens that pointer's scene and model from the cache alone
+After a completed canonical session observation, the live app records a
+non-secret actor identifier and display revision, never a credential or live
+authority. Fresh Atlas reads bind their small pointer (actor, display revision,
+home, publication and overview manifest) to that witness beside the scenes and
+models in the live Atlas cache (`frontend/integration/unified-atlas-cache.ts`).
+An account change selects a new revision even before the new account has a
+scene. Late reads from the previous allocation cannot replace its pointer;
+legacy pointers without a witness are not opened. The Saved entry rechecks the
+witness after model admission and opens only the matching scene and model from
+the cache alone
 (`frontend/integration/last-atlas-copy.ts`), admits and hashes them exactly as
 the live app's stored copy, and shows them through a live-kind port whose
 selection expired at the epoch: its fresh read always reports the server
@@ -114,7 +120,11 @@ model and no overlays. Sign-out empties the cache and with it this copy; a Saved
 open while another tab signs out withdraws the copy when it is focused or shown
 again.
 `unified-atlas-cache-healthy.mjs` covers it; the `live-launch` case of
-`offline-launch-browser.mjs` covers registration from the live entry.
+`offline-launch-browser.mjs` covers registration from the live entry, actual
+tab close/reopen with a generated cached Atlas and waiting queue record, and
+read-only queue retention. No canonical session or native command server is
+fabricated. The Saved entry requires Open live after reconnection to refresh
+the copy and let the signed-in live application synchronize queued edits.
 
 Genuine browser service-worker update/controller behavior, retained-store
 persistence, installed root launch after process restart, supported-device/PWA

@@ -252,12 +252,14 @@ try {
 
   // Ordinary source update (every deploy, from every live launch): both
   // workers move to the new build, copying the public bytes an earlier build
-  // already verified and downloading only what changed. Once both answer for
-  // the new build, earlier completed builds' public caches go. A cache with no
-  // verification marker (an install still running elsewhere) and unrelated
-  // caches stay.
+  // already verified and downloading only what changed. Other build caches
+  // stay, including a completed worker whose cache can still serve a page.
+  // A verification marker proves completeness, not that a build is obsolete.
   // Old displayed cleanup cannot unregister either newer worker.
   await storage.open('foreign-public-cache'); await storage.open(prefix + 'c'.repeat(64));
+  const concurrent = generatedBuild('concurrent');
+  const concurrentSaved = workerRuntime(concurrent, 'saved', storage, async input => concurrent.responses.get(new URL(input).pathname).clone());
+  await concurrentSaved.lifecycle('install'); await concurrentSaved.lifecycle('activate');
   api.setTarget(second, storage);
   const newer = shellPage(api, storage, second); assert.equal((await newer.verifySavedShell()).buildId, second.buildId);
   assert.equal(rootRegistration.active.buildId, second.buildId); assert.equal(savedRegistration.active.buildId, second.buildId);
@@ -266,18 +268,24 @@ try {
   assert.deepEqual(changed, ['/assets/pdfjs/jbig2_nowasm_fallback.js', '/assets/pdfjs/openjpeg_nowasm_fallback.js', '/assets/saved.js', '/saved/index.html']);
   assert.deepEqual(savedRegistration.active.runtime.calls.map(call => new URL(call.input).pathname), changed, 'Only changed public bytes are downloaded');
   assert.equal(rootRegistration.active.runtime.calls.length, 0);
-  assert(!storage.stores.has(prefix + first.buildId)); assert(storage.stores.has(prefix + 'c'.repeat(64)), 'An unfinished install keeps its cache');
+  assert(storage.stores.has(prefix + first.buildId), 'Earlier verified builds remain until explicit cleanup');
+  assert(storage.stores.has(prefix + 'c'.repeat(64)), 'An unfinished install keeps its cache');
+  assert(storage.stores.has(prefix + concurrent.buildId), 'A completed concurrent worker keeps its verified cache');
+  assert.equal(await (await concurrentSaved.fetchEvent(request('/saved/index.html'))).text(),
+    await concurrent.responses.get('/saved/index.html').clone().text(), 'The completed worker can still serve its exact entry');
   assert(storage.stores.has(prefix + second.buildId)); assert(storage.stores.has('foreign-public-cache'));
   for (const pin of second.table) assert.equal(await (await savedRegistration.active.runtime.fetchEvent(request(pin.path, { mode: pin.path.endsWith('.html') ? 'navigate' : 'cors' }))).text(),
     await second.responses.get(pin.path).clone().text());
   await page.removeSavedShell(first.buildId);
   assert.equal(api.registrations.get(origin + '/'), rootRegistration); assert.equal(api.registrations.get(origin + '/saved/'), savedRegistration);
+  assert(!storage.stores.has(prefix + first.buildId), 'Explicit cleanup removes only the displayed earlier build');
   assert(storage.stores.has(prefix + second.buildId));
   await newer.removeSavedShell(second.buildId);
   assert.equal(api.registrations.size, 0); assert(!storage.stores.has(prefix + second.buildId));
   assert(storage.stores.has('foreign-public-cache')); assert(storage.stores.has(prefix + 'c'.repeat(64)));
+  assert(storage.stores.has(prefix + concurrent.buildId), 'Displayed-build cleanup preserves the completed concurrent build');
   await foreignPage.removeSavedShell(first.buildId); assert.equal(foreignAPI.registrations.get(origin + '/'), foreign);
-  cases.push('ordinary-worker-upgrade-reuses-verified-bytes-and-drops-earlier-builds');
-  console.log(JSON.stringify({ result: 'healthy', cases, generatedBuilds: [first.buildId, second.buildId],
+  cases.push('ordinary-worker-upgrade-reuses-verified-bytes-and-retains-other-builds');
+  console.log(JSON.stringify({ result: 'healthy', cases, generatedBuilds: [first.buildId, second.buildId, concurrent.buildId],
     evidence: 'source/generated VM cache and worker lifecycle; capture labeling inspected at existing component seams; no browser/device claim' }));
 } finally { rmSync(scratch, { recursive: true, force: true }); }

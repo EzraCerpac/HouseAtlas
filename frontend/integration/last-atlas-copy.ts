@@ -26,7 +26,13 @@ export async function openLastAtlasCopy(factory: IDBFactory | undefined, signal:
     let read: StoredAtlasRead | null = await readCachedUnifiedAtlas({ selection: selection.overview, signal, cache });
     signal.throwIfAborted();
     if (!read) { await store.close(); return null; }
-    const storedAt = read.storedAt, named = JSON.stringify(pointer), listeners = new Set<() => void>();
+    const named = JSON.stringify(pointer);
+    // Scene/model admission and hashing awaited storage and crypto. A canonical
+    // account change during that work must not publish the previous account's
+    // copy even briefly while waiting for a later focus/visibility notice.
+    const current = await readLastAtlas(store); signal.throwIfAborted();
+    if (!current || JSON.stringify(current.pointer) !== named) { read = null; await store.close(); return null; }
+    const storedAt = read.storedAt, listeners = new Set<() => void>();
     let closed = false;
     const withdraw = () => {
       if (read === null) return;

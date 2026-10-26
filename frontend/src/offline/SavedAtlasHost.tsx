@@ -168,7 +168,7 @@ export function SavedAtlasHost({ store: supplied, openLastCopy }: { readonly sto
     {house && (view === 'inventory' || view === 'documents') && !catalog && <p className="saved-message" role={catalogError ? 'alert' : 'status'}>{catalogError ?? 'Opening saved catalog…'}</p>}
     {catalog && (view === 'inventory' || view === 'documents') && <SavedCatalogView key={view + catalog.read.catalog.localRevision} selection={catalog} section={view} />}
     {!house && last && <>
-      <p className="saved-message" role="note">Last opened in the live app on this device. It updates when the server is back.</p>
+      <p className="saved-message" role="note">Last opened in the live app on this device. Open live when connected to update this copy.</p>
       <div className="saved-stage"><UnifiedAtlas port={last.port} environment={{ reducedMotion: reduced }} /></div>
     </>}
     {allocation && selectedHouse && <>

@@ -35,7 +35,7 @@ const lastCopyURL = await sourceURL('../integration/last-atlas-copy.ts', { '../s
   './unified-atlas-cache': cacheURL, './unified-atlas-reader': readerURL });
 const syntheticURL = await sourceURL('./unified-atlas/synthetic-atlas.ts');
 const { readUnifiedAtlas, readCachedUnifiedAtlas } = await import(readerURL);
-const { openUnifiedAtlasStore, createUnifiedAtlasCache, ATLAS_CACHE_DATABASE } = await import(cacheURL);
+const { openUnifiedAtlasStore, createUnifiedAtlasCache, observeUnifiedAtlasActor, readLastAtlas, ATLAS_CACHE_DATABASE } = await import(cacheURL);
 const { openLastAtlasCopy } = await import(lastCopyURL);
 const { buildSyntheticAtlas, composeAtlasEnvelope, createAtlasTransport, atlasScenePath, SYNTHETIC_ATLAS } = await import(syntheticURL);
 
@@ -65,7 +65,10 @@ const selectionOf = version => Object.freeze({ owner: {}, scope, expiresAt: new 
 async function openProcess(disk, actorId, body) {
   const store = openUnifiedAtlasStore(createSyntheticIndexedDB(disk));
   await store.ready();
-  const cache = createUnifiedAtlasCache(store, { actorId, ...scope });
+  // A simulated canonical session observation, separate from cached bytes.
+  const actor = await observeUnifiedAtlasActor(store, actorId);
+  assert.equal(actor.actorId, actorId);
+  const cache = createUnifiedAtlasCache(store, { actorId, ...scope }, actor);
   calls.length = 0;
   try { return await body({ cache, store }); } finally { await store.close(); }
 }
@@ -223,6 +226,150 @@ for (const status of [401, 403])
   assert.equal(notified, 1); assert.equal(await watched.port.stored(shown, signal()), null, 'the held bytes are released');
   await watched.close();
   assert.equal(await openLastAtlasCopy(factory(), signal()), null, 'sign-out removes the last copy');
+}
+
+// A canonical account change must withdraw A even if B has no scene yet. Late
+// A observations and valid cache completions cannot restore A or replace B.
+{
+  const accountDisk = createSyntheticDisk(), factory = () => createSyntheticIndexedDB(accountDisk);
+  served = versions[0];
+  let originalRead;
+  await openProcess(accountDisk, actorA, async ({ cache }) => { originalRead = await fresh(cache, v0); });
+  const oldStore = openUnifiedAtlasStore(factory()), nextStore = openUnifiedAtlasStore(factory());
+  await Promise.all([oldStore.ready(), nextStore.ready()]);
+  const oldActor = await observeUnifiedAtlasActor(oldStore, actorA);
+  const oldCache = createUnifiedAtlasCache(oldStore, { actorId: actorA, ...scope }, oldActor);
+  let releaseObservation, observationReached;
+  const observationHeld = new Promise(resolve => { releaseObservation = resolve; });
+  const observationStarted = new Promise(resolve => { observationReached = resolve; });
+  let activeActor = actorA, held = false;
+  const delayedStore = { ...oldStore, async read(...args) {
+    const bytes = await oldStore.read(...args);
+    if (!held) { held = true; observationReached(); await observationHeld; }
+    return bytes;
+  } };
+  const oldObservation = observeUnifiedAtlasActor(delayedStore, actorA, () => activeActor === actorA);
+  await observationStarted;
+  let releaseRead, readReached;
+  const readHeld = new Promise(resolve => { releaseRead = resolve; });
+  const readStarted = new Promise(resolve => { readReached = resolve; });
+  served = versions[1];
+  const pendingRead = readUnifiedAtlas({ selection: v1, signal: signal(), origin: SYNTHETIC_ATLAS.origin,
+    isCurrent: () => true, cache: oldCache, transport: async (...args) => {
+      const response = await transport(...args);
+      if (String(args[0]).includes('/artifacts/model')) { readReached(); await readHeld; }
+      return response;
+    } });
+  await Promise.race([readStarted, pendingRead.then(() => assert.fail('Expected the held A model read'))]);
+  activeActor = actorB;
+  const nextActor = await observeUnifiedAtlasActor(nextStore, actorB);
+  assert.equal(nextActor.actorId, actorB);
+  assert.equal(await readLastAtlas(nextStore), null, 'B has no fresh scene: never fall back to A');
+  assert.equal(await openLastAtlasCopy(factory(), signal()), null, 'cold reopen after B sign-in cannot show A');
+  releaseObservation();
+  assert.equal(await oldObservation, null, 'a delayed old canonical observation cannot restore A');
+  const nextCache = createUnifiedAtlasCache(nextStore, { actorId: actorB, ...scope }, nextActor);
+  await fresh(nextCache, v1);
+  const before = await readLastAtlas(nextStore);
+  assert.equal(before.pointer.actorId, actorB);
+  assert.equal(before.pointer.actorRevision, nextActor.revision);
+  releaseRead(); const lateRead = await pendingRead;
+  const after = await readLastAtlas(oldStore);
+  assert.deepEqual(after.pointer, before.pointer, 'a late A completion cannot replace B\'s pointer');
+  const reopened = await openLastAtlasCopy(factory(), signal());
+  assert.ok(reopened, 'B remains available after the old completion and a cold reopen'); await reopened.close();
+  const returnedActor = await observeUnifiedAtlasActor(nextStore, actorA);
+  assert.notEqual(returnedActor.revision, oldActor.revision, 'returning to A starts a new display allocation');
+  assert.equal(await readLastAtlas(nextStore), null, 'old A pointers cannot return before a new A scene');
+  oldCache.keepScene(v0.publicationId, v0.manifestSha256, versions[0].composed.envelopeBytes,
+    originalRead.envelopeSha256, originalRead.entryBuildingId);
+  assert.equal(await readLastAtlas(oldStore), null, 'an old A cache cannot select the new A allocation');
+  const returnedCache = createUnifiedAtlasCache(nextStore, { actorId: actorA, ...scope }, returnedActor);
+  await fresh(returnedCache, v1);
+  assert.equal((await readLastAtlas(nextStore)).pointer.actorRevision, returnedActor.revision);
+  await observeUnifiedAtlasActor(nextStore, null);
+  assert.equal(await readLastAtlas(nextStore), null, 'a confirmed null session withdraws the offline copy');
+  await nextStore.clear();
+  oldCache.keepModel(versions[1].composed.sha256, versions[1].glb);
+  oldCache.keepScene(v1.publicationId, v1.manifestSha256, versions[1].composed.envelopeBytes,
+    lateRead.envelopeSha256, lateRead.entryBuildingId);
+  assert.equal(await openLastAtlasCopy(factory(), signal()), null, 'sign-out plus a stale handle cannot restore display ownership');
+  await Promise.all([oldStore.close(), nextStore.close()]);
+}
+
+// A different handle can commit B after A passed its initial currentness
+// guard. Only the atomic raw-byte exchange prevents A from overwriting B.
+// Exercise missing, JSON-null and populated witness preimages separately.
+for (const previousActor of [undefined, null, 'synthetic-prior-actor']) {
+  const racingDisk = createSyntheticDisk(), factory = () => createSyntheticIndexedDB(racingDisk);
+  const older = openUnifiedAtlasStore(factory()), newer = openUnifiedAtlasStore(factory());
+  await Promise.all([older.ready(), newer.ready()]);
+  if (previousActor !== undefined) await observeUnifiedAtlasActor(older, previousActor);
+  let releaseExchange, exchangeReached;
+  const exchangeHeld = new Promise(resolve => { releaseExchange = resolve; });
+  const exchangeStarted = new Promise(resolve => { exchangeReached = resolve; });
+  const delayed = { ...older, async compareExchange(...args) {
+    exchangeReached(); await exchangeHeld;
+    return older.compareExchange(...args);
+  } };
+  // A's local guard stays true: a second handle's canonical observation must
+  // win through the shared-store preimage check, not another callback guard.
+  const pending = observeUnifiedAtlasActor(delayed, actorA, () => true);
+  await Promise.race([exchangeStarted, pending.then(() => assert.fail('Expected the held actor exchange'))]);
+  const actor = await observeUnifiedAtlasActor(newer, actorB);
+  assert.equal(actor.actorId, actorB);
+  const cache = createUnifiedAtlasCache(newer, { actorId: actorB, ...scope }, actor);
+  await fresh(cache, v1);
+  const before = await readLastAtlas(newer);
+  releaseExchange();
+  assert.equal(await pending, null, 'A loses the exact witness exchange after B committed');
+  assert.deepEqual((await readLastAtlas(older)).pointer, before.pointer, 'late A leaves B\'s pointer unchanged');
+  const reopened = await openLastAtlasCopy(factory(), signal());
+  assert.ok(reopened, 'B remains available across cold reopen after the failed exchange'); await reopened.close();
+  await Promise.all([older.close(), newer.close()]);
+}
+
+// The account may change while the initial offline model is being hashed.
+// Hold only that generated model digest, not storage or a live transport.
+{
+  const openingDisk = createSyntheticDisk(), factory = () => createSyntheticIndexedDB(openingDisk);
+  await openProcess(openingDisk, actorA, async ({ cache }) => { await fresh(cache, v1); });
+  const subtle = crypto.subtle, previous = Object.getOwnPropertyDescriptor(subtle, 'digest');
+  const digest = subtle.digest.bind(subtle);
+  let releaseHash, hashReached, held = false, opened;
+  const hashHeld = new Promise(resolve => { releaseHash = resolve; });
+  const hashStarted = new Promise(resolve => { hashReached = resolve; });
+  Object.defineProperty(subtle, 'digest', { configurable: true, value: async (algorithm, data) => {
+    const bytes = ArrayBuffer.isView(data) ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength) : new Uint8Array(data);
+    if (!held && bytes.byteLength === versions[1].glb.byteLength && bytes[0] === 103 && bytes[1] === 108) {
+      held = true; hashReached(); await hashHeld;
+    }
+    return digest(algorithm, data);
+  } });
+  try {
+    const opening = openLastAtlasCopy(factory(), signal());
+    await Promise.race([hashStarted, opening.then(() => assert.fail('Expected the held initial model digest'))]);
+    const store = openUnifiedAtlasStore(factory()); await store.ready();
+    await observeUnifiedAtlasActor(store, actorB); await store.close();
+    releaseHash(); opened = await opening;
+    assert.equal(opened, null, 'account change during initial admission cannot publish A\'s copy');
+  } finally {
+    releaseHash(); await opened?.close();
+    if (previous) Object.defineProperty(subtle, 'digest', previous); else delete subtle.digest;
+  }
+}
+
+// Old cache bytes and a legacy device-wide pointer do not manufacture a
+// canonical account observation after upgrade.
+{
+  const legacyDisk = createSyntheticDisk(), factory = () => createSyntheticIndexedDB(legacyDisk);
+  const store = openUnifiedAtlasStore(factory()); await store.ready();
+  const cache = createUnifiedAtlasCache(store, { actorId: actorA, ...scope });
+  await fresh(cache, v1);
+  const legacy = { actorId: actorA, ...scope, publicationId: v1.publicationId, manifestSha256: v1.manifestSha256 };
+  store.write(JSON.stringify(['unified-atlas-last']), 'pointer', 'pointer', new TextEncoder().encode(JSON.stringify(legacy)));
+  await store.close();
+  assert.equal(await openLastAtlasCopy(factory(), signal()), null, 'legacy pointer needs a fresh canonical account observation');
 }
 
 await openProcess(disk, actorA, async ({ cache, store }) => {

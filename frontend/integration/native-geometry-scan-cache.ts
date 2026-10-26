@@ -23,6 +23,10 @@ export interface NativeGeometryScanCache {
   read(partition: string, key: string): Promise<Uint8Array | null>;
   /** Queues a copy of verified bytes; replaces other versions in the same slot. */
   write(partition: string, slot: string, key: string, bytes: Uint8Array): void;
+  /** Optional single-record exchange: exact raw preimage and durable generation
+   * must still match in the write transaction. Null expects a missing record.
+   * Failure changes no record; callers must not fall back to a blind write. */
+  compareExchange?(partition: string, slot: string, key: string, expected: Uint8Array | null, bytes: Uint8Array): Promise<boolean>;
   remove(partition: string, key: string): void;
   /** Deletes every record, for sign-out. */
   clear(): Promise<void>;
@@ -151,8 +155,8 @@ export function openVerifiedByteCache(factory: IDBFactory | undefined, database:
     entries.put({ ...row, usedAt: stamp(await ask(entries.getAll())) } satisfies Entry);
     return new Uint8Array(blob.data);
   });
-  const store = async (partitionId: string, slotId: string, id: string, data: ArrayBuffer, expected: string | null) => transaction(await connect(), 'readwrite', async (entries, blobs, control) => {
-    if (!await matches(control, expected)) return;
+  const storeRows = async (entries: IDBObjectStore, blobs: IDBObjectStore,
+    partitionId: string, slotId: string, id: string, data: ArrayBuffer) => {
     const rows: unknown[] = await ask(entries.getAll()), now = Date.now(), kept: Entry[] = [];
     const usedAt = stamp(rows);
     // Contents in an unknown shape are dropped as a whole.
@@ -171,6 +175,10 @@ export function openVerifiedByteCache(factory: IDBFactory | undefined, database:
     }
     blobs.put({ id, data } satisfies Blob);
     entries.put({ id, partition: partitionId, slot: slotId, bytes: data.byteLength, usedAt } satisfies Entry);
+  };
+  const store = async (partitionId: string, slotId: string, id: string, data: ArrayBuffer, expected: string | null) => transaction(await connect(), 'readwrite', async (entries, blobs, control) => {
+    if (!await matches(control, expected)) return;
+    await storeRows(entries, blobs, partitionId, slotId, id, data);
   });
   /** Frees the least recently used half of this cache's records (at least one). */
   const shrink = async (expected: string | null) => transaction(await connect(), 'readwrite', async (entries, blobs, control) => {
@@ -209,6 +217,33 @@ export function openVerifiedByteCache(factory: IDBFactory | undefined, database:
           try { await store(partitionId, slotId, id, data, expected); return; } catch (error) { if (!quota(error)) throw error; }
         }
       }, undefined);
+    },
+    compareExchange(partition: string, slot: string, key: string, expected: Uint8Array | null, bytes: Uint8Array) {
+      const expectedGeneration = generation;
+      if (expectedGeneration === null || bytes.byteLength === 0 || bytes.byteLength > limits.entryBytes || bytes.byteLength > limits.bytes
+        || (expected !== null && expected.byteLength > limits.entryBytes)) return Promise.resolve(false);
+      const previous = expected?.slice() ?? null, data = bytes.slice().buffer;
+      return enqueue(async () => {
+        const [partitionId, slotId, id] = await Promise.all([digest(partition), digest(partition, slot), digest(partition, key)]);
+        return transaction(await connect(), 'readwrite', async (entries, blobs, control) => {
+          if (!await matches(control, expectedGeneration)) return false;
+          const row: unknown = await ask(entries.get(id));
+          const blob = await ask(blobs.get(id)) as Blob | undefined;
+          if (previous === null) {
+            if (row !== undefined || blob !== undefined) return false;
+          } else {
+            if (!entry(row, limits) || row.partition !== partitionId || row.slot !== slotId || !(row.usedAt + limits.unusedMs > Date.now())
+              || !blob || !(blob.data instanceof ArrayBuffer) || blob.data.byteLength !== row.bytes || row.bytes !== previous.byteLength) return false;
+            const current = new Uint8Array(blob.data);
+            if (!current.every((value, index) => value === previous[index])) return false;
+          }
+          // The preimage, generation and replacement share this transaction;
+          // another handle cannot change the witness between them. Existing
+          // bounds and eviction apply, and any quota/abort fails the exchange.
+          await storeRows(entries, blobs, partitionId, slotId, id, data);
+          return true;
+        });
+      }, false);
     },
     remove(partition: string, key: string) {
       void enqueue(async () => {
