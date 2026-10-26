@@ -88,55 +88,99 @@ fn script(maintenance: Value) -> Script {
     Script {
         scope: registration().scope(),
         steps: vec![
-            page("true", value(include_str!("../wire/fixtures/locations.page.json"))),
+            page(
+                "true",
+                value(include_str!("../wire/fixtures/locations.page.json")),
+            ),
             page("false", items),
-            detail(LOCATION, value(include_str!("../wire/fixtures/location.detail.json"))),
+            detail(
+                LOCATION,
+                value(include_str!("../wire/fixtures/location.detail.json")),
+            ),
             maintenance_step(LOCATION, json!([])),
-            detail(ITEM, value(include_str!("../wire/fixtures/item.detail.json"))),
+            detail(
+                ITEM,
+                value(include_str!("../wire/fixtures/item.detail.json")),
+            ),
             maintenance_step(ITEM, maintenance),
-        ].into(),
+        ]
+        .into(),
         calls: vec![],
     }
 }
-fn reader<'a>(transport: &'a mut Script, now: &'static str) -> HomeBoxReader<&'a mut Script, FixedClock> {
+fn reader<'a>(
+    transport: &'a mut Script,
+    now: &'static str,
+) -> HomeBoxReader<&'a mut Script, FixedClock> {
     HomeBoxReader::new_stock(
         registration(),
         transport,
         FixedClock(now),
-        Limits { max_page_size: 2, max_pages: 2, ..Limits::default() },
+        Limits {
+            max_page_size: 2,
+            max_pages: 2,
+            ..Limits::default()
+        },
         None,
-    ).unwrap()
+    )
+    .unwrap()
 }
 fn assert_six_gets(script: &Script) {
-    assert!(script.steps.is_empty(), "all six ordered responses were consumed");
+    assert!(
+        script.steps.is_empty(),
+        "all six ordered responses were consumed"
+    );
     assert_eq!(script.calls.len(), 6);
-    let maintenance: Vec<_> = script.calls.iter()
-        .filter(|call| call.path().ends_with("/maintenance")).collect();
+    let maintenance: Vec<_> = script
+        .calls
+        .iter()
+        .filter(|call| call.path().ends_with("/maintenance"))
+        .collect();
     assert_eq!(maintenance.len(), 2);
     for call in maintenance {
         assert_eq!(call.query(), &[("status".into(), "both".into())]);
     }
-    assert_eq!(script.calls.last().unwrap().path(), format!("/api/v1/entities/{ITEM}/maintenance"));
+    assert_eq!(
+        script.calls.last().unwrap().path(),
+        format!("/api/v1/entities/{ITEM}/maintenance")
+    );
 }
 async fn complete_baseline() -> CompleteGeneration {
     let mut transport = script(value(include_str!("../wire/fixtures/maintenance.json")));
     let mut reader = reader(&mut transport, SUCCESS);
     assert_eq!(reader.metadata_dialect(), "homebox-stock-v0.26.2");
-    let complete = reader.fetch_generation(None, Uuid::parse(ORIGINAL).unwrap()).await.unwrap();
+    let complete = reader
+        .fetch_generation(None, Uuid::parse(ORIGINAL).unwrap())
+        .await
+        .unwrap();
     drop(reader);
     assert_six_gets(&transport);
     assert_eq!(complete.stats().requests, 6);
     assert_eq!(complete.stats().pages, 2);
     assert_eq!(complete.cache().status, CacheState::Fresh);
-    assert_eq!(complete.cache().generation_id.as_ref().unwrap().as_str(), ORIGINAL);
-    assert_eq!(complete.cache().last_successful_fetch_at.as_ref().unwrap().as_str(), SUCCESS);
+    assert_eq!(
+        complete.cache().generation_id.as_ref().unwrap().as_str(),
+        ORIGINAL
+    );
+    assert_eq!(
+        complete
+            .cache()
+            .last_successful_fetch_at
+            .as_ref()
+            .unwrap()
+            .as_str(),
+        SUCCESS
+    );
     assert_eq!(complete.entities().len(), 2);
     assert_eq!(complete.entities()[0].entity.id.as_str(), LOCATION);
     assert_eq!(complete.entities()[1].entity.id.as_str(), ITEM);
     assert!(complete.entities()[0].maintenance.is_empty());
     assert_eq!(complete.entities()[1].maintenance.len(), 3);
     for projection in complete.entities() {
-        assert_eq!(projection.source_updated_at.as_ref().unwrap().as_str(), FACT);
+        assert_eq!(
+            projection.source_updated_at.as_ref().unwrap().as_str(),
+            FACT
+        );
         assert_eq!(projection.retrieved_at.as_str(), SUCCESS);
         assert_eq!(projection.entity.quantity, Some(1.5));
         assert!(projection.entity.archived);
@@ -164,14 +208,27 @@ async fn assert_late_failure(
     let saved_cache = previous.cache().clone();
     let saved_entities = previous.entities().to_vec();
     let saved_native = complete.native_presence.as_ref().unwrap();
-    let saved_responses: Vec<_> = saved_native.responses().iter()
-        .map(|r| (r.path().to_owned(), r.retrieved_at().clone(), r.body().to_vec())).collect();
+    let saved_responses: Vec<_> = saved_native
+        .responses()
+        .iter()
+        .map(|r| {
+            (
+                r.path().to_owned(),
+                r.retrieved_at().clone(),
+                r.body().to_vec(),
+            )
+        })
+        .collect();
     for with_previous in [true, false] {
         let mut transport = script(final_maintenance.clone());
         let mut reader = reader(&mut transport, ATTEMPT);
-        let failed = reader.fetch_generation(
-            with_previous.then_some(&previous), Uuid::parse(CANDIDATE).unwrap(),
-        ).await.expect_err("the sixth response must reject the whole candidate");
+        let failed = reader
+            .fetch_generation(
+                with_previous.then_some(&previous),
+                Uuid::parse(CANDIDATE).unwrap(),
+            )
+            .await
+            .expect_err("the sixth response must reject the whole candidate");
         drop(reader);
         assert_six_gets(&transport);
         assert_eq!(failed.stats.requests, 6);
@@ -187,7 +244,10 @@ async fn assert_late_failure(
         assert_eq!(proposed.error.as_ref(), Some(&failed.error));
         if with_previous {
             assert_eq!(proposed.generation_id, saved_cache.generation_id);
-            assert_eq!(proposed.last_successful_fetch_at, saved_cache.last_successful_fetch_at);
+            assert_eq!(
+                proposed.last_successful_fetch_at,
+                saved_cache.last_successful_fetch_at
+            );
         } else {
             assert!(proposed.generation_id.is_none());
             assert!(proposed.last_successful_fetch_at.is_none());
@@ -202,16 +262,39 @@ async fn assert_late_failure(
             assert_eq!(after.retrieved_at.as_str(), SUCCESS);
         }
         assert_eq!(saved_native.generation_id().as_str(), ORIGINAL);
-        assert_eq!(saved_native.responses().iter()
-            .map(|r| (r.path().to_owned(), r.retrieved_at().clone(), r.body().to_vec())).collect::<Vec<_>>(),
-            saved_responses);
+        assert_eq!(
+            saved_native
+                .responses()
+                .iter()
+                .map(|r| (
+                    r.path().to_owned(),
+                    r.retrieved_at().clone(),
+                    r.body().to_vec()
+                ))
+                .collect::<Vec<_>>(),
+            saved_responses
+        );
         // FailedRead has only a failure-metadata proposal: no partial location,
         // complete candidate, or native publication/capture carrier escapes.
         // No Store/native publication is invoked by these fixtures.
         let serialized = serde_json::to_value(&failed).unwrap();
-        let mut keys: Vec<_> = serialized.as_object().unwrap().keys().map(String::as_str).collect();
+        let mut keys: Vec<_> = serialized
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
         keys.sort_unstable();
-        assert_eq!(keys, ["cache", "error", "quarantine", "quarantineTransition", "stats"]);
+        assert_eq!(
+            keys,
+            [
+                "cache",
+                "error",
+                "quarantine",
+                "quarantineTransition",
+                "stats"
+            ]
+        );
         assert!(!serialized.to_string().contains(CANDIDATE));
     }
 }
@@ -220,14 +303,26 @@ async fn assert_late_failure(
 async fn final_invalid_maintenance_date_preserves_previous_complete_facts() {
     let mut maintenance = value(include_str!("../wire/fixtures/maintenance.json"));
     maintenance[0]["scheduledDate"] = json!("2026-02-30");
-    assert_late_failure(maintenance, ErrorCode::InvalidSchema, CacheState::Error,
-        QuarantineTransition::Preserve, false).await;
+    assert_late_failure(
+        maintenance,
+        ErrorCode::InvalidSchema,
+        CacheState::Error,
+        QuarantineTransition::Preserve,
+        false,
+    )
+    .await;
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn final_wrong_maintenance_item_quarantines_without_replacing_generation() {
     let mut maintenance = value(include_str!("../wire/fixtures/maintenance.json"));
     maintenance[0]["itemID"] = json!(LOCATION);
-    assert_late_failure(maintenance, ErrorCode::WrongScope, CacheState::AccessRevoked,
-        QuarantineTransition::Quarantine, true).await;
+    assert_late_failure(
+        maintenance,
+        ErrorCode::WrongScope,
+        CacheState::AccessRevoked,
+        QuarantineTransition::Quarantine,
+        true,
+    )
+    .await;
 }

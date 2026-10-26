@@ -527,7 +527,7 @@ fn configured_input_byte_ceiling_accepts_exact_and_closes_one_over() -> Result<(
         let mut input = bytes.clone();
         input.extend(std::iter::repeat_n(b' ', extra));
         assert_eq!(input.len(), ceiling + extra);
-        let delivery = ready(session.handle(&original, &input))?;
+        let delivery = ready(session.handle(&original, &input)).unwrap();
         if extra == 0 {
             let Delivery::Reply(reply) = delivery else {
                 panic!("Exact input ceiling must reach the real read owner");
@@ -540,7 +540,10 @@ fn configured_input_byte_ceiling_accepts_exact_and_closes_one_over() -> Result<(
         } else {
             assert_eq!(delivery, Delivery::Closed);
             assert_eq!(session.state(), SessionState::Closed);
-            assert_eq!(ready(session.handle(&original, &bytes))?, Delivery::Closed);
+            assert_eq!(
+                ready(session.handle(&original, &bytes)).unwrap(),
+                Delivery::Closed
+            );
             assert_eq!(gate.dispatches.load(Ordering::SeqCst), 0);
             assert!(!gate.reached.load(Ordering::SeqCst));
             assert!(gate.owner_wire.lock().unwrap().is_none());
@@ -550,7 +553,8 @@ fn configured_input_byte_ceiling_accepts_exact_and_closes_one_over() -> Result<(
 }
 
 #[test]
-fn configured_response_ceiling_preserves_committed_circuit_without_redispatch() -> Result<(), Failure> {
+fn configured_response_ceiling_preserves_committed_circuit_without_redispatch()
+-> Result<(), Failure> {
     let fixture = Fixture::new()?;
     let original = fixture.authenticate()?;
     let gate = Arc::new(Gate::default());
@@ -577,7 +581,7 @@ fn configured_response_ceiling_preserves_committed_circuit_without_redispatch() 
             wire::OperationId::AtlasCircuitHistory,
         ],
     );
-    let Delivery::Reply(reply_bytes) = ready(session.handle(&original, &bytes))? else {
+    let Delivery::Reply(reply_bytes) = ready(session.handle(&original, &bytes)).unwrap() else {
         panic!("Expected bounded correlated protocol error after owner completion");
     };
     assert!(reply_bytes.len() <= response_bound);
@@ -585,7 +589,10 @@ fn configured_response_ceiling_preserves_committed_circuit_without_redispatch() 
     assert_eq!(reply["jsonrpc"], "2.0");
     assert_eq!(reply["id"], "bounded-create");
     assert_eq!(reply["error"]["code"], -32603);
-    assert_eq!(reply["error"]["message"], "MCP response size limit exceeded");
+    assert_eq!(
+        reply["error"]["message"],
+        "MCP response size limit exceeded"
+    );
     assert!(reply.get("result").is_none());
     assert_eq!(session.state(), SessionState::Ready);
     assert_eq!(gate.dispatches.load(Ordering::SeqCst), 1);

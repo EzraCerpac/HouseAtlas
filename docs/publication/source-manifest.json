@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "8539eb362a1aefbc0c3ed8465bc431bb643f0d003db4f477af8cb35313290e49",
+  "sourceDigestSha256": "4fe2d932dc21fbf5b98423bb9a438a133cf40cb899524520e313b4c5801d0339",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -37,13 +37,6 @@
       "mode": "100644",
       "bytes": 4496,
       "sha256": "d341ec6da68ad0b26cb9c2af62bcf7008b6d8cc524c8a511463948b1a36edaf4",
-      "owner": "core-integration"
-    },
-    {
-      "path": ".github/workflows/current-source-intel-qualification.yml",
-      "mode": "100644",
-      "bytes": 2596,
-      "sha256": "d58011c589581e0edae4d1e71c29842918b48e0e891370ae74e12439b15384b4",
       "owner": "core-integration"
     },
     {
@@ -65,13 +58,6 @@
       "mode": "100644",
       "bytes": 6207,
       "sha256": "0b334a3a3ef5b3cee7bfa64721257f5eb3ddf7321a6571ee4b848f12aa6a85b1",
-      "owner": "core-integration"
-    },
-    {
-      "path": ".github/workflows/release-bundle.yml",
-      "mode": "100644",
-      "bytes": 7632,
-      "sha256": "d1a03a550972b8db8cf49ab4254aee93ebdd8e4b87f6dd61b41397c96fb1d40b",
       "owner": "core-integration"
     },
     {
@@ -119,8 +105,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 8058,
-      "sha256": "62c238967bba86ce2c3c2b3277de64f2cb17897adc4d45f7af9f0ae0ec64d3ae",
+      "bytes": 6244,
+      "sha256": "ce8a9a29bc0f06b733aabe24a7fd39363a2d26ef2e725aa8dad9ce6fe8969477",
       "owner": "core-integration"
     },
     {
@@ -3430,8 +3416,8 @@
     {
       "path": "backend/src/providers/homebox/read/mod.rs",
       "mode": "100644",
-      "bytes": 2165,
-      "sha256": "661b00bfddb2df322bbf734343775632aefe3844a5875a4a3455cba3ce8997e2",
+      "bytes": 2208,
+      "sha256": "036828961882dac64535d45324b2ba05365d4bd369829666d0521bbbfb07022c",
       "owner": "homebox"
     },
     {
@@ -3642,6 +3628,13 @@
       "mode": "100644",
       "bytes": 3458,
       "sha256": "279d0a852f9005340620331c68707bf6b07908e32e8159ebc2df1c460fc2bcc5",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/read/stock_response_contract.rs",
+      "mode": "100644",
+      "bytes": 11381,
+      "sha256": "f17c1ec22d57481131a4f54f605561aca5bf395ad23206746a5dadb093fd5ac6",
       "owner": "homebox"
     },
     {
@@ -5530,8 +5523,8 @@
     {
       "path": "backend/src/transports/mcp/lifecycle/synthetic_contracts.rs",
       "mode": "100644",
-      "bytes": 18088,
-      "sha256": "4bbf2a9370456acc6ca798c5c440031721166e847458101cb7fa30099594904d",
+      "bytes": 26270,
+      "sha256": "731703fb9a8031073fcfe3418bc625adabd5e89430fd364a8c210b0502d95eea",
       "owner": "mcp"
     },
     {
@@ -6083,8 +6076,8 @@
     {
       "path": "docs/contracts/measurement-linear-proposal.md",
       "mode": "100644",
-      "bytes": 7985,
-      "sha256": "c9b3e7de3d090ec1bca15204aafc6bcb7c4e9f9c7a328ed7852ec0b856eaecef",
+      "bytes": 8444,
+      "sha256": "4b621b3fa5415df3acee9e5f65ba6b810c33e6fcb3864e536e24fc5d48aa867d",
       "owner": "contracts"
     },
     {
@@ -6104,8 +6097,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 158243,
-      "sha256": "b53b5331a06cb8fae45a816e1ac76d33084e4c0698145d32f6cba52f58e67d01",
+      "bytes": 155946,
+      "sha256": "8c964739d74c5cf885226461ac6f2e64b32edc4991ba7cee3f76645d9d734336",
       "owner": "core-integration"
     },
     {
@@ -6531,8 +6524,8 @@
     {
       "path": "docs/operations/acceptance-300.md",
       "mode": "100644",
-      "bytes": 10932,
-      "sha256": "48d4e98462846d53d886569c7356a9eacc52fa3670930b354a63a5cfbb8db181",
+      "bytes": 11478,
+      "sha256": "28a268a5c741566bccac74a278e1041e17fdf781728728bf90df8251dd72d678",
       "owner": "operations-policy"
     },
     {
@@ -6561,13 +6554,6 @@
       "mode": "100644",
       "bytes": 12374,
       "sha256": "df8848606010a0729baad824870747bc18d125f12462172285034f2da2d5ab5a",
-      "owner": "core-integration"
-    },
-    {
-      "path": "docs/operations/frontend-asset-retention.md",
-      "mode": "100644",
-      "bytes": 8425,
-      "sha256": "42eb5a37cfa9dcf83c4757c1ab5bdf262b008f5312b1baf86573a8badacaefe0",
       "owner": "core-integration"
     },
     {
@@ -6653,13 +6639,6 @@
       "bytes": 1887,
       "sha256": "2aec58c61d07a81e55228b7d0c2779e5a5e5b3fe50dbe78aed16c6d05a26a1a7",
       "owner": "operations-policy"
-    },
-    {
-      "path": "docs/operations/release-bundles.md",
-      "mode": "100644",
-      "bytes": 16692,
-      "sha256": "756e134eb3fd70eff65df46d1cf93e8174368d0272254d4e8c70055536111968",
-      "owner": "core-integration"
     },
     {
       "path": "docs/operations/scenario-validation.md",
@@ -6762,8 +6741,8 @@
     {
       "path": "docs/rust-integration/ai-host-integration.md",
       "mode": "100644",
-      "bytes": 7691,
-      "sha256": "f9bf5104590661d734dc08346eb2cedce446b3025aa4d4aed4c7abebfa65b003",
+      "bytes": 7710,
+      "sha256": "7d51705aeef0397cb09c6956550f92689aaded4d5e052291f701a7f98b29958f",
       "owner": "core-integration"
     },
     {
@@ -8050,8 +8029,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 4793,
-      "sha256": "63dda180221502f043f4d0bec7611cae9894d5ec87a87cfa240f3172e082f1d4",
+      "bytes": 4841,
+      "sha256": "68d5bb6b22ea67945c207337aa8cee053bfba0cfd01c96d70e215b316e18a24e",
       "owner": "web"
     },
     {
@@ -8353,6 +8332,13 @@
       "mode": "100644",
       "bytes": 32718,
       "sha256": "5c7dc2fc635d3f63fa0a416801b44994f4a525d0dbd6cb25645d81db3dc25a57",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/unified-atlas-plan-wheel-browser.mjs",
+      "mode": "100644",
+      "bytes": 9227,
+      "sha256": "f4be1d8b7132ef99a85b826bace7267bcae226e6c96f5eebe6afa6f4c3af898d",
       "owner": "web"
     },
     {
@@ -9205,8 +9191,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/canonical-ifc.css",
       "mode": "100644",
-      "bytes": 18536,
-      "sha256": "630b1adeb90ea448bb66c56a8cf0e4503989f10d5f98e3f3f8ff1c436364e703",
+      "bytes": 18833,
+      "sha256": "51211b130f918dbbbf6c64c72ca7d3d329a648ea6531c0698596c7ad5470cd48",
       "owner": "web"
     },
     {
@@ -9989,8 +9975,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx",
       "mode": "100644",
-      "bytes": 25034,
-      "sha256": "6477aa5728a3bad0da7750ee7b7b331130421e17dcfda501b0da4951d1c4e274",
+      "bytes": 25190,
+      "sha256": "7a8c1b4d884fb69fef0818a10e87d51fa56720a4792d2e0c3979bd480110b015",
       "owner": "web"
     },
     {
@@ -11256,15 +11242,22 @@
     {
       "path": "packages/contracts/proposals/linear-v1/examples.test.mjs",
       "mode": "100644",
-      "bytes": 3915,
-      "sha256": "97f38099bd6d094a9fa399beddcc160e795a2c4bbfd13f59050127a09e851048",
+      "bytes": 5006,
+      "sha256": "db34e62de6f776c42720b9d5f78a2c21634cabfd96f97f700ffa500fb2c6e740",
       "owner": "contracts"
     },
     {
       "path": "packages/contracts/proposals/linear-v1/schema.json",
       "mode": "100644",
-      "bytes": 16520,
-      "sha256": "d6f22eca883a5b51672f04df0667a8f9dc5939d639847877eaa8804daedc352d",
+      "bytes": 16542,
+      "sha256": "fb5cc7f96fd97136568ce645e9ff9559a568f71b0c09474a6ccdbd5085d4d229",
+      "owner": "contracts"
+    },
+    {
+      "path": "packages/contracts/proposals/linear-v1/validate.mjs",
+      "mode": "100644",
+      "bytes": 1087,
+      "sha256": "fa63c3c4c1a40c259e5a34707e03cef6d63c29a7320c90fd9c971677573dea89",
       "owner": "contracts"
     },
     {
@@ -12666,76 +12659,6 @@
       "bytes": 179,
       "sha256": "adbf8ae50840c4689efb7a6763ef0df7d375420b2f416e41966f143bd1e5e00c",
       "owner": "web"
-    },
-    {
-      "path": "tools/release/bundle.py",
-      "mode": "100644",
-      "bytes": 16985,
-      "sha256": "b215dac5ef4ef37607d2883cfb38c82f94d7cab3f6007e96679902ae35a535c4",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/release/bundle.schema.json",
-      "mode": "100644",
-      "bytes": 12478,
-      "sha256": "421ce99daf71e45df1580cafcc1eb146be1561023059075825fc6b77b2700a0f",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/release/current-source-intel-qualification.py",
-      "mode": "100644",
-      "bytes": 18926,
-      "sha256": "53051c737deaa0dc841b0e88a535b1c8a0a788b7be92dd137e5850a4765c1596",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/release/fixtures.py",
-      "mode": "100644",
-      "bytes": 1982,
-      "sha256": "73cb43a2e183a5c6137d068cda43b24c471e2df2e38ade7a7089a12c7a8be8dc",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/release/fixtures/bundle.manifest.json",
-      "mode": "100644",
-      "bytes": 3433,
-      "sha256": "8073e8a088c9976e50659bd7828881d4898da81a47f6e5b8777320de3b193635",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/release/frontend_retention.py",
-      "mode": "100644",
-      "bytes": 16906,
-      "sha256": "a4744a1347c7521eee48459cc1300bc30fe896f5b40a04fc5ca0b9cf94dbe588",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/release/release-profile.json",
-      "mode": "100644",
-      "bytes": 897,
-      "sha256": "0be6b6d220ca12c0f814c577cffd3440d7746db31c0a6ac49e682bfddc9781a0",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/release/test_bundle.py",
-      "mode": "100644",
-      "bytes": 13837,
-      "sha256": "de634d5de2874fec3baec50be77829eb8e8150103a2af70e340d9428daf508e9",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/release/tests/test_frontend_retention_happy.py",
-      "mode": "100644",
-      "bytes": 6498,
-      "sha256": "fdbe475b5e517253d6969c01f9fef25046bf36e2c9cfae4c2321079326b48f51",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/release/workflow.py",
-      "mode": "100644",
-      "bytes": 14859,
-      "sha256": "cfa00c00fc936d3567a1e5027714f2cf4749d49f33e8b74a19894433e247e5d8",
-      "owner": "core-integration"
     },
     {
       "path": "tools/rust-baseline/check-contracts.mjs",
