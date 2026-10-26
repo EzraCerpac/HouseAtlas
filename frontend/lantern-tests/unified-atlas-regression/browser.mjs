@@ -121,7 +121,7 @@ try {
     await until('Boolean(document.querySelector(".ua-room-btn"))', 'actual host and Atlas ready');
     const button = (selector, text) => `Array.from(document.querySelectorAll(${JSON.stringify(selector)})).find(b=>b.textContent.trim()===${JSON.stringify(text)})`;
     // Floor Stack rows carry a visual mark beside their name; match the name alone.
-    const row = (list, text) => `Array.from(document.querySelectorAll(${JSON.stringify(`${list} button`)})).find(b=>b.querySelector('.ua-rung-name')?.textContent.trim()===${JSON.stringify(text)})`;
+    const stackRow = (list, text) => `Array.from(document.querySelectorAll(${JSON.stringify(`${list} button`)})).find(b=>b.querySelector('.ua-rung-name')?.textContent.trim()===${JSON.stringify(text)})`;
     const roomButton = (floor, label) => `(()=>{const section=Array.from(document.querySelectorAll('.ua-rooms section')).find(s=>s.getAttribute('aria-label')===${JSON.stringify(floor)});
       return section&&Array.from(section.querySelectorAll('button')).find(b=>b.querySelector('span').textContent===${JSON.stringify(label)});})()`;
     const click = async expression => {
@@ -168,7 +168,7 @@ try {
       const rows = await evaluate(`Array.from(document.querySelectorAll('.ua-rooms section')).flatMap(s=>Array.from(s.querySelectorAll('button')).map(b=>({floor:s.getAttribute('aria-label'),label:b.querySelector('span').textContent})))`);
       assert.equal(rows.length, 10);
       for (const row of rows) {
-        await clear(); await click(row('.ua-stack-buildings', 'All buildings'));
+        await clear(); await click(stackRow('.ua-stack-buildings', 'All buildings'));
         await sheet(true); await click(roomButton(row.floor, row.label));
         assert.equal(await selectedRoom(), row.label);
         assert.equal(await evaluate('document.querySelector(".ua-room-floor").textContent'), row.floor);
@@ -176,7 +176,7 @@ try {
       }
     });
     await check('connected plans and stairs occurrence navigation', async () => {
-      await clear(); await click(row('.ua-stack-buildings', 'Synthetic house'));
+      await clear(); await click(stackRow('.ua-stack-buildings', 'Synthetic house'));
       await sheet(true); await click(roomButton('Ground floor, Synthetic house', 'Stairs'));
       await click(button('[aria-label="Atlas view"] button', 'Plan'));
       await until('document.querySelectorAll(".ua-plan path").length>0', 'connected source plan');
@@ -187,27 +187,27 @@ try {
       assert.equal(await selectedRoom(), 'Stairs');
     });
     await check('explode toggle and latest building transition', async () => {
-      await click(row('.ua-stack-buildings', 'Synthetic house'));
+      await click(stackRow('.ua-stack-buildings', 'Synthetic house'));
       // One toggle, Spread floors in the Floor Stack; its pressed state carries stacked or exploded.
-      const spread = row('.ua-stack', 'Spread floors');
+      const spread = stackRow('.ua-stack', 'Spread floors');
       assert.equal(await evaluate(`(${spread})?.getAttribute('aria-pressed')`), 'true');
       await click(spread);
       assert.equal(await evaluate(`(${spread})?.getAttribute('aria-pressed')`), 'false');
       await click(spread);
-      for (const name of ['Synthetic studio', 'Synthetic house', 'Synthetic studio']) await click(row('.ua-stack-buildings', name));
+      for (const name of ['Synthetic studio', 'Synthetic house', 'Synthetic studio']) await click(stackRow('.ua-stack-buildings', name));
       assert.equal(await selectedRoom(), null);
-      assert.equal(await evaluate(`(${row('.ua-stack-buildings', 'Synthetic studio')}).getAttribute('aria-pressed')`), 'true');
+      assert.equal(await evaluate(`(${stackRow('.ua-stack-buildings', 'Synthetic studio')}).getAttribute('aria-pressed')`), 'true');
       assert.equal(await evaluate('Boolean(document.querySelector(".ua-stack-spread"))'), false);
     });
     await check('overlay pointer activation, counts and two-floor network markers', async () => {
       await sheet(false);
-      await click(row('.ua-stack-buildings', 'Synthetic house'));
+      await click(stackRow('.ua-stack-buildings', 'Synthetic house'));
       await click(button('.layer-bar button', 'Electrical'));
       assert.equal(await evaluate('document.querySelectorAll(".ua-marker").length'), 2);
       await click('document.querySelector(".ua-marker[aria-label^=\'Hall:\']")');
       assert.equal(await selectedRoom(), 'Hall');
       assert.match(await evaluate('document.querySelector(".ua-inspector").textContent'), /3 records/);
-      await click(row('.ua-stack-floors', 'All floors'));
+      await click(stackRow('.ua-stack-floors', 'All floors'));
       await click(button('.layer-bar button', 'Network'));
       assert.equal(await evaluate('document.querySelectorAll(".ua-marker").length'), 2);
       const pressed = await evaluate('Array.from(document.querySelectorAll(".layer-bar button")).map(b=>b.getAttribute("aria-pressed"))');

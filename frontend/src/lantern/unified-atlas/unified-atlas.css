@@ -2353,9 +2353,10 @@
   }
 
   .lantern-host .ua-tools .ctrl-group { display: none; }
-  /* The panel spans the tools row, whichever control it opened from. */
+  /* The panel hangs from the right of the tools row at a width of its own,
+     whatever the row holds, and never wider than the stage. */
   .lantern-host .ua-daylight { position: static; }
-  .lantern-host .ua-daylight-panel { left: 0; right: 0; width: auto; min-width: 0; }
+  .lantern-host .ua-daylight-panel { left: auto; right: 0; width: min(22rem, calc(100cqw - 16px)); min-width: 0; }
   /* The snapshot stamp steps below the menu, so the chip keeps the row. */
   .lantern-host .ua-tools { flex-wrap: wrap; }
   .lantern-host .ua-tools > .ua-stamp { order: 1; flex: 1 0 100%; text-align: right; }
