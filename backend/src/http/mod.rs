@@ -5,6 +5,7 @@ pub mod ai;
 pub(crate) mod ai_account;
 pub(crate) mod asset_reviews;
 mod auth;
+mod backup_settings;
 pub mod contracts;
 mod editing;
 mod headers;
@@ -118,6 +119,7 @@ pub struct Host {
     geodata_dataset: Option<Arc<Mutex<crate::storage::geodata::GeodataStore>>>,
     loopback_local: bool,
     gateway: Option<Arc<crate::app::trusted_gateway::GatewaySocket>>,
+    backup_folder: Option<Arc<std::path::PathBuf>>,
 }
 impl Host {
     pub fn new(
@@ -144,6 +146,7 @@ impl Host {
             geodata_dataset: None,
             loopback_local: false,
             gateway: None,
+            backup_folder: None,
             operation_events: Arc::new(Mutex::new(operation_events::EventRegistry::default())),
             core: Arc::new(Mutex::new(core)),
             origin,
@@ -166,6 +169,11 @@ impl Host {
                 agents::mcp_transport::TransportSessions::default(),
             )),
         })
+    }
+    /// The folder the nightly backup job shares with Settings (tools/backup).
+    pub fn with_backup_folder(mut self, folder: std::path::PathBuf) -> Self {
+        self.backup_folder = Some(Arc::new(folder));
+        self
     }
     /// Trusted immutable overview selection; all requests retain native access.
     pub fn with_model_overview(
@@ -1244,6 +1252,7 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         )
         .route("/api/atlas/auth/rotate", post(auth::rotate))
         .route("/api/atlas/auth/logout", post(auth::logout))
+        .route("/api/atlas/backup/v1/settings", get(backup_settings::read).post(backup_settings::write).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/records/{record_type}/{record_id}/mutations", post(mutations::single))
         .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/mutations", post(mutations::batch))
         .route("/api/atlas/v1/workspaces/{workspace_id}/homes/{home_id}/view", get(reads::view).head(auth::session_head).fallback(auth::session_head))

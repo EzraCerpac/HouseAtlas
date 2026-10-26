@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0f545ff6e4da74f68aede427ce07905e88e2a3d1834591d6402bb5e476cf99b5",
+  "sourceDigestSha256": "839eb8ace7d3de7414fb6c5d29dba88ffb81675d7f1fb9b50461d45a4f5eaec9",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -105,8 +105,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 7125,
-      "sha256": "d38f4bd2bd75fe827da9149c87a77ace44eff1fc449b9e4073099ca628c45eec",
+      "bytes": 7257,
+      "sha256": "8993518d0c5e9222153a4f3751b79fe0a0fd7a44935e2b03d2f809d3e5a8106a",
       "owner": "core-integration"
     },
     {
@@ -2315,6 +2315,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/http/backup_settings.rs",
+      "mode": "100644",
+      "bytes": 18977,
+      "sha256": "c8ffce33af5857efc178bd26f5199fca17601309aa78d8195d6bc0d3bfa79eeb",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/http/capture_claim.rs",
       "mode": "100644",
       "bytes": 1699,
@@ -2408,8 +2415,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 58123,
-      "sha256": "fa4c5bcba40b9c597b4766e412c02c7735c4645c2f5ebe1f7d5447e7d526896a",
+      "bytes": 58617,
+      "sha256": "a9b5d13b070b91383bd6b0fc7bebab1b75ee0d99be91a9e4e443a5298e714556",
       "owner": "core-integration"
     },
     {
@@ -2947,8 +2954,8 @@
     {
       "path": "backend/src/main.rs",
       "mode": "100644",
-      "bytes": 24356,
-      "sha256": "a343d61f9fca47e2df85ff32a22d43192a63685389cc60392a35a7a468c1b7c4",
+      "bytes": 24488,
+      "sha256": "0da5eedb872b45c00618373c56979855a6f0fe64dfb9ff7994ab2b8e06357358",
       "owner": "core-integration"
     },
     {
@@ -6104,8 +6111,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 157437,
-      "sha256": "bffe5a97d1d9bc905735cb06e60af718f193d796361d97b1b7dd3dd28ad3b64c",
+      "bytes": 158201,
+      "sha256": "e25535719041522392984e288b9d575ff4f4bf02b0f63311e4a04704e105b51f",
       "owner": "core-integration"
     },
     {
@@ -6566,8 +6573,8 @@
     {
       "path": "docs/operations/icloud-backup.md",
       "mode": "100644",
-      "bytes": 5329,
-      "sha256": "331fb20b8a7bf6140bfe40b0cad9037b3dadce426d183eea94584b522de7bba1",
+      "bytes": 7113,
+      "sha256": "7ba6e80938498cc325ca49cc5f57e9fb6e233a80919447511633d30a7ca84154",
       "owner": "operations-policy"
     },
     {
@@ -7425,6 +7432,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/backup-settings-healthy.mjs",
+      "mode": "100644",
+      "bytes": 7158,
+      "sha256": "832233831c5179a0a3fd7895f17d07297805e3598bf2b3a3cd6d2861ade11092",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/canonical-ifc-viewer.test.mjs",
       "mode": "100644",
       "bytes": 51075,
@@ -8057,8 +8071,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 4874,
-      "sha256": "ef2e2bfb753a0a5413f1cf5ae2f19535742419d75809fe6262024d6d17990c26",
+      "bytes": 4911,
+      "sha256": "8579477db971f5ffcfab1ab0bb144e0eef6996fb6c529093b7c5a4993ab27b03",
       "owner": "web"
     },
     {
@@ -9154,6 +9168,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/backups.ts",
+      "mode": "100644",
+      "bytes": 8091,
+      "sha256": "1c71f373a3d282e63806e9d00511b1cb60a69545942dd071d8cfa6fafdab943f",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/canonical-ifc/CanonicalModelViewer.tsx",
       "mode": "100644",
       "bytes": 6632,
@@ -9378,6 +9399,20 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/components/BackupSettings.tsx",
+      "mode": "100644",
+      "bytes": 3550,
+      "sha256": "575df5033e71f8837e80ee855d3e420243a9761a376eefee552bf2764de02c64",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/components/Choice.tsx",
+      "mode": "100644",
+      "bytes": 1357,
+      "sha256": "fc94e352e05c5c80663cfbf69c38f7f06ad31a3b74cf475be513dfeb004bdef5",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/components/DetailPanel.tsx",
       "mode": "100644",
       "bytes": 39259,
@@ -9471,8 +9506,8 @@
     {
       "path": "frontend/src/lantern/components/SettingsDialog.tsx",
       "mode": "100644",
-      "bytes": 9507,
-      "sha256": "c057db6c060c74f4cd06cb5479fb22fb8b75132b8aaf66c61ef9de17c7f7a667",
+      "bytes": 8270,
+      "sha256": "d9d50643cb29692d0692b913fea97a16a93ee9a81a9daa66bc7a58ee8a2313f1",
       "owner": "web"
     },
     {
@@ -10297,8 +10332,8 @@
     {
       "path": "frontend/src/lantern/styles/app.css",
       "mode": "100644",
-      "bytes": 54009,
-      "sha256": "549e7739d62097b5299ffe05b6368fed4ab47f879ddb6a0ad800eb3924259228",
+      "bytes": 54474,
+      "sha256": "f8058dbe41febcc8edc0272b00e369e4ee4ef09705cba211ff63a56c6fbbe296",
       "owner": "web"
     },
     {
@@ -11837,8 +11872,8 @@
     {
       "path": "tools/backup/houseatlas_backup.py",
       "mode": "100644",
-      "bytes": 24523,
-      "sha256": "795f5a66f77191c38f18951650c8531ef54bc16ba762e91df1108dcf3f7fc40e",
+      "bytes": 36759,
+      "sha256": "99eff1af9b535150327d17ade51f38c4140710e3ba3b81b1bb1b4f956c95ed6f",
       "owner": "operations-policy"
     },
     {
@@ -11872,8 +11907,8 @@
     {
       "path": "tools/backup/test_houseatlas_backup.py",
       "mode": "100644",
-      "bytes": 13894,
-      "sha256": "d3710c26200ca0806d15116f350225d52909d36c2bc802169992ee5ee247cbce",
+      "bytes": 25748,
+      "sha256": "2ab6a6e04d5773df9c44f7ff20a836e25f8eb9dbb3c609cd7227ea77f9bbc04e",
       "owner": "operations-policy"
     },
     {
