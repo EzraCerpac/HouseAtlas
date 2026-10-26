@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "a06ed66a555a2b38b8bb6ebd8fb3f23a7b28f96092929f7ee89491275ac0b453",
+  "sourceDigestSha256": "81746c39a7ad2d137ed3c8539fd02b453ab210aad3af6dd6897be22bcbb69e97",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -119,8 +119,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 7632,
-      "sha256": "3fb23d31cfd1c9a1b0f27ba2e1cdaf4a39af1350ee234d8f9c7f1370857d3049",
+      "bytes": 7956,
+      "sha256": "89d2657eafa10df07e1b096e7c5bda52a3202c71501da8660c77b6531e181d5d",
       "owner": "core-integration"
     },
     {
@@ -4765,20 +4765,6 @@
       "owner": "storage"
     },
     {
-      "path": "backend/src/storage/checks/updater-read-validation-healthy.rs",
-      "mode": "100644",
-      "bytes": 7823,
-      "sha256": "c74cc8761e9b4408aaee8be6b143f120ae234fd527db370da969e42db8a89628",
-      "owner": "storage"
-    },
-    {
-      "path": "backend/src/storage/checks/updater-retained-bytes-healthy.rs",
-      "mode": "100644",
-      "bytes": 15338,
-      "sha256": "3ae704ef726abc3bf9abf6b6cab6e1b9f12fef020a136b06b6a7fdd4db699b02",
-      "owner": "storage"
-    },
-    {
       "path": "backend/src/storage/checks/upload-healthy.rs",
       "mode": "100644",
       "bytes": 53131,
@@ -5411,8 +5397,8 @@
     {
       "path": "backend/src/storage/store.rs",
       "mode": "100644",
-      "bytes": 24315,
-      "sha256": "18c90a4b1cac9bfc55987727784dd7941acf8ac9545b35e009768a997617a3e0",
+      "bytes": 24247,
+      "sha256": "ca7105669f5f14e65648bd3f691d52d3bf84843c48e131b2ee146be84602884e",
       "owner": "storage"
     },
     {
@@ -5420,13 +5406,6 @@
       "mode": "100644",
       "bytes": 11998,
       "sha256": "4db2a23f547bd48e9841021926dd67ffa7f567ec572478f2faa8e7764e01c558",
-      "owner": "storage"
-    },
-    {
-      "path": "backend/src/storage/updater_read_validation.rs",
-      "mode": "100644",
-      "bytes": 3820,
-      "sha256": "2b9e239da5ec240893346bb5469bb204c47a0cba3f6acd84fa8791193ffd0102",
       "owner": "storage"
     },
     {
@@ -6125,8 +6104,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 171123,
-      "sha256": "c62d91243677ae159f5937be6266983c0aa2f13245724728cf3bb401d5f0b228",
+      "bytes": 157641,
+      "sha256": "6e264a9a0bea96820c2f2284c869c979c7e341d26fb263cd62f20747058e5b02",
       "owner": "core-integration"
     },
     {
@@ -6496,8 +6475,8 @@
     {
       "path": "docs/offline/live-atlas-cache.md",
       "mode": "100644",
-      "bytes": 4106,
-      "sha256": "47613f50e30b9ced6a9b545c767c780baca3a5c8494c6831559bca61901d030c",
+      "bytes": 6325,
+      "sha256": "56a05c2419a78460227e1b66648ce624bc499fa5d4006a3323924960df938374",
       "owner": "web"
     },
     {
@@ -6557,6 +6536,13 @@
       "owner": "operations-policy"
     },
     {
+      "path": "docs/operations/access-read-only-validation.md",
+      "mode": "100644",
+      "bytes": 3720,
+      "sha256": "fa8e74e0ddbb92bc822320158ff27d16401c4adf04f6a6cf041e2b1491e07718",
+      "owner": "access"
+    },
+    {
       "path": "docs/operations/adoption-and-decisions.md",
       "mode": "100644",
       "bytes": 1244,
@@ -6582,41 +6568,6 @@
       "mode": "100644",
       "bytes": 8425,
       "sha256": "42eb5a37cfa9dcf83c4757c1ab5bdf262b008f5312b1baf86573a8badacaefe0",
-      "owner": "core-integration"
-    },
-    {
-      "path": "docs/operations/houseatlas-updater-acquisition.md",
-      "mode": "100644",
-      "bytes": 7616,
-      "sha256": "cd91dd8ffb36413c4133727d7dd7d6a1745ffc8ffdea8bd72aa8df30d8d27e9f",
-      "owner": "core-integration"
-    },
-    {
-      "path": "docs/operations/houseatlas-updater-mcp.md",
-      "mode": "100644",
-      "bytes": 4027,
-      "sha256": "7b294fb48b2ec38267a701c4417516fedacc3070c588633292db209b0449e423",
-      "owner": "mcp"
-    },
-    {
-      "path": "docs/operations/houseatlas-updater-runtime.md",
-      "mode": "100644",
-      "bytes": 21165,
-      "sha256": "1d4990bc9d910b662a8d210d79ba51ce696f7e2c1bfd7ea7a933d925ff29e00a",
-      "owner": "core-integration"
-    },
-    {
-      "path": "docs/operations/houseatlas-updater-transport.md",
-      "mode": "100644",
-      "bytes": 8853,
-      "sha256": "32d65209a2e132b918048ff8acdafcbdab1c1575f206720ccd19d6ea4b15295f",
-      "owner": "mcp"
-    },
-    {
-      "path": "docs/operations/houseatlas-updater.md",
-      "mode": "100644",
-      "bytes": 20555,
-      "sha256": "da7d246acae9e704a891c995f1f71b9197bc3b7aaaa7628e792c481445245024",
       "owner": "core-integration"
     },
     {
@@ -6706,8 +6657,8 @@
     {
       "path": "docs/operations/release-bundles.md",
       "mode": "100644",
-      "bytes": 16488,
-      "sha256": "d3d5a171e6422566f033623eed15ef863dae544f8e08ac214ba184e514a6e585",
+      "bytes": 16692,
+      "sha256": "756e134eb3fd70eff65df46d1cf93e8174368d0272254d4e8c70055536111968",
       "owner": "core-integration"
     },
     {
@@ -6723,27 +6674,6 @@
       "bytes": 1694,
       "sha256": "4d14aeaec726de3e319d866aba05c0fcda96f363648ea0bcd1c1d257122b6307",
       "owner": "operations-policy"
-    },
-    {
-      "path": "docs/operations/updater-application-readiness.md",
-      "mode": "100644",
-      "bytes": 8572,
-      "sha256": "1bd79acafdd9f8c2fbf9b6138709eb8309b12ea2b4b52860d5965a9bc370a86f",
-      "owner": "core-integration"
-    },
-    {
-      "path": "docs/operations/updater-established-native-transport.md",
-      "mode": "100644",
-      "bytes": 8750,
-      "sha256": "154e1738e6826d8f31e94da4e334b3a95dd755af9e4b426548beeb94980c1d8e",
-      "owner": "core-integration"
-    },
-    {
-      "path": "docs/operations/updater-native-validation.md",
-      "mode": "100644",
-      "bytes": 3757,
-      "sha256": "d1d4a141bf99a9a7c79287212499ef79841c067c076d566850313ea89b0fd695",
-      "owner": "access"
     },
     {
       "path": "docs/providers/homebox-partition-admission-view.md",
@@ -6762,8 +6692,8 @@
     {
       "path": "docs/providers/read-support-matrix.md",
       "mode": "100644",
-      "bytes": 7851,
-      "sha256": "40d334638d047d3324fcbf5079031c2d236ea88fea5fc426fa9e696d5f1debad",
+      "bytes": 7837,
+      "sha256": "dc615393d3000275f6a03edabb8c844eaef8eed97af3a790b1ea94e5287ac1b2",
       "owner": "homebox"
     },
     {
@@ -7245,8 +7175,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 47059,
-      "sha256": "02a8fc2be2af224499273a690eafdb4a01297e0bce79dfc0f15101c97209ed74",
+      "bytes": 48319,
+      "sha256": "6b2c179cb8bf23a8a2464d5dce8740be4f1f6d7619c5d55ed819e215c795d803",
       "owner": "core-integration"
     },
     {
@@ -7420,8 +7350,8 @@
     {
       "path": "frontend/integration/unified-atlas-cache.ts",
       "mode": "100644",
-      "bytes": 5762,
-      "sha256": "cefd53faa54a2b286059244497721764bc831791715a9ee2c9427ce44cd30d68",
+      "bytes": 7285,
+      "sha256": "143afabd0bbb31c886a7238621eca17af86d03078b31928aaf012ab85d51d11a",
       "owner": "core-integration"
     },
     {
@@ -8120,8 +8050,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 4665,
-      "sha256": "76b4c5c449dc9a1a7e14220fd2adfecfc45ae54e57e10dd1a57567ded074d8eb",
+      "bytes": 4757,
+      "sha256": "d4ff4ccea492fe6db41dc9bbca21ae657279230717bf86a1f1e1da88e4a83d44",
       "owner": "web"
     },
     {
@@ -8391,6 +8321,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/unified-atlas-daylight-healthy.mjs",
+      "mode": "100644",
+      "bytes": 8310,
+      "sha256": "f33f12efc5f237c8e2db40d0572c6aec9b6351c1cb7bf65ad1838fea440a4eab",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
       "bytes": 104782,
@@ -8402,6 +8339,13 @@
       "mode": "100644",
       "bytes": 7453,
       "sha256": "727fc978bba07806b6d1c71234315843cab05f11795b5ed1ba2a23178d26c118",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/unified-atlas-overlay-feed-healthy.mjs",
+      "mode": "100644",
+      "bytes": 16827,
+      "sha256": "69fa16bf25cc04bad20e6253d68a9c113b412b1a12bf52e8b28561b018300890",
       "owner": "web"
     },
     {
@@ -8554,15 +8498,15 @@
     {
       "path": "frontend/package-lock.json",
       "mode": "100644",
-      "bytes": 55717,
-      "sha256": "62a282e363831f234774b6964a49beb3e71c6a5374b9717d83ed4207e909505d",
+      "bytes": 56001,
+      "sha256": "276c03a87566cafa64a858c4110fcdeb4a4eb2477e1ff47c133e9d8da4b237b8",
       "owner": "core-integration"
     },
     {
       "path": "frontend/package.json",
       "mode": "100644",
-      "bytes": 781,
-      "sha256": "84949f77372cbebfec23c2e2e1474fe885f8f19346a8553bf5bf32ede04768d0",
+      "bytes": 805,
+      "sha256": "02de178dbbe323d5fa7907a6d91aecfd185c2c1850e7dfc34e5426ddd3012729",
       "owner": "core-integration"
     },
     {
@@ -8645,15 +8589,15 @@
     {
       "path": "frontend/src/ai/host/AiHost.tsx",
       "mode": "100644",
-      "bytes": 5758,
-      "sha256": "7f963c809c680b53a6ed345674759aa57ce998a36999c10dd9fdfd8b02acb410",
+      "bytes": 5817,
+      "sha256": "6b7a5cad12e44dc41f4347671551fdbdeec93b68f4712b1edfd70d606df2deeb",
       "owner": "ai"
     },
     {
       "path": "frontend/src/ai/host/README.md",
       "mode": "100644",
-      "bytes": 16101,
-      "sha256": "d98cd08d844151a723f16e80829d41aa375e2878eb8359cbbd8f01f270382e12",
+      "bytes": 16274,
+      "sha256": "82a8496c50bd9635f19e071b6c43e29cdcba374a3ca733924282c7b0259faeee",
       "owner": "ai"
     },
     {
@@ -8715,8 +8659,8 @@
     {
       "path": "frontend/src/ai/host/index.ts",
       "mode": "100644",
-      "bytes": 469,
-      "sha256": "2795067a15d39a4c9deb06343922b3aa6592d44f3004880e70d63516a8413873",
+      "bytes": 489,
+      "sha256": "f33ad3a2f6e3b458610f4ade95827e785fa3ddbd89dcd56fea3eabaa1f3aa9bf",
       "owner": "ai"
     },
     {
@@ -9086,8 +9030,8 @@
     {
       "path": "frontend/src/lantern/App.tsx",
       "mode": "100644",
-      "bytes": 15161,
-      "sha256": "c75a38749c72c5f19c47b25644abe56af9c5312734e17a1373aa0ff7e137114f",
+      "bytes": 15345,
+      "sha256": "4da1c09bb5903c6c8649c22856b92d1a0b6fa5d5cb674ecc85cd5373eb52e17d",
       "owner": "web"
     },
     {
@@ -9212,8 +9156,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/MeshLayer.tsx",
       "mode": "100644",
-      "bytes": 8384,
-      "sha256": "4f75342ac7e9156fd181320fdb53c5103af9fa284aa5845467b78143e72e4239",
+      "bytes": 8419,
+      "sha256": "d3d59ae7913d9bc9057c7b5328b9119f10883ea70ef1f3e7b756e097628c76fa",
       "owner": "web"
     },
     {
@@ -9296,15 +9240,15 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-appearance.ts",
       "mode": "100644",
-      "bytes": 11154,
-      "sha256": "772d4756b7ba282eca8ccad75d3eb9102d5912100e131e863735d33767c8bbe9",
+      "bytes": 13200,
+      "sha256": "bb956b03f28e5f69231da4de516037cf966d5ae6636dafb722312c073b7560ee",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-scene.ts",
       "mode": "100644",
-      "bytes": 27996,
-      "sha256": "471c52ceff7aaff6bda39d98f1495f4d68067ad05323ec1f7155d5418baf01c3",
+      "bytes": 31114,
+      "sha256": "c54877d17255cbba739a438ce1f316f0d7e26f062a4c7a61ca2f28ad0ed3a001",
       "owner": "web"
     },
     {
@@ -9422,8 +9366,8 @@
     {
       "path": "frontend/src/lantern/components/Icon.tsx",
       "mode": "100644",
-      "bytes": 3811,
-      "sha256": "f0323db3b4b5ba41ec6d53372276357e9b1e7dce2b26165c464775f1f939bdcc",
+      "bytes": 3872,
+      "sha256": "40ca605b51e6d7322dda7aa74c0e82779676a54ddf8756c76653b64fceacc0bc",
       "owner": "web"
     },
     {
@@ -9499,8 +9443,8 @@
     {
       "path": "frontend/src/lantern/components/SettingsDialog.tsx",
       "mode": "100644",
-      "bytes": 5501,
-      "sha256": "1d916419ac3d0cc05f87d2f85f37ab7306aa17b2008a3c2ce73134e4c58699f7",
+      "bytes": 8432,
+      "sha256": "a4d77a9ad8742a4ebd9b9fe341ec1c07f97fee189eacc46d6917160fa1901b40",
       "owner": "web"
     },
     {
@@ -10414,6 +10358,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/unified-atlas/DaylightControl.tsx",
+      "mode": "100644",
+      "bytes": 4904,
+      "sha256": "058331a9ed7c81642fc35564eab58efdeb96dd7674e36db3181cb4bb844204bc",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/unified-atlas/LayerDetailsDock.tsx",
       "mode": "100644",
       "bytes": 8275,
@@ -10444,8 +10395,15 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 146046,
-      "sha256": "4521593c660af053b416d2fa7508008d5a5e79bc3bcd0b07573f160b09472015",
+      "bytes": 147187,
+      "sha256": "5440e8df6cf1815a994432611f5c0d59b04e64ec9ef92c495963ecdc5bbd48ed",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/unified-atlas/daylight.ts",
+      "mode": "100644",
+      "bytes": 4178,
+      "sha256": "cc0d8a5a4898cfe0029cb86ec519c94108fbf462c2acc64cbf7887c9b4c09ca2",
       "owner": "web"
     },
     {
@@ -10498,6 +10456,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/unified-atlas/overlay-feed.ts",
+      "mode": "100644",
+      "bytes": 10748,
+      "sha256": "79a952fcc191edb71aab5aeea50b6fca3e2370245ef258c39131e2c300c98d3e",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/unified-atlas/plan-presentation.tsx",
       "mode": "100644",
       "bytes": 6300,
@@ -10507,8 +10472,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/runtime-overlays.ts",
       "mode": "100644",
-      "bytes": 24997,
-      "sha256": "22ab08f7059a5dafce0bdaed8b8d7fdaef73a15844e374eff025973c29413766",
+      "bytes": 25041,
+      "sha256": "a3b3b3987219656dd89f44fe8f655a3ac30ed58527386862386b0988d6533d01",
       "owner": "web"
     },
     {
@@ -10519,24 +10484,38 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/unified-atlas/stored-overlays.ts",
+      "mode": "100644",
+      "bytes": 7517,
+      "sha256": "6d76a2d3cb86d8949d145cf1997afb7ba751eb382c122d3cec1a341822ee0148",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/unified-atlas/sun-place.ts",
+      "mode": "100644",
+      "bytes": 2073,
+      "sha256": "7a20cb50a020fb6ece8370308da4745c3141a7fae4dd680b4dc64be6d7622dc0",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/unified-atlas/types.ts",
       "mode": "100644",
-      "bytes": 9875,
-      "sha256": "46ba18319ebe229204c2317bac049d5d46d3766b7916af900d68c1fe603a9af5",
+      "bytes": 10745,
+      "sha256": "618c651b8c8234317fb323693043c7cc01a12c9a4e5e71961868348f67accdc9",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/unified-atlas/unified-atlas.css",
       "mode": "100644",
-      "bytes": 83804,
-      "sha256": "f61b61abf5204097eaf2d2ecc4ae7f1e98315e71d79ebbf77347478d62fe41df",
+      "bytes": 85939,
+      "sha256": "75a09c1fd0d718426e83921831ffa5908f99c115c9fad9374d03761f0dfe0654",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/unified-atlas/useDocumentaryOverlays.ts",
       "mode": "100644",
-      "bytes": 5460,
-      "sha256": "69334ee2dee0510c4b7a6f3881f42268f56204459e313ace4ff34509b0f1d19c",
+      "bytes": 2180,
+      "sha256": "416ba3d3edc4db868cd449dbeb9ab303be584d1039137a76bd3aa1d2010b62e4",
       "owner": "web"
     },
     {
@@ -10580,34 +10559,6 @@
       "bytes": 2156,
       "sha256": "35bf2fa7c37d53bc7f2c6bc1fb29f9c9e7bc816cd26a7b5c16c71d5ff3bac61e",
       "owner": "web"
-    },
-    {
-      "path": "frontend/src/maintenance/README.md",
-      "mode": "100644",
-      "bytes": 3462,
-      "sha256": "5d8d96ab9821ae1be03d42cab67e67cce67d0133249541736ad90be1e3a562e1",
-      "owner": "core-integration"
-    },
-    {
-      "path": "frontend/src/maintenance/caller.ts",
-      "mode": "100644",
-      "bytes": 7189,
-      "sha256": "dd2c0193b3e4eb4b256d25c4f49cc6370ae767f7324738f3ecd210c3666b9bb0",
-      "owner": "core-integration"
-    },
-    {
-      "path": "frontend/src/maintenance/contract.ts",
-      "mode": "100644",
-      "bytes": 7693,
-      "sha256": "f3f0db205dc0bb4d66d0f18cc3ea464a333e928016035993b12223b5464d3df7",
-      "owner": "core-integration"
-    },
-    {
-      "path": "frontend/src/maintenance/synthetic.ts",
-      "mode": "100644",
-      "bytes": 11600,
-      "sha256": "c5991f7d99ae25dcbc135a2131cb5b6903db6be822e3e10b5fbe6838f7371696",
-      "owner": "core-integration"
     },
     {
       "path": "frontend/src/numeric/decimal.ts",
@@ -10717,8 +10668,8 @@
     {
       "path": "frontend/src/offline/saved-atlas-presentation.ts",
       "mode": "100644",
-      "bytes": 6863,
-      "sha256": "ac13a5fbdfffbfc4642c4ac2033f478d179aa2f2fdc4aab7af2e6f5ffb195ce5",
+      "bytes": 7454,
+      "sha256": "82bcc2addbdb241cc2f2dc46f752d009ece9e309ff51f21300f15ea62cb57a3c",
       "owner": "web"
     },
     {
@@ -10857,8 +10808,8 @@
     {
       "path": "frontend/src/webmcp/README.md",
       "mode": "100644",
-      "bytes": 6694,
-      "sha256": "6e93dfe73e39956690d1c1a511802a78ee860d8773f92914d5397e3f3f0c9fdd",
+      "bytes": 7050,
+      "sha256": "78ffbbffdf821aab6245fdc5206c92e2234ca2bae3441a4d8a0f14feca71b680",
       "owner": "webmcp"
     },
     {
@@ -12068,8 +12019,8 @@
     {
       "path": "tools/houseatlas-mcp-bridge/bridge.py",
       "mode": "100644",
-      "bytes": 66823,
-      "sha256": "c6e3372a046e88f605c4b973122dc97560548fec0e392fe09a250993c12a6fd7",
+      "bytes": 65702,
+      "sha256": "592e99701a80fa67c49274ee34254426337d816e03d47e31e94e852a577b1fcc",
       "owner": "mcp"
     },
     {
@@ -12084,13 +12035,6 @@
       "mode": "100644",
       "bytes": 84,
       "sha256": "0ae85f49e6d4923d5549c9b8934f84fd69d0bd09b8e3a46c9ef4b209ad85320f",
-      "owner": "mcp"
-    },
-    {
-      "path": "tools/houseatlas-mcp-bridge/maintenance_composition.py",
-      "mode": "100644",
-      "bytes": 8073,
-      "sha256": "dbbef69b49aa2c23b78b7329d6b943ad376a137a2155e6160d2d65969645c171",
       "owner": "mcp"
     },
     {
@@ -12122,284 +12066,11 @@
       "owner": "mcp"
     },
     {
-      "path": "tools/houseatlas-mcp-bridge/test_maintenance_composition_happy.py",
-      "mode": "100644",
-      "bytes": 14175,
-      "sha256": "1ea7798455aaf8d02c152b6ad6f0c7c4b8e6cda66aa592055cb93c34a860908a",
-      "owner": "mcp"
-    },
-    {
-      "path": "tools/houseatlas-mcp-bridge/test_maintenance_happy.py",
-      "mode": "100644",
-      "bytes": 4411,
-      "sha256": "bc54895af31f884698bab4034f567d714aa806409e77a93b0c7f6afdb2d97f72",
-      "owner": "mcp"
-    },
-    {
       "path": "tools/houseatlas-mcp-bridge/tunnel-wrapper.py",
       "mode": "100644",
       "bytes": 5714,
       "sha256": "4698bbcd54575db7ada8e5d2399ed95b83a445876c015886a86817e1b17c2888",
       "owner": "mcp"
-    },
-    {
-      "path": "tools/houseatlas-updater-adapters/bounded_http.py",
-      "mode": "100644",
-      "bytes": 12123,
-      "sha256": "d8367f3f8edaca7729d6ab8d55449020936a8b3713915a375fe1856e3a7bee29",
-      "owner": "mcp"
-    },
-    {
-      "path": "tools/houseatlas-updater-adapters/github_release.py",
-      "mode": "100644",
-      "bytes": 14770,
-      "sha256": "49c435721c69bd0f05a6e1746ce0b7210c91da9f1f36ba084e954560f7cdbc06",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater-adapters/maintenance_dispatch.py",
-      "mode": "100644",
-      "bytes": 1687,
-      "sha256": "4f243d46f9b66c9a9492f07da3fa1a3f24f9463bdf6f2f1c0fca1504fbadd87e",
-      "owner": "mcp"
-    },
-    {
-      "path": "tools/houseatlas-updater-adapters/maintenance_owner.py",
-      "mode": "100644",
-      "bytes": 4323,
-      "sha256": "8a8e95dae90794e965b075ab9c5718adccd7b067de15ccc08cda457c959f4525",
-      "owner": "mcp"
-    },
-    {
-      "path": "tools/houseatlas-updater-adapters/tests/__init__.py",
-      "mode": "100644",
-      "bytes": 80,
-      "sha256": "1d15dc205c97781e8352b97e33ef99298a8b622be0ead1c8696f21a183f1c81c",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater-adapters/tests/test_github_release_happy.py",
-      "mode": "100644",
-      "bytes": 10308,
-      "sha256": "d575a31d9fda2f2a029211a31bda1e684177a6754de75b00c4d995b87418f36a",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater-adapters/tests/test_transport_dispatch_happy.py",
-      "mode": "100644",
-      "bytes": 12471,
-      "sha256": "7d6856138b96b9a8b6914f86e464dc1becc4189cef82657b0e2576ed4c31757c",
-      "owner": "mcp"
-    },
-    {
-      "path": "tools/houseatlas-updater-runtime/houseatlas_updater_runtime/__init__.py",
-      "mode": "100644",
-      "bytes": 723,
-      "sha256": "5f2cb668be30955d82b0eb162517d92296f56527e4845cd916c8ad9b4aa6722e",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater-runtime/houseatlas_updater_runtime/application_readiness.py",
-      "mode": "100644",
-      "bytes": 30345,
-      "sha256": "42f6bcd9e1ed4d49f189c6e3d28501d9dd7e7e1561574fa32b75e56714c4ad05",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater-runtime/houseatlas_updater_runtime/established_native_http.py",
-      "mode": "100644",
-      "bytes": 18623,
-      "sha256": "7d5d992538c14c764deeabdba378e7cdaa183f9ecb255d89c8de1777d287cf11",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater-runtime/houseatlas_updater_runtime/native.py",
-      "mode": "100644",
-      "bytes": 13971,
-      "sha256": "ddaa9e4fc115edc2b312520ee75d2757b753fdef544c609e05f6f22d94bc2c7d",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater-runtime/houseatlas_updater_runtime/publication.py",
-      "mode": "100644",
-      "bytes": 18760,
-      "sha256": "665f05769b9581afd39425db82cee0edae1b5b6d11a621661adb0f44607e9923",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater-runtime/houseatlas_updater_runtime/runtime.py",
-      "mode": "100644",
-      "bytes": 18932,
-      "sha256": "cbf62b062ec8bf6def105bef0ede856f8bc22ad3529eae916fe6ebe8d5e5bed6",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater-runtime/tests/__init__.py",
-      "mode": "100644",
-      "bytes": 78,
-      "sha256": "84488858cf6c6361a6b1ab8b0fd0d83069538864ca4c6f4dca7df61e0f93ed11",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater-runtime/tests/test_application_readiness_happy.py",
-      "mode": "100644",
-      "bytes": 17626,
-      "sha256": "085b88ac72aae95637f575f45d822b8a772bc5d9a18f81e7db71e5ab88cebf55",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater-runtime/tests/test_established_native_http_happy.py",
-      "mode": "100644",
-      "bytes": 8893,
-      "sha256": "f8a102fd7c48ad8132fb1f26008cb604aa49c63f68fb7360aedcda551914ec7b",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater-runtime/tests/test_runtime_happy.py",
-      "mode": "100644",
-      "bytes": 19353,
-      "sha256": "73fc4897efc0a10bc89aeac1fb8b007a2c54a01c8c166a366bc62bb701296e86",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater/contracts/storage-access-atlas.draft.v2.json",
-      "mode": "100644",
-      "bytes": 2175,
-      "sha256": "b226413460ca7a57ba6fb245c65e415f87814d2e96227024b8a0146ad03bdd2d",
-      "owner": "storage"
-    },
-    {
-      "path": "tools/houseatlas-updater/contracts/storage-access-full-geodata.draft.v2.json",
-      "mode": "100644",
-      "bytes": 2343,
-      "sha256": "ef8517886be6bb1d6836c01fc3c606f326b53c2d4e604b46031761921e566900",
-      "owner": "storage"
-    },
-    {
-      "path": "tools/houseatlas-updater/houseatlas_updater/__init__.py",
-      "mode": "100644",
-      "bytes": 147,
-      "sha256": "1a79cba9e2ccda1e69803c92b97a0ba054775ccce310b7549a108b4fb994ed08",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater/houseatlas_updater/archive.py",
-      "mode": "100644",
-      "bytes": 6223,
-      "sha256": "7e591c13e7d02fefc9e1ff3b0bcfdf86c89d309e9cdd007a4c4eb2eef9e9ce04",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater/houseatlas_updater/cli.py",
-      "mode": "100644",
-      "bytes": 1657,
-      "sha256": "1aee2e674e1a3ae9b6cd74a38ddf0608e7e93e4281a2cfc3245b2bf3dbcdc073",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater/houseatlas_updater/controller.py",
-      "mode": "100644",
-      "bytes": 15811,
-      "sha256": "ab439fd2288cb45c6769ea7067d86352871554cf10fe4f780ff81c6b48b1ea74",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater/houseatlas_updater/journal.py",
-      "mode": "100644",
-      "bytes": 9523,
-      "sha256": "77eb1f7282165996508d0cd1e35f61344c15a133a0ee4081fe924078c11fa644",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater/houseatlas_updater/model.py",
-      "mode": "100644",
-      "bytes": 9338,
-      "sha256": "4f4ef02ff06d0ef70e9f5e9b8c69e00e6ba62f3d70a3c924faa0434c341feb9b",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater/houseatlas_updater/native_binary.py",
-      "mode": "100644",
-      "bytes": 2031,
-      "sha256": "4ecd43eacbcad80dc820334b5799819436b328285523eeccde06759cb7363511",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater/houseatlas_updater/release_bundle.py",
-      "mode": "100644",
-      "bytes": 8975,
-      "sha256": "398660f1370e846cc38c4434e36076cbe1c5151cf44c7bfe2c1e7da2703f6a17",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater/houseatlas_updater/storage_contracts.py",
-      "mode": "100644",
-      "bytes": 1148,
-      "sha256": "d5d4d6c62d81fbe73fa0fcbac75c7ecda7210c296383c89d82611297b9abb044",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater/houseatlas_updater/validation.py",
-      "mode": "100644",
-      "bytes": 12468,
-      "sha256": "a9f740a4e7466c022d5229981cb1d31e27c8b62728eca8fb6231b852f6f0a81a",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater/protocol.schema.json",
-      "mode": "100644",
-      "bytes": 5441,
-      "sha256": "ca2d214b3d0659efdd4c0397ffbfffc020e51bcc3614fdc8e6cd43af47d257e4",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater/tests/__init__.py",
-      "mode": "100644",
-      "bytes": 82,
-      "sha256": "367c909561d863a617c80138fe0478c394e23d6906470a629b23569d0ff6417b",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater/tests/synthetic.py",
-      "mode": "100644",
-      "bytes": 11884,
-      "sha256": "b36d55bc4d8877d840dfe63691cd355ca1b5ec25d5f97fe1db723309efba4b43",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater/tests/test_happy.py",
-      "mode": "100644",
-      "bytes": 5624,
-      "sha256": "23fcb337dc772bef7affbf7af783fa38d7f28fc8c59a1bbe3f1ab34b2231dfc1",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater/tests/test_json_input.py",
-      "mode": "100644",
-      "bytes": 3011,
-      "sha256": "c2f2f41444ee6f534e8502d1d310d32e5f73c621509005d3d03dfbfa21f420f9",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater/tests/test_packaging.py",
-      "mode": "100644",
-      "bytes": 4954,
-      "sha256": "9ebbdfd9991c5728d355e44c315283b2f2c0cc55cfc903526f020b49c856d711",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater/tests/test_storage_contracts.py",
-      "mode": "100644",
-      "bytes": 4484,
-      "sha256": "575041851c3db9f3ae968cdeae2c61f85ac7343d3449f3fcea6b14cd12a2d6f6",
-      "owner": "core-integration"
-    },
-    {
-      "path": "tools/houseatlas-updater/tests/test_storage_protocol.py",
-      "mode": "100644",
-      "bytes": 6899,
-      "sha256": "1a2965736f313c2df8e25592cce20deda4060cd11c2242996b97659de018700a",
-      "owner": "core-integration"
     },
     {
       "path": "tools/ifc_publication/.gitignore",
@@ -12978,8 +12649,8 @@
     {
       "path": "tools/readme-media/capture.mjs",
       "mode": "100644",
-      "bytes": 43618,
-      "sha256": "8b51e5b6498ac4e36337f8c3131963e4243434cfdd565a7245c1373a37cd0934",
+      "bytes": 43705,
+      "sha256": "74c2d182be2ece10b9b47b57e27061b3b7dfbedec220d25a078499858b0b59da",
       "owner": "web"
     },
     {
@@ -13195,8 +12866,8 @@
     {
       "path": "tools/rust-integration/healthy-agent-host-loopback.mjs",
       "mode": "100644",
-      "bytes": 32301,
-      "sha256": "eea1a08052257c0169b4709cbd2b1f964d189f39d34eb48123876c7b9d8e01dd",
+      "bytes": 32279,
+      "sha256": "de1f2d8350ca2be603eed546f1bfc2e7f7e71a2be08a9b81c5658977f0c19f5e",
       "owner": "core-integration"
     },
     {

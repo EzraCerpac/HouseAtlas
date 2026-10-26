@@ -138,7 +138,7 @@ try {
   assert.deepEqual(JSON.parse(first.visible),first.wire,'Canonical result already committed to React when native tool returns');
   await evaluate("location.hash='#settings'");
   await until(async()=> (await evaluate('document.body?.innerText ?? ""')).includes('Sign out'),'Actual session Settings');
-  assert.equal(await evaluate("document.querySelector('section.ai-host[aria-label=AI]')?.innerText.includes('AI host is unavailable.')"), true, 'Actual optional AI Settings mount with no supplied runtime port');
+  assert.equal(await evaluate("Boolean(document.querySelector('.ai-host, section[aria-label^=AI], .ask-btn'))"), false, 'No AI Settings or Ask entry point without a supplied runtime port');
   await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent==='Sign out').click()");
   await until(async () => await evaluate("Boolean(document.querySelector('section[role=dialog][aria-modal=true][aria-labelledby=capture-logout-heading]')?.getClientRects().length)"), 'Ordinary logout confirmation dialog');
   assert.equal(await evaluate("document.querySelector('section[aria-labelledby=capture-logout-heading] input[type=checkbox]')?.checked"), false, 'Ordinary logout keeps local captures by default');
