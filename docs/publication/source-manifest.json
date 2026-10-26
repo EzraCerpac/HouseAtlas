@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "a272e80006e34abd09a7e62d0f66646caa413c96f3a39af4d85e0cdf6432c409",
+  "sourceDigestSha256": "d2df7324c3141d60a558adc21bd355267b91fc85b020708d77004b8e1bbe0f3e",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
