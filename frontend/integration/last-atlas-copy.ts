@@ -1,4 +1,5 @@
-import { AtlasReadError, type LiveAtlasPresentationPort, type LiveAtlasSelection, type StoredAtlasRead } from '../src/lantern/unified-atlas/types';
+import { AtlasReadError, type AtlasScene, type LiveAtlasPresentationPort, type LiveAtlasSelection, type StoredAtlasRead } from '../src/lantern/unified-atlas/types';
+import { decodeStoredOverlays } from '../src/lantern/unified-atlas/stored-overlays';
 import type { LastAtlasCopy } from '../src/offline/SavedAtlasHost';
 import { openUnifiedAtlasStore, readLastAtlas } from './unified-atlas-cache';
 import { readCachedUnifiedAtlas } from './unified-atlas-reader';
@@ -50,6 +51,21 @@ export async function openLastAtlasCopy(factory: IDBFactory | undefined, signal:
       current: () => read === null ? null : selection,
       subscribe(changed: () => void) { listeners.add(changed); return () => { listeners.delete(changed); }; },
       async stored(selected: LiveAtlasSelection) { return selected === selection ? read : null; },
+      async storedOverlays(selected: LiveAtlasSelection, scene: AtlasScene, selectable: ReadonlySet<string>, requestSignal: AbortSignal) {
+        signal.throwIfAborted(); requestSignal.throwIfAborted();
+        const held = read;
+        const current = () => !closed && held !== null && read === held && selected === selection && scene === held.scene
+          && scene.scope.workspaceId === pointer.workspaceId && scene.scope.homeId === pointer.homeId
+          && scene.publication.publicationId === pointer.publicationId && scene.selection.publicationId === pointer.publicationId;
+        if (!current()) return null;
+        const bytes = await cache.overlays(scene.publication.publicationId, scene.selection.revision, scene.publication.semanticsSha256);
+        signal.throwIfAborted(); requestSignal.throwIfAborted();
+        if (!current()) return null;
+        const last = await readLastAtlas(store);
+        signal.throwIfAborted(); requestSignal.throwIfAborted();
+        if (!last || JSON.stringify(last.pointer) !== named) { withdraw(); return null; }
+        return bytes && current() ? decodeStoredOverlays(bytes, scene, selectable) : null;
+      },
       async read(): Promise<never> { throw new AtlasReadError('unavailable', 'The server is out of reach'); },
     });
     return { port, storedAt, recheck, close: async () => { if (closed) return; closed = true; listeners.clear(); withdraw(); await store.close(); } };

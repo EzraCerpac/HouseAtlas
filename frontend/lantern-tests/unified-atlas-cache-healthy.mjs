@@ -31,12 +31,14 @@ const storeURL = await sourceURL('../integration/native-geometry-scan-cache.ts')
 const cacheURL = await sourceURL('../integration/unified-atlas-cache.ts', { './native-geometry-scan-cache': storeURL });
 const readerURL = await sourceURL('../integration/unified-atlas-reader.ts',
   { '../src/lantern/unified-atlas/scene': sceneURL, '../src/lantern/unified-atlas/types': typesURL });
+const codecURL = await sourceURL('../src/lantern/unified-atlas/stored-overlays.ts');
 const lastCopyURL = await sourceURL('../integration/last-atlas-copy.ts', { '../src/lantern/unified-atlas/types': typesURL,
-  './unified-atlas-cache': cacheURL, './unified-atlas-reader': readerURL });
+  '../src/lantern/unified-atlas/stored-overlays': codecURL, './unified-atlas-cache': cacheURL, './unified-atlas-reader': readerURL });
 const syntheticURL = await sourceURL('./unified-atlas/synthetic-atlas.ts');
 const { readUnifiedAtlas, readCachedUnifiedAtlas } = await import(readerURL);
 const { openUnifiedAtlasStore, createUnifiedAtlasCache, observeUnifiedAtlasActor, readLastAtlas, ATLAS_CACHE_DATABASE } = await import(cacheURL);
 const { openLastAtlasCopy } = await import(lastCopyURL);
+const { encodeStoredOverlays, decodeStoredOverlays } = await import(codecURL);
 const { buildSyntheticAtlas, composeAtlasEnvelope, createAtlasTransport, atlasScenePath, SYNTHETIC_ATLAS } = await import(syntheticURL);
 
 const scope = { workspaceId: '00000000-0000-4000-8000-000000000800', homeId: '00000000-0000-4000-8000-000000000801' };
@@ -370,6 +372,77 @@ for (const previousActor of [undefined, null, 'synthetic-prior-actor']) {
   store.write(JSON.stringify(['unified-atlas-last']), 'pointer', 'pointer', new TextEncoder().encode(JSON.stringify(legacy)));
   await store.close();
   assert.equal(await openLastAtlasCopy(factory(), signal()), null, 'legacy pointer needs a fresh canonical account observation');
+}
+
+// The cold last-copy port exposes only the stored documentary overlay records
+// for its admitted scene and current actor allocation, never a native frame.
+{
+  const overlayDisk = createSyntheticDisk(), factory = () => createSyntheticIndexedDB(overlayDisk);
+  let scene, overlays, encoded;
+  served = versions[1];
+  await openProcess(overlayDisk, actorA, async ({ cache }) => {
+    scene = (await fresh(cache, v1)).scene;
+    const building = scene.buildings.find(row => row.levelIds.length > 0);
+    assert.ok(building, 'generated Atlas has a floor building');
+    const records = { rooms: new Map(), network: 'partial', electrical: 'unavailable', sourceFacts: [],
+      unplaced: { network: [{ key: 'synthetic-offline-router', id: 'synthetic-router', label: 'Synthetic router',
+        category: 'network', detail: 'Stored documentary record', qualification: 'stored-copy', sourceDate: null,
+        retrievedAt: null, connections: [], sourceFacts: [] }], electrical: [] }, networkGraphs: [] };
+    overlays = new Map([[building.buildingId, { storedAt: '2026-10-26T12:00:00.000Z', records }]]);
+    encoded = encodeStoredOverlays(scene, overlays);
+    cache.keepOverlays(scene.publication.publicationId, scene.selection.revision, scene.publication.semanticsSha256, encoded);
+  });
+  calls.length = 0;
+  const copy = await openLastAtlasCopy(factory(), signal());
+  try {
+    assert.ok(copy);
+    const selection = copy.port.current(), read = await copy.port.stored(selection, signal());
+    const selectable = new Set(read.scene.occurrences.map(row => row.spaceOccurrenceId));
+    const expected = decodeStoredOverlays(encoded, read.scene, selectable);
+    assert.ok(expected, 'the actual current codec admits the generated stored records');
+    assert.deepEqual(await copy.port.storedOverlays(selection, read.scene, selectable, signal()), expected,
+      'cold copy preserves stored records and their documentary timestamp');
+    assert.equal(await copy.port.storedOverlays({ ...selection }, read.scene, selectable, signal()), null,
+      'a copied selection cannot reuse the cold-copy binding');
+    assert.equal(await copy.port.storedOverlays(selection, { ...read.scene }, selectable, signal()), null,
+      'a caller-provided scene cannot replace the admitted scene');
+    const aborted = new AbortController(); aborted.abort();
+    await assert.rejects(copy.port.storedOverlays(selection, read.scene, selectable, aborted.signal),
+      error => error.name === 'AbortError', 'cancelled overlay read releases no records');
+    const interrupted = new AbortController();
+    const pendingOverlays = copy.port.storedOverlays(selection, read.scene, selectable, interrupted.signal);
+    interrupted.abort();
+    await assert.rejects(pendingOverlays, error => error.name === 'AbortError',
+      'cancellation after the async cache read starts releases no records');
+    assert.equal(copy.port.createOverlays, undefined); assert.equal(copy.port.keepOverlays, undefined);
+    assert.equal(copy.port.readDetail, undefined, 'stored records add no detail or native-source route');
+    await openProcess(overlayDisk, actorB, async () => {});
+    assert.equal(await copy.port.storedOverlays(selection, read.scene, selectable, signal()), null,
+      'account switch withdraws overlay results even before a focus event');
+    record('Saved entry reads only current-account documentary overlays offline', []);
+  } finally { await copy?.close(); }
+
+  // Correct outer cache keys must not bless bytes encoded for another scene.
+  // This reaches the codec instead of only checking the cache-key miss path.
+  for (const staleScene of [
+    { ...scene, publication: { ...scene.publication, publicationId: '00000000-0000-4000-8000-000000009999' } },
+    { ...scene, selection: { ...scene.selection, revision: `${scene.selection.revision}-stale` } },
+    { ...scene, publication: { ...scene.publication, semanticsSha256: '0'.repeat(64) } },
+  ]) {
+    await openProcess(overlayDisk, actorA, async ({ cache }) => {
+      await fresh(cache, v1);
+      cache.keepOverlays(scene.publication.publicationId, scene.selection.revision, scene.publication.semanticsSha256,
+        encodeStoredOverlays(staleScene, overlays));
+    });
+    const stale = await openLastAtlasCopy(factory(), signal());
+    try {
+      assert.ok(stale);
+      const selected = stale.port.current(), read = await stale.port.stored(selected, signal());
+      assert.equal(await stale.port.storedOverlays(selected, read.scene,
+        new Set(read.scene.occurrences.map(row => row.spaceOccurrenceId)), signal()), null,
+      'wrong publication, revision or semantics bytes cannot appear under matching outer keys');
+    } finally { await stale?.close(); }
+  }
 }
 
 await openProcess(disk, actorA, async ({ cache, store }) => {

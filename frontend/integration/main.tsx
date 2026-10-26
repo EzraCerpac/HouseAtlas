@@ -541,6 +541,22 @@ const sourceModels: SourceModelPort = {
         native: Object.freeze({ sessionIdentity: session, session, view, admission }),
         origin: window.location.origin, isCurrent: current, subscribe: subscribeOverview, createDocuments: makeSceneDocumentOwner });
     },
+    // Overlay records last projected on this device for the same scene; the
+    // Atlas shows them only where no current frame is held.
+    async storedOverlays(selection, scene, selectable, signal) {
+      const [cache, codec] = await Promise.all([atlasCache(selection), import('../src/lantern/unified-atlas/stored-overlays')]);
+      signal.throwIfAborted();
+      if (!cache || currentOverview() !== selection || scene.scope.homeId !== selection.scope.homeId) return null;
+      const bytes = await cache.overlays(scene.publication.publicationId, scene.selection.revision, scene.publication.semanticsSha256);
+      signal.throwIfAborted();
+      return bytes && currentOverview() === selection ? codec.decodeStoredOverlays(bytes, scene, selectable) : null;
+    },
+    keepOverlays(selection, scene, overlays) {
+      void Promise.all([atlasCache(selection), import('../src/lantern/unified-atlas/stored-overlays')]).then(([cache, codec]) => {
+        if (!cache || currentOverview() !== selection || scene.scope.homeId !== selection.scope.homeId) return;
+        cache.keepOverlays(scene.publication.publicationId, scene.selection.revision, scene.publication.semanticsSha256, codec.encodeStoredOverlays(scene, overlays));
+      }, () => undefined);
+    },
     async read(selection, signal) {
       const controller = new AbortController();
       const unsubscribe = subscribeOverview(() => { if (currentOverview() !== selection) controller.abort(); });

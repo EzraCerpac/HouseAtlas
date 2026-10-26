@@ -2,8 +2,8 @@
 
 The root compiles the actual AI modules and browser host with the Rust HTTP,
 Access and SQLite application. The optional host remains unconfigured in the
-binary. Settings therefore reports unavailable without creating a client,
-registration, credential or inference admission.
+binary. Without a bound host, Settings omits AI and Lantern hides Ask. No
+client, registration, credential or inference admission is created.
 
 ## Native app mounting
 
