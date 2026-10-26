@@ -168,6 +168,20 @@ printf '{{"ubiquitous": true, "uploaded": true, "downloadingStatus": "%s"}}\\n' 
         with self.assertRaises(hb.StepFailed):
             hb.restore_models(store, [dict(models[1], file="../escape")], hb.private_dir(self.root / "third"))
 
+    def test_restore_fetches_a_blob_that_is_not_local_yet(self):
+        store = self.root / "store"
+        listed = hb.list_models(self.release())
+        hb.store_models(store, listed, "20261001T040000Z")
+        models = [{k: m[k] for k in ("file", "sha256", "bytes")} for m in listed]
+        # A legacy placeholder: the blob is absent until the fetch brings it back.
+        away = hb.private_dir(self.root / "in-icloud")
+        for model in models:
+            (store / "blobs" / model["sha256"]).rename(away / model["sha256"])
+        fetch = lambda blob: (away / blob.name).rename(blob)
+        out = hb.private_dir(self.root / "out")
+        hb.restore_models(store, models, out, fetch)
+        self.assertEqual((out / "releases/v1/detail.glb").read_bytes(), b"detail")
+
     def test_new_blobs_round_trip_through_the_icloud_helper(self):
         helper, evicted = self.fake_icloud_helper()
         config = type("C", (), {"icloud_helper": helper, "upload_timeout": 5})()
