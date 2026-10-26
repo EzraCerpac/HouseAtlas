@@ -148,7 +148,7 @@ try {
   const sourceDisclosure = async () => {
     const compactButton = shell.getByRole('button', { name: 'View and sources', exact: true });
     if (await compactButton.isVisible()) {
-      const panel = shell.locator('.ua-menu-panel'), sources = panel.locator('.ua-menu-sources');
+      const panel = shell.locator(`[id="${await compactButton.getAttribute('aria-controls')}"]`), sources = panel.locator('.ua-menu-sources');
       await compactButton.focus(); await compactButton.press('Enter');
       assert.equal(await compactButton.getAttribute('aria-expanded'), 'true');
       await panel.waitFor({ state: 'visible' });
@@ -195,7 +195,7 @@ try {
       await atlas.keyboard.press('Escape');
       assert.equal(await menuButton.getAttribute('aria-expanded'), 'false');
       assert.equal(await menuButton.evaluate(node => document.activeElement === node), true);
-      await shell.locator('.ua-menu-panel').waitFor({ state: 'hidden' });
+      await shell.locator(`[id="${await menuButton.getAttribute('aria-controls')}"]`).waitFor({ state: 'hidden' });
       await frames(page);
     }
   };
