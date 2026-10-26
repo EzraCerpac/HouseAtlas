@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0a7bf29175d2d5ffef2ca7e3ec07b86a1d7a8d555617055a74b20a7b8cfdc614",
+  "sourceDigestSha256": "17f1df8a80c626292dc54dda92a6bf201e58f3ef7c8c60b03f3e3832fe5603f8",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -9352,9 +9352,9 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/standard-glb-thread.ts",
       "mode": "100644",
-      "owner": "web",
       "bytes": 3303,
-      "sha256": "b18fd539de1af25fb29708812fb7daebdaa2a11c30e267053ca6efc65082b7a3"
+      "sha256": "b18fd539de1af25fb29708812fb7daebdaa2a11c30e267053ca6efc65082b7a3",
+      "owner": "web"
     },
     {
       "path": "frontend/src/lantern/canonical-ifc/standard-glb.ts",
@@ -9366,9 +9366,9 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/standard-glb.worker.ts",
       "mode": "100644",
-      "owner": "web",
       "bytes": 2092,
-      "sha256": "5f61b139eb7b9b502d50d797eae4c3bb9de860709ec0923e2f4643c3eab2bab8"
+      "sha256": "5f61b139eb7b9b502d50d797eae4c3bb9de860709ec0923e2f4643c3eab2bab8",
+      "owner": "web"
     },
     {
       "path": "frontend/src/lantern/canonical-ifc/tones.ts",
@@ -10585,7 +10585,7 @@
       "path": "frontend/src/maintenance/README.md",
       "mode": "100644",
       "bytes": 3462,
-      "sha256": "5d8d96ab9821ae1be03d42cab67e67cce67d0133249541736ad90be1e3a562e1",
+      "sha256": "dcf4a4dc38b9d04995a9196e76539f88119019111dc3ceaffa2676def1fe5b6c",
       "owner": "core-integration"
     },
     {
@@ -10598,8 +10598,8 @@
     {
       "path": "frontend/src/maintenance/contract.ts",
       "mode": "100644",
-      "bytes": 7693,
-      "sha256": "f3f0db205dc0bb4d66d0f18cc3ea464a333e928016035993b12223b5464d3df7",
+      "bytes": 7702,
+      "sha256": "164ef2b6f225e80d7831f622078aac11c0af45e33d2d522dc0d5c11c2663997b",
       "owner": "core-integration"
     },
     {
@@ -10857,8 +10857,8 @@
     {
       "path": "frontend/src/webmcp/README.md",
       "mode": "100644",
-      "bytes": 6694,
-      "sha256": "6e93dfe73e39956690d1c1a511802a78ee860d8773f92914d5397e3f3f0c9fdd",
+      "bytes": 7050,
+      "sha256": "78ffbbffdf821aab6245fdc5206c92e2234ca2bae3441a4d8a0f14feca71b680",
       "owner": "webmcp"
     },
     {
