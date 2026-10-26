@@ -147,10 +147,14 @@ try {
     button.click();
     return true;
   })()`), 'Visible Atlas navigation');
-  // This host's native map stays mounted beside Places and shares its topology
-  // lease. Count the four fresh reads from Atlas entry across that one lifetime;
-  // opening the lens must not invent another fetch just for presentation.
+  // With no house model the Atlas is a document over the building sections; a
+  // lens replaces it and ends its reads. Atlas entry reads the topology once, and
+  // Rooms & places reads it once more for its own lifetime.
   await until(async () => await evaluate("document.querySelector('.topology-scope [role=status]')?.textContent === 'No reviewed buildings in this home.'"), 'Atlas topology ready');
+  await until(async () => nativeListResponses.length - topologyResponseStart >= 4, 'Atlas topology reads completed');
+  const atlasReads = nativeListResponses.slice(topologyResponseStart).map(({ path, status, snapshot }) => ({ path, status, snapshot }));
+  assert.equal(atlasReads.length, 4, 'Four completed actual native topology list reads on Atlas entry');
+  const placesResponseStart = nativeListResponses.length;
   await until(async () => await evaluate(`(() => {
     const button = [...document.querySelectorAll('[aria-label="Atlas lens"] button')]
       .find(button => button.textContent?.trim() === 'Rooms & places' && button.getClientRects().length);
@@ -175,8 +179,9 @@ try {
     console.error(JSON.stringify({ topologyStatus: await evaluate("document.querySelector('.topology-scope [role=status]')?.textContent ?? null"), lists }));
     throw error;
   }
-  const topologyReads = nativeListResponses.slice(topologyResponseStart).map(({ path, status, snapshot }) => ({ path, status, snapshot }));
-  assert.equal(topologyReads.length, 4, 'Four completed actual native topology list reads');
+  const placesReads = nativeListResponses.slice(placesResponseStart).map(({ path, status, snapshot }) => ({ path, status, snapshot }));
+  assert.equal(placesReads.length, 4, 'Four completed actual native topology list reads for Rooms & places');
+  const topologyReads = [...atlasReads, ...placesReads];
   assert(topologyReads.every(read => read.status === 200 && /^[0-9a-f]{64}$/.test(read.snapshot ?? '')
     && read.snapshot === topologyReads[0].snapshot), 'Actual native topology reads carry one matched retained snapshot identity');
   await openAtlasTools();
