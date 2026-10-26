@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "69caf33b16891db8bbfe11fd96c29d3083617c25147afd071758e0c00e23826f",
+  "sourceDigestSha256": "0f362264f3ae56c5b6123fb175fe53027bbf5bc64d6e2d1243da2f346d74a8fe",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -7945,8 +7945,8 @@
     {
       "path": "frontend/lantern-tests/outbox-healthy.mjs",
       "mode": "100644",
-      "bytes": 24436,
-      "sha256": "ea5283a1d23d8c4ecfcb9528e840f7b0ec81aeeb1eaba6791190a575bb7e9a65",
+      "bytes": 24574,
+      "sha256": "13208c57cffc5472798d0a5d23fce37737a3499e7a660d121760a39ef185f7b3",
       "owner": "web"
     },
     {
@@ -9443,8 +9443,8 @@
     {
       "path": "frontend/src/lantern/components/SettingsDialog.tsx",
       "mode": "100644",
-      "bytes": 8761,
-      "sha256": "9902ef11b29a2069bb35c788c9161f00e48c569101aa220b5eb880c15210c875",
+      "bytes": 9152,
+      "sha256": "42fcf1ccde07c2d90979a51606fce3e33ba6fc76bacf4016f29f69ccc2a729ae",
       "owner": "web"
     },
     {

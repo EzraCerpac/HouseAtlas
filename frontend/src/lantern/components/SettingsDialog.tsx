@@ -108,6 +108,14 @@ function SunPlaceSettings() {
   const place = useSunPlace();
   const shown = (from: SunLocation) => ({ latitude: String(from.latitude), longitude: String(from.longitude) });
   const [draft, setDraft] = useState<Record<keyof SunLocation, string>>(() => shown(place));
+  // A place that changes from elsewhere (the model's location arriving, another tab)
+  // replaces the fields, unless they already say it, as they do mid-edit.
+  const at = `${place.latitude},${place.longitude}`;
+  const [seen, setSeen] = useState(at);
+  if (seen !== at) {
+    setSeen(at);
+    if (SUN_FIELDS.some(([key]) => Number(draft[key]) !== place[key])) setDraft(shown(place));
+  }
   const [locating, setLocating] = useState<'busy' | 'failed' | null>(null);
   const edit = (key: keyof SunLocation, text: string, limit: number) => {
     setDraft(value => ({ ...value, [key]: text }));
