@@ -62,7 +62,7 @@ export function AtlasView() {
   const atlasSelection = useSyncExternalStore(models?.atlas?.subscribe ?? noOverviewSubscription,
     models?.atlas?.current ?? noOverview, noOverview);
   const [source, setSource] = useState<'home' | 'model' | 'site' | null>(null);
-  const [other, setOther] = useState<'model' | 'site' | 'home' | null>(null);
+  const [other, setOther] = useState<'model' | 'site' | null>(null);
   const lens = state.atlasLens;
   const setLens = useCallback((next: AtlasLens | null) => dispatch({ type: 'atlasLens', lens: next }), [dispatch]);
   const releaseReading = useCallback((claim: AtlasLens) => dispatch({ type: 'atlasReadingRelease', claim }), [dispatch]);
@@ -73,22 +73,21 @@ export function AtlasView() {
   const homeKind: MapKind = house.geometry === 'none' && !nativeGeometry ? 'document' : 'map';
   // Another source takes the Atlas's place; the lens belongs to the Atlas, so
   // it is set aside, and Back to Atlas returns to the map.
-  const openOther = (id: 'model' | 'site' | 'home') => { setLens(null); setOther(id); };
+  const openOther = (id: 'model' | 'site') => { setLens(null); setOther(id); };
   // A route to a lens (Rooms & places or Network from elsewhere) returns to the Atlas.
   useEffect(() => { if (lens) setOther(null); }, [lens]);
   const workspace = (kind: MapKind, map: ReactNode, native = false, sources?: ReactNode) => <AtlasWorkspace kind={kind} lens={lens} setLens={setLens}
     releaseReading={releaseReading} panelId={panelId} nativeTarget={setNativeTarget} native={native} selection={state.selection?.id ?? null} sources={sources}>{map}</AtlasWorkspace>;
   if (!models) return workspace(homeKind, <HomeAtlas />);
   // With the opt-in scene port and a selected publication, the unified Atlas is
-  // the Atlas; the other sources stay reachable through their own owners.
+  // the Atlas. The older home map and the plain model viewer would only show
+  // the same house again, so they are not offered beside it; the model viewer
+  // stays reachable from the Atlas's failure state.
   if (models.atlas && atlasSelection) {
     const atlas = models.atlas;
-    const others = [
-      { id: 'model' as const, label: selectedOverview ? 'Model overview' : 'Model file' },
-      ...(models.site ? [{ id: 'site' as const, label: 'Site' }] : []),
-      { id: 'home' as const, label: 'Home map' },
-    ];
-    const open = others.find(row => row.id === other) ?? null;
+    const others = models.site ? [{ id: 'site' as const, label: 'Site' }] : [];
+    const open = other === 'model' ? { id: 'model' as const, label: selectedOverview ? 'Model overview' : 'Model file' }
+      : others.find(row => row.id === other) ?? null;
     // Other sources stay in the row above the stage.
     if (!open) return workspace('map', <OptionalViewerBoundary key="atlas" label="The Atlas">
       <Suspense fallback={<p className="source-model-pane" role="status">Loading Atlas…</p>}>
@@ -96,7 +95,7 @@ export function AtlasView() {
           otherSources={others.map(row => ({ id: row.id, label: row.label, open: () => openOther(row.id) }))}
           lens={{ value: lens, set: setLens, target: nativeTarget, panelId }} />
       </Suspense>
-    </OptionalViewerBoundary>, true, <details className="atlas-source-details" onBlur={event => {
+    </OptionalViewerBoundary>, true, others.length > 0 && <details className="atlas-source-details" onBlur={event => {
       if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
     }} onKeyDown={event => {
       if (event.key !== 'Escape') return;
@@ -117,12 +116,10 @@ export function AtlasView() {
         ? <OptionalViewerBoundary key="model" label="The model viewer">
           <Suspense fallback={<p className="source-model-pane" role="status">Loading model viewer…</p>}><SourceModelView port={models} /></Suspense>
         </OptionalViewerBoundary>
-        : open.id === 'site' && models.site
-        ? <OptionalViewerBoundary key="site" label="The site viewer">
+        : models.site && <OptionalViewerBoundary key="site" label="The site viewer">
           <Suspense fallback={<p className="source-model-pane" role="status">Loading site viewer…</p>}>
             <div className="source-model-pane"><SiteArtifactView port={models.site} /></div></Suspense>
-        </OptionalViewerBoundary>
-        : <HomeAtlas />}
+        </OptionalViewerBoundary>}
     </>;
   }
   const preferred = source ?? (selectedOverview ? 'model' : 'home');
