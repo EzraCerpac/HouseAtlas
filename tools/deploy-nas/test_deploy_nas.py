@@ -472,5 +472,151 @@ class SwapAndRollback(unittest.TestCase):
         self.assertEqual(svc.calls[-1], "bootstrap")
 
 
+class Prune(unittest.TestCase):
+    """The keep set: what the live build, `rollback` and the service still use survives a prune."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        t = self.root = Path(os.path.realpath(self.tmp.name))
+        self.setup = t / "setup"
+        self.fe = self.setup / "houseatlas-main-0000000-20260101-v1/candidate"
+        self.cfg = dn.Config(setup_root=self.setup, plist=t / "service.plist", label="example.houseatlas",
+                             gateway_url="https://gateway.invalid", smoke_template=t / "smoke.json")
+        self.ids = [f"houseatlas-main-{c * 7}-20260101-v1" for c in "abcdef"]  # f is live, e the one before
+        for name in ["houseatlas-main-0000000-20260101-v1", *self.ids]:
+            write(self.setup / name / "candidate/houseatlas", "bin")
+            for f in ("target/release/houseatlas", "npm-cache/_cacache/x", "src/README.md", "smoke/smoke.out",
+                      "backend-build.log"):
+                write(self.setup / f"{name}-inputs" / f, "x" * 5000)
+        write(self.fe / "frontend/index.html", "live")
+        for name in [*self.ids, "houseatlas-main-manual"]:
+            write(self.fe / f"frontend.before-{name}/index.html", "parked")
+        write(self.fe / "frontend.next-old/index.html", "staged")
+        write(self.fe / "frontend.rolled-back-x-20260101T000000Z/index.html", "newer")
+        write(self.fe / "frontend.next-pinned/index.html", "smoke")
+        write(self.root / "server.json", json.dumps({"frontendDirectory": str(self.fe / "frontend"),
+                                                     "dataDirectory": str(t / "data")}))
+        write(self.cfg.smoke_template, json.dumps({
+            "homes": [{"workspaceId": "w", "homeId": "h"}], "dataDirectory": "/nonexistent/data",
+            "frontendDirectory": str(self.fe / "frontend.next-pinned"),
+            "logDirectory": str(self.setup / f"{self.ids[0]}-inputs/smoke/data/logs")}))
+        live = self.setup / self.ids[-1] / "candidate/houseatlas"
+        service = dn.with_binary(dict(SERVICE, WorkingDirectory=str(t)), live)
+        service["ProgramArguments"] = [a if a != "/srv/server-config.json" else str(t / "server.json")
+                                       for a in service["ProgramArguments"]] + [
+            "--extra-cache", str(self.setup / f"{self.ids[1]}-inputs/npm-cache")]
+        self.cfg.plist.write_bytes(plistlib.dumps(service))
+        for prev, name in zip(["houseatlas-main-0000000-20260101-v1", *self.ids], self.ids):
+            dn.save_record(self.cfg.ledger, dict(
+                id=name, kind="code", status="verified", binary=str(self.setup / name / "candidate/houseatlas"),
+                previous_binary=str(self.setup / prev / "candidate/houseatlas"), frontend=str(self.fe / "frontend"),
+                parked_frontend=str(self.fe / f"frontend.before-{name}"),
+                staged_frontend=str(self.fe / f"frontend.next-{name}")))
+        self.dep = dn.Deployer(self.cfg, dn.Runner(self.cfg), out=io.StringIO())
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def inputs(self, i, rest):
+        return self.setup / f"{self.ids[i]}-inputs" / rest
+
+    def test_keeps_live_and_rollback_caches_and_newest_parked_frontends(self):
+        report = self.dep.prune()
+        for i in (-1, -2):  # live, and the build `rollback` returns to
+            self.assertTrue(self.inputs(i, "target/release/houseatlas").exists())
+            self.assertTrue(self.inputs(i, "npm-cache").exists())
+        for i in (0, 2, 3):
+            self.assertFalse(self.inputs(i, "target").exists())
+            self.assertFalse(self.inputs(i, "npm-cache").exists())
+        self.assertFalse((self.setup / "houseatlas-main-0000000-20260101-v1-inputs/target").exists())
+        for i in range(len(self.ids)):  # sources, logs, smoke results and every release folder stay
+            for rest in ("src/README.md", "smoke/smoke.out", "backend-build.log"):
+                self.assertTrue(self.inputs(i, rest).exists())
+            self.assertTrue((self.setup / self.ids[i] / "candidate/houseatlas").exists())
+        parked = sorted(p.name for p in self.fe.glob("frontend.before-*"))
+        self.assertEqual(parked, [f"frontend.before-{n}" for n in self.ids[-3:]])
+        self.assertFalse((self.fe / "frontend.next-old").exists())
+        self.assertFalse((self.fe / "frontend.rolled-back-x-20260101T000000Z").exists())
+        self.assertTrue((self.fe / "frontend/index.html").exists())
+        self.assertGreater(report["allocatedBytes"], 0)
+        self.assertIn("freedBytes", report)
+        self.assertEqual(report["errors"], [])
+
+    def test_rolled_back_records_do_not_shorten_the_rollback_window(self):
+        # Deploy a-f, roll back f, deploy g: rollback walks g, e, d, so those parked frontends stay.
+        records = dn.ledger_records(self.cfg.ledger)
+        dn.save_record(self.cfg.ledger, dict(records[-1], status="rolled-back"))
+        g = "houseatlas-main-ggggggg-20260101-v1"
+        write(self.fe / f"frontend.before-{g}/index.html", "parked")
+        dn.save_record(self.cfg.ledger, dict(records[-1], id=g, previous_binary=records[-2]["binary"],
+                                             parked_frontend=str(self.fe / f"frontend.before-{g}")))
+        self.dep.prune()
+        parked = sorted(p.name for p in self.fe.glob("frontend.before-*"))
+        self.assertEqual(parked, sorted(f"frontend.before-{n}" for n in (self.ids[3], self.ids[4], g)))
+
+    def test_never_touches_what_the_plist_or_smoke_template_names(self):
+        report = self.dep.prune()
+        self.assertTrue(self.inputs(1, "npm-cache/_cacache/x").exists())  # named by the plist
+        self.assertFalse(self.inputs(1, "target").exists())
+        self.assertTrue((self.fe / "frontend.next-pinned/index.html").exists())  # named by the smoke template
+        self.assertTrue(self.inputs(0, "smoke/smoke.out").exists())
+        self.assertFalse(self.inputs(0, "target").exists())  # the template names only its smoke folder
+        self.assertEqual(sorted(Path(p["path"]).name for p in report["pinned"]), ["frontend.next-pinned", "npm-cache"])
+
+    def test_dry_run_lists_without_removing(self):
+        before = sorted(str(p) for p in self.setup.rglob("*"))
+        dry = self.dep.prune(dry_run=True)
+        self.assertEqual(sorted(str(p) for p in self.setup.rglob("*")), before)
+        self.assertNotIn("freedBytes", dry)
+        self.assertEqual([r["path"] for r in dry["removed"]], [r["path"] for r in self.dep.prune()["removed"]])
+
+    def test_unfinished_records_and_the_rollback_target_keep_their_frontends(self):
+        write(self.fe / "frontend.restored-x/index.html", "restoring")
+        write(self.fe / "frontend.next-prepared/index.html", "inspecting")
+        dn.save_record(self.cfg.ledger, dict(id="older", kind="code", status="rolling-back",
+                                             restored_frontend=str(self.fe / "frontend.restored-x")))
+        dn.save_record(self.cfg.ledger, dict(id="prep", kind="code", status="prepared",
+                                             staged_frontend=str(self.fe / "frontend.next-prepared")))
+        records = dn.ledger_records(self.cfg.ledger)
+        old_parked = [self.fe / f"frontend.before-{self.ids[0]}"]
+        remove, pinned = dn.prune_plan(self.setup, self.fe, records, [], old_parked, set())
+        self.assertNotIn(self.fe / "frontend.restored-x", remove)
+        self.assertNotIn(self.fe / "frontend.next-prepared", remove)
+        self.assertNotIn(old_parked[0], remove)
+        self.assertIn(self.fe / f"frontend.before-{self.ids[1]}", remove)
+        self.assertIn(self.fe / "frontend.before-houseatlas-main-manual", remove)  # predates the ledger
+
+    def test_does_not_follow_symlinks_out_of_the_prune_area(self):
+        outside = self.root / "elsewhere"
+        write(outside / "target/keep", "x")
+        write(outside / "npm-cache/keep", "x")
+        os.symlink(outside, self.setup / "houseatlas-main-1111111-20260101-v1-inputs")
+        self.dep.prune()
+        self.assertTrue((outside / "target/keep").exists())
+        self.assertTrue((outside / "npm-cache/keep").exists())
+
+    def test_a_folder_containing_the_whole_prune_area_pins_nothing(self):
+        named = {self.root, self.setup}
+        remove, pinned = dn.prune_plan(self.setup, self.fe, [], [], [], named)
+        self.assertEqual(pinned, [])
+        self.assertIn(self.inputs(0, "target"), remove)
+
+    def test_a_failed_prune_still_leaves_the_deploy_verified(self):
+        record = dict(dn.ledger_records(self.cfg.ledger)[-1])
+        self.cfg.smoke_template.write_text("not json")
+        self.dep.prune_into(record)
+        saved = dn.ledger_records(self.cfg.ledger)[-1]
+        self.assertEqual(saved["status"], "verified")
+        self.assertTrue(saved["prune"]["errors"])
+        self.assertTrue(self.inputs(0, "target").exists())
+
+    def test_the_deploy_record_logs_what_was_removed(self):
+        record = dict(dn.ledger_records(self.cfg.ledger)[-1])
+        self.dep.prune_into(record)
+        saved = dn.ledger_records(self.cfg.ledger)[-1]["prune"]
+        self.assertIn(str(self.inputs(0, "target")), [r["path"] for r in saved["removed"]])
+        self.assertGreaterEqual(saved["freedBytes"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()
