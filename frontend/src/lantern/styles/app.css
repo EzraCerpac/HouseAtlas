@@ -256,11 +256,9 @@
 
 .lantern-host .atlas-map > .stage-shell,
 .lantern-host .atlas-map > .atlas-section,
-.lantern-host .atlas-map > .native-scan-atlas,
 .lantern-host .atlas-map > .source-model-pane,
 .lantern-host.view-atlas .main > .stage-shell,
-.lantern-host.view-atlas .main > .atlas-section,
-.lantern-host.view-atlas .main > .native-scan-atlas {
+.lantern-host.view-atlas .main > .atlas-section {
   flex: 1;
   min-height: 0;
 }
@@ -270,10 +268,9 @@
 /* Beside a lens or as an inset the frame decides the map's height. */
 .lantern-host .atlas-workspace.has-lens .atlas-map > .stage-shell { min-height: 0; }
 
-/* A building section and the scan atlas are documents like the list views:
+/* A building section is a document like the list views:
    the frame scrolls. */
-.lantern-host .atlas-map:has(> .atlas-section),
-.lantern-host .atlas-map:has(> .native-scan-atlas) {
+.lantern-host .atlas-map:has(> .atlas-section) {
   display: block;
   overflow: auto;
 }

@@ -1,5 +1,9 @@
 # Documentary electricity overlay
 
+> **Retired UI.** The panel, scene layer and diagram components described below
+> were removed with the old scan Atlas (#414). The documentary model, adapter and
+> types remain and feed the unified Atlas; the rest is kept as design history.
+
 `frontend/src/lantern/overlays/electricity` exports `ElectricityOverlayPanel`,
 its immutable domain types, and `adaptDocumentaryElectricity`. The geometry
 owner mounts it alongside the source mesh viewer through the shared overlay
@@ -213,15 +217,3 @@ wiring and native circuit bindings remain separate facts. The host must clear
 fixture, region, group and preview state with a changed scope/view, and connect
 fixture selection to the exact source region and source-opening action.
 
-The separately scoped positive fixture example is:
-
-```sh
-node frontend/lantern-tests/electricity-fixture-read.mjs
-```
-
-Inspect its body first. It uses three generic source symbols, pure projection
-and real React static SVG/source-diagram markup. It checks one-X quantities,
-unknown light quantity, per-fixture selection markup, historic group metadata,
-untraced outlines and explicit proposed-preview styling. It has no listener,
-household data, account, native mutation or adversarial case. Mounted source
-access, pointer overlap, PDF focus and mobile layout require actual browser QA.

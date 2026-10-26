@@ -6,8 +6,9 @@ The immutable source archive is `HouseAtlas-Lantern-B-Source.zip`, SHA256
 projection check verifies every archived file against those hashes.
 
 All 39 authored `src/` files were adopted under `frontend/src/lantern/`.
-The original layout, materials, icons, model renderer, camera, room index,
-search, detail sheet, library, upkeep and responsive shell are reused. CSS
+The original layout, materials, icons, room index, search, detail sheet,
+library, upkeep and responsive shell are reused. The original SVG model renderer
+and its camera were later retired; the unified Atlas draws the house model. CSS
 selectors are scoped to the Lantern host; local font files replace package
 font imports. Type annotations/index guards satisfy the existing strict compiler.
 The archive includes the original package/configuration files unchanged; the

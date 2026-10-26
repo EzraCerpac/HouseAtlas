@@ -3,8 +3,7 @@
  * commands stay with their documented lanes in docs/contributing/verification.md.
  * Browser checks run only when HOUSEATLAS_CHROMIUM is set; checks that read the
  * production build need `npm --prefix frontend run build` first. Not listed:
- * session-bootstrap (external jsdom path) and scene-controls-keyboard-browser
- * (pinned Chrome build). Session-expiry regressions and capture-draft
+ * session-bootstrap (external jsdom path). Session-expiry regressions and capture-draft
  * controller controls and the native-place-levels-intake concurrency case stay
  * in their held lanes per AGENTS.md.
  *
@@ -21,17 +20,15 @@ const SOURCE = [
   node('healthy-read.mjs'),
   node('canonical-ifc-viewer.test.mjs', '--healthy'),
   node('canonical-mesh-preparation.test.mjs'),
-  node('electricity-fixture-read.mjs'), node('electricity-overlay-read.mjs'),
+  node('electricity-overlay-read.mjs'),
   node('embedded-material-react.mjs'), node('exact-numeric-read.mjs'),
   node('ifc-glb-read.mjs'), node('load-numeric-source.mjs'),
-  node('model-overview-read-healthy.mjs'),
   node('model-review-logic.test.mjs'), node('native-geometry-read.mjs'),
   node('native-geometry-retention.mjs'), node('native-geometry-persistence.mjs'), node('native-geometry-write.mjs'), node('native-place-search-healthy.mjs'),
   node('native-place-write.mjs'), node('native-scan-succession.mjs'),
   node('network-overlay-read.mjs'), node('pdf-fixture-resources.mjs'),
   node('pinned-capture-read.mjs'), node('scan-mesh-read.mjs'),
-  node('scan-mesh-view-visual.mjs'), node('scan-plan-orientation.mjs'),
-  node('scene-controls-keyboard.test.mjs'), node('source-documents-reader.test.mjs'),
+  node('source-documents-reader.test.mjs'),
   node('source-time-display.mjs'),
   node('topology-read.mjs'),
   node('webmcp-batch-discovery.mjs'), node('webmcp-adapter-healthy.mjs'),
