@@ -73,10 +73,9 @@ export async function verifySavedShell(): Promise<SavedShellStatus> {
   const value = await status(worker, 'saved-shell-status');
   if (!value.ready || value.buildId !== expectedBuild) return { ready: false, buildId: null };
   // Root entry needs no private capture. Root availability is not part of the
-  // Saved receipt/status. Retain other build caches: a concurrent worker can
-  // finish installing after a registration check, and its verification marker
-  // does not establish that its bytes are obsolete. Cleanup stays explicit and
-  // qualified by the displayed build in removeSavedShell.
+  // Saved receipt/status. The page never prunes: a concurrent worker can finish
+  // installing after a registration check. Each worker's activation keeps the
+  // builds both scopes run plus the previous one (offline-worker-source.js).
   try { await prepareRootEntry(expectedBuild); }
   catch { /* Saved closure remains independently verified. */ }
   return { ready: true, buildId: value.buildId };

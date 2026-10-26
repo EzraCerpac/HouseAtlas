@@ -115,16 +115,18 @@ export const MeshPass = Object.freeze({ None: 0, Reference: 1, Unbound: 2, Bound
 export type MeshPass = typeof MeshPass[keyof typeof MeshPass];
 
 /** Texels (RGBA float) per mesh in the state table read by the shaders. */
-export const STATE_TEXELS = 8;
+export const STATE_TEXELS = 9;
 /** Floats per mesh in the state table. Layout, by texel:
  * 0 top.rgb, usePitch · 1 base.rgb, useSourceColor · 2 cut.rgb, useClip · 3 pitch.rgb, clipY
  * 4 shade.rgb, lift · 5 pass, ghost, ghostUseFloor, ghostFloorY · 6 useMaterial, materialDim, room, glassOpacity
- * 7 shelter, keepTone, glassFrost, emitter */
+ * 7 shelter, keepTone, glassFrost, emitter · 8 lampColor.rgb, unused */
 export const STATE_FLOATS = STATE_TEXELS * 4;
 
 /** Emitters that light their surroundings in one frame, and how close two must be to count as one. */
 export const MAX_LAMPS = 16;
 const LAMP_MERGE = .75;
+/** The colour of a lamp whose material states none, linear: a warm bulb. */
+export const LAMP_COLOR: Rgb = [1, .72, .42];
 /** Glass: how much of what lies behind a pane it covers when its material states no
  * alpha below 1, and the most any pane covers, so the room behind always shows. */
 const GLASS_OPACITY = .1, GLASS_OPACITY_MAX = .85;
@@ -133,7 +135,7 @@ const GLASS_OPACITY = .1, GLASS_OPACITY_MAX = .85;
 export const GLASS_CLEAR = .5, GLASS_FROSTED = .9;
 /** Beams merge only when their directions are this close (a cosine). */
 const AIM_MERGE = .8;
-export interface Lamp { readonly at: Rgb; readonly aim: Rgb | null }
+export interface Lamp { readonly at: Rgb; readonly aim: Rgb | null; readonly color: Rgb }
 
 /** Uniform values shared by every mesh in a frame. */
 export interface FrameAppearance {
@@ -152,7 +154,7 @@ export interface FrameAppearance {
   readonly sunTint: Rgb;
   readonly lampTint: Rgb;
   /** Up to MAX_LAMPS shown emitters, merged when close and aimed alike, as lifted
-   * points that light their surroundings, or a cone along `aim`. */
+   * points that light their surroundings, or a cone along `aim`, in their colour. */
   readonly lamps: readonly Lamp[];
   /** Whether any mesh is a room volume, so indoors also needs a room's footprint. */
   readonly rooms: boolean;
@@ -173,7 +175,7 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
   const SOURCE_DIM = clamp01(p.sourceDim ?? 1);
   const DAY = p.twoSided && p.daylight ? p.daylight : null;
   const passes = new Set<MeshPass>(); let ghosts = false, rooms = false;
-  type Gathered = { at: Rgb; aim: Rgb | null; count: number };
+  type Gathered = { at: Rgb; aim: Rgb | null; color: Rgb; count: number };
   const lamps: Gathered[] = [];
   // Gathered lamps by the LAMP_MERGE cell of their centre, so the cells next to an
   // emitter's hold every lamp in reach.
@@ -224,7 +226,7 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     }
     const ghost = p.ghosts?.has(key) === true && floor, above = ghost ? p.ghosts!.get(key) ?? null : null;
     if (ghost) ghosts = true;
-    const put = (texel: number, color: Rgb, w: number) => {
+    const put = (texel: number, color: Readonly<Rgb>, w: number) => {
       const at = o + texel * 4; out[at] = color[0]; out[at + 1] = color[1]; out[at + 2] = color[2]; out[at + 3] = w;
     };
     put(0, top, pitch ? 1 : 0); put(1, base, source ? 1 : 0); put(2, cut, clip === null ? 0 : 1); put(3, pitch ?? base, clip ?? 0);
@@ -239,6 +241,7 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     out[o + 28] = DAY && p.shelterKeys?.has(key) ? 1 : 0; out[o + 29] = DAY && keep ? 1 : 0;
     const emitter = DAY !== null && p.emitterKeys?.has(key) === true;
     out[o + 30] = frost; out[o + 31] = emitter ? 1 : 0;
+    const color: Readonly<Rgb> = mesh.sourceGlow ?? LAMP_COLOR; put(8, emitter ? color : [0, 0, 0], 0);
     // A lamp cut away whole by the section stays dark, so it never takes a visible lamp's place.
     if (LIT && emitter && pass !== MeshPass.None && (clip === null || mesh.bounds.min[1] <= clip)) {
       const { min, max } = mesh.bounds, lift = p.lifts?.get(key) ?? 0;
@@ -256,9 +259,10 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
           const sum = near.aim.map((value, axis) => value * near.count + aim[axis]!), length = Math.hypot(...sum);
           near.aim = sum.map(value => value / length) as unknown as Rgb;
         }
+        near.color = near.color.map((value, channel) => (value * near.count + color[channel]!) / (near.count + 1)) as unknown as Rgb;
         near.count++;
       }
-      const lamp = near ?? { at, aim: aim && [...aim] as Rgb, count: 1 }, now = home(lamp.at);
+      const lamp = near ?? { at, aim: aim && [...aim] as Rgb, color: [...color] as Rgb, count: 1 }, now = home(lamp.at);
       if (!near) lamps.push(lamp);
       const held = cells.get(now); if (held) held.push(lamp); else cells.set(now, [lamp]);
     }
@@ -271,7 +275,7 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     ghostAlpha: quiet ? clamp01(p.ghostAlpha!) : GHOST_ALPHA, ghostColor: GHOST, ghostShade: quiet ? mix(SHADE, GHOST, .8) : SHADE,
     direct: DAY ? clamp01(DAY.direct) : 1, night: DAY?.night === true, lamp: DAY ? clamp01(DAY.lamp) : 0,
     tint: DAY ? [...DAY.tint] as Rgb : [1, 1, 1], sunTint: DAY ? [...DAY.sunTint] as Rgb : [1, 1, 1], lampTint: DAY ? [...DAY.lampTint] as Rgb : [1, 1, 1],
-    lamps: lamps.sort((a, b) => b.count - a.count).slice(0, MAX_LAMPS).map(({ at, aim }) => ({ at, aim })),
+    lamps: lamps.sort((a, b) => b.count - a.count).slice(0, MAX_LAMPS).map(({ at, aim, color }) => ({ at, aim, color })),
     rooms, passes, ghosts,
   };
 }

@@ -1,6 +1,6 @@
 import { LoadingManager, Matrix3, Matrix4, Vector3, type Material, type Mesh, type Object3D, type Texture } from 'three';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { prepareMeshes, primitiveBaseColor, primitiveNight, primitiveRoughness, type MeshInput, type PreparedMesh } from './geometry';
+import { prepareMeshes, primitiveBaseColor, primitiveGlow, primitiveNight, primitiveRoughness, type MeshInput, type PreparedMesh } from './geometry';
 import { GlbFormatError, preflightGltf, readGlbContainer, STANDARD_GLB_LIMITS, type GlbAdmission, type GlbContainer, type GlbLimits } from './glb-preflight';
 import type { EmbeddedMaterial } from './embedded-png-material';
 
@@ -192,8 +192,9 @@ function extract(gltf: GLTF, admission: GlbAdmission, keyPrefix: string, json: G
       const sourceNight = primitiveNight(json, reference?.meshes ?? null, reference?.primitives ?? null);
       // Only a stated factor frosts glass; an admitted material's roughness already holds the default 1.
       const sourceRoughness = sourceNight === 'glazing' ? primitiveRoughness(json, reference?.meshes ?? null, reference?.primitives ?? null) : undefined;
+      const sourceGlow = sourceNight === 'emitter' ? primitiveGlow(json, reference?.meshes ?? null, reference?.primitives ?? null) : undefined;
       inputs.push({ meshKey, floorId: null, occurrenceId: null, positions, indices, ...(sourceBaseColor ? { sourceBaseColor } : {}),
-        ...(sourceNight ? { sourceNight } : {}), ...(sourceRoughness !== undefined ? { sourceRoughness } : {}),
+        ...(sourceNight ? { sourceNight } : {}), ...(sourceGlow ? { sourceGlow } : {}), ...(sourceRoughness !== undefined ? { sourceRoughness } : {}),
         ...(sourceMaterial && sourceAttributes ? { sourceMaterial, sourceAttributes } : {}) });
       drawn.push({ meshKey, nodeIndex, meshIndex: reference?.meshes ?? null, primitiveIndex: reference?.primitives ?? null });
     } catch (error) { failure = error instanceof GlbFormatError ? error : new GlbFormatError('load', 'A drawn primitive could not be read'); }

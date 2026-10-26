@@ -15,7 +15,7 @@ import type { PreparedMesh, Projection } from './geometry';
 import type { EmbeddedTexture } from './embedded-png-material';
 import { GLASS_CLEAR, GLASS_FROSTED, MAX_LAMPS, MeshPass, STATE_FLOATS, STATE_TEXELS, writeAppearance, type AppearanceInput } from './mesh-appearance';
 
-/** Meshes per state-table row: one row is exactly 128 × 8 RGBA texels. */
+/** Meshes per state-table row: one row is exactly 128 × STATE_TEXELS RGBA texels. */
 const ROW = 128;
 type F = Node<'float'>; type V3 = Node<'vec3'>; type V4 = Node<'vec4'>; type B = Node<'bool'>;
 
@@ -56,10 +56,10 @@ const ROOM_FAR = .999;
 const KEEP_TONE = .75;
 /** How quickly a face turned to the sun takes the sun's colour instead of the sky's. */
 const SUN_TINT_GAIN = 2.5;
-/** After dusk: the warm tone of a lamp's own glass, and the light a lamp throws, at
- * full strength up to POOL_RADIUS metres away and gone by POOL_REACH. */
-const EMITTER_GLOW = [1, .93, .74] as const;
-const POOL_TINT = [1, .72, .42] as const, POOL_RADIUS = 1.2, POOL_REACH = 4;
+/** After dusk: a lamp's own glass glows in its colour taken this far toward white, as a
+ * lit shade looks paler than the light it throws; that light is at full strength up to
+ * POOL_RADIUS metres away and gone by POOL_REACH. */
+const GLOW_WHITEN = .6, POOL_RADIUS = 1.2, POOL_REACH = 4;
 /** An aimed lamp's beam instead: full inside BEAM_CORE (a cosine, about 20°) of its
  * aim, gone past BEAM_EDGE (about 42°), and carried further. */
 const BEAM_CORE = .94, BEAM_EDGE = .74, BEAM_RADIUS = 3, BEAM_REACH = 10;
@@ -143,6 +143,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       tint: uniform(new Vector3(1, 1, 1)), sunTint: uniform(new Vector3(1, 1, 1)), lampTint: uniform(new Vector3(1, 1, 1)),
       lamps: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
       lampAims: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
+      lampColors: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
     };
     const toUnitDepth = renderer.coordinateSystem === WebGPUCoordinateSystem;
     const meshId = attribute('meshIndex', 'float');
@@ -216,27 +217,27 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       return clamp(c.mul(mix(light, vec3(1), s7.y.mul(KEEP_TONE))), 0, 1);
     };
 
-    /** After dusk, the light the lamps throw on a face: by distance, a little more where
-     * it faces them, and for an aimed lamp only inside its beam. Unlit lamp slots have no
+    /** After dusk, the light the lamps throw on a face, each in its colour: by distance, a
+     * little more where it faces them, and for an aimed lamp only inside its beam. Unlit lamp slots have no
      * strength; the loop is a plain fixed one, since an If around it or a uniform bound
      * drops every tone in the WebGL2 backend. */
-    const pool = (n: V3): F => {
-      const sum = float(0).toVar('pool');
+    const pool = (n: V3): V3 => {
+      const sum = vec3(0).toVar('pool');
       Loop(MAX_LAMPS, ({ i }) => {
-        const lamp = u.lamps.element(i) as unknown as V4, aim = u.lampAims.element(i) as unknown as V4;
+        const lamp = u.lamps.element(i) as unknown as V4, aim = u.lampAims.element(i) as unknown as V4, color = u.lampColors.element(i) as unknown as V4;
         const toward = lamp.xyz.sub(lifted), distance = length(toward), unit = toward.div(max(distance, .001));
         const radius = mix(float(POOL_RADIUS), float(BEAM_RADIUS), aim.w), reach = mix(float(POOL_REACH), float(BEAM_REACH), aim.w);
         const beam = mix(float(1), smoothstep(BEAM_EDGE, BEAM_CORE, dot(unit.negate(), aim.xyz)), aim.w);
         const fall = lamp.w.div(distance.mul(distance).div(radius.mul(radius)).add(1)).mul(float(1).sub(smoothstep(reach.div(2), reach, distance)));
-        sum.addAssign(fall.mul(beam).mul(max(dot(n, unit), 0).mul(.7).add(.3)));
+        sum.addAssign(color.xyz.mul(fall.mul(beam).mul(max(dot(n, unit), 0).mul(.7).add(.3))));
       });
       return sum;
     };
-    /** The night additions to a graded tone: thrown lamp light and glowing lamps.
-     * A kept tone (selection, highlight) is never replaced by glow. */
+    /** The night additions to a graded tone: thrown lamp light and glowing lamps, whose
+     * colour is texel 8. A kept tone (selection, highlight) is never replaced by glow. */
     const lamplit = (graded: V3, tone: V3, n: V3, s7: V4): V3 => {
-      const thrown = graded.add(tone.mul(vec3(...POOL_TINT)).mul(pool(n)).mul(u.lamp)), glow = u.lamp.mul(float(1).sub(s7.y));
-      return clamp(mix(thrown, vec3(...EMITTER_GLOW), glow.mul(s7.w)), 0, 1);
+      const thrown = graded.add(tone.mul(pool(n)).mul(u.lamp)), glow = u.lamp.mul(float(1).sub(s7.y));
+      return clamp(mix(thrown, mix(read(vId, 8).xyz, vec3(1), GLOW_WHITEN), glow.mul(s7.w)), 0, 1);
     };
 
     /** Architectural face tones: flat tops, pitched faces and lit walls. */
@@ -608,6 +609,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
             point.set(lamp?.at[0] ?? 0, lamp?.at[1] ?? 0, lamp?.at[2] ?? 0, lamp ? frame.lamp : 0); });
           (u.lampAims.array as Vector4[]).forEach((aim, at) => { const toward = frame.lamps[at]?.aim;
             aim.set(toward?.[0] ?? 0, toward?.[1] ?? 0, toward?.[2] ?? 0, toward ? 1 : 0); });
+          (u.lampColors.array as Vector4[]).forEach((color, at) => color.set(...frame.lamps[at]?.color ?? [0, 0, 0], 0));
           for (const { geometry, index, y } of glassBounds) geometry.boundingSphere!.center.y = y + table[index * STATE_FLOATS + 19]!;
           for (const { pass, mesh } of layers) mesh.visible = pass === 'ghost' ? frame.ghosts : frame.passes.has(pass);
           sunStale = true;
