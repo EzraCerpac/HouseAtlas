@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "1ed3f5fcd5bd0ede165ceff3ab7a3791bd5e586893f6814cfc5cf29cce3304f0",
+  "sourceDigestSha256": "e397dc5985bed0dfe66afa93884455bd99a22f5a0bed2a84750775b1001d4e98",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -8589,15 +8589,15 @@
     {
       "path": "frontend/src/ai/host/AiHost.tsx",
       "mode": "100644",
-      "bytes": 5758,
-      "sha256": "7f963c809c680b53a6ed345674759aa57ce998a36999c10dd9fdfd8b02acb410",
+      "bytes": 5817,
+      "sha256": "6b7a5cad12e44dc41f4347671551fdbdeec93b68f4712b1edfd70d606df2deeb",
       "owner": "ai"
     },
     {
       "path": "frontend/src/ai/host/README.md",
       "mode": "100644",
-      "bytes": 16101,
-      "sha256": "d98cd08d844151a723f16e80829d41aa375e2878eb8359cbbd8f01f270382e12",
+      "bytes": 16274,
+      "sha256": "82a8496c50bd9635f19e071b6c43e29cdcba374a3ca733924282c7b0259faeee",
       "owner": "ai"
     },
     {
@@ -8659,8 +8659,8 @@
     {
       "path": "frontend/src/ai/host/index.ts",
       "mode": "100644",
-      "bytes": 469,
-      "sha256": "2795067a15d39a4c9deb06343922b3aa6592d44f3004880e70d63516a8413873",
+      "bytes": 489,
+      "sha256": "f33ad3a2f6e3b458610f4ade95827e785fa3ddbd89dcd56fea3eabaa1f3aa9bf",
       "owner": "ai"
     },
     {
@@ -9030,8 +9030,8 @@
     {
       "path": "frontend/src/lantern/App.tsx",
       "mode": "100644",
-      "bytes": 15161,
-      "sha256": "c75a38749c72c5f19c47b25644abe56af9c5312734e17a1373aa0ff7e137114f",
+      "bytes": 15345,
+      "sha256": "4da1c09bb5903c6c8649c22856b92d1a0b6fa5d5cb674ecc85cd5373eb52e17d",
       "owner": "web"
     },
     {
@@ -9443,8 +9443,8 @@
     {
       "path": "frontend/src/lantern/components/SettingsDialog.tsx",
       "mode": "100644",
-      "bytes": 8351,
-      "sha256": "991384e799d4f86f785bcffff41b491d7be377634c6942d75f11fa6659574f42",
+      "bytes": 8432,
+      "sha256": "a4d77a9ad8742a4ebd9b9fe341ec1c07f97fee189eacc46d6917160fa1901b40",
       "owner": "web"
     },
     {
@@ -12859,8 +12859,8 @@
     {
       "path": "tools/rust-integration/healthy-agent-host-loopback.mjs",
       "mode": "100644",
-      "bytes": 32301,
-      "sha256": "eea1a08052257c0169b4709cbd2b1f964d189f39d34eb48123876c7b9d8e01dd",
+      "bytes": 32279,
+      "sha256": "de1f2d8350ca2be603eed546f1bfc2e7f7e71a2be08a9b81c5658977f0c19f5e",
       "owner": "core-integration"
     },
     {
