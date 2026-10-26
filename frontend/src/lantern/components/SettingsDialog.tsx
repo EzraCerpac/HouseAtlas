@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { formatDate } from '../../app/copy';
-import { AiSettingsSection } from '../../ai/host/index.js';
+import { AiSettingsSection, useAiHostAvailable } from '../../ai/host/index.js';
 import { useStore } from '../state/store';
 import { Modal } from './Modal';
 import { setModelUpdates, useModelUpdates } from '../unified-atlas/model-updates';
@@ -9,6 +9,7 @@ import { SyncSettings } from '../../outbox/ui';
 
 export function SettingsDialog() {
   const { state, dispatch, actions } = useStore();
+  const aiAvailable = useAiHostAvailable();
   const modelUpdates = useModelUpdates();
   const modelQuality = useModelQuality();
   const [checking, setChecking] = useState(false);
@@ -49,9 +50,9 @@ export function SettingsDialog() {
           </p>
         </div>
 
-        <div className="field">
+        {aiAvailable && <div className="field">
           <AiSettingsSection />
-        </div>
+        </div>}
 
         <fieldset className="field">
           <legend>Room map downloads</legend>
