@@ -349,7 +349,8 @@ async fn run_persistent(
     let lease = Arc::new(lease);
     *persistent_lease = Some(Arc::clone(&lease));
     let mut host = Host::new(core, config.origin.clone(), files, Vec::new())?
-        .with_mcp_command_profile(config.command_profile());
+        .with_mcp_command_profile(config.command_profile())
+        .with_backup_folder(config.data_directory.join("backup"));
     if full_geodata {
         host = host.with_full_geodata()?;
     }
@@ -443,7 +444,8 @@ async fn run_gateway(
         return Err("Gateway mode absent".into());
     };
     let mut host = Host::new(core, config.origin.clone(), files, Vec::new())?
-        .with_mcp_command_profile(config.command_profile());
+        .with_mcp_command_profile(config.command_profile())
+        .with_backup_folder(config.data_directory.join("backup"));
     if full_geodata {
         host = host.with_full_geodata()?;
     }

@@ -13,7 +13,7 @@ import { denoise } from 'three/addons/tsl/display/DenoiseNode.js';
 import { occlusionHistory } from './occlusion-history';
 import type { PreparedMesh, Projection } from './geometry';
 import type { EmbeddedTexture } from './embedded-png-material';
-import { MAX_LAMPS, MeshPass, STATE_FLOATS, STATE_TEXELS, writeAppearance, type AppearanceInput } from './mesh-appearance';
+import { GLASS_CLEAR, GLASS_FROSTED, MAX_LAMPS, MeshPass, STATE_FLOATS, STATE_TEXELS, writeAppearance, type AppearanceInput } from './mesh-appearance';
 
 /** Meshes per state-table row: one row is exactly 128 × 8 RGBA texels. */
 const ROW = 128;
@@ -298,12 +298,34 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
      * opacity, and reflects the hour's sky by Fresnel, barely head-on and nearly all at
      * a grazing angle, with the sun's glint. Colours are linear until the output, which
      * is premultiplied. */
-    const glass = Fn(() => {
+    const glass = (material?: Parameters<typeof opaque>[0] & { roughness: number }) => Fn(() => {
       const s1 = read(vId, 1), s2 = read(vId, 2), s3 = read(vId, 3), s6 = read(vId, 6), s7 = read(vId, 7);
       Discard(s2.w.greaterThan(.5).and(vY.greaterThan(s3.w)));
       // Both sides of a pane are glass: shade the side turned to the viewer.
-      const V = normalize(u.viewDir), raw = normalize(vNormal), N = select(dot(raw, V).lessThan(0), raw.negate(), raw);
-      const opacity = s6.w, frost = s7.z, head = clamp(dot(N, V), 0, 1);
+      const V = normalize(u.viewDir);
+      let raw: V3 = normalize(vNormal), opacity: F = s6.w, frost: F = s7.z;
+      // The same appearance switch as the opaque source-material pass: turning
+      // materials off keeps the source colour and flat geometric normal.
+      let tint: V3 = select(s1.w.greaterThan(.5), s1.xyz, pow(s1.xyz, vec3(2.2)));
+      if (material) {
+        const { source, maps } = material, on = s6.x.greaterThan(.5), matUv = attribute('materialUv', 'vec2');
+        let N: V3 = normalize(attribute('shadingNormal', 'vec3'));
+        if (maps.normal) {
+          const tangent = attribute('materialTangent', 'vec4');
+          const T = normalize(tangent.xyz.sub(N.mul(dot(N, tangent.xyz)))), B = cross(N, T).mul(select(tangent.w.lessThan(0), -1, 1));
+          N = normalize(mat3(T, B, N).mul(texture(maps.normal, matUv).rgb.mul(2).sub(1)));
+        }
+        raw = select(on, N, raw);
+        const sample = maps.base ? texture(maps.base, matUv) : vec4(1);
+        const [r, g, b] = source.baseColor;
+        tint = select(on, mix(vec3(r, g, b).mul(sample.rgb), u.paper, s6.y), tint);
+        opacity = select(on, opacity.mul(sample.a), opacity);
+        // Frost uses only the explicitly stated core factor, never the
+        // normalized PBR default of 1 supplied by material admission.
+        const roughness = float(material.roughness).mul(maps.metalRough ? texture(maps.metalRough, matUv).g : float(1));
+        frost = select(on, clamp(roughness.sub(GLASS_CLEAR).div(GLASS_FROSTED - GLASS_CLEAR), 0, 1), frost);
+      }
+      const N = select(dot(raw, V).lessThan(0), raw.negate(), raw), head = clamp(dot(N, V), 0, 1);
       // Schlick's Fresnel for glass (4% head-on); frosted glass scatters it to a sheen.
       const along = positionGeometry.x.sub(positionGeometry.z).add(positionGeometry.y.mul(1.6)).div(STREAK_SPACING).mul(2 * Math.PI);
       const streak = smoothstep(.55, 1, along.sin()).mul(STREAK);
@@ -314,7 +336,6 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
         .mul(u.direct).mul(sunlit).mul(GLINT_GAIN);
       const reflected = sky.mul(u.tint).mul(mix(float(.25), float(1), max(u.direct, float(1).sub(u.lamp)))).add(u.sunTint.mul(glint));
       // The pane's own tint, lit like a wall; source colours are linear, palette tones roughly sRGB.
-      const tint = select(s1.w.greaterThan(.5), s1.xyz, pow(s1.xyz, vec3(2.2)));
       const body = tint.mul(lit(N)).mul(u.tint);
       const cover = mix(opacity, max(opacity, .85), frost);
       const alpha = clamp(fresnel.add(float(1).sub(fresnel).mul(cover)), 0, 1);
@@ -324,11 +345,11 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     })();
 
     const visibleIn = (pass: MeshPass) => (s5: V4): B => s5.x.equal(pass);
-    const make = (pass: MeshPass | 'ghost', textured?: Parameters<typeof opaque>[0]) => {
+    const make = (pass: MeshPass | 'ghost', textured?: Parameters<typeof opaque>[0] & { roughness?: number }) => {
       const material = new NodeMaterial();
       material.side = DoubleSide; material.depthTest = true;
       if (pass === MeshPass.Glass) {
-        material.vertexNode = vertex(visibleIn(pass)); material.outputNode = glass;
+        material.vertexNode = vertex(visibleIn(pass)); material.outputNode = glass(textured ? { ...textured, roughness: textured.roughness ?? 0 } : undefined);
         material.transparent = true; material.depthWrite = false;
         material.blending = CustomBlending; material.blendSrc = material.blendSrcAlpha = OneFactor;
         material.blendDst = material.blendDstAlpha = OneMinusSrcAlphaFactor;
@@ -357,11 +378,22 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const basis = new Matrix4();
     /** Places the camera so its view and projection reproduce `projection` exactly:
      * x to screen right, y to screen up, z toward the viewer, one unit = k pixels. */
-    const frame = ({ ct, st, sf, cf, k, ox, oy, center, depthRadius: r, viewport }: Projection) => {
+    // Mesh bounds, for the depth slab and the sun's view; lifts are added per frame.
+    const low = new Vector3(Infinity, Infinity, Infinity), high = new Vector3(-Infinity, -Infinity, -Infinity);
+    for (const mesh of meshes) { low.min(new Vector3(...mesh.bounds.min)); high.max(new Vector3(...mesh.bounds.max)); }
+    const frame = ({ ct, st, sf, cf, k, ox, oy, center, depthRadius, viewport }: Projection) => {
+      // The depth slab holds every mesh, not only the framed buildings: the site and its
+      // context beyond them would otherwise clamp to one far depth and overdraw each other.
+      let r = depthRadius;
+      for (let c = 0; c < 8; c++) {
+        const reach = Math.hypot((c & 1 ? high.x : low.x) - center[0], (c & 2 ? high.y : low.y) - center[1], (c & 4 ? high.z : low.z) - center[2]);
+        if (Number.isFinite(reach)) r = Math.max(r, reach * 1.05);
+      }
       camera.left = -ox / k; camera.right = (viewport.width - ox) / k; camera.top = oy / k; camera.bottom = (oy - viewport.height) / k;
-      // Far away along the view axis with the same depth slab: view rays are parallel to
-      // within 1%, which screen-space occlusion assumes, and depth stays exactly -d / r.
-      const away = 100 * r;
+      // Far away along the view axis: view rays are parallel to within 1%, which
+      // screen-space occlusion assumes. The distance follows the framed buildings, not
+      // the wider slab, so their view depth keeps its float precision on the GPU.
+      const away = 100 * depthRadius;
       camera.near = away - r; camera.far = away + r; camera.updateProjectionMatrix();
       basis.set(ct, -st * sf, st * cf, 0, 0, cf, sf, 0, -st, -ct * sf, ct * cf, 0, 0, 0, 0, 1);
       camera.quaternion.setFromRotationMatrix(basis);
@@ -458,9 +490,17 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       }
     };
     const textured = (index: number) => useMaterials && meshes[index]!.sourceMaterial !== undefined && meshes[index]!.materialVertices !== undefined;
-    // Glass may be drawn see-through: its meshes merge apart, so only they carry the extra glass draw.
+    // Keep each glass primitive independently sortable, including its display
+    // lift. Merging panes fixes their order even when the camera turns around.
+    // Three.js sorts these objects far-to-near at the common glass renderOrder.
+    // As with ordinary object transparency, intersecting surfaces or multiple
+    // disconnected panes authored inside one primitive still need subdivision.
     const glazed = (index: number) => meshes[index]!.sourceNight === 'glazing';
-    const addGlass = (geometry: BufferGeometry) => add(geometry, MeshPass.Glass, shared.glass, 3.5);
+    const glassBounds: { geometry: BufferGeometry; index: number; y: number }[] = [];
+    const addGlass = (geometry: BufferGeometry, index: number, material = shared.glass) => {
+      add(geometry, MeshPass.Glass, material, 3.5);
+      glassBounds.push({ geometry, index, y: geometry.boundingSphere!.center.y });
+    };
     const groups = [MeshPass.Unbound, MeshPass.Bound] as const;
     for (const pass of groups) {
       const members = meshes.flatMap((mesh, index) => (mesh.occurrenceId !== null) === (pass === MeshPass.Bound) && !textured(index) ? [index] : []);
@@ -468,9 +508,11 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       const material = make(pass); owned.push(material);
       for (const glassy of [false, true]) {
         const part = members.filter(index => glazed(index) === glassy);
-        for (const geometry of part.length === 0 ? [] : await geometriesOf(part)) {
+        const batches = glassy ? part.map(index => [index]) : part.length ? [part] : [];
+        for (const members of batches) for (const geometry of await geometriesOf(members)) {
           add(geometry, MeshPass.Reference, shared.reference, 0); add(geometry, pass, material, pass); add(geometry, 'ghost', shared.ghost, 4);
-          if (glassy) addGlass(geometry);
+          if (glassy) addGlass(geometry, members[0]!);
+          if (slice.due()) await slice.next();
         }
       }
     }
@@ -479,16 +521,16 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       // The extra attribute stream follows the mesh's own vertices, so a textured mesh stays one piece.
       const source = mesh.sourceMaterial!, [geometry] = await geometriesOf([index], Infinity, mesh.materialVertices!);
       if (!geometry) continue;
-      const maps = { base: mapOf(source.baseColorTexture), normal: mapOf(source.normalTexture), metalRough: mapOf(source.metallicRoughnessTexture) };
+      const maps = Object.fromEntries(Object.entries({ base: mapOf(source.baseColorTexture), normal: mapOf(source.normalTexture), metalRough: mapOf(source.metallicRoughnessTexture) }).filter(([, map]) => map));
       const pass = mesh.occurrenceId !== null ? MeshPass.Bound : MeshPass.Unbound;
-      const material = make(pass, { source, maps: Object.fromEntries(Object.entries(maps).filter(([, map]) => map)) }); owned.push(material);
+      const material = make(pass, { source, maps }); owned.push(material);
       add(geometry, MeshPass.Reference, shared.reference, 0); add(geometry, pass, material, pass); add(geometry, 'ghost', shared.ghost, 4);
-      if (glazed(index)) addGlass(geometry);
+      if (glazed(index)) {
+        const glassMaterial = make(MeshPass.Glass, { source, maps, roughness: mesh.sourceRoughness ?? 0 }); owned.push(glassMaterial);
+        addGlass(geometry, index, glassMaterial);
+      }
     }
 
-    // Mesh bounds, for fitting the sun's view; lifts are added per frame.
-    const low = new Vector3(Infinity, Infinity, Infinity), high = new Vector3(-Infinity, -Infinity, -Infinity);
-    for (const mesh of meshes) { low.min(new Vector3(...mesh.bounds.min)); high.max(new Vector3(...mesh.bounds.max)); }
     const corner = new Vector3();
     const drawSun = () => {
       // At night the map reaches past the house by more than a probe, so a probe
@@ -566,6 +608,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
             point.set(lamp?.at[0] ?? 0, lamp?.at[1] ?? 0, lamp?.at[2] ?? 0, lamp ? frame.lamp : 0); });
           (u.lampAims.array as Vector4[]).forEach((aim, at) => { const toward = frame.lamps[at]?.aim;
             aim.set(toward?.[0] ?? 0, toward?.[1] ?? 0, toward?.[2] ?? 0, toward ? 1 : 0); });
+          for (const { geometry, index, y } of glassBounds) geometry.boundingSphere!.center.y = y + table[index * STATE_FLOATS + 19]!;
           for (const { pass, mesh } of layers) mesh.visible = pass === 'ghost' ? frame.ghosts : frame.passes.has(pass);
           sunStale = true;
         }

@@ -107,6 +107,15 @@ however many primitives there are, the selection tone, the ghost veil and the
 texture detail in the screenshots. It also swaps in a second mesh set, as the
 Full model replaces Light, and checks that a canvas stays on screen throughout.
 
+The existing embedded-material page also supplies generated glass samples:
+admitted base-colour, normal and roughness maps have a visible effect when
+materials are enabled; two differently tinted, fully frosted glass primitives
+composite in the same order when their source array is reversed; and the
+foreground tint reverses when the camera views them from the opposite side.
+These cases stay inside the existing `webgl2`/`webgpu` selections. They cover
+separately authored primitives, not intersecting or disconnected panes inside
+one primitive; the rendering limitation is stated in the scene contract.
+
 ```sh
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2   # in the healthy suite
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgpu   # local: Chromium headless shell
@@ -1556,6 +1565,11 @@ highlights preserve the source colour. This checks CPU data and routing only;
 shader encoding, rendered pixels, PBR and transparency remain separate evidence.
 It introduces no malformed, refusal, lifecycle or held omission case.
 
+The same healthy runner supplies generated CPU picks through an unselected
+transparent pane, then checks that an opaque wall or highlighted pane drawn
+solid still occludes the room. It uses the current presentation and production
+projection/picker; no browser or shader execution is involved in these picks.
+
 The named `node frontend/lantern-tests/unified-atlas-healthy.mjs` also checks
 normal generated pointer tap/drag, viewport capture handoff, descendant-to-viewport
 capture transfer, pinch with either-finger release, and plan pan through the
@@ -2472,6 +2486,7 @@ node frontend/lantern-tests/embedded-png-material-healthy.mjs --case image-shari
 node frontend/lantern-tests/embedded-png-material-healthy.mjs --case png-filters
 node frontend/lantern-tests/embedded-png-material-healthy.mjs --case png-adam7
 node frontend/lantern-tests/embedded-png-material-healthy.mjs --case accounting-1024
+node frontend/lantern-tests/embedded-png-material-healthy.mjs --case four-maps-1024
 node frontend/lantern-tests/embedded-png-material-healthy.mjs --case legacy-geometry
 node frontend/lantern-tests/embedded-png-material-healthy.mjs --case gpu-owner
 node frontend/lantern-tests/embedded-png-material-healthy.mjs --case precedence
@@ -2553,6 +2568,24 @@ background sync, and pruning of synced entries. It runs in `run-healthy.mjs`. Th
 same contract (lookup of a committed envelope, no second write on an identical
 resend, 412 for a stale revision) is asserted in
 `tools/rust-integration/healthy-human-host-loopback.mjs`.
+
+## Named generated backup settings positive
+
+Inspect `frontend/src/lantern/backups.ts`, `BackupSettings.tsx` and
+`frontend/lantern-tests/backup-settings-healthy.mjs` before execution. With
+Node 26.10.0:
+
+```sh
+node frontend/lantern-tests/backup-settings-healthy.mjs
+```
+
+It decodes the server's answer (an exact retention choice; a job summary whose
+odd parts are dropped), checks the sentences Settings → Backups shows, and
+drives the save exchange against a generated server: the session read for
+CSRF, the POST, a refusal for a non-editor, an unreachable server and a server
+without the route. It runs in `run-healthy.mjs`. The route itself
+(`backend/src/http/backup_settings.rs`) has library unit tests, and the job
+side has synthetic `tools/backup` tests.
 
 ## Named generated compact layer-details focus check
 
@@ -2646,7 +2679,9 @@ zenith map and full lamps at midnight, a minute-by-minute day in June,
 October and December with no jumps, a readable floor on the sky light and
 lamps only after sunset, the stage colours' stylesheet fallbacks, and the
 appearance table's shelter and kept-tone flags, which other viewers never
-receive. It runs in CI through `run-healthy.mjs`:
+receive. The same runner checks the glass pass, opacity/frost encoding,
+selected panes returning to the solid pass, explicit core roughness reading,
+and unchanged appearance for viewers without daylight. It runs in CI through `run-healthy.mjs`:
 
 ```sh
 node frontend/lantern-tests/unified-atlas-daylight-healthy.mjs
@@ -2684,3 +2719,12 @@ node frontend/lantern-tests/webmcp-adapter-healthy.mjs
 
 It never opens a browser, listener, native service or provider, and removes
 only its own temporary output.
+
+## PR lane selection (26 October 2026)
+
+The scope inventory above describes the full main-push suite. Pull requests now
+select explicit lanes using the [CI dependency matrix](ci-path-selection.md).
+Publication checks and ordinary-core remain unconditional. Shared/unknown paths
+and unavailable change detection retain full coverage. The ordinary-core job
+runs `python3 -m unittest discover -s tools/ci -p 'test_*.py' -v`: stdlib-only
+selector cases and disposable Git histories, without providers or user data.

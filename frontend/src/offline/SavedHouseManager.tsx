@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { SavedHouse, SavedHouseStore } from './store';
 
-export function SavedHouseManager({ store, selected, onOpen, onClose }: { readonly store: SavedHouseStore;
-  readonly selected: SavedHouse | null; readonly onOpen: (house: SavedHouse) => void; readonly onClose: () => void }) {
+/** `quiet` leaves the list out while this browser keeps no saved copy. */
+export function SavedHouseManager({ store, selected, quiet = false, onOpen, onClose }: { readonly store: SavedHouseStore;
+  readonly selected: SavedHouse | null; readonly quiet?: boolean; readonly onOpen: (house: SavedHouse) => void; readonly onClose: () => void }) {
   const [houses, setHouses] = useState<readonly SavedHouse[]>([]), [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let closed = false, generation = 0;
@@ -19,6 +20,7 @@ export function SavedHouseManager({ store, selected, onOpen, onClose }: { readon
     if (house.localRevision === selected?.localRevision) onClose();
     try { await store.remove(house.key); } catch { setError('The saved copy could not be removed.'); }
   };
+  if (quiet && !error && houses.length === 0) return null;
   return <section className="saved-manager" aria-label="Saved copies">
     {error && <p role="alert">{error}</p>}
     {!error && houses.length === 0 && <p role="status">No saved copy on this browser.</p>}

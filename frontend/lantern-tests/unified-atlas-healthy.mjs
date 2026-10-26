@@ -56,12 +56,12 @@ const graphURL = await sourceURL('../src/lantern/unified-atlas/NetworkGraph.tsx'
   './network-graph.css': dataURL(''),
 });
 const { NetworkGraph } = await import(graphURL);
-const readerURL = await sourceURL('../integration/unified-atlas-reader.ts',
-  { '../src/lantern/unified-atlas/scene': sceneURL, '../src/lantern/unified-atlas/types': typesURL });
+const readerURL = await sourceURL('../integration/unified-atlas-reader.ts', { '../src/lantern/unified-atlas/scene': sceneURL,
+  '../src/lantern/unified-atlas/types': typesURL, './sha256-thread': await sourceURL('../integration/sha256-thread.ts') });
 const syntheticURL = await sourceURL('./unified-atlas/synthetic-atlas.ts');
 const { stageTier, shownTier } = await import(await sourceURL('../src/lantern/unified-atlas/model-tier.ts'));
 
-const { makeProjection, pointInShape, sourceMeshColor } = await import(geometryURL);
+const { makeProjection, pointInShape, prepareMeshes, sourceMeshColor } = await import(geometryURL);
 const { readGlbContainer } = await import(preflightURL);
 const { loadStandardGlb } = await import(standardURL);
 const scene = await import(sceneURL);
@@ -916,6 +916,30 @@ const stackedProjection = makeProjection(pose(90, 0), frameBox(model, stacked, s
 const roofPixel = stackedProjection.project(103.25, 5, 55);
 assert.deepEqual(scene.pickTarget(model, stackedPresentation, stacked, 0, stackedProjection, ...roofPixel),
   { kind: 'building', buildingId: 'syn-building-house' }, 'this fixture roof has no authored floor, so it retains building scope');
+// Generated room behind a pane: the CPU target follows the glass pass, and a
+// highlighted pane that returns to the solid pass still occludes the room.
+{
+  const occurrenceId = 'syn-occ-hall', levelId = 'syn-level-ground';
+  const paneInput = (meshKey, z, occurrenceId) => ({ meshKey, floorId: levelId, occurrenceId,
+    positions: new Float32Array([0, .1, z, 1, .1, z, 0, 1.1, z, 1, 1.1, z]), indices: new Uint32Array([0, 1, 2, 1, 3, 2]) });
+  const [pane, room] = prepareMeshes([paneInput('synthetic-pane', 1, 'syn-occ-living'), paneInput('synthetic-room', 0, occurrenceId)]);
+  const part = (mesh, role) => ({ mesh, role, buildingId: 'syn-building-house', levelIds: [levelId], levelId, occurrenceId: mesh.occurrenceId });
+  const roomPart = part(room, 'room-pick');
+  const testModel = glass => ({ ...model, parts: [part(glass ? { ...pane, sourceNight: 'glazing' } : pane, 'structure'), roomPart],
+    pickParts: new Map([[occurrenceId, [roomPart]]]) });
+  const state = reduce(stacked, { type: 'level', levelId });
+  const projection = makeProjection(pose(0, 0), { min: [0, 0, 0], max: [1, 1.2, 1] }, VIEWPORT, 0);
+  const pixel = projection.project(.5, .6, 0);
+  const glassModel = testModel(true), clear = presentAtlas(glassModel, state, none);
+  assert.ok(clear.transparent.has(pane.meshKey));
+  assert.deepEqual(scene.pickTarget(glassModel, clear, state, 0, projection, ...pixel), { kind: 'room', occurrenceId }, 'room visible through building glass is picked');
+  const picked = presentAtlas(glassModel, state, new Set(['syn-occ-living']));
+  assert.ok(!picked.transparent.has(pane.meshKey));
+  assert.deepEqual(scene.pickTarget(glassModel, picked, state, 0, projection, ...pixel), { kind: 'level', levelId }, 'highlighted solid glass occludes the room');
+  const solidModel = testModel(false);
+  assert.deepEqual(scene.pickTarget(solidModel, presentAtlas(solidModel, state, none), state, 0, projection, ...pixel),
+    { kind: 'level', levelId }, 'ordinary opaque structure still occludes the room');
+}
 // Stacked with one floor in focus: lower floors only, cut at the focus section.
 for (const [levelId, keys] of [['syn-level-ground', ['syn-occ-hall', 'syn-occ-living', 'syn-occ-stairs-ground']],
   ['syn-level-upper', ['syn-occ-bedroom-upper', 'syn-occ-bath', 'syn-occ-stairs-upper']]]) {

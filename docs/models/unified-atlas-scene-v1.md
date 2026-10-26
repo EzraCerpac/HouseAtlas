@@ -394,7 +394,19 @@ glass, or as a lamp when the name also holds a lamp word and the material
 states no `emissiveFactor`. A stated zero factor stops a name from making a
 lamp, but a glass word still makes the material building glass. Every lamp
 glows one fixed warm colour; the hue of `emissiveFactor` is not used yet, only
-whether it is nonzero. Day lighting ignores all of it.
+whether it is nonzero. Day lighting ignores the lamp marks.
+
+Glass is depth-tested over the solid scene and never writes depth. Each source
+glass primitive remains an independently sortable draw, ordered from far to
+near by its bounds centre in the current camera, including its display lift.
+This supports overlapping panes authored as separate primitives. It does not
+sort triangles within a primitive or solve intersecting geometry: multiple
+disconnected panes packed into one primitive can still composite incorrectly.
+An author who needs independent pane ordering should supply separate primitives;
+no order-independent transparency or producer-side subdivision is implied.
+Selected or highlighted panes retain the solid selection/overlay appearance and
+occlude room picking. Other building glass lets CPU room picks pass through,
+using the same current presentation, clips and lifts as the drawing.
 
 ## Existing bounded embedded-PNG material consumer
 
@@ -409,11 +421,13 @@ Other callers remain opted out unless they explicitly enable this profile.
 The Three loader still declines its own texture requests and disposes its
 resources; the bounded decoder and copied streams supply the Unified renderer.
 
-The profile accepts only embedded RGB8 PNG bufferViews in the GLB BIN chunk,
-with at most three images. Image URIs remain forbidden. Each image is at most
-1,024 by 1,024 pixels, 1,048,576 pixels and 2,097,152 encoded bytes; unique
-encoded image bytes total at most 4,194,304. Aggregate decoded RGBA is at most
-12,582,912 bytes and application decoder scratch at most 8,388,608 bytes.
+The profile accepts only embedded RGB8 PNG bufferViews in the GLB BIN chunk.
+Image URIs remain forbidden. Each image is at most 1,024 by 1,024 pixels,
+1,048,576 pixels and 2,097,152 encoded bytes, and application decoder scratch
+is at most 8,388,608 bytes. There is no fixed image count or aggregate image
+cap: how many textures fit is the quality tier's prepared and GPU budget below,
+which charges every image. A sanity cap of 64 images only bounds the identity
+scan. A refusal states the textures' and geometry's MiB against the tier.
 PNG framing and CRC, supported filters and noninterlaced/Adam7 decoding are
 checked by the application decoder; browser image decoding is not used.
 
@@ -421,16 +435,21 @@ Supported slots are base color (sRGB), normal (data, scale 1) and metallic/
 roughness (data), using texCoord 0. Sampling is REPEAT with linear magnification
 and linear mipmapped minification. Textured materials require OPAQUE mode and
 base alpha 1. Their matching Float32 UVs and shading normals are retained;
-normal mapping additionally requires Float32 tangents. Untextured BLEND retains
-its legacy opaque appearance: this path does not add transparency rendering.
+normal mapping additionally requires Float32 tangents. Building glass selected
+by the marks above samples its admitted base-colour, normal and roughness maps
+when source materials are enabled. Only an explicitly stated roughness factor
+controls frosting; an omitted factor keeps the clear-glass fallback even when
+material admission supplies the standard PBR default. Other BLEND materials
+retain their legacy opaque appearance; material admission does not add general
+transparency support.
 
 Material admission includes encoded images, decoded RGBA, decoder scratch,
 indexed attributes and expanded corner attributes in the prepared-byte ledger.
 The renderer keeps the legacy position/flat-normal stream for picking and a
 separate UV/shading-normal/tangent stream for material drawing. GPU accounting
 includes both streams and complete mip chains, deduplicated by image, sampler
-and color role. The existing 96 MiB prepared and 64 MiB GPU limits remain in
-force; the renderer checks its resource ledger before allocating GL resources.
+and color role. The tier's prepared and GPU limits (Light 96/64 MiB, Full
+640/384 MiB) are in force; the renderer checks its resource ledger before allocating GL resources.
 These are bounded application ledgers, not measurements of total browser,
 driver or process peak memory.
 

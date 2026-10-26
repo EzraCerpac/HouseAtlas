@@ -732,6 +732,8 @@ export interface AtlasPresentation {
   readonly dims: ReadonlyMap<string, number>;
   /** Occurrences that can be picked in the current state. */
   readonly pickable: ReadonlySet<string>;
+  /** Building glazing currently drawn transparent; highlighted panes stay solid. */
+  readonly transparent: ReadonlySet<string>;
   readonly focusLevelId: string | null;
   /** Floors drawn as plans: the focus floor, or each building's lowest planned floor for the property. */
   readonly planLevels: readonly string[];
@@ -742,6 +744,9 @@ export interface AtlasPresentation {
 
 const sectionOf = (model: AtlasModel, levelId: string) => model.floorY.get(levelId)! + SECTION_HEIGHT;
 const GHOST_ROLES: ReadonlySet<MeshRole> = new Set(['structure', 'roof', 'slab']);
+/** Building glazing eligible for the Unified Atlas daylight pass. */
+export const isAtlasGlazing = (part: AtlasPart): boolean =>
+  (part.role === 'structure' || part.role === 'roof') && part.mesh.sourceNight === 'glazing';
 
 export function presentAtlas(model: AtlasModel, state: AtlasViewState, highlighted: ReadonlySet<string>): AtlasPresentation {
   const plan = state.view === 'plan';
@@ -761,9 +766,13 @@ export function presentAtlas(model: AtlasModel, state: AtlasViewState, highlight
       : !own || focusIndex === null || exploded || model.levelIndex.get(level.levelId)! <= focusIndex;
     if (shown) visibleLevels.add(level.levelId);
   }
-  const hidden = new Set<string>(), clips = new Map<string, number | null>(), dims = new Map<string, number>();
+  const hidden = new Set<string>(), clips = new Map<string, number | null>(), dims = new Map<string, number>(), transparent = new Set<string>();
   for (const part of model.parts) {
     const key = part.mesh.meshKey, own = focusBuilding === null || part.buildingId === focusBuilding;
+    // Unified Atlas always supplies daylight/twoSided. Its selected, context
+    // and overlay occurrences are exactly `highlighted`, matching keepTone in
+    // writeAppearance; other building glass takes MeshPass.Glass.
+    if (isAtlasGlazing(part) && (part.mesh.occurrenceId === null || !highlighted.has(part.mesh.occurrenceId))) transparent.add(key);
     const partExploded = exploded && hasExplodableLevels(model, part.buildingId);
     const members = part.levelIds.map(levelId => model.levelIndex.get(levelId)!);
     const highest = part.levelIds.reduce<string | null>((best, levelId) => best === null || model.levelIndex.get(levelId)! > model.levelIndex.get(best)! ? levelId : best, null);
@@ -807,7 +816,7 @@ export function presentAtlas(model: AtlasModel, state: AtlasViewState, highlight
     if (hidden.has(key)) ghosts.set(key, null);
     else if (clip !== null && clip < part.mesh.yRange[1]) ghosts.set(key, clip);
   }
-  return { offsets, explodeTarget: exploded ? 1 : 0, visibleLevels, hidden, clips, dims, pickable, focusLevelId, planLevels, ghosts };
+  return { offsets, explodeTarget: exploded ? 1 : 0, visibleLevels, hidden, clips, dims, pickable, transparent, focusLevelId, planLevels, ghosts };
 }
 
 // ---------------------------------------------------------------------------
@@ -1065,12 +1074,12 @@ export type AtlasTarget =
   | { readonly kind: 'building'; readonly buildingId: string };
 
 /** Nearest opaque structure, slab or roof under a pixel. Hidden parts and the
- * faded part above a section are not drawn opaque, so they never take a pick. */
+ * faded part above a section and transparent glass never take a surface pick. */
 function pickSurface(model: AtlasModel, presentation: AtlasPresentation, t: number, projection: Projection, px: number, py: number): { readonly part: AtlasPart; readonly hit: RayHit } | null {
   let best: { part: AtlasPart; hit: RayHit } | null = null;
   for (const part of model.parts) {
     const key = part.mesh.meshKey;
-    if (!GHOST_ROLES.has(part.role) || part.mesh.triangles === 0 || presentation.hidden.has(key)) continue;
+    if (!GHOST_ROLES.has(part.role) || part.mesh.triangles === 0 || presentation.hidden.has(key) || presentation.transparent.has(key)) continue;
     if (!model.levelsByBuilding.get(part.buildingId)?.length) continue;
     const hit = rayHit(part, levelLift(presentation, part.levelId, t), presentation.clips.get(key) ?? null, projection, px, py);
     if (hit && (best === null || hit.depth > best.hit.depth)) best = { part, hit };

@@ -130,7 +130,7 @@ const LAMP_MERGE = .75;
 const GLASS_OPACITY = .1, GLASS_OPACITY_MAX = .85;
 /** A pane is clear up to this source roughness and fully frosted by GLASS_FROSTED:
  * exporters often leave half roughness on clear glass. */
-const GLASS_CLEAR = .5, GLASS_FROSTED = .9;
+export const GLASS_CLEAR = .5, GLASS_FROSTED = .9;
 /** Beams merge only when their directions are this close (a cosine). */
 const AIM_MERGE = .8;
 export interface Lamp { readonly at: Rgb; readonly aim: Rgb | null }
