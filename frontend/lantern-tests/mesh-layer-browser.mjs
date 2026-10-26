@@ -162,6 +162,7 @@ try {
     const swap = await evaluate('window.swapReport');
     assert.equal(swap.mostCanvases, 2, 'the new set builds on its own canvas');
     assert.equal(swap.fewestVisible, 1, 'a canvas stays on screen throughout the swap');
+    if (expected === 'webgl2') assert(swap.newDrawsWhenShown >= 1, 'the new set has drawn before the old one is removed');
     assert.equal(await evaluate(`document.querySelector('canvas').dataset.renderer`), expected);
     assert.equal(await evaluate(`document.querySelector('output').textContent`), '', 'MeshLayer reported a failure after the swap');
 

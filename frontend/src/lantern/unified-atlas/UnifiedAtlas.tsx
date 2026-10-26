@@ -254,7 +254,8 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
         if (!signal.aborted) setDetail({ light, model, failed: false });
       } catch { if (!signal.aborted) setDetail({ light, model: null, failed: true }); }
     })();
-    return () => controller.abort();
+    // Leaving Full, or this Light model, releases the detail model too.
+    return () => { controller.abort(); setDetail(null); };
     // The Light model identifies the read; the selection and port come with it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wantsFull, fresh]);

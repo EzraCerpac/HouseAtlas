@@ -34,7 +34,7 @@ const meshSetId = (meshes: readonly PreparedMesh[]) => {
  * where WebGPU is unavailable). Draws on demand only; owns and releases every
  * GPU object, listener and frame callback it creates. A new mesh set builds on
  * its own canvas behind the one on screen, which stays until the new scene is
- * ready, so swapping in a more detailed model never blanks the view. */
+ * drawn, so swapping in a more detailed model never blanks the view. */
 export function MeshLayer(props: Props) {
   const [shown, setShown] = useState<readonly PreparedMesh[] | null>(null);
   const wanted = useRef(props.meshes); wanted.current = props.meshes;
@@ -60,7 +60,9 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
   useLayoutEffect(() => {
     const element = canvas.current; if (!element || props.meshes.length === 0) return;
     const usesMaterials = props.sourceMaterials === true && props.meshes.some(mesh => mesh.sourceMaterial !== undefined);
-    let disposed = false, frame: number | null = null, scene: MeshScene | null = null;
+    let disposed = false, frame: number | null = null, scene: MeshScene | null = null, drawn = false;
+    // Ready once a frame is drawn (or there is nothing to draw while hidden), so promoting this canvas never shows it empty.
+    const ready = () => { if (!drawn) { drawn = true; latest.current.onReady(props.meshes); } };
     const schedule = () => {
       if (disposed || !scene || frame !== null || document.hidden) return;
       frame = requestAnimationFrame(() => { frame = null; try { render(); } catch { fail('The 3D model cannot be rendered.'); } });
@@ -79,11 +81,11 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     const visibility = () => { if (!document.hidden) schedule(); };
     const render = () => {
       if (disposed || !scene) return;
-      const p = latest.current; if (p.hidden) return;
+      const p = latest.current; if (p.hidden) { ready(); return; }
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       let w = Math.max(1, Math.round(element.clientWidth * dpr)), h = Math.max(1, Math.round(element.clientHeight * dpr));
       const fit = Math.min(1, Math.sqrt(RENDER_LIMITS.pixels / (w * h))); w = Math.max(1, Math.floor(w * fit)); h = Math.max(1, Math.floor(h * fit));
-      scene.render(p.projection, stale.current ? p : null, w, h); stale.current = false;
+      scene.render(p.projection, stale.current ? p : null, w, h); stale.current = false; ready();
     };
     document.addEventListener('visibilitychange', visibility);
     const resize = new ResizeObserver(schedule); resize.observe(element);
@@ -92,7 +94,7 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       void import('./mesh-scene').then(({ createMeshScene }) => createMeshScene(element, props.meshes, usesMaterials, lost)).then(created => {
         if (disposed) { created.dispose(); return; }
         scene = created; stale.current = true; element.dataset.renderer = created.backend;
-        redraw.current = schedule; schedule(); latest.current.onReady(props.meshes);
+        redraw.current = schedule; schedule();
       }, () => fail(drawable() ? 'The 3D model cannot be rendered.' : 'This browser cannot draw the 3D model. Update the browser to view it.'));
     }
     return () => { release(); resize.disconnect(); document.removeEventListener('visibilitychange', visibility); };
