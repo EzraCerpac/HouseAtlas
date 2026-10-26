@@ -2253,7 +2253,7 @@ household data or runtime. Held crash, replay, expiry, adversarial and rollback
 controls remain separate. The release workflow validates scoped PRs; actual
 main build and promotion are explicit manual operations with separate reviewed
 native-profile, storage-compatibility, producer and publication gates. Source
-checks do not qualify a NAS binary, updater transaction, deployment or device.
+checks do not qualify a NAS binary, deployment or device.
 
 The two reviewed packaging repairs additionally have this explicitly selected,
 separate generated regression command:
@@ -2269,92 +2269,6 @@ rejection of unencodable paths in producer and manifest admission. They run no
 network, wall-clock timeout, native binary, credential, provider or household
 operation. These cases remain excluded from ordinary seven-test discovery and
 add no CI step or broader control permission.
-
-## Named generated updater source checks
-
-Read [the updater source contract](../operations/houseatlas-updater.md), then
-inspect its modules, `tests/synthetic.py` and the selected test bodies. From
-`tools/houseatlas-updater`, the exact generated happy-path commands are:
-
-```sh
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_happy.GeneratedHappyPaths.test_check_generated_full_bundle tests.test_happy.GeneratedHappyPaths.test_apply_generated_full_bundle_preserves_native_state tests.test_happy.GeneratedHappyPaths.test_apply_frontend_only_retains_exact_backend tests.test_happy.GeneratedHappyPaths.test_cli_json_check_and_durable_status
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_packaging.PackagingHappyPaths.test_pinned_packaging_fixture_schema tests.test_packaging.PackagingHappyPaths.test_packaging_generated_bundle_apply
-```
-
-These six cases use fresh disposable directories, generated archives and
-non-executable Mach-O header specimens, tiny synthetic SQLite files and fake
-in-process acquisition/publication/launcher/health ports. The two contract
-cases consume the pinned packaging schema and helpers from the composed tree.
-No socket, subprocess, credential, actual GitHub/native request, service action
-or user data is used. This adds no workflow execution or broad test discovery;
-failure, denial, concurrency, replay, expiry, crash and rollback controls stay
-outside this release. The results establish source/generated behavior only,
-not native acquisition, launchd, storage compatibility, recovery or deployment.
-
-The separately authorized updater JSON-input regression lane has three exact
-memory-only cases. Inspect `tests/test_json_input.py`, `validation.py` and
-`cli.py`, then run from `tools/houseatlas-updater`:
-
-```sh
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_json_input.JsonInputRegression.test_nonfinite_constants_are_rejected_at_all_depths tests.test_json_input.JsonInputRegression.test_cli_nonfinite_status_selector_never_reads_latest tests.test_json_input.JsonInputRegression.test_valid_json_and_null_status_selector_are_preserved
-```
-
-Only generated JSON bytes and a recording status fake are used. These cases
-cover the exact non-finite-to-null defect and ordinary null/UUID selectors;
-they add no transport, filesystem, service action, broad control alias or
-failure/rollback/crash qualification.
-
-The separately scoped storage-mapping protocol source cases use only generated
-in-memory tuples, a checked-in packaging schema/manifest and typed recording
-values. Inspect `tests/test_storage_protocol.py`, `model.py`, `validation.py` and
-`release_bundle.py`, then run from `tools/houseatlas-updater`:
-
-```sh
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_storage_protocol.StorageProtocolSourceCases.test_two_explicit_profiles_preserve_field_meanings tests.test_storage_protocol.StorageProtocolSourceCases.test_missing_ambiguous_and_unsupported_protocols_rejected tests.test_storage_protocol.StorageProtocolSourceCases.test_mixed_profiles_and_loosely_typed_schemas_rejected tests.test_storage_protocol.StorageProtocolSourceCases.test_packaging_owner_map_requires_typed_supported_storage tests.test_storage_protocol.StorageProtocolSourceCases.test_selected_map_is_revalidated_before_bundle_normalization tests.test_storage_protocol.StorageProtocolSourceCases.test_equal_legacy_tuples_cannot_pass_admission_or_compatibility -v
-```
-
-The cases cover exact supported interpretations, unsupported/ambiguous values,
-mixed profiles and Python bool/int equality aliases, including legacy owner
-tuples at admission. They do not read native state, execute SQL, create a
-controller transaction, start processes, use transports or register release
-contract hashes. Passing proves bounded source behavior only; actual profile,
-contract preimages, target preservation, native qualification and rollback remain
-separate owner evidence. No workflow, build or broad regression suite is added.
-
-The inert trusted-contract registration has three named static/memory positives.
-Inspect `storage_contracts.py`, the two exact JSON preimages under `contracts/`
-and `tests/test_storage_contracts.py`, then run from `tools/houseatlas-updater`:
-
-```sh
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_storage_contracts.TrustedStorageContractSourceCases.test_registered_preimages_are_exact_canonical_source_contracts tests.test_storage_contracts.TrustedStorageContractSourceCases.test_persistent_schema_pins_match_current_public_source tests.test_storage_contracts.TrustedStorageContractSourceCases.test_fresh_registry_is_inert_and_adapter_requires_explicit_input -v
-```
-
-These cases hash only fixed public software declarations and seven SQL source
-files, without executing SQL. They check canonical preimage identity, independently
-normalized tuples, fresh values and explicit in-memory adapter construction with
-a synthetic native marker. No manifest, target selection, compatibility promotion,
-native state, process, controller transaction or network is used. The checked-in
-release compatibility stays unqualified/null/null/false. Document revision two
-does not change contract format revision one. This adds no workflow or broader
-test discovery; actual target admission, preservation and rollback remain open.
-
-## Named generated GitHub acquisition adapter checks
-
-Read [the acquisition source contract](../operations/houseatlas-updater-acquisition.md)
-and inspect the adapter, selected test bodies and pinned packaging helpers.
-From `tools/houseatlas-updater-adapters`, run only the two named positives:
-
-```sh
-HOUSEATLAS_PACKAGING_SOURCE=../release PYTHONPATH=../houseatlas-updater PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_github_release_happy.GitHubReleaseHappyPaths.test_published_release_exact_build_and_bytes tests.test_github_release_happy.GitHubReleaseHappyPaths.test_annotated_prerelease_bounded_asset_redirects -v
-```
-
-Both cases use finite in-process HTTP replies and generated software payloads,
-checking exact producer/asset bytes, tag resolution, partial reads, shared
-deadline/header bounds and ordinary asset redirects. They perform no actual
-GitHub request, socket, credential, native process, controller transaction or
-runtime installation. Real HTTPS-port, acquisition and target qualification
-remain separate; no broad control discovery or new held case is released.
-
 
 ## Named generated root and saved offline-entry lifecycle positive
 
@@ -2415,43 +2329,6 @@ explicit row tolerances). Report those separately from the original five
 healthy cases. No workflow or shared runner is added by these definitions.
 
 
-## Named generated updater transport/runtime/MCP positives
-
-Read the [HTTPS transport](../operations/houseatlas-updater-transport.md),
-[runtime adapters](../operations/houseatlas-updater-runtime.md) and
-[optional MCP composition](../operations/houseatlas-updater-mcp.md), then inspect
-the exact selected source and generated fixture bodies. From
-`tools/houseatlas-updater-adapters`, run:
-
-```sh
-PYTHONPATH=../houseatlas-updater PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_https_partial_reads_shared_deadline_and_closure tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_explicit_asset_redirect_then_chunked_body tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_fixed_dispatch_uses_existing_cli_once_per_request tests.test_transport_dispatch_happy.TransportDispatchHappyPaths.test_authorized_maintenance_catalog_and_exact_requests -v
-```
-
-From `tools/houseatlas-updater-runtime`, run:
-
-```sh
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../houseatlas-updater:. python3 -m unittest tests.test_runtime_happy.RuntimeHappyPaths.test_generated_full_and_frontend_apply_with_journal_coherence -v
-```
-
-From `tools/houseatlas-mcp-bridge`, run:
-
-```sh
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=../houseatlas-updater:../houseatlas-updater-adapters:../houseatlas-updater-runtime python3 -m unittest test_maintenance_happy.MaintenanceHappyPath.test_mcp_generated_check_apply_and_retained_status -v
-```
-
-The four transport/dispatch cases use only finite generated HTTP/TLS/readiness
-fixtures and a recording controller. The runtime case uses disposable software
-closures, a generated multichunk model and actual local journal with synthetic
-platform/native owners. The MCP case composes the actual controller/CLI and concrete runtime adapters
-with that existing generated platform/native owner, including the preserving
-verifier and typed application-readiness contract. No external socket, DNS, native binary or NAS
-request/service action, credentials, real maintenance grant or deployment occurs.
-The installed bridge default remains without maintenance tools. No failure,
-denial, replay, crash or rollback case is added or run, and no broad alias or CI
-step is introduced. Real native/launch/CAS/readiness bindings and safe onboarding
-remain separate owner qualifications.
-
-
 ## Named generated frontend asset-retention producer positive
 
 Read [the frontend asset-retention producer contract](../operations/frontend-asset-retention.md),
@@ -2473,7 +2350,7 @@ remain separate. This adds no workflow or deployment authority.
 
 ## Named generated native Access read-only validation positive
 
-Read [the native Access validation contract](../operations/updater-native-validation.md),
+Read [the native Access validation contract](../operations/access-read-only-validation.md),
 then inspect the two additive methods, shared compiled validator and the existing
 `healthy_persistent_session_checkpoint` body before this exact command in the
 pinned Rust 1.99.0 environment with an owned disposable Cargo target:
@@ -2486,7 +2363,7 @@ The generated persistent-session positive checks original-connection and closed
 Access catalogue/meta/epoch validation without an authorization/session refresh,
 preserves database bytes and stored session fields, then uses the original
 session normally. It does not establish whole-Core/profile inspection, live
-WAL/SHM filesystem immutability, an updater deadline, service fencing, maintenance
+WAL/SHM filesystem immutability, a caller deadline, service fencing, maintenance
 authority or native application readiness. No runtime route, real credentials,
 service, network, failure/denial/replay/crash case or broader suite is released.
 
@@ -2502,52 +2379,6 @@ shared-medium association. The five earlier snapshot pins stay unchanged.
 Room-summary lines are logical associations, not surveyed device positions or
 physical cable routes. Generated source/build checks do not accept pixels,
 native authority, installation or offline/device behavior.
-
-### Established-session bounded native HTTP transport
-
-Read `docs/operations/updater-established-native-transport.md`, the concrete
-`established_native_http.py` source and complete named test body first. The
-separately released ordinary generated positive, from the repository root, is:
-
-```sh
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tools/houseatlas-updater:tools/houseatlas-updater-runtime python3 tools/houseatlas-updater-runtime/tests/test_established_native_http_happy.py EstablishedNativeHttpHappyPaths.test_existing_session_fixed_get_partial_io_and_deadline -v
-```
-
-One finite existing-owner fixture exercises all nine fixed GET routes through
-actual transport parsing and shared-deadline logic with generated socket/TLS/clock
-ports. It checks normal partial I/O, chunk framing, original session fields and
-closure; it opens no socket, loads no trust material and calls no native/session
-owner. No malformed, denial, failure, expiry, concurrency, replay, crash or broader
-suite is released. This is source behavior, not application readiness, native
-coherence, qualified peer/TLS/grants, maintenance authority or deployment.
-
-
-## Established application readiness generated positive
-
-After inspecting the concrete reader, its fixed-route transport, existing
-`HealthProbe` contract and actual backend DTO/model/map schemas, the integration
-owner releases this single ordinary generated successful case:
-
-```sh
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tools/houseatlas-updater:tools/houseatlas-updater-runtime python3 tools/houseatlas-updater-runtime/tests/test_application_readiness_happy.py ApplicationReadinessHappyPaths.test_established_scope_model_scene_and_room_links -v
-```
-
-The case runs the actual `EstablishedApplicationReadiness` over the concrete
-transport with finite in-process socket/TLS-wrap/clock fixtures. It checks ten
-fixed requests under one absolute budget, exact pinned descriptor projections,
-model/map digests, a documentary room join, stale-view qualifiers, unchanged
-established-owner fields and original request/process/nonce retention. The
-existing `HealthProbe` typed-evidence contract is exercised without native or
-platform verification. All documents, model bytes and session facts are generated;
-no real socket, TLS trust query, native/provider read or credential is used.
-
-This releases no malformed, omission, denial, expiry, mutation, concurrency,
-failure-injection, retry, replay, crash, rollback, network, server, MCP, session,
-maintenance, target or broad-suite execution. Runtime binding, actual peer/TLS
-and process custody, compiled configuration admission, coherent full-profile
-validation and deployment remain separate owner gates. See the
-[reader contract](../operations/updater-application-readiness.md).
-
 
 ## Contextual retained-record search presentation
 
@@ -2659,70 +2490,6 @@ owned temporary bundle and React containers. They add no app dependencies,
 workflow, CI step, runtime alias, security/control suite or deployment gate.
 They do not qualify browser focus, CSS, installed sessions, session eviction,
 native/provider behavior, canonical HTTP binding or live service recovery.
-
-## Named generated Atlas current-connection read-validation positive
-
-Inspect `backend/src/storage/updater_read_validation.rs`, its generated healthy
-body and the delegated recovery/full-geodata validators before this separately
-released manual positive. Use Rust 1.99.0, the locked dependencies and an owned
-`CARGO_TARGET_DIR` outside the checkout:
-
-```sh
-cargo test --offline --locked -p houseatlas-backend --lib storage::store::updater_read_validation::healthy::healthy_current_profile_read_validation -- --exact --test-threads=1
-```
-
-The generated case prepares valid Atlas v5 and full-geodata v1 stores before
-the observation window, then validates through their original owned connections.
-It compares compiled recovery metadata, complete logical catalogue/table rows,
-connection policy/change counters, Store and owner identities, database device/
-inode and main-file bytes. The Connection-field address assertion does not
-identify the underlying SQLite handle; absence of replacement also requires
-source inspection.
-
-Document and stock/queue facets are empty, and the original asset is blocked/
-missing. This positive does not establish populated document, retained-byte or
-stock/queue history coverage. Main-file equality is not general live WAL/SHM
-filesystem no-write evidence.
-
-This component reuses the existing compiled profile validators. Access methods,
-maintenance composition, whole-Core coherence, running/stopped custody, real
-host binding, application readiness and deployment remain separate. The case
-uses no listener, browser, provider, session, household input or target service.
-It adds no workflow, CI step, default suite, runtime exposure, access grant or
-fault/concurrency/replay/crash/denial-control release.
-
-## Named generated native retained-byte validation positive
-
-Inspect `backend/src/storage/checks/updater-retained-bytes-healthy.rs`,
-the two administrative methods in `storage/updater_read_validation.rs`, and
-their existing Access, native media, recovery and historical-asset helpers.
-Use Rust 1.99.0, the unchanged dependency lock and an owned external Cargo target:
-
-```sh
-cargo test --offline --locked -p houseatlas-backend --lib storage::store::updater_read_validation::retained_bytes_healthy::healthy_current_native_retained_bytes -- --exact --test-threads=1
-```
-
-This single ordinary positive creates a fresh synthetic Editor/session through
-the actual Access owner. Setup commits two small owned text originals and
-tombstones one asset through the existing guarded mutation path. Administrative
-validation then uses the Store's original native vault and one Atlas transaction
-for SQL closure plus the existing historical retained-byte traversal. The
-generic PR258 API is unchanged; the native-specific method additionally checks
-the original vault binding when delegating to full-geodata.
-
-The case selects ordinary v5. It compares the SQL verdict, current and
-single-receipt historical originals, callback observations, logical rows,
-connection observations, main/WAL file bytes and identities, and vault-file
-bytes/modes/identities around the validation call. Setup mutations and normal
-Store close are outside that observation. The Rust connection-field address
-is not an independent SQLite-handle proof. Populated batch, document and queue
-histories and the native-specific full-geodata branch are not exercised here.
-
-No listener, browser, provider, real account, household input, native target,
-repair, migration, replay, fault or concurrency case is included. These bounded
-observations establish neither general filesystem/SHM inactivity nor whole-Core
-custody. The existing local media budgets and caller checkpoints are not a hard
-absolute deadline or permission to inspect a running target.
 
 ## Named generated embedded-PNG material positives
 
