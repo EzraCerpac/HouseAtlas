@@ -82,6 +82,6 @@ mapping, reviewed endpoint/page/byte/time budget, existing credential custodian,
 generation baseline and stop conditions before any bounded live read. Record
 actual list/detail/attachment/maintenance coverage and passive Network relations
 separately from these synthetic contracts. No live plan is released here.
-Recovery #286, mutations/seed reconciliation #287, updater #284, capture #296,
+Recovery #286, mutations/seed reconciliation #287, capture #296,
 workflow infrastructure and deferred UI/device acceptance remain with their
 existing owners. #285 and #277 remain open.

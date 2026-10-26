@@ -15,7 +15,7 @@ import { PLACE_CLASSIFICATION } from '../outbox/kinds.ts';
 import { Modal } from './components/Modal';
 import { ShellMenu } from './components/ShellMenu';
 import { attentionCount } from './components/DetailPanel';
-import { AiActivityStatus } from '../ai/host/index.js';
+import { AiActivityStatus, useAiHostAvailable } from '../ai/host/index.js';
 
 // Keep the default Atlas path and shared providers eager. These modules
 // load only when selected; no background prefetch or source reads are added.
@@ -123,6 +123,7 @@ const classificationKinds = [PLACE_CLASSIFICATION];
 
 export function App() {
   const { state, dispatch, house, actions } = useStore();
+  const aiAvailable = useAiHostAvailable();
   const reloadSaved = useCallback(() => { void actions.reload(); }, [actions]);
   useOutboxSynced(classificationKinds, reloadSaved);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -266,10 +267,11 @@ export function App() {
           <Icon name="tools" size={18} />
           <span className="tools-label">Atlas tools</span>
         </button>
-        <button type="button" aria-label="Ask" className={`ask-btn${state.askOpen ? ' is-on' : ''}`} aria-pressed={state.askOpen} onClick={() => dispatch({ type: 'ask', open: !state.askOpen })}>
+        {/* No in-app assistant is mounted without a host AI binding, so Ask hides. */}
+        {aiAvailable && <button type="button" aria-label="Ask" className={`ask-btn${state.askOpen ? ' is-on' : ''}`} aria-pressed={state.askOpen} onClick={() => dispatch({ type: 'ask', open: !state.askOpen })}>
           <Icon name="ask" size={18} />
           <span>Ask</span>
-        </button>
+        </button>}
         <button ref={settingsButton} type="button" className="icon-btn tool-settings" aria-label="Settings" onClick={openSettings}>
           <Icon name="settings" size={20} />
         </button>
@@ -297,7 +299,7 @@ export function App() {
         </div>}
       </aside>
 
-      {state.askOpen && <AskPanel />}
+      {aiAvailable && state.askOpen && <AskPanel />}
       {state.searchOpen && <SearchPalette />}
       {state.settingsOpen && <SettingsDialog />}
       {homesOpen && <HomePicker onClose={() => setHomesOpen(false)} />}

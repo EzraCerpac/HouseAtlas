@@ -10,13 +10,16 @@ home, in the `houseatlas-atlas-model-cache-v1` IndexedDB database:
 
 - the last verified unified Atlas scene envelope for one publication and overview
   manifest, with its entry building hint and the time it was stored;
-- the model bytes that scene pins, named by their SHA-256.
+- the model bytes that scene pins, named by their SHA-256;
+- the electricity and network overlay records last projected from current
+  native frames for that scene (one slot, per building, with the time each was
+  read; see below).
 
 It reuses the scan cache's bounded, generation-fenced store
 (`openVerifiedByteCache`): digest-named records, least-recently-used eviction,
 a 96 MiB ceiling, 30-day expiry and halving on a quota failure. Sign-out clears
-it together with the scan cache. No session, token, header or other API
-response is stored.
+it together with the scan cache. No session, token, header, native document or
+other API response is stored.
 
 ## How a start uses it
 
@@ -34,6 +37,35 @@ response is stored.
 4. A transport failure keeps the stored copy on screen as **not updated** with
    **Try again**. A stale, invalid, absent or too-large answer from the server
    replaces it with that state.
+
+## Electricity and network overlays
+
+`frontend/src/lantern/unified-atlas/overlay-feed.ts` owns the documentary
+layers of one live selection and model:
+
+- **Stored copy first.** When the Atlas opens it reads the stored overlay
+  records for that exact publication, scene revision and semantics
+  (`stored-overlays.ts` decodes them and keeps only the scene's floor buildings
+  and selectable rooms). Turning a layer on shows them at once, with
+  **Copy last loaded on this device, time; updating** in the layer key, while
+  the current sources open.
+- **Sources stay open.** The first time a layer is turned on, every building's
+  current source opens, as before. Turning layers off and on again reads
+  nothing; only a building without a current frame is read again.
+- **Kept as read.** Each building's records are stored as soon as its current
+  frame arrives. When a frame stops being current (its 10 s head check fails,
+  for example offline), the building falls back to those records, marked
+  **not updated**, and is read again after 15 s, on the browser's `online`
+  event or on the next toggle.
+- **Background read.** With nothing stored for the scene, the sources are read
+  once 4 s after the Atlas opens and released again, so the layers work later
+  without a network even if they were never turned on. It follows **Room map
+  downloads**: with **When I ask**, mobile data or Data Saver it waits for a
+  layer to be turned on.
+
+A stored copy is display only: it holds no frame, lease or native grant and is
+never offered as a current source. Source details show it as `stored-copy`.
+The Saved viewer keeps its own documentary snapshot in the saved pack.
 
 ## Room map downloads (Settings)
 
@@ -83,5 +115,10 @@ It runs the actual reader and cache on a synthetic IndexedDB disk across
 simulated processes and counts GETs: first open, cold reopen with an unchanged
 model (scene only), offline reopen (stored copy, no GET), a newly published
 model, another actor, changed stored bytes and sign-out clearing.
+`node frontend/lantern-tests/unified-atlas-overlay-feed-healthy.mjs` runs the
+actual overlay feed, codec and cache against a counting fake source owner:
+the background read with nothing stored, the stored copy shown before the
+fresh read ends, no reads on repeat toggles, the offline fallback and re-read
+when back online, exact scene pins and per-actor clearing.
 `node frontend/lantern-tests/offline-connection-probe-healthy.mjs` checks the
 live-host probe and the download preference.

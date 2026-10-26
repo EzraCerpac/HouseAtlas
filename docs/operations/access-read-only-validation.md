@@ -1,7 +1,7 @@
-# Updater native Access validation
+# Read-only native Access validation
 
 `AccessBoundary` exposes two administrative integrity methods. Neither is a
-route, agent tool, authorization grant or native updater activation mechanism.
+route, agent tool or authorization grant.
 
 | Method | Selected persistence | Owner precondition |
 | --- | --- | --- |
@@ -29,7 +29,7 @@ SQLite WAL/SHM state. The closed method does not stop a service, acquire a lease
 fence a process, select a snapshot or establish sidecar coherence. It must not
 be applied to an arbitrary running path as proof of a no-write inspection.
 Its connection uses the existing five-second SQLite busy timeout; synchronous
-SQLite and filesystem calls are not preempted by an updater deadline. The
+SQLite and filesystem calls are not preempted by a caller deadline. The
 current method retains the owner's original busy policy and must run outside
 an existing transaction. Its single Access snapshot alone is not a coherent
 whole-Core observation or evidence that a configured model/source is usable.
