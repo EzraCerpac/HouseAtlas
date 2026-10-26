@@ -840,7 +840,7 @@
 
 .lantern-host .ua-menu-panel[hidden] { display: none; }
 
-/* Lighting time: the hour the model is lit for, and a panel to move through the day. */
+/* Lighting time: the hour the model is lit for, and a slider through today. */
 .lantern-host .ua-daylight { position: relative; flex: none; }
 .lantern-host .ua-tools:has(.ua-daylight-panel:not([hidden])) { z-index: 8; }
 .lantern-host .ua-daylight-btn { background: var(--ua-panel); font-variant-numeric: tabular-nums; }
@@ -848,31 +848,13 @@
 .lantern-host .ua-daylight-btn[aria-expanded='true'] { background: var(--ink); border-color: var(--ink); color: #fff; }
 
 .lantern-host .ua-daylight-panel {
-  min-width: 272px;
-  gap: 10px;
-  padding: 12px;
-}
-
-.lantern-host .ua-daylight-row {
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  color: var(--ink-2);
-  font-weight: 650;
+  min-width: 272px;
+  gap: 12px;
+  padding: 10px 12px;
 }
-
-.lantern-host .ua-daylight-row input[type='range'] { width: 100%; min-height: 32px; accent-color: var(--ink); }
-.lantern-host .ua-daylight-row input[type='date'] { grid-column: 2 / -1; min-height: 34px; font: inherit; color: var(--ink); }
-.lantern-host .ua-daylight-row output { min-width: 3em; color: var(--ink); font-variant-numeric: tabular-nums; text-align: right; }
-
-.lantern-host .ua-daylight-sun {
-  margin: 0;
-  color: var(--ink-2);
-  font-variant-numeric: tabular-nums;
-}
-
-.lantern-host .ua-daylight-now { justify-self: end; }
+.lantern-host .ua-daylight-panel input[type='range'] { width: 100%; min-height: 32px; accent-color: var(--ink); }
 
 .lantern-host .ua-menu-camera {
   display: flex;

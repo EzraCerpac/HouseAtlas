@@ -41,6 +41,29 @@ export function primitiveBaseColor(json: Record<string, unknown>, meshIndex: num
   return Object.freeze([...factor]) as unknown as SourceBaseColor;
 }
 
+/** How a primitive shows at night: an emitter glows; glazing shows the lit room behind it. */
+export type SourceNight = 'emitter' | 'glazing';
+const LAMP_WORD = /\b(lamps?|lanterns?|bulbs?|headlamps?|headlights?|sconces?)\b/i;
+const GLASS_WORD = /\b(glass|glazing|glazed|panes?|lens|bulbs?)\b/i;
+/** The producer marks an emitter with a nonzero core `emissiveFactor` and glazing
+ * with `alphaMode: "BLEND"` below full alpha. Until a model carries those marks, a
+ * material named for a lamp's glass or bulb counts as an emitter and other glass
+ * as glazing: the one place where a name, never geometry or a binding, sets a look. */
+export function primitiveNight(json: Record<string, unknown>, meshIndex: number | null, primitiveIndex: number | null): SourceNight | undefined {
+  if (meshIndex === null || primitiveIndex === null || !Array.isArray(json.meshes) || !Array.isArray(json.materials)) return;
+  const materialIndex: unknown = json.meshes[meshIndex]?.primitives?.[primitiveIndex]?.material;
+  if (!Number.isInteger(materialIndex) || (materialIndex as number) < 0) return;
+  const material: unknown = json.materials[materialIndex as number];
+  if (!material || typeof material !== 'object') return;
+  const { emissiveFactor, alphaMode, name, pbrMetallicRoughness } = material as Record<string, unknown>;
+  const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+  if (Array.isArray(emissiveFactor) && emissiveFactor.some(value => finite(value) && value > 0)) return 'emitter';
+  const alpha: unknown = (pbrMetallicRoughness as { baseColorFactor?: unknown[] } | undefined)?.baseColorFactor?.[3];
+  if (alphaMode === 'BLEND' && finite(alpha) && alpha < 1) return 'glazing';
+  if (typeof name !== 'string' || !GLASS_WORD.test(name)) return;
+  return LAMP_WORD.test(name) ? 'emitter' : 'glazing';
+}
+
 /** Source appearance never displaces an explicit selection, reference or
  * relation highlight. Other viewers opt out and keep their existing tones. */
 export function sourceMeshColor(mesh: Pick<PreparedMesh, 'sourceBaseColor' | 'occurrenceId'>, state: {
@@ -61,6 +84,7 @@ export interface MeshInput {
   readonly positions: Float32Array;
   readonly indices: Uint32Array;
   readonly sourceBaseColor?: SourceBaseColor;
+  readonly sourceNight?: SourceNight;
   readonly sourceMaterial?: EmbeddedMaterial;
   readonly sourceAttributes?: Readonly<{ uv: Float32Array; normal: Float32Array; tangent: Float32Array | null }>;
 }
@@ -76,6 +100,7 @@ export interface PreparedMesh {
   readonly yRange: readonly [number, number];
   readonly bounds: Bounds;
   readonly sourceBaseColor?: SourceBaseColor;
+  readonly sourceNight?: SourceNight;
   readonly sourceMaterial?: EmbeddedMaterial;
   /** Separate UV(2), source shading normal(3), tangent(4) stream. Picking keeps
    * the original 24-byte position/flat-normal stream without any layout change. */
@@ -115,6 +140,7 @@ export function prepareMeshes(meshes: readonly MeshInput[], binding: (mesh: Mesh
     }
     return { meshKey: mesh.meshKey, floorId: mesh.floorId, occurrenceId: binding(mesh), vertices, triangles,
       ...(mesh.sourceBaseColor ? { sourceBaseColor: mesh.sourceBaseColor } : {}),
+      ...(mesh.sourceNight ? { sourceNight: mesh.sourceNight } : {}),
       ...(mesh.sourceMaterial && materialVertices ? { sourceMaterial: mesh.sourceMaterial, materialVertices } : {}),
       yRange: [min[1]!, max[1]!], bounds: { min: [min[0]!, min[1]!, min[2]!], max: [max[0]!, max[1]!, max[2]!] } };
   });

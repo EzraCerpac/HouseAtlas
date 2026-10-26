@@ -59,6 +59,10 @@ export interface AppearanceInput {
    * face with one of them above it reads as indoors and takes the lamp light. Hiding or cutting
    * them away leaves the rooms beneath lit. */
   readonly shelterKeys?: ReadonlySet<string> | undefined;
+  /** With daylight only: building glass, which shows the lamp-lit room behind it at night. */
+  readonly glazingKeys?: ReadonlySet<string> | undefined;
+  /** With daylight only: lamp glass and bulbs, which glow at night and light what is near them. */
+  readonly emitterKeys?: ReadonlySet<string> | undefined;
   /** Colour overrides (hex); omitted entries keep the default tones. */
   readonly palette?: Partial<MeshPalette> | undefined;
 }
@@ -108,8 +112,12 @@ export type MeshPass = typeof MeshPass[keyof typeof MeshPass];
 export const STATE_TEXELS = 8;
 /** Floats per mesh in the state table. Layout, by texel:
  * 0 top.rgb, usePitch · 1 base.rgb, useSourceColor · 2 cut.rgb, useClip · 3 pitch.rgb, clipY
- * 4 shade.rgb, lift · 5 pass, ghost, ghostUseFloor, ghostFloorY · 6 useMaterial, materialDim · 7 shelter, keepTone */
+ * 4 shade.rgb, lift · 5 pass, ghost, ghostUseFloor, ghostFloorY · 6 useMaterial, materialDim · 7 shelter, keepTone, glazing, emitter */
 export const STATE_FLOATS = STATE_TEXELS * 4;
+
+/** Emitters that light their surroundings in one frame, and how close two must be to count as one. */
+export const MAX_LAMPS = 16;
+const LAMP_MERGE = .75;
 
 /** Uniform values shared by every mesh in a frame. */
 export interface FrameAppearance {
@@ -127,6 +135,8 @@ export interface FrameAppearance {
   readonly tint: Rgb;
   readonly sunTint: Rgb;
   readonly lampTint: Rgb;
+  /** Up to MAX_LAMPS shown emitters, merged when close, as lifted points that light their surroundings. */
+  readonly lamps: readonly Rgb[];
   /** Passes with at least one mesh this frame; empty passes are skipped. */
   readonly passes: ReadonlySet<MeshPass>;
   readonly ghosts: boolean;
@@ -144,6 +154,7 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
   const SOURCE_DIM = clamp01(p.sourceDim ?? 1);
   const DAY = p.twoSided && p.daylight ? p.daylight : null;
   const passes = new Set<MeshPass>(); let ghosts = false;
+  const lamps: { at: Rgb; count: number }[] = [];
   meshes.forEach((mesh, index) => {
     const o = index * STATE_FLOATS, key = mesh.meshKey;
     const kind: MeshPass = p.referenceKeys?.has(key) ? MeshPass.Reference : mesh.occurrenceId !== null ? MeshPass.Bound : MeshPass.Unbound;
@@ -192,6 +203,15 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     out[o + 20] = pass; out[o + 21] = ghost ? 1 : 0; out[o + 22] = above === null ? 0 : 1; out[o + 23] = above ?? 0;
     out[o + 24] = source && p.sourceMaterials && mesh.sourceMaterial ? 1 : 0; out[o + 25] = clamp01(dim * SOURCE_DIM);
     out[o + 28] = DAY && p.shelterKeys?.has(key) ? 1 : 0; out[o + 29] = DAY && keep ? 1 : 0;
+    const emitter = DAY !== null && p.emitterKeys?.has(key) === true;
+    out[o + 30] = DAY && p.glazingKeys?.has(key) ? 1 : 0; out[o + 31] = emitter ? 1 : 0;
+    if (emitter && pass !== MeshPass.None) {
+      const { min, max } = mesh.bounds, lift = p.lifts?.get(key) ?? 0;
+      const at: Rgb = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2 + lift, (min[2] + max[2]) / 2];
+      const near = lamps.find(lamp => Math.hypot(lamp.at[0] - at[0], lamp.at[1] - at[1], lamp.at[2] - at[2]) < LAMP_MERGE);
+      if (near) { near.at = near.at.map((value, axis) => (value * near.count + at[axis]!) / (near.count + 1)) as unknown as Rgb; near.count++; }
+      else lamps.push({ at, count: 1 });
+    }
   });
   // An opt-in ghost opacity also keeps the ghost nearly flat, so stacked faded floors stay one quiet veil.
   const quiet = p.twoSided === true && p.ghostAlpha !== undefined;
@@ -201,6 +221,7 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     ghostAlpha: quiet ? clamp01(p.ghostAlpha!) : GHOST_ALPHA, ghostColor: GHOST, ghostShade: quiet ? mix(SHADE, GHOST, .8) : SHADE,
     direct: DAY ? clamp01(DAY.direct) : 1, night: DAY?.night === true, lamp: DAY ? clamp01(DAY.lamp) : 0,
     tint: DAY ? [...DAY.tint] as Rgb : [1, 1, 1], sunTint: DAY ? [...DAY.sunTint] as Rgb : [1, 1, 1], lampTint: DAY ? [...DAY.lampTint] as Rgb : [1, 1, 1],
+    lamps: lamps.sort((a, b) => b.count - a.count).slice(0, MAX_LAMPS).map(lamp => lamp.at),
     passes, ghosts,
   };
 }

@@ -331,6 +331,8 @@ const ATLAS_SITE = '#E0CFA6', ATLAS_GHOST_ALPHA = .05;
 const ATLAS_SOURCE_DIM = .45;
 /** Meshes that roof the house over: at night a face beneath them is indoors and lamp-lit. */
 const SHELTER_ROLES: ReadonlySet<MeshRole> = new Set(['structure', 'roof', 'slab']);
+/** Of those, the ones whose glass shows lit rooms at night; glass in the context never does. */
+const GLAZED_ROLES: ReadonlySet<MeshRole> = new Set(['structure', 'roof']);
 /** The birch board under the property: its thickness below the lowest floor, in metres. */
 const BOARD_DEPTH = .4;
 /** Contact shadow of each building's lowest floor on the board, cast away from the sun, in metres. */
@@ -737,6 +739,10 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   const roofKeys = useMemo(() => new Set(model.parts.filter(part => part.role === 'roof').map(part => part.mesh.meshKey)), [model]);
   const site = useMemo(() => ({ keys: new Set(model.parts.filter(part => part.role === 'context').map(part => part.mesh.meshKey)), tone: ATLAS_SITE }), [model]);
   const shelterKeys = useMemo(() => new Set(model.parts.filter(part => SHELTER_ROLES.has(part.role)).map(part => part.mesh.meshKey)), [model]);
+  // After dusk the house's own glass shows its lit rooms, and every lamp glows.
+  const glazingKeys = useMemo(() => new Set(model.parts.filter(part => GLAZED_ROLES.has(part.role) && part.mesh.sourceNight === 'glazing')
+    .map(part => part.mesh.meshKey)), [model]);
+  const emitterKeys = useMemo(() => new Set(model.parts.filter(part => part.mesh.sourceNight === 'emitter').map(part => part.mesh.meshKey)), [model]);
   const showCanvas = planBlend < 1 && failure === null;
 
   // A new place is framed whole: zoom and pan return, the chosen orbit stays.
@@ -1379,7 +1385,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
           <button type="button" className="ctrl-btn" aria-label="Zoom out" disabled={camera.zoom <= camera.zoomLimits.min} onClick={() => camera.zoomBy(1 / 1.3)}><Icon name="minus" size={17} /></button>
           <button type="button" className="ctrl-btn" aria-label="Fit view" title="Fit view" onClick={camera.fit}><Icon name="fit" size={17} /></button>
         </div>
-        {!plan && <DaylightControl at={lightingTime.at} live={lightingTime.live} night={daylight.night} place={sunPlace} onChange={lightingTime.set} />}
+        {!plan && <DaylightControl at={lightingTime.at} live={lightingTime.live} night={daylight.night} onChange={lightingTime.set} />}
         {/* Compact: the snapshot stamp takes the free width, and one menu holds
             the camera, the lenses, the archive filter and the other sources. */}
         {compact && port.savedDocumentary && <p className="ua-stamp" role="note">
@@ -1455,6 +1461,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
             selectedOccurrenceId={selected} contextOccurrenceIds={context} tints={tints} hidden={!showCanvas}
             hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} sourceColors sourceMaterials sourceDim={ATLAS_SOURCE_DIM} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE} light={light} pitch={ATLAS_PITCH}
             pitchKeys={roofKeys} site={site} ghostAlpha={ATLAS_GHOST_ALPHA} daylight={daylight} shelterKeys={shelterKeys}
+            glazingKeys={glazingKeys} emitterKeys={emitterKeys}
             uploadBytes={target !== lighter || model !== lighter ? RENDER_LIMITS.detailUploadBytes : RENDER_LIMITS.uploadBytes}
             onUnavailable={message => { if (target !== lighter && keepLight) keepLight(); else setFailure(message); }} />
         </div>
