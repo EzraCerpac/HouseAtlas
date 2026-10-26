@@ -109,6 +109,20 @@ Playwright's `chrome-headless-shell`. `bench` throttles the CPU 4× and prints
 CPU time and GPU API calls per frame while the camera turns; it asserts nothing.
 None of these cases is device, Safari or live-model evidence.
 
+## Real-browser Plan wheel
+
+`frontend/lantern-tests/unified-atlas-plan-wheel-browser.mjs` builds the
+generated Atlas host, opens Plan and sends trusted wheel input at the stage
+centre. A plain wheel (two-finger scroll) must pan the plan by its deltas and a
+ctrl-wheel (Chromium's trackpad pinch) must zoom it, and the point under the
+cursor must not resolve to a hidden element such as the 3D canvas that Plan
+hides. It is in the healthy suite. It is not physical trackpad, Safari gesture
+or momentum evidence.
+
+```sh
+node frontend/lantern-tests/unified-atlas-plan-wheel-browser.mjs
+```
+
 ## Backend unit tests
 
 The `Rust React ordinary core` workflow runs the backend library unit tests on
