@@ -173,13 +173,13 @@ assert.deepEqual(Buffer.from(detailRead.model), Buffer.from(glb));
 const servedDetail = { ...withDetail[1], bytes: glb.byteLength, sha256: composed.sha256,
   href: composed.href.replace('/artifacts/model?', '/artifacts/model-detail?') };
 const servedEnvelopeBytes = new TextEncoder().encode(JSON.stringify({ ...composed.envelope, artifacts: [withDetail[0], servedDetail] }));
-const readDetail = async (served, sceneOf = detailScene) => {
+const readDetail = async (served, sceneOf = detailScene, store) => {
   const urls = [];
   const transport = createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(scope), envelopeBytes: servedEnvelopeBytes,
     href: composed.href, glb, sha256: composed.sha256, manifestSha256: composed.manifestSha256, revision: SYNTHETIC_ATLAS.revision,
     detail: { href: servedDetail.href, glb: served, sha256: composed.sha256 }, onRequest: url => urls.push(url) });
   const bytes = await readUnifiedAtlasDetail({ selection, scene: sceneOf, signal: new AbortController().signal, origin: SYNTHETIC_ATLAS.origin,
-    isCurrent: () => true, transport });
+    isCurrent: () => true, transport, store });
   return { bytes, urls };
 };
 const detailScene = (await readUnifiedAtlas({ selection, signal: new AbortController().signal, origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true,
@@ -194,6 +194,63 @@ await assert.rejects(readDetail(glb.slice(1)), { reason: 'unavailable' }, 'a sho
 await assert.rejects(readDetail(glb, read.scene), { reason: 'absent' }, 'a scene without a detail has nothing to read');
 await assert.rejects(readDetail(glb, { ...detailScene, detail: { ...detailScene.detail, href: composed.href } }), { reason: 'invalid' },
   'only the detail route is read');
+
+// Full quality keeps the verified detail on the device: the next read with the
+// same pin uses the stored copy and fetches nothing. A copy that misses the
+// digest is dropped and read again; a new pin replaces the old copy; a quota
+// without the headroom stores nothing; removal clears every copy. The cache is
+// an in-memory stand-in for Cache Storage.
+const { openDetailStore, storedDetailBytes, clearDetailStore, subscribeDetailStore, DETAIL_STORE_NAME, DETAIL_STORE_HEADROOM } =
+  await import(await sourceURL('../src/lantern/unified-atlas/detail-store.ts'));
+function memoryCaches() {
+  const named = new Map(), url = key => typeof key === 'string' ? key : key.url;
+  const create = () => { const rows = new Map(); return {
+    rows, async match(key) { return rows.get(url(key))?.clone(); }, async delete(key) { return rows.delete(url(key)); },
+    async put(key, response) { rows.set(url(key), new Response(await response.arrayBuffer(), { headers: response.headers })); },
+    async keys() { return [...rows.keys()].map(key => new Request(key)); } }; };
+  return { named, async has(name) { return named.has(name); }, async delete(name) { return named.delete(name); },
+    async open(name) { if (!named.has(name)) named.set(name, create()); return named.get(name); } };
+}
+/** Resolves after `count` store changes; subscribe before the operations that make them. */
+const settled = (count = 1) => new Promise(resolve => { const off = subscribeDetailStore(() => { if (--count === 0) { off(); resolve(); } }); });
+const owner = { actorId: 'synthetic-actor', workspaceId: scope.workspaceId, homeId: scope.homeId };
+const roomy = { usage: 0, quota: glb.byteLength + DETAIL_STORE_HEADROOM };
+let persistAsked = 0;
+const manager = estimate => ({ estimate: async () => estimate, persisted: async () => false, persist: async () => { persistAsked++; return true; } });
+const memory = memoryCaches(), host = { caches: memory, storage: manager(roomy), origin: SYNTHETIC_ATLAS.origin };
+const store = openDetailStore(owner, host);
+assert.equal(await storedDetailBytes(host), 0);
+let kept = settled();
+const missRead = await readDetail(glb, detailScene, store); await kept;
+assert.equal(missRead.urls.length, 1, 'nothing stored yet: one download');
+assert.equal(await storedDetailBytes(host), glb.byteLength, 'the verified download is kept');
+assert.equal(persistAsked, 1, 'storing asks the browser to keep the origin');
+const hitRead = await readDetail(tampered, detailScene, store);
+assert.deepEqual(hitRead.urls, [], 'a stored copy with the pinned digest makes no request');
+assert.deepEqual(Buffer.from(hitRead.bytes), Buffer.from(glb));
+const [stored] = await (await memory.open(DETAIL_STORE_NAME)).keys();
+memory.named.get(DETAIL_STORE_NAME).rows.set(stored.url, new Response(tampered, { headers: (await memory.named.get(DETAIL_STORE_NAME).match(stored)).headers }));
+kept = settled(2);
+const repaired = await readDetail(glb, detailScene, store); await kept;
+assert.equal(repaired.urls.length, 1, 'a stored copy that misses the digest is not drawn: the detail is read again');
+assert.deepEqual(Buffer.from(repaired.bytes), Buffer.from(glb));
+assert.deepEqual(Buffer.from(await store.read(composed.sha256, glb.byteLength)), Buffer.from(glb), 'and the verified bytes replace it');
+const other = openDetailStore(owner, host);
+kept = settled(); other.keep('f'.repeat(64), glb.slice()); await kept;
+assert.equal((await (await memory.open(DETAIL_STORE_NAME)).keys()).length, 1, 'one copy: a new pin replaces the old');
+assert.equal(await store.read(composed.sha256, glb.byteLength), null);
+assert.equal(await other.read('f'.repeat(64), glb.byteLength - 1), null, 'a length the pin does not name is not read');
+const tight = { caches: memoryCaches(), storage: manager({ usage: 1, quota: glb.byteLength + DETAIL_STORE_HEADROOM }), origin: SYNTHETIC_ATLAS.origin };
+kept = settled();
+const tightRead = await readDetail(glb, detailScene, openDetailStore(owner, tight)); await kept;
+assert.deepEqual(Buffer.from(tightRead.bytes), Buffer.from(glb), 'a quota without the headroom still shows Full');
+assert.equal(await storedDetailBytes(tight), 0, 'but stores nothing');
+const lost = settled(); await clearDetailStore(host); await lost;
+assert.equal(await storedDetailBytes(host), 0, 'removal clears every copy');
+assert.equal(memory.named.has(DETAIL_STORE_NAME), false);
+const unsupported = openDetailStore(owner, { origin: SYNTHETIC_ATLAS.origin });
+assert.equal(await unsupported.read(composed.sha256, glb.byteLength), null, 'without Cache Storage nothing is stored or read');
+unsupported.keep(composed.sha256, glb.slice());
 
 // Admission-only projection at the 4,096-occurrence bound: four differently
 // ordered room/non-room feature references each, plus an empty occurrence and

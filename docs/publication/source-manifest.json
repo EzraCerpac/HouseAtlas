@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "79574dd7b1d55914dc6702377a25070c275fe23e5a9a0dde09dddbba9ddad74b",
+  "sourceDigestSha256": "43e3e5bbc78fe7cb7172052ae3184772426c1a4ce1530df2845cbd41269e8b57",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6468,8 +6468,8 @@
     {
       "path": "docs/models/unified-atlas-scene-v1.md",
       "mode": "100644",
-      "bytes": 28752,
-      "sha256": "af80a273185bbe7e1ca8a60cd7bc7de1a8416e21b68971a1e0d4ba02281832ca",
+      "bytes": 28900,
+      "sha256": "1e8226a2dccf234dc7403e03d70d0ef65c0001b83d414c6817f7d099f4b061fe",
       "owner": "core-integration"
     },
     {
@@ -6482,8 +6482,8 @@
     {
       "path": "docs/offline/live-atlas-cache.md",
       "mode": "100644",
-      "bytes": 6325,
-      "sha256": "56a05c2419a78460227e1b66648ce624bc499fa5d4006a3323924960df938374",
+      "bytes": 7327,
+      "sha256": "dcd5ac919aba35948fe89d1f73cccf37ba1c61f97aa099d5aea5cb1ef1838e89",
       "owner": "web"
     },
     {
@@ -7175,8 +7175,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 49898,
-      "sha256": "8d8505de67325c87424ac298d68dd222bfca701500b2c13d825e0d98162e5bc0",
+      "bytes": 50458,
+      "sha256": "e8f880554707670dc2225570e697cfd959cc2406379ad5f803669609fcf48629",
       "owner": "core-integration"
     },
     {
@@ -7378,8 +7378,8 @@
     {
       "path": "frontend/integration/unified-atlas-reader.ts",
       "mode": "100644",
-      "bytes": 14523,
-      "sha256": "254b3e2b7d20ae7b0cadf2b010413f1919c4f3a237490cb1b1020d2e55180c4b",
+      "bytes": 15413,
+      "sha256": "a8fec0381a32ec87d18c11fc65bc937cddcf1a798adf229a9fed271656b3b656",
       "owner": "core-integration"
     },
     {
@@ -8351,8 +8351,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
-      "bytes": 107925,
-      "sha256": "4f67c1c3aae8a9eaa59e030c3352de0892c9d4a506479a97bad9f10f464f3f5b",
+      "bytes": 112557,
+      "sha256": "efab37588428e971d8a2f365d071cbd51eb389e593847b38ae9ee2f4375a9047",
       "owner": "web"
     },
     {
@@ -9506,8 +9506,8 @@
     {
       "path": "frontend/src/lantern/components/SettingsDialog.tsx",
       "mode": "100644",
-      "bytes": 8270,
-      "sha256": "d9d50643cb29692d0692b913fea97a16a93ee9a81a9daa66bc7a58ee8a2313f1",
+      "bytes": 9239,
+      "sha256": "3a096932886cbe196df9d45f3dd6d2fef1b69228b540a219f2ad15e0f0a9c907",
       "owner": "web"
     },
     {
@@ -10467,6 +10467,13 @@
       "mode": "100644",
       "bytes": 5269,
       "sha256": "a9f4ad9b563b6446bf1e518c34401dda4ad6ab92cdd66ca4888f73e288cda899",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/unified-atlas/detail-store.ts",
+      "mode": "100644",
+      "bytes": 5359,
+      "sha256": "c367befc13698cefcf25b1162bac0cd6af34ff0da27f2deb8c025ed36d7dfa2a",
       "owner": "web"
     },
     {

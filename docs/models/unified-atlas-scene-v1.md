@@ -146,8 +146,11 @@ frame, so the swap never blanks the view. Picking, labels and every other read
 of the stage follow the model whose meshes are on screen (`model-tier.ts`), so
 drawing and picking never use different tiers, and Light is drawn before Full
 is built, however fast Full arrives. A
-failed read, admission or GPU build keeps the overview. The detail is never
-stored offline: a stored copy and saved houses show the overview only.
+failed read, admission or GPU build keeps the overview. A device that reads
+the detail keeps one verified copy between launches (see
+`docs/offline/live-atlas-cache.md`), so it downloads once per release; it is
+not part of the offline copy: a stored copy and saved houses show the overview
+only.
 Reuse the existing Read/Media, same-origin, retained-principal and final-current
 checks. Return private no-store bytes with exact type, length and digest. This
 adds no accounts, grants, tokens or native writes. A changed selection is stale;
