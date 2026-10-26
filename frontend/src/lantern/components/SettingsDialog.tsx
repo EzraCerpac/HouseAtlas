@@ -5,7 +5,7 @@ import { useStore } from '../state/store';
 import { Modal } from './Modal';
 import { setModelUpdates, useModelUpdates } from '../unified-atlas/model-updates';
 import { autoPrefersFull, setModelQuality, useModelQuality } from '../unified-atlas/model-quality';
-import { DEFAULT_SUN_PLACE, setSunPlace, useSunPlace } from '../unified-atlas/sun-place';
+import { DEFAULT_SUN_PLACE, updateSunPlace, useSunPlace } from '../unified-atlas/sun-place';
 import type { SunPlace } from '../unified-atlas/daylight';
 import { SyncSettings } from '../../outbox/ui';
 
@@ -108,7 +108,7 @@ function SunPlaceSettings() {
   const edit = (key: keyof SunPlace, text: string, low: number, high: number) => {
     setDraft(value => ({ ...value, [key]: text }));
     const value = Number(text);
-    if (text.trim() !== '' && Number.isFinite(value) && value >= low && value <= high) setSunPlace({ ...place, [key]: value });
+    if (text.trim() !== '' && Number.isFinite(value) && value >= low && value <= high) updateSunPlace({ [key]: value });
   };
   const locate = () => {
     if (!('geolocation' in navigator)) { setLocating('failed'); return; }
@@ -116,7 +116,7 @@ function SunPlaceSettings() {
     navigator.geolocation.getCurrentPosition(({ coords }) => {
       // Two decimals, about a kilometre: plenty for the sun, and no closer than needed.
       const latitude = Math.round(coords.latitude * 100) / 100, longitude = Math.round(coords.longitude * 100) / 100;
-      setSunPlace({ ...place, latitude, longitude });
+      updateSunPlace({ latitude, longitude });
       setDraft(value => ({ ...value, latitude: String(latitude), longitude: String(longitude) }));
       setLocating(null);
     }, () => setLocating('failed'), { maximumAge: 3_600_000, timeout: 15_000 });

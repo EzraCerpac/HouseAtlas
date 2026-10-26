@@ -22,7 +22,10 @@ export function readSunPlace(): SunPlace {
   } catch { /* Unavailable or unreadable storage keeps the default. */ }
   return DEFAULT_SUN_PLACE;
 }
-export function setSunPlace(value: SunPlace): void {
+/** Merges `patch` into the place as it stands now, so edits made while a
+ * location lookup is pending are kept. */
+export function updateSunPlace(patch: Partial<SunPlace>): void {
+  const value = { ...current(), ...patch };
   try { localStorage.setItem(KEY, JSON.stringify(value)); } catch { /* The choice lasts for this page only. */ }
   memory = value;
   for (const changed of listeners) changed();

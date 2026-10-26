@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "31bd539d821b97418852fd5948a98894bd8e0b04779cf084f66b31ab8e6fefd6",
+  "sourceDigestSha256": "d5a1fd36befe1b76b9794cd3a32c97f4a5877b84442235abcbe010cc4365ac74",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -9492,8 +9492,8 @@
     {
       "path": "frontend/src/lantern/components/SettingsDialog.tsx",
       "mode": "100644",
-      "bytes": 8362,
-      "sha256": "b61d8cbb44b024b8fae748e79a5baf575f91ec2395e1ba01e5565e8bd9e9f048",
+      "bytes": 8351,
+      "sha256": "991384e799d4f86f785bcffff41b491d7be377634c6942d75f11fa6659574f42",
       "owner": "web"
     },
     {
@@ -10528,8 +10528,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/sun-place.ts",
       "mode": "100644",
-      "bytes": 1900,
-      "sha256": "6cf63a6dca9c50be41644677c1247d7501db91edbc321d43c4589cda31e8bbc0",
+      "bytes": 2073,
+      "sha256": "7a20cb50a020fb6ece8370308da4745c3141a7fae4dd680b4dc64be6d7622dc0",
       "owner": "web"
     },
     {
