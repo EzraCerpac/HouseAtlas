@@ -27,6 +27,9 @@ MAX_MESSAGE = 8 * 1024 * 1024
 MAX_JSON = 1048576
 MAX_READ = 2 * 1024 * 1024
 MAX_READ_PAGE = 8
+MAX_CATALOG = 256 * 1024
+MAX_CAPABILITIES_INPUT = 4 * 1024 * 1024
+CATALOG_QUERY = '?view=homebox-cached-partitions-v1'
 MAX_OUTPUT = 8 * 1024 * 1024
 MAX_ORIGINAL = 10 * 1024 * 1024
 MAX_COMMIT = MAX_READ
@@ -57,6 +60,27 @@ PROTOCOLS = ('2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05')
 
 class BridgeError(Exception):
     """Public messages are constants, never raw transport/credential diagnostics."""
+
+
+
+class CapabilitiesBudget:
+    """One cooperative deadline and response-input allowance, never renewed."""
+    def __init__(self):
+        self.deadline = time.monotonic() + 60
+        self.remaining_bytes = MAX_CAPABILITIES_INPUT
+
+    def remaining(self):
+        value = self.deadline - time.monotonic()
+        need(value > 0, 'Capabilities deadline exceeded')
+        return value
+
+    def consume(self, headers, body):
+        self.remaining()
+        size = len(body) + sum(len(k.encode('utf-8')) + len(v.encode('utf-8'))
+                               for k, v in headers.items())
+        need(size <= self.remaining_bytes, 'Capabilities response input exceeded bound')
+        self.remaining_bytes -= size
+        self.remaining()
 
 
 class MethodNotFound(BridgeError):
@@ -265,13 +289,18 @@ class HTTPSOwner:
     def csrf(self, value):
         self._credentials = (self._credentials[0], value)
 
-    def login(self):
+    def login(self, budget=None):
         # Canonical HTTPS gateway performs its own actual peer/identity checks.
         # No client-supplied Unix/proxy identity proof or account/password input.
-        _, mode = self.exchange('GET', '/api/atlas/auth/mode')
+        def exchange(*args):
+            result = self.exchange(*args, **({'budget': budget} if budget is not None else {}))
+            if budget is not None:
+                budget.consume(*result)
+            return result
+        _, mode = exchange('GET', '/api/atlas/auth/mode')
         need(strict_json(mode) == {'schemaVersion': 1, 'mode': 'trusted-proxy'},
              'Selected native host is not trusted-proxy mode')
-        headers, body = self.exchange('POST', '/api/atlas/auth/proxy', b'{}')
+        headers, body = exchange('POST', '/api/atlas/auth/proxy', b'{}')
         need(headers.get('content-type') == 'application/json', 'Native session response differs')
         info = strict_json(body, 16384)
         keys(info, ('schemaVersion', 'actorId', 'csrfToken', 'expiresAt'))
@@ -303,7 +332,7 @@ class HTTPSOwner:
         finally:
             self._credentials = (None, None)
 
-    def exchange(self, method, path, body=None, csrf=None, limit=MAX_JSON):
+    def exchange(self, method, path, body=None, csrf=None, limit=MAX_JSON, *, budget=None, metadata_status=False):
         need(method in ('GET', 'POST') and path.startswith('/api/atlas/')
              and not path.startswith('//') and '#' not in path, 'Native route unavailable')
         headers = {'Accept': 'application/json', 'Origin': self.origin,
@@ -318,18 +347,37 @@ class HTTPSOwner:
             if csrf is not None:
                 need('\r' not in csrf and '\n' not in csrf, 'Current native CSRF unavailable')
                 headers['X-Atlas-CSRF'] = csrf
-        conn = http.client.HTTPSConnection(self.url.hostname, self.url.port, timeout=15,
+        deadline = budget.deadline if budget is not None else time.monotonic() + 60
+        def remaining():
+            left = deadline - time.monotonic()
+            need(left > 0, 'Native response deadline exceeded')
+            return min(15, left)
+        if budget is not None:
+            limit = min(limit, budget.remaining_bytes)
+        conn = http.client.HTTPSConnection(self.url.hostname, self.url.port, timeout=remaining() if budget is not None else 15,
                                             context=ssl.create_default_context())
         try:
-            deadline = time.monotonic() + 60
+            if budget is None:
+                deadline = time.monotonic() + 60
             conn.request(method, path, body=body, headers=headers)
+            response_socket = conn.sock if budget is not None else None
+            if response_socket is not None:
+                response_socket.settimeout(remaining())
             response = conn.getresponse()
+            if budget is not None:
+                budget.remaining()
             items = response.getheaders()
             need(sum(len(k) + len(v) for k, v in items) <= 16384, 'Native headers exceeded bound')
             names = [k.lower() for k, _ in items]
             need(len(names) == len(set(names)), 'Duplicate native headers')
             metadata = {k.lower(): v for k, v in items}
-            need(response.status == 200 and 'location' not in metadata
+            if budget is not None:
+                header_bytes = sum(len(k.encode('utf-8')) + len(v.encode('utf-8'))
+                                   for k, v in metadata.items())
+                need(header_bytes <= budget.remaining_bytes, 'Capabilities response input exceeded bound')
+                limit = min(limit, budget.remaining_bytes - header_bytes)
+            accepted_status = metadata_status and response.status in (403, 404, 405, 410, 501, 503)
+            need((response.status == 200 or accepted_status) and 'location' not in metadata
                  and metadata.get('content-encoding', 'identity') == 'identity', 'Native response unavailable')
             content_length = metadata.get('content-length')
             if content_length is not None:
@@ -337,6 +385,8 @@ class HTTPSOwner:
             chunks, size = [], 0
             while True:
                 need(time.monotonic() < deadline, 'Native response deadline exceeded')
+                if response_socket is not None:
+                    response_socket.settimeout(remaining())
                 part = response.read1(min(65536, limit + 1 - size))
                 if not part:
                     break
@@ -344,7 +394,10 @@ class HTTPSOwner:
                 size += len(part)
                 need(size <= limit, 'Native response exceeded bound')
             need(content_length is None or int(content_length) == size, 'Incomplete native response')
-            return metadata, b''.join(chunks)
+            if budget is not None:
+                budget.remaining()
+            result = metadata, b''.join(chunks)
+            return (*result, response.status) if metadata_status else result
         except (OSError, http.client.HTTPException, ValueError):
             raise BridgeError('Native exchange incomplete; dispatched write outcome may be unknown') from None
         finally:
@@ -364,6 +417,34 @@ def native_operation(method):
     return wrapped
 
 
+def capabilities_operation(method):
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        need(self.action_depth == 0 and self.capabilities_budget is None,
+             'Capabilities operation already active')
+        budget = CapabilitiesBudget()
+        scope = dict(self.scope)
+        self.capabilities_budget = budget
+        self.action_depth += 1
+        try:
+            # Budget precedes session preparation, including any initial issuance.
+            self.prepare_session()
+            identity = (self.owner.cookie, self.actor, self.csrf, self.session_expiry)
+            result = method(self, *args, **kwargs)
+            need(self.scope == scope
+                 and identity == (self.owner.cookie, self.actor, self.csrf, self.session_expiry),
+                 'Native session or selected scope changed')
+            budget.remaining()
+            need(len(compact(result).encode('utf-8')) < MAX_OUTPUT // 2,
+                 'Capabilities output exceeded bound')
+            budget.remaining()
+            return result
+        finally:
+            self.action_depth -= 1
+            self.capabilities_budget = None
+    return wrapped
+
+
 class Bridge:
     def __init__(self, scope, owner, journal, approval_owner=None):
         keys(scope, ('workspaceId', 'homeId'))
@@ -374,12 +455,20 @@ class Bridge:
         self.session_expiry = None
         self.csrf = None
         self.action_depth = 0
+        self.capabilities_budget = None
         catalog = strict_json((ROOT / 'contracts/stock-wire3/agent/operation-catalog.json').read_bytes(), 2 * MAX_JSON)
         self.catalog = {row['commandId']: row for row in catalog['commands']}
         self.base = f"/api/atlas/stock/v3/workspaces/{scope['workspaceId']}/homes/{scope['homeId']}"
 
     def get(self, path, limit=MAX_JSON, mime='application/json'):
-        headers, body = self.owner.exchange('GET', path, limit=limit)
+        budget = self.capabilities_budget
+        options = {'budget': budget} if budget is not None else {}
+        if budget is not None:
+            budget.remaining()
+            limit = min(limit, budget.remaining_bytes)
+        headers, body = self.owner.exchange('GET', path, limit=limit, **options)
+        if budget is not None:
+            budget.consume(headers, body)
         need(len(body) <= limit, 'Native read exceeded bridge response budget; choose a smaller initial page or use a qualified chunked owner')
         need(headers.get('content-type') == mime, 'Native response content type differs')
         return body
@@ -392,7 +481,8 @@ class Bridge:
         # replay a failed request. A spontaneous401 is not automatic login proof.
         issued_actor = None
         if self.owner.cookie is None or (self.session_expiry is not None and self.session_expiry <= time.time() + 30):
-            issued_actor = self.owner.login()
+            options = {'budget': self.capabilities_budget} if self.capabilities_budget is not None else {}
+            issued_actor = self.owner.login(**options)
         current = self.session()
         need(issued_actor is None or issued_actor == current['actorId'], 'Native issued actor changed')
 
@@ -431,6 +521,43 @@ class Bridge:
         need(all(isinstance(x, str) for x in ids) and len(ids) <= 256 and len(ids) == len(set(ids)),
              'Native admission invalid')
         return set(ids)
+
+    def homebox_cached_partitions(self):
+        budget = self.capabilities_budget
+        need(budget is not None, 'Capabilities budget unavailable')
+        budget.remaining()
+        headers, body, status = self.owner.exchange(
+            'GET', self.base + '/admission' + CATALOG_QUERY,
+            limit=min(MAX_CATALOG, budget.remaining_bytes), budget=budget, metadata_status=True)
+        budget.consume(headers, body)
+        need(headers.get('content-type') == 'application/json' and len(body) <= MAX_CATALOG,
+             'Native metadata response differs')
+        if status != 200:
+            # Old-server 403 is ambiguous, not unsupported proof. Final ordinary
+            # admission/session checks still have to succeed; no fallback lookup.
+            need(status in (403, 404, 405, 410, 501, 503), 'Native metadata unavailable')
+            return {'status': 'unavailable', 'reason': 'unsupported-or-unavailable'}
+        value = strict_json(body, MAX_CATALOG)
+        keys(value, ('schemaVersion', 'scope', 'partitions'))
+        keys(value['scope'], ('workspaceId', 'homeId'))
+        need(type(value['schemaVersion']) is int and value['schemaVersion'] == 1
+             and value['scope'] == self.scope and isinstance(value['partitions'], list)
+             and len(value['partitions']) <= 8, 'Native metadata scope or bounds differ')
+        seen = set()
+        for row in value['partitions']:
+            budget.remaining()
+            keys(row, ('owner', 'sourceInstanceId', 'collectionId'))
+            need(row['owner'] == 'homebox', 'Native metadata owner differs')
+            uid(row['sourceInstanceId'])
+            collection = row['collectionId']
+            need(isinstance(collection, str) and 1 <= len(collection) <= 4096,
+                 'Native collection identifier differs')
+            # Exact opaque text, never UUID coercion, stripping or normalization.
+            target = (row['sourceInstanceId'], collection)
+            need(target not in seen, 'Duplicate native partition')
+            seen.add(target)
+        budget.remaining()
+        return value
 
     def parse_request(self, raw):
         need(isinstance(raw, str), 'requestJson must contain complete original wire3 JSON')
@@ -734,11 +861,14 @@ class Bridge:
             {'idempotencyKey': k, 'requestId': rid, 'requestBytesSha256': digest} for k, rid, digest in pending],
             'resolution': 'Use operation-status with the original requestId for native retained-intent reconciliation (<=16384bytes). Absence/failure remains UNKNOWN; no retry or model-supplied clearing.'}
 
-    @native_operation
+    @capabilities_operation
     def capabilities(self):
         admitted = self.admission()
+        partitions = self.homebox_cached_partitions()
+        need(self.admission() == admitted, 'Native admission changed')
+        self.session()
         reads = sorted(op for op in admitted if op in self.catalog and self.catalog[op]['effect'] == 'read')
-        return {'scope': self.scope, 'admittedReads': reads, 'admittedWriteForms': sorted(admitted & WRITES),
+        return {'scope': dict(self.scope), 'homeboxCachedPartitions': partitions, 'admittedReads': reads, 'admittedWriteForms': sorted(admitted & WRITES),
                 'batchAdmitted': BATCH in admitted, 'exactImpactConfirmationAvailable': self.approval_owner is not None,
                 'genericAssetUpload': False, 'genericSceneAssociationCreate': False,
                 'writeResultProfile': {'maxCommitBytes': MAX_COMMIT, 'maxReceiptNodes': MAX_NODES,

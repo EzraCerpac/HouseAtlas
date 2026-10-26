@@ -1,42 +1,63 @@
 //! Catalog-only held read policy. Ordinary source reads keep their own limits.
 use super::boundary::CurrentAuthority;
 use super::{AccessBoundary, AccessError, Capability, Principal, TransactionAuthorization};
-use crate::catalog_budget::{Budget, PolicyOutcome, Result, Unavailable, sqlite_policy};
+use crate::catalog_budget::{Budget, PolicyOutcome, Result, Unavailable};
 
 impl AccessBoundary {
+    /// Install once, before authentication SQL. Authentication keeps its normal
+    /// committed rate transaction and autocommit last_seen bookkeeping.
+    pub(crate) fn with_partition_catalog_policy<T>(
+        &mut self,
+        budget: &Budget,
+        operation: impl FnOnce(&mut Self) -> Result<T>,
+    ) -> PolicyOutcome<T> {
+        crate::catalog_budget::sqlite_owner_policy(
+            self, |owner| &mut owner.store.db, budget, 5_000, operation,
+        )
+    }
+
+    #[cfg(test)]
     pub(crate) fn with_partition_catalog<T>(
         &mut self,
         original: &Principal,
         budget: &Budget,
         operation: impl FnOnce(&TransactionAuthorization<'_>) -> Result<T>,
     ) -> PolicyOutcome<T> {
-        let config = &self.config;
-        let instance = &self.instance;
-        sqlite_policy(&mut self.store.db, budget, 5_000, |db| {
-            budget.check()?;
-            db.execute_batch("BEGIN IMMEDIATE")
-                .map_err(|_| Unavailable)?;
-            budget.check()?;
-            let guard = TransactionAuthorization {
-                authority: CurrentAuthority {
-                    db,
-                    config,
-                    instance,
-                },
-                principal: original,
-            };
-            guard
-                .authorize(original.scope(), Capability::Read)
-                .map_err(|_| Unavailable)?;
-            budget.check()?;
-            let result = operation(&guard)?;
-            budget.check()?;
-            guard.revalidate().map_err(|_| Unavailable)?;
-            budget.check()?;
-            db.execute_batch("COMMIT").map_err(|_| Unavailable)?;
-            budget.check()?;
-            Ok(result)
+        self.with_partition_catalog_policy(budget, |owner| {
+            owner.partition_catalog_fence(original, budget, operation)
         })
+    }
+
+    /// Requires the caller's held policy. No callback install, relock or issuance.
+    /// BEGIN happens after authentication has completed in autocommit mode.
+    pub(crate) fn partition_catalog_fence<T>(
+        &mut self,
+        original: &Principal,
+        budget: &Budget,
+        operation: impl FnOnce(&TransactionAuthorization<'_>) -> Result<T>,
+    ) -> Result<T> {
+        budget.check()?;
+        let db = &mut self.store.db;
+        if !db.is_autocommit() || db.is_busy() {
+            return Err(Unavailable);
+        }
+        db.execute_batch("BEGIN IMMEDIATE").map_err(|_| Unavailable)?;
+        budget.check()?;
+        let guard = TransactionAuthorization {
+            authority: CurrentAuthority {
+                db, config: &self.config, instance: &self.instance,
+            },
+            principal: original,
+        };
+        guard.authorize(original.scope(), Capability::Read).map_err(|_| Unavailable)?;
+        budget.check()?;
+        let result = operation(&guard)?;
+        budget.check()?;
+        guard.revalidate().map_err(|_| Unavailable)?;
+        budget.check()?;
+        db.execute_batch("COMMIT").map_err(|_| Unavailable)?;
+        budget.check()?;
+        Ok(result)
     }
 }
 

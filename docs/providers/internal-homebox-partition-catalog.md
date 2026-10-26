@@ -2,10 +2,13 @@
 
 References #285; broader acceptance remains open.
 
-Source base: `860c079fff43aa286cabd94cd3b45b79a7c5495b`. This is an internal
-native metadata read, with no HTTP route, MCP tool, canonical command, provider
-client or startup binding. A later exposure/installation decision is separate.
-HomeBox's existing home-wide `sourceStatuses` behavior is unchanged.
+The native catalog originated at source base
+`860c079fff43aa286cabd94cd3b45b79a7c5495b`. Its bounded worker now also serves the
+explicit [admission metadata view](homebox-partition-admission-view.md), using the
+same original native owners and final fence. There is no new route, MCP tool name,
+canonical command, provider client or startup binding. Installation/live
+invocation remain separate. HomeBox's existing home-wide `sourceStatuses`
+behavior is unchanged.
 
 The closed output is `{schemaVersion:1, scope:{workspaceId,homeId},
 partitions:[{owner:"homebox",sourceInstanceId,collectionId}]}`. The selected
@@ -92,7 +95,7 @@ oversized Store bodies, body/key mismatch and the closed selectors DTO.
 
 These fixtures are UNRUN locally. Compilation, formatting, Clippy, tests and
 publication verification are delegated to existing CI; no runner/workflow changes
-or local qualification gate is added. Combined native worker scheduling, real
-contention/cancellation races, cleanup-failure injection and installed/native
+or local qualification gate is added. The admission-view increment adds synthetic issuance and HTTP fixture source.
+Real contention/cancellation races, cleanup-failure injection and installed/native
 operation remain unqualified. Source/synthetic results establish no live provider,
 installed service, browser/device or broader issue acceptance.
