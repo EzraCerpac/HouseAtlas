@@ -177,6 +177,7 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
 }) {
   const heading = useRef<HTMLHeadingElement>(null), expandButton = useRef<HTMLButtonElement>(null), showMapButton = useRef<HTMLButtonElement>(null);
   const mapButton = useRef<HTMLButtonElement>(null), panel = useRef<HTMLElement>(null), body = useRef<HTMLDivElement>(null);
+  const mapArea = useRef<HTMLDivElement>(null);
   const opener = useRef<HTMLElement | null>(null);
   const kindOpen = lens?.kind ?? null;
   const reading = lens !== null && lens.reading && kind === 'map';
@@ -216,7 +217,8 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
   // on return without the record that began it.
   useEffect(() => () => { const claim = byRecord.current; if (claim) releaseReading(claim); }, []);
   // Opening a lens, or changing it, takes focus to its heading; closing it
-  // returns focus to what opened it when that is still shown, else to Map.
+  // returns focus to what opened it when that is still shown, else to Map,
+  // else (the lens bar hidden on a phone) to the map's own lens control.
   const shownBefore = useRef<string | null>(null);
   useLayoutEffect(() => {
     const before = shownBefore.current; shownBefore.current = kindOpen;
@@ -235,7 +237,9 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
     const active = document.activeElement;
     // Focus already placed elsewhere, such as Map itself, stays.
     if (active && active !== document.body) return;
-    (back && back.isConnected && back.getClientRects().length > 0 && !back.closest('[inert]') ? back : mapButton.current)?.focus({ preventScroll: true });
+    const shown = (target: HTMLElement | null | undefined): target is HTMLElement =>
+      !!target && target.isConnected && target.getClientRects().length > 0 && !target.closest('[inert]');
+    [back, mapButton.current, mapArea.current?.querySelector<HTMLElement>('[data-lens-return]')].find(shown)?.focus({ preventScroll: true });
   }, [kindOpen]);
   // Read wide and back: focus follows to the control that undoes it.
   const readBefore = useRef(reading);
@@ -290,7 +294,7 @@ function AtlasWorkspace({ kind, lens, setLens, releaseReading, panelId, nativeTa
       </section>}
       {/* Inset while read wide: drawn and kept current, out of the tab order.
           A document replaced by the lens is not kept mounted behind it. */}
-      <div className={`atlas-map${reading ? ' is-inset' : ''}`} inert={reading || replaced}>{replaced ? null : children}</div>
+      <div ref={mapArea} className={`atlas-map${reading ? ' is-inset' : ''}`} inert={reading || replaced}>{replaced ? null : children}</div>
       {reading && <button ref={showMapButton} type="button" className="btn atlas-show-map" onClick={() => setReading(false)}>
         <Icon name="atlas" size={16} />Show map</button>}
     </div>
