@@ -41,6 +41,8 @@ const OCCLUSION_RADIUS = .8, OCCLUSION_SAMPLES = 8, OCCLUSION_STRENGTH = .6;
  * a triangle boundary: the Light model stays a few draws, and no single upload
  * of the Full model holds up a frame. */
 const PIECE_VERTICES = 3 * 2 ** 18;
+/** Buffer bytes of one full piece: position, normal and mesh index streams. */
+const PIECE_BYTES = PIECE_VERTICES * (12 + 8 + 4);
 /** Building a scene works in slices of about this long, with a frame drawn
  * between slices, so the page keeps moving while a large model is prepared. */
 const SLICE_MS = 6;
@@ -374,13 +376,20 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     owned.push(geometryPass, colorPass, occlusion, pipeline);
 
     // Upload every piece and compile every pipeline ahead of the first frame,
-    // one piece per frame, so a large model never moves all its buffers, or
-    // waits on its shaders, inside one frame. The canvas and the sun's map are
-    // separate targets, each with its own pipelines.
+    // at most a piece's worth of buffers per frame, so a large model never
+    // moves all its buffers, or waits on its shaders, inside one frame, and
+    // many small textured meshes share frames. The canvas and the sun's map
+    // are separate targets, each with its own pipelines.
     const uploaded = new Set<BufferGeometry>();
+    let pending = 0;
     for (const { mesh } of layers) {
       await renderer.compileAsync(mesh, camera, scene); signal?.throwIfAborted();
-      if (!uploaded.has(mesh.geometry)) { uploaded.add(mesh.geometry); await slice.next(); } else if (slice.due()) await slice.next();
+      if (!uploaded.has(mesh.geometry)) {
+        uploaded.add(mesh.geometry);
+        // Interleaved attributes share one array; count it once.
+        for (const array of new Set(Object.values(mesh.geometry.attributes).map(attribute => attribute.array))) pending += array.byteLength;
+      }
+      if (pending >= PIECE_BYTES || slice.due()) { pending = 0; await slice.next(); }
     }
     for (const body of solidScene.children) {
       renderer.setRenderTarget(sunTarget);
