@@ -177,6 +177,8 @@ try {
     assert.equal(await evaluate(`document.querySelector('output').textContent`), '', 'MeshLayer reported a failure after the larger swap');
     // The Full model's GLB parses and prepares in a worker with the same result and refusals.
     assert.deepEqual(await evaluate('window.checkWorker()'), { same: true, moved: true, admitted: true, meshes: 24, refused: 'refused', aborted: 'aborted', malformed: 'container' });
+    // Its pinned SHA-256 is checked in a worker too, so the page never copies the whole download to hash it.
+    assert.deepEqual(await evaluate('window.checkDigestWorker()'), { same: true, unchanged: true, moved: true, aborted: 'aborted' });
     assert.equal(await evaluate(`document.querySelector('canvas').dataset.renderer`), expected);
     assert.equal(await evaluate(`document.querySelector('output').textContent`), '', 'MeshLayer reported a failure after the swap');
 
@@ -196,7 +198,7 @@ try {
       const at = ((y + Math.round(h * .55) + dy) * samples.width + x + Math.round(w * .3) + dx) * 3; tones.add(samples.pixels.subarray(at, at + 3).join());
     }
     assert(tones.size > 20, `Textured sample shows no texture detail (${tones.size} tones)`);
-    console.log(`PASS ${selected}: generated house (${result.pieces} primitives, ${calls} calls per frame, swapped to a new set without a blank frame; a 6,000-primitive set swapped in over ${big.framesMeanwhile} frames, longest task ${big.longestTaskMs} ms; worker GLB load matches) and material samples drawn by three.js on ${expected}; software GPU only, not device proof`);
+    console.log(`PASS ${selected}: generated house (${result.pieces} primitives, ${calls} calls per frame, swapped to a new set without a blank frame; a 6,000-primitive set swapped in over ${big.framesMeanwhile} frames, longest task ${big.longestTaskMs} ms; worker GLB load and digest match) and material samples drawn by three.js on ${expected}; software GPU only, not device proof`);
   }
 } finally {
   await cdp.send('Browser.close').catch(() => {});

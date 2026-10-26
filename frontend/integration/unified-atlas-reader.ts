@@ -2,6 +2,7 @@ import type { ModelOverviewSelection } from '../src/lantern/source-models/overvi
 import { admitAtlasScene, ATLAS_LIMITS } from '../src/lantern/unified-atlas/scene';
 import { AtlasReadError, type AtlasReadFailure, type AtlasScene, type StoredAtlasRead, type UnifiedAtlasRead } from '../src/lantern/unified-atlas/types';
 import type { UnifiedAtlasCache } from './unified-atlas-cache';
+import { sha256OffThread } from './sha256-thread';
 
 /** Opt-in unified Atlas read for the selected overview publication: one
  * scene envelope, then its pinned model bytes for the same selection revision.
@@ -121,16 +122,20 @@ function connect(options: ReadOptions, ms: number = UNIFIED_ATLAS_READ_LIMITS.ms
   };
   return { signal, guard, path, get };
 }
+type Sha256 = (bytes: Uint8Array<ArrayBuffer>, signal: AbortSignal) => Promise<{ readonly bytes: Uint8Array<ArrayBuffer>; readonly digest: Uint8Array }>;
+const sha256Here: Sha256 = async bytes => ({ bytes, digest: new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)) });
 /** Model bytes for a pinned artifact: the served revision before and after the
- * byte work, then the exact length, digest and content digest. */
+ * byte work, then the exact length, digest and content digest. `sha256` may
+ * hash elsewhere; only the bytes it hands back, once they match, are returned. */
 async function receiveModel(body: Response, pin: Readonly<{ bytes: number; sha256: string }>, revision: string,
-  signal: AbortSignal, guard: () => void, maxChunks?: number): Promise<Uint8Array<ArrayBuffer>> {
+  signal: AbortSignal, guard: () => void, { maxChunks, sha256 = sha256Here }: Readonly<{ maxChunks?: number; sha256?: Sha256 }> = {})
+  : Promise<Uint8Array<ArrayBuffer>> {
   try {
     const served = () => need(body.headers.get('x-atlas-selection-revision') === revision, 'stale');
     served();
-    const bytes = await receive(body, pin.bytes, pin.bytes, signal, guard, maxChunks);
-    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); guard();
-    need(hex(digest) === pin.sha256 && body.headers.get('content-digest') === `sha-256=:${base64(digest)}:`, 'invalid');
+    const { bytes, digest } = await sha256(await receive(body, pin.bytes, pin.bytes, signal, guard, maxChunks), signal); guard();
+    need(bytes.byteLength === pin.bytes && hex(digest) === pin.sha256
+      && body.headers.get('content-digest') === `sha-256=:${base64(digest)}:`, 'invalid');
     served(); guard();
     return bytes;
   } catch (error) { void body.body?.cancel().catch(() => undefined); throw error; }
@@ -187,8 +192,9 @@ export async function readUnifiedAtlas(options: ReadOptions & {
 /** The publication's optional unsimplified detail GLB, for a device on Full
  * quality, read after `scene` (from a fresh `readUnifiedAtlas` of the same
  * selection) is on screen. One GET of the href that scene pins, with the
- * overview's transport, revision, length and digest checks. It is not cached:
- * at up to 256 MiB it is outside the persistent store's budget. */
+ * overview's transport, revision, length and digest checks. The digest runs
+ * in a worker, so the Light model keeps drawing while 100+ MB are hashed. It
+ * is not cached: at up to 256 MiB it is outside the persistent store's budget. */
 export async function readUnifiedAtlasDetail(options: ReadOptions & { readonly scene: AtlasScene }): Promise<Uint8Array<ArrayBuffer>> {
   const { selection, scene } = options;
   try {
@@ -197,6 +203,7 @@ export async function readUnifiedAtlasDetail(options: ReadOptions & { readonly s
     const revision = scene.selection.revision;
     const href = `${path}/${selection.publicationId}/artifacts/model-detail?expectedSha256=${scene.detail.sha256}&expectedSelectionRevision=${encodeURIComponent(revision)}`;
     need(scene.detail.href === href, 'invalid');
-    return await receiveModel(await get(href, MODEL_MIME), scene.detail, revision, signal, guard, UNIFIED_ATLAS_READ_LIMITS.detailChunks);
+    return await receiveModel(await get(href, MODEL_MIME), scene.detail, revision, signal, guard,
+      { maxChunks: UNIFIED_ATLAS_READ_LIMITS.detailChunks, sha256: sha256OffThread });
   } catch (error) { outcome(error, options.signal); }
 }
