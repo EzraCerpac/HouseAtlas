@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "aa78d36c416bab8ca01ebe9a392254bdb87e5606931e4c8d2cb9b7115bc56ccb",
+  "sourceDigestSha256": "4b22f78d3f1b448d71b10b8a78e2e253ce7d62e61db3387c0295dc9c03ff075b",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -7896,8 +7896,8 @@
     {
       "path": "frontend/lantern-tests/offline-house-acquisition-healthy.mjs",
       "mode": "100644",
-      "bytes": 22010,
-      "sha256": "a1bddb311a87bddad9e54f634f78262d0561759034eb41d358cfcae4d7b41b9c",
+      "bytes": 22113,
+      "sha256": "9126c54a5deb54d2513fc88091bf0ca71897ae652a3545b4400649329d1513e3",
       "owner": "web"
     },
     {
