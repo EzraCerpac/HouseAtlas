@@ -213,9 +213,11 @@ try {
   const manager = read('src/offline/SavedHouseManager.tsx'), host = read('src/offline/SavedAtlasHost.tsx');
   assert(manager.includes('store.list()')); assert(manager.includes('Captured <time dateTime={house.capturedAt}>{house.capturedAt}</time>'));
   assert(manager.includes('Open saved Atlas')); assert(host.includes('Historical records are not current native authorization.'));
-  assert(read('integration/saved-main.tsx').includes('createRoot(element).render(<SavedAtlasHost openLastCopy={openLastCopy} />)'));
+  assert(read('integration/saved-main.tsx').includes('createRoot(element).render(<SavedAtlasHost openLastCopy={openLastCopy} explicit={savedEntryMarked()} />)'));
   // Every live launch keeps the public shell and root entry on its build.
   assert(read('integration/main.tsx').includes('module.verifySavedShell()'));
+  // The live app's Saved link marks the tab; the next live launch clears it.
+  assert(read('src/offline/SaveHouseCopy.tsx').includes('onClick={markSavedEntry}')); assert(read('integration/main.tsx').includes('\nforgetSavedEntry();'));
   cases.push('unavailable-root-to-existing-saved-exact-bytes-and-capture-label-seams');
 
   for (const path of ['/api/atlas/auth/session', '/api/atlas/view', '/api/atlas/models/v1/generated', '/?home=generated', '/index.html?home=generated', '/other', 'https://elsewhere.example/'])

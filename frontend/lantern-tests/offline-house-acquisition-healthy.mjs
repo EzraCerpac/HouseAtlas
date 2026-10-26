@@ -42,9 +42,11 @@ const { readSavedAtlasModel } = await import(modelURL);
 const { validateSavedHouse, savedDigest } = await import(storage);
 const { createElement } = await import(new URL('../node_modules/react/index.js', import.meta.url).href);
 const { renderToStaticMarkup } = await import(new URL('../node_modules/react-dom/server.node.js', import.meta.url).href);
+const savedEntryURL = await source('../src/offline/saved-entry.ts');
 const copyURL = await source('../src/offline/SaveHouseCopy.tsx', {
   react: new URL('../node_modules/react/index.js', import.meta.url).href,
   'react/jsx-runtime': new URL('../node_modules/react/jsx-runtime.js', import.meta.url).href,
+  './saved-entry': savedEntryURL,
 });
 const { SaveHouseCopy } = await import(copyURL);
 const pins = { records: 'de82fe13d91ba79cc195deb2e9b8c871bd200455d9e0062633c4b41ddf1f6f03',

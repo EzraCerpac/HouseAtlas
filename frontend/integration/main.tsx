@@ -49,12 +49,14 @@ import "../src/styles/stock.css";
 import "../src/ai/ai.css";
 import "../src/ai/host/host.css";
 import type { AiApplicationPort } from "../src/ai/host/index.js";
+import { forgetSavedEntry } from "../src/offline/saved-entry";
 
 // After each launch, keep the public Saved shell and the root offline entry on
 // this build, so a later launch without the server opens the Saved entry with
 // the last Atlas copy and the waiting outbox. Registered before anything else
 // here can fail. Public build files only; a failure leaves every launch to the
 // network, as before.
+forgetSavedEntry();
 addEventListener("load", () => setTimeout(() => {
   void import("../src/offline/shell").then(module => module.verifySavedShell()).catch(() => undefined);
 }, 3_000), { once: true });

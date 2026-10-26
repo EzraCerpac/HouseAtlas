@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import type { HouseAcquisitionPort } from './acquisition-types';
+import { markSavedEntry } from './saved-entry';
 
 /** A passive leaf: only explicit buttons invoke preparation or retention.
  * Laid out as the steps it takes: what saving means for this profile, the
@@ -38,6 +39,6 @@ export function SaveHouseCopy({ port }: { readonly port: HouseAcquisitionPort })
       {receipt.exclusions.length > 0 && <div className="save-copy-exclusions"><p>Not included in this copy:</p><ul>{receipt.exclusions.map((entry, index) => <li key={index}>{entry.section}: {entry.label} ({entry.code})</li>)}</ul></div>}
       <p className="save-copy-note">This receipt describes a saved capture, not the current native home. App verification does not establish offline device availability.</p>
     </section>}
-    <a className="save-copy-open" href="/saved/index.html">Open saved house copy</a>
+    <a className="save-copy-open" href="/saved/index.html" onClick={markSavedEntry}>Open saved house copy</a>
   </details>;
 }
