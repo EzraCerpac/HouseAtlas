@@ -410,6 +410,40 @@ test('the detail keeps every master triangle and binds with the overview compani
   assert.equal(boundTriangles(await bindInViewer(glb, companion)), detail.drawnTriangles);
 });
 
+/** Adds float vertex attributes (all 0.5) to a mesh's first primitive, the
+ * way exporters write vertex colours and spare UV sets. */
+function paint(glb, name, attributes) {
+  const { json, bin } = readGlb(glb), primitive = json.meshes[mesh(glb, name)].primitives[0];
+  const count = json.accessors[primitive.attributes.POSITION].count, parts = [bin];
+  let length = (bin.byteLength + 3) & ~3;
+  for (const [attribute, type] of Object.entries(attributes)) {
+    const values = new Float32Array(count * { VEC2: 2, VEC4: 4 }[type]).fill(0.5), bytes = new Uint8Array(values.buffer);
+    json.bufferViews.push({ buffer: 0, byteOffset: length, byteLength: bytes.byteLength });
+    json.accessors.push({ bufferView: json.bufferViews.length - 1, componentType: 5126, count, type });
+    primitive.attributes[attribute] = json.accessors.length - 1;
+    parts.push({ at: length, bytes }); length += bytes.byteLength;
+  }
+  const out = new Uint8Array(length); out.set(bin);
+  for (const part of parts.slice(1)) out.set(part.bytes, part.at);
+  json.buffers = [{ byteLength: length }];
+  return writeGlb(json, out);
+}
+
+test('drops vertex attributes the server refuses, also where nothing is simplified', async () => {
+  const glb = paint(paint(texturedMaster(), 'Wall', { COLOR_0: 'VEC4', TEXCOORD_0: 'VEC2' }), 'Panel', { COLOR_0: 'VEC4', TEXCOORD_1: 'VEC2' });
+  const detail = await bakeDetail(glb, null), { json } = readGlb(detail.glb);
+  const attributes = name => Object.keys(json.meshes[mesh(detail.glb, name)].primitives[0].attributes).sort();
+  // An untextured primitive keeps only its position; a textured one keeps its UVs.
+  assert.deepEqual(attributes('Wall'), ['POSITION']);
+  assert.deepEqual(attributes('Panel'), ['POSITION', 'TEXCOORD_0']);
+  assert.deepEqual(row(detail, 'Wall').droppedAttributes, ['COLOR_0', 'TEXCOORD_0']);
+  assert.deepEqual(row(detail, 'Panel').droppedAttributes, ['COLOR_0', 'TEXCOORD_1']);
+  for (const name of ['Wall', 'Panel']) {
+    assert.deepEqual(positionsOf(detail.glb, name), positionsOf(glb, name));
+    assert.equal(trianglesOf(detail.glb, name), trianglesOf(glb, name));
+  }
+});
+
 test('the Full tier admits what the overview refuses', async () => {
   // 700,000 triangles over one shared triangle: over the overview's 600,000.
   const triangles = 700_000, positions = Float32Array.from([0, 0, 0, 1, 0, 0, 0, 1, 0]), indices = new Uint32Array(triangles * 3);

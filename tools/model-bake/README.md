@@ -29,7 +29,8 @@ metres, default 0.0005).
   `original.bytes`, and shifts `meshIndex` down past any mesh no node draws.
 - `room-pick` and `slab` primitives byte for byte. The backend compares their
   horizontal triangles with plan footprints, so they are never simplified.
-- Every primitive of a master that already fits, as authored.
+- Every primitive of a master that already fits, as authored, apart from
+  the vertex attributes below.
 - Roles and level membership come from the companion. Without one, they come
   from each node's `semanticRole` and `levelIds` extras, and anything else
   counts as context.
@@ -65,6 +66,12 @@ metres, default 0.0005).
 - Simplified primitives keep only `POSITION`. The viewer draws untextured
   geometry with flat normals it derives itself, so normals, UVs and colours on
   those primitives were never displayed.
+- Every primitive, simplified or not, keeps only the vertex attributes the
+  server admits: `POSITION` and `NORMAL`, plus `TEXCOORD_0` and `TANGENT` when
+  its material has a base colour, normal or metallic-roughness texture. Vertex
+  colours and further UV sets are dropped (the viewer never draws them) and
+  listed per primitive under `droppedAttributes` in the report. Without this,
+  a detail tier keeps them and the server refuses the publication.
 - Textured primitives are kept as authored. A flat surface can lose the
   vertices that carry a non-affine UV mapping at zero position error, and the
   texture drift that causes is not bounded by an error in metres.
@@ -102,7 +109,7 @@ the same companion under the same budget; see
 node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs
 ```
 
-Twelve cases on generated geometry: baking to budget (locked footprints,
+Thirteen cases on generated geometry: baking to budget (locked footprints,
 source-vertex positions, a flat wall and welded terrain soup collapsing, viewer
 admission), a master that already fits (kept as authored while an unused mesh,
 a dead accessor and their bytes drop, with bindings remapped), roles read from
@@ -117,7 +124,8 @@ primitive slots, roles, buildings, levels, room picks and selectable rooms as
 before the bake (and refusing a companion that leaves a primitive unclaimed),
 the detail keeping every master triangle and binding with the overview's
 companion, the Full limits admitting 700,000 triangles the overview refuses, and
-the command line writing `detail.glb` with its pin in the report.
+the command line writing `detail.glb` with its pin in the report, and vertex
+colours and spare UV sets dropped from primitives the bake keeps whole.
 They do not render anything or touch a real model.
 
 ## Not covered here
