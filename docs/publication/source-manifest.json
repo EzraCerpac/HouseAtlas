@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "1c275c2ca7035b4c223d861f2dd21bb08aa0d6975bcb32785e57f6c7947f9c20",
+  "sourceDigestSha256": "41fbe967fa8f79641f2f97fdf7c46f39dfd4ab31e72f519c349e5eed8e8111c7",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -42,8 +42,8 @@
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
-      "bytes": 4529,
-      "sha256": "2ba69acbc7bd39de0f46745594475c71ed1cff6c4e511bf4a848b880555e9fac",
+      "bytes": 4713,
+      "sha256": "28498bd1abd1291bb2802a0fe2a8790c6d2ed0a4bb4194b4180217a0d8fa50fb",
       "owner": "core-integration"
     },
     {
@@ -63,8 +63,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 13705,
-      "sha256": "a15eec091091eb7a06864a543a2145e18595aba6b413df87724d6c43680a33bb",
+      "bytes": 18217,
+      "sha256": "8b8cd788b58d36362fa8f51048996fa9c0c1fe80196109380d5500c670c4fa34",
       "owner": "core-integration"
     },
     {
@@ -105,8 +105,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 6708,
-      "sha256": "5faf631736b63f9817a95b0affc6dc497faec35351f666431c5d23a988828c78",
+      "bytes": 7125,
+      "sha256": "d38f4bd2bd75fe827da9149c87a77ace44eff1fc449b9e4073099ca628c45eec",
       "owner": "core-integration"
     },
     {
@@ -6095,10 +6095,17 @@
       "owner": "contracts"
     },
     {
+      "path": "docs/contributing/ci-path-selection.md",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 4106,
+      "sha256": "9ff08f4c7da1ac401571a5d3b7d5315cda6dea9a512182909ac8531b9978d3ee"
+    },
+    {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 156925,
-      "sha256": "1793fb0a2c3c422b5b6af507a7821ff9d047dfe142348122c5d7d02669da5401",
+      "bytes": 157437,
+      "sha256": "bffe5a97d1d9bc905735cb06e60af718f193d796361d97b1b7dd3dd28ad3b64c",
       "owner": "core-integration"
     },
     {
@@ -11847,6 +11854,20 @@
       "bytes": 13894,
       "sha256": "d3710c26200ca0806d15116f350225d52909d36c2bc802169992ee5ee247cbce",
       "owner": "operations-policy"
+    },
+    {
+      "path": "tools/ci/select_pr_checks.py",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 5242,
+      "sha256": "239473c12a88dba75feb60a9ec4d51dc8ddfbe129e3646051efbf554b1930842"
+    },
+    {
+      "path": "tools/ci/test_select_pr_checks.py",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 6034,
+      "sha256": "2545d548ad8dfae7cebfc69b9a929839deb2c14ab1b2d5995325064bf0cfde61"
     },
     {
       "path": "tools/core-integration/browser-harness.mjs",

@@ -2685,3 +2685,12 @@ node frontend/lantern-tests/webmcp-adapter-healthy.mjs
 
 It never opens a browser, listener, native service or provider, and removes
 only its own temporary output.
+
+## PR lane selection (26 October 2026)
+
+The scope inventory above describes the full main-push suite. Pull requests now
+select explicit lanes using the [CI dependency matrix](ci-path-selection.md).
+Publication checks and ordinary-core remain unconditional. Shared/unknown paths
+and unavailable change detection retain full coverage. The ordinary-core job
+runs `python3 -m unittest discover -s tools/ci -p 'test_*.py' -v`: stdlib-only
+selector cases and disposable Git histories, without providers or user data.
