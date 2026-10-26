@@ -1,6 +1,10 @@
 /* Public shell only. The build plugin prepends the exact immutable closure. */
 const PREFIX = 'houseatlas-saved-public-', NAME = PREFIX + BUILD;
 const MARKER = new URL('/saved/.verified-shell', self.location.origin).href;
+// Each owned scope records the build it serves, so pruning never removes the
+// cache the other registration still runs from (the root lags until its update).
+const PINS = 'houseatlas-saved-shell-pins', SCOPE = typeof ROOT_BUILD === 'undefined' ? 'saved' : 'root';
+const pinURL = scope => new URL(`/saved/.pin-${scope}`, self.location.origin).href;
 const byPath = new Map(TABLE.map(row => [row.path, row]));
 const digest = async bytes => [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(n => n.toString(16).padStart(2, '0')).join('');
 async function verified(response, pin) {
@@ -34,15 +38,37 @@ self.addEventListener('install', event => event.waitUntil((async () => {
       const response = await reuse(url, pin) ?? await verified(await fetch(url, { credentials: 'omit', redirect: 'error', cache: 'reload' }), pin);
       await cache.put(url, response);
     }
-    await cache.put(MARKER, new Response(BUILD, { headers: { 'content-type': 'text/plain' } }));
+    // Completion time orders builds for pruning; earlier markers lack it (0).
+    await cache.put(MARKER, new Response(BUILD, { headers: { 'content-type': 'text/plain', 'x-installed-at': String(Date.now()) } }));
     await self.skipWaiting();
   } catch (error) { await caches.delete(NAME); throw error; }
 })()));
+const installedAt = marker => Number(marker?.headers.get('x-installed-at')) || 0;
+/** Keeps this build, every build a scope pin names, unfinished installs, any
+ * build completed after this one, and the most recent earlier one; drops the
+ * rest. Nothing is pruned until both scopes have pinned a build, so a root
+ * still on an earlier build (or on a worker without pins) keeps its bytes. */
+async function pruneEarlierBuilds() {
+  const pins = await caches.open(PINS);
+  const pinned = await Promise.all(['root', 'saved'].map(async scope => (await pins.match(pinURL(scope)))?.text()));
+  if (pinned.some(build => !build)) return;
+  const own = installedAt(await (await caches.open(NAME)).match(MARKER));
+  const earlier = [];
+  for (const name of await caches.keys()) {
+    if (!name.startsWith(PREFIX) || name === NAME || pinned.includes(name.slice(PREFIX.length))) continue;
+    const marker = await (await caches.open(name)).match(MARKER);
+    if (!marker || await marker.text() !== name.slice(PREFIX.length)) continue;
+    const at = installedAt(marker);
+    if (at <= own) earlier.push({ name, at });
+  }
+  earlier.sort((a, b) => b.at - a.at);
+  for (const { name } of earlier.slice(1)) await caches.delete(name);
+}
 self.addEventListener('activate', event => event.waitUntil((async () => {
   if (!await ready()) throw Error('Public shell is not verified');
-  // Other builds may still serve an active root or Saved registration.
-  // Only explicit build-qualified owner cleanup removes a retained cache.
+  await (await caches.open(PINS)).put(pinURL(SCOPE), new Response(BUILD, { headers: { 'content-type': 'text/plain' } }));
   await self.clients.claim();
+  try { await pruneEarlierBuilds(); } catch { /* Storage stays as it was; the next activation retries. */ }
 })()));
 self.addEventListener('message', event => {
   if (event.data !== 'saved-shell-status' || !event.ports[0]) return;
