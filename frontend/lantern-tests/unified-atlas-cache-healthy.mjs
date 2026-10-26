@@ -210,7 +210,18 @@ for (const status of [401, 403])
   await openProcess(lastDisk, actorB, async ({ cache }) => { await fresh(cache, v1); });
   const other = await openLastAtlasCopy(factory(), signal());
   assert.ok(other, 'the pointer follows the newest actor on this device'); await other.close();
+  // A Saved tab left open while another tab signs out withdraws its copy when looked at again.
+  const events = new EventTarget(), watched = await openLastAtlasCopy(factory(), signal(), events);
+  let notified = 0; watched.port.subscribe(() => notified++);
+  const shown = watched.port.current();
+  events.dispatchEvent(new Event('focus')); await new Promise(done => setTimeout(done, 50));
+  assert.equal(watched.port.current(), shown, 'an unchanged pointer keeps the copy');
   await openProcess(lastDisk, actorA, async ({ store }) => { await store.clear(); });
+  events.dispatchEvent(new Event('visibilitychange'));
+  for (let tries = 0; watched.port.current() !== null && tries < 100; tries++) await new Promise(done => setTimeout(done, 10));
+  assert.equal(watched.port.current(), null, 'sign-out elsewhere withdraws the open copy');
+  assert.equal(notified, 1); assert.equal(await watched.port.stored(shown, signal()), null, 'the held bytes are released');
+  await watched.close();
   assert.equal(await openLastAtlasCopy(factory(), signal()), null, 'sign-out removes the last copy');
 }
 

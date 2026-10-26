@@ -253,7 +253,9 @@ try {
   // Ordinary source update (every deploy, from every live launch): both
   // workers move to the new build, copying the public bytes an earlier build
   // already verified and downloading only what changed. Once both answer for
-  // the new build, earlier builds' public caches go; unrelated caches stay.
+  // the new build, earlier completed builds' public caches go. A cache with no
+  // verification marker (an install still running elsewhere) and unrelated
+  // caches stay.
   // Old displayed cleanup cannot unregister either newer worker.
   await storage.open('foreign-public-cache'); await storage.open(prefix + 'c'.repeat(64));
   api.setTarget(second, storage);
@@ -264,7 +266,7 @@ try {
   assert.deepEqual(changed, ['/assets/pdfjs/jbig2_nowasm_fallback.js', '/assets/pdfjs/openjpeg_nowasm_fallback.js', '/assets/saved.js', '/saved/index.html']);
   assert.deepEqual(savedRegistration.active.runtime.calls.map(call => new URL(call.input).pathname), changed, 'Only changed public bytes are downloaded');
   assert.equal(rootRegistration.active.runtime.calls.length, 0);
-  assert(!storage.stores.has(prefix + first.buildId)); assert(!storage.stores.has(prefix + 'c'.repeat(64)));
+  assert(!storage.stores.has(prefix + first.buildId)); assert(storage.stores.has(prefix + 'c'.repeat(64)), 'An unfinished install keeps its cache');
   assert(storage.stores.has(prefix + second.buildId)); assert(storage.stores.has('foreign-public-cache'));
   for (const pin of second.table) assert.equal(await (await savedRegistration.active.runtime.fetchEvent(request(pin.path, { mode: pin.path.endsWith('.html') ? 'navigate' : 'cors' }))).text(),
     await second.responses.get(pin.path).clone().text());
@@ -273,7 +275,7 @@ try {
   assert(storage.stores.has(prefix + second.buildId));
   await newer.removeSavedShell(second.buildId);
   assert.equal(api.registrations.size, 0); assert(!storage.stores.has(prefix + second.buildId));
-  assert(storage.stores.has('foreign-public-cache'));
+  assert(storage.stores.has('foreign-public-cache')); assert(storage.stores.has(prefix + 'c'.repeat(64)));
   await foreignPage.removeSavedShell(first.buildId); assert.equal(foreignAPI.registrations.get(origin + '/'), foreign);
   cases.push('ordinary-worker-upgrade-reuses-verified-bytes-and-drops-earlier-builds');
   console.log(JSON.stringify({ result: 'healthy', cases, generatedBuilds: [first.buildId, second.buildId],

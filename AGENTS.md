@@ -52,8 +52,9 @@ synthetic `tools/homebox-quantity-seed-report` unit tests and the synthetic
 a fake iCloud helper; no launchd, network or real data) with the runner's
 `python3` (stdlib only). In `.github/workflows/rust-react-ordinary.yml` that includes
 the named Lantern healthy read; `frontend/lantern-tests/run-healthy.mjs` with
-its explicit list, including the `offline-launch` and `hung-network` cases in
-the runner's Chromium against the built public shell, the generated CPU
+its explicit list, including the `offline-launch`, `hung-network` and
+`live-launch` cases in the runner's Chromium against the built public shell
+(generated build output on a loopback listener, no backend), the generated CPU
 mesh-preparation equivalence check, the `webgl2` case of
 `mesh-layer-browser.mjs`, which draws generated meshes through MeshLayer in the
 runner's software GPU and swaps in a second mesh set without a blank frame, and the generated Unified Atlas compact layer-details

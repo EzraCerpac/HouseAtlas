@@ -66,9 +66,11 @@ Saved receipt.
 An update copies each public file an earlier build's cache already verified
 for the same path and digest, and downloads only the rest. Activation retains
 other build caches because either registration may still serve an older build
-during an ordinary update. Once both owned workers answer for the same build,
-the page that verified them deletes every other `houseatlas-saved-public-`
-cache, so frequent deploys do not leave a full copy each. Explicit Remove saved public
+during an ordinary update. Once both owned workers answer for the same build
+and neither scope has an installing or waiting worker, the page that verified
+them deletes every other completed `houseatlas-saved-public-` cache (one whose
+verification marker names its own build), so frequent deploys do not leave a
+full copy each. A cache still being filled by an install has no marker and stays. Explicit Remove saved public
 shell checks both exact scopes, fixed script ownership and the displayed build
 reported over MessageChannel before unregistering. It preserves registrations
 for foreign scripts, newer builds and workers still installing. It deletes only
@@ -108,7 +110,9 @@ entry opens that pointer's scene and model from the cache alone
 the live app's stored copy, and shows them through a live-kind port whose
 selection expired at the epoch: its fresh read always reports the server
 unavailable, so the Atlas shows the copy as not updated. It has no detail
-model and no overlays. Sign-out empties the cache and with it this copy.
+model and no overlays. Sign-out empties the cache and with it this copy; a Saved tab left
+open while another tab signs out withdraws the copy when it is focused or shown
+again.
 `unified-atlas-cache-healthy.mjs` covers it; the `live-launch` case of
 `offline-launch-browser.mjs` covers registration from the live entry.
 

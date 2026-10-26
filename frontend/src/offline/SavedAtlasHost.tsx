@@ -26,6 +26,8 @@ const LIVE_ENTRY = '/?live';
 export interface LastAtlasCopy {
   readonly port: LiveAtlasPresentationPort;
   readonly storedAt: string;
+  /** Withdraws the copy when sign-out (in any tab) has removed it. */
+  recheck(): void;
   close(): Promise<void>;
 }
 
@@ -111,6 +113,8 @@ export function SavedAtlasHost({ store: supplied, openLastCopy }: { readonly sto
     }, () => undefined);
     return () => { controller.abort(); void opened?.close(); };
   }, [openLastCopy]);
+  // A withdrawn copy (signed out elsewhere) leaves the page for good.
+  useEffect(() => last?.port.subscribe(() => { if (last.port.current() === null) { setLast(null); void last.close(); } }), [last]);
   // Edits made in the live app that are still waiting; the live app sends them.
   const { waiting } = useOutbox();
   const changes = waiting === 1 ? '1 change' : `${waiting} changes`;

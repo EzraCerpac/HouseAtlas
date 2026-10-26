@@ -9,8 +9,11 @@ import { readCachedUnifiedAtlas } from './unified-atlas-reader';
  * stored copy is; nothing is fetched. Its selection carries no live authority
  * (it expired at the epoch), so the fresh read always reports the server
  * unavailable and the Atlas shows the copy marked as not updated. Sign-out
- * empties the cache, and with it this copy. */
-export async function openLastAtlasCopy(factory: IDBFactory | undefined, signal: AbortSignal): Promise<LastAtlasCopy | null> {
+ * empties the cache, and with it this copy: when the page comes back into
+ * view (`events`, usually the window) and the pointer is gone or names
+ * another copy, the selection is withdrawn and the held bytes released. */
+export async function openLastAtlasCopy(factory: IDBFactory | undefined, signal: AbortSignal,
+  events?: Pick<EventTarget, 'addEventListener' | 'removeEventListener'>): Promise<LastAtlasCopy | null> {
   const store = openUnifiedAtlasStore(factory);
   try {
     await store.ready(); signal.throwIfAborted();
@@ -20,17 +23,30 @@ export async function openLastAtlasCopy(factory: IDBFactory | undefined, signal:
     const selection: LiveAtlasSelection = Object.freeze({ kind: 'live', overview: Object.freeze({ owner: Object.freeze({}),
       scope: Object.freeze({ workspaceId: pointer.workspaceId, homeId: pointer.homeId }), expiresAt: new Date(0).toISOString(),
       publicationId: pointer.publicationId, manifestSha256: pointer.manifestSha256 }) });
-    const read: StoredAtlasRead | null = await readCachedUnifiedAtlas({ selection: selection.overview, signal, cache });
+    let read: StoredAtlasRead | null = await readCachedUnifiedAtlas({ selection: selection.overview, signal, cache });
     signal.throwIfAborted();
     if (!read) { await store.close(); return null; }
+    const storedAt = read.storedAt, named = JSON.stringify(pointer), listeners = new Set<() => void>();
+    let closed = false;
+    const withdraw = () => {
+      if (read === null) return;
+      read = null; events?.removeEventListener('focus', recheck); events?.removeEventListener('visibilitychange', recheck);
+      for (const changed of [...listeners]) changed();
+    };
+    // Sign-out in another tab clears the store; this tab learns of it when it is looked at again.
+    function recheck() {
+      if (read === null || closed) return;
+      void readLastAtlas(store).then(last => { if (!last || JSON.stringify(last.pointer) !== named) withdraw(); }, withdraw);
+    }
+    events?.addEventListener('focus', recheck); events?.addEventListener('visibilitychange', recheck);
     const port: LiveAtlasPresentationPort = Object.freeze({
       kind: 'live' as const,
-      current: () => selection,
-      subscribe: () => () => undefined,
+      current: () => read === null ? null : selection,
+      subscribe(changed: () => void) { listeners.add(changed); return () => { listeners.delete(changed); }; },
       async stored(selected: LiveAtlasSelection) { return selected === selection ? read : null; },
       async read(): Promise<never> { throw new AtlasReadError('unavailable', 'The server is out of reach'); },
     });
-    return { port, storedAt: read.storedAt, close: () => store.close() };
+    return { port, storedAt, recheck, close: async () => { if (closed) return; closed = true; listeners.clear(); withdraw(); await store.close(); } };
   } catch (error) {
     await store.close().catch(() => undefined);
     if (signal.aborted) throw error;

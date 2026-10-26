@@ -47,11 +47,23 @@ async function prepareRootEntry(expectedBuild: string): Promise<boolean> {
   if (!result.ready || result.buildId !== expectedBuild) throw new Error('Root entry build unavailable');
   return true;
 }
-/** With both owned workers on one build, no worker reads another build's
- * public cache: drop them so every deploy does not leave a full copy behind. */
+/** With both owned workers active on one build, no worker reads another
+ * build's public cache: drop them so every deploy does not leave a full copy
+ * behind. A build still installing (from another tab or an automatic update)
+ * is never touched: pruning waits while either scope has an installing or
+ * waiting worker, and a cache without its completed verification marker is
+ * kept, so an install that starts after this check keeps its bytes. */
 async function pruneEarlierBuilds(buildId: string): Promise<void> {
-  for (const name of await caches.keys())
-    if (name.startsWith(PUBLIC_PREFIX) && name !== PUBLIC_PREFIX + buildId) await caches.delete(name);
+  for (const scope of ['/', '/saved/']) {
+    const registration = await navigator.serviceWorker.getRegistration(scope);
+    if (registration && (registration.installing || registration.waiting)) return;
+  }
+  const marker = new URL('/saved/.verified-shell', location.origin).href;
+  for (const name of await caches.keys()) {
+    if (!name.startsWith(PUBLIC_PREFIX) || name === PUBLIC_PREFIX + buildId) continue;
+    const verified = await (await caches.open(name)).match(marker);
+    if (verified && await verified.text() === name.slice(PUBLIC_PREFIX.length)) await caches.delete(name);
+  }
 }
 /** Registration is not readiness: the scoped worker verifies the full committed
  * public closure before answering. No online/session/storage permission probe.
