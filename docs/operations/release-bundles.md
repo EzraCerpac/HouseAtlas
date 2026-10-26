@@ -6,7 +6,11 @@ matching production React output. The source contract is
 [`bundle.manifest.json`](../../tools/release/fixtures/bundle.manifest.json) is a
 nonexecutable synthetic example. A bundle supplies software bytes and build
 provenance. Target installation, service activation and runtime qualification
-remain with the updater and runtime owners.
+remain with the runtime owner.
+
+The in-repo updater that was meant to install these bundles was retired in
+#284; deploys go through [`tools/deploy-nas`](../../tools/deploy-nas/README.md),
+which builds from source on the NAS and consumes no bundle.
 
 ## Native profile qualification
 
