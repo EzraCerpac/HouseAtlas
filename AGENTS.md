@@ -65,7 +65,10 @@ runner's software GPU and swaps in a second mesh set without a blank frame,
 unified Atlas Plan with trusted wheel input in the runner's Chromium, and the generated Unified Atlas compact layer-details
 and control-names checks (compiled source and markup only, no browser), the
 generated time-of-day lighting check (sun positions for a neutral reference
-place and appearance tables only, no browser or GPU), the
+place and appearance tables only, no browser or GPU), the generated
+embedded-PNG `four-maps-1024` case (four 1024 px maps admitted and accounted
+under the tier budget, and refused with stated MiB under a reduced GPU budget;
+no browser or GPU), the
 generated WebMCP batch-discovery descriptor check (schema bytes only), the
 synthetic WebMCP adapter bootstrap (current `index.ts` bundled with Vite, no
 browser or service), and
