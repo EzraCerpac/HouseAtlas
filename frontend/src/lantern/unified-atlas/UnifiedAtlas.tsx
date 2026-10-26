@@ -1389,7 +1389,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
             <span className="sr-only">observed </span>{stampTime(port.savedDocumentary.observedAt)}</time>
         </p>}
         {compact && <div className="ua-menu" onBlur={menuBlur('view')}>
-          <button ref={menuButton} type="button" className="ctrl-btn ua-menu-btn" aria-label="View and sources" title="View and sources"
+          <button ref={menuButton} type="button" className="ctrl-btn ua-menu-btn" data-lens-return="" aria-label="View and sources" title="View and sources"
             aria-expanded={menu === 'view'} aria-controls={`${menuIds}-view`} onClick={() => setMenu(value => value === 'view' ? null : 'view')}>
             <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden="true"><circle cx={5} cy={12} r={1.9} /><circle cx={12} cy={12} r={1.9} /><circle cx={19} cy={12} r={1.9} /></svg>
           </button>
