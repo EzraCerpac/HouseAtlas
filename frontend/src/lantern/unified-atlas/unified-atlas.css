@@ -137,10 +137,11 @@
   /* Focus never scrolls the stage away from the camera. */
   overflow: clip;
   /* Lamplight pooled on the model, the room falling off to warm umber at the
-     edges, so the pale architecture stands against its surroundings. */
+     edges, so the pale architecture stands against its surroundings. The
+     colours follow the hour the model is lit for, toward a blue slate at night. */
   background:
-    radial-gradient(ellipse 72% 64% at 46% 40%, #fffaf0 0%, rgba(255, 250, 240, 0.6) 42%, rgba(255, 250, 240, 0) 78%),
-    linear-gradient(176deg, #f1e9da 0%, #ddd0b7 100%);
+    radial-gradient(ellipse 72% 64% at 46% 40%, var(--ua-glow, #fffaf0) 0%, color-mix(in srgb, var(--ua-glow, #fffaf0) 60%, transparent) 42%, transparent 78%),
+    linear-gradient(176deg, var(--ua-sky-top, #f1e9da) 0%, var(--ua-sky-bottom, #ddd0b7) 100%);
 }
 
 /* Plan lays a drafting sheet over the lamplight; it fades with the camera. */
@@ -186,9 +187,9 @@
   stroke-width: 1;
 }
 
-.lantern-host .ua-board-lit { stop-color: #ecdbb4; }
-.lantern-host .ua-board-shade { stop-color: #d4b988; }
-.lantern-host .ua-ground-edge { fill: #8f7046; }
+.lantern-host .ua-board-lit { stop-color: var(--ua-board-lit, #ecdbb4); }
+.lantern-host .ua-board-shade { stop-color: var(--ua-board-shade, #d4b988); }
+.lantern-host .ua-ground-edge { fill: var(--ua-board-edge, #8f7046); }
 
 .lantern-host .ua-grid-line {
   fill: none;
@@ -752,6 +753,40 @@
 
 .lantern-host .ua-menu-panel[hidden] { display: none; }
 
+/* Lighting time: the hour the model is lit for, and a panel to move through the day. */
+.lantern-host .ua-daylight { position: relative; flex: none; }
+.lantern-host .ua-tools:has(.ua-daylight-panel:not([hidden])) { z-index: 8; }
+.lantern-host .ua-daylight-btn { background: var(--ua-panel); font-variant-numeric: tabular-nums; }
+.lantern-host .ua-daylight-btn.is-picked { border-color: var(--lantern-edge); background: var(--lantern-soft); }
+.lantern-host .ua-daylight-btn[aria-expanded='true'] { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+.lantern-host .ua-daylight-panel {
+  min-width: 272px;
+  gap: 10px;
+  padding: 12px;
+}
+
+.lantern-host .ua-daylight-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-2);
+  font-weight: 650;
+}
+
+.lantern-host .ua-daylight-row input[type='range'] { width: 100%; min-height: 32px; accent-color: var(--ink); }
+.lantern-host .ua-daylight-row input[type='date'] { grid-column: 2 / -1; min-height: 34px; font: inherit; color: var(--ink); }
+.lantern-host .ua-daylight-row output { min-width: 3em; color: var(--ink); font-variant-numeric: tabular-nums; text-align: right; }
+
+.lantern-host .ua-daylight-sun {
+  margin: 0;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.lantern-host .ua-daylight-now { justify-self: end; }
+
 .lantern-host .ua-menu-camera {
   display: flex;
   gap: 2px;
@@ -1061,6 +1096,15 @@
 .lantern-host .ua-key-body[hidden] { display: none; }
 .lantern-host .ua-key p { margin: 0; }
 .lantern-host .ua-key-body > p:first-child { color: var(--ink-2); }
+/* A stored copy says so, quietly, above the layer's own explanation. */
+.lantern-host .ua-key-body > .ua-key-stored {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.lantern-host .ua-key-stored > svg { flex: none; margin-top: 1px; color: var(--birch-dark); }
 .lantern-host .ua-key-body > details > ul { margin: 6px 0 0; padding-left: 18px; }
 
 .lantern-host .ua-key-body > details {
@@ -2261,6 +2305,9 @@
   }
 
   .lantern-host .ua-tools .ctrl-group { display: none; }
+  /* The panel spans the tools row, whichever control it opened from. */
+  .lantern-host .ua-daylight { position: static; }
+  .lantern-host .ua-daylight-panel { left: 0; right: 0; width: auto; min-width: 0; }
   .lantern-host .ua-tools .ctrl-wide { height: 42px; padding: 0 10px; }
   .lantern-host .ua-tools .seg button { min-width: 44px; padding: 0 10px; }
 

@@ -43,8 +43,8 @@ const SOURCE = [
   node('outbox-healthy.mjs'),
   // Unified Atlas
   node('unified-atlas-healthy.mjs'), node('unified-atlas-cache-healthy.mjs'), node('unified-atlas-network-connections-healthy.mjs'),
-  node('unified-atlas-overlay-source-healthy.mjs'), node('unified-atlas-room-links-healthy.mjs'),
-  node('unified-atlas-compact-layer-details.mjs'), node('unified-atlas-control-names-healthy.mjs'),
+  node('unified-atlas-overlay-source-healthy.mjs'), node('unified-atlas-overlay-feed-healthy.mjs'), node('unified-atlas-room-links-healthy.mjs'),
+  node('unified-atlas-compact-layer-details.mjs'), node('unified-atlas-control-names-healthy.mjs'), node('unified-atlas-daylight-healthy.mjs'),
   // Named healthy cases
   ...cases('embedded-png-material-healthy.mjs', '--case', ['slots', 'image-sharing', 'png-filters',
     'png-adam7', 'accounting-1024', 'legacy-geometry', 'gpu-owner', 'precedence']),
@@ -54,6 +54,7 @@ const BUILD = [node('check-backend-frontend-compat.mjs')];
 const BROWSER = [
   ...cases('offline-launch-browser.mjs', '--case', ['offline-launch', 'hung-network']),
   ...cases('mesh-layer-browser.mjs', '--case', ['webgl2']),
+  node('unified-atlas-plan-wheel-browser.mjs'),
 ];
 
 const only = process.argv[2] === '--only' ? process.argv[3] : null;
