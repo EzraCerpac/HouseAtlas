@@ -1219,7 +1219,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   useEffect(() => {
     const host = shell.current?.closest('.lantern-host');
     if (!host) return;
-    const owner = (target: HTMLElement) => target.closest('.archive-filter, .atlas-source-details, .ua-menu, .ua-pick, .ua-buildings, .ua-tools > .ctrl-group');
+    const owner = (target: HTMLElement) => target.closest('.archive-filter, .atlas-source-details, .ua-menu, .ua-pick, .ua-buildings, .ua-tools > .ctrl-group, .ua-explode');
     const focused = (event: globalThis.FocusEvent) => {
       const target = event.target;
       chromeFocus.current = target instanceof HTMLElement && host.contains(target) && owner(target) ? target : null;
@@ -1277,6 +1277,11 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   // that became disabled) leaves it open, and taps elsewhere close it above.
   const menuBlur = (which: 'view' | 'buildings') => (event: FocusEvent<HTMLElement>) => {
     if (menu === which && event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setMenu(null);
+  };
+  // A lens chosen from the menu returns focus to the menu button when it closes.
+  const openLens = (kind: 'places' | 'network') => {
+    setMenu(null); menuButton.current?.focus({ preventScroll: true });
+    hostLens?.set(lens?.kind === kind ? null : { kind, reading: false });
   };
   const chooseBuilding = (buildingId: string | null) => {
     dispatch({ type: 'building', buildingId });
@@ -1367,7 +1372,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
           <button type="button" aria-pressed={!plan} onClick={() => dispatch({ type: 'view', view: '3d' })}>3D</button>
           <button type="button" aria-pressed={plan} onClick={() => dispatch({ type: 'view', view: 'plan' })}>Plan</button>
         </div>
-        {canExplode && <button type="button" className="ctrl-btn ctrl-wide" aria-pressed={state.exploded}
+        {canExplode && !compact && <button type="button" className="ctrl-btn ctrl-wide ua-explode" aria-pressed={state.exploded}
           onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}>
           <Icon name="explode" size={17} /><span>Exploded</span></button>}
         <div className="ctrl-group" role="group" aria-label="Camera">
@@ -1381,14 +1386,15 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
         </div>
         {!plan && <DaylightControl at={lightingTime.at} live={lightingTime.live} night={daylight.night} place={sunPlace} onChange={lightingTime.set} />}
         {/* Compact: the snapshot stamp takes the free width, and one menu holds
-            the camera, the archive filter and the other sources. */}
+            the camera, Exploded, the lenses, the archive filter and the other
+            sources. */}
         {compact && port.savedDocumentary && <p className="ua-stamp" role="note">
           <span className="ua-stamp-kind">Saved snapshot</span>
           <time dateTime={port.savedDocumentary.observedAt} title={port.savedDocumentary.observedAt}>
             <span className="sr-only">observed </span>{stampTime(port.savedDocumentary.observedAt)}</time>
         </p>}
         {compact && <div className="ua-menu" onBlur={menuBlur('view')}>
-          <button ref={menuButton} type="button" className="ctrl-btn ua-menu-btn" aria-label="View and sources" title="View and sources"
+          <button ref={menuButton} type="button" className="ctrl-btn ua-menu-btn" data-lens-return="" aria-label="View and sources" title="View and sources"
             aria-expanded={menu === 'view'} aria-controls={`${menuIds}-view`} onClick={() => setMenu(value => value === 'view' ? null : 'view')}>
             <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden="true"><circle cx={5} cy={12} r={1.9} /><circle cx={12} cy={12} r={1.9} /><circle cx={19} cy={12} r={1.9} /></svg>
           </button>
@@ -1402,8 +1408,19 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
               <button type="button" className="ctrl-btn" aria-label="Zoom out" title="Zoom out" disabled={camera.zoom <= camera.zoomLimits.min} onClick={() => camera.zoomBy(1 / 1.3)}><Icon name="minus" size={18} /></button>
               <button type="button" className="ctrl-btn ua-menu-fit" onClick={camera.fit}><Icon name="fit" size={18} /><span>Fit view</span></button>
             </div>
+            {canExplode && <button type="button" className="ua-menu-row" aria-pressed={state.exploded}
+              onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}>
+              <Icon name="explode" size={16} /><span>Exploded floors</span></button>}
             {archive && <label className="ua-menu-check"><input type="checkbox" checked={archive.included}
               onChange={event => archive.setIncluded(event.currentTarget.checked)} /><span>Include archived HomeBox records</span></label>}
+            {/* The host's lens row gives way on a phone; its lenses open from here. */}
+            {hostLens && compact && <nav className="ua-menu-lenses" aria-labelledby={`${menuIds}-lenses`}>
+              <p id={`${menuIds}-lenses`} className="ua-menu-label">Lists</p>
+              {(['places', 'network'] as const).map(kind => <button key={kind} type="button" className="ua-menu-row" aria-pressed={lens?.kind === kind}
+                aria-controls={lens ? hostLens.panelId : undefined} onClick={() => openLens(kind)}>
+                <Icon name={kind === 'places' ? 'rooms' : 'network'} size={16} /><span>{kind === 'places' ? 'Rooms & places' : 'Network'}</span>
+                <Icon name="chevron" size={15} /></button>)}
+            </nav>}
             {otherSources.length > 0 && <nav className="ua-menu-sources" aria-labelledby={`${menuIds}-sources`}>
               <p id={`${menuIds}-sources`} className="ua-menu-label">Other sources</p>
               {otherSources.map(row => <button key={row.id} type="button" className="ua-menu-row" onClick={() => { setMenu(null); row.open(); }}>
