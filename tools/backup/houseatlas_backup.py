@@ -554,11 +554,14 @@ def archive_blobs(config: Config, archive: Path) -> set[str]:
     return {model["sha256"] for model in models}
 
 
-def apply_retention(config: Config, retention: dict, archive: Path, models: list[dict]) -> dict:
+def apply_retention(config: Config, retention: dict, archive: Path, models: list[dict],
+                    removed: dict | None = None) -> dict:
     """Deletes what the owner's retention no longer keeps, after a verified
     run: archives first, then the blobs no kept archive needs. Any blob list
-    that cannot be read stops the run before a single blob is deleted."""
-    removed = {"archives": 0, "modelFiles": 0, "bytes": 0}
+    that cannot be read stops the run before a single blob is deleted.
+    Counts go into `removed` as each file goes, so a run that stops partway
+    still says what it deleted."""
+    removed = {"archives": 0, "modelFiles": 0, "bytes": 0} if removed is None else removed
     if retention["keep"] != "recent":
         return removed
     folder = config.icloud_directory
@@ -578,14 +581,16 @@ def apply_retention(config: Config, retention: dict, archive: Path, models: list
             continue
         # The archive goes first; a sidecar left by an interruption goes next run.
         for path in sorted(files, key=lambda p: not p.name.endswith(".tar.gz")):
-            removed["bytes"] += path.stat().st_size
+            size = path.stat().st_size
             path.unlink()
-        removed["archives"] += folder / f"{ARCHIVE_PREFIX}{stamp}.tar.gz" in files
+            removed["bytes"] += size
+            removed["archives"] += path.name.endswith(".tar.gz")
     blobs = folder / MODEL_STORE / "blobs"
     for blob in sorted(blobs.iterdir()) if blobs.is_dir() else []:
         if BLOB_NAME.fullmatch(blob.name) and blob.name not in needed:
-            removed["bytes"] += blob.stat().st_size
+            size = blob.stat().st_size
             blob.unlink()
+            removed["bytes"] += size
             removed["modelFiles"] += 1
     return removed
 
@@ -701,11 +706,14 @@ def backup(config: Config) -> dict:
     retention, problem = read_retention(shared)
     removed = {"archives": 0, "modelFiles": 0, "bytes": 0}
     try:
-        removed = timed("retentionSeconds", apply_retention, config, retention, target, models)
+        timed("retentionSeconds", apply_retention, config, retention, target, models, removed)
     except (StepFailed, OSError, ValueError, tarfile.TarError) as error:
-        problem = f"Older backups were not cleaned up this time ({error})."
+        partly = removed["archives"] or removed["modelFiles"]
+        problem = f"Older backups were {'only partly' if partly else 'not'} cleaned up this time ({error})."
     if problem:
-        report_failure(config, "HouseAtlas iCloud backup succeeded but kept every older copy; see Settings.")
+        report_failure(config, "HouseAtlas iCloud backup succeeded but older copies were not all cleaned up; see Settings."
+                       if removed["archives"] or removed["modelFiles"] else
+                       "HouseAtlas iCloud backup succeeded but kept every older copy; see Settings.")
 
     shutil.rmtree(work)
     prune_local(archives, config.keep_local_archives)

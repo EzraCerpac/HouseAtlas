@@ -2,7 +2,7 @@
 // answer, the sentences the section shows, and the save exchange (session
 // read for CSRF, then the POST). A generated server; no browser or network.
 import assert from 'node:assert/strict';
-import { decodeBackupSettings, describeRetention, describeStatus, formatBytes, readSettings, saveRetention } from '../src/lantern/backups.ts';
+import { chooseRetention, decodeBackupSettings, describeRetention, describeStatus, formatBytes, readSettings, saveRetention } from '../src/lantern/backups.ts';
 
 assert.equal(process.version, 'v26.10.0');
 assert.deepEqual(process.argv.slice(2), [], 'This runner takes no arguments');
@@ -82,6 +82,26 @@ const success = { finished: '2026-10-27T04:01:10+00:00', recoveryPoint: '2026-10
   online = false;
   await assert.rejects(readSettings(transport), TypeError);
   assert.deepEqual(await readSettings(async () => new Response(null, { status: 404 })), { kind: 'absent' });
+
+  // A save whose answer is lost: the choice is read again, never assumed.
+  online = true;
+  denied = false;
+  let lose = true;
+  const lossy = async (path, init) => {
+    const response = await transport(path, init);
+    if (init.method === 'POST' && lose) throw new TypeError('Generated answer lost');
+    return response;
+  };
+  assert.deepEqual(await chooseRetention({ keep: 'forever' }, lossy),
+    { load: { kind: 'ready', view: { retention: { keep: 'forever' }, status: null } }, error: null });
+  const unwritten = async (path, init) => init.method === 'POST' ? new Response(null, { status: 500 }) : transport(path, init);
+  assert.deepEqual(await chooseRetention({ keep: 'recent', nights: 7, months: 0 }, unwritten),
+    { load: { kind: 'ready', view: { retention: { keep: 'forever' }, status: null } }, error: 'not-saved' });
+  online = false;
+  assert.deepEqual(await chooseRetention({ keep: 'recent', nights: 7, months: 0 }, transport), { load: { kind: 'unreachable' }, error: null });
+  online = true;
+  denied = true;
+  await assert.rejects(chooseRetention({ keep: 'recent', nights: 7, months: 0 }, transport), /denied/);
 }
 
-console.log('PASS backup settings: strict decoding, tolerant job summary, retention and status sentences, CSRF save exchange, denial and absent route');
+console.log('PASS backup settings: strict decoding, tolerant job summary, retention and status sentences, CSRF save exchange, a lost answer re-read, denial and absent route');

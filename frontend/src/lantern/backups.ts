@@ -124,3 +124,18 @@ export async function saveRetention(retention: Retention, transport: typeof fetc
   if (!response.ok) throw new Error(`Backup settings: HTTP ${response.status}`);
   return decodeBackupSettings(await response.json());
 }
+
+/** Saves a choice and says what the server now holds. A refusal is final;
+ * any other failure may have happened after the server wrote the file, so
+ * the saved choice is read again rather than assumed. */
+export async function chooseRetention(retention: Retention, transport: typeof fetch):
+  Promise<{ readonly load: Load; readonly error: 'denied' | 'not-saved' | null }> {
+  try {
+    return { load: { kind: 'ready', view: await saveRetention(retention, transport) }, error: null };
+  } catch (failure) {
+    if (failure instanceof Error && failure.message === 'denied') throw failure;
+  }
+  const load = await readSettings(transport).catch((): Load => ({ kind: 'unreachable' }));
+  const saved = load.kind === 'ready' && JSON.stringify(load.view.retention) === JSON.stringify(retention);
+  return { load, error: load.kind === 'ready' && !saved ? 'not-saved' : null };
+}

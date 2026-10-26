@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "4117c23b315c61b11ecb5b59758d41362928bc382fd55559337d5f8a987ea119",
+  "sourceDigestSha256": "1c531009f5c4f85cf5fde77cc50f5f5dba54d1677b9e5c7d9d22f47ae356d469",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -7413,8 +7413,8 @@
     {
       "path": "frontend/lantern-tests/backup-settings-healthy.mjs",
       "mode": "100644",
-      "bytes": 5980,
-      "sha256": "806d824509e2537fbc56d2dc2281260706da1c9e4c6758d01d9ffb53a769cb82",
+      "bytes": 7158,
+      "sha256": "832233831c5179a0a3fd7895f17d07297805e3598bf2b3a3cd6d2861ade11092",
       "owner": "web"
     },
     {
@@ -9149,8 +9149,8 @@
     {
       "path": "frontend/src/lantern/backups.ts",
       "mode": "100644",
-      "bytes": 7214,
-      "sha256": "e8df46ee23b13f93e8a5f2d1fae08a76ec16d2943a96cce82a40517569e26e8b",
+      "bytes": 8091,
+      "sha256": "1c71f373a3d282e63806e9d00511b1cb60a69545942dd071d8cfa6fafdab943f",
       "owner": "web"
     },
     {
@@ -9373,8 +9373,8 @@
     {
       "path": "frontend/src/lantern/components/BackupSettings.tsx",
       "mode": "100644",
-      "bytes": 3560,
-      "sha256": "b3daabfb4a82b90aa1e67ecb112cb045aa5958ef0beb6bfcbae5f245aff364c8",
+      "bytes": 3550,
+      "sha256": "575df5033e71f8837e80ee855d3e420243a9761a376eefee552bf2764de02c64",
       "owner": "web"
     },
     {
@@ -11837,8 +11837,8 @@
     {
       "path": "tools/backup/houseatlas_backup.py",
       "mode": "100644",
-      "bytes": 36028,
-      "sha256": "7a5fc9223102bc6d89a3b853bbd6cc414c789a20457075c17aecfa9397b2a4c9",
+      "bytes": 36533,
+      "sha256": "b8ec536fc2b29f370c05cf5992a380696bdc44f7c30af9d98b1d158d5f490911",
       "owner": "operations-policy"
     },
     {
@@ -11872,8 +11872,8 @@
     {
       "path": "tools/backup/test_houseatlas_backup.py",
       "mode": "100644",
-      "bytes": 23547,
-      "sha256": "66f76eb05ffe9d8ecb6dad0a231d4f02d444ce9e494cf873f892a0b8bd57994e",
+      "bytes": 24549,
+      "sha256": "0d4ca3650a65ba4226ad1f14f152dbbc19c706dfa319afd542d4c9d555fced26",
       "owner": "operations-policy"
     },
     {

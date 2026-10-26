@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MONTHS, NIGHTS, RECENT, describeRetention, describeStatus, readSettings, saveRetention, type Load, type Retention } from '../backups.ts';
+import { MONTHS, NIGHTS, RECENT, chooseRetention, describeRetention, describeStatus, readSettings, type Load, type Retention } from '../backups.ts';
 import { Choice } from './Choice';
 
 const browserFetch: typeof fetch = (input, init) => globalThis.fetch(input, init);
@@ -34,12 +34,13 @@ export function BackupSettings({ transport = browserFetch }: { readonly transpor
     setError(null);
     setLoad({ kind: 'ready', view: { ...view, retention: next } });
     try {
-      setLoad({ kind: 'ready', view: await saveRetention(next, transport) });
-    } catch (failure) {
+      // After an unclear failure this is what the server holds, or unknown.
+      const saved = await chooseRetention(next, transport);
+      setLoad(saved.load);
+      if (saved.error) setError('Not saved; try again.');
+    } catch {
       setLoad({ kind: 'ready', view });
-      setError(failure instanceof Error && failure.message === 'denied'
-        ? 'Only an editor of every home can change this.'
-        : 'Not saved. The server could not be reached; try again when it can.');
+      setError('Only an editor of every home can change this.');
     } finally {
       setSaving(false);
     }

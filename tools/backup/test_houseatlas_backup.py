@@ -9,6 +9,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -396,6 +397,26 @@ class RetentionTest(unittest.TestCase):
         removed = hb.apply_retention(self.config, {"keep": "recent", "nights": 7, "months": 0}, target, [blob])
         self.assertEqual(removed["archives"], 3)
         self.assertEqual([p for p in self.icloud.iterdir() if p.name.endswith(".partial")], [])
+
+    def test_a_cleanup_that_stops_partway_still_counts_what_it_deleted(self):
+        blob = self.blob("a")
+        stamps = [f"202610{day:02d}T040000Z" for day in range(1, 11)]
+        for stamp in stamps[:-1]:
+            self.archive(stamp, [blob])
+        target = self.archive(stamps[-1], [blob])
+        unlink = Path.unlink
+
+        def failing(path, *args, **kwargs):
+            if path.name.endswith(".sha256"):
+                raise PermissionError("generated")
+            return unlink(path, *args, **kwargs)
+
+        removed = {"archives": 0, "modelFiles": 0, "bytes": 0}
+        with mock.patch.object(Path, "unlink", failing), self.assertRaises(OSError):
+            hb.apply_retention(self.config, {"keep": "recent", "nights": 7, "months": 0}, target, [blob], removed)
+        self.assertEqual(removed["archives"], 1)
+        self.assertGreater(removed["bytes"], 0)
+        self.assertFalse((self.icloud / f"{hb.ARCHIVE_PREFIX}{stamps[0]}.tar.gz").exists())
 
     def test_sidecars_never_replace_an_existing_one(self):
         target = self.archive("20261001T040000Z", [self.blob("a")])
