@@ -153,6 +153,13 @@
   overflow: visible;
 }
 
+/* `display: block` above overrides the hidden attribute, so a hidden canvas
+   (the Plan view) would still cover the stage. As the hit target it put every
+   wheel and pinch on a [hidden] element, which the stage camera ignores. */
+.lantern-host .cifc-canvas[hidden] {
+  pointer-events: none;
+}
+
 .lantern-host .cifc-plan-space {
   fill: #f7efdd;
   stroke: rgba(24, 35, 58, 0.32);
