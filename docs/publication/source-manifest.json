@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "79574dd7b1d55914dc6702377a25070c275fe23e5a9a0dde09dddbba9ddad74b",
+  "sourceDigestSha256": "a2adf7354feabab7df94c362a7a1e6f7f792d163c305bdfb7ad14ca5e4670307",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -42,8 +42,8 @@
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
-      "bytes": 4713,
-      "sha256": "28498bd1abd1291bb2802a0fe2a8790c6d2ed0a4bb4194b4180217a0d8fa50fb",
+      "bytes": 4788,
+      "sha256": "e6d5583c1d89cd26498c5622d22292c9fd36a1c52dfda30b90c50d708acba986",
       "owner": "core-integration"
     },
     {
@@ -63,15 +63,15 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 18217,
-      "sha256": "8b8cd788b58d36362fa8f51048996fa9c0c1fe80196109380d5500c670c4fa34",
+      "bytes": 18196,
+      "sha256": "57ae93efd4a7a86960ad64c1cbe2128f3c2966c0ac7c31c364798a1305654947",
       "owner": "core-integration"
     },
     {
       "path": ".github/workflows/synthetic-readme-media.yml",
       "mode": "100644",
-      "bytes": 3173,
-      "sha256": "5997f6c06b7adf98bdcf17af8c98d42ab626d68a07bde29d4fa965068179dc79",
+      "bytes": 3152,
+      "sha256": "8247f1b17af353b5b496ebc28219bf31c93a9867656f670cb01544a2ee565301",
       "owner": "core-integration"
     },
     {
