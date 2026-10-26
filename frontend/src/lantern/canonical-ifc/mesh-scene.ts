@@ -54,13 +54,13 @@ const INDOOR_HEADROOM = .5;
  * in metres, also lies inside a room volume: floors and inner walls pass, while ledges,
  * trims, bay roofs and the ground at a wall's foot do not. */
 const ROOM_REACH = .3;
-/** Room volumes at least this tall at the median, in metres, are tested in height too;
- * flatter pick proxies only by their footprint. */
-const ROOM_VOLUME = .5;
+/** Room volumes at least this tall at the median, in metres, are taken as they are;
+ * flatter pick proxies stand for a room this high above them. */
+const ROOM_VOLUME = .5, ROOM_STOREY = 2.6;
 /** Margin, in metres, around the rooms in their own map, which covers only them so its
  * texels stay a few centimetres across. */
 const ROOM_PAD = 1;
-/** A room map depth nearer than this is a room; the cleared map reads 1. */
+/** Deepest point tested in the room map; the cleared map reads 1, so a point below every room stays outside one only where there is none. */
 const ROOM_FAR = .999;
 /** Share of the difference from full tone that selection and overlay tints keep at any hour. */
 const KEEP_TONE = .75;
@@ -149,7 +149,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const u = {
       ambient: uniform(0), twoSided: uniform(0), light: uniform(new Vector3()), viewDir: uniform(new Vector3()), paper: uniform(new Vector3()),
       ghostAlpha: uniform(0), ghost: uniform(new Vector3()), ghostShade: uniform(new Vector3()),
-      direct: uniform(1), night: uniform(0), lamp: uniform(0), rooms: uniform(0), roomTops: uniform(0),
+      direct: uniform(1), night: uniform(0), lamp: uniform(0), rooms: uniform(0), roomRaise: uniform(0),
       tint: uniform(new Vector3(1, 1, 1)), sunTint: uniform(new Vector3(1, 1, 1)), lampTint: uniform(new Vector3(1, 1, 1)),
       lamps: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
       lampAims: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
@@ -208,12 +208,12 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const probe = select(night, varying(positionGeometry).add(facing(normalize(vNormal)).mul(INDOOR_REACH)).add(vec3(0, INDOOR_HEADROOM, 0)), lifted);
     // One variable, so the taps run once per pixel however many terms read the result.
     const outdoors = sunShadow(probe).toVar('outdoors');
-    /** 1 inside a room: below the top of the highest room volume there, or with flat
-     * pick proxies anywhere over one. */
+    /** 1 inside a room: below the top of the highest room volume there (a flat pick
+     * proxy reaching a storey up). */
     const inRoom = (world: V3): F => {
-      const clip = roomMatrix.mul(vec4(world, 1)), depth = toUnitDepth ? clip.z : clip.z.mul(.5).add(.5);
+      const clip = roomMatrix.mul(vec4(world.sub(vec3(0, u.roomRaise, 0)), 1)), depth = toUnitDepth ? clip.z : clip.z.mul(.5).add(.5);
       const at = vec2(clip.x.mul(.5).add(.5), float(.5).sub(clip.y.mul(.5)));
-      return float(1).sub(texture(roomDepth, at).compare(select(u.roomTops.greaterThan(.5), depth, float(ROOM_FAR))).x);
+      return float(1).sub(texture(roomDepth, at).compare(clamp(depth, 0, ROOM_FAR)).x);
     };
     const roomPoint = varying(positionGeometry).add(facing(normalize(vNormal)).mul(ROOM_REACH));
     const roofed = float(1).sub(outdoors).mul(select(u.rooms.greaterThan(.5), inRoom(roomPoint), float(1)));
@@ -549,14 +549,14 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     }
 
     const corner = new Vector3();
-    /** Fits the room map to the flagged room volumes and says whether they have height. */
+    /** Fits the room map to the flagged room volumes and says how far above a flat one its room reaches. */
     const fitRooms = () => {
       const min = new Vector3(Infinity, Infinity, Infinity), max = new Vector3(-Infinity, -Infinity, -Infinity), heights: number[] = [];
       for (const [i, mesh] of meshes.entries()) if (table[i * STATE_FLOATS + 26]! > .5) {
         min.min(new Vector3(...mesh.bounds.min)); max.max(new Vector3(...mesh.bounds.max)); heights.push(mesh.bounds.max[1] - mesh.bounds.min[1]);
       }
       heights.sort((a, b) => a - b);
-      u.roomTops.value = (heights[heights.length >> 1] ?? 0) >= ROOM_VOLUME ? 1 : 0;
+      u.roomRaise.value = (heights[heights.length >> 1] ?? 0) >= ROOM_VOLUME ? 0 : ROOM_STOREY;
       const centre = new Vector3().addVectors(min, max).multiplyScalar(.5), half = Math.max(max.x - min.x, max.z - min.z) / 2 + ROOM_PAD;
       roomView.position.set(centre.x, max.y + 1, centre.z); roomView.up.set(0, 0, -1); roomView.lookAt(centre.x, min.y, centre.z);
       roomView.left = -half; roomView.right = half; roomView.top = half; roomView.bottom = -half;
