@@ -62,7 +62,9 @@ unified Atlas Plan with trusted wheel input in the runner's Chromium, and the ge
 and control-names checks (compiled source and markup only, no browser), the
 generated time-of-day lighting check (sun positions for a neutral reference
 place and appearance tables only, no browser or GPU), the
-generated WebMCP batch-discovery descriptor check (schema bytes only), and
+generated WebMCP batch-discovery descriptor check (schema bytes only), the
+synthetic WebMCP adapter bootstrap (current `index.ts` bundled with Vite, no
+browser or service), and
 the generated offline outbox check (synthetic IndexedDB and a generated
 server, no browser or network), the generated Unified Atlas overlay feed check
 (compiled feed, stored-overlay codec and Atlas cache against a counting fake
