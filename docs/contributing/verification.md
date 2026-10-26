@@ -2879,6 +2879,24 @@ node frontend/lantern-tests/unified-atlas-control-names-healthy.mjs
 
 It does not mount React or a browser; identity stays the source ID.
 
+## Named generated time-of-day lighting check
+
+`frontend/lantern-tests/unified-atlas-daylight-healthy.mjs` compiles
+`daylight.ts` and `mesh-appearance.ts` with the pinned SunCalc and checks, for
+a neutral reference place: model-frame sun bearings and their turn with the
+model's north, the midsummer noon sun in the south at full daylight, the
+zenith map and full lamps at midnight, a minute-by-minute day in June,
+October and December with no jumps, a readable floor on the sky light and
+lamps only after sunset, the stage colours' stylesheet fallbacks, and the
+appearance table's shelter and kept-tone flags, which other viewers never
+receive. It runs in CI through `run-healthy.mjs`:
+
+```sh
+node frontend/lantern-tests/unified-atlas-daylight-healthy.mjs
+```
+
+It does not mount React, a browser or a GPU, and uses no household location.
+
 ## Named generated WebMCP batch-discovery check
 
 `frontend/lantern-tests/webmcp-batch-discovery.mjs` compiles

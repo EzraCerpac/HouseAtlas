@@ -5,6 +5,8 @@ import { useStore } from '../state/store';
 import { Modal } from './Modal';
 import { setModelUpdates, useModelUpdates } from '../unified-atlas/model-updates';
 import { autoPrefersFull, setModelQuality, useModelQuality } from '../unified-atlas/model-quality';
+import { DEFAULT_SUN_PLACE, setSunPlace, useSunPlace } from '../unified-atlas/sun-place';
+import type { SunPlace } from '../unified-atlas/daylight';
 import { SyncSettings } from '../../outbox/ui';
 
 export function SettingsDialog() {
@@ -75,6 +77,8 @@ export function SettingsDialog() {
               : `Every detail on a computer with a capable graphics card, the lighter model elsewhere. This device: ${autoPrefersFull() ? 'Full' : 'Light'}.`}</p>
         </fieldset>
 
+        <SunPlaceSettings />
+
         <fieldset className="field">
           <legend>Motion</legend>
           <Choice label="Motion" value={state.settings.motion} onChange={motion => dispatch({ type: 'settings', patch: { motion } })}
@@ -88,6 +92,52 @@ export function SettingsDialog() {
         </div>}
       </div>
     </Modal>
+  );
+}
+
+const SUN_FIELDS: readonly (readonly [keyof SunPlace, string, number, number])[] = [
+  ['latitude', 'Latitude', -90, 90], ['longitude', 'Longitude', -180, 180], ['northDeg', 'Model north, degrees clockwise', -360, 360],
+];
+
+/** Where the 3D view's sun is computed for. Values save as soon as they are valid. */
+function SunPlaceSettings() {
+  const place = useSunPlace();
+  const [draft, setDraft] = useState<Record<keyof SunPlace, string>>(() => ({
+    latitude: String(place.latitude), longitude: String(place.longitude), northDeg: String(place.northDeg) }));
+  const [locating, setLocating] = useState<'busy' | 'failed' | null>(null);
+  const edit = (key: keyof SunPlace, text: string, low: number, high: number) => {
+    setDraft(value => ({ ...value, [key]: text }));
+    const value = Number(text);
+    if (text.trim() !== '' && Number.isFinite(value) && value >= low && value <= high) setSunPlace({ ...place, [key]: value });
+  };
+  const locate = () => {
+    if (!('geolocation' in navigator)) { setLocating('failed'); return; }
+    setLocating('busy');
+    navigator.geolocation.getCurrentPosition(({ coords }) => {
+      // Two decimals, about a kilometre: plenty for the sun, and no closer than needed.
+      const latitude = Math.round(coords.latitude * 100) / 100, longitude = Math.round(coords.longitude * 100) / 100;
+      setSunPlace({ ...place, latitude, longitude });
+      setDraft(value => ({ ...value, latitude: String(latitude), longitude: String(longitude) }));
+      setLocating(null);
+    }, () => setLocating('failed'), { maximumAge: 3_600_000, timeout: 15_000 });
+  };
+  const unset = place.latitude === DEFAULT_SUN_PLACE.latitude && place.longitude === DEFAULT_SUN_PLACE.longitude;
+  return (
+    <fieldset className="field">
+      <legend>Sun position</legend>
+      <div className="field-row">
+        {SUN_FIELDS.map(([key, label, low, high]) => <label key={key} className="field">
+          <span className="field-label">{label}</span>
+          <input type="number" inputMode="decimal" step="any" min={low} max={high} value={draft[key]}
+            onChange={event => edit(key, event.currentTarget.value, low, high)} />
+        </label>)}
+      </div>
+      <button type="button" className="btn" onClick={locate} disabled={locating === 'busy'}>
+        {locating === 'busy' ? 'Finding this device…' : "Use this device's location"}</button>
+      <p className="setting-static" role="status" aria-live="polite">{locating === 'failed'
+        ? 'The location is unavailable. Enter it instead.'
+        : `Lights the 3D view for the real sun. Stored on this device${unset ? '; the location is a default until set' : ''}.`}</p>
+    </fieldset>
   );
 }
 

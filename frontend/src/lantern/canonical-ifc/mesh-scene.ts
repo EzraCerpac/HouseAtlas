@@ -37,6 +37,14 @@ const SUN_MAP = 2048, SUN_OFFSET = .04, SUN_SOFTNESS = 2.5, SUN_TAPS = 5;
  * pixel or more out; more steps start inside one depth texel and read flat
  * walls as speckled self-occlusion. */
 const OCCLUSION_RADIUS = .8, OCCLUSION_SAMPLES = 8, OCCLUSION_STRENGTH = .6;
+/** At night a face is indoors when the point this far out along its normal, in metres,
+ * still has the house above it: inner wall faces and floors pass, outer walls under
+ * the eaves do not. */
+const INDOOR_REACH = 1;
+/** Share of the difference from full tone that selection and overlay tints keep at any hour. */
+const KEEP_TONE = .75;
+/** How quickly a face turned to the sun takes the sun's colour instead of the sky's. */
+const SUN_TINT_GAIN = 2.5;
 
 export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonly PreparedMesh[], useMaterials: boolean,
   onLost: (message: string) => void): Promise<MeshScene> {
@@ -72,6 +80,8 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const u = {
       ambient: uniform(0), twoSided: uniform(0), light: uniform(new Vector3()), viewDir: uniform(new Vector3()), paper: uniform(new Vector3()),
       ghostAlpha: uniform(0), ghost: uniform(new Vector3()), ghostShade: uniform(new Vector3()),
+      direct: uniform(1), night: uniform(0), lamp: uniform(0),
+      tint: uniform(new Vector3(1, 1, 1)), sunTint: uniform(new Vector3(1, 1, 1)), lampTint: uniform(new Vector3(1, 1, 1)),
     };
     const toUnitDepth = renderer.coordinateSystem === WebGPUCoordinateSystem;
     const meshId = attribute('meshIndex', 'float');
@@ -80,16 +90,18 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     /** Lifted world position through the camera, which holds the shared
      * orthographic frame exactly as plan, picking and labels use it. Depth is
      * clamped rather than clipped, so a lifted floor never leaves the view. */
-    const vertex = (visible: (s5: V4) => B) => Fn(() => {
-      const s4 = read(meshId, 4), s5 = read(meshId, 5);
-      const clip = cameraProjectionMatrix.mul(cameraViewMatrix).mul(vec4(positionGeometry.add(vec3(0, s4.w, 0)), 1));
-      return select(visible(s5), vec4(clip.xy, clamp(clip.z, toUnitDepth ? 0 : -1, 1), clip.w), vec4(2, 2, 2, 1));
+    const vertex = (visible: (s5: V4, s7: V4) => B, lifted = true) => Fn(() => {
+      const s4 = read(meshId, 4), s5 = read(meshId, 5), s7 = read(meshId, 7);
+      const clip = cameraProjectionMatrix.mul(cameraViewMatrix).mul(vec4(lifted ? positionGeometry.add(vec3(0, s4.w, 0)) : positionGeometry, 1));
+      return select(visible(s5, s7), vec4(clip.xy, clamp(clip.z, toUnitDepth ? 0 : -1, 1), clip.w), vec4(2, 2, 2, 1));
     })();
 
     const vId = varying(meshId).round(), vY = positionGeometry.y, vNormal = attribute('normal', 'vec3');
 
     // Sun shadows: one depth map seen from the sun. The sun is fixed to the house,
     // so the map is redrawn only when the scene changes, never while the camera turns.
+    // After sunset the same map is drawn from straight above, from every mesh that
+    // roofs the house over, whether shown or not, and tells indoors from out.
     const sun = new OrthographicCamera(), sunMatrix = uniform(new Matrix4());
     sun.coordinateSystem = renderer.coordinateSystem;
     const sunTarget = new RenderTarget(SUN_MAP, SUN_MAP), sunDepth = sunTarget.depthTexture = new DepthTexture(SUN_MAP, SUN_MAP);
@@ -112,13 +124,27 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const facing = (n: V3): V3 => select(u.twoSided.greaterThan(.5).and(frontFacing.not()), n.negate(), n);
     /** Sky light: faces looking up get more of the ambient term than faces looking down. */
     const sky = (n: V3): F => mix(float(.7), float(1.1), n.y.mul(.5).add(.5));
-    const sunlit = sunShadow(varying(positionGeometry.add(vec3(0, read(meshId, 4).w, 0))));
+    const night = u.night.greaterThan(.5);
+    // By day the lit, lifted point is tested; at night the unlifted point a reach out along the face.
+    const probe = select(night, varying(positionGeometry).add(facing(normalize(vNormal)).mul(INDOOR_REACH)),
+      varying(positionGeometry.add(vec3(0, read(meshId, 4).w, 0))));
+    // One variable, so the taps run once per pixel however many terms read the result.
+    const outdoors = sunShadow(probe).toVar('outdoors');
+    const sunlit = select(night, float(1), outdoors), indoor = select(night, float(1).sub(outdoors), float(0));
     const lit = (n: V3): F => {
       const facingSun = dot(n, u.light);
-      return clamp(u.ambient.mul(sky(n)).add(float(1).sub(u.ambient).mul(facingSun).mul(select(facingSun.greaterThan(0), sunlit, 1))), 0, 1);
+      return clamp(u.ambient.mul(sky(n)).add(float(1).sub(u.ambient).mul(u.direct).mul(facingSun).mul(select(facingSun.greaterThan(0), sunlit, 1))), 0, 1);
     };
     /** Flat tops keep their tone and darken towards the shade tone in shadow. */
-    const top = (tone: V3, shade: V3): V3 => mix(tone, shade, float(1).sub(sunlit).mul(.45));
+    const top = (tone: V3, shade: V3): V3 => mix(tone, shade, float(1).sub(sunlit).mul(u.direct).mul(.45));
+    /** The hour's light on a drawn tone: sky colour, sun colour as far as the sun
+     * reaches the face, lamp light indoors after dusk, and selection and overlay
+     * tints held near full strength. */
+    const graded = (c: V3, n: V3, s7: V4): V3 => {
+      const sun = float(1).sub(u.ambient).mul(u.direct).mul(max(dot(n, u.light), 0)).mul(sunlit).mul(SUN_TINT_GAIN);
+      const light = mix(mix(u.tint, u.sunTint, clamp(sun, 0, 1)), u.lampTint, u.lamp.mul(indoor));
+      return clamp(c.mul(mix(light, vec3(1), s7.y.mul(KEEP_TONE))), 0, 1);
+    };
 
     /** Architectural face tones: flat tops, pitched faces and lit walls. */
     const shaded = (s: readonly V4[], n: V3): V3 => {
@@ -131,8 +157,8 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
 
     type Source = NonNullable<PreparedMesh['sourceMaterial']>;
     const opaque = (material?: { source: Source; maps: Partial<Record<'base' | 'normal' | 'metalRough', DataTexture>> }) => Fn(() => {
-      const s = [0, 1, 2, 3, 4, 5, 6].map(t => read(vId, t)) as [V4, V4, V4, V4, V4, V4, V4];
-      const [, s1, s2, s3, , , s6] = s;
+      const s = [0, 1, 2, 3, 4, 5, 6, 7].map(t => read(vId, t)) as [V4, V4, V4, V4, V4, V4, V4, V4];
+      const [, s1, s2, s3, , , s6, s7] = s;
       Discard(s2.w.greaterThan(.5).and(vY.greaterThan(s3.w)));
       const cut = cutFace(s2.w), n = facing(normalize(vNormal));
       const plain = display(shaded(s, n), s1.w);
@@ -160,10 +186,10 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
         const spec = D.mul(G).mul(F).div(max(nv.mul(nl).mul(4), .0001));
         const diffuse = float(1).sub(F).mul(float(1).sub(metallic)).mul(base).div(Math.PI);
         const light = base.mul(float(1).sub(metallic)).add(f0.mul(.12)).mul(u.ambient).mul(sky(N))
-          .add(diffuse.add(spec).mul(nl).mul(Math.PI).mul(float(1).sub(u.ambient)).mul(sunlit));
+          .add(diffuse.add(spec).mul(nl).mul(Math.PI).mul(float(1).sub(u.ambient)).mul(u.direct).mul(sunlit));
         color = select(on, display(mix(max(light, vec3(0)), u.paper, s6.y), s1.w), plain);
       }
-      return select(cut, vec4(display(s2.xyz, s1.w), 1), vec4(color, 1));
+      return vec4(graded(select(cut, display(s2.xyz, s1.w), color), n, s7), 1);
     })();
 
     /** Faded cutaway: one quiet veil, depth-tested and never written. */
@@ -171,7 +197,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       const s5 = read(vId, 5);
       Discard(s5.z.greaterThan(.5).and(vY.lessThan(s5.w)));
       const n = facing(normalize(vNormal)), face = select(n.y.greaterThan(.8), u.ghost, mix(u.ghostShade, u.ghost, lit(n)));
-      return vec4(face.mul(u.ghostAlpha), u.ghostAlpha);
+      return vec4(face.mul(u.tint).mul(u.ghostAlpha), u.ghostAlpha);
     })();
 
     const visibleIn = (pass: MeshPass) => (s5: V4): B => s5.x.equal(pass);
@@ -257,6 +283,11 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     // The sun's depth map and the occlusion pass both draw this scene.
     const solidScene = new Scene(), solid = new NodeMaterial();
     solid.side = DoubleSide; owned.push(solid);
+    // Shelter geometry: the house as built, unlifted and uncut, for the night map.
+    const shelterScene = new Scene(), shelter = new NodeMaterial();
+    shelter.side = DoubleSide; owned.push(shelter);
+    shelter.vertexNode = vertex((_, s7) => s7.x.greaterThan(.5), false);
+    shelter.outputNode = vec4(1);
     solid.vertexNode = vertex(s5 => s5.x.greaterThan(MeshPass.None));
     solid.outputNode = Fn(() => {
       const s2 = read(vId, 2), s3 = read(vId, 3);
@@ -270,6 +301,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       scene.add(mesh); layers.push({ pass, mesh });
       if (pass === MeshPass.Reference) {
         const body = new Mesh(geometry, solid); body.frustumCulled = false; body.matrixAutoUpdate = false; solidScene.add(body);
+        const roof = new Mesh(geometry, shelter); roof.frustumCulled = false; roof.matrixAutoUpdate = false; shelterScene.add(roof);
       }
     };
     const textured = (index: number) => useMaterials && meshes[index]!.sourceMaterial !== undefined && meshes[index]!.materialVertices !== undefined;
@@ -294,19 +326,22 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     for (const mesh of meshes) { low.min(new Vector3(...mesh.bounds.min)); high.max(new Vector3(...mesh.bounds.max)); }
     const corner = new Vector3();
     const drawSun = () => {
-      let lift = 0; for (let i = 0; i < meshes.length; i++) lift = Math.max(lift, table[i * STATE_FLOATS + 19]!);
+      // At night the map reaches past the house by more than a probe, so a probe
+      // beside an outer wall never reads the clamped edge of a roof.
+      const dark = u.night.value > .5, pad = dark ? INDOOR_REACH + .5 : 0;
+      let lift = 0; if (!dark) for (let i = 0; i < meshes.length; i++) lift = Math.max(lift, table[i * STATE_FLOATS + 19]!);
       const centre = new Vector3().addVectors(low, high).multiplyScalar(.5), toward = u.light.value.clone().normalize();
       const reach = Math.max(1, low.distanceTo(high) + lift);
       sun.position.copy(centre).addScaledVector(toward, reach); sun.up.set(0, Math.abs(toward.y) > .99 ? 0 : 1, Math.abs(toward.y) > .99 ? 1 : 0);
       sun.lookAt(centre); sun.updateMatrixWorld(true);
       const min = new Vector3(Infinity, Infinity, Infinity), max = new Vector3(-Infinity, -Infinity, -Infinity);
       for (let c = 0; c < 8; c++) {
-        corner.set(c & 1 ? high.x : low.x, c & 2 ? high.y + lift : low.y, c & 4 ? high.z : low.z).applyMatrix4(sun.matrixWorldInverse);
+        corner.set(c & 1 ? high.x + pad : low.x - pad, c & 2 ? high.y + lift + pad : low.y - pad, c & 4 ? high.z + pad : low.z - pad).applyMatrix4(sun.matrixWorldInverse);
         min.min(corner); max.max(corner);
       }
       sun.left = min.x; sun.right = max.x; sun.bottom = min.y; sun.top = max.y; sun.near = -max.z - .1; sun.far = -min.z + .1;
       sun.updateProjectionMatrix(); sunMatrix.value.multiplyMatrices(sun.projectionMatrix, sun.matrixWorldInverse);
-      renderer.setRenderTarget(sunTarget); renderer.render(solidScene, sun); renderer.setRenderTarget(null);
+      renderer.setRenderTarget(sunTarget); renderer.render(dark ? shelterScene : solidScene, sun); renderer.setRenderTarget(null);
     };
 
     // Contact shading (GTAO): a depth-and-normal pass without multisampling feeds
@@ -333,6 +368,8 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
           u.paper.value.set(...frame.materialPaper); u.ambient.value = frame.ambient; u.twoSided.value = frame.twoSided ? 1 : 0;
           u.light.value.set(...frame.light);
           u.ghostAlpha.value = frame.ghostAlpha; u.ghost.value.set(...frame.ghostColor); u.ghostShade.value.set(...frame.ghostShade);
+          u.direct.value = frame.direct; u.night.value = frame.night ? 1 : 0; u.lamp.value = frame.lamp;
+          u.tint.value.set(...frame.tint); u.sunTint.value.set(...frame.sunTint); u.lampTint.value.set(...frame.lampTint);
           for (const { pass, mesh } of layers) mesh.visible = pass === 'ghost' ? frame.ghosts : frame.passes.has(pass);
           sunStale = true;
         }

@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "24a470f10dca2959389a8454a181ad19d5bbfb9c6c14a41793872d5d27411d96",
+  "sourceDigestSha256": "31bd539d821b97418852fd5948a98894bd8e0b04779cf084f66b31ab8e6fefd6",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -119,8 +119,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 7632,
-      "sha256": "3fb23d31cfd1c9a1b0f27ba2e1cdaf4a39af1350ee234d8f9c7f1370857d3049",
+      "bytes": 7766,
+      "sha256": "dbac7e326734c1fe9df4e90da7e6bcaecdfa93b326f552859d03efe3f3e4a0fd",
       "owner": "core-integration"
     },
     {
@@ -6125,8 +6125,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 171123,
-      "sha256": "c62d91243677ae159f5937be6266983c0aa2f13245724728cf3bb401d5f0b228",
+      "bytes": 171963,
+      "sha256": "e17d2f370251dbad0f321b91a0066bcbcc0b293a8e230af50e1e7a8dd63e58b5",
       "owner": "core-integration"
     },
     {
@@ -8120,8 +8120,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 4665,
-      "sha256": "76b4c5c449dc9a1a7e14220fd2adfecfc45ae54e57e10dd1a57567ded074d8eb",
+      "bytes": 4709,
+      "sha256": "710c51763a2003f94ace30ab45dea790af9b025b8fcb8cd3ce4f28e703fa4c8a",
       "owner": "web"
     },
     {
@@ -8391,6 +8391,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/unified-atlas-daylight-healthy.mjs",
+      "mode": "100644",
+      "bytes": 8310,
+      "sha256": "f33f12efc5f237c8e2db40d0572c6aec9b6351c1cb7bf65ad1838fea440a4eab",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
       "bytes": 104782,
@@ -8554,15 +8561,15 @@
     {
       "path": "frontend/package-lock.json",
       "mode": "100644",
-      "bytes": 55717,
-      "sha256": "62a282e363831f234774b6964a49beb3e71c6a5374b9717d83ed4207e909505d",
+      "bytes": 56001,
+      "sha256": "276c03a87566cafa64a858c4110fcdeb4a4eb2477e1ff47c133e9d8da4b237b8",
       "owner": "core-integration"
     },
     {
       "path": "frontend/package.json",
       "mode": "100644",
-      "bytes": 781,
-      "sha256": "84949f77372cbebfec23c2e2e1474fe885f8f19346a8553bf5bf32ede04768d0",
+      "bytes": 805,
+      "sha256": "02de178dbbe323d5fa7907a6d91aecfd185c2c1850e7dfc34e5426ddd3012729",
       "owner": "core-integration"
     },
     {
@@ -9212,8 +9219,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/MeshLayer.tsx",
       "mode": "100644",
-      "bytes": 8218,
-      "sha256": "9a2ff70e4b9fef8977f1e23f869565d9dbb67c58962e54d5ac4ff5807c040ec3",
+      "bytes": 8253,
+      "sha256": "fea8d9ae542b6d271eb7dec3714864f58b1ddda45961307f6a7a19aff7532731",
       "owner": "web"
     },
     {
@@ -9296,15 +9303,15 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-appearance.ts",
       "mode": "100644",
-      "bytes": 11154,
-      "sha256": "772d4756b7ba282eca8ccad75d3eb9102d5912100e131e863735d33767c8bbe9",
+      "bytes": 13200,
+      "sha256": "bb956b03f28e5f69231da4de516037cf966d5ae6636dafb722312c073b7560ee",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-scene.ts",
       "mode": "100644",
-      "bytes": 23559,
-      "sha256": "76c48c88a91d587d26c8bc81746e58b8402ced94e25540b996c21e11f67f5a12",
+      "bytes": 26526,
+      "sha256": "a40d78a3d12490fef1f911d0c8f873dc0f13ded5f3f242e44a66aaae99017a85",
       "owner": "web"
     },
     {
@@ -9408,8 +9415,8 @@
     {
       "path": "frontend/src/lantern/components/Icon.tsx",
       "mode": "100644",
-      "bytes": 3811,
-      "sha256": "f0323db3b4b5ba41ec6d53372276357e9b1e7dce2b26165c464775f1f939bdcc",
+      "bytes": 3872,
+      "sha256": "40ca605b51e6d7322dda7aa74c0e82779676a54ddf8756c76653b64fceacc0bc",
       "owner": "web"
     },
     {
@@ -9485,8 +9492,8 @@
     {
       "path": "frontend/src/lantern/components/SettingsDialog.tsx",
       "mode": "100644",
-      "bytes": 5501,
-      "sha256": "1d916419ac3d0cc05f87d2f85f37ab7306aa17b2008a3c2ce73134e4c58699f7",
+      "bytes": 8362,
+      "sha256": "b61d8cbb44b024b8fae748e79a5baf575f91ec2395e1ba01e5565e8bd9e9f048",
       "owner": "web"
     },
     {
@@ -10400,6 +10407,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/unified-atlas/DaylightControl.tsx",
+      "mode": "100644",
+      "bytes": 4904,
+      "sha256": "058331a9ed7c81642fc35564eab58efdeb96dd7674e36db3181cb4bb844204bc",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/unified-atlas/LayerDetailsDock.tsx",
       "mode": "100644",
       "bytes": 8275,
@@ -10430,8 +10444,15 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 145916,
-      "sha256": "2d9bb80150cadc4edee93ee5efd6f4c4d73a69edae07e7893fc014708df22065",
+      "bytes": 146445,
+      "sha256": "a22a3d6c98a78ba11068b6b0b91b19f67a5f6befb2f0b71bb4ffff5dbcdac383",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/unified-atlas/daylight.ts",
+      "mode": "100644",
+      "bytes": 4178,
+      "sha256": "cc0d8a5a4898cfe0029cb86ec519c94108fbf462c2acc64cbf7887c9b4c09ca2",
       "owner": "web"
     },
     {
@@ -10505,6 +10526,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/unified-atlas/sun-place.ts",
+      "mode": "100644",
+      "bytes": 1900,
+      "sha256": "6cf63a6dca9c50be41644677c1247d7501db91edbc321d43c4589cda31e8bbc0",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/unified-atlas/types.ts",
       "mode": "100644",
       "bytes": 9875,
@@ -10514,8 +10542,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/unified-atlas.css",
       "mode": "100644",
-      "bytes": 83804,
-      "sha256": "f61b61abf5204097eaf2d2ecc4ae7f1e98315e71d79ebbf77347478d62fe41df",
+      "bytes": 85618,
+      "sha256": "7cdab526305f8d3aff59e9e7caea5649cf3dd27509c0fc37b72c7141fcc44b4a",
       "owner": "web"
     },
     {

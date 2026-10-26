@@ -44,7 +44,7 @@ const SOURCE = [
   // Unified Atlas
   node('unified-atlas-healthy.mjs'), node('unified-atlas-cache-healthy.mjs'), node('unified-atlas-network-connections-healthy.mjs'),
   node('unified-atlas-overlay-source-healthy.mjs'), node('unified-atlas-room-links-healthy.mjs'),
-  node('unified-atlas-compact-layer-details.mjs'), node('unified-atlas-control-names-healthy.mjs'),
+  node('unified-atlas-compact-layer-details.mjs'), node('unified-atlas-control-names-healthy.mjs'), node('unified-atlas-daylight-healthy.mjs'),
   // Named healthy cases
   ...cases('embedded-png-material-healthy.mjs', '--case', ['slots', 'image-sharing', 'png-filters',
     'png-adam7', 'accounting-1024', 'legacy-geometry', 'gpu-owner', 'precedence']),
