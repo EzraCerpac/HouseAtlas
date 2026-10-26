@@ -48,6 +48,12 @@
 /* A compact stage carries the other sources in its own menu. */
 .lantern-host.view-atlas .main:has(.atlas-map .ua-shell.is-compact) .atlas-lens-bar > .atlas-source-details { display: none; }
 
+/* On a phone the lens row gives the map its height: Rooms & places and
+   Network open from the stage's menu, and an open lens closes itself. */
+@media (max-width: 720px) {
+  .lantern-host.view-atlas .main:has(.atlas-map .ua-shell.is-compact) .atlas-lens-bar { display: none; }
+}
+
 /* ---- Beside a lens, and as its inset ------------------------------------- */
 
 /* On a phone the lens stands below a short map band: the room sheet and the
@@ -812,6 +818,11 @@
 .lantern-host .ua-menu-row:hover { background: var(--ua-hover); }
 .lantern-host .ua-menu-row > svg { flex: none; color: var(--faint); }
 .lantern-host .ua-menu-row:focus-visible { outline-offset: -2px; }
+/* Rows with a leading glyph: the name takes the free width. A pressed row,
+   Exploded on or the open lens, wears the floor rail's lantern mark. */
+.lantern-host .ua-menu-row > span { flex: 1; }
+.lantern-host .ua-menu-row[aria-pressed="true"] { background: var(--lantern-soft); box-shadow: inset 3px 0 0 var(--lantern-edge); }
+.lantern-host .ua-menu-row[aria-pressed="true"] > svg { color: var(--ink); }
 
 /* ---- Layers: plans, keys and the layer bar ---------------------------------- */
 
@@ -1946,30 +1957,28 @@
   .lantern-host .ua-bottom { bottom: calc(var(--ua-peek) + 8px); }
   .lantern-host .ua-graph { inset: 6px; }
 
-  @media (max-height: 480px) {
-    /* One line: the floor follows the name and gives way first, so the head
-       fits below the view tools and side strips. The room's tag starts at the
-       head's edge, so its own width is the name's column. */
-    .lantern-host .ua-sheet-head {
-      grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto auto;
-      padding-top: 10px;
-      padding-bottom: 5px;
-    }
-
-    .lantern-host .ua-inspector.is-room .ua-sheet-head { padding-left: 8px; }
-    .lantern-host .ua-inspector.is-room h2 { margin-left: 0; }
-    .lantern-host .ua-sheet-head::before { top: 3px; }
-
-    .lantern-host .ua-sheet-title > h2,
-    .lantern-host .ua-sheet-title > p {
-      max-width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .lantern-host .ua-sheet-title > p { grid-area: 1 / 2; }
+  /* One line, so the closed sheet is a slim peek and the model keeps the
+     stage: the floor follows the name and gives way first. The room's tag
+     starts at the head's edge, so its own width is the name's column. */
+  .lantern-host .ua-sheet-head {
+    grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto auto;
+    padding-top: 10px;
+    padding-bottom: 5px;
   }
+
+  .lantern-host .ua-inspector.is-room .ua-sheet-head { padding-left: 8px; }
+  .lantern-host .ua-inspector.is-room h2 { margin-left: 0; }
+  .lantern-host .ua-sheet-head::before { top: 3px; }
+
+  .lantern-host .ua-sheet-title > h2,
+  .lantern-host .ua-sheet-title > p {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .lantern-host .ua-sheet-title > p { grid-area: 1 / 2; }
 }
 
 /* Smallest phones: the sheet toggle is its chevron alone, its name kept for
