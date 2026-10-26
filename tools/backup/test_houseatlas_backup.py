@@ -387,6 +387,25 @@ class RetentionTest(unittest.TestCase):
             hb.apply_retention(self.config, {"keep": "recent", "nights": 7, "months": 0}, target, [blob])
         self.assertEqual((self.names(), sorted(p.name for p in self.blobs.iterdir())), before)
 
+    def test_a_kept_sidecar_with_wrong_identity_or_format_deletes_nothing(self):
+        blob = self.blob("a")
+        self.blob("d")
+        stamps = [f"202610{day:02d}T040000Z" for day in range(1, 11)]
+        for stamp in stamps[:-1]:
+            self.archive(stamp, [blob])
+        target = self.archive(stamps[-1], [blob])
+        sidecar = self.icloud / f"{hb.ARCHIVE_PREFIX}{stamps[5]}.tar.gz{hb.MODELS_SIDECAR}"
+        valid = json.loads(sidecar.read_text())
+        before = self.names(), sorted(p.name for p in self.blobs.iterdir())
+        for field, wrong in (("archive", target.name), ("format", "houseatlas-backup-models/2")):
+            with self.subTest(field=field):
+                # A valid-looking empty dependency list must never be trusted
+                # when it describes another archive or an unsupported format.
+                sidecar.write_text(json.dumps(valid | {field: wrong, "blobs": []}))
+                with self.assertRaises(hb.StepFailed):
+                    hb.apply_retention(self.config, {"keep": "recent", "nights": 7, "months": 0}, target, [blob])
+                self.assertEqual((self.names(), sorted(p.name for p in self.blobs.iterdir())), before)
+
     def test_a_damaged_sidecar_on_an_old_archive_does_not_block_cleanup(self):
         blob = self.blob("a")
         stamps = [f"202610{day:02d}T040000Z" for day in range(1, 11)]

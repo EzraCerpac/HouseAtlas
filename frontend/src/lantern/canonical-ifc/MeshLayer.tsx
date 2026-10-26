@@ -27,6 +27,10 @@ const REBUILDS = 2;
 /** Contact shading waits until the camera has been still this long, then fades in over FADE_MS.
  * Frames drawn while the camera moves skip it, so orbiting costs no more than before. */
 const SETTLE_MS = 180, FADE_MS = 240;
+/** A still view keeps refining its contact shading for at most this long, and
+ * skips a refining frame that would end past it, so a slow GPU stops after a
+ * few averaged frames instead of drawing for seconds. */
+const REFINE_MS = 400;
 
 /** A stable number per prepared mesh set, for the canvas key. */
 const meshSets = new WeakMap<readonly PreparedMesh[], number>();
@@ -65,7 +69,8 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
   useLayoutEffect(() => { moved.current = true; redraw.current?.(); }, [props.projection, props.hidden]);
   useLayoutEffect(() => { stale.current = true; redraw.current?.(); },
     [props.rules, props.currentFloorId, props.selectedOccurrenceId, props.contextOccurrenceIds, props.tints, props.referenceKeys,
-      props.hiddenKeys, props.selectedKeys, props.lifts, props.clips, props.dims, props.ghosts, props.palette, props.sourceColors, props.sourceMaterials, props.sourceDim, props.ambient, props.twoSided, props.shade, props.light, props.pitch, props.pitchKeys, props.site, props.ghostAlpha, props.daylight, props.shelterKeys]);
+      props.hiddenKeys, props.selectedKeys, props.lifts, props.clips, props.dims, props.ghosts, props.palette, props.sourceColors, props.sourceMaterials, props.sourceDim, props.ambient, props.twoSided, props.shade, props.light, props.pitch, props.pitchKeys, props.site, props.ghostAlpha, props.daylight, props.shelterKeys, props.roomKeys,
+      props.glazingKeys, props.emitterKeys]);
   useLayoutEffect(() => {
     const element = canvas.current; if (!element || props.meshes.length === 0) return;
     const usesMaterials = props.sourceMaterials === true && props.meshes.some(mesh => mesh.sourceMaterial !== undefined);
@@ -76,9 +81,13 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     const ready = () => { if (!drawn) { drawn = true; latest.current.onReady(props.meshes); } };
     // Contact shading strength (0 to 1), the pending settle timer, and when the fade-in began.
     let shading = 0, settle: ReturnType<typeof setTimeout> | null = null, fading: number | null = null;
+    // Whether the pending frame only refines the last one, until when refining may go on, and when the last frame was drawn.
+    let refineOnly = false, refineUntil = 0, drawnAt = 0;
     const still = () => { settle = null; fading = performance.now(); schedule(); };
-    const schedule = () => {
+    const schedule = (refine = false) => {
+      if (!refine) refineOnly = false;
       if (disposed || !scene || frame !== null || document.hidden) return;
+      refineOnly = refine;
       frame = requestAnimationFrame(() => { frame = null; try { render(); } catch { fail('The 3D model cannot be rendered.'); } });
     };
     const release = () => {
@@ -97,6 +106,9 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     const render = () => {
       if (disposed || !scene) return;
       const p = latest.current; if (p.hidden) { ready(); return; }
+      // A refining frame is expected to cost about what the last one did.
+      const now = performance.now(), refine = refineOnly; refineOnly = false;
+      if (!refine) refineUntil = now + REFINE_MS; else if (2 * now - drawnAt > refineUntil) return;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       let w = Math.max(1, Math.round(element.clientWidth * dpr)), h = Math.max(1, Math.round(element.clientHeight * dpr));
       const fit = Math.min(1, Math.sqrt(RENDER_LIMITS.pixels / (w * h))); w = Math.max(1, Math.floor(w * fit)); h = Math.max(1, Math.floor(h * fit));
@@ -105,10 +117,12 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
         shading = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 1 : Math.min(1, (performance.now() - fading) / FADE_MS);
         if (shading < 1) schedule(); else fading = null;
       } else if (shading < 1 && settle === null) settle = setTimeout(still, SETTLE_MS);
-      scene.render(p.projection, stale.current ? p : null, w, h, shading); stale.current = false; ready();
+      // While the view is still, each further frame averages the contact shading down to a clean result.
+      if (scene.render(p.projection, stale.current ? p : null, w, h, shading)) schedule(true);
+      drawnAt = now; stale.current = false; ready();
     };
     document.addEventListener('visibilitychange', visibility);
-    const resize = new ResizeObserver(schedule); resize.observe(element);
+    const resize = new ResizeObserver(() => schedule()); resize.observe(element);
     try { materialGpuResources(props.meshes, usesMaterials, props.uploadBytes); } catch { fail('The 3D model cannot be rendered.'); }
     if (!disposed) {
       void import('./mesh-scene').then(({ createMeshScene }) => createMeshScene(element, props.meshes, usesMaterials, lost, building.signal)).then(created => {

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     fs,
     io::{Read, Write},
-    os::unix::fs::{DirBuilderExt, OpenOptionsExt},
+    os::unix::fs::OpenOptionsExt,
     path::Path as FsPath,
 };
 
@@ -81,9 +81,20 @@ struct Stored {
 }
 
 fn folder(host: &Host) -> Result<Arc<std::path::PathBuf>, HttpFailure> {
-    host.backup_folder
+    let folder = host
+        .backup_folder
         .clone()
-        .ok_or_else(|| failure(StatusCode::NOT_FOUND))
+        .ok_or_else(|| failure(StatusCode::NOT_FOUND))?;
+    // The job creates this folder when it first reports. A configured path
+    // alone must not advertise backups on a server where no job has run.
+    match fs::symlink_metadata(folder.as_ref()) {
+        Ok(metadata) if metadata.is_dir() => Ok(folder),
+        Ok(_) => Err(failure(StatusCode::NOT_FOUND)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Err(failure(StatusCode::NOT_FOUND))
+        }
+        Err(_) => Err(failure(StatusCode::SERVICE_UNAVAILABLE)),
+    }
 }
 
 /// Anything missing or malformed reads as Forever, exactly as the job reads it.
@@ -120,21 +131,8 @@ fn read_status(folder: &FsPath) -> Option<Status> {
 /// Written whole under a private temporary name and renamed into place, so
 /// the job never reads half a choice.
 fn write_retention(folder: &FsPath, retention: Retention) -> std::io::Result<()> {
-    match fs::symlink_metadata(folder) {
-        Ok(metadata) if !metadata.is_dir() => {
-            return Err(std::io::Error::other("backup folder is not a directory"));
-        }
-        Ok(_) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            fs::DirBuilder::new()
-                .mode(0o700)
-                .create(folder)
-                .or_else(|error| match error.kind() {
-                    std::io::ErrorKind::AlreadyExists => Ok(()),
-                    _ => Err(error),
-                })?;
-        }
-        Err(error) => return Err(error),
+    if !fs::symlink_metadata(folder)?.is_dir() {
+        return Err(std::io::Error::other("backup folder is not a directory"));
     }
     let mut value = serde_json::to_value(retention).map_err(std::io::Error::other)?;
     if let Some(object) = value.as_object_mut() {
@@ -263,6 +261,7 @@ pub(super) async fn write(State(host): State<Host>, request: Request) -> HttpRes
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::fs::DirBuilderExt;
 
     fn folder() -> tempfile::TempDir {
         tempfile::tempdir().unwrap()
@@ -302,6 +301,9 @@ mod tests {
         let root = folder();
         let shared = root.path().join("backup");
         assert_eq!(read_retention(&shared), Retention::Forever {});
+        assert!(write_retention(&shared, Retention::Forever {}).is_err());
+        assert!(!shared.exists());
+        fs::DirBuilder::new().mode(0o700).create(&shared).unwrap();
         let recent = Retention::Recent {
             nights: 30,
             months: 12,
@@ -446,6 +448,18 @@ mod tests {
             .to_owned();
         let signed_in = Some((cookie.as_str(), None));
         let editing = Some((cookie.as_str(), Some(csrf.as_str())));
+        let recent = r#"{"keep":"recent","nights":30,"months":12}"#;
+
+        for (method, payload) in [("GET", ""), ("POST", recent)] {
+            let response = app
+                .clone()
+                .oneshot(request(method, payload, editing))
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+            assert!(!shared.exists());
+        }
+        fs::DirBuilder::new().mode(0o700).create(&shared).unwrap();
 
         let response = app
             .clone()
@@ -464,7 +478,6 @@ mod tests {
             .unwrap();
         assert_eq!(unsigned.status(), StatusCode::UNAUTHORIZED);
 
-        let recent = r#"{"keep":"recent","nights":30,"months":12}"#;
         let response = app
             .clone()
             .oneshot(request("POST", recent, signed_in))

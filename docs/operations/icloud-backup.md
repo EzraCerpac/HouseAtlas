@@ -46,6 +46,9 @@ choice as `retention.json` in a `backup/` folder in its data directory, and
 the job finds that folder through the `--server-config` in the service plist,
 so neither needs a new setting.
 
+The Backups section appears after the job first reports and creates that
+shared folder. Settings does not create the folder or install a backup job.
+
 - **Forever** (the default, and what a missing or invalid file means) deletes
   nothing.
 - **Recent + monthly** keeps tonight's archive, the newest archive of each of

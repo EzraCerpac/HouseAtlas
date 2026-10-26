@@ -56,8 +56,8 @@ const graphURL = await sourceURL('../src/lantern/unified-atlas/NetworkGraph.tsx'
   './network-graph.css': dataURL(''),
 });
 const { NetworkGraph } = await import(graphURL);
-const readerURL = await sourceURL('../integration/unified-atlas-reader.ts',
-  { '../src/lantern/unified-atlas/scene': sceneURL, '../src/lantern/unified-atlas/types': typesURL });
+const readerURL = await sourceURL('../integration/unified-atlas-reader.ts', { '../src/lantern/unified-atlas/scene': sceneURL,
+  '../src/lantern/unified-atlas/types': typesURL, './sha256-thread': await sourceURL('../integration/sha256-thread.ts') });
 const syntheticURL = await sourceURL('./unified-atlas/synthetic-atlas.ts');
 const { stageTier, shownTier } = await import(await sourceURL('../src/lantern/unified-atlas/model-tier.ts'));
 
@@ -147,6 +147,18 @@ assert.throws(() => admitArtifacts([withDetail[0], { ...withDetail[1], role: 'mo
 assert.throws(() => admitArtifacts([withDetail[0], { ...withDetail[1], artifactId: 'model' }]), error => error.reason === 'invalid');
 assert.throws(() => admitArtifacts([...withDetail, withDetail[1]]), error => error.reason === 'too-large');
 assert.throws(() => admitArtifacts([withDetail[0], { ...withDetail[1], bytes: 256 * 1024 * 1024 + 1 }]), error => error.reason === 'too-large');
+// Optional geographic frame for the sun: absent is null; present is all three
+// degrees in range, never null. A neutral reference place, not a household one.
+const admitFrame = frame => {
+  const envelope = { ...composed.envelope, frame };
+  return scene.admitAtlasScene(envelope, { scope, publicationId: selection.publicationId }, new TextEncoder().encode(JSON.stringify(envelope)).byteLength);
+};
+assert.equal(read.scene.geographic, null, 'a release without a geographic frame has none');
+const geographic = { latitude: 51.48, longitude: 0, northDeg: -12.5 };
+assert.deepEqual(admitFrame({ ...composed.envelope.frame, geographic }).geographic, geographic);
+for (const wrong of [null, { latitude: 51.48, longitude: 0 }, { ...geographic, altitude: 0 }, { ...geographic, latitude: 90.5 },
+  { ...geographic, longitude: -181 }, { ...geographic, northDeg: 361 }, { ...geographic, northDeg: '0' }])
+  assert.throws(() => admitFrame({ ...composed.envelope.frame, geographic: wrong }), error => error.reason === 'invalid', JSON.stringify(wrong));
 const detailEnvelopeBytes = new TextEncoder().encode(JSON.stringify({ ...composed.envelope, artifacts: withDetail }));
 const detailCalls = [];
 const detailRead = await readUnifiedAtlas({ selection, signal: new AbortController().signal, origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true,

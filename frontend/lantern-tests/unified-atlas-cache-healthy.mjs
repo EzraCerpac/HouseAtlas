@@ -29,8 +29,8 @@ const typesURL = await sourceURL('../src/lantern/unified-atlas/types.ts');
 const sceneURL = await sourceURL('../src/lantern/unified-atlas/scene.ts', { '../canonical-ifc/geometry': geometryURL, './types': typesURL });
 const storeURL = await sourceURL('../integration/native-geometry-scan-cache.ts');
 const cacheURL = await sourceURL('../integration/unified-atlas-cache.ts', { './native-geometry-scan-cache': storeURL });
-const readerURL = await sourceURL('../integration/unified-atlas-reader.ts',
-  { '../src/lantern/unified-atlas/scene': sceneURL, '../src/lantern/unified-atlas/types': typesURL });
+const readerURL = await sourceURL('../integration/unified-atlas-reader.ts', { '../src/lantern/unified-atlas/scene': sceneURL,
+  '../src/lantern/unified-atlas/types': typesURL, './sha256-thread': await sourceURL('../integration/sha256-thread.ts') });
 const codecURL = await sourceURL('../src/lantern/unified-atlas/stored-overlays.ts');
 const lastCopyURL = await sourceURL('../integration/last-atlas-copy.ts', { '../src/lantern/unified-atlas/types': typesURL,
   '../src/lantern/unified-atlas/stored-overlays': codecURL, './unified-atlas-cache': cacheURL, './unified-atlas-reader': readerURL });

@@ -101,11 +101,16 @@ export interface AtlasCoverage {
   readonly unselectableCount: number;
   readonly exclusions: readonly AtlasExclusion[];
 }
+/** Where the model stands on Earth, in degrees, when the release says: north is
+ * clockwise from the model's -Z (Blender's +Y) to true north, seen from above. */
+export interface AtlasGeographic { readonly latitude: number; readonly longitude: number; readonly northDeg: number }
 export interface AtlasScene {
   readonly profile: 'houseatlas.unified-atlas-scene.v1';
   readonly scope: Readonly<{ workspaceId: string; homeId: string }>;
   readonly selection: Readonly<{ revision: string; publicationId: string }>;
   readonly publication: Readonly<{ publicationId: string; sourceRevisionId: string; sourceSha256: string; semanticsSha256: string }>;
+  /** The release's optional `frame.geographic`; null when it carries none. */
+  readonly geographic: AtlasGeographic | null;
   readonly model: Readonly<{ bytes: number; sha256: string; href: string }>;
   /** The same publication unsimplified, for devices that opt into Full quality. */
   readonly detail: Readonly<{ bytes: number; sha256: string; href: string }> | null;

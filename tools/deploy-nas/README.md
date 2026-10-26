@@ -92,10 +92,12 @@ It never removes a folder that a path in the service plist, the live server conf
 or the smoke template points into, a frontend an unfinished record (or the newest
 prepared one) names, or anything reached through a symlink. Release folders, the
 ledger, model releases and anything outside those two folders are not candidates.
-`--dry-run` lists what would go. The record's `prune` entry lists each removed
-folder with its allocated size, and `freedBytes` is the space the volume actually
-gained (clones share blocks, so it is less than the sum). A failed prune is
-reported and never fails the deploy.
+`--dry-run` lists what would go and records nothing. A deploy's prune is the
+`prune` entry on its record; a `deploy-nas prune` run is its own ledger record
+(`kind: prune`, `status: pruned`), which `rollback` skips. The entry lists each
+removed folder with its allocated size, and `freedBytes` is the space the volume
+actually gained (clones share blocks, so it is less than the sum). A failed prune
+is reported and never fails the deploy.
 
 ## Host config
 

@@ -265,12 +265,6 @@
   min-height: 0;
 }
 
-/* Opened as another source beside the Atlas, the home map fills the sheet
-   as before; a building section scrolls as a document. */
-.lantern-host.view-atlas .main > .atlas-section,
-.lantern-host.view-atlas .main > .native-scan-atlas { overflow: auto; }
-.lantern-host.view-atlas .main:has(> .atlas-section) { display: block; overflow: auto; }
-
 .lantern-host .atlas-map > .source-model-pane { overflow: auto; }
 
 /* Beside a lens or as an inset the frame decides the map's height. */

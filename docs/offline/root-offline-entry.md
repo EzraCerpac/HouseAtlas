@@ -115,7 +115,14 @@ the cache alone
 (`frontend/integration/last-atlas-copy.ts`), admits and hashes them exactly as
 the live app's stored copy, and shows them through a live-kind port whose
 selection expired at the epoch: its fresh read always reports the server
-unavailable, so the Atlas shows the copy as not updated. It has no detail
+unavailable, so the Atlas shows the copy as not updated. The page then looks
+like the app itself: above the Atlas only one connection pill (offline and the
+number of waiting changes; tap to check, Open live once reachable), without the
+Saved entry's title, shell badge, scope note or empty saved-copy list, and the
+document neither scrolls nor rubber-bands. The live app's own link to the
+Saved entry marks the tab session (`src/offline/saved-entry.ts`), so opening it
+on purpose keeps the full view, including Saved scope and shell removal; the
+next live launch clears the mark. It has no detail
 model and no overlays. Sign-out empties the cache and with it this copy; a Saved tab left
 open while another tab signs out withdraws the copy when it is focused or shown
 again.

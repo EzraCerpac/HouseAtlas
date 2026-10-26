@@ -519,7 +519,10 @@ def read_sidecar(config: Config, sidecar: Path) -> dict:
         fetch_from_icloud(config)(sidecar)
     value = json.loads(sidecar.read_text())
     blobs = value.get("blobs") if isinstance(value, dict) else None
-    if not (isinstance(blobs, list) and all(isinstance(b, str) and BLOB_NAME.fullmatch(b) for b in blobs)):
+    if not (isinstance(value, dict) and value.get("format") == "houseatlas-backup-models/1"
+            and sidecar.name.endswith(MODELS_SIDECAR)
+            and value.get("archive") == sidecar.name[:-len(MODELS_SIDECAR)]
+            and isinstance(blobs, list) and all(isinstance(b, str) and BLOB_NAME.fullmatch(b) for b in blobs)):
         raise StepFailed("retention", f"{sidecar.name} is malformed")
     return value
 

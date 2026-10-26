@@ -235,18 +235,26 @@ try {
       .map(node => [node.getAttribute('aria-label'), hitBox(node)]);
     const actionCollisions = actions.flatMap(([name, a], at) => actions.slice(at + 1)
       .filter(([, b]) => a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1).map(([other]) => `${name} / ${other}`));
+    // The Floor Stack: a rail of rows on wide stages, a chip naming the scope on a phone.
     const compact = document.querySelector('.ua-shell').classList.contains('is-compact');
-    const building = pressed('.ua-buildings button'), buildingLabel = text('.ua-pick-name');
+    const building = [...document.querySelectorAll('.ua-stack-buildings button[aria-pressed="true"] .ua-rung-name')].map(node => node.textContent.trim());
+    const head = document.querySelector('.ua-stack-head'), buildingLabel = text('.ua-stack-head .ua-stack-building');
+    const floorName = text('.ua-stack-floors button[aria-pressed="true"] .ua-rung-name');
     return {
       buildingInView: compact
-        ? building.length === 1 && buildingLabel === building[0] && inView(document.querySelector('.ua-scope'), document.querySelector('.ua-pick'))
-        : inView(document.querySelector('.ua-buildings')),
-      buildingControl: { kind: compact ? 'chooser' : 'navigation', label: compact ? buildingLabel : building[0] ?? null },
-      floorInView: inView(document.querySelector('.ua-ladder')), covered, crowded, actionCollisions,
-      menusClosed: !document.querySelector('.ua-menu-btn[aria-expanded="true"], .ua-pick[aria-expanded="true"]'),
+        ? building.length === 1 && buildingLabel === building[0] && inView(document.querySelector('.ua-scope'), head)
+        : inView(document.querySelector('.ua-stack-buildings')),
+      buildingControl: { kind: compact ? 'chip' : 'rail', label: compact ? buildingLabel : building[0] ?? null },
+      floorInView: compact
+        ? floorName !== null && head.getAttribute('aria-label').endsWith(`, ${floorName}`) && inView(document.querySelector('.ua-scope'), head)
+        : inView(document.querySelector('.ua-stack-floors')),
+      covered, crowded, actionCollisions,
+      menusClosed: !document.querySelector('.ua-menu-btn[aria-expanded="true"], .ua-stack-head[aria-expanded="true"]'),
       stage: document.querySelector('.ua-viewport').getAttribute('aria-label'),
-      view: pressed('.ua-tools .seg button'), building, floor: pressed('.ua-ladder button'),
-      exploded: document.querySelector('.ua-tools .ctrl-wide')?.getAttribute('aria-pressed') ?? null,
+      view: compact ? [document.querySelector('.ua-dock-view')?.getAttribute('aria-pressed') === 'true' ? 'Plan' : '3D'] : pressed('.ua-tools .seg button'),
+      building, floor: [...document.querySelectorAll('.ua-stack-floors button[aria-pressed="true"]')]
+        .map(node => node.getAttribute('aria-label') ?? node.querySelector('.ua-rung-name').textContent.trim()),
+      exploded: document.querySelector('.ua-stack-spread')?.getAttribute('aria-pressed') ?? null,
       overlay: pressed('.layer-bar button'), key: text('.ua-key-head'),
       selectedRoom: text('.ua-inspector.is-room h2'), selectedFloor: text('.ua-room-floor'),
       inspector: { label: inspector.getAttribute('aria-label'), position: getComputedStyle(inspector).position, open: inspector.classList.contains('is-open') },
@@ -259,10 +267,10 @@ try {
   const atlasDrawing = () => atlas.locator('.ua-viewport canvas.cifc-canvas').evaluate(canvas =>
     ({ renderer: canvas.dataset.renderer, drawCalls: window.syntheticAtlasDrawCalls, pixels: [canvas.width, canvas.height], cssPixels: [canvas.clientWidth, canvas.clientHeight] }));
   // Generated identity: two buildings with floors; the boundary wall is context only.
-  const buildings = (await shell.locator('nav.ua-buildings button').allTextContents()).map(name => name.trim());
+  const buildings = (await shell.locator('.ua-stack-buildings .ua-rung-name').allTextContents()).map(name => name.trim());
   assert.deepEqual(buildings, ['All buildings', 'Synthetic house', 'Synthetic studio']);
-  await shell.getByRole('navigation', { name: 'Buildings' }).getByRole('button', { name: 'Synthetic house', exact: true }).click();
-  const ladder = shell.getByRole('navigation', { name: 'Floors of Synthetic house' });
+  await shell.getByRole('list', { name: 'Buildings' }).getByRole('button', { name: 'Synthetic house', exact: true }).click();
+  const ladder = shell.getByRole('list', { name: 'Floors of Synthetic house' });
   await ladder.waitFor();
   const floors = (await ladder.locator('.ua-rung-name').allTextContents()).map(name => name.trim());
   assert.deepEqual(floors, ['All floors', 'Upper floor', 'Split level', 'Ground floor']);
@@ -275,7 +283,7 @@ try {
   const selected = await atlasFacts();
   assert.deepEqual([selected.floor, selected.exploded], [['Ground floor: 3 rooms, has the selected room'], 'false'],
     'Room selection retains its full floor ancestry and never turns on explosion');
-  await shell.getByRole('button', { name: 'Exploded', exact: true }).click();
+  await shell.getByRole('button', { name: 'Spread floors', exact: true }).click();
   await settledDraw(atlas);
   const desktop = await atlasFacts();
   assert.deepEqual([desktop.view, desktop.building, desktop.floor, desktop.exploded], [['3D'], ['Synthetic house'], ['Ground floor: 3 rooms, has the selected room'], 'true']);
@@ -296,7 +304,7 @@ try {
   await atlas.screenshot({ path: resolve(output, 'synthetic-unified-3d.png'), animations: 'disabled' });
   // Collapse only the presentation; the selected room and its already-complete
   // floor ancestry remain visible before Plan has been opened.
-  await shell.getByRole('button', { name: 'Exploded', exact: true }).click();
+  await shell.getByRole('button', { name: 'Spread floors', exact: true }).click();
   await settledDraw(atlas);
   const collapsed = await atlasFacts();
   assert.deepEqual([collapsed.view, collapsed.exploded, collapsed.floor, collapsed.selectedRoom, collapsed.selectedFloor],
@@ -331,18 +339,18 @@ try {
   await frames(atlas);
   await atlas.locator('.ua-shell.is-compact').waitFor();
   const beforeChooser = await atlasFacts(), chooserScroll = await atlas.evaluate(() => [scrollX, scrollY]);
-  const buildingChooser = shell.getByRole('button', { name: 'Building: Synthetic house', exact: true });
+  const buildingChooser = shell.getByRole('button', { name: 'Building and floor: Synthetic house, Ground floor', exact: true });
   await buildingChooser.focus(); await buildingChooser.press('Enter');
   assert.equal(await buildingChooser.getAttribute('aria-expanded'), 'true');
-  const phoneBuildings = shell.getByRole('navigation', { name: 'Buildings', exact: true });
+  const phoneBuildings = shell.getByRole('list', { name: 'Buildings', exact: true });
   await phoneBuildings.waitFor({ state: 'visible' });
-  assert.deepEqual((await phoneBuildings.getByRole('button').allTextContents()).map(name => name.trim()), buildings);
+  assert.deepEqual((await phoneBuildings.locator('.ua-rung-name').allTextContents()).map(name => name.trim()), buildings);
   const currentBuilding = phoneBuildings.getByRole('button', { name: 'Synthetic house', exact: true });
   assert.equal(await currentBuilding.getAttribute('aria-pressed'), 'true');
   await currentBuilding.focus(); await atlas.keyboard.press('Escape');
   assert.equal(await buildingChooser.getAttribute('aria-expanded'), 'false');
   await phoneBuildings.waitFor({ state: 'hidden' });
-  assert.equal(await buildingChooser.evaluate(node => document.activeElement === node), true, 'Escape returns focus to the building chooser');
+  assert.equal(await buildingChooser.evaluate(node => document.activeElement === node), true, 'Escape returns focus to the Floor Stack chip');
   assert.deepEqual(await atlas.evaluate(() => [scrollX, scrollY]), chooserScroll, 'Building chooser focus does not scroll the page');
   await frames(atlas);
   const afterChooser = await atlasFacts();
@@ -358,7 +366,7 @@ try {
   assert.deepEqual([phone.view, phone.overlay, phone.selectedRoom, phone.stageNote], [['3D'], ['Electrical'], 'Living room', null]);
   assert.deepEqual(phone.inspector, { label: 'Selected room', position: 'absolute', open: false });
   assert.deepEqual([phone.building, phone.floor], [['Synthetic house'], ['Ground floor: 3 rooms, has the selected room']]);
-  assert.deepEqual(phone.buildingControl, { kind: 'chooser', label: 'Synthetic house' });
+  assert.deepEqual(phone.buildingControl, { kind: 'chip', label: 'Synthetic house' });
   assert.deepEqual(phone.markers, ['Hall: 3 electrical records', 'Living room: 1 electrical record']);
   assert.deepEqual(phone.markerKeys, ['marker:electrical:syn-occ-hall', 'marker:electrical:syn-occ-living']);
   assert.match(phone.key, /4 records/);
