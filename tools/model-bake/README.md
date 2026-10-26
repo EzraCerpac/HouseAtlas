@@ -29,7 +29,8 @@ metres, default 0.0005).
   `original.bytes`, and shifts `meshIndex` down past any mesh no node draws.
 - `room-pick` and `slab` primitives byte for byte. The backend compares their
   horizontal triangles with plan footprints, so they are never simplified.
-- Every primitive of a master that already fits, as authored.
+- Every primitive of a master that already fits, as authored, apart from
+  the vertex attributes below.
 - Roles and level membership come from the companion. Without one, they come
   from each node's `semanticRole` and `levelIds` extras, and anything else
   counts as context.
@@ -65,6 +66,12 @@ metres, default 0.0005).
 - Simplified primitives keep only `POSITION`. The viewer draws untextured
   geometry with flat normals it derives itself, so normals, UVs and colours on
   those primitives were never displayed.
+- Every primitive, simplified or not, keeps only the vertex attributes the
+  server admits: `POSITION` and `NORMAL`, plus `TEXCOORD_0` and `TANGENT` when
+  its material has a base colour, normal or metallic-roughness texture. Vertex
+  colours and further UV sets are dropped (the viewer never draws them) and
+  listed per primitive under `droppedAttributes` in the report. Without this,
+  a detail tier keeps them and the server refuses the publication.
 - Textured primitives are kept as authored. A flat surface can lose the
   vertices that carry a non-affine UV mapping at zero position error, and the
   texture drift that causes is not bounded by an error in metres.
@@ -82,13 +89,27 @@ Plan↔3D, floors and exploded views rely on. A refusal there fails the bake;
 levels and buildings under `viewerBinding`. An `--out` that already holds an
 output is refused before any work.
 
+## The detail tier
+
+`--detail` also writes `detail.glb`: the master with the same compaction (meshes
+no node draws and unread accessors dropped, the same `meshIndex` shift) and
+nothing simplified. It keeps the overview's node, mesh and primitive slots, so
+the overview's `atlas-scene.json` binds both; the bake refuses if the two
+companions differ in anything but `original`. The detail is admitted under the
+viewer's Full limits (`DETAIL_GLB_LIMITS`: 256 MiB, 4,000,000 triangles) and
+bound by the same selectors. `bake-report.json` holds the `detail` pin to copy
+into `publication.json` (`file`, `contentType`, `sha256`, `bytes`) with the
+detail's own admission and binding. The server validates `detail.glb` against
+the same companion under the same budget; see
+`docs/models/unified-atlas-scene-v1.md`.
+
 ## Checks
 
 ```sh
 node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs
 ```
 
-Nine cases on generated geometry: baking to budget (locked footprints,
+Thirteen cases on generated geometry: baking to budget (locked footprints,
 source-vertex positions, a flat wall and welded terrain soup collapsing, viewer
 admission), a master that already fits (kept as authored while an unused mesh,
 a dead accessor and their bytes drop, with bindings remapped), roles read from
@@ -100,11 +121,15 @@ the command line refusing an `--out` that holds its inputs, and a textured
 panel with non-affine UVs kept as authored, and the frontend's generated unified
 Atlas publication, densified and baked, binding in the viewer with the same
 primitive slots, roles, buildings, levels, room picks and selectable rooms as
-before the bake (and refusing a companion that leaves a primitive unclaimed).
+before the bake (and refusing a companion that leaves a primitive unclaimed),
+the detail keeping every master triangle and binding with the overview's
+companion, the Full limits admitting 700,000 triangles the overview refuses, and
+the command line writing `detail.glb` with its pin in the report, and vertex
+colours and spare UV sets dropped from primitives the bake keeps whole.
 They do not render anything or touch a real model.
 
 ## Not covered here
 
-Simplified geometry is a display tier, not a parity copy. The full-detail tier,
-meshopt/quantized transfer, per-floor detail loading and the device-aware
-quality setting are later steps in #304.
+Simplified geometry is a display tier, not a parity copy. Loading the detail
+in the app (the device-aware Auto/Light/Full quality setting), meshopt/quantized
+transfer and per-floor detail loading are later steps in #304.

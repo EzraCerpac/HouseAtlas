@@ -57,6 +57,15 @@ jobs:
           npm run check:http:ordinary
       - name: Run one healthy synthetic Request group
         run: npm run test:ordinary
+      - name: Check the NAS deploy tool with a fake service
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'
+      - name: Check the nightly backup script with a fake service and iCloud helper
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/backup -p 'test_*.py'
+      # Stdlib-only synthetic tests; the runner's python3, not the pinned 3.14.8.
+      - name: Run the HomeBox quantity seed report's synthetic unit tests
+        run: |
+          python3 --version
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/homebox-quantity-seed-report -p test_report.py -v
       - name: Save npm content cache from verified main
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.npm-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
@@ -66,7 +75,7 @@ jobs:
       - name: Record coverage boundary
         if: always()
         run: |
-          printf '%s\n' 'Scope: integrity, syntax, six module builds, 14 history checks and one healthy synthetic mutation/read/history/DTO Request group.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'Scope: integrity, syntax, six module builds, 14 history checks, one healthy synthetic mutation/read/history/DTO Request group and the HomeBox quantity seed report unit tests.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'Command outcomes are reported in the steps above; this summary alone is not a pass claim.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'New explicit source-presence admission is blocked and unexercised.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'Guard reversal, mutation/omission controls, adversarial, denial, failure injection, concurrency and private-intake checks remain stopped and excluded.' >> "$GITHUB_STEP_SUMMARY"

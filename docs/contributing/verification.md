@@ -13,6 +13,27 @@ Locally, `node tools/rust-integration/check-source.mjs` still runs everything;
 the Linux `source` job passes `--skip-binary --skip-frontend` because other
 jobs build those.
 
+The `Ordinary synthetic core` workflow also runs the synthetic HomeBox quantity
+seed report tests with the runner's `python3` (stdlib only, no install):
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/homebox-quantity-seed-report -p test_report.py -v
+```
+
+It also checks the NAS deploy tool against temp folders and a fake service,
+without launchd, network access or real data:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'
+```
+
+and the nightly backup script, including its content-addressed model store,
+against temp folders and a fake iCloud helper:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/backup -p 'test_*.py'
+```
+
 ## Healthy frontend suite
 
 `frontend/lantern-tests/run-healthy.mjs` runs every named healthy frontend
@@ -35,7 +56,8 @@ The same `frontend checks` job then runs the model bake tests
 (`tools/model-bake/test/bake.test.mjs`) on generated geometry. They bake
 generated masters to budget and run the viewer's own preflight, scene admission
 and selector binding on the results, including the generated unified Atlas
-publication densified and baked:
+publication densified and baked, and its unsimplified detail tier admitted under
+the Full limits and bound by the same companion:
 
 ```sh
 npm ci --prefix tools/model-bake
@@ -71,7 +93,8 @@ house of boxes and the embedded-material samples), serves them on an owned
 loopback listener and draws them through MeshLayer, which renders with
 three.js. It checks the backend, that a frame costs a handful of GPU calls
 however many primitives there are, the selection tone, the ghost veil and the
-texture detail in the screenshots.
+texture detail in the screenshots. It also swaps in a second mesh set, as the
+Full model replaces Light, and checks that a canvas stays on screen throughout.
 
 ```sh
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2   # in the healthy suite
@@ -1815,7 +1838,9 @@ three actual cube pick meshes and matching inline plans, including an explicitly
 estimated proxy. It checks authenticated current/scoped availability, exact
 publication/selection and semantic facts, the expected overview-manifest query
 and checked digest echo, identical legacy no-query descriptor bytes, repeated Media-authorized pinned GLB
-GETs/digests/headers, and unchanged overview/config/receipt/source bytes. Positive
+GETs/digests/headers for the overview and the optional detail tier (a relabelled
+copy with the same slots, served only on its own route), and unchanged
+overview/detail/config/receipt/source bytes. Positive
 source cases include reflected pick geometry, a nonnegative alpha cutoff above
 one and an unused indexed vertex below the drawn support plane.
 It runs
@@ -1826,8 +1851,8 @@ Use Rust 1.99.0 and an owned external target:
 cargo run --offline --locked -p houseatlas-backend --example healthy-unified-atlas-read -- --fixture-output /tmp/houseatlas-unified-atlas-fixture-20261016
 ```
 
-The output directory must be absent. Its four anonymous files (`overview.glb`,
-`publication.json`, `atlas-scene.json`, `scene-response.json`) are generated
+The output directory must be absent. Its five anonymous files (`overview.glb`,
+`detail.glb`, `publication.json`, `atlas-scene.json`, `scene-response.json`) are generated
 source/consumer fixtures only; no session, configuration, native database or
 credential is copied. The frontend owner can consume that exact envelope and
 model in its compiled preview. Native activation, actual publication/device
@@ -2631,164 +2656,6 @@ workflow, CI step, runtime alias, security/control suite or deployment gate.
 They do not qualify browser focus, CSS, installed sessions, session eviction,
 native/provider behavior, canonical HTTP binding or live service recovery.
 
-## Named generated local edit-retention positive
-
-Inspect `frontend/src/local-edit-retention/types.ts`,
-`frontend/src/local-edit-retention/store.ts`, the unchanged
-`frontend/lantern-tests/synthetic-indexeddb.mjs` and the named runner before
-this separately released manual positive. Use Node 26.10.0 and the existing
-locked dependencies:
-
-```sh
-node frontend/lantern-tests/local-edit-retention-healthy.mjs
-```
-
-This imports the actual production store into disposable synthetic IndexedDB.
-Its five positive groups cover close/reopen round trips, explicit local
-partition/home/snapshot isolation, exact large revision strings, detached
-buffers/results, immutable documentary originals, reversible proposals/reset,
-unavailable original evidence and targeted discard with unrelated rows retained.
-Successful mutations wait for transaction completion. Retain verifies its
-owned input before writing; proposal set/reset verify the detached committed
-draft afterward, outside the active transaction. Discard returns only whether
-the selected local row existed. A rejected mutation alone does not prove
-rollback; its local outcome remains unresolved until separately inspected.
-
-The fixed local database is separate from saved-house and capture storage.
-The caller-supplied partition is only a data partition: native authority stays
-`not-established` and the current base stays `not-checked`. This unmounted
-module adds no actor/session/grant authority, native envelope, submission,
-acknowledgement, reconciliation or automatic retry. Browser-managed retention
-is not a backup or a device-durability guarantee.
-
-This command opens no browser, listener, network transport, provider or native
-service and uses no user data. It adds no workflow, CI step, broad suite or
-runtime alias. Fault/crash/replay, corruption, refusal/quota and concurrent
-writer controls are not exercised or released by this positive. Browser/device
-persistence, future mounting, live authorization and deployment remain separate.
-
-## Named generated local edit-retention controller positive
-
-Inspect `frontend/src/local-edit-retention/controller.ts`, the unchanged
-retention store/types and synthetic IndexedDB helper, and
-`frontend/lantern-tests/local-edit-retention-controller-healthy.mjs` before
-this separately released manual positive. Use Node 26.10.0 and the existing
-locked dependencies:
-
-```sh
-node frontend/lantern-tests/local-edit-retention-controller-healthy.mjs
-```
-
-The runner imports the actual controller and store into disposable synthetic
-IndexedDB. Its serial healthy paths cover explicit select/read/retain without
-implicit storage on selection, exact manifest/original bytes and large revision
-strings, detached input/results/snapshots, separate proposals, partition/home/
-snapshot isolation, completed-allocation retirement and clean store reopen,
-nullable original evidence, reset and targeted discard. It observes transaction
-completion before successful publication. Supplied record-original bytes retain
-their own digest; an aggregate resource pin never supplies missing provenance.
-
-The controller is unmounted and receives explicit documentary input and an
-already partition-bound store. Partition and selection-generation values are
-local attribution, not actor/session/grant, operation or idempotency authority.
-Native authority stays `not-established`; the current base stays `not-checked`.
-Retirement clears memory publication without cancelling or rolling back pending
-storage. A rejected dispatched mutation is completion-unconfirmed until an
-explicit read; no automatic retry or cleanup occurs.
-
-Pending retirement, stale completions, reentrant observers, mutation failures,
-concurrent writers and crash/replay controls are not exercised or released by
-this serial positive. The case starts no browser, listener, transport, native
-service or household intake. It changes no saved-house/capture store, worker,
-host mounting, editor or submission path. Browser/device durability, live-base
-reconciliation, native authorization and installed acceptance remain separate.
-
-## Named generated retained-draft Saved UI positive
-
-Inspect `frontend/src/local-edit-retention/saved-adapter.ts`,
-`LocalEditPanel.tsx`, the bounded `offline/SavedAtlasHost.tsx` lifetime seam,
-the unchanged controller/store/types and synthetic IndexedDB helper, and
-`frontend/lantern-tests/offline-local-edit-mounting-healthy.mjs` before this
-separately released manual positive. Use Node 26.10.0 and the existing locked
-dependencies:
-
-```sh
-node frontend/lantern-tests/offline-local-edit-mounting-healthy.mjs
-```
-
-The runner bundles actual production imports into an owned temporary module
-and uses actual React server rendering of the panel. Test setup alone seeds
-matching pre-existing documentary drafts in disposable synthetic IndexedDB.
-Serial adapter/controller/store operations cover exact selected-copy/resource/
-manifest binding, separate resource/original hashes, large revision strings,
-stable detached snapshots, proposal save/reset, partition/home/snapshot
-isolation, empty read-only lists, clean store reopen, nullable evidence,
-read-only inventory and targeted discard preserving unrelated rows.
-
-This retained-row positive does not invoke candidate admission or retention.
-It checks that the extended adapter starts with retention disabled and no
-candidates; construction/rendering still perform no implicit storage reads.
-The separate saved-identity positive below covers explicit new retention.
-The production panel requires a memory-only local draft-space choice. That
-partition is local data isolation, not an account or grant. Supplied original
-bytes/revisions remain documentary evidence; proposal editing checks
-byte-faithful UTF-8 JSON syntax, not native field semantics. Native authority
-stays unestablished and the current base unchecked. Empty partitions stay empty
-until explicit retention of independently admitted evidence.
-
-SSR verifies markup, not DOM events, focus, effects or the actual Saved host
-lifetime. Pending retirement, stale completions, reentrant observers, uncertain
-writes, corruption/denial/fault/concurrency/replay/crash controls and cross-tab
-behavior are not exercised or released by this serial positive. Source review
-of those guards is not runtime qualification. Browser-managed persistence,
-device durability, interactive browser/device acceptance, native submission/
-reconciliation and deployment remain separate. No new workflow or runtime
-alias, production data, provider, listener or native service is included.
-
-## Named generated saved identity retention positive
-
-Inspect `frontend/src/local-edit-retention/retained-identity.ts`, the extended
-`saved-adapter.ts`/`LocalEditPanel.tsx`, the read-only resource-port seam in
-`offline/SavedAtlasHost.tsx`, the unchanged store/controller/types and synthetic
-IndexedDB helper, and the complete
-`frontend/lantern-tests/offline-retained-identity-healthy.mjs` body before
-execution. Use Node 26.10.0 and the existing locked frontend dependencies.
-The exact commands run separately, serially in this order:
-
-```sh
-node frontend/lantern-tests/offline-retained-identity-healthy.mjs
-node frontend/lantern-tests/offline-local-edit-mounting-healthy.mjs
-```
-
-This separate manual positive bundles actual production imports in an owned
-temporary module and uses actual panel React SSR with generated local resource
-ports and disposable synthetic IndexedDB. It has no arguments and a 60-second
-process deadline. Generated multi-member, single-member and omissions-only packs
-exercise original lexical integral decimal/exponent revisions through the
-maximum safe value, exact noncanonical manifest/original bytes, independent
-resource/member digests, complete membership and contiguous slices, a 1 MiB
-included member and a valid oversized omission. Observation assertions run
-outside adapter notification callbacks, whose exceptions are intentionally
-caught by production code.
-
-Serial explicit Read originals, Choose, verified absent Read, Retain, proposal,
-clean store reopen, reset and targeted discard operations preserve detached
-originals, immutable saved resources, unrelated rows and the other partition.
-Choosing an existing row opens it without overwriting it; discard does not
-automatically re-enable retention. The complete legacy retained-row positive
-above is a separate invocation with only its obsolete no-retain-method assertion
-updated. Run the two named commands once each in the order above, stopping on the first
-failure. Do not substitute an aggregate suite or automatically retry a failed
-invocation.
-
-These generated positives establish only their inspected successful serial
-paths and SSR markup. No negative/control, pending retirement, stale completion,
-reentrancy, uncertain-write, corruption/denial/fault/concurrency/replay/crash,
-actual mounted-host, DOM event/focus/effect, browser/device durability, native
-authority, current-base, submission or deployment qualification is supplied.
-This registration records commands and scope, not an execution outcome.
-Invocation requires the coordinated exact-head release.
-
 ## Named generated Atlas current-connection read-validation positive
 
 Inspect `backend/src/storage/updater_read_validation.rs`, its generated healthy
@@ -2888,60 +2755,6 @@ The separate lifecycle cancellation/reselection runner remains in the
 separately reviewed regression lane; these commands do not release it or any
 fault, denial, replay, expiry, concurrency or target controls.
 
-## Named generated saved identity lifecycle regressions
-
-Inspect the complete
-`frontend/lantern-tests/offline-retained-identity-lifecycle-regression.mjs`
-body, actual saved adapter, controller, retention store, retained-identity reader,
-manifest/parser imports and unchanged synthetic IndexedDB helper before execution.
-This separate manual regression lane uses only generated local data and owned
-temporary modules with Node 26.10.0 and unchanged locked frontend dependencies.
-After coordinated exact-head release, run these five separate processes once
-each, serially in this order, stopping on the first failure:
-
-```sh
-node frontend/lantern-tests/offline-retained-identity-lifecycle-regression.mjs --case candidate-rejection-isolation
-node frontend/lantern-tests/offline-retained-identity-lifecycle-regression.mjs --case candidate-read-retired
-node frontend/lantern-tests/offline-retained-identity-lifecycle-regression.mjs --case reentrant-publication-retirement
-node frontend/lantern-tests/offline-retained-identity-lifecycle-regression.mjs --case postcommit-verification-unconfirmed
-node frontend/lantern-tests/offline-retained-identity-lifecycle-regression.mjs --case committed-write-retired-completion
-```
-
-There is no default or aggregate selector and no automatic retry. These commands
-add no ordinary CI step, runtime alias or broader control-suite release.
-
-The first case changes only the second member's declared hash in an otherwise
-independently hashed generated pack and preserves an existing retained first
-member. The second defers one valid aggregate resource return before aborting
-the selected lifetime. The third uses four fixed serial subcases: reading and
-selected publication, each with closeDetail and dispose. Reentrant reactions
-are observed before checking that no stale resource/storage dispatch occurred.
-Observation and resource-port assertion failures are checked outside production
-callbacks that intentionally catch observer exceptions.
-
-The fourth delegates to the actual store until write transaction completion,
-then rejects exactly the following controller verification read. It preserves
-the committed row, requires completion-unconfirmed publication and blocks another
-write until an explicit successful read. The fifth holds the already committed
-retain return, retires its allocation and creates a replacement before release;
-the old attributed result must remain unpublished and the committed row retained.
-Neither case establishes rollback or safe mutation retry.
-
-Promise handshakes select these boundaries without runner sleeps, polling or
-random timing. The 60-second in-runner deadline starts after module imports; it
-is not an OS-enforced absolute containment/deadline claim. Evidence is captured
-before cleanup releases pending barriers and closes the owned synthetic store.
-Cleanup errors fail the case rather than turn it into PASS.
-
-This registration records source and command scope, not execution outcomes.
-Coverage is generated adapter/controller/storage behavior only. No actual React
-host mount, DOM/focus/effects, browser/device durability, real parallel IndexedDB,
-process crash, native/session/current-base authority, submission/replay, private
-data, provider, listener, NAS operation or deployment is included. Other corrupt,
-omission, denial, expiry, revocation, fault and concurrency cases remain held
-unless separately reviewed and released; these five selectors do not release
-a broad class of controls.
-
 ## Named generated native-place search positive
 
 Inspect `frontend/lantern-tests/native-place-search-healthy.mjs`, its generated
@@ -2970,33 +2783,38 @@ input, native submission, replay, fault/concurrency control or deployment is
 included. This registration defines the command and source scope, not an
 execution outcome or exhaustive whole-home search completeness.
 
-## Named generated local-draft panel presentation check
+## Named generated offline outbox positive
 
-Inspect `frontend/lantern-tests/local-edit-panel-presentation.mjs` and the unchanged
-production `LocalEditPanel.tsx` before execution. With Node 26.10.0 and unchanged
-locked frontend dependencies, the named command is:
+Inspect `frontend/src/outbox/` and `frontend/lantern-tests/outbox-healthy.mjs`
+before execution. With Node 26.10.0 and the locked frontend dependencies:
 
 ```sh
-node frontend/lantern-tests/local-edit-panel-presentation.mjs
+node frontend/lantern-tests/outbox-healthy.mjs
 ```
 
-The runner compiles the actual panel with Vite into an owned temporary module
-and uses React server rendering with immutable generated snapshots and an
-injected adapter whose operations fail if called. It checks read/write pending
-controls, completion-unconfirmed presentation with explicit retained-draft reads,
-retired and invalid selections, missing-evidence presentation, exact lexical
-revision text, escaped documentary/proposal text and no render-time adapter
-dispatch. Candidate and existing-draft controls are asserted in their separate
-labelled lists. Compilation scratch is removed in a finally block.
-
-These states are supplied presentation inputs; the runner induces no write
-failure, retirement race or storage transition. Missing-evidence inputs explicitly
-set canEdit false; this check does not qualify evidence validation. It does not
-mount React effects, dispatch DOM events, operate an adapter/store, open a listener,
-use household data or establish browser/device, native/current-base, recovery,
-retry, crash, replay or deployment acceptance. PR268 lifecycle regressions remain
-separate. This registration defines the command and bounded source scope, not an
-execution outcome. Other held cases and broad suites are not released.
+The runner drives the actual outbox over the synthetic IndexedDB and a
+generated server that keeps one revision per record, permanent idempotency
+keys, refuses an identical resend and answers the retained-intent lookup. It
+covers sending at once when online, queueing offline and sending on reconnect,
+a lost reply settled by the lookup without a second post, a page closed
+mid-send, a conflict that holds later edits to the same record, Keep mine
+(offered only for kinds this app can prepare again) and Use theirs, a lookup
+the server refuses (the person is asked instead of a blind resend), refusals,
+sign-out, another account or home (including another account's unresolved
+conflict on the same record, which it also cannot keep or discard), a Save
+in a second tab that waits for the first tab's send instead of being
+dropped, a stale decision in a second tab that cannot undo the first tab's,
+a session rotated during a lookup (the old token's refusal is not final),
+"When I ask" (a Save sends only that edit and
+earlier edits to the same record, and an automatic retry still waiting for
+another tab's send when the person switches to it sends nothing, nor does the
+rest of a retry already sending, nor an edit whose lost reply is still being
+looked up or whose dispatch is being recorded; a Save queued behind that send is not carried
+over to another home), the notice views reload on after a
+background sync, and pruning of synced entries. It runs in `run-healthy.mjs`. The server side of the
+same contract (lookup of a committed envelope, no second write on an identical
+resend, 412 for a stale revision) is asserted in
+`tools/rust-integration/healthy-human-host-loopback.mjs`.
 
 ## Named generated compact layer-details focus check
 

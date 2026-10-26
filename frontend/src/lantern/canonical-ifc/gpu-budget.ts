@@ -2,11 +2,13 @@ import type { PreparedMesh } from './geometry';
 import type { EmbeddedTexture } from './embedded-png-material';
 
 /** Explicit renderer bounds: drawing-buffer pixels and uploaded vertex bytes. */
-export const RENDER_LIMITS = Object.freeze({ pixels: 4_194_304, uploadBytes: 64 * 1024 * 1024 });
+export const RENDER_LIMITS = Object.freeze({ pixels: 4_194_304, uploadBytes: 64 * 1024 * 1024,
+  /** A publication's detail model on Full quality (DETAIL_GLB_LIMITS.gpuBytes). */
+  detailUploadBytes: 384 * 1024 * 1024 });
 
 /** Actual per-mesh-set GPU reservation, before creating any GPU resource.
  * Exact image/sampler/colour-role resources are shared by this owner only. */
-export function materialGpuResources(meshes: readonly PreparedMesh[], enabled: boolean) {
+export function materialGpuResources(meshes: readonly PreparedMesh[], enabled: boolean, uploadBytes: number = RENDER_LIMITS.uploadBytes) {
   const textures = new Map<string, EmbeddedTexture>(); let bytes = 0;
   for (const mesh of meshes) {
     bytes += mesh.vertices.byteLength;
@@ -25,6 +27,6 @@ export function materialGpuResources(meshes: readonly PreparedMesh[], enabled: b
       textures.set(texture.key, texture);
     }
   }
-  if (bytes > RENDER_LIMITS.uploadBytes) throw new Error('Model exceeds the unchanged GPU budget');
+  if (bytes > uploadBytes) throw new Error('Model exceeds the unchanged GPU budget');
   return { bytes, textures };
 }

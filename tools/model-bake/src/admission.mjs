@@ -38,26 +38,29 @@ async function load() {
 }
 
 let modules;
-/** Returns the admitted work, or throws the viewer's own refusal. */
-export async function admitInViewer(glb) {
+/** Returns the admitted work, or throws the viewer's own refusal. `tier` is
+ * 'overview' (what every device loads) or 'detail' (the Full tier). */
+export async function admitInViewer(glb, tier = 'overview') {
   modules ??= await load();
-  const { readGlbContainer, preflightGltf, STANDARD_GLB_LIMITS } = modules.preflight;
-  if (glb.byteLength > STANDARD_GLB_LIMITS.bytes) throw new Error(`Overview is ${glb.byteLength} bytes; the viewer admits ${STANDARD_GLB_LIMITS.bytes}`);
-  const container = readGlbContainer(glb), admission = preflightGltf(container);
-  const plan = modules.material.admitEmbeddedPngMaterials(container, admission);
-  return { ...admission.work, preparedBytes: plan.preparedBytes, gpuBytes: plan.gpuBytes, limits: STANDARD_GLB_LIMITS };
+  const { readGlbContainer, preflightGltf, STANDARD_GLB_LIMITS, DETAIL_GLB_LIMITS } = modules.preflight;
+  const limits = tier === 'detail' ? DETAIL_GLB_LIMITS : STANDARD_GLB_LIMITS;
+  if (glb.byteLength > limits.bytes) throw new Error(`The ${tier} is ${glb.byteLength} bytes; the viewer admits ${limits.bytes}`);
+  const container = readGlbContainer(glb, limits), admission = preflightGltf(container, limits);
+  const plan = modules.material.admitEmbeddedPngMaterials(container, admission, limits);
+  return { ...admission.work, preparedBytes: plan.preparedBytes, gpuBytes: plan.gpuBytes, limits };
 }
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
-/** The host's read envelope for a companion and its overview, as the server
- * composes it (backend/src/http/atlas_scene.rs); pins and href are local. */
-export function hostEnvelope(companion, glb) {
+/** The host's read envelope for a companion, its overview and optional detail,
+ * as the server composes it (backend/src/http/atlas_scene.rs); pins and href are local. */
+export function hostEnvelope(companion, glb, detail = null) {
   const companionBytes = Buffer.from(JSON.stringify(companion)), { scope, publicationId } = companion;
+  const artifact = (artifactId, role, bytes, route) => ({ artifactId, role, contentType: 'model/gltf-binary', bytes: bytes.byteLength, sha256: sha256(bytes),
+    href: `/api/atlas/models/v1/workspaces/${scope.workspaceId}/homes/${scope.homeId}/atlas/${publicationId}/artifacts/${route}` });
   return {
     profile: 'houseatlas.unified-atlas-scene.v1', scope, selection: { revision: 0, publicationId },
     publication: { publicationId, sourceRevisionId: companion.sourceRevisionId, sourceSha256: companion.sourceSha256, semanticsSha256: sha256(companionBytes) },
-    artifacts: [{ artifactId: 'model', role: 'model', contentType: 'model/gltf-binary', bytes: glb.byteLength, sha256: sha256(glb),
-      href: `/api/atlas/models/v1/workspaces/${scope.workspaceId}/homes/${scope.homeId}/atlas/${publicationId}/artifacts/model` }],
+    artifacts: [artifact('model', 'model', glb, 'model'), ...(detail ? [artifact('detail', 'detail', detail, 'model-detail')] : [])],
     ...Object.fromEntries(['frame', 'buildings', 'levels', 'rooms', 'occurrences', 'meshBindings', 'plans', 'overlayBindings', 'coverage']
       .map(key => [key, companion[key]])),
   };
@@ -65,13 +68,16 @@ export function hostEnvelope(companion, glb) {
 
 /** Admits the companion as the app reads it, loads the GLB through the
  * viewer's standard loader exactly as UnifiedAtlas does and binds every selector to exactly one drawn
- * primitive. Returns the bound model, or throws the viewer's own refusal. */
-export async function bindInViewer(glb, companion) {
+ * primitive. Returns the bound model, or throws the viewer's own refusal.
+ * With `detail`, the envelope carries both artifacts and the detail is the one
+ * loaded, under the Full tier's limits, and bound by the same selectors. */
+export async function bindInViewer(glb, companion, detail = null) {
   modules ??= await load();
-  const envelope = hostEnvelope(companion, glb);
+  const envelope = hostEnvelope(companion, glb, detail);
   const scene = modules.scene.admitAtlasScene(envelope, { scope: companion.scope, publicationId: companion.publicationId },
     Buffer.byteLength(JSON.stringify(envelope)));
   // The app's own loader path, embedded PNG decoding and source shading included.
-  const loaded = await modules.standard.loadStandardGlb(glb, 'atlas', new AbortController().signal, undefined, { embeddedPngMaterials: true });
+  const loaded = await modules.standard.loadStandardGlb(detail ?? glb, 'atlas', new AbortController().signal, undefined,
+    { embeddedPngMaterials: true, ...(detail ? { limits: modules.preflight.DETAIL_GLB_LIMITS } : {}) });
   return modules.scene.bindAtlasModel(scene, loaded);
 }

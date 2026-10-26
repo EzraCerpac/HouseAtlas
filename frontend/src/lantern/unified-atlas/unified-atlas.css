@@ -1907,6 +1907,12 @@
     .lantern-host .ua-inspector.is-open {
       max-height: min(100%, max(72%, calc(var(--ua-peek) + 75px)));
     }
+
+    /* Closed, the whole head stays in view: it may meet the side strips'
+       lower edge, but is never cut off at the stage's foot. */
+    .lantern-host .ua-inspector:not(.is-open) {
+      max-height: min(100%, max(min(72%, calc(100% - var(--ua-scope-end, 150px) - 8px)), calc(var(--ua-peek) + 1px)));
+    }
   }
 
   .lantern-host .ua-sheet-head { position: relative; padding: 13px 10px 7px 16px; }
@@ -1939,6 +1945,31 @@
   /* Down to the sheet head; the narrow-stage rules below lay out its content. */
   .lantern-host .ua-bottom { bottom: calc(var(--ua-peek) + 8px); }
   .lantern-host .ua-graph { inset: 6px; }
+
+  @media (max-height: 480px) {
+    /* One line: the floor follows the name and gives way first, so the head
+       fits below the view tools and side strips. The room's tag starts at the
+       head's edge, so its own width is the name's column. */
+    .lantern-host .ua-sheet-head {
+      grid-template-columns: minmax(0, max-content) minmax(0, 1fr) auto auto;
+      padding-top: 10px;
+      padding-bottom: 5px;
+    }
+
+    .lantern-host .ua-inspector.is-room .ua-sheet-head { padding-left: 8px; }
+    .lantern-host .ua-inspector.is-room h2 { margin-left: 0; }
+    .lantern-host .ua-sheet-head::before { top: 3px; }
+
+    .lantern-host .ua-sheet-title > h2,
+    .lantern-host .ua-sheet-title > p {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .lantern-host .ua-sheet-title > p { grid-area: 1 / 2; }
+  }
 }
 
 /* Smallest phones: the sheet toggle is its chevron alone, its name kept for

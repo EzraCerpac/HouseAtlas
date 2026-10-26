@@ -1,0 +1,118 @@
+{
+  "format": "houseatlas-homebox-quantity-seed-input/1",
+  "contractVersion": "0.3.0-at34.stock.2",
+  "context": {
+    "workspaceId": "00000000-0000-4000-8000-000000000001",
+    "homeId": "00000000-0000-4000-8000-000000000002"
+  },
+  "partition": {
+    "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+    "collectionId": "00000000-0000-4000-8000-000000000011"
+  },
+  "sourceProfile": {
+    "owner": "homebox",
+    "resourceKind": "entity",
+    "dialect": "homebox-stock-v0.26.2",
+    "providerVersion": "v0.26.2"
+  },
+  "observationSource": {
+    "context": {
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002"
+    },
+    "partition": {
+      "sourceInstanceId": "00000000-0000-4000-8000-000000000010",
+      "collectionId": "00000000-0000-4000-8000-000000000011"
+    },
+    "sourceProfile": {
+      "owner": "homebox",
+      "resourceKind": "entity",
+      "dialect": "homebox-stock-v0.26.2",
+      "providerVersion": "v0.26.2"
+    }
+  },
+  "rows": [
+    {
+      "rowId": "unchanged",
+      "resourceId": "00000000-0000-4000-8000-000000000500",
+      "expected": {
+        "updatedAt": "2026-01-02T03:04:05.1200+02:00",
+        "quantity": 1
+      },
+      "desired": {
+        "quantity": 1
+      }
+    },
+    {
+      "rowId": "change",
+      "resourceId": "00000000-0000-4000-8000-000000000501",
+      "expected": {
+        "updatedAt": "2026-01-02T03:04:05.1200+02:00",
+        "quantity": 1
+      },
+      "desired": {
+        "quantity": 2
+      }
+    },
+    {
+      "rowId": "baseline-conflict",
+      "resourceId": "00000000-0000-4000-8000-000000000502",
+      "expected": {
+        "updatedAt": "2026-01-02T03:04:05.1200+02:00",
+        "quantity": 1
+      },
+      "desired": {
+        "quantity": 2
+      }
+    },
+    {
+      "rowId": "missing",
+      "resourceId": "00000000-0000-4000-8000-000000000503",
+      "expected": {
+        "updatedAt": "2026-01-02T03:04:05.1200+02:00",
+        "quantity": 1
+      },
+      "desired": {
+        "quantity": 2
+      }
+    },
+    {
+      "rowId": "ambiguous",
+      "resourceId": "00000000-0000-4000-8000-000000000504",
+      "expected": {
+        "updatedAt": "2026-01-02T03:04:05.1200+02:00",
+        "quantity": 1
+      },
+      "desired": {
+        "quantity": 2
+      }
+    }
+  ],
+  "observations": [
+    {
+      "resourceId": "00000000-0000-4000-8000-000000000500",
+      "originalJsonUtf8": "{\"id\":\"00000000-0000-4000-8000-000000000500\",\"updatedAt\":\"2026-01-02T03:04:05.1200+02:00\",\"quantity\":1,\"name\":\"Same fictional label\",\"notes\":\"Synthetic original facts remain unchanged\"}",
+      "observedAt": "2026-01-02T01:05:00Z"
+    },
+    {
+      "resourceId": "00000000-0000-4000-8000-000000000501",
+      "originalJsonUtf8": "{\"id\":\"00000000-0000-4000-8000-000000000501\",\"updatedAt\":\"2026-01-02T03:04:05.1200+02:00\",\"quantity\":1,\"name\":\"Same fictional label\",\"notes\":\"Synthetic original facts remain unchanged\"}",
+      "observedAt": "2026-01-02T01:05:00Z"
+    },
+    {
+      "resourceId": "00000000-0000-4000-8000-000000000502",
+      "originalJsonUtf8": "{\"id\":\"00000000-0000-4000-8000-000000000502\",\"updatedAt\":\"2026-01-02T03:04:05.1200+02:00\",\"quantity\":2,\"name\":\"Same fictional label\",\"notes\":\"Synthetic original facts remain unchanged\"}",
+      "observedAt": "2026-01-02T01:05:00Z"
+    },
+    {
+      "resourceId": "00000000-0000-4000-8000-000000000504",
+      "originalJsonUtf8": "{\"id\":\"00000000-0000-4000-8000-000000000504\",\"updatedAt\":\"2026-01-02T03:04:05.1200+02:00\",\"quantity\":1,\"name\":\"Same fictional label\",\"notes\":\"Synthetic original facts remain unchanged\"}",
+      "observedAt": "2026-01-02T01:05:00Z"
+    },
+    {
+      "resourceId": "00000000-0000-4000-8000-000000000504",
+      "originalJsonUtf8": "{\"id\":\"00000000-0000-4000-8000-000000000504\",\"updatedAt\":\"2026-01-02T03:04:05.1200+02:00\",\"quantity\":1,\"name\":\"Same fictional label\",\"notes\":\"Synthetic original facts remain unchanged\"}",
+      "observedAt": "2026-01-02T01:05:00Z"
+    }
+  ]
+}

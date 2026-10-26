@@ -10,6 +10,8 @@ use std::{
 
 const MAX_MANIFEST: u64 = 128 * 1024;
 const MAX_GLB: u64 = 32 * 1024 * 1024;
+/// The unsimplified master that capable devices may load instead of the overview.
+const MAX_DETAIL_GLB: u64 = 256 * 1024 * 1024;
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub(crate) struct Scope {
@@ -51,6 +53,10 @@ pub(crate) struct Publication {
     pub components: Vec<Component>,
     pub source_note: Option<String>,
     pub original: Original,
+    /// Optional `detail.glb`: the same publication without simplification. It
+    /// is validated against the same companion, so it draws the same selectors.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<Original>,
 }
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct Identity {
@@ -93,6 +99,7 @@ impl Identity {
 pub struct ServerModelOverviewSelection {
     pub(crate) path: PathBuf,
     identities: [Identity; 3],
+    detail_identity: Option<Identity>,
     pub(crate) manifest: Publication,
     pub(crate) manifest_sha256: String,
 }
@@ -195,17 +202,31 @@ impl ServerModelOverviewSelection {
             || manifest.original.content_type != "model/gltf-binary"
             || !digest(&manifest.original.sha256)
             || manifest.original.bytes > MAX_GLB
+            || manifest.detail.as_ref().is_some_and(|d| {
+                d.file != "detail.glb"
+                    || d.content_type != "model/gltf-binary"
+                    || !digest(&d.sha256)
+                    || d.bytes > MAX_DETAIL_GLB
+            })
         {
             return Err("Unsupported overview publication".into());
         }
+        let detail_identity = match manifest.detail {
+            Some(_) => Some(Identity::capture(&parent.join("detail.glb"), false)?),
+            None => None,
+        };
         let selected = Self {
             path: path.to_owned(),
             identities,
+            detail_identity,
             manifest,
             manifest_sha256: hash.into(),
         };
         let original = selected.read_original()?;
-        validate_glb(&original)?;
+        validate_glb(&original, MAX_GLB)?;
+        if let Some(detail) = selected.read_detail()? {
+            validate_glb(&detail, MAX_DETAIL_GLB)?;
+        }
         Ok(selected)
     }
     pub fn validate_config(&self, config: &super::server::ServerConfig) -> Result<(), String> {
@@ -229,19 +250,36 @@ impl ServerModelOverviewSelection {
             && self.manifest.scope.home_id == scope.home_id
     }
     pub fn read_original(&self) -> Result<Vec<u8>, String> {
+        self.read_pinned_file(&self.manifest.original, MAX_GLB)
+    }
+    /// The selected detail GLB, or `None` when the publication has none.
+    pub fn read_detail(&self) -> Result<Option<Vec<u8>>, String> {
+        self.manifest
+            .detail
+            .as_ref()
+            .map(|detail| self.read_pinned_file(detail, MAX_DETAIL_GLB))
+            .transpose()
+    }
+    /// Every selected file, the detail included, still has its admitted identity.
+    fn check_identities(&self) -> Result<(), String> {
         let parent = self.path.parent().ok_or("Missing overview directory")?;
-        let check = || -> Result<(), String> {
-            let current = [
-                Identity::capture(parent, true)?,
-                Identity::capture(&self.path, false)?,
-                Identity::capture(&parent.join("overview.glb"), false)?,
-            ];
-            if current != self.identities {
-                return Err("Overview selection changed".into());
-            }
-            Ok(())
+        let current = [
+            Identity::capture(parent, true)?,
+            Identity::capture(&self.path, false)?,
+            Identity::capture(&parent.join("overview.glb"), false)?,
+        ];
+        let detail = match self.detail_identity {
+            Some(_) => Some(Identity::capture(&parent.join("detail.glb"), false)?),
+            None => None,
         };
-        check()?;
+        if current != self.identities || detail != self.detail_identity {
+            return Err("Overview selection changed".into());
+        }
+        Ok(())
+    }
+    fn read_pinned_file(&self, pin: &Original, max: u64) -> Result<Vec<u8>, String> {
+        let parent = self.path.parent().ok_or("Missing overview directory")?;
+        self.check_identities()?;
         if sha(&super::server::read_selected_file(
             &self.path,
             MAX_MANIFEST,
@@ -250,17 +288,15 @@ impl ServerModelOverviewSelection {
         {
             return Err("Overview manifest changed".into());
         }
-        let bytes = super::server::read_selected_file(&parent.join("overview.glb"), MAX_GLB, true)?;
-        if bytes.len() as u64 != self.manifest.original.bytes
-            || sha(&bytes) != self.manifest.original.sha256
-        {
+        let bytes = super::server::read_selected_file(&parent.join(&pin.file), max, true)?;
+        if bytes.len() as u64 != pin.bytes || sha(&bytes) != pin.sha256 {
             return Err("Overview original changed".into());
         }
-        check()?;
+        self.check_identities()?;
         Ok(bytes)
     }
 }
-fn validate_glb(bytes: &[u8]) -> Result<(), String> {
+fn validate_glb(bytes: &[u8], max: u64) -> Result<(), String> {
     let invalid = || "Unsupported self-contained GLB v2".to_owned();
     let word = |offset: usize| -> Result<u32, String> {
         Ok(u32::from_le_bytes(
@@ -322,7 +358,7 @@ fn validate_glb(bytes: &[u8]) -> Result<(), String> {
             let length = buffers[0]
                 .get("byteLength")
                 .and_then(serde_json::Value::as_u64)
-                .filter(|length| *length > 0 && *length <= MAX_GLB)
+                .filter(|length| *length > 0 && *length <= max)
                 .ok_or_else(invalid)?;
             Some(usize::try_from(length).map_err(|_| invalid())?)
         }

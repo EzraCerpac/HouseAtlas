@@ -241,6 +241,16 @@ try {
   assert.match(css, /\.ua-layer-dialog:modal \.ua-key-body \{ overflow: visible; \}/);
   assert.match(css, /\.ua-layer-dialog:modal \.ua-layer-details-body \{[^}]*overflow-y: auto;/);
   assert.match(css, /max-height: calc\(100dvh - 24px - env\(safe-area-inset-top/);
+  // Short landscape (568×320): the shell's bottom nav slims to one row and the
+  // closed sheet head is one line, never cut off at the stage's foot. The
+  // one-line head must follow the phone head rules it overrides.
+  const shell = readFileSync(new URL('../src/lantern/styles/app.css', import.meta.url), 'utf8');
+  assert.match(shell, /grid-template-rows: var\(--topbar\) minmax\(0, 1fr\) calc\(var\(--nav-row\) \+ env\(safe-area-inset-bottom\)\);/);
+  assert.match(shell.slice(shell.indexOf('@media (max-width: 759px) and (max-height: 480px)')), /^@media[^{]*\{\s*\.lantern-host\.app,\s*\.lantern-host\.app\.has-detail \{\s*--nav-row: 44px;/);
+  assert.match(css, /\.ua-inspector:not\(\.is-open\) \{\s*max-height: min\(100%, max\([^;]*calc\(var\(--ua-peek\) \+ 1px\)\)\);/);
+  const phoneHead = css.indexOf('.lantern-host .ua-sheet-head { position: relative; padding: 13px 10px 7px 16px; }');
+  const oneLine = css.indexOf('.lantern-host .ua-sheet-title > p { grid-area: 1 / 2; }');
+  assert(phoneHead >= 0 && oneLine > css.indexOf('.lantern-host .ua-inspector.is-room h2 {', phoneHead), 'one-line head follows the phone head rules');
   console.log('PASS: compact layer-details generated hook/element transitions, markup and source constraints.');
   console.log('Native inertness, Tab containment, actual DOM state, pixels/hit targets and camera/selection preservation require the sole GUI lane.');
 } finally {

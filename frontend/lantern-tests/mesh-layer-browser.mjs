@@ -156,6 +156,16 @@ try {
     }
     assert(drawn > house.width * house.height * .05, `Only ${drawn} drawn pixels`);
     assert(lantern > 20, `The selected room's lantern tone is missing (${lantern} pixels)`);
+    // A new mesh set builds behind the one on screen and replaces it only once drawn: never a blank stage.
+    await evaluate('window.swapReport = window.swap(), true');
+    await poll('window.swapReport.done', 60_000, 'The swapped mesh set was not shown');
+    const swap = await evaluate('window.swapReport');
+    assert.equal(swap.mostCanvases, 2, 'the new set builds on its own canvas');
+    assert.equal(swap.fewestVisible, 1, 'a canvas stays on screen throughout the swap');
+    if (expected === 'webgl2') assert(swap.newDrawsWhenShown >= 1, 'the new set has drawn before the old one is removed');
+    assert.deepEqual(await evaluate('window.shownSets'), [0, 1], 'each set is reported shown once, in order');
+    assert.equal(await evaluate(`document.querySelector('canvas').dataset.renderer`), expected);
+    assert.equal(await evaluate(`document.querySelector('output').textContent`), '', 'MeshLayer reported a failure after the swap');
 
     // 2. Embedded PNG materials: textured, selected, dimmed and ghost samples each draw on the same backend.
     await open('/lantern-tests/embedded-png-material-visual/index.html', 1400, 900);
@@ -173,7 +183,7 @@ try {
       const at = ((y + Math.round(h * .55) + dy) * samples.width + x + Math.round(w * .3) + dx) * 3; tones.add(samples.pixels.subarray(at, at + 3).join());
     }
     assert(tones.size > 20, `Textured sample shows no texture detail (${tones.size} tones)`);
-    console.log(`PASS ${selected}: generated house (${result.pieces} primitives, ${calls} calls per frame) and material samples drawn by three.js on ${expected}; software GPU only, not device proof`);
+    console.log(`PASS ${selected}: generated house (${result.pieces} primitives, ${calls} calls per frame, swapped to a new set without a blank frame) and material samples drawn by three.js on ${expected}; software GPU only, not device proof`);
   }
 } finally {
   await cdp.send('Browser.close').catch(() => {});

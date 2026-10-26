@@ -85,7 +85,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Some(name) => material_fixture::generate(scope, id(6), name),
         None => fixture::generate(scope, id(6)),
     };
+    // The optional detail tier: the same slots and geometry as another file.
+    let at = glb
+        .windows(13)
+        .position(|w| w == b"scene fixture")
+        .ok_or("Generated fixture label missing")?;
+    let detail = [&glb[..at], b"scene detail ", &glb[at + 13..]].concat();
+    let mut manifest: Value = serde_json::from_slice(&manifest)?;
+    manifest["detail"] = json!({"file":"detail.glb","contentType":"model/gltf-binary","sha256":sha(&detail),"bytes":detail.len()});
+    let manifest = serde_json::to_vec(&manifest)?;
     private(&publication_dir.join("overview.glb"), &glb)?;
+    private(&publication_dir.join("detail.glb"), &detail)?;
     private(&publication_dir.join("atlas-scene.json"), &companion)?;
     let manifest_path = publication_dir.join("publication.json");
     private(&manifest_path, &manifest)?;
@@ -238,27 +248,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let courtyard = &descriptor["plans"][1]["features"][1]["polygons"][0];
     assert_eq!(courtyard["outer"].as_array().unwrap().len(), 8);
     assert_eq!(courtyard["holes"].as_array().unwrap().len(), 1);
-    for _ in 0..2 {
-        let response = app
-            .clone()
-            .oneshot(get(descriptor["artifacts"][0]["href"].as_str().unwrap()))
-            .await?;
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.headers()["x-atlas-selection-revision"], revision);
-        assert_eq!(response.headers()["content-type"], "model/gltf-binary");
-        assert_eq!(
-            response.headers()["content-length"].to_str()?,
-            glb.len().to_string()
-        );
-        assert_eq!(
-            response.headers()["content-digest"].to_str()?,
-            format!("sha-256=:{}:", STANDARD.encode(Sha256::digest(&glb)))
-        );
-        assert_eq!(
-            to_bytes(response.into_body(), 100000).await?.as_ref(),
-            glb.as_slice()
-        );
+    let artifacts = descriptor["artifacts"].as_array().unwrap();
+    assert_eq!(artifacts.len(), 2);
+    assert_eq!(artifacts[1]["artifactId"], "detail");
+    assert_eq!(artifacts[1]["sha256"], sha(&detail));
+    for (artifact, expected) in artifacts.iter().zip([&glb, &detail]) {
+        assert_eq!(artifact["bytes"], expected.len());
+        for _ in 0..2 {
+            let response = app
+                .clone()
+                .oneshot(get(artifact["href"].as_str().unwrap()))
+                .await?;
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers()["x-atlas-selection-revision"], revision);
+            assert_eq!(response.headers()["content-type"], "model/gltf-binary");
+            assert_eq!(
+                response.headers()["content-length"].to_str()?,
+                expected.len().to_string()
+            );
+            assert_eq!(
+                response.headers()["content-digest"].to_str()?,
+                format!("sha-256=:{}:", STANDARD.encode(Sha256::digest(expected)))
+            );
+            assert_eq!(
+                to_bytes(response.into_body(), 100000).await?.as_ref(),
+                expected.as_slice()
+            );
+        }
     }
+    // Each route serves only its own pin.
+    let crossed = artifacts[1]["href"]
+        .as_str()
+        .unwrap()
+        .replace("model-detail?", "model?");
+    let response = app.clone().oneshot(get(&crossed)).await?;
+    assert_eq!(response.status(), StatusCode::CONFLICT);
     let response = app.clone().oneshot(get(&path)).await?;
     assert_eq!(
         response.headers()["x-atlas-overview-manifest-sha256"],
@@ -293,6 +317,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         fs::set_permissions(output, fs::Permissions::from_mode(0o700))?;
         for (name, body) in [
             ("overview.glb", glb.as_slice()),
+            ("detail.glb", detail.as_slice()),
             ("publication.json", manifest.as_slice()),
             ("atlas-scene.json", companion.as_slice()),
             ("scene-response.json", bytes.as_ref()),
@@ -315,6 +340,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     );
     assert_eq!(fs::read(manifest_path)?, manifest);
     assert_eq!(fs::read(publication_dir.join("overview.glb"))?, glb);
+    assert_eq!(fs::read(publication_dir.join("detail.glb"))?, detail);
     drop(lease);
     if let Some(name) = material_name {
         println!(
@@ -322,7 +348,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         );
     }
     println!(
-        "PASS generated unified scene: actual native session/Read/Media; two levels, logical multi-occurrence room, explicit estimated pick geometry+matching plans; validated normals/indices, single-level slab and shared structure; matching concave courtyard footprint with hole, collinear subdivisions and positive sub-tolerance edges; unchanged current/scoped ReadyView; exact descriptor/publication/selection; explicit selected-building entry header and unchanged unconfigured selection; repeated original/query/hash/headers; unchanged overview/config/receipt/source bytes. No listener/provider/private household/probe."
+        "PASS generated unified scene: actual native session/Read/Media; two levels, logical multi-occurrence room, explicit estimated pick geometry+matching plans; validated normals/indices, single-level slab and shared structure; matching concave courtyard footprint with hole, collinear subdivisions and positive sub-tolerance edges; unchanged current/scoped ReadyView; exact descriptor/publication/selection; explicit selected-building entry header and unchanged unconfigured selection; repeated original and detail query/hash/headers; unchanged overview/config/receipt/source bytes. No listener/provider/private household/probe."
     );
     Ok(())
 }

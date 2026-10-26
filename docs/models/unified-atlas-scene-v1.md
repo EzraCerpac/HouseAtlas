@@ -75,6 +75,9 @@ endpoint, fetch, ReadyView facet or source-schema field.
          geometryPlacement:"gltf-world-after-node-transforms-once",
          physicalRegistration:null},
   artifacts:[{artifactId:"model",role:"model",contentType:"model/gltf-binary",
+              bytes,sha256,href},
+             // only when the publication has a detail GLB:
+             {artifactId:"detail",role:"detail",contentType:"model/gltf-binary",
               bytes,sha256,href}],
   buildings:[Building], levels:[Level], rooms:[Room],
   occurrences:[Occurrence], meshBindings:[MeshBinding],
@@ -99,9 +102,50 @@ current native authorization.
 
 The proposed artifact read is
 `GET /api/atlas/models/v1/workspaces/{workspaceId}/homes/{homeId}/atlas/{publicationId}/artifacts/{artifactId}?expectedSha256={sha256}&expectedSelectionRevision={revision}`.
-The only artifact ID in this bounded reader is `model`; its bytes come through
-the existing selected overview original reader. Plans are inline companion JSON,
-so this adds no general artifact registry, download platform or second GLB.
+The artifact IDs are `model` and, optionally, `detail` (route segment
+`model-detail`); their bytes come through the selected overview reader. Plans
+are inline companion JSON, so this adds no general artifact registry or
+download platform.
+
+### Optional detail tier (#304)
+
+`publication.json` may name a second GLB beside `overview.glb`:
+`detail:{file:"detail.glb",contentType:"model/gltf-binary",sha256,bytes}`. It is
+the same publication unsimplified, produced by `tools/model-bake --detail` from
+the master the overview was baked from, so it keeps the overview's node, mesh
+and primitive slots. The companion still pins the overview in `original`; the
+server validates the detail against that same companion (every binding, bound
+and footprint check) under the Full budget instead of the overview's:
+
+| Budget | Overview | Detail |
+| --- | --- | --- |
+| File bytes | 32 MiB | 256 MiB |
+| Drawn triangles | 600,000 | 4,000,000 |
+| Vertices | 1,800,000 | 12,000,000 |
+| Prepared bytes | 96 MiB | 640 MiB |
+| GPU bytes | 64 MiB | 384 MiB |
+
+The frontend uses the same numbers (`STANDARD_GLB_LIMITS` and
+`DETAIL_GLB_LIMITS` in `glb-preflight.ts`). The detail is fetched separately,
+after the scene and the overview, so it stays outside the first load's 64 MiB
+aggregate, and the reader never fetches it with the scene. A changed
+`detail.glb` changes the whole selection, exactly like a changed overview.
+
+Settings → Model quality chooses the tier per device (`model-quality.ts`):
+Light never reads the detail; Full reads it on every device; Auto reads it only
+with WebGPU, a mouse or trackpad and no touch screen, at least 8 GB where the
+browser reports memory, and neither mobile data nor Data Saver. The overview
+always loads and shows first. Only then does `readUnifiedAtlasDetail` fetch the
+detail (same checks as the model, 300 s deadline), which is admitted under the
+Full budget, bound to the same scene and swapped into the same stage, so the
+view, floors and selection carry over. MeshLayer builds the new mesh set on a
+hidden canvas behind the one on screen and shows it only after its first
+frame, so the swap never blanks the view. Picking, labels and every other read
+of the stage follow the model whose meshes are on screen (`model-tier.ts`), so
+drawing and picking never use different tiers, and Light is drawn before Full
+is built, however fast Full arrives. A
+failed read, admission or GPU build keeps the overview. The detail is never
+stored offline: a stored copy and saved houses show the overview only.
 Reuse the existing Read/Media, same-origin, retained-principal and final-current
 checks. Return private no-store bytes with exact type, length and digest. This
 adds no accounts, grants, tokens or native writes. A changed selection is stale;

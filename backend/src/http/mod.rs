@@ -1266,6 +1266,7 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
     let base=base
         .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas",get(atlas_scene::descriptor).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas/{publication_id}/artifacts/model",get(atlas_scene::model).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas/{publication_id}/artifacts/model-detail",get(atlas_scene::model_detail).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas/{publication_id}/room-links",get(atlas_room_links::read).head(auth::session_head).fallback(auth::session_head));
     let base = base
         .route("/api/atlas/offline/v1/workspaces/{workspace_id}/homes/{home_id}/manifest", get(offline_read_pack::manifest).head(auth::session_head).fallback(auth::session_head))

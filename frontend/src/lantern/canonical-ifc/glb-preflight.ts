@@ -8,10 +8,21 @@
  * fetched or resolved by path. Node names are labels and extras are kept as
  * opaque producer data; no room, floor or native binding is inferred. */
 
-export const STANDARD_GLB_LIMITS = Object.freeze({ bytes: 32 * 1024 * 1024, jsonBytes: 8 * 1024 * 1024, nodes: 20_000,
-  primitives: 20_000, triangles: 600_000, vertices: 1_800_000, depth: 64, coordinate: 1e7,
+export interface GlbLimits {
+  readonly bytes: number; readonly jsonBytes: number; readonly nodes: number; readonly primitives: number;
+  readonly triangles: number; readonly vertices: number; readonly depth: number; readonly coordinate: number;
   /** Copied positions, indices and prepared triangles across every instance. */
-  outputBytes: 96 * 1024 * 1024 });
+  readonly outputBytes: number;
+  /** Explicit material opt-in: expanded attributes and complete texture mip chains. */
+  readonly gpuBytes: number;
+}
+const MiB = 1024 * 1024;
+export const STANDARD_GLB_LIMITS: GlbLimits = Object.freeze({ bytes: 32 * MiB, jsonBytes: 8 * MiB, nodes: 20_000,
+  primitives: 20_000, triangles: 600_000, vertices: 1_800_000, depth: 64, coordinate: 1e7, outputBytes: 96 * MiB, gpuBytes: 64 * MiB });
+/** The Full tier: a publication's unsimplified detail GLB, which only capable
+ * devices opt into. The backend admits it under the same numbers. */
+export const DETAIL_GLB_LIMITS: GlbLimits = Object.freeze({ ...STANDARD_GLB_LIMITS, bytes: 256 * MiB,
+  triangles: 4_000_000, vertices: 12_000_000, outputBytes: 640 * MiB, gpuBytes: 384 * MiB });
 /** Extensions accepted anywhere. Geometry-changing extensions (compression,
  * quantization, instancing) and material extensions are deliberately absent. */
 export const ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set();
@@ -42,7 +53,7 @@ export const hasGlbSignature = (bytes: Uint8Array) => bytes.byteLength >= 4
   && new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0, true) === 0x46546c67;
 
 /** GLB 2.0 container: header, one JSON chunk, at most one BIN chunk, nothing else. */
-export function readGlbContainer(bytes: Uint8Array): GlbContainer {
+export function readGlbContainer(bytes: Uint8Array, limits = STANDARD_GLB_LIMITS): GlbContainer {
   need(bytes.byteLength >= 20, 'container', 'Too short for a GLB header');
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   need(view.getUint32(0, true) === 0x46546c67, 'container', 'Missing glTF binary signature');
@@ -50,7 +61,7 @@ export function readGlbContainer(bytes: Uint8Array): GlbContainer {
   need(view.getUint32(8, true) === bytes.byteLength, 'container', 'Declared GLB length differs from the file length');
   const jsonLength = view.getUint32(12, true), jsonEnd = 20 + jsonLength;
   need(view.getUint32(16, true) === 0x4e4f534a && jsonLength > 0 && jsonEnd <= bytes.byteLength, 'container', 'First chunk must be JSON');
-  need(jsonLength <= STANDARD_GLB_LIMITS.jsonBytes, 'container', 'JSON chunk is too large');
+  need(jsonLength <= limits.jsonBytes, 'container', 'JSON chunk is too large');
   let json: unknown;
   try { json = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(20, jsonEnd))); }
   catch { throw new GlbFormatError('container', 'JSON chunk is not valid UTF-8 JSON'); }
@@ -133,7 +144,7 @@ function refuseExtensions(json: Row) {
 
 interface AccessorShape { readonly count: number; readonly components: number; readonly componentType: number; readonly normalized: boolean }
 /** Every accessor reads a declared bufferView range; the loader never zero-fills one. */
-function admitAccessors(json: Row, bufferLength: number): readonly AccessorShape[] {
+function admitAccessors(json: Row, bufferLength: number, limits: GlbLimits): readonly AccessorShape[] {
   const views = rows(json.bufferViews, 'Buffer views');
   let viewBytes = 0;
   const viewLengths = views.map((view, at) => {
@@ -147,7 +158,7 @@ function admitAccessors(json: Row, bufferLength: number): readonly AccessorShape
     return length;
   });
   // The loader copies each referenced view once.
-  need(viewBytes <= STANDARD_GLB_LIMITS.bytes, 'preflight', 'Buffer views exceed the preview limit');
+  need(viewBytes <= limits.bytes, 'preflight', 'Buffer views exceed the preview limit');
   return rows(json.accessors, 'Accessors').map((accessor, at) => {
     need(accessor.sparse === undefined, 'preflight', 'Sparse accessors are not supported');
     need(accessor.normalized === undefined || typeof accessor.normalized === 'boolean', 'preflight', `Accessor ${at} normalized must be true or false`);
@@ -167,11 +178,11 @@ function admitAccessors(json: Row, bufferLength: number): readonly AccessorShape
 }
 
 interface PrimitiveWork { readonly vertices: number; readonly indices: number }
-function admitMeshes(json: Row, accessors: readonly AccessorShape[]): readonly (readonly PrimitiveWork[])[] {
+function admitMeshes(json: Row, accessors: readonly AccessorShape[], limits: GlbLimits): readonly (readonly PrimitiveWork[])[] {
   const meshes = rows(json.meshes, 'Meshes');
   let primitives = 0;
   return meshes.map(mesh => rows(mesh.primitives, 'Primitives').map(primitive => {
-    need(++primitives <= STANDARD_GLB_LIMITS.primitives, 'preflight', 'Too many primitives');
+    need(++primitives <= limits.primitives, 'preflight', 'Too many primitives');
     need(primitive.mode === undefined || primitive.mode === 4, 'preflight', 'Only triangle primitives are supported');
     need(primitive.targets === undefined, 'preflight', 'Morph targets are not supported');
     need(isRow(primitive.attributes) && primitive.attributes.POSITION !== undefined, 'preflight', 'A primitive has no positions');
@@ -194,7 +205,7 @@ function admitMeshes(json: Row, accessors: readonly AccessorShape[]): readonly (
 }
 
 /** Closed preflight on the container JSON; returns retained scene facts. */
-export function preflightGltf({ json, bin }: GlbContainer): GlbAdmission {
+export function preflightGltf({ json, bin }: GlbContainer, limits = STANDARD_GLB_LIMITS): GlbAdmission {
   const asset = json.asset;
   need(isRow(asset) && asset.version === '2.0', 'preflight', 'Only glTF 2.0 is supported');
   need(asset.minVersion === undefined || asset.minVersion === '2.0', 'preflight', 'Unsupported glTF minimum version');
@@ -216,11 +227,11 @@ export function preflightGltf({ json, bin }: GlbContainer): GlbAdmission {
   need(rows(json.skins, 'Skins').length === 0, 'preflight', 'Skins are not supported');
   need(rows(json.animations, 'Animations').length === 0, 'preflight', 'Animations are not supported');
   // The loader builds every declared camera.
-  need(rows(json.cameras, 'Cameras').length <= STANDARD_GLB_LIMITS.nodes, 'preflight', 'Too many cameras');
-  const meshWork = admitMeshes(json, admitAccessors(json, bufferLength));
+  need(rows(json.cameras, 'Cameras').length <= limits.nodes, 'preflight', 'Too many cameras');
+  const meshWork = admitMeshes(json, admitAccessors(json, bufferLength, limits), limits);
 
   const nodes = rows(json.nodes, 'Nodes'), scenes = rows(json.scenes, 'Scenes');
-  need(nodes.length <= STANDARD_GLB_LIMITS.nodes, 'preflight', 'Too many nodes');
+  need(nodes.length <= limits.nodes, 'preflight', 'Too many nodes');
   for (const node of nodes) {
     need(node.skin === undefined && node.weights === undefined, 'preflight', 'Skinned or morphed nodes are not supported');
     if (isRow(node.extras)) {
@@ -235,7 +246,7 @@ export function preflightGltf({ json, bin }: GlbContainer): GlbAdmission {
   const facts: GlbNodeFacts[] = [], visited = new Set<number>();
   let instances = 0, vertices = 0, indices = 0;
   const visit = (at: number, parent: number | null, depth: number) => {
-    need(depth <= STANDARD_GLB_LIMITS.depth, 'preflight', 'Node hierarchy is too deep');
+    need(depth <= limits.depth, 'preflight', 'Node hierarchy is too deep');
     need(!visited.has(at), 'preflight', 'A node is reached twice');
     visited.add(at);
     const node = nodes[at]!;
@@ -244,8 +255,8 @@ export function preflightGltf({ json, bin }: GlbContainer): GlbAdmission {
     for (const primitive of meshIndex === null ? [] : meshWork[meshIndex]!) {
       instances++; vertices += primitive.vertices; indices += primitive.indices;
     }
-    need(instances <= STANDARD_GLB_LIMITS.primitives && vertices <= STANDARD_GLB_LIMITS.vertices
-      && indices <= STANDARD_GLB_LIMITS.triangles * 3, 'preflight', 'Too much geometry for the preview');
+    need(instances <= limits.primitives && vertices <= limits.vertices
+      && indices <= limits.triangles * 3, 'preflight', 'Too much geometry for the preview');
     facts.push({ nodeIndex: at, name: label(node.name), parent, meshIndex,
       localTransform: localTransform(node, at), extras: node.extras ?? null });
     const children = node.children ?? [];
@@ -256,7 +267,7 @@ export function preflightGltf({ json, bin }: GlbContainer): GlbAdmission {
   need(Array.isArray(roots), 'preflight', 'Scene nodes must be a list');
   for (const root of roots) visit(index(root, nodes.length, 'Scene node'), null, 0);
   const triangles = indices / 3, outputBytes = vertices * 12 + indices * 4 + triangles * 72;
-  need(outputBytes <= STANDARD_GLB_LIMITS.outputBytes, 'preflight', 'Too much geometry for the preview');
+  need(outputBytes <= limits.outputBytes, 'preflight', 'Too much geometry for the preview');
   return { generator: label(asset.generator), copyright: label(asset.copyright), assetExtras: asset.extras ?? null,
     nodes: facts, declaredNodes: nodes.length, declaredMeshes: meshWork.length,
     work: { instances, vertices, triangles, outputBytes } };

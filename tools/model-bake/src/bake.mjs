@@ -69,6 +69,17 @@ const textured = (json, materialIndex) => {
     .some(texture => texture !== undefined);
 };
 
+/** Vertex attributes the server admits: position and normal, plus UVs and
+ * tangents where the material samples a base colour, normal or
+ * metallic-roughness texture. The viewer draws no others (vertex colours,
+ * further UV sets), so the bake drops them from every primitive. */
+const admittedAttributes = (json, materialIndex) => {
+  const material = materialIndex === undefined ? undefined : json.materials?.[materialIndex];
+  const pbr = material?.pbrMetallicRoughness ?? {};
+  const mapped = [pbr.baseColorTexture, material?.normalTexture, pbr.metallicRoughnessTexture].some(texture => texture !== undefined);
+  return mapped ? ['POSITION', 'NORMAL', 'TEXCOORD_0', 'TANGENT'] : ['POSITION', 'NORMAL'];
+};
+
 /** Indices welded on a grid of `cell` local units, dropping triangles that weld shut. */
 function weld(positions, indices, cell) {
   const remap = new Uint32Array(positions.length / 3), seen = new Map();
@@ -147,6 +158,15 @@ const bounds = values => {
  * @param {object|null} companion atlas-scene.json, or null for a model without bindings
  * @param {Partial<typeof BAKE_DEFAULTS>} [overrides]
  */
+/** The Full tier: the master with the overview's compaction and nothing
+ * simplified. It keeps the overview's node, mesh and primitive slots, so the
+ * overview's companion binds both; the returned companion differs from it
+ * only in `original`, which pins this GLB instead. */
+export async function bakeDetail(masterBytes, companion) {
+  const { glb, companion: baked, report } = await bakeOverview(masterBytes, companion, { triangles: Infinity });
+  return { glb, companion: baked, drawnTriangles: report.overview.drawnTriangles, report };
+}
+
 export async function bakeOverview(masterBytes, companion, overrides = {}) {
   const options = { ...BAKE_DEFAULTS, ...overrides };
   if (companion && companion.original?.sha256 !== sha256(masterBytes))
@@ -239,8 +259,12 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     const mesh = json.meshes[meshIndex];
     mesh.primitives = mesh.primitives.map((primitive, primitiveIndex) => {
       const indices = baked.get(key(meshIndex, primitiveIndex)), from = source.meshes[meshIndex].primitives[primitiveIndex];
+      const entry = report.find(row => row.mesh === meshIndex && row.primitive === primitiveIndex);
       if (!indices) {
-        const attributes = Object.fromEntries(Object.entries(from.attributes).map(([name, at]) => [name, copy(at)]));
+        const admitted = admittedAttributes(source, from.material);
+        const dropped = Object.keys(from.attributes).filter(name => !admitted.includes(name));
+        if (dropped.length > 0) entry.droppedAttributes = dropped;
+        const attributes = Object.fromEntries(Object.entries(from.attributes).filter(([name]) => admitted.includes(name)).map(([name, at]) => [name, copy(at)]));
         return { ...primitive, attributes, ...(from.indices === undefined ? {} : { indices: copy(from.indices) }) };
       }
       // Compact to the vertices still referenced, keeping their source order.
@@ -259,7 +283,6 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
       const wide = count > 0xffff, remapped = indices.map(v => used[v]);
       const index = addAccessor(wide ? Uint32Array.from(remapped) : Uint16Array.from(remapped),
         { componentType: wide ? 5125 : 5123, type: 'SCALAR', target: 34963 });
-      const entry = report.find(row => row.mesh === meshIndex && row.primitive === primitiveIndex);
       entry.droppedAttributes = Object.keys(from.attributes).filter(name => !names.includes(name));
       return { ...primitive, attributes, indices: index };
     });

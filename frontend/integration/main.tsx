@@ -15,6 +15,9 @@ import { CaptureDraftProvider } from "../src/capture-drafts-ui/Context";
 import { createQuantityClient } from "./quantity-client";
 import { createPinnedFileClient } from "./pinned-file-client";
 import { createNativePlaceClient } from "../src/api/native-place-client";
+import { classificationRequest, kindLabel } from "../src/app/editing";
+import { getOutbox, type OutboxEntry } from "../src/outbox";
+import { PLACE_CLASSIFICATION, PLACE_NAME } from "../src/outbox/kinds";
 import { createTopologyClient } from "../src/api/topology-client";
 import { createNetworkRelationsClient } from "../src/api/network-relations-client";
 import { createNativeGeometryReadClient, signOutWithScanCleanup } from "./native-geometry-read-client";
@@ -54,6 +57,7 @@ const schemas = createStockSchemas();
 const service = createStockDispatch();
 const downloads = createAtlasGatewayDownloadResolver(schemas);
 const events = new EventTarget();
+const outbox = getOutbox();
 /** Other confirmed host session actions notify this transient subscriber only.
  * Session GET itself emits nothing, preventing a rotation/reload cycle. */
 export function notifySessionChanged(): void { captureDrafts.invalidateSession(); events.dispatchEvent(new Event("changed")); }
@@ -82,7 +86,7 @@ const sceneEvents = new EventTarget();
 /** Read-only tool admission for the current scope; cleared with every scope clear. */
 let currentQuantityAdmission: QuantityToolAdmission | null = null;
 const quantityEvents = new EventTarget();
-const quantityChanged = () => { sourceDocuments.refresh(); houseAcquisition.refresh(); currentSceneSelection = null; sceneEvents.dispatchEvent(new Event("changed")); quantityEvents.dispatchEvent(new Event("changed")); };
+const quantityChanged = () => { configureOutbox(); sourceDocuments.refresh(); houseAcquisition.refresh(); currentSceneSelection = null; sceneEvents.dispatchEvent(new Event("changed")); quantityEvents.dispatchEvent(new Event("changed")); };
 // Native browser support only; undefined sends no admission request and registers nothing.
 const modelContext = detectModelContext(document);
 let sessionGeneration = 0;
@@ -288,6 +292,43 @@ const nativePlaces = createNativePlaceClient({
     return () => quantityEvents.removeEventListener("changed", changed);
   },
 });
+// Edits wait in the device's outbox while the server is out of reach and go
+// out for the signed-in person and home they were made for. Each kind says
+// how to show the record as it is now and how to prepare the edit again when
+// the person keeps their version after a conflict.
+function configureOutbox(): void {
+  outbox.configure(currentSession && currentQuantityScope ? { actorId: currentSession.actorId, csrfToken: currentSession.csrfToken,
+    workspaceId: currentQuantityScope.workspaceId, homeId: currentQuantityScope.homeId } : null);
+}
+// A source whose link was moved to another place meanwhile does not carry
+// the queued edit along: that place is edited on its own.
+const placeAdmission = async (entry: OutboxEntry, signal: AbortSignal) => {
+  const admission = await editing.loadPlace(JSON.parse(entry.intent.source!), signal);
+  if (!admission?.canReplaceClassification) throw new Error("This place can no longer be edited");
+  if (admission.record.recordId !== entry.target.recordId) throw new Error("This now points to a different place; edit that place on its own");
+  return admission;
+};
+outbox.register(PLACE_CLASSIFICATION, {
+  current: async (entry, signal) => kindLabel((await placeAdmission(entry, signal)).record.payload.semanticKind),
+  async rebase(entry, signal) {
+    const request = classificationRequest(await placeAdmission(entry, signal),
+      entry.intent.semanticKind as Parameters<typeof classificationRequest>[1], entry.intent.reason!);
+    return { requestId: request.requestId, body: JSON.stringify(request), label: entry.label };
+  },
+});
+const nameAdmission = (recordId: string, signal: AbortSignal) => {
+  const binding = nativePlaces.getBinding();
+  if (!binding) throw new Error("Atlas places are unavailable");
+  return nativePlaces.load(binding, recordId, signal);
+};
+outbox.register(PLACE_NAME, {
+  current: async (entry, signal) => (await nameAdmission(entry.intent.recordId!, signal)).record.payload.label ?? "No name",
+  async rebase(entry, signal) {
+    const prepared = nativePlaces.prepareRename(await nameAdmission(entry.intent.recordId!, signal),
+      { label: entry.intent.label || null, statement: entry.intent.statement!, reason: entry.intent.reason! });
+    return { requestId: prepared.requestId, body: prepared.body, label: entry.label };
+  },
+});
 // Native geometry gets the original canonical session allocation and the
 // completed authorized view scope. Every replacement/gap invalidates its reads.
 // Verified mesh bytes are reused only for an identical derivative offered by a
@@ -486,6 +527,15 @@ const sourceModels: SourceModelPort = {
         const reader = await import('./unified-atlas-reader');
         return await reader.readUnifiedAtlas({ selection, signal: AbortSignal.any([signal, controller.signal]),
           origin: window.location.origin, isCurrent: () => currentOverview() === selection, cache: atlasCache(selection) });
+      } finally { unsubscribe(); }
+    },
+    async readDetail(selection, scene, signal) {
+      const controller = new AbortController();
+      const unsubscribe = subscribeOverview(() => { if (currentOverview() !== selection) controller.abort(); });
+      try {
+        const reader = await import('./unified-atlas-reader');
+        return await reader.readUnifiedAtlasDetail({ selection, scene, signal: AbortSignal.any([signal, controller.signal]),
+          origin: window.location.origin, isCurrent: () => currentOverview() === selection });
       } finally { unsubscribe(); }
     },
     async stored(selection, signal) {

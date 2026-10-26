@@ -1,11 +1,11 @@
-import { GlbFormatError, STANDARD_GLB_LIMITS, type GlbAdmission, type GlbContainer } from './glb-preflight';
+import { GlbFormatError, STANDARD_GLB_LIMITS, type GlbAdmission, type GlbContainer, type GlbLimits } from './glb-preflight';
 import type { SourceBaseColor } from './geometry';
 
 /** Frozen houseatlas.embedded-png-material.v1. No browser image decoder, URL,
  * canvas colour management or ImageBitmap enters this path. PNG samples remain
  * RGB8; the GPU's explicitly selected sRGB format handles base colour only. */
 export const EMBEDDED_PNG_LIMITS = Object.freeze({ images: 3, dimension: 1024, pixels: 1_048_576,
-  encodedPerImage: 2_097_152, encodedTotal: 4_194_304, rgba: 12_582_912, scratch: 8_388_608, gpu: 67_108_864 });
+  encodedPerImage: 2_097_152, encodedTotal: 4_194_304, rgba: 12_582_912, scratch: 8_388_608 });
 type Row = Record<string, unknown>;
 function need(value: unknown, message: string): asserts value { if (!value) throw new GlbFormatError('preflight', message); }
 const row = (value: unknown): Row => { need(value !== null && typeof value === 'object' && !Array.isArray(value), 'Invalid embedded material record'); return value as Row; };
@@ -97,7 +97,7 @@ export interface EmbeddedMaterialPlan {
 }
 
 /** Called only by the explicit Unified opt-in, after ordinary GLB preflight. */
-export function admitEmbeddedPngMaterials(container: GlbContainer, admission: GlbAdmission): EmbeddedMaterialPlan {
+export function admitEmbeddedPngMaterials(container: GlbContainer, admission: GlbAdmission, limits: GlbLimits = STANDARD_GLB_LIMITS): EmbeddedMaterialPlan {
   const { json, bin } = container, views = list(json.bufferViews), rawImages = list(json.images), images: EmbeddedPng[] = [], imageIds: number[] = [];
   need(rawImages.length <= EMBEDDED_PNG_LIMITS.images, 'Too many embedded PNG images');
   let encodedBytes = 0, rgbaBytes = 0, scratchBytes = 0;
@@ -180,7 +180,7 @@ export function admitEmbeddedPngMaterials(container: GlbContainer, admission: Gl
   }
   const preparedBytes = admission.work.outputBytes + attributeBytes + expandedAttributeBytes + encodedBytes + rgbaBytes + scratchBytes;
   const gpuBytes = admission.work.triangles * 72 + expandedAttributeBytes + [...usedTextures.values()].reduce((n, pin) => n + images[pin.image]!.mipBytes, 0);
-  need(preparedBytes <= STANDARD_GLB_LIMITS.outputBytes && gpuBytes <= EMBEDDED_PNG_LIMITS.gpu, 'Textured model exceeds the unchanged work budget');
+  need(preparedBytes <= limits.outputBytes && gpuBytes <= limits.gpuBytes, 'Textured model exceeds the unchanged work budget');
   return { images, primitives, encodedBytes, rgbaBytes, scratchBytes, attributeBytes, expandedAttributeBytes, preparedBytes, gpuBytes };
 }
 

@@ -1,6 +1,6 @@
 import type { ModelOverviewSelection } from '../src/lantern/source-models/overview-types';
 import { admitAtlasScene, ATLAS_LIMITS } from '../src/lantern/unified-atlas/scene';
-import { AtlasReadError, type AtlasReadFailure, type StoredAtlasRead, type UnifiedAtlasRead } from '../src/lantern/unified-atlas/types';
+import { AtlasReadError, type AtlasReadFailure, type AtlasScene, type StoredAtlasRead, type UnifiedAtlasRead } from '../src/lantern/unified-atlas/types';
 import type { UnifiedAtlasCache } from './unified-atlas-cache';
 
 /** Opt-in unified Atlas read for the selected overview publication: one
@@ -11,7 +11,9 @@ import type { UnifiedAtlasCache } from './unified-atlas-cache';
  * With `cache`, the scene is always read afresh, but model bytes stored for
  * the exact digest that fresh scene pins are used instead of a second GET, and
  * every verified read is kept for the next start. */
-export const UNIFIED_ATLAS_READ_LIMITS = Object.freeze({ headers: 16 * 1024, chunks: 16_384, ms: 30_000 });
+export const UNIFIED_ATLAS_READ_LIMITS = Object.freeze({ headers: 16 * 1024, chunks: 16_384, ms: 30_000,
+  /** The detail GLB is up to 256 MiB: more chunks, and five minutes at about 7 Mbit/s. */
+  detailChunks: 65_536, detailMs: 300_000 });
 const JSON_MIME = 'application/json', MODEL_MIME = 'model/gltf-binary';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, SHA = /^[0-9a-f]{64}$/;
 function fail(reason: AtlasReadFailure): never { throw new AtlasReadError(reason); }
@@ -20,22 +22,27 @@ const base64 = (bytes: Uint8Array) => { let text = ''; for (let at = 0; at < byt
 const hex = (bytes: Uint8Array) => [...bytes].map(value => value.toString(16).padStart(2, '0')).join('');
 
 /** Owns the response body from the first check: any refusal cancels it. */
-async function receive(response: Response, cap: number, expected: number | null, signal: AbortSignal, guard: () => void): Promise<Uint8Array<ArrayBuffer>> {
+async function receive(response: Response, cap: number, expected: number | null, signal: AbortSignal, guard: () => void,
+  maxChunks: number = UNIFIED_ATLAS_READ_LIMITS.chunks): Promise<Uint8Array<ArrayBuffer>> {
   const reader = response.body?.getReader(); need(reader);
   const cancel = () => { void reader.cancel().catch(() => undefined); };
   signal.addEventListener('abort', cancel, { once: true });
-  const chunks: Uint8Array[] = []; let size = 0;
+  // A pinned length is written in place, so a large model is never held twice.
+  const sized = expected === null ? null : new Uint8Array(expected);
+  const chunks: Uint8Array[] = []; let size = 0, count = 0;
   try {
     const length = response.headers.get('content-length');
     need(length === null || (/^(0|[1-9][0-9]{0,9})$/.test(length) && Number(length) <= cap), 'too-large');
     need(expected === null || length === String(expected));
     for (;;) {
       guard(); const part = await reader.read(); guard(); if (part.done) break;
-      need(chunks.length < UNIFIED_ATLAS_READ_LIMITS.chunks);
+      need(++count <= maxChunks);
       need(part.value.byteLength <= cap - size, 'too-large');
-      size += part.value.byteLength; chunks.push(part.value.slice());
+      if (sized) { need(part.value.byteLength <= sized.byteLength - size); sized.set(part.value, size); } else chunks.push(part.value.slice());
+      size += part.value.byteLength;
     }
     need((length === null || Number(length) === size) && (expected === null || expected === size));
+    if (sized) return sized;
     const bytes = new Uint8Array(size); let at = 0; for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.byteLength; } return bytes;
   } catch (error) { cancel(); throw error; }
   finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
@@ -76,42 +83,72 @@ export async function readCachedUnifiedAtlas(options: {
   }
 }
 
-export async function readUnifiedAtlas(options: {
+interface ReadOptions {
   readonly selection: ModelOverviewSelection; readonly signal: AbortSignal; readonly origin: string;
   readonly isCurrent: () => boolean; readonly transport?: typeof fetch;
+}
+/** One bounded read session: the caller's signal under the read deadline, a
+ * guard for the host's current selection, session and expiry, and same-origin
+ * GETs whose status, type and caching headers are checked before any body. */
+function connect(options: ReadOptions, ms: number = UNIFIED_ATLAS_READ_LIMITS.ms) {
+  const { selection, isCurrent } = options;
+  const signal = AbortSignal.any([options.signal, AbortSignal.timeout(ms)]);
+  const origin = new URL(options.origin);
+  need(origin.origin === options.origin && origin.protocol === 'https:' && !origin.username && !origin.password);
+  need(UUID.test(selection.scope.workspaceId) && UUID.test(selection.scope.homeId) && UUID.test(selection.publicationId)
+    && SHA.test(selection.manifestSha256));
+  const guard = () => { signal.throwIfAborted(); need(isCurrent() && Date.parse(selection.expiresAt) > Date.now(), 'stale'); };
+  const path = `/api/atlas/models/v1/workspaces/${selection.scope.workspaceId}/homes/${selection.scope.homeId}/atlas`;
+  const get = async (href: string, mime: string) => {
+    guard(); const url = new URL(href, origin).href;
+    const response = await (options.transport ?? fetch)(url, {
+      method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal, headers: { Accept: mime },
+    });
+    try {
+      guard();
+      need(response.status !== 404 || mime !== JSON_MIME, 'absent');
+      need(response.status !== 409 && response.status !== 412, 'stale');
+      // An explicit refusal is not a transport failure: no stored copy stays on screen for it.
+      need(response.status !== 401 && response.status !== 403, 'denied');
+      let headerBytes = 0; response.headers.forEach((value, key) => { headerBytes += value.length + key.length; });
+      need(headerBytes <= UNIFIED_ATLAS_READ_LIMITS.headers && response.status === 200 && !response.redirected
+        && (!response.url || response.url === url)
+        && response.headers.get('content-type')?.split(';')[0]?.trim() === mime
+        && response.headers.get('cache-control') === 'private, no-store'
+        && response.headers.get('x-content-type-options') === 'nosniff');
+      return response;
+    } catch (error) { void response.body?.cancel().catch(() => undefined); throw error; }
+  };
+  return { signal, guard, path, get };
+}
+/** Model bytes for a pinned artifact: the served revision before and after the
+ * byte work, then the exact length, digest and content digest. */
+async function receiveModel(body: Response, pin: Readonly<{ bytes: number; sha256: string }>, revision: string,
+  signal: AbortSignal, guard: () => void, maxChunks?: number): Promise<Uint8Array<ArrayBuffer>> {
+  try {
+    const served = () => need(body.headers.get('x-atlas-selection-revision') === revision, 'stale');
+    served();
+    const bytes = await receive(body, pin.bytes, pin.bytes, signal, guard, maxChunks);
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); guard();
+    need(hex(digest) === pin.sha256 && body.headers.get('content-digest') === `sha-256=:${base64(digest)}:`, 'invalid');
+    served(); guard();
+    return bytes;
+  } catch (error) { void body.body?.cancel().catch(() => undefined); throw error; }
+}
+/** Any failure that is not already a read outcome is unavailable; the caller's own withdrawal stays an abort. */
+function outcome(error: unknown, signal: AbortSignal): never {
+  if (error instanceof AtlasReadError) throw error;
+  if (signal.aborted) throw error;
+  throw new AtlasReadError('unavailable');
+}
+
+export async function readUnifiedAtlas(options: ReadOptions & {
   /** May still be opening; it is awaited only within the local lookup budget, alongside the scene GET. */
   readonly cache?: UnifiedAtlasCache | Promise<UnifiedAtlasCache | null>;
 }): Promise<UnifiedAtlasRead> {
-  const { selection, isCurrent } = options;
-  const signal = AbortSignal.any([options.signal, AbortSignal.timeout(UNIFIED_ATLAS_READ_LIMITS.ms)]);
+  const { selection } = options;
   try {
-    const origin = new URL(options.origin);
-    need(origin.origin === options.origin && origin.protocol === 'https:' && !origin.username && !origin.password);
-    need(UUID.test(selection.scope.workspaceId) && UUID.test(selection.scope.homeId) && UUID.test(selection.publicationId)
-      && SHA.test(selection.manifestSha256));
-    const guard = () => { signal.throwIfAborted(); need(isCurrent() && Date.parse(selection.expiresAt) > Date.now(), 'stale'); };
-    const path = `/api/atlas/models/v1/workspaces/${selection.scope.workspaceId}/homes/${selection.scope.homeId}/atlas`;
-    const get = async (href: string, mime: string) => {
-      guard(); const url = new URL(href, origin).href;
-      const response = await (options.transport ?? fetch)(url, {
-        method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal, headers: { Accept: mime },
-      });
-      try {
-        guard();
-        need(response.status !== 404 || mime !== JSON_MIME, 'absent');
-        need(response.status !== 409 && response.status !== 412, 'stale');
-        // An explicit refusal is not a transport failure: no stored copy stays on screen for it.
-        need(response.status !== 401 && response.status !== 403, 'denied');
-        let headerBytes = 0; response.headers.forEach((value, key) => { headerBytes += value.length + key.length; });
-        need(headerBytes <= UNIFIED_ATLAS_READ_LIMITS.headers && response.status === 200 && !response.redirected
-          && (!response.url || response.url === url)
-          && response.headers.get('content-type')?.split(';')[0]?.trim() === mime
-          && response.headers.get('cache-control') === 'private, no-store'
-          && response.headers.get('x-content-type-options') === 'nosniff');
-        return response;
-      } catch (error) { void response.body?.cancel().catch(() => undefined); throw error; }
-    };
-
+    const { signal, guard, path, get } = connect(options);
     const descriptor = await get(`${path}?expectedManifestSha256=${selection.manifestSha256}`, JSON_MIME);
     const servedManifest = () => need(descriptor.headers.get('x-atlas-overview-manifest-sha256') === selection.manifestSha256, 'stale');
     // Pin the exact overview selected by this owner, independently of the
@@ -141,22 +178,25 @@ export async function readUnifiedAtlas(options: {
         return { scene, model: stored, entryBuildingId, envelopeSha256 };
       }
     }
-    const body = await get(href, MODEL_MIME);
-    try {
-      // The model's served revision is checked before and after the byte work.
-      const served = () => need(body.headers.get('x-atlas-selection-revision') === revision, 'stale');
-      served();
-      const bytes = await receive(body, scene.model.bytes, scene.model.bytes, signal, guard);
-      const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); guard();
-      need(hex(digest) === scene.model.sha256 && body.headers.get('content-digest') === `sha-256=:${base64(digest)}:`, 'invalid');
-      served(); guard();
-      cache?.keepModel(scene.model.sha256, bytes); keepScene();
-      return { scene, model: bytes, entryBuildingId, envelopeSha256 };
-    } catch (error) { void body.body?.cancel().catch(() => undefined); throw error; }
-  } catch (error) {
-    if (error instanceof AtlasReadError) throw error;
-    // The caller's own withdrawal stays an abort; a deadline or transport failure is unavailable.
-    if (options.signal.aborted) throw error;
-    throw new AtlasReadError('unavailable');
-  }
+    const bytes = await receiveModel(await get(href, MODEL_MIME), scene.model, revision, signal, guard);
+    cache?.keepModel(scene.model.sha256, bytes); keepScene();
+    return { scene, model: bytes, entryBuildingId, envelopeSha256 };
+  } catch (error) { outcome(error, options.signal); }
+}
+
+/** The publication's optional unsimplified detail GLB, for a device on Full
+ * quality, read after `scene` (from a fresh `readUnifiedAtlas` of the same
+ * selection) is on screen. One GET of the href that scene pins, with the
+ * overview's transport, revision, length and digest checks. It is not cached:
+ * at up to 256 MiB it is outside the persistent store's budget. */
+export async function readUnifiedAtlasDetail(options: ReadOptions & { readonly scene: AtlasScene }): Promise<Uint8Array<ArrayBuffer>> {
+  const { selection, scene } = options;
+  try {
+    const { signal, guard, path, get } = connect(options, UNIFIED_ATLAS_READ_LIMITS.detailMs);
+    need(scene.detail && scene.publication.publicationId === selection.publicationId, 'absent');
+    const revision = scene.selection.revision;
+    const href = `${path}/${selection.publicationId}/artifacts/model-detail?expectedSha256=${scene.detail.sha256}&expectedSelectionRevision=${encodeURIComponent(revision)}`;
+    need(scene.detail.href === href, 'invalid');
+    return await receiveModel(await get(href, MODEL_MIME), scene.detail, revision, signal, guard, UNIFIED_ATLAS_READ_LIMITS.detailChunks);
+  } catch (error) { outcome(error, options.signal); }
 }

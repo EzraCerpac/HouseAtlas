@@ -42,6 +42,7 @@ pub(super) async fn descriptor(
             if uri.query().is_some_and(|query|query!=expected_query){return Err(failure(StatusCode::CONFLICT));}
             let revision=scene.revision.clone();overview.read_original().map_err(|_|failure(StatusCode::CONFLICT))?;
             let p=&scene.value;let mut wire=json!({"profile":"houseatlas.unified-atlas-scene.v1","scope":p["scope"],"selection":{"revision":revision,"publicationId":p["publicationId"]},"publication":{"publicationId":p["publicationId"],"sourceRevisionId":p["sourceRevisionId"],"sourceSha256":p["sourceSha256"],"semanticsSha256":scene.semantics_sha256},"artifacts":[{"artifactId":"model","role":"model","contentType":"model/gltf-binary","bytes":overview.manifest.original.bytes,"sha256":overview.manifest.original.sha256,"href":format!("/api/atlas/models/v1/workspaces/{}/homes/{}/atlas/{}/artifacts/model?expectedSha256={}&expectedSelectionRevision={}",scope.workspace_id,scope.home_id,overview.manifest.publication_id,overview.manifest.original.sha256,revision)}]});
+            if let Some(detail)=&overview.manifest.detail{wire["artifacts"].as_array_mut().ok_or_else(||failure(StatusCode::SERVICE_UNAVAILABLE))?.push(json!({"artifactId":"detail","role":"detail","contentType":"model/gltf-binary","bytes":detail.bytes,"sha256":detail.sha256,"href":format!("/api/atlas/models/v1/workspaces/{}/homes/{}/atlas/{}/artifacts/model-detail?expectedSha256={}&expectedSelectionRevision={}",scope.workspace_id,scope.home_id,overview.manifest.publication_id,detail.sha256,revision)}));}
             for key in ["frame","buildings","levels","rooms","occurrences","meshBindings","plans","overlayBindings","coverage"] {wire[key]=p[key].clone();}
             let (current,current_overview)=selected(&host,&scope)?;if current.revision!=revision||current_overview.manifest_sha256!=manifest_sha256{return Err(failure(StatusCode::CONFLICT));}
             current_overview.read_original().map_err(|_|failure(StatusCode::CONFLICT))?;
@@ -52,12 +53,38 @@ pub(super) async fn descriptor(
         })
     }).await.map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE))?
 }
+/// The overview GLB that every device loads.
 pub(super) async fn model(
     State(host): State<Host>,
-    Path((workspace_id, home_id, publication_id)): Path<(String, String, String)>,
+    path: Path<(String, String, String)>,
     Extension(headers): Extension<CheckedHeaders>,
     uri: Uri,
     method: Method,
+) -> HttpResult {
+    artifact(host, path, headers, uri, method, Artifact::Model).await
+}
+/// The optional unsimplified detail GLB of the same publication.
+pub(super) async fn model_detail(
+    State(host): State<Host>,
+    path: Path<(String, String, String)>,
+    Extension(headers): Extension<CheckedHeaders>,
+    uri: Uri,
+    method: Method,
+) -> HttpResult {
+    artifact(host, path, headers, uri, method, Artifact::Detail).await
+}
+#[derive(Clone, Copy)]
+enum Artifact {
+    Model,
+    Detail,
+}
+async fn artifact(
+    host: Host,
+    Path((workspace_id, home_id, publication_id)): Path<(String, String, String)>,
+    headers: CheckedHeaders,
+    uri: Uri,
+    method: Method,
+    artifact: Artifact,
 ) -> HttpResult {
     tokio::task::spawn_blocking(move || {
         let _permit = headers.admission_permit()?;
@@ -96,19 +123,27 @@ pub(super) async fn model(
                 let (scene, overview) = selected(&host, &scope)?;
                 let revision = scene.revision.clone();
                 let m = &overview.manifest;
-                if publication_id != m.publication_id {
+                let pin = match artifact {
+                    Artifact::Model => Some(&m.original),
+                    Artifact::Detail => m.detail.as_ref(),
+                };
+                let Some(pin) = pin.filter(|_| publication_id == m.publication_id) else {
                     return Err(failure(StatusCode::NOT_FOUND));
-                }
+                };
                 let query = format!(
                     "expectedSha256={}&expectedSelectionRevision={}",
-                    m.original.sha256, revision
+                    pin.sha256, revision
                 );
                 if uri.query() != Some(query.as_str()) {
                     return Err(failure(StatusCode::CONFLICT));
                 }
-                let bytes = overview
-                    .read_original()
-                    .map_err(|_| failure(StatusCode::CONFLICT))?;
+                let bytes = match artifact {
+                    Artifact::Model => overview.read_original(),
+                    Artifact::Detail => overview
+                        .read_detail()
+                        .and_then(|bytes| bytes.ok_or_else(|| "Detail unavailable".into())),
+                }
+                .map_err(|_| failure(StatusCode::CONFLICT))?;
                 let (current, _) = selected(&host, &scope)?;
                 if current.revision != revision {
                     return Err(failure(StatusCode::CONFLICT));
@@ -117,7 +152,7 @@ pub(super) async fn model(
                 let mut response = bytes.into_response();
                 for (key, value) in [
                     ("content-type", "model/gltf-binary".into()),
-                    ("content-length", m.original.bytes.to_string()),
+                    ("content-length", pin.bytes.to_string()),
                     ("content-digest", digest),
                     ("x-atlas-selection-revision", revision),
                 ] {
