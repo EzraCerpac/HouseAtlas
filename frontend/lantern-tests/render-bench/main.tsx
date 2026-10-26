@@ -6,6 +6,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MeshLayer } from '../../src/lantern/canonical-ifc/MeshLayer';
 import { makeProjection, prepareMeshes, type MeshInput } from '../../src/lantern/canonical-ifc/geometry';
+import { GlbFormatError } from '../../src/lantern/canonical-ifc/glb-preflight';
+import { loadStandardGlb } from '../../src/lantern/canonical-ifc/standard-glb';
+import { loadStandardGlbInWorker } from '../../src/lantern/canonical-ifc/standard-glb-thread';
+import { BufferGeometry } from 'three/webgpu';
+import { box as sampleBox, buildGlb } from '../canonical-ifc-visual/standard-glb-sample';
 
 const params = new URLSearchParams(location.search);
 const FRAMES = Number(params.get('frames') ?? 120), SELECT = params.has('select');
@@ -37,6 +42,14 @@ for (const cls of ['GPURenderPassEncoder', 'GPUCommandEncoder', 'GPUQueue', 'GPU
     const fn = d.value; Object.defineProperty(proto, name, { ...d, value: function (this: unknown, ...a: unknown[]) { calls.gpu++; return fn.apply(this, a); } });
   }
 }
+/** three.js walks every vertex of a geometry that has no bounding sphere on its
+ * first frame; the scene supplies them for the model, so a swap should walk only
+ * the few vertices of three's own full-screen passes. */
+const spheres = { vertices: 0 };
+const computeSphere = BufferGeometry.prototype.computeBoundingSphere;
+BufferGeometry.prototype.computeBoundingSphere = function (this: BufferGeometry) {
+  spheres.vertices += this.getAttribute('position')?.count ?? 0; return computeSphere.call(this);
+};
 const frames: { ms: number; gl: number; gpu: number }[] = [];
 const raf = window.requestAnimationFrame.bind(window);
 window.requestAnimationFrame = callback => raf(time => {
@@ -63,8 +76,8 @@ function box(min: [number, number, number], max: [number, number, number], n: nu
   return { positions: new Float32Array(positions), indices: new Uint32Array(indices) };
 }
 
-function house(): MeshInput[] {
-  const meshes: MeshInput[] = [], floors = ['L0', 'L1', 'L2'], site = Math.round(PIECES * .05), per = Math.floor((PIECES - site) / 3);
+function house(pieces: number): MeshInput[] {
+  const meshes: MeshInput[] = [], floors = ['L0', 'L1', 'L2'], site = Math.round(pieces * .05), per = Math.floor((pieces - site) / 3);
   floors.forEach((floorId, f) => {
     const columns = Math.ceil(Math.sqrt(per * 1.4));
     for (let i = 0; i < per; i++) {
@@ -83,12 +96,18 @@ function house(): MeshInput[] {
 
 /** Swaps in a second prepared set, as a Full model replaces Light, and records
  * the fewest canvases on screen at any moment until the new set is shown alone,
- * and how many WebGL draws the new canvas made before the old one went. */
-function watchSwap(root: HTMLElement) {
+ * how many WebGL draws the new canvas made before the old one went, how many
+ * frames the page drew meanwhile, its longest task, and any bounding sphere computed. */
+function watchSwap(root: HTMLElement, into: object = {}) {
   const visible = () => [...root.querySelectorAll('canvas')].filter(canvas => !canvas.hidden && canvas.style.visibility !== 'hidden').length;
   const old = root.querySelector('canvas');
   let next: HTMLCanvasElement | null = null;
-  const report = { fewestVisible: visible(), mostCanvases: root.querySelectorAll('canvas').length, newDrawsWhenShown: -1, done: false };
+  const report = Object.assign(into, { fewestVisible: visible(), mostCanvases: root.querySelectorAll('canvas').length, newDrawsWhenShown: -1, done: false,
+    framesMeanwhile: 0, longestTaskMs: 0, sphereVertices: 0 });
+  const sphereStart = spheres.vertices;
+  const tick = () => { if (report.done) return; report.framesMeanwhile++; raf(tick); }; raf(tick);
+  const tasks = new PerformanceObserver(list => { for (const entry of list.getEntries()) report.longestTaskMs = Math.max(report.longestTaskMs, Math.round(entry.duration)); });
+  try { tasks.observe({ type: 'longtask' }); } catch { /* no long task timing in this browser */ }
   const observer = new MutationObserver(() => {
     const canvases = [...root.querySelectorAll('canvas')];
     next ??= canvases.find(canvas => canvas !== old) ?? null;
@@ -97,24 +116,52 @@ function watchSwap(root: HTMLElement) {
     if (report.mostCanvases > 1 && canvases.length === 1 && visible() === 1) {
       // WebGL draws only; WebGPU submissions carry no canvas.
       report.newDrawsWhenShown = next ? canvasDraws.get(next) ?? 0 : -1; report.done = true; observer.disconnect();
+      for (const entry of tasks.takeRecords()) report.longestTaskMs = Math.max(report.longestTaskMs, Math.round(entry.duration));
+      tasks.disconnect(); report.sphereVertices = spheres.vertices - sphereStart;
     }
   });
   observer.observe(root, { subtree: true, childList: true, attributes: true });
   return report;
 }
 
+/** The same generated GLB loaded on this thread and in the worker: identical
+ * output, the bytes moved to the worker, and its refusals and cancellation
+ * reach the caller as they would from loadStandardGlb. */
+async function checkWorker() {
+  const count = 24, signal = new AbortController().signal;
+  const bytes = () => buildGlb({ roots: Array.from({ length: count }, (_, i) => i),
+    meshes: Array.from({ length: count }, (_, i) => sampleBox([i, 0, 0], [i + .8, 1 + i % 3, .8])),
+    nodes: Array.from({ length: count }, (_, i) => ({ mesh: i, translation: [0, i % 2, (i % 3) * .5] as const })) });
+  const here = await loadStandardGlb(bytes(), 'atlas', signal);
+  const sent = bytes(); let admitted = 0;
+  const there = await loadStandardGlbInWorker(sent, 'atlas', signal, admission => { admitted = admission.work.triangles; });
+  const refusal = new Error('refused'), reason = new Error('withdrawn'), controller = new AbortController();
+  const refused = await loadStandardGlbInWorker(bytes(), 'atlas', signal, () => { throw refusal; }).then(() => 'loaded', error => error === refusal ? 'refused' : String(error));
+  const pending = loadStandardGlbInWorker(bytes(), 'atlas', controller.signal); controller.abort(reason);
+  const aborted = await pending.then(() => 'loaded', error => error === reason ? 'aborted' : String(error));
+  const broken = bytes(); new DataView(broken.buffer).setUint32(4, 1, true);
+  const malformed = await loadStandardGlbInWorker(broken, 'atlas', signal).then(() => 'loaded', error => error instanceof GlbFormatError ? error.stage : String(error));
+  const plain = (glb: typeof here) => JSON.stringify(glb, (_, value: unknown) => ArrayBuffer.isView(value) ? Array.from(value as Float32Array) : value);
+  return { same: plain(here) === plain(there), moved: sent.byteLength === 0, admitted: admitted === here.counts.triangles,
+    meshes: there.meshes.length, refused, aborted, malformed };
+}
+
 function Bench() {
-  const [generation, setGeneration] = useState(0);
-  // Each generation is a new prepared set of the same house.
-  const meshes = useMemo(() => prepareMeshes(house()), [generation]);
+  // Each generation is a new prepared set of the same house, or of a larger one,
+  // prepared before the swap starts, as the Full model arrives prepared from its worker.
+  const [{ meshes, generation }, setSet] = useState(() => ({ meshes: prepareMeshes(house(PIECES)), generation: 0 }));
   const generations = useMemo(() => new WeakMap<object, number>(), []); generations.set(meshes, generation);
   const onShown = useCallback((set: readonly object[]) => {
     const log = (window as unknown as { shownSets?: number[] }); (log.shownSets ??= []).push(generations.get(set) ?? -1);
   }, [generations]);
   useEffect(() => {
-    (window as unknown as { swap: () => unknown }).swap = () => {
-      const report = watchSwap(document.getElementById('root')!); setGeneration(value => value + 1); return report;
+    (window as unknown as { swap: (pieces?: number) => unknown }).swap = pieces => {
+      // Prepared in this task; the swap is watched from the next one, as a worker's result arrives.
+      const next = prepareMeshes(house(pieces ?? PIECES)), report = { done: false };
+      setTimeout(() => { watchSwap(document.getElementById('root')!, report); setSet(current => ({ meshes: next, generation: current.generation + 1 })); });
+      return report;
     };
+    (window as unknown as { checkWorker: typeof checkWorker }).checkWorker = checkWorker;
   }, []);
   const bounds = useMemo(() => {
     const min: [number, number, number] = [Infinity, Infinity, Infinity], max: [number, number, number] = [-Infinity, -Infinity, -Infinity];

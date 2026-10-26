@@ -70,6 +70,8 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     const element = canvas.current; if (!element || props.meshes.length === 0) return;
     const usesMaterials = props.sourceMaterials === true && props.meshes.some(mesh => mesh.sourceMaterial !== undefined);
     let disposed = false, frame: number | null = null, scene: MeshScene | null = null, drawn = false;
+    // The scene builds over several frames; releasing the canvas abandons that build.
+    const building = new AbortController();
     // Ready once a frame is drawn (or there is nothing to draw while hidden), so promoting this canvas never shows it empty.
     const ready = () => { if (!drawn) { drawn = true; latest.current.onReady(props.meshes); } };
     // Contact shading strength (0 to 1), the pending settle timer, and when the fade-in began.
@@ -80,7 +82,7 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       frame = requestAnimationFrame(() => { frame = null; try { render(); } catch { fail('The 3D model cannot be rendered.'); } });
     };
     const release = () => {
-      if (disposed) return; disposed = true;
+      if (disposed) return; disposed = true; building.abort();
       if (frame !== null) cancelAnimationFrame(frame); frame = null;
       if (settle !== null) clearTimeout(settle); settle = null;
       if (redraw.current === schedule) redraw.current = null;
@@ -109,7 +111,7 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     const resize = new ResizeObserver(schedule); resize.observe(element);
     try { materialGpuResources(props.meshes, usesMaterials, props.uploadBytes); } catch { fail('The 3D model cannot be rendered.'); }
     if (!disposed) {
-      void import('./mesh-scene').then(({ createMeshScene }) => createMeshScene(element, props.meshes, usesMaterials, lost)).then(created => {
+      void import('./mesh-scene').then(({ createMeshScene }) => createMeshScene(element, props.meshes, usesMaterials, lost, building.signal)).then(created => {
         if (disposed) { created.dispose(); return; }
         scene = created; stale.current = true; element.dataset.renderer = created.backend;
         redraw.current = schedule; schedule();

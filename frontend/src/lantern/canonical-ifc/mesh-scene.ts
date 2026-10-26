@@ -1,7 +1,7 @@
 import {
-  BufferAttribute, BufferGeometry, CustomBlending, DataTexture, DepthTexture, DoubleSide, FloatType, InterleavedBuffer, InterleavedBufferAttribute,
+  Box3, BufferAttribute, BufferGeometry, CustomBlending, DataTexture, DepthTexture, DoubleSide, FloatType, InterleavedBuffer, InterleavedBufferAttribute,
   LessEqualCompare, LinearFilter, LinearMipmapLinearFilter, LinearSRGBColorSpace, Matrix4, Mesh, NearestFilter, NoColorSpace, NoToneMapping, NodeMaterial,
-  OneFactor, OneMinusSrcAlphaFactor, OrthographicCamera, RenderPipeline, RenderTarget, RepeatWrapping, RGBAFormat, Scene, SRGBColorSpace, UnsignedByteType, Vector3,
+  OneFactor, OneMinusSrcAlphaFactor, OrthographicCamera, RenderPipeline, RenderTarget, RepeatWrapping, RGBAFormat, Scene, Sphere, SRGBColorSpace, UnsignedByteType, Vector3,
   WebGPUCoordinateSystem, WebGPURenderer, type Node,
 } from 'three/webgpu';
 import {
@@ -37,9 +37,37 @@ const SUN_MAP = 2048, SUN_OFFSET = .04, SUN_SOFTNESS = 2.5, SUN_TAPS = 5;
  * pixel or more out; more steps start inside one depth texel and read flat
  * walls as speckled self-occlusion. */
 const OCCLUSION_RADIUS = .8, OCCLUSION_SAMPLES = 8, OCCLUSION_STRENGTH = .6;
+/** Merged vertices per GPU buffer set (18 MiB across the three streams), cut at
+ * a triangle boundary: the Light model stays a few draws, and no single upload
+ * of the Full model holds up a frame. */
+const PIECE_VERTICES = 3 * 2 ** 18;
+/** Buffer bytes of one full piece: position, normal and mesh index streams. */
+const PIECE_BYTES = PIECE_VERTICES * (12 + 8 + 4);
+/** Building a scene works in slices of about this long, with a frame drawn
+ * between slices, so the page keeps moving while a large model is prepared. */
+const SLICE_MS = 6;
 
+/** Resolves just after the next frame is drawn, or at once while the page is
+ * hidden and draws nothing. A message task, unlike a timer, is never throttled. */
+const afterNextFrame = () => new Promise<void>(resolve => {
+  const run = () => { const channel = new MessageChannel(); channel.port1.onmessage = () => { channel.port1.close(); resolve(); }; channel.port2.postMessage(null); };
+  if (document.hidden) run(); else requestAnimationFrame(run);
+});
+
+/** Work between frames: `due()` once a slice is spent, then `next()` lets a frame draw first. */
+function frameSlices(signal: AbortSignal | undefined) {
+  let start = performance.now();
+  return {
+    due: () => performance.now() - start > SLICE_MS,
+    async next() { await afterNextFrame(); signal?.throwIfAborted(); start = performance.now(); },
+  };
+}
+
+/** Builds the scene in frame-sized slices: geometry merges, uploads and
+ * pipeline compiles are spread over frames before it resolves, so the first
+ * render() does no bulk work. `signal` abandons a build that is no longer wanted. */
 export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonly PreparedMesh[], useMaterials: boolean,
-  onLost: (message: string) => void): Promise<MeshScene> {
+  onLost: (message: string) => void, signal?: AbortSignal): Promise<MeshScene> {
   // Choose the backend here: WebGL2 is an expected fallback, not something for three.js to warn about.
   const webgpu = await navigator.gpu?.requestAdapter().then(adapter => adapter !== null, () => false) ?? false;
   const renderer = new WebGPURenderer({ canvas, antialias: true, alpha: true, forceWebGL: !webgpu });
@@ -57,6 +85,8 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
 
   async function build(): Promise<MeshScene> {
     await renderer.init();
+    signal?.throwIfAborted();
+    const slice = frameSlices(signal);
     // three.js runs its own requestAnimationFrame clock from init, which also
     // advances its node frame. This view draws only on demand, so the idle loop
     // is stopped and render() advances the frame itself.
@@ -227,30 +257,48 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       }
       return map;
     };
-    const geometryOf = (members: readonly number[], extra?: Float32Array) => {
-      let vertices = 0; for (const index of members) vertices += meshes[index]!.triangles * 3;
-      const position = new Float32Array(vertices * 3), normal = new Int16Array(vertices * 4), id = new Float32Array(vertices);
-      let at = 0;
+    /** Merged vertex streams for `members` in source order, cut into pieces of
+     * at most `limit` vertices; each piece is one geometry and one GPU upload. */
+    const geometriesOf = async (members: readonly number[], limit = PIECE_VERTICES, extra?: Float32Array) => {
+      let left = 0; for (const index of members) left += meshes[index]!.triangles * 3;
+      // The sphere three.js would otherwise compute on the first frame by walking
+      // every vertex: its centre is the box centre of the members' exact bounds,
+      // which orders the draws as one merged geometry did, and pieces of one
+      // merge keep source order. Only the centre is read (no culling, no rays).
+      const box = new Box3(), corner = new Vector3();
+      for (const index of members) if (meshes[index]!.triangles > 0) {
+        const { min, max } = meshes[index]!.bounds; box.expandByPoint(corner.set(...min)); box.expandByPoint(corner.set(...max));
+      }
+      const sphere = new Sphere(box.getCenter(new Vector3()), box.getSize(corner).length() / 2);
+      const pieces: BufferGeometry[] = [];
+      let position = new Float32Array(0), normal = new Int16Array(0), id = new Float32Array(0), at = 0, work = 0;
+      const open = () => {
+        const size = Math.min(limit, left);
+        position = new Float32Array(size * 3); normal = new Int16Array(size * 4); id = new Float32Array(size); at = 0;
+        const geometry = new BufferGeometry();
+        geometry.setAttribute('position', new BufferAttribute(position, 3));
+        geometry.setAttribute('normal', new BufferAttribute(normal, 4, true));
+        geometry.setAttribute('meshIndex', new BufferAttribute(id, 1));
+        geometry.boundingSphere = sphere.clone();
+        owned.push(geometry); pieces.push(geometry);
+      };
       for (const index of members) {
         const source = meshes[index]!.vertices;
-        for (let v = 0; v < source.length / 6; v++, at++) {
+        for (let v = 0; v < source.length / 6; v++, at++, left--) {
+          if (at === id.length) open();
           position[at * 3] = source[v * 6]!; position[at * 3 + 1] = source[v * 6 + 1]!; position[at * 3 + 2] = source[v * 6 + 2]!;
           for (let axis = 0; axis < 3; axis++) normal[at * 4 + axis] = Math.round(Math.max(-1, Math.min(1, source[v * 6 + 3 + axis]!)) * 32767);
           id[at] = index;
+          if (++work === 0x4000) { work = 0; if (slice.due()) await slice.next(); }
         }
       }
-      const geometry = new BufferGeometry();
-      geometry.setAttribute('position', new BufferAttribute(position, 3));
-      geometry.setAttribute('normal', new BufferAttribute(normal, 4, true));
-      geometry.setAttribute('meshIndex', new BufferAttribute(id, 1));
-      if (extra) {
+      if (extra && pieces[0]) {
         const stream = new InterleavedBuffer(extra, 9);
-        geometry.setAttribute('materialUv', new InterleavedBufferAttribute(stream, 2, 0));
-        geometry.setAttribute('shadingNormal', new InterleavedBufferAttribute(stream, 3, 2));
-        geometry.setAttribute('materialTangent', new InterleavedBufferAttribute(stream, 4, 5));
+        pieces[0].setAttribute('materialUv', new InterleavedBufferAttribute(stream, 2, 0));
+        pieces[0].setAttribute('shadingNormal', new InterleavedBufferAttribute(stream, 3, 2));
+        pieces[0].setAttribute('materialTangent', new InterleavedBufferAttribute(stream, 4, 5));
       }
-      owned.push(geometry);
-      return geometry;
+      return pieces;
     };
     const shared = { reference: make(MeshPass.Reference), ghost: make('ghost') };
     // Solid geometry: every drawn, uncut face once, coloured by its view-space normal.
@@ -277,17 +325,21 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     for (const pass of groups) {
       const members = meshes.flatMap((mesh, index) => (mesh.occurrenceId !== null) === (pass === MeshPass.Bound) && !textured(index) ? [index] : []);
       if (members.length === 0) continue;
-      const geometry = geometryOf(members), material = make(pass); owned.push(material);
-      add(geometry, MeshPass.Reference, shared.reference, 0); add(geometry, pass, material, pass); add(geometry, 'ghost', shared.ghost, 4);
+      const material = make(pass); owned.push(material);
+      for (const geometry of await geometriesOf(members)) {
+        add(geometry, MeshPass.Reference, shared.reference, 0); add(geometry, pass, material, pass); add(geometry, 'ghost', shared.ghost, 4);
+      }
     }
-    meshes.forEach((mesh, index) => {
-      if (!textured(index)) return;
-      const source = mesh.sourceMaterial!, geometry = geometryOf([index], mesh.materialVertices!);
+    for (const [index, mesh] of meshes.entries()) {
+      if (!textured(index)) continue;
+      // The extra attribute stream follows the mesh's own vertices, so a textured mesh stays one piece.
+      const source = mesh.sourceMaterial!, [geometry] = await geometriesOf([index], Infinity, mesh.materialVertices!);
+      if (!geometry) continue;
       const maps = { base: mapOf(source.baseColorTexture), normal: mapOf(source.normalTexture), metalRough: mapOf(source.metallicRoughnessTexture) };
       const pass = mesh.occurrenceId !== null ? MeshPass.Bound : MeshPass.Unbound;
       const material = make(pass, { source, maps: Object.fromEntries(Object.entries(maps).filter(([, map]) => map)) }); owned.push(material);
       add(geometry, MeshPass.Reference, shared.reference, 0); add(geometry, pass, material, pass); add(geometry, 'ghost', shared.ghost, 4);
-    });
+    }
 
     // Mesh bounds, for fitting the sun's view; lifts are added per frame.
     const low = new Vector3(Infinity, Infinity, Infinity), high = new Vector3(-Infinity, -Infinity, -Infinity);
@@ -322,6 +374,28 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const pipeline = new RenderPipeline(renderer, vec4(color.rgb.mul(shade), color.a));
     pipeline.outputColorTransform = false;
     owned.push(geometryPass, colorPass, occlusion, pipeline);
+
+    // Upload every piece and compile every pipeline ahead of the first frame,
+    // at most a piece's worth of buffers per frame, so a large model never
+    // moves all its buffers, or waits on its shaders, inside one frame, and
+    // many small textured meshes share frames. The canvas and the sun's map
+    // are separate targets, each with its own pipelines.
+    const uploaded = new Set<BufferGeometry>();
+    let pending = 0;
+    for (const { mesh } of layers) {
+      await renderer.compileAsync(mesh, camera, scene); signal?.throwIfAborted();
+      if (!uploaded.has(mesh.geometry)) {
+        uploaded.add(mesh.geometry);
+        // Interleaved attributes share one array; count it once.
+        for (const array of new Set(Object.values(mesh.geometry.attributes).map(attribute => attribute.array))) pending += array.byteLength;
+      }
+      if (pending >= PIECE_BYTES || slice.due()) { pending = 0; await slice.next(); }
+    }
+    for (const body of solidScene.children) {
+      renderer.setRenderTarget(sunTarget);
+      try { await renderer.compileAsync(body, sun, solidScene); } finally { renderer.setRenderTarget(null); }
+      signal?.throwIfAborted(); if (slice.due()) await slice.next();
+    }
 
     let disposed = false, sunStale = true;
     return {
