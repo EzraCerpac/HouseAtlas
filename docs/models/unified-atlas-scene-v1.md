@@ -368,6 +368,29 @@ entry/return, same-room 2D/3D navigation and electrical/network overlays. Record
 desktop/mobile pixels and a real interaction playthrough. CPU parsing, static
 Blender renders, synthetic fixtures and obsolete-head CI do not replace this.
 
+## Night marks for time-of-day lighting
+
+After dusk the 3D view lights lamps and building glass from core glTF material
+properties the server already admits; no extension, extra or name is needed.
+A primitive is a lamp's glowing glass or bulb when its material has a nonzero
+`emissiveFactor` (the producer keeps emission strength at or below 1, since
+`KHR_materials_emissive_strength` is refused). It glows and lights the faces
+near it, up to 16 lamps at a time. Its glowing faces also set its direction,
+with no separate mark: when their area-weighted outward normals (front faces,
+counter-clockwise) keep at least half of their total area, as a flat or
+one-sided lens does, the lamp throws a beam about 40° wide that way, as
+headlights or a downlight do. A closed or all-round glowing surface, such as a
+bulb or a glass box, lights all around. Building glass, bound as `structure` or
+`roof`, is a material with `alphaMode: "BLEND"` and a `baseColorFactor` alpha
+below 1, not `KHR_materials_transmission`, which is refused; it shows the
+lamp-lit room behind it. Until a model carries these marks, a material whose
+own name (never its mesh's or node's) holds a generic glass word counts as
+glass, or as a lamp when the name also holds a lamp word and the material
+states no `emissiveFactor`. A stated zero factor stops a name from making a
+lamp, but a glass word still makes the material building glass. Every lamp
+glows one fixed warm colour; the hue of `emissiveFactor` is not used yet, only
+whether it is nonzero. Day lighting ignores all of it.
+
 ## Existing bounded embedded-PNG material consumer
 
 The Unified live and Saved consumers opt into
