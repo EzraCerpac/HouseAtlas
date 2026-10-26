@@ -2,15 +2,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
+import { validateLinearProposal as validate } from './validate.mjs';
 const load = name => JSON.parse(readFileSync(new URL(name, import.meta.url)));
-const schema = load('schema.json');
 const { records, syntheticGeometry } = load('examples.json');
-const ajv = new Ajv2020({ strict: true, allErrors: true, allowUnionTypes: true });
-addFormats(ajv);
-const validate = ajv.compile(schema);
-const check = record => assert.equal(validate(record), true, JSON.stringify(validate.errors));
+const check = record => assert.equal(validate(record), true);
 
 test('six explicit synthetic proposals retain exact source facts without mutation', () => {
   for (const record of Object.values(records)) {
@@ -66,4 +61,35 @@ test('proposal shape refuses incompatible quantities, units and ambiguous number
   reject(r => { r.provenance.support = 'evidence-linked'; });
   reject(r => { r.coverage.status = 'partial'; });
   reject(r => { r.target.roomLabel = 'Synthetic room'; });
+});
+
+test('decimal text cannot carry LF, CR or CRLF suffixes', () => {
+  for (const suffix of ['\n', '\r', '\r\n']) {
+    const record = structuredClone(records.enteredSpan);
+    record.value.decimal += suffix;
+    assert.equal(validate(record), false, `Refuse decimal suffix ${JSON.stringify(suffix)}`);
+  }
+});
+
+test('height datum tokens must differ without resolving physical identity', () => {
+  const record = structuredClone(records.documentHeight);
+  record.definition.upperDatumRef = record.definition.lowerDatumRef;
+  const before = structuredClone(record);
+  assert.equal(validate(record), false);
+  assert.deepEqual(record, before);
+});
+
+test('outer, hole and excluded boundary token sets are pairwise disjoint', () => {
+  for (const [left, right] of [
+    ['outerRingRefs', 'holeRingRefs'],
+    ['outerRingRefs', 'excludedBoundaryRefs'],
+    ['holeRingRefs', 'excludedBoundaryRefs'],
+  ]) {
+    const record = structuredClone(records.outerAndHole);
+    record.definition[right].push(record.definition[left][0]);
+    if (right === 'excludedBoundaryRefs') record.definition.exclusionReason = 'Synthetic exclusion.';
+    const before = structuredClone(record);
+    assert.equal(validate(record), false, `Refuse shared token between ${left} and ${right}`);
+    assert.deepEqual(record, before);
+  }
 });

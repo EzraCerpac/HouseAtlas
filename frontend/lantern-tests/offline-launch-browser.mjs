@@ -6,6 +6,8 @@
  *
  *   --case offline-launch  listener closed (connection refused) before reopen
  *   --case hung-network    listener accepts `/` but never answers ("lie-fi")
+ *   --case live-launch     live entry `/`, generated cached Atlas and a waiting
+ *                          outbox entry survive closing and reopening the tab
  *
  * Requires `npm --prefix frontend run build` first, Node 26.10.0 and an
  * inspected HOUSEATLAS_CHROMIUM executable. Prints launch timings. */
@@ -16,12 +18,13 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { transformWithOxc } from 'vite';
 
-const CASES = { 'offline-launch': 2_000, 'hung-network': 3_000 };
-assert.equal(process.argv.length, 4, 'Select --case offline-launch or --case hung-network');
+const CASES = { 'offline-launch': 2_000, 'hung-network': 3_000, 'live-launch': 2_000 };
+assert.equal(process.argv.length, 4, 'Select --case offline-launch, hung-network or live-launch');
 assert.equal(process.argv[2], '--case');
 const selected = process.argv[3], budgetMs = CASES[selected];
-assert(budgetMs, 'Select --case offline-launch or --case hung-network');
+assert(budgetMs, 'Select --case offline-launch, hung-network or live-launch');
 const chromium = process.env.HOUSEATLAS_CHROMIUM;
 assert(chromium && existsSync(chromium), 'Set HOUSEATLAS_CHROMIUM to the inspected local Chromium executable');
 const dist = resolve(dirname(fileURLToPath(import.meta.url)), '../dist');
@@ -48,6 +51,47 @@ const server = createServer((request, response) => {
 server.on('connection', socket => { sockets.add(socket); socket.on('close', () => sockets.delete(socket)); });
 await new Promise(done => server.listen(0, '127.0.0.1', done));
 const origin = `http://127.0.0.1:${server.address().port}`;
+
+// Reuse the public generated publication and the production storage APIs. Only
+// the live-launch case seeds device data; neither a session nor a DOM result is
+// fabricated. These data modules are test setup, not additional served assets.
+async function sourceURL(relative, replacements = {}) {
+  const file = new URL(relative, import.meta.url);
+  let { code } = await transformWithOxc(readFileSync(file, 'utf8'), file.pathname, {
+    lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false,
+  });
+  for (const [specifier, url] of Object.entries(replacements)) {
+    assert.ok(code.includes(JSON.stringify(specifier)), `Missing import ${specifier}`);
+    code = code.replaceAll(JSON.stringify(specifier), JSON.stringify(url));
+  }
+  for (const match of code.matchAll(/^\s*import\s+(?:[\w$\s{},*]+?\s+from\s+)?["']([^"']+)["']/gm))
+    assert.ok(match[1].startsWith('data:'), `Unexpected setup import ${match[1]}`);
+  return `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
+}
+async function liveLaunchSeed() {
+  const { buildSyntheticAtlas, composeAtlasEnvelope, SYNTHETIC_ATLAS, sha256Hex } = await import('./unified-atlas/synthetic-atlas.ts');
+  const scope = { workspaceId: '00000000-0000-4000-8000-000000000800', homeId: '00000000-0000-4000-8000-000000000801' };
+  const { glb, companionBytes } = await buildSyntheticAtlas(scope);
+  const composed = await composeAtlasEnvelope(companionBytes, glb, SYNTHETIC_ATLAS.revision);
+  const byteStoreURL = await sourceURL('../integration/native-geometry-scan-cache.ts');
+  const cacheURL = await sourceURL('../integration/unified-atlas-cache.ts', { './native-geometry-scan-cache': byteStoreURL });
+  const outboxURL = await sourceURL('../src/outbox/store.ts');
+  const owner = { actorId: 'synthetic-offline-launch-actor', ...scope };
+  const requestId = 'synthetic-offline-launch-request';
+  // Same persisted entry shape as the existing generated outbox examples. It
+  // is deliberately never sent: this static fixture has no canonical session
+  // or stock command server and cannot establish reconnect authorization.
+  const entry = { id: 'synthetic-offline-launch-edit', seq: 1, owner, kind: 'place-name',
+    label: 'Rename generated room after offline launch',
+    target: { recordType: 'location-semantics', recordId: 'synthetic-room' },
+    intent: { label: 'Generated renamed room' }, commandId: 'atlas.batch.execute', requestId,
+    body: JSON.stringify({ commandId: 'atlas.batch.execute', requestId,
+      idempotencyKey: 'synthetic-offline-launch-key', target: 'synthetic-room', base: 1 }),
+    createdAt: '2026-01-03T10:15:00.000Z', state: 'waiting', sent: false, problem: null, settledAt: null };
+  return { cacheURL, outboxURL, owner, entry, publicationId: SYNTHETIC_ATLAS.publicationId,
+    manifestSha256: composed.manifestSha256, modelSha256: composed.sha256,
+    envelopeSha256: await sha256Hex(composed.envelopeBytes), envelope: [...composed.envelopeBytes], model: [...glb] };
+}
 
 class Pipe {
   next = 0; pending = new Map(); buffer = Buffer.alloc(0); listeners = new Set();
@@ -87,8 +131,8 @@ const browser = spawn(chromium, ['--headless=new', '--no-sandbox', '--disable-gp
 const cdp = new Pipe(browser);
 const timeout = (ms, label) => new Promise((_, reject) => setTimeout(() => reject(new Error(label)), ms).unref());
 try {
-  const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
-  const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
+  let { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
+  let { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params) => cdp.send(method, params, sessionId);
   await send('Page.enable'); await send('Runtime.enable');
   const evaluate = async expression => {
@@ -105,8 +149,10 @@ try {
     }
   };
 
-  // 1. Online: the Saved entry verifies the public shell and prepares the root worker.
-  await send('Page.navigate', { url: origin + '/saved/index.html' });
+  // 1. Online: the Saved entry, or after its load any live launch, verifies the
+  // public shell and prepares the root worker. Here the live entry finds no
+  // backend, which changes nothing: the shell is public build files only.
+  await send('Page.navigate', { url: origin + (selected === 'live-launch' ? '/' : '/saved/index.html') });
   await poll(`(async () => {
     const root = await navigator.serviceWorker.getRegistration('/'), saved = await navigator.serviceWorker.getRegistration('/saved/');
     return root?.active?.state === 'activated' && saved?.active?.state === 'activated'
@@ -115,11 +161,48 @@ try {
   const installed = served;
 
   // 2. Network gone. Reopen the installed start URL.
-  if (selected === 'offline-launch') {
+  if (selected !== 'hung-network') {
     await new Promise(done => { server.close(done); for (const socket of sockets) socket.destroy(); });
   } else mode = 'hung';
   served = 0; servedPaths = [];
-  await send('Page.navigate', { url: 'about:blank' });
+  let seeded = null;
+  const reopenWrites = [];
+  if (selected === 'live-launch') {
+    seeded = await liveLaunchSeed();
+    const { cacheURL, outboxURL, owner, entry, publicationId, manifestSha256, modelSha256,
+      envelopeSha256, envelope, model } = seeded;
+    assert.deepEqual(await evaluate(`(async () => {
+      const { openUnifiedAtlasStore, observeUnifiedAtlasActor, createUnifiedAtlasCache } = await import(${JSON.stringify(cacheURL)});
+      const { openOutboxStore } = await import(${JSON.stringify(outboxURL)});
+      const store = openUnifiedAtlasStore(indexedDB); await store.ready();
+      try {
+        // A synthetic display-only actor observation publishes the pointer;
+        // this is not a canonical live session or authority to send the edit.
+        const owner = ${JSON.stringify(owner)};
+        const actor = await observeUnifiedAtlasActor(store, owner.actorId);
+        if (!actor) throw new Error('Synthetic Atlas actor observation was not retained');
+        const cache = createUnifiedAtlasCache(store, owner, actor);
+        cache.keepModel(${JSON.stringify(modelSha256)}, new Uint8Array(${JSON.stringify(model)}));
+        cache.keepScene(${JSON.stringify(publicationId)}, ${JSON.stringify(manifestSha256)},
+          new Uint8Array(${JSON.stringify(envelope)}), ${JSON.stringify(envelopeSha256)}, null);
+      } finally { await store.close(); }
+      const outbox = openOutboxStore(indexedDB);
+      try { await outbox.put(${JSON.stringify(entry)}); return await outbox.list(); }
+      finally { outbox.close(); }
+    })()`), [entry], 'the complete generated queue record is durable before close');
+    // Close the application target, rather than merely reloading its React
+    // tree. The new target shares only the device profile and retained stores.
+    assert.equal((await cdp.send('Target.closeTarget', { targetId })).success, true);
+    ({ targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' }));
+    ({ sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true }));
+    await send('Page.enable'); await send('Runtime.enable');
+    cdp.listeners.add(message => {
+      if (message.sessionId === sessionId && message.method === 'Network.requestWillBeSent'
+        && !['GET', 'HEAD'].includes(message.params.request.method))
+        reopenWrites.push({ method: message.params.request.method, url: message.params.request.url });
+    });
+    await send('Network.enable');
+  } else await send('Page.navigate', { url: 'about:blank' });
   const started = Date.now();
   send('Page.navigate', { url: origin + '/' }).catch(() => {});
   const shown = await Promise.race([
@@ -137,6 +220,26 @@ try {
   // check, not shell bytes: the shell itself must still come from the cache.
   const updateChecks = new Set(['/offline-entry-worker.js', '/saved/service-worker.js']);
   assert.deepEqual(servedPaths.filter(path => !updateChecks.has(path)), [], 'Offline reopen fetched public shell bytes from the network');
+  if (seeded) {
+    // Assert actual application output from the retained generated publication,
+    // not just a shell, a cache record, or an injected waiting-count element.
+    await poll(`(() => {
+      const atlas = document.querySelector('.saved-stage .ua-shell.is-stage');
+      const buildings = atlas?.querySelector('[aria-label="Buildings"]')?.textContent ?? '';
+      const status = atlas?.querySelector('.ua-stored-note')?.textContent ?? '';
+      const offline = document.querySelector('.saved-header .saved-live')?.textContent ?? '';
+      return buildings.includes('Synthetic house') && buildings.includes('Synthetic studio')
+        && status.includes('Stored copy') && status.includes('not updated')
+        && offline.includes('Offline') && offline.includes('1 change waiting');
+    })()`, 15_000, 'Reopened app did not show the generated cached Atlas and its waiting outbox count');
+    assert.deepEqual(await evaluate(`(async () => {
+      const { openOutboxStore } = await import(${JSON.stringify(seeded.outboxURL)});
+      const store = openOutboxStore(indexedDB);
+      try { return await store.list(); } finally { store.close(); }
+    })()`), [seeded.entry], 'closing and reopening offline retains the exact owner, intent, command bytes and waiting state');
+    assert.deepEqual(reopenWrites, [], 'the read-only offline reopen does not dispatch the queued edit or another write');
+    console.log('PASS live-launch: generated cached Atlas and 1 waiting edit shown after actual tab close/reopen; exact queue bytes retained; reconnect sync not exercised');
+  }
   console.log(`PASS ${selected}: Saved shell shown ${launchMs} ms after reopening /; generated build only, not iOS or installed-PWA proof`);
 } finally {
   for (const response of held) response.destroy();

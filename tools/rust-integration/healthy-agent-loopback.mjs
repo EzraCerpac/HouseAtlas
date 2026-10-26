@@ -47,10 +47,10 @@ class Pipe {
       }
     });
   }
-  send(method, params = {}, sessionId) {
+  send(method, params = {}, sessionId, timeoutMs = 15000) {
     const id = ++this.next;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('CDP timeout: ' + method)); }, 15000);
+      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('CDP timeout: ' + method)); }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
       this.process.stdio[3].write(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + '\0');
     });
@@ -67,7 +67,8 @@ try {
   assert.match(origin, /^https:\/\/127\.0\.0\.1:\d+$/);
   browser = spawn(chromium, ['--headless=new', '--enable-experimental-web-platform-features', '--enable-features=WebMCP', '--no-sandbox', '--disable-gpu', '--remote-debugging-pipe', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-features=MediaRouter,OptimizationHints', '--ignore-certificate-errors', '--user-data-dir=' + join(scratch, 'browser'), 'about:blank'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
   cdp = new Pipe(browser);
-  const version = await cdp.send('Browser.getVersion');
+  // A cold Chrome right after the build can take well over 15 s to answer its first call (as in healthy-loopback.mjs).
+  const version = await cdp.send('Browser.getVersion', {}, undefined, 60000);
   // Exact source-inspected native executeTool input forms: the 151/154 IDLs take
   // DOMString JSON text; inspected 155.0.8059.39/.84 take a structured object. Any other
   // version requires source inspection before this ordinary flow runs.

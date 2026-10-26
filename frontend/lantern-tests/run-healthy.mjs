@@ -34,7 +34,7 @@ const SOURCE = [
   node('scene-controls-keyboard.test.mjs'), node('source-documents-reader.test.mjs'),
   node('source-time-display.mjs'),
   node('topology-read.mjs'),
-  node('webmcp-batch-discovery.mjs'),
+  node('webmcp-batch-discovery.mjs'), node('webmcp-adapter-healthy.mjs'),
   // Offline / saved copy
   node('offline-atlas-mounting-healthy.mjs'), node('offline-atlas-overlays-healthy.mjs'),
   node('offline-atlas-presentation-healthy.mjs'), node('offline-catalog-mounting-healthy.mjs'),
@@ -52,8 +52,9 @@ const SOURCE = [
 ];
 const BUILD = [node('check-backend-frontend-compat.mjs')];
 const BROWSER = [
-  ...cases('offline-launch-browser.mjs', '--case', ['offline-launch', 'hung-network']),
+  ...cases('offline-launch-browser.mjs', '--case', ['offline-launch', 'hung-network', 'live-launch']),
   ...cases('mesh-layer-browser.mjs', '--case', ['webgl2']),
+  node('unified-atlas-plan-wheel-browser.mjs'),
 ];
 
 const only = process.argv[2] === '--only' ? process.argv[3] : null;
