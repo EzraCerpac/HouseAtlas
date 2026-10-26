@@ -59,6 +59,10 @@ export interface AppearanceInput {
    * face with one of them above it reads as indoors and takes the lamp light. Hiding or cutting
    * them away leaves the rooms beneath lit. */
   readonly shelterKeys?: ReadonlySet<string> | undefined;
+  /** With daylight only: room volumes. When any is given, a face lights as indoors at night
+   * only where its probe also stands within a room's footprint, so ground and walls under
+   * an eave, a carport or a terrace edge stay dark. */
+  readonly roomKeys?: ReadonlySet<string> | undefined;
   /** With daylight only: building glass, which shows the lamp-lit room behind it at night. */
   readonly glazingKeys?: ReadonlySet<string> | undefined;
   /** With daylight only: lamp glass and bulbs, which glow at night and light what is near them. */
@@ -112,7 +116,7 @@ export type MeshPass = typeof MeshPass[keyof typeof MeshPass];
 export const STATE_TEXELS = 8;
 /** Floats per mesh in the state table. Layout, by texel:
  * 0 top.rgb, usePitch · 1 base.rgb, useSourceColor · 2 cut.rgb, useClip · 3 pitch.rgb, clipY
- * 4 shade.rgb, lift · 5 pass, ghost, ghostUseFloor, ghostFloorY · 6 useMaterial, materialDim · 7 shelter, keepTone, glazing, emitter */
+ * 4 shade.rgb, lift · 5 pass, ghost, ghostUseFloor, ghostFloorY · 6 useMaterial, materialDim, room · 7 shelter, keepTone, glazing, emitter */
 export const STATE_FLOATS = STATE_TEXELS * 4;
 
 /** Emitters that light their surroundings in one frame, and how close two must be to count as one. */
@@ -141,6 +145,8 @@ export interface FrameAppearance {
   /** Up to MAX_LAMPS shown emitters, merged when close and aimed alike, as lifted
    * points that light their surroundings, or a cone along `aim`. */
   readonly lamps: readonly Lamp[];
+  /** Whether any mesh is a room volume, so indoors also needs a room's footprint. */
+  readonly rooms: boolean;
   /** Passes with at least one mesh this frame; empty passes are skipped. */
   readonly passes: ReadonlySet<MeshPass>;
   readonly ghosts: boolean;
@@ -157,7 +163,7 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
   const SITE = p.twoSided && p.site ? rgb(p.site.tone) : null;
   const SOURCE_DIM = clamp01(p.sourceDim ?? 1);
   const DAY = p.twoSided && p.daylight ? p.daylight : null;
-  const passes = new Set<MeshPass>(); let ghosts = false;
+  const passes = new Set<MeshPass>(); let ghosts = false, rooms = false;
   type Gathered = { at: Rgb; aim: Rgb | null; count: number };
   const lamps: Gathered[] = [];
   // Gathered lamps by the LAMP_MERGE cell of their centre, so the cells next to an
@@ -214,6 +220,7 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     put(4, shade, p.lifts?.get(key) ?? 0);
     out[o + 20] = pass; out[o + 21] = ghost ? 1 : 0; out[o + 22] = above === null ? 0 : 1; out[o + 23] = above ?? 0;
     out[o + 24] = source && p.sourceMaterials && mesh.sourceMaterial ? 1 : 0; out[o + 25] = clamp01(dim * SOURCE_DIM);
+    const room = DAY !== null && p.roomKeys?.has(key) === true; out[o + 26] = room ? 1 : 0; if (room) rooms = true;
     out[o + 28] = DAY && p.shelterKeys?.has(key) ? 1 : 0; out[o + 29] = DAY && keep ? 1 : 0;
     const emitter = DAY !== null && p.emitterKeys?.has(key) === true;
     out[o + 30] = DAY && p.glazingKeys?.has(key) ? 1 : 0; out[o + 31] = emitter ? 1 : 0;
@@ -250,6 +257,6 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     direct: DAY ? clamp01(DAY.direct) : 1, night: DAY?.night === true, lamp: DAY ? clamp01(DAY.lamp) : 0,
     tint: DAY ? [...DAY.tint] as Rgb : [1, 1, 1], sunTint: DAY ? [...DAY.sunTint] as Rgb : [1, 1, 1], lampTint: DAY ? [...DAY.lampTint] as Rgb : [1, 1, 1],
     lamps: lamps.sort((a, b) => b.count - a.count).slice(0, MAX_LAMPS).map(({ at, aim }) => ({ at, aim })),
-    passes, ghosts,
+    rooms, passes, ghosts,
   };
 }

@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'vite';
 assert.equal(process.version, 'v26.10.0');
 globalThis.fetch = () => { throw new Error('Generated material tests forbid external fetch'); };
-const cases = ['slots', 'image-sharing', 'png-filters', 'png-adam7', 'accounting-1024', 'legacy-geometry', 'gpu-owner', 'precedence'];
+const cases = ['slots', 'image-sharing', 'png-filters', 'png-adam7', 'accounting-1024', 'four-maps-1024', 'legacy-geometry', 'gpu-owner', 'precedence'];
 assert.equal(process.argv.length, 4); assert.equal(process.argv[2], '--case'); assert(cases.includes(process.argv[3]), 'Select one explicit healthy case');
 const selected = process.argv[3], frontend = fileURLToPath(new URL('../', import.meta.url));
 const scratch = mkdtempSync(join(tmpdir(), 'houseatlas-embedded-material-'));
@@ -16,7 +16,7 @@ let h;
 try {
   const entry = join(scratch, 'entry.ts');
   writeFileSync(entry, `export * from ${JSON.stringify(join(frontend, 'lantern-tests/embedded-png-material-fixture.ts'))};\n`
-    + [['standard-glb', 'loadStandardGlb'], ['glb-preflight', 'readGlbContainer,preflightGltf'], ['embedded-png-material', 'admitRgbPng,decodeRgbPng,admitEmbeddedPngMaterials,rgbaMipBytes,EMBEDDED_PNG_LIMITS'],
+    + [['standard-glb', 'loadStandardGlb'], ['glb-preflight', 'readGlbContainer,preflightGltf,STANDARD_GLB_LIMITS'], ['embedded-png-material', 'admitRgbPng,decodeRgbPng,admitEmbeddedPngMaterials,rgbaMipBytes,EMBEDDED_PNG_LIMITS'],
       ['geometry', 'prepareMeshes,makeProjection,sourceMeshColor,pick'], ['gpu-budget', 'materialGpuResources'], ['mesh-appearance', 'writeAppearance,STATE_FLOATS,MeshPass']].map(([file, names]) => `export { ${names} } from ${JSON.stringify(join(frontend, 'src/lantern/canonical-ifc/' + file))};`).join('\n'));
   const built = await build({ root: frontend, configFile: false, logLevel: 'silent',
     build: { write: false, target: 'node26', lib: { entry, formats: ['es'] }, rolldownOptions: { external: ['react/jsx-runtime'], output: { codeSplitting: false } }, minify: false } });
@@ -48,6 +48,16 @@ if (selected === 'png-filters' || selected === 'png-adam7') {
   assert.equal(loaded.work.gpuBytes, plain.work.triangles * 72 + plan.expandedAttributeBytes + 16_777_212);
   assert.equal(h.materialGpuResources(loaded.meshes, true).bytes, loaded.work.gpuBytes);
   assert(plan.encodedBytes <= 4_194_304 && plan.scratchBytes <= 8_388_608 && plan.preparedBytes <= 100_663_296 && plan.gpuBytes <= 67_108_864);
+} else if (selected === 'four-maps-1024') {
+  // More images than one material's three slots; the tier budget, not a count, decides.
+  const fixture = await h.generatedMaterialGlb(1024, false, 4), container = h.readGlbContainer(fixture.bytes);
+  const plain = h.preflightGltf(container), plan = h.admitEmbeddedPngMaterials(container, plain);
+  assert.equal(plan.images.length, 4); assert.equal(plan.rgbaBytes, 4 * 4_194_304);
+  assert.equal(plan.gpuBytes, plain.work.triangles * 72 + plan.expandedAttributeBytes + 4 * h.rgbaMipBytes(1024, 1024));
+  const loaded = await h.loadStandardGlb(fixture.bytes, 'four-maps', signal(), undefined, { embeddedPngMaterials: true });
+  assert.equal(h.materialGpuResources(loaded.meshes, true).bytes, loaded.work.gpuBytes);
+  assert.throws(() => h.admitEmbeddedPngMaterials(container, plain, { ...h.STANDARD_GLB_LIMITS, gpuBytes: 16 * 1_048_576 }),
+    /needs 2\d\.\d MiB of GPU memory \(4 texture resources 21\.3 MiB, geometry 0\.0 MiB\); this quality tier allows 16\.0 MiB/);
 } else if (selected === 'image-sharing') {
   const fixture = await h.generatedMaterialGlb(3, true), container = h.readGlbContainer(fixture.bytes);
   const plain = h.preflightGltf(container), plan = h.admitEmbeddedPngMaterials(container, plain);
