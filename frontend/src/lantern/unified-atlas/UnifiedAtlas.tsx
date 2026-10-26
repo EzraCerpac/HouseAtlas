@@ -1726,7 +1726,9 @@ function FloorStack({ model, levels, buildings, buildingNav, building, state, di
         aria-label={`Building and floor: ${where}`} title={compact ? undefined : where} onKeyDown={keys}
         onPointerDown={event => { swipe.current = { y: event.clientY, moved: false }; }}
         onPointerMove={event => {
-          const start = swipe.current; if (!start || start.moved || Math.abs(event.clientY - start.y) < 16) return;
+          // A press released elsewhere never reached click: no button held, no swipe.
+        const start = swipe.current; if (start && event.buttons === 0) { swipe.current = null; return; }
+        if (!start || start.moved || Math.abs(event.clientY - start.y) < 16) return;
           start.moved = true; step(event.clientY < start.y ? 1 : -1);
         }}
         onPointerCancel={() => { swipe.current = null; }}

@@ -57,9 +57,10 @@
 /* ---- Beside a lens, and as its inset ------------------------------------- */
 
 /* On a phone the lens stands below a short map band: the room sheet and the
-   layer row give it their place, and return when the lens closes. */
+   layer details give it their place, and return when the lens closes. The
+   dock stays, so Plan and the layers still change the band. */
 .lantern-host .ua-shell.has-lens.is-compact .ua-inspector,
-.lantern-host .ua-shell.has-lens.is-compact .ua-bottom { display: none; }
+.lantern-host .ua-shell.has-lens.is-compact .ua-bottom > :not(.ua-dock) { display: none; }
 
 /* Read wide, the stage is a drawn inset: its controls and the room panel are
    set aside (not hidden behind it), so the model frames the inset whole. */
@@ -2130,7 +2131,9 @@
     scrollbar-width: thin;
     /* A scrollbar appearing never rewraps the rail and so re-measures it. */
     scrollbar-gutter: stable;
-    pointer-events: auto;
+    /* Room the rail opens into is left to the model until the rail fills it;
+       a wheel or swipe over the rail still scrolls this frame. */
+    pointer-events: none;
   }
 
   .lantern-host .ua-stack-floors { min-height: var(--ua-ladder-floor, 0px); }
