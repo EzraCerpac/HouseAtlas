@@ -287,7 +287,8 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     return copied.get(at);
   };
   // One material per source material and folded vertex colour, appended after the source materials.
-  const folded = new Map(), foldMaterial = (materialIndex, colour) => {
+  const folded = new Map(), replaced = new Set(), foldMaterial = (materialIndex, colour) => {
+    if (materialIndex !== undefined) replaced.add(materialIndex);
     const id = `${materialIndex ?? ''}|${colour.map(v => v.toFixed(4)).join(',')}`;
     if (!folded.has(id)) {
       const material = structuredClone(materialIndex === undefined ? {} : source.materials[materialIndex]);
@@ -335,15 +336,16 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     return mesh;
   });
   for (const node of json.nodes ?? []) if (node.mesh !== undefined) node.mesh = meshMap.get(node.mesh);
-  // Keep only referenced materials, so folded copies never leave their replaced
-  // originals counting against the server's material limit.
-  if (json.materials) {
-    const used = [...new Set(json.meshes.flatMap(mesh => mesh.primitives.map(p => p.material)).filter(at => at !== undefined))].sort((a, b) => a - b);
-    const kept = new Map(used.map((at, index) => [at, index])), materials = json.materials;
+  // Drop originals that folding left unreferenced, so they never count against
+  // the server's material limit. Their textures stay referenced by the folded
+  // copies; materials the master already left unused are kept as authored.
+  if (replaced.size > 0) {
+    const used = new Set(json.meshes.flatMap(mesh => mesh.primitives.map(p => p.material)));
+    const kept = json.materials.map((_, at) => at).filter(at => used.has(at) || !replaced.has(at));
+    const index = new Map(kept.map((at, i) => [at, i])), materials = json.materials;
     for (const mesh of json.meshes) for (const primitive of mesh.primitives)
-      if (primitive.material !== undefined) primitive.material = kept.get(primitive.material);
-    json.materials = used.map(at => materials[at]);
-    if (json.materials.length === 0) delete json.materials;
+      if (primitive.material !== undefined) primitive.material = index.get(primitive.material);
+    json.materials = kept.map(at => materials[at]);
   }
   for (const image of json.images ?? []) if (image.bufferView !== undefined) {
     const view = source.bufferViews[image.bufferView], start = view.byteOffset ?? 0;

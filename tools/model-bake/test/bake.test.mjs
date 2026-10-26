@@ -445,15 +445,18 @@ test('drops vertex attributes the server refuses, also where nothing is simplifi
 });
 
 test('folds vertex colours into the material colour before dropping them', async () => {
-  const glb = paint(paint(texturedMaster(), 'Wall', { COLOR_0: 'VEC4' }), 'Panel', { COLOR_0: 'VEC4' });
+  const painted = readGlb(paint(paint(texturedMaster(), 'Wall', { COLOR_0: 'VEC4' }), 'Panel', { COLOR_0: 'VEC4' }));
+  // A material the master already leaves unused stays declared, so its texture keeps a reference.
+  painted.json.materials.push({ name: 'Unused', pbrMetallicRoughness: { baseColorTexture: { index: 0 } } });
+  const glb = writeGlb(painted.json, painted.bin);
   for (const result of [await bakeDetail(glb, null), await bakeOverview(glb, null)]) {
     const { json } = readGlb(result.glb), material = name => json.materials[json.meshes[mesh(result.glb, name)].primitives[0].material];
     // No material: the colour alone. A textured material keeps its map, now tinted.
     assert.deepEqual(material('Wall').pbrMetallicRoughness, { baseColorFactor: [0.5, 0.5, 0.5, 1] });
     assert.deepEqual(material('Panel').pbrMetallicRoughness, { baseColorTexture: { index: 0 }, baseColorFactor: [0.5, 0.5, 0.5, 1] });
     assert.deepEqual(row(result, 'Wall').foldedVertexColour, [0.5, 0.5, 0.5]);
-    // The replaced textured original is no longer declared.
-    assert.equal(json.materials.length, 2);
+    // The replaced textured original is no longer declared; the unused one is.
+    assert.deepEqual(json.materials.map(m => m.name ?? null), ['Unused', null, null]);
   }
 });
 
