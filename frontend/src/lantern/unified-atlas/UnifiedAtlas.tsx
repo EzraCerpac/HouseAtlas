@@ -113,7 +113,6 @@ export interface AtlasPresentationEnvironment {
 }
 interface AtlasProps {
   readonly port: UnifiedAtlasPort | AtlasPresentationPort;
-  readonly onOpenModel?: () => void;
   readonly otherSources?: readonly OtherSource[];
   readonly environment?: AtlasPresentationEnvironment;
   /** The live host's lens; an explicit environment supplies its own. */
@@ -137,7 +136,7 @@ function LiveAtlasPresentation(props: AtlasProps) {
 function LensStatus({ lens, children }: { readonly lens: AtlasLensHost | undefined; readonly children: string }) {
   return lens?.value && lens.target ? createPortal(<p className="ua-lens-status" role="status">{children}</p>, lens.target) : null;
 }
-function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, environment }: AtlasProps & { readonly environment: AtlasPresentationEnvironment }) {
+function AtlasPresentation({ port: suppliedPort, otherSources, environment }: AtlasProps & { readonly environment: AtlasPresentationEnvironment }) {
   const port = useMemo(() => 'kind' in suppliedPort ? suppliedPort : createLiveAtlasPresentationPort(suppliedPort), [suppliedPort]);
   const subscribe = useCallback((changed: () => void) => port.subscribe(changed), [port]);
   const current = useCallback(() => port.current(), [port]);
@@ -290,10 +289,7 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
       <LensStatus lens={environment.lens}>The room map is unavailable, so its model rooms and network graph are not shown.</LensStatus>
       <div className="ua-state" role="alert">
         <p>{failure.text}</p>
-        <div className="ua-state-actions">
-          {failure.retry && <button type="button" className="btn btn-small" onClick={ask}>{failure.retry}</button>}
-          {onOpenModel && <button type="button" className="btn btn-small btn-quiet" onClick={onOpenModel}>Open model overview</button>}
-        </div>
+        {failure.retry && <div className="ua-state-actions"><button type="button" className="btn btn-small" onClick={ask}>{failure.retry}</button></div>}
       </div>
     </section>;
   }

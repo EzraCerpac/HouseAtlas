@@ -62,7 +62,7 @@ export function AtlasView() {
   const atlasSelection = useSyncExternalStore(models?.atlas?.subscribe ?? noOverviewSubscription,
     models?.atlas?.current ?? noOverview, noOverview);
   const [source, setSource] = useState<'home' | 'model' | 'site' | null>(null);
-  const [other, setOther] = useState<'model' | 'site' | null>(null);
+  const [other, setOther] = useState<'site' | null>(null);
   const lens = state.atlasLens;
   const setLens = useCallback((next: AtlasLens | null) => dispatch({ type: 'atlasLens', lens: next }), [dispatch]);
   const releaseReading = useCallback((claim: AtlasLens) => dispatch({ type: 'atlasReadingRelease', claim }), [dispatch]);
@@ -73,7 +73,7 @@ export function AtlasView() {
   const homeKind: MapKind = house.geometry === 'none' && !nativeGeometry ? 'document' : 'map';
   // Another source takes the Atlas's place; the lens belongs to the Atlas, so
   // it is set aside, and Back to Atlas returns to the map.
-  const openOther = (id: 'model' | 'site') => { setLens(null); setOther(id); };
+  const openOther = (id: 'site') => { setLens(null); setOther(id); };
   // A route to a lens (Rooms & places or Network from elsewhere) returns to the Atlas.
   useEffect(() => { if (lens) setOther(null); }, [lens]);
   const workspace = (kind: MapKind, map: ReactNode, native = false, sources?: ReactNode) => <AtlasWorkspace kind={kind} lens={lens} setLens={setLens}
@@ -81,17 +81,15 @@ export function AtlasView() {
   if (!models) return workspace(homeKind, <HomeAtlas />);
   // With the opt-in scene port and a selected publication, the unified Atlas is
   // the Atlas. The older home map and the plain model viewer would only show
-  // the same house again, so they are not offered beside it; the model viewer
-  // stays reachable from the Atlas's failure state.
+  // the same house again, so they are not offered beside it.
   if (models.atlas && atlasSelection) {
     const atlas = models.atlas;
     const others = models.site ? [{ id: 'site' as const, label: 'Site' }] : [];
-    const open = other === 'model' ? { id: 'model' as const, label: selectedOverview ? 'Model overview' : 'Model file' }
-      : others.find(row => row.id === other) ?? null;
+    const open = others.find(row => row.id === other) ?? null;
     // Other sources stay in the row above the stage.
     if (!open) return workspace('map', <OptionalViewerBoundary key="atlas" label="The Atlas">
       <Suspense fallback={<p className="source-model-pane" role="status">Loading Atlas…</p>}>
-        <UnifiedAtlas port={atlas} onOpenModel={() => openOther('model')}
+        <UnifiedAtlas port={atlas}
           otherSources={others.map(row => ({ id: row.id, label: row.label, open: () => openOther(row.id) }))}
           lens={{ value: lens, set: setLens, target: nativeTarget, panelId }} />
       </Suspense>
@@ -112,14 +110,10 @@ export function AtlasView() {
         <button type="button" className="text-btn" onClick={() => setOther(null)}><Icon name="back" size={16} />Back to Atlas</button>
         <h2>{open.label}</h2>
       </div>
-      {open.id === 'model'
-        ? <OptionalViewerBoundary key="model" label="The model viewer">
-          <Suspense fallback={<p className="source-model-pane" role="status">Loading model viewer…</p>}><SourceModelView port={models} /></Suspense>
-        </OptionalViewerBoundary>
-        : models.site && <OptionalViewerBoundary key="site" label="The site viewer">
-          <Suspense fallback={<p className="source-model-pane" role="status">Loading site viewer…</p>}>
-            <div className="source-model-pane"><SiteArtifactView port={models.site} /></div></Suspense>
-        </OptionalViewerBoundary>}
+      {models.site && <OptionalViewerBoundary key="site" label="The site viewer">
+        <Suspense fallback={<p className="source-model-pane" role="status">Loading site viewer…</p>}>
+          <div className="source-model-pane"><SiteArtifactView port={models.site} /></div></Suspense>
+      </OptionalViewerBoundary>}
     </>;
   }
   const preferred = source ?? (selectedOverview ? 'model' : 'home');
