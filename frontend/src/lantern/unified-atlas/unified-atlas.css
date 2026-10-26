@@ -463,8 +463,28 @@
   white-space: nowrap;
 }
 
-.lantern-host .ua-buildings,
-.lantern-host .ua-ladder {
+/* ---- The Floor Stack ------------------------------------------------------ */
+
+/* Where you are, building and floor, as one stack of paper slabs. Its box
+   keeps one size; only the paper inside widens over the stage, so opening it
+   never re-fits the model. Rows keep one height, open or closed. */
+.lantern-host .ua-stack {
+  --stack-row: 40px;
+  --stack-closed: 54px;
+  flex: 0 1 auto;
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  width: var(--stack-closed);
+  min-height: 0;
+}
+
+.lantern-host .ua-stack-paper {
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
   border-radius: var(--r-panel);
   border: 1px solid var(--ua-line);
   background: var(--ua-panel);
@@ -473,55 +493,77 @@
   color: var(--ink);
 }
 
-/* Buildings: one card of rows; the chosen building in ink. */
-.lantern-host .ua-buildings {
+/* The head: a slab glyph with the current floor lit, its mark, and where. */
+.lantern-host .ua-stack-head {
   flex: none;
-  display: grid;
-  gap: 2px;
-  padding: 4px;
-}
-
-.lantern-host .ua-buildings .chip-btn {
-  justify-content: flex-start;
-  gap: 8px;
-  min-height: 34px;
-  padding: 4px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 4px 8px 4px 13px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--r-panel);
   background: transparent;
-  color: var(--ink-2);
-  font-weight: 600;
-  transition: background-color 0.18s ease, color 0.18s ease;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: none;
 }
 
-.lantern-host .ua-buildings .chip-btn > svg { flex: none; color: var(--faint); }
-.lantern-host .ua-buildings .chip-btn:hover:not(:disabled) { background: var(--ua-hover); }
+.lantern-host .ua-stack-head:hover { background: var(--ua-hover); }
+.lantern-host .ua-stack-head:focus-visible { outline-offset: -2px; }
 
-.lantern-host .ua-buildings .chip-btn[aria-pressed='true'] {
-  background: var(--ink);
-  color: #fff;
-  box-shadow: inset 3px 0 0 var(--lantern);
+.lantern-host .ua-stack-glyph {
+  flex: none;
+  fill: var(--hair-2);
+  animation: ua-nudge 0.32s ease-out;
 }
 
-.lantern-host .ua-buildings .chip-btn[aria-pressed='true'] > svg { color: var(--lantern); }
-.lantern-host .ua-buildings .chip-btn:focus-visible { outline-offset: -2px; }
+.lantern-host .ua-stack-glyph > path { fill: none; stroke: var(--ink-2); stroke-width: 1.8; stroke-linejoin: round; }
+.lantern-host .ua-stack-glyph > .is-lit { fill: var(--lantern-edge); }
+.lantern-host .ua-stack-glyph > .is-held { fill: var(--lantern); }
 
-/* Floors hang from one datum line at their actual relative heights; each
-   carries its initials as a large mark, like an elevation drawing. */
-.lantern-host .ua-ladder {
+@keyframes ua-nudge {
+  35% { transform: translateY(-2.5px); }
+  70% { transform: translateY(1px); }
+}
+
+.lantern-host .ua-stack-mark {
+  flex: none;
+  font: 760 17px/1 var(--display);
+  letter-spacing: -0.03em;
+}
+
+.lantern-host .ua-stack-where {
+  min-width: 0;
+  display: grid;
+  line-height: 1.2;
+}
+
+.lantern-host .ua-stack-where > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lantern-host .ua-stack-building { font: 650 var(--fs-xs)/1.2 var(--text); color: var(--muted); }
+.lantern-host .ua-stack-floor { font: 650 var(--fs-s)/1.2 var(--display); }
+
+.lantern-host .ua-stack-card {
   flex: 0 1 auto;
   min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 6px;
-  scrollbar-width: thin;
+  gap: 4px;
+  padding: 4px;
+  border-top: 1px solid var(--hair);
 }
 
-.lantern-host .ua-rungs {
-  position: relative;
+.lantern-host .ua-stack.is-site .ua-stack-card:not(:has(> *)) { display: none; }
+
+.lantern-host .ua-stack-buildings,
+.lantern-host .ua-stack-floors {
+  flex: none;
   display: flex;
   flex-direction: column;
   margin: 0;
@@ -529,124 +571,177 @@
   list-style: none;
 }
 
-.lantern-host .ua-rungs::before {
+/* Buildings over their floors, divided by a hairline. */
+.lantern-host .ua-stack-buildings + .ua-stack-floors {
+  padding-top: 4px;
+  border-top: 1px solid var(--hair);
+}
+
+/* Floors hang from one datum line at their actual relative heights; each
+   carries its initials as a mark, like an elevation drawing. */
+.lantern-host .ua-stack-floors {
+  position: relative;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.lantern-host .ua-stack-floors::before {
   content: '';
   position: absolute;
-  left: 22px;
-  top: 24px;
-  bottom: 24px;
+  left: 21px;
+  top: 20px;
+  bottom: 20px;
   border-left: 1.5px dotted var(--hair-2);
 }
 
-.lantern-host .ua-rungs > li + li {
-  margin-top: calc(var(--rung-gap, 50px) - 48px);
+.lantern-host .ua-stack-floors > li + li {
+  margin-top: calc(var(--rung-gap, 48px) - var(--stack-row));
 }
 
 .lantern-host .ua-rung {
   position: relative;
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) 10px;
-  grid-template-rows: auto auto;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
   align-items: center;
   column-gap: 8px;
   width: 100%;
-  min-height: 48px;
-  padding: 5px 8px 5px 5px;
+  min-height: var(--stack-row, 40px);
+  padding: 3px 8px 3px 4px;
   border: 0;
   border-radius: 9px;
   background: transparent;
   color: inherit;
   text-align: left;
+  white-space: nowrap;
   cursor: pointer;
   transition: background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
 }
 
 .lantern-host .ua-rung:hover:not(:disabled) { background: var(--ua-hover); }
-.lantern-host .ua-rung:disabled { opacity: 0.45; cursor: default; }
 .lantern-host .ua-rung:focus-visible { outline-offset: -2px; }
 
 .lantern-host .ua-rung-tick {
-  grid-row: 1 / 3;
-  justify-self: center;
+  position: relative;
   display: grid;
   place-items: center;
-  min-width: 32px;
+  width: 34px;
   height: 32px;
-  padding: 0 2px;
   border-radius: 8px;
   background: var(--ua-paper);
   color: var(--faint);
-  font: 750 18px/1 var(--display);
+  font: 750 16px/1 var(--display);
   letter-spacing: -0.03em;
-  transition: color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease;
 }
 
+.lantern-host .ua-rung-tick-all { font-size: 13px; letter-spacing: 0; }
+
 .lantern-host .ua-rung-name {
-  grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font: 650 var(--fs-s)/1.2 var(--display);
-  overflow-wrap: anywhere;
 }
 
 .lantern-host .ua-rung-sub {
-  grid-column: 2;
   font-size: var(--fs-xs);
-  line-height: 1.3;
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
-.lantern-host .ua-rung-all {
-  grid-template-columns: minmax(0, 1fr);
-  min-height: 36px;
-  padding-left: 12px;
-  box-shadow: inset 0 0 0 1px var(--ua-line);
-}
-
-.lantern-host .ua-rung-all .ua-rung-name { grid-column: 1; }
-
-/* The chosen floor: a lifted paper row with a lantern edge; its mark in ink. */
-.lantern-host .ua-rung.is-current {
-  background: #fff;
-  box-shadow: inset 0 0 0 1px var(--hair-2), 0 6px 14px -10px rgba(64, 46, 16, 0.6);
-  color: var(--ink);
-}
-
-.lantern-host .ua-rung.is-current::after {
-  content: '';
-  position: absolute;
-  left: -5px;
-  top: 10px;
-  bottom: 10px;
-  width: 4px;
-  border-radius: 2px;
-  background: var(--lantern-edge);
-}
-
-.lantern-host .ua-rung.is-current .ua-rung-tick {
+/* The chosen building or floor: its mark in ink with a lantern edge. */
+.lantern-host .ua-rung[aria-pressed='true'] .ua-rung-tick {
   background: var(--ink);
   color: #fff;
+  box-shadow: inset 0 -3px 0 var(--lantern-edge);
 }
 
+.lantern-host .ua-rung.is-current { background: #fff; box-shadow: inset 0 0 0 1px var(--hair-2); }
 .lantern-host .ua-rung.is-current .ua-rung-sub { color: var(--ink-2); }
 
 /* The floor Plan draws for a whole building. */
-.lantern-host .ua-rung.is-shown { box-shadow: inset 0 0 0 1.5px var(--lantern-edge); }
-.lantern-host .ua-rung.is-shown .ua-rung-tick { color: var(--ink); background: var(--lantern-soft); }
+.lantern-host .ua-rung.is-shown .ua-rung-tick { color: var(--ink); background: var(--lantern-soft); box-shadow: inset 0 0 0 1.5px var(--lantern-edge); }
 
 /* The floor holding the selected room; dashed for its other parts. */
 .lantern-host .ua-rung-mark {
-  grid-column: 3;
-  grid-row: 1 / 3;
-  width: 10px;
-  height: 10px;
+  position: absolute;
+  top: 2px;
+  left: 31px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: var(--lantern);
   border: 2px solid var(--lantern-edge);
 }
 
-.lantern-host .ua-rung-mark.is-context {
-  background: var(--lantern-soft);
-  border-style: dashed;
+.lantern-host .ua-rung-mark.is-context { background: var(--lantern-soft); border-style: dashed; }
+
+/* Spread floors (Exploded) closes the stack in 3D, a switch like any other. */
+.lantern-host .ua-stack-spread {
+  flex: none;
+  border-top: 1px solid var(--hair);
+  border-radius: 0 0 9px 9px;
 }
+
+.lantern-host .ua-stack-spread .ua-rung-tick { color: var(--ink-2); }
+.lantern-host .ua-stack-spread[aria-pressed='true'] .ua-rung-tick { color: #fff; }
+
+.lantern-host .ua-stack-switch {
+  position: relative;
+  width: 30px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--hair-2);
+  transition: background-color 0.2s ease;
+}
+
+.lantern-host .ua-stack-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s ease;
+}
+
+.lantern-host .ua-stack-spread[aria-pressed='true'] .ua-stack-switch { background: var(--ink); }
+.lantern-host .ua-stack-spread[aria-pressed='true'] .ua-stack-switch::after { transform: translateX(12px); }
+
+/* Wide stages: a rail of marks that widens to names on hover, on focus, when
+   its head pins it open, or when there are no floors yet to show. */
+.lantern-host .ua-stack.is-rail .ua-stack-head { justify-content: center; padding: 4px; }
+/* The rows below already name the building and floor; the rail's head is
+   the glyph alone, a handle that pins the rail open. */
+.lantern-host .ua-stack.is-rail .ua-stack-head > :is(.ua-stack-mark, .ua-stack-where) { display: none; }
+
+/* Folded, the names leave the layout but keep naming their buttons. */
+.lantern-host .ua-stack.is-rail:not(.is-open, .is-site, :hover, :has(:focus-visible)) :is(.ua-rung-name, .ua-rung-sub) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.lantern-host .ua-stack.is-rail:not(.is-open, .is-site, :hover, :has(:focus-visible)) .ua-stack-switch { display: none; }
+
+.lantern-host .ua-stack.is-rail:not(.is-open, .is-site, :hover, :has(:focus-visible)) .ua-rung { grid-template-columns: 34px; padding-right: 4px; }
+
+.lantern-host .ua-stack.is-rail:is(.is-open, .is-site, :hover, :has(:focus-visible)) .ua-stack-paper {
+  width: max-content;
+  min-width: 100%;
+  max-width: var(--ua-rail);
+}
+
+
+.lantern-host .ua-stack.is-rail.is-open .ua-stack-paper { box-shadow: inset 0 0 0 1.5px var(--lantern-edge), var(--ua-shadow); }
 
 /* ---- View tools ----------------------------------------------------------- */
 
@@ -675,15 +770,6 @@
   min-width: 52px;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
-
-.lantern-host .ua-tools .ctrl-wide {
-  height: 42px;
-  border-color: var(--ua-line);
-  box-shadow: var(--ua-shadow);
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-
-.lantern-host .ua-tools .ctrl-wide[aria-pressed='false'] { background: var(--ua-panel); }
 
 /* Compact stages only (rendered there): the snapshot stamped at the row's
    end like a drawing's revision box, and the menu beside it. */
@@ -1813,48 +1899,6 @@
   .lantern-host .ua-bottom {
     --ua-shadow: 0 1px 2px rgba(64, 46, 16, 0.1), 0 8px 18px -14px rgba(64, 46, 16, 0.5);
   }
-
-  /* Buildings and their floors read as one title block, property to
-     building to floor, divided by a hairline. */
-  .lantern-host .ua-buildings:has(+ .ua-ladder) {
-    border-bottom: 0;
-    border-radius: var(--r-panel) var(--r-panel) 0 0;
-    box-shadow: 0 1px 2px rgba(64, 46, 16, 0.08);
-  }
-
-  .lantern-host .ua-buildings + .ua-ladder {
-    margin-top: -8px;
-    border-top-color: var(--hair);
-    border-radius: 0 0 var(--r-panel) var(--r-panel);
-  }
-
-  /* The chosen building is lifted paper with a lantern edge, the same mark
-     as the chosen floor below it, so the path reads down the block. */
-  .lantern-host .ua-buildings .chip-btn { position: relative; }
-
-  .lantern-host .ua-buildings .chip-btn[aria-pressed='true'],
-  .lantern-host .ua-buildings .chip-btn[aria-pressed='true']:hover:not(:disabled) {
-    background: #fff;
-    color: var(--ink);
-    font-weight: 650;
-    box-shadow: inset 0 0 0 1px var(--hair-2), 0 6px 14px -10px rgba(64, 46, 16, 0.6);
-  }
-
-  .lantern-host .ua-buildings .chip-btn[aria-pressed='true']::after {
-    content: '';
-    position: absolute;
-    left: -3px;
-    top: 9px;
-    bottom: 9px;
-    width: 4px;
-    border-radius: 2px;
-    background: var(--lantern-edge);
-  }
-
-  .lantern-host .ua-buildings .chip-btn[aria-pressed='true'] > svg { color: var(--ink); }
-
-  /* Without floors to choose, "All floors" is a plain muted row, not an empty field. */
-  .lantern-host .ua-rung-all:disabled { box-shadow: none; }
 }
 
 /* ---- Room panel as a sheet ----------------------------------------------- */
@@ -2089,7 +2133,7 @@
     pointer-events: auto;
   }
 
-  .lantern-host .ua-scope > .ua-ladder { min-height: var(--ua-ladder-floor, 0px); }
+  .lantern-host .ua-stack-floors { min-height: var(--ua-ladder-floor, 0px); }
 
   /* The dock takes what the rail leaves (measured), at most half the stage;
      a short stage still shows a key row whole, scrolling the rest. */
@@ -2291,16 +2335,17 @@
 /* ---- Narrow stages: controls in rows above the model ---------------------- */
 
 @container ua-stage (max-width: 720px) {
-  /* Two slim rows above the model. The first is how it is seen: the view,
-     the snapshot stamp in the free width, and one menu for the camera, the
-     archive filter and the other sources. */
+  /* One slim row above the model: where on the left (one level out and the
+     Floor Stack chip), and on the right the snapshot stamp and one menu for
+     the camera, the lenses, the archive filter and the other sources. The
+     view and the layers wait in the dock below, by the thumb. */
   .lantern-host .ua-tools {
     top: 8px;
-    left: 8px;
+    left: auto;
     right: 8px;
-    max-width: none;
+    max-width: 58%;
     flex-wrap: nowrap;
-    justify-content: flex-start;
+    justify-content: flex-end;
     gap: 6px;
   }
 
@@ -2308,21 +2353,23 @@
   /* The panel spans the tools row, whichever control it opened from. */
   .lantern-host .ua-daylight { position: static; }
   .lantern-host .ua-daylight-panel { left: 0; right: 0; width: auto; min-width: 0; }
-  .lantern-host .ua-tools .ctrl-wide { height: 42px; padding: 0 10px; }
-  .lantern-host .ua-tools .seg button { min-width: 44px; padding: 0 10px; }
+  /* The snapshot stamp steps below the menu, so the chip keeps the row. */
+  .lantern-host .ua-tools { flex-wrap: wrap; }
+  .lantern-host .ua-tools > .ua-stamp { order: 1; flex: 1 0 100%; text-align: right; }
 
-  /* The second is where: one level out, the building, then its floors. Only
-     the floor row scrolls sideways, with the current floor kept in view. */
   .lantern-host .ua-scope {
-    top: 56px;
+    top: 8px;
     left: 8px;
-    right: 8px;
+    right: auto;
     bottom: auto;
     width: auto;
+    max-width: calc(100% - 80px);
     flex-direction: row;
     align-items: center;
     gap: 6px;
   }
+
+  .lantern-host .ua-scope:has(.ua-stack.is-open) { z-index: 8; }
 
   .lantern-host .ua-scope > * { flex: none; min-width: 0; max-width: 100%; }
   .lantern-host .ua-snapshot-note { display: none; }
@@ -2345,136 +2392,42 @@
     white-space: nowrap;
   }
 
-  /* The building chooser: the current building by name, the list below it. */
-  .lantern-host .ua-pick {
-    flex: 0 1 auto;
-    max-width: 46%;
-    min-height: 42px;
-    padding: 0 10px 0 11px;
-    border-color: var(--ua-line);
-    background: var(--ua-panel);
-    backdrop-filter: blur(10px);
-    box-shadow: var(--ua-shadow);
-    color: var(--ink);
-    font-weight: 650;
-  }
+  /* The Floor Stack as a chip: the glyph, the floor's mark and the building
+     (or the floor's name with one building); the stack unfolds below it. */
+  .lantern-host .ua-stack.is-chip { --stack-row: 44px; position: relative; width: auto; max-width: 100%; }
+  .lantern-host .ua-stack.is-chip .ua-stack-paper { border-radius: 14px; }
+  .lantern-host .ua-stack.is-chip .ua-stack-head { min-height: 44px; padding: 4px 10px 4px 9px; border-radius: 14px; }
+  .lantern-host .ua-stack.is-chip .ua-stack-where { max-width: 34cqw; }
+  .lantern-host .ua-stack.is-chip .ua-stack-building + .ua-stack-floor { display: none; }
+  .lantern-host .ua-stack.is-chip .ua-stack-building { font: 650 var(--fs-s)/1.2 var(--text); color: var(--ink-2); }
+  .lantern-host .ua-stack-chevron { flex: none; color: var(--muted); transition: transform 0.2s ease; }
+  .lantern-host .ua-stack.is-open .ua-stack-head { background: var(--ink); color: #fff; }
+  .lantern-host .ua-stack.is-open .ua-stack-building,
+  .lantern-host .ua-stack.is-open .ua-stack-chevron { color: #fff; }
+  .lantern-host .ua-stack.is-chip.is-open .ua-stack-chevron { transform: rotate(180deg); }
+  .lantern-host .ua-stack.is-open .ua-stack-glyph { fill: rgba(255, 255, 255, 0.35); }
+  .lantern-host .ua-stack.is-open .ua-stack-glyph > path { stroke: #fff; }
+  .lantern-host .ua-stack.is-open .ua-stack-glyph > .is-lit { fill: var(--lantern); }
 
-  .lantern-host .ua-pick > svg { flex: none; color: var(--faint); }
-  .lantern-host .ua-pick > svg:last-child { color: var(--muted); transition: transform 0.2s ease; }
-  .lantern-host .ua-pick[aria-expanded='true'] { background: var(--ink); border-color: var(--ink); color: #fff; }
-  .lantern-host .ua-pick[aria-expanded='true'] > svg { color: var(--lantern); }
-  .lantern-host .ua-pick[aria-expanded='true'] > svg:last-child { transform: rotate(180deg); }
-
-  .lantern-host .ua-pick-name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .lantern-host .ua-scope:has(.ua-buildings.is-open) { z-index: 8; }
-  .lantern-host .ua-buildings:not(.is-open) { display: none; }
-
-  .lantern-host .ua-buildings.is-open {
+  .lantern-host .ua-stack.is-chip .ua-stack-card {
     position: absolute;
     top: calc(100% + 6px);
     left: 0;
     width: max-content;
-    min-width: min(220px, 100%);
-    max-width: 100%;
-    max-height: min(320px, 55vh);
+    min-width: min(240px, calc(100cqw - 16px));
+    max-width: calc(100cqw - 16px);
+    max-height: max(120px, calc(var(--ua-stage-height, 100dvh) - 72px));
     overflow-y: auto;
     overscroll-behavior: contain;
-    display: grid;
-    gap: 2px;
-    padding: 4px;
+    border: 1px solid var(--ua-line);
+    border-radius: var(--r-panel);
     background: var(--ua-paper);
     box-shadow: 0 1px 2px rgba(64, 46, 16, 0.1), 0 18px 36px -20px rgba(64, 46, 16, 0.6);
     animation: ua-settle 0.18s ease-out;
   }
 
-  .lantern-host .ua-buildings .chip-btn { min-height: 42px; white-space: normal; overflow-wrap: anywhere; }
-
-  /* Floors: one row of initials; the chosen floor also shows its name. A
-     scope without floors of its own leaves the row out. */
-  .lantern-host .ua-ladder {
-    flex: 0 1 auto;
-    flex-direction: row;
-    align-items: center;
-    gap: 4px;
-    padding: 3px;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scrollbar-width: none;
-  }
-
-  .lantern-host .ua-ladder:has(> .ua-rungs:empty) { display: none; }
-  .lantern-host .ua-rung-all-rest {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .lantern-host .ua-rungs { flex: none; flex-direction: row-reverse; gap: 2px; }
-  .lantern-host .ua-rungs::before { display: none; }
-  .lantern-host .ua-rungs > li + li { margin-top: 0; }
-
-  .lantern-host .ua-rung {
-    grid-template-columns: auto auto;
-    grid-template-rows: auto;
-    column-gap: 6px;
-    min-height: 40px;
-    padding: 3px 4px;
-    white-space: nowrap;
-  }
-
-  .lantern-host .ua-rung.is-current { padding-right: 12px; }
-
-  .lantern-host .ua-rung-tick {
-    grid-row: 1;
-    min-width: 32px;
-    height: 32px;
-    font-size: 16px;
-  }
-
-  .lantern-host .ua-rung-name { grid-row: 1; }
-  .lantern-host .ua-rung-sub { display: none; }
-
-  .lantern-host .ua-rung:not(.is-current):not(.ua-rung-all) .ua-rung-name {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
-
-  .lantern-host .ua-rung-all {
-    flex: none;
-    width: auto;
-    min-height: 40px;
-    padding: 3px 12px;
-    white-space: nowrap;
-  }
-
-  .lantern-host .ua-rung.is-current::after {
-    left: 10px;
-    right: 10px;
-    top: auto;
-    bottom: -2px;
-    width: auto;
-    height: 3px;
-  }
-
-  .lantern-host .ua-rung-mark {
-    position: absolute;
-    top: 3px;
-    right: 3px;
-    width: 8px;
-    height: 8px;
-  }
+  .lantern-host .ua-stack.is-chip .ua-stack-card[hidden] { display: none; }
+  .lantern-host .ua-stack.is-chip .ua-stack-floors { overflow: visible; }
 
   /* One row below the model: the three layers, then the folds for other
      floors and layer details as small counted buttons. Whichever fold is open
@@ -2495,7 +2448,7 @@
     gap: 6px;
   }
 
-  .lantern-host .ua-bottom > .layer-bar { order: 1; flex: 1 1 auto; }
+  .lantern-host .ua-bottom > .ua-dock { order: 1; flex: none; }
   .lantern-host .ua-bottom > .ua-folds { order: 2; }
   .lantern-host .ua-bottom > .ua-tiles,
   .lantern-host .ua-bottom > .ua-keys { order: 3; flex: 1 0 100%; }
@@ -2668,26 +2621,96 @@
   .lantern-host .ua-bottom .layer-chip[aria-pressed='false'] .layer-swatch { box-shadow: inset 0 0 0 1.5px var(--layer); }
   .lantern-host .ua-bottom .layer-chip .ua-chip-note { margin: 0; font-size: 10.5px; }
 
+  /* The dock: Plan, and the layers as three dots, each filled while its
+     layer is on. The dots open the labelled layer switches above them. */
+  .lantern-host .ua-dock {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border-radius: var(--r-panel);
+    border: 1px solid var(--ua-line);
+    background: var(--ua-panel);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--ua-shadow);
+  }
+
+  .lantern-host .ua-dock-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 44px;
+    min-height: 40px;
+    padding: 0 11px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--ink-2);
+    font: 650 var(--fs-s)/1 var(--text);
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  .lantern-host .ua-dock-btn:hover { background: var(--ua-hover); }
+  .lantern-host .ua-dock-btn:focus-visible { outline-offset: -2px; }
+  .lantern-host .ua-dock-view[aria-pressed='true'] { background: var(--ink); color: #fff; }
+  .lantern-host .ua-dock-layers[aria-expanded='true'] { background: var(--lantern-soft); }
+  .lantern-host .ua-dock-view + .ua-dock-layers { box-shadow: -1px 0 0 var(--hair); border-radius: 0 9px 9px 0; }
+
+  .lantern-host .ua-dock-dots { display: flex; gap: 5px; }
+
+  .lantern-host .ua-dock-dots > i {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 2px var(--layer);
+    transition: background-color 0.2s ease;
+  }
+
+  .lantern-host .ua-dock-dots > i.is-on { background: var(--layer); }
+
+  .lantern-host .ua-bottom .ua-dock-tray {
+    position: absolute;
+    right: -1px;
+    bottom: calc(100% + 6px);
+    flex-direction: column;
+    flex-wrap: nowrap;
+    width: max-content;
+    min-width: 210px;
+    padding: 4px;
+    border: 1px solid var(--ua-line);
+    background: var(--ua-paper);
+    box-shadow: 0 1px 2px rgba(64, 46, 16, 0.1), 0 18px 36px -20px rgba(64, 46, 16, 0.6);
+    animation: ua-settle 0.18s ease-out;
+  }
+
+  .lantern-host .ua-bottom .ua-dock-tray[hidden] { display: none; }
+
+  .lantern-host .ua-bottom .ua-dock-tray .layer-chip {
+    display: flex;
+    justify-content: flex-start;
+    gap: 10px;
+    min-height: 44px;
+    padding: 0 12px;
+    font-size: var(--fs-s);
+    text-align: left;
+  }
+
+  .lantern-host .ua-bottom .ua-dock-tray .layer-chip .layer-swatch { width: 14px; height: 14px; border-radius: 4px; }
+  .lantern-host .ua-bottom .ua-dock-tray .layer-chip .ua-chip-note { margin-left: auto; font-size: var(--fs-xs); }
+
   /* An open graph is the whole view here. */
   .lantern-host .ua-graph { top: 6px; left: 6px; right: 6px; bottom: 6px; width: auto; }
 }
 
-/* Short landscape stages cannot stack scope, layers and the sheet head.
-   Keep scope and layers in separate side strips below the measured tools,
-   leaving the centre for the model. Tall phones retain the full-width rows. */
+/* Short landscape stages cannot stack the layers and the sheet head. Keep
+   the layers in a side strip below the measured tools, leaving the centre
+   for the model; there the switches stand open in the dock, so nothing has
+   to unfold out of the strip. Tall phones retain the bottom row. */
 @media (max-height: 480px) {
   @container ua-stage (max-width: 720px) {
-    .lantern-host .ua-scope {
-      top: calc(var(--ua-tools-end, 50px) + 6px);
-      right: auto;
-      width: min(44%, 224px);
-    }
-
-    .lantern-host .ua-scope > .ua-ladder {
-      flex: 1 1 auto;
-      min-width: 0;
-    }
-
     .lantern-host .ua-bottom,
     .lantern-host .ua-shell.is-graph-open .ua-bottom {
       top: calc(var(--ua-tools-end, 50px) + 6px);
@@ -2705,13 +2728,22 @@
       pointer-events: auto;
     }
 
-    .lantern-host .ua-bottom > .layer-bar {
-      flex: none;
-      flex-wrap: nowrap;
-      max-width: none;
+    .lantern-host .ua-dock-layers { display: none; }
+
+    .lantern-host .ua-bottom .ua-dock-tray,
+    .lantern-host .ua-bottom .ua-dock-tray[hidden] {
+      position: static;
+      display: flex;
+      flex-direction: row;
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      background: none;
+      box-shadow: none;
+      animation: none;
     }
 
-    .lantern-host .ua-bottom .layer-chip { flex: none; min-height: 44px; }
+    .lantern-host .ua-bottom .ua-dock-tray .layer-chip { flex: none; min-height: 40px; }
 
     .lantern-host .ua-bottom:has(> .is-unfolded) {
       height: max(52px, calc(var(--ua-stage-height, 200px) - var(--ua-tools-end, 50px) - var(--ua-peek) - 14px));
@@ -2725,34 +2757,22 @@
   }
 }
 
-/* Smallest phones: the explode toggle keeps its name for assistive tech only. */
-@container ua-stage (max-width: 380px) {
-  .lantern-host .ua-tools .ctrl-wide { padding: 0 11px; }
-
-  .lantern-host .ua-tools .ctrl-wide > span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .lantern-host .ua-tools .seg button { min-width: 40px; padding: 0 9px; }
-  .lantern-host .ua-pick { max-width: 42%; padding: 0 8px 0 9px; }
+/* Smallest phones: the chip shows the floor's mark and the glyph only, its
+   full name kept as the control's name. */
+@container ua-stage (max-width: 330px) {
+  .lantern-host .ua-stack.is-chip .ua-stack-where { display: none; }
 }
 
 /* Touch: every control keeps a full-size target. */
 @media (pointer: coarse) {
-  .lantern-host .ua-buildings .chip-btn,
   .lantern-host .ua-rung,
-  .lantern-host .ua-rung-all,
+  .lantern-host .ua-stack-head,
+  .lantern-host .ua-dock-btn,
   .lantern-host .ua-bottom .layer-chip,
   .lantern-host .ua-key-head,
   .lantern-host .ua-fold,
   .lantern-host .ua-graph-open,
   .lantern-host .ua-graph-close,
-  .lantern-host .ua-pick,
   .lantern-host .ua-scope .ua-back { min-height: 44px; }
 
   .lantern-host .ua-menu-btn { width: 44px; height: 44px; }
@@ -2776,9 +2796,15 @@
   .lantern-host .ua-sheet-body,
   .lantern-host .ua-menu-panel,
   .lantern-host .ua-plan-label-new,
-  .lantern-host .ua-buildings.is-open,
+  .lantern-host .ua-stack-card,
+  .lantern-host .ua-stack-glyph,
+  .lantern-host .ua-dock-tray,
   .lantern-host .cifc-label > circle.ua-ripple { animation: none; }
-  .lantern-host .ua-pick > svg { transition: none; }
+  .lantern-host .ua-stack-chevron,
+  .lantern-host .ua-stack-switch,
+  .lantern-host .ua-stack-switch::after,
+  .lantern-host .ua-dock-btn,
+  .lantern-host .ua-dock-dots > i { transition: none; }
   .lantern-host .ua-stage::before,
   .lantern-host .ua-marker,
   .lantern-host .ua-tile,
@@ -2788,8 +2814,7 @@
   .lantern-host .ua-bottom .layer-chip,
   .lantern-host .ua-fold,
   .lantern-host .ua-fold > svg,
-  .lantern-host .ua-graph-open,
-  .lantern-host .ua-buildings .chip-btn { transition: none; }
+  .lantern-host .ua-graph-open { transition: none; }
   .lantern-host .ua-tile:hover { transform: none; }
 }
 
@@ -2798,25 +2823,23 @@
    separate ring drawn inside the row, so scrolling lists never clip it and
    it never replaces the selection mark. */
 @media (forced-colors: active) {
-  .lantern-host .ua-buildings .chip-btn[aria-pressed='true'] { position: relative; }
-
-  .lantern-host .ua-buildings .chip-btn[aria-pressed='true']::after {
+  .lantern-host .ua-rung[aria-pressed='true']::after {
     content: '';
     position: absolute;
-    left: -3px;
+    left: 0;
     top: 9px;
     bottom: 9px;
     width: 4px;
     border-radius: 2px;
-  }
-
-  .lantern-host .ua-buildings .chip-btn[aria-pressed='true']::after,
-  .lantern-host .ua-rung.is-current::after {
     forced-color-adjust: none;
     background: CanvasText;
   }
 
-  .lantern-host .ua-buildings .chip-btn:focus-visible,
+  .lantern-host .ua-dock-dots > i { forced-color-adjust: none; box-shadow: inset 0 0 0 2px CanvasText; }
+  .lantern-host .ua-dock-dots > i.is-on { background: Highlight; }
+
+  .lantern-host .ua-stack-head:focus-visible,
+  .lantern-host .ua-dock-btn:focus-visible,
   .lantern-host .ua-rung:focus-visible {
     outline: 3px solid Highlight;
     outline-offset: -3px;

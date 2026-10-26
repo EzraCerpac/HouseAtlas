@@ -44,11 +44,11 @@ const { LayerDetailsDock, useLayerDetailsFocus, useShortLayerDetails } = await i
 // capture/bubble sequence must leave the map, menu and graph actions untouched.
 const atlas = readFileSync(new URL('../src/lantern/unified-atlas/UnifiedAtlas.tsx', import.meta.url), 'utf8');
 const handlersStart = atlas.indexOf('  const graphEscape =');
-const handlersEnd = atlas.indexOf('  const pickLabel =', handlersStart);
+const handlersEnd = atlas.indexOf('  const layerChips =', handlersStart);
 assert(handlersStart >= 0 && handlersEnd > handlersStart);
 const { code: handlerCode } = await transformWithOxc(`export function shellHandlers(actions) {
   const menu = 'view', showGraph = true;
-  const menuButton = { current: { focus: () => actions.menu++ } }, pickButton = menuButton;
+  const menuButton = { current: { focus: () => actions.menu++ } }, opener = () => menuButton;
   const setMenu = () => actions.menu++, closeGraph = () => actions.graph++, out = () => actions.out++;
   ${atlas.slice(handlersStart, handlersEnd)}
   return { graphEscape, escape };

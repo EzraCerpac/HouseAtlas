@@ -80,5 +80,5 @@ assert.match(shell, /<code className="ua-hash">\{model\.scene\.model\.sha256\}<\
 assert.match(css, /\.ua-source \.ua-hash \{[^}]*user-select: all/);
 assert.match(shell, /aria-label=\{`Select room: \$\{atlasOccurrenceName\(model, label\.id\)\}`\}/);
 assert.match(shell, /<span>\{atlasOccurrenceName\(model, key\)\}<\/span>/);
-assert.match(shell, /\{atlasBuildingName\(model, row\.buildingId\)\}<\/button>/);
+assert.match(shell, /<span className="ua-rung-name">\{atlasBuildingName\(model, row\.buildingId\)\}<\/span><\/button>/);
 console.log('PASS: generated building, room-part and exclusion names stay distinct; full model hash shown as selectable text.');
