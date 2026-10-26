@@ -245,9 +245,10 @@ function AtlasPresentation({ port: suppliedPort, onOpenModel, otherSources, envi
     void (async () => {
       try {
         const bytes = await port.readDetail!(selection, light.scene, signal);
-        const { loadStandardGlb } = await import('../canonical-ifc/standard-glb');
+        // Parsed and prepared in a worker: millions of triangles never hold up the Light model on screen.
+        const { loadStandardGlbInWorker } = await import('../canonical-ifc/standard-glb-thread');
         signal.throwIfAborted();
-        const glb = await loadStandardGlb(bytes, 'atlas', signal, admission => {
+        const glb = await loadStandardGlbInWorker(bytes, 'atlas', signal, admission => {
           if ((admission.work.gpuBytes ?? admission.work.triangles * PREPARED_BYTES_PER_TRIANGLE) > RENDER_LIMITS.detailUploadBytes) throw new AtlasReadError('too-large');
         }, { embeddedPngMaterials: true, limits: DETAIL_GLB_LIMITS });
         signal.throwIfAborted();
