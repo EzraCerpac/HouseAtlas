@@ -1,9 +1,8 @@
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
 import agent from '../../../contracts/stock-wire3/agent/agent.schema.json';
 import pinnedV4 from '../../../contracts/stock-wire4/pinned-homebox-file.v4.schema.json';
 import atlas from '../../../packages/contracts/schemas/atlas.schema.json';
 import type { AtlasSessionInfo } from '../app/session';
+import { stockAjvWith } from '../numeric/stock-ajv';
 import type { Scope } from '../app/types';
 
 /** Host-owned binding: the actual session allocation and completed view scope.
@@ -128,14 +127,12 @@ const RFC3339 = /^([0-9]{4})-([0-9]{2})-([0-9]{2})[Tt ]([0-9]{2}):([0-9]{2}):([0
 const TARGET_KEYS = ['authority', 'sourceInstanceId', 'collectionId', 'resourceKind', 'entityId', 'resourceId'] as const;
 const MAX_FILE_BYTES = 10_485_760;
 const encoder = new TextEncoder();
-const ajv = new Ajv2020({ strict: true, allErrors: true, allowUnionTypes: true });
-addFormats(ajv); ajv.addSchema(atlas); ajv.addSchema(agent); ajv.addSchema(pinnedV4);
 /** Resolved on first use; a missing contract refuses locally instead of failing module load. */
 function contract(ref: string): () => (value: unknown) => boolean {
   let check: ((value: unknown) => boolean) | null = null;
   return () => {
     if (!check) {
-      const found = ajv.getSchema(ref);
+      const found = stockAjvWith(pinnedV4).getSchema(ref);
       if (!found) throw new TypeError('Pinned file contract unavailable');
       check = (value) => found(value) === true;
     }

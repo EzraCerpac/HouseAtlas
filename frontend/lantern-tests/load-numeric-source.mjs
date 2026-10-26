@@ -28,6 +28,11 @@ const links = Object.freeze({
     '../../../contracts/stock-wire3/agent/agent.schema.json?raw': agentSchema,
     '../../../packages/contracts/schemas/atlas.schema.json?raw': atlasSchema,
   },
+  'numeric/stock-ajv.ts': {
+    'ajv/dist/2020.js': ajv, 'ajv-formats': addFormats,
+    '../../../contracts/stock-wire3/agent/agent.schema.json': retainedAgentJson,
+    '../../../packages/contracts/schemas/atlas.schema.json': retainedAtlasJson,
+  },
   'numeric/stock-decoded.ts': {
     './decimal': 'numeric/decimal.ts', './schema-validator': 'numeric/schema-validator.ts',
   },
@@ -62,15 +67,13 @@ const links = Object.freeze({
   },
   'capture-evidence/types.ts': {},
   'api/quantity-client.ts': {
-    'ajv/dist/2020.js': ajv,
-    'ajv-formats': addFormats,
+    '../numeric/stock-ajv': 'numeric/stock-ajv.ts',
     '../../../contracts/stock-wire3/agent/agent.schema.json': agentJson,
     '../../../packages/contracts/schemas/atlas.schema.json': atlasJson,
   },
   'api/retained-intent-client.ts': {
-    'ajv/dist/2020.js': ajv, 'ajv-formats': addFormats,
+    '../numeric/stock-ajv': 'numeric/stock-ajv.ts',
     '../../../contracts/stock-wire3/agent/agent.schema.json': retainedAgentJson,
-    '../../../packages/contracts/schemas/atlas.schema.json': retainedAtlasJson,
     '../../../contracts/stock-wire3/agent/operation-catalog.json': retainedCatalogJson,
     '../numeric/decimal': 'numeric/decimal.ts',
     '../numeric/lossless-json': 'numeric/lossless-json.ts',
@@ -100,7 +103,7 @@ const links = Object.freeze({
   },
   'lantern/atlas/geometry.ts': {},
   'api/pinned-file-client.ts': {
-    'ajv/dist/2020.js': ajv, 'ajv-formats': addFormats,
+    '../numeric/stock-ajv': 'numeric/stock-ajv.ts',
     '../../../contracts/stock-wire3/agent/agent.schema.json': agentJson,
     '../../../contracts/stock-wire4/pinned-homebox-file.v4.schema.json': pinnedV4Json,
     '../../../packages/contracts/schemas/atlas.schema.json': atlasJson,

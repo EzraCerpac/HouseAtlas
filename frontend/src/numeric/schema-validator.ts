@@ -237,8 +237,25 @@ export function exactStockSafeInteger(value: LosslessJson): number {
   return converted;
 }
 
-/** Compile and validate only the pinned RESULT definition closures listed above. */
-export function createExactStockResultValidator() {
+type ExactStockResultValidator = ReturnType<typeof buildExactStockResultValidator>;
+let built: ExactStockResultValidator | null = null;
+
+/** Validate only the pinned RESULT definition closures listed above. The
+ * digest check, parse and compile run once per page, on the first validation,
+ * so clients made while the app loads cost nothing; each closure is compiled
+ * when it is first used. */
+export function createExactStockResultValidator(): ExactStockResultValidator {
+  const exact = () => (built ??= buildExactStockResultValidator());
+  return {
+    validate: (kind, value) => exact().validate(kind, value),
+    validateNativeRequest: (commandId, value) => exact().validateNativeRequest(commandId, value),
+    validateNativeRead: (commandId, value) => exact().validateNativeRead(commandId, value),
+    validateNativeEvidenceShape: (kind, value) => exact().validateNativeEvidenceShape(kind, value),
+    validateMutation: (commandId, schemaRef, value) => exact().validateMutation(commandId, schemaRef, value),
+  };
+}
+
+function buildExactStockResultValidator() {
   if (sha256(agentSource) !== agentHash || sha256(atlasSource) !== atlasHash) fail('pinned schema digest mismatch');
   const agent = JSON.parse(agentSource) as Document;
   const atlas = JSON.parse(atlasSource) as Document;
@@ -319,15 +336,7 @@ export function createExactStockResultValidator() {
     }
     return result;
   };
-  const compiled = Object.fromEntries(Object.entries(roots).map(([kind, name]) => [kind, resolve(`${agentId}#/$defs/${name}`, agentId)])) as Record<StockResultKind, Compiled>;
-  const compiledMutations = Object.fromEntries(Object.entries(mutationRoots).map(([command, ref]) =>
-    [command, resolve(`${agentId}${ref}`, agentId)])) as Record<string, Compiled>;
-  const compiledNativeRequests = Object.fromEntries(Object.entries(nativeRequests).map(([command, name]) =>
-    [command, resolve(`${agentId}#/$defs/${name}`, agentId)])) as Record<string, Compiled>;
-  const compiledNativeReads = Object.fromEntries(Object.entries(nativeReads).map(([command, name]) =>
-    [command, resolve(`${agentId}#/$defs/${name}`, agentId)])) as Record<string, Compiled>;
-  const compiledNativeEvidence = Object.fromEntries(Object.entries(nativeEvidenceShapes).map(([kind, name]) =>
-    [kind, resolve(`${atlasId}#/$defs/${name}`, atlasId)])) as Record<keyof typeof nativeEvidenceShapes, Compiled>;
+  const agentRoot = (name: string) => resolve(`${agentId}#/$defs/${name}`, agentId);
   const evaluate = (node: Compiled, value: LosslessJson): boolean => {
       if (typeof node.schema === 'boolean') return node.schema;
       const schema = node.schema;
@@ -392,25 +401,25 @@ export function createExactStockResultValidator() {
   };
   return {
     validate(kind: StockResultKind, value: LosslessJson): boolean {
-      if (!has(compiled, kind)) throw new TypeError('Unknown stock result kind');
-      return evaluate(compiled[kind], value);
+      if (!has(roots, kind)) throw new TypeError('Unknown stock result kind');
+      return evaluate(agentRoot(roots[kind]), value);
     },
     validateNativeRequest(commandId: string, value: LosslessJson): boolean {
       if (!has(nativeRequests, commandId)) throw new TypeError('Unsupported native place request');
-      return evaluate(compiledNativeRequests[commandId]!, value);
+      return evaluate(agentRoot(nativeRequests[commandId as keyof typeof nativeRequests]), value);
     },
     validateNativeRead(commandId: string, value: LosslessJson): boolean {
       if (!has(nativeReads, commandId)) throw new TypeError('Unsupported native place read');
-      return evaluate(compiledNativeReads[commandId]!, value);
+      return evaluate(agentRoot(nativeReads[commandId as keyof typeof nativeReads]), value);
     },
     validateNativeEvidenceShape(kind: keyof typeof nativeEvidenceShapes, value: LosslessJson): boolean {
       if (!has(nativeEvidenceShapes, kind)) throw new TypeError('Unsupported native evidence shape');
-      return evaluate(compiledNativeEvidence[kind], value);
+      return evaluate(resolve(`${atlasId}#/$defs/${nativeEvidenceShapes[kind]}`, atlasId), value);
     },
     validateMutation(commandId: string, schemaRef: string, value: LosslessJson): boolean {
       if (!has(mutationRoots, commandId) || mutationRoots[commandId] !== schemaRef)
         throw new TypeError('Unsupported stock mutation result');
-      return evaluate(compiledMutations[commandId]!, value);
+      return evaluate(resolve(`${agentId}${schemaRef}`, agentId), value);
     },
   };
 }
