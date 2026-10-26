@@ -3,7 +3,8 @@
 // place, which a release or a device can replace; the light changes smoothly through a day, never falls below a
 // readable floor, and turns with the model's north; the appearance table
 // carries the shelter, kept-tone, glazing and emitter flags and the lamp points
-// only when daylight is given, and leaves every other viewer as before. Pure source only: no browser, GPU,
+// only when daylight is given, building glass moves to its own see-through pass
+// with its opacity and frost, and leaves every other viewer as before. Pure source only: no browser, GPU,
 // network, household location or data.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -27,8 +28,8 @@ async function sourceURL(relative, replacements = {}) {
 const suncalc = new URL('./node_modules/suncalc/index.js', frontend).href;
 const { daylightAt, modelDirection, resolveSunPlace, stageColors } = await import(await sourceURL('../src/lantern/unified-atlas/daylight.ts', { suncalc }));
 const geometryURL = await sourceURL('../src/lantern/canonical-ifc/geometry.ts');
-const { writeAppearance, STATE_FLOATS, MAX_LAMPS } = await import(await sourceURL('../src/lantern/canonical-ifc/mesh-appearance.ts', { './geometry': geometryURL }));
-const { prepareMeshes, primitiveNight } = await import(geometryURL);
+const { writeAppearance, STATE_FLOATS, MAX_LAMPS, MeshPass } = await import(await sourceURL('../src/lantern/canonical-ifc/mesh-appearance.ts', { './geometry': geometryURL }));
+const { prepareMeshes, primitiveNight, primitiveRoughness } = await import(geometryURL);
 
 const near = (actual, expected, tolerance, label) => assert.ok(Math.abs(actual - expected) <= tolerance, `${label}: ${actual} not within ${tolerance} of ${expected}`);
 const vec = (actual, expected, label) => expected.forEach((value, at) => near(actual[at], value, 1e-9, `${label}[${at}]`));
@@ -161,6 +162,29 @@ assert.equal(nightFrame.lamps.length, 2, 'two close lamps light as one; a hidden
 vec(nightFrame.lamps[0].at, [4.25, .1, .1], 'merged lamp point');
 vec(nightFrame.lamps[1].at, [9.1, 3.1, .1], 'lifted lamp point');
 assert.deepEqual(nightFrame.lamps.map(lamp => lamp.aim), [null, null], 'unaimed lamps light all around');
+
+// Building glass: its own see-through pass, out of the solid passes, covering what lies
+// behind by its material alpha (or a light default) and frosted by its roughness;
+// a selected pane keeps the solid pick tone, and without daylight nothing changes.
+assert.equal(nightTable[STATE_FLOATS * 0 + 20], MeshPass.Glass);
+assert.ok(nightFrame.passes.has(MeshPass.Glass));
+const panes = [{ ...mesh('clear') }, { ...mesh('tinted'), sourceBaseColor: [.4, .5, .6, .3], sourceRoughness: .9 }, { ...mesh('half'), sourceRoughness: .5 },
+  { ...mesh('picked') }, { ...mesh('heavy'), sourceBaseColor: [0, 0, 0, .99] }];
+const paneTable = new Float32Array(panes.length * STATE_FLOATS);
+const paneFrame = writeAppearance(panes, { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight, selectedKeys: new Set(['picked']),
+  glazingKeys: new Set(panes.map(row => row.meshKey)) }, paneTable);
+const paneRow = index => [paneTable[index * STATE_FLOATS + 20], ...paneTable.subarray(index * STATE_FLOATS + 26, index * STATE_FLOATS + 28)].map(value => Math.round(value * 100) / 100);
+assert.deepEqual(panes.map((_, index) => paneRow(index)), [[4, .1, 0], [4, .3, 1], [4, .1, 0], [MeshPass.Unbound, 0, 0], [4, .85, 0]]);
+assert.ok(!paneFrame.passes.has(MeshPass.Bound));
+const paneless = new Float32Array(panes.length * STATE_FLOATS);
+writeAppearance(panes, { ...base, glazingKeys: new Set(panes.map(row => row.meshKey)) }, paneless);
+assert.ok(panes.every((_, index) => paneless[index * STATE_FLOATS + 20] === MeshPass.Unbound && paneless[index * STATE_FLOATS + 26] === 0));
+const roughGltf = factor => ({ meshes: [{ primitives: [{ material: 0 }] }], materials: [{ pbrMetallicRoughness: { roughnessFactor: factor } }] });
+assert.equal(primitiveRoughness(roughGltf(.2), 0, 0), .2);
+assert.equal(primitiveRoughness(roughGltf(2), 0, 0), undefined, 'an out-of-range roughness is not read');
+assert.equal(primitiveRoughness({ meshes: [{ primitives: [{ material: 0 }] }], materials: [{}] }, 0, 0), undefined);
+assert.equal(prepareMeshes([{ meshKey: 'g', floorId: null, occurrenceId: null, positions: new Float32Array(9), indices: new Uint32Array([0, 1, 2]),
+  sourceNight: 'glazing', sourceRoughness: .7 }])[0].sourceRoughness, .7);
 
 // Aimed lamps: an emitter whose glowing faces mostly face one way (a lens) beams
 // that way; a closed or all-round one (a bulb, a glass box) does not; nothing else aims.

@@ -59,7 +59,8 @@ export interface AppearanceInput {
    * face with one of them above it reads as indoors and takes the lamp light. Hiding or cutting
    * them away leaves the rooms beneath lit. */
   readonly shelterKeys?: ReadonlySet<string> | undefined;
-  /** With daylight only: building glass, which shows the lamp-lit room behind it at night. */
+  /** With daylight only: building glass, drawn see-through after the rest of the house, a
+   * little reflective, letting the sun in by day and showing the lamp-lit room behind it at night. */
   readonly glazingKeys?: ReadonlySet<string> | undefined;
   /** With daylight only: lamp glass and bulbs, which glow at night and light what is near them. */
   readonly emitterKeys?: ReadonlySet<string> | undefined;
@@ -104,20 +105,28 @@ const tones = (palette: Partial<MeshPalette> | undefined) => {
     LANTERN: rgb(own.selected), CONTEXT: rgb(own.context), GHOST: rgb(own.ghost) };
 };
 
-/** Which pass draws a mesh. The reference layer sits behind, bound rooms in front. */
-export const MeshPass = Object.freeze({ None: 0, Reference: 1, Unbound: 2, Bound: 3 } as const);
+/** Which pass draws a mesh. The reference layer sits behind, bound rooms in front,
+ * and glass over everything solid. */
+export const MeshPass = Object.freeze({ None: 0, Reference: 1, Unbound: 2, Bound: 3, Glass: 4 } as const);
 export type MeshPass = typeof MeshPass[keyof typeof MeshPass];
 
 /** Texels (RGBA float) per mesh in the state table read by the shaders. */
 export const STATE_TEXELS = 8;
 /** Floats per mesh in the state table. Layout, by texel:
  * 0 top.rgb, usePitch · 1 base.rgb, useSourceColor · 2 cut.rgb, useClip · 3 pitch.rgb, clipY
- * 4 shade.rgb, lift · 5 pass, ghost, ghostUseFloor, ghostFloorY · 6 useMaterial, materialDim · 7 shelter, keepTone, glazing, emitter */
+ * 4 shade.rgb, lift · 5 pass, ghost, ghostUseFloor, ghostFloorY · 6 useMaterial, materialDim, glassOpacity, glassFrost
+ * 7 shelter, keepTone, glazing, emitter */
 export const STATE_FLOATS = STATE_TEXELS * 4;
 
 /** Emitters that light their surroundings in one frame, and how close two must be to count as one. */
 export const MAX_LAMPS = 16;
 const LAMP_MERGE = .75;
+/** Glass: how much of what lies behind a pane it covers when its material states no
+ * alpha below 1, and the most any pane covers, so the room behind always shows. */
+const GLASS_OPACITY = .1, GLASS_OPACITY_MAX = .85;
+/** A pane is clear up to this source roughness and fully frosted by GLASS_FROSTED:
+ * exporters often leave half roughness on clear glass. */
+const GLASS_CLEAR = .5, GLASS_FROSTED = .9;
 /** Beams merge only when their directions are this close (a cosine). */
 const AIM_MERGE = .8;
 export interface Lamp { readonly at: Rgb; readonly aim: Rgb | null }
@@ -171,17 +180,19 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     const o = index * STATE_FLOATS, key = mesh.meshKey;
     const kind: MeshPass = p.referenceKeys?.has(key) ? MeshPass.Reference : mesh.occurrenceId !== null ? MeshPass.Bound : MeshPass.Unbound;
     const floor = drawsFloor(p.rules, mesh.floorId);
-    const pass: MeshPass = floor && !p.hiddenKeys?.has(key) ? kind : MeshPass.None;
-    if (pass !== MeshPass.None) passes.add(pass);
-    const dim = p.dims ? p.dims.get(key) ?? 0 : mesh.floorId !== p.currentFloorId ? .55 : 0;
-    const clip = p.clips?.has(key) ? p.clips.get(key) ?? null : p.rules.clipY;
     const selected = p.selectedKeys?.has(key) ?? false;
-    const source = sourceMeshColor(mesh, { enabled: p.sourceColors, selected, reference: kind === MeshPass.Reference,
-      selectedOccurrenceId: p.selectedOccurrenceId, contextOccurrenceIds: p.contextOccurrenceIds, tints: p.tints });
-    let top: Rgb, base: Rgb, cut: Rgb, pitch: Rgb | null = null, shade = SHADE;
     // Selection and overlay tints keep most of their strength in any light.
     const keep = selected || mesh.occurrenceId !== null && kind !== MeshPass.Reference && (mesh.occurrenceId === p.selectedOccurrenceId
       || p.contextOccurrenceIds.includes(mesh.occurrenceId) || p.tints.has(mesh.occurrenceId));
+    // Building glass is see-through, unless it is picked out: then it keeps the solid pick tone.
+    const glass = DAY !== null && p.glazingKeys?.has(key) === true && kind !== MeshPass.Reference && !keep;
+    const pass: MeshPass = floor && !p.hiddenKeys?.has(key) ? glass ? MeshPass.Glass : kind : MeshPass.None;
+    if (pass !== MeshPass.None) passes.add(pass);
+    const dim = p.dims ? p.dims.get(key) ?? 0 : mesh.floorId !== p.currentFloorId ? .55 : 0;
+    const clip = p.clips?.has(key) ? p.clips.get(key) ?? null : p.rules.clipY;
+    const source = sourceMeshColor(mesh, { enabled: p.sourceColors, selected, reference: kind === MeshPass.Reference,
+      selectedOccurrenceId: p.selectedOccurrenceId, contextOccurrenceIds: p.contextOccurrenceIds, tints: p.tints });
+    let top: Rgb, base: Rgb, cut: Rgb, pitch: Rgb | null = null, shade = SHADE;
     if (selected) { top = LANTERN; base = LANTERN; cut = mix(LANTERN, CUT, .18); }
     else if (kind === MeshPass.Reference) { top = REFERENCE_TOP; base = REFERENCE; cut = mix(REFERENCE, CUT, .3); }
     else if (source) {
@@ -214,9 +225,15 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     put(4, shade, p.lifts?.get(key) ?? 0);
     out[o + 20] = pass; out[o + 21] = ghost ? 1 : 0; out[o + 22] = above === null ? 0 : 1; out[o + 23] = above ?? 0;
     out[o + 24] = source && p.sourceMaterials && mesh.sourceMaterial ? 1 : 0; out[o + 25] = clamp01(dim * SOURCE_DIM);
+    if (glass) {
+      // The material's alpha is how much the pane covers; its roughness how frosted it is.
+      const alpha = mesh.sourceBaseColor?.[3] ?? 1, roughness = mesh.sourceRoughness ?? 0;
+      out[o + 26] = Math.min(GLASS_OPACITY_MAX, alpha < 1 ? alpha : GLASS_OPACITY);
+      out[o + 27] = clamp01((roughness - GLASS_CLEAR) / (GLASS_FROSTED - GLASS_CLEAR));
+    } else { out[o + 26] = 0; out[o + 27] = 0; }
     out[o + 28] = DAY && p.shelterKeys?.has(key) ? 1 : 0; out[o + 29] = DAY && keep ? 1 : 0;
     const emitter = DAY !== null && p.emitterKeys?.has(key) === true;
-    out[o + 30] = DAY && p.glazingKeys?.has(key) ? 1 : 0; out[o + 31] = emitter ? 1 : 0;
+    out[o + 30] = glass ? 1 : 0; out[o + 31] = emitter ? 1 : 0;
     // A lamp cut away whole by the section stays dark, so it never takes a visible lamp's place.
     if (LIT && emitter && pass !== MeshPass.None && (clip === null || mesh.bounds.min[1] <= clip)) {
       const { min, max } = mesh.bounds, lift = p.lifts?.get(key) ?? 0;

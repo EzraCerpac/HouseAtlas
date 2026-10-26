@@ -382,8 +382,13 @@ one-sided lens does, the lamp throws a beam about 40° wide that way, as
 headlights or a downlight do. A closed or all-round glowing surface, such as a
 bulb or a glass box, lights all around. Building glass, bound as `structure` or
 `roof`, is a material with `alphaMode: "BLEND"` and a `baseColorFactor` alpha
-below 1, not `KHR_materials_transmission`, which is refused; it shows the
-lamp-lit room behind it. Until a model carries these marks, a material whose
+below 1, not `KHR_materials_transmission`, which is refused. At every hour the
+3D view draws it as glass, after the solid house: the alpha is how much of what
+lies behind the pane it covers (a light default when the material states none
+below 1, and never more than 0.85), and a stated `roughnessFactor` above 0.5
+frosts it, fully by 0.9. It reflects the hour's sky, faintly head-on and
+strongly at a grazing angle, lets the sun through onto the floors inside, and
+after dusk shows the lamp-lit room behind it. Until a model carries these marks, a material whose
 own name (never its mesh's or node's) holds a generic glass word counts as
 glass, or as a lamp when the name also holds a lamp word and the material
 states no `emissiveFactor`. A stated zero factor stops a name from making a

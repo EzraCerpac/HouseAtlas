@@ -41,7 +41,17 @@ export function primitiveBaseColor(json: Record<string, unknown>, meshIndex: num
   return Object.freeze([...factor]) as unknown as SourceBaseColor;
 }
 
-/** How a primitive shows at night: an emitter glows; glazing shows the lit room behind it. */
+/** Core glTF roughnessFactor of the exact drawn primitive's material, when stated.
+ * On building glass it sets how frosted the pane is. */
+export function primitiveRoughness(json: Record<string, unknown>, meshIndex: number | null, primitiveIndex: number | null): number | undefined {
+  if (meshIndex === null || primitiveIndex === null || !Array.isArray(json.meshes) || !Array.isArray(json.materials)) return;
+  const materialIndex: unknown = json.meshes[meshIndex]?.primitives?.[primitiveIndex]?.material;
+  if (!Number.isInteger(materialIndex) || (materialIndex as number) < 0) return;
+  const factor: unknown = json.materials[materialIndex as number]?.pbrMetallicRoughness?.roughnessFactor;
+  return typeof factor === 'number' && Number.isFinite(factor) && factor >= 0 && factor <= 1 ? factor : undefined;
+}
+
+/** How a primitive shows: an emitter glows at night; glazing is see-through glass. */
 export type SourceNight = 'emitter' | 'glazing';
 const LAMP_WORD = /\b(lamps?|lanterns?|bulbs?|headlamps?|headlights?|sconces?)\b/i;
 const GLASS_WORD = /\b(glass|glazing|glazed|panes?|lens|bulbs?)\b/i;
@@ -86,6 +96,8 @@ export interface MeshInput {
   readonly indices: Uint32Array;
   readonly sourceBaseColor?: SourceBaseColor;
   readonly sourceNight?: SourceNight;
+  /** Glazing only: the material's roughness, which frosts the pane. */
+  readonly sourceRoughness?: number;
   readonly sourceMaterial?: EmbeddedMaterial;
   readonly sourceAttributes?: Readonly<{ uv: Float32Array; normal: Float32Array; tangent: Float32Array | null }>;
 }
@@ -102,6 +114,7 @@ export interface PreparedMesh {
   readonly bounds: Bounds;
   readonly sourceBaseColor?: SourceBaseColor;
   readonly sourceNight?: SourceNight;
+  readonly sourceRoughness?: number;
   /** For an emitter whose glowing faces mostly face one way, that way: its beam. */
   readonly aim?: readonly [number, number, number];
   readonly sourceMaterial?: EmbeddedMaterial;
@@ -154,6 +167,7 @@ export function prepareMeshes(meshes: readonly MeshInput[], binding: (mesh: Mesh
     return { meshKey: mesh.meshKey, floorId: mesh.floorId, occurrenceId: binding(mesh), vertices, triangles,
       ...(mesh.sourceBaseColor ? { sourceBaseColor: mesh.sourceBaseColor } : {}),
       ...(mesh.sourceNight ? { sourceNight: mesh.sourceNight } : {}), ...(aim ? { aim } : {}),
+      ...(mesh.sourceRoughness !== undefined ? { sourceRoughness: mesh.sourceRoughness } : {}),
       ...(mesh.sourceMaterial && materialVertices ? { sourceMaterial: mesh.sourceMaterial, materialVertices } : {}),
       yRange: [min[1]!, max[1]!], bounds: { min: [min[0]!, min[1]!, min[2]!], max: [max[0]!, max[1]!, max[2]!] } };
   });
