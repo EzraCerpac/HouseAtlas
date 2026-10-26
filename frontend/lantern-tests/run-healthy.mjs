@@ -34,7 +34,7 @@ const SOURCE = [
   node('scene-controls-keyboard.test.mjs'), node('source-documents-reader.test.mjs'),
   node('source-time-display.mjs'),
   node('topology-read.mjs'),
-  node('webmcp-batch-discovery.mjs'),
+  node('webmcp-batch-discovery.mjs'), node('webmcp-adapter-healthy.mjs'),
   // Offline / saved copy
   node('offline-atlas-mounting-healthy.mjs'), node('offline-atlas-overlays-healthy.mjs'),
   node('offline-atlas-presentation-healthy.mjs'), node('offline-catalog-mounting-healthy.mjs'),
