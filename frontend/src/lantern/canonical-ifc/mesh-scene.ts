@@ -1,7 +1,7 @@
 import {
-  BufferAttribute, BufferGeometry, CustomBlending, DataTexture, DepthTexture, DoubleSide, FloatType, InterleavedBuffer, InterleavedBufferAttribute,
+  Box3, BufferAttribute, BufferGeometry, CustomBlending, DataTexture, DepthTexture, DoubleSide, FloatType, InterleavedBuffer, InterleavedBufferAttribute,
   LessEqualCompare, LinearFilter, LinearMipmapLinearFilter, LinearSRGBColorSpace, Matrix4, Mesh, NearestFilter, NoColorSpace, NoToneMapping, NodeMaterial,
-  OneFactor, OneMinusSrcAlphaFactor, OrthographicCamera, RenderPipeline, RenderTarget, RepeatWrapping, RGBAFormat, Scene, SRGBColorSpace, UnsignedByteType, Vector3,
+  OneFactor, OneMinusSrcAlphaFactor, OrthographicCamera, RenderPipeline, RenderTarget, RepeatWrapping, RGBAFormat, Scene, Sphere, SRGBColorSpace, UnsignedByteType, Vector3,
   WebGPUCoordinateSystem, WebGPURenderer, type Node,
 } from 'three/webgpu';
 import {
@@ -43,9 +43,45 @@ const SUN_MAP = 2048, SUN_OFFSET = .04, SUN_SOFTNESS = 2.5, SUN_TAPS = 5;
  * while contact shading belongs in the corners.
  * A still view averages OCCLUSION_FRAMES differently rotated estimates. */
 const OCCLUSION_RADIUS = .8, OCCLUSION_REACH_PX = 40, OCCLUSION_SAMPLES = 8, OCCLUSION_STRENGTH = .6, OCCLUSION_FRAMES = 16;
+/** At night a face is indoors when the point this far out along its normal, in metres,
+ * still has the house above it: inner wall faces and floors pass, outer walls under
+ * the eaves do not. */
+const INDOOR_REACH = 1;
+/** Share of the difference from full tone that selection and overlay tints keep at any hour. */
+const KEEP_TONE = .75;
+/** How quickly a face turned to the sun takes the sun's colour instead of the sky's. */
+const SUN_TINT_GAIN = 2.5;
+/** Merged vertices per GPU buffer set (18 MiB across the three streams), cut at
+ * a triangle boundary: the Light model stays a few draws, and no single upload
+ * of the Full model holds up a frame. */
+const PIECE_VERTICES = 3 * 2 ** 18;
+/** Buffer bytes of one full piece: position, normal and mesh index streams. */
+const PIECE_BYTES = PIECE_VERTICES * (12 + 8 + 4);
+/** Building a scene works in slices of about this long, with a frame drawn
+ * between slices, so the page keeps moving while a large model is prepared. */
+const SLICE_MS = 6;
 
+/** Resolves just after the next frame is drawn, or at once while the page is
+ * hidden and draws nothing. A message task, unlike a timer, is never throttled. */
+const afterNextFrame = () => new Promise<void>(resolve => {
+  const run = () => { const channel = new MessageChannel(); channel.port1.onmessage = () => { channel.port1.close(); resolve(); }; channel.port2.postMessage(null); };
+  if (document.hidden) run(); else requestAnimationFrame(run);
+});
+
+/** Work between frames: `due()` once a slice is spent, then `next()` lets a frame draw first. */
+function frameSlices(signal: AbortSignal | undefined) {
+  let start = performance.now();
+  return {
+    due: () => performance.now() - start > SLICE_MS,
+    async next() { await afterNextFrame(); signal?.throwIfAborted(); start = performance.now(); },
+  };
+}
+
+/** Builds the scene in frame-sized slices: geometry merges, uploads and
+ * pipeline compiles are spread over frames before it resolves, so the first
+ * render() does no bulk work. `signal` abandons a build that is no longer wanted. */
 export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonly PreparedMesh[], useMaterials: boolean,
-  onLost: (message: string) => void): Promise<MeshScene> {
+  onLost: (message: string) => void, signal?: AbortSignal): Promise<MeshScene> {
   // Choose the backend here: WebGL2 is an expected fallback, not something for three.js to warn about.
   const webgpu = await navigator.gpu?.requestAdapter().then(adapter => adapter !== null, () => false) ?? false;
   const renderer = new WebGPURenderer({ canvas, antialias: true, alpha: true, forceWebGL: !webgpu });
@@ -63,6 +99,8 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
 
   async function build(): Promise<MeshScene> {
     await renderer.init();
+    signal?.throwIfAborted();
+    const slice = frameSlices(signal);
     // three.js runs its own requestAnimationFrame clock from init, which also
     // advances its node frame. This view draws only on demand, so the idle loop
     // is stopped and render() advances the frame itself.
@@ -78,6 +116,8 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const u = {
       ambient: uniform(0), twoSided: uniform(0), light: uniform(new Vector3()), viewDir: uniform(new Vector3()), paper: uniform(new Vector3()),
       ghostAlpha: uniform(0), ghost: uniform(new Vector3()), ghostShade: uniform(new Vector3()),
+      direct: uniform(1), night: uniform(0), lamp: uniform(0),
+      tint: uniform(new Vector3(1, 1, 1)), sunTint: uniform(new Vector3(1, 1, 1)), lampTint: uniform(new Vector3(1, 1, 1)),
     };
     const toUnitDepth = renderer.coordinateSystem === WebGPUCoordinateSystem;
     const meshId = attribute('meshIndex', 'float');
@@ -86,16 +126,18 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     /** Lifted world position through the camera, which holds the shared
      * orthographic frame exactly as plan, picking and labels use it. Depth is
      * clamped rather than clipped, so a lifted floor never leaves the view. */
-    const vertex = (visible: (s5: V4) => B) => Fn(() => {
-      const s4 = read(meshId, 4), s5 = read(meshId, 5);
-      const clip = cameraProjectionMatrix.mul(cameraViewMatrix).mul(vec4(positionGeometry.add(vec3(0, s4.w, 0)), 1));
-      return select(visible(s5), vec4(clip.xy, clamp(clip.z, toUnitDepth ? 0 : -1, 1), clip.w), vec4(2, 2, 2, 1));
+    const vertex = (visible: (s5: V4, s7: V4) => B, lifted = true) => Fn(() => {
+      const s4 = read(meshId, 4), s5 = read(meshId, 5), s7 = read(meshId, 7);
+      const clip = cameraProjectionMatrix.mul(cameraViewMatrix).mul(vec4(lifted ? positionGeometry.add(vec3(0, s4.w, 0)) : positionGeometry, 1));
+      return select(visible(s5, s7), vec4(clip.xy, clamp(clip.z, toUnitDepth ? 0 : -1, 1), clip.w), vec4(2, 2, 2, 1));
     })();
 
     const vId = varying(meshId).round(), vY = positionGeometry.y, vNormal = attribute('normal', 'vec3');
 
     // Sun shadows: one depth map seen from the sun. The sun is fixed to the house,
     // so the map is redrawn only when the scene changes, never while the camera turns.
+    // After sunset the same map is drawn from straight above, from every mesh that
+    // roofs the house over, whether shown or not, and tells indoors from out.
     const sun = new OrthographicCamera(), sunMatrix = uniform(new Matrix4());
     sun.coordinateSystem = renderer.coordinateSystem;
     const sunTarget = new RenderTarget(SUN_MAP, SUN_MAP), sunDepth = sunTarget.depthTexture = new DepthTexture(SUN_MAP, SUN_MAP);
@@ -118,13 +160,27 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const facing = (n: V3): V3 => select(u.twoSided.greaterThan(.5).and(frontFacing.not()), n.negate(), n);
     /** Sky light: faces looking up get more of the ambient term than faces looking down. */
     const sky = (n: V3): F => mix(float(.7), float(1.1), n.y.mul(.5).add(.5));
-    const sunlit = sunShadow(varying(positionGeometry.add(vec3(0, read(meshId, 4).w, 0))));
+    const night = u.night.greaterThan(.5);
+    // By day the lit, lifted point is tested; at night the unlifted point a reach out along the face.
+    const probe = select(night, varying(positionGeometry).add(facing(normalize(vNormal)).mul(INDOOR_REACH)),
+      varying(positionGeometry.add(vec3(0, read(meshId, 4).w, 0))));
+    // One variable, so the taps run once per pixel however many terms read the result.
+    const outdoors = sunShadow(probe).toVar('outdoors');
+    const sunlit = select(night, float(1), outdoors), indoor = select(night, float(1).sub(outdoors), float(0));
     const lit = (n: V3): F => {
       const facingSun = dot(n, u.light);
-      return clamp(u.ambient.mul(sky(n)).add(float(1).sub(u.ambient).mul(facingSun).mul(select(facingSun.greaterThan(0), sunlit, 1))), 0, 1);
+      return clamp(u.ambient.mul(sky(n)).add(float(1).sub(u.ambient).mul(u.direct).mul(facingSun).mul(select(facingSun.greaterThan(0), sunlit, 1))), 0, 1);
     };
     /** Flat tops keep their tone and darken towards the shade tone in shadow. */
-    const top = (tone: V3, shade: V3): V3 => mix(tone, shade, float(1).sub(sunlit).mul(.45));
+    const top = (tone: V3, shade: V3): V3 => mix(tone, shade, float(1).sub(sunlit).mul(u.direct).mul(.45));
+    /** The hour's light on a drawn tone: sky colour, sun colour as far as the sun
+     * reaches the face, lamp light indoors after dusk, and selection and overlay
+     * tints held near full strength. */
+    const graded = (c: V3, n: V3, s7: V4): V3 => {
+      const sun = float(1).sub(u.ambient).mul(u.direct).mul(max(dot(n, u.light), 0)).mul(sunlit).mul(SUN_TINT_GAIN);
+      const light = mix(mix(u.tint, u.sunTint, clamp(sun, 0, 1)), u.lampTint, u.lamp.mul(indoor));
+      return clamp(c.mul(mix(light, vec3(1), s7.y.mul(KEEP_TONE))), 0, 1);
+    };
 
     /** Architectural face tones: flat tops, pitched faces and lit walls. */
     const shaded = (s: readonly V4[], n: V3): V3 => {
@@ -137,8 +193,8 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
 
     type Source = NonNullable<PreparedMesh['sourceMaterial']>;
     const opaque = (material?: { source: Source; maps: Partial<Record<'base' | 'normal' | 'metalRough', DataTexture>> }) => Fn(() => {
-      const s = [0, 1, 2, 3, 4, 5, 6].map(t => read(vId, t)) as [V4, V4, V4, V4, V4, V4, V4];
-      const [, s1, s2, s3, , , s6] = s;
+      const s = [0, 1, 2, 3, 4, 5, 6, 7].map(t => read(vId, t)) as [V4, V4, V4, V4, V4, V4, V4, V4];
+      const [, s1, s2, s3, , , s6, s7] = s;
       Discard(s2.w.greaterThan(.5).and(vY.greaterThan(s3.w)));
       const cut = cutFace(s2.w), n = facing(normalize(vNormal));
       const plain = display(shaded(s, n), s1.w);
@@ -166,10 +222,10 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
         const spec = D.mul(G).mul(F).div(max(nv.mul(nl).mul(4), .0001));
         const diffuse = float(1).sub(F).mul(float(1).sub(metallic)).mul(base).div(Math.PI);
         const light = base.mul(float(1).sub(metallic)).add(f0.mul(.12)).mul(u.ambient).mul(sky(N))
-          .add(diffuse.add(spec).mul(nl).mul(Math.PI).mul(float(1).sub(u.ambient)).mul(sunlit));
+          .add(diffuse.add(spec).mul(nl).mul(Math.PI).mul(float(1).sub(u.ambient)).mul(u.direct).mul(sunlit));
         color = select(on, display(mix(max(light, vec3(0)), u.paper, s6.y), s1.w), plain);
       }
-      return select(cut, vec4(display(s2.xyz, s1.w), 1), vec4(color, 1));
+      return vec4(graded(select(cut, display(s2.xyz, s1.w), color), n, s7), 1);
     })();
 
     /** Faded cutaway: one quiet veil, depth-tested and never written. */
@@ -177,7 +233,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       const s5 = read(vId, 5);
       Discard(s5.z.greaterThan(.5).and(vY.lessThan(s5.w)));
       const n = facing(normalize(vNormal)), face = select(n.y.greaterThan(.8), u.ghost, mix(u.ghostShade, u.ghost, lit(n)));
-      return vec4(face.mul(u.ghostAlpha), u.ghostAlpha);
+      return vec4(face.mul(u.tint).mul(u.ghostAlpha), u.ghostAlpha);
     })();
 
     const visibleIn = (pass: MeshPass) => (s5: V4): B => s5.x.equal(pass);
@@ -233,36 +289,59 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       }
       return map;
     };
-    const geometryOf = (members: readonly number[], extra?: Float32Array) => {
-      let vertices = 0; for (const index of members) vertices += meshes[index]!.triangles * 3;
-      const position = new Float32Array(vertices * 3), normal = new Int16Array(vertices * 4), id = new Float32Array(vertices);
-      let at = 0;
+    /** Merged vertex streams for `members` in source order, cut into pieces of
+     * at most `limit` vertices; each piece is one geometry and one GPU upload. */
+    const geometriesOf = async (members: readonly number[], limit = PIECE_VERTICES, extra?: Float32Array) => {
+      let left = 0; for (const index of members) left += meshes[index]!.triangles * 3;
+      // The sphere three.js would otherwise compute on the first frame by walking
+      // every vertex: its centre is the box centre of the members' exact bounds,
+      // which orders the draws as one merged geometry did, and pieces of one
+      // merge keep source order. Only the centre is read (no culling, no rays).
+      const box = new Box3(), corner = new Vector3();
+      for (const index of members) if (meshes[index]!.triangles > 0) {
+        const { min, max } = meshes[index]!.bounds; box.expandByPoint(corner.set(...min)); box.expandByPoint(corner.set(...max));
+      }
+      const sphere = new Sphere(box.getCenter(new Vector3()), box.getSize(corner).length() / 2);
+      const pieces: BufferGeometry[] = [];
+      let position = new Float32Array(0), normal = new Int16Array(0), id = new Float32Array(0), at = 0, work = 0;
+      const open = () => {
+        const size = Math.min(limit, left);
+        position = new Float32Array(size * 3); normal = new Int16Array(size * 4); id = new Float32Array(size); at = 0;
+        const geometry = new BufferGeometry();
+        geometry.setAttribute('position', new BufferAttribute(position, 3));
+        geometry.setAttribute('normal', new BufferAttribute(normal, 4, true));
+        geometry.setAttribute('meshIndex', new BufferAttribute(id, 1));
+        geometry.boundingSphere = sphere.clone();
+        owned.push(geometry); pieces.push(geometry);
+      };
       for (const index of members) {
         const source = meshes[index]!.vertices;
-        for (let v = 0; v < source.length / 6; v++, at++) {
+        for (let v = 0; v < source.length / 6; v++, at++, left--) {
+          if (at === id.length) open();
           position[at * 3] = source[v * 6]!; position[at * 3 + 1] = source[v * 6 + 1]!; position[at * 3 + 2] = source[v * 6 + 2]!;
           for (let axis = 0; axis < 3; axis++) normal[at * 4 + axis] = Math.round(Math.max(-1, Math.min(1, source[v * 6 + 3 + axis]!)) * 32767);
           id[at] = index;
+          if (++work === 0x4000) { work = 0; if (slice.due()) await slice.next(); }
         }
       }
-      const geometry = new BufferGeometry();
-      geometry.setAttribute('position', new BufferAttribute(position, 3));
-      geometry.setAttribute('normal', new BufferAttribute(normal, 4, true));
-      geometry.setAttribute('meshIndex', new BufferAttribute(id, 1));
-      if (extra) {
+      if (extra && pieces[0]) {
         const stream = new InterleavedBuffer(extra, 9);
-        geometry.setAttribute('materialUv', new InterleavedBufferAttribute(stream, 2, 0));
-        geometry.setAttribute('shadingNormal', new InterleavedBufferAttribute(stream, 3, 2));
-        geometry.setAttribute('materialTangent', new InterleavedBufferAttribute(stream, 4, 5));
+        pieces[0].setAttribute('materialUv', new InterleavedBufferAttribute(stream, 2, 0));
+        pieces[0].setAttribute('shadingNormal', new InterleavedBufferAttribute(stream, 3, 2));
+        pieces[0].setAttribute('materialTangent', new InterleavedBufferAttribute(stream, 4, 5));
       }
-      owned.push(geometry);
-      return geometry;
+      return pieces;
     };
     const shared = { reference: make(MeshPass.Reference), ghost: make('ghost') };
     // Solid geometry: every drawn, uncut face once, coloured by its view-space normal.
     // The sun's depth map and the occlusion pass both draw this scene.
     const solidScene = new Scene(), solid = new NodeMaterial();
     solid.side = DoubleSide; owned.push(solid);
+    // Shelter geometry: the house as built, unlifted and uncut, for the night map.
+    const shelterScene = new Scene(), shelter = new NodeMaterial();
+    shelter.side = DoubleSide; owned.push(shelter);
+    shelter.vertexNode = vertex((_, s7) => s7.x.greaterThan(.5), false);
+    shelter.outputNode = vec4(1);
     solid.vertexNode = vertex(s5 => s5.x.greaterThan(MeshPass.None));
     solid.outputNode = Fn(() => {
       const s2 = read(vId, 2), s3 = read(vId, 3);
@@ -276,6 +355,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       scene.add(mesh); layers.push({ pass, mesh });
       if (pass === MeshPass.Reference) {
         const body = new Mesh(geometry, solid); body.frustumCulled = false; body.matrixAutoUpdate = false; solidScene.add(body);
+        const roof = new Mesh(geometry, shelter); roof.frustumCulled = false; roof.matrixAutoUpdate = false; shelterScene.add(roof);
       }
     };
     const textured = (index: number) => useMaterials && meshes[index]!.sourceMaterial !== undefined && meshes[index]!.materialVertices !== undefined;
@@ -283,36 +363,43 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     for (const pass of groups) {
       const members = meshes.flatMap((mesh, index) => (mesh.occurrenceId !== null) === (pass === MeshPass.Bound) && !textured(index) ? [index] : []);
       if (members.length === 0) continue;
-      const geometry = geometryOf(members), material = make(pass); owned.push(material);
-      add(geometry, MeshPass.Reference, shared.reference, 0); add(geometry, pass, material, pass); add(geometry, 'ghost', shared.ghost, 4);
+      const material = make(pass); owned.push(material);
+      for (const geometry of await geometriesOf(members)) {
+        add(geometry, MeshPass.Reference, shared.reference, 0); add(geometry, pass, material, pass); add(geometry, 'ghost', shared.ghost, 4);
+      }
     }
-    meshes.forEach((mesh, index) => {
-      if (!textured(index)) return;
-      const source = mesh.sourceMaterial!, geometry = geometryOf([index], mesh.materialVertices!);
+    for (const [index, mesh] of meshes.entries()) {
+      if (!textured(index)) continue;
+      // The extra attribute stream follows the mesh's own vertices, so a textured mesh stays one piece.
+      const source = mesh.sourceMaterial!, [geometry] = await geometriesOf([index], Infinity, mesh.materialVertices!);
+      if (!geometry) continue;
       const maps = { base: mapOf(source.baseColorTexture), normal: mapOf(source.normalTexture), metalRough: mapOf(source.metallicRoughnessTexture) };
       const pass = mesh.occurrenceId !== null ? MeshPass.Bound : MeshPass.Unbound;
       const material = make(pass, { source, maps: Object.fromEntries(Object.entries(maps).filter(([, map]) => map)) }); owned.push(material);
       add(geometry, MeshPass.Reference, shared.reference, 0); add(geometry, pass, material, pass); add(geometry, 'ghost', shared.ghost, 4);
-    });
+    }
 
     // Mesh bounds, for fitting the sun's view; lifts are added per frame.
     const low = new Vector3(Infinity, Infinity, Infinity), high = new Vector3(-Infinity, -Infinity, -Infinity);
     for (const mesh of meshes) { low.min(new Vector3(...mesh.bounds.min)); high.max(new Vector3(...mesh.bounds.max)); }
     const corner = new Vector3();
     const drawSun = () => {
-      let lift = 0; for (let i = 0; i < meshes.length; i++) lift = Math.max(lift, table[i * STATE_FLOATS + 19]!);
+      // At night the map reaches past the house by more than a probe, so a probe
+      // beside an outer wall never reads the clamped edge of a roof.
+      const dark = u.night.value > .5, pad = dark ? INDOOR_REACH + .5 : 0;
+      let lift = 0; if (!dark) for (let i = 0; i < meshes.length; i++) lift = Math.max(lift, table[i * STATE_FLOATS + 19]!);
       const centre = new Vector3().addVectors(low, high).multiplyScalar(.5), toward = u.light.value.clone().normalize();
       const reach = Math.max(1, low.distanceTo(high) + lift);
       sun.position.copy(centre).addScaledVector(toward, reach); sun.up.set(0, Math.abs(toward.y) > .99 ? 0 : 1, Math.abs(toward.y) > .99 ? 1 : 0);
       sun.lookAt(centre); sun.updateMatrixWorld(true);
       const min = new Vector3(Infinity, Infinity, Infinity), max = new Vector3(-Infinity, -Infinity, -Infinity);
       for (let c = 0; c < 8; c++) {
-        corner.set(c & 1 ? high.x : low.x, c & 2 ? high.y + lift : low.y, c & 4 ? high.z : low.z).applyMatrix4(sun.matrixWorldInverse);
+        corner.set(c & 1 ? high.x + pad : low.x - pad, c & 2 ? high.y + lift + pad : low.y - pad, c & 4 ? high.z + pad : low.z - pad).applyMatrix4(sun.matrixWorldInverse);
         min.min(corner); max.max(corner);
       }
       sun.left = min.x; sun.right = max.x; sun.bottom = min.y; sun.top = max.y; sun.near = -max.z - .1; sun.far = -min.z + .1;
       sun.updateProjectionMatrix(); sunMatrix.value.multiplyMatrices(sun.projectionMatrix, sun.matrixWorldInverse);
-      renderer.setRenderTarget(sunTarget); renderer.render(solidScene, sun); renderer.setRenderTarget(null);
+      renderer.setRenderTarget(sunTarget); renderer.render(dark ? shelterScene : solidScene, sun); renderer.setRenderTarget(null);
     };
 
     // Contact shading (GTAO): a depth-and-normal pass without multisampling feeds
@@ -330,6 +417,29 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     pipeline.outputColorTransform = false;
     owned.push(geometryPass, colorPass, occlusion, history, pipeline);
 
+    // Upload every piece and compile every pipeline ahead of the first frame,
+    // at most a piece's worth of buffers per frame, so a large model never
+    // moves all its buffers, or waits on its shaders, inside one frame, and
+    // many small textured meshes share frames. The canvas and the sun's map
+    // are separate targets, each with its own pipelines; the night map's
+    // shelter pipelines are compiled too, so the first frame after dusk waits on none.
+    const uploaded = new Set<BufferGeometry>();
+    let pending = 0;
+    for (const { mesh } of layers) {
+      await renderer.compileAsync(mesh, camera, scene); signal?.throwIfAborted();
+      if (!uploaded.has(mesh.geometry)) {
+        uploaded.add(mesh.geometry);
+        // Interleaved attributes share one array; count it once.
+        for (const array of new Set(Object.values(mesh.geometry.attributes).map(attribute => attribute.array))) pending += array.byteLength;
+      }
+      if (pending >= PIECE_BYTES || slice.due()) { pending = 0; await slice.next(); }
+    }
+    for (const sunScene of [solidScene, shelterScene]) for (const body of sunScene.children) {
+      renderer.setRenderTarget(sunTarget);
+      try { await renderer.compileAsync(body, sun, sunScene); } finally { renderer.setRenderTarget(null); }
+      signal?.throwIfAborted(); if (slice.due()) await slice.next();
+    }
+
     // The view the contact shading history belongs to; any change starts it over.
     let disposed = false, sunStale = true, averaged: Projection | null = null;
     return {
@@ -341,6 +451,8 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
           u.paper.value.set(...frame.materialPaper); u.ambient.value = frame.ambient; u.twoSided.value = frame.twoSided ? 1 : 0;
           u.light.value.set(...frame.light);
           u.ghostAlpha.value = frame.ghostAlpha; u.ghost.value.set(...frame.ghostColor); u.ghostShade.value.set(...frame.ghostShade);
+          u.direct.value = frame.direct; u.night.value = frame.night ? 1 : 0; u.lamp.value = frame.lamp;
+          u.tint.value.set(...frame.tint); u.sunTint.value.set(...frame.sunTint); u.lampTint.value.set(...frame.lampTint);
           for (const { pass, mesh } of layers) mesh.visible = pass === 'ghost' ? frame.ghosts : frame.passes.has(pass);
           sunStale = true;
         }

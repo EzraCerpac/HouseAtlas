@@ -29,8 +29,6 @@ pub use geodata_full_store::{FullGeodataBundle, FullGeodataIdentity};
 pub(crate) mod presence_transaction;
 #[path = "recovery.rs"]
 mod recovery;
-#[path = "updater_read_validation.rs"]
-mod updater_read_validation;
 pub(crate) use recovery::ClosedSource;
 pub(crate) use recovery::{validate_geodata_full_core, validate_v5_full_peers};
 #[path = "stock.rs"]
