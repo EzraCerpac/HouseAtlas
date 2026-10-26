@@ -103,7 +103,9 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
         shading = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 1 : Math.min(1, (performance.now() - fading) / FADE_MS);
         if (shading < 1) schedule(); else fading = null;
       } else if (shading < 1 && settle === null) settle = setTimeout(still, SETTLE_MS);
-      scene.render(p.projection, stale.current ? p : null, w, h, shading); stale.current = false; ready();
+      // While the view is still, each further frame averages the contact shading down to a clean result.
+      if (scene.render(p.projection, stale.current ? p : null, w, h, shading)) schedule();
+      stale.current = false; ready();
     };
     document.addEventListener('visibilitychange', visibility);
     const resize = new ResizeObserver(schedule); resize.observe(element);
