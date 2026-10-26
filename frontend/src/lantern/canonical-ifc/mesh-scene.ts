@@ -50,6 +50,8 @@ const INDOOR_REACH = 1;
 /** The point also sits this much higher, in metres, so a slab, lower roof or eave
  * just outside a wall, close above or below that point, never counts as a ceiling. */
 const INDOOR_HEADROOM = .5;
+/** A room map depth nearer than this is a room's footprint; the cleared map reads 1. */
+const ROOM_FAR = .999;
 /** Share of the difference from full tone that selection and overlay tints keep at any hour. */
 const KEEP_TONE = .75;
 /** How quickly a face turned to the sun takes the sun's colour instead of the sky's. */
@@ -127,7 +129,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const u = {
       ambient: uniform(0), twoSided: uniform(0), light: uniform(new Vector3()), viewDir: uniform(new Vector3()), paper: uniform(new Vector3()),
       ghostAlpha: uniform(0), ghost: uniform(new Vector3()), ghostShade: uniform(new Vector3()),
-      direct: uniform(1), night: uniform(0), lamp: uniform(0),
+      direct: uniform(1), night: uniform(0), lamp: uniform(0), rooms: uniform(0),
       tint: uniform(new Vector3(1, 1, 1)), sunTint: uniform(new Vector3(1, 1, 1)), lampTint: uniform(new Vector3(1, 1, 1)),
       lamps: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
       lampAims: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
@@ -139,10 +141,10 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     /** Lifted world position through the camera, which holds the shared
      * orthographic frame exactly as plan, picking and labels use it. Depth is
      * clamped rather than clipped, so a lifted floor never leaves the view. */
-    const vertex = (visible: (s5: V4, s7: V4) => B, lifted = true) => Fn(() => {
-      const s4 = read(meshId, 4), s5 = read(meshId, 5), s7 = read(meshId, 7);
+    const vertex = (visible: (s5: V4, s7: V4, s6: V4) => B, lifted = true) => Fn(() => {
+      const s4 = read(meshId, 4), s5 = read(meshId, 5), s6 = read(meshId, 6), s7 = read(meshId, 7);
       const clip = cameraProjectionMatrix.mul(cameraViewMatrix).mul(vec4(lifted ? positionGeometry.add(vec3(0, s4.w, 0)) : positionGeometry, 1));
-      return select(visible(s5, s7), vec4(clip.xy, clamp(clip.z, toUnitDepth ? 0 : -1, 1), clip.w), vec4(2, 2, 2, 1));
+      return select(visible(s5, s7, s6), vec4(clip.xy, clamp(clip.z, toUnitDepth ? 0 : -1, 1), clip.w), vec4(2, 2, 2, 1));
     })();
 
     const vId = varying(meshId).round(), vY = positionGeometry.y, vNormal = attribute('normal', 'vec3');
@@ -156,7 +158,10 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const sunTarget = new RenderTarget(SUN_MAP, SUN_MAP), sunDepth = sunTarget.depthTexture = new DepthTexture(SUN_MAP, SUN_MAP);
     // A comparison sampler with linear filtering: each tap is a bilinear 2 × 2 test in hardware.
     sunDepth.type = FloatType; sunDepth.compareFunction = LessEqualCompare; sunDepth.minFilter = sunDepth.magFilter = LinearFilter;
-    owned.push(sunTarget);
+    // Room footprints from the same view: at night only a probe over one of them is indoors.
+    const roomTarget = new RenderTarget(SUN_MAP, SUN_MAP), roomDepth = roomTarget.depthTexture = new DepthTexture(SUN_MAP, SUN_MAP);
+    roomDepth.type = FloatType; roomDepth.compareFunction = LessEqualCompare; roomDepth.minFilter = roomDepth.magFilter = LinearFilter;
+    owned.push(sunTarget, roomTarget);
     /** Fraction of the light reaching the point: a few hardware-filtered taps on a disc turned per pixel, as three.js does. */
     const sunShadow = (world: V3): F => {
       const clip = sunMatrix.mul(vec4(world.add(normalize(vNormal).mul(SUN_OFFSET)), 1));
@@ -179,7 +184,13 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const probe = select(night, varying(positionGeometry).add(facing(normalize(vNormal)).mul(INDOOR_REACH)).add(vec3(0, INDOOR_HEADROOM, 0)), lifted);
     // One variable, so the taps run once per pixel however many terms read the result.
     const outdoors = sunShadow(probe).toVar('outdoors');
-    const sunlit = select(night, float(1), outdoors), indoor = select(night, float(1).sub(outdoors), float(0));
+    /** 1 over a room's footprint: any depth drawn there is nearer than the cleared far plane. */
+    const overRoom = (world: V3): F => {
+      const clip = sunMatrix.mul(vec4(world, 1));
+      return float(1).sub(texture(roomDepth, vec2(clip.x.mul(.5).add(.5), float(.5).sub(clip.y.mul(.5)))).compare(ROOM_FAR).x);
+    };
+    const roofed = float(1).sub(outdoors).mul(select(u.rooms.greaterThan(.5), overRoom(probe), float(1)));
+    const sunlit = select(night, float(1), outdoors), indoor = select(night, roofed, float(0));
     const lit = (n: V3): F => {
       const facingSun = dot(n, u.light);
       return clamp(u.ambient.mul(sky(n)).add(float(1).sub(u.ambient).mul(u.direct).mul(facingSun).mul(select(facingSun.greaterThan(0), sunlit, 1))), 0, 1);
@@ -391,6 +402,11 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     shelter.side = DoubleSide; owned.push(shelter);
     shelter.vertexNode = vertex((_, s7) => s7.x.greaterThan(.5), false);
     shelter.outputNode = vec4(1);
+    // Room volumes, unlifted and uncut, for the footprint map.
+    const roomScene = new Scene(), roomVolume = new NodeMaterial();
+    roomVolume.side = DoubleSide; owned.push(roomVolume);
+    roomVolume.vertexNode = vertex((_, __, s6) => s6.z.greaterThan(.5), false);
+    roomVolume.outputNode = vec4(1);
     solid.vertexNode = vertex(s5 => s5.x.greaterThan(MeshPass.None));
     solid.outputNode = Fn(() => {
       const s2 = read(vId, 2), s3 = read(vId, 3);
@@ -405,6 +421,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       if (pass === MeshPass.Reference) {
         const body = new Mesh(geometry, solid); body.frustumCulled = false; body.matrixAutoUpdate = false; solidScene.add(body);
         const roof = new Mesh(geometry, shelter); roof.frustumCulled = false; roof.matrixAutoUpdate = false; shelterScene.add(roof);
+        const room = new Mesh(geometry, roomVolume); room.frustumCulled = false; room.matrixAutoUpdate = false; roomScene.add(room);
       }
     };
     const textured = (index: number) => useMaterials && meshes[index]!.sourceMaterial !== undefined && meshes[index]!.materialVertices !== undefined;
@@ -445,7 +462,9 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       }
       sun.left = min.x; sun.right = max.x; sun.bottom = min.y; sun.top = max.y; sun.near = -max.z - .1; sun.far = -min.z + .1;
       sun.updateProjectionMatrix(); sunMatrix.value.multiplyMatrices(sun.projectionMatrix, sun.matrixWorldInverse);
-      renderer.setRenderTarget(sunTarget); renderer.render(dark ? shelterScene : solidScene, sun); renderer.setRenderTarget(null);
+      renderer.setRenderTarget(sunTarget); renderer.render(dark ? shelterScene : solidScene, sun);
+      if (dark && u.rooms.value > .5) { renderer.setRenderTarget(roomTarget); renderer.render(roomScene, sun); }
+      renderer.setRenderTarget(null);
     };
 
     // Contact shading (GTAO): a depth-and-normal pass without multisampling feeds
@@ -480,8 +499,8 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       }
       if (pending >= PIECE_BYTES || slice.due()) { pending = 0; await slice.next(); }
     }
-    for (const sunScene of [solidScene, shelterScene]) for (const body of sunScene.children) {
-      renderer.setRenderTarget(sunTarget);
+    for (const [sunScene, target] of [[solidScene, sunTarget], [shelterScene, sunTarget], [roomScene, roomTarget]] as const) for (const body of sunScene.children) {
+      renderer.setRenderTarget(target);
       try { await renderer.compileAsync(body, sun, sunScene); } finally { renderer.setRenderTarget(null); }
       signal?.throwIfAborted(); if (slice.due()) await slice.next();
     }
@@ -497,7 +516,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
           u.paper.value.set(...frame.materialPaper); u.ambient.value = frame.ambient; u.twoSided.value = frame.twoSided ? 1 : 0;
           u.light.value.set(...frame.light);
           u.ghostAlpha.value = frame.ghostAlpha; u.ghost.value.set(...frame.ghostColor); u.ghostShade.value.set(...frame.ghostShade);
-          u.direct.value = frame.direct; u.night.value = frame.night ? 1 : 0; u.lamp.value = frame.lamp;
+          u.direct.value = frame.direct; u.night.value = frame.night ? 1 : 0; u.lamp.value = frame.lamp; u.rooms.value = frame.rooms ? 1 : 0;
           u.tint.value.set(...frame.tint); u.sunTint.value.set(...frame.sunTint); u.lampTint.value.set(...frame.lampTint);
           (u.lamps.array as Vector4[]).forEach((point, at) => { const lamp = frame.lamps[at];
             point.set(lamp?.at[0] ?? 0, lamp?.at[1] ?? 0, lamp?.at[2] ?? 0, lamp ? frame.lamp : 0); });
