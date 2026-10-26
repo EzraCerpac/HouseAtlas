@@ -111,12 +111,10 @@ only its own temporary output. Dependency/import failures are reported without
 installing packages or substituting another namespace.
 
 This is a new current-source bootstrap, not recovery of the historical external
-build harness. It is standalone and is not registered in ordinary runners or
-workflows. It exercises synthetic adapter/session/history ports only: no browser,
+build harness. It runs in ordinary CI through `frontend/lantern-tests/run-healthy.mjs`.
+It exercises synthetic adapter/session/history ports only: no browser,
 listener, native service, provider, mutation, grant or deployment. It does not
 qualify React/jsdom, gateway integration or installed/browser/device acceptance.
-Source publication adds no execution result; the bootstrap has not been run
-locally for this change.
 
 An externally supplied successor harness locks React/react-dom
 19.3.0, jsdom 30.1.2 and esbuild 0.28.2. It bundles actual lane TS/TSX and `App`,

@@ -2894,3 +2894,18 @@ node frontend/lantern-tests/webmcp-batch-discovery.mjs
 ```
 
 It never dispatches to a stock service, opens a transport or mounts a browser.
+
+## Named synthetic WebMCP adapter bootstrap
+
+`frontend/lantern-tests/webmcp-adapter-healthy.mjs` bundles the current
+`frontend/src/webmcp/index.ts` with the locked Vite into a temporary ES module,
+then runs the unchanged `frontend/src/webmcp/healthy.examples.mjs` fixture
+against it (6 synthetic adapter, session and history cases, validated with the
+`packages/contracts` Ajv schemas). It runs in CI through `run-healthy.mjs`:
+
+```sh
+node frontend/lantern-tests/webmcp-adapter-healthy.mjs
+```
+
+It never opens a browser, listener, native service or provider, and removes
+only its own temporary output.
