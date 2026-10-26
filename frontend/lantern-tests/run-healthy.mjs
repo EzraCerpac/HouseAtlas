@@ -52,7 +52,7 @@ const SOURCE = [
 ];
 const BUILD = [node('check-backend-frontend-compat.mjs')];
 const BROWSER = [
-  ...cases('offline-launch-browser.mjs', '--case', ['offline-launch', 'hung-network']),
+  ...cases('offline-launch-browser.mjs', '--case', ['offline-launch', 'hung-network', 'live-launch']),
   ...cases('mesh-layer-browser.mjs', '--case', ['webgl2']),
 ];
 

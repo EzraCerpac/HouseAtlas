@@ -31,9 +31,12 @@ const storeURL = await sourceURL('../integration/native-geometry-scan-cache.ts')
 const cacheURL = await sourceURL('../integration/unified-atlas-cache.ts', { './native-geometry-scan-cache': storeURL });
 const readerURL = await sourceURL('../integration/unified-atlas-reader.ts',
   { '../src/lantern/unified-atlas/scene': sceneURL, '../src/lantern/unified-atlas/types': typesURL });
+const lastCopyURL = await sourceURL('../integration/last-atlas-copy.ts', { '../src/lantern/unified-atlas/types': typesURL,
+  './unified-atlas-cache': cacheURL, './unified-atlas-reader': readerURL });
 const syntheticURL = await sourceURL('./unified-atlas/synthetic-atlas.ts');
 const { readUnifiedAtlas, readCachedUnifiedAtlas } = await import(readerURL);
 const { openUnifiedAtlasStore, createUnifiedAtlasCache, ATLAS_CACHE_DATABASE } = await import(cacheURL);
+const { openLastAtlasCopy } = await import(lastCopyURL);
 const { buildSyntheticAtlas, composeAtlasEnvelope, createAtlasTransport, atlasScenePath, SYNTHETIC_ATLAS } = await import(syntheticURL);
 
 const scope = { workspaceId: '00000000-0000-4000-8000-000000000800', homeId: '00000000-0000-4000-8000-000000000801' };
@@ -180,6 +183,36 @@ assert.deepEqual(Buffer.from(pending.model), Buffer.from(versions[1].glb));
 for (const status of [401, 403])
   await assert.rejects(readUnifiedAtlas({ selection: v1, signal: signal(), origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true,
     transport: async () => new Response(null, { status }) }), error => error.reason === 'denied', `HTTP ${status}`);
+
+// The Saved entry's last copy: the newest fresh read on this device, opened
+// from the cache alone with the network gone, and gone again after sign-out.
+{
+  const lastDisk = createSyntheticDisk(), factory = () => createSyntheticIndexedDB(lastDisk);
+  assert.equal(await openLastAtlasCopy(factory(), signal()), null, 'no fresh read yet, no last copy');
+  served = versions[0]; await openProcess(lastDisk, actorA, async ({ cache }) => { await fresh(cache, v0); });
+  served = versions[1]; await openProcess(lastDisk, actorA, async ({ cache }) => { await fresh(cache, v1); });
+  online = false; calls.length = 0;
+  const copy = await openLastAtlasCopy(factory(), signal());
+  try {
+    assert.ok(copy, 'offline, the last copy opens');
+    const selection = copy.port.current();
+    assert.equal(selection.kind, 'live');
+    assert.equal(selection.overview.manifestSha256, v1.manifestSha256, 'the newest fresh read is the last copy');
+    assert.deepEqual({ ...selection.overview.scope }, scope);
+    assert.ok(Date.parse(selection.overview.expiresAt) <= Date.now(), 'the copy carries no live authority');
+    const read = await copy.port.stored(selection, signal());
+    assert.deepEqual(Buffer.from(read.model), Buffer.from(versions[1].glb));
+    assert.equal(read.storedAt, copy.storedAt);
+    await assert.rejects(copy.port.read(selection, signal()), error => error.reason === 'unavailable', 'the fresh read reports the server out of reach');
+    assert.equal(copy.port.readDetail, undefined); assert.equal(copy.port.createOverlays, undefined);
+    record('Saved entry opens the last copy offline', []);
+  } finally { await copy?.close(); online = true; }
+  await openProcess(lastDisk, actorB, async ({ cache }) => { await fresh(cache, v1); });
+  const other = await openLastAtlasCopy(factory(), signal());
+  assert.ok(other, 'the pointer follows the newest actor on this device'); await other.close();
+  await openProcess(lastDisk, actorA, async ({ store }) => { await store.clear(); });
+  assert.equal(await openLastAtlasCopy(factory(), signal()), null, 'sign-out removes the last copy');
+}
 
 await openProcess(disk, actorA, async ({ cache, store }) => {
   assert.ok(await stored(cache, v1));

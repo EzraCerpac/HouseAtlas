@@ -6,6 +6,8 @@
  *
  *   --case offline-launch  listener closed (connection refused) before reopen
  *   --case hung-network    listener accepts `/` but never answers ("lie-fi")
+ *   --case live-launch     like offline-launch, but online the live entry `/`
+ *                          was opened instead of the Saved entry
  *
  * Requires `npm --prefix frontend run build` first, Node 26.10.0 and an
  * inspected HOUSEATLAS_CHROMIUM executable. Prints launch timings. */
@@ -17,11 +19,11 @@ import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const CASES = { 'offline-launch': 2_000, 'hung-network': 3_000 };
-assert.equal(process.argv.length, 4, 'Select --case offline-launch or --case hung-network');
+const CASES = { 'offline-launch': 2_000, 'hung-network': 3_000, 'live-launch': 2_000 };
+assert.equal(process.argv.length, 4, 'Select --case offline-launch, hung-network or live-launch');
 assert.equal(process.argv[2], '--case');
 const selected = process.argv[3], budgetMs = CASES[selected];
-assert(budgetMs, 'Select --case offline-launch or --case hung-network');
+assert(budgetMs, 'Select --case offline-launch, hung-network or live-launch');
 const chromium = process.env.HOUSEATLAS_CHROMIUM;
 assert(chromium && existsSync(chromium), 'Set HOUSEATLAS_CHROMIUM to the inspected local Chromium executable');
 const dist = resolve(dirname(fileURLToPath(import.meta.url)), '../dist');
@@ -105,8 +107,10 @@ try {
     }
   };
 
-  // 1. Online: the Saved entry verifies the public shell and prepares the root worker.
-  await send('Page.navigate', { url: origin + '/saved/index.html' });
+  // 1. Online: the Saved entry, or after its load any live launch, verifies the
+  // public shell and prepares the root worker. Here the live entry finds no
+  // backend, which changes nothing: the shell is public build files only.
+  await send('Page.navigate', { url: origin + (selected === 'live-launch' ? '/' : '/saved/index.html') });
   await poll(`(async () => {
     const root = await navigator.serviceWorker.getRegistration('/'), saved = await navigator.serviceWorker.getRegistration('/saved/');
     return root?.active?.state === 'activated' && saved?.active?.state === 'activated'
@@ -115,7 +119,7 @@ try {
   const installed = served;
 
   // 2. Network gone. Reopen the installed start URL.
-  if (selected === 'offline-launch') {
+  if (selected !== 'hung-network') {
     await new Promise(done => { server.close(done); for (const socket of sockets) socket.destroy(); });
   } else mode = 'hung';
   served = 0; servedPaths = [];

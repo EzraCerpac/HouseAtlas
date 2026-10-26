@@ -9,6 +9,7 @@ import { readSavedPackSections } from './saved-pack-sections';
 import { SavedCatalogView } from './SavedCatalogView';
 import { useLiveHost } from './connection-probe';
 import { useOutbox } from '../outbox';
+import type { LiveAtlasPresentationPort } from '../lantern/unified-atlas/types';
 import '../lantern/styles/fonts.css';
 import '../lantern/styles/tokens.css';
 import '../lantern/styles/app.css';
@@ -19,6 +20,14 @@ import '../styles/session.css';
 /** The live entry with a query, which the root worker leaves to the network
  * without its offline timeout, so a slow but reachable host still opens. */
 const LIVE_ENTRY = '/?live';
+
+/** The Atlas the live app last read on this device, opened from its own
+ * cache when no saved copy is open: what an offline launch shows first. */
+export interface LastAtlasCopy {
+  readonly port: LiveAtlasPresentationPort;
+  readonly storedAt: string;
+  close(): Promise<void>;
+}
 
 type Allocation = NonNullable<Awaited<ReturnType<typeof openSavedAtlasPresentation>>>;
 export interface SavedCatalogSelection {
@@ -78,7 +87,8 @@ export function mountSavedSelection(store: SavedHouseStore, key: string, sink: S
   return { dispose() { if (disposed) return; disposed = true; stop(); retire(); } };
 }
 
-export function SavedAtlasHost({ store: supplied }: { readonly store?: SavedHouseStore }) {
+export function SavedAtlasHost({ store: supplied, openLastCopy }: { readonly store?: SavedHouseStore;
+  readonly openLastCopy?: (signal: AbortSignal) => Promise<LastAtlasCopy | null> }) {
   const store = useMemo(() => supplied ?? createSavedHouseStore(globalThis.indexedDB), [supplied]);
   const [house, setHouse] = useState<SavedHouse | null>(null), [allocation, setAllocation] = useState<Allocation | null>(null);
   const [error, setError] = useState<string | null>(null), [opening, setOpening] = useState(false);
@@ -90,6 +100,17 @@ export function SavedAtlasHost({ store: supplied }: { readonly store?: SavedHous
   const [shell, setShell] = useState<SavedShellStatus>({ ready: false, buildId: null });
   const [reduced, setReduced] = useState(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
   const live = useLiveHost();
+  const [last, setLast] = useState<LastAtlasCopy | null>(null);
+  useEffect(() => {
+    if (!openLastCopy) return;
+    const controller = new AbortController();
+    let opened: LastAtlasCopy | null = null;
+    void openLastCopy(controller.signal).then(copy => {
+      if (controller.signal.aborted) { void copy?.close(); return; }
+      opened = copy; setLast(copy);
+    }, () => undefined);
+    return () => { controller.abort(); void opened?.close(); };
+  }, [openLastCopy]);
   // Edits made in the live app that are still waiting; the live app sends them.
   const { waiting } = useOutbox();
   const changes = waiting === 1 ? '1 change' : `${waiting} changes`;
@@ -142,6 +163,10 @@ export function SavedAtlasHost({ store: supplied }: { readonly store?: SavedHous
     {view === 'atlas' && error && <p className="saved-message" role="alert">{error}</p>}
     {house && (view === 'inventory' || view === 'documents') && !catalog && <p className="saved-message" role={catalogError ? 'alert' : 'status'}>{catalogError ?? 'Opening saved catalog…'}</p>}
     {catalog && (view === 'inventory' || view === 'documents') && <SavedCatalogView key={view + catalog.read.catalog.localRevision} selection={catalog} section={view} />}
+    {!house && last && <>
+      <p className="saved-message" role="note">Last opened in the live app on this device. It updates when the server is back.</p>
+      <div className="saved-stage"><UnifiedAtlas port={last.port} environment={{ reducedMotion: reduced }} /></div>
+    </>}
     {allocation && selectedHouse && <>
       <details className="saved-coverage" hidden={view !== 'atlas'}><summary>Saved coverage: {allocation.saved.completeness} pack; {allocation.coverage.state} supported overlays</summary>
         <p>Captured <time dateTime={selectedHouse.capturedAt}>{selectedHouse.capturedAt}</time>. Historical records are not current native authorization.</p>

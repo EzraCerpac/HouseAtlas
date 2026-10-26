@@ -1,5 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { SavedAtlasHost } from '../src/offline/SavedAtlasHost';
+// The live app's own last Atlas copy, shown while no saved copy is open.
+const openLastCopy = (signal: AbortSignal) => import('./last-atlas-copy').then(module => module.openLastAtlasCopy(globalThis.indexedDB, signal));
 const element = document.getElementById('root');
 if (!element) throw new Error('Saved Atlas root missing');
-createRoot(element).render(<SavedAtlasHost />);
+createRoot(element).render(<SavedAtlasHost openLastCopy={openLastCopy} />);

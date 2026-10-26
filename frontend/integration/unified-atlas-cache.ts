@@ -7,7 +7,9 @@ import { openVerifiedByteCache, type NativeGeometryScanCache, type ScanCacheLimi
  * Holding a record grants nothing. Model bytes stand in for a GET only after a
  * fresh scene pins their exact digest; a stored scene is shown only as the
  * last loaded copy while the fresh read runs. No session, token, descriptor
- * header or other API response is stored. Every operation is best effort. */
+ * header or other API response is stored. Every operation is best effort.
+ * One small pointer names the actor, home and publication of the newest fresh
+ * read, so the Saved entry can show that copy when the server is out of reach. */
 
 export const ATLAS_CACHE_DATABASE = 'houseatlas-atlas-model-cache-v1';
 const MiB = 1024 * 1024;
@@ -51,13 +53,36 @@ function unpack(record: Uint8Array): { meta: Record<string, unknown>; envelope: 
   } catch { return null; }
 }
 
+/** The actor, home and publication whose scene the live app last read fresh on this device. */
+export interface LastAtlasPointer {
+  readonly actorId: string; readonly workspaceId: string; readonly homeId: string;
+  readonly publicationId: string; readonly manifestSha256: string;
+}
+const LAST_PARTITION = JSON.stringify(['unified-atlas-last']), LAST_KEY = 'pointer';
+const POINTER_FIELDS = ['actorId', 'workspaceId', 'homeId', 'publicationId', 'manifestSha256'] as const;
+
+/** The newest pointer and that actor and home's cache, or null. Like every
+ * stored record it grants nothing: the scene and model it leads to are
+ * admitted and hashed again before they are shown. */
+export async function readLastAtlas(store: NativeGeometryScanCache): Promise<{ readonly pointer: LastAtlasPointer; readonly cache: UnifiedAtlasCache } | null> {
+  const record = await store.read(LAST_PARTITION, LAST_KEY);
+  if (!record) return null;
+  let value: unknown;
+  try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(record)); } catch { return null; }
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (!POINTER_FIELDS.every(field => typeof row[field] === 'string' && row[field] !== '')) return null;
+  const pointer = Object.freeze(Object.fromEntries(POINTER_FIELDS.map(field => [field, row[field]]))) as unknown as LastAtlasPointer;
+  return { pointer, cache: createUnifiedAtlasCache(store, pointer) };
+}
+
 /** Bind the store to the authenticated actor and home that every key is partitioned by. */
 export function createUnifiedAtlasCache(store: NativeGeometryScanCache,
   owner: { readonly actorId: string; readonly workspaceId: string; readonly homeId: string }): UnifiedAtlasCache {
   const partition = JSON.stringify(['unified-atlas', owner.actorId, owner.workspaceId, owner.homeId]);
   const sceneKey = (publicationId: string, manifestSha256: string) => JSON.stringify(['scene', publicationId, manifestSha256]);
   // The scene this page knows is in the one scene slot, so an unchanged scene is not written again.
-  let persisted: string | null = null;
+  let persisted: string | null = null, pointed: string | null = null;
   return Object.freeze({
     async scene(publicationId: string, manifestSha256: string) {
       const record = await store.read(partition, sceneKey(publicationId, manifestSha256));
@@ -78,6 +103,10 @@ export function createUnifiedAtlasCache(store: NativeGeometryScanCache,
     },
     keepScene(publicationId: string, manifestSha256: string, envelope: Uint8Array, envelopeSha256: string, entryBuildingId: string | null) {
       const key = sceneKey(publicationId, manifestSha256);
+      // Every fresh read names its publication once per page, which also keeps the
+      // pointer recently used so the store's oldest-first limit does not drop it.
+      const pointer = JSON.stringify({ actorId: owner.actorId, workspaceId: owner.workspaceId, homeId: owner.homeId, publicationId, manifestSha256 });
+      if (pointed !== pointer) { pointed = pointer; store.write(LAST_PARTITION, LAST_KEY, LAST_KEY, new TextEncoder().encode(pointer)); }
       if (persisted === `${key}/${envelopeSha256}`) return;
       persisted = `${key}/${envelopeSha256}`;
       // One slot: the newest scene for this home replaces earlier ones.

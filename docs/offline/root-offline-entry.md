@@ -1,13 +1,12 @@
 # Root offline entry
 
-An existing installation whose manifest starts at `/` can reach the retained
-Saved Atlas after opening the normal Saved entry online, or using the existing
-explicit Prepare house copy action. Both verify the public Saved shell before
-preparing the root entry worker. No new capture or Save/Replace is needed to
-enable root launch for an existing retained copy. The manifest start URL
-and the normal native application flow stay unchanged. An already installed
-older worker does not gain this behavior until the user has visited the updated
-online Saved entry or completed that preparation. A page still running older
+An installation whose manifest starts at `/` reaches the Saved Atlas without
+the server after any earlier online launch: the live app, the normal Saved
+entry and the explicit Prepare house copy action all verify the public Saved
+shell before preparing the root entry worker. No capture or Save/Replace is
+needed. Without a saved copy open, the Saved entry shows the Atlas the live
+app last read on this device (below) and the outbox's waiting edits. The
+manifest start URL and the normal native application flow stay unchanged. A page still running older
 cached Saved HTML/JavaScript may first activate the updated Saved worker, then
 need a reopen or reload to load the new root-registration code. Existing page
 code is not automatically replaced; no new native capture is needed.
@@ -48,11 +47,12 @@ existing viewer action. The host labels historical records as lacking current
 native authorization. The root worker never owns private retained bytes,
 changes a receipt, refreshes native authorization, or expands Saved coverage.
 
-Root registration follows the existing verified Saved path for both intentional
-Saved navigation/open and the explicit Prepare caller. The latter reads the
-public Saved entry marker; the normal Saved entry already has it. This helper
-is not called by native startup or login. Opening the Saved entry prepares only
-public workers and bytes; it does not acquire, replace or modify a private copy.
+Root registration follows the existing verified Saved path for the live app
+(3 s after each page load, before anything else in its entry can fail), for
+Saved navigation/open and for the explicit Prepare caller. The live app and
+Prepare read the public Saved entry marker; the normal Saved entry already has
+it. Registration prepares only public workers and bytes; it does not acquire,
+replace or modify a private copy.
 Both registration paths preserve an existing exact-scope registration whose
 script URL is foreign. The two owned script URLs remain fixed across updates;
 normal worker installation, skipWaiting and clients.claim move them to a new
@@ -63,13 +63,16 @@ Saved shell and do not certify a device's offline launch capability. A foreign
 root registration or an unavailable root update does not invalidate a verified
 Saved receipt.
 
-Activation retains other build caches because either registration may still
-serve an older build during an ordinary update. Explicit Remove saved public
+An update copies each public file an earlier build's cache already verified
+for the same path and digest, and downloads only the rest. Activation retains
+other build caches because either registration may still serve an older build
+during an ordinary update. Once both owned workers answer for the same build,
+the page that verified them deletes every other `houseatlas-saved-public-`
+cache, so frequent deploys do not leave a full copy each. Explicit Remove saved public
 shell checks both exact scopes, fixed script ownership and the displayed build
 reported over MessageChannel before unregistering. It preserves registrations
 for foreign scripts, newer builds and workers still installing. It deletes only
-`houseatlas-saved-public-<displayed build>`. Retained older caches are not silently
-purged. As with all service-worker unregister operations, already controlled
+`houseatlas-saved-public-<displayed build>`. As with all service-worker unregister operations, already controlled
 pages can remain controlled until navigation or close; removal deletes their
 selected public cache and does not delete private Saved house copies.
 
@@ -94,6 +97,20 @@ or a browser render. VM-local transports never replace process-global fetch.
 No listener, browser, native service, credential, real private store, provider,
 installation or deployment runs. Broader malformed/denial/crash/replay/control
 suites are outside this command.
+
+## Last Atlas copy
+
+Each fresh Atlas read in the live app also writes one small pointer (actor,
+home, publication and overview manifest) beside the scenes and models in the
+live Atlas cache (`frontend/integration/unified-atlas-cache.ts`). The Saved
+entry opens that pointer's scene and model from the cache alone
+(`frontend/integration/last-atlas-copy.ts`), admits and hashes them exactly as
+the live app's stored copy, and shows them through a live-kind port whose
+selection expired at the epoch: its fresh read always reports the server
+unavailable, so the Atlas shows the copy as not updated. It has no detail
+model and no overlays. Sign-out empties the cache and with it this copy.
+`unified-atlas-cache-healthy.mjs` covers it; the `live-launch` case of
+`offline-launch-browser.mjs` covers registration from the live entry.
 
 Genuine browser service-worker update/controller behavior, retained-store
 persistence, installed root launch after process restart, supported-device/PWA

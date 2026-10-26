@@ -1,5 +1,5 @@
 export interface SavedShellStatus { readonly ready: boolean; readonly buildId: string | null }
-const SAVED_SCRIPT = '/saved/service-worker.js', ROOT_SCRIPT = '/offline-entry-worker.js';
+const SAVED_SCRIPT = '/saved/service-worker.js', ROOT_SCRIPT = '/offline-entry-worker.js', PUBLIC_PREFIX = 'houseatlas-saved-public-';
 function workers(registration: ServiceWorkerRegistration): ServiceWorker[] {
   return [...new Set([registration.installing, registration.waiting, registration.active].filter((worker): worker is ServiceWorker => worker !== null))];
 }
@@ -35,18 +35,28 @@ async function status(worker: ServiceWorker, message: string): Promise<SavedShel
     worker.postMessage(message, [channel.port2]);
   });
 }
-async function prepareRootEntry(expectedBuild: string): Promise<void> {
+/** True once the root worker answers for exactly this build; false when a foreign worker owns the root. */
+async function prepareRootEntry(expectedBuild: string): Promise<boolean> {
   const prior = await navigator.serviceWorker.getRegistration('/');
-  if (prior?.scope === new URL('/', location.origin).href && !owned(prior, ROOT_SCRIPT)) return;
+  if (prior?.scope === new URL('/', location.origin).href && !owned(prior, ROOT_SCRIPT)) return false;
   const registration = await navigator.serviceWorker.register(ROOT_SCRIPT, { scope: '/', updateViaCache: 'none' });
   try { await registration.update(); } catch { /* Existing installed build is checked below. */ }
   const worker = await activated(registration);
-  if (!worker || !owned(registration, ROOT_SCRIPT)) return;
+  if (!worker || !owned(registration, ROOT_SCRIPT)) return false;
   const result = await status(worker, 'root-entry-status');
   if (!result.ready || result.buildId !== expectedBuild) throw new Error('Root entry build unavailable');
+  return true;
+}
+/** With both owned workers on one build, no worker reads another build's
+ * public cache: drop them so every deploy does not leave a full copy behind. */
+async function pruneEarlierBuilds(buildId: string): Promise<void> {
+  for (const name of await caches.keys())
+    if (name.startsWith(PUBLIC_PREFIX) && name !== PUBLIC_PREFIX + buildId) await caches.delete(name);
 }
 /** Registration is not readiness: the scoped worker verifies the full committed
- * public closure before answering. No online/session/storage permission probe. */
+ * public closure before answering. No online/session/storage permission probe.
+ * The live app calls this after every launch, so a later launch without the
+ * server opens the Saved entry; the Saved entry and Prepare call it too. */
 export async function verifySavedShell(): Promise<SavedShellStatus> {
   if (!('serviceWorker' in navigator)) return { ready: false, buildId: null };
   let expectedBuild = document.querySelector<HTMLMetaElement>('meta[name="houseatlas-saved-shell-build"]')?.content;
@@ -68,11 +78,10 @@ export async function verifySavedShell(): Promise<SavedShellStatus> {
   if (!worker || !owned(registration, SAVED_SCRIPT)) return { ready: false, buildId: null };
   const value = await status(worker, 'saved-shell-status');
   if (!value.ready || value.buildId !== expectedBuild) return { ready: false, buildId: null };
-  // Intentional Saved entry and explicit Prepare both reach this verified
-  // public-shell path; neither needs a new private capture to enable root entry.
-  // Native startup/login do not call this helper. Root availability is not
-  // part of the Saved receipt/status.
-  try { await prepareRootEntry(expectedBuild); } catch { /* Saved closure remains independently verified. */ }
+  // Root entry needs no private capture. Root availability is not part of the
+  // Saved receipt/status.
+  try { if (await prepareRootEntry(expectedBuild)) await pruneEarlierBuilds(value.buildId); }
+  catch { /* Saved closure remains independently verified. */ }
   return { ready: true, buildId: value.buildId };
 }
 
@@ -92,5 +101,5 @@ export async function removeSavedShell(buildId: string): Promise<void> {
     if (current.length !== entries.length || !current.every(worker => entries.includes(worker)) || !owned(registration, script)) continue;
     await registration.unregister();
   }
-  await caches.delete('houseatlas-saved-public-' + buildId);
+  await caches.delete(PUBLIC_PREFIX + buildId);
 }

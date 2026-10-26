@@ -74,6 +74,7 @@ the Saved shell takes to appear. It uses generated build output only.
 ```sh
 node frontend/lantern-tests/offline-launch-browser.mjs --case offline-launch
 node frontend/lantern-tests/offline-launch-browser.mjs --case hung-network
+node frontend/lantern-tests/offline-launch-browser.mjs --case live-launch
 ```
 
 `offline-launch` closes the listener (connection refused) and must show the
@@ -83,8 +84,11 @@ portal or a weak signal. It must show the shell within 3 s; the root worker
 hands a silent navigation to Saved after 2 s. The listener may answer a
 worker-script update check (`/offline-entry-worker.js`,
 `/saved/service-worker.js`) during the reopen; any other served path fails the
-case. Both cases are in the healthy
-suite. Neither case is iOS, installed-PWA or live-model evidence.
+case. `live-launch` is `offline-launch` with the live entry `/` opened online
+instead of the Saved entry: the live app registers both workers after every
+launch (no backend answers it here). All three cases are in the healthy suite.
+None is iOS, installed-PWA or live-model evidence; the last Atlas copy the
+Saved entry shows offline is checked in `unified-atlas-cache-healthy.mjs`.
 
 ## Real-browser 3D drawing
 

@@ -213,7 +213,9 @@ try {
   const manager = read('src/offline/SavedHouseManager.tsx'), host = read('src/offline/SavedAtlasHost.tsx');
   assert(manager.includes('store.list()')); assert(manager.includes('Captured <time dateTime={house.capturedAt}>{house.capturedAt}</time>'));
   assert(manager.includes('Open saved Atlas')); assert(host.includes('Historical records are not current native authorization.'));
-  assert(read('integration/saved-main.tsx').includes('createRoot(element).render(<SavedAtlasHost />)'));
+  assert(read('integration/saved-main.tsx').includes('createRoot(element).render(<SavedAtlasHost openLastCopy={openLastCopy} />)'));
+  // Every live launch keeps the public shell and root entry on its build.
+  assert(read('integration/main.tsx').includes('module.verifySavedShell()'));
   cases.push('unavailable-root-to-existing-saved-exact-bytes-and-capture-label-seams');
 
   for (const path of ['/api/atlas/auth/session', '/api/atlas/view', '/api/atlas/models/v1/generated', '/?home=generated', '/index.html?home=generated', '/other', 'https://elsewhere.example/'])
@@ -248,22 +250,32 @@ try {
   assert.deepEqual(foreignAPI.calls.map(item => item.script), ['/saved/service-worker.js']);
   cases.push('existing-foreign-root-owner-preserved');
 
-  // Ordinary source update: both workers move to the new build without
-  // purging retained earlier or unrelated caches. Old displayed cleanup
-  // cannot unregister either newer worker.
+  // Ordinary source update (every deploy, from every live launch): both
+  // workers move to the new build, copying the public bytes an earlier build
+  // already verified and downloading only what changed. Once both answer for
+  // the new build, earlier builds' public caches go; unrelated caches stay.
+  // Old displayed cleanup cannot unregister either newer worker.
   await storage.open('foreign-public-cache'); await storage.open(prefix + 'c'.repeat(64));
   api.setTarget(second, storage);
   const newer = shellPage(api, storage, second); assert.equal((await newer.verifySavedShell()).buildId, second.buildId);
   assert.equal(rootRegistration.active.buildId, second.buildId); assert.equal(savedRegistration.active.buildId, second.buildId);
-  assert(storage.stores.has(prefix + first.buildId)); assert(storage.stores.has(prefix + second.buildId));
+  const changed = second.table.filter(pin => first.table.find(row => row.path === pin.path)?.sha256 !== pin.sha256).map(pin => pin.path);
+  // The marked Saved entry names its build, so it always changes.
+  assert.deepEqual(changed, ['/assets/pdfjs/jbig2_nowasm_fallback.js', '/assets/pdfjs/openjpeg_nowasm_fallback.js', '/assets/saved.js', '/saved/index.html']);
+  assert.deepEqual(savedRegistration.active.runtime.calls.map(call => new URL(call.input).pathname), changed, 'Only changed public bytes are downloaded');
+  assert.equal(rootRegistration.active.runtime.calls.length, 0);
+  assert(!storage.stores.has(prefix + first.buildId)); assert(!storage.stores.has(prefix + 'c'.repeat(64)));
+  assert(storage.stores.has(prefix + second.buildId)); assert(storage.stores.has('foreign-public-cache'));
+  for (const pin of second.table) assert.equal(await (await savedRegistration.active.runtime.fetchEvent(request(pin.path, { mode: pin.path.endsWith('.html') ? 'navigate' : 'cors' }))).text(),
+    await second.responses.get(pin.path).clone().text());
   await page.removeSavedShell(first.buildId);
   assert.equal(api.registrations.get(origin + '/'), rootRegistration); assert.equal(api.registrations.get(origin + '/saved/'), savedRegistration);
-  assert(!storage.stores.has(prefix + first.buildId)); assert(storage.stores.has(prefix + second.buildId));
+  assert(storage.stores.has(prefix + second.buildId));
   await newer.removeSavedShell(second.buildId);
   assert.equal(api.registrations.size, 0); assert(!storage.stores.has(prefix + second.buildId));
-  assert(storage.stores.has('foreign-public-cache')); assert(storage.stores.has(prefix + 'c'.repeat(64)));
+  assert(storage.stores.has('foreign-public-cache'));
   await foreignPage.removeSavedShell(first.buildId); assert.equal(foreignAPI.registrations.get(origin + '/'), foreign);
-  cases.push('ordinary-worker-upgrade-and-exact-owned-displayed-build-cleanup');
+  cases.push('ordinary-worker-upgrade-reuses-verified-bytes-and-drops-earlier-builds');
   console.log(JSON.stringify({ result: 'healthy', cases, generatedBuilds: [first.buildId, second.buildId],
     evidence: 'source/generated VM cache and worker lifecycle; capture labeling inspected at existing component seams; no browser/device claim' }));
 } finally { rmSync(scratch, { recursive: true, force: true }); }
