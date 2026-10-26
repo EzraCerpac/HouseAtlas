@@ -56,8 +56,8 @@ const graphURL = await sourceURL('../src/lantern/unified-atlas/NetworkGraph.tsx'
   './network-graph.css': dataURL(''),
 });
 const { NetworkGraph } = await import(graphURL);
-const readerURL = await sourceURL('../integration/unified-atlas-reader.ts',
-  { '../src/lantern/unified-atlas/scene': sceneURL, '../src/lantern/unified-atlas/types': typesURL });
+const readerURL = await sourceURL('../integration/unified-atlas-reader.ts', { '../src/lantern/unified-atlas/scene': sceneURL,
+  '../src/lantern/unified-atlas/types': typesURL, './sha256-thread': await sourceURL('../integration/sha256-thread.ts') });
 const syntheticURL = await sourceURL('./unified-atlas/synthetic-atlas.ts');
 const { stageTier, shownTier } = await import(await sourceURL('../src/lantern/unified-atlas/model-tier.ts'));
 
