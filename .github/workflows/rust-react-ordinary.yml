@@ -1,7 +1,6 @@
 name: Rust React ordinary core
 on:
   pull_request:
-    branches: [main]
   push:
     branches: [main]
 permissions:
