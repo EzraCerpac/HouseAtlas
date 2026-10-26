@@ -157,7 +157,7 @@ const nightFrame = writeAppearance(lit7, { ...base, selectedOccurrenceId: null, 
   glazingKeys: new Set(['glass']), emitterKeys: new Set(['lamp-a', 'lamp-b', 'lamp-far', 'hidden-lamp']),
   hiddenKeys: new Set(['hidden-lamp']), lifts: new Map([['lamp-far', 3]]) }, nightTable);
 const marks = index => [...nightTable.subarray(index * STATE_FLOATS + 30, index * STATE_FLOATS + 32)];
-assert.deepEqual(lit7.map((_, index) => marks(index)), [[1, 0], [0, 1], [0, 1], [0, 1], [0, 1]]);
+assert.deepEqual(lit7.map((_, index) => marks(index)), [[0, 0], [0, 1], [0, 1], [0, 1], [0, 1]]);
 assert.equal(nightFrame.lamps.length, 2, 'two close lamps light as one; a hidden one throws no light');
 vec(nightFrame.lamps[0].at, [4.25, .1, .1], 'merged lamp point');
 vec(nightFrame.lamps[1].at, [9.1, 3.1, .1], 'lifted lamp point');
@@ -173,12 +173,12 @@ const panes = [{ ...mesh('clear') }, { ...mesh('tinted'), sourceBaseColor: [.4, 
 const paneTable = new Float32Array(panes.length * STATE_FLOATS);
 const paneFrame = writeAppearance(panes, { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight, selectedKeys: new Set(['picked']),
   glazingKeys: new Set(panes.map(row => row.meshKey)) }, paneTable);
-const paneRow = index => [paneTable[index * STATE_FLOATS + 20], ...paneTable.subarray(index * STATE_FLOATS + 26, index * STATE_FLOATS + 28)].map(value => Math.round(value * 100) / 100);
+const paneRow = index => [paneTable[index * STATE_FLOATS + 20], paneTable[index * STATE_FLOATS + 27], paneTable[index * STATE_FLOATS + 30]].map(value => Math.round(value * 100) / 100);
 assert.deepEqual(panes.map((_, index) => paneRow(index)), [[4, .1, 0], [4, .3, 1], [4, .1, 0], [MeshPass.Unbound, 0, 0], [4, .85, 0]]);
 assert.ok(!paneFrame.passes.has(MeshPass.Bound));
 const paneless = new Float32Array(panes.length * STATE_FLOATS);
 writeAppearance(panes, { ...base, glazingKeys: new Set(panes.map(row => row.meshKey)) }, paneless);
-assert.ok(panes.every((_, index) => paneless[index * STATE_FLOATS + 20] === MeshPass.Unbound && paneless[index * STATE_FLOATS + 26] === 0));
+assert.ok(panes.every((_, index) => paneless[index * STATE_FLOATS + 20] === MeshPass.Unbound && paneless[index * STATE_FLOATS + 27] === 0));
 const roughGltf = factor => ({ meshes: [{ primitives: [{ material: 0 }] }], materials: [{ pbrMetallicRoughness: { roughnessFactor: factor } }] });
 assert.equal(primitiveRoughness(roughGltf(.2), 0, 0), .2);
 assert.equal(primitiveRoughness(roughGltf(2), 0, 0), undefined, 'an out-of-range roughness is not read');
@@ -209,6 +209,11 @@ assert.deepEqual(beamFrame.lamps.slice(1).map(lamp => lamp.aim), [[1, 0, 0], nul
 const many = Array.from({ length: MAX_LAMPS + 4 }, (_, index) => at(`lamp-${index}`, index * 2));
 assert.equal(writeAppearance(many, { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight, emitterKeys: new Set(many.map(row => row.meshKey)) },
   new Float32Array(many.length * STATE_FLOATS)).lamps.length, MAX_LAMPS);
+// Room volumes are flagged only with daylight, and the frame says whether any exist.
+const roomed = writeAppearance(lit7, { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight, roomKeys: new Set(['glass']) }, nightTable);
+assert.equal(roomed.rooms, true); assert.deepEqual(lit7.map((_, index) => nightTable[index * STATE_FLOATS + 26]), [1, 0, 0, 0, 0]);
+assert.equal(writeAppearance(lit7, { ...base, twoSided: true, light: [0, 1, 0], roomKeys: new Set(['glass']) }, nightTable).rooms, false);
+assert.equal(nightTable[26], 0, 'no room flag without daylight');
 // A lamp the section cuts away whole throws no light; one the cut reaches still does.
 const ceiling = { ...mesh('ceiling-lamp'), bounds: { min: [0, 2.8, 0], max: [.2, 3, .2] } }, wall = { ...at('wall-lamp', 5), bounds: { min: [5, 1.5, 0], max: [5.2, 2.5, .2] } };
 assert.equal(writeAppearance([ceiling, wall], { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight, rules: { ...base.rules, clipY: 2 },
