@@ -69,11 +69,13 @@ node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs
 `frontend/lantern-tests/offline-launch-browser.mjs` serves the built `dist/` on
 an owned loopback listener, opens `/saved/index.html` once online so the Saved
 and root workers install, then reopens `/` without a network and times how long
-the Saved shell takes to appear. It uses generated build output only.
+the Saved shell takes to appear. It uses public generated build output and, in
+`live-launch`, a generated Atlas and a waiting synthetic outbox record.
 
 ```sh
 node frontend/lantern-tests/offline-launch-browser.mjs --case offline-launch
 node frontend/lantern-tests/offline-launch-browser.mjs --case hung-network
+node frontend/lantern-tests/offline-launch-browser.mjs --case live-launch
 ```
 
 `offline-launch` closes the listener (connection refused) and must show the
@@ -83,8 +85,17 @@ portal or a weak signal. It must show the shell within 3 s; the root worker
 hands a silent navigation to Saved after 2 s. The listener may answer a
 worker-script update check (`/offline-entry-worker.js`,
 `/saved/service-worker.js`) during the reopen; any other served path fails the
-case. Both cases are in the healthy
-suite. Neither case is iOS, installed-PWA or live-model evidence.
+case. `live-launch` is `offline-launch` with the live entry `/` opened online
+instead of the Saved entry: the live app registers both workers after every
+launch (no backend answers it here). That case seeds a generated Atlas and one
+waiting edit through the production storage APIs, closes the application tab,
+then opens a new tab offline. It checks the actual cached Atlas and waiting
+count, unchanged full queue record, and absence of write dispatch. It does not
+simulate a canonical session or claim an edit was accepted by a native backend.
+All three cases remain in the existing healthy suite. Reconnect synchronization
+through a canonical signed-in live session, iOS, installed-PWA and real content
+remain separate acceptance. `unified-atlas-cache-healthy.mjs` checks the cached
+copy's actor isolation and lifecycle without a browser.
 
 ## Real-browser 3D drawing
 
