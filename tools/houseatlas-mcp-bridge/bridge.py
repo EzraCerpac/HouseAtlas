@@ -59,7 +59,8 @@ BATCH = 'atlas.batch.execute'
 PROTOCOLS = ('2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05')
 
 class BridgeError(Exception):
-    """Public messages are constants, never raw transport/credential diagnostics."""
+    """Public messages are constants except bounded response status/flag/enum;
+    never raw transport, header, body or credential diagnostics."""
 
 
 
@@ -377,8 +378,17 @@ class HTTPSOwner:
                 need(header_bytes <= budget.remaining_bytes, 'Capabilities response input exceeded bound')
                 limit = min(limit, budget.remaining_bytes - header_bytes)
             accepted_status = metadata_status and response.status in (403, 404, 405, 410, 501, 503)
-            need((response.status == 200 or accepted_status) and 'location' not in metadata
-                 and metadata.get('content-encoding', 'identity') == 'identity', 'Native response unavailable')
+            if not ((response.status == 200 or accepted_status) and 'location' not in metadata
+                    and metadata.get('content-encoding', 'identity') == 'identity'):
+                encoding = metadata.get('content-encoding', 'identity')
+                encoding = encoding.strip().lower() if len(encoding) <= 64 else 'other'
+                if encoding not in ('identity', 'gzip', 'br', 'deflate', 'zstd'):
+                    encoding = 'other'
+                raise BridgeError(
+                    'Native response unavailable'
+                    f'; status={response.status:d}'
+                    f'; locationPresent={"true" if "location" in metadata else "false"}'
+                    f'; contentEncoding={encoding}')
             content_length = metadata.get('content-length')
             if content_length is not None:
                 need(content_length.isdigit() and int(content_length) <= limit, 'Native response exceeded bound')

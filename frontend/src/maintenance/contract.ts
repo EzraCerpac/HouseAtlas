@@ -1,7 +1,8 @@
 /** Existing updater v1 wire fields. Authority and transport are supplied by the host.
- * See tools/houseatlas-updater/protocol.schema.json and its controller/validation.py.
- * This decoder follows the executable parser's version regex (the JSON schema's
- * version pattern is overescaped); it does not change the wire format.
+ * See tools/houseatlas-updater/protocol.schema.json and
+ * tools/houseatlas-updater/houseatlas_updater/validation.py.
+ * The schema, executable parser and decoder use the same dotted-version pattern;
+ * this module does not change the wire format.
  */
 export type Command = 'check' | 'apply' | 'status';
 export interface Release {
