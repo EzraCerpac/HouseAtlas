@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "45f5c556f7582850d37098246ef03f3be8ba09c7169e2db647671cf95378cb24",
+  "sourceDigestSha256": "e8fc9748e1e738bdfc37e23b1e4e2dbce480243f825cd730370b0335442132c4",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -9065,8 +9065,8 @@
     {
       "path": "frontend/src/lantern/atlas/AtlasView.tsx",
       "mode": "100644",
-      "bytes": 36778,
-      "sha256": "866d450caea0ca525250273e15697457aaccb28a69578a7985034118396961d1",
+      "bytes": 36280,
+      "sha256": "cd492d6c2c262e352976c5e9722e545352b40ead9708c41a5bd09e8ad72e0374",
       "owner": "web"
     },
     {
@@ -10276,8 +10276,8 @@
     {
       "path": "frontend/src/lantern/styles/app.css",
       "mode": "100644",
-      "bytes": 54354,
-      "sha256": "471265c0eb54028a833a7880b4c8fa749117b3b3b97f1348fd7235aa5bafa5a7",
+      "bytes": 54009,
+      "sha256": "549e7739d62097b5299ffe05b6368fed4ab47f879ddb6a0ad800eb3924259228",
       "owner": "web"
     },
     {
@@ -10402,8 +10402,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 155470,
-      "sha256": "338838c8a5ec19817793b69adeb76c78f9792351e8083bba99b2a599b6fdf8ab",
+      "bytes": 155264,
+      "sha256": "30a582ecd53e0f3c428ef36caaaad43e28bb39d65945f20886a0bdca0456f467",
       "owner": "web"
     },
     {
