@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "429b9ec48277a61e67ee17c328100b5e2ca9e51465727a22053133e98213859d",
+  "sourceDigestSha256": "1c275c2ca7035b4c223d861f2dd21bb08aa0d6975bcb32785e57f6c7947f9c20",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -105,8 +105,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 6518,
-      "sha256": "95a4768eba32cefcdbfd3b6d69036f95ce418377154058389d71163ebbc5fdde",
+      "bytes": 6708,
+      "sha256": "5faf631736b63f9817a95b0affc6dc497faec35351f666431c5d23a988828c78",
       "owner": "core-integration"
     },
     {
@@ -441,8 +441,8 @@
     {
       "path": "backend/examples/support/unified_atlas_material_fixture.rs",
       "mode": "100644",
-      "bytes": 7194,
-      "sha256": "5d8ce269c335d13ff0d424b2a4ad2fc29eaa6e5fdbab0875771ec7084ddf6c25",
+      "bytes": 7584,
+      "sha256": "c6c733a2c5b1164c0e9fbfafd5fb3bf1fa4d4848c8f0ac8817f215b1ff0f61a4",
       "owner": "core-integration"
     },
     {
@@ -1302,15 +1302,15 @@
     {
       "path": "backend/src/config/atlas_scene_glb.rs",
       "mode": "100644",
-      "bytes": 41076,
-      "sha256": "1223d725e280c183fc423753acfd1967146ace19abe08d14922994aab16d0b89",
+      "bytes": 41295,
+      "sha256": "f43618c600df5397ae90e7799c89b4d48f8673735a542397d6e0e1b2fe8b1c8e",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/config/atlas_scene_material.rs",
       "mode": "100644",
-      "bytes": 15042,
-      "sha256": "d0d95ecbcf53c3ca26885f439fc8ab60e2ce4125f1f48c75416aac6fb370642f",
+      "bytes": 14986,
+      "sha256": "f98a5bd227ef336e153fdbf4d9d90ed521f8481b1743ee0a929b5ea3d7bc13ba",
       "owner": "core-integration"
     },
     {
@@ -6097,8 +6097,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 156841,
-      "sha256": "526a7ff04f334c9547cdc8acedf33bf953b89cb0363333a18ddd203653d4b279",
+      "bytes": 156925,
+      "sha256": "1793fb0a2c3c422b5b6af507a7821ff9d047dfe142348122c5d7d02669da5401",
       "owner": "core-integration"
     },
     {
@@ -6454,8 +6454,8 @@
     {
       "path": "docs/models/unified-atlas-scene-v1.md",
       "mode": "100644",
-      "bytes": 26985,
-      "sha256": "d7513546313de18056d161f317b0a0d0541e90726cbab653cfa6753b774b0c84",
+      "bytes": 27156,
+      "sha256": "75862e90e2e6930743f1d735c338a9726264d078e66cfcc69d0a1fea7f10726b",
       "owner": "core-integration"
     },
     {
@@ -7525,15 +7525,15 @@
     {
       "path": "frontend/lantern-tests/embedded-png-material-fixture.ts",
       "mode": "100644",
-      "bytes": 6686,
-      "sha256": "7305dc847212853de01b8fc9fb43a8fca51ba602745e29271258a11fbd32bbe0",
+      "bytes": 6951,
+      "sha256": "4919aa8233a94bad48437c0fc17406d67aabe798b8c1b6ab9bf4eb72dd1c7db0",
       "owner": "web"
     },
     {
       "path": "frontend/lantern-tests/embedded-png-material-healthy.mjs",
       "mode": "100644",
-      "bytes": 10248,
-      "sha256": "34425ccd73943c27f68914d4dcb8908836645516d839ea66b25947f5a77e6693",
+      "bytes": 11299,
+      "sha256": "b7d50ac574f156f6eebc34794a21955355c19ab665928590372ca3e300a2603b",
       "owner": "web"
     },
     {
@@ -8036,8 +8036,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 4856,
-      "sha256": "4e0a3a8d3356fb264f89c3c046b75764f8a735a4a9c65a3d3a401cdac425c280",
+      "bytes": 4874,
+      "sha256": "ef2e2bfb753a0a5413f1cf5ae2f19535742419d75809fe6262024d6d17990c26",
       "owner": "web"
     },
     {
@@ -9205,8 +9205,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/embedded-png-material.ts",
       "mode": "100644",
-      "bytes": 19905,
-      "sha256": "1fdaff489356d7df1bba7af5b35d956d6f715e12a66da0962ce7eb012b8dae93",
+      "bytes": 20577,
+      "sha256": "a87515d27cd7a167d79216db451fd766a2bd7bf9f124f45206ef4a4730697061",
       "owner": "web"
     },
     {
