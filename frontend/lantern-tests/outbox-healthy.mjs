@@ -298,11 +298,16 @@ for (const lateChange of ['sign-out', 'abort']) {
   const a = outboxOn(disk, server, { lock }), b = outboxOn(disk, server, { lock });
   a.configure(context); b.configure(context);
   setSyncMode('ask');
-  let release;
+  let release, sending;
+  const started = new Promise(resolve => { sending = resolve; });
   const slow = server.transport;
-  server.transport = async (path, init) => { if (!release) await new Promise(resolve => { release = resolve; }); return slow(path, init); };
+  server.transport = async (path, init) => {
+    if (!release) await new Promise(resolve => { release = resolve; sending(); });
+    return slow(path, init);
+  };
   const first = a.submit(submission('nook', 1));
-  await new Promise(resolve => setTimeout(resolve, 10));
+  // The first tab is mid-send, however long its lock and disk took to get there.
+  await started;
   const second = b.submit(submission('alcove', 1));
   release();
   assert.equal((await first).state, 'synced');
