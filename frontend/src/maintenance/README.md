@@ -42,9 +42,10 @@ not discard unresolved identity and create another apply as a retry. The host's
 owner token is a lifecycle fence, not a maintenance grant.
 
 `contract.ts` retains the fields of `tools/houseatlas-updater/protocol.schema.json`
-and checks result identity against the original request. Its version check uses
-the actual Python parser's dotted-version expression; the documentary JSON
-schema currently overescapes those dots. No wire schema is changed here.
+and checks result identity against the original request. Its dotted-version
+expression agrees with the schema and the Python parser in
+`tools/houseatlas-updater/houseatlas_updater/validation.py`.
+No wire schema is changed here.
 `synthetic.ts` exports finite fixture definitions for unavailable, advisory
 check, lost reply/status, retirement and timeout transitions. They are UNRUN
 source until explicitly executed by CI/integration. No runner or CI expansion is
