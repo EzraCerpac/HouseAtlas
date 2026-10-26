@@ -217,7 +217,8 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     out[o + 28] = DAY && p.shelterKeys?.has(key) ? 1 : 0; out[o + 29] = DAY && keep ? 1 : 0;
     const emitter = DAY !== null && p.emitterKeys?.has(key) === true;
     out[o + 30] = DAY && p.glazingKeys?.has(key) ? 1 : 0; out[o + 31] = emitter ? 1 : 0;
-    if (LIT && emitter && pass !== MeshPass.None) {
+    // A lamp cut away whole by the section stays dark, so it never takes a visible lamp's place.
+    if (LIT && emitter && pass !== MeshPass.None && (clip === null || mesh.bounds.min[1] <= clip)) {
       const { min, max } = mesh.bounds, lift = p.lifts?.get(key) ?? 0;
       const at: Rgb = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2 + lift, (min[2] + max[2]) / 2];
       const aim = mesh.aim ?? null, [cx, cy, cz] = at.map(cell) as unknown as Rgb;

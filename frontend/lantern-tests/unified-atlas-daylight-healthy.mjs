@@ -185,6 +185,10 @@ assert.deepEqual(beamFrame.lamps.slice(1).map(lamp => lamp.aim), [[1, 0, 0], nul
 const many = Array.from({ length: MAX_LAMPS + 4 }, (_, index) => at(`lamp-${index}`, index * 2));
 assert.equal(writeAppearance(many, { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight, emitterKeys: new Set(many.map(row => row.meshKey)) },
   new Float32Array(many.length * STATE_FLOATS)).lamps.length, MAX_LAMPS);
+// A lamp the section cuts away whole throws no light; one the cut reaches still does.
+const ceiling = { ...mesh('ceiling-lamp'), bounds: { min: [0, 2.8, 0], max: [.2, 3, .2] } }, wall = { ...at('wall-lamp', 5), bounds: { min: [5, 1.5, 0], max: [5.2, 2.5, .2] } };
+assert.equal(writeAppearance([ceiling, wall], { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight, rules: { ...base.rules, clipY: 2 },
+  emitterKeys: new Set(['ceiling-lamp', 'wall-lamp']) }, new Float32Array(2 * STATE_FLOATS)).lamps.length, 1);
 // Lamps are gathered only while they are on, and many far-apart emitters stay cheap.
 assert.deepEqual(writeAppearance(lit7, { ...base, twoSided: true, light: [0, 1, 0], daylight: { ...midnight, lamp: 0 },
   emitterKeys: new Set(['lamp-a']) }, new Float32Array(lit7.length * STATE_FLOATS)).lamps, []);

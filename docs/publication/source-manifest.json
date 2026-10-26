@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "10c3d4c8b91ccce3b0bc19ee4a06bf108b35d0dc78f4bebb937a723b4799e50e",
+  "sourceDigestSha256": "3e30013852a71c37c6cada3dfd519eadeb99fff6c412ecad7e99c6c40ad51691",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -8309,8 +8309,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-daylight-healthy.mjs",
       "mode": "100644",
-      "bytes": 16695,
-      "sha256": "ed7273b05094c643353f3ec6bdc954ee8245397b3bb9f3cf1e7846b5daa28875",
+      "bytes": 17218,
+      "sha256": "9a81be6b9c40d72578998cbd8714f9ad347d485ad77ba2d132f485dc9f0ac249",
       "owner": "web"
     },
     {
@@ -9240,15 +9240,15 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-appearance.ts",
       "mode": "100644",
-      "bytes": 16452,
-      "sha256": "f8884a4c01eeb528233e0405484c08a8d147a867b82437a95366555d70055e42",
+      "bytes": 16599,
+      "sha256": "bba221b778dd4c55bac7b5b3e0adadaee9ca9610daeb788aaa486fbb5a678a12",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-scene.ts",
       "mode": "100644",
-      "bytes": 35401,
-      "sha256": "28ff3c19cb0c0801700638d6e5bb910833aade86f650638579184adbdbc45c09",
+      "bytes": 35505,
+      "sha256": "512f9ffec28ab184f7729a0d618f16caaef424a49091a57092550a60b49f7df0",
       "owner": "web"
     },
     {

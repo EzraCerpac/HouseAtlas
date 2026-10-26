@@ -211,11 +211,12 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       });
       return sum;
     };
-    /** The night additions to a graded tone: thrown lamp light, lit glass and glowing lamps. */
+    /** The night additions to a graded tone: thrown lamp light, lit glass and glowing lamps.
+     * A kept tone (selection, highlight) is never replaced by glow. */
     const lamplit = (graded: V3, tone: V3, n: V3, s7: V4): V3 => {
-      const thrown = graded.add(tone.mul(vec3(...POOL_TINT)).mul(pool(n)).mul(u.lamp));
-      const glass = mix(thrown, vec3(...WINDOW_GLOW), u.lamp.mul(s7.z).mul(WINDOW_SHARE));
-      return clamp(mix(glass, vec3(...EMITTER_GLOW), u.lamp.mul(s7.w)), 0, 1);
+      const thrown = graded.add(tone.mul(vec3(...POOL_TINT)).mul(pool(n)).mul(u.lamp)), glow = u.lamp.mul(float(1).sub(s7.y));
+      const glass = mix(thrown, vec3(...WINDOW_GLOW), glow.mul(s7.z).mul(WINDOW_SHARE));
+      return clamp(mix(glass, vec3(...EMITTER_GLOW), glow.mul(s7.w)), 0, 1);
     };
 
     /** Architectural face tones: flat tops, pitched faces and lit walls. */
