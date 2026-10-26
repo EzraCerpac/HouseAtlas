@@ -452,6 +452,8 @@ test('folds vertex colours into the material colour before dropping them', async
     assert.deepEqual(material('Wall').pbrMetallicRoughness, { baseColorFactor: [0.5, 0.5, 0.5, 1] });
     assert.deepEqual(material('Panel').pbrMetallicRoughness, { baseColorTexture: { index: 0 }, baseColorFactor: [0.5, 0.5, 0.5, 1] });
     assert.deepEqual(row(result, 'Wall').foldedVertexColour, [0.5, 0.5, 0.5]);
+    // The replaced textured original is no longer declared.
+    assert.equal(json.materials.length, 2);
   }
 });
 

@@ -335,6 +335,16 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     return mesh;
   });
   for (const node of json.nodes ?? []) if (node.mesh !== undefined) node.mesh = meshMap.get(node.mesh);
+  // Keep only referenced materials, so folded copies never leave their replaced
+  // originals counting against the server's material limit.
+  if (json.materials) {
+    const used = [...new Set(json.meshes.flatMap(mesh => mesh.primitives.map(p => p.material)).filter(at => at !== undefined))].sort((a, b) => a - b);
+    const kept = new Map(used.map((at, index) => [at, index])), materials = json.materials;
+    for (const mesh of json.meshes) for (const primitive of mesh.primitives)
+      if (primitive.material !== undefined) primitive.material = kept.get(primitive.material);
+    json.materials = used.map(at => materials[at]);
+    if (json.materials.length === 0) delete json.materials;
+  }
   for (const image of json.images ?? []) if (image.bufferView !== undefined) {
     const view = source.bufferViews[image.bufferView], start = view.byteOffset ?? 0;
     image.bufferView = addView(bin.subarray(start, start + view.byteLength));

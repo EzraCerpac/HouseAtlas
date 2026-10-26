@@ -31,18 +31,19 @@ function meanColour(index) {
 }
 const hex = rgb => '#' + rgb.map(v => Math.min(1, Math.max(0, v))).map(v => Math.round(255 * (v <= .0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - .055)).toString(16).padStart(2, '0')).join('');
 
-const roleOf = new Map(), visit = at => {
+// Every drawn node instance counts on its own: nodes sharing a mesh may carry different roles.
+const instances = [], visit = at => {
   const node = json.nodes[at];
-  if (node.mesh !== undefined) roleOf.set(node.mesh, { role: node.extras?.semanticRole ?? 'none', levels: (node.extras?.levelIds ?? []).length > 0, uses: (roleOf.get(node.mesh)?.uses ?? 0) + 1 });
+  if (node.mesh !== undefined) instances.push({ mesh: node.mesh, role: node.extras?.semanticRole ?? 'none', levels: (node.extras?.levelIds ?? []).length > 0 });
   for (const child of node.children ?? []) visit(child);
 };
 for (const root of (json.scenes ?? [])[json.scene ?? 0]?.nodes ?? []) visit(root);
 
-const rows = new Map(), totals = {};
-for (const [meshIndex, use] of roleOf) json.meshes[meshIndex].primitives.forEach(primitive => {
+const rows = new Map(), totals = {}, means = new Map();
+for (const use of instances) json.meshes[use.mesh].primitives.forEach(primitive => {
   const material = primitive.material === undefined ? null : json.materials[primitive.material];
   const pbr = material?.pbrMetallicRoughness ?? {};
-  const triangles = (primitive.indices === undefined ? json.accessors[primitive.attributes.POSITION].count : json.accessors[primitive.indices].count) / 3 * use.uses;
+  const triangles = (primitive.indices === undefined ? json.accessors[primitive.attributes.POSITION].count : json.accessors[primitive.indices].count) / 3;
   const source = pbr.baseColorTexture ? 'texture' : primitive.attributes.COLOR_0 !== undefined ? (pbr.baseColorFactor ? 'factor×COLOR_0' : 'COLOR_0') : pbr.baseColorFactor ? 'factor' : 'none';
   const group = `${use.role}${use.levels ? '' : ' (site)'}`;
   const id = `${group}|${primitive.material ?? '-'}|${source}`;
@@ -50,7 +51,8 @@ for (const [meshIndex, use] of roleOf) json.meshes[meshIndex].primitives.forEach
     factor: pbr.baseColorFactor ? hex(pbr.baseColorFactor.slice(0, 3)) : null, extensions: Object.keys(material?.extensions ?? {}), triangles: 0, colour: [0, 0, 0], colourWeight: 0 };
   row.triangles += triangles;
   if (primitive.attributes.COLOR_0 !== undefined && bin) {
-    const mean = meanColour(primitive.attributes.COLOR_0);
+    if (!means.has(primitive.attributes.COLOR_0)) means.set(primitive.attributes.COLOR_0, meanColour(primitive.attributes.COLOR_0));
+    const mean = means.get(primitive.attributes.COLOR_0);
     row.colour = row.colour.map((v, c) => v + mean[c] * triangles); row.colourWeight += triangles;
   }
   rows.set(id, row);
