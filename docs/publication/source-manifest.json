@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "3e30013852a71c37c6cada3dfd519eadeb99fff6c412ecad7e99c6c40ad51691",
+  "sourceDigestSha256": "6d6cd4251b7b6f50903d19dadc9806f86fe93b52d34c96b477bcdba7d3d67bc4",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -10367,8 +10367,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/DaylightControl.tsx",
       "mode": "100644",
-      "bytes": 3733,
-      "sha256": "3e2f1506319f013dec915a1b9b2f88e69f10af36c487ba606aee77dc62917d02",
+      "bytes": 7968,
+      "sha256": "78590bc5be75edc7532754e21d11fe12646c0dcd71ecd42477772824dfdbaab5",
       "owner": "web"
     },
     {
@@ -10402,8 +10402,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 155903,
-      "sha256": "ed99c4f7cef0b1a7a1056ad8b3668aec1ebbce3e00bc845de8dc65de817449eb",
+      "bytes": 155920,
+      "sha256": "1f6da0967ff509668d721727e504c3dfb84f09032857f9e6c1a694959b4bed6f",
       "owner": "web"
     },
     {
@@ -10514,8 +10514,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/unified-atlas.css",
       "mode": "100644",
-      "bytes": 89146,
-      "sha256": "cdbeaf6c4fe96ca7aad238cf02cf2bf61a62d460744ccb7714b18412f235dc62",
+      "bytes": 92453,
+      "sha256": "281bad58bf66c06e5134ebf11f08069ba321516e0bd28c9c1e25bebd9d42278a",
       "owner": "web"
     },
     {
