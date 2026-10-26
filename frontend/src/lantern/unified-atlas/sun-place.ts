@@ -1,36 +1,49 @@
 import { useSyncExternalStore } from 'react';
-import type { SunPlace } from './daylight';
+import { resolveSunPlace, type ResolvedSunPlace, type SunLocation } from './daylight';
+import type { AtlasGeographic } from './types';
 
-/** Where the 3D view's sun is computed for: a per-device preference, like
- * Model quality. Until the house's own values are set it is the Greenwich
- * meridian and an unturned model, a neutral reference rather than a guess.
- * A few hundred kilometres barely move the sun's path; the model's north
- * turns every shadow. */
-export const DEFAULT_SUN_PLACE: SunPlace = Object.freeze({ latitude: 51.48, longitude: 0, northDeg: 0 });
-const KEY = 'houseatlas.sun-place.v1';
-const listeners = new Set<() => void>();
+/** This device's own sun location, like Model quality, and the shown
+ * release's geographic frame; resolveSunPlace says which one lights the view. */
+const KEY = 'houseatlas.sun-location.v1';
 
-const finite = (value: unknown, low: number, high: number): value is number => typeof value === 'number' && Number.isFinite(value) && value >= low && value <= high;
-/** The stored place, or the default where it is missing or out of range. */
-export function readSunPlace(): SunPlace {
+const finite = (value: unknown, limit: number): value is number => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= limit;
+/** The stored device location, or null where it is missing or out of range. */
+export function readSunLocation(): SunLocation | null {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(KEY) ?? 'null');
     if (value && typeof value === 'object') {
-      const { latitude, longitude, northDeg } = value as Record<string, unknown>;
-      if (finite(latitude, -90, 90) && finite(longitude, -180, 180) && finite(northDeg, -360, 360)) return { latitude, longitude, northDeg };
+      const { latitude, longitude } = value as Record<string, unknown>;
+      if (finite(latitude, 90) && finite(longitude, 180)) return { latitude, longitude };
     }
-  } catch { /* Unavailable or unreadable storage keeps the default. */ }
-  return DEFAULT_SUN_PLACE;
+  } catch { /* Unavailable or unreadable storage keeps the release's location. */ }
+  return null;
 }
-/** Merges `patch` into the place as it stands now, so edits made while a
- * location lookup is pending are kept. */
-export function updateSunPlace(patch: Partial<SunPlace>): void {
-  const value = { ...current(), ...patch };
-  try { localStorage.setItem(KEY, JSON.stringify(value)); } catch { /* The choice lasts for this page only. */ }
-  memory = value;
-  for (const changed of listeners) changed();
-}
-let memory: SunPlace | null = null;
-const current = () => memory ??= readSunPlace();
+
+interface State { readonly device: SunLocation | null; readonly model: AtlasGeographic | null }
+let state: State | null = null;
+const listeners = new Set<() => void>();
+const current = () => state ??= { device: readSunLocation(), model: null };
+function publish(next: State) { state = next; for (const changed of listeners) changed(); }
 function subscribe(changed: () => void) { listeners.add(changed); return () => { listeners.delete(changed); }; }
-export function useSunPlace(): SunPlace { return useSyncExternalStore(subscribe, current, () => DEFAULT_SUN_PLACE); }
+const SERVER: State = { device: null, model: null };
+
+/** Merges `patch` into this device's location as it stands now, so a field
+ * edited while a location lookup is pending is kept; null returns to the release's. */
+export function updateSunLocation(patch: Partial<SunLocation> | null): void {
+  const device = patch && { ...(current().device ?? resolveSunPlace(null, current().model)), ...patch };
+  const location = device && { latitude: device.latitude, longitude: device.longitude };
+  try { if (location) localStorage.setItem(KEY, JSON.stringify(location)); else localStorage.removeItem(KEY); }
+  catch { /* The choice lasts for this page only. */ }
+  publish({ ...current(), device: location });
+}
+/** The shown release's geographic frame, so Settings can say where the sun is from. */
+export function showModelGeographic(model: AtlasGeographic | null): void {
+  if (current().model !== model) publish({ ...current(), model });
+}
+/** The device's own location, or null when it follows the release. */
+export function useSunLocation(): SunLocation | null { return useSyncExternalStore(subscribe, () => current().device, () => SERVER.device); }
+/** The place in effect for the release last shown, and that release's own. */
+export function useSunPlace(): ResolvedSunPlace & { readonly model: AtlasGeographic | null } {
+  const { device, model } = useSyncExternalStore(subscribe, current, () => SERVER);
+  return { ...resolveSunPlace(device, model), model };
+}

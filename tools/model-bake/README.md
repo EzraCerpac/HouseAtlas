@@ -14,7 +14,10 @@ node tools/model-bake/bake.mjs --model master.glb --companion atlas-scene.json -
 `OUT_DIR` receives `model.glb`, `atlas-scene.json` and `bake-report.json`. The
 bake only creates files: if any of them already exists there (the master
 itself, a link to it, an earlier bake), it refuses before writing anything.
-Options: `--triangles` (drawn-triangle budget, default 520,000, under the
+Options: `--geographic LAT,LON,NORTH` (with `--companion`: writes the
+house's location and true north, in degrees, into the companion's
+`frame.geographic` for the viewer's sun; see docs/models/unified-atlas-scene-v1.md),
+`--triangles` (drawn-triangle budget, default 520,000, under the
 viewer's 600,000), `--max-error` (largest context error in metres before the
 bake refuses, default 0.05), `--structure-weight` (structure and roof error as
 a share of the context error, default 0.25), `--site-weight` (site context

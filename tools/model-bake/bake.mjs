@@ -11,10 +11,10 @@ import { BAKE_DEFAULTS, bakeDetail, bakeOverview } from './src/bake.mjs';
 
 const { values } = parseArgs({ options: {
   model: { type: 'string' }, companion: { type: 'string' }, out: { type: 'string' }, detail: { type: 'boolean' },
-  triangles: { type: 'string' }, 'max-error': { type: 'string' }, 'structure-weight': { type: 'string' }, 'site-weight': { type: 'string' }, weld: { type: 'string' },
+  geographic: { type: 'string' }, triangles: { type: 'string' }, 'max-error': { type: 'string' }, 'structure-weight': { type: 'string' }, 'site-weight': { type: 'string' }, weld: { type: 'string' },
 } });
 if (!values.model || !values.out) {
-  console.error('Usage: bake.mjs --model master.glb [--companion atlas-scene.json] --out DIR [--detail] '
+  console.error('Usage: bake.mjs --model master.glb [--companion atlas-scene.json [--geographic LAT,LON,NORTH]] --out DIR [--detail] '
     + `[--triangles ${BAKE_DEFAULTS.triangles}] [--max-error ${BAKE_DEFAULTS.maxError}] [--structure-weight ${BAKE_DEFAULTS.structureWeight}] [--site-weight ${BAKE_DEFAULTS.siteWeight}] [--weld ${BAKE_DEFAULTS.weld}]`);
   process.exit(2);
 }
@@ -36,6 +36,16 @@ for (const name of names) if (existsSync(join(values.out, name)) || isSymlink(jo
 const started = Date.now();
 const master = new Uint8Array(readFileSync(values.model));
 const companion = values.companion ? JSON.parse(readFileSync(values.companion, 'utf8')) : null;
+// Where the house stands, in degrees, and true north clockwise from the model's
+// -Z: written into the companion's frame for the viewer's sun, so it travels
+// with this release only.
+if (values.geographic !== undefined) {
+  const parts = values.geographic.split(',').map(Number), limits = [90, 180, 360];
+  if (!companion || parts.length !== 3 || !parts.every((value, at) => Number.isFinite(value) && Math.abs(value) <= limits[at]))
+    throw new Error('--geographic takes LAT,LON,NORTH in degrees (|lat| ≤ 90, |lon| ≤ 180, |north| ≤ 360) and needs --companion');
+  const [latitude, longitude, northDeg] = parts;
+  companion.frame = { ...companion.frame, geographic: { latitude, longitude, northDeg } };
+}
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const binding = model => ({ boundPrimitives: model.parts.length, roomPickPrimitives: model.parts.filter(part => part.occurrenceId !== null).length,
   selectableOccurrences: model.selectable.size, levels: model.levelsById.size, buildings: model.buildingsById.size });

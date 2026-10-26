@@ -73,7 +73,9 @@ endpoint, fetch, ReadyView facet or source-schema field.
   publication:{publicationId,sourceRevisionId,sourceSha256,semanticsSha256},
   frame:{units:"m",upAxis:"Y",horizontalAxes:["X","Z"],
          geometryPlacement:"gltf-world-after-node-transforms-once",
-         physicalRegistration:null},
+         physicalRegistration:null,
+         // only when the release says where the house stands:
+         geographic:{latitude,longitude,northDeg}},
   artifacts:[{artifactId:"model",role:"model",contentType:"model/gltf-binary",
               bytes,sha256,href},
              // only when the publication has a detail GLB:
@@ -191,6 +193,18 @@ All building, level and occurrence bounds, plan X/Z coordinates and qualified
 overlay source positions use the same glTF world frame after node transforms
 have been applied once. A source-to-geographic origin is provenance, not an
 additional renderer translation.
+
+`frame.geographic` is optional and only lights the 3D view for the real sun.
+When present it has exactly `latitude` and `longitude` in WGS84 degrees
+(|latitude| ≤ 90, |longitude| ≤ 180) and `northDeg`, the angle clockwise from
+the model's −Z (Blender's +Y) to true north, seen from above (|northDeg| ≤ 360).
+It is absent, never `null`, when unknown. It moves no geometry and claims no
+physical registration. The server and the viewer refuse it when incomplete or
+out of range. Without it the viewer uses a neutral reference place with north
+along −Z, and a device may always set its own location over the release's.
+The values live in the private release only; public fixtures use neutral
+reference places. A companion without the field can be given one at bake time
+with `--geographic LAT,LON,NORTH` (tools/model-bake).
 
 ## Exact mesh membership and matching plans
 

@@ -30,8 +30,8 @@ import { edgeSpans, estimatedOccurrences, MEASUREMENT_BASIS, placeLabels, roomAr
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
 import { modelUpdatesAllowed, useModelUpdates } from './model-updates';
 import { fullModelWanted, useModelQuality } from './model-quality';
-import { daylightAt, stageColors } from './daylight';
-import { useSunPlace } from './sun-place';
+import { daylightAt, resolveSunPlace, stageColors } from './daylight';
+import { showModelGeographic, useSunLocation } from './sun-place';
 import { DaylightControl, useLightingTime } from './DaylightControl';
 import { shownTier, stageTier } from './model-tier';
 import { NetworkGraph } from './NetworkGraph';
@@ -719,7 +719,10 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
     return insetProjection(centred, inset.l, inset.t, size);
   }, [camera.eased, bounds, size, planBlend, inset, readable]);
   // The real sun for the chosen moment, fixed to the house: shadows fall where they would.
-  const sunPlace = useSunPlace(), lightingTime = useLightingTime();
+  // Where the release says the house stands, unless this device set its own location.
+  const sunLocation = useSunLocation(), geographic = model.scene.geographic, lightingTime = useLightingTime();
+  useEffect(() => { showModelGeographic(geographic); return () => showModelGeographic(null); }, [geographic]);
+  const sunPlace = useMemo(() => resolveSunPlace(sunLocation, geographic), [sunLocation, geographic]);
   const daylight = useMemo(() => daylightAt(lightingTime.at, sunPlace), [lightingTime.at, sunPlace]);
   const light = daylight.toward, across = Math.max(1e-6, Math.hypot(light[0], light[2]));
   const shadowOffset = [-light[0] / across * SHADOW_LENGTH, -light[2] / across * SHADOW_LENGTH] as const;
