@@ -72,6 +72,16 @@ assert.deepEqual(resolveSunPlace(null, null), { latitude: 51.48, longitude: 0, n
 assert.deepEqual(resolveSunPlace(null, release), { ...release, source: 'model' });
 assert.deepEqual(resolveSunPlace(device, release), { ...device, northDeg: 12, source: 'device' });
 assert.deepEqual(resolveSunPlace(device, null), { ...device, northDeg: 0, source: 'device' });
+// Settings keeps the shown release's location across views, but only while
+// that home and publication are still the selected ones.
+const react = new URL('./node_modules/react/index.js', frontend).href;
+const { modelGeographicFor, showModelGeographic } = await import(await sourceURL('../src/lantern/unified-atlas/sun-place.ts', { react, './daylight': await sourceURL('../src/lantern/unified-atlas/daylight.ts', { suncalc }) }));
+const chosen = { owner: {}, scope: { workspaceId: 'w', homeId: 'h' }, expiresAt: '', publicationId: 'p', manifestSha256: '' };
+showModelGeographic({ workspaceId: 'w', homeId: 'h', publicationId: 'p' }, release);
+assert.deepEqual(modelGeographicFor(chosen), release);
+assert.equal(modelGeographicFor(null), null, 'No selected publication, no release location');
+assert.equal(modelGeographicFor({ ...chosen, scope: { workspaceId: 'w', homeId: 'other' } }), null, 'Another home');
+assert.equal(modelGeographicFor({ ...chosen, publicationId: 'next' }), null, 'Another publication');
 
 // Through a whole winter and a whole summer day, a minute at a time: nothing
 // jumps, the sky never falls below a readable share, lamps only after sunset.
