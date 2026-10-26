@@ -1,6 +1,6 @@
 // Named ordinary positive: generated time-of-day lighting for the unified
 // Atlas (#339). The pinned SunCalc places the sun for a neutral reference
-// place; the light changes smoothly through a day, never falls below a
+// place, which a release or a device can replace; the light changes smoothly through a day, never falls below a
 // readable floor, and turns with the model's north; the appearance table
 // carries the shelter and kept-tone flags only when daylight is given, and
 // leaves every other viewer as before. Pure source only: no browser, GPU,
@@ -25,7 +25,7 @@ async function sourceURL(relative, replacements = {}) {
   return dataURL(code);
 }
 const suncalc = new URL('./node_modules/suncalc/index.js', frontend).href;
-const { daylightAt, modelDirection, stageColors } = await import(await sourceURL('../src/lantern/unified-atlas/daylight.ts', { suncalc }));
+const { daylightAt, modelDirection, resolveSunPlace, stageColors } = await import(await sourceURL('../src/lantern/unified-atlas/daylight.ts', { suncalc }));
 const geometryURL = await sourceURL('../src/lantern/canonical-ifc/geometry.ts');
 const { writeAppearance, STATE_FLOATS } = await import(await sourceURL('../src/lantern/canonical-ifc/mesh-appearance.ts', { './geometry': geometryURL }));
 
@@ -64,6 +64,24 @@ assert.equal(midnight.dusk, 1);
 const turned = daylightAt(new Date('2026-06-21T12:00:00Z'), { ...place, northDeg: 90 });
 near(turned.toward[1], solstice.toward[1], 1e-9, 'altitude kept');
 near(turned.toward[0], -solstice.toward[2], 1e-9, 'south moved onto -X');
+
+// Where the sun is from: a device's location over the release's, the release's
+// north always, and a neutral reference with north along -Z when neither says.
+const release = { latitude: -33.9, longitude: 18.4, northDeg: 12 }, device = { latitude: 60, longitude: 25 };
+assert.deepEqual(resolveSunPlace(null, null), { latitude: 51.48, longitude: 0, northDeg: 0, source: 'default' });
+assert.deepEqual(resolveSunPlace(null, release), { ...release, source: 'model' });
+assert.deepEqual(resolveSunPlace(device, release), { ...device, northDeg: 12, source: 'device' });
+assert.deepEqual(resolveSunPlace(device, null), { ...device, northDeg: 0, source: 'device' });
+// Settings keeps the shown release's location across views, but only while
+// that home and publication are still the selected ones.
+const react = new URL('./node_modules/react/index.js', frontend).href;
+const { modelGeographicFor, showModelGeographic } = await import(await sourceURL('../src/lantern/unified-atlas/sun-place.ts', { react, './daylight': await sourceURL('../src/lantern/unified-atlas/daylight.ts', { suncalc }) }));
+const chosen = { owner: {}, scope: { workspaceId: 'w', homeId: 'h' }, expiresAt: '', publicationId: 'p', manifestSha256: '' };
+showModelGeographic({ workspaceId: 'w', homeId: 'h', publicationId: 'p' }, release);
+assert.deepEqual(modelGeographicFor(chosen), release);
+assert.equal(modelGeographicFor(null), null, 'No selected publication, no release location');
+assert.equal(modelGeographicFor({ ...chosen, scope: { workspaceId: 'w', homeId: 'other' } }), null, 'Another home');
+assert.equal(modelGeographicFor({ ...chosen, publicationId: 'next' }), null, 'Another publication');
 
 // Through a whole winter and a whole summer day, a minute at a time: nothing
 // jumps, the sky never falls below a readable share, lamps only after sunset.

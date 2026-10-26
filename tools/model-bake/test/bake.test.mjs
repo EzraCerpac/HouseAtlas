@@ -501,9 +501,15 @@ test('the command line writes the detail beside the overview', async () => {
     writeFileSync(join(dir, 'master.glb'), glb);
     writeFileSync(join(dir, 'master.json'), JSON.stringify({ ...atlas.companion, original: { sha256: sha256(glb), bytes: glb.byteLength } }));
     const out = join(dir, 'out'), cli = new URL('../bake.mjs', import.meta.url).pathname;
-    execFileSync(process.execPath, [cli, '--model', join(dir, 'master.glb'), '--companion', join(dir, 'master.json'), '--out', out, '--detail',
-      '--triangles', String(Math.floor(trianglesIn(glb) * 0.6))], { stdio: 'pipe' });
+    const args = ['--model', join(dir, 'master.glb'), '--companion', join(dir, 'master.json'), '--out', out, '--detail',
+      '--triangles', String(Math.floor(trianglesIn(glb) * 0.6))];
+    for (const wrong of ['91,0,0', '51.48,,0', ',,', '51.48,0'])
+      assert.throws(() => execFileSync(process.execPath, [cli, ...args, '--geographic', wrong], { stdio: 'pipe' }), /--geographic takes/, wrong);
+    // A neutral reference place, not any household location.
+    execFileSync(process.execPath, [cli, ...args, '--geographic', '51.48,0,-12.5'], { stdio: 'pipe' });
     assert.deepEqual(readdirSync(out).sort(), ['atlas-scene.json', 'bake-report.json', 'detail.glb', 'model.glb']);
+    const baked = JSON.parse(readFileSync(join(out, 'atlas-scene.json'), 'utf8'));
+    assert.deepEqual(baked.frame, { ...atlas.companion.frame, geographic: { latitude: 51.48, longitude: 0, northDeg: -12.5 } });
     const report = JSON.parse(readFileSync(join(out, 'bake-report.json'), 'utf8')), detail = readFileSync(join(out, 'detail.glb'));
     // The report carries the publication.json `detail` pin.
     assert.deepEqual({ file: report.detail.file, contentType: report.detail.contentType, sha256: report.detail.sha256, bytes: report.detail.bytes },
