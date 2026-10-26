@@ -30,6 +30,7 @@ import hashlib
 import json
 import os
 import plistlib
+import re
 import shutil
 import subprocess
 import sys
@@ -284,14 +285,28 @@ def store_models(store: Path, models: list[dict], stamp: str) -> list[Path]:
     return created
 
 
+def check_model_list(models) -> None:
+    """A report's model list names blobs and restore paths; refuse anything but
+    relative file names and 64-hex digests before any file is opened."""
+    if not isinstance(models, list):
+        raise StepFailed("model restore", "report has no model list")
+    for model in models:
+        if not (isinstance(model, dict) and isinstance(model.get("file"), str)
+                and isinstance(model.get("sha256"), str) and isinstance(model.get("bytes"), int)
+                and re.fullmatch(r"[0-9a-f]{64}", model["sha256"])):
+            raise StepFailed("model restore", f"malformed model entry {model!r}")
+        parts = Path(model["file"]).parts
+        if not parts or Path(model["file"]).is_absolute() or ".." in parts:
+            raise StepFailed("model restore", f"unsafe file name {model['file']!r}")
+
+
 def restore_models(store: Path, models: list[dict], destination: Path, fetch=None) -> None:
     """Rebuild the served publication folders from the blob store, as a restore
     does: every file is copied from its blob and checked against its hash, and
     every manifest's model pins are checked again."""
+    check_model_list(models)
     for model in models:
         parts = Path(model["file"]).parts
-        if Path(model["file"]).is_absolute() or ".." in parts:
-            raise StepFailed("model restore", f"unsafe file name {model['file']!r}")
         blob = store / "blobs" / model["sha256"]
         if not blob.is_file():
             raise StepFailed("model restore", f"blob for {model['file']} is missing")
@@ -504,8 +519,9 @@ def restore_models_command(report: Path, store: Path, destination: Path) -> int:
     if destination.exists():
         print(f"{destination} exists; restore into a new folder", file=sys.stderr)
         return 64
-    models = json.loads(report.read_text())["models"]
+    models = json.loads(report.read_text()).get("models")
     try:
+        check_model_list(models)
         restore_models(store, models, private_dir(destination))
     except StepFailed as error:
         print(str(error), file=sys.stderr)

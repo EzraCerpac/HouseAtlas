@@ -204,6 +204,17 @@ printf '{{"ubiquitous": true, "uploaded": true, "downloadingStatus": "%s"}}\\n' 
         self.assertEqual(hb.restore_models_command(report, store, self.root / "new"), 0)
         self.assertTrue((self.root / "new/releases/v1/detail.glb").is_file())
         self.assertEqual(hb.restore_models_command(report, store, self.root / "new"), 64)
+        outside = self.root / "unrelated-synthetic-file"
+        outside.write_bytes(b"not a blob")
+        for bad in ({"file": "releases/v1/x", "sha256": str(outside), "bytes": 1},
+                    {"file": "releases/v1/x", "sha256": "../" + listed[0]["sha256"], "bytes": 1},
+                    {"file": "releases/v1/x", "sha256": listed[0]["sha256"].upper(), "bytes": 1},
+                    {"file": "/abs", "sha256": listed[0]["sha256"], "bytes": 1},
+                    {"file": "releases/v1/x", "sha256": listed[0]["sha256"]}, "not an entry"):
+            report.write_text(json.dumps({"models": [bad]}))
+            target = self.root / "rejected"
+            self.assertEqual(hb.restore_models_command(report, store, target), 1, bad)
+            self.assertFalse(target.exists(), bad)
 
 
     def test_two_nights_with_one_release_upload_the_model_once(self):
