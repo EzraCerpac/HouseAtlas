@@ -7,6 +7,8 @@ import { threeNoticeBanner } from './build/three-notice-banner.mjs';
 
 export default defineConfig({
   plugins: [react(), pdfjsBinaryDataPlugin(process.cwd()), offlineShellPlugin()],
+  // The Full model's GLB worker bundles three.js, so it carries the same notice.
+  worker: { rolldownOptions: { output: { postBanner: threeNoticeBanner(process.cwd()) } } },
   build: {
     sourcemap: false,
     rolldownOptions: {
