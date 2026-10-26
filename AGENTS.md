@@ -60,7 +60,9 @@ runner's software GPU and swaps in a second mesh set without a blank frame, and 
 and control-names checks (compiled source and markup only, no browser), the
 generated WebMCP batch-discovery descriptor check (schema bytes only), and
 the generated offline outbox check (synthetic IndexedDB and a generated
-server, no browser or network); the `tools/model-bake` tests on generated
+server, no browser or network), and the generated backup settings check
+(decoding and the CSRF save exchange against a generated transport, no
+browser or network); the `tools/model-bake` tests on generated
 geometry, including viewer admission and selector binding of a baked generated
 unified Atlas publication and its detail tier; and
 `cargo test --locked -p houseatlas-backend --lib` with its default
