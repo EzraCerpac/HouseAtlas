@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "6d2179435605fc9ec52d1cf857f997ea241d9bf3536bcce089ac53ad21319d6b",
+  "sourceDigestSha256": "b017ba6ed17936cc2fc7fbc95d03fc945fb4fd8da0f1843b78d9dded68c51610",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -7637,8 +7637,8 @@
     {
       "path": "frontend/lantern-tests/mesh-layer-browser.mjs",
       "mode": "100644",
-      "bytes": 17995,
-      "sha256": "14cc94746e6dc774798313d805b6a3e472b30e31a2a3f31ea3897309f21cfe2a",
+      "bytes": 20302,
+      "sha256": "9391641bc3e20c26ff3e9d9595d6e37bd0fdf3cd27efeb7cb192c871dd414bab",
       "owner": "web"
     },
     {
@@ -8043,8 +8043,8 @@
     {
       "path": "frontend/lantern-tests/render-bench/main.tsx",
       "mode": "100644",
-      "bytes": 15781,
-      "sha256": "40a0c3fcf869cda72f96dc2349d9bd984a4b0f85c96d51a6f94c4fcd66b77af5",
+      "bytes": 18132,
+      "sha256": "98ac9f6193c57efc37876354fd6efb5f5fe68ca96a2b979c45838796be86d22e",
       "owner": "web"
     },
     {
@@ -9303,8 +9303,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-scene.ts",
       "mode": "100644",
-      "bytes": 47047,
-      "sha256": "304dac1f41c1d7f5a720469d0f07653babdedb4a28b8392f51b4c69ac25b337b",
+      "bytes": 49110,
+      "sha256": "547b05404dc6e1de0f05ac3f3a81716a3f625b3305f5c67e89623b04bf6f8f00",
       "owner": "web"
     },
     {

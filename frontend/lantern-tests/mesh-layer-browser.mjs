@@ -5,7 +5,9 @@
  *
  *   --case webgl2   no WebGPU adapter, so three.js uses its WebGL2 backend
  *   --case webgpu   WebGPU on SwiftShader Vulkan (needs a Chromium that offers it)
- *   --case bench    prints CPU time and GPU API calls per frame; asserts nothing
+ *   --case bench    prints CPU time and GPU API calls per frame while the camera
+ *                   turns, then per step while the lighting time is scrubbed by
+ *                   day and by night; asserts nothing
  *
  * Requires Node 26.10.0 and an inspected HOUSEATLAS_CHROMIUM executable. */
 import assert from 'node:assert/strict';
@@ -138,6 +140,10 @@ try {
   if (selected === 'bench') {
     await open('/lantern-tests/render-bench/index.html?frames=60', 390, 844, ['Emulation.setCPUThrottlingRate', { rate: 4 }]);
     console.log(JSON.stringify(await poll('window.benchDone', 240_000, 'Benchmark did not finish')));
+    for (const scrub of ['day', 'night']) {
+      await open(`/lantern-tests/render-bench/index.html?frames=30&scrub=${scrub}`, 390, 844, ['Emulation.setCPUThrottlingRate', { rate: 4 }]);
+      console.log(JSON.stringify(await poll('window.benchDone', 240_000, 'Scrub benchmark did not finish')));
+    }
   } else {
     // 1. A generated house: drawn, selection visible, a handful of GPU calls per frame however many primitives.
     await open('/lantern-tests/render-bench/index.html?frames=8&pieces=600', 480, 480);
@@ -181,6 +187,28 @@ try {
     assert.deepEqual(await evaluate('window.checkDigestWorker()'), { same: true, unchanged: true, moved: true, aborted: 'aborted' });
     assert.equal(await evaluate(`document.querySelector('canvas').dataset.renderer`), expected);
     assert.equal(await evaluate(`document.querySelector('output').textContent`), '', 'MeshLayer reported a failure after the swap');
+
+    // A new hour over a still view keeps the contact shading already averaged and
+    // redraws only the colour: after a scrub, the same picture as that hour drawn whole.
+    const quiet = async () => {
+      await poll(`window.lastDrawn && performance.now() - window.lastDrawn > 2000`, 120_000, 'The view did not settle');
+      return shot();
+    };
+    const meanDifference = (a, b) => { let sum = 0; for (let i = 0; i < a.pixels.length; i++) sum += Math.abs(a.pixels[i] - b.pixels[i]); return sum / a.pixels.length; };
+    await open('/lantern-tests/render-bench/index.html?frames=36&pieces=600&scrub=day&hold', 480, 480);
+    const before = await quiet();
+    await evaluate('window.go = true');
+    const scrub = await poll('window.benchDone', 120_000, 'The lighting time did not move');
+    // By day: the sun's map and the colour pass, and the shading laid over it; never the contact shading's own passes.
+    if (expected === 'webgpu') assert(scrub.passes <= 3, `A new hour drew ${scrub.passes} render passes per frame`);
+    const relit = await quiet();
+    await open('/lantern-tests/render-bench/index.html?frames=0&pieces=600&scrub=day&from=36', 480, 480);
+    await poll('window.benchDone', 120_000, 'The later hour was not drawn');
+    const whole = await quiet();
+    const moved = meanDifference(before, whole), kept = meanDifference(relit, whole);
+    assert(moved > 4 * kept && kept < 1.5, `A relit hour differs from the same hour drawn whole (${kept.toFixed(2)} mean channel difference; the hour itself moved ${moved.toFixed(2)})`);
+    assert.equal(await evaluate(`document.querySelector('output').textContent`), '', 'MeshLayer reported a failure while the hour moved');
+    console.log(`relit hour: ${scrub.passes} passes per frame, ${kept.toFixed(2)} mean channel difference from the hour drawn whole (the hour moved ${moved.toFixed(2)})`);
 
     // 2. Embedded PNG materials: textured, selected, dimmed and ghost samples each draw on the same backend.
     await open('/lantern-tests/embedded-png-material-visual/index.html', 1400, 900);
