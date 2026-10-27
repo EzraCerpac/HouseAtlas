@@ -61,7 +61,7 @@ export function run({ root, output }) {
     const document = { format: 'houseatlas.perf.model-interaction/1', synthetic: true, status,
       source: { ...source, after: sourceAfter, files: worker.sourceFiles },
       harness: { ...harness, filesSha256: digest, after: { ...harnessAfter, filesSha256: digestAfter } },
-      method: { id: 'model-interaction-cpu', revision: 1 }, profile: PROFILE, environment,
+      method: { id: 'model-interaction-cpu', revision: 2 }, profile: PROFILE, environment,
       unsupported: ['browser-rendering', 'gpu', 'iphone', 'peak-memory', 'total-allocations', 'network-load'],
       ...(worker.reason ? { reason: worker.reason } : {}), results: worker.results };
     writeFileSync(output, JSON.stringify(document, null, 2) + '\n', { flag: 'wx', mode: 0o600 });

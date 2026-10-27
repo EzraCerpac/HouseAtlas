@@ -10,7 +10,7 @@ import { sampledBytes, summary } from './measure.mjs';
 import { parseArgs, run } from './run.mjs';
 
 const root = resolve(new URL('../../../', import.meta.url).pathname);
-test('generated GLB and complete manifest retain identities and drawn transforms', async () => {
+test('generated GLB retains drawn transforms and unbound meshes', async () => {
   const observed = new Map(), api = await modules(root, observed), input = await scenario(api.sample, 100);
   const duplicate = await scenario(api.sample, 100);
   assert.deepEqual(input.facts, duplicate.facts);
@@ -19,16 +19,9 @@ test('generated GLB and complete manifest retain identities and drawn transforms
   assert.equal(glb.meshes.reduce((sum, mesh) => sum + mesh.vertices.byteLength, 0), 86400);
   const bounds = api.geometry.drawnBounds(glb.meshes, [], null);
   assert(Math.abs(bounds.max[0] - 11.2) < 1e-5);
-  const data = api.manifest.readBrowserManifest(JSON.parse(new TextDecoder().decode(input.manifestBytes)));
-  const check = api.manifest.checkManifest(data, { glb, bounds, sha256: sha256(input.bytes), bytes: input.bytes.length },
-    { sha256: sha256(input.reference), bytes: input.reference.length });
-  assert.equal(check.identitiesInExtras, 110); assert(check.boundsDifference < 1e-4);
-  const index = api.navigator.navigationIndex(glb, data);
-  assert.equal(index.products.size, 100); assert.equal(index.occurrences.size, 10);
-  assert.deepEqual(index.storeys.map(storey => storey.products.length), [50, 50]);
-  assert.equal(index.unlisted.length, 0);
   assert(glb.meshes.every(mesh => mesh.occurrenceId === null && mesh.floorId === null));
-  assert.equal(observed.size, existsSync(join(root, 'frontend/src/lantern/canonical-ifc/embedded-png-material.ts')) ? 7 : 6);
+  const optional = ['embedded-png-material.ts', 'glb-meshopt.ts'].filter(name => existsSync(join(root, 'frontend/src/lantern/canonical-ifc', name)));
+  assert.equal(observed.size, 4 + optional.length);
 });
 
 test('optional embedded-material import loads through the mapped production closure without a browser', async t => {
@@ -44,19 +37,6 @@ test('optional embedded-material import loads through the mapped production clos
   assert.deepEqual(optional.counts, plain.counts);
   assert.deepEqual(optional.meshes, plain.meshes);
   assert(optional.meshes.every(mesh => mesh.sourceMaterial === undefined));
-});
-
-test('static navigator rendering includes declared products and geometry-free rooms', async () => {
-  const api = await modules(root, new Map()), input = await scenario(api.sample, 10);
-  const glb = await api.standard.loadStandardGlb(input.bytes, 'generated', new AbortController().signal);
-  const data = api.manifest.readBrowserManifest(JSON.parse(new TextDecoder().decode(input.manifestBytes)));
-  const index = api.navigator.navigationIndex(glb, data);
-  const navigation = { hidden: { storeys: new Set(), classes: new Set(), unlisted: false }, selection: null,
-    setSelection() {}, toggleStorey() {}, toggleClass() {}, toggleUnlisted() {} };
-  const html = api.server.renderToStaticMarkup(api.react.createElement(api.navigator.ModelNavigator, { index, navigation }));
-  assert(html.includes('generated-product-9'));
-  assert(html.includes('generated-room-0'));
-  assert(html.includes('No geometry'));
 });
 
 test('actual plan picker keeps holes, nested rooms and explicit floor separation', async () => {
