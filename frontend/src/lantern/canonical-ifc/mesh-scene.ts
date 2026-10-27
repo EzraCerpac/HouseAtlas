@@ -566,7 +566,17 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const shade = select(depth.r.lessThan(1), mix(float(1), smooth.r, strength.mul(OCCLUSION_STRENGTH)), 1);
     const pipeline = new RenderPipeline(renderer, vec4(color.rgb.mul(shade), color.a));
     pipeline.outputColorTransform = false;
-    owned.push(geometryPass, colorPass, occlusion, history, pipeline);
+    // Contact shading depends on the solid house and the camera, never on the hour: a new
+    // hour over an unchanged house and view redraws only the colour pass and lays the
+    // shading already averaged over it. Plain textures, so none of the passes that wrote
+    // them run again.
+    const keptDepth = texture(geometryPass.renderTarget.depthTexture!), keptNormal = texture(geometryPass.renderTarget.texture);
+    const kept = texture(history.getTextureNode().value);
+    const keptSmooth = denoise(kept, keptDepth, keptNormal, solidCamera) as unknown as V4;
+    const keptShade = select(keptDepth.r.lessThan(1), mix(float(1), keptSmooth.r, strength.mul(OCCLUSION_STRENGTH)), 1);
+    const relit = new RenderPipeline(renderer, vec4(color.rgb.mul(keptShade), color.a));
+    relit.outputColorTransform = false;
+    owned.push(geometryPass, colorPass, occlusion, history, pipeline, relit);
 
     // Upload every piece and compile every pipeline ahead of the first frame,
     // at most a piece's worth of buffers per frame, so a large model never
@@ -593,12 +603,22 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
 
     // The view the contact shading history belongs to; any change starts it over.
     let disposed = false, sunStale = true, averaged: Projection | null = null;
+    // The table as last uploaded; NaN never compares equal, so the first write uploads.
+    const drawnTable = new Float32Array(table.length).fill(NaN);
     return {
       backend,
       render(q, appearance, width, height, shading) {
         if (disposed) return false;
+        // Whether only uniforms changed: a new hour leaves the table, by night the sun's map,
+        // and always the contact shading as they were.
+        let relight = false;
         if (appearance) {
-          const frame = writeAppearance(meshes, appearance, table); state.needsUpdate = true;
+          const frame = writeAppearance(meshes, appearance, table);
+          let changed = false;
+          for (let i = 0; i < table.length; i++) if (table[i] !== drawnTable[i]) { changed = true; break; }
+          if (changed) { drawnTable.set(table); state.needsUpdate = true; } else relight = true;
+          const [lx, ly, lz] = frame.light, night = frame.night ? 1 : 0, rooms = frame.rooms ? 1 : 0;
+          if (changed || night !== u.night.value || rooms !== u.rooms.value || lx !== u.light.value.x || ly !== u.light.value.y || lz !== u.light.value.z) sunStale = true;
           u.paper.value.set(...frame.materialPaper); u.ambient.value = frame.ambient; u.twoSided.value = frame.twoSided ? 1 : 0;
           u.light.value.set(...frame.light);
           u.ghostAlpha.value = frame.ghostAlpha; u.ghost.value.set(...frame.ghostColor); u.ghostShade.value.set(...frame.ghostShade);
@@ -610,13 +630,20 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
             aim.set(toward?.[0] ?? 0, toward?.[1] ?? 0, toward?.[2] ?? 0, toward ? 1 : 0); });
           for (const { geometry, index, y } of glassBounds) geometry.boundingSphere!.center.y = y + table[index * STATE_FLOATS + 19]!;
           for (const { pass, mesh } of layers) mesh.visible = pass === 'ghost' ? frame.ghosts : frame.passes.has(pass);
-          sunStale = true;
         }
         frame(q); u.viewDir.value.set(q.st * q.cf, q.sf, q.ct * q.cf);
         if (canvas.width !== width || canvas.height !== height) { renderer.setSize(width, height, false); averaged = null; }
         if (sunStale) { drawSun(); sunStale = false; }
-        if (appearance) averaged = null;
+        if (appearance && !relight) averaged = null;
         if (shading <= 0) { averaged = null; renderer.render(scene, camera); return false; }
+        if (relight && averaged === q && history.count > 0) {
+          strength.value = Math.min(1, shading); kept.value = history.getTextureNode().value;
+          internals._nodes.nodeFrame.update();
+          relit.render();
+          // Refining resumes only once the house or the view changes again; resuming here
+          // would draw the whole contact shading between the moves of a scrub.
+          return false;
+        }
         if (averaged !== q) { averaged = q; history.count = 0; }
         // Reach: OCCLUSION_RADIUS metres, at most OCCLUSION_REACH_PX layout pixels (k is pixels per metre).
         occlusion.radius.value = Math.min(OCCLUSION_RADIUS, OCCLUSION_REACH_PX / q.k);

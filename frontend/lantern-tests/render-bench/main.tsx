@@ -1,7 +1,10 @@
 // Generated 3D frame benchmark: a fictional house of boxes, sized like the
 // served overview (about 1,900 primitives, 260k triangles), drawn by MeshLayer
 // while the camera turns. Reports CPU time per frame and GPU API calls per
-// frame. Synthetic geometry only; it qualifies no model, device or deployment.
+// frame. With ?scrub=day or ?scrub=night the camera stays put and the lighting
+// time moves five minutes a step instead, as a finger drags the time chip
+// (&from=n starts n steps later; &hold waits for window.go).
+// Synthetic geometry only; it qualifies no model, device or deployment.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MeshLayer } from '../../src/lantern/canonical-ifc/MeshLayer';
@@ -11,6 +14,7 @@ import { loadStandardGlb } from '../../src/lantern/canonical-ifc/standard-glb';
 import { loadStandardGlbInWorker } from '../../src/lantern/canonical-ifc/standard-glb-thread';
 import { sha256OffThread } from '../../integration/sha256-thread';
 import { BufferGeometry } from 'three/webgpu';
+import { daylightAt } from '../../src/lantern/unified-atlas/daylight';
 import { box as sampleBox, buildGlb } from '../canonical-ifc-visual/standard-glb-sample';
 
 const params = new URLSearchParams(location.search);
@@ -18,9 +22,15 @@ const FRAMES = Number(params.get('frames') ?? 120), SELECT = params.has('select'
 const RULES = { visibleFloors: 'all', clipY: null } as const, CONTEXT = ['room-L1-12'], TINTS = new Map([['room-L0-4', '#9FC5E8']]);
 const LIGHT = [-.38, .84, .39] as const;
 const PIECES = Number(params.get('pieces') ?? 1882);
+/** Scrubbed lighting: a fixed midsummer day at the default place, from mid-morning or late evening. */
+const SCRUB = params.get('scrub'), SCRUB_FROM = new Date(2026, 5, 21, SCRUB === 'night' ? 23 : 10).getTime() + Number(params.get('from') ?? 0) * 5 * 60_000;
+const HOLD = params.has('hold');
+const SCRUB_PLACE = { latitude: 51.48, longitude: 0, northDeg: 0 };
 
 /** Calls per frame, counted on the prototypes so every context is included. */
 const calls = { gl: 0, gpu: 0 };
+/** WebGPU render passes begun and vertices drawn: the GPU work a frame asks for, whatever GPU runs it. */
+const work = { passes: 0, vertices: 0 };
 /** WebGL draw calls per canvas, so a swap can tell which canvas drew. */
 const canvasDraws = new WeakMap<object, number>();
 for (const proto of [globalThis.WebGLRenderingContext?.prototype, globalThis.WebGL2RenderingContext?.prototype]) {
@@ -40,7 +50,12 @@ for (const cls of ['GPURenderPassEncoder', 'GPUCommandEncoder', 'GPUQueue', 'GPU
   for (const name of Object.getOwnPropertyNames(proto)) {
     const d = Object.getOwnPropertyDescriptor(proto, name);
     if (!d || typeof d.value !== 'function' || name === 'constructor') continue;
-    const fn = d.value; Object.defineProperty(proto, name, { ...d, value: function (this: unknown, ...a: unknown[]) { calls.gpu++; return fn.apply(this, a); } });
+    const fn = d.value; Object.defineProperty(proto, name, { ...d, value: function (this: unknown, ...a: unknown[]) {
+      calls.gpu++;
+      if (name === 'beginRenderPass') work.passes++;
+      else if (name === 'draw' || name === 'drawIndexed') work.vertices += (a[0] as number) * ((a[1] as number | undefined) ?? 1);
+      return fn.apply(this, a);
+    } });
   }
 }
 /** three.js walks every vertex of a geometry that has no bounding sphere on its
@@ -51,12 +66,17 @@ const computeSphere = BufferGeometry.prototype.computeBoundingSphere;
 BufferGeometry.prototype.computeBoundingSphere = function (this: BufferGeometry) {
   spheres.vertices += this.getAttribute('position')?.count ?? 0; return computeSphere.call(this);
 };
-const frames: { ms: number; gl: number; gpu: number }[] = [];
+const frames: { ms: number; gl: number; gpu: number; passes: number; vertices: number }[] = [];
+/** When the last frame with GPU work was drawn. */
+let lastDrawn = 0;
 const raf = window.requestAnimationFrame.bind(window);
 window.requestAnimationFrame = callback => raf(time => {
-  const gl = calls.gl, gpu = calls.gpu, t = performance.now();
+  const gl = calls.gl, gpu = calls.gpu, { passes, vertices } = work, t = performance.now();
   callback(time);
-  if (calls.gl > gl || calls.gpu > gpu) frames.push({ ms: performance.now() - t, gl: calls.gl - gl, gpu: calls.gpu - gpu });
+  if (calls.gl > gl || calls.gpu > gpu) {
+    frames.push({ ms: performance.now() - t, gl: calls.gl - gl, gpu: calls.gpu - gpu, passes: work.passes - passes, vertices: work.vertices - vertices });
+    lastDrawn = (window as unknown as { lastDrawn: number }).lastDrawn = performance.now();
+  }
 });
 
 /** A box split into n × n quads per face, wound outward. */
@@ -185,10 +205,13 @@ function Bench() {
     return { min, max };
   }, [meshes]);
   const [yaw, setYaw] = useState(30), [failure, setFailure] = useState('');
+  // Scrubbing moves the time instead of the camera: the step count stands in for the yaw.
+  const daylight = useMemo(() => SCRUB ? daylightAt(new Date(SCRUB_FROM + (yaw - 30) / 1.5 * 5 * 60_000), SCRUB_PLACE) : null, [yaw]);
+  const view = SCRUB ? 30 : yaw;
   // With ?select, every frame also moves the selection, so every mesh's state is rewritten and uploaded.
   const selected = SELECT ? `room-L1-${Math.round(yaw / 1.5) % 40}` : 'room-L1-8';
   const size = { width: window.innerWidth, height: window.innerHeight };
-  const projection = useMemo(() => makeProjection({ yaw, pitch: 35, zoom: Number(params.get('zoom') ?? 2.2), panX: 0, panY: 0 }, bounds, size, 0), [yaw, bounds, size.width, size.height]);
+  const projection = useMemo(() => makeProjection({ yaw: view, pitch: 35, zoom: Number(params.get('zoom') ?? 2.2), panX: 0, panY: 0 }, bounds, size, 0), [view, bounds, size.width, size.height]);
   const look = useMemo(() => {
     const site = new Set(meshes.filter(m => m.meshKey.startsWith('site')).map(m => m.meshKey));
     const roofs = new Set(meshes.filter(m => m.floorId === 'L2' && m.meshKey.endsWith('7')).map(m => m.meshKey));
@@ -196,19 +219,27 @@ function Bench() {
     const ghosts = new Map(meshes.filter(m => m.floorId === 'L2').map(m => [m.meshKey, null]));
     const hiddenKeys = new Set(ghosts.keys());
     const clips = new Map(meshes.filter(m => m.floorId === 'L1').map(m => [m.meshKey, 4.3]));
-    return { site: { keys: site, tone: '#DDE3D3' }, pitchKeys: roofs, dims, ghosts, hiddenKeys, clips };
+    const shelterKeys = new Set(meshes.filter(m => !site.has(m.meshKey)).map(m => m.meshKey));
+    return { site: { keys: site, tone: '#DDE3D3' }, pitchKeys: roofs, dims, ghosts, hiddenKeys, clips, shelterKeys };
   }, [meshes]);
   useEffect(() => {
     // Measure FRAMES drawn frames after the first one, however slowly the GPU presents them.
-    let started = false; const id = setInterval(() => {
+    // Scrubbing instead moves the time FRAMES steps, one every 40 ms as a finger's moves
+    // arrive, from a still view whose contact shading has settled.
+    let started = false, steps = 0; const id = setInterval(() => {
       if (frames.length === 0) return;
+      if (SCRUB && !started && (performance.now() - lastDrawn < 1500 || HOLD && !(window as unknown as { go?: boolean }).go)) return;
       if (!started) { started = true; frames.length = 0; }
-      if (frames.length < FRAMES) { setYaw(value => value + 1.5); return; }
+      if ((SCRUB ? steps : frames.length) < FRAMES) { steps++; setYaw(value => value + 1.5); return; }
       clearInterval(id);
       const sorted = frames.map(f => f.ms).sort((a, b) => a - b), at = (q: number) => sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))]!;
+      const mean = (pick: (f: typeof frames[number]) => number) => frames.reduce((s, f) => s + pick(f), 0) / Math.max(1, frames.length);
       (window as unknown as { benchDone: unknown }).benchDone = { frames: frames.length, median: at(.5), p95: at(.95),
-        gl: Math.round(frames.reduce((s, f) => s + f.gl, 0) / frames.length), gpu: Math.round(frames.reduce((s, f) => s + f.gpu, 0) / frames.length),
-        renderer: document.querySelector('canvas')?.dataset.renderer, triangles: meshes.reduce((s, m) => s + m.triangles, 0), pieces: meshes.length };
+        gl: Math.round(mean(f => f.gl)), gpu: Math.round(mean(f => f.gpu)),
+        passes: Math.round(mean(f => f.passes) * 10) / 10, kVertices: Math.round(mean(f => f.vertices) / 1000),
+        ...SCRUB ? { scrub: SCRUB, steps } : {},
+        renderer: document.querySelector('canvas')?.dataset.renderer, failure: document.querySelector('output')?.textContent || undefined,
+        triangles: meshes.reduce((s, m) => s + m.triangles, 0), pieces: meshes.length };
     }, 40);
     return () => clearInterval(id);
     // Measured once, on the first set.
@@ -217,6 +248,6 @@ function Bench() {
   return <><output>{failure}</output>
     <MeshLayer meshes={meshes} projection={projection} rules={RULES} currentFloorId="L1" selectedOccurrenceId={selected}
       contextOccurrenceIds={CONTEXT} tints={TINTS} hidden={false} sourceColors sourceDim={.6} ambient={.55}
-      twoSided shade="#5F6B7E" light={LIGHT} pitch="#C9A27E" ghostAlpha={.2} {...look} onUnavailable={setFailure} onShown={onShown} /></>;
+      twoSided shade="#5F6B7E" light={daylight?.toward ?? LIGHT} daylight={daylight ?? undefined} pitch="#C9A27E" ghostAlpha={.2} {...look} onUnavailable={setFailure} onShown={onShown} /></>;
 }
 createRoot(document.getElementById('root')!).render(<Bench />);
