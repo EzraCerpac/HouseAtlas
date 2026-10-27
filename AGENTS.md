@@ -56,7 +56,13 @@ known/approximate affine fits, property-wide inventory, documentary-only intake,
 reviewed withdrawal, revision reconciliation, stale current identities and
 source-uncertainty hull coverage (including malformed explicit row tolerances).
 These pure in-memory cases create no receipt, native authority or physical
-placement. In `.github/workflows/rust-react-ordinary.yml` that includes
+placement. The same ordinary-core job also runs the eleven explicit
+`packages/contracts/proposals/linear-v1/examples.test.mjs` cases with pinned
+Node and locked Ajv: six unchanged fictional proposals, fixture boundary
+arithmetic, exact decimal grammar, metric-length scalar fields and documentary
+wall endpoint syntax/order. These read-only local checks establish no native
+measurement storage, source identity, physical accuracy or linear route.
+In `.github/workflows/rust-react-ordinary.yml` that includes
 the named Lantern healthy read; the generated Electrical Library `healthy`
 case (existing production reader/projection and fictional original bytes,
 local fake owners only; no mounted PDF UI or native access); `frontend/lantern-tests/run-healthy.mjs` with

@@ -3,8 +3,10 @@
 Unadopted proposal, inspected 25 October 2026 against public main
 `b7abc9d87b90d3a6eab9efb386edf252f72daf60`. This is independent source preparation
 for #281, indexed by #277. It adds no active API, native storage, generated DTO,
-UI, geometry producer or new CI lane. Claude owns #279/#280; their accepted
-value/provenance/history contract must be reconciled before any integration.
+UI, geometry producer or new CI lane. Claude owns #279/#280; their published
+candidate is now inspected in the
+[alignment and endpoint design](measurement-linear-alignment.md). Its integration,
+qualification and accepted consumer contract remain separate.
 
 ## Existing support and the missing seam
 
@@ -60,9 +62,10 @@ Do not copy an old entry onto a new edge or clear reconciliation when saving.
 
 ## Value and provenance
 
-A positive decimal string (at most 64 characters) retains trailing zeroes; a
-closed unit list prevents area units on linear proposals. No JavaScript float
-or display rounding is the stored entry. The proposal carries original units
+A positive ASCII decimal string (at most 64 characters and 18 fractional
+digits) retains leading and trailing zeroes, aligned with the published #453
+candidate parser. A closed unit list prevents area units on linear proposals.
+No JavaScript float or display rounding is the stored entry. The proposal carries original units
 only and performs no conversion. Future conversions must retain original
 text/unit, deliberate conversion method and exact factors, without assigning
 extra physical precision. Original input with unsupported syntax remains an
@@ -103,15 +106,16 @@ sloped ceiling has no numeric height. A second artifact revision marks a target
 replaced while retaining the old proposal. These examples are not persistence,
 history, readback/reopen or physical calibration evidence.
 
-The optional pure example checks use the already locked contracts-package Ajv:
-`node --test packages/contracts/proposals/linear-v1/examples.test.mjs`.
-They are not registered in an ordinary CI runner. No local check was run under
-the owner's git-first workflow; existing CI validates its existing scope only.
-No new browser, native, provider or operational execution is requested here.
+The pure example checks use the already locked contracts-package Ajv. The
+existing ordinary-core job selects only
+`node --test --test-concurrency=1 packages/contracts/proposals/linear-v1/examples.test.mjs`.
+Registration is distinct from execution: exact-candidate hosted logs must show
+the result. No local check was run under the owner's git-first workflow.
+No browser, native, provider or operational execution is added.
 
-Before implementation, #279/#280 must supply the accepted exact-entry/history
-and UI contract, the owner must select a bounded quantity and physical definition,
-and the model/source owner must approve stable feature references and replacement
+Before native implementation, #279/#280 must integrate and qualify the published
+exact-entry/history candidate and supply the accepted UI contract. The owner must
+select a bounded quantity and physical definition, and the model/source owner must approve stable feature references and replacement
 rules. Then add a versioned native contract through existing persistence and
 readback with exact source/CI evidence. Offline/export consumers must retain
 original units, provenance and unresolved/partial qualifiers or report the kind

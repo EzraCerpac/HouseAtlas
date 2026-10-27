@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "09eb76d62e539266e138f2c0f8a10689a58dffc306d131857556c08533be3ae4",
+  "sourceDigestSha256": "2d3b5820a27a8e7d56ec79edbf01700fc082d9cc3c70711d60ecdcae2de97544",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -42,8 +42,8 @@
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
-      "bytes": 5043,
-      "sha256": "286fd5e9a28d18f74e78da5b5750720ea92b5251da4fcfb05fc99582c9954983",
+      "bytes": 5267,
+      "sha256": "0837e7782614abe41c7ffc041147295bb2d9ec6c0c85a5b1d63259b7d78d1b56",
       "owner": "core-integration"
     },
     {
@@ -105,8 +105,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 9523,
-      "sha256": "5fa8e99d1d7e7c9767ea333f7b7ae51d917c38fb9db80618c67f6a65fcda9d5a",
+      "bytes": 9959,
+      "sha256": "a427a40e4bcf01fc706979d63f22aae83cb26dd3240503e1c32a845a37fd01ab",
       "owner": "core-integration"
     },
     {
@@ -6095,10 +6095,17 @@
       "owner": "contracts"
     },
     {
+      "path": "docs/contracts/measurement-linear-alignment.md",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 10673,
+      "sha256": "1997662e6d5e1511f69acc63e0de3cabac3a5c59b52bf8c71402d2084c873e53"
+    },
+    {
       "path": "docs/contracts/measurement-linear-proposal.md",
       "mode": "100644",
-      "bytes": 8444,
-      "sha256": "4b621b3fa5415df3acee9e5f65ba6b810c33e6fcb3864e536e24fc5d48aa867d",
+      "bytes": 8730,
+      "sha256": "9567b3f6dd69b316d2171e0acd1eba3287eaeb7fb2f076dbe532911e1bf38463",
       "owner": "contracts"
     },
     {
@@ -6125,8 +6132,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 159714,
-      "sha256": "2b636dd08a044bf12fe10fe9f874e57cceddce0d1f0e85e58d48fe704cc13caa",
+      "bytes": 161195,
+      "sha256": "895b2e0b31084634d9d53f154efb8e5682cfe016aa74a51a3207362d98de41e7",
       "owner": "core-integration"
     },
     {
@@ -10829,22 +10836,22 @@
     {
       "path": "packages/contracts/proposals/linear-v1/examples.test.mjs",
       "mode": "100644",
-      "bytes": 5006,
-      "sha256": "db34e62de6f776c42720b9d5f78a2c21634cabfd96f97f700ffa500fb2c6e740",
+      "bytes": 9133,
+      "sha256": "cfbbd116f2bae2d20a7d2b425ff154bf4548ad0b76bb00ca05281d9e7a4b73f4",
       "owner": "contracts"
     },
     {
       "path": "packages/contracts/proposals/linear-v1/schema.json",
       "mode": "100644",
-      "bytes": 16542,
-      "sha256": "fb5cc7f96fd97136568ce645e9ff9559a568f71b0c09474a6ccdbd5085d4d229",
+      "bytes": 16539,
+      "sha256": "b35d1568c1bbb16aced13ffe2d1175da72de3d52bce0f7d7c07bf6b57898e40b",
       "owner": "contracts"
     },
     {
       "path": "packages/contracts/proposals/linear-v1/validate.mjs",
       "mode": "100644",
-      "bytes": 1087,
-      "sha256": "fa63c3c4c1a40c259e5a34707e03cef6d63c29a7320c90fd9c971677573dea89",
+      "bytes": 2707,
+      "sha256": "8e79333053ad280b4bb4095a92d7d4bbac9284b1e3fc98a32b5c06755a95b4a2",
       "owner": "contracts"
     },
     {
