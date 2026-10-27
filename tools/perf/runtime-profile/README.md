@@ -139,7 +139,9 @@ tests run no real Cargo, profiler or backend:
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/perf/runtime-profile -p test_runtime_profile.py -v
 ```
 
-They are manually selectable and are not registered in ordinary CI by this PR.
+The existing Ubuntu ordinary-core job runs these sixteen tests with the runner's
+Python >=3.11. The command above also selects them manually. CI registration
+does not execute actual profile collection or establish runtime performance.
 See the official [Samply CLI](https://github.com/mstange/samply),
 [Heaptrack](https://github.com/KDE/heaptrack) and
 [mise file tasks](https://mise.jdx.dev/tasks/file-tasks.html) for tool behavior.
