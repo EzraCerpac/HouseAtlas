@@ -1324,6 +1324,110 @@ mod integration_tests {
     fn native_pin(kind: &str, n: u64, payload: &Value) -> Value {
         json!({"record":{"recordType":kind,"recordId":id(n)},"revision":1,"payloadSha256":wire::digest(payload).unwrap()})
     }
+    // Exact synthetic startup approval, separate from all record/read grants.
+    struct FixtureSourceAuthorization<'a> {
+        guard: &'a a::TransactionAuthorization<'a>,
+        principal: &'a a::Principal,
+        grant: &'a a::LifecycleGrant,
+        registration: &'a a::SourceRegistration,
+        source: Value,
+        scope: Scope,
+    }
+    impl s::Authorization for FixtureSourceAuthorization<'_> {
+        type Principal = a::Principal;
+        fn authorize(
+            &self,
+            principal: &a::Principal,
+            request: s::AuthorizationRequest<'_>,
+        ) -> s::Result<s::VerifiedActor> {
+            if !std::ptr::eq(principal, self.principal)
+                || !std::ptr::eq(self.guard.principal(), principal)
+                || request.capability != s::Capability::ConfigureSource
+                || request.scope != &self.scope
+                || request.source != Some(&self.source)
+                || request.source_partition.is_some()
+                || !request.targets.is_empty()
+                || request.mutation.is_some()
+            {
+                return Err(s::Error::new("forbidden", "Fixture configuration denied"));
+            }
+            self.guard
+                .revalidate_lifecycle(
+                    self.grant,
+                    self.registration,
+                    a::LifecycleCapability::ConfigureSource,
+                )
+                .map_err(|_| s::Error::new("forbidden", "Fixture configuration changed"))?;
+            Ok(s::VerifiedActor {
+                workspace_id: self.scope.workspace_id.clone(),
+                home_id: self.scope.home_id.clone(),
+                actor_id: principal.actor_id().as_str().into(),
+            })
+        }
+    }
+    fn configure_fixture_source(
+        core: &Arc<Mutex<app::Core>>,
+        registration: &a::SourceRegistration,
+        cookie: &str,
+        csrf: &str,
+    ) -> std::result::Result<(), Failure> {
+        let core = core.lock().map_err(|_| "Core poisoned")?;
+        let mut store = core.store.lock().map_err(|_| "Store poisoned")?;
+        let mut access = core.access.lock().map_err(|_| "Access poisoned")?;
+        let scope = Scope {
+            workspace_id: id(2),
+            home_id: id(3),
+        };
+        let observed = a::RequestEvidence {
+            method: a::Method::Post,
+            url: "https://127.0.0.1:48743/generated-source-configuration",
+            origin: Some(ORIGIN),
+            sec_fetch_site: Some("same-origin"),
+            referer: None,
+            cookie: Some(cookie),
+            authorization: None,
+            csrf: Some(csrf),
+        };
+        let principal = access.authorize(
+            &observed,
+            &app::access_scope(&crate::domain::Scope {
+                workspace_id: id(2),
+                home_id: id(3),
+            })?,
+            a::Action::Mutate,
+        )?;
+        let grant = access.capture_lifecycle(
+            &principal,
+            registration,
+            a::LifecycleCapability::ConfigureSource,
+        )?;
+        let source = serde_json::to_value(registration)?;
+        access.with_lifecycle_authorization::<Failure>(
+            &principal,
+            &grant,
+            registration,
+            a::LifecycleCapability::ConfigureSource,
+            |guard| {
+                let authorization = FixtureSourceAuthorization {
+                    guard,
+                    principal: &principal,
+                    grant: &grant,
+                    registration,
+                    source: source.clone(),
+                    scope: scope.clone(),
+                };
+                let written = store.register_source_with_authorization(
+                    &authorization,
+                    &principal,
+                    &serde_json::from_value(source.clone())?,
+                )?;
+                assert_eq!(serde_json::to_value(written)?, source);
+                Ok(())
+            },
+        )?;
+        access.install_source_authorized(&principal, &grant, registration)?;
+        Ok(())
+    }
     struct Fixture {
         _temp: tempfile::TempDir,
         _lease: persistent::ServerLease,
@@ -1338,14 +1442,22 @@ mod integration_tests {
         cookie: String,
         csrf: String,
         password_account: bool,
+        initial_evidence: Value,
         selector: Value,
     }
     impl Fixture {
         async fn generate() -> std::result::Result<Self, Failure> {
-            Self::generate_with_password_account(false).await
+            Self::generate_configured(false, None, None).await
         }
         async fn generate_with_password_account(
             password_account: bool,
+        ) -> std::result::Result<Self, Failure> {
+            Self::generate_configured(password_account, None, None).await
+        }
+        async fn generate_configured(
+            password_account: bool,
+            registration: Option<a::SourceRegistration>,
+            mapping_source: Option<Value>,
         ) -> std::result::Result<Self, Failure> {
             let temp = tempfile::Builder::new()
                 .permissions(fs::Permissions::from_mode(0o700))
@@ -1367,15 +1479,34 @@ mod integration_tests {
                 let provisioning = root.join("provisioning.json");
                 private(
                     &provisioning,
-                    &serde_json::to_vec(&json!({"schemaVersion":1,"users":[{"userId":id(4),"actorId":id(5),
+                    &serde_json::to_vec(
+                        &json!({"schemaVersion":1,"users":[{"userId":id(4),"actorId":id(5),
                         "username":"synthetic-local","password":password,
-                        "memberships":[{"workspaceId":id(2),"homeId":id(3),"role":"editor"}]}]}))?,
+                        "memberships":[{"workspaceId":id(2),"homeId":id(3),"role":"editor"}]}]}),
+                    )?,
                 )?;
                 persistent::initialize(&config, &provisioning)?;
             } else {
                 persistent::initialize_without_password(&config)?;
             }
             let (core, lease) = persistent::reopen(&config)?;
+            if let Some(registration) = &registration {
+                let rule = a::LifecycleRule::new(
+                    serde_json::from_value(json!(id(4)))?,
+                    serde_json::from_value(json!(id(5)))?,
+                    registration.clone(),
+                    a::LifecycleCapability::ConfigureSource,
+                    a::Action::Mutate,
+                )?;
+                let policy = a::LifecyclePolicy::from_trusted_configuration(vec![rule]);
+                // Before any session or retained principal exists, install the
+                // finite startup rule in the SAME Core Access Arc/Store adapter.
+                *core.access.lock().map_err(|_| "Access poisoned")? =
+                    a::AccessBoundary::open_existing(
+                        config.data_directory.join("access.sqlite"),
+                        config.access_config()?.with_lifecycle_policy(policy),
+                    )?;
+            }
             let host = Host::new(core, ORIGIN.into(), Arc::new(BTreeMap::new()), vec![])?;
             let host = if password_account {
                 host
@@ -1405,6 +1536,9 @@ mod integration_tests {
                 .to_owned();
             let login: Value = serde_json::from_slice(&to_bytes(login.into_body(), 4096).await?)?;
             let csrf = login["csrfToken"].as_str().ok_or("csrf")?.to_owned();
+            if let Some(registration) = &registration {
+                configure_fixture_source(&core, registration, &cookie, &csrf)?;
+            }
             let scope = Scope {
                 workspace_id: id(2),
                 home_id: id(3),
@@ -1444,7 +1578,10 @@ mod integration_tests {
                 "publicationId":id(6),"sourceRevisionId":scene.value["sourceRevisionId"],"sourceSha256":scene.value["sourceSha256"],"semanticsSha256":scene.semantics_sha256,
                 "overviewManifestSha256":overview.manifest_sha256,"artifactId":"model","artifactSha256":overview.manifest.original.sha256,"artifactBytes":overview.manifest.original.bytes,
                 "targetFeatureSha256":wire::digest(&feature)?,"sourceObjectIds":["owner:generated-semantic-room"]});
-            let evidence = evidence_payload();
+            let mut evidence = evidence_payload();
+            if let Some(source) = mapping_source {
+                evidence["provenance"]["source"] = source;
+            }
             let identity = json!({"kind":"location","evidenceIds":[id(100)]});
             let semantics = json!({"atlasId":id(101),"semanticKind":"room","reviewStatus":"accepted","evidenceIds":[id(100)]});
             let methods=["guessed","estimated","directly-measured","photo-fitted","derived","imported"].iter().map(|method|{
@@ -1458,6 +1595,7 @@ mod integration_tests {
                 "reviewReceipt":{"actorId":id(5),"mutationId":id(1100)},"methods":methods,"evidence":[]}),
             )?;
             let export_sha = media::types::sha256(&export);
+            let initial_evidence = evidence.clone();
             let commands=[("evidence",100,evidence,id(1100),format!("Reviewed measurement occurrence export sha256:{export_sha}")),
                 ("identity",101,identity,id(1101),"Generated native room".into()),("location-semantics",102,semantics,id(1102),"Generated accepted room semantics".into())]
                 .into_iter().enumerate().map(|(i,(kind,n,payload,mutation,reason))|json!({"schemaVersion":3,"commandId":format!("atlas.{kind}.create"),"requestId":id(1200+i as u64),"context":scope,
@@ -1631,6 +1769,7 @@ mod integration_tests {
                 cookie,
                 csrf,
                 password_account,
+                initial_evidence,
                 selector,
             })
         }
@@ -1787,6 +1926,7 @@ mod integration_tests {
                 cookie,
                 csrf,
                 password_account: _,
+                initial_evidence: _,
                 selector,
             } = f;
             let policy = generated_document_policy(&scope)?;
@@ -2365,7 +2505,7 @@ mod integration_tests {
         let mut native = Vec::<s::Record>::new();
         for (kind, n, payload) in [
             ("identity", 101, expected_identity),
-            ("evidence", 100, evidence_payload()),
+            ("evidence", 100, f.initial_evidence.clone()),
             ("location-semantics", 102, expected_semantics),
         ] {
             let (status, body) = exchange(
@@ -2401,7 +2541,9 @@ mod integration_tests {
             .filter(|r| *r <= s::MAX_REVISION)
             .ok_or("Successor revision exceeds native bound")?;
         // Same genuine native room is deliberately ONLY an association candidate.
-        let evidence = prior_evidence.payload.clone();
+        // A new independent review must not inherit the old publication's
+        // optional source provenance. The old immutable Evidence remains pinned.
+        let evidence = evidence_payload();
         let mut semantics = prior_semantics.payload.clone();
         semantics["evidenceIds"]
             .as_array_mut()
@@ -2621,7 +2763,12 @@ mod integration_tests {
     async fn historical_fixture(
         withhold_old_owner: bool,
     ) -> std::result::Result<(Fixture, Value, Value), Failure> {
-        let mut f = Fixture::generate().await?;
+        historical_fixture_from(Fixture::generate().await?, withhold_old_owner).await
+    }
+    async fn historical_fixture_from(
+        mut f: Fixture,
+        withhold_old_owner: bool,
+    ) -> std::result::Result<(Fixture, Value, Value), Failure> {
         let (store, binding) = f.open()?;
         let host = f.host(store, binding)?;
         let core = host.core.clone();
@@ -2870,48 +3017,20 @@ mod integration_tests {
     #[tokio::test]
     async fn unauthorized_historical_disclosure_returns_no_values_and_no_complete_comparison()
     -> std::result::Result<(), Failure> {
-        let (f, first, _) = historical_fixture(false).await?;
-        let (store, binding) = f.open()?;
-        let host = f.host(store, binding)?;
-        let core = host.core.clone();
-        let app = router(host);
-        // Genuine source qualification is captured during the ordinary native
-        // mutation, then explicitly disabled by this synthetic trusted owner seam.
         let registration: a::SourceRegistration = serde_json::from_value(
             json!({"workspaceId":id(2),"homeId":id(3),"sourceInstanceId":id(2600),"collectionId":"generated-historical-evidence",
         "owner":"homebox","partitionMode":"exclusive-home","allowedExternalIds":[]}),
         )?;
-        f.access
-            .lock()
-            .map_err(|_| "Access poisoned")?
-            .put_source(&registration, Some(true))?;
-        let mut evidence = evidence_payload();
-        evidence["provenance"]["source"] = json!({"workspaceId":id(2),"homeId":id(3),"key":{"sourceInstanceId":id(2600),"collectionId":"generated-historical-evidence","sourceKind":"homebox-entity","externalId":id(2603)}});
-        // Wire3 evidence.replace has an empty payload. The existing frozen
-        // native mutation route accepts this complete Evidence replacement.
-        let command = json!({"schemaVersion":1,"mutationId":id(2602),"operation":"replace","expectedRevision":1,
-            "reason":"Retain generated historical source reference","guards":[],
-            "value":{"recordType":"evidence","payload":evidence}});
-        let (status, result) = exchange(
-            &app,
-            "POST",
-            &format!(
-                "/api/atlas/v1/workspaces/{}/homes/{}/records/evidence/{}/mutations",
-                id(2),
-                id(3),
-                id(100)
-            ),
-            command,
-            &f.cookie,
-            &f.csrf,
-        )
-        .await?;
-        assert_eq!(status, StatusCode::OK, "{result}");
-        assert_eq!(result["record"]["revision"], 2);
-        assert_eq!(
-            result["record"]["payload"]["provenance"]["source"]["key"]["externalId"],
-            id(2603)
-        );
+        let source = json!({"workspaceId":id(2),"homeId":id(3),"key":{"sourceInstanceId":id(2600),"collectionId":"generated-historical-evidence","sourceKind":"homebox-entity","externalId":id(2603)}});
+        // Evidence is append-only. Preserve source provenance from its original
+        // native CREATE and hash the review export against that exact payload.
+        let initial =
+            Fixture::generate_configured(false, Some(registration.clone()), Some(source)).await?;
+        let (f, first, _) = historical_fixture_from(initial, false).await?;
+        let (store, binding) = f.open()?;
+        let host = f.host(store, binding)?;
+        let core = host.core.clone();
+        let app = router(host);
         f.access
             .lock()
             .map_err(|_| "Access poisoned")?
@@ -3078,19 +3197,16 @@ mod integration_tests {
     #[tokio::test]
     async fn unrelated_disabled_source_disables_writing_without_hiding_authorized_measurements()
     -> std::result::Result<(), Failure> {
-        let (f, first, current) = historical_fixture(false).await?;
-        let (store, binding) = f.open()?;
-        let host = f.host(store, binding)?;
-        let core = host.core.clone();
-        let app = router(host);
         let registration: a::SourceRegistration = serde_json::from_value(
             json!({"workspaceId":id(2),"homeId":id(3),"sourceInstanceId":id(2800),
         "collectionId":"generated-unrelated-evidence","owner":"homebox","partitionMode":"exclusive-home","allowedExternalIds":[]}),
         )?;
-        f.access
-            .lock()
-            .map_err(|_| "Access poisoned")?
-            .put_source(&registration, Some(true))?;
+        let initial = Fixture::generate_configured(false, Some(registration.clone()), None).await?;
+        let (f, first, current) = historical_fixture_from(initial, false).await?;
+        let (store, binding) = f.open()?;
+        let host = f.host(store, binding)?;
+        let core = host.core.clone();
+        let app = router(host);
         let mut evidence = evidence_payload();
         evidence["statement"] = json!(
             "Unrelated generated native source evidence; not an assertion input or mapping review"

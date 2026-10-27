@@ -308,13 +308,11 @@ async fn run_disposable(config: Config) -> Result<(), lifecycle::Failure> {
 /// Parsed publication selections move together through either persistent listener.
 /// Measurement preparation consumes the original handles without reopening them.
 struct PublicationSelections {
-    model_overview: Option<
-        houseatlas_backend::config::model_overview::ServerModelOverviewSelection,
-    >,
+    model_overview:
+        Option<houseatlas_backend::config::model_overview::ServerModelOverviewSelection>,
     atlas_scene: Option<houseatlas_backend::config::atlas_scene::ServerAtlasSceneSelection>,
-    atlas_room_links: Option<
-        houseatlas_backend::config::atlas_room_links::ServerAtlasRoomLinksSelection,
-    >,
+    atlas_room_links:
+        Option<houseatlas_backend::config::atlas_room_links::ServerAtlasRoomLinksSelection>,
 }
 
 async fn run_persistent(

@@ -545,7 +545,7 @@ pub(crate) mod test_support {
     #[tokio::test]
     async fn configured_context_distinguishes_stale_selection_from_unavailable_owner()
     -> Result<(), Failure> {
-        let f = Store::generated_measurement_startup_fixture().await?;
+        let mut f = Store::generated_measurement_startup_fixture().await?;
         let (app, core, lease) = f.opened()?;
         let scope = json!({
             "workspaceId": f.config.homes[0].workspace_id.as_str(),
@@ -593,6 +593,34 @@ pub(crate) mod test_support {
             json!({"profile":"houseatlas.measurement-context-error.v1",
                 "scope":scope,"code":"authority-unavailable"}),
         );
+        let (status, result) = f
+            .exchange(
+                &app,
+                "POST",
+                "/occurrence-context",
+                json!({"profile":"houseatlas.measurement-occurrence-context-request.v1",
+                    "scope":scope,"selector":f.selector}),
+            )
+            .await?;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(result["code"], "authority-unavailable");
+        drop(app);
+        drop(core);
+        drop(lease);
+        // Rename changes the admitted directory identity, including ctime.
+        // Restored bytes therefore require genuine fresh producer selections;
+        // do not reuse or weaken the old owner identity check.
+        f.overview = Arc::new(ServerModelOverviewSelection::read_pinned(
+            &publication.join("publication.json"),
+            &f.overview.manifest_sha256,
+        )?);
+        f.scene = Arc::new(ServerAtlasSceneSelection::read_pinned(
+            &publication.join("atlas-scene.json"),
+            &f.scene.semantics_sha256,
+            &f.overview,
+        )?);
+        f.selector["selectionRevision"] = json!(f.scene.revision);
+        let (app, core, lease) = f.opened()?;
         f.admitted(&app, &f.selector).await?;
         drop(app);
         drop(core);
