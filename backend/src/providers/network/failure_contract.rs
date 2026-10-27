@@ -22,7 +22,10 @@ impl InventoryTransport for Reply {
         request: InventoryGet,
         _: Limits,
     ) -> Pin<Box<dyn Future<Output = Result<InventoryResponse>> + Send + '_>> {
-        assert_eq!((request.method(), request.path()), ("GET", "/api/inventory"));
+        assert_eq!(
+            (request.method(), request.path()),
+            ("GET", "/api/inventory")
+        );
         assert_eq!(self.calls.fetch_add(1, Ordering::SeqCst), 0, "no retry");
         Box::pin(async { Ok(self.response.clone()) })
     }
@@ -114,15 +117,15 @@ async fn failure_case(code: ErrorCode) {
         assert_eq!(failed.error.code, code);
         assert_eq!(failed.error.message(), NetworkError::new(code).message());
         assert_eq!(failed.state.cache.status, expected_status);
-        assert_eq!(
-            failed.state.cache.last_attempt_at.as_deref(),
-            Some(ATTEMPT)
-        );
+        assert_eq!(failed.state.cache.last_attempt_at.as_deref(), Some(ATTEMPT));
         let error = failed.state.cache.error.as_ref().unwrap();
         assert_eq!(error.code, code);
         assert_eq!(error.at, ATTEMPT);
         assert_eq!(error.message, failed.error.message());
-        assert_eq!(failed.state.cache.generation_id, baseline.cache.generation_id);
+        assert_eq!(
+            failed.state.cache.generation_id,
+            baseline.cache.generation_id
+        );
         assert_eq!(
             failed.state.cache.last_successful_fetch_at,
             baseline.cache.last_successful_fetch_at

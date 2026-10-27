@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "8af58564b360c59bce7a36a9fd9e541e6b217a8fb8c1a94786b9a913c5487d36",
+  "sourceDigestSha256": "f11f0ec78f13807fdff2986aa6d7b000875f5f039970f97e466e63b61df94283",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -4320,8 +4320,8 @@
       "path": "backend/src/providers/network/failure_contract.rs",
       "mode": "100644",
       "owner": "network",
-      "bytes": 8599,
-      "sha256": "df153b26385b57ae2e9869183cf4e7a804bb8341957c0f6d474388e64f48393c"
+      "bytes": 8633,
+      "sha256": "8bc67adf9740a83ea1e0b664560a8ddfc5b6d2b4481183a71793e9b8acdc3920"
     },
     {
       "path": "backend/src/providers/network/healthy.rs",
