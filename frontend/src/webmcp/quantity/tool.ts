@@ -165,14 +165,17 @@ export function mountQuantityWebMcp(o: {
   // parseInput creates a fresh object for each invocation. The adapter retains
   // that input through service and presentation, whose context/signal objects
   // have independent lifetimes. Equal inputs must never share custody.
-  type Completed = { readonly input: JsonObject; readonly output: QuantityToolOutput; readonly reservation: QuantityHandoffReservation | null };
+  type Completed = { readonly input: JsonObject; readonly output: QuantityToolOutput;
+    readonly reservation: QuantityHandoffReservation | null; readonly signal: AbortSignal; readonly abort: () => void };
   const expected = new WeakMap<JsonObject, Completed>();
   const completed = new Set<Completed>();
   let disposed = false;
-  const end = (entry: Completed) => {
+  const forget = (entry: Completed) => {
+    entry.signal.removeEventListener('abort', entry.abort);
     expected.delete(entry.input);
-    if (completed.delete(entry)) entry.reservation?.end();
+    return completed.delete(entry);
   };
+  const end = (entry: Completed) => { if (forget(entry)) entry.reservation?.end(); };
   const currentAdmission = () => { const a = admission.getSnapshot(); return a && facade.getBindingIdentity() === a.bindingIdentity ? a : null; };
   // Zero installed sources leaves the tool unregistered.
   const snapshotOf = (a: QuantityToolAdmission | null): SessionSnapshot => a && a.installedSources.length > 0
@@ -199,10 +202,14 @@ export function mountQuantityWebMcp(o: {
           // Retire the completed assistant wait even if presentation is withheld.
           // A deadline can settle that wait while owner work remains pending;
           // reservation.end() ends invocation custody, never that owner work.
-          if (disposed) reservation?.end();
+          if (disposed || signal.aborted) reservation?.end();
           else {
-            const entry = { input, output, reservation };
+            const entry: Completed = { input, output, reservation, signal, abort: () => end(entry) };
             expected.set(input, entry); completed.add(entry);
+            // The adapter can withhold a completed result before presentation
+            // on invocation/session cancellation. Retire that entry promptly.
+            signal.addEventListener('abort', entry.abort, { once: true });
+            if (signal.aborted) end(entry);
           }
           return output as unknown as JsonValue;
         };
@@ -261,7 +268,7 @@ export function mountQuantityWebMcp(o: {
         if (!entry || !sameJson(result, entry.output)) { if (entry) end(entry); throw new TypeError('Quantity tool result differs from custody'); }
         try { await o.visible.apply(toolName, result, context, input); context.signal.throwIfAborted(); }
         catch (error) { end(entry); throw error; }
-        completed.delete(entry);
+        forget(entry);
         entry.reservation?.acknowledge();
       },
     },

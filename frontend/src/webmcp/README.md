@@ -189,3 +189,12 @@ synthetic submission across disposal/deadline with retained result/uncertainty.
 Client promises are fake; the actual custody classes are neither extracted nor
 replaced, and React is not mounted. These checks supply no provider, actual
 approval/submission, browser, deployment or operational acceptance evidence.
+
+Completed entries also observe their original invocation/session cancellation
+signal. Cancellation can withhold a service result before presentation starts;
+that path removes the input/output entry and its abort listener promptly.
+Acknowledgement, disposal and other retirement paths detach the same listener.
+This observes cancellation without requesting any owner cancellation or replay.
+Two further actual-owner cases cover the precise post-completion release window
+for invocation/session replacement and repeated cancelled busy results while a
+prior handoff remains pending. The bootstrap registers nineteen cases in total.

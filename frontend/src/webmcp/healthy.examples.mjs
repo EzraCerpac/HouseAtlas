@@ -280,12 +280,14 @@ test('disposal during input parsing prevents service dispatch', async () => {
 
 // Actual quantity mount/adapter and optional actual custody owner. Preview,
 // approval and submission promises are synthetic; no provider or native effects.
-function quantityHarness({ holdOffer = false, visible, realCustody = false } = {}) {
+function quantityHarness({ holdOffer = false, visible, realCustody = false, onCustody } = {}) {
   const uid = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
   const scope = { workspaceId: uid(1), homeId: uid(2) };
   const source = { ...scope, key: { sourceInstanceId: uid(3), collectionId: uid(4),
     sourceKind: 'homebox-entity', externalId: uid(5) } };
   const bindingIdentity = {};
+  let currentBindingIdentity = bindingIdentity;
+  const bindingListeners = new Set();
   const admitted = { revision: 'synthetic-quantity-custody', bindingIdentity, scope, installedSources: [source] };
   const input = { source, quantity: 3, reason: 'Synthetic quantity custody' };
   const prepared = { bindingIdentity, expiresAt: performance.now() + 60000, wire: {
@@ -314,12 +316,13 @@ function quantityHarness({ holdOffer = false, visible, realCustody = false } = {
     previewId: prepared.wire.previewId, requestDigest: prepared.wire.requestDigest,
     planDigest: prepared.wire.planDigest, result: { synthetic: true, state: 'observed' } };
   const facade = {
-    getBindingIdentity: () => bindingIdentity, getUncertainty: () => uncertainty,
-    subscribeSessionBinding: () => () => {}, isCurrentPrepared: value => value === prepared,
+    getBindingIdentity: () => currentBindingIdentity, getUncertainty: () => uncertainty,
+    subscribeSessionBinding(changed) { bindingListeners.add(changed); return () => bindingListeners.delete(changed); },
+    isCurrentPrepared: value => value === prepared,
     async checkAvailability() { counts.availability++; return { state: 'available' }; },
     async preview() { counts.preview++; return prepared; },
   };
-  const client = { ...facade, isCurrent: identity => identity === bindingIdentity,
+  const client = { ...facade, isCurrent: identity => identity === currentBindingIdentity,
     async approve() { counts.approval++; return { format: 'atlas-homebox-quantity-approval/1',
       resolvedScope: scope, source, previewId: prepared.wire.previewId,
       requestDigest: prepared.wire.requestDigest, planDigest: prepared.wire.planDigest,
@@ -340,6 +343,7 @@ function quantityHarness({ holdOffer = false, visible, realCustody = false } = {
         const reservation = realOffers.reserve();
         if (!reservation) return null;
         return { ...reservation,
+          custody() { const custody = reservation.custody(); onCustody?.(); return custody; },
           offer(value, signal) {
             // Capture only this real constructor's timer while still using its
             // actual callback/timeout handle. No source extraction or class stub.
@@ -381,7 +385,8 @@ function quantityHarness({ holdOffer = false, visible, realCustody = false } = {
   return { browser, handle, input, prepared, counts, views, offered, store, native,
     complete: () => completion.resolve(ended), signal: () => serviceSignal,
     deadline: () => fireDeadline(), submit: () => submission.resolve(native),
-    dispatchSignal: () => dispatchSignal, holdUnknown: () => { uncertainty = 'Synthetic owner outcome unresolved'; } };
+    dispatchSignal: () => dispatchSignal, holdUnknown: () => { uncertainty = 'Synthetic owner outcome unresolved'; },
+    replaceSession() { currentBindingIdentity = {}; for (const changed of [...bindingListeners]) changed(); } };
 }
 
 test('quantity custody survives separate contexts and acknowledges only after the visible commit', async () => {
@@ -538,4 +543,93 @@ test('actual pending owner submission remains held and uncancelled after disposa
     assert.equal(q.counts.acknowledge, 0);
     assert.equal(q.views.length, 0);
   } finally { q.submit(); handoff.endInvocation(); handoff.close(); q.handle.dispose(); }
+});
+
+test('actual completed custody retires on invocation or session abort before adapter release resumes', async () => {
+  for (const cause of ['invocation', 'session']) {
+    const controller = new AbortController();
+    let q;
+    q = quantityHarness({ realCustody: true, onCustody: () => {
+      // Service finish runs synchronously after custody(), then resolves the
+      // adapter await. This queued abort runs before its release continuation.
+      queueMicrotask(() => { if (cause === 'invocation') controller.abort(); else q.replaceSession(); });
+    } });
+    await q.handle.whenSettled();
+    const operation = q.browser.tools.get(QUANTITY_TOOL_NAME).execute(q.input, { signal: controller.signal });
+    const rejected = assert.rejects(operation, { name: 'AbortError' });
+    await q.offered.promise;
+    const handoff = q.store.getSnapshot();
+    try {
+      handoff.dismiss(); await rejected;
+      assert.equal(q.views.length, 0);
+      assert.equal(q.counts.end, 1, 'Completed entry must retire even though presentation was skipped');
+      assert.equal(q.counts.acknowledge, 0);
+      assert.equal(handoff.getState().closable, true);
+      assert.equal(handoff.custody().prepared, q.prepared);
+      handoff.close();
+      const next = q.store.agentPort().reserve(); assert.ok(next); next.release();
+      assert.equal(q.counts.preview, 1);
+      assert.equal(q.counts.dispatch, 0);
+    } finally { handoff.endInvocation(); handoff.close(); q.handle.dispose(); }
+  }
+});
+
+function trackedQuantityInvocation(tool, input, controller) {
+  const original = AbortSignal.any;
+  const listeners = new Set();
+  let serviceSignal;
+  try {
+    AbortSignal.any = signals => {
+      const signal = original.call(AbortSignal, signals);
+      // Observe the actual adapter-created native signal, without replacing
+      // its cancellation semantics or adding production diagnostic hooks.
+      if (!serviceSignal) {
+        serviceSignal = signal;
+        const add = signal.addEventListener.bind(signal), remove = signal.removeEventListener.bind(signal);
+        signal.addEventListener = (type, listener, options) => {
+          if (type === 'abort') listeners.add(listener);
+          add(type, listener, options);
+        };
+        signal.removeEventListener = (type, listener, options) => {
+          if (type === 'abort') listeners.delete(listener);
+          remove(type, listener, options);
+        };
+      }
+      return signal;
+    };
+    return { operation: tool.execute(input, { signal: controller.signal }), listeners,
+      signal: () => serviceSignal };
+  } finally { AbortSignal.any = original; }
+}
+
+test('repeated cancelled busy results detach completed-entry listeners while actual owner work stays pending', async () => {
+  const q = quantityHarness({ realCustody: true });
+  await q.handle.whenSettled();
+  const tool = q.browser.tools.get(QUANTITY_TOOL_NAME);
+  const first = tool.execute(q.input);
+  await q.offered.promise;
+  const handoff = q.store.getSnapshot();
+  try {
+    for (let index = 0; index < 32; index++) {
+      const controller = new AbortController();
+      const tracked = trackedQuantityInvocation(tool, q.input, controller);
+      const rejected = assert.rejects(tracked.operation, { name: 'AbortError' });
+      assert.equal(tracked.listeners.size, 1, 'Synchronous busy completion owns one cleanup listener');
+      controller.abort(); await rejected;
+      assert.equal(tracked.signal().aborted, true);
+      assert.equal(tracked.listeners.size, 0, 'Cancellation must detach the completed-entry cleanup listener');
+      assert.equal(q.counts.end, 0, 'Busy result has no authority over the pending owner reservation');
+      assert.equal(q.signal().aborted, false);
+      assert.equal(handoff.getState().open, true);
+      assert.equal(q.views.length, 0);
+    }
+    assert.equal(q.counts.reserve, 33);
+    assert.equal(q.counts.preview, 1);
+    assert.equal(q.counts.offer, 1);
+    handoff.dismiss(); assert.equal((await first).outcome, 'person-handoff-ended');
+    assert.equal(q.counts.acknowledge, 1);
+    assert.equal(q.counts.end, 0);
+    handoff.close();
+    const next = q.store.agentPort().reserve(); assert.ok(next); next.release();
+  } finally { handoff.endInvocation(); handoff.close(); q.handle.dispose(); }
 });
