@@ -79,6 +79,9 @@ pub trait ReviewedOccurrenceAuthority: Send + Sync {
     /// Detached reference planning, not authority. All resulting closures must
     /// subsequently pass the actual original Access capture/release fences.
     fn disclosure_target_pins(&self, selector: &Value) -> s::Result<Vec<Value>>;
+    /// Optional configured choices are planned individually, never merged into
+    /// the required current-value disclosure closure.
+    fn disclosure_choices(&self, selector: &Value) -> s::Result<Vec<Value>>;
     fn occurrence_context(
         &self,
         guard: &a::TransactionAuthorization<'_>,
@@ -86,6 +89,7 @@ pub trait ReviewedOccurrenceAuthority: Send + Sync {
         selector: &Value,
         facts: &MeasurementNativeFacts,
         retained: &[Value],
+        choices: &[RequestPrincipal],
     ) -> s::Result<Value>;
     fn materialize(
         &self,
@@ -266,6 +270,27 @@ impl MeasurementOwners {
     pub(crate) fn target_pins(&self, selector: &Value) -> s::Result<Vec<Value>> {
         self.authority.disclosure_target_pins(selector)
     }
+    pub(crate) fn optional_choice_closures(
+        &self,
+        selector: &Value,
+        facts: &MeasurementNativeFacts,
+        receipts: &[Value],
+    ) -> s::Result<Vec<sem::ReferenceClosure>> {
+        let mut closures = Vec::new();
+        for choice in self.authority.disclosure_choices(selector)? {
+            let assertion_inputs = choice["inputs"].as_array().is_some_and(|inputs| {
+                inputs.iter().any(|input| input["expectation"]["kind"] == "assertion")
+            });
+            let dependencies = if assertion_inputs { receipts } else { &[] };
+            // Invalid optional dependencies cannot become required disclosure.
+            if let Ok(closure) = disclosure_closure(facts, dependencies, &[choice])
+                && !closures.contains(&closure)
+            {
+                closures.push(closure);
+            }
+        }
+        Ok(closures)
+    }
     pub(crate) fn association(
         &self,
         guard: &a::TransactionAuthorization<'_>,
@@ -284,9 +309,10 @@ impl MeasurementOwners {
         selector: &Value,
         facts: &MeasurementNativeFacts,
         receipts: &[Value],
+        choices: &[RequestPrincipal],
     ) -> s::Result<Value> {
         self.authority
-            .occurrence_context(guard, p, selector, facts, receipts)
+            .occurrence_context(guard, p, selector, facts, receipts, choices)
     }
     fn verify_material_rows(
         &self,

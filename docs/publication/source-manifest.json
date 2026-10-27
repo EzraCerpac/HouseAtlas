@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "790fb126227ceeba43566175ce24047ff02cb24aa091b3929e50243a1d74da16",
+  "sourceDigestSha256": "d56662eb5b93bba0b20bee4dcaa77d8a01349a9019cc7b3b9d35a854d773dc59",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -1239,22 +1239,22 @@
     {
       "path": "backend/src/app/measurement_assertions.rs",
       "mode": "100644",
-      "bytes": 17038,
-      "sha256": "bd3a673161eb97a36bd95a03ccd3ed8dbb2335c9ae8294c387e46cab02aeb5aa",
+      "bytes": 18229,
+      "sha256": "c8ea337f9d0d966d736994ade7d31802cf6b3ede3da5e7cf1c35b7488257e05a",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/app/measurement_assertions/configured_occurrence.rs",
       "mode": "100644",
-      "bytes": 9623,
-      "sha256": "6d1b1fbbf62bb57becfb735d1f513d67bd527d33381b3c434ad5c19618de5ae5",
+      "bytes": 9908,
+      "sha256": "62a87facf70b3bcc66fc9c352af73df7b93f30f4fc3934ada25d4f3d4f60bbc8",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/app/measurement_assertions/occurrence_authority.rs",
       "mode": "100644",
-      "bytes": 42629,
-      "sha256": "d6987a354fc6da6c9390e4aa2141cdaa2f5bbd80cdc5c36c2717ce4cbba903d1",
+      "bytes": 43364,
+      "sha256": "4ec4dbb93b51596fffe00a365ff2d9590e7876a4aad36c471e04cac5ca588604",
       "owner": "core-integration"
     },
     {
@@ -2464,8 +2464,8 @@
     {
       "path": "backend/src/http/measurement_assertions.rs",
       "mode": "100644",
-      "bytes": 19397,
-      "sha256": "6d093a321f5d9c4f67848732f5a9ce1da6421712b43298a081fe650a18236669",
+      "bytes": 20377,
+      "sha256": "f5c6ad50e6f707de60abfd9b79680248d2837adb63edb0950434c7dae09958f9",
       "owner": "core-integration"
     },
     {
@@ -5005,8 +5005,8 @@
     {
       "path": "backend/src/storage/measurement_assertions.rs",
       "mode": "100644",
-      "bytes": 147332,
-      "sha256": "dddaee929b325c06f1a3bb5a58af546a37687728bd138d26c52f87cdb0bac840",
+      "bytes": 154681,
+      "sha256": "282949fa92833d8c72583081940da4c8f263841ba1907d507c2bf0421e344c34",
       "owner": "storage"
     },
     {

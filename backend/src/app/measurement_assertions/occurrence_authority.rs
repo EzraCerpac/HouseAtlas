@@ -679,6 +679,17 @@ impl ReviewedOccurrenceAuthority for OccurrenceAuthority {
             self.export.mapping_review.clone(),
         ])
     }
+    fn disclosure_choices(&self, selector: &Value) -> s::Result<Vec<Value>> {
+        self.disclosure_target_pins(selector)?;
+        Ok(self
+            .export
+            .methods
+            .iter()
+            .filter(|option| option["status"] == "available")
+            .chain(&self.export.evidence)
+            .cloned()
+            .collect())
+    }
     fn authorize_disclosure(
         &self,
         guard: &a::TransactionAuthorization<'_>,
@@ -764,6 +775,7 @@ impl ReviewedOccurrenceAuthority for OccurrenceAuthority {
         selector: &Value,
         f: &MeasurementNativeFacts,
         retained: &[Value],
+        choices: &[RequestPrincipal],
     ) -> s::Result<Value> {
         need(std::ptr::eq(guard.principal(), p.principal.principal()))?;
         guard
@@ -774,6 +786,14 @@ impl ReviewedOccurrenceAuthority for OccurrenceAuthority {
         }
         self.verify_mapping(f, true)?;
         self.inventory(f, retained)?;
+        // Each optional wrapper retains the SAME original Read allocation.
+        // A denied/expired choice never contaminates required value disclosure.
+        let authorized = |closure: &sem::ReferenceClosure| {
+            p.release_guard(guard, closure).is_ok()
+                || choices
+                    .iter()
+                    .any(|choice| choice.release_guard(guard, closure).is_ok())
+        };
         let mut methods = Vec::new();
         for option in &self.export.methods {
             let mut option = option.clone();
@@ -792,11 +812,8 @@ impl ReviewedOccurrenceAuthority for OccurrenceAuthority {
             if option["status"] == "available"
                 && (!references_qualified
                     || self.qualify_method(f, &option, true).is_err()
-                    || p.release_guard(
-                        guard,
-                        &disclosure_closure(f, input_receipts, std::slice::from_ref(&option))?,
-                    )
-                    .is_err())
+                    || !disclosure_closure(f, input_receipts, std::slice::from_ref(&option))
+                        .is_ok_and(|closure| authorized(&closure)))
             {
                 option["status"] = json!("unavailable");
                 option["reason"] = json!("Native method qualification unavailable");
@@ -826,7 +843,7 @@ impl ReviewedOccurrenceAuthority for OccurrenceAuthority {
             "acquisition":null,"support":if eligible{personal_support()}else{Value::Null},"inputs":[],"operations":[]}));
         let evidence=self.export.evidence.iter().filter(|choice|{let e=&choice["reference"];
             current_row(f,&json!({"record":e["record"],"revision":e["expectedRevision"],"payloadSha256":e["expectedPayloadSha256"]})).is_ok()
-                &&disclosure_closure(f,&[],std::slice::from_ref(*choice)).is_ok_and(|closure|p.release_guard(guard,&closure).is_ok())
+                &&disclosure_closure(f,&[],std::slice::from_ref(*choice)).is_ok_and(|closure|authorized(&closure))
         }).cloned().collect::<Vec<_>>();
         guard.revalidate().map_err(storage_access)?;
         Ok(

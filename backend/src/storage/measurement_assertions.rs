@@ -19,6 +19,7 @@ pub struct MeasurementContextInput<'a, 'guard> {
     pub prepared: &'a MeasurementPreparation,
     pub historical: Option<&'a RequestPrincipal>,
     pub mutation_sources: Option<&'a RequestPrincipal>,
+    pub choice_sources: &'a [RequestPrincipal],
     pub input: &'a Value,
 }
 
@@ -93,6 +94,7 @@ pub struct MeasurementPreparation {
     closure: crate::contracts::semantics::ReferenceClosure,
     historical_closure: Option<crate::contracts::semantics::ReferenceClosure>,
     advisory_mutation_closure: Option<crate::contracts::semantics::ReferenceClosure>,
+    optional_choice_closures: Vec<crate::contracts::semantics::ReferenceClosure>,
     disclosure_keys: Vec<(String, String)>,
     receipt_cut: Option<String>,
 }
@@ -111,6 +113,9 @@ impl MeasurementPreparation {
         &self,
     ) -> Option<&crate::contracts::semantics::ReferenceClosure> {
         self.advisory_mutation_closure.as_ref()
+    }
+    pub fn optional_choice_source_closures(&self) -> &[crate::contracts::semantics::ReferenceClosure] {
+        &self.optional_choice_closures
     }
 }
 pub enum MeasurementRead {
@@ -410,6 +415,7 @@ where
             prepared,
             historical,
             mutation_sources,
+            choice_sources,
             input,
         } = input;
         wire::validate_value("contextRequest", input)
@@ -455,14 +461,24 @@ where
         } else {
             p
         };
-        let bodies = rows.iter().map(|r| r.body.clone()).collect::<Vec<_>>();
+        // Complete receipts stay internal for dependency planning/qualification.
+        // Current claims and historical exposure retain their separate fences.
+        let all_bodies = rows.iter().map(|r| r.body.clone()).collect::<Vec<_>>();
         if complete {
-            binding.owners.disclose(guard, disclosed, &f, &bodies)?;
+            binding.owners.disclose(guard, disclosed, &f, &all_bodies)?;
         }
-        let mut admitted =
-            binding
-                .owners
-                .context(guard, disclosed, &input["selector"], &f, &bodies)?;
+        require(
+            binding.owners.optional_choice_closures(&input["selector"], &f, &all_bodies)?
+                == prepared.optional_choice_closures,
+        )?;
+        let mut admitted = binding.owners.context(
+            guard,
+            disclosed,
+            &input["selector"],
+            &f,
+            &all_bodies,
+            choice_sources,
+        )?;
         // Advisory source completeness is NOT historical disclosure completeness.
         // Recompute the actual mutation-required closure at this same SQL cut,
         // then revalidate the separately captured SAME original Read allocation.
@@ -617,7 +633,7 @@ where
         // a requirement to open old producer content or an applicability grant.
         let again = binding
             .owners
-            .context(guard, disclosed, &input["selector"], &f, &bodies)?;
+            .context(guard, disclosed, &input["selector"], &f, &all_bodies, choice_sources)?;
         require(
             again["target"] == admitted["target"]
                 && again["targetAdmission"] == admitted["targetAdmission"],
@@ -673,6 +689,7 @@ where
             closure,
             historical_closure: None,
             advisory_mutation_closure: None,
+            optional_choice_closures: vec![],
             disclosure_keys: vec![],
             receipt_cut: None,
         })
@@ -746,6 +763,14 @@ where
         } else {
             None
         };
+        let optional_choice_closures = match selector {
+            Some(selector) => binding.owners.optional_choice_closures(
+                selector,
+                &f,
+                &rows.iter().map(|row| row.body.clone()).collect::<Vec<_>>(),
+            )?,
+            None => vec![],
+        };
         let preparation = MeasurementPreparation {
             instance: self.instance.clone(),
             scope: scope.clone(),
@@ -753,6 +778,7 @@ where
             closure,
             historical_closure,
             advisory_mutation_closure,
+            optional_choice_closures,
             disclosure_keys: selected.iter().map(row_key).collect::<Result<_>>()?,
             receipt_cut: Some(receipt_cut(&rows)?),
         };
@@ -1459,6 +1485,15 @@ mod integration_tests {
             registration: Option<a::SourceRegistration>,
             mapping_source: Option<Value>,
         ) -> std::result::Result<Self, Failure> {
+            Self::generate_configured_choices(password_account, registration, mapping_source, None)
+                .await
+        }
+        async fn generate_configured_choices(
+            password_account: bool,
+            registration: Option<a::SourceRegistration>,
+            mapping_source: Option<Value>,
+            choice_source: Option<Value>,
+        ) -> std::result::Result<Self, Failure> {
             let temp = tempfile::Builder::new()
                 .permissions(fs::Permissions::from_mode(0o700))
                 .tempdir()?;
@@ -1584,22 +1619,47 @@ mod integration_tests {
             }
             let identity = json!({"kind":"location","evidenceIds":[id(100)]});
             let semantics = json!({"atlasId":id(101),"semanticKind":"room","reviewStatus":"accepted","evidenceIds":[id(100)]});
-            let methods=["guessed","estimated","directly-measured","photo-fitted","derived","imported"].iter().map(|method|{
+            let mut methods=["guessed","estimated","directly-measured","photo-fitted","derived","imported"].iter().map(|method|{
                 if *method=="estimated"{json!({"method":method,"status":"available","reason":null,"acquisition":{"kind":"unqualified"},
                     "support":{"corroboration":"not-established","uncertainties":[{"status":"inferred","explanation":"Generated estimate; no physical verification"}],"limitations":["estimated"]},"inputs":[],"operations":[]})}
                 else{json!({"method":method,"status":"unavailable","reason":"Generated fixture has no native method qualification","acquisition":null,"support":null,"inputs":[],"operations":[]})}
             }).collect::<Vec<_>>();
+            let mut extra_evidence = None;
+            let mut choices = Vec::new();
+            if let Some(source) = choice_source {
+                let mut payload = evidence_payload();
+                payload["provenance"]["source"] = source;
+                let pin = native_pin("evidence", 104, &payload);
+                let reference = json!({"record":pin["record"],"expectedRevision":pin["revision"],
+                    "expectedPayloadSha256":pin["payloadSha256"]});
+                choices.push(json!({"role":"supports","reference":reference}));
+                let estimated = methods
+                    .iter_mut()
+                    .find(|method| method["method"] == "estimated")
+                    .ok_or("estimated method")?;
+                estimated["inputs"] = json!([{"expectation":{"kind":"native","reference":reference},
+                    "provenance":{"pin":{"kind":"native","native":pin},"methods":["estimated"],"support":estimated["support"]}}]);
+                extra_evidence = Some(payload);
+            }
             let export = serde_json::to_vec(
                 &json!({"profile":"houseatlas.private-measurement-semantic-export.v1","scope":scope,"target":target,
                 "roomIdentity":native_pin("identity",101,&identity),"roomSemantics":native_pin("location-semantics",102,&semantics),"mappingReview":native_pin("evidence",100,&evidence),
-                "reviewReceipt":{"actorId":id(5),"mutationId":id(1100)},"methods":methods,"evidence":[]}),
+                "reviewReceipt":{"actorId":id(5),"mutationId":id(1100)},"methods":methods,"evidence":choices}),
             )?;
             let export_sha = media::types::sha256(&export);
             let initial_evidence = evidence.clone();
-            let commands=[("evidence",100,evidence,id(1100),format!("Reviewed measurement occurrence export sha256:{export_sha}")),
+            let mut commands=[("evidence",100,evidence,id(1100),format!("Reviewed measurement occurrence export sha256:{export_sha}")),
                 ("identity",101,identity,id(1101),"Generated native room".into()),("location-semantics",102,semantics,id(1102),"Generated accepted room semantics".into())]
                 .into_iter().enumerate().map(|(i,(kind,n,payload,mutation,reason))|json!({"schemaVersion":3,"commandId":format!("atlas.{kind}.create"),"requestId":id(1200+i as u64),"context":scope,
                     "target":{"authority":"atlas","recordType":kind,"recordId":id(n)},"payload":payload,"idempotencyKey":mutation,"reason":reason,"approvalReceiptId":null,"preconditions":{"target":null,"guards":[]}})).collect::<Vec<_>>();
+            if let Some(payload) = extra_evidence {
+                // The optional record belongs to no target-admission pin. Its
+                // exact payload is bound by the reviewed export before CREATE.
+                commands.push(json!({"schemaVersion":3,"commandId":"atlas.evidence.create","requestId":id(1203),"context":scope,
+                    "target":{"authority":"atlas","recordType":"evidence","recordId":id(104)},"payload":payload,
+                    "idempotencyKey":id(1103),"reason":"Generated optional source evidence","approvalReceiptId":null,
+                    "preconditions":{"target":null,"guards":[]}}));
+            }
             let native = json!({"schemaVersion":3,"commandId":"atlas.batch.execute","requestId":id(1300),"context":scope,"target":{"authority":"atlas","kind":"batch","batchId":id(1301)},
                 "payload":{"commands":commands},"idempotencyKey":id(1302),"reason":"Generated native mapping source","approvalReceiptId":null,"preconditions":{"target":null,"guards":[]}});
             let (status, result) = exchange(
@@ -1699,6 +1759,11 @@ mod integration_tests {
                 &native_scope,
                 a::Action::Read,
             )?);
+            p.capture_sources(
+                &boundary,
+                &owner::source_closure(&facts(&full.db, &scope)?)?,
+            )?;
+            p.seal_source_capture();
             let mut authority = None;
             boundary.with_read_authorization::<s::Error>(p.principal.principal(), |guard| {
                 authority = Some(full.retain_measurement_occurrence_review(
@@ -3188,6 +3253,105 @@ mod integration_tests {
             rows.iter().any(|r| r.body == first["receipt"]
                 && r.sha256 == wire::receipt_digest(&r.body).unwrap())
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn denied_optional_choice_source_hides_choices_without_hiding_retained_measurements()
+    -> std::result::Result<(), Failure> {
+        let registration: a::SourceRegistration = serde_json::from_value(
+            json!({"workspaceId":id(2),"homeId":id(3),"sourceInstanceId":id(2900),
+            "collectionId":"generated-optional-choice","owner":"homebox","partitionMode":"exclusive-home","allowedExternalIds":[]}),
+        )?;
+        let source = json!({"workspaceId":id(2),"homeId":id(3),"key":{"sourceInstanceId":id(2900),
+            "collectionId":"generated-optional-choice","sourceKind":"homebox-entity","externalId":id(2903)}});
+        let f = Fixture::generate_configured_choices(
+            false,
+            Some(registration.clone()),
+            None,
+            Some(source),
+        )
+        .await?;
+        let (store, binding) = f.open()?;
+        let host = f.host(store, binding)?;
+        let core = host.core.clone();
+        let app = router(host);
+        let (status, before) = exchange(
+            &app,
+            "POST",
+            &format!("{}/occurrence-context", f.prefix()),
+            f.context(),
+            &f.cookie,
+            &f.csrf,
+        )
+        .await?;
+        assert_eq!(status, StatusCode::OK, "{before}");
+        assert_eq!(before["evidence"].as_array().ok_or("choices")?.len(), 1);
+        assert_eq!(
+            before["evidence"][0]["reference"]["record"]["recordId"],
+            id(104)
+        );
+        let estimated = before["methods"]
+            .as_array()
+            .ok_or("methods")?
+            .iter()
+            .find(|method| method["method"] == "estimated")
+            .ok_or("estimated method")?;
+        assert_eq!(estimated["status"], "available");
+        assert_eq!(
+            estimated["inputs"][0]["expectation"]["reference"],
+            before["evidence"][0]["reference"]
+        );
+        let created = create_personal(&f, &app, 2901, "12.5000").await?;
+        assert!(!serde_json::to_string(&created["receipt"])?.contains(&id(104)));
+        f.access
+            .lock()
+            .map_err(|_| "Access poisoned")?
+            .set_source_enabled(&registration.partition(), false)?;
+        let (status, context) = exchange(
+            &app,
+            "POST",
+            &format!("{}/occurrence-context", f.prefix()),
+            f.context(),
+            &f.cookie,
+            &f.csrf,
+        )
+        .await?;
+        assert_eq!(status, StatusCode::OK, "{context}");
+        assert_eq!(context["evidence"], json!([]));
+        let estimated = context["methods"]
+            .as_array()
+            .ok_or("methods")?
+            .iter()
+            .find(|method| method["method"] == "estimated")
+            .ok_or("estimated method")?;
+        assert_eq!(estimated["status"], "unavailable");
+        assert!(estimated["acquisition"].is_null());
+        assert!(estimated["support"].is_null());
+        assert_eq!(estimated["inputs"], json!([]));
+        assert_eq!(context["claims"].as_array().ok_or("claims")?.len(), 1);
+        assert_eq!(context["claims"][0]["head"], created["receipt"]);
+        assert!(!serde_json::to_string(&context)?.contains(&id(104)));
+        let assertion = created["receipt"]["committed"]["assertion"]["version"]["assertionId"]
+            .as_str()
+            .ok_or("assertion")?;
+        let (status, history) = exchange(
+            &app,
+            "GET",
+            &format!("{}/occurrence-area/{assertion}/history", f.prefix()),
+            Value::Null,
+            &f.cookie,
+            &f.csrf,
+        )
+        .await?;
+        assert_eq!(status, StatusCode::OK, "{history}");
+        assert_eq!(history["versions"], json!([created["receipt"]]));
+        assert_eq!(
+            history["receiptDigests"][0]["receiptSha256"],
+            created["receiptSha256"]
+        );
+        drop(app);
+        close_fixture_core(core)?;
         Ok(())
     }
 

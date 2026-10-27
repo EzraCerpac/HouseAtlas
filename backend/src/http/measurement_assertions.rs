@@ -238,6 +238,19 @@ fn execute(
     } else {
         None
     };
+    // Optional choices have independent capture wrappers. A denied source
+    // drops only that choice; it never broadens or fails required disclosure.
+    let mut choice_sources = Vec::new();
+    for closure in prepared.optional_choice_source_closures() {
+        let retained = RequestPrincipal::from_retained(p.principal.retained().clone());
+        if !std::ptr::eq(retained.principal.principal(), p.principal.principal()) {
+            return Err(failure(StatusCode::SERVICE_UNAVAILABLE));
+        }
+        if retained.capture_sources(&access, closure).is_ok() {
+            retained.seal_source_capture();
+            choice_sources.push(retained);
+        }
+    }
     let writing = matches!(&action, Action::Write(_));
     let mut output = None;
     let run = |guard: &a::TransactionAuthorization<'_>| -> Result<(), HttpFailure> {
@@ -257,6 +270,7 @@ fn execute(
                         prepared: &prepared,
                         historical: historical.as_ref(),
                         mutation_sources: mutation_sources.as_ref(),
+                        choice_sources: &choice_sources,
                         input: &input,
                     }) {
                         Ok(v) => Ok(v),
@@ -276,6 +290,11 @@ fn execute(
     p.release(&access).map_err(access_error)?;
     if let Some(h) = &historical {
         h.release(&access).map_err(access_error)?;
+    }
+    // These wrappers may supply actual optional disclosure, unlike the
+    // mutation-only advisory wrapper. Revalidate before releasing HTTP bytes.
+    for choice in &choice_sources {
+        choice.release(&access).map_err(access_error)?;
     }
     // The mutation-source wrapper was revalidated for its exact closure under
     // the held original Read guard. It supplies only cut-bound advisory facts;

@@ -175,6 +175,13 @@ impl ReviewedOccurrenceAuthority for ConfiguredOccurrences {
             .ok_or_else(unavailable)?
             .disclosure_target_pins(selector)
     }
+    fn disclosure_choices(&self, selector: &Value) -> s::Result<Vec<Value>> {
+        self.selected(selector)?
+            .owner
+            .as_ref()
+            .ok_or_else(unavailable)?
+            .disclosure_choices(selector)
+    }
     fn occurrence_context(
         &self,
         g: &a::TransactionAuthorization<'_>,
@@ -182,9 +189,10 @@ impl ReviewedOccurrenceAuthority for ConfiguredOccurrences {
         selector: &Value,
         f: &MeasurementNativeFacts,
         r: &[Value],
+        choices: &[RequestPrincipal],
     ) -> s::Result<Value> {
         self.qualify_request(self.selected(selector)?, g, p, f)?
-            .occurrence_context(g, p, selector, f, r)
+            .occurrence_context(g, p, selector, f, r, choices)
     }
     fn materialize(
         &self,
