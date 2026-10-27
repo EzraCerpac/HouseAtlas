@@ -1996,6 +1996,7 @@
 
   /* Name and actions share the first line; the floor line takes the full width. */
   .lantern-host .ua-sheet-head {
+    position: relative;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center;
@@ -2135,6 +2136,44 @@
   }
 
   .lantern-host .ua-sheet-title > p { grid-area: 1 / 2; }
+}
+
+/* The rooms head is its own opener: the chevron marks it, and the button's
+   hit area spans the whole head under the grabber, so there is no second
+   "Show rooms" control beside the pull-up. Its name stays for assistive tech. */
+.lantern-host .ua-sheet-toggle.is-whole {
+  position: static;
+  justify-content: center;
+  width: 36px;
+  padding: 0;
+  border-color: transparent;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.lantern-host .ua-sheet-toggle.is-whole::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.lantern-host .ua-sheet-toggle.is-whole:focus-visible { outline: none; }
+.lantern-host .ua-sheet-toggle.is-whole:focus-visible::after {
+  outline: 2.5px solid var(--focus);
+  outline-offset: -3px;
+  border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+}
+
+.lantern-host .ua-sheet-toggle.is-whole > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* Smallest phones: the sheet toggle is its chevron alone, its name kept for
