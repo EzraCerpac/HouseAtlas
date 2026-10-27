@@ -190,3 +190,45 @@ Existing native/loopback fixtures retain those separate responsibilities.
 Interactive browser/device acceptance stays deferred, native recovery remains
 with #286, and HEIC/HEIF remains unsupported without conversion. No CI scope,
 renderer, cache, PDF-page handling or recovery implementation is changed here.
+
+## Current original-offer identity (#296, 27 October 2026)
+
+At source baseline `789db3faa22439ff34d5a093ab655e1a7aead885`, a
+reused-original upload receipt contains evidence and identity rows without a new
+asset row. The original-offer path previously checked only MIME/length through
+HEAD, which did not correlate that referenced asset with the selected File's
+retained SHA-256.
+
+The client now reads the existing authorized public `atlas.asset.get` resource
+before offering a download. Its pinned result validation and current-session
+guard check the exact scope and asset target, current/active availability,
+evidence-original purpose, selected-byte digest, size, MIME and source license;
+JPEG retains its download-only rule. After the native HEAD availability check,
+a second public asset read must equal the first, including revision and metadata.
+A missing asset or changed record withholds the offer. A failed original read
+does not erase a validated upload receipt or permit another submission.
+
+This uses existing read endpoints and validators. It adds no route, grant,
+response digest header, original transformation or upload/retry behavior.
+Server access and retained-byte validation still run again on download use;
+the two metadata reads are not an atomic lease or a download-byte measurement.
+
+Individually selected synthetic source fixtures (not ordinary CI registration):
+
+```sh
+node frontend/capture-evidence-tests/foreground.mjs original-offer-reused
+node frontend/capture-evidence-tests/foreground.mjs original-offer-digest-mismatch
+node frontend/capture-evidence-tests/foreground.mjs original-offer-record-change
+node frontend/capture-evidence-tests/foreground.mjs original-offer-unavailable
+```
+
+The reuse case supplies two-record receipts for all five generated originals,
+then checks the production resolver's asset GET / HEAD / asset GET sequence.
+The other cases withhold the offer for equal-MIME/equal-size wrong digest,
+changed revision after HEAD and a missing asset. All keep committed receipt
+identity and one POST. The exchanges and window origin are synthetic; there is
+no DOM, listener, network, native data or original download GET. These fixtures
+were prepared without local execution under the git-first workflow. CI
+registration and execution remain separate owner work; passing unrelated CI
+does not establish these named cases. Recovery and actual browser/device
+acceptance remain open.

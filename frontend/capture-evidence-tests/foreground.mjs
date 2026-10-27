@@ -7,7 +7,8 @@ import { transformWithOxc } from '../node_modules/vite/dist/node/index.js';
 
 const name = process.argv[2];
 assert.equal(process.argv.length, 3, 'Select exactly one named fixture');
-assert(['stale-target-preparation', 'one-shot-originals', 'original-byte-mismatch', 'receipt-digest-mismatch'].includes(name));
+assert(['stale-target-preparation', 'one-shot-originals', 'original-byte-mismatch', 'receipt-digest-mismatch',
+  'original-offer-reused', 'original-offer-digest-mismatch', 'original-offer-record-change', 'original-offer-unavailable'].includes(name));
 const root = new URL('../src/', import.meta.url);
 const dataUrl = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
 const raw = async path => dataUrl(`export default ${JSON.stringify(await readFile(new URL(path, import.meta.url), 'utf8'))};`);
@@ -85,14 +86,21 @@ function receipt(metadata, digest, size) {
 function harness() {
   const binding = Object.freeze({ scope: Object.freeze({ ...scope }) }), listeners = new Set(), calls = [];
   let current = binding, owner = {};
-  const state = { onGet: () => response(admission), onPost: () => { throw new Error('Unexpected synthetic POST'); } };
+  const state = { onGet: () => response(admission), onPost: () => { throw new Error('Unexpected synthetic POST'); },
+    onAsset: () => { throw new Error('Unexpected synthetic asset read'); }, onHead: () => { throw new Error('Unexpected synthetic HEAD'); } };
   const base = `/api/atlas/editing/v1/workspaces/${scope.workspaceId}/homes/${scope.homeId}/native-places/${placeId}`;
   const client = createNativeEvidenceClient({ getBinding: () => current, owner: () => owner,
     subscribe(changed) { listeners.add(changed); return () => listeners.delete(changed); },
     exchange: async (actual, route, method, active, body, requestId) => {
       assert.equal(actual, binding); assert(active instanceof AbortSignal);
+      calls.push({ method, requestId, route });
+      const assetPath = `/api/atlas/stock/v3/workspaces/${scope.workspaceId}/homes/${scope.homeId}/records/asset/${assetId}`;
+      if (route === assetPath) { assert.equal(method, 'GET'); return state.onAsset(); }
+      if (method === 'HEAD') {
+        assert.equal(route, `/api/atlas/media/${scope.workspaceId}/${scope.homeId}/${sha(JSON.stringify({ assetId, kind: 'atlas-asset' }))}/download`);
+        return state.onHead();
+      }
       assert.equal(route, method === 'POST' ? `${base}/evidence` : base);
-      calls.push({ method, requestId });
       if (method === 'GET') return state.onGet();
       assert.equal(method, 'POST'); assert(body instanceof FormData);
       return state.onPost(body, requestId);
@@ -105,7 +113,73 @@ function harness() {
     } };
 }
 
-if (name === 'stale-target-preparation') {
+if (name.startsWith('original-offer-')) {
+  // Exercise the production resolver, not the UI or a real original download.
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: { location: { origin: 'https://houseatlas.invalid' } } });
+  try {
+    const fixtures = name === 'original-offer-reused' ? [
+      ['synthetic-photo.jpg', 'image/jpeg'], ['synthetic-photo-progressive.jpg', 'image/jpeg'],
+      ['synthetic-image.png', 'image/png'], ['synthetic-document.pdf', 'application/pdf'], ['synthetic-note.txt', 'text/plain'],
+    ] : [['synthetic-note.txt', 'text/plain']];
+    for (const [filename, type] of fixtures) {
+      const h = harness(), { bytes, input } = await inputFor(filename, type);
+      const fresh = await h.client.load(h.binding, placeId, signal());
+      const prepared = await h.client.prepare(fresh, input, signal());
+      let asset;
+      h.state.onPost = (body, requestId) => {
+        const metadata = JSON.parse(body.get('metadata'));
+        assert.equal(requestId, prepared.requestId); assert.equal(metadata.requestId, requestId);
+        const value = receipt(metadata, sha(bytes), bytes.length);
+        asset = value.data.records.find(row => row.target.recordType === 'asset');
+        // Reuse commits evidence+identity only; the original asset isn't created again.
+        value.data.records = value.data.records.filter(row => row.target.recordType !== 'asset');
+        value.data.auditIds = value.data.auditIds.slice(0, 2);
+        return response(value);
+      };
+      const committed = await h.client.commit(prepared, signal());
+      assert.equal(committed.outcome, 'committed'); assert.equal(committed.receipt.data.records.length, 2);
+      let assetReads = 0, headReads = 0;
+      h.state.onAsset = () => {
+        assetReads++;
+        if (name === 'original-offer-unavailable') return new Response(null, { status: 404 });
+        const current = structuredClone(asset);
+        if (name === 'original-offer-digest-mismatch') current.payload.sha256 = '0'.repeat(64);
+        if (name === 'original-offer-record-change' && assetReads === 2) current.revision = 2;
+        return response({ schemaVersion: 3, commandId: 'atlas.asset.get', requestId: uuid(1020), resolvedScope: scope,
+          status: 'read', replayed: false, data: { records: [current], nextCursor: null, sourceStatus: 'current' } });
+      };
+      h.state.onHead = () => {
+        headReads++;
+        return new Response(null, { headers: { 'content-type': type, 'content-length': String(bytes.length),
+          'content-disposition': 'attachment; filename="original"' } });
+      };
+      if (name === 'original-offer-digest-mismatch') {
+        await assert.rejects(h.client.resolveOriginal(h.binding, prepared, signal()), /differs from selected file/);
+        assert.equal(assetReads, 1); assert.equal(headReads, 0, 'equal MIME/size cannot bypass the selected-byte digest');
+      } else {
+        const offer = await h.client.resolveOriginal(h.binding, prepared, signal());
+        if (name === 'original-offer-reused') {
+          assert.equal(offer.href, `/api/atlas/media/${scope.workspaceId}/${scope.homeId}/${sha(JSON.stringify({ assetId, kind: 'atlas-asset' }))}/download`);
+          assert.equal(assetReads, 2); assert.equal(headReads, 1);
+          assert.deepEqual(h.calls.slice(3).map(call => call.method), ['GET', 'HEAD', 'GET']);
+        } else {
+          assert.equal(offer, null);
+          assert.equal(assetReads, name === 'original-offer-unavailable' ? 1 : 2);
+          assert.equal(headReads, name === 'original-offer-unavailable' ? 0 : 1);
+        }
+      }
+      const [pending] = h.client.pending(h.binding);
+      assert.equal(pending.outcome, 'committed', 'an unavailable original never erases a validated commit');
+      assert.equal(pending.evidenceId, evidenceId); assert.equal(pending.assetId, assetId);
+      assert.equal(h.calls.filter(call => call.method === 'POST').length, 1, 'resolution never resends');
+      assert.equal(h.listeners.size, 0);
+    }
+  } finally {
+    if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow);
+    else delete globalThis.window;
+  }
+} else if (name === 'stale-target-preparation') {
   // Hold the final fresh admission read after byte validation, then retire its
   // binding or session. A transport ignoring abort cannot revive preparation.
   for (const kind of ['binding', 'session', 'cancel']) {
