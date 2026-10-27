@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "15376fda4e7dabd6fbcd2a1653430e2869fc8e2527cf89761d574d90632a62cf",
+  "sourceDigestSha256": "07f17f68fe0c7a8cc1704e896522b8cf28f29fb31ff870db86980d63daf9bb54",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -50,14 +50,14 @@
       "path": ".github/workflows/performance-report.yml",
       "mode": "100644",
       "bytes": 4211,
-      "sha256": "b198c1a8cc6c128a7cac99915e77b96ff821c348e853957332478ffba6921d90",
+      "sha256": "0101012f8827e487ff7247e9149349c6fd65749c1dc38ba0985d0e326f34f33f",
       "owner": "core-integration"
     },
     {
       "path": ".github/workflows/performance.yml",
       "mode": "100644",
       "bytes": 6207,
-      "sha256": "0b334a3a3ef5b3cee7bfa64721257f5eb3ddf7321a6571ee4b848f12aa6a85b1",
+      "sha256": "d34751050bc1a30b9f54f1a5344000fd406e67b11fce74c230bf1df1ca1fca48",
       "owner": "core-integration"
     },
     {
@@ -6035,7 +6035,7 @@
       "path": "docs/ci-performance.md",
       "mode": "100644",
       "bytes": 11591,
-      "sha256": "60314f323b69fc997e88acdf0a63a9fbd27f0241214be8cbb1b19fcda5d01d8c",
+      "sha256": "39827b7b224bf69da418b49e64f24090e19c192835adddb31ab21c11a4d4ae42",
       "owner": "core-integration"
     },
     {
@@ -6119,7 +6119,7 @@
       "path": "docs/contributing/verification.md",
       "mode": "100644",
       "bytes": 159462,
-      "sha256": "edef308127cf3f44b7daa4dc7ab06c6f2283b93a3ee6a781862ff94b5b331473",
+      "sha256": "96ce046a48a17117909cffbe7666d529c59103b63027a6d8b58d7e24a639f006",
       "owner": "core-integration"
     },
     {
@@ -12587,7 +12587,7 @@
       "path": "tools/perf/reporting/README.md",
       "mode": "100644",
       "bytes": 7785,
-      "sha256": "560e1cc99f06eea5281de4214519f10b46a22ac6fcdc25955acb981583a74bfb",
+      "sha256": "3c8b15b28384c735b13d606d41f69f544460fa3f2ee0a55b3fa160e9e4f22d6a",
       "owner": "core-integration"
     },
     {
@@ -12692,7 +12692,7 @@
       "path": "tools/perf/reporting/measurement.mjs",
       "mode": "100644",
       "bytes": 1765,
-      "sha256": "41c729f0dd1ca9a54bcfae1854770b318f049c875afaba465832406168fef88a",
+      "sha256": "e4ab93484089339a8adcb0ebdfa42f6acf03fdc5dc28e2d10a8d925e56ea769e",
       "owner": "core-integration"
     },
     {
