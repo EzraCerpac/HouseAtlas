@@ -43,6 +43,8 @@ export function startWebMcp(options: WebMcpOptions): WebMcpHandle {
   let observed: SessionSnapshot | undefined;
   let registration: AbortController | undefined;
   let sessionLifetime: AbortController | undefined;
+  // Retiring a view must fence disclosure without cancelling owner execution.
+  const disclosureLifetime = new AbortController();
   let unsubscribe: (() => void) | undefined;
   let pending: Promise<void> = Promise.resolve();
   const statusListeners = new Set<() => void>();
@@ -62,6 +64,7 @@ export function startWebMcp(options: WebMcpOptions): WebMcpHandle {
       if (disposed) return;
       disposed = true;
       version += 1;
+      disclosureLifetime.abort(unavailable());
       publish({ state: "disposed" });
       statusListeners.clear();
       // Unmount removes availability. As in WebMCP, it does not cancel a service
@@ -82,16 +85,21 @@ export function startWebMcp(options: WebMcpOptions): WebMcpHandle {
     signal.throwIfAborted();
     const parsed = tool.parseInput(input);
     const context = { session, signal };
+    const assertCurrent = (): void => {
+      signal.throwIfAborted();
+      if (disposed || !sessionMatches(session, sessions.getSnapshot())) throw unavailable();
+    };
     // Recheck after parsing; the shared service also verifies current authority.
-    if (!sessionMatches(session, sessions.getSnapshot())) throw unavailable();
-    signal.throwIfAborted();
-    const result = jsonSnapshot(await service.execute(tool.name, parsed, context));
-    signal.throwIfAborted();
-    if (!sessionMatches(session, sessions.getSnapshot())) throw unavailable();
+    assertCurrent();
+    const output = await service.execute(tool.name, parsed, context);
+    assertCurrent();
+    const result = jsonSnapshot(output);
+    assertCurrent();
     // Give the view its own copy so display transformations cannot alter the wire.
-    await visible.apply(tool.name, jsonSnapshot(result), context, parsed);
-    signal.throwIfAborted();
-    if (!sessionMatches(session, sessions.getSnapshot())) throw unavailable();
+    // The view observes disposal independently of the underway service signal.
+    const viewContext = { session, signal: AbortSignal.any([signal, disclosureLifetime.signal]) };
+    await visible.apply(tool.name, jsonSnapshot(result), viewContext, parsed);
+    assertCurrent();
     return result;
   };
 

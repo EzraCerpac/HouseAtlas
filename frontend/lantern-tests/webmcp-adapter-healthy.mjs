@@ -1,4 +1,4 @@
-// Standalone current-source bootstrap; unchanged synthetic adapter fixture.
+// Standalone current-source bootstrap for the synthetic adapter/lifecycle fixture.
 // No browser, listener, provider, native service or mutation is supplied.
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';

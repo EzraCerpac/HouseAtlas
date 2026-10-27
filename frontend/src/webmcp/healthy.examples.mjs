@@ -1,4 +1,4 @@
-// AT39 healthy synthetic ports only. No browser, listener, provider or mutation.
+// AT39 synthetic adapter and lifecycle ports. No browser, listener, provider or mutation.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -63,13 +63,13 @@ function syntheticBrowser() {
   };
 }
 
-function setup({ sessions = syntheticSession(), result = [], events = [] } = {}) {
-  const browser = syntheticBrowser();
+function setup({ sessions = syntheticSession(), result = [], events = [],
+  browser = syntheticBrowser(), definitions = [definition], visible } = {}) {
   const calls = [];
   const visibleResults = [];
   const handle = startWebMcp({
     modelContext: browser, sessions,
-    catalog: { toolsFor() { return [definition]; } },
+    catalog: { toolsFor() { return definitions; } },
     service: {
       async execute(name, input, context) {
         events.push('service');
@@ -77,7 +77,7 @@ function setup({ sessions = syntheticSession(), result = [], events = [] } = {})
         return result;
       },
     },
-    visible: {
+    visible: visible ?? {
       async apply(name, value, context) {
         // One healthy asynchronous view update; no race/concurrency scenario.
         await Promise.resolve();
@@ -120,7 +120,9 @@ for (const fixture of contexts.cases) {
     assert.equal(calls[0].name, definition.name);
     assert.deepEqual(calls[0].context.session, { state: 'authenticated', revision: 'synthetic-login-1/home-1' });
     assert.equal(calls[0].context.signal.aborted, false);
-    assert.equal(visibleResults[0].context, calls[0].context);
+    assert.equal(visibleResults[0].context.session, calls[0].context.session);
+    assert.notEqual(visibleResults[0].context.signal, calls[0].context.signal);
+    assert.equal(visibleResults[0].context.signal.aborted, false);
     assert.deepEqual(visibleResults[0].value, result);
     assert.notEqual(visibleResults[0].value, output);
     handle.dispose();
@@ -162,4 +164,114 @@ test('healthy sign-in and sign-out availability uses the session port', async ()
   assert.deepEqual(await handle.whenSettled(), { state: 'inactive' });
   assert.equal(browser.tools.size, 0);
   handle.dispose();
+});
+
+function deferred() {
+  let resolve;
+  const promise = new Promise(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+test('disposal fences a late service result without aborting or repeating owner work', async () => {
+  const completion = deferred();
+  const { browser, handle, sessions, calls, visibleResults } = setup({ result: completion.promise });
+  await handle.whenSettled();
+  const retainedTool = browser.tools.get(definition.name);
+  const operation = retainedTool.execute(contexts.record);
+  const rejected = assert.rejects(operation, { name: 'InvalidStateError' });
+  assert.equal(calls.length, 1);
+  handle.dispose();
+  assert.equal(browser.tools.size, 0);
+  assert.equal(sessions.subscriberCount, 0);
+  assert.equal(calls[0].context.signal.aborted, false, 'Disposal is not service cancellation');
+  completion.resolve([]);
+  await rejected;
+  assert.equal(visibleResults.length, 0, 'Retired view must never receive the late result');
+  await assert.rejects(retainedTool.execute(contexts.record), { name: 'InvalidStateError' });
+  assert.equal(calls.length, 1, 'A retained callback must not start new owner work');
+});
+
+test('disposal aborts pending presentation and fences wire return even if the view ignores abort', async () => {
+  const entered = deferred();
+  const acknowledged = deferred();
+  let viewContext;
+  const { browser, handle, calls } = setup({ visible: {
+    async apply(_name, _value, context) {
+      viewContext = context;
+      entered.resolve();
+      // Deliberately ignore abort to exercise the adapter's final release fence.
+      await acknowledged.promise;
+    },
+  } });
+  await handle.whenSettled();
+  const operation = browser.tools.get(definition.name).execute(contexts.record);
+  const rejected = assert.rejects(operation, { name: 'InvalidStateError' });
+  await entered.promise;
+  assert.equal(viewContext.session, calls[0].context.session);
+  handle.dispose();
+  assert.equal(viewContext.signal.aborted, true);
+  assert.equal(calls[0].context.signal.aborted, false);
+  acknowledged.resolve();
+  await rejected;
+  assert.equal(calls.length, 1);
+});
+
+test('session replacement withholds an old result and retains the original invocation identity', async () => {
+  const completion = deferred();
+  const { browser, handle, sessions, calls, visibleResults } = setup({ result: completion.promise });
+  await handle.whenSettled();
+  const operation = browser.tools.get(definition.name).execute(contexts.record);
+  const rejected = assert.rejects(operation, { name: 'AbortError' });
+  sessions.set({ state: 'authenticated', revision: 'synthetic-login-2/home-2' });
+  await handle.whenSettled();
+  assert.equal(calls[0].context.signal.aborted, true);
+  assert.equal(calls[0].context.session.revision, 'synthetic-login-1/home-1');
+  completion.resolve([]);
+  await rejected;
+  assert.equal(visibleResults.length, 0);
+  assert.deepEqual(await browser.tools.get(definition.name).execute(contexts.record), []);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].context.session.revision, 'synthetic-login-2/home-2');
+  assert.equal(visibleResults.length, 1);
+  handle.dispose();
+});
+
+test('partial registration cleanup preserves an already underway canonical result', async () => {
+  const completion = deferred();
+  const browser = syntheticBrowser();
+  const register = browser.registerTool.bind(browser);
+  let operation;
+  browser.registerTool = async (tool, options) => {
+    if (tool.name !== definition.name) throw new Error('Synthetic second registration unavailable');
+    await register(tool, options);
+    operation = tool.execute(contexts.record);
+  };
+  const { handle, calls, visibleResults } = setup({ browser, result: completion.promise,
+    definitions: [definition, { ...definition, name: 'synthetic_second_tool' }] });
+  assert.deepEqual(await handle.whenSettled(), {
+    state: 'failed', phase: 'registration', toolName: 'synthetic_second_tool',
+  });
+  assert.equal(browser.tools.size, 0);
+  assert.equal(browser.registrations[0].signal.aborted, true);
+  assert.equal(calls[0].context.signal.aborted, false);
+  completion.resolve([]);
+  assert.deepEqual(await operation, []);
+  assert.equal(calls.length, 1);
+  assert.equal(visibleResults.length, 1, 'Registration cleanup alone must not discard an underway result');
+  handle.dispose();
+});
+
+test('disposal during input parsing prevents service dispatch', async () => {
+  let handle;
+  const tool = { ...definition, parseInput(input) {
+    handle.dispose();
+    return definition.parseInput(input);
+  } };
+  const mounted = setup({ definitions: [tool] });
+  handle = mounted.handle;
+  await handle.whenSettled();
+  await assert.rejects(mounted.browser.tools.get(definition.name).execute(contexts.record),
+    { name: 'InvalidStateError' });
+  assert.equal(mounted.calls.length, 0);
+  assert.equal(mounted.visibleResults.length, 0);
 });

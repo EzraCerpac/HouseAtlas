@@ -2600,7 +2600,7 @@ It never dispatches to a stock service, opens a transport or mounts a browser.
 
 `frontend/lantern-tests/webmcp-adapter-healthy.mjs` bundles the current
 `frontend/src/webmcp/index.ts` with the locked Vite into a temporary ES module,
-then runs the unchanged `frontend/src/webmcp/healthy.examples.mjs` fixture
+then runs the `frontend/src/webmcp/healthy.examples.mjs` fixture
 against it (6 synthetic adapter, session and history cases, validated with the
 `packages/contracts` Ajv schemas). It runs in CI through `run-healthy.mjs`:
 
@@ -2610,6 +2610,16 @@ node frontend/lantern-tests/webmcp-adapter-healthy.mjs
 
 It never opens a browser, listener, native service or provider, and removes
 only its own temporary output.
+
+The same fixture also includes five in-process lifecycle cases with controlled
+synthetic promises: disposal during a pending service result or view
+acknowledgement, session replacement, partial registration failure, and disposal
+during input parsing. They assert disclosure fencing, original session identity,
+separate service/presentation signals, prompt registration cleanup and no repeat
+dispatch. No real mutation, credential, browser or native access check is made;
+these cases do not establish installed revocation, operator recovery or device
+acceptance. This extends only this existing bootstrap, with no new CI job,
+dependency or runtime transport.
 
 ## PR lane selection (26 October 2026)
 
