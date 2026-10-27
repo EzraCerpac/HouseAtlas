@@ -19,6 +19,10 @@ outputs:
     value: ${{ steps.cargo-registry-cache.outputs.cache-primary-key }}
   registry-hit:
     value: ${{ steps.cargo-registry-cache.outputs.cache-hit }}
+  registry-restored:
+    value: ${{ steps.cargo-registry-cache.outputs.cache-matched-key != '' }}
+  target-restored:
+    value: ${{ steps.cargo-target-cache.outputs.cache-matched-key != '' }}
   target-key:
     value: ${{ steps.cargo-target-cache.outputs.cache-primary-key }}
   target-hit:
