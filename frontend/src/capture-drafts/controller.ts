@@ -3,6 +3,7 @@ import type { SourceRef } from '../api/generated/contracts.ts';
 import { DRAFT_LIMITS, type CaptureSelection, type DraftBoundary, type DraftForm, type DraftHost, type DraftOwner,
   type DraftReview, type DraftRow, type DraftStore, type DraftSubmission, type DraftSummary, type DraftUnknownInspection, type DraftUploadIntent } from './types.ts';
 import { digest, timestamp, validateForm, validateOwner, validateRow, validateRows, validateSource } from './validation.ts';
+import { validateDraftReceipt } from './receipt.ts';
 
 const sameOwner = (a: DraftOwner, b: DraftOwner) => a.actorId === b.actorId && a.workspaceId === b.workspaceId && a.homeId === b.homeId;
 function owner(boundary: DraftBoundary): DraftOwner {
@@ -40,7 +41,7 @@ function checkAdmission(admission: PlaceEditAdmission | null, row: DraftRow): as
  * It has no upload, fetch, reconnect, timer-submission or retry capability. */
 export function createCaptureDrafts(store: DraftStore, host: DraftHost, now: () => number = Date.now) {
   const reviews = new Map<object, { row: DraftRow; boundary: DraftBoundary }>();
-  let submissions = new WeakMap<object, { boundary: DraftBoundary; intent: UploadPlaceEvidence; generation: number; taken: boolean }>();
+  let submissions = new WeakMap<object, { boundary: DraftBoundary; intent: UploadPlaceEvidence; identityId: string; generation: number; taken: boolean }>();
   let generation = 0;
   function boundary(): DraftBoundary {
     const current = host.current();
@@ -153,7 +154,7 @@ export function createCaptureDrafts(store: DraftStore, host: DraftHost, now: () 
         file: originalFile(attempted), statement: attempted.form.statement, sourceLicense: Object.freeze(structuredClone(attempted.form.sourceLicense)), reason: attempted.form.reason,
         capture: Object.freeze(structuredClone(attempted.capture)),
       });
-      const privateAttempt = { boundary: captured, intent, generation: atGeneration, taken: false };
+      const privateAttempt = { boundary: captured, intent, identityId: admission.record.payload.atlasId, generation: atGeneration, taken: false };
       const submission: DraftSubmission = Object.freeze({ draftId: attempted.id, capture: Object.freeze(structuredClone(attempted.capture)), sha256: attempted.sha256,
         takeForForegroundSubmit: () => {
           signal.throwIfAborted(); check(captured, atGeneration, true);
@@ -188,6 +189,7 @@ export function createCaptureDrafts(store: DraftStore, host: DraftHost, now: () 
         || scope?.['workspaceId'] !== privateAttempt.boundary.workspaceId || scope?.['homeId'] !== privateAttempt.boundary.homeId)
         throw new TypeError('Server acknowledgement differs from the local attempt');
       host.validateAcknowledgement(result, privateAttempt.intent);
+      validateDraftReceipt(result, privateAttempt.intent, privateAttempt.identityId, submission.sha256);
       // Validation belongs to this exact attempt. A response object validated
       // during an earlier acknowledgement cannot certify another attempt.
       submissions.delete(submission);

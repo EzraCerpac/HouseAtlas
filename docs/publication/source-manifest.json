@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "e54640f06f18cf6c475fc3e215ada2919321d784cd32afb8026163d62ec89b6b",
+  "sourceDigestSha256": "ed5180c9744b771402b62396dca5764409800a6eafd631469dea9f76560fa00f",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6552,8 +6552,8 @@
     {
       "path": "docs/operations/local-capture-drafts.md",
       "mode": "100644",
-      "bytes": 18053,
-      "sha256": "151a369f85c95e7d735be51b85648aecd6e2962fb373ff030446ace04d664a3a",
+      "bytes": 19813,
+      "sha256": "35512518e8240a28b73a349ab7e12761ceec59cc44ec6eb87044ddc5f5310e76",
       "owner": "core-integration"
     },
     {
@@ -7021,8 +7021,8 @@
     {
       "path": "frontend/capture-drafts-tests/browser-cases.mjs",
       "mode": "100644",
-      "bytes": 19098,
-      "sha256": "cd73a4ccc7540626c656d53bd17faaf6079ef14f672371b72fa8dd99e9ddf284",
+      "bytes": 19273,
+      "sha256": "2fcf54b8af187ab9d87cc5dd91a0b2c6269eaf9ef5b8aa668649db995e82f29a",
       "owner": "core-integration"
     },
     {
@@ -7035,8 +7035,8 @@
     {
       "path": "frontend/capture-drafts-tests/combined-host.mjs",
       "mode": "100644",
-      "bytes": 14938,
-      "sha256": "e5f29ac5e808a179694468985a8e5689fcacfaba1ae179ec1acfcdb78aaf97a4",
+      "bytes": 19140,
+      "sha256": "59b62959c679a2b899a8138a8b366e1163f1f1bcf3f960d029619e85ec9ba103",
       "owner": "core-integration"
     },
     {
@@ -7049,8 +7049,15 @@
     {
       "path": "frontend/capture-drafts-tests/controller.regression.test.mjs",
       "mode": "100644",
-      "bytes": 24459,
-      "sha256": "09d5a17beecfadea0f50a6a77d107acfab7934930b8015b66c25dc11caca0ad5",
+      "bytes": 24370,
+      "sha256": "4c412bf2a1b3f3fa10ffca3acda0de73294b5f47ca168b87d549ccfe20ec0a78",
+      "owner": "core-integration"
+    },
+    {
+      "path": "frontend/capture-drafts-tests/receipt.fixture.mjs",
+      "mode": "100644",
+      "bytes": 2095,
+      "sha256": "a22df7f510fd9f54407b4f52a21ad51db0f9b54787fa7f63abf1766380ca92b1",
       "owner": "core-integration"
     },
     {
@@ -8827,8 +8834,8 @@
     {
       "path": "frontend/src/capture-drafts/controller.ts",
       "mode": "100644",
-      "bytes": 18502,
-      "sha256": "3875bd8227ab94867632025a932bb7bba72051e4c35255de9c202b6f810568c7",
+      "bytes": 18726,
+      "sha256": "6b07144a54d5015413167706d9d1ac8d589159904b341adb3f4b87c694a124ea",
       "owner": "core-integration"
     },
     {
@@ -8836,6 +8843,13 @@
       "mode": "100644",
       "bytes": 3443,
       "sha256": "feea541ee1b360513d13189fbb3dc2d2f9784656ea4051b5987930d216f64cf6",
+      "owner": "core-integration"
+    },
+    {
+      "path": "frontend/src/capture-drafts/receipt.ts",
+      "mode": "100644",
+      "bytes": 5033,
+      "sha256": "6ad058799b7c68e4cce8446ec69314aad69b28b85ff8da6dc55e1849e0f5e297",
       "owner": "core-integration"
     },
     {

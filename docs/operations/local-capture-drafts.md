@@ -158,6 +158,25 @@ upload retry permission. Any retained row stays locked as `outcome-unknown`.
 Receipt validation is scoped to this call and attempt, rather than remembered
 by response-object identity across submissions. Reusing an earlier response
 object with its earlier request ID cannot certify a later attempt.
+Matching outer request/scope fields alone also cannot certify an attachment.
+Before cleanup, the draft controller requires the existing upload contract's
+active evidence and identity records, corresponding audit count, and the exact
+admitted location identity at its guarded successor revision. That identity
+must include the returned new evidence ID. The evidence must retain the saved
+statement, one Atlas original reference, unknown fact/source provenance and
+the exact opaque browser selection claim. A returned new asset must match
+that reference and the saved original hash, size, MIME, licence and JPEG
+download-only policy. The admitted identity is held only in memory; no guard,
+admission or receipt is added to stored drafts.
+
+The server's existing-original path legitimately returns two records
+(evidence and identity), without an asset-create row. That path remains
+supported without fabricating an asset row or adding a read; authorization
+and exact existing-asset resolution remain with the server. A local receipt
+check is not an independent download/readback of that existing original.
+An empty or unrelated committed batch, inconsistent returned records or
+different original/provenance fields leave the local original locked and do
+not establish a known attachment commit or permission to replay.
 The server acknowledgement is a result from one explicit online action. It is
 not evidence of an offline queue, later sync, or eventual delivery guarantee.
 
@@ -282,6 +301,12 @@ bytes, no second cleanup, and no redispatch from inspection or the consumed
 review. The controller regression fixture also separates a correlated commit
 with failed local cleanup from missing/noncommitted statuses. These are source
 fixtures, not new CI entries or executed browser/device evidence.
+The additional prepared `receipt-record-closure-keeps-original` case checks
+schema-valid empty/mismatched receipts against the real closed schema and
+requires retained exact bytes, zero cleanup and no redispatch. The prepared
+`existing-original-receipt-commit` case preserves the two-record server path.
+Both share generated receipt data with the controller fixtures and remain
+outside automatic runners; preparation is not an execution result.
 
 The repository README keeps ordinary CI unchanged and requires separate review
 before any named checks in the isolated regression lane. A future capture-draft
