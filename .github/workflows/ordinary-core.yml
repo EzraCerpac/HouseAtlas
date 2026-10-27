@@ -63,7 +63,7 @@ jobs:
         run: node --test --test-concurrency=1 packages/contracts/proposals/linear-v1/examples.test.mjs
       - name: Run the eight synthetic electrical registration cases
         run: node --test --test-concurrency=1 tools/electrical_registration/healthy.test.mjs
-      - name: Check synthetic host-client options, identities and comparison (no host or load)
+      - name: Check synthetic host-client options, identities, pacing, MCP and comparison (no host or load)
         run: node --test --test-concurrency=1 tools/perf/host-client/options.test.mjs tools/perf/host-client/compare.test.mjs
       - name: Check the NAS deploy tool with a fake service
         run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'
@@ -74,6 +74,10 @@ jobs:
         run: |
           python3 --version
           PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/homebox-quantity-seed-report -p test_report.py -v
+      - name: Run the sixteen synthetic runtime profiling guard and receipt cases
+        run: |
+          python3 -c 'import sys; assert sys.version_info >= (3, 11), "Python >=3.11 required"; print(sys.version)'
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/perf/runtime-profile -p test_runtime_profile.py -v
       - name: Save npm content cache from verified main
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.npm-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
@@ -83,7 +87,7 @@ jobs:
       - name: Record coverage boundary
         if: always()
         run: |
-          printf '%s\n' 'Scope: integrity, syntax, six module builds, 14 history checks, one healthy synthetic mutation/read/history/DTO Request group, the HomeBox quantity seed report unit tests, eight named synthetic electrical registration cases, eleven named synthetic linear proposal syntax cases and six host-client options/driver-identity/comparison cases (two exact Node files; generated temp files only, no host or load).' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'Scope: integrity, syntax, six module builds, 14 history checks, one healthy synthetic mutation/read/history/DTO Request group, the HomeBox quantity seed report unit tests, eight named synthetic electrical registration cases, eleven named synthetic linear proposal syntax cases, sixteen synthetic runtime profiling guard/receipt cases and nine host-client options, driver-identity, pacing, MCP and comparison cases (two exact Node files; generated temp files and fake ports only, no host or load).' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'Command outcomes are reported in the steps above; this summary alone is not a pass claim.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'New explicit source-presence admission is blocked and unexercised.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'Beyond the eight named electrical cases, guard reversal, mutation/omission controls, adversarial, denial, failure injection, concurrency and private-intake checks remain stopped and excluded.' >> "$GITHUB_STEP_SUMMARY"

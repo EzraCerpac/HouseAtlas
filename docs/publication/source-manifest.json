@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "140ed8544d5212c1d8bd45d7d0837ed7427ffec405a4ea87e901df78e5ade58e",
+  "sourceDigestSha256": "6413ba0b5cd890c0200c7cd69e798d59e2bba648ae201faeda618a11756aadfc",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -35,15 +35,15 @@
     {
       "path": ".github/actions/ordinary-setup/action.yml",
       "mode": "100644",
-      "bytes": 4496,
-      "sha256": "d341ec6da68ad0b26cb9c2af62bcf7008b6d8cc524c8a511463948b1a36edaf4",
+      "bytes": 4688,
+      "sha256": "076094847f49403def2e32e816852af00750207796cc2b175243656498285e76",
       "owner": "core-integration"
     },
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
-      "bytes": 5613,
-      "sha256": "1866362d58bee4b98bb939d6a99fab5b3697b522b7087d1ff2d901a79ef5452e",
+      "bytes": 6055,
+      "sha256": "e012b3f1f700870fb1eb5a9c3ca00acb486093b5578d1c40300c1cd02c3e389a",
       "owner": "core-integration"
     },
     {
@@ -63,8 +63,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 18196,
-      "sha256": "57ae93efd4a7a86960ad64c1cbe2128f3c2966c0ac7c31c364798a1305654947",
+      "bytes": 22195,
+      "sha256": "bb42b1165ef11abed32092bf39a11786303d35db3f4f87f09347dc3637120ca0",
       "owner": "core-integration"
     },
     {
@@ -82,10 +82,52 @@
       "owner": "core-integration"
     },
     {
+      "path": ".mise/tasks/bench",
+      "mode": "100755",
+      "bytes": 188,
+      "sha256": "de31846e83c7d785f1330b3d07ec81ae50284a4982c66f05ca7848a7492f995d",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".mise/tasks/cargo-diagnostic",
+      "mode": "100755",
+      "bytes": 182,
+      "sha256": "69052b38707ad64a5b8973efd5be0ee4e74e21bb7d4ed0147b56010f6dbe6e0b",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".mise/tasks/check",
+      "mode": "100755",
+      "bytes": 172,
+      "sha256": "4038875de5fff682fa096a5c650622a8a96b7b8eb2615ff3e9976fa203c94380",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".mise/tasks/dev",
+      "mode": "100755",
+      "bytes": 166,
+      "sha256": "be2cca15bad2f79790f23010b643d0fda4f67c957546869998376344af09a565",
+      "owner": "core-integration"
+    },
+    {
       "path": ".mise/tasks/perf-host-client",
       "mode": "100755",
       "bytes": 176,
       "sha256": "27126b88d3fe6771757f2f1fc32103de82534775edbd5cc0e534165183f283ca",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".mise/tasks/perf/runtime-profile",
+      "mode": "100755",
+      "bytes": 222,
+      "sha256": "b2315a3e1890899c9c255b72c67de9bdcab2877c4e543ecdc09de42351c381fc",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".mise/tasks/profiling",
+      "mode": "100755",
+      "bytes": 176,
+      "sha256": "be2987b48f2abb2763b21d22755a1b70b292831572515a56a64f969ca0b275aa",
       "owner": "core-integration"
     },
     {
@@ -112,8 +154,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 11380,
-      "sha256": "72c68a56f9a9d16f813a1eeddfe3b4ceb5fb9b791e0a4b05a3acb57cb30d9847",
+      "bytes": 12098,
+      "sha256": "e1800bd9b9db2c56f7af98f814aa54ed1bd4aedce47af82e379f49a3b9c53a63",
       "owner": "core-integration"
     },
     {
@@ -126,15 +168,15 @@
     {
       "path": "Cargo.toml",
       "mode": "100644",
-      "bytes": 2555,
-      "sha256": "f8ce1f1b4f7162df91a4bf696e187b1c7840721055c84995c736d3013e3b4cfe",
+      "bytes": 2988,
+      "sha256": "645cd43dc131b2945e55a034d0629d01ade061477405189df03d379917f2590d",
       "owner": "core-integration"
     },
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 8661,
-      "sha256": "7ca3a630947a10693271aa31df82e5e34b0a63401a2b645826545817b526422b",
+      "bytes": 9056,
+      "sha256": "2486764055c0e6b3b6fc70a83abc5fc2399062f4b6a381774779718195bb544d",
       "owner": "core-integration"
     },
     {
@@ -6298,6 +6340,20 @@
       "owner": "contracts"
     },
     {
+      "path": "docs/contributing/cargo-modes.md",
+      "mode": "100644",
+      "bytes": 4218,
+      "sha256": "3f8cb66651142ee4f6a99f0da8a522022503a073258088d80fa408b47694be36",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/contributing/cargo-timings.md",
+      "mode": "100644",
+      "bytes": 4417,
+      "sha256": "19711a9631779c42821c63333ec3f25fa43fffa62b4240e0b074fbc219c90420",
+      "owner": "core-integration"
+    },
+    {
       "path": "docs/contributing/ci-path-selection.md",
       "mode": "100644",
       "bytes": 4106,
@@ -6305,10 +6361,17 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/contributing/formatting.md",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 3186,
+      "sha256": "e457035d43dab3ac9ca91ebfde9e490820564779c7493061c5cffbc707ce19b4"
+    },
+    {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 209199,
-      "sha256": "e57ff7eae046947f10f732fb54c6e2d2fa70bcd9c3724667d1ba70423d136890",
+      "bytes": 210480,
+      "sha256": "20ef4aa41421a408248d10d02953dac887f738f0bc1c40c6d5737901071f4b25",
       "owner": "core-integration"
     },
     {
@@ -10764,6 +10827,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "mise.toml",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 372,
+      "sha256": "87f0216f5b89bf108619ec525fda9f0cb79d0a337198a584e5bffeb832098744"
+    },
+    {
       "path": "package-lock.json",
       "mode": "100644",
       "bytes": 281,
@@ -11616,6 +11686,20 @@
       "bytes": 25748,
       "sha256": "2ab6a6e04d5773df9c44f7ff20a836e25f8eb9dbb3c609cd7227ea77f9bbc04e",
       "owner": "operations-policy"
+    },
+    {
+      "path": "tools/cargo-modes/run.mjs",
+      "mode": "100644",
+      "bytes": 1956,
+      "sha256": "aa2e5e59bb8c20196e0d91a55297c277f9da8049fb19e255fa573ae8e79b49f7",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/ci/cargo-timings.mjs",
+      "mode": "100644",
+      "bytes": 6993,
+      "sha256": "9cb0f7a9c88c742cde34fdfe522490eed53397c1ccdb27a6062cfa564eaa8617",
+      "owner": "core-integration"
     },
     {
       "path": "tools/ci/select_pr_checks.py",
@@ -12514,6 +12598,27 @@
       "owner": "core-integration"
     },
     {
+      "path": "tools/perf/runtime-profile/README.md",
+      "mode": "100644",
+      "bytes": 9733,
+      "sha256": "3346b51b38f8bb01b4386e21c7501779c943857e36e088db6e1134b27ae37c80",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/runtime-profile/run.py",
+      "mode": "100644",
+      "bytes": 29427,
+      "sha256": "d9ddb4c49751ba84bcfc35b2063700609d207ff2bec3320ae4e454c7bdf52653",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/runtime-profile/test_runtime_profile.py",
+      "mode": "100644",
+      "bytes": 18051,
+      "sha256": "cfd1d3cb9b37a75f04da3d22bb540e516fae2ce14d56c852a357bf657e6f8e71",
+      "owner": "core-integration"
+    },
+    {
       "path": "tools/publication/verify-source.mjs",
       "mode": "100644",
       "bytes": 3600,
@@ -12614,8 +12719,8 @@
     {
       "path": "tools/rust-integration/check-source.mjs",
       "mode": "100644",
-      "bytes": 2456,
-      "sha256": "c9c02de6f452849c41646084d958133e9f2a2b9b76e285d1c530651ca9b4408e",
+      "bytes": 2564,
+      "sha256": "f01b1a90c9fd2b893144d78e86bbbe8434cabcfd908ffe21942c76e4b348dbf5",
       "owner": "core-integration"
     },
     {
@@ -12673,6 +12778,13 @@
       "bytes": 15652,
       "sha256": "7801a97b255a3a6e454a4d0089815ea7337c138190e0ae2242725a9d09d56f9c",
       "owner": "core-integration"
+    },
+    {
+      "path": "tools/rust-integration/format.mjs",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 1272,
+      "sha256": "9d811576ce90e5663863676b34250bb786df196729c3a5925a806aa6cc844d2b"
     },
     {
       "path": "tools/rust-integration/healthy-agent-host-loopback.mjs",

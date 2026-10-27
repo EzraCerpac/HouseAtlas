@@ -62,6 +62,15 @@ Node and locked Ajv: six unchanged fictional proposals, fixture boundary
 arithmetic, exact decimal grammar, metric-length scalar fields and documentary
 wall endpoint syntax/order. These read-only local checks establish no native
 measurement storage, source identity, physical accuracy or linear route.
+The ordinary-core job also runs the sixteen explicit cases in
+`tools/perf/runtime-profile/test_runtime_profile.py` with the runner's Python
+>=3.11 (stdlib only). They use generated profiles, disposable folders and owned
+synthetic child processes to check configuration refusal, sample decoding,
+receipts, deadlines and process-group cleanup. Fake build/profiler commands
+exercise cleanup only; no Cargo build, real profiler, network workload or
+runtime performance collection runs. These checks establish no profiling
+availability or benchmark result.
+
 In `.github/workflows/rust-react-ordinary.yml` that includes
 the named Lantern healthy read; the generated Electrical Library `healthy`
 case (existing production reader/projection and fictional original bytes,
@@ -128,14 +137,15 @@ trap in the draft harness. They add no listener, native service or browser.
 Other capture/draft cases and the full controller regression suite remain
 separately selected; exact commands and limits are in the verification guide.
 
-
 The existing ordinary-core lightweight job also runs exactly
 `tools/perf/host-client/options.test.mjs` and
 `tools/perf/host-client/compare.test.mjs` with pinned Node 26.10.0 and
-`--test-concurrency=1`. These six stdlib-only cases check explicit selection and
+`--test-concurrency=1`. These nine stdlib-only cases check explicit selection and
 resource limits, sample-qualified summaries, complete measurement-driver source
 fingerprints over generated temporary files, mismatched runner/adapter/driver/
-load rejection and unqualified errored/saturated comparisons. They launch no
+load rejection, unqualified errored/saturated comparisons, pacing alignment with
+a synthetic clock, MCP editor/CSRF exchanges through fake ports, and a bounded
+Node comparison subprocess from generated paths containing spaces. They launch no
 Rust host, Vite build, TLS listener, browser, request generator, fault cohort,
 profiler or performance measurement. The opt-in host-client contract, faults and
 release-measurement commands remain outside ordinary CI.

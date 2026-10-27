@@ -108,6 +108,12 @@ not qualify actual model placement, GPU picking or a live scene endpoint.
 
 ## Development and verification
 
+Before committing and publishing Rust changes, run `mise run fmt` in an owned
+checkout, review the diff, refresh the publication manifest, then run
+`mise run fmt:check`. Follow the [writer sequence and prerequisites](docs/contributing/formatting.md).
+These repository tasks work in saved cloud and Mac checkouts; explicit writer
+use is required and existing CI remains the check-only backstop.
+
 The current development snapshot includes a Rust backend, SQLite persistence and a React interface with strict TypeScript.
 
 [The complete verification guide](docs/contributing/verification.md) retains every previously documented named command and its scope, prerequisites and limitations. Read it before running any other check; broad suites and held controls are not authorized by this README.

@@ -34,6 +34,26 @@ against temp folders and a fake iCloud helper:
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/backup -p 'test_*.py'
 ```
 
+## Synthetic runtime profiling guards and receipts
+
+The ordinary-core job also runs the sixteen explicit cases in
+`tools/perf/runtime-profile/test_runtime_profile.py` with the runner's Python
+>=3.11 (stdlib only). They use generated profiles, disposable folders and owned
+synthetic child processes to check configuration refusal, sample decoding,
+receipts, deadlines and process-group cleanup. Fake build/profiler commands
+exercise cleanup only; no Cargo build, real profiler, network workload or
+runtime performance collection runs. These checks establish no profiling
+availability or benchmark result.
+
+```sh
+python3 -c 'import sys; assert sys.version_info >= (3, 11), "Python >=3.11 required"; print(sys.version)'
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/perf/runtime-profile -p test_runtime_profile.py -v
+```
+
+The command runs in the existing Ubuntu ordinary-core job; a failed version
+check or test fails that step. POSIX process cases are expected to run on that
+runner. Actual CPU, allocation and RSS collection remains opt-in and unclaimed.
+
 ## Healthy frontend suite
 
 `frontend/lantern-tests/run-healthy.mjs` runs every named healthy frontend
@@ -3253,13 +3273,16 @@ or adding a job:
 node --test --test-concurrency=1 tools/perf/host-client/options.test.mjs tools/perf/host-client/compare.test.mjs
 ```
 
-The six cases check fail-closed option/limit handling, empirical quantile sample
+The nine cases check fail-closed option/limit handling, empirical quantile sample
 thresholds and error accounting, deterministic source closure fingerprints over
 generated disposable files (including a change to each runtime source), refusal
 of unequal runner/adapter/complete-driver/load/context or empty comparisons, and
 unqualified saturated/errored reports. The unequal-driver regression retains an
 identical production adapter bundle identity while changing the measurement
-driver identity. Temporary directories are removed after the fingerprint case.
+driver identity. Additional cases check shared pacing with a synthetic clock, editor/CSRF MCP
+messages against fake ports, and comparison CLI invocation from paths containing
+spaces using a bounded Node subprocess. Temporary directories are removed after
+the fingerprint and CLI cases.
 
 This scope launches no Rust process, Vite build, HTTPS listener, browser, provider,
 load generator, fault cohort or profiler. It collects no benchmark samples or
