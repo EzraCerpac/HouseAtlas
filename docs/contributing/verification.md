@@ -2739,7 +2739,15 @@ The last case retains the recorded result and an independent uncertainty hold
 after presentation closure. The constructor's actual deadline callback is
 captured synchronously and its real timeout is cleared by the owner; no source
 extraction, replacement custody class or sleep-based deadline is used.
-All seventeen cases run through the existing registered bootstrap command;
+Two further actual-owner cases cover cancellation after service completion but
+before adapter release resumes (both invocation and session replacement), and
+32 immediately cancelled busy results while the original handoff stays pending.
+They assert prompt reservation retirement where applicable, removed completed
+abort listeners, no stale presentation, retained pending owner work and no
+preview/dispatch retry. The busy case observes the adapter's actual native
+composite signal and its listener registration/removal without replacing signal
+semantics, adding production diagnostics or relying on garbage-collection timing.
+All nineteen cases run through the existing registered bootstrap command;
 `run-healthy.mjs` and workflow selection are unchanged. This is not qualification
 of native quantity effects, real-person approval, React UI or live providers.
 
