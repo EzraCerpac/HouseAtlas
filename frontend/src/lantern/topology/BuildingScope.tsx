@@ -213,7 +213,8 @@ function Counts() {
   </ul>;
 }
 
-/** Atlas without a shape projection: reviewed buildings drawn as level sections. */
+/** The Atlas before a house model is published: what is missing and where it
+ * comes from, then reviewed buildings drawn as level sections. */
 export function BuildingSection() {
   const { house } = useStore();
   const topology = useTopology();
@@ -222,8 +223,15 @@ export function BuildingSection() {
   return <div className="atlas-section">
     <header className="atlas-section-head">
       <h1>{house.name}</h1>
-      <p>No reviewed shape projection. Building sections use reviewed membership and recorded elevations only.</p>
     </header>
+    <section className="atlas-empty" aria-labelledby="atlas-no-model-title">
+      <Icon name="atlas" size={22} />
+      <div>
+        <h2 id="atlas-no-model-title">No house model yet</h2>
+        <p>The map appears here once a house model is published to this home's server.
+          Until then, building sections use reviewed membership and recorded elevations.</p>
+      </div>
+    </section>
     <div className="topology-scope section-scope">
       <div className="section-buildings topology-chips" role="group" aria-label="Building">
         <button type="button" className="section-building" aria-pressed={buildingId === null} onClick={() => topology.chooseBuilding(null)}>

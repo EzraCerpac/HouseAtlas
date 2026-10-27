@@ -101,7 +101,6 @@ const links = Object.freeze({
     '../../numeric/decimal': 'numeric/decimal.ts',
     '../../numeric/lossless-json': 'numeric/lossless-json.ts',
   },
-  'lantern/atlas/geometry.ts': {},
   'api/pinned-file-client.ts': {
     '../numeric/stock-ajv': 'numeric/stock-ajv.ts',
     '../../../contracts/stock-wire3/agent/agent.schema.json': agentJson,

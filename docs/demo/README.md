@@ -1,21 +1,7 @@
 # Synthetic interface demo
 
-The house and plan images restore the authentic original fictional Lantern
-house through the application's `AtlasView` and `Model` components. The retained
-reference ZIP is SHA256 `96a884bf935e6aedfa3e5b4f415cce8be295630fe052dc66c5497f8b87b1da63`;
-all 44 authored reference file hashes were verified before rendering its pixels.
-The strictly typed standalone `house.ts` preserves its invented Alder house data. It includes
-three illustrated floors, room colors, openings, stairs, furniture and the birch
-model base. Its dimensions, reviewed flags and claims are fictional illustration
-data; they establish no native source authority or measured household geometry.
-The prototype App, scripted assistant and simulated writes are not mounted.
-
 The building, room and Network images show the actual Lantern React UI and
-existing checked-in `frontend/lantern-tests/core-read-visual` fixture. The
-**Source meshes** view uses seven generated cuboid meshes per floor and mounts
-the actual lossless mesh reader and `HouseScanScene` WebGL renderer.
-Its fixed hash fields are synthetic metadata, with no original USDZ, actual
-Magicplan conversion, native admission or semantic room association.
+existing checked-in `frontend/lantern-tests/core-read-visual` fixture.
 All records, scope IDs and session metadata are synthetic. Topology and Network clients consume fake
 Responses; other application reads return unavailable. Only frontend assets
 are loaded from the owned numeric-loopback Vite server. No native server,
@@ -23,16 +9,13 @@ provider, household file, account, credential or upstream write is involved.
 
 | View | What it demonstrates |
 | --- | --- |
-| [House model](synthetic-house.png) | The original fictional three-floor Lantern house through production components, including a selected kitchen. |
-| [Plan](synthetic-plan.png) | The illustrated ground-floor plan, with invented dimensions and furniture; no measured household placement. |
-| [Source meshes](synthetic-mesh.png) | Two generated floors through the production WebGL renderer, with display-only spacing and unknown physical scale/alignment. |
 | [Building](synthetic-building.png) | Alpha's reviewed membership, recorded level ordering, distinct elevation datums and explicit unknowns. |
 | [Room](synthetic-room.png) | Lower room selection with source facts and unavailable shape/document information. |
 | [Network](synthetic-network.png) | One explicitly loaded saved relation with original dates and exact revision token. |
 | [Collage](synthetic-collage.png) | The three unmodified screen captures, labeled SYNTHETIC. |
 
-The capture also produces seven unified Atlas review images. They are workflow
-artifacts only, not README images:
+The capture also produces seven unified Atlas review images. The README shows
+`synthetic-unified-3d.png`; the others are workflow artifacts only:
 
 | Image | State |
 | --- | --- |
@@ -89,22 +72,21 @@ browser and server. A 90-second budget bounds capture. Browser downloads use
 normal verified TLS. Review pixels before copying regenerated files into Git.
 
 `capture.json` records source HEAD, tracked-change status, runtime, browser,
-WebGL and WebGPU draw evidence, viewport, checks and source/image
+WebGPU or WebGL2 draw evidence, viewport, checks and source/image
 SHA256 digests without local paths or timestamps. Its `sourceTree` digest binds
 every tracked source file, including stylesheets and transitive components,
 and is checked unchanged across capture. The explicitly listed exclusions are
-the seven README images, their receipt and the self-referential publication
-manifest, plus the seven unified Atlas image names. Both prepared floor tags must
-be present before the geometry capture. The `unifiedAtlas` receipt section
+the four browsing images, their receipt and the self-referential publication
+manifest, plus the seven unified Atlas image names. The `unifiedAtlas` receipt section
 records its entry, observed controls and selection, canvas and draw metadata,
 plan SVG digest, and the hashes of its own source files and images.
 The checked-in receipt
 records the base HEAD and a modified working candidate, with the fixture,
 harness and relevant production source bytes pinned individually; workflow
 artifacts record their checked-out candidate HEAD. Fixture data, source, viewport,
-fonts, camera and selected state are fixed; the receipt also pins the illustrated
-model's actual SVG markup. Browser rasterization can vary at a small number of
-antialiased or translucent SVG edges, even on the same host. Repeated capture
+fonts, camera and selected state are fixed; the receipt also pins the plan's
+SVG digest. Browser rasterization can vary at a small number of
+antialiased or translucent edges, even on the same host. Repeated capture
 checks compare the rendered state and inspect pixel differences, rather than
 treating every PNG hash difference as a geometry change. The exact checked-in
 PNG bytes retain their own hashes. Other operating systems can also produce
