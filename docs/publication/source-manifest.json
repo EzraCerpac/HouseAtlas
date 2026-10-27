@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "f7e19280e7677e97d377ac8396d573042d043e8a1dd5dd318b06cb3b5bb66800",
+  "sourceDigestSha256": "a00218838f3ef473c637c57888d03dac9cab4967c4be10cf8d9951726f9a34c9",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -42,8 +42,8 @@
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
-      "bytes": 5267,
-      "sha256": "0837e7782614abe41c7ffc041147295bb2d9ec6c0c85a5b1d63259b7d78d1b56",
+      "bytes": 5661,
+      "sha256": "e876b0e8036fe63d6c287d624537ad84ca05652dd15b21345e393a9f0bfee7fc",
       "owner": "core-integration"
     },
     {
@@ -110,6 +110,13 @@
       "owner": "core-integration"
     },
     {
+      "path": ".mise/tasks/perf/runtime-profile",
+      "mode": "100755",
+      "bytes": 222,
+      "sha256": "b2315a3e1890899c9c255b72c67de9bdcab2877c4e543ecdc09de42351c381fc",
+      "owner": "core-integration"
+    },
+    {
       "path": ".mise/tasks/profiling",
       "mode": "100755",
       "bytes": 176,
@@ -140,8 +147,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 10666,
-      "sha256": "e0a7a148397396690f02895bf6cf848dae7a3dc875700ae34a4652cd4b1ecb70",
+      "bytes": 11219,
+      "sha256": "8d0f455955720db449a5704970f190a14333f10da1ceb577303ca66fac8e9eaa",
       "owner": "core-integration"
     },
     {
@@ -6349,8 +6356,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 207708,
-      "sha256": "93eec6926f029bac7a146c0fdc3e617bb4bce1c3d2c90781f7c3eb08e058bc12",
+      "bytes": 208781,
+      "sha256": "c87d9122696c3e78fe40c2fe645c99db40ade7cde2644515e250549537ec87a3",
       "owner": "core-integration"
     },
     {
@@ -12497,6 +12504,27 @@
       "mode": "100644",
       "bytes": 3416,
       "sha256": "268c493feb20c50bf0c55c5c99d380e490890e295c32fea00d6117b29ac08867",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/runtime-profile/README.md",
+      "mode": "100644",
+      "bytes": 9733,
+      "sha256": "3346b51b38f8bb01b4386e21c7501779c943857e36e088db6e1134b27ae37c80",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/runtime-profile/run.py",
+      "mode": "100644",
+      "bytes": 29427,
+      "sha256": "d9ddb4c49751ba84bcfc35b2063700609d207ff2bec3320ae4e454c7bdf52653",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/runtime-profile/test_runtime_profile.py",
+      "mode": "100644",
+      "bytes": 18051,
+      "sha256": "cfd1d3cb9b37a75f04da3d22bb540e516fae2ce14d56c852a357bf657e6f8e71",
       "owner": "core-integration"
     },
     {

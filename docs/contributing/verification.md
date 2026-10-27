@@ -34,6 +34,26 @@ against temp folders and a fake iCloud helper:
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/backup -p 'test_*.py'
 ```
 
+## Synthetic runtime profiling guards and receipts
+
+The ordinary-core job also runs the sixteen explicit cases in
+`tools/perf/runtime-profile/test_runtime_profile.py` with the runner's Python
+>=3.11 (stdlib only). They use generated profiles, disposable folders and owned
+synthetic child processes to check configuration refusal, sample decoding,
+receipts, deadlines and process-group cleanup. Fake build/profiler commands
+exercise cleanup only; no Cargo build, real profiler, network workload or
+runtime performance collection runs. These checks establish no profiling
+availability or benchmark result.
+
+```sh
+python3 -c 'import sys; assert sys.version_info >= (3, 11), "Python >=3.11 required"; print(sys.version)'
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/perf/runtime-profile -p test_runtime_profile.py -v
+```
+
+The command runs in the existing Ubuntu ordinary-core job; a failed version
+check or test fails that step. POSIX process cases are expected to run on that
+runner. Actual CPU, allocation and RSS collection remains opt-in and unclaimed.
+
 ## Healthy frontend suite
 
 `frontend/lantern-tests/run-healthy.mjs` runs every named healthy frontend
