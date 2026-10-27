@@ -63,6 +63,8 @@ mesh-preparation equivalence check, the `webgl2` case of
 runner's software GPU and swaps in a second mesh set without a blank frame,
 including generated mapped-glass samples and differently tinted/frosted panes
 under reversed primitive submission order and opposite camera views,
+plus a closed omni bulb with nearby nonemissive metal and receivers at 6 m
+and at/beyond its finite 10 m envelope,
 `unified-atlas-plan-wheel-browser.mjs`, which pans and pinch-zooms the generated
 unified Atlas Plan with trusted wheel input in the runner's Chromium, and the generated Unified Atlas compact layer-details
 and control-names checks (compiled source and markup only, no browser), the

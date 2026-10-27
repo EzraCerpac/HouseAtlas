@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MeshLayer } from '../../src/lantern/canonical-ifc/MeshLayer';
 import { makeProjection, prepareMeshes, type PreparedMesh } from '../../src/lantern/canonical-ifc/geometry';
+import { box } from '../canonical-ifc-visual/standard-glb-sample';
 import { generatedMaterialGlb } from '../embedded-png-material-fixture';
 import { loadStandardGlb } from '../../src/lantern/canonical-ifc/standard-glb';
 
@@ -44,6 +45,42 @@ function GlassFixture({ mesh }: { mesh: PreparedMesh }) {
     <GlassSample title="Orbit to the blue pane" meshes={panes} yaw={180} />
     <GlassSample title="Admitted maps on glass" meshes={textured} toggle /></main>;
 }
+
+// Fixed synthetic receivers isolate distance attenuation in the production shader.
+// A closed bulb stays omni; the nearby metal receives light but never emits.
+function LampSample({ height, metal, enabled }: { height: number; metal: boolean; enabled: boolean }) {
+  const [failure, setFailure] = useState('');
+  const meshes = useMemo(() => {
+    const bulb = box([-.05, height - .05, -.05], [.05, height + .05, .05]);
+    return prepareMeshes([
+      { meshKey: 'receiver', floorId: null, occurrenceId: null, sourceBaseColor: [.6, .6, .6, 1],
+        positions: new Float32Array([-1, 0, -1, 1, 0, -1, -1, 0, 1, 1, 0, 1]), indices: new Uint32Array([0, 2, 1, 1, 2, 3]),
+        sourceMaterial: { baseColor: [.6, .6, .6, 1], metallic: metal ? .8 : 0, roughness: .5, doubleSided: true },
+        sourceAttributes: { uv: new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), normal: new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0]),
+          tangent: new Float32Array([1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1]) } },
+      { meshKey: 'bulb', floorId: null, occurrenceId: null, sourceNight: 'emitter', sourceBaseColor: [1, 1, 1, 1],
+        positions: Float32Array.from(bulb.positions), indices: Uint32Array.from(bulb.indices) },
+    ]);
+  }, [height, metal]);
+  // Frame the receiver rather than the bulb, which remains in the renderer's depth bounds.
+  const projection = useMemo(() => makeProjection({ yaw: 0, pitch: 60, zoom: 1, panX: 0, panY: 0 },
+    { min: [-1.1, -.01, -1.1], max: [1.1, .01, 1.1] }, { width: 320, height: 300 }, 0), []);
+  return <section data-lamp-height={height} data-bulb-omni={meshes[1]!.aim === undefined}
+    data-receiver-emitter={meshes[0]!.sourceNight === 'emitter'}>
+    <h2>{metal ? 'Nearby receiving metal' : 'Paving receiver'} · {height} m</h2>
+    <MeshLayer meshes={meshes} projection={projection} rules={{ visibleFloors: 'all', clipY: null }}
+      currentFloorId={null} selectedOccurrenceId={null} contextOccurrenceIds={[]} tints={new Map()} hidden={false}
+      sourceColors sourceMaterials ambient={.4} twoSided light={[0, 1, 0]} emitterKeys={new Set(enabled ? ['bulb'] : [])}
+      daylight={{ direct: 0, night: true, lamp: 1, tint: [.5, .5, .5], sunTint: [1, 1, 1], lampTint: [1, 1, 1] }}
+      onUnavailable={setFailure} /><output>{failure}</output>
+  </section>;
+}
+function LampFixture() {
+  const [enabled, setEnabled] = useState(false);
+  return <><button id="toggle-lamp" aria-pressed={enabled} onClick={() => setEnabled(value => !value)}>Toggle synthetic emitter</button>
+    <main>{[1, 6, 10, 12].map(height => <LampSample key={height} height={height} metal={height === 1} enabled={enabled} />)}</main></>;
+}
+
 function Fixture() {
   const [mesh, setMesh] = useState<PreparedMesh | null>(null), [failure, setFailure] = useState('');
   useEffect(() => { const controller = new AbortController(); void (async () => {
@@ -54,4 +91,4 @@ function Fixture() {
   return <><output>{failure}</output>{mesh ? new URLSearchParams(location.search).has('glass') ? <GlassFixture mesh={mesh} /> : <main><Sample title="Base colour, normal and metallic/roughness" mesh={mesh} />
     <Sample title="Selected" mesh={mesh} selected /><Sample title="Dimmed" mesh={mesh} dim={.65} /><Sample title="Ghost" mesh={mesh} ghost /></main> : <p>Preparing generated samples…</p>}</>;
 }
-createRoot(document.getElementById('root')!).render(<Fixture />);
+createRoot(document.getElementById('root')!).render(new URLSearchParams(location.search).has('lamps') ? <LampFixture /> : <Fixture />);

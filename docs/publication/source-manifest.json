@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b017ba6ed17936cc2fc7fbc95d03fc945fb4fd8da0f1843b78d9dded68c51610",
+  "sourceDigestSha256": "29227476d95ce7464a28bb04e1101cba2b826c994fdf822bd45f2ebf3ee683c5",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -105,8 +105,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 7676,
-      "sha256": "deeffafe8ae8da7293aea8fdb908ea1a9472952e8811f3cf8f321de45ca8c610",
+      "bytes": 7791,
+      "sha256": "9d90931301395ea2bc4994eebe3f7fae370b363c7a9ca43ed4c5f20b21175404",
       "owner": "core-integration"
     },
     {
@@ -6118,8 +6118,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 159462,
-      "sha256": "96ce046a48a17117909cffbe7666d529c59103b63027a6d8b58d7e24a639f006",
+      "bytes": 159935,
+      "sha256": "f3cf1a027c067fcc465ca0ad368f7a3d75b7495a24ced5ac7458e2fc1cdcdc34",
       "owner": "core-integration"
     },
     {
@@ -6475,8 +6475,8 @@
     {
       "path": "docs/models/unified-atlas-scene-v1.md",
       "mode": "100644",
-      "bytes": 30072,
-      "sha256": "f14488dfb894724a519efb6ef24528ff9b6a60916a27cdfc7dad28f00adab7fe",
+      "bytes": 30365,
+      "sha256": "1259aa1bbe8bdc03850ee37dc6dfdb2dd55a741e4c8b6f4b09daa9ef6efeef37",
       "owner": "core-integration"
     },
     {
@@ -7595,8 +7595,8 @@
     {
       "path": "frontend/lantern-tests/embedded-png-material-visual/main.tsx",
       "mode": "100644",
-      "bytes": 5028,
-      "sha256": "8c2103d7160334251fad9871759ce04feb5d2dbbf2a98b06c2621cba76425f0c",
+      "bytes": 7830,
+      "sha256": "a8a405932d7cd45ccd077d10f3c386ccd72bfc3c064271c5de130e9051120990",
       "owner": "web"
     },
     {
@@ -7637,8 +7637,8 @@
     {
       "path": "frontend/lantern-tests/mesh-layer-browser.mjs",
       "mode": "100644",
-      "bytes": 20302,
-      "sha256": "9391641bc3e20c26ff3e9d9595d6e37bd0fdf3cd27efeb7cb192c871dd414bab",
+      "bytes": 23001,
+      "sha256": "e703347c72509f011aa92e603ca7e8f3410d7d7b0b740b11f0ee38ee7b9a07fb",
       "owner": "web"
     },
     {
@@ -9303,8 +9303,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-scene.ts",
       "mode": "100644",
-      "bytes": 49110,
-      "sha256": "547b05404dc6e1de0f05ac3f3a81716a3f625b3305f5c67e89623b04bf6f8f00",
+      "bytes": 49217,
+      "sha256": "75e1013296bb197e85417edd97e092ba70d240ae35ee2006af2d0de940251f2c",
       "owner": "web"
     },
     {
