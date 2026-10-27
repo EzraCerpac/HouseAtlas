@@ -39,3 +39,6 @@ mod healthy;
 
 #[cfg(test)]
 mod transport_healthy;
+
+#[cfg(test)]
+mod failure_contract;
