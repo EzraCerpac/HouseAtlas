@@ -59,6 +59,8 @@ jobs:
           npm run check:http:ordinary
       - name: Run one healthy synthetic Request group
         run: npm run test:ordinary
+      - name: Run the eight synthetic electrical registration cases
+        run: node --test --test-concurrency=1 tools/electrical_registration/healthy.test.mjs
       - name: Check the NAS deploy tool with a fake service
         run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'
       - name: Check the nightly backup script with a fake service and iCloud helper
@@ -77,8 +79,8 @@ jobs:
       - name: Record coverage boundary
         if: always()
         run: |
-          printf '%s\n' 'Scope: integrity, syntax, six module builds, 14 history checks, one healthy synthetic mutation/read/history/DTO Request group and the HomeBox quantity seed report unit tests.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'Scope: integrity, syntax, six module builds, 14 history checks, one healthy synthetic mutation/read/history/DTO Request group, the HomeBox quantity seed report unit tests and eight named synthetic electrical registration cases.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'Command outcomes are reported in the steps above; this summary alone is not a pass claim.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'New explicit source-presence admission is blocked and unexercised.' >> "$GITHUB_STEP_SUMMARY"
-          printf '%s\n' 'Guard reversal, mutation/omission controls, adversarial, denial, failure injection, concurrency and private-intake checks remain stopped and excluded.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'Beyond the eight named electrical cases, guard reversal, mutation/omission controls, adversarial, denial, failure injection, concurrency and private-intake checks remain stopped and excluded.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'No provider, target, secret recovery, HTTPS, pilot, deployment, full security or production qualification.' >> "$GITHUB_STEP_SUMMARY"

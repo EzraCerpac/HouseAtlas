@@ -2182,7 +2182,7 @@ supported-browser observations after source review and independent deployment
 authority. No broader control suite or production action is released.
 
 
-## Named generated electrical registration positive
+## Named generated electrical registration cases
 
 Read `tools/electrical_registration/README.md`, its pure registration module and
 the generated healthy fixture before this exact command on pinned Node 26.10.0:
@@ -2200,7 +2200,7 @@ explicit; source pixels alone do not establish metric points, surveyed positions
 or current circuits. No browser, actual source, provider, failure/denial/replay/
 expiry/crash control, broad suite or deployment is involved.
 
-The same inspected five healthy examples may also be invoked directly on pinned
+The same eight generated cases may also be invoked directly on pinned
 Node 26.10.0 to retain their individual names when a test subprocess reports
 only a file-level result:
 
@@ -2214,7 +2214,10 @@ The fixture file additionally defines three generated regression cases for
 stale current identities, retained withdrawal reconciliation across revisions,
 and source-uncertainty rectangles crossing the fitted hull (including malformed
 explicit row tolerances). Report those separately from the original five
-healthy cases. No workflow or shared runner is added by these definitions.
+healthy cases. The existing ordinary-core job now invokes this exact file with
+pinned Node 26.10.0, running all eight cases without changing their bodies or
+adding a new workflow, dependency, listener or browser check. Named-case output
+from that step is execution evidence; unrelated green CI is not.
 
 
 ## Named generated native Access read-only validation positive

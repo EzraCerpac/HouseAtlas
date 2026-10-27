@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "e54640f06f18cf6c475fc3e215ada2919321d784cd32afb8026163d62ec89b6b",
+  "sourceDigestSha256": "c4c467fa4e4a960c38b185cdb4f86cfac3e4b5a5e3d5bb4c1ee477a68c0b7588",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -42,8 +42,8 @@
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
-      "bytes": 4788,
-      "sha256": "e6d5583c1d89cd26498c5622d22292c9fd36a1c52dfda30b90c50d708acba986",
+      "bytes": 5043,
+      "sha256": "286fd5e9a28d18f74e78da5b5750720ea92b5251da4fcfb05fc99582c9954983",
       "owner": "core-integration"
     },
     {
@@ -105,8 +105,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 7791,
-      "sha256": "9d90931301395ea2bc4994eebe3f7fae370b363c7a9ca43ed4c5f20b21175404",
+      "bytes": 8241,
+      "sha256": "bf17df935ae63f232f51e3d6b02d16a377324156b182092d46dd3c6322f2d653",
       "owner": "core-integration"
     },
     {
@@ -6118,8 +6118,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 153849,
-      "sha256": "d91d611e73852fed62414b5cb143de8c8a23bb4fbef95ff9d2ca3f782571e97f",
+      "bytes": 154063,
+      "sha256": "f45fcf8f07179ec0cfdea9d591d99cb3d9a519502ecc1fd20cd17c65956892c9",
       "owner": "core-integration"
     },
     {
@@ -11480,8 +11480,8 @@
     {
       "path": "tools/electrical_registration/README.md",
       "mode": "100644",
-      "bytes": 10175,
-      "sha256": "4615bffb70ae9d4df069731fd30ab38fa70a36babfe366bb3f5197b09cbe13b1",
+      "bytes": 10318,
+      "sha256": "afc5c5adea6506f6d71c015f5903217a8cbddfd6671efdaf4386d524623c3a0b",
       "owner": "media"
     },
     {

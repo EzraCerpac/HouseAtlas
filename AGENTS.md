@@ -50,7 +50,13 @@ targeting `main`. `.github/workflows/ordinary-core.yml` also runs the 14
 synthetic `tools/homebox-quantity-seed-report` unit tests and the synthetic
 `tools/deploy-nas` and `tools/backup` tests (temp folders, a fake service and
 a fake iCloud helper; no launchd, network or real data) with the runner's
-`python3` (stdlib only). In `.github/workflows/rust-react-ordinary.yml` that includes
+`python3` (stdlib only). The same job runs the eight existing generated
+`tools/electrical_registration/healthy.test.mjs` cases with pinned Node 26.10.0:
+known/approximate affine fits, property-wide inventory, documentary-only intake,
+reviewed withdrawal, revision reconciliation, stale current identities and
+source-uncertainty hull coverage (including malformed explicit row tolerances).
+These pure in-memory cases create no receipt, native authority or physical
+placement. In `.github/workflows/rust-react-ordinary.yml` that includes
 the named Lantern healthy read; `frontend/lantern-tests/run-healthy.mjs` with
 its explicit list, including the `offline-launch`, `hung-network` and
 `live-launch` cases in the runner's Chromium against the built public shell
