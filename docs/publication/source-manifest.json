@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "6413ba0b5cd890c0200c7cd69e798d59e2bba648ae201faeda618a11756aadfc",
+  "sourceDigestSha256": "0371b621a8d1812ab7c3c6176dfa1857a2bd3250a5ac38f7e5d4b19a8c6993a8",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6342,8 +6342,8 @@
     {
       "path": "docs/contributing/cargo-modes.md",
       "mode": "100644",
-      "bytes": 4218,
-      "sha256": "3f8cb66651142ee4f6a99f0da8a522022503a073258088d80fa408b47694be36",
+      "bytes": 4843,
+      "sha256": "f321762d4ddd8ba6cafb3e10ddc780d8dd21ab3f017b194410d2e9525c13dd24",
       "owner": "core-integration"
     },
     {
@@ -11690,8 +11690,15 @@
     {
       "path": "tools/cargo-modes/run.mjs",
       "mode": "100644",
-      "bytes": 1956,
-      "sha256": "aa2e5e59bb8c20196e0d91a55297c277f9da8049fb19e255fa573ae8e79b49f7",
+      "bytes": 2343,
+      "sha256": "87b23c6865b2ac79f50b66e6af90114a09f3a5675500ea0ece09a1acdbad270d",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/cargo-modes/run.test.mjs",
+      "mode": "100644",
+      "bytes": 3409,
+      "sha256": "3f1daa37094701f9f286caea25cfa541279b4d3666cd8194cb52b7b1d71bd1b1",
       "owner": "core-integration"
     },
     {
