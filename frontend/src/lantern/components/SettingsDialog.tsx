@@ -1,10 +1,11 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { formatDate } from '../../app/copy';
 import { AiSettingsSection, useAiHostAvailable } from '../../ai/host/index.js';
 import { useStore } from '../state/store';
 import { Modal } from './Modal';
 import { setModelUpdates, useModelUpdates } from '../unified-atlas/model-updates';
 import { autoPrefersFull, setModelQuality, useModelQuality } from '../unified-atlas/model-quality';
+import { clearDetailStore, storedDetailBytes, subscribeDetailStore } from '../unified-atlas/detail-store';
 import { resolveSunPlace, type SunLocation, type SunPlaceSource } from '../unified-atlas/daylight';
 import { updateSunLocation, useSunPlace } from '../unified-atlas/sun-place';
 import { SyncSettings } from '../../outbox/ui';
@@ -77,8 +78,9 @@ export function SettingsDialog() {
           <p className="setting-static">{modelQuality === 'light'
             ? 'Shows the lighter model, which every device can draw.'
             : modelQuality === 'full'
-              ? 'Shows the lighter model first, then swaps in every detail where the house has it. The full model is a large download each time.'
+              ? 'Shows the lighter model first, then swaps in every detail where the house has it. The full model downloads once for each model update and stays on this device.'
               : `Every detail on a computer with a capable graphics card, the lighter model elsewhere. This device: ${autoPrefersFull() ? 'Full' : 'Light'}.`}</p>
+          <StoredDetail />
         </fieldset>
 
         <SunPlaceSettings />
@@ -98,6 +100,24 @@ export function SettingsDialog() {
         </div>}
       </div>
     </Modal>
+  );
+}
+
+/** The full model kept on this device, with a way to remove it. Nothing shows while none is stored. */
+function StoredDetail() {
+  const [bytes, setBytes] = useState(0);
+  useEffect(() => {
+    let active = true;
+    const refresh = () => { storedDetailBytes().then(value => { if (active) setBytes(value); }, () => undefined); };
+    const unsubscribe = subscribeDetailStore(refresh); refresh();
+    return () => { active = false; unsubscribe(); };
+  }, []);
+  if (bytes === 0) return null;
+  return (
+    <div className="field-row">
+      <p className="setting-static">Full model stored on this device: {Math.round(bytes / 1_000_000)} MB.</p>
+      <button type="button" className="btn" onClick={() => { void clearDetailStore().catch(() => undefined); }}>Remove</button>
+    </div>
   );
 }
 
