@@ -1,5 +1,6 @@
 import type { PlanRing, PlanShape } from '../canonical-ifc/model';
 import { LABEL_WORK, labelPoint, pointInShape, type PreparedMesh, type Projection } from '../canonical-ifc/geometry';
+import type { Surroundings } from '../canonical-ifc/mesh-appearance';
 import type { StandardGlb } from '../canonical-ifc/standard-glb';
 import {
   AtlasReadError, type AtlasBuilding, type AtlasCoverage, type AtlasExclusion, type AtlasGeographic, type AtlasLevel, type AtlasMeshBinding, type AtlasOccurrence,
@@ -927,6 +928,29 @@ export const levelLift = (presentation: AtlasPresentation, levelId: string | nul
   levelId === null ? 0 : (presentation.offsets.get(levelId) ?? 0) * t;
 
 /** Per-mesh display lifts at explode factor t: single-level parts only. */
+/** Where the surroundings fade, as multiples of the half diagonal of the box around
+ * everything but them: whole up to SURROUNDINGS_NEAR of it past the box, gone by
+ * SURROUNDINGS_FAR, and whole for at least SURROUNDINGS_CLEAR metres however small the house. */
+export const SURROUNDINGS_NEAR = .5, SURROUNDINGS_FAR = 2.5, SURROUNDINGS_CLEAR = 4;
+
+/** The context meshes and the fade around the rest of the model, which stays the
+ * subject; null when there is no context or nothing else to fade from. */
+export function atlasSurroundings(model: AtlasModel, lowestPitchDeg: number): Omit<Surroundings, 'backdrop'> | null {
+  const keys = new Set<string>(), min = [Infinity, Infinity], max = [-Infinity, -Infinity];
+  let ground = Infinity;
+  for (const part of model.parts) {
+    if (part.role === 'context') { keys.add(part.mesh.meshKey); continue; }
+    if (part.mesh.triangles === 0) continue;
+    const b = part.mesh.bounds; ground = Math.min(ground, b.min[1]);
+    min[0] = Math.min(min[0]!, b.min[0]); min[1] = Math.min(min[1]!, b.min[2]); max[0] = Math.max(max[0]!, b.max[0]); max[1] = Math.max(max[1]!, b.max[2]);
+  }
+  if (keys.size === 0 || !Number.isFinite(min[0]!) || !Number.isFinite(min[1]!)) return null;
+  const half = [(max[0]! - min[0]!) / 2, (max[1]! - min[1]!) / 2] as const, reach = Math.hypot(half[0], half[1]);
+  const near = Math.max(SURROUNDINGS_CLEAR, SURROUNDINGS_NEAR * reach);
+  return { keys, center: [(min[0]! + max[0]!) / 2, (min[1]! + max[1]!) / 2], half, near, far: near + (SURROUNDINGS_FAR - SURROUNDINGS_NEAR) * Math.max(reach, SURROUNDINGS_CLEAR),
+    ground, lean: 1 / Math.tan(lowestPitchDeg * Math.PI / 180) };
+}
+
 export function partLifts(model: AtlasModel, presentation: AtlasPresentation, t: number): ReadonlyMap<string, number> {
   const lifts = new Map<string, number>();
   if (t === 0) return lifts;

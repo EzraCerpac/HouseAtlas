@@ -2,18 +2,18 @@ import {
   Box3, BufferAttribute, BufferGeometry, CustomBlending, DataTexture, DepthTexture, DoubleSide, FloatType, InterleavedBuffer, InterleavedBufferAttribute,
   LessEqualCompare, LinearFilter, LinearMipmapLinearFilter, LinearSRGBColorSpace, Matrix4, Mesh, NearestFilter, NoColorSpace, NoToneMapping, NodeMaterial,
   OneFactor, OneMinusSrcAlphaFactor, OrthographicCamera, RenderPipeline, RenderTarget, RepeatWrapping, RGBAFormat, Scene, Sphere, SRGBColorSpace, UnsignedByteType, Vector3,
-  Vector4, WebGPUCoordinateSystem, WebGPURenderer, type Node,
+  Vector2, Vector4, WebGPUCoordinateSystem, WebGPURenderer, type Node,
 } from 'three/webgpu';
 import {
-  attribute, cameraProjectionMatrix, cameraViewMatrix, clamp, cross, dot, float, Fn, int, ivec2, length, Loop, mat3, max, mix, normalize, pow, select, smoothstep, step,
-  texture, textureLoad, uniform, uniformArray, varying, vec2, vec3, vec4, Discard, frontFacing, interleavedGradientNoise, pass, positionGeometry, screenCoordinate, vogelDiskSample,
+  abs, attribute, cameraProjectionMatrix, cameraViewMatrix, clamp, cross, dot, float, Fn, int, ivec2, length, Loop, mat3, max, mix, normalize, pow, select, smoothstep, step,
+  texture, textureLoad, uniform, uniformArray, varying, vec2, vec3, vec4, Discard, frontFacing, interleavedGradientNoise, pass, positionGeometry, screenCoordinate, screenUV, vogelDiskSample,
 } from 'three/tsl';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { denoise } from 'three/addons/tsl/display/DenoiseNode.js';
 import { occlusionHistory } from './occlusion-history';
 import type { PreparedMesh, Projection } from './geometry';
 import type { EmbeddedTexture } from './embedded-png-material';
-import { GLASS_CLEAR, GLASS_FROSTED, MAX_LAMPS, MeshPass, STATE_FLOATS, STATE_TEXELS, writeAppearance, type AppearanceInput } from './mesh-appearance';
+import { GLASS_CLEAR, GLASS_FROSTED, GLOW_STOPS, MAX_LAMPS, MeshPass, STATE_FLOATS, STATE_TEXELS, writeAppearance, type AppearanceInput } from './mesh-appearance';
 
 /** Meshes per state-table row: one row is exactly 128 × STATE_TEXELS RGBA texels. */
 const ROW = 128;
@@ -154,6 +154,9 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       lamps: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
       lampAims: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
       lampColors: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
+      fadeCenter: uniform(new Vector2()), fadeHalf: uniform(new Vector2()), fadeNear: uniform(0), fadeFar: uniform(1), fadeGround: uniform(0),
+      stageTop: uniform(new Vector3()), stageBottom: uniform(new Vector3()), stageGlow: uniform(new Vector3()),
+      glowAt: uniform(new Vector2()), glowRadii: uniform(new Vector2(1, 1)),
     };
     const toUnitDepth = renderer.coordinateSystem === WebGPUCoordinateSystem;
     const meshId = attribute('meshIndex', 'float');
@@ -263,6 +266,26 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
         select(n.y.greaterThanEqual(.97), top(s0.xyz, s4.xyz), mix(s4.xyz, select(n.y.greaterThan(.2), s3.xyz, s1.xyz), light)),
         select(n.y.greaterThan(.8), top(s0.xyz, s4.xyz), mix(s4.xyz, s1.xyz, light)));
     };
+    /** How far a surrounding face has faded into the stage (0 for every other mesh), by the
+     * ground it is seen against: not at all up to the near edge of the fade past the house's
+     * box, wholly by its far edge. Every face at one pixel shares that ground, so a fading
+     * tree is never hazier than the lawn behind it. */
+    const fade = Fn(() => {
+      const V = normalize(u.viewDir), seen = positionGeometry.xz.add(V.xz.mul(u.fadeGround.sub(positionGeometry.y).div(max(V.y, .01))));
+      const gap = length(max(abs(seen.sub(u.fadeCenter)).sub(u.fadeHalf), vec2(0)));
+      return smoothstep(u.fadeNear, u.fadeFar, gap).mul(read(vId, 8).w);
+    })().toVar('fade');
+    /** The stage's colour under this pixel, as the stylesheet paints it behind the canvas. */
+    const stage = Fn(() => {
+      const base = mix(u.stageTop, u.stageBottom, screenUV.y);
+      const out = length(screenUV.sub(u.glowAt).div(u.glowRadii));
+      const [a, b, c] = GLOW_STOPS;
+      const glow = select(out.lessThan(b.at), mix(float(a.alpha), float(b.alpha), out.div(b.at)), mix(float(b.alpha), float(c.alpha), clamp(out.sub(b.at).div(c.at - b.at), 0, 1)));
+      return mix(base, u.stageGlow, glow);
+    });
+    /** A display colour taken into the stage as far as its face has faded; what has faded
+     * away entirely is left out, so it writes no depth and casts no contact shading. */
+    const hazed = (color: V3): V3 => { Discard(fade.greaterThanEqual(254 / 255)); return mix(color, stage(), fade); };
     const cutFace = (useClip: F): B => frontFacing.not().and(u.twoSided.lessThan(.5).or(useClip.greaterThan(.5)));
 
     type Source = NonNullable<PreparedMesh['sourceMaterial']>;
@@ -300,7 +323,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
         color = select(on, display(mix(max(light, vec3(0)), u.paper, s6.y), s1.w), plain);
       }
       const tone = select(cut, display(s2.xyz, s1.w), color);
-      return vec4(lamplit(graded(tone, n, s7), tone, n, s7), 1);
+      return vec4(hazed(lamplit(graded(tone, n, s7), tone, n, s7)), 1);
     })();
 
     /** Faded cutaway: one quiet veil, depth-tested and never written. */
@@ -358,7 +381,9 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       const alpha = clamp(fresnel.add(float(1).sub(fresnel).mul(cover)), 0, 1);
       const color = fresnel.mul(reflected).add(float(1).sub(fresnel).mul(cover).mul(body)).div(max(alpha, .001));
       const haze = vec3(...GLASS_HAZE).mul(u.lamp).mul(float(1).sub(fresnel));
-      return vec4(encode(clamp(color, 0, 1)).mul(alpha).add(encode(haze)), alpha);
+      // Surrounding glass fades by its cover: the stage it fades into shows through the canvas.
+      Discard(fade.greaterThanEqual(254 / 255));
+      return vec4(encode(clamp(color, 0, 1)).mul(alpha).add(encode(haze)), alpha).mul(float(1).sub(fade));
     })();
 
     const visibleIn = (pass: MeshPass) => (s5: V4): B => s5.x.equal(pass);
@@ -492,7 +517,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     solid.vertexNode = vertex(s5 => s5.x.greaterThan(MeshPass.None).and(s5.x.lessThan(MeshPass.Glass)));
     solid.outputNode = Fn(() => {
       const s2 = read(vId, 2), s3 = read(vId, 3);
-      Discard(s2.w.greaterThan(.5).and(vY.greaterThan(s3.w)));
+      Discard(s2.w.greaterThan(.5).and(vY.greaterThan(s3.w)).or(fade.greaterThanEqual(254 / 255)));
       return vec4(normalize(cameraViewMatrix.mul(vec4(facing(normalize(vNormal)), 0)).xyz), 1);
     })();
     owned.push(shared.reference, shared.ghost, shared.glass);
@@ -660,6 +685,12 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
           (u.lampAims.array as Vector4[]).forEach((aim, at) => { const toward = frame.lamps[at]?.aim;
             aim.set(toward?.[0] ?? 0, toward?.[1] ?? 0, toward?.[2] ?? 0, toward ? 1 : 0); });
           (u.lampColors.array as Vector4[]).forEach((color, at) => color.set(...frame.lamps[at]?.color ?? [0, 0, 0], 0));
+          if (frame.fade) {
+            const { center, half, near, far, ground, backdrop } = frame.fade;
+            u.fadeCenter.value.set(...center); u.fadeHalf.value.set(...half); u.fadeNear.value = near; u.fadeFar.value = far; u.fadeGround.value = ground;
+            u.stageTop.value.set(...backdrop.top); u.stageBottom.value.set(...backdrop.bottom); u.stageGlow.value.set(...backdrop.glow);
+            u.glowAt.value.set(...backdrop.glowAt); u.glowRadii.value.set(...backdrop.glowRadii);
+          }
           for (const { geometry, index, y } of glassBounds) geometry.boundingSphere!.center.y = y + table[index * STATE_FLOATS + 19]!;
           for (const { pass, mesh } of layers) mesh.visible = pass === 'ghost' ? frame.ghosts : frame.passes.has(pass);
         }

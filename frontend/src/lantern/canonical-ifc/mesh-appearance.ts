@@ -68,9 +68,41 @@ export interface AppearanceInput {
   readonly glazingKeys?: ReadonlySet<string> | undefined;
   /** With daylight only: lamp glass and bulbs, which glow at night and light what is near them. */
   readonly emitterKeys?: ReadonlySet<string> | undefined;
+  /** With twoSided only: surroundings that fade into the stage with distance from the house. */
+  readonly surroundings?: Surroundings | undefined;
   /** Colour overrides (hex); omitted entries keep the default tones. */
   readonly palette?: Partial<MeshPalette> | undefined;
 }
+
+/** Surroundings fade into the stage behind the canvas with distance from a box around the
+ * house: whole up to `near` metres outside it, the stage's own colour by `far`. A face
+ * takes the fade of the ground it is seen against, the point at height `ground` on its line
+ * of sight, so nothing ever stands out hazier than what lies behind it. Meshes that only
+ * cover ground past `far` from every view are not drawn at all. */
+export interface Surroundings {
+  readonly keys: ReadonlySet<string>;
+  /** Centre and half extent, in x and z, of the box the distance is taken from. */
+  readonly center: readonly [number, number];
+  readonly half: readonly [number, number];
+  readonly near: number;
+  readonly far: number;
+  readonly ground: number;
+  /** The furthest a face can be seen across the ground from its own place, per metre it
+   * stands above `ground`: the cotangent of the lowest camera pitch. */
+  readonly lean: number;
+  readonly backdrop: Backdrop;
+}
+
+/** The stage the canvas lies on, as its stylesheet paints it: a gradient (hex) from `top` to
+ * `bottom` down the canvas, under a `glow` that is whole at `glowAt` and fades along a CSS
+ * radial ellipse with radii `glowRadii` to GLOW_STOPS. Positions are fractions of the canvas
+ * from its top left. */
+export interface Backdrop {
+  readonly top: string; readonly bottom: string; readonly glow: string;
+  readonly glowAt: readonly [number, number]; readonly glowRadii: readonly [number, number];
+}
+/** The glow's colour stops along the ellipse: whole at its centre, `alpha` at `at`, gone at the last. */
+export const GLOW_STOPS = [{ at: 0, alpha: 1 }, { at: .42, alpha: .6 }, { at: .78, alpha: 0 }] as const;
 
 /** Lighting for one moment of the day. Every colour is a multiplier on the drawn tone. */
 export interface SceneDaylight {
@@ -119,7 +151,7 @@ export const STATE_TEXELS = 9;
 /** Floats per mesh in the state table. Layout, by texel:
  * 0 top.rgb, usePitch · 1 base.rgb, useSourceColor · 2 cut.rgb, useClip · 3 pitch.rgb, clipY
  * 4 shade.rgb, lift · 5 pass, ghost, ghostUseFloor, ghostFloorY · 6 useMaterial, materialDim, room, glassOpacity
- * 7 shelter, keepTone, glassFrost, emitter · 8 lampColor.rgb, unused */
+ * 7 shelter, keepTone, glassFrost, emitter · 8 lampColor.rgb, fades */
 export const STATE_FLOATS = STATE_TEXELS * 4;
 
 /** Emitters that light their surroundings in one frame, and how close two must be to count as one. */
@@ -161,6 +193,10 @@ export interface FrameAppearance {
   /** Passes with at least one mesh this frame; empty passes are skipped. */
   readonly passes: ReadonlySet<MeshPass>;
   readonly ghosts: boolean;
+  /** The fade of the surroundings, when any mesh fades, with the backdrop's colours as display values. */
+  readonly fade: (Omit<Surroundings, 'keys' | 'lean' | 'backdrop'> & {
+    readonly backdrop: { readonly top: Rgb; readonly bottom: Rgb; readonly glow: Rgb; readonly glowAt: readonly [number, number]; readonly glowRadii: readonly [number, number] };
+  }) | null;
 }
 
 /** Write every mesh's presentation into `out` (STATE_FLOATS per mesh, in mesh
@@ -184,6 +220,8 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
   const cellKey = (x: number, y: number, z: number) => (x * 2 ** 18 + y) * 2 ** 18 + z;
   const home = (at: Rgb) => cellKey(cell(at[0]), cell(at[1]), cell(at[2]));
   const LIT = DAY !== null && DAY.lamp > 0;
+  const AROUND = p.twoSided && p.surroundings && p.surroundings.far > p.surroundings.near ? p.surroundings : null;
+  let fades = false;
   meshes.forEach((mesh, index) => {
     const o = index * STATE_FLOATS, key = mesh.meshKey;
     const kind: MeshPass = p.referenceKeys?.has(key) ? MeshPass.Reference : mesh.occurrenceId !== null ? MeshPass.Bound : MeshPass.Unbound;
@@ -194,7 +232,11 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
       || p.contextOccurrenceIds.includes(mesh.occurrenceId) || p.tints.has(mesh.occurrenceId));
     // Building glass is see-through, unless it is picked out: then it keeps the solid pick tone.
     const glass = DAY !== null && p.glazingKeys?.has(key) === true && kind !== MeshPass.Reference && !keep;
-    const pass: MeshPass = floor && !p.hiddenKeys?.has(key) ? glass ? MeshPass.Glass : kind : MeshPass.None;
+    const fade = AROUND !== null && AROUND.keys.has(key);
+    // Surroundings wholly past the fade are not drawn: no fragments, no shadow, no contact shading.
+    const gone = fade && beyond(mesh.bounds, AROUND);
+    const pass: MeshPass = floor && !gone && !p.hiddenKeys?.has(key) ? glass ? MeshPass.Glass : kind : MeshPass.None;
+    if (fade && pass !== MeshPass.None) fades = true;
     if (pass !== MeshPass.None) passes.add(pass);
     const dim = p.dims ? p.dims.get(key) ?? 0 : mesh.floorId !== p.currentFloorId ? .55 : 0;
     const clip = p.clips?.has(key) ? p.clips.get(key) ?? null : p.rules.clipY;
@@ -241,7 +283,7 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     out[o + 28] = DAY && p.shelterKeys?.has(key) ? 1 : 0; out[o + 29] = DAY && keep ? 1 : 0;
     const emitter = DAY !== null && p.emitterKeys?.has(key) === true;
     out[o + 30] = frost; out[o + 31] = emitter ? 1 : 0;
-    const color: Readonly<Rgb> = mesh.sourceGlow ?? LAMP_COLOR; put(8, emitter ? color : [0, 0, 0], 0);
+    const color: Readonly<Rgb> = mesh.sourceGlow ?? LAMP_COLOR; put(8, emitter ? color : [0, 0, 0], fade ? 1 : 0);
     // A lamp cut away whole by the section stays dark, so it never takes a visible lamp's place.
     if (LIT && emitter && pass !== MeshPass.None && (clip === null || mesh.bounds.min[1] <= clip)) {
       const { min, max } = mesh.bounds, lift = p.lifts?.get(key) ?? 0;
@@ -277,5 +319,16 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     tint: DAY ? [...DAY.tint] as Rgb : [1, 1, 1], sunTint: DAY ? [...DAY.sunTint] as Rgb : [1, 1, 1], lampTint: DAY ? [...DAY.lampTint] as Rgb : [1, 1, 1],
     lamps: lamps.sort((a, b) => b.count - a.count).slice(0, MAX_LAMPS).map(({ at, aim, color }) => ({ at, aim, color })),
     rooms, passes, ghosts,
+    fade: fades && AROUND ? { center: [...AROUND.center], half: [...AROUND.half], near: AROUND.near, far: AROUND.far, ground: AROUND.ground, backdrop: {
+      top: rgb(AROUND.backdrop.top), bottom: rgb(AROUND.backdrop.bottom), glow: rgb(AROUND.backdrop.glow),
+      glowAt: [...AROUND.backdrop.glowAt], glowRadii: [...AROUND.backdrop.glowRadii] } } : null,
   };
+}
+
+/** Whether bounds are seen only against ground past the far edge of the fade, from any view. */
+function beyond(bounds: PreparedMesh['bounds'], around: Surroundings): boolean {
+  const gap = [0, 2].map((axis, at) => Math.max(0,
+    Math.abs((bounds.min[axis]! + bounds.max[axis]!) / 2 - around.center[at]!) - (bounds.max[axis]! - bounds.min[axis]!) / 2 - around.half[at]!));
+  const lean = Math.max(0, bounds.max[1] - around.ground, around.ground - bounds.min[1]) * around.lean;
+  return Math.hypot(gap[0]!, gap[1]!) - lean >= around.far;
 }
