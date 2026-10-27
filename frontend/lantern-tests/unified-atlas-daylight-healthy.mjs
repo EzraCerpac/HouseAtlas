@@ -1,7 +1,8 @@
 // Named ordinary positive: generated time-of-day lighting for the unified
 // Atlas (#339). The pinned SunCalc places the sun for a neutral reference
 // place, which a release or a device can replace; the light changes smoothly through a day, never falls below a
-// readable floor, and turns with the model's north; the appearance table
+// readable floor, and turns with the model's north; the sky lights a face by its
+// direction (#438), warm toward a low sun and cool away; the appearance table
 // carries the shelter, kept-tone, glazing and emitter flags and the lamp points
 // only when daylight is given, building glass moves to its own see-through pass
 // with its opacity and frost, and leaves every other viewer as before. Pure source only: no browser, GPU,
@@ -26,9 +27,12 @@ async function sourceURL(relative, replacements = {}) {
   return dataURL(code);
 }
 const suncalc = new URL('./node_modules/suncalc/index.js', frontend).href;
-const { daylightAt, modelDirection, resolveSunPlace, stageBackdrop, stageColors, STAGE_GLOW_AT, STAGE_GLOW_RADII } = await import(await sourceURL('../src/lantern/unified-atlas/daylight.ts', { suncalc }));
+const skyURL = await sourceURL('../src/lantern/canonical-ifc/sky-light.ts');
+const daylightURL = await sourceURL('../src/lantern/unified-atlas/daylight.ts', { suncalc, '../canonical-ifc/sky-light': skyURL });
+const { daylightAt, modelDirection, resolveSunPlace, stageBackdrop, stageColors, STAGE_GLOW_AT, STAGE_GLOW_RADII } = await import(daylightURL);
+const { FLAT_SKY, LUMA } = await import(skyURL);
 const geometryURL = await sourceURL('../src/lantern/canonical-ifc/geometry.ts');
-const { writeAppearance, STATE_FLOATS, MAX_LAMPS, LAMP_COLOR, MeshPass, GLOW_STOPS } = await import(await sourceURL('../src/lantern/canonical-ifc/mesh-appearance.ts', { './geometry': geometryURL }));
+const { writeAppearance, STATE_FLOATS, MAX_LAMPS, LAMP_COLOR, MeshPass, GLOW_STOPS } = await import(await sourceURL('../src/lantern/canonical-ifc/mesh-appearance.ts', { './geometry': geometryURL, './sky-light': skyURL }));
 const { prepareMeshes, primitiveGlow, primitiveNight, primitiveRoughness } = await import(geometryURL);
 
 const near = (actual, expected, tolerance, label) => assert.ok(Math.abs(actual - expected) <= tolerance, `${label}: ${actual} not within ${tolerance} of ${expected}`);
@@ -62,6 +66,30 @@ assert.equal(midnight.direct, 0);
 assert.equal(midnight.lamp, 1);
 assert.equal(midnight.dusk, 1);
 
+// The sky's light by face direction (#438), as the shader evaluates its nine terms.
+const irradiance = ({ irradiance: t }, [x, y, z]) => [0, 1, 2].map(c => t[c] + t[3 + c] * y + t[6 + c] * z + t[9 + c] * x + t[12 + c] * x * y
+  + t[15 + c] * y * z + t[18 + c] * (3 * z * z - 1) + t[21 + c] * x * z + t[24 + c] * (x * x - y * y));
+const luma = rgb => rgb.reduce((sum, value, c) => sum + value * LUMA[c], 0);
+const warmth = rgb => rgb[0] / rgb[2];
+// Without daylight the sky is the flat term drawn before: 0.7 looking down, 1.1 up, white.
+vec(irradiance(FLAT_SKY, [0, 1, 0]), [1.1, 1.1, 1.1], 'flat sky up');
+vec(irradiance(FLAT_SKY, [0, -1, 0]), [.7, .7, .7], 'flat sky down');
+vec(irradiance(FLAT_SKY, [1, 0, 0]), [.9, .9, .9], 'flat sky side');
+for (const at of ['2026-06-21T12:00:00Z', '2026-06-21T19:30:00Z', '2026-06-21T20:30:00Z', '2026-06-21T23:30:00Z']) {
+  const { sky, altitude } = daylightAt(new Date(at), place);
+  near(luma(irradiance(sky, [0, 1, 0])), 1.1, 1e-6, `sky looking up at ${at}`);
+  assert.ok(luma(irradiance(sky, [0, -1, 0])) < luma(irradiance(sky, [1, 0, 0])), `the ground gives less than the sky at ${at}`);
+  assert.equal(sky.irradiance.length, 27);
+  assert.ok(sky.irradiance.every(Number.isFinite));
+  // A wall facing the sun's side reads grey, so the hour's tint keeps the overall colour.
+  const g = sky.glowToward, side = irradiance(sky, [-g[2], 0, g[0]]);
+  assert.ok(Math.max(...side) - Math.min(...side) < 1e-6, `side wall grey at ${at}`);
+  const toward = irradiance(sky, [g[0], 0, g[2]]), away = irradiance(sky, [-g[0], 0, -g[2]]);
+  if (altitude > 20) assert.ok(Math.abs(warmth(toward) - warmth(away)) < .06, 'midday keeps the drawn palette');
+  else if (altitude > -6) assert.ok(warmth(toward) > warmth(away) + .1, `low sun: walls toward it warmer than away at ${at}`);
+  else assert.ok(Math.abs(warmth(toward) - warmth(away)) < .1, `deep night is even at ${at}`);
+}
+
 // Turning the model's north turns the sun with it, about the vertical only.
 const turned = daylightAt(new Date('2026-06-21T12:00:00Z'), { ...place, northDeg: 90 });
 near(turned.toward[1], solstice.toward[1], 1e-9, 'altitude kept');
@@ -77,7 +105,7 @@ assert.deepEqual(resolveSunPlace(device, null), { ...device, northDeg: 0, source
 // Settings keeps the shown release's location across views, but only while
 // that home and publication are still the selected ones.
 const react = new URL('./node_modules/react/index.js', frontend).href;
-const { modelGeographicFor, showModelGeographic } = await import(await sourceURL('../src/lantern/unified-atlas/sun-place.ts', { react, './daylight': await sourceURL('../src/lantern/unified-atlas/daylight.ts', { suncalc }) }));
+const { modelGeographicFor, showModelGeographic } = await import(await sourceURL('../src/lantern/unified-atlas/sun-place.ts', { react, './daylight': daylightURL }));
 const chosen = { owner: {}, scope: { workspaceId: 'w', homeId: 'h' }, expiresAt: '', publicationId: 'p', manifestSha256: '' };
 showModelGeographic({ workspaceId: 'w', homeId: 'h', publicationId: 'p' }, release);
 assert.deepEqual(modelGeographicFor(chosen), release);

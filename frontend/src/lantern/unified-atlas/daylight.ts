@@ -1,5 +1,6 @@
 import { getPosition } from 'suncalc';
 import type { Backdrop, SceneDaylight } from '../canonical-ifc/mesh-appearance';
+import { skyLight } from '../canonical-ifc/sky-light';
 
 type Rgb = readonly [number, number, number];
 
@@ -76,6 +77,7 @@ export function daylightAt(at: Date, place: SunPlace): Daylight {
     lamp: smooth(0, -5, altitude),
     tint: tintAt(SKY, altitude), sunTint: tintAt(SUN, altitude), lampTint: LAMP,
     dusk: smooth(3, -8, altitude),
+    sky: skyLight(altitude, modelDirection(azimuth, altitude, place.northDeg)),
   };
 }
 
