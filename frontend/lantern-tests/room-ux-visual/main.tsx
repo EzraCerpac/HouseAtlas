@@ -10,10 +10,9 @@ import type { ReadyView } from '../../src/app/types';
 import { App } from '../../src/lantern/App';
 import { projectView } from '../../src/lantern/adapters/read';
 import { NativeActions } from '../../src/lantern/components/NativeActions';
-import { NativeGeometryProvider } from '../../src/lantern/scans/native-ui/NativeScanAtlas';
 import { StoreProvider, useStore } from '../../src/lantern/state/store';
 import { TopologyProvider } from '../../src/lantern/topology/TopologyProvider';
-import { fictionalHouse } from '../readme-house-visual/house';
+import { fictionalHouse } from './house';
 import fixture from '../core-read-visual/fixture.json';
 import '../../src/lantern/styles/fonts.css';
 import '../../src/lantern/styles/tokens.css';
@@ -37,7 +36,7 @@ function FictionalApp() {
     dispatch({ type: 'select', sel: { kind: 'space', id: selectedRoom } });
   }, [dispatch]);
   return <>
-    <TopologyProvider><NativeGeometryProvider client={undefined}><App /></NativeGeometryProvider></TopologyProvider>
+    <TopologyProvider><App /></TopologyProvider>
     <NativeActions />
   </>;
 }

@@ -51,8 +51,6 @@
   ],
   "exclude": [
     "node_modules",
-    "dist",
-    "src/lantern/data/alder.ts",
-    "src/lantern/data/quarry.ts"
+    "dist"
   ]
 }

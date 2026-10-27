@@ -14,37 +14,6 @@
 /* Beside a lens or as an inset the frame decides the height. */
 .lantern-host .atlas-workspace.has-lens .atlas-map > .ua-shell { min-height: 0; }
 
-/* Other sources: a menu that opens over the stage from the lens row. */
-.lantern-host .atlas-lens-bar > .atlas-source-details {
-  position: relative;
-  z-index: 8;
-  margin: 0 0 0 auto;
-  font-size: var(--fs-s);
-}
-
-.lantern-host .atlas-lens-bar > .atlas-source-details > summary { min-height: 36px; }
-
-.lantern-host .atlas-lens-bar > .atlas-source-details > .atlas-sources {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 8px;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  min-width: 180px;
-  margin: 0;
-  padding: 6px 12px;
-  border: 1px solid var(--hair-2);
-  border-radius: var(--r-panel);
-  background: var(--card);
-  box-shadow: var(--shadow-float);
-  text-align: left;
-}
-
-@media (max-width: 720px) {
-  .lantern-host .atlas-lens-bar > .atlas-source-details { font-size: var(--fs-xs); }
-}
-
 /* A compact stage carries the other sources in its own menu. */
 .lantern-host.view-atlas .main:has(.atlas-map .ua-shell.is-compact) .atlas-lens-bar > .atlas-source-details { display: none; }
 

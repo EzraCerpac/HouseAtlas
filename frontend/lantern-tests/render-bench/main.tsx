@@ -226,11 +226,14 @@ function Bench() {
     // Measure FRAMES drawn frames after the first one, however slowly the GPU presents them.
     // Scrubbing instead moves the time FRAMES steps, one every 40 ms as a finger's moves
     // arrive, from a still view whose contact shading has settled.
-    let started = false, steps = 0; const id = setInterval(() => {
-      if (frames.length === 0) return;
+    let started = false, steps = 0, advancedAt = -1; const id = setInterval(() => {
+      if (frames.length === 0 || !(window as unknown as { shownSets?: number[] }).shownSets?.includes(0)) return;
       if (SCRUB && !started && (performance.now() - lastDrawn < 1500 || HOLD && !(window as unknown as { go?: boolean }).go)) return;
       if (!started) { started = true; frames.length = 0; }
-      if ((SCRUB ? steps : frames.length) < FRAMES) { steps++; setYaw(value => value + 1.5); return; }
+      // Slow GPU frames must not let the timer rotate past the requested pose.
+      // After the last step, wait for another draw before publishing its picture.
+      else if (!SCRUB && frames.length === advancedAt) return;
+      if (steps < FRAMES) { steps++; advancedAt = frames.length; setYaw(value => value + 1.5); return; }
       clearInterval(id);
       const sorted = frames.map(f => f.ms).sort((a, b) => a - b), at = (q: number) => sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))]!;
       const mean = (pick: (f: typeof frames[number]) => number) => frames.reduce((s, f) => s + pick(f), 0) / Math.max(1, frames.length);

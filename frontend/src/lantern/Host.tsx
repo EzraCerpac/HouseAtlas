@@ -18,12 +18,7 @@ import type { TopologyClient } from '../api/topology-client';
 import { TopologyProvider, useTopology } from './topology/TopologyProvider';
 import { useOutboxSynced } from '../outbox/index.ts';
 import { PLACE_CREATE, PLACE_NAME } from '../outbox/kinds.ts';
-import type { NativeGeometryReadClient } from './scans/native-read-types';
 import type { NativeEvidenceDocumentClient } from './scans/native-evidence-document-types';
-import type { NativeGeometryWriteClient } from './scans/native-write-types';
-import type { NativeGeometryIntakeAssociation } from './scans/native-ui/NativeGeometryIntake';
-import type { NativeSceneHost } from './scans/native-ui/native-scene-host';
-import { NativeGeometryProvider } from './scans/native-ui/NativeScanAtlas';
 import { SourcePortsContext, type SourceModelPort } from './source-ports';
 import type { SourceDocumentsPort } from './source-documents/types';
 import type { ElectricalLibraryPort } from './electrical-library/types';
@@ -38,7 +33,7 @@ import './styles/integration.css';
 import './styles/topology.css';
 
 /** The existing session/view/stock owners remain above this presentation seam. */
-export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinnedFiles, networkRelations, topology, nativePlaces, nativeGeometry, nativeGeometryWrite, nativeGeometryAssociation, nativeEvidenceDocuments, nativeScene, sourceModels, sourceDocuments, sourceElectricalLibrary, houseAcquisition }: {
+export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinnedFiles, networkRelations, topology, nativePlaces, nativeEvidenceDocuments, sourceModels, sourceDocuments, sourceElectricalLibrary, houseAcquisition }: {
   view: ReadyView; actions: AtlasContentActions; nativeContent: ReactNode;
   quantityWebMcp?: { readonly admission: QuantityAdmissionPort; readonly modelContext: ModelContextPort };
   /** Optional local HomeBox file consumer; its actions are explicit user reads. */
@@ -48,12 +43,8 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   /** Optional reviewed Atlas topology reader, scoped independently of source parentage. */
   topology?: TopologyClient;
   nativePlaces?: NativePlaceClient;
-  nativeGeometry?: NativeGeometryReadClient;
-  nativeGeometryWrite?: NativeGeometryWriteClient;
-  nativeGeometryAssociation?: NativeGeometryIntakeAssociation;
   nativeEvidenceDocuments?: NativeEvidenceDocumentClient;
-  nativeScene?: NativeSceneHost;
-  /** Optional browser-only model file viewer; nothing is uploaded or saved. */
+  /** Optional house model publication (the unified Atlas) and site readers. */
   sourceModels?: SourceModelPort;
   /** Optional native v2 source Documents reader. */
   sourceDocuments?: SourceDocumentsPort;
@@ -129,7 +120,7 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   } }), [view, session, includeArchived]);
   const ports = useMemo(() => ({ ...actions, nativeContent: <>{houseAcquisition && <SaveHouseCopy port={houseAcquisition} />}{nativeContent}</>, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, nativeContent, archiveVisibility, pinnedFiles, networkRelations, houseAcquisition]);
   return <StoreProvider key={projection.house.id} projection={projection} actions={ports}>
-    <TopologyProvider client={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments}><NativeGeometryProvider client={nativeGeometry} writeClient={nativeGeometryWrite} associationClient={nativeGeometryAssociation} scene={nativeScene}><SourcePortsContext value={sources}><App /></SourcePortsContext><ReloadPlacesOnSync /></NativeGeometryProvider></TopologyProvider>
+    <TopologyProvider client={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments}><SourcePortsContext value={sources}><App /></SourcePortsContext><ReloadPlacesOnSync /></TopologyProvider>
     <NativeActions />
     {quantityWebMcp && actions.quantity && <QuantityHandoffLeaf client={actions.quantity} admission={quantityWebMcp.admission} modelContext={quantityWebMcp.modelContext} />}
     {actions.notice && <p className="lantern-reload-notice" role="status">{actions.notice}</p>}

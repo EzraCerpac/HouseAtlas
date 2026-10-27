@@ -10,13 +10,13 @@ import { BIRCH, BIRCH_DARK, CARD, LANTERN } from '../atlas/palette';
 import { frameZoomMinimum, makeProjection, relativePath, type DrawRules, type PreparedMesh, type Projection, type Viewport } from '../canonical-ifc/geometry';
 import { DETAIL_GLB_LIMITS, GlbFormatError } from '../canonical-ifc/glb-preflight';
 import { MeshLayer, RENDER_LIMITS, type MeshPalette } from '../canonical-ifc/MeshLayer';
-import { useStageCamera, type StageFraming } from '../canonical-ifc/useStageCamera';
+import { PITCH_3D, useStageCamera, type StageFraming } from '../canonical-ifc/useStageCamera';
 import { TONE_COLOR, badgeFill, toneTint } from '../canonical-ifc/tones';
 import { PREPARED_BYTES_PER_TRIANGLE } from '../site-artifacts/site-budget';
 import { createLiveAtlasPresentationPort, savedAtlasInitialState } from '../../offline/saved-atlas-presentation';
 import type { AtlasPresentationPort, AtlasPresentationSelection } from './types';
 import {
-  atlasOrigin, atlasReducer, bindAtlasModel, contextOccurrenceIds, easePresentation, frameBox, hasExplodableLevels, initialAtlasState, isAtlasGlazing, labelHeight,
+  atlasOrigin, atlasReducer, atlasSurroundings, bindAtlasModel, contextOccurrenceIds, easePresentation, frameBox, hasExplodableLevels, initialAtlasState, isAtlasGlazing, labelHeight,
   levelLift, occurrenceLiftLevel, partLifts, pickTarget, planFeaturesForLevel, planPickTarget, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
   targetAction, unplacedByReason, type AtlasAction, type AtlasLayer, type AtlasModel, type AtlasViewState, type OverlayLayerIndex, type UnplacedReason,
 } from './scene';
@@ -31,7 +31,7 @@ import { useDocumentaryOverlays } from './useDocumentaryOverlays';
 import type { OverlayFeedSnapshot } from './overlay-feed';
 import { modelUpdatesAllowed, useModelUpdates } from './model-updates';
 import { fullModelWanted, useModelQuality } from './model-quality';
-import { daylightAt, resolveSunPlace, stageColors } from './daylight';
+import { daylightAt, resolveSunPlace, stageBackdrop, stageColors } from './daylight';
 import { showModelGeographic, useSunLocation } from './sun-place';
 import { DaylightControl, useLightingTime } from './DaylightControl';
 import { shownTier, stageTier } from './model-tier';
@@ -733,6 +733,9 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   // Roof slopes take the pitch tone; site terrain the flat board tone. By role only, never by name.
   const roofKeys = useMemo(() => new Set(model.parts.filter(part => part.role === 'roof').map(part => part.mesh.meshKey)), [model]);
   const site = useMemo(() => ({ keys: new Set(model.parts.filter(part => part.role === 'context').map(part => part.mesh.meshKey)), tone: ATLAS_SITE }), [model]);
+  // Context fades into the stage with distance from the house, and is not drawn past the fade.
+  const around = useMemo(() => atlasSurroundings(model, PITCH_3D.min), [model]);
+  const surroundings = useMemo(() => around ? { ...around, backdrop: stageBackdrop(daylight.dusk) } : undefined, [around, daylight.dusk]);
   const shelterKeys = useMemo(() => new Set(model.parts.filter(part => SHELTER_ROLES.has(part.role)).map(part => part.mesh.meshKey)), [model]);
   const roomKeys = useMemo(() => new Set(model.parts.filter(part => part.role === 'room-pick').map(part => part.mesh.meshKey)), [model]);
   // After dusk the house's own glass shows its lit rooms, and every lamp glows.
@@ -1457,7 +1460,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
             selectedOccurrenceId={selected} contextOccurrenceIds={context} tints={tints} hidden={!showCanvas}
             hiddenKeys={shown.hidden} lifts={lifts} clips={shown.clips} dims={shown.dims} ghosts={shown.ghosts} sourceColors sourceMaterials sourceDim={ATLAS_SOURCE_DIM} palette={ATLAS_MESH_PALETTE} ambient={ATLAS_AMBIENT} twoSided shade={ATLAS_SHADE} light={light} pitch={ATLAS_PITCH}
             pitchKeys={roofKeys} site={site} ghostAlpha={ATLAS_GHOST_ALPHA} daylight={daylight} shelterKeys={shelterKeys} roomKeys={roomKeys}
-            glazingKeys={glazingKeys} emitterKeys={emitterKeys}
+            glazingKeys={glazingKeys} emitterKeys={emitterKeys} surroundings={surroundings}
             uploadBytes={target !== lighter || model !== lighter ? RENDER_LIMITS.detailUploadBytes : RENDER_LIMITS.uploadBytes}
             onUnavailable={message => { if (target !== lighter && keepLight) keepLight(); else setFailure(message); }} />
         </div>

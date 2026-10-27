@@ -1,0 +1,77 @@
+/* Other sources are a quiet row, and an opened one leads with a way back. */
+.lantern-host .atlas-sources {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 14px;
+  margin: 8px 12px 0;
+}
+.lantern-host .atlas-sources.is-open { justify-content: flex-start; }
+.lantern-host .atlas-sources .text-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; }
+.lantern-host .atlas-sources h2 { margin: 0; font: 700 var(--fs-l)/1.2 var(--display); }
+.lantern-host .atlas-sources ~ .viewer-unavailable { margin: 0 12px 16px; }
+.lantern-host .atlas-source-details { margin: 12px 16px; color: var(--muted); }
+.lantern-host .atlas-source-details > summary { cursor: pointer; min-height: 44px; display: list-item; align-content: center; }
+
+.lantern-host.view-atlas .main > .source-model-pane {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.lantern-host .source-model-pane {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 0 12px 16px;
+}
+
+/* Other sources: a menu that opens over the stage from the lens row. */
+.lantern-host .atlas-lens-bar > .atlas-source-details {
+  position: relative;
+  z-index: 8;
+  margin: 0 0 0 auto;
+  font-size: var(--fs-s);
+}
+
+.lantern-host .atlas-lens-bar > .atlas-source-details > summary { min-height: 36px; }
+
+.lantern-host .atlas-lens-bar > .atlas-source-details > .atlas-sources {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 180px;
+  margin: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--hair-2);
+  border-radius: var(--r-panel);
+  background: var(--card);
+  box-shadow: var(--shadow-float);
+  text-align: left;
+}
+
+@media (max-width: 720px) {
+  .lantern-host .atlas-lens-bar > .atlas-source-details { font-size: var(--fs-xs); }
+}
+
+/* No house model yet: one quiet card above the building sections. */
+.lantern-host .atlas-empty {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 44rem;
+  margin: 20px 0 0;
+  padding: 14px 16px;
+  border: 1px dashed var(--ink-2);
+  border-radius: var(--r-panel);
+  background: var(--card);
+}
+.lantern-host .atlas-empty > svg { flex: none; margin-top: 2px; color: var(--muted); }
+.lantern-host .atlas-empty h2 { margin: 0 0 4px; font: 700 var(--fs-l, 1.125rem)/1.2 var(--display); }
+.lantern-host .atlas-empty p { margin: 0; color: var(--muted); font-size: var(--fs-s); }

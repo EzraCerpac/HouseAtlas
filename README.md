@@ -16,11 +16,11 @@ HouseAtlas connects rooms, belongings, documents and physical infrastructure in 
 
 HomeBox owns inventory, attachments and maintenance; HouseAtlas owns physical identities, reviewed bindings and optional geometry, circuits and valves. Network observations are a separate passive, read-only source. Browsing does not collect data or write upstream.
 
-![Synthetic HouseAtlas Lantern house: three illustrated floors, selected kitchen, room colors, windows and furniture](docs/demo/synthetic-house.png)
+![Synthetic HouseAtlas Atlas: a generated two-building house model in 3D with its floors spread and the living room selected](docs/demo/synthetic-unified-3d.png)
 
 ![Synthetic HouseAtlas demo: reviewed building levels, room details and saved Network relations](docs/demo/synthetic-collage.png)
 
-**SYNTHETIC demo.** The illustrated house restores the original fictional Lantern design through the application's actual renderer. Its rooms, furniture and dimensions are invented. The separate generated mesh example has no native admission or room associations; the browsing fixture has no reviewed floorplan. No household files, real accounts or live providers are used. [Full screenshots and reproduction](docs/demo/README.md).
+**SYNTHETIC demo.** The Atlas shows a generated fictional house model through the application's actual reader and renderer. Its buildings, rooms and records are invented. The browsing fixture has no house model. No household files, real accounts or live providers are used. [Full screenshots and reproduction](docs/demo/README.md).
 
 ## Try the synthetic interface
 
@@ -31,9 +31,9 @@ npm ci --prefix frontend --ignore-scripts --no-audit --no-fund
 (cd frontend && node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4179 --strictPort)
 ```
 
-Open <http://127.0.0.1:4179/lantern-tests/readme-house-visual/> for the fictional Lantern house. Select a room, switch between **3D** and **Plan**, or use **Source meshes** to inspect the separate generated two-floor scan renderer. Open <http://127.0.0.1:4179/lantern-tests/core-read-visual/> and select **Alpha** for building membership and source facts; in **Network**, choose **Load Network relations** for the fixture's saved relation. Stop the server with Ctrl-C.
+Open <http://127.0.0.1:4179/lantern-tests/source-host-visual/?atlas=generated> for the generated fictional house model. Select a room or switch between **3D** and **Plan**. Open <http://127.0.0.1:4179/lantern-tests/core-read-visual/> and select **Alpha** for building membership and source facts; in **Network**, choose **Load Network relations** for the fixture's saved relation. Stop the server with Ctrl-C.
 
-The house demo uses production Lantern components and an explicitly fictional illustration fixture. The browsing demo uses read clients with synthetic Responses; the source-mesh demo uses generated meshes and the production WebGL renderer with display-only floor spacing. They supply no authentication, native server, evidence upload or provider integration. Keep it on loopback; do not use it as a deployment.
+The Atlas demo uses the production scene reader against an in-page fake transport serving a generated publication. The browsing demo uses read clients with synthetic Responses. They supply no authentication, native server, evidence upload or provider integration. Keep it on loopback; do not use it as a deployment.
 
 ## What you can explore
 

@@ -1,7 +1,8 @@
 // Named ordinary positive: generated time-of-day lighting for the unified
 // Atlas (#339). The pinned SunCalc places the sun for a neutral reference
 // place, which a release or a device can replace; the light changes smoothly through a day, never falls below a
-// readable floor, and turns with the model's north; the appearance table
+// readable floor, and turns with the model's north; the sky lights a face by its
+// direction (#438), warm toward a low sun and cool away; the appearance table
 // carries the shelter, kept-tone, glazing and emitter flags and the lamp points
 // only when daylight is given, building glass moves to its own see-through pass
 // with its opacity and frost, and leaves every other viewer as before. Pure source only: no browser, GPU,
@@ -26,9 +27,12 @@ async function sourceURL(relative, replacements = {}) {
   return dataURL(code);
 }
 const suncalc = new URL('./node_modules/suncalc/index.js', frontend).href;
-const { daylightAt, modelDirection, resolveSunPlace, stageColors } = await import(await sourceURL('../src/lantern/unified-atlas/daylight.ts', { suncalc }));
+const skyURL = await sourceURL('../src/lantern/canonical-ifc/sky-light.ts');
+const daylightURL = await sourceURL('../src/lantern/unified-atlas/daylight.ts', { suncalc, '../canonical-ifc/sky-light': skyURL });
+const { daylightAt, modelDirection, resolveSunPlace, stageBackdrop, stageColors, STAGE_GLOW_AT, STAGE_GLOW_RADII } = await import(daylightURL);
+const { FLAT_SKY, LUMA } = await import(skyURL);
 const geometryURL = await sourceURL('../src/lantern/canonical-ifc/geometry.ts');
-const { writeAppearance, STATE_FLOATS, MAX_LAMPS, LAMP_COLOR, MeshPass } = await import(await sourceURL('../src/lantern/canonical-ifc/mesh-appearance.ts', { './geometry': geometryURL }));
+const { writeAppearance, STATE_FLOATS, MAX_LAMPS, LAMP_COLOR, MeshPass, GLOW_STOPS } = await import(await sourceURL('../src/lantern/canonical-ifc/mesh-appearance.ts', { './geometry': geometryURL, './sky-light': skyURL }));
 const { prepareMeshes, primitiveGlow, primitiveNight, primitiveRoughness } = await import(geometryURL);
 
 const near = (actual, expected, tolerance, label) => assert.ok(Math.abs(actual - expected) <= tolerance, `${label}: ${actual} not within ${tolerance} of ${expected}`);
@@ -62,6 +66,30 @@ assert.equal(midnight.direct, 0);
 assert.equal(midnight.lamp, 1);
 assert.equal(midnight.dusk, 1);
 
+// The sky's light by face direction (#438), as the shader evaluates its nine terms.
+const irradiance = ({ irradiance: t }, [x, y, z]) => [0, 1, 2].map(c => t[c] + t[3 + c] * y + t[6 + c] * z + t[9 + c] * x + t[12 + c] * x * y
+  + t[15 + c] * y * z + t[18 + c] * (3 * z * z - 1) + t[21 + c] * x * z + t[24 + c] * (x * x - y * y));
+const luma = rgb => rgb.reduce((sum, value, c) => sum + value * LUMA[c], 0);
+const warmth = rgb => rgb[0] / rgb[2];
+// Without daylight the sky is the flat term drawn before: 0.7 looking down, 1.1 up, white.
+vec(irradiance(FLAT_SKY, [0, 1, 0]), [1.1, 1.1, 1.1], 'flat sky up');
+vec(irradiance(FLAT_SKY, [0, -1, 0]), [.7, .7, .7], 'flat sky down');
+vec(irradiance(FLAT_SKY, [1, 0, 0]), [.9, .9, .9], 'flat sky side');
+for (const at of ['2026-06-21T12:00:00Z', '2026-06-21T19:30:00Z', '2026-06-21T20:30:00Z', '2026-06-21T23:30:00Z']) {
+  const { sky, altitude } = daylightAt(new Date(at), place);
+  near(luma(irradiance(sky, [0, 1, 0])), 1.1, 1e-6, `sky looking up at ${at}`);
+  assert.ok(luma(irradiance(sky, [0, -1, 0])) < luma(irradiance(sky, [1, 0, 0])), `the ground gives less than the sky at ${at}`);
+  assert.equal(sky.irradiance.length, 27);
+  assert.ok(sky.irradiance.every(Number.isFinite));
+  // A wall facing the sun's side reads grey, so the hour's tint keeps the overall colour.
+  const g = sky.glowToward, side = irradiance(sky, [-g[2], 0, g[0]]);
+  assert.ok(Math.max(...side) - Math.min(...side) < 1e-6, `side wall grey at ${at}`);
+  const toward = irradiance(sky, [g[0], 0, g[2]]), away = irradiance(sky, [-g[0], 0, -g[2]]);
+  if (altitude > 20) assert.ok(Math.abs(warmth(toward) - warmth(away)) < .06, 'midday keeps the drawn palette');
+  else if (altitude > -6) assert.ok(warmth(toward) > warmth(away) + .1, `low sun: walls toward it warmer than away at ${at}`);
+  else assert.ok(Math.abs(warmth(toward) - warmth(away)) < .1, `deep night is even at ${at}`);
+}
+
 // Turning the model's north turns the sun with it, about the vertical only.
 const turned = daylightAt(new Date('2026-06-21T12:00:00Z'), { ...place, northDeg: 90 });
 near(turned.toward[1], solstice.toward[1], 1e-9, 'altitude kept');
@@ -77,7 +105,7 @@ assert.deepEqual(resolveSunPlace(device, null), { ...device, northDeg: 0, source
 // Settings keeps the shown release's location across views, but only while
 // that home and publication are still the selected ones.
 const react = new URL('./node_modules/react/index.js', frontend).href;
-const { modelGeographicFor, showModelGeographic } = await import(await sourceURL('../src/lantern/unified-atlas/sun-place.ts', { react, './daylight': await sourceURL('../src/lantern/unified-atlas/daylight.ts', { suncalc }) }));
+const { modelGeographicFor, showModelGeographic } = await import(await sourceURL('../src/lantern/unified-atlas/sun-place.ts', { react, './daylight': daylightURL }));
 const chosen = { owner: {}, scope: { workspaceId: 'w', homeId: 'h' }, expiresAt: '', publicationId: 'p', manifestSha256: '' };
 showModelGeographic({ workspaceId: 'w', homeId: 'h', publicationId: 'p' }, release);
 assert.deepEqual(modelGeographicFor(chosen), release);
@@ -109,6 +137,16 @@ assert.deepEqual(stageColors(0), { '--ua-glow': '#fffaf0', '--ua-sky-top': '#f1e
 const css = readFileSync(new URL('../src/lantern/unified-atlas/unified-atlas.css', import.meta.url), 'utf8');
 for (const [name, value] of Object.entries(stageColors(0))) assert.ok(css.includes(`var(${name}, ${value})`), `${name} falls back to ${value}`);
 assert.notDeepEqual(stageColors(1), stageColors(0));
+// The backdrop the surroundings fade into is the stage the stylesheet paints, at every hour.
+for (const dusk of [0, .5, 1]) {
+  const colors = stageColors(dusk), backdrop = stageBackdrop(dusk);
+  assert.deepEqual([backdrop.top, backdrop.bottom, backdrop.glow], [colors['--ua-sky-top'], colors['--ua-sky-bottom'], colors['--ua-glow']]);
+}
+const percent = value => `${Math.round(value * 100)}%`;
+assert.ok(css.includes(`radial-gradient(ellipse ${percent(STAGE_GLOW_RADII[0])} ${percent(STAGE_GLOW_RADII[1])} at ${percent(STAGE_GLOW_AT[0])} ${percent(STAGE_GLOW_AT[1])}, var(--ua-glow, #fffaf0) ${percent(GLOW_STOPS[0].at)}, `
+  + `color-mix(in srgb, var(--ua-glow, #fffaf0) ${percent(GLOW_STOPS[1].alpha)}, transparent) ${percent(GLOW_STOPS[1].at)}, transparent ${percent(GLOW_STOPS[2].at)})`),
+  'the shader paints the glow the stylesheet does');
+assert.ok(css.includes('linear-gradient(176deg, var(--ua-sky-top, #f1e9da) 0%, var(--ua-sky-bottom, #ddd0b7) 100%)'), 'and the sky under it');
 
 // Appearance: daylight adds the shelter and kept-tone flags in texel 7, and
 // frame values default to plain light for every viewer that does not opt in.
@@ -254,5 +292,24 @@ assert.ok(crowded.ms < unlit.ms * 6 + 100, `20,000 separate emitters took ${Math
 const dayless = new Float32Array(lit7.length * STATE_FLOATS);
 assert.deepEqual(writeAppearance(lit7, { ...base, glazingKeys: new Set(['glass']), emitterKeys: new Set(['lamp-a']) }, dayless).lamps, []);
 assert.ok(dayless.every((value, index) => index % STATE_FLOATS < 30 || value === 0), 'other viewers never get night marks or lamp colours');
+
+// Surroundings: flagged in texel 8.w only for twoSided viewers that give them; a mesh wholly
+// past the far edge of the fade is not drawn, one that reaches inside it is.
+const spot = (meshKey, x0, x1) => ({ ...mesh(meshKey), bounds: { min: [x0, 0, 0], max: [x1, 1, 1] } });
+const tall = { ...spot('tall', 44, 48), bounds: { min: [44, 0, 0], max: [48, 12, 1] } };
+const around = [spot('house', -5, 5), spot('near-tree', 8, 9), spot('far-hill', 30, 60), spot('past', 44, 48), tall];
+const surroundings = { keys: new Set(['near-tree', 'far-hill', 'past', 'tall']), center: [0, .5], half: [5, .5], near: 4, far: 36, ground: 0, lean: 2,
+  backdrop: { top: '#ff0000', bottom: '#00ff00', glow: '#0000ff', glowAt: [.5, .5], glowRadii: [1, 1] } };
+const aroundTable = new Float32Array(around.length * STATE_FLOATS);
+const aroundFrame = writeAppearance(around, { ...base, twoSided: true, surroundings }, aroundTable);
+assert.deepEqual(around.map((_, index) => aroundTable[index * STATE_FLOATS + 35]), [0, 1, 1, 1, 1], 'surroundings carry the fade flag');
+assert.deepEqual(around.map((_, index) => aroundTable[index * STATE_FLOATS + 20]), [MeshPass.Unbound, MeshPass.Unbound, MeshPass.Unbound, MeshPass.None, MeshPass.Unbound],
+  'only surroundings seen against ground wholly past the fade are left out; a tall one can stand against nearer ground');
+assert.deepEqual(aroundFrame.fade, { center: [0, .5], half: [5, .5], near: 4, far: 36, ground: 0,
+  backdrop: { top: [1, 0, 0], bottom: [0, 1, 0], glow: [0, 0, 1], glowAt: [.5, .5], glowRadii: [1, 1] } }, 'backdrop colours as display values');
+const flat = new Float32Array(around.length * STATE_FLOATS), flatFrame = writeAppearance(around, { ...base, surroundings }, flat);
+assert.equal(flatFrame.fade, null); assert.ok(around.every((_, index) => flat[index * STATE_FLOATS + 35] === 0 && flat[index * STATE_FLOATS + 20] !== MeshPass.None),
+  'viewers without twoSided lighting never fade or drop anything');
+assert.equal(writeAppearance(around, { ...base, twoSided: true }, new Float32Array(around.length * STATE_FLOATS)).fade, null);
 
 console.log('unified-atlas-daylight-healthy: ok');

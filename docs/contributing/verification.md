@@ -220,18 +220,6 @@ owner lifecycles, native rotation/reclamation, global capacity recovery, capture
 replay, security, browser/device acceptance or deployment. Frontend typecheck and
 existing healthy reader checks remain separate and require locked dependencies.
 
-The selected provisional overview consumer has this healthy generated check:
-
-```sh
-node frontend/lantern-tests/model-overview-read-healthy.mjs
-```
-
-It runs the actual view decoder and bounded GET reader with generated responses,
-checks the optional service facet and exact descriptor/original frame, SHA and
-byte pins on two fresh reads. It creates no listener, credential, household
-intake, browser or deployment. Actual standard-GLB admission and browser mesh
-rendering remain separate from transport success.
-
 The isolated canonical IFC viewer check uses generated presentations, the
 checked-in two-floor v2 artifacts and a fake read port. Inspect the runner and
 its imports before this focused local command with Node 26.10.0 and the locked
@@ -365,29 +353,6 @@ node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs throwing-obse
 node frontend/lantern-tests/native-evidence-upload-diagnostics.mjs host-context-change-ordered
 ```
 
-
-The separately reviewed room-to-source action uses generated data, fake
-native document/geometry ports and a fresh sandboxed browser on an owned
-loopback listener. Inspect its runner and imports, select Node 26.10.0, an
-inspected HOUSEATLAS_CHROMIUM executable and a private
-HOUSEATLAS_FIXTURE_EVIDENCE directory. These exact named cases are released
-only in the same isolated synthetic regression lane; no provider, household,
-old-request replay, security bypass or deployment permission is added.
-
-~~~sh
-node frontend/lantern-tests/native-room-drawing-source.mjs pdf-download
-node frontend/lantern-tests/native-room-drawing-source.mjs png-legacy
-node frontend/lantern-tests/native-room-drawing-source.mjs missing-correlation
-node frontend/lantern-tests/native-room-drawing-source.mjs stale-correlation
-node frontend/lantern-tests/native-room-drawing-source.mjs wrong-correlation
-node frontend/lantern-tests/native-room-drawing-source.mjs lifecycle
-~~~
-
-These six named cases exercise the production association constructor and retained
-support owner before the reader/drawing seam. The PDF case also checks explicit
-review confirmation and a single fake/local-only transport stop retaining UNKNOWN.
-See docs/geometry/native-room-drawing-source.md for the separately reviewed
-current sheet-to-PDF correlation and download-only qualification.
 
 HouseAtlas is an offline core for scoped physical identities and reviewed
 bindings, with read-only HomeBox inventory projections and a passive Network
@@ -542,17 +507,14 @@ node frontend/lantern-tests/source-time-display.mjs
 ```
 
 Bounded provisional mesh examples use one generic synthetic triangle and
-the actual lossless profile reader, transform preparation and React components:
+the actual lossless profile reader and transform preparation:
 
 ```sh
 node frontend/lantern-tests/scan-mesh-read.mjs
-node frontend/lantern-tests/scan-mesh-view-visual.mjs
-node frontend/lantern-tests/scan-plan-orientation.mjs
 ```
 
 Inspect the complete bodies and their source-loader imports first. These checks
-cover preserved authored tokens, exact transform chains, display buffers and
-static accessible markup. They open no browser or listener and exercise no
+cover preserved authored tokens, exact transform chains and display buffers. They open no browser or listener and exercise no
 WebGL effects, picking, GPU disposal or actual private export. These examples
 establish no native availability, physical scale, floor alignment or actual
 guarded native import.
@@ -607,21 +569,18 @@ attempt and original-byte proof; an unknown observation establishes no rollback
 or retry safety. Browser/session-change acceptance remains separate.
 
 Two documentary overlay examples use generic local data and the actual model or
-static React panel. Network connections remain schematic; the examples derive
+adapter. Network connections remain schematic; the examples derive
 no floor positions or physical routes. Electrical labels preserve source
 statements and owner-reported or inferred room associations separately:
 
 ```sh
 node frontend/lantern-tests/network-overlay-read.mjs
 node frontend/lantern-tests/electricity-overlay-read.mjs
-node frontend/lantern-tests/electricity-fixture-read.mjs
 ```
 
-Inspect all three complete bodies and their installed Vite/source imports first. They
+Inspect both complete bodies and their installed Vite/source imports first. They
 open no listener, call no provider and perform no native import. The modules
 require a separately qualified host/data seam before native availability.
-The fixture example uses synthetic source symbols and static React markup;
-an unmatched room has no implicitly selected drawing or source action.
 
 A separate successful in-process geometry example uses an empty disposable native
 state and its actual local Editor session. It saves a synthetic USDZ framing
@@ -690,20 +649,6 @@ The fixture has synthetic USDC-signature framing and does not execute usdcat or
 establish USD scene semantics, original/derivative conversion authenticity,
 physical placement, actual household intake or recovery/fallback compatibility.
 It opens no listener, contacts no provider and runs no failure or denial case.
-
-The separate issue #148 regression lane uses an injected synthetic association
-client and owned Chromium to check read-only current-head visibility, unavailable
-read context, initial head-synchronization locking, subscription-time binding
-invalidation, create admission withdrawal, unknown-outcome recovery,
-draft-discard confirmation and scene refresh after successful resolution. Inspect the test and
-[issue-specific limits](../../docs/geometry/native-scene-readonly-association.md) before this
-exact command. It serves only generated UI assets from an owned loopback listener;
-it uses synthetic IDs and responses, no account, provider, household data or
-application service, and remains outside ordinary CI:
-
-```sh
-HOUSEATLAS_CHROMIUM="/absolute/path/to/inspected/chromium" node frontend/lantern-tests/native-scene-readonly-ui.mjs
-```
 
 A source-free native place example creates a building and room with explicit
 reviewed membership, then renames and clears only an Atlas classification label.
@@ -820,27 +765,6 @@ npm run check:backend-frontend-compat --prefix frontend
 node frontend/lantern-tests/healthy-read.mjs
 ```
 
-The scene overlay keyboard check uses synthetic inputs to verify pressed-state
-semantics, keyboard activation and pointer selection:
-
-```sh
-node frontend/lantern-tests/scene-controls-keyboard.test.mjs
-```
-
-Its browser check builds the same component with production styles, then uses
-an inspected local Chrome executable, a fresh owned profile and an ephemeral
-`127.0.0.1` fixture server. It uses only synthetic inputs and makes no provider
-or external network requests. This isolated harness does not qualify the normal
-browser path. Inspect its full body first and use Node 26.10.0:
-
-```sh
-HOUSEATLAS_CHROMIUM="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-node frontend/lantern-tests/scene-controls-keyboard-browser.mjs
-```
-
-If the sandbox denies the loopback bind, rerun only this inspected fixture
-through the approved local-test route.
-
 Issue #150 has nine separately selected drawing pagination browser checks.
 Inspect the complete runner, its production component and its synthetic PNG
 fixture before these exact commands. Use Node 26.10.0, an inspected browser and
@@ -888,46 +812,19 @@ bytes. PDF.js's Apache 2.0 license and notice remain in the public source at
 
 HOUSEATLAS_CHROMIUM=/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome HOUSEATLAS_FIXTURE_EVIDENCE=/absolute/private/pdf-navigation-result node frontend/lantern-tests/native-room-drawing-source.mjs pdf-navigation
 
-The retained fixture reader has named positive cases for the generated source
-and native room projection using fake current document/geometry/topology ports.
-Inspect its full body and listed production imports before this narrower local
-command. It opens no browser or listener; it establishes no native retention or
-household source availability. Use the pinned Node 26.10.0 runtime and an owned
-evidence directory outside this checkout:
-
-```sh
-HOUSEATLAS_FIXTURE_EVIDENCE=/absolute/private/fixture-reader-only node frontend/lantern-tests/native-scene-fixture-reader-healthy.mjs --reader-only
-```
-
-The broader browser flow in `docs/geometry/native-scene-fixture-reader-healthy.md`
-requires its own inspected browser artifact and execution selection; it is not
-released by this reader-only command.
-
-Two separately named build/resource checks compile the actual drawing and native
-host fixtures with the PDF resource plugin and GET the worker and decoder files
-from their owned loopback servers. Inspect both runners and
+A separately named build/resource check compiles the actual drawing fixture with
+the PDF resource plugin and GETs the worker and decoder files from its owned
+loopback server. Inspect the runner and
 `frontend/lantern-tests/pdf-fixture-resources.mjs` first. Use the pinned runtime
-and locked frontend dependencies. These checks launch no browser, use generated
+and locked frontend dependencies. This check launches no browser, use generated
 inputs only, remove disposable state and remain outside ordinary CI:
 
 ```sh
 node frontend/lantern-tests/native-scene-drawing-150.mjs --case first-match --build-only
-node frontend/lantern-tests/native-scene-fixture-reader-healthy.mjs --host-only --build-only
 ```
 
-They verify exact upstream worker/decoder bytes and JavaScript MIME responses;
+It verifies exact upstream worker/decoder bytes and JavaScript MIME responses;
 they establish no rendered PDF pixels, interactive behavior or device coverage.
-
-The named `--host-only` synthetic browser case mounts the production native
-scene source action with a generated, current PDF reference and fake document
-owner. It checks that the current sheet renders the referenced page with a
-download action, and that a stale source reports its refusal without opening a
-document. It uses an owned loopback listener and disposable browser profile,
-and reads no household data:
-
-```sh
-HOUSEATLAS_CHROMIUM=/absolute/inspected/chromium node frontend/lantern-tests/native-scene-fixture-reader-healthy.mjs --host-only
-```
 
 The native room projection keeps stored `native-scene-source.v2` targets
 package-only. It accepts a nullable native ID only from the current room
@@ -1393,8 +1290,7 @@ coordinates, finite shared-budget arithmetic and generated read/load ordering.
 It uses no browser, listener, native service, private input or
 external provider. A fake acknowledgement does not establish actual browser
 display. The generated `/lantern-tests/model-review-visual/`,
-`/lantern-tests/source-host-visual/`, `/lantern-tests/scene-drawing-timing/` and
-`/lantern-tests/scan-network-visual/`
+`/lantern-tests/source-host-visual/` and `/lantern-tests/scene-drawing-timing/`
 fixtures support separately owned loopback browser review of the real React
 components, source documents/site views and anonymous stage observations.
 Their synthetic observations do not qualify household data, native authority,
@@ -1422,8 +1318,8 @@ It opens no listener/browser and uses no native host, provider, household input,
 intake or deployment. It adds no held control/regression-suite permission.
 
 The manual fixture `/lantern-tests/source-host-visual/` mounts the actual
-LanternHost with a browser-only model chooser and native v2 source Documents in
-Library. Its Documents transport is generated in-page; other application fetches
+LanternHost with the Atlas (no house model yet, or with `?atlas=generated` a
+generated house model) and native v2 source Documents in Library. Its Documents transport is generated in-page; other application fetches
 are unavailable. Inspect its main, synthetic-document generator and imports before
 serving it through an owned loopback Vite preview. Desktop/mobile layout, PDF page
 rendering, qualified PNG display and actual private host/source acceptance require
@@ -1438,23 +1334,6 @@ harness is fixture UI; it is not a product table or native acquisition surface.
 The Host's `nativeContent={null}` supplies no native acquisition authority or
 controls; generated presentation coverage does not establish native acquisition
 or household acceptance.
-
-The scan/network fixture mounts the actual LanternHost, NativeScanAtlas and
-NetworkSceneLayer through generated read-only ports. Its shared topology data
-is the existing generated topology fixture. Inspect each fixture entrypoint,
-the shared StageTimings component/CSS and their imports before serving these
-paths. With Node 26.10.0 and locked dependencies, choose an unused loopback port:
-
-```sh
-cd frontend
-./node_modules/.bin/vite --config vite.config.ts --host 127.0.0.1 --port 4310 --strictPort
-```
-
-Use the supported browser for ordinary desktop/mobile selection, source opening,
-visibility controls, pointer/keyboard interaction and visible timing observations.
-The timing tables show bounded anonymous local stages from the real components;
-fake read delays describe only the generated fixture. Stop the owned preview
-within 20 minutes. This manual review adds no workflow or ordinary CI command.
 
 ## Unified Atlas native documentary source healthy check
 
@@ -2681,12 +2560,15 @@ It does not mount React, a browser or real storage, and reads no real source.
 ## Named generated time-of-day lighting check
 
 `frontend/lantern-tests/unified-atlas-daylight-healthy.mjs` compiles
-`daylight.ts` and `mesh-appearance.ts` with the pinned SunCalc and checks, for
+`daylight.ts`, `sky-light.ts` and `mesh-appearance.ts` with the pinned SunCalc and checks, for
 a neutral reference place: model-frame sun bearings and their turn with the
 model's north, the midsummer noon sun in the south at full daylight, the
 zenith map and full lamps at midnight, a minute-by-minute day in June,
 October and December with no jumps, a readable floor on the sky light and
-lamps only after sunset, the stage colours' stylesheet fallbacks, and the
+lamps only after sunset, the directional sky light (the flat term without
+daylight; 1.1 looking up, a grey wall square to the sun's side, walls toward a
+low sun warmer than walls away from it, an even deep night), the stage
+colours' stylesheet fallbacks, and the
 appearance table's shelter and kept-tone flags, which other viewers never
 receive. The same runner checks the glass pass, opacity/frost encoding,
 selected panes returning to the solid pass, explicit core roughness reading,
