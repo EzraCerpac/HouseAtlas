@@ -3290,3 +3290,23 @@ household data. The opt-in `contract`, `faults` and `measure` commands in
 [the host-client guide](../../tools/perf/host-client/README.md) are not registered
 in ordinary CI. Source test results do not establish end-to-end performance,
 release-build provenance, cache/device behavior or installed acceptance.
+
+## Synthetic Cargo mode argument routing
+
+The existing ordinary-core job also runs the explicit
+`tools/cargo-modes/run.test.mjs` file with pinned Node and
+`--test-concurrency=1`. It copies the actual wrapper and toolchain pin into
+disposable synthetic checkouts and uses a recording rustup stub to check mode
+mapping, argument forwarding, workspace selection and override rejection before
+child invocation. These process-routing checks run no Cargo compiler, actual
+Rust tool, profiler, network workload or installation. Real mise discovery and
+pinned Cargo parser observations remain separate evidence.
+
+```sh
+node --test --test-concurrency=1 tools/cargo-modes/run.test.mjs
+```
+
+Inspect the wrapper and fixture file before running. Generated temporary roots
+are removed by the test cleanup; the recording stub captures arguments and
+working directory only. A failed case fails the existing ordinary-core step.
+No profile build or runtime benchmark is part of this registration.

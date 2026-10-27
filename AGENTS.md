@@ -150,6 +150,15 @@ Rust host, Vite build, TLS listener, browser, request generator, fault cohort,
 profiler or performance measurement. The opt-in host-client contract, faults and
 release-measurement commands remain outside ordinary CI.
 
+The existing ordinary-core job also runs the explicit
+`tools/cargo-modes/run.test.mjs` file with pinned Node and
+`--test-concurrency=1`. It copies the actual wrapper and toolchain pin into
+disposable synthetic checkouts and uses a recording rustup stub to check mode
+mapping, argument forwarding, workspace selection and override rejection before
+child invocation. These process-routing checks run no Cargo compiler, actual
+Rust tool, profiler, network workload or installation. Real mise discovery and
+pinned Cargo parser observations remain separate evidence.
+
 The separately authorized Synthetic README media workflow captures only
 checked-in generated fixtures through the actual React renderer and fake read
 transports on an owned loopback server. Its scoped PR/main triggers and manual
