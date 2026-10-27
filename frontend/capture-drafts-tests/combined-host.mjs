@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import Ajv2020 from '../node_modules/ajv/dist/2020.js';
 import addFormats from '../node_modules/ajv-formats/dist/index.js';
 import { createCaptureDraftAdapter } from '../integration/capture-drafts-adapter.ts';
+import { draftReceipt, identityGuard, identityId } from './receipt.fixture.mjs';
 
 const args = process.argv.slice(2);
 assert.equal(args.length, 2); assert.equal(args[0], '--case');
@@ -12,7 +13,7 @@ const cases = new Set(['healthy-save-review-commit', 'healthy-canonical-publishe
   'home-change-denies-reviewed-submit', 'target-change-denies-submit', 'malformed-receipt-keeps-original',
   'noncommitted-receipt-keeps-original', 'lost-fake-reply-inspect-only', 'cleanup-failure-known-commit',
   'explicit-clear-before-signout', 'cross-tab-invalidation-signal', 'unavailable-probe-explicit-recheck', 'wrong-correlation-keeps-original',
-  'reused-receipt-object-keeps-unknown']);
+  'reused-receipt-object-keeps-unknown', 'receipt-record-closure-keeps-original', 'existing-original-receipt-commit']);
 assert(cases.has(args[1]), 'Only an exact named case is allowed');
 const realFetch = globalThis.fetch;
 globalThis.fetch = () => { throw new Error('Network is prohibited in combined fake-port cases'); };
@@ -38,9 +39,7 @@ function fixture() {
   let read = async signal => { signal.throwIfAborted(); return { ...canonical }; };
   const calls = { open: 0, canonical: 0, load: 0, upload: 0, recheck: 0, acknowledgementDelete: 0 };
   const order = [];
-  const receipt = intent => ({ schemaVersion: 3, commandId: 'atlas.batch.execute', requestId: intent.requestId,
-    resolvedScope: { ...scope }, status: 'committed', replayed: false, operationId: '66666666-6666-4666-8666-666666666666',
-    data: { auditIds: [], records: [], requestDigest: 'a'.repeat(64) } });
+  const receipt = intent => draftReceipt(intent);
   let upload = async intent => {
     calls.upload++; order.push('upload');
     assert.equal(rows[0].state, 'outcome-unknown'); assert.equal(rows[0].attempt.requestId, intent.requestId);
@@ -68,7 +67,8 @@ function fixture() {
     openStore: () => { calls.open++; return store; },
     editing: { replacePlace: async () => { throw new Error('Not part of this capture case'); },
       loadPlace: async (target, signal) => { signal.throwIfAborted(); calls.load++; order.push('load'); assert.deepEqual(target, source);
-        return { record: { recordId, ...scope, lifecycle: 'active', revision: 7 }, guards: [], canReplaceClassification: false,
+        return { record: { recordId, ...scope, lifecycle: 'active', revision: 7, payload: { atlasId: identityId } },
+          guards: [structuredClone(identityGuard)], canReplaceClassification: false,
           attachmentPolicy: { contentTypes: ['image/jpeg'], maximumBytes: 10 * 1024 * 1024, licenses: [{ label: 'Unknown', value: license }] } }; },
       uploadPlaceEvidence: (intent, signal) => { signal.throwIfAborted(); return upload(intent); } },
   });
@@ -118,12 +118,12 @@ try {
     assert.equal(f.calls.upload, 0); assert.equal(f.rows()[0].state, 'unsent');
   } else if (caseName === 'wrong-correlation-keeps-original') {
     await f.save(); const review = await f.review();
-    f.upload(async intent => ({ ...f.receipt(intent), requestId: '88888888-8888-4888-8888-888888888888' }));
+    f.upload(async intent => ({ ...await f.receipt(intent), requestId: '88888888-8888-4888-8888-888888888888' }));
     await assert.rejects(port.submit(review, source, recordId, f.signal)); assert.equal(f.rows()[0].state, 'outcome-unknown');
     assert.equal(f.calls.acknowledgementDelete, 0);
   } else if (caseName === 'malformed-receipt-keeps-original' || caseName === 'noncommitted-receipt-keeps-original') {
     await f.save(); const review = await f.review();
-    f.upload(async intent => ({ ...f.receipt(intent), ...(caseName.startsWith('malformed') ? { unexpected: true } : { status: 'denied' }) }));
+    f.upload(async intent => ({ ...await f.receipt(intent), ...(caseName.startsWith('malformed') ? { unexpected: true } : { status: 'denied' }) }));
     await assert.rejects(port.submit(review, source, recordId, f.signal)); assert.equal(f.rows()[0].state, 'outcome-unknown');
     assert.equal(f.calls.acknowledgementDelete, 0);
   } else if (caseName === 'lost-fake-reply-inspect-only') {
@@ -138,6 +138,61 @@ try {
     const done = await port.submit(review, source, recordId, f.signal);
     assert.equal(done.result.status, 'committed'); assert.equal(done.localCleanup, 'unconfirmed'); assert.equal(f.rows()[0].state, 'outcome-unknown');
     await assert.rejects(f.review()); assert.equal(f.calls.upload, 1);
+  } else if (caseName === 'existing-original-receipt-commit') {
+    f.upload(async intent => {
+      f.calls.upload++;
+      assert.equal(f.rows()[0].state, 'outcome-unknown');
+      return draftReceipt(intent, { existingAsset: true });
+    });
+    await f.save();
+    const completion = await port.submit(await f.review(), source, recordId, f.signal);
+    assert.equal(completion.result.data.records.length, 2);
+    assert.equal(completion.localCleanup, 'removed');
+    assert.equal(f.calls.upload, 1); assert.equal(f.calls.acknowledgementDelete, 1);
+    assert.deepEqual(f.rows(), []);
+  } else if (caseName === 'receipt-record-closure-keeps-original') {
+    const ofType = (receipt, type) => receipt.data.records.find(row => row.target.recordType === type);
+    const otherId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    const mutations = [
+      ['empty receipt', receipt => { receipt.data.records = []; receipt.data.auditIds = []; }],
+      ['missing identity', receipt => { receipt.data.records = receipt.data.records.filter(row => row.target.recordType !== 'identity'); receipt.data.auditIds.pop(); }],
+      ['wrong identity', receipt => { ofType(receipt, 'identity').target.recordId = otherId; }],
+      ['wrong identity revision', receipt => { ofType(receipt, 'identity').revision--; }],
+      ['wrong identity kind', receipt => { ofType(receipt, 'identity').payload.kind = 'item'; }],
+      ['missing evidence link', receipt => { ofType(receipt, 'identity').payload.evidenceIds = []; }],
+      ['different statement', receipt => { ofType(receipt, 'evidence').payload.statement = 'Other synthetic statement'; }],
+      ['superseding evidence', receipt => { ofType(receipt, 'evidence').payload.supersedesEvidenceIds = [otherId]; }],
+      ['different asset reference', receipt => { ofType(receipt, 'evidence').payload.references[0].assetId = otherId; }],
+      ['different original hash', receipt => { ofType(receipt, 'asset').payload.sha256 = '0'.repeat(64); }],
+      ['different original size', receipt => { ofType(receipt, 'asset').payload.byteSize++; }],
+      ['different original type', receipt => { ofType(receipt, 'asset').payload.contentType = 'text/plain'; }],
+      ['different original license', receipt => { ofType(receipt, 'asset').payload.sourceLicense = { status: 'restricted', reference: 'Synthetic restriction' }; }],
+      ['invented fact time', receipt => { ofType(receipt, 'evidence').payload.provenance.factAt = selection.capture.selectedAt; }],
+      ['different selection claim', receipt => { ofType(receipt, 'evidence').payload.provenance.vantage = 'Browser selection claim v1: ' + JSON.stringify({ ...selection.capture, selectionMethod: 'camera-request' }); }],
+      ['JPEG preview policy', receipt => { ofType(receipt, 'asset').payload.previewPolicy = 'unreviewed'; }],
+      ['inactive returned target', receipt => { ofType(receipt, 'identity').lifecycle = 'tombstoned'; }],
+      ['incomplete audit list', receipt => { receipt.data.auditIds.pop(); }],
+    ];
+    for (const [label, mutate] of mutations) {
+      const q = fixture();
+      q.upload(async intent => {
+        q.calls.upload++;
+        assert.equal(q.rows()[0].state, 'outcome-unknown');
+        const receipt = await draftReceipt(intent); mutate(receipt);
+        schemas.validate('#/$defs/result_atlas_batch_execute', receipt);
+        return receipt;
+      });
+      await q.save(); const review = await q.review();
+      await assert.rejects(q.adapter.port.submit(review, source, recordId, q.signal), /Local draft receipt/, label);
+      assert.equal(q.calls.acknowledgementDelete, 0, label);
+      assert.equal(q.rows()[0].state, 'outcome-unknown', label);
+      assert.deepEqual(new Uint8Array(await q.rows()[0].original.arrayBuffer()), new Uint8Array(await original.arrayBuffer()), label);
+      const inspection = await q.adapter.port.inspectUnknown(localId, q.signal);
+      assert.equal(inspection.outcome, 'unknown', label); assert.equal(inspection.retrySafety, 'not-established', label);
+      await assert.rejects(q.review(), /outcome is unknown/, label);
+      await assert.rejects(q.adapter.port.submit(review, source, recordId, q.signal));
+      assert.equal(q.calls.upload, 1, label);
+    }
   } else if (caseName === 'reused-receipt-object-keeps-unknown') {
     let firstReceipt;
     const requests = [];
@@ -145,7 +200,7 @@ try {
       f.calls.upload++; requests.push(intent.requestId);
       assert.equal(f.rows()[0].state, 'outcome-unknown');
       assert.equal(f.rows()[0].attempt.requestId, intent.requestId);
-      firstReceipt ??= f.receipt(intent);
+      firstReceipt ??= await f.receipt(intent);
       return firstReceipt;
     });
     await f.save();

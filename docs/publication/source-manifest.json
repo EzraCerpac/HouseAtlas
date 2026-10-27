@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "e54640f06f18cf6c475fc3e215ada2919321d784cd32afb8026163d62ec89b6b",
+  "sourceDigestSha256": "b9ababf19650f1fb1eab246dac1c56384e602526a0b51b8aff0c2d788bfbd046",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -42,8 +42,8 @@
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
-      "bytes": 4788,
-      "sha256": "e6d5583c1d89cd26498c5622d22292c9fd36a1c52dfda30b90c50d708acba986",
+      "bytes": 5043,
+      "sha256": "286fd5e9a28d18f74e78da5b5750720ea92b5251da4fcfb05fc99582c9954983",
       "owner": "core-integration"
     },
     {
@@ -105,8 +105,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 7791,
-      "sha256": "9d90931301395ea2bc4994eebe3f7fae370b363c7a9ca43ed4c5f20b21175404",
+      "bytes": 9237,
+      "sha256": "39ef9a5e70f767478e47bfc4f91da0ca35098e1bd6a921b43b901e906a63c67d",
       "owner": "core-integration"
     },
     {
@@ -4317,6 +4317,13 @@
       "owner": "network"
     },
     {
+      "path": "backend/src/providers/network/failure_contract.rs",
+      "mode": "100644",
+      "owner": "network",
+      "bytes": 8633,
+      "sha256": "8bc67adf9740a83ea1e0b664560a8ddfc5b6d2b4481183a71793e9b8acdc3920"
+    },
+    {
       "path": "backend/src/providers/network/healthy.rs",
       "mode": "100644",
       "bytes": 16068,
@@ -4536,8 +4543,8 @@
     {
       "path": "backend/src/providers/network/mod.rs",
       "mode": "100644",
-      "bytes": 1038,
-      "sha256": "37993776c26838ae3f56bda401acf94e5a72e6d0d938eda21509ce72facd5caa",
+      "bytes": 1074,
+      "sha256": "173146935c33b2fec049595a8a16726e4f1edc028a114efe72d8b3f3c28aec78",
       "owner": "network"
     },
     {
@@ -5537,8 +5544,8 @@
     {
       "path": "backend/src/transports/mcp/lifecycle/synthetic_contracts.rs",
       "mode": "100644",
-      "bytes": 26270,
-      "sha256": "731703fb9a8031073fcfe3418bc625adabd5e89430fd364a8c210b0502d95eea",
+      "bytes": 31528,
+      "sha256": "8d9265f842c904235978606c126374ba4856aa1e2d6cfa1331ac3c6b5ff21d99",
       "owner": "mcp"
     },
     {
@@ -6118,8 +6125,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 153849,
-      "sha256": "d91d611e73852fed62414b5cb143de8c8a23bb4fbef95ff9d2ca3f782571e97f",
+      "bytes": 158276,
+      "sha256": "aeb003efaacd77239363671bfaeacfd05b87dc81abfb46cb7c96f4d9dfb477f9",
       "owner": "core-integration"
     },
     {
@@ -6531,15 +6538,15 @@
     {
       "path": "docs/operations/combined-capture-drafts.md",
       "mode": "100644",
-      "bytes": 8555,
-      "sha256": "f2a4c57786b37ae115b862024a42399aecfcd7e914082b05db3cbb639b3fce5e",
+      "bytes": 8832,
+      "sha256": "e011686b604ea0928c30a63a1993bb192cf8001510fd8d4331ab555f1030bead",
       "owner": "core-integration"
     },
     {
       "path": "docs/operations/contextual-evidence-capture.md",
       "mode": "100644",
-      "bytes": 12374,
-      "sha256": "df8848606010a0729baad824870747bc18d125f12462172285034f2da2d5ab5a",
+      "bytes": 15130,
+      "sha256": "f9af77015ea924a8225a4d6e106dd9e42b1d440769c6c428399cbc71055f6d9f",
       "owner": "core-integration"
     },
     {
@@ -6552,8 +6559,8 @@
     {
       "path": "docs/operations/local-capture-drafts.md",
       "mode": "100644",
-      "bytes": 18053,
-      "sha256": "151a369f85c95e7d735be51b85648aecd6e2962fb373ff030446ace04d664a3a",
+      "bytes": 20680,
+      "sha256": "606b072312fba181d4713c782f5e5471ed66fbecca37be106a0afc3a4c2b1bb5",
       "owner": "core-integration"
     },
     {
@@ -7021,8 +7028,8 @@
     {
       "path": "frontend/capture-drafts-tests/browser-cases.mjs",
       "mode": "100644",
-      "bytes": 19098,
-      "sha256": "cd73a4ccc7540626c656d53bd17faaf6079ef14f672371b72fa8dd99e9ddf284",
+      "bytes": 19273,
+      "sha256": "2fcf54b8af187ab9d87cc5dd91a0b2c6269eaf9ef5b8aa668649db995e82f29a",
       "owner": "core-integration"
     },
     {
@@ -7035,8 +7042,8 @@
     {
       "path": "frontend/capture-drafts-tests/combined-host.mjs",
       "mode": "100644",
-      "bytes": 14938,
-      "sha256": "e5f29ac5e808a179694468985a8e5689fcacfaba1ae179ec1acfcdb78aaf97a4",
+      "bytes": 19140,
+      "sha256": "59b62959c679a2b899a8138a8b366e1163f1f1bcf3f960d029619e85ec9ba103",
       "owner": "core-integration"
     },
     {
@@ -7049,9 +7056,16 @@
     {
       "path": "frontend/capture-drafts-tests/controller.regression.test.mjs",
       "mode": "100644",
-      "bytes": 24459,
-      "sha256": "09d5a17beecfadea0f50a6a77d107acfab7934930b8015b66c25dc11caca0ad5",
+      "bytes": 24370,
+      "sha256": "4c412bf2a1b3f3fa10ffca3acda0de73294b5f47ca168b87d549ccfe20ec0a78",
       "owner": "core-integration"
+    },
+    {
+      "path": "frontend/capture-drafts-tests/receipt.fixture.mjs",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 2095,
+      "sha256": "a22df7f510fd9f54407b4f52a21ad51db0f9b54787fa7f63abf1766380ca92b1"
     },
     {
       "path": "frontend/capture-evidence-tests/fixtures/synthetic-document.pdf",
@@ -7091,8 +7105,8 @@
     {
       "path": "frontend/capture-evidence-tests/foreground.mjs",
       "mode": "100644",
-      "bytes": 13227,
-      "sha256": "f4ffb55b01de9c748b41132bf2e65b82942301b2aaebb6d24f28a8be0fb7ec32",
+      "bytes": 18183,
+      "sha256": "94cd538f8e86101631b8b80783071a680ec4bcebf8d2d04a864c0c70ea1dcf6d",
       "owner": "core-integration"
     },
     {
@@ -7476,8 +7490,8 @@
     {
       "path": "frontend/lantern-tests/electrical-library-read.mjs",
       "mode": "100644",
-      "bytes": 12495,
-      "sha256": "b069d860a441ac3b4ea52ab6e58ea86ef347273d61f4f6b171142a89e4cd3e63",
+      "bytes": 12437,
+      "sha256": "58be664fdffd5178ce89c1e25d54532f96174c5bdf2e2f6ad031fa97b0d1994d",
       "owner": "web"
     },
     {
@@ -7959,8 +7973,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 4655,
-      "sha256": "033147dedd5806b974bc0efef0fbf5f499ee8a3db844e9447e91c239bbe5a7b4",
+      "bytes": 5763,
+      "sha256": "a75e0d54cac5bd14960180f6467879607c83bc3958b4d10f40d05b41a36f0b81",
       "owner": "web"
     },
     {
@@ -8603,8 +8617,8 @@
     {
       "path": "frontend/src/api/native-evidence-client.ts",
       "mode": "100644",
-      "bytes": 42631,
-      "sha256": "7b367d9339734d0262496236c59222be7c597a037324edc9cf344f12d986f585",
+      "bytes": 45158,
+      "sha256": "36f3caa255c5f3723882b60f9534feebf34fff8b754e05bbe6427852aadad10c",
       "owner": "web"
     },
     {
@@ -8827,8 +8841,8 @@
     {
       "path": "frontend/src/capture-drafts/controller.ts",
       "mode": "100644",
-      "bytes": 18502,
-      "sha256": "3875bd8227ab94867632025a932bb7bba72051e4c35255de9c202b6f810568c7",
+      "bytes": 18726,
+      "sha256": "6b07144a54d5015413167706d9d1ac8d589159904b341adb3f4b87c694a124ea",
       "owner": "core-integration"
     },
     {
@@ -8837,6 +8851,13 @@
       "bytes": 3443,
       "sha256": "feea541ee1b360513d13189fbb3dc2d2f9784656ea4051b5987930d216f64cf6",
       "owner": "core-integration"
+    },
+    {
+      "path": "frontend/src/capture-drafts/receipt.ts",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 5033,
+      "sha256": "6ad058799b7c68e4cce8446ec69314aad69b28b85ff8da6dc55e1849e0f5e297"
     },
     {
       "path": "frontend/src/capture-drafts/types.ts",
@@ -11480,8 +11501,8 @@
     {
       "path": "tools/electrical_registration/README.md",
       "mode": "100644",
-      "bytes": 10175,
-      "sha256": "4615bffb70ae9d4df069731fd30ab38fa70a36babfe366bb3f5197b09cbe13b1",
+      "bytes": 10318,
+      "sha256": "afc5c5adea6506f6d71c015f5903217a8cbddfd6671efdaf4386d524623c3a0b",
       "owner": "media"
     },
     {
@@ -11564,15 +11585,15 @@
     {
       "path": "tools/homebox-quantity-seed-report/README.md",
       "mode": "100644",
-      "bytes": 9590,
-      "sha256": "a707ffe00e1477e90a0c4aa4d8352aee50a5542982059940d869d374b3a350cd",
+      "bytes": 9735,
+      "sha256": "71287817be397d37d5be12354991f310e8f24288e2b17e3308e47f570d7768a8",
       "owner": "homebox"
     },
     {
       "path": "tools/homebox-quantity-seed-report/cli.py",
       "mode": "100644",
-      "bytes": 1061,
-      "sha256": "28f3b099912b2b56c1aab155e1948b594939998ff7fcc65e5db252d8bcbd36c5",
+      "bytes": 1349,
+      "sha256": "5e9a57a5a795c532f47692ab5b4d83cae118c07d0e4e3aebc77d31da218635c2",
       "owner": "homebox"
     },
     {
@@ -11592,8 +11613,8 @@
     {
       "path": "tools/homebox-quantity-seed-report/test_report.py",
       "mode": "100644",
-      "bytes": 15610,
-      "sha256": "b559fd84d52142662cd4e8d31e2c3221e4eb4613ed0f3bad6eb6a1b7656ffded",
+      "bytes": 16291,
+      "sha256": "40a871a521fdfd3d894c0fd25e48d0d543032ce23e48a461028258b67a4ee62d",
       "owner": "homebox"
     },
     {

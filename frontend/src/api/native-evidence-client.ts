@@ -526,6 +526,31 @@ export function createNativeEvidenceClient(options: {
       const entry = owned(binding, prepared);
       if (entry.outcome !== 'committed' || !entry.assetId || !entry.receipt) return null;
       return bounded(binding, signal, async active => {
+        // Reused-original receipts have no asset row. MIME/length from HEAD do
+        // not establish equality with the selected File's private digest.
+        const assetPath = `/api/atlas/stock/v3/workspaces/${encodeURIComponent(binding.scope.workspaceId)}/homes/${encodeURIComponent(binding.scope.homeId)}/records/asset/${encodeURIComponent(entry.assetId!)}`;
+        const metadata = object(parseLosslessJson(entry.metadata));
+        const readAsset = async () => {
+          const response = await options.exchange(binding, assetPath, 'GET', active);
+          if (response.status !== 200) { discard(response); return null; }
+          const value = await receive(response, active);
+          current(binding, active, entry.owner); owned(binding, prepared);
+          if (!validator.validateNativeRead('atlas.asset.get', value)) throw new TypeError('Native original asset read is incompatible');
+          const result = object(value), scope = object(result['resolvedScope']), data = object(result['data']);
+          const records = data['records'];
+          if (result['commandId'] !== 'atlas.asset.get' || result['status'] !== 'read' || result['replayed'] !== false
+            || !sameScope(scope as unknown as Scope, entry.scope) || data['sourceStatus'] !== 'current' || data['nextCursor'] !== null
+            || !Array.isArray(records) || records.length !== 1) throw new TypeError('Native original asset read correlation differs');
+          const asset = object(records[0]), target = object(asset['target']), payload = object(asset['payload']);
+          if (target['authority'] !== 'atlas' || target['recordType'] !== 'asset' || target['recordId'] !== entry.assetId || asset['lifecycle'] !== 'active'
+            || payload['owner'] !== 'atlas' || payload['purpose'] !== 'evidence-original' || payload['availability'] !== 'available'
+            || payload['sha256'] !== entry.digest || exactStockSafeInteger(payload['byteSize']!) !== entry.size || payload['contentType'] !== entry.type
+            || !equal(payload['sourceLicense']!, metadata['sourceLicense']!) || (entry.type === 'image/jpeg' && payload['previewPolicy'] !== 'download-only'))
+            throw new TypeError('Native original asset differs from selected file');
+          return asset;
+        };
+        const before = await readAsset();
+        if (!before) return null;
         // Same descriptor/canonical key order as the actual native Media resolver; no storage key or stock token.
         const digest = await sha(new Blob([JSON.stringify({ assetId: entry.assetId, kind: 'atlas-asset' })]));
         current(binding, active, entry.owner);
@@ -541,7 +566,9 @@ export function createNativeEvidenceClient(options: {
           && disposition !== null && disposition.length <= 2048 && disposition.startsWith('attachment;');
         if (response.status !== 200) discard(response);
         current(binding, active, entry.owner); owned(binding, prepared);
-        return available ? Object.freeze({ href }) : null;
+        const after = available ? await readAsset() : null;
+        current(binding, active, entry.owner); owned(binding, prepared);
+        return available && after && equal(before, after) ? Object.freeze({ href }) : null;
       });
     },
   };

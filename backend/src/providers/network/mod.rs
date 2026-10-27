@@ -35,6 +35,9 @@ pub use saved_queries::*;
 pub use sidecar::*;
 
 #[cfg(test)]
+mod failure_contract;
+
+#[cfg(test)]
 mod healthy;
 
 #[cfg(test)]

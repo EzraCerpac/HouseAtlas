@@ -50,8 +50,16 @@ targeting `main`. `.github/workflows/ordinary-core.yml` also runs the 14
 synthetic `tools/homebox-quantity-seed-report` unit tests and the synthetic
 `tools/deploy-nas` and `tools/backup` tests (temp folders, a fake service and
 a fake iCloud helper; no launchd, network or real data) with the runner's
-`python3` (stdlib only). In `.github/workflows/rust-react-ordinary.yml` that includes
-the named Lantern healthy read; `frontend/lantern-tests/run-healthy.mjs` with
+`python3` (stdlib only). The same job runs the eight existing generated
+`tools/electrical_registration/healthy.test.mjs` cases with pinned Node 26.10.0:
+known/approximate affine fits, property-wide inventory, documentary-only intake,
+reviewed withdrawal, revision reconciliation, stale current identities and
+source-uncertainty hull coverage (including malformed explicit row tolerances).
+These pure in-memory cases create no receipt, native authority or physical
+placement. In `.github/workflows/rust-react-ordinary.yml` that includes
+the named Lantern healthy read; the generated Electrical Library `healthy`
+case (existing production reader/projection and fictional original bytes,
+local fake owners only; no mounted PDF UI or native access); `frontend/lantern-tests/run-healthy.mjs` with
 its explicit list, including the `offline-launch`, `hung-network` and
 `live-launch` cases in the runner's Chromium against the built public shell
 (generated build output on a loopback listener, no backend; live-launch also
@@ -93,6 +101,18 @@ expanded by the viewer's decoder; and
 `HOUSEATLAS_QUANTITY_REFERENCE_DIR`; and the healthy `tools/rust-integration`
 loopback flows named in the workflow and in the verification guide. A PR that
 extends CI names the added scope here and in the verification guide.
+
+The same frontend runner selects five generated capture-original cases:
+`one-shot-originals`, `original-offer-reused`, `original-offer-digest-mismatch`,
+`original-offer-record-change` and `original-offer-unavailable`; and five
+fake-port draft cases: `healthy-save-review-commit`,
+`existing-original-receipt-commit`, `receipt-record-closure-keeps-original`,
+`cleanup-failure-known-commit` and `reused-receipt-object-keeps-unknown`.
+The finite failure cases cover original-offer identity and per-attempt receipt
+cleanup only, with generated originals, in-memory stores/exchanges and a fetch
+trap in the draft harness. They add no listener, native service or browser.
+Other capture/draft cases and the full controller regression suite remain
+separately selected; exact commands and limits are in the verification guide.
 
 The separately authorized Synthetic README media workflow captures only
 checked-in generated fixtures through the actual React renderer and fake read

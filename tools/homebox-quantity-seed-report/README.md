@@ -37,6 +37,8 @@ The input is read-only. The CLI has no output-file, URL, credential or apply
 option. Invalid input or report overflow exits 2, emits a fixed error code to
 stderr and emits no report bytes. Validation and the output bound finish before
 stdout receives the report. Errors contain no supplied path or document content.
+Missing or rejected CLI arguments also exit 2 with the fixed `invalid-arguments`
+code; parser errors do not echo caller arguments or usage text.
 
 ## Closed input
 
