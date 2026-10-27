@@ -1,11 +1,9 @@
-/** One healthy synthetic documentary projection and static real React view.
+/** One healthy synthetic documentary projection.
  * Pure/local only: no listener, account, household data, native write or import.
  * Browser interactions and scoped invalidation are separately qualified. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { build, transformWithOxc } from 'vite';
+import { transformWithOxc } from 'vite';
 
 const base = new URL('../src/lantern/overlays/electricity/', import.meta.url);
 const dataUrl = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
@@ -100,31 +98,4 @@ assert.deepEqual(electricitySheets(data, null, null, multipleTargets).map(sheet 
 assert.equal(data.sheets[3].roomAssociations[0].status, 'inferred');
 assert(data.sheets.every(sheet => sheet.spatial.mappingStatus === 'unmatched' && sheet.spatial.coordinate === null));
 
-// Bundle the actual panel and adopted original UI components without a server.
-const outputs = await build({ configFile: false, root: new URL('..', import.meta.url).pathname,
-  logLevel: 'error', ssr: { noExternal: ['ajv-formats'] }, build: { ssr: new URL('ElectricityOverlayPanel.tsx', base).pathname, write: false,
-    sourcemap: false, minify: false, rollupOptions: { external: ['react', 'react/jsx-runtime'] } } });
-const chunk = outputs.output.find(entry => entry.type === 'chunk');
-assert(chunk);
-let panelCode = chunk.code;
-for (const name of ['react/jsx-runtime', 'react']) {
-  const path = new URL(`../node_modules/${name === 'react' ? 'react/index.js' : 'react/jsx-runtime.js'}`, import.meta.url).href;
-  panelCode = panelCode.replaceAll(`from "${name}"`, `from ${JSON.stringify(path)}`).replaceAll(`from '${name}'`, `from ${JSON.stringify(path)}`);
-}
-const { ElectricityOverlayPanel } = await import(dataUrl(panelCode));
-const props = { active: true, viewKey: 'synthetic-view', data, selectedFloor: { id: 'export-only', label: 'Placeholder export' } };
-const markup = renderToStaticMarkup(createElement(ElectricityOverlayPanel, props));
-for (const text of ['Electrical drawings', 'Documentary label filters', 'Former washroom', 'Former passage', 'Unidentified outbuilding',
-  'Owner reported', 'Inferred association', 'Room association unknown', 'coordinates unknown', 'Source date', 'Unknown', 'Placeholder export']) assert(markup.includes(text), text);
-assert(markup.includes('aria-pressed="false"') && markup.includes('<details>'));
-assert.equal(renderToStaticMarkup(createElement(ElectricityOverlayPanel, { ...props, active: false })), '');
-const sourceSheetBeforeMappedRender = JSON.stringify(data.sheets[1]);
-const mappedMarkup = renderToStaticMarkup(createElement(ElectricityOverlayPanel, { ...props, selectedPackagePlaces: reviewedSelection }));
-assert(mappedMarkup.includes('<span>Former washroom → Beta</span>'), 'the selected Beta annotation remains visible');
-assert(!mappedMarkup.includes('<span>Former washroom → Alpha</span>') && !mappedMarkup.includes('<span>Former passage → Stairs</span>'),
-  'the matched split drawing does not show annotations for unselected Alpha or Stairs');
-assert(!mappedMarkup.includes('Owner-confirmed names: Former Alpha'), 'an unselected association alias stays out of the room results');
-assert.equal(JSON.stringify(data.sheets[1]), sourceSheetBeforeMappedRender, 'the complete original split drawing remains unchanged');
-for (const text of ['Owner-matched plan selection', 'synthetic-source#anchor-beta', 'Unresolved passage component',
-  'Former washroom', 'Their original confidence is unchanged', 'Electrical positions remain unmatched']) assert(mappedMarkup.includes(text), text);
-console.log('PASS healthy synthetic electricity adapter, owner aliases/layout changes, reviewed package selection, unmatched electrical placement, literal filters and original Lantern static panel');
+console.log('PASS healthy synthetic electricity adapter, owner aliases/layout changes, reviewed package selection, unmatched electrical placement, and literal filters');

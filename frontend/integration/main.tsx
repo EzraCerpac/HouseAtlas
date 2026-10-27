@@ -20,23 +20,14 @@ import { getOutbox, type OutboxEntry } from "../src/outbox";
 import { PLACE_CLASSIFICATION, PLACE_NAME } from "../src/outbox/kinds";
 import { createTopologyClient } from "../src/api/topology-client";
 import { createNetworkRelationsClient } from "../src/api/network-relations-client";
-import { createNativeGeometryReadClient, signOutWithScanCleanup } from "./native-geometry-read-client";
 import type { NativeGeometryScanCache } from "./native-geometry-scan-cache";
 import type { AtlasCacheActor, UnifiedAtlasCache } from "./unified-atlas-cache";
 import { createNativeEvidenceDocumentClient } from "./native-evidence-document-client";
-import { createNativeSceneAssociationClient } from "./native-scene-association-client";
-import { createNativeSceneSourceClient } from "./native-scene-source-client";
-import type { NativeSceneSourceSelection } from "../src/lantern/scans/native-scene-source-types";
-import type { NativeSceneHost } from "../src/lantern/scans/native-ui/native-scene-host";
 import { createSourceDocumentsService } from "./source-documents-service";
 import { createOfflineHouseAcquisition } from "./offline-house-acquisition";
 import type { SourceModelPort } from "../src/lantern/source-ports";
 import type { ElectricalLibraryPort } from "../src/lantern/electrical-library/types";
 import type { ModelOverviewSelection } from "../src/lantern/source-models/overview-types";
-import { createNativeGeometryWriteClient } from "./native-geometry-write-client";
-import { createNativeGeometryAssociationClient } from "./native-geometry-association-client";
-import type { NativeAssociationPending, NativeAssociationPrepared } from "../src/lantern/scans/native-association-types";
-import type { NativeGeometryIntakeAssociation } from "../src/lantern/scans/native-ui/NativeGeometryIntake";
 import { createAccountObservationClient } from "../src/ai/host/account-client";
 import { AccountObservationProvider } from "../src/ai/AccountObservation";
 import { detectModelContext } from "../src/webmcp/browser";
@@ -91,17 +82,15 @@ let currentSession: AtlasSessionInfo | null = null;
 let currentQuantityScope: Scope | null = null;
 let currentStockAdmission: StockAdmission | null = null;
 let currentReadyView: ReadyView | null = null;
-let currentSceneSelection: NativeSceneSourceSelection | null = null;
-const sceneEvents = new EventTarget();
 /** Read-only tool admission for the current scope; cleared with every scope clear. */
 let currentQuantityAdmission: QuantityToolAdmission | null = null;
 const quantityEvents = new EventTarget();
-const quantityChanged = () => { configureOutbox(); sourceDocuments.refresh(); houseAcquisition.refresh(); currentSceneSelection = null; sceneEvents.dispatchEvent(new Event("changed")); quantityEvents.dispatchEvent(new Event("changed")); };
+const quantityChanged = () => { configureOutbox(); sourceDocuments.refresh(); houseAcquisition.refresh(); quantityEvents.dispatchEvent(new Event("changed")); };
 // Native browser support only; undefined sends no admission request and registers nothing.
 const modelContext = detectModelContext(document);
 let sessionGeneration = 0;
-// Verified scan derivative bytes only, opened on first scan read; sign-out
-// deletes them. Unavailable storage reads from the server as before.
+// Scan derivative bytes kept by builds before the unified Atlas; nothing reads
+// them now, and sign-out still deletes any left on this device.
 let scanCache: Promise<NativeGeometryScanCache> | undefined;
 const getScanCache = () => scanCache ??= import("./native-geometry-scan-cache").then(module =>
   module.openNativeGeometryScanCache(typeof indexedDB === "undefined" ? undefined : indexedDB));
@@ -192,14 +181,16 @@ const sessions: AtlasSessionClient = {
     currentQuantityScope = null;
     currentReadyView = null;
     quantityChanged();
-    await signOutWithScanCleanup(() => nativeSignOut(signal), async () => {
+    // Device copies are deleted even when the sign-out request fails.
+    try { await nativeSignOut(signal); }
+    finally {
       atlasCacheOwner = null;
       atlasActor = Promise.resolve(null);
       await Promise.all([getScanCache().then(cache => cache.clear()).catch(() => undefined),
         getAtlasStore().then(store => store.clear()).catch(() => undefined),
         import('../src/lantern/unified-atlas/detail-store').then(detail => detail.clearDetailStore()).catch(() => undefined)]);
       captureDrafts.announceSessionChange();
-    });
+    }
   } } : {}),
   // Mode is informational and writes no shared state; local and proxy sign-in
   // publish the returned session under the same fence as password sign-in.
@@ -354,23 +345,6 @@ outbox.register(PLACE_NAME, {
     return { requestId: prepared.requestId, body: prepared.body, label: entry.label };
   },
 });
-// Native geometry gets the original canonical session allocation and the
-// completed authorized view scope. Every replacement/gap invalidates its reads.
-// Verified mesh bytes are reused only for an identical derivative offered by a
-// freshly read descriptor: from page memory for the same session object and
-// home (a home-view reload keeps them; a session check, sign-out, expiry or
-// other home does not), and from the scan cache for the same authenticated
-// actor and home across page loads.
-const nativeGeometry = createNativeGeometryReadClient({
-  origin: window.location.origin,
-  getBinding: () => currentSession && currentQuantityScope
-    ? { sessionIdentity: currentSession, actorId: currentSession.actorId, expiresAt: currentSession.expiresAt, scope: currentQuantityScope } : null,
-  subscribeBinding: changed => {
-    quantityEvents.addEventListener("changed", changed);
-    return () => quantityEvents.removeEventListener("changed", changed);
-  },
-  retainMeshes: { sessionPresent: () => currentSession !== null, persist: getScanCache },
-});
 // Saved originals share the current canonical owner and completed view scope.
 const nativeEvidenceDocuments = createNativeEvidenceDocumentClient({
   origin: window.location.origin,
@@ -381,8 +355,8 @@ const nativeEvidenceDocuments = createNativeEvidenceDocumentClient({
     return () => quantityEvents.removeEventListener("changed", changed);
   },
 });
-// Review and scene reads each keep their own retained-document lease. Opening a
-// second original cannot withdraw the first original or the displayed scene.
+// Each reader keeps its own retained-document lease, so opening a second
+// original cannot withdraw the first.
 const makeSceneDocumentOwner = () => createNativeEvidenceDocumentClient({
   origin: window.location.origin,
   getBinding: () => currentSession && currentQuantityScope
@@ -409,52 +383,12 @@ const sourceElectricalLibrary: ElectricalLibraryPort = {
     });
   },
 };
-const scenePrimaryReview = makeSceneDocumentOwner(), sceneHistoricalReview = makeSceneDocumentOwner();
-const sceneReadDocuments = makeSceneDocumentOwner(), sceneDrawings = makeSceneDocumentOwner();
-const sceneAssociations = createNativeSceneAssociationClient({
-  getContext: () => currentSession && currentReadyView && currentQuantityScope
-    && currentReadyView.scope === currentQuantityScope
-    ? { sessionIdentity: currentSession, session: currentSession, view: currentReadyView, admission: currentStockAdmission } : null,
-  subscribe: changed => {
-    quantityEvents.addEventListener("changed", changed);
-    return () => quantityEvents.removeEventListener("changed", changed);
-  },
-  primaryReview: scenePrimaryReview, historicalReview: sceneHistoricalReview, createDrawingReview: makeSceneDocumentOwner,
-  geometryCurrent: frame => nativeGeometry.isCurrent(frame),
-});
-const sceneSources = createNativeSceneSourceClient({
-  documents: sceneReadDocuments, geometry: nativeGeometry, createDrawingReview: makeSceneDocumentOwner,
-  getSelection: () => currentSceneSelection,
-  subscribeSelection: changed => {
-    sceneEvents.addEventListener("changed", changed);
-    return () => sceneEvents.removeEventListener("changed", changed);
-  },
-});
-const nativeScene: NativeSceneHost = {
-  associations: sceneAssociations, sources: sceneSources, drawings: sceneDrawings,
-  select(selection) {
-    if (!currentSession || !currentReadyView || currentReadyView.scope !== currentQuantityScope
-      || selection.sessionIdentity !== currentSession || selection.workspaceId !== currentReadyView.scope.workspaceId
-      || selection.homeId !== currentReadyView.scope.homeId || selection.expiresAt !== currentSession.expiresAt
-      || Date.parse(selection.expiresAt) <= Date.now()) return false;
-    currentSceneSelection = selection; sceneEvents.dispatchEvent(new Event("changed")); return true;
-  },
-  clear(selection) { if (currentSceneSelection === selection) {
-    currentSceneSelection = null; sceneEvents.dispatchEvent(new Event("changed"));
-  } },
-};
-// Custody and association share the read client's actual canonical owner,
-// completed view allocation and synchronous host change notifications. The
-// published command catalog is admission, never a label-edit capability.
-const nativeGeometryContext = () => currentSession && currentQuantityScope && currentStockAdmission
-  ? { sessionIdentity: currentSession, session: currentSession, scope: currentQuantityScope, admission: currentStockAdmission } : null;
+// Every native read and write shares the actual canonical owner, the completed
+// view allocation and these synchronous host change notifications.
 const subscribeNativeGeometry = (changed: () => void) => {
   quantityEvents.addEventListener("changed", changed);
   return () => quantityEvents.removeEventListener("changed", changed);
 };
-const nativeGeometryWrite = createNativeGeometryWriteClient({
-  getContext: nativeGeometryContext, subscribe: subscribeNativeGeometry,
-});
 // Native v2 Documents require the current completed view's exact service facet.
 const sourceDocuments = createSourceDocumentsService({
   state: () => ({ session: currentSession, scope: currentQuantityScope, view: currentReadyView }),
@@ -465,10 +399,8 @@ const houseAcquisition = createOfflineHouseAcquisition({
   state: () => ({ session: currentSession, scope: currentQuantityScope, view: currentReadyView }),
   origin: window.location.origin,
 });
-// Local files and the optional selected provisional overview have separate
-// owners. Saved reads require the current authenticated service facet and pins.
-// No electrical bridge or target provider is connected here.
-let modelReviewOwner: { readonly session: AtlasSessionInfo; readonly scope: Scope; readonly token: object } | null = null;
+// The selected house model publication. Saved reads require the current
+// authenticated service facet and pins.
 let overviewSelection: ModelOverviewSelection | null = null;
 let overviewSession: AtlasSessionInfo | null = null;
 let overviewScope: Scope | null = null;
@@ -515,19 +447,6 @@ function atlasCache(selection: ModelOverviewSelection): Promise<UnifiedAtlasCach
   return atlasCacheOwner.cache;
 }
 const sourceModels: SourceModelPort = {
-  localFiles: "browser-only",
-  overview: {
-    current: currentOverview, subscribe: subscribeOverview,
-    async read(selection, signal) {
-      const controller = new AbortController();
-      const unsubscribe = subscribeOverview(() => { if (currentOverview() !== selection) controller.abort(); });
-      try {
-        const reader = await import('./model-overview-reader');
-        return await reader.readModelOverview({ selection, signal: AbortSignal.any([signal, controller.signal]),
-          origin: window.location.origin, isCurrent: () => currentOverview() === selection });
-      } finally { unsubscribe(); }
-    },
-  },
   // The unified Atlas reads the same selected publication's opt-in scene and
   // pinned model bytes; the same owner, session and expiry fence every step.
   atlas: {
@@ -590,92 +509,6 @@ const sourceModels: SourceModelPort = {
       signal.throwIfAborted();
       return cache && currentOverview() === selection ? reader.readCachedUnifiedAtlas({ selection, signal, cache }) : null;
     },
-  },
-  session: {
-    current() {
-      if (!currentSession || !currentQuantityScope) return null;
-      if (modelReviewOwner?.session !== currentSession || modelReviewOwner.scope !== currentQuantityScope)
-        modelReviewOwner = { session: currentSession, scope: currentQuantityScope, token: Object.freeze({}) };
-      return modelReviewOwner.token;
-    },
-    subscribe: subscribeNativeGeometry,
-  },
-};
-const geometryAssociationCommands = ['atlas.identity.get', 'atlas.location-semantics.get', 'atlas.evidence.get', 'atlas.asset.get',
-  'atlas.batch.execute', 'atlas.evidence.create', 'atlas.geometry.create', 'atlas.identity.replace'] as const;
-const nativeGeometryAssociationOwner = createNativeGeometryAssociationClient({
-  getContext: () => {
-    const context = nativeGeometryContext();
-    return context && geometryAssociationCommands.every(command => context.admission.commandIds.includes(command)) ? context : null;
-  },
-  subscribe: subscribeNativeGeometry,
-});
-// Confirmations stay observable across command-catalog gaps. A missing or
-// uncorrelated result never proves that a batch was not dispatched/committed.
-// Retention has no admission role: every new call still uses the strict owner.
-type AssociationRetentionOwner = {
-  readonly identity: object; readonly session: AtlasSessionInfo; readonly actor: string;
-  readonly csrf: string; readonly expiry: string; readonly workspace: string; readonly home: string;
-};
-const associationConfirmations = new Map<NativeAssociationPrepared, {
-  readonly owner: AssociationRetentionOwner; readonly row: NativeAssociationPending;
-}>();
-const associationIntents = new WeakSet<NativeAssociationPrepared>();
-const associationRetentionListeners = new Set<() => void>();
-const notifyAssociationRetention = () => { for (const listener of associationRetentionListeners) queueMicrotask(listener); };
-let associationRetentionOwner: AssociationRetentionOwner | null = null;
-const sameAssociationOwner = (owner: AssociationRetentionOwner, session: AtlasSessionInfo, scope: Scope) =>
-  owner.session === session && owner.actor === session.actorId && owner.csrf === session.csrfToken
-  && owner.expiry === session.expiresAt && owner.workspace === scope.workspaceId && owner.home === scope.homeId;
-const getAssociationRetentionOwner = (scope: Scope): AssociationRetentionOwner | null => {
-  const session = currentSession, actualScope = currentQuantityScope;
-  if (!session || !actualScope || session.schemaVersion !== 1 || !session.actorId || !session.csrfToken
-    || !Number.isFinite(Date.parse(session.expiresAt)) || Date.parse(session.expiresAt) <= Date.now()
-    || actualScope.workspaceId !== scope.workspaceId || actualScope.homeId !== scope.homeId) return null;
-  if (!associationRetentionOwner || !sameAssociationOwner(associationRetentionOwner, session, scope)) {
-    // Restore the same canonical session/home's hold after a view/scope gap.
-    const retained = [...associationConfirmations.values()].find(entry => sameAssociationOwner(entry.owner, session, scope));
-    associationRetentionOwner = retained?.owner ?? { identity: Object.freeze({}), session, actor: session.actorId,
-      csrf: session.csrfToken, expiry: session.expiresAt, workspace: scope.workspaceId, home: scope.homeId };
-  }
-  return associationRetentionOwner;
-};
-const retainedAssociations = (owner: AssociationRetentionOwner) =>
-  [...associationConfirmations.values()].filter(entry => entry.owner === owner).map(entry => entry.row);
-const nativeGeometryAssociation: NativeGeometryIntakeAssociation = {
-  ...nativeGeometryAssociationOwner,
-  getRetention(scope) {
-    const owner = getAssociationRetentionOwner(scope);
-    return owner ? Object.freeze({ owner: owner.identity, rows: Object.freeze(retainedAssociations(owner)) }) : null;
-  },
-  subscribePending(changed) {
-    associationRetentionListeners.add(changed);
-    const stop = nativeGeometryAssociationOwner.subscribePending(changed);
-    return () => { associationRetentionListeners.delete(changed); stop(); };
-  },
-  prepare(admission, input) {
-    const owner = getAssociationRetentionOwner(admission.binding.scope);
-    if (!owner || associationConfirmations.size >= 16 || retainedAssociations(owner).some(row => row.outcome === 'unknown'))
-      throw new TypeError('Building association preparation is unavailable');
-    const prepared = nativeGeometryAssociationOwner.prepare(admission, input);
-    associationIntents.add(prepared);
-    return prepared;
-  },
-  async commit(prepared, signal) {
-    signal.throwIfAborted();
-    const owner = getAssociationRetentionOwner(prepared.binding.scope);
-    if (!owner || nativeGeometryAssociationOwner.getBinding() !== prepared.binding || !associationIntents.has(prepared)
-      || associationConfirmations.has(prepared) || associationConfirmations.size >= 16
-      || retainedAssociations(owner).some(row => row.outcome === 'unknown'))
-      throw new TypeError('Building association confirmation is unavailable');
-    // Record the deliberate confirmation before invoking any owner/transport
-    // callback. Reentrant admission loss cannot mask the unresolved hold.
-    associationConfirmations.set(prepared, { owner, row: Object.freeze({ prepared, outcome: 'unknown' }) });
-    notifyAssociationRetention();
-    const receipt = await nativeGeometryAssociationOwner.commit(prepared, signal);
-    associationConfirmations.set(prepared, { owner, row: Object.freeze({ prepared, outcome: 'committed', receipt }) });
-    notifyAssociationRetention();
-    return receipt;
   },
 };
 const nativeClient = createAtlasClient({
@@ -839,6 +672,6 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
   }, []);
   // Keep the concrete editing port stable through view/catalog refreshes.
   // Each place admission and command obtains the actual request authority.
-  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp initialHomeBootstrap={initialHomeBootstrap} onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} nativeGeometry={nativeGeometry} nativeGeometryWrite={nativeGeometryWrite} nativeGeometryAssociation={nativeGeometryAssociation} nativeEvidenceDocuments={nativeEvidenceDocuments} nativeScene={nativeScene} sourceModels={sourceModels} sourceDocuments={sourceDocuments.current()} sourceElectricalLibrary={sourceElectricalLibrary} houseAcquisition={houseAcquisition.port} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
+  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp initialHomeBootstrap={initialHomeBootstrap} onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments} sourceModels={sourceModels} sourceDocuments={sourceDocuments.current()} sourceElectricalLibrary={sourceElectricalLibrary} houseAcquisition={houseAcquisition.port} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
 }
 createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);

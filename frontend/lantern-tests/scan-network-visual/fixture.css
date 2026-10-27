@@ -1,8 +1,0 @@
-/* The host and the timing table share one viewport: the host stage takes the
-   remaining height and the table keeps its own bounded scroll box. */
-html, body { margin: 0; }
-body { display: grid; grid-template-rows: minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); height: 100vh; height: 100dvh; }
-#root { min-height: 0; overflow: auto; }
-#timings { min-width: 0; }
-.lantern-host.scan-fixture-timings { height: auto; padding: 10px 16px 12px; border-top: 1px solid var(--line, #ddd); }
-@media (max-width: 520px) { .lantern-host.scan-fixture-timings { padding: 8px 10px; } }
