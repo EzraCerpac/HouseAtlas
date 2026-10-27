@@ -95,7 +95,7 @@ let scanCache: Promise<NativeGeometryScanCache> | undefined;
 const getScanCache = () => scanCache ??= import("./native-geometry-scan-cache").then(module =>
   module.openNativeGeometryScanCache(typeof indexedDB === "undefined" ? undefined : indexedDB));
 // Verified unified Atlas scenes and model bytes, opened on first Atlas read;
-// sign-out deletes them with the scan bytes. Unavailable storage reads afresh.
+// sign-out deletes them, and the stored Full detail, with the scan bytes. Unavailable storage reads afresh.
 let atlasStore: Promise<NativeGeometryScanCache> | undefined;
 const getAtlasStore = () => atlasStore ??= import("./unified-atlas-cache").then(async module => {
   const store = module.openUnifiedAtlasStore(typeof indexedDB === "undefined" ? undefined : indexedDB);
@@ -187,7 +187,8 @@ const sessions: AtlasSessionClient = {
       atlasCacheOwner = null;
       atlasActor = Promise.resolve(null);
       await Promise.all([getScanCache().then(cache => cache.clear()).catch(() => undefined),
-        getAtlasStore().then(store => store.clear()).catch(() => undefined)]);
+        getAtlasStore().then(store => store.clear()).catch(() => undefined),
+        import('../src/lantern/unified-atlas/detail-store').then(detail => detail.clearDetailStore()).catch(() => undefined)]);
       captureDrafts.announceSessionChange();
     }
   } } : {}),
@@ -492,9 +493,12 @@ const sourceModels: SourceModelPort = {
       const controller = new AbortController();
       const unsubscribe = subscribeOverview(() => { if (currentOverview() !== selection) controller.abort(); });
       try {
-        const reader = await import('./unified-atlas-reader');
+        const [reader, detail] = await Promise.all([import('./unified-atlas-reader'), import('../src/lantern/unified-atlas/detail-store')]);
+        // A copy kept on this device for the signed-in actor and home stands in for the download once it verifies.
+        const actorId = currentSession?.actorId;
+        const store = actorId ? detail.openDetailStore({ actorId, workspaceId: selection.scope.workspaceId, homeId: selection.scope.homeId }) : undefined;
         return await reader.readUnifiedAtlasDetail({ selection, scene, signal: AbortSignal.any([signal, controller.signal]),
-          origin: window.location.origin, isCurrent: () => currentOverview() === selection });
+          origin: window.location.origin, isCurrent: () => currentOverview() === selection, store });
       } finally { unsubscribe(); }
     },
     async stored(selection, signal) {

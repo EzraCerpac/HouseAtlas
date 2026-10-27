@@ -1,4 +1,5 @@
 import { drawsFloor, sourceMeshColor, type DrawRules, type PreparedMesh } from './geometry';
+import { FLAT_SKY, type SkyLight } from './sky-light';
 
 /** Presentation inputs shared by every MeshLayer caller. Geometry never changes here. */
 export interface AppearanceInput {
@@ -84,6 +85,8 @@ export interface SceneDaylight {
   readonly tint: readonly [number, number, number];
   readonly sunTint: readonly [number, number, number];
   readonly lampTint: readonly [number, number, number];
+  /** The sky's light by face direction and the dome glass mirrors; without it the sky is flat. */
+  readonly sky?: SkyLight | undefined;
 }
 
 export interface MeshPalette {
@@ -153,6 +156,7 @@ export interface FrameAppearance {
   readonly tint: Rgb;
   readonly sunTint: Rgb;
   readonly lampTint: Rgb;
+  readonly sky: SkyLight;
   /** Up to MAX_LAMPS shown emitters, merged when close and aimed alike, as lifted
    * points that light their surroundings, or a cone along `aim`, in their colour. */
   readonly lamps: readonly Lamp[];
@@ -275,6 +279,7 @@ export function writeAppearance(meshes: readonly PreparedMesh[], p: AppearanceIn
     ghostAlpha: quiet ? clamp01(p.ghostAlpha!) : GHOST_ALPHA, ghostColor: GHOST, ghostShade: quiet ? mix(SHADE, GHOST, .8) : SHADE,
     direct: DAY ? clamp01(DAY.direct) : 1, night: DAY?.night === true, lamp: DAY ? clamp01(DAY.lamp) : 0,
     tint: DAY ? [...DAY.tint] as Rgb : [1, 1, 1], sunTint: DAY ? [...DAY.sunTint] as Rgb : [1, 1, 1], lampTint: DAY ? [...DAY.lampTint] as Rgb : [1, 1, 1],
+    sky: DAY?.sky ?? FLAT_SKY,
     lamps: lamps.sort((a, b) => b.count - a.count).slice(0, MAX_LAMPS).map(({ at, aim, color }) => ({ at, aim, color })),
     rooms, passes, ghosts,
   };

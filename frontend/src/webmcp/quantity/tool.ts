@@ -1,9 +1,8 @@
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
 import atlas from '../../../../packages/contracts/schemas/atlas.schema.json';
 import type { Scope, SourceRef } from '../../api/generated/contracts';
 import { assertQuantityInput, equalQuantityJson, QuantityActionError, sameQuantityScope, type QuantityApproval, type QuantityClient, type QuantityPrepared, type QuantityPreviewWire, type QuantityResult } from '../../api/quantity-client';
 import { startWebMcp } from '../adapter.js';
+import { compileOnUse } from '../../numeric/stock-ajv';
 import type { AuthenticatedSession, CatalogTool, InvocationContext, JsonObject, JsonValue, ModelContextPort, SessionPort, SessionSnapshot, VisibleResultPort, WebMcpHandle } from '../ports.js';
 
 export const QUANTITY_TOOL_NAME = 'houseatlas_homebox_quantity_change_await_person';
@@ -24,9 +23,7 @@ export interface QuantityAdmissionPort { getSnapshot(): QuantityToolAdmission | 
 export const quantityAdmissionUrl = (scope: Scope) =>
   `/api/atlas/stock/v3/workspaces/${encodeURIComponent(scope.workspaceId)}/homes/${encodeURIComponent(scope.homeId)}/quantity-tool-admission`;
 
-const ajv = new Ajv2020({ strict: true, allErrors: true, allowUnionTypes: true });
-addFormats(ajv); ajv.addSchema(atlas);
-const admissionSchema = ajv.compile<{ schemaVersion: 1; scope: Scope; revision: string; installedSources: SourceRef[] }>({
+const admissionSchema = compileOnUse(ajv => ajv.compile<{ schemaVersion: 1; scope: Scope; revision: string; installedSources: SourceRef[] }>({
   type: 'object', additionalProperties: false, required: ['schemaVersion', 'scope', 'revision', 'installedSources'],
   properties: {
     schemaVersion: { const: 1 },
@@ -34,7 +31,7 @@ const admissionSchema = ajv.compile<{ schemaVersion: 1; scope: Scope; revision: 
     revision: { type: 'string', minLength: 1, maxLength: 128 },
     installedSources: { type: 'array', maxItems: 64, items: { $ref: `${atlas.$id}#/$defs/sourceRef` } },
   },
-});
+}));
 const freeze = <T,>(value: T): T => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
 
 /** Strict deny-extra decode; every source is a unique complete homebox-entity ref in the requested scope. */

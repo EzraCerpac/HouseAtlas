@@ -19,10 +19,8 @@ const retainedSource = new URL('../src/api/retained-intent-client.ts', import.me
 let { code: retainedCode } = await transformWithOxc(readFileSync(retainedSource, 'utf8'), retainedSource.pathname,
   { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
 const retainedImports = {
-  'ajv/dist/2020.js': new URL('../node_modules/ajv/dist/2020.js', import.meta.url).href,
-  'ajv-formats': new URL('../node_modules/ajv-formats/dist/index.js', import.meta.url).href,
+  '../numeric/stock-ajv': await loadNumericSource('numeric/stock-ajv.ts'),
   '../../../contracts/stock-wire3/agent/agent.schema.json': new URL('../../contracts/stock-wire3/agent/agent.schema.json', import.meta.url).href,
-  '../../../packages/contracts/schemas/atlas.schema.json': new URL('../../packages/contracts/schemas/atlas.schema.json', import.meta.url).href,
   '../../../contracts/stock-wire3/agent/operation-catalog.json': new URL('../../contracts/stock-wire3/agent/operation-catalog.json', import.meta.url).href,
   '../numeric/decimal': await loadNumericSource('numeric/decimal.ts'),
   '../numeric/lossless-json': await loadNumericSource('numeric/lossless-json.ts'),

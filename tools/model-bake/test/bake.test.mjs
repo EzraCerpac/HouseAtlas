@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
-import { admitInViewer, bindInViewer } from '../src/admission.mjs';
+import { admitInViewer, bindInViewer, expandInViewer } from '../src/admission.mjs';
 import { bakeDetail, bakeOverview } from '../src/bake.mjs';
+import { COMPRESS_DEFAULTS, compressGlb, MESHOPT } from '../src/compress.mjs';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -515,5 +516,119 @@ test('the command line writes the detail beside the overview', async () => {
     assert.deepEqual({ file: report.detail.file, contentType: report.detail.contentType, sha256: report.detail.sha256, bytes: report.detail.bytes },
       { file: 'detail.glb', contentType: 'model/gltf-binary', sha256: sha256(detail), bytes: detail.byteLength });
     assert.equal(report.detail.viewerBinding.boundPrimitives, report.viewerBinding.boundPrimitives);
+    // Both tiers are written meshopt compressed; the companion pins the served overview bytes.
+    const model = readFileSync(join(out, 'model.glb'));
+    for (const file of [model, detail]) assert.deepEqual(readGlb(new Uint8Array(file)).json.extensionsRequired, [MESHOPT]);
+    assert.deepEqual(baked.original, { sha256: sha256(model), bytes: model.byteLength });
+    assert.ok(report.compression.bytes < report.compression.plainBytes && report.detail.compression.bytes < report.detail.compression.plainBytes);
+    assert.ok(report.viewerAdmission.decodedBytes > model.byteLength);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+/** Each primitive's triangles as a sorted list, corners rotated to start at the
+ * smallest and positions in units of `grid`: the same for a plain bake and its
+ * reordered, snapped and expanded copy. */
+const gridTriangles = (glb, grid) => {
+  const { json, bin } = readGlb(glb);
+  return json.meshes.map(m => m.primitives.map(p => {
+    const positions = readAccessor(json, bin, p.attributes.POSITION), indices = readAccessor(json, bin, p.indices), out = [];
+    const corner = v => [0, 1, 2].map(a => Math.round(positions[v * 3 + a] / grid)).join(',');
+    for (let t = 0; t < indices.length; t += 3) {
+      const c = [corner(indices[t]), corner(indices[t + 1]), corner(indices[t + 2])];
+      out.push([0, 1, 2].map(first => [0, 1, 2].map(k => c[(first + k) % 3]).join(' ')).sort()[0]);
+    }
+    return out.sort();
+  }));
+};
+const lockedSlots = result => new Set(result.report.primitives.filter(p => ['room-pick', 'slab'].includes(p.role)).map(p => `${p.bakedMesh}/${p.primitive}`));
+
+test('compresses with the same triangles, positions on the grid and locked parts byte for byte', async () => {
+  // An unused mesh before the slab shifts every baked mesh index: the locks follow the baked slots.
+  const plains = [];
+  for (const options of [{}, { unusedMesh: true }]) {
+    const { glb: master, companion } = syntheticMaster(options);
+    plains.push(await bakeOverview(master, companion, { triangles: 20000 }), await bakeDetail(master, companion));
+  }
+  for (const plain of plains) {
+    const { glb, report } = await compressGlb(plain.glb, { companion: plain.companion, locked: lockedSlots(plain) });
+    const { json } = readGlb(glb);
+    assert.deepEqual(json.extensionsRequired, [MESHOPT]);
+    assert.ok(report.ratio < 0.7 && report.compressedViews > 0, `compressed to ${report.ratio}`);
+    assert.ok(report.maxDisplacementMetres <= COMPRESS_DEFAULTS.grid * Math.sqrt(3) / 2);
+    // The viewer's expansion gives back the plain profile: one buffer, no extension.
+    const expanded = await expandInViewer(glb, 'detail'), plainJson = readGlb(expanded).json;
+    assert.equal(plainJson.extensionsUsed, undefined);
+    assert.equal(plainJson.buffers.length, 1);
+    assert.deepEqual(gridTriangles(expanded, COMPRESS_DEFAULTS.grid), gridTriangles(plain.glb, COMPRESS_DEFAULTS.grid));
+    for (const name of ['RoomPick', 'Slab']) {
+      assert.deepEqual(positionsOf(expanded, name), positionsOf(plain.glb, name));
+      const indices = g => { const { json: j, bin } = readGlb(g); return readAccessor(j, bin, j.meshes[mesh(g, name)].primitives[0].indices); };
+      assert.deepEqual(indices(expanded), indices(plain.glb));
+    }
+    // Every viewer budget counts the decoded file: the same work as the plain bake.
+    const tier = plain.report.overview.drawnTriangles > 600_000 ? 'detail' : 'overview';
+    const before = await admitInViewer(plain.glb, tier), after = await admitInViewer(glb, tier);
+    assert.equal(after.triangles, before.triangles);
+    assert.ok(after.decodedBytes > glb.byteLength && after.decodeMs >= 0);
+    assert.equal(before.decodedBytes, undefined);
+  }
+});
+
+test('copies one-byte indices as authored and writes a file with nothing to encode plainly', async () => {
+  // Four vertices, the first unreferenced, and one triangle with unsigned-byte indices.
+  const positions = Float32Array.from([9, 9, 9, 0, 0, 0, 1, 0, 0, 0, 1, 0]), indices = Uint8Array.from([3, 1, 2, 0]);
+  const bin = new Uint8Array(positions.byteLength + 4);
+  bin.set(new Uint8Array(positions.buffer)); bin.set(indices, positions.byteLength);
+  const glb = writeGlb({ asset: { version: '2.0' }, scene: 0, scenes: [{ nodes: [0] }], nodes: [{ mesh: 0 }],
+    meshes: [{ primitives: [{ attributes: { POSITION: 0 }, indices: 1 }] }],
+    accessors: [{ bufferView: 0, componentType: 5126, count: 4, type: 'VEC3', min: [0, 0, 0], max: [9, 9, 9] }, { bufferView: 1, componentType: 5121, count: 3, type: 'SCALAR' }],
+    bufferViews: [{ buffer: 0, byteOffset: 0, byteLength: positions.byteLength }, { buffer: 0, byteOffset: positions.byteLength, byteLength: 3 }],
+    buffers: [{ byteLength: bin.byteLength }] }, bin);
+  const { glb: compressed, report } = await compressGlb(glb);
+  assert.equal(report.reorderedPrimitives, 0);
+  const { json, bin: out } = readGlb(await expandInViewer(compressed));
+  assert.deepEqual([...readAccessor(json, out, 1)], [3, 1, 2]);
+  assert.deepEqual(readAccessor(json, out, 0), positions);
+  // Locked throughout: no view is encoded, so the plain bytes come back unchanged.
+  const locked = await compressGlb(glb, { locked: new Set(['0/0']) });
+  assert.equal(locked.glb, glb);
+  assert.equal(locked.report.compressedViews, 0);
+});
+
+test('a snapped vertex never leaves a bound the server checks', async () => {
+  const { glb: master, companion } = syntheticMaster(), plain = await bakeDetail(master, companion);
+  // The two lamps (one sphere drawn twice) reach x = 3.3 at most; the sphere's
+  // local 0.3 m rounds up on the grid, so snapping alone would cross this bound.
+  const lamp = mesh(plain.glb, 'Lamp'), lampX = Math.max(...positionsOf(plain.glb, 'Lamp').filter((_, i) => i % 3 === 0));
+  const huge = { min: [-1e3, -1e3, -1e3], max: [1e3, 1e3, 1e3] }, edge = Math.fround(3 + lampX);
+  const bounded = { ...plain.companion, buildings: [{ buildingId: 'b', bounds: { min: huge.min, max: [edge, 1e3, 1e3] } }],
+    levels: [{ levelId: 'l0', bounds: huge }], occurrences: [{ spaceOccurrenceId: 'o1', bounds: huge }] };
+  const { glb, report } = await compressGlb(plain.glb, { companion: bounded, locked: lockedSlots(plain) });
+  assert.ok(report.verticesKeptInsideBounds > 0, 'the vertices on the bound kept their exact position');
+  const expanded = await expandInViewer(glb, 'detail'), { json } = readGlb(expanded);
+  const worldX = positionsOf(expanded, 'Lamp').filter((_, i) => i % 3 === 0).map(x => Math.fround(3 + x));
+  assert.ok(Math.max(...worldX) <= edge);
+  assert.equal(json.nodes.filter(node => node.mesh === lamp).length, 2);
+});
+
+test('the viewer refuses compressed files outside the admitted subset', async () => {
+  const { glb: master, companion } = syntheticMaster(), plain = await bakeOverview(master, companion, { triangles: 20000 });
+  const { glb } = await compressGlb(plain.glb, { locked: lockedSlots(plain) });
+  const edit = change => { const { json, bin } = readGlb(glb), copy = new Uint8Array(bin); change(json, copy); return writeGlb(json, copy); };
+  const compressed = json => json.bufferViews.findIndex(view => view.extensions?.[MESHOPT]?.mode === 'ATTRIBUTES');
+  const cases = [
+    ['a damaged stream', (json, bin) => { const e = json.bufferViews[compressed(json)].extensions[MESHOPT]; bin.fill(0xff, e.byteOffset, e.byteOffset + e.byteLength); }, /could not be decoded/],
+    ['a truncated stream', json => { json.bufferViews[compressed(json)].extensions[MESHOPT].byteLength -= 16; }, /could not be decoded/],
+    ['a decoded size over the limit', json => {
+      const view = json.bufferViews[compressed(json)], e = view.extensions[MESHOPT];
+      e.count = Math.ceil(40 * 1048576 / e.byteStride); view.byteLength = e.count * e.byteStride; json.buffers[1].byteLength += view.byteLength;
+    }, /exceed the preview limit/],
+    ['a meshopt filter', json => { json.bufferViews[compressed(json)].extensions[MESHOPT].filter = 'OCTAHEDRAL'; }, /filter/],
+    ['another extension', json => { json.extensionsUsed.push('KHR_mesh_quantization'); }, /Only meshopt/],
+    ['an optional extension', json => { delete json.extensionsRequired; }, /Only meshopt/],
+    ['a plain view in the fallback buffer', json => { delete json.bufferViews[compressed(json)].extensions; }, /must be meshopt compressed/],
+  ];
+  for (const [name, change, reason] of cases) await assert.rejects(expandInViewer(edit(change)), reason, name);
+  // The plain profile still refuses the extension where it was never expanded.
+  await assert.rejects(admitInViewer(edit(json => { json.extensionsUsed = ['EXT_meshopt_compression', 'EXT_other']; })), /Only meshopt/);
 });

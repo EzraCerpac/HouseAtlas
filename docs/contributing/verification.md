@@ -57,7 +57,9 @@ The same `frontend checks` job then runs the model bake tests
 generated masters to budget and run the viewer's own preflight, scene admission
 and selector binding on the results, including the generated unified Atlas
 publication densified and baked, and its unsimplified detail tier admitted under
-the Full limits and bound by the same companion:
+the Full limits and bound by the same companion, and both tiers meshopt
+compressed, expanded by the viewer's own decoder and refused when a stream or
+declared size falls outside the admitted subset:
 
 ```sh
 npm ci --prefix tools/model-bake
@@ -1910,7 +1912,7 @@ the same healthy test also checks the actual canonical contract:
 HOUSEATLAS_PERF_CONTRACT_ROOT=/absolute/pinned/harness-checkout node --test --test-concurrency=1 tools/perf/reporting/healthy-reporting.test.mjs
 ```
 
-The pin is `4bb08dfd255c32c385d496ae64705719d5d56e80`, and the sole schema is
+The pin is `8f41c7d71984beb382eb2105e4b0f035262a0d72`, and the sole schema is
 `tools/perf/contract/run.schema.json`, SHA-256
 `642af28eacc14e6fdd7b9f7071979f07abc8dcb9a427773f5d74dab672b7056a`.
 The test opens no listener and calls no remote API, application service, provider
@@ -2551,12 +2553,15 @@ It does not mount React, a browser or real storage, and reads no real source.
 ## Named generated time-of-day lighting check
 
 `frontend/lantern-tests/unified-atlas-daylight-healthy.mjs` compiles
-`daylight.ts` and `mesh-appearance.ts` with the pinned SunCalc and checks, for
+`daylight.ts`, `sky-light.ts` and `mesh-appearance.ts` with the pinned SunCalc and checks, for
 a neutral reference place: model-frame sun bearings and their turn with the
 model's north, the midsummer noon sun in the south at full daylight, the
 zenith map and full lamps at midnight, a minute-by-minute day in June,
 October and December with no jumps, a readable floor on the sky light and
-lamps only after sunset, the stage colours' stylesheet fallbacks, and the
+lamps only after sunset, the directional sky light (the flat term without
+daylight; 1.1 looking up, a grey wall square to the sun's side, walls toward a
+low sun warmer than walls away from it, an even deep night), the stage
+colours' stylesheet fallbacks, and the
 appearance table's shelter and kept-tone flags, which other viewers never
 receive. The same runner checks the glass pass, opacity/frost encoding,
 selected panes returning to the solid pass, explicit core roughness reading,

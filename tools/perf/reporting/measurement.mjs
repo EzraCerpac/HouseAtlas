@@ -3,7 +3,7 @@ import { compareRuns } from './adapter.mjs';
 
 // Reviewed, immutable measurement source. The unprivileged workflow pins the
 // same commit. Contract code in a privileged job is loaded only from default.
-export const HARNESS_SHA = '4bb08dfd255c32c385d496ae64705719d5d56e80';
+export const HARNESS_SHA = '8f41c7d71984beb382eb2105e4b0f035262a0d72';
 export const SCHEMA_SHA256 = '642af28eacc14e6fdd7b9f7071979f07abc8dcb9a427773f5d74dab672b7056a';
 
 export async function loadTrustedContract() {

@@ -13,6 +13,7 @@ import { denoise } from 'three/addons/tsl/display/DenoiseNode.js';
 import { occlusionHistory } from './occlusion-history';
 import type { PreparedMesh, Projection } from './geometry';
 import type { EmbeddedTexture } from './embedded-png-material';
+import { GLOW_HEIGHT, GLOW_SPREAD, LUMA } from './sky-light';
 import { GLASS_CLEAR, GLASS_FROSTED, MAX_LAMPS, MeshPass, STATE_FLOATS, STATE_TEXELS, writeAppearance, type AppearanceInput } from './mesh-appearance';
 
 /** Meshes per state-table row: one row is exactly 128 × STATE_TEXELS RGBA texels. */
@@ -50,7 +51,17 @@ const INDOOR_REACH = 1;
 /** The point also sits this much higher, in metres, so a slab, lower roof or eave
  * just outside a wall, close above or below that point, never counts as a ceiling. */
 const INDOOR_HEADROOM = .5;
-/** A room map depth nearer than this is a room's footprint; the cleared map reads 1. */
+/** A night face is lit as indoors only when the point this far off it along its normal,
+ * in metres, also lies inside a room volume: floors and inner walls pass, while ledges,
+ * trims, bay roofs and the ground at a wall's foot do not. */
+const ROOM_REACH = .3;
+/** Room volumes at least this tall at the median, in metres, are taken as they are;
+ * flatter pick proxies stand for a room this high above them. */
+const ROOM_VOLUME = .5, ROOM_STOREY = 2.6;
+/** Margin, in metres, around the rooms in their own map, which covers only them so its
+ * texels stay a few centimetres across. */
+const ROOM_PAD = 1;
+/** Deepest point tested in the room map; the cleared map reads 1, so a point below every room stays outside one only where there is none. */
 const ROOM_FAR = .999;
 /** Share of the difference from full tone that selection and overlay tints keep at any hour. */
 const KEEP_TONE = .75;
@@ -63,9 +74,8 @@ const GLOW_WHITEN = .6, POOL_RADIUS = 1.2, POOL_REACH = 4;
 /** An aimed lamp's beam instead: full inside BEAM_CORE (a cosine, about 20°) of its
  * aim, gone past BEAM_EDGE (about 42°), and carried further. */
 const BEAM_CORE = .94, BEAM_EDGE = .74, BEAM_RADIUS = 3, BEAM_REACH = 10;
-/** Glass reflects a sky for the hour, linear colours: overhead, at the horizon and the
- * ground below it, and the sun's glint, sharp on clear glass and spread on frosted. */
-const GLASS_ZENITH = [.3, .48, .78] as const, GLASS_HORIZON = [.78, .84, .9] as const, GLASS_GROUND = [.2, .2, .19] as const;
+/** Glass reflects the hour's sky dome (sky-light.ts) and the sun's glint, sharp on clear
+ * glass and spread on frosted. */
 const GLINT_SHARP = 600, GLINT_SPREAD = 24, GLINT_GAIN = 3;
 /** Glass seen near head-on still mirrors this much of the sky, as a window does whose
  * room is darker than the day outside; and soft diagonal streaks, this strong and
@@ -139,11 +149,13 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const u = {
       ambient: uniform(0), twoSided: uniform(0), light: uniform(new Vector3()), viewDir: uniform(new Vector3()), paper: uniform(new Vector3()),
       ghostAlpha: uniform(0), ghost: uniform(new Vector3()), ghostShade: uniform(new Vector3()),
-      direct: uniform(1), night: uniform(0), lamp: uniform(0), rooms: uniform(0),
+      direct: uniform(1), night: uniform(0), lamp: uniform(0), rooms: uniform(0), roomRaise: uniform(0),
       tint: uniform(new Vector3(1, 1, 1)), sunTint: uniform(new Vector3(1, 1, 1)), lampTint: uniform(new Vector3(1, 1, 1)),
       lamps: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
       lampAims: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
       lampColors: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
+      // The hour's sky in one array: nine irradiance terms, then zenith, horizon, ground, glow and its direction.
+      sky: uniformArray(Array.from({ length: 14 }, () => new Vector4()), 'vec4'),
     };
     const toUnitDepth = renderer.coordinateSystem === WebGPUCoordinateSystem;
     const meshId = attribute('meshIndex', 'float');
@@ -169,9 +181,12 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const sunTarget = new RenderTarget(SUN_MAP, SUN_MAP), sunDepth = sunTarget.depthTexture = new DepthTexture(SUN_MAP, SUN_MAP);
     // A comparison sampler with linear filtering: each tap is a bilinear 2 × 2 test in hardware.
     sunDepth.type = FloatType; sunDepth.compareFunction = LessEqualCompare; sunDepth.minFilter = sunDepth.magFilter = LinearFilter;
-    // Room footprints from the same view: at night only a probe over one of them is indoors.
+    // Room volumes from straight above, fitted to the rooms alone: at night only a face
+    // just inside one is indoors. Read as a hard edge, so no rim leaks past a wall.
+    const roomView = new OrthographicCamera(), roomMatrix = uniform(new Matrix4());
+    roomView.coordinateSystem = renderer.coordinateSystem;
     const roomTarget = new RenderTarget(SUN_MAP, SUN_MAP), roomDepth = roomTarget.depthTexture = new DepthTexture(SUN_MAP, SUN_MAP);
-    roomDepth.type = FloatType; roomDepth.compareFunction = LessEqualCompare; roomDepth.minFilter = roomDepth.magFilter = LinearFilter;
+    roomDepth.type = FloatType; roomDepth.compareFunction = LessEqualCompare; roomDepth.minFilter = roomDepth.magFilter = NearestFilter;
     owned.push(sunTarget, roomTarget);
     /** Fraction of the light reaching the point: a few hardware-filtered taps on a disc turned per pixel, as three.js does. */
     const sunShadow = (world: V3): F => {
@@ -187,20 +202,38 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const encode = (c: V3): V3 => mix(c.mul(12.92), pow(max(c, vec3(0)), vec3(1 / 2.4)).mul(1.055).sub(.055), step(vec3(.0031308), c));
     const display = (c: V3, useSource: F): V3 => select(useSource.greaterThan(.5), encode(c), c);
     const facing = (n: V3): V3 => select(u.twoSided.greaterThan(.5).and(frontFacing.not()), n.negate(), n);
-    /** Sky light: faces looking up get more of the ambient term than faces looking down. */
-    const sky = (n: V3): F => mix(float(.7), float(1.1), n.y.mul(.5).add(.5));
+    /** The sky's light on a face by the way it faces, from nine spherical-harmonic terms set per
+     * hour: brighter looking up, toward the low sun warmer, away from it bluer. Its luminance
+     * sets how lit the face reads and its colour, grey on a wall square to the sun's side, tints the hour's light. */
+    const skyTerm = (k: number): V3 => (u.sky.element(k) as unknown as V4).xyz;
+    // One variable per normal node, so lit() and graded() share the nine terms in a pixel.
+    const irradiances = new WeakMap<V3, V3>();
+    const irradiance = (n: V3): V3 => {
+      let e = irradiances.get(n);
+      if (!e) { e = evaluate(n).toVar(); irradiances.set(n, e); }
+      return e;
+    };
+    const evaluate = (n: V3): V3 => skyTerm(0).add(skyTerm(1).mul(n.y)).add(skyTerm(2).mul(n.z)).add(skyTerm(3).mul(n.x))
+      .add(skyTerm(4).mul(n.x.mul(n.y))).add(skyTerm(5).mul(n.y.mul(n.z))).add(skyTerm(6).mul(n.z.mul(n.z).mul(3).sub(1)))
+      .add(skyTerm(7).mul(n.x.mul(n.z))).add(skyTerm(8).mul(n.x.mul(n.x).sub(n.y.mul(n.y))));
+    const sky = (n: V3): F => dot(irradiance(n), vec3(LUMA[0], LUMA[1], LUMA[2]));
+    /** The sky's colour on a face at unit luminance. */
+    const skyColor = (n: V3): V3 => { const e = irradiance(n); return e.div(max(dot(e, vec3(LUMA[0], LUMA[1], LUMA[2])), .05)); };
     const night = u.night.greaterThan(.5);
     // By day the lit, lifted point is tested; at night the unlifted point a reach out along the face and a headroom up.
     const lifted = varying(positionGeometry.add(vec3(0, read(meshId, 4).w, 0)));
     const probe = select(night, varying(positionGeometry).add(facing(normalize(vNormal)).mul(INDOOR_REACH)).add(vec3(0, INDOOR_HEADROOM, 0)), lifted);
     // One variable, so the taps run once per pixel however many terms read the result.
     const outdoors = sunShadow(probe).toVar('outdoors');
-    /** 1 over a room's footprint: any depth drawn there is nearer than the cleared far plane. */
-    const overRoom = (world: V3): F => {
-      const clip = sunMatrix.mul(vec4(world, 1));
-      return float(1).sub(texture(roomDepth, vec2(clip.x.mul(.5).add(.5), float(.5).sub(clip.y.mul(.5)))).compare(ROOM_FAR).x);
+    /** 1 inside a room: below the top of the highest room volume there (a flat pick
+     * proxy reaching a storey up). */
+    const inRoom = (world: V3): F => {
+      const clip = roomMatrix.mul(vec4(world.sub(vec3(0, u.roomRaise, 0)), 1)), depth = toUnitDepth ? clip.z : clip.z.mul(.5).add(.5);
+      const at = vec2(clip.x.mul(.5).add(.5), float(.5).sub(clip.y.mul(.5)));
+      return float(1).sub(texture(roomDepth, at).compare(clamp(depth, 0, ROOM_FAR)).x);
     };
-    const roofed = float(1).sub(outdoors).mul(select(u.rooms.greaterThan(.5), overRoom(probe), float(1)));
+    const roomPoint = varying(positionGeometry).add(facing(normalize(vNormal)).mul(ROOM_REACH));
+    const roofed = float(1).sub(outdoors).mul(select(u.rooms.greaterThan(.5), inRoom(roomPoint), float(1)));
     const sunlit = select(night, float(1), outdoors), indoor = select(night, roofed, float(0));
     const lit = (n: V3): F => {
       const facingSun = dot(n, u.light);
@@ -213,7 +246,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
      * tints held near full strength. */
     const graded = (c: V3, n: V3, s7: V4): V3 => {
       const sun = float(1).sub(u.ambient).mul(u.direct).mul(max(dot(n, u.light), 0)).mul(sunlit).mul(SUN_TINT_GAIN);
-      const light = mix(mix(u.tint, u.sunTint, clamp(sun, 0, 1)), u.lampTint, u.lamp.mul(indoor));
+      const light = mix(mix(u.tint.mul(skyColor(n)), u.sunTint, clamp(sun, 0, 1)), u.lampTint, u.lamp.mul(indoor));
       return clamp(c.mul(mix(light, vec3(1), s7.y.mul(KEEP_TONE))), 0, 1);
     };
 
@@ -332,7 +365,10 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       const streak = smoothstep(.55, 1, along.sin()).mul(STREAK);
       const fresnel = float(GLASS_SHEEN).add(streak).add(float(1 - GLASS_SHEEN).mul(pow(float(1).sub(head), 5))).mul(mix(float(1), float(.4), frost));
       const R = N.mul(head.mul(2)).sub(V);
-      const sky = mix(mix(vec3(...GLASS_GROUND), vec3(...GLASS_HORIZON), smoothstep(-.25, 0, R.y)), vec3(...GLASS_ZENITH), smoothstep(0, .7, R.y));
+      // The hour's dome, with its glow low toward the sun.
+      const across = max(length(vec2(R.x, R.z)), .001);
+      const toward = pow(max(dot(vec2(R.x, R.z).div(across), vec2(skyTerm(13).x, skyTerm(13).z)), 0), GLOW_SPREAD).mul(pow(float(1).sub(clamp(R.y, 0, 1)), GLOW_HEIGHT));
+      const sky = mix(mix(skyTerm(11), skyTerm(10), smoothstep(-.25, 0, R.y)), skyTerm(9), smoothstep(0, .7, R.y)).add(skyTerm(12).mul(toward).mul(smoothstep(-.05, 0, R.y)));
       const glint = pow(max(dot(R, normalize(u.light)), 0), mix(float(GLINT_SHARP), float(GLINT_SPREAD), frost))
         .mul(u.direct).mul(sunlit).mul(GLINT_GAIN);
       const reflected = sky.mul(u.tint).mul(mix(float(.25), float(1), max(u.direct, float(1).sub(u.lamp)))).add(u.sunTint.mul(glint));
@@ -533,6 +569,20 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     }
 
     const corner = new Vector3();
+    /** Fits the room map to the flagged room volumes and says how far above a flat one its room reaches. */
+    const fitRooms = () => {
+      const min = new Vector3(Infinity, Infinity, Infinity), max = new Vector3(-Infinity, -Infinity, -Infinity), heights: number[] = [];
+      for (const [i, mesh] of meshes.entries()) if (table[i * STATE_FLOATS + 26]! > .5) {
+        min.min(new Vector3(...mesh.bounds.min)); max.max(new Vector3(...mesh.bounds.max)); heights.push(mesh.bounds.max[1] - mesh.bounds.min[1]);
+      }
+      heights.sort((a, b) => a - b);
+      u.roomRaise.value = (heights[heights.length >> 1] ?? 0) >= ROOM_VOLUME ? 0 : ROOM_STOREY;
+      const centre = new Vector3().addVectors(min, max).multiplyScalar(.5), half = Math.max(max.x - min.x, max.z - min.z) / 2 + ROOM_PAD;
+      roomView.position.set(centre.x, max.y + 1, centre.z); roomView.up.set(0, 0, -1); roomView.lookAt(centre.x, min.y, centre.z);
+      roomView.left = -half; roomView.right = half; roomView.top = half; roomView.bottom = -half;
+      roomView.near = .5; roomView.far = max.y - min.y + 1.5; roomView.updateMatrixWorld(true); roomView.updateProjectionMatrix();
+      roomMatrix.value.multiplyMatrices(roomView.projectionMatrix, roomView.matrixWorldInverse);
+    };
     const drawSun = () => {
       // At night the map reaches past the house by more than a probe, so a probe
       // beside an outer wall never reads the clamped edge of a roof.
@@ -550,7 +600,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       sun.left = min.x; sun.right = max.x; sun.bottom = min.y; sun.top = max.y; sun.near = -max.z - .1; sun.far = -min.z + .1;
       sun.updateProjectionMatrix(); sunMatrix.value.multiplyMatrices(sun.projectionMatrix, sun.matrixWorldInverse);
       renderer.setRenderTarget(sunTarget); renderer.render(dark ? shelterScene : solidScene, sun);
-      if (dark && u.rooms.value > .5) { renderer.setRenderTarget(roomTarget); renderer.render(roomScene, sun); }
+      if (dark && u.rooms.value > .5) { fitRooms(); renderer.setRenderTarget(roomTarget); renderer.render(roomScene, roomView); }
       renderer.setRenderTarget(null);
     };
 
@@ -567,7 +617,17 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const shade = select(depth.r.lessThan(1), mix(float(1), smooth.r, strength.mul(OCCLUSION_STRENGTH)), 1);
     const pipeline = new RenderPipeline(renderer, vec4(color.rgb.mul(shade), color.a));
     pipeline.outputColorTransform = false;
-    owned.push(geometryPass, colorPass, occlusion, history, pipeline);
+    // Contact shading depends on the solid house and the camera, never on the hour: a new
+    // hour over an unchanged house and view redraws only the colour pass and lays the
+    // shading already averaged over it. Plain textures, so none of the passes that wrote
+    // them run again.
+    const keptDepth = texture(geometryPass.renderTarget.depthTexture!), keptNormal = texture(geometryPass.renderTarget.texture);
+    const kept = texture(history.getTextureNode().value);
+    const keptSmooth = denoise(kept, keptDepth, keptNormal, solidCamera) as unknown as V4;
+    const keptShade = select(keptDepth.r.lessThan(1), mix(float(1), keptSmooth.r, strength.mul(OCCLUSION_STRENGTH)), 1);
+    const relit = new RenderPipeline(renderer, vec4(color.rgb.mul(keptShade), color.a));
+    relit.outputColorTransform = false;
+    owned.push(geometryPass, colorPass, occlusion, history, pipeline, relit);
 
     // Upload every piece and compile every pipeline ahead of the first frame,
     // at most a piece's worth of buffers per frame, so a large model never
@@ -588,23 +648,36 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     }
     for (const [sunScene, target] of [[solidScene, sunTarget], [shelterScene, sunTarget], [roomScene, roomTarget]] as const) for (const body of sunScene.children) {
       renderer.setRenderTarget(target);
-      try { await renderer.compileAsync(body, sun, sunScene); } finally { renderer.setRenderTarget(null); }
+      try { await renderer.compileAsync(body, sunScene === roomScene ? roomView : sun, sunScene); } finally { renderer.setRenderTarget(null); }
       signal?.throwIfAborted(); if (slice.due()) await slice.next();
     }
 
     // The view the contact shading history belongs to; any change starts it over.
     let disposed = false, sunStale = true, averaged: Projection | null = null;
+    // The table as last uploaded; NaN never compares equal, so the first write uploads.
+    const drawnTable = new Float32Array(table.length).fill(NaN);
     return {
       backend,
       render(q, appearance, width, height, shading) {
         if (disposed) return false;
+        // Whether only uniforms changed: a new hour leaves the table, by night the sun's map,
+        // and always the contact shading as they were.
+        let relight = false;
         if (appearance) {
-          const frame = writeAppearance(meshes, appearance, table); state.needsUpdate = true;
+          const frame = writeAppearance(meshes, appearance, table);
+          let changed = false;
+          for (let i = 0; i < table.length; i++) if (table[i] !== drawnTable[i]) { changed = true; break; }
+          if (changed) { drawnTable.set(table); state.needsUpdate = true; } else relight = true;
+          const [lx, ly, lz] = frame.light, night = frame.night ? 1 : 0, rooms = frame.rooms ? 1 : 0;
+          if (changed || night !== u.night.value || rooms !== u.rooms.value || lx !== u.light.value.x || ly !== u.light.value.y || lz !== u.light.value.z) sunStale = true;
           u.paper.value.set(...frame.materialPaper); u.ambient.value = frame.ambient; u.twoSided.value = frame.twoSided ? 1 : 0;
           u.light.value.set(...frame.light);
           u.ghostAlpha.value = frame.ghostAlpha; u.ghost.value.set(...frame.ghostColor); u.ghostShade.value.set(...frame.ghostShade);
           u.direct.value = frame.direct; u.night.value = frame.night ? 1 : 0; u.lamp.value = frame.lamp; u.rooms.value = frame.rooms ? 1 : 0;
           u.tint.value.set(...frame.tint); u.sunTint.value.set(...frame.sunTint); u.lampTint.value.set(...frame.lampTint);
+          const { sky } = frame;
+          const dome = [sky.zenith, sky.horizon, sky.ground, sky.glow, sky.glowToward];
+          (u.sky.array as Vector4[]).forEach((slot, k) => slot.set(...(k < 9 ? sky.irradiance.slice(k * 3, k * 3 + 3) as [number, number, number] : dome[k - 9]!), 0));
           (u.lamps.array as Vector4[]).forEach((point, at) => { const lamp = frame.lamps[at];
             point.set(lamp?.at[0] ?? 0, lamp?.at[1] ?? 0, lamp?.at[2] ?? 0, lamp ? frame.lamp : 0); });
           (u.lampAims.array as Vector4[]).forEach((aim, at) => { const toward = frame.lamps[at]?.aim;
@@ -612,13 +685,20 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
           (u.lampColors.array as Vector4[]).forEach((color, at) => color.set(...frame.lamps[at]?.color ?? [0, 0, 0], 0));
           for (const { geometry, index, y } of glassBounds) geometry.boundingSphere!.center.y = y + table[index * STATE_FLOATS + 19]!;
           for (const { pass, mesh } of layers) mesh.visible = pass === 'ghost' ? frame.ghosts : frame.passes.has(pass);
-          sunStale = true;
         }
         frame(q); u.viewDir.value.set(q.st * q.cf, q.sf, q.ct * q.cf);
         if (canvas.width !== width || canvas.height !== height) { renderer.setSize(width, height, false); averaged = null; }
         if (sunStale) { drawSun(); sunStale = false; }
-        if (appearance) averaged = null;
+        if (appearance && !relight) averaged = null;
         if (shading <= 0) { averaged = null; renderer.render(scene, camera); return false; }
+        if (relight && averaged === q && history.count > 0) {
+          strength.value = Math.min(1, shading); kept.value = history.getTextureNode().value;
+          internals._nodes.nodeFrame.update();
+          relit.render();
+          // Refining resumes only once the house or the view changes again; resuming here
+          // would draw the whole contact shading between the moves of a scrub.
+          return false;
+        }
         if (averaged !== q) { averaged = q; history.count = 0; }
         // Reach: OCCLUSION_RADIUS metres, at most OCCLUSION_REACH_PX layout pixels (k is pixels per metre).
         occlusion.radius.value = Math.min(OCCLUSION_RADIUS, OCCLUSION_REACH_PX / q.k);
