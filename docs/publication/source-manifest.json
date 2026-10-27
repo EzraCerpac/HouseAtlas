@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d56662eb5b93bba0b20bee4dcaa77d8a01349a9019cc7b3b9d35a854d773dc59",
+  "sourceDigestSha256": "278ce5db80322c27ef1ce8df53b5f5fd817f9742533a2d1e487a10e8c83370ae",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -1239,8 +1239,8 @@
     {
       "path": "backend/src/app/measurement_assertions.rs",
       "mode": "100644",
-      "bytes": 18229,
-      "sha256": "c8ea337f9d0d966d736994ade7d31802cf6b3ede3da5e7cf1c35b7488257e05a",
+      "bytes": 18271,
+      "sha256": "41f90e32d68671f774f9deea76efdd2215b36c8bdec90ecb480df269170efd01",
       "owner": "core-integration"
     },
     {
@@ -5005,8 +5005,8 @@
     {
       "path": "backend/src/storage/measurement_assertions.rs",
       "mode": "100644",
-      "bytes": 154681,
-      "sha256": "282949fa92833d8c72583081940da4c8f263841ba1907d507c2bf0421e344c34",
+      "bytes": 154787,
+      "sha256": "2bc3c87cc607b3a360323a689f0b7b3cb3e22cc512a1f593dc7f18f665580b0f",
       "owner": "storage"
     },
     {

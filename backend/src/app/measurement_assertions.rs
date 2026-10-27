@@ -279,7 +279,9 @@ impl MeasurementOwners {
         let mut closures = Vec::new();
         for choice in self.authority.disclosure_choices(selector)? {
             let assertion_inputs = choice["inputs"].as_array().is_some_and(|inputs| {
-                inputs.iter().any(|input| input["expectation"]["kind"] == "assertion")
+                inputs
+                    .iter()
+                    .any(|input| input["expectation"]["kind"] == "assertion")
             });
             let dependencies = if assertion_inputs { receipts } else { &[] };
             // Invalid optional dependencies cannot become required disclosure.

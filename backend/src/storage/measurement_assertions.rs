@@ -114,7 +114,9 @@ impl MeasurementPreparation {
     ) -> Option<&crate::contracts::semantics::ReferenceClosure> {
         self.advisory_mutation_closure.as_ref()
     }
-    pub fn optional_choice_source_closures(&self) -> &[crate::contracts::semantics::ReferenceClosure] {
+    pub fn optional_choice_source_closures(
+        &self,
+    ) -> &[crate::contracts::semantics::ReferenceClosure] {
         &self.optional_choice_closures
     }
 }
@@ -468,7 +470,9 @@ where
             binding.owners.disclose(guard, disclosed, &f, &all_bodies)?;
         }
         require(
-            binding.owners.optional_choice_closures(&input["selector"], &f, &all_bodies)?
+            binding
+                .owners
+                .optional_choice_closures(&input["selector"], &f, &all_bodies)?
                 == prepared.optional_choice_closures,
         )?;
         let mut admitted = binding.owners.context(
@@ -631,9 +635,14 @@ where
         }
         // Recheck CURRENT mapping only. Historical opaque context never becomes
         // a requirement to open old producer content or an applicability grant.
-        let again = binding
-            .owners
-            .context(guard, disclosed, &input["selector"], &f, &all_bodies, choice_sources)?;
+        let again = binding.owners.context(
+            guard,
+            disclosed,
+            &input["selector"],
+            &f,
+            &all_bodies,
+            choice_sources,
+        )?;
         require(
             again["target"] == admitted["target"]
                 && again["targetAdmission"] == admitted["targetAdmission"],
