@@ -27,8 +27,18 @@ different observer crate.
 
 Use a clean isolated checkout and an already installed repository-pinned Rust
 toolchain resolved through `rustup which`. Dependencies must already be cached:
-builds use `--offline --locked`, a fresh owned target directory, no caller
-Rustflags or profile overrides, and no install commands. On macOS the build
+builds use `--offline --locked`, a fresh owned target directory, a minimal child
+environment and no install commands. Caller Rustflags, `CARGO_INCREMENTAL` and
+`CARGO_PROFILE_*` environment overrides are not forwarded. The existing Cargo
+home is admitted as a dependency cache only when neither `config` nor
+`config.toml` exists there or in any `.cargo` directory from the checkout through
+its filesystem ancestors. Presence (including a broken symlink) stops the build
+without reading config or credential contents or modifying caller files. The
+admitted config-absence facts, build environment, manifests and toolchain are
+hashed, and config presence is rechecked after the build. These pre/post checks
+do not lock or snapshot the cache/config directories; concurrent mutation is
+outside the receipt. Effective artifact checks alone do not establish clean
+configuration. On macOS the build
 records `MACOSX_DEPLOYMENT_TARGET=15.0`. Offline build failure is a blocker,
 not a reason to fetch dependencies or change permissions automatically.
 
@@ -42,6 +52,22 @@ Each directory must be new, absolute, outside Git, with an existing parent.
 Each collection command builds the same selected workload independently and
 retains its binary/symbols. No full local build is a source-publication gate.
 This tooling does not change or extend ordinary CI or perform deployment.
+
+Every Cargo build has a 900-second deadline; each workload/profiler observation
+has 300 seconds; tool/version and Git identity queries have 30 seconds. Commands
+run in fresh owned POSIX sessions/process groups. On timeout, SIGINT, SIGTERM or
+error, cleanup targets that group with TERM, a one-second grace period and KILL,
+then allows up to two seconds to reap the direct child. Group cleanup also runs
+when the leader exits, so background descendants are not deliberately retained.
+Receipts preserve partial process/sample records, exit/signal/deadline state and
+cleanup attempts. Timeout returns 124; caught SIGINT/SIGTERM returns 128 plus the
+signal number. Partial RSS/CPU counters from a stopped process are not successful
+measurements. Repeated ordinary interrupts are ignored during bounded cleanup
+and receipt finalization. Polling can add up to 10 ms to recorded wall time.
+Escaped process groups, orphan zombies and uninterruptible kernel tasks cannot
+be certified absent by group signals; unresolved direct-child cleanup is
+explicitly uncertain. SIGKILL or loss of output storage cannot guarantee a final
+receipt. No other process, kernel setting or permission is targeted.
 
 The fixed workload is the existing `healthy-home-read-pack` example with no
 arguments. It generates its own disposable native database, access and media,
@@ -68,6 +94,10 @@ instrumented scenario completed. RSS checks each workload process directly.
 Build/compiler work is outside every runtime observation. OS caches are
 unmanaged; fresh processes do not mean cold caches. No cold/warm or throughput
 claim follows, and these separate modes cannot be combined into one timing.
+Samply's processed columnar sample tables are validated against their declared
+`length`, stack, weight and time/timeDeltas columns, including optional CPU delta
+lengths. Raw Gecko rows, malformed columns and empty captures are not accepted
+as successful CPU profiling evidence.
 
 Samply is preferred for CPU sampling on Linux and macOS. If it is absent,
 collection stops before building. A Linux `perf_event_paranoid` value above 2
@@ -100,7 +130,10 @@ existing performance contract/reporting and held candidates remain separate.
 
 The scoped guard tests exercise profile prerequisites, restricted perf policy,
 environment isolation, output custody, sample counting and prepare-only
-behavior without Cargo, a profiler or any backend execution:
+behavior, inherited-config refusal without reading its contents, and bounded
+cleanup/partial receipts for hanging generated RSS, profiler and Cargo stand-ins
+with descendants. A separate generated orchestrator receives SIGTERM. These
+tests run no real Cargo, profiler or backend:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/perf/runtime-profile -p test_runtime_profile.py -v

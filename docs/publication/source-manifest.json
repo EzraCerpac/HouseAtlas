@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "dbf421e257e6f11dfb984aab415e1e8fa7515410ea50e404feddbe22f577e117",
+  "sourceDigestSha256": "9f747f33ca32f29ad10fdaf8db406d49a7bc58024c6b24042a67ec54407f9df6",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -12446,22 +12446,22 @@
     {
       "path": "tools/perf/runtime-profile/README.md",
       "mode": "100644",
-      "bytes": 7153,
-      "sha256": "21d4e9fee94d8a85b58aa5a069b3227e6369e1fd31d6384646189ff97fa4e5e8",
+      "bytes": 9577,
+      "sha256": "db7a193dc87e8affbd7b723aaa7ec7509980287a3a1a129bfeca09030ccc3d3e",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/runtime-profile/run.py",
       "mode": "100644",
-      "bytes": 16453,
-      "sha256": "d1395f279bec71fd52b70fec5a415e9c5bc8dd42f4f88c9f92b611063c2f5a6f",
+      "bytes": 29427,
+      "sha256": "d9ddb4c49751ba84bcfc35b2063700609d207ff2bec3320ae4e454c7bdf52653",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/runtime-profile/test_runtime_profile.py",
       "mode": "100644",
-      "bytes": 5642,
-      "sha256": "8a1aa73b753a15fd788fa56b9c464ea3e5bd2479a31159136e7198d80e647223",
+      "bytes": 18051,
+      "sha256": "cfd1d3cb9b37a75f04da3d22bb540e516fae2ce14d56c852a357bf657e6f8e71",
       "owner": "core-integration"
     },
     {
