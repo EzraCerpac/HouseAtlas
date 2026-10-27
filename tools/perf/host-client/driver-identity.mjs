@@ -11,6 +11,7 @@ export const measurementDriverPaths = Object.freeze([
   'tools/perf/host-client/compare.mjs',
   'tools/perf/host-client/driver-identity.mjs',
   'tools/perf/host-client/fixture.mjs',
+  'tools/perf/host-client/mcp-contract.mjs',
   'tools/perf/host-client/options.mjs',
   'tools/perf/host-client/run.mjs',
   'tools/perf/host-client/transport.mjs',

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { setTimeout as delay } from 'node:timers/promises';
 
 export function options(args) {
   const [mode, ...rest] = args;
@@ -45,4 +46,34 @@ export function summarize(samples, elapsedMs, generator) {
     successfulBytesPerSecond: complete.reduce((sum, row) => sum + row.bytes, 0) * 1000 / elapsedMs,
     generator,
   };
+}
+
+// One global reservation clock survives cohort changes. ready() waits out an
+// existing cooldown without consuming a request slot or resetting the bound.
+// Injectable clocks exercise this scheduler with no listener or real sleeps.
+export function createPacer(rate, now = () => performance.now(),
+  sleep = (ms, signal) => delay(ms, undefined, { signal })) {
+  assert(Number.isInteger(rate) && rate >= 1 && rate <= 10);
+  let nextStart = 0, tail = Promise.resolve();
+  function schedule(reserve, signal) {
+    const turn = tail.then(async () => {
+      signal?.throwIfAborted();
+      while (now() < nextStart) {
+        await sleep(nextStart - now(), signal);
+        signal?.throwIfAborted();
+      }
+      const at = now();
+      if (reserve) nextStart = at + 1000 / rate;
+      return at;
+    });
+    tail = turn.catch(() => {});
+    return turn;
+  }
+  return { wait: signal => schedule(true, signal), ready: signal => schedule(false, signal) };
+}
+export async function beginCohort(transport, reuse, now = () => performance.now()) {
+  // Establish the cohort epoch only after the transport's carried cooldown.
+  await transport.ready();
+  transport.connection(reuse);
+  return now();
 }

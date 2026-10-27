@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "f7113965e1961a8f0833cac5d6cf8f385f8e662661720743a4bf9d5a69cc7221",
+  "sourceDigestSha256": "140ed8544d5212c1d8bd45d7d0837ed7427ffec405a4ea87e901df78e5ade58e",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -12222,29 +12222,29 @@
     {
       "path": "tools/perf/host-client/README.md",
       "mode": "100644",
-      "bytes": 8933,
-      "sha256": "b6701d8603f13c844ef8b37a952090f945251314a5315359e54606669b6228af",
+      "bytes": 9597,
+      "sha256": "2629a3b52e1ee65b0fc624e469c1b086d450823016fdbe1b4081fe1acc83fc33",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/host-client/compare.mjs",
       "mode": "100644",
-      "bytes": 3345,
-      "sha256": "965d0c8b08a4a30700a09410199a16d43aa2b779392b862e2d39df367579e036",
+      "bytes": 3430,
+      "sha256": "09575e3eb9ab42f85581ffda218dffc1a17bf384902276ac65ecb66e183a1ece",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/host-client/compare.test.mjs",
       "mode": "100644",
-      "bytes": 2529,
-      "sha256": "9db1d9393c427c2d21a3dd654beb00147ddc4277108f343ed3ad5da36d209574",
+      "bytes": 3968,
+      "sha256": "73a5b9d945ad34a6686255f62c0b9b8f956805f2289fbcd58e3a784a05c31201",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/host-client/driver-identity.mjs",
       "mode": "100644",
-      "bytes": 1324,
-      "sha256": "ff918a68faa6747ab884a62592aa1c6ee08dbdacfd9e1a32d43544a08211b22d",
+      "bytes": 1369,
+      "sha256": "7b3766450a574b758f3eb9aa167a164c47420ab2b413371e61bad1d05ddcd5df",
       "owner": "core-integration"
     },
     {
@@ -12255,31 +12255,38 @@
       "owner": "core-integration"
     },
     {
+      "path": "tools/perf/host-client/mcp-contract.mjs",
+      "mode": "100644",
+      "bytes": 2038,
+      "sha256": "66b28f988bb952c6de6ee671996271e287d42a940f4d86c866ffce38cdf1495e",
+      "owner": "core-integration"
+    },
+    {
       "path": "tools/perf/host-client/options.mjs",
       "mode": "100644",
-      "bytes": 2534,
-      "sha256": "52875c81d7b9417cd1e5a58c5f45b0168c7073598c1a467bc47cd957d0bad8e2",
+      "bytes": 3787,
+      "sha256": "b0c3477d54eea51e888fcce2d077251628c86b1a4dbb6e5850be5f063accf742",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/host-client/options.test.mjs",
       "mode": "100644",
-      "bytes": 3227,
-      "sha256": "9783c65be70740ff842521d94a0ebe5299cb1db599e9b2768cc233b314180901",
+      "bytes": 6655,
+      "sha256": "0a733e7697378f1ab8d0918920306db20b99bf96fac9a164c9362f6107aa70bf",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/host-client/run.mjs",
       "mode": "100644",
-      "bytes": 16076,
-      "sha256": "9713da17403169065a7491ba29656a53e52b7f4f057f55b70748e0f66ed6a028",
+      "bytes": 14692,
+      "sha256": "1f30abea550e13fca6f8c90e407152026204f1a8637fe9edd1e3f56120f147e9",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/host-client/transport.mjs",
       "mode": "100644",
-      "bytes": 7124,
-      "sha256": "836d1fa74263c7f58070218f3787af5e269435a26b0f8e8257fbf32eae12764c",
+      "bytes": 6986,
+      "sha256": "a83f9d2c9c55a08a7e41abfc0ce0abd6782c86aa24818646be7d2f63c95e966f",
       "owner": "core-integration"
     },
     {

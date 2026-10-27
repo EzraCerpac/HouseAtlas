@@ -4,7 +4,8 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { measurementDriverIdentity, measurementDriverPaths } from './driver-identity.mjs';
-import { options, summarize } from './options.mjs';
+import { beginCohort, createPacer, options, summarize } from './options.mjs';
+import { mcpContract } from './mcp-contract.mjs';
 
 test('explicit cohort selection and resource limits fail closed', () => {
   for (const args of [[], ['anything'], ['contract'], ['contract', '--binary'],
@@ -30,7 +31,7 @@ test('raw sample counts qualify empirical tails and retain errors', () => {
 });
 
 test('fingerprint covers every runtime source, including pacing, timing, fixture and launcher', () => {
-  for (const filename of ['run.mjs', 'options.mjs', 'transport.mjs', 'fixture.mjs', 'driver-identity.mjs', 'compare.mjs']) {
+  for (const filename of ['run.mjs', 'options.mjs', 'transport.mjs', 'fixture.mjs', 'driver-identity.mjs', 'compare.mjs', 'mcp-contract.mjs']) {
     assert(measurementDriverPaths.includes('tools/perf/host-client/' + filename));
   }
   assert(measurementDriverPaths.includes('.mise/tasks/perf-host-client'));
@@ -50,4 +51,72 @@ test('fingerprint covers every runtime source, including pacing, timing, fixture
     }
     assert.deepEqual(measurementDriverIdentity(scratch), baseline);
   } finally { rmSync(scratch, { recursive: true, force: true }); }
+});
+
+test('cohort epoch waits for carried pacing cooldown without resetting the global rate', async () => {
+  let now = 0;
+  const starts = [], clientLatencies = [];
+  const pacer = createPacer(2, () => now, async ms => { now += ms; });
+  await pacer.wait(); starts.push(now);
+  now += 2; // preceding cohort's fast synthetic exchange
+  let connectionAt;
+  const transport = { ready: pacer.ready, connection() { connectionAt = now; } };
+  const epoch = await beginCohort(transport, true, () => now);
+  assert.equal(epoch, 500); assert.equal(connectionAt, 500);
+  for (let index = 0; index < 3; index++) {
+    now = Math.max(now, epoch + index * 500);
+    const begin = now;
+    await pacer.wait(); starts.push(now);
+    now += 2;
+    clientLatencies.push(now - begin);
+  }
+  assert.deepEqual(starts, [0, 500, 1000, 1500]);
+  assert.deepEqual(clientLatencies, [2, 2, 2]);
+  // Alignment itself consumes no reservation, including repeated readiness.
+  now += 1;
+  await pacer.ready(); const aligned = now;
+  await pacer.ready(); assert.equal(now, aligned);
+  await pacer.wait(); assert.equal(now, aligned);
+});
+
+test('MCP contract signs in the generated editor and sends current CSRF on every POST', async () => {
+  const credentials = { username: 'synthetic-editor', password: 'synthetic-only' };
+  const scope = { workspaceId: 'synthetic-workspace', homeId: 'synthetic-home' };
+  const signal = new AbortController().signal, calls = [];
+  let signedIn = false, canonicalSessionRead = false;
+  const session = {
+    async signIn(input, receivedSignal) {
+      assert.equal(input, credentials); assert.equal(receivedSignal, signal);
+      signedIn = true;
+      return { csrfToken: 'earlier-token' };
+    },
+    async session(receivedSignal) {
+      assert(signedIn); assert.equal(receivedSignal, signal);
+      canonicalSessionRead = true;
+      return { csrfToken: 'current-token' };
+    },
+  };
+  const transport = { async fetch(path, init) {
+    assert(signedIn && canonicalSessionRead);
+    assert.equal(path, '/api/atlas/mcp/workspaces/synthetic-workspace/homes/synthetic-home');
+    assert.equal(init.method, 'POST'); assert.equal(init.signal, signal);
+    const headers = new Headers(init.headers);
+    assert.equal(headers.get('X-Atlas-CSRF'), 'current-token');
+    const message = JSON.parse(init.body); calls.push(message.method);
+    if (message.method === 'initialize') {
+      assert.equal(headers.get('MCP-Session-Id'), null);
+      return new Response(JSON.stringify({ result: { protocolVersion: '2025-11-25' } }), {
+        status: 200, headers: { 'Content-Type': 'application/json', 'MCP-Session-Id': 'synthetic-session' },
+      });
+    }
+    assert.equal(headers.get('MCP-Session-Id'), 'synthetic-session');
+    if (message.method === 'notifications/initialized') return new Response('', { status: 202 });
+    assert.equal(message.method, 'tools/list');
+    const names = ['atlas_bindings', 'atlas_media_geometry', 'atlas_records', 'homebox_entities_locations'];
+    return new Response(JSON.stringify({ result: { tools: names.map(name => ({ name })) } }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    });
+  } };
+  await mcpContract({ transport, session, editorLogin: credentials, scope, signal });
+  assert.deepEqual(calls, ['initialize', 'notifications/initialized', 'tools/list']);
 });

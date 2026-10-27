@@ -30,7 +30,9 @@ modes/options, missing values, repeated options and empty selections fail.
 
 `contract` checks real TLS API replies through the production Atlas and session
 decoders, scoped view parity, the generated asset digest and immutable policy,
-and JSON MCP initialize/notification/tools-list. MCP does not support SSE here;
+and JSON MCP initialize/notification/tools-list. The MCP sequence signs in with
+the generated editor credentials, rereads the current session and attaches its
+CSRF token to every POST, matching the host's existing Editor-only profile. MCP does not support SSE here;
 the protocol's accepted media-types header is not a streaming test. Read-only
 SQLite counts confirm six fixture records and no native audit writes.
 
@@ -84,7 +86,9 @@ Every request cohort defaults to a 45 s deadline and accepts
 `--deadline-ms` only up to 60000. Per-request wall time is at most 5 s, including
 body delivery. All network starts are paced at `--rate` (default/max 10 per
 second), including setup reads, and at most `--concurrency` (default 1/max 4)
-requests are active. Samples default to 30 and are capped at 200 per measured
+requests are active. Before a measured cohort starts its clock, it waits for
+the transport's carried cooldown without resetting or consuming a request slot;
+that previous-cohort wait is excluded from per-request latency. Samples default to 30 and are capped at 200 per measured
 cohort. The fixture's aggregate generated assets are below 8 MiB; each received
 body is bounded by 8 MiB. Setup is separate: certificate generation has a 5 s
 timeout, Rust readiness a 30 s timeout, and shutdown a 6 s grace period followed
@@ -121,8 +125,8 @@ silently inserted into successful quantiles. Comparison rejects different
 runner/runtime, production adapter bundle, complete measurement driver, offered
 load, fixture size or cohort contexts. The separate `measurementDriverSha256`
 hashes a versioned, sorted relative-path/byte-count/SHA-256 manifest of every
-local runtime source: run, options, transport, fixture, driver-identity and
-comparison modules plus the mise launcher. The explicit closure includes the
+local runtime source: run, options, transport, fixture, MCP contract, driver-identity
+and comparison modules plus the mise launcher. The explicit closure includes the
 fingerprint implementation itself; extend it when adding a runtime module.
 `clientBundleSha256` independently identifies the built production adapter.
 Source fingerprints compare supplied reports; they are not signed build or
@@ -135,11 +139,13 @@ before drawing a conclusion.
 ## Qualification status and next seam
 
 The two explicit, source-only stdlib Node test files now run in the existing
-ordinary-core lightweight job with `--test-concurrency=1`. Their six cases
+ordinary-core lightweight job with `--test-concurrency=1`. Their nine cases
 exercise options, summary accounting, fingerprints over generated temporary
-source files, comparison identity/context rejection and saturation/error
-qualification. They launch no host, listener, Vite, browser, generator or
-profiler. The host/client contract, faults and measurements remain opt-in and
+source files, comparison identity/context rejection, saturation/error
+qualification, carried-cooldown alignment with a synthetic clock, MCP editor/CSRF
+propagation through fake session/transport ports, and CLI execution from a
+generated path containing spaces. The CLI case launches only a bounded Node comparison child over generated
+reports. These cases launch no host, listener, Vite, browser, generator or profiler. The host/client contract, faults and measurements remain opt-in and
 unrun by ordinary CI. A future non-browser `contract` invocation using the
 existing Rust artifact requires separate reviewed registration; faults and
 release measurements remain separately selected. No new CI lane is added.

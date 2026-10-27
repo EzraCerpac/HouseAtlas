@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import { arch, cpus, platform, release } from 'node:os';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { setTimeout as delay } from 'node:timers/promises';
-import { options, summarize } from './options.mjs';
+import { beginCohort, options, summarize } from './options.mjs';
+import { mcpContract } from './mcp-contract.mjs';
 import { asset, assetPath, databaseCounts, fixture, sha256 } from './fixture.mjs';
 
 const config = options(process.argv.slice(2));
@@ -56,28 +57,7 @@ async function contract() {
     assert.equal(response.status, 200);
     assert.match(response.headers.get('cache-control'), /immutable/);
     assert.equal(sha256(Buffer.from(await response.arrayBuffer())), sha256(asset));
-    const path = '/api/atlas/mcp/workspaces/' + scope.workspaceId + '/homes/' + scope.homeId;
-    let mcpSession;
-    const post = async message => {
-      const result = await transport.fetch(path, {
-        method: 'POST', signal: bound.signal, body: JSON.stringify(message),
-        headers: { Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json',
-          'MCP-Protocol-Version': '2025-11-25', ...(mcpSession ? { 'MCP-Session-Id': mcpSession } : {}) },
-      });
-      mcpSession = result.headers.get('mcp-session-id') ?? mcpSession;
-      return result;
-    };
-    const init = await post({ jsonrpc: '2.0', id: 1, method: 'initialize',
-      params: { protocolVersion: '2025-11-25', capabilities: {},
-        clientInfo: { name: 'Synthetic host-client contract', version: '1' } } });
-    assert.equal(init.status, 200); assert.match(init.headers.get('content-type'), /application\/json/);
-    assert.equal((await init.json()).result.protocolVersion, '2025-11-25'); assert(mcpSession);
-    const ready = await post({ jsonrpc: '2.0', method: 'notifications/initialized' });
-    assert.equal(ready.status, 202); assert.equal(await ready.text(), '');
-    const listed = await post({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
-    assert.equal(listed.status, 200); assert.match(listed.headers.get('content-type'), /application\/json/);
-    assert.deepEqual((await listed.json()).result.tools.map(row => row.name).sort(),
-      ['atlas_bindings', 'atlas_media_geometry', 'atlas_records', 'homebox_entities_locations']);
+    await mcpContract({ transport, session, editorLogin: generated.editorLogin, scope, signal: bound.signal });
     const counts = databaseCounts(owned.data);
     assert.deepEqual(counts, { records: 6, audits: 0 });
     return { productionAdapters: 'Atlas load/loadHome and session', viewEntries: 2,
@@ -158,8 +138,8 @@ function hostResources() {
   } catch { return { observedRssBytes: null, cpuTicks: null }; }
 }
 async function measureCohort(name, count, reuse, operation, context) {
-  transport.connection(reuse);
-  const bound = bounded(), samples = [], started = performance.now(), cpu = process.cpuUsage();
+  const started = await beginCohort(transport, reuse);
+  const bound = bounded(), samples = [], cpu = process.cpuUsage();
   const eventLoop = monitorEventLoopDelay({ resolution: 10 }); eventLoop.enable();
   const hostBefore = hostResources();
   let peakRssBytes = process.memoryUsage().rss, hostPeakRssBytes = hostBefore.observedRssBytes;

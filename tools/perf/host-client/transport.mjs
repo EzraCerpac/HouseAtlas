@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { Agent, request } from 'node:https';
-import { setTimeout as delay } from 'node:timers/promises';
+import { createPacer } from './options.mjs';
 
 // A narrow Node HTTPS -> Fetch port for the unchanged production adapters.
 // Only the newly generated listener is admissible; redirects are never followed.
@@ -8,8 +8,8 @@ export function localTransport({ origin, ca, cookie, rate = 10, maxBytes = 8 << 
   assert.match(origin, /^https:\/\/127\.0\.0\.1:[0-9]+$/);
   assert(Number.isInteger(rate) && rate >= 1 && rate <= 10);
   const agents = new Set();
-  let agent = false, storedCookie = cookie, active = 0, nextStart = 0;
-  let starts = Promise.resolve(), closed = false;
+  let agent = false, storedCookie = cookie, active = 0, closed = false;
+  const pacer = createPacer(rate);
   const rows = [];
   function connection(reuse) {
     assert.equal(active, 0, 'Set connection mode between cohorts');
@@ -17,15 +17,10 @@ export function localTransport({ origin, ca, cookie, rate = 10, maxBytes = 8 << 
     agent = reuse ? new Agent({ keepAlive: true, maxSockets: 4, maxFreeSockets: 4, maxCachedSessions: 0 }) : false;
     if (agent) agents.add(agent);
   }
-  async function pace(signal) {
-    const turn = starts.then(async () => {
-      signal?.throwIfAborted();
-      await delay(Math.max(0, nextStart - performance.now()), undefined, { signal });
-      signal?.throwIfAborted();
-      nextStart = performance.now() + 1000 / rate;
-    });
-    starts = turn.catch(() => {});
-    return turn;
+  async function ready(signal) {
+    assert.equal(active, 0, 'Align only after the preceding cohort settles');
+    await pacer.ready(signal);
+    assert.equal(active, 0, 'No request may overlap cohort alignment');
   }
   async function fetch(path, init = {}, fault = null, observe = () => {}) {
     assert(!closed, 'Transport closed');
@@ -37,7 +32,7 @@ export function localTransport({ origin, ca, cookie, rate = 10, maxBytes = 8 << 
     const body = init.body;
     assert(body === undefined || body === null || typeof body === 'string', 'Only bounded JSON text bodies');
     if (body) assert(Buffer.byteLength(body) <= 65536);
-    await pace(signal);
+    await pacer.wait(signal);
     signal?.throwIfAborted();
     assert(active < 4, 'At most four in-flight requests');
     active++;
@@ -142,7 +137,7 @@ export function localTransport({ origin, ca, cookie, rate = 10, maxBytes = 8 << 
     });
   }
   return {
-    fetch, rows, connection,
+    fetch, rows, connection, ready,
     get active() { return active; },
     close() { closed = true; for (const owned of agents) owned.destroy(); agents.clear(); },
   };

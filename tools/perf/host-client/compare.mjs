@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export function compare(base, candidate) {
   for (const report of [base, candidate]) {
@@ -45,7 +47,7 @@ export function compare(base, candidate) {
   };
 }
 
-if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   assert.equal(process.argv.length, 4, 'Supply base.json candidate.json');
   const reports = process.argv.slice(2).map(path => {
     const bytes = readFileSync(path);

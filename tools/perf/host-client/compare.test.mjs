@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { compare } from './compare.mjs';
 
 function report(sourceSha) {
@@ -43,4 +47,26 @@ test('saturation and errors prevent a qualified comparison; sparse tails stay nu
   candidate.cohorts[0].summary.generator.saturation = false;
   candidate.cohorts[0].summary.errors = 1;
   assert.equal(compare(base, candidate).cohorts[0].qualified, false);
+});
+
+test('comparison CLI executes from a path containing spaces and rejects missing arguments', () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'houseatlas compare path '));
+  try {
+    const script = join(scratch, 'compare with spaces.mjs');
+    writeFileSync(script, readFileSync(new URL('./compare.mjs', import.meta.url)));
+    const base = join(scratch, 'base report.json'), candidate = join(scratch, 'candidate report.json');
+    writeFileSync(base, JSON.stringify(report('1'.repeat(40))));
+    writeFileSync(candidate, JSON.stringify(report('2'.repeat(40))));
+    const execute = args => spawnSync(process.execPath, [script, ...args], {
+      encoding: 'utf8', timeout: 5000, maxBuffer: 1024 * 1024,
+    });
+    const compared = execute([base, candidate]);
+    assert.equal(compared.error, undefined); assert.equal(compared.status, 0, compared.stderr);
+    const result = JSON.parse(compared.stdout);
+    assert.equal(result.format, 'houseatlas-host-client-comparison/1');
+    assert.equal(result.cohorts[0].qualified, true);
+    const missing = execute([]);
+    assert.notEqual(missing.status, 0);
+    assert.match(missing.stderr, /Supply base.json candidate.json/);
+  } finally { rmSync(scratch, { recursive: true, force: true }); }
 });
