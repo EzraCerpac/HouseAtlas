@@ -1,6 +1,7 @@
 //! Offline explicit provisioning and normal persistent reopen. No fixture data,
 //! login/session receipt, provider, archive admission or recovery is created.
 use super::Failure;
+pub mod measurements;
 use crate::{
     access as a,
     app::{Core, ReadAuthority, ServerRuntime, Store},

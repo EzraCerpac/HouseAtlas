@@ -111,6 +111,8 @@ async fn run(
         ).map_err(|error|format!("HouseAtlas Atlas room-link settings: {error}"))?;
     let (arguments, geodata_selection) = ServerGeodataSelection::from_arguments(&arguments)
         .map_err(|error| format!("HouseAtlas full geodata settings: {error}"))?;
+    let (arguments, measurement_selection) = houseatlas_backend::config::measurement_profile::ServerMeasurementSelection::from_arguments(&arguments)
+        .map_err(|error| format!("HouseAtlas measurement settings: {error}"))?;
     let (arguments, ai_account) =
         houseatlas_backend::config::ai_account::ServerAccountSelection::from_arguments(&arguments)
             .map_err(|error| format!("HouseAtlas AI account settings: {error}"))?;
@@ -158,6 +160,7 @@ async fn run(
                     config,
                     ai_account,
                     geodata_selection,
+                    measurement_selection,
                     model_overview,
                     atlas_scene,
                     atlas_room_links,
@@ -304,6 +307,7 @@ async fn run_persistent(
     config: houseatlas_backend::config::server::ServerConfig,
     ai_account: Option<houseatlas_backend::config::ai_account::ServerAccountSelection>,
     geodata_selection: Option<ServerGeodataSelection>,
+    measurement_selection: houseatlas_backend::config::measurement_profile::ServerMeasurementSelection,
     model_overview: Option<
         houseatlas_backend::config::model_overview::ServerModelOverviewSelection,
     >,
@@ -328,6 +332,7 @@ async fn run_persistent(
             config,
             ai_account,
             geodata_policy,
+            measurement_selection,
             model_overview,
             atlas_scene,
             atlas_room_links,
@@ -343,14 +348,21 @@ async fn run_persistent(
     let (certificate, key) = read_tls_files(&config)?;
     let tls = axum_server::tls_rustls::RustlsConfig::from_pem(certificate, key).await?;
     let selected = Arc::clone(&config);
-    let full_geodata = geodata_policy.is_some();
-    let (core, lease) =
-        tokio::task::spawn_blocking(move || reopen_persistent(&selected, geodata_policy)).await??;
+    let (mut model_overview, mut atlas_scene) = (model_overview, atlas_scene);
+    let prepared =
+        prepare_measurements(measurement_selection, &mut model_overview, &mut atlas_scene)?;
+    let full_geodata = geodata_policy.is_some() && prepared.is_none();
+    let (core, lease, measurement_mount) =
+        tokio::task::spawn_blocking(move || reopen_persistent(&selected, geodata_policy, prepared))
+            .await??;
     let lease = Arc::new(lease);
     *persistent_lease = Some(Arc::clone(&lease));
-    let mut host = Host::new(core, config.origin.clone(), files, Vec::new())?
-        .with_mcp_command_profile(config.command_profile())
-        .with_backup_folder(config.data_directory.join("backup"));
+    let mut host = match measurement_mount {
+        Some(mount) => mount.into_host(core, config.origin.clone(), files)?,
+        None => Host::new(core, config.origin.clone(), files, Vec::new())?,
+    }
+    .with_mcp_command_profile(config.command_profile())
+    .with_backup_folder(config.data_directory.join("backup"));
     if full_geodata {
         host = host.with_full_geodata()?;
     }
@@ -408,6 +420,7 @@ async fn run_gateway(
     config: houseatlas_backend::config::server::ServerConfig,
     ai_account: Option<houseatlas_backend::config::ai_account::ServerAccountSelection>,
     geodata_policy: Option<Arc<dyn GeodataSourcePolicy>>,
+    measurement_selection: houseatlas_backend::config::measurement_profile::ServerMeasurementSelection,
     model_overview: Option<
         houseatlas_backend::config::model_overview::ServerModelOverviewSelection,
     >,
@@ -428,9 +441,13 @@ async fn run_gateway(
     }
     let files = Arc::new(frontend(&config.frontend_directory)?);
     let selected = Arc::clone(&config);
-    let full_geodata = geodata_policy.is_some();
-    let (core, lease) =
-        tokio::task::spawn_blocking(move || reopen_persistent(&selected, geodata_policy)).await??;
+    let (mut model_overview, mut atlas_scene) = (model_overview, atlas_scene);
+    let prepared =
+        prepare_measurements(measurement_selection, &mut model_overview, &mut atlas_scene)?;
+    let full_geodata = geodata_policy.is_some() && prepared.is_none();
+    let (core, lease, measurement_mount) =
+        tokio::task::spawn_blocking(move || reopen_persistent(&selected, geodata_policy, prepared))
+            .await??;
     let lease = Arc::new(lease);
     *persistent_lease = Some(Arc::clone(&lease));
     let policy = core
@@ -443,9 +460,12 @@ async fn run_gateway(
     let ServerAuthentication::TrustedProxy { socket: path, .. } = &config.authentication else {
         return Err("Gateway mode absent".into());
     };
-    let mut host = Host::new(core, config.origin.clone(), files, Vec::new())?
-        .with_mcp_command_profile(config.command_profile())
-        .with_backup_folder(config.data_directory.join("backup"));
+    let mut host = match measurement_mount {
+        Some(mount) => mount.into_host(core, config.origin.clone(), files)?,
+        None => Host::new(core, config.origin.clone(), files, Vec::new())?,
+    }
+    .with_mcp_command_profile(config.command_profile())
+    .with_backup_folder(config.data_directory.join("backup"));
     if full_geodata {
         host = host.with_full_geodata()?;
     }
@@ -510,21 +530,47 @@ async fn run_gateway(
     Ok(())
 }
 
-/// Both listeners select the actual Core.store before constructing the Host.
+/// No selection defaults to the unchanged old opener. Measurement mode consumes
+/// the original publication handles exactly once; no second read issues a new
+/// selectionRevision or substitutes a documentary owner.
+fn prepare_measurements(
+    selection: houseatlas_backend::config::measurement_profile::ServerMeasurementSelection,
+    overview: &mut Option<houseatlas_backend::config::model_overview::ServerModelOverviewSelection>,
+    scene: &mut Option<houseatlas_backend::config::atlas_scene::ServerAtlasSceneSelection>,
+) -> Result<Option<lifecycle::persistent::measurements::PreparedMeasurements>, lifecycle::Failure> {
+    match selection{
+        houseatlas_backend::config::measurement_profile::ServerMeasurementSelection::Disabled=>Ok(None),
+        houseatlas_backend::config::measurement_profile::ServerMeasurementSelection::MeasurementsV1(selected)=>{
+            let overview=Arc::new(overview.take().ok_or("Measurements require the explicitly selected model publication")?);
+            let scene=Arc::new(scene.take().ok_or("Measurements require its exact selected semantic companion")?);
+            Ok(Some(lifecycle::persistent::measurements::PreparedMeasurements::capture(selected,scene,overview)?))
+        }
+    }
+}
+/// Both TLS and private Unix listeners select the actual Core.store before Host.
 fn reopen_persistent(
     config: &houseatlas_backend::config::server::ServerConfig,
     policy: Option<Arc<dyn GeodataSourcePolicy>>,
+    measurements: Option<lifecycle::persistent::measurements::PreparedMeasurements>,
 ) -> Result<
     (
         houseatlas_backend::app::Core,
         lifecycle::persistent::ServerLease,
+        Option<lifecycle::persistent::measurements::MeasurementMount>,
     ),
     lifecycle::Failure,
 > {
-    match policy {
-        Some(policy) => lifecycle::persistent::reopen_full_geodata(config, policy),
-        None => lifecycle::persistent::reopen(config),
+    if let Some(selected) = measurements {
+        let policy =
+            policy.ok_or("Measurements require the separately reviewed Document source policy")?;
+        let (core, lease, mount) = selected.reopen(config, policy)?;
+        return Ok((core, lease, Some(mount)));
     }
+    let (core, lease) = match policy {
+        Some(policy) => lifecycle::persistent::reopen_full_geodata(config, policy)?,
+        None => lifecycle::persistent::reopen(config)?,
+    };
+    Ok((core, lease, None))
 }
 
 async fn prepare_persistent_account(

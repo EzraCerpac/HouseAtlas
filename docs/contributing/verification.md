@@ -2694,3 +2694,478 @@ Publication checks and ordinary-core remain unconditional. Shared/unknown paths
 and unavailable change detection retain full coverage. The ordinary-core job
 runs `python3 -m unittest discover -s tools/ci -p 'test_*.py' -v`: stdlib-only
 selector cases and disposable Git histories, without providers or user data.
+
+## Default-disabled measurement backend: candidate registration
+
+This increment contains the measurement backend, canonical measurement schema,
+generated carriers and a type-only strict-project consumer. It does not contain
+or mount a measurement frontend. The existing frontend and its dependency graph
+are unchanged. No compatible image, binding issuer, migration, default selection,
+provisioning or deployment is supplied.
+
+The explicit measurement profile retains the existing disabled opener. Selected
+composition requires the separate strict compatible image, reviewed state binding,
+Document policy and original publication owners. Read and mutation fences remain
+independent. Saving retains immutable per-version/artifact pending obligations;
+there is no geometry writer or closure endpoint.
+
+The three contract documents specify current semantics. Every selector below
+is registered as UNRUN on THIS candidate. Historical results bind their prior
+exact trees; formatting changes function byte spans/hashes. Prior domain/native
+qualification and the seven selected composed native successes are retained as
+historical evidence, not repeated here. Client preservation is a separate audit;
+no client/helper or browser qualification follows from this backend registration.
+
+Inspect each exact case and imports before a separately reviewed execution claim.
+Held denial, omission, mutation, source-disclosure and recovery controls remain
+held; classification is not execution authority. Never run a module-prefix or
+aggregate substitute. A later named Cargo invocation uses pinned Rust1.99.0,
+offline/locked dependencies, one owned external target, serial selection and an
+explicit overall bound, at most1,200seconds per named invocation, stopping on first
+failure/uncertain closure without repair/retry. No command below was executed.
+
+| Exact selector | Effect lane | Current body SHA256 | Historical pre-format SHA256 | State |
+| --- | --- | --- | --- | --- |
+| `config::measurement_profile::tests::absent_measurement_selection_stays_disabled` | ordinary-scoped-synthetic | `9f9e2b904c2dd91954ec5898b3ccad1fa7bbb48c4e4c8465bf9bb2dea7601c94` | `078e410f65ad183b2a9f40604d54677e2a2daa6420bdfa9daf57281d23b4a754` | UNRUN; release required |
+| `contracts::measurement_assertions::tests::exact_integral_comparison_does_not_round_into_revision` | held-explicit-case-release-required | `6941519a9ee5a05ff3813fdd9cd3a1c19f1cb93e57045a426242f3fbaf25aa21` | `6941519a9ee5a05ff3813fdd9cd3a1c19f1cb93e57045a426242f3fbaf25aa21` | UNRUN; release required |
+| `contracts::measurement_assertions::tests::later_unlinked_unequal_claim_requires_review_before_missing_model` | held-explicit-case-release-required | `9e75c71ed466f889b2ab71561b79f21441be324e31c0b50695bad31b9acccca7` | `5df2d386cf939e16bcb776463941ac5886bef71757c29774f2f1b2cde388cdb1` | UNRUN; release required |
+| `contracts::measurement_assertions::tests::payload_self_exclusion_retains_prior_digest_and_audit_identity` | held-explicit-case-release-required | `72a1b10a5186fef79c4afc66c2469d4ba01654d463c2a61245060b14f939b589` | `1b9e8da5f1f877aa8d69bfd7e53e8ef406f86a86b36bfcefbb6d897f4bbe04ef` | UNRUN; release required |
+| `contracts::measurement_assertions::tests::unit_equivalence_is_exact_and_unavailable_cut_is_not_consistency` | held-explicit-case-release-required | `d57409c12a74ffcc6a6caa2b8476b7fc57715b19a5e723c16e4709ca7d74d05f` | `4522277cee47004686f329da82d76f02204f4842835791227d0ae1b98f09d97c` | UNRUN; release required |
+| `http::measurement_assertions::tests::canonical_scope_and_identifier_are_bounded` | held-explicit-case-release-required | `1c037cd8bc2a737f49a88505d97a45423f1f0c5ae187883eb19433c11c9d05d7` | `5820267c61b55c230c0e36994bc686058d4f32956edf5d07469e57dc306e58b4` | UNRUN; release required |
+| `http::measurement_assertions::tests::unsupported_query_and_noncanonical_identifier_are_refused` | held-explicit-case-release-required | `8994d4f8fb4753a1ff01d92d7204366c9c4ab7c783c74f9b198b47c16ea93289` | `d137df34ef80335d17413224844b9f611821f8120bab4bfa9b8602239ff0b889` | UNRUN; release required |
+| `lifecycle::persistent::measurements::test_support::configured_image_opens_before_session_and_context_uses_original_owners` | ordinary-scoped-synthetic | `5a02861e8b963802d55e9beda2c55c763e9ffa54a9e165176dc5058d83adea37` | `0046f66dd3053c67ebe4643a84d09fab71ddea9ba2ff6ca92be97b9093caa13e` | UNRUN; release required |
+| `lifecycle::persistent::measurements::test_support::configured_personal_create_correct_history_outcome_and_client_wire` | ordinary-scoped-synthetic | `f284af4ae825d95bac88b13399740c56c1417114601156df36f2d135cbfc0cdb` | `dd6783ba4a35b014ebd853efd10e2ec51b21165f373ccf5559214a5f3246bd0d` | UNRUN; release required |
+| `lifecycle::persistent::measurements::test_support::configured_same_native_room_equal_part_values_do_not_establish_correspondence` | ordinary-semantic | `df4286490297fbf1e240add6785dd8b53f82836b364c5a3694e1fcb2239516cb` | `0bdb0ab95e8c97d06bfd4c3f58e0516d5d6cf58d8b5008cc5756d0384f504d89` | UNRUN; release required |
+| `lifecycle::persistent::measurements::test_support::configured_same_native_room_unequal_part_values_require_pairwise_review` | ordinary-semantic | `2dd113cd9837cfadd08f4725e86bfefafa87a2140aa5c6162d0dc8661a411b1d` | `d65e5ce53cc60889efbda3a18ca3b90ddc33071452bbdcef45bb72810da32ccb` | UNRUN; release required |
+| `lifecycle::persistent::measurements::test_support::explicitly_retained_publication_owner_allows_writes_without_pairwise_correspondence` | ordinary-semantic | `67684a456cbd0a74f68a4a753850337544982c21d3ed3a43fe970c8f0df8896e` | `8ba961eb20a91fb8918c07616f2932f31712fc64a1366911edac6d5534907915` | UNRUN; release required |
+| `lifecycle::persistent::measurements::test_support::unavailable_configured_old_owner_keeps_saved_values_and_refuses_write_eligibility` | bounded-failure-injection | `26b1b8e9df13ed7ae825dcde331007d3df8ead232fa1ae67e411aa3b2f7817f6` | `d737ce5c167b08f919804525f64a78a318a4b6183194b1f8869c9027ebc7afd1` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::audited_create_and_receipt_correlations_are_required` | held-explicit-case-release-required | `1b3eb91c5bfd24c60bc3ea954e270055912c34659a0298dbe91134953ba87677` | `7824a8eac2eb3f9295fb713b6527ac2770c53db41e4d8ad05bf2091947286162` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::correction_rejects_stale_predecessor_and_publication_retarget` | held-explicit-case-release-required | `5caa4b8f2496d57e7a57a9fb6a064ff800f9a2b0488ed7e89bb56be3c46dc723` | `5caa4b8f2496d57e7a57a9fb6a064ff800f9a2b0488ed7e89bb56be3c46dc723` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::create_identity_and_exact_entry_are_separate_from_proposal` | held-explicit-case-release-required | `827f1364d26ac9c580b48fc13083455445302084fbae99d21d0a0be69c851ee1` | `98a68a0b54d33e1d23e4bf25d2e1f3e259c9c51465a33bc350157fdd6f7484d3` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::current_and_full_history_keep_prior_values_and_pending_versions` | held-explicit-case-release-required | `466d9d68e3103b1628b045e25d446c0a3f4e38a16f072449a135904a17fdc860` | `a895fd133cf6578fc60d73f1fb65096e93a03ca49084b0ac776515445f8c1698` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::current_projection_includes_later_contradiction_and_successor_heads` | held-explicit-case-release-required | `b536673d959e61b6e0ecd384a5afec14b2f02e816a8a21e0b2420ec3f08bf227` | `4e6e2bda8ced6aa7072877e5219a2ae25f882062b66113f2b9d8e2563c562555` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::current_projection_refuses_unavailable_or_mismatched_read_cut` | held-explicit-case-release-required | `ed30b7d2deff508c6200becd8abfa0bb554aa8aaba170ba53a9e41bc4fd69f2c` | `5764ac84f1dc4e6076cb6fc09508243b92676f6263ce4b2db06c3dfb10099556` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::derived_support_keeps_inherited_estimate_and_photo_limits` | held-explicit-case-release-required | `a65ae7c1e7a00b085321f38daec8671d9f1f58bbc8f56a844ab260e1a801671d` | `cc711d5af92520204accd264752e84a84521e8911a10085e41c4b3cb4019f871` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::digest_binds_complete_typed_proposal_without_self_reference` | held-explicit-case-release-required | `da165f68af67324adb61240b466be36c7549f01298c4faf7afb9782fdbbe6ec2` | `0df1c5c373ba6f70dd51e00b992fb1d97f6db639501537b2f933a351bba5b7d1` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::inherited_conflicts_survive_equal_value_correction` | held-explicit-case-release-required | `fe1cc244fae22f2acd34c40528a23f0c43a2a34db19e0b73aa9e6d8c6b5fa49d` | `d572d9b964aa000809276016a02e62555a6f30d789f700338a909b647060b6d4` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::online_scope_refuses_length_legacy_and_unbounded_preconditions` | held-explicit-case-release-required | `8920a0555e22fd610c63380150856882d267a63f2dd03ab494ef531ee313f60e` | `893396510be89031a49ec4008c19f35d09d736a13b5fc7c69c936f62f4108920` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::pending_work_rejects_other_revision_or_artifact_and_has_no_closure` | held-explicit-case-release-required | `644b1b4d43d15f70c77d83337bf9ccd17e9b28dae38b879aa53f9118929e9482` | `ff9343e68a6c4bff846d286550fb4e363b90e415f780b7694cef06a47db8b978` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::personal_measurement_client_actor_and_time_are_refused` | held-explicit-case-release-required | `0db52e4c78080725af093b6a4394b2b94f2720991efa7dfff87709ea1f375d5f` | `7a22de3e9ca53188f82f1c2944cad4873472d8740b339757ba1e88106cb9826e` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::personal_measurement_corrections_and_derived_inputs_keep_origin` | held-explicit-case-release-required | `f2ba2a91ecb88a4d3355c00407bc786eaadd80d82756947df9ca2253e586897f` | `0dbe37aca1303d2ab05926ba9aba1e40fc922fd1facaa959d6a8817f9545fb44` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::personal_measurement_does_not_replace_reviewed_direct_or_legacy_meanings` | held-explicit-case-release-required | `63edad789bd3a7b93826467d2cdf91edd593e1051166e9bf99dbef6a3941dfea` | `1cc066d600b5073797a02349748a9f790ab58f91b88da2d7e7257b7b5a72eae8` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::personal_measurement_requires_explicit_attestation_and_digest_binding` | held-explicit-case-release-required | `32999ebadc42fa990926f85f9f0f7d6099b2e9eee8a8928d543057802a32e7c2` | `32999ebadc42fa990926f85f9f0f7d6099b2e9eee8a8928d543057802a32e7c2` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::photo_evidence_does_not_promote_image_informed_estimate` | held-explicit-case-release-required | `02aa0b9288537e49b17a5ac5bf37e7e7b8fbedd0dc79e4c70d8c262ba9aa67cd` | `7d26f61778b3ab9e5309e22f4be96a6d6fe0503ba580a7c12a82f189edf808fe` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::receipt_key_allows_same_mutation_uuid_for_distinct_actors` | held-explicit-case-release-required | `a6c60f7c7a876e4054fbe28d8a41eabaed0f5d5c49eaa9dfbcb9285490852de9` | `727c658b1a8a573129ff1ce144118bad0fcfb5ac1dcbf4435063c7597479d45b` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::receipt_key_rejects_duplicate_complete_key` | held-explicit-case-release-required | `7d2171f8ee2a7f012a7950c46c6542ca96142bdc9eb1189c28c9c3ad588710f9` | `7d2171f8ee2a7f012a7950c46c6542ca96142bdc9eb1189c28c9c3ad588710f9` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::retained_retry_precedes_allocation_and_rematerialization` | held-explicit-case-release-required | `127341986f9df317f6fd437fdd5cf56073706bd01555e3580dcf176ddeb5509f` | `2bda55258e57ba06688fd18427673947d9564106ede55f20abf8fe43594b4847` | UNRUN; release required |
+| `measurement_assertions::online_contract::tests::unresolved_mapping_cannot_admit_a_claim` | held-explicit-case-release-required | `a721d6f7786efc8150dfc0112edda79bf44e4f39c033aca6050865290cb5fcd3` | `7d75b7bc18ad0ff38dc1ad25f6b1722de73d6c0e95a4d356d1f954b55661c253` | UNRUN; release required |
+| `measurement_assertions::synthetic_contract_tests::contradictions_require_review_until_explicit_correction` | held-explicit-case-release-required | `0ce50a336d5dd257f5390729b9df7da822432cf0cb7f622f4f8ca5ce9cdaa3ea` | `9ced8a5265f68b1a18654121c379aff5a42c38f1573e0f4e147c561eb6c5b245` | UNRUN; release required |
+| `measurement_assertions::synthetic_contract_tests::corrected_revisions_preserve_history_and_reject_retargeting` | held-explicit-case-release-required | `b80856ad51eba27bb6ccdabf9a36d9bccebc7d25dac28a530cc0f8b6d7b8e459` | `9b00662f2f9d9470910b37c8f0c29e56c3778df81989cf3d902fce186073ddc0` | UNRUN; release required |
+| `measurement_assertions::synthetic_contract_tests::correspondence_requires_exact_revision_artifact_and_authority` | held-explicit-case-release-required | `45d75c6706f912e3f5edf489500fcb264c97d5c45c0452e0ad338b0edb1eb7a6` | `b990edfc4ae5db477d559ef0c934d80101f4ac275b94f2d981b926cb39782454` | UNRUN; release required |
+| `measurement_assertions::synthetic_contract_tests::corroborated_photo_fit_retains_method_and_limits` | held-explicit-case-release-required | `c6cbca4cfaa28a0258259bd985c65d6bbab84b427c01f937453545bfd460387c` | `e845622196c9866bdad86c229a88ed3f9a97832efc2683d19b000a2a7ba2dccf` | UNRUN; release required |
+| `measurement_assertions::synthetic_contract_tests::current_publication_inventory_keeps_unknown_qualification` | held-explicit-case-release-required | `2a35aa942b9c3cd7516385fb0dd514db4a0cdb75fe115a969bf8087d6709aeff` | `68b5bf535cb500e5556f60715acb3ffc7d29f9a0d64f3b2012b5a51c1d6cc5b0` | UNRUN; release required |
+| `measurement_assertions::synthetic_contract_tests::disputed_support_qualification_blocks_eligibility` | held-explicit-case-release-required | `cb213dfdf4a198694fcc3a1aed14a8055a51cb5e6016c0fcbe4a97a995ea8ca1` | `3b930d3200c997496f2ed6d88f24ace707ffab0d30c8b3fec8ef9a461ed0edb6` | UNRUN; release required |
+| `measurement_assertions::synthetic_contract_tests::exact_area_cannot_select_shape_or_bypass_review` | held-explicit-case-release-required | `82eaf6aacb3672a7dc010007e7717f3b54daec256b9b0fee2d013e2edcaf7583` | `d53f246a5937d335bb99e5c10da4d70d7c3870df8372cec488580a9bacc4d924` | UNRUN; release required |
+| `measurement_assertions::synthetic_contract_tests::exact_decimal_tokens_and_metric_equivalence` | held-explicit-case-release-required | `08e0991c8cd39f13e21c724016d6a4b2809b54a58439422a92af0a93b1661a96` | `fc229206da8f7e561999edd3a9fa78c55d9e421b5292beb8e4537c77aba8b0bc` | UNRUN; release required |
+| `measurement_assertions::synthetic_contract_tests::imported_and_transitive_assertion_support` | held-explicit-case-release-required | `3f9d0782aee459a1cd9238d51c90e46d3c0d3f030e4eb2b13fc00128aecd9e08` | `02021db21a2021d605de5dc3f8517c722b9581fca39f13b12ee19358b2d6f966` | UNRUN; release required |
+| `measurement_assertions::synthetic_contract_tests::invalid_decimal_and_dimension_contracts` | held-explicit-case-release-required | `8512962971d0c8b8d55fccb63e16c02dbc9c91cdcb70cc1064b7e84288b7d38d` | `868d5b39aaf333e24fb10829f834f127d696f33bb328767aadb420dfd227c38a` | UNRUN; release required |
+| `measurement_assertions::synthetic_contract_tests::missing_semantics_and_changed_binding_do_not_retarget` | held-explicit-case-release-required | `5c90ebbf7e5a3bd984baad69c92cb0d43500d09de38a6931b598d935dca224fe` | `20e87299ef3dc052068055876a0025813bf8ab823595dcea6fdb777cdae2fad5` | UNRUN; release required |
+| `measurement_assertions::synthetic_contract_tests::mixed_inherited_uncertainty_preserves_components_without_order` | held-explicit-case-release-required | `796365ef46f5936ea3509f9321ec5e9067e598dd5e5850e7c20a8c24b8a04c86` | `3401cca06b6de624dd4dc1193ef50cdf07b1f0ad1dfe3af21dd5bc1159ff98b8` | UNRUN; release required |
+| `measurement_assertions::synthetic_contract_tests::multiple_native_evidence_sources_and_legacy_origin` | held-explicit-case-release-required | `a5aa91ba274934d7ba393a60ed1d7a09a3dd8422ae70f59ddec0225c38707bd4` | `639c9aa6fa1a282e820c0dd20510adb560bc6838f83eb1f4fcadbf3714db9d7e` | UNRUN; release required |
+| `measurement_assertions::synthetic_contract_tests::photo_fitted_derivation_retains_underlying_uncertainty` | held-explicit-case-release-required | `6f1cbee02031499a8effe9b458fc1ad2aae4362a4f13f56514a4b8dc6d2ae284` | `1fa229d3147a9a42edc037aad66643d1c72c8bb0990e57e045b0b1f4af893fd5` | UNRUN; release required |
+| `measurement_assertions::synthetic_contract_tests::saving_and_equal_values_do_not_clear_model_work` | held-explicit-case-release-required | `834fc7a7d627aae7ed238b6584c3ad627a59a004d15c45d87de872fad2a2a747` | `3ef5512761b65f98af88dd05b2a4eb3604bf40a858686e9e7ca60015e91c60e0` | UNRUN; release required |
+| `measurement_assertions::synthetic_contract_tests::unresolved_contradiction_follows_revisions_until_reviewed_resolution` | held-explicit-case-release-required | `b490ccb3caf85df9160f689e91fae25bd3835affefb3dfdde3571ea9384eef0b` | `2bc99f8f0b5777283d666ee19dfcce77fb6c37f5bf6e70bb24e1bc95f4b2a56b` | UNRUN; release required |
+| `measurement_assertions::synthetic_contract_tests::withdrawn_superseded_evidence_qualification_preserves_context` | held-explicit-case-release-required | `5748de98043a7550b204ef214f2b9931010d0f67f18e4c5c975ef842ec7967f4` | `84376cbcfb858780ce283612d7175e2083b2f022e074b76bdbf0cc3a0b1a0270` | UNRUN; release required |
+| `storage::store::measurement_assertions::integration_tests::authenticated_exact_entry_context_history_wal_reopen_and_fresh_recovery` | held-explicit-case-release-required | `83a03ac863f48a04d53b9c415a2970475f3078d3a807ce5c193094f26541240f` | `c9d57ddd52de69e2bf484ce170adb0160b30fc82a19d717c3f34b1a43c859aad` | UNRUN; release required |
+| `storage::store::measurement_assertions::integration_tests::context_post_accepts_viewer_read_without_mutation_authority` | held-explicit-case-release-required | `50f0c707fe83519f4c09fbec9d48098806223915c9ed88f601e9a327c67e15b6` | `81df334761fc81b745b5fab145794570c4d31b4c8632e750513d53461a4f867b` | UNRUN; release required |
+| `storage::store::measurement_assertions::integration_tests::context_post_requires_current_csrf_and_preserves_native_error` | held-explicit-case-release-required | `7b469065f6b0ab3660867deea2f56b7e2c6a4e4c61671b81b1920819ee919530` | `62305875f92e53193487b171af514613c3d02aacf766c514e93856f738856e3f` | UNRUN; release required |
+| `storage::store::measurement_assertions::integration_tests::context_stale_selection_is_closed_refusal_without_measurement_writes` | held-explicit-case-release-required | `0a03e21fdcd75ae63ac79318733b87d6594112244255376040cf2f6ca8c10d4b` | `13546bf83bfe1f56a4e6280b9177a0d43bf4b1ca08a44b69dafd1b60114c345a` | UNRUN; release required |
+| `storage::store::measurement_assertions::integration_tests::current_and_history_external_receipt_digests_match_retained_bodies` | held-explicit-case-release-required | `5f3f783ad48807dd506fc341370580587308cd8faa8c94c2be140effb6e49884` | `39bfcb4ce432dacece1a920e984f238ca365a69b9ecf2a76a9900a8ad090b572` | UNRUN; release required |
+| `storage::store::measurement_assertions::integration_tests::historical_unknown_producer_capture_verify_and_fresh_restore_report_recorded_context_unverified` | held-explicit-case-release-required | `aa291ebc75f8b257e509897cfbe4b6aaeed086b1899ca4bf0279277a50501035` | `42ed11549d379284089ec6a4ff0c853d521ab3d600fdfc2976f608eb14dd9bb7` | UNRUN; release required |
+| `storage::store::measurement_assertions::integration_tests::historical_unknown_producer_values_survive_normal_wal_reopen_without_old_owner` | held-explicit-case-release-required | `1cfc0779a2e2a78e3eb9471a2e6d3b7dd2e3f2816b81844beaf666c5f36c185f` | `8496308e6dfa722cb40a793314924c5d0008b90d53c892ecd3d925fd8f1242ed` | UNRUN; release required |
+| `storage::store::measurement_assertions::integration_tests::personal_measurement_authenticated_attribution_and_pending_without_evidence` | held-explicit-case-release-required | `273ecc08640ce662b8f49516735c3b529c82fdd14dfc138cc279dcb27ae81ebe` | `1352df1ca48a2827131436d81f64b7804fe732331b484c6afcaf6c7116919be7` | UNRUN; release required |
+| `storage::store::measurement_assertions::integration_tests::required_native_media_failure_still_refuses_measurement_inventory_open` | held-explicit-case-release-required | `6500569f5d965788bf95989ac5485131bec08d07d6a61d5504708957aa5784cb` | `1663b42996086060c7f2e40dff5c7fbf2f6c8728930854706f086bc567f1eb31` | UNRUN; release required |
+| `storage::store::measurement_assertions::integration_tests::same_native_room_only_identifies_association_candidates_not_current_parts` | held-explicit-case-release-required | `67c15a6721cd77789a5cfbf153dd5744ef9f11b1090b4c75906e8353bd7e3ed0` | `ccde32edc90427b23620a78bf11edb914085324b49f934f419c7bc425023d014` | UNRUN; release required |
+| `storage::store::measurement_assertions::integration_tests::unauthorized_historical_disclosure_returns_no_values_and_no_complete_comparison` | held-explicit-case-release-required | `0be18347cd15a08bc5b9507a4ae932cd6909b1454c513c7e039dc1e8a5747b53` | `dd75e4989970db23f1945cf841abc17d5d639908704b6d875e8c2ee775979462` | UNRUN; release required |
+| `storage::store::measurement_assertions::integration_tests::unavailable_method_never_becomes_direct_measurement_or_allocates_claim` | held-explicit-case-release-required | `9006505d49d70f8b6511150c68af43fc1035f12cf06f431b6677fdeaea3c5b9c` | `6a3a7ad34eb1048735be100b3b087bf0700ca5217b432b4d4147330837d74d4d` | UNRUN; release required |
+| `storage::store::measurement_assertions::integration_tests::unrelated_disabled_source_disables_writing_without_hiding_authorized_measurements` | held-explicit-case-release-required | `bdeccd8ce79a4ad202910616b418348af849bffcdb5d631a724cd9849d836fcf` | `79956cec258917be5183f81037d6b94537458d3a8960bf83bf8d4bcfd64cee96` | UNRUN; release required |
+| `storage::store::measurement_assertions_repository::tests::dropped_transaction_does_not_leave_audit_receipt_or_head` | held-explicit-case-release-required | `8cb7aa22953ad41bea49f65d9cc03c548bdd5dd0cc2e9797e37e81a92ded0a8f` | `dd503e30fc2af2393ce38c978503c4b3dfa60a87749afe800a9370b059bac171` | UNRUN; release required |
+| `storage::store::measurement_assertions_repository::tests::duplicate_complete_key_is_refused` | held-explicit-case-release-required | `4bba919bb74209cf4d5a958aa87e6a620a8dbaa4bc197dfa68313764e25fdd39` | `551af7c1a51f35e224352554a38d86020518dcb00998b8f2bff5ea748f71317b` | UNRUN; release required |
+| `storage::store::measurement_assertions_repository::tests::immutable_complete_receipts_preserve_exact_corrections` | held-explicit-case-release-required | `25346e56dd07326944ea51d0c5a65ef05d7e9420f6cdf43f17198ae87df71acc` | `a2843a1a0dc92a15488c83ee8f0f5252925f66dfaa11794d17a4806c81aebcee` | UNRUN; release required |
+| `storage::store::measurement_assertions_repository::tests::immutable_receipt_and_audit_updates_are_refused` | held-explicit-case-release-required | `f09882a8576618f155bca2e92dda0fb98688d875b972636397dd25e983987655` | `4f912d758c741afe4514c22db7c9834db345a631179ec83e64fbeacaaf89015d` | UNRUN; release required |
+| `storage::store::measurement_assertions_repository::tests::receipt_key_includes_actor_and_replay_is_retained` | held-explicit-case-release-required | `0ca1c3e2d9f53fc39efb0d49bd32f133fdc9c4b3aa4a4c7047935433535fedbc` | `c4b1ec87afcbefcaf232f360b677369f0f65267c01d09471edf3a181972ec0d9` | UNRUN; release required |
+| `storage::store::measurement_profile::tests::catalog_pin_covers_ordered_seven_ddl_inputs` | held-explicit-case-release-required | `5efe3b13840a9bb852a6cec85f13899b9ead438f7715ed8ea3924a01c468843e` | `1778899d3f637f9f1705153fd7f10a75515de2f4692690d2e6536ad2fb78fa21` | UNRUN; release required |
+| `storage::store::measurement_profile::tests::measurement_selection_defaults_disabled_and_keeps_reserved_profiles` | held-explicit-case-release-required | `6c06e6fc8bfd4e3695ad929508e5d24719e572de17da538f2948da0015d4f907` | `8c52a608c42ad7ef6a7f040af3a0ba0ac6b75024bd0bbaa17663af912bc8e2b2` | UNRUN; release required |
+
+The private exact-source receipt retains original and formatted declaration-through-
+closing-brace spans, bodies and terminating LF hashes. The public table identifies
+the reviewed function; neither an old body hash nor a historical pass qualifies
+the new tree. Frozen named commands (each requires its own later release):
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib config::measurement_profile::tests::absent_measurement_selection_stays_disabled -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib contracts::measurement_assertions::tests::exact_integral_comparison_does_not_round_into_revision -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib contracts::measurement_assertions::tests::later_unlinked_unequal_claim_requires_review_before_missing_model -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib contracts::measurement_assertions::tests::payload_self_exclusion_retains_prior_digest_and_audit_identity -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib contracts::measurement_assertions::tests::unit_equivalence_is_exact_and_unavailable_cut_is_not_consistency -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib http::measurement_assertions::tests::canonical_scope_and_identifier_are_bounded -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib http::measurement_assertions::tests::unsupported_query_and_noncanonical_identifier_are_refused -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib lifecycle::persistent::measurements::test_support::configured_image_opens_before_session_and_context_uses_original_owners -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib lifecycle::persistent::measurements::test_support::configured_personal_create_correct_history_outcome_and_client_wire -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib lifecycle::persistent::measurements::test_support::configured_same_native_room_equal_part_values_do_not_establish_correspondence -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib lifecycle::persistent::measurements::test_support::configured_same_native_room_unequal_part_values_require_pairwise_review -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib lifecycle::persistent::measurements::test_support::explicitly_retained_publication_owner_allows_writes_without_pairwise_correspondence -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib lifecycle::persistent::measurements::test_support::unavailable_configured_old_owner_keeps_saved_values_and_refuses_write_eligibility -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::audited_create_and_receipt_correlations_are_required -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::correction_rejects_stale_predecessor_and_publication_retarget -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::create_identity_and_exact_entry_are_separate_from_proposal -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::current_and_full_history_keep_prior_values_and_pending_versions -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::current_projection_includes_later_contradiction_and_successor_heads -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::current_projection_refuses_unavailable_or_mismatched_read_cut -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::derived_support_keeps_inherited_estimate_and_photo_limits -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::digest_binds_complete_typed_proposal_without_self_reference -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::inherited_conflicts_survive_equal_value_correction -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::online_scope_refuses_length_legacy_and_unbounded_preconditions -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::pending_work_rejects_other_revision_or_artifact_and_has_no_closure -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::personal_measurement_client_actor_and_time_are_refused -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::personal_measurement_corrections_and_derived_inputs_keep_origin -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::personal_measurement_does_not_replace_reviewed_direct_or_legacy_meanings -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::personal_measurement_requires_explicit_attestation_and_digest_binding -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::photo_evidence_does_not_promote_image_informed_estimate -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::receipt_key_allows_same_mutation_uuid_for_distinct_actors -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::receipt_key_rejects_duplicate_complete_key -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::retained_retry_precedes_allocation_and_rematerialization -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::online_contract::tests::unresolved_mapping_cannot_admit_a_claim -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::synthetic_contract_tests::contradictions_require_review_until_explicit_correction -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::synthetic_contract_tests::corrected_revisions_preserve_history_and_reject_retargeting -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::synthetic_contract_tests::correspondence_requires_exact_revision_artifact_and_authority -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::synthetic_contract_tests::corroborated_photo_fit_retains_method_and_limits -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::synthetic_contract_tests::current_publication_inventory_keeps_unknown_qualification -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::synthetic_contract_tests::disputed_support_qualification_blocks_eligibility -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::synthetic_contract_tests::exact_area_cannot_select_shape_or_bypass_review -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::synthetic_contract_tests::exact_decimal_tokens_and_metric_equivalence -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::synthetic_contract_tests::imported_and_transitive_assertion_support -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::synthetic_contract_tests::invalid_decimal_and_dimension_contracts -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::synthetic_contract_tests::missing_semantics_and_changed_binding_do_not_retarget -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::synthetic_contract_tests::mixed_inherited_uncertainty_preserves_components_without_order -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::synthetic_contract_tests::multiple_native_evidence_sources_and_legacy_origin -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::synthetic_contract_tests::photo_fitted_derivation_retains_underlying_uncertainty -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::synthetic_contract_tests::saving_and_equal_values_do_not_clear_model_work -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::synthetic_contract_tests::unresolved_contradiction_follows_revisions_until_reviewed_resolution -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib measurement_assertions::synthetic_contract_tests::withdrawn_superseded_evidence_qualification_preserves_context -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_assertions::integration_tests::authenticated_exact_entry_context_history_wal_reopen_and_fresh_recovery -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_assertions::integration_tests::context_post_accepts_viewer_read_without_mutation_authority -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_assertions::integration_tests::context_post_requires_current_csrf_and_preserves_native_error -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_assertions::integration_tests::context_stale_selection_is_closed_refusal_without_measurement_writes -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_assertions::integration_tests::current_and_history_external_receipt_digests_match_retained_bodies -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_assertions::integration_tests::historical_unknown_producer_capture_verify_and_fresh_restore_report_recorded_context_unverified -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_assertions::integration_tests::historical_unknown_producer_values_survive_normal_wal_reopen_without_old_owner -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_assertions::integration_tests::personal_measurement_authenticated_attribution_and_pending_without_evidence -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_assertions::integration_tests::required_native_media_failure_still_refuses_measurement_inventory_open -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_assertions::integration_tests::same_native_room_only_identifies_association_candidates_not_current_parts -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_assertions::integration_tests::unauthorized_historical_disclosure_returns_no_values_and_no_complete_comparison -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_assertions::integration_tests::unavailable_method_never_becomes_direct_measurement_or_allocates_claim -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_assertions::integration_tests::unrelated_disabled_source_disables_writing_without_hiding_authorized_measurements -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_assertions_repository::tests::dropped_transaction_does_not_leave_audit_receipt_or_head -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_assertions_repository::tests::duplicate_complete_key_is_refused -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_assertions_repository::tests::immutable_complete_receipts_preserve_exact_corrections -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_assertions_repository::tests::immutable_receipt_and_audit_updates_are_refused -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_assertions_repository::tests::receipt_key_includes_actor_and_replay_is_retained -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_profile::tests::catalog_pin_covers_ordered_seven_ddl_inputs -- --exact --test-threads=1
+```
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib storage::store::measurement_profile::tests::measurement_selection_defaults_disabled_and_keeps_reserved_profiles -- --exact --test-threads=1
+```
+
+Remaining exact-candidate checks are the named measurement generation consistency
+mode (`node tools/rust-baseline/generate-contracts.mjs --measurements --check`),
+`cargo fmt --all -- --check`, compilation, Clippy with `-D warnings`, and existing
+check-source integration covering library/binaries/examples, named healthy
+examples, the unchanged strict frontend project and production build. These are
+not executed or released by this source registration. The one source-formatting
+pass is not a check-mode qualification. No blanket warning suppression was added.
+
+Fresh hosted qualification must bind the exact reviewed candidate. PR creation
+also triggers existing unfiltered synthetic performance and contract-path README
+media workflows; any later publication/CI release must explicitly include those
+automatic effects. Administrative required-check rules remain unverified after
+an access refusal and must not be bypassed. No commit, push, PR, merge, runtime
+activation, browser/device acceptance, physical-model acceptance or deployment
+is included in this source increment.
+
+## Bounded backend Clippy correction: candidate registration refresh
+
+Generation consistency, formatting checks and Cargo compilation passed on
+`c3798838668248422443e891f4c2d9d35aedfe7e`; that native claim then stopped at twelve
+Clippy diagnostics. Its seven selectors remained UNRUN. Those stage outcomes
+remain historical and are not retried or treated as qualification of changed code.
+
+The current source correction groups only the six reported argument-heavy
+functions into concrete named-field inputs, boxes only resolved target mapping
+review, collapses the two reported nested conditions, uses equivalent contains checks and simplifies the reported HTTP error branch. Original authority
+owners/Arcs, borrowed principals/guards, separate source captures, validation and
+factory order, live-WAL versus restored-DELETE paths, wire/errors, catalog/SQL,
+generated carriers and default-disabled behavior are retained. No blanket lint
+allowance or warning-policy relaxation was introduced.
+
+All70 current body/span/hash bindings are refreshed. Their classifications and
+exact commands are unchanged; current candidate cases remain UNRUN pending a
+fresh exact-source release. The source handoff preserves every historical c379
+binding and affected fixture/helper span alongside its current postimage. Fixture
+adaptations only pass the existing values/owners through named fields and box the
+existing review value; assertions, generated data, guards and outcomes are retained.
+
+A single pinned source-formatting pass ran in an exclusive disposable mirror over
+only the eleven admitted Rust paths. That pass is not fmt check, Clippy or test
+qualification. No generator, compiler, Clippy, check or selector ran in this source
+turn. The separate semantic corpora remain frozen: their complete TS inputs,
+configurations and module-boundary bytes are unchanged, with explicit old/new-tree
+bindings retained privately. That equivalence is not a new-tree compiler execution.
+
+## Restore fixture closure type annotations
+
+On tree `a4c2e90b3b909a2c02bee9e3d38097ea4221da48`, the later Cargo check stopped
+with two E0282 inference diagnostics before `vault.clone()` in generated restore
+fixture owner factories. Historical generation/fmt successes remain scoped to
+that source; Clippy and the seven selected cases were unrun. No consumed claim
+was retried by this source correction.
+
+Only the two existing fixture `owners_factory` parameters now explicitly name
+`Arc<crate::media::AssetVault>`, matching the unchanged production FnOnce bound.
+Captures, closure bodies, owner construction, assertions, generated data, native
+guards and expected outcomes are unchanged. No production function or bound was
+edited. Only those two test-body hashes changed; the other 68 bodies and all 70
+classifications/literal commands are unchanged. Actual spans are refreshed and
+historical bindings retained in the exact-source handoff. Fixture::open remains
+SHA256 `b223bcce1cd4cfba1b4b2b56fab46954bd3ed4ae3abfc300037a0a47dbcabb78`.
+
+One pinned rustfmt source pass over only this file in an exclusive mirror passed;
+it made no additional changes. No generation, compiler, Clippy, source/publication
+check or selector ran. New exact-source review and a fresh bounded qualification
+claim remain required. Frozen semantic corpora are not regenerated or relabeled:
+the complete original typed-project footprint/config/module boundaries are
+unchanged by these Rust-only annotations.
+
+## Measurement backend composition on the current public source
+
+This source-only composition preserves the current public verification entries and
+adds only the default-disabled measurement backend registration above. All 70
+measurement selectors remain UNRUN on this composed tree. Historical outcomes
+remain bound to their recorded sources; no generator, formatting, compilation,
+Clippy, source check or test has run for this composition. The original native
+owners, request authorization and existing cache and CI behavior are retained.
+Exact-candidate review and separately released qualification remain required.
+
+## Area backend integration with current main
+
+The integration preserves the current backup-folder composition and current
+public source, including the retired updater removal. Measurement selection stays
+disabled by default. The retained registration and historical release labels above
+describe the donor snapshot; they do not add a CI lane or override the current
+repository test policy. Exact integration compilation, formatting, Clippy and
+tests run in CI. No local build or test outcome is claimed for this composition.
