@@ -11,8 +11,7 @@ const quantitySource = new URL('../src/api/quantity-client.ts', import.meta.url)
 let { code: quantityCode } = await transformWithOxc(readFileSync(quantitySource, 'utf8'), quantitySource.pathname,
   { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
 for (const [specifier, replacement] of Object.entries({
-  'ajv/dist/2020.js': import.meta.resolve('ajv/dist/2020.js'),
-  'ajv-formats': import.meta.resolve('ajv-formats'),
+  '../numeric/stock-ajv': await loadNumericSource('numeric/stock-ajv.ts'),
   '../../../contracts/stock-wire3/agent/agent.schema.json': schemaModule('../../contracts/stock-wire3/agent/agent.schema.json'),
   '../../../packages/contracts/schemas/atlas.schema.json': schemaModule('../../packages/contracts/schemas/atlas.schema.json'),
 })) {

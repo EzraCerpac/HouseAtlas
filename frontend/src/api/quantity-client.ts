@@ -1,8 +1,7 @@
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
 import agent from '../../../contracts/stock-wire3/agent/agent.schema.json';
 import atlas from '../../../packages/contracts/schemas/atlas.schema.json';
 import type { SourceRef, Scope } from './generated/contracts';
+import { compileOnUse, stockAjv } from '../numeric/stock-ajv';
 import type { AtlasSessionInfo } from '../app/session';
 import type { StockRequestEnvelope, StockResultEnvelope } from '../webmcp/stock';
 
@@ -62,19 +61,17 @@ const nullable = (schema: object) => ({ anyOf: [schema, { type: 'null' }] });
 const object = (properties: Record<string, object>) => ({ type: 'object', additionalProperties: false, required: Object.keys(properties), properties });
 const scope = { $ref: `${atlas.$id}#/$defs/scope` }, source = { $ref: `${atlas.$id}#/$defs/sourceRef` };
 const correlation = { resolvedScope: scope, source, previewId: uuid, requestDigest: digest, planDigest: digest };
-const ajv = new Ajv2020({ strict: true, allErrors: true, allowUnionTypes: true });
-addFormats(ajv); ajv.addSchema(atlas); ajv.addSchema(agent);
-const availabilitySchema = ajv.compile<QuantityAvailability>(object({ format: { const: 'atlas-homebox-quantity-availability/1' }, resolvedScope: scope, source, state: { enum: ['available', 'unavailable'] } }));
-const previewSchema = ajv.compile<QuantityPreviewWire>(object({ format: { const: 'atlas-homebox-quantity-preview/1' }, ...correlation,
+const availabilitySchema = compileOnUse(ajv => ajv.compile<QuantityAvailability>(object({ format: { const: 'atlas-homebox-quantity-availability/1' }, resolvedScope: scope, source, state: { enum: ['available', 'unavailable'] } })));
+const previewSchema = compileOnUse(ajv => ajv.compile<QuantityPreviewWire>(object({ format: { const: 'atlas-homebox-quantity-preview/1' }, ...correlation,
   request: { $ref: `${agent.$id}#/$defs/request_homebox_entity_quantity_set` },
   observed: object({ quantity: { type: 'string', pattern: '^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$' }, updatedAt: nullable({ type: 'string' }), retrievedAt: text }),
   effect: object({ quantity: integer, method: { const: 'PATCH' }, path: text, body: object({ quantity: integer }) }),
   policy: object({ id: text, version: { type: 'string', maxLength: 20, pattern: '^(?:0|[1-9][0-9]*)$' }, epoch: integer, approval: { enum: ['no-human', 'human-required'] }, maximumQuantity: nullable(integer) }),
   assurance: object({ installedBuild: { const: 'configured-not-runtime-attested' }, causality: { const: false }, atomicCompareAndSet: { const: false } }),
   lifetime: object({ remainingMs: { type: 'integer', minimum: 1, maximum: 60000 } }),
-}));
-const approvalSchema = ajv.compile<QuantityApproval>(object({ format: { const: 'atlas-homebox-quantity-approval/1' }, ...correlation, approvalReceiptId: uuid, evidenceDigest: digest }));
-const resultSchema = ajv.compile<QuantityResult>(object({ format: { const: 'atlas-homebox-quantity-result/1' }, ...correlation, result: { $ref: `${agent.$id}#/$defs/result_homebox_entity_quantity_set` } }));
+})));
+const approvalSchema = compileOnUse(ajv => ajv.compile<QuantityApproval>(object({ format: { const: 'atlas-homebox-quantity-approval/1' }, ...correlation, approvalReceiptId: uuid, evidenceDigest: digest })));
+const resultSchema = compileOnUse(ajv => ajv.compile<QuantityResult>(object({ format: { const: 'atlas-homebox-quantity-result/1' }, ...correlation, result: { $ref: `${agent.$id}#/$defs/result_homebox_entity_quantity_set` } })));
 export const equalQuantityJson = (a: unknown, b: unknown): boolean => canonical(a) === canonical(b);
 /** Published RFC8785 JS scalar and UTF16 key order; reject non-IJSON strings. */
 function wellFormed(value: string): boolean {
@@ -104,7 +101,7 @@ export async function quantityRequestDigest(request: StockRequestEnvelope): Prom
   return Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('');
 }
 export function assertQuantityInput(source: SourceRef, quantity: number, reason: string) {
-  const check = ajv.getSchema(`${atlas.$id}#/$defs/sourceRef`)!;
+  const check = stockAjv().getSchema(`${atlas.$id}#/$defs/sourceRef`)!;
   if (!check(source) || source.key.sourceKind !== 'homebox-entity' || !Number.isSafeInteger(quantity) || quantity < 0
     || typeof reason !== 'string' || !reason.trim() || !wellFormed(reason) || new TextEncoder().encode(reason).length > 2048)
     throw new TypeError('Quantity input is incompatible');

@@ -1,11 +1,9 @@
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
 import agent from '../../../contracts/stock-wire3/agent/agent.schema.json' with { type: 'json' };
-import atlas from '../../../packages/contracts/schemas/atlas.schema.json' with { type: 'json' };
 import catalog from '../../../contracts/stock-wire3/agent/operation-catalog.json' with { type: 'json' };
 import { isExactDecimal } from '../numeric/decimal';
 import { JSON_LIMITS, parseLosslessJson, type LosslessJson } from '../numeric/lossless-json';
 import { createExactStockResultValidator } from '../numeric/schema-validator';
+import { compileOnUse, stockAjv } from '../numeric/stock-ajv';
 import type { Scope } from '../app/types';
 import type { StockHostContext, StockRequestEnvelope } from '../webmcp/stock';
 
@@ -105,15 +103,11 @@ async function receive(response: Response, signal: AbortSignal): Promise<Lossles
 }
 
 const maximumBytes = 16 * 1024;
-const validator = new Ajv2020({ strict: true, allErrors: true, allowUnionTypes: true });
-addFormats(validator);
-validator.addSchema(atlas);
-validator.addSchema(agent);
 const exactResult = createExactStockResultValidator();
 const uuid = { type: 'string', format: 'uuid', pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' };
 const nullableUuid = { anyOf: [uuid, { type: 'null' }] };
-const validateScope = validator.getSchema(`${agent.$id}#/$defs/contextSelection`)!;
-const validateReceipt = validator.compile<RetainedIntentReceipt>({
+const validateScope = compileOnUse(ajv => ajv.compile({ $ref: `${agent.$id}#/$defs/contextSelection` }));
+const validateReceipt = compileOnUse(ajv => ajv.compile<RetainedIntentReceipt>({
   type: 'object', additionalProperties: false,
   required: ['format', 'lookupRequestId', 'inspection', 'committedResult'],
   properties: {
@@ -145,13 +139,13 @@ const validateReceipt = validator.compile<RetainedIntentReceipt>({
       }],
     },
   },
-});
+}));
 const sameScope = (left: Scope, right: Scope) => left.workspaceId === right.workspaceId && left.homeId === right.homeId;
 function operationFor(request: StockRequestEnvelope) {
   const operation = catalog.commands.find(row => row.commandId === request.commandId);
   if (!operation || operation.authority !== 'atlas' || operation.effect !== 'write')
     throw new TypeError('Retained intent requires an Atlas mutation');
-  const check = validator.getSchema(agent.$id + operation.inputSchema);
+  const check = stockAjv().getSchema(agent.$id + operation.inputSchema);
   if (!check || !check(request)) throw new TypeError('Original stock request is incompatible');
   return operation;
 }
