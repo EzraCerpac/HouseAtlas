@@ -51,7 +51,7 @@ secret-service = { version = "=5.2.0", default-features = false, features = ["rt
 unsafe_code = "forbid"
 
 # Opt-in modes; Cargo's built-in dev/release/test/bench defaults stay unchanged.
-[profile.check]
+[profile.dev-check]
 inherits = "dev"
 debug = 0
 incremental = true

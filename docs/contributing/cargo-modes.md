@@ -12,7 +12,7 @@ live under `.mise/tasks/`; the root formatting configuration is separate.
 
 | Command | Cargo operation | Purpose |
 | --- | --- | --- |
-| `mise run check -- --lib` | `cargo check --profile check` | Optional targeted type check without linking; debug info off |
+| `mise run check -- --lib` | `cargo check --profile dev-check` | Optional targeted type check without linking; debug info off |
 | `mise run dev` | `cargo build --profile dev-incremental` | Explicit incremental development build in a persistent checkout |
 | `mise run profiling` | `cargo build --profile profiling` | Release-derived optimized build with full debug symbols |
 | `mise run bench` | `cargo build --profile benchmark` | Release-derived build with fixed optimization/check settings and incremental off |
@@ -27,7 +27,7 @@ benchmark, measure latency or exercise production. Without mise, invoke
 `node tools/cargo-modes/run.mjs profiling` (or another mode) directly.
 
 Cargo's built-in `dev`, `release`, `test` and `bench` defaults are unchanged.
-The opt-in `check` profile inherits `dev` and disables debug information.
+The opt-in `dev-check` profile inherits `dev` and disables debug information.
 `dev-incremental` inherits `dev` and explicitly enables incremental compilation;
 Cargo already enables that for ordinary development. Reuse the same owned
 checkout and target directory to benefit from it. A fresh disposable checkout

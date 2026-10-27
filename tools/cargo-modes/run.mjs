@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const root = new URL('../../', import.meta.url);
 const [mode, ...args] = process.argv.slice(2);
 const modes = {
-  check: ['check', 'check'],
+  check: ['check', 'dev-check'],
   dev: ['build', 'dev-incremental'],
   profiling: ['build', 'profiling'],
   bench: ['build', 'benchmark'],
