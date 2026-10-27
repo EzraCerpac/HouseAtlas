@@ -92,7 +92,9 @@ export async function storedDetailBytes(host: DetailStoreHost = browserHost()): 
 /** Remove every stored copy: Settings and sign-out. */
 export async function clearDetailStore(host: DetailStoreHost = browserHost()): Promise<void> {
   ++generation;
-  try { await host.caches?.delete(DETAIL_STORE_NAME); } finally { changed(); }
+  // Under the same lock as replacement: a write another tab queued earlier
+  // finishes first and is deleted here; none can recreate the copy afterwards.
+  try { await exclusive(host.locks, async () => { await host.caches?.delete(DETAIL_STORE_NAME); }); } finally { changed(); }
 }
 
 /** Called after every keep, forget or removal. */

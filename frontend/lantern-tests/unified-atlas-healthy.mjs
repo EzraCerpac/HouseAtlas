@@ -266,6 +266,18 @@ openDetailStore(owner, raceHost).keep(composed.sha256, glb.slice());
 openDetailStore({ ...owner, homeId: '00000000-0000-4000-8000-000000000802' }, raceHost).keep('e'.repeat(64), glb.slice());
 await kept;
 assert.equal((await raceHost.caches.named.get(DETAIL_STORE_NAME).keys()).length, 1, 'concurrent keeps replace one at a time');
+// Removal waits behind a write another tab already queued on the origin-wide
+// lock, so that write cannot bring the copy back. The lock stand-in grants in order.
+let held = Promise.resolve();
+const locks = { request: (name, task) => { const run = held.then(() => task()); held = run.catch(() => undefined); return run; } };
+const lockedHost = { caches: memoryCaches(), storage: manager(roomy), origin: SYNTHETIC_ATLAS.origin, locks };
+let release; const gate = new Promise(resolve => { release = resolve; });
+locks.request(DETAIL_STORE_NAME, () => gate);
+kept = settled(2);
+openDetailStore(owner, lockedHost).keep(composed.sha256, glb.slice());
+const removal = clearDetailStore(lockedHost);
+release(); await removal; await kept;
+assert.equal(await storedDetailBytes(lockedHost), 0, 'a write queued before removal does not survive it');
 const unsupported = openDetailStore(owner, { origin: SYNTHETIC_ATLAS.origin });
 assert.equal(await unsupported.read(composed.sha256, glb.byteLength), null, 'without Cache Storage nothing is stored or read');
 unsupported.keep(composed.sha256, glb.slice());
