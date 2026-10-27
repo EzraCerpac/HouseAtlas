@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "5404954b6760cb598a6d3f4c9918a161ba8c45f6e6dbee661abc8580510e5dbe",
+  "sourceDigestSha256": "249a6180c86a270e95b15ccb105a687dd067a3506a5cc4f18045fa0621bca29e",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6104,9 +6104,9 @@
     {
       "path": "docs/contributing/ci-path-selection.md",
       "mode": "100644",
-      "owner": "core-integration",
       "bytes": 4106,
-      "sha256": "9ff08f4c7da1ac401571a5d3b7d5315cda6dea9a512182909ac8531b9978d3ee"
+      "sha256": "9ff08f4c7da1ac401571a5d3b7d5315cda6dea9a512182909ac8531b9978d3ee",
+      "owner": "core-integration"
     },
     {
       "path": "docs/contributing/verification.md",
@@ -6468,8 +6468,8 @@
     {
       "path": "docs/models/unified-atlas-scene-v1.md",
       "mode": "100644",
-      "bytes": 28900,
-      "sha256": "1e8226a2dccf234dc7403e03d70d0ef65c0001b83d414c6817f7d099f4b061fe",
+      "bytes": 29148,
+      "sha256": "ed146b336cccc90fbf42bb0a2ec312a2f3f49ec1d723a7f0b817b6b2530e799b",
       "owner": "core-integration"
     },
     {
@@ -6496,8 +6496,8 @@
     {
       "path": "docs/offline/root-offline-entry.md",
       "mode": "100644",
-      "bytes": 9293,
-      "sha256": "a9e559057b5e9cfd284a24360a1188c3ccd072a9e1434aca572e4f671b1c71df",
+      "bytes": 10133,
+      "sha256": "befc631bfa73e22c105214256c6f21a4ee9d05f657723e4c3f3a97f900d548b2",
       "owner": "web"
     },
     {
@@ -7021,8 +7021,8 @@
     {
       "path": "frontend/build/offline-worker-source.js",
       "mode": "100644",
-      "bytes": 4016,
-      "sha256": "a9f890850d4707bb79a2bd15caf789ef68c696b7197c572beef59544a9e6e12c",
+      "bytes": 6673,
+      "sha256": "92d93767a418d6804227d4044e52410bec9e1e6d9ab8d5a6cdb4668a74fbc7b3",
       "owner": "web"
     },
     {
@@ -7952,8 +7952,8 @@
     {
       "path": "frontend/lantern-tests/offline-root-entry-healthy.mjs",
       "mode": "100644",
-      "bytes": 22975,
-      "sha256": "1e8dd020ac229630dde6ac23ba0ac529e1e21a5247d6d86658041ca21f1b0e01",
+      "bytes": 28066,
+      "sha256": "94692038c856d6f51980690833f0d7ff6900b109c7c61b3bd50bcbbd05aaf2e6",
       "owner": "web"
     },
     {
@@ -8344,8 +8344,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-daylight-healthy.mjs",
       "mode": "100644",
-      "bytes": 20112,
-      "sha256": "5a6a56ad3520091e2b45af39e60f1e4deccd1ec47e7c3bf07c6375d3c343c728",
+      "bytes": 22204,
+      "sha256": "e9de374bba1a3aeeab9b27d56deaaa0fcbd7f7106e65e786da464e532b8cc9c3",
       "owner": "web"
     },
     {
@@ -9254,8 +9254,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/geometry.ts",
       "mode": "100644",
-      "bytes": 23339,
-      "sha256": "bff874aa3c003b53b9a08e4482818d054fe6508cec530b7efbb959257788b062",
+      "bytes": 24744,
+      "sha256": "436db645c2e040cf0d90b435bf9351b978e2d2e6c8e820a7cc60baf05b8f1ede",
       "owner": "web"
     },
     {
@@ -9282,15 +9282,15 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-appearance.ts",
       "mode": "100644",
-      "bytes": 18303,
-      "sha256": "cc61dae46bcf1f42461f2884e86212634b69235425e6fd030df4a58c24a984ef",
+      "bytes": 18791,
+      "sha256": "703f37f95640a852518e5fd6b5a12a8e693340f61a12ac411e2dbfe3ddf060bb",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-scene.ts",
       "mode": "100644",
-      "bytes": 44237,
-      "sha256": "98433672ae97a802bdaf485b28c74053ba9e350746391d33ee8b36776f364659",
+      "bytes": 47047,
+      "sha256": "304dac1f41c1d7f5a720469d0f07653babdedb4a28b8392f51b4c69ac25b337b",
       "owner": "web"
     },
     {
@@ -9352,8 +9352,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/standard-glb.ts",
       "mode": "100644",
-      "bytes": 14457,
-      "sha256": "11aa9e17175029c9dd8093fa501ab9bb3b32fa8ee5cf30c8a0d74565826b9077",
+      "bytes": 14655,
+      "sha256": "f7691403793e1c380881222dca6ad50f9496871a6a569d1ed123c0cd505e6381",
       "owner": "web"
     },
     {
@@ -10780,8 +10780,8 @@
     {
       "path": "frontend/src/offline/shell.ts",
       "mode": "100644",
-      "bytes": 7247,
-      "sha256": "f2fab69db179d2e41384bfc6cc2963560b61e6d452538c90cfd77fc31f470fb5",
+      "bytes": 7189,
+      "sha256": "674677dc3e160bdfe7427d8273ee4a0ebd448d35210ca0b8c2ed4f88e064d5d8",
       "owner": "web"
     },
     {
@@ -11921,16 +11921,16 @@
     {
       "path": "tools/ci/select_pr_checks.py",
       "mode": "100644",
-      "owner": "core-integration",
       "bytes": 5242,
-      "sha256": "239473c12a88dba75feb60a9ec4d51dc8ddfbe129e3646051efbf554b1930842"
+      "sha256": "239473c12a88dba75feb60a9ec4d51dc8ddfbe129e3646051efbf554b1930842",
+      "owner": "core-integration"
     },
     {
       "path": "tools/ci/test_select_pr_checks.py",
       "mode": "100644",
-      "owner": "core-integration",
       "bytes": 6034,
-      "sha256": "2545d548ad8dfae7cebfc69b9a929839deb2c14ab1b2d5995325064bf0cfde61"
+      "sha256": "2545d548ad8dfae7cebfc69b9a929839deb2c14ab1b2d5995325064bf0cfde61",
+      "owner": "core-integration"
     },
     {
       "path": "tools/core-integration/browser-harness.mjs",

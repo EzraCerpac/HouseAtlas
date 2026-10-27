@@ -395,9 +395,13 @@ after dusk shows the lamp-lit room behind it. Until a model carries these marks,
 own name (never its mesh's or node's) holds a generic glass word counts as
 glass, or as a lamp when the name also holds a lamp word and the material
 states no `emissiveFactor`. A stated zero factor stops a name from making a
-lamp, but a glass word still makes the material building glass. Every lamp
-glows one fixed warm colour; the hue of `emissiveFactor` is not used yet, only
-whether it is nonzero. Day lighting ignores the lamp marks.
+lamp, but a glass word still makes the material building glass. A lamp's
+colour is the hue of its `emissiveFactor`, with its brightest channel taken as
+full, so the factor's strength is not read: its glass glows a paler shade of
+that colour and its pool or beam lights in it. Lamps close enough to merge mix
+their colours. A lamp known only by its name glows warm white.
+`emissiveTexture` stays outside the material profile. Day lighting ignores the
+lamp marks.
 
 Glass is depth-tested over the solid scene and never writes depth. Each source
 glass primitive remains an independently sortable draw, ordered from far to
