@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "a494fd4eeafe0b7811a0a05aaba47c5ddd6144babceb4d8c538b1f6431bbbdf8",
+  "sourceDigestSha256": "f7e19280e7677e97d377ac8396d573042d043e8a1dd5dd318b06cb3b5bb66800",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -82,6 +82,41 @@
       "owner": "core-integration"
     },
     {
+      "path": ".mise/tasks/bench",
+      "mode": "100755",
+      "bytes": 188,
+      "sha256": "de31846e83c7d785f1330b3d07ec81ae50284a4982c66f05ca7848a7492f995d",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".mise/tasks/cargo-diagnostic",
+      "mode": "100755",
+      "bytes": 182,
+      "sha256": "69052b38707ad64a5b8973efd5be0ee4e74e21bb7d4ed0147b56010f6dbe6e0b",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".mise/tasks/check",
+      "mode": "100755",
+      "bytes": 172,
+      "sha256": "4038875de5fff682fa096a5c650622a8a96b7b8eb2615ff3e9976fa203c94380",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".mise/tasks/dev",
+      "mode": "100755",
+      "bytes": 166,
+      "sha256": "be2cca15bad2f79790f23010b643d0fda4f67c957546869998376344af09a565",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".mise/tasks/profiling",
+      "mode": "100755",
+      "bytes": 176,
+      "sha256": "be2987b48f2abb2763b21d22755a1b70b292831572515a56a64f969ca0b275aa",
+      "owner": "core-integration"
+    },
+    {
       "path": ".node-version",
       "mode": "100644",
       "bytes": 8,
@@ -119,8 +154,8 @@
     {
       "path": "Cargo.toml",
       "mode": "100644",
-      "bytes": 2555,
-      "sha256": "f8ce1f1b4f7162df91a4bf696e187b1c7840721055c84995c736d3013e3b4cfe",
+      "bytes": 2988,
+      "sha256": "645cd43dc131b2945e55a034d0629d01ade061477405189df03d379917f2590d",
       "owner": "core-integration"
     },
     {
@@ -6291,6 +6326,13 @@
       "owner": "contracts"
     },
     {
+      "path": "docs/contributing/cargo-modes.md",
+      "mode": "100644",
+      "bytes": 4218,
+      "sha256": "3f8cb66651142ee4f6a99f0da8a522022503a073258088d80fa408b47694be36",
+      "owner": "core-integration"
+    },
+    {
       "path": "docs/contributing/cargo-timings.md",
       "mode": "100644",
       "bytes": 4417,
@@ -11616,6 +11658,13 @@
       "bytes": 25748,
       "sha256": "2ab6a6e04d5773df9c44f7ff20a836e25f8eb9dbb3c609cd7227ea77f9bbc04e",
       "owner": "operations-policy"
+    },
+    {
+      "path": "tools/cargo-modes/run.mjs",
+      "mode": "100644",
+      "bytes": 1956,
+      "sha256": "aa2e5e59bb8c20196e0d91a55297c277f9da8049fb19e255fa573ae8e79b49f7",
+      "owner": "core-integration"
     },
     {
       "path": "tools/ci/cargo-timings.mjs",

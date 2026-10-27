@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+#MISE description="Build optimized backend targets with profiling symbols"
+set -eu
+exec node "$(dirname "$0")/../../tools/cargo-modes/run.mjs" profiling "$@"

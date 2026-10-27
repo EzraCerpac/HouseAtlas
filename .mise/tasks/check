@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+#MISE description="Type-check the backend with the optional check profile"
+set -eu
+exec node "$(dirname "$0")/../../tools/cargo-modes/run.mjs" check "$@"
