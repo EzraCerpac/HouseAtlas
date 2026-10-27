@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "5afd0faf4cbbed10a4761b7547ecbdad996aca7cb57d3a12c23a1d8c4fc9cb4b",
+  "sourceDigestSha256": "e3c55b762a1b8a4584939a5321c4a481f1bb25feda0ae1fb16c76bae64fb57ec",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -126,8 +126,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 8661,
-      "sha256": "7ca3a630947a10693271aa31df82e5e34b0a63401a2b645826545817b526422b",
+      "bytes": 9056,
+      "sha256": "2486764055c0e6b3b6fc70a83abc5fc2399062f4b6a381774779718195bb544d",
       "owner": "core-integration"
     },
     {
@@ -6130,6 +6130,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/contributing/formatting.md",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 2815,
+      "sha256": "f5ca42dbb9a2cee97c4ab3c077543d23bce60da0cb4412fbdc3ec9c8f9c0b880"
+    },
+    {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
       "bytes": 162592,
@@ -10589,6 +10596,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "mise.toml",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 372,
+      "sha256": "87f0216f5b89bf108619ec525fda9f0cb79d0a337198a584e5bffeb832098744"
+    },
+    {
       "path": "package-lock.json",
       "mode": "100644",
       "bytes": 281,
@@ -12407,6 +12421,13 @@
       "bytes": 15652,
       "sha256": "7801a97b255a3a6e454a4d0089815ea7337c138190e0ae2242725a9d09d56f9c",
       "owner": "core-integration"
+    },
+    {
+      "path": "tools/rust-integration/format.mjs",
+      "mode": "100644",
+      "owner": "core-integration",
+      "bytes": 1000,
+      "sha256": "c2974ed7ed2a19ee1cdeab2dc75badf81f44424e5007d977babfecfd55832d57"
     },
     {
       "path": "tools/rust-integration/healthy-agent-host-loopback.mjs",
