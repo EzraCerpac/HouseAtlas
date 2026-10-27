@@ -8,6 +8,8 @@ export function compare(base, candidate) {
     assert.equal(report.provenance.profile, 'release');
     assert.match(report.provenance.sourceSha, /^[a-f0-9]{40}$/);
     assert.match(report.binarySha256, /^[a-f0-9]{64}$/);
+    assert.equal(typeof report.measurementDriverSha256, 'string', 'Measurement driver identity required');
+    assert.match(report.measurementDriverSha256, /^[a-f0-9]{64}$/, 'Measurement driver identity required');
     assert(report.cohorts.length > 0, 'Missing cohorts');
     for (const row of report.cohorts) {
       assert(row.summary.attempted > 0, 'Empty cohort');
@@ -17,7 +19,8 @@ export function compare(base, candidate) {
   assert.notEqual(base.provenance.sourceSha, candidate.provenance.sourceSha, 'Different source commits required');
   assert.equal(base.provenance.runnerId, candidate.provenance.runnerId, 'Use the same runner allocation');
   assert.deepEqual(base.runner, candidate.runner, 'Runner and runtime context differ');
-  assert.equal(base.clientBundleSha256, candidate.clientBundleSha256, 'Use identical client driver bytes');
+  assert.equal(base.clientBundleSha256, candidate.clientBundleSha256, 'Use identical production adapter bundle bytes');
+  assert.equal(base.measurementDriverSha256, candidate.measurementDriverSha256, 'Use identical complete measurement driver bytes');
   assert.deepEqual(base.limits, candidate.limits, 'Offered load differs');
   assert.equal(base.generatedAssetBytes, candidate.generatedAssetBytes);
   assert.deepEqual(base.cohorts.map(row => row.name), candidate.cohorts.map(row => row.name));

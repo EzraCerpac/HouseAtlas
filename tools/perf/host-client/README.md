@@ -16,7 +16,7 @@ not the application frontend or household material.
 From the repository root:
 
 ```sh
-node --test tools/perf/host-client/options.test.mjs tools/perf/host-client/compare.test.mjs
+node --test --test-concurrency=1 tools/perf/host-client/options.test.mjs tools/perf/host-client/compare.test.mjs
 mise run perf-host-client contract --binary /absolute/path/to/houseatlas
 mise run perf-host-client faults --binary /absolute/path/to/houseatlas
 ```
@@ -118,20 +118,31 @@ are descriptive empirical quantiles, not confident population-tail estimates.
 Incomplete or errored measurements retain a report and exit nonzero.
 Errors, timeouts and cancellations stay separate; failed latency is never
 silently inserted into successful quantiles. Comparison rejects different
-runner/runtime, client bundle, offered load, fixture size or cohort contexts.
+runner/runtime, production adapter bundle, complete measurement driver, offered
+load, fixture size or cohort contexts. The separate `measurementDriverSha256`
+hashes a versioned, sorted relative-path/byte-count/SHA-256 manifest of every
+local runtime source: run, options, transport, fixture, driver-identity and
+comparison modules plus the mise launcher. The explicit closure includes the
+fingerprint implementation itself; extend it when adding a runtime module.
+`clientBundleSha256` independently identifies the built production adapter.
+Source fingerprints compare supplied reports; they are not signed build or
+execution attestations. Older reports without a complete driver identity fail
+comparison and must be regenerated.
 Saturated or errored comparisons are marked unqualified. No automatic performance
 gate or speedup claim follows from one pair; repeat pairs with alternating order
 before drawing a conclusion.
 
 ## Qualification status and next seam
 
-The new test files are explicit, source-only stdlib Node tests. They are not added
-to ordinary CI in this change. The host/client contract, faults and measurements
-also remain opt-in; existing named ordinary CI is unchanged. A possible future
-CI scope is exactly the two pure Node test files in ordinary-core, followed by
-a separately reviewed non-browser `contract` invocation using the existing
-Rust build artifact. Faults and release measurement should remain separately
-selected. That is a proposal for coordination, not an enabled lane.
+The two explicit, source-only stdlib Node test files now run in the existing
+ordinary-core lightweight job with `--test-concurrency=1`. Their six cases
+exercise options, summary accounting, fingerprints over generated temporary
+source files, comparison identity/context rejection and saturation/error
+qualification. They launch no host, listener, Vite, browser, generator or
+profiler. The host/client contract, faults and measurements remain opt-in and
+unrun by ordinary CI. A future non-browser `contract` invocation using the
+existing Rust artifact requires separate reviewed registration; faults and
+release measurements remain separately selected. No new CI lane is added.
 
 The existing frontend healthy runner can still report zero-match success for an
 unknown `--only` substring. That shared seam is deliberately left for its owner;

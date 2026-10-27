@@ -23,6 +23,8 @@ const scope = { workspaceId: U(1), homeId: U(2) };
 const scopePath = '/api/atlas/v1/workspaces/' + scope.workspaceId + '/homes/' + scope.homeId;
 const report = { format: 'houseatlas-host-client/1', mode: config.mode,
   binarySha256: owned.binarySha256, clientBundleSha256: owned.sourceSha256,
+  measurementDriverSha256: owned.measurementDriver.sha256,
+  measurementDriverIdentity: owned.measurementDriver,
   generatedAssetBytes: owned.generatedAssetBytes,
   limits: { deadlineMs: config.deadlineMs, concurrency: config.concurrency, startsPerSecond: config.rate,
     responseBytes: 8 << 20, perRequestMs: 5000 },

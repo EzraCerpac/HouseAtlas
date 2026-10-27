@@ -3240,3 +3240,30 @@ disabled by default. The retained registration and historical release labels abo
 describe the donor snapshot; they do not add a CI lane or override the current
 repository test policy. Exact integration compilation, formatting, Clippy and
 tests run in CI. No local build or test outcome is claimed for this composition.
+
+## Synthetic host-client source-only checks
+
+Inspect `tools/perf/host-client/options.test.mjs`,
+`compare.test.mjs` and their `options.mjs`, `driver-identity.mjs` and
+`compare.mjs` imports. The existing ordinary-core lightweight job runs these
+two exact paths with the pinned Node 26.10.0, without installing dependencies
+or adding a job:
+
+```sh
+node --test --test-concurrency=1 tools/perf/host-client/options.test.mjs tools/perf/host-client/compare.test.mjs
+```
+
+The six cases check fail-closed option/limit handling, empirical quantile sample
+thresholds and error accounting, deterministic source closure fingerprints over
+generated disposable files (including a change to each runtime source), refusal
+of unequal runner/adapter/complete-driver/load/context or empty comparisons, and
+unqualified saturated/errored reports. The unequal-driver regression retains an
+identical production adapter bundle identity while changing the measurement
+driver identity. Temporary directories are removed after the fingerprint case.
+
+This scope launches no Rust process, Vite build, HTTPS listener, browser, provider,
+load generator, fault cohort or profiler. It collects no benchmark samples or
+household data. The opt-in `contract`, `faults` and `measure` commands in
+[the host-client guide](../../tools/perf/host-client/README.md) are not registered
+in ordinary CI. Source test results do not establish end-to-end performance,
+release-build provenance, cache/device behavior or installed acceptance.

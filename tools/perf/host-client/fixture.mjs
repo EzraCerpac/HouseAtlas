@@ -6,6 +6,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { localTransport } from './transport.mjs';
+import { measurementDriverIdentity } from './driver-identity.mjs';
 
 export const root = fileURLToPath(new URL('../../../', import.meta.url));
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -66,6 +67,7 @@ export async function fixture(binary, rate = 10) {
     writeFileSync(modulePath, chunks[0].code);
     const clients = await import(pathToFileURL(modulePath).href);
     const sourceSha256 = sha256(chunks[0].code);
+    const measurementDriver = measurementDriverIdentity(root);
     service = spawn(binary, [
       '--disposable-dir', data, '--frontend-dist', frontend, '--tls-cert', cert, '--tls-key', key,
     ], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'],
@@ -83,7 +85,7 @@ export async function fixture(binary, rate = 10) {
     const generated = JSON.parse(readFileSync(join(data, 'smoke-session.json')));
     assert.match(generated.origin, /^https:\/\/127\.0\.0\.1:[0-9]+$/);
     transport = localTransport({ origin: generated.origin, ca: readFileSync(cert), cookie: generated.cookie, rate });
-    return { clients, generated, transport, data, pid: service.pid, sourceSha256, stop,
+    return { clients, generated, transport, data, pid: service.pid, sourceSha256, measurementDriver, stop,
       binarySha256: sha256(readFileSync(binary)), generatedAssetBytes: asset.length + Buffer.byteLength(html) };
   } catch (error) { await stop(); throw error; }
 }
