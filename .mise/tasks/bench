@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+#MISE description="Build backend targets with fixed benchmark settings; does not run them"
+set -eu
+exec node "$(dirname "$0")/../../tools/cargo-modes/run.mjs" bench "$@"
