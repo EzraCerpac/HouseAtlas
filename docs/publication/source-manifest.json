@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0371b621a8d1812ab7c3c6176dfa1857a2bd3250a5ac38f7e5d4b19a8c6993a8",
+  "sourceDigestSha256": "6e8299dcedb3ab6ec04ecc74ddde931d044077b5c4becebe45de76401123852a",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -11697,8 +11697,8 @@
     {
       "path": "tools/cargo-modes/run.test.mjs",
       "mode": "100644",
-      "bytes": 3409,
-      "sha256": "3f1daa37094701f9f286caea25cfa541279b4d3666cd8194cb52b7b1d71bd1b1",
+      "bytes": 3401,
+      "sha256": "eecb2ed740a6a0f2fd20734f14513e28761da5774ed6bd4371a276269fda8ffc",
       "owner": "core-integration"
     },
     {

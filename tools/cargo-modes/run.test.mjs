@@ -19,7 +19,7 @@ function fixture(t) {
   mkdirSync(bin); mkdirSync(elsewhere);
   copyFileSync(source, runner);
   copyFileSync(pin, join(root, 'rust-toolchain.toml'));
-  const channel = readFileSync(pin, 'utf8').match(/^channel\\s*=\\s*"(\\d+\\.\\d+\\.\\d+)"\\s*$/m)[1];
+  const channel = readFileSync(pin, 'utf8').match(/^channel\s*=\s*"(\d+\.\d+\.\d+)"\s*$/m)[1];
   const receipt = join(root, 'receipt.json');
   const stub = join(root, 'record.mjs');
   writeFileSync(stub, "import { writeFileSync } from 'node:fs';\nwriteFileSync(process.env.CARGO_MODES_TEST_RECEIPT, JSON.stringify({ args: process.argv.slice(2), cwd: process.cwd() }));\n");
