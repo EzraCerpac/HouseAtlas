@@ -62,13 +62,14 @@ acknowledging tool completion. It registers tools through actual
 follows the actual committed scope and admitted catalog. A failed optional
 catalog load leaves the authorized home visible with tools unavailable.
 
-The healthy browser runners support six source-inspected native releases:
+The healthy browser runners support seven source-inspected native releases:
 [Chromium 151.0.7922.173](https://chromium.googlesource.com/chromium/src/+/refs/tags/151.0.7922.173/third_party/blink/renderer/core/script_tools/model_context.idl),
 [154.0.8037.57](https://chromium.googlesource.com/chromium/src/+/refs/tags/154.0.8037.57/third_party/blink/renderer/core/script_tools/model_context.idl),
 [154.0.8037.97](https://chromium.googlesource.com/chromium/src/+/refs/tags/154.0.8037.97/third_party/blink/renderer/core/script_tools/model_context.idl),
 [154.0.8037.98](https://chromium.googlesource.com/chromium/src/+/refs/tags/154.0.8037.98/third_party/blink/renderer/core/script_tools/model_context.idl),
-[155.0.8059.39](https://chromium.googlesource.com/chromium/src/+/refs/tags/155.0.8059.39/third_party/blink/renderer/core/script_tools/model_context.idl)
-and [155.0.8059.84](https://chromium.googlesource.com/chromium/src/+/refs/tags/155.0.8059.84/third_party/blink/renderer/core/script_tools/model_context.idl).
+[155.0.8059.39](https://chromium.googlesource.com/chromium/src/+/refs/tags/155.0.8059.39/third_party/blink/renderer/core/script_tools/model_context.idl),
+[155.0.8059.84](https://chromium.googlesource.com/chromium/src/+/refs/tags/155.0.8059.84/third_party/blink/renderer/core/script_tools/model_context.idl),
+and [156.0.8078.47](https://github.com/chromium/chromium/blob/156.0.8078.47/third_party/blink/renderer/core/script_tools/model_context.idl).
 The 151 and 154 releases declare `executeTool` input as DOMString and receive the
 complete request as JSON text; the inspected 154 patch-release IDLs are
 byte-identical. The inspected 155.0.8059.39 and .84 IDLs and implementations
@@ -78,6 +79,30 @@ rejects a non-object before serializing it, so runners pass the same complete
 request as a structured object. Each runner selects that form from the exact
 `Browser.getVersion` product. A browser version change requires source
 inspection before a runner continues.
+
+The exact 156.0.8078.47 source retains structured-object input. Its IDL declares
+`optional any inputObject` (Git blob
+`c157d4ae67bf6e8eb6fdbd5201eca00b2f1db59f`). Its
+[`model_context.cc`](https://github.com/chromium/chromium/blob/156.0.8078.47/third_party/blink/renderer/core/script_tools/model_context.cc)
+(blob `0ed6a007777b5d285e6cb5f38082c4ebe5024472`) passes that value through
+`ValidateAndStringifyValue`, which requires an object before JSON serialization.
+The tag's [object-arguments test](https://github.com/chromium/chromium/blob/156.0.8078.47/third_party/blink/web_tests/external/wpt/webmcp/imperative/object-arguments.https.html)
+also defines object/array acceptance and primitive-string rejection; that upstream
+test was read, not run here. The 155 and 156 files are not byte-identical.
+
+This admission follows observed hosted-runner drift on 27 October 2026:
+PR #452's job `122130803488` reported Chrome/155.0.8059.39, while main
+`c33d8427ea6d5521c3784b3352c4241a9bf330c3` job `122139943219` reported
+Chrome/156.0.8078.47 before the human-host runner stopped at its version gate.
+Only the exact new product is added to the six already selected native WebMCP
+runners; unknown products still stop, and assertion diagnostics include the
+observed product. Source inspection establishes the input form, not runtime
+qualification. The existing hosted native `healthy-agent-loopback.mjs` and
+other named flows retain their registration, invocation, canonical-result and
+visible-completion checks; their execution on the amended candidate remains
+required. No generic adapter peer can establish the browser's native input
+contract. No workflow, browser installation, fallback input probe or version
+range is added.
 
 ## Mounted and embeddable MCP flow
 

@@ -2254,6 +2254,32 @@ supported-browser observations after source review and independent deployment
 authority. No broader control suite or production action is released.
 
 
+## Named synthetic linear proposal syntax cases
+
+Read `packages/contracts/proposals/linear-v1/{schema.json,validate.mjs,examples.json,examples.test.mjs}`
+and the [pinned area-candidate alignment](../contracts/measurement-linear-alignment.md)
+before execution. The existing ordinary-core job selects exactly this file with
+pinned Node 26.10.0 and the already installed `packages/contracts` lock:
+
+```sh
+node --test --test-concurrency=1 packages/contracts/proposals/linear-v1/examples.test.mjs
+```
+
+Its eleven test bodies preserve six fictional proposals and cover exact
+leading/trailing-zero entry, the 64-character and 18-fractional-digit limits,
+all-zero and line-terminator refusal, metric scalar field/unit compatibility,
+documentary wall token syntax and canonical endpoint order, distinct height
+datums and disjoint declared boundary tokens. The existing boundary arithmetic
+uses only the explicitly generated fixture coordinates.
+
+The runner reads local fixture/schema bytes and uses the locked Ajv 8.20.0 and
+ajv-formats 3.0.1. It opens no browser, listener, native service or provider,
+issues no write, allocates no source identity, imports none of PR #453's backend
+and adds no dependency or proposal-directory glob. These checks qualify isolated
+syntax and fixture consistency only; they establish no native linear API,
+persistence, physical measurement accuracy or installed/device acceptance.
+Registration is source until exact-candidate hosted logs report execution.
+
 ## Named generated electrical registration cases
 
 Read `tools/electrical_registration/README.md`, its pure registration module and
@@ -2675,7 +2701,7 @@ It never dispatches to a stock service, opens a transport or mounts a browser.
 
 `frontend/lantern-tests/webmcp-adapter-healthy.mjs` bundles the current
 `frontend/src/webmcp/index.ts` with the locked Vite into a temporary ES module,
-then runs the unchanged `frontend/src/webmcp/healthy.examples.mjs` fixture
+then runs the `frontend/src/webmcp/healthy.examples.mjs` fixture
 against it (6 synthetic adapter, session and history cases, validated with the
 `packages/contracts` Ajv schemas). It runs in CI through `run-healthy.mjs`:
 
@@ -2685,6 +2711,45 @@ node frontend/lantern-tests/webmcp-adapter-healthy.mjs
 
 It never opens a browser, listener, native service or provider, and removes
 only its own temporary output.
+
+The same fixture also includes five in-process lifecycle cases with controlled
+synthetic promises: disposal during a pending service result or view
+acknowledgement, session replacement, partial registration failure, and disposal
+during input parsing. They assert disclosure fencing, original session identity,
+separate service/presentation signals, prompt registration cleanup and no repeat
+dispatch. No real mutation, credential, browser or native access check is made;
+these cases do not establish installed revocation, operator recovery or device
+acceptance. This extends only this existing bootstrap, with no new CI job,
+dependency or runtime transport.
+
+The bootstrap also bundles `frontend/src/webmcp/quantity/tool.ts` as a separate
+temporary `quantity.js` companion for the same fixture. Three quantity-mount
+cases cover custody across separate service/presentation contexts, simultaneous
+identical caller inputs with one busy handoff, and disposal before or during
+presentation. Fake preview/reservation owners issue no approval or submission.
+The cases assert exact per-invocation parsed-input custody, acknowledgement only
+after visible commit, no acknowledgement after disposal, and no repeat preview.
+The bootstrap additionally bundles the actual `quantity/QuantityHandoff.tsx`
+module as `quantity-custody.js`, without rendering React. Three further cases
+exercise its real QuantityHandoffs/Handoff closure and same-session reuse after
+a withheld dismissal or deadline, prompt retirement during an ignored view
+acknowledgement, and an in-flight synthetic submission that remains uncancelled,
+unclosable and held after disposal/deadline until its owner promise settles.
+The last case retains the recorded result and an independent uncertainty hold
+after presentation closure. The constructor's actual deadline callback is
+captured synchronously and its real timeout is cleared by the owner; no source
+extraction, replacement custody class or sleep-based deadline is used.
+Two further actual-owner cases cover cancellation after service completion but
+before adapter release resumes (both invocation and session replacement), and
+32 immediately cancelled busy results while the original handoff stays pending.
+They assert prompt reservation retirement where applicable, removed completed
+abort listeners, no stale presentation, retained pending owner work and no
+preview/dispatch retry. The busy case observes the adapter's actual native
+composite signal and its listener registration/removal without replacing signal
+semantics, adding production diagnostics or relying on garbage-collection timing.
+All nineteen cases run through the existing registered bootstrap command;
+`run-healthy.mjs` and workflow selection are unchanged. This is not qualification
+of native quantity effects, real-person approval, React UI or live providers.
 
 ## PR lane selection (26 October 2026)
 

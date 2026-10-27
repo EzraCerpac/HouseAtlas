@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b9ababf19650f1fb1eab246dac1c56384e602526a0b51b8aff0c2d788bfbd046",
+  "sourceDigestSha256": "5afd0faf4cbbed10a4761b7547ecbdad996aca7cb57d3a12c23a1d8c4fc9cb4b",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -42,8 +42,8 @@
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
-      "bytes": 5043,
-      "sha256": "286fd5e9a28d18f74e78da5b5750720ea92b5251da4fcfb05fc99582c9954983",
+      "bytes": 5267,
+      "sha256": "0837e7782614abe41c7ffc041147295bb2d9ec6c0c85a5b1d63259b7d78d1b56",
       "owner": "core-integration"
     },
     {
@@ -105,8 +105,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 9237,
-      "sha256": "39ef9a5e70f767478e47bfc4f91da0ca35098e1bd6a921b43b901e906a63c67d",
+      "bytes": 10346,
+      "sha256": "8ba6852fcc8ff878c643ddd25a79dad418b1e819ed01f3ef694be4e95b6d28cc",
       "owner": "core-integration"
     },
     {
@@ -6095,10 +6095,17 @@
       "owner": "contracts"
     },
     {
+      "path": "docs/contracts/measurement-linear-alignment.md",
+      "mode": "100644",
+      "owner": "contracts",
+      "bytes": 10673,
+      "sha256": "1997662e6d5e1511f69acc63e0de3cabac3a5c59b52bf8c71402d2084c873e53"
+    },
+    {
       "path": "docs/contracts/measurement-linear-proposal.md",
       "mode": "100644",
-      "bytes": 8444,
-      "sha256": "4b621b3fa5415df3acee9e5f65ba6b810c33e6fcb3864e536e24fc5d48aa867d",
+      "bytes": 8730,
+      "sha256": "9567b3f6dd69b316d2171e0acd1eba3287eaeb7fb2f076dbe532911e1bf38463",
       "owner": "contracts"
     },
     {
@@ -6125,8 +6132,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 158276,
-      "sha256": "aeb003efaacd77239363671bfaeacfd05b87dc81abfb46cb7c96f4d9dfb477f9",
+      "bytes": 162592,
+      "sha256": "354135b7ae39d8241a05a389feaa483d0702a0b9df03e1192fa644579bab7357",
       "owner": "core-integration"
     },
     {
@@ -6720,8 +6727,8 @@
     {
       "path": "docs/rust-integration/agents.md",
       "mode": "100644",
-      "bytes": 15654,
-      "sha256": "3d275343d7eafd4fcdf0b7055e06e293c70f7c1b9566e94ec168c5c2076f0eb4",
+      "bytes": 17516,
+      "sha256": "e26247b0fe5b85ad31c66b0836b419d481e3ab35603ad00ef060eb62b57182e6",
       "owner": "core-integration"
     },
     {
@@ -8260,8 +8267,8 @@
     {
       "path": "frontend/lantern-tests/webmcp-adapter-healthy.mjs",
       "mode": "100644",
-      "bytes": 2072,
-      "sha256": "e8a77424ac7ca06d69dfb10d86fe7e5982f293b103975106c2867e39de74359d",
+      "bytes": 2265,
+      "sha256": "07649d778e805861045c7d07a46b9bbc7a88c31d66654a00105512ca6dd14807",
       "owner": "web"
     },
     {
@@ -10388,8 +10395,8 @@
     {
       "path": "frontend/src/webmcp/README.md",
       "mode": "100644",
-      "bytes": 8072,
-      "sha256": "01ba9830a22ee4888798a6608582f2c2298b661471b77df11835693ba4e6fb08",
+      "bytes": 11889,
+      "sha256": "b8d14744ce761b9687921a3770f663ed8d56c3d0ec7cd619de8b132baf9074a2",
       "owner": "webmcp"
     },
     {
@@ -10402,8 +10409,8 @@
     {
       "path": "frontend/src/webmcp/adapter.ts",
       "mode": "100644",
-      "bytes": 6700,
-      "sha256": "f25d6f0eeef0aea149851bbd423b7bdb35648f4bd9f678f7db56da8bf9e828c8",
+      "bytes": 7019,
+      "sha256": "6f6adbdbedb78c33efb66952da8be8eadb81dd085b2794565076e2bfe3bdc7d1",
       "owner": "webmcp"
     },
     {
@@ -10500,8 +10507,8 @@
     {
       "path": "frontend/src/webmcp/healthy.examples.mjs",
       "mode": "100644",
-      "bytes": 7538,
-      "sha256": "9496755eec2932de6ec0a49c4085a5c66ad6aa7771422995ba2369bc8738af7f",
+      "bytes": 31026,
+      "sha256": "703744b006293d32356982014213c42b9101c0bc3fc598949b01113d2b4f8a00",
       "owner": "webmcp"
     },
     {
@@ -10514,8 +10521,8 @@
     {
       "path": "frontend/src/webmcp/ports.ts",
       "mode": "100644",
-      "bytes": 3519,
-      "sha256": "5b048b1c1ccabf3282a6332dfa816908199e8c24378468aadc61225a7ca88a62",
+      "bytes": 3991,
+      "sha256": "752c0c356b07e335525c4b44a48c47ac6055d2086a54c3982c927b74a8d2dfb0",
       "owner": "webmcp"
     },
     {
@@ -10528,8 +10535,8 @@
     {
       "path": "frontend/src/webmcp/quantity/tool.ts",
       "mode": "100644",
-      "bytes": 16831,
-      "sha256": "debd9c5f692087d07861827c3d3a576062dd8c64482aa61dc2d165b604549a13",
+      "bytes": 18564,
+      "sha256": "ff79249de3badfa6a29190c8fe715236262418c947f0aa4137830b6cf0afd14f",
       "owner": "webmcp"
     },
     {
@@ -10829,22 +10836,22 @@
     {
       "path": "packages/contracts/proposals/linear-v1/examples.test.mjs",
       "mode": "100644",
-      "bytes": 5006,
-      "sha256": "db34e62de6f776c42720b9d5f78a2c21634cabfd96f97f700ffa500fb2c6e740",
+      "bytes": 9133,
+      "sha256": "cfbbd116f2bae2d20a7d2b425ff154bf4548ad0b76bb00ca05281d9e7a4b73f4",
       "owner": "contracts"
     },
     {
       "path": "packages/contracts/proposals/linear-v1/schema.json",
       "mode": "100644",
-      "bytes": 16542,
-      "sha256": "fb5cc7f96fd97136568ce645e9ff9559a568f71b0c09474a6ccdbd5085d4d229",
+      "bytes": 16539,
+      "sha256": "b35d1568c1bbb16aced13ffe2d1175da72de3d52bce0f7d7c07bf6b57898e40b",
       "owner": "contracts"
     },
     {
       "path": "packages/contracts/proposals/linear-v1/validate.mjs",
       "mode": "100644",
-      "bytes": 1087,
-      "sha256": "fa63c3c4c1a40c259e5a34707e03cef6d63c29a7320c90fd9c971677573dea89",
+      "bytes": 2707,
+      "sha256": "8e79333053ad280b4bb4095a92d7d4bbac9284b1e3fc98a32b5c06755a95b4a2",
       "owner": "contracts"
     },
     {
@@ -12404,22 +12411,22 @@
     {
       "path": "tools/rust-integration/healthy-agent-host-loopback.mjs",
       "mode": "100644",
-      "bytes": 32279,
-      "sha256": "de1f2d8350ca2be603eed546f1bfc2e7f7e71a2be08a9b81c5658977f0c19f5e",
+      "bytes": 32349,
+      "sha256": "b966616a4af9d35218a053fb6326fc48b33ba8086022c5466ea68bcbc3c4d196",
       "owner": "core-integration"
     },
     {
       "path": "tools/rust-integration/healthy-agent-loopback.mjs",
       "mode": "100644",
-      "bytes": 18747,
-      "sha256": "7c03d2fb825e9fdd7097634448bcf2d4cc59d608615db4b5aa2988c4ea8f4083",
+      "bytes": 18817,
+      "sha256": "351bab758220624ffa0f431971bc79ffc5308058a4d3ed67f469e82bb1baf494",
       "owner": "core-integration"
     },
     {
       "path": "tools/rust-integration/healthy-atlas-lists-loopback.mjs",
       "mode": "100644",
-      "bytes": 34001,
-      "sha256": "923e911b3ea539d54d4bde8741d016860f046a9f9342811b39e06b4a29336460",
+      "bytes": 34071,
+      "sha256": "2dc34468769e4bc8f608ceef96661b79d6aa43d01c0ea712583f85ce237e3540",
       "owner": "core-integration"
     },
     {
@@ -12453,8 +12460,8 @@
     {
       "path": "tools/rust-integration/healthy-human-host-loopback.mjs",
       "mode": "100644",
-      "bytes": 39918,
-      "sha256": "1469d2abb1d3fbca9071495421b948ddbca5e371710cbb1f4ff5a163a52638c5",
+      "bytes": 39988,
+      "sha256": "532ecc0a0556b6491199dec4ceb8d91f96ed032514788b390a91c9d6467bc582",
       "owner": "core-integration"
     },
     {
@@ -12537,15 +12544,15 @@
     {
       "path": "tools/rust-integration/healthy-stock-write-loopback.mjs",
       "mode": "100644",
-      "bytes": 62965,
-      "sha256": "e57e87844c5a50f494ceeb41b2c37c51b0008986747069d70e58ba47d7c783ab",
+      "bytes": 63063,
+      "sha256": "f39abc3ef09a3fed5e66c9eea8c2cc476a6d9cb33ccf421ee6bdbff2e08f8644",
       "owner": "core-integration"
     },
     {
       "path": "tools/rust-integration/healthy-upload-loopback.mjs",
       "mode": "100644",
-      "bytes": 58090,
-      "sha256": "b3d1f10017fcafe8784d5da5ffab6870fbfaaccf3b3e671595e27814295d80e4",
+      "bytes": 58160,
+      "sha256": "37ff5ed077c5b8635ec2f5ee07d937eab1d9d22c8c5e9f8f617c2f836850668b",
       "owner": "core-integration"
     },
     {

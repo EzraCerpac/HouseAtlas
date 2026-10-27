@@ -1,8 +1,8 @@
-// Proposal-only, pure synthetic checks. Not registered in ordinary CI.
+// Proposal-only, pure synthetic checks. Exact file selected in ordinary-core CI.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { validateLinearProposal as validate } from './validate.mjs';
+import { validateLinearProposal as validate, validateMetricLengthValue, validateStraightWallReference } from './validate.mjs';
 const load = name => JSON.parse(readFileSync(new URL(name, import.meta.url)));
 const { records, syntheticGeometry } = load('examples.json');
 const check = record => assert.equal(validate(record), true);
@@ -92,4 +92,76 @@ test('outer, hole and excluded boundary token sets are pairwise disjoint', () =>
     assert.equal(validate(record), false, `Refuse shared token between ${left} and ${right}`);
     assert.deepEqual(record, before);
   }
+});
+
+test('linear decimals align with the published candidate without normalizing entry text', () => {
+  for (const decimalToken of ['0003.500', '000.000000000000000001', '9'.repeat(64)]) {
+    const value = { decimalToken, unit: 'm', quantityKind: 'length' };
+    const before = structuredClone(value);
+    assert.equal(validateMetricLengthValue(value), true);
+    assert.deepEqual(value, before);
+    const proposal = structuredClone(records.enteredSpan);
+    proposal.value.decimal = decimalToken;
+    assert.equal(validate(proposal), true);
+    assert.equal(proposal.value.decimal, decimalToken);
+  }
+  for (const decimalToken of ['0', '000', '000.000', '1.' + '1'.repeat(19), '9'.repeat(65),
+    '1.0\n', '1.0\r', '1.0\r\n', '1e3', '-1', '.5', '1.']) {
+    const value = { decimalToken, unit: 'm', quantityKind: 'length' };
+    assert.equal(validateMetricLengthValue(value), false);
+    const proposal = structuredClone(records.enteredSpan);
+    proposal.value.decimal = decimalToken;
+    assert.equal(validate(proposal), false);
+  }
+});
+
+test('metric scalar compatibility preserves six proposals and does not adopt broader units', () => {
+  for (const proposal of Object.values(records)) {
+    const before = structuredClone(proposal);
+    assert.equal(validate(proposal), true);
+    if (proposal.value !== null) {
+      const value = { decimalToken: proposal.value.decimal, unit: proposal.value.unit, quantityKind: 'length' };
+      assert.equal(validateMetricLengthValue(value), true);
+    }
+    assert.deepEqual(proposal, before);
+  }
+  for (const unit of ['mm', 'cm', 'm']) {
+    assert.equal(validateMetricLengthValue({ decimalToken: '0001.00', unit, quantityKind: 'length' }), true);
+  }
+  for (const unit of ['ft', 'in', 'm2']) {
+    assert.equal(validateMetricLengthValue({ decimalToken: '1', unit, quantityKind: 'length' }), false);
+  }
+  const imperialProposal = structuredClone(records.enteredSpan);
+  imperialProposal.value.unit = 'ft';
+  assert.equal(validate(imperialProposal), true); // Still only a broader proposal.
+});
+
+test('metric scalar validation accepts no server fields or area reinterpretation', () => {
+  const value = { decimalToken: '1.000', unit: 'm', quantityKind: 'length' };
+  for (const field of ['revision', 'actorId', 'receiptSha256', 'attestation', 'target']) {
+    assert.equal(validateMetricLengthValue({ ...value, [field]: 'synthetic' }), false);
+  }
+  assert.equal(validateMetricLengthValue({ ...value, quantityKind: 'area' }), false);
+  assert.equal(validateMetricLengthValue({ ...value, decimalToken: 1 }), false);
+  assert.equal(validateMetricLengthValue(null), false);
+});
+
+test('documentary wall reference uses the published internal token grammar and canonical pair', () => {
+  const reference = { kind: 'wall', wallId: 'synthetic:Wall$A',
+    endpointIds: ['synthetic:End$A', 'synthetic:End$B'] };
+  const before = structuredClone(reference);
+  assert.equal(validateStraightWallReference(reference), true);
+  assert.deepEqual(reference, before);
+  assert.equal(validateStraightWallReference({ ...reference, endpointIds: [...reference.endpointIds].reverse() }), false);
+  assert.equal(validateStraightWallReference({ ...reference, endpointIds: ['same', 'same'] }), false);
+  for (const token of ['has space', 'has/slash', 'endpoint\n', 'endpoint\r', 'x'.repeat(129)]) {
+    assert.equal(validateStraightWallReference({ ...reference, wallId: token }), false);
+    assert.equal(validateStraightWallReference({ ...reference, endpointIds: ['A', token] }), false);
+  }
+  assert.equal(validateStraightWallReference({ ...reference, endpointIds: [[0, 0], [1, 1]] }), false);
+  assert.equal(validateStraightWallReference({ ...reference, meshIndex: 0 }), false);
+  assert.equal(validateStraightWallReference({ ...reference, kind: 'room' }), false);
+  // Syntax alone cannot distinguish an authored numeric ID from an ordinal.
+  // Even these well-shaped tokens require the source owner's independent review.
+  assert.equal(validateStraightWallReference({ kind: 'wall', wallId: '0', endpointIds: ['1', '2'] }), true);
 });
