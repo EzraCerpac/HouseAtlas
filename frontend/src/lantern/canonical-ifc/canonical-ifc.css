@@ -19,12 +19,6 @@
   background: var(--card);
 }
 
-/* Local file preview: dashed frame, never mistaken for a publication. */
-.lantern-host .cifc-preview .cifc-layout {
-  border-style: dashed;
-  border-color: var(--ink-2);
-}
-
 /* ---------- Stage ---------- */
 
 .lantern-host .cifc-stage {
@@ -46,46 +40,6 @@
   gap: 8px;
   padding: 10px;
   min-width: 0;
-}
-
-.lantern-host .cifc-floors {
-  display: flex;
-  gap: 2px;
-  padding: 4px;
-  max-width: 100%;
-  overflow-x: auto;
-  border-radius: var(--r-panel);
-  background: rgba(251, 251, 248, 0.94);
-  border: 1px solid var(--hair);
-  box-shadow: var(--shadow-float);
-}
-
-.lantern-host .cifc-floors .floor-btn {
-  flex: 0 0 auto;
-  grid-template-columns: 34px auto;
-  min-height: 44px;
-  padding: 4px 12px 4px 2px;
-}
-
-.lantern-host .cifc-floors .floor-short {
-  font-size: 21px;
-}
-
-.lantern-host .cifc-floor-mark {
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--lantern);
-  box-shadow: 0 0 0 1.5px var(--ink);
-}
-
-/* Floor holds another occurrence of the selected room, not the selection itself. */
-.lantern-host .cifc-floor-mark.is-context {
-  background: var(--lantern-soft);
-  box-shadow: 0 0 0 1.5px var(--lantern-edge);
 }
 
 .lantern-host .cifc-view-ctrl {
@@ -112,10 +66,6 @@
 .lantern-host .cifc-view-ctrl .seg button {
   min-height: 36px;
   min-width: 52px;
-}
-
-.lantern-host .cifc-view-ctrl .ctrl-wide {
-  height: 42px;
 }
 
 .lantern-host .cifc-viewport {
@@ -187,23 +137,6 @@
   stroke-width: 2.5;
 }
 
-.lantern-host .cifc-plan-wall {
-  fill: var(--ink);
-}
-
-.lantern-host .cifc-plan-opening {
-  fill: #fdfcf8;
-  stroke: var(--ink-2);
-  stroke-width: 1;
-}
-
-.lantern-host .cifc-plan-other {
-  fill: none;
-  stroke: var(--muted);
-  stroke-width: 1;
-  stroke-dasharray: 3 3;
-}
-
 .lantern-host .cifc-label text {
   font-family: var(--text);
   font-size: 12.5px;
@@ -250,19 +183,6 @@
   fill: var(--lantern);
   stroke: var(--ink);
   stroke-width: 1.5;
-}
-
-/* Count badge: fill comes from badgeFill(tone); numerals stay white in every tier. */
-.lantern-host .cifc-label .cifc-label-badge circle {
-  stroke: #fff;
-  stroke-width: 1.5;
-}
-
-.lantern-host .cifc-label .cifc-label-badge .cifc-label-count {
-  fill: #fff;
-  font-family: var(--text);
-  font-size: 11px;
-  font-weight: 700;
 }
 
 .lantern-host .cifc-stage-note {
@@ -334,22 +254,6 @@
   box-shadow: var(--shadow-float);
 }
 
-.lantern-host .cifc-chip.is-synthetic {
-  border-style: dashed;
-  border-color: var(--c-unknown);
-}
-
-.lantern-host .cifc-chip.is-preview {
-  background: var(--warn-soft);
-  border-color: #e3c088;
-  color: var(--warn);
-}
-
-.lantern-host .cifc-chip.is-published {
-  border-color: color-mix(in srgb, var(--ok) 45%, #fff);
-  color: var(--ok);
-}
-
 .lantern-host .cifc-chip.is-local {
   border-style: dashed;
   border-color: var(--ink-2);
@@ -405,22 +309,6 @@
   color: var(--muted);
 }
 
-.lantern-host .cifc-notice {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: var(--r-control);
-  background: var(--warn-soft);
-  font-size: var(--fs-s);
-}
-
-.lantern-host .cifc-notice .text-btn {
-  flex: 0 0 auto;
-  min-height: 32px;
-}
-
 .lantern-host .cifc-focus {
   padding: 14px;
   border-radius: var(--r-panel);
@@ -451,20 +339,6 @@
 .lantern-host .cifc-focus-head .chip-btn {
   flex: 0 0 auto;
   min-height: 36px;
-}
-
-.lantern-host .cifc-focus-floor {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-  margin-top: 4px;
-  font-size: var(--fs-s);
-  color: var(--ink-2);
-}
-
-.lantern-host .cifc-focus-floor .text-btn {
-  min-height: 32px;
 }
 
 .lantern-host .cifc-facts {
@@ -507,132 +381,11 @@
   font-size: var(--fs-xs);
 }
 
-.lantern-host .cifc-link-facts,
-.lantern-host .cifc-records ul,
-.lantern-host .cifc-overlay-facts ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 4px;
-}
-
-.lantern-host .cifc-records {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid color-mix(in srgb, var(--lantern-edge) 25%, transparent);
-}
-
-.lantern-host .cifc-records h4 {
-  font-size: var(--fs-s);
-  margin-bottom: 6px;
-}
-
-.lantern-host .cifc-records li,
-.lantern-host .cifc-overlay-facts li {
-  display: grid;
-  font-size: var(--fs-s);
-}
-
-.lantern-host .cifc-records li span,
-.lantern-host .cifc-overlay-facts li span {
-  color: var(--muted);
-  font-size: var(--fs-xs);
-}
-
-.lantern-host .cifc-records p {
-  font-size: var(--fs-s);
-  color: var(--muted);
-}
-
-.lantern-host .cifc-rooms h3,
-.lantern-host .cifc-overlay-facts h3 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--fs-l);
-}
-
 .lantern-host .cifc-count {
   font-family: var(--text);
   font-size: var(--fs-s);
   font-weight: 600;
   color: var(--muted);
-}
-
-.lantern-host .cifc-room-group h4 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 14px 0 4px;
-  font-family: var(--text);
-  font-size: var(--fs-s);
-  font-weight: 650;
-  color: var(--muted);
-}
-
-.lantern-host .cifc-group-short {
-  min-width: 24px;
-  font-family: var(--display);
-  font-size: 17px;
-  font-weight: 800;
-  color: var(--faint);
-}
-
-.lantern-host .cifc-room-group.is-current h4,
-.lantern-host .cifc-room-group.is-current .cifc-group-short {
-  color: var(--ink);
-}
-
-.lantern-host .cifc-room-group ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 2px;
-}
-
-.lantern-host .cifc-room-btn {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: 'name count' 'tags count';
-  align-items: center;
-  column-gap: 8px;
-  width: 100%;
-  min-height: 44px;
-  padding: 6px 10px;
-  border: 1px solid transparent;
-  border-radius: var(--r-control);
-  background: transparent;
-  text-align: left;
-  font-size: var(--fs-m);
-}
-
-.lantern-host .cifc-room-btn:hover {
-  background: rgba(27, 35, 48, 0.05);
-}
-
-.lantern-host .cifc-room-btn.is-context {
-  background: var(--lantern-soft);
-  border-color: var(--lantern-edge);
-  border-style: dashed;
-}
-
-.lantern-host .cifc-room-btn[aria-pressed='true'] {
-  background: var(--lantern);
-  border-color: var(--lantern-edge);
-  border-style: solid;
-  font-weight: 650;
-}
-
-.lantern-host .cifc-room-btn:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
-}
-
-.lantern-host .cifc-room-name {
-  grid-area: name;
-  overflow-wrap: anywhere;
 }
 
 .lantern-host .cifc-room-id {
@@ -642,100 +395,11 @@
   color: var(--muted);
 }
 
-.lantern-host .cifc-room-tags {
-  grid-area: tags;
-  font-size: var(--fs-xs);
-  font-weight: 500;
-  color: var(--muted);
-}
-
-.lantern-host .cifc-room-btn[aria-pressed='true'] .cifc-room-tags,
-.lantern-host .cifc-room-btn[aria-pressed='true'] .cifc-room-id {
-  color: var(--lantern-ink);
-}
-
-.lantern-host .cifc-room-count {
-  grid-area: count;
-  display: inline-grid;
-  place-items: center;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 7px;
-  border-radius: 12px;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.lantern-host .cifc-room-btn[aria-pressed='true'] .cifc-room-count {
-  box-shadow: 0 0 0 2px var(--card);
-}
-
-.lantern-host .cifc-room-group.is-unplaced h4 {
-  font-style: italic;
-}
-
-.lantern-host .cifc-siblings {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.lantern-host .cifc-siblings .chip-btn {
-  min-height: 40px;
-}
-
-/* Narrow layouts stack the panel under the stage; this bar returns to the model. */
-.lantern-host .cifc-return {
-  position: sticky;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin: 0 -16px -24px;
-  padding: 10px 16px;
-  border-top: 1px solid var(--hair);
-  background: var(--card);
-  font-size: var(--fs-s);
-  font-weight: 650;
-}
-
-.lantern-host .cifc-return span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lantern-host .cifc-return .chip-btn {
-  flex: none;
-  min-height: 40px;
-}
-
-.lantern-host .cifc-empty {
-  font-size: var(--fs-s);
-  color: var(--muted);
-  padding: 4px 10px;
-}
-
-.lantern-host .cifc-overlay-facts {
-  display: grid;
-  gap: 4px;
-}
-
-.lantern-host .cifc-overlay-facts .layer-swatch {
-  --layer: currentColor;
-}
-
-.lantern-host .cifc-overlay-facts details,
 .lantern-host .cifc-source {
   border-top: 1px solid var(--hair);
   padding-top: 8px;
 }
 
-.lantern-host .cifc-overlay-facts summary,
 .lantern-host .cifc-source summary {
   display: flex;
   align-items: center;
@@ -745,25 +409,10 @@
   font-weight: 650;
 }
 
-/* Local standard preview: producer unknowns stay prominent, never resolved here. */
-.lantern-host .cifc-focus.is-uncertain {
-  background: var(--warn-soft);
-  border-color: #e3c088;
-}
-
-.lantern-host .cifc-focus.is-uncertain h3,
 .lantern-host .cifc-panel .cifc-subhead {
   font-size: var(--fs-m);
   font-weight: 700;
   letter-spacing: 0;
-}
-
-.lantern-host .cifc-unknowns {
-  display: grid;
-  gap: 4px;
-  margin: 8px 0 0;
-  padding-left: 1.1em;
-  font-size: var(--fs-s);
 }
 
 .lantern-host .cifc-caveat {
@@ -823,21 +472,6 @@
     pointer-events: auto;
   }
 
-  .lantern-host .cifc-floors {
-    flex-direction: column;
-    max-height: calc(var(--cifc-height) - 160px);
-    overflow-y: auto;
-  }
-
-  .lantern-host .cifc-floors .floor-btn {
-    grid-template-columns: 42px 1fr;
-    min-height: 48px;
-  }
-
-  .lantern-host .cifc-floors .floor-short {
-    font-size: 24px;
-  }
-
   .lantern-host .cifc-hint {
     bottom: 76px;
   }
@@ -846,10 +480,6 @@
     overflow-y: auto;
     border-top: 0;
     border-left: 1px solid var(--hair);
-  }
-
-  .lantern-host .cifc-return {
-    display: none;
   }
 }
 
@@ -860,13 +490,6 @@
 }
 
 @container cifc (max-width: 479px) {
-  .lantern-host .cifc-floors .floor-sub {
-    display: none;
-  }
-
-  .lantern-host .cifc-floors .floor-btn {
-    padding-right: 10px;
-  }
 
   .lantern-host .cifc-view-ctrl {
     margin-left: 0;
@@ -884,7 +507,7 @@
   }
 }
 
-/* ---------- Local navigation: declared storeys, classes, occurrences ---------- */
+/* ---------- Navigation lists and toggles ---------- */
 
 .lantern-host .cifc-nav {
   display: grid;
@@ -908,8 +531,4 @@
   color: var(--muted);
   text-decoration: line-through;
   text-decoration-color: var(--faint);
-}
-
-.lantern-host .cifc-source.cifc-room-group ul {
-  margin-top: 6px;
 }
