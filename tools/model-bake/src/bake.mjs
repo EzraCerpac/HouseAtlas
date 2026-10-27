@@ -225,7 +225,7 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
       : Uint32Array.from(readAccessor(source, bin, primitive.indices));
     const triangles = indices.length / 3, hasTextures = textured(source, primitive.material);
     const site = role === 'context' && !onLevel.has(slot);
-    const entry = { mesh: meshIndex, primitive: primitiveIndex, name: source.meshes[meshIndex].name ?? null, role, site, instances: uses.length,
+    const entry = { mesh: meshIndex, bakedMesh: meshMap.get(meshIndex), primitive: primitiveIndex, name: source.meshes[meshIndex].name ?? null, role, site, instances: uses.length,
       textured: hasTextures, triangles, bakedTriangles: triangles, changed: false };
     report.push(entry);
     // Textured primitives are kept as authored: a flat surface can lose the

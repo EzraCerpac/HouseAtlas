@@ -11,7 +11,9 @@ npm ci --prefix frontend   # the admission check loads the viewer's own prefligh
 node tools/model-bake/bake.mjs --model master.glb --companion atlas-scene.json --out OUT_DIR
 ```
 
-`OUT_DIR` receives `model.glb`, `atlas-scene.json` and `bake-report.json`. The
+`OUT_DIR` receives `model.glb`, `atlas-scene.json` and `bake-report.json`
+(with `--detail`, also `detail.glb`), each GLB meshopt compressed (see
+[Compression](#compression)). The
 bake only creates files: if any of them already exists there (the master
 itself, a link to it, an earlier bake), it refuses before writing anything.
 Options: `--geographic LAT,LON,NORTH` (with `--companion`: writes the
@@ -21,8 +23,9 @@ house's location and true north, in degrees, into the companion's
 viewer's 600,000), `--max-error` (largest context error in metres before the
 bake refuses, default 0.05), `--structure-weight` (structure and roof error as
 a share of the context error, default 0.25), `--site-weight` (site context
-error as a multiple of it, default 4) and `--weld` (weld distance in
-metres, default 0.0005).
+error as a multiple of it, default 4), `--weld` (weld distance in
+metres, default 0.0005), `--grid` (position snapping grid for compression in
+metres, default 2^-12, about 0.24 mm) and `--plain` (write uncompressed GLBs).
 
 ## What it keeps
 
@@ -99,6 +102,39 @@ Plan↔3D, floors and exploded views rely on. A refusal there fails the bake;
 levels and buildings under `viewerBinding`. An `--out` that already holds an
 output is refused before any work.
 
+## Compression
+
+Both tiers are written with `EXT_meshopt_compression` (`src/compress.mjs`),
+which the viewer and the server expand back to the plain profile before any
+check, so every budget counts decoded bytes and the companion and the
+`detail` pin hold the compressed bytes that are served and cached offline.
+
+- Each primitive's triangles are reordered for the vertex cache and its
+  vertices into first use (meshoptimizer's `reorderMesh`): the same triangles,
+  in another order; vertices nothing references drop.
+- Positions are snapped to the `--grid` (in each mesh's local units, the
+  largest power of two at or under the grid divided by its world stretch, so
+  every snapped value is exact in Float32). They stay Float32, so no
+  quantization extension is needed, and the low mantissa bits the codec can
+  then drop are zero. A vertex moves by at most half a cell diagonal (0.21 mm
+  at the default); the report states the largest move as
+  `maxDisplacementMetres`.
+- A snapped vertex that would leave a bound the server checks (its building,
+  the union of its declared levels, its occurrence) keeps its exact position
+  (`verticesKeptInsideBounds`).
+- Room-pick and slab primitives are neither reordered, snapped nor encoded, so
+  they stay byte for byte. Images stay as they are.
+- Vertex views are encoded in `ATTRIBUTES` mode and index views in `TRIANGLES`
+  mode, without filters. Every stream is decoded again before writing: vertex
+  streams must match byte for byte and index streams triangle for triangle
+  (the index codec may rotate a triangle's corners, keeping its winding).
+
+`bake-report.json` records `compression` per tier (plain and served bytes,
+ratio, grid, largest move) and, under `viewerAdmission`, the decoded size and
+the viewer's decode time. On a generated 520,000-triangle overview the bake
+went from 6.1 to 2.35 MiB (38%) and its 1.66M-triangle detail from 86 to
+29 MiB (34%), decoding in about 18 and 200 ms in Node.
+
 ## The detail tier
 
 `--detail` also writes `detail.glb`: the master with the same compaction (meshes
@@ -119,7 +155,7 @@ the same companion under the same budget; see
 node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs
 ```
 
-Thirteen cases on generated geometry: baking to budget (locked footprints,
+Eighteen cases on generated geometry: baking to budget (locked footprints,
 source-vertex positions, a flat wall and welded terrain soup collapsing, viewer
 admission), a master that already fits (kept as authored while an unused mesh,
 a dead accessor and their bytes drop, with bindings remapped), roles read from
@@ -135,14 +171,19 @@ before the bake (and refusing a companion that leaves a primitive unclaimed),
 the detail keeping every master triangle and binding with the overview's
 companion, the Full limits admitting 700,000 triangles the overview refuses, and
 the command line writing `detail.glb` with its pin in the report, and vertex
-colours and spare UV sets dropped from primitives the bake keeps whole.
+colours and spare UV sets dropped from primitives the bake keeps whole. Three
+more cover compression: both tiers expand in the viewer to the same triangles
+on the grid with room picks and slabs byte for byte and the same admitted
+work, a snapped vertex never leaving a bound the server checks, and the
+viewer refusing damaged or truncated streams, a decoded size over the limit,
+filters, other or optional extensions and plain views in the fallback buffer.
 They do not render anything or touch a real model.
 
 ## Not covered here
 
 Simplified geometry is a display tier, not a parity copy. Loading the detail
-in the app (the device-aware Auto/Light/Full quality setting), meshopt/quantized
-transfer and per-floor detail loading are later steps in #304.
+in the app (the device-aware Auto/Light/Full quality setting) and per-floor
+detail loading are later steps in #304.
 
 ## Colour sources
 

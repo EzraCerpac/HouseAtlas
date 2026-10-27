@@ -160,6 +160,12 @@ pub(super) struct Limits {
     prepared_bytes: usize,
     gpu_bytes: usize,
 }
+impl Limits {
+    /// Decoded buffer-view bytes, the bound a compressed file is expanded under.
+    pub(super) const fn buffer_bytes(&self) -> usize {
+        self.buffer_bytes
+    }
+}
 pub(super) const OVERVIEW: Limits = Limits {
     instances: 20_000,
     vertices: 1_800_000,
@@ -728,7 +734,7 @@ pub(super) fn positions<'a>(
 
 #[cfg(test)]
 #[path = "../../examples/support/unified_atlas_fixture.rs"]
-mod fixture;
+pub(super) mod fixture;
 #[cfg(test)]
 #[path = "../../examples/support/unified_atlas_material_fixture.rs"]
 mod material_fixture;
@@ -1122,6 +1128,18 @@ mod detail_tier {
         fs::write(publication.root.join("detail.glb"), generated()).unwrap();
         assert!(overview.read_detail().is_err());
         assert!(overview.read_original().is_err());
+    }
+    #[test]
+    fn compressed_detail_is_validated_as_its_decoded_geometry() {
+        use super::super::atlas_scene_meshopt::compress::compress;
+        let detail = compress(&relabelled());
+        let publication = folder(Some(&detail), "detail.glb");
+        let overview = publication.select().unwrap();
+        publication.scene(&overview).unwrap();
+        // The served bytes stay compressed; the bounds check reads the decoded positions.
+        assert_eq!(overview.read_detail().unwrap().unwrap(), detail);
+        let outside = folder(Some(&compress(&moved(100.))), "detail.glb");
+        assert!(outside.scene(&outside.select().unwrap()).is_err());
     }
     #[test]
     fn detail_budget_admits_what_the_overview_refuses() {

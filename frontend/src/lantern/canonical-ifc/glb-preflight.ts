@@ -24,7 +24,9 @@ export const STANDARD_GLB_LIMITS: GlbLimits = Object.freeze({ bytes: 32 * MiB, j
 export const DETAIL_GLB_LIMITS: GlbLimits = Object.freeze({ ...STANDARD_GLB_LIMITS, bytes: 256 * MiB,
   triangles: 4_000_000, vertices: 12_000_000, outputBytes: 640 * MiB, gpuBytes: 384 * MiB });
 /** Extensions accepted anywhere. Geometry-changing extensions (compression,
- * quantization, instancing) and material extensions are deliberately absent. */
+ * quantization, instancing) and material extensions are deliberately absent:
+ * a meshopt-compressed publication is expanded to this plain profile before
+ * the preflight sees it (glb-meshopt.ts), so every limit counts decoded bytes. */
 export const ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set();
 
 export type GlbStage = 'container' | 'preflight' | 'load';

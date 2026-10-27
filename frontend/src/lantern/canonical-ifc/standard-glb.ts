@@ -78,7 +78,15 @@ export async function loadStandardGlb(bytes: Uint8Array, keyPrefix: string, sign
   // opt-in admits and decodes PNG bytes through a separate, URL-free path.
   const materialReader = options?.embeddedPngMaterials ? await import('./embedded-png-material') : null;
   signal.throwIfAborted();
-  const container = readGlbContainer(bytes, limits), plainAdmission = preflightGltf(container, limits);
+  let container = readGlbContainer(bytes, limits);
+  // A meshopt-compressed publication is expanded first; everything below,
+  // budgets included, sees only the decoded plain GLB. The decoder loads only then.
+  if (Array.isArray(container.json.extensionsUsed) && container.json.extensionsUsed.includes('EXT_meshopt_compression')) {
+    const { expandMeshoptGlb } = await import('./glb-meshopt');
+    container = readGlbContainer(await expandMeshoptGlb(bytes, limits), limits);
+    signal.throwIfAborted();
+  }
+  const plainAdmission = preflightGltf(container, limits);
   let plan = materialReader?.admitEmbeddedPngMaterials(container, plainAdmission, limits);
   const admission: GlbAdmission = plan ? { ...plainAdmission, work: { ...plainAdmission.work,
     outputBytes: plan.preparedBytes, gpuBytes: plan.gpuBytes } } : plainAdmission;

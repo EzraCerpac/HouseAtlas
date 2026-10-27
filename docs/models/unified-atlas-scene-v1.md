@@ -295,6 +295,19 @@ Reuse the existing standard GLTFLoader and its admitted no-external-resource
 profile and aggregate budgets. Target the existing 32 MiB GLB and 64 MiB prepared
 asset limits; validate the actual mounted chunk budget against the server's
 4,000,000-byte per-file ceiling. Do not broaden formats or work limits silently.
+Transfer compression is the one exception, and it widens nothing: an overview
+or detail GLB may require `EXT_meshopt_compression`. The viewer
+(`glb-meshopt.ts`) and the server (`atlas_scene_meshopt.rs`) expand it to the
+plain profile before any other check, so every limit and bounds check here
+applies to the decoded file, while publication pins, `original` and
+Content-Digest stay on the served bytes. The admitted subset is one GLB buffer
+and one fallback buffer (`{"fallback":true}`) that every compressed view
+decodes into; compressed views use `ATTRIBUTES` with a 4-, 8-, 12- or 16-byte
+stride equal to the view's `byteStride`, or `TRIANGLES` with 2- or 4-byte
+indices, and no filter. The decoded views must fit the tier's buffer budget,
+which is checked before decoding. `KHR_mesh_quantization` and every other
+extension stay unsupported; `tools/model-bake` quantizes by snapping Float32
+positions to a grid instead.
 The companion requires exactly one scene with all declared nodes reachable
 once, at most 20,000 nodes and hierarchy depth at most 64, matching the standard
 renderer admission limits.
