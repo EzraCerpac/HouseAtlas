@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+#MISE description="Run a bounded synthetic non-browser host/client cohort"
+set -eu
+cd "${MISE_PROJECT_ROOT:-.}"
+exec node tools/perf/host-client/run.mjs "$@"

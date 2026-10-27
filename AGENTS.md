@@ -137,6 +137,19 @@ trap in the draft harness. They add no listener, native service or browser.
 Other capture/draft cases and the full controller regression suite remain
 separately selected; exact commands and limits are in the verification guide.
 
+The existing ordinary-core lightweight job also runs exactly
+`tools/perf/host-client/options.test.mjs` and
+`tools/perf/host-client/compare.test.mjs` with pinned Node 26.10.0 and
+`--test-concurrency=1`. These nine stdlib-only cases check explicit selection and
+resource limits, sample-qualified summaries, complete measurement-driver source
+fingerprints over generated temporary files, mismatched runner/adapter/driver/
+load rejection, unqualified errored/saturated comparisons, pacing alignment with
+a synthetic clock, MCP editor/CSRF exchanges through fake ports, and a bounded
+Node comparison subprocess from generated paths containing spaces. They launch no
+Rust host, Vite build, TLS listener, browser, request generator, fault cohort,
+profiler or performance measurement. The opt-in host-client contract, faults and
+release-measurement commands remain outside ordinary CI.
+
 The separately authorized Synthetic README media workflow captures only
 checked-in generated fixtures through the actual React renderer and fake read
 transports on an owned loopback server. Its scoped PR/main triggers and manual
