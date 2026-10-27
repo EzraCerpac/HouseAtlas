@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "48f3238cd6672cdf0fd8fb4925397d78f41c15e7f47e53d8872c91e50079c43b",
+  "sourceDigestSha256": "15376fda4e7dabd6fbcd2a1653430e2869fc8e2527cf89761d574d90632a62cf",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -10437,8 +10437,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/DaylightControl.tsx",
       "mode": "100644",
-      "bytes": 7958,
-      "sha256": "4374f45084da00ee9fbaa89bee7433a475e2e59b5c4914edaa53e8b0297d7ff2",
+      "bytes": 9594,
+      "sha256": "7ee3a3ff76a47871875e62d1a8d2d55ea3f4758cb7c0a25dcb43ce741d57ba66",
       "owner": "web"
     },
     {
