@@ -33,7 +33,8 @@ const SETTLE_MS = 180, FADE_MS = 240;
 const REFINE_MS = 400;
 /** The on-device speed check (render-probe.ts) runs once per page, this long after the first model is on screen. */
 const PROBE = typeof location !== 'undefined' && new URLSearchParams(location.search).has('render-probe'), PROBE_DELAY_MS = 1500;
-let probed = false;
+/** The page's one check: not yet run, running on some canvas, or reported. */
+let probeState: 'idle' | 'running' | 'done' = 'idle';
 
 /** A stable number per prepared mesh set, for the canvas key. */
 const meshSets = new WeakMap<readonly PreparedMesh[], number>();
@@ -84,7 +85,7 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     const ready = () => {
       if (drawn) return;
       drawn = true; latest.current.onReady(props.meshes);
-      if (PROBE && !probed) setTimeout(() => void probe(performance.now()), PROBE_DELAY_MS);
+      if (PROBE && probeState !== 'done') setTimeout(() => void probe(performance.now()), PROBE_DELAY_MS);
     };
     // Contact shading strength (0 to 1), the pending settle timer, and when the fade-in began.
     let shading = 0, settle: ReturnType<typeof setTimeout> | null = null, fading: number | null = null;
@@ -119,17 +120,25 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     };
     /** The speed check takes over the canvas while it runs; normal drawing resumes after. */
     const probe = async (shownAt: number) => {
-      // A canvas replaced meanwhile leaves the check to its successor; a hidden one (Plan, or a set still swapping in) waits until it is shown.
-      if (probed || disposed || !scene) return;
-      if (latest.current.hidden || latest.current.building) { setTimeout(() => void probe(shownAt), PROBE_DELAY_MS); return; }
-      probed = true;
+      // A canvas replaced meanwhile leaves the check to its successor; a hidden one (Plan, or a set still swapping in),
+      // or one whose predecessor is still checking, waits until it can run.
+      if (probeState === 'done' || disposed || !scene) return;
+      if (probeState === 'running' || latest.current.hidden || latest.current.building) { setTimeout(() => void probe(shownAt), PROBE_DELAY_MS); return; }
+      probeState = 'running';
       if (frame !== null) cancelAnimationFrame(frame); frame = null;
       probing = true;
       try {
         const { runRenderProbe, showProbeReport } = await import('./render-probe');
         const [width, height] = size();
-        if (!disposed && scene) showProbeReport(await runRenderProbe({ scene, meshes: props.meshes, projection: latest.current.projection, width, height, shownAt: shownAt - PROBE_DELAY_MS, buildMs }));
-      } catch { /* A check that cannot finish leaves the view as it was. */ }
+        if (!disposed && scene) {
+          const report = await runRenderProbe({ scene, meshes: props.meshes, projection: latest.current.projection, width, height,
+            shownAt: shownAt - PROBE_DELAY_MS, buildMs, signal: building.signal });
+          if (!disposed) { probeState = 'done'; showProbeReport(report); }
+        }
+      } catch {
+        // A check that cannot finish leaves the view as it was; one cut short by a released canvas passes to its successor.
+      }
+      if (probeState === 'running') probeState = disposed ? 'idle' : 'done';
       probing = false; moved.current = true; schedule();
     };
     const render = () => {

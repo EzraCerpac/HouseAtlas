@@ -33,6 +33,8 @@ export interface ProbeSetup {
   /** Milliseconds from opening the page to the model's first frame, and building its GPU scene. */
   readonly shownAt: number;
   readonly buildMs: number;
+  /** Aborted when the canvas is released: the check stops and reports nothing. */
+  readonly signal: AbortSignal;
 }
 
 /** The projection turned by `angle` about the vertical axis. */
@@ -45,7 +47,7 @@ const percentile = (sorted: readonly number[], p: number) => sorted[Math.min(sor
 const ms = (value: number) => `${value.toFixed(1)} ms`;
 
 /** Runs every case and returns the report as plain text. The caller redraws the view afterwards. */
-export async function runRenderProbe({ scene, meshes, projection, width, height, shownAt, buildMs }: ProbeSetup): Promise<string> {
+export async function runRenderProbe({ scene, meshes, projection, width, height, shownAt, buildMs, signal }: ProbeSetup): Promise<string> {
   const rows: string[] = [];
   let drawnVertices = 0;
   try {
@@ -53,6 +55,7 @@ export async function runRenderProbe({ scene, meshes, projection, width, height,
       const vertices = scene.share(test.share); if (test.share === 1) drawnVertices = vertices;
       const w = Math.max(1, Math.round(width * test.scale)), h = Math.max(1, Math.round(height * test.scale)), times: number[] = [];
       for (let frame = 0; frame < WARMUP + FRAMES; frame++) {
+        signal.throwIfAborted();
         const start = performance.now();
         scene.render(turned(projection, frame * STEP), null, w, h, test.shading);
         await scene.finished();
@@ -64,6 +67,7 @@ export async function runRenderProbe({ scene, meshes, projection, width, height,
       rows.push(`${test.label.padEnd(20)}${ms(percentile(times, .5)).padStart(9)}${ms(percentile(times, .9)).padStart(10)}`);
     }
   } finally { scene.share(1); }
+  signal.throwIfAborted();
   const triangles = meshes.reduce((sum, mesh) => sum + mesh.triangles, 0);
   return [
     '3D speed check',
