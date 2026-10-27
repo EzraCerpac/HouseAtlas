@@ -1835,9 +1835,22 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
   const levelName = (levelId: string) => {
     return atlasLevelName(model, levelId, model.floorBuildings.length > 1);
   };
-  // Shown only while the panel is a sheet.
-  const toggle = (noun: string) => <button type="button" className="ua-sheet-toggle" aria-expanded={open} aria-controls={bodyId}
-    onClick={() => setOpen(!open)}><Icon name="chevronDown" size={18} /><span>{open ? `Hide ${noun}` : `Show ${noun}`}</span></button>;
+  // Where a press on the whole-head opener began, and whether it became a swipe.
+  const press = useRef<{ y: number; swiped: boolean } | null>(null);
+  // Shown only while the panel is a sheet. A whole-head opener spans the head
+  // under its grabber: a tap opens or closes it, a swipe up opens and down closes.
+  const toggle = (noun: string, whole = false) => <button type="button" className={`ua-sheet-toggle${whole ? ' is-whole' : ''}`}
+    aria-expanded={open} aria-controls={bodyId}
+    onPointerDown={whole ? event => { event.currentTarget.setPointerCapture(event.pointerId); press.current = { y: event.clientY, swiped: false }; } : undefined}
+    onPointerUp={whole ? event => {
+      const dy = press.current ? event.clientY - press.current.y : 0;
+      if (press.current && Math.abs(dy) >= 24) { press.current.swiped = true; setOpen(dy < 0); }
+    } : undefined}
+    onClick={() => {
+      const swiped = press.current?.swiped ?? false;
+      press.current = null;
+      if (!swiped) setOpen(!open);
+    }}><Icon name="chevronDown" size={18} /><span>{open ? `Hide ${noun}` : `Show ${noun}`}</span></button>;
   const kinds = OVERLAY_KINDS.filter(kind => state.layers[kind]);
 
   if (!occurrence) {
@@ -1849,7 +1862,7 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
           <h2 ref={heading} tabIndex={-1}>Rooms</h2>
           <p className="ua-sheet-sub">{plural(count, 'room')}{levels.length === 1 ? `, ${levelName(levels[0]!.levelId)}` : ` on ${plural(levels.length, 'floor')}`}</p>
         </div>
-        {toggle('rooms')}
+        {toggle('rooms', true)}
       </div>
       <div className="ua-sheet-body" id={bodyId}>
         {/* Choosing from the list hands the stage back to the model. */}
