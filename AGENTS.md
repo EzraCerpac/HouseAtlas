@@ -86,7 +86,10 @@ under the tier budget, and refused with stated MiB under a reduced GPU budget;
 no browser or GPU), the
 generated WebMCP batch-discovery descriptor check (schema bytes only), the
 synthetic WebMCP adapter bootstrap (current `index.ts` bundled with Vite, no
-browser or service), and
+browser or service, including five in-process disposal, session-replacement and
+partial-registration lifecycle cases with controlled synthetic promises, plus
+three quantity-custody cases through a companion bundle of the actual quantity
+mount with fake preview/handoff ports and no approval or submission), and
 the generated offline outbox check (synthetic IndexedDB and a generated
 server, no browser or network), the generated Unified Atlas overlay feed check
 (compiled feed, stored-overlay codec and Atlas cache against a counting fake

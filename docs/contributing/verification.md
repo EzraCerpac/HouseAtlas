@@ -2675,7 +2675,7 @@ It never dispatches to a stock service, opens a transport or mounts a browser.
 
 `frontend/lantern-tests/webmcp-adapter-healthy.mjs` bundles the current
 `frontend/src/webmcp/index.ts` with the locked Vite into a temporary ES module,
-then runs the unchanged `frontend/src/webmcp/healthy.examples.mjs` fixture
+then runs the `frontend/src/webmcp/healthy.examples.mjs` fixture
 against it (6 synthetic adapter, session and history cases, validated with the
 `packages/contracts` Ajv schemas). It runs in CI through `run-healthy.mjs`:
 
@@ -2685,6 +2685,27 @@ node frontend/lantern-tests/webmcp-adapter-healthy.mjs
 
 It never opens a browser, listener, native service or provider, and removes
 only its own temporary output.
+
+The same fixture also includes five in-process lifecycle cases with controlled
+synthetic promises: disposal during a pending service result or view
+acknowledgement, session replacement, partial registration failure, and disposal
+during input parsing. They assert disclosure fencing, original session identity,
+separate service/presentation signals, prompt registration cleanup and no repeat
+dispatch. No real mutation, credential, browser or native access check is made;
+these cases do not establish installed revocation, operator recovery or device
+acceptance. This extends only this existing bootstrap, with no new CI job,
+dependency or runtime transport.
+
+The bootstrap also bundles `frontend/src/webmcp/quantity/tool.ts` as a separate
+temporary `quantity.js` companion for the same fixture. Three quantity-mount
+cases cover custody across separate service/presentation contexts, simultaneous
+identical caller inputs with one busy handoff, and disposal before or during
+presentation. Fake preview/reservation owners issue no approval or submission.
+The cases assert exact per-invocation parsed-input custody, acknowledgement only
+after visible commit, no acknowledgement after disposal, and no repeat preview.
+All fourteen cases run through the existing registered bootstrap command;
+`run-healthy.mjs` and workflow selection are unchanged. This is not qualification
+of native quantity effects, real-person approval, React UI or live providers.
 
 ## PR lane selection (26 October 2026)
 

@@ -70,11 +70,11 @@ try {
   // A cold Chrome right after the build can take well over 15 s to answer its first call (as in healthy-loopback.mjs).
   const version = await cdp.send('Browser.getVersion', {}, undefined, 60000);
   // Exact source-inspected native executeTool input forms: the 151/154 IDLs take
-  // DOMString JSON text; inspected 155.0.8059.39/.84 take a structured object. Any other
+  // DOMString JSON text; inspected 155.0.8059.39/.84 and 156.0.8078.47 take objects. Any other
   // version requires source inspection before this ordinary flow runs.
   const nativeInputForm = new Map([['Chrome/151.0.7922.173', 'json-text'], ['Chrome/154.0.8037.57', 'json-text'], ['Chrome/154.0.8037.97', 'json-text'],
-    ['Chrome/154.0.8037.98', 'json-text'], ['Chrome/155.0.8059.39', 'object'], ['Chrome/155.0.8059.84', 'object']]).get(version.product);
-  assert(nativeInputForm, 'Inspected native WebMCP browser version');
+    ['Chrome/154.0.8037.98', 'json-text'], ['Chrome/155.0.8059.39', 'object'], ['Chrome/155.0.8059.84', 'object'], ['Chrome/156.0.8078.47', 'object']]).get(version.product);
+  assert(nativeInputForm, 'Inspected native WebMCP browser version: ' + String(version.product));
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params) => cdp.send(method, params, sessionId);

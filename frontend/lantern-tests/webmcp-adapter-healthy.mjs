@@ -1,4 +1,4 @@
-// Standalone current-source bootstrap; unchanged synthetic adapter fixture.
+// Standalone current-source bootstrap for the synthetic adapter/lifecycle fixture.
 // No browser, listener, provider, native service or mutation is supplied.
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -15,16 +15,18 @@ const namespace = mkdtempSync(join(tmpdir(), 'houseatlas-webmcp-adapter-'));
 let exitCode = 1;
 let signal = null;
 try {
-  const built = await build({ root: frontend, configFile: false, logLevel: 'warn',
-    build: { write: false, target: 'node26',
-      lib: { entry: fileURLToPath(new URL('../src/webmcp/index.ts', import.meta.url)), formats: ['es'] },
-      rolldownOptions: { output: { codeSplitting: false } }, minify: false } });
-  const output = Array.isArray(built) ? built[0] : built;
-  const chunks = output.output.filter(row => row.type === 'chunk');
-  assert.equal(chunks.length, 1, 'Expected one self-contained current-source namespace chunk');
-  assert(chunks[0].isEntry, 'Namespace chunk must be the index.ts entry');
   writeFileSync(join(namespace, 'package.json'), '{"type":"module"}\n', { flag: 'wx' });
-  writeFileSync(join(namespace, 'index.js'), chunks[0].code, { flag: 'wx' });
+  for (const [entry, filename] of [['index.ts', 'index.js'], ['quantity/tool.ts', 'quantity.js']]) {
+    const built = await build({ root: frontend, configFile: false, logLevel: 'warn',
+      build: { write: false, target: 'node26',
+        lib: { entry: fileURLToPath(new URL(`../src/webmcp/${entry}`, import.meta.url)), formats: ['es'] },
+        rolldownOptions: { output: { codeSplitting: false } }, minify: false } });
+    const output = Array.isArray(built) ? built[0] : built;
+    const chunks = output.output.filter(row => row.type === 'chunk');
+    assert.equal(chunks.length, 1, `Expected one self-contained current-source chunk for ${entry}`);
+    assert(chunks[0].isEntry, 'Namespace chunk must be the requested entry');
+    writeFileSync(join(namespace, filename), chunks[0].code, { flag: 'wx' });
+  }
   const result = spawnSync(process.execPath, ['--test', fixture], {
     cwd: frontend, stdio: 'inherit',
     env: { ...process.env, HOUSEATLAS_AT39_BUILD: namespace },
