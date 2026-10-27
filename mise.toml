@@ -1,0 +1,8 @@
+# Task runner only: rust-toolchain.toml remains the single Rust version pin.
+[tasks.fmt]
+description = "Format all Rust workspace sources in an owned checkout; review the diff"
+run = "node tools/rust-integration/format.mjs"
+
+[tasks."fmt:check"]
+description = "Check Rust workspace formatting without changing source"
+run = "node tools/rust-integration/format.mjs --check"
