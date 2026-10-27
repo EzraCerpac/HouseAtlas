@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "09eb76d62e539266e138f2c0f8a10689a58dffc306d131857556c08533be3ae4",
+  "sourceDigestSha256": "3a17f7ed8ec47f30e7c7be83ea4560fe02d2f99ae11730c4580f4a7c53f988d9",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -105,8 +105,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 9523,
-      "sha256": "5fa8e99d1d7e7c9767ea333f7b7ae51d917c38fb9db80618c67f6a65fcda9d5a",
+      "bytes": 9764,
+      "sha256": "f895b49e90fd482cf6d9488fb78d5c9c3b1d69a89894e0e33192e5a1e7f2d453",
       "owner": "core-integration"
     },
     {
@@ -6125,8 +6125,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 159714,
-      "sha256": "2b636dd08a044bf12fe10fe9f874e57cceddce0d1f0e85e58d48fe704cc13caa",
+      "bytes": 160485,
+      "sha256": "aaca7d66fa311aa9fae838d09f06c16af033c76afdc6abdff8787868e8ed9386",
       "owner": "core-integration"
     },
     {
@@ -8260,8 +8260,8 @@
     {
       "path": "frontend/lantern-tests/webmcp-adapter-healthy.mjs",
       "mode": "100644",
-      "bytes": 2204,
-      "sha256": "20c379a77efcf858cdef037f8cb102c670187bc1bbe0cf658898f0bf8bf8c4f8",
+      "bytes": 2265,
+      "sha256": "07649d778e805861045c7d07a46b9bbc7a88c31d66654a00105512ca6dd14807",
       "owner": "web"
     },
     {
@@ -10388,8 +10388,8 @@
     {
       "path": "frontend/src/webmcp/README.md",
       "mode": "100644",
-      "bytes": 10165,
-      "sha256": "22278dc1129d4b6a43d6a372df3309ef60d1bbc4096310d250b6ed2d963ab38f",
+      "bytes": 11259,
+      "sha256": "9c56e34a2826c7094803799603398c903a15dfba07e3331ba18bed6cf93f6c03",
       "owner": "webmcp"
     },
     {
@@ -10500,8 +10500,8 @@
     {
       "path": "frontend/src/webmcp/healthy.examples.mjs",
       "mode": "100644",
-      "bytes": 19517,
-      "sha256": "f55dfaaa7df1450d9075bc29380892aaa07a135123082ae8199e66793f8c04b0",
+      "bytes": 26359,
+      "sha256": "1e3dd6c6ffaf3f4bec887c093cd8386d0e05516947fc95376131b6d8656377f7",
       "owner": "webmcp"
     },
     {
@@ -10528,8 +10528,8 @@
     {
       "path": "frontend/src/webmcp/quantity/tool.ts",
       "mode": "100644",
-      "bytes": 17063,
-      "sha256": "d3cbc94d83f7e8c17927396686a142e0bf2a4c4c9a284ffb9bfe2f03d776ab4e",
+      "bytes": 18047,
+      "sha256": "455f07ad8e18130b669d2e8c0121fef79a59b2a34d01e501cd21e7405faac5e8",
       "owner": "webmcp"
     },
     {

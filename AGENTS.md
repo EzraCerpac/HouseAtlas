@@ -89,7 +89,10 @@ synthetic WebMCP adapter bootstrap (current `index.ts` bundled with Vite, no
 browser or service, including five in-process disposal, session-replacement and
 partial-registration lifecycle cases with controlled synthetic promises, plus
 three quantity-custody cases through a companion bundle of the actual quantity
-mount with fake preview/handoff ports and no approval or submission), and
+mount with fake preview/handoff ports and no approval or submission, and three
+completed-custody cases through the actual QuantityHandoffs class with synthetic
+client promises, controlled deadlines, closure/reuse and retained pending-owner
+uncertainty, without a React/browser mount or native/provider effect), and
 the generated offline outbox check (synthetic IndexedDB and a generated
 server, no browser or network), the generated Unified Atlas overlay feed check
 (compiled feed, stored-overlay codec and Atlas cache against a counting fake

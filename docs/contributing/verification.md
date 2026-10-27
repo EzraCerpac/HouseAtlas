@@ -2703,7 +2703,17 @@ identical caller inputs with one busy handoff, and disposal before or during
 presentation. Fake preview/reservation owners issue no approval or submission.
 The cases assert exact per-invocation parsed-input custody, acknowledgement only
 after visible commit, no acknowledgement after disposal, and no repeat preview.
-All fourteen cases run through the existing registered bootstrap command;
+The bootstrap additionally bundles the actual `quantity/QuantityHandoff.tsx`
+module as `quantity-custody.js`, without rendering React. Three further cases
+exercise its real QuantityHandoffs/Handoff closure and same-session reuse after
+a withheld dismissal or deadline, prompt retirement during an ignored view
+acknowledgement, and an in-flight synthetic submission that remains uncancelled,
+unclosable and held after disposal/deadline until its owner promise settles.
+The last case retains the recorded result and an independent uncertainty hold
+after presentation closure. The constructor's actual deadline callback is
+captured synchronously and its real timeout is cleared by the owner; no source
+extraction, replacement custody class or sleep-based deadline is used.
+All seventeen cases run through the existing registered bootstrap command;
 `run-healthy.mjs` and workflow selection are unchanged. This is not qualification
 of native quantity effects, real-person approval, React UI or live providers.
 

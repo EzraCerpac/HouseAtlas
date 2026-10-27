@@ -16,7 +16,8 @@ let exitCode = 1;
 let signal = null;
 try {
   writeFileSync(join(namespace, 'package.json'), '{"type":"module"}\n', { flag: 'wx' });
-  for (const [entry, filename] of [['index.ts', 'index.js'], ['quantity/tool.ts', 'quantity.js']]) {
+  for (const [entry, filename] of [['index.ts', 'index.js'], ['quantity/tool.ts', 'quantity.js'],
+    ['quantity/QuantityHandoff.tsx', 'quantity-custody.js']]) {
     const built = await build({ root: frontend, configFile: false, logLevel: 'warn',
       build: { write: false, target: 'node26',
         lib: { entry: fileURLToPath(new URL(`../src/webmcp/${entry}`, import.meta.url)), formats: ['es'] },
