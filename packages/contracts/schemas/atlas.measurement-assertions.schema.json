@@ -1,0 +1,2523 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://houseatlas.invalid/contracts/measurement-assertions/1.0.0/atlas.schema.json",
+  "title": "HouseAtlas measurement assertions 1.0.0",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/proposal"
+    },
+    {
+      "$ref": "#/$defs/receiptBody"
+    },
+    {
+      "$ref": "#/$defs/currentResponse"
+    },
+    {
+      "$ref": "#/$defs/fullHistory"
+    },
+    {
+      "$ref": "#/$defs/mutationResult"
+    },
+    {
+      "$ref": "#/$defs/mutationOutcome"
+    },
+    {
+      "$ref": "#/$defs/contextRequest"
+    },
+    {
+      "$ref": "#/$defs/contextResponse"
+    },
+    {
+      "$ref": "#/$defs/contextError"
+    }
+  ],
+  "$defs": {
+    "contextSelector": {
+      "type": "object",
+      "properties": {
+        "buildingId": {
+          "$ref": "#/$defs/sourceId"
+        },
+        "roomId": {
+          "$ref": "#/$defs/sourceId"
+        },
+        "levelId": {
+          "$ref": "#/$defs/sourceId"
+        },
+        "occurrenceId": {
+          "$ref": "#/$defs/sourceId"
+        },
+        "publicationId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "selectionRevision": {
+          "$ref": "#/$defs/sha256"
+        },
+        "semanticsSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "overviewManifestSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "buildingId",
+        "roomId",
+        "levelId",
+        "occurrenceId",
+        "publicationId",
+        "selectionRevision",
+        "semanticsSha256",
+        "overviewManifestSha256"
+      ],
+      "additionalProperties": false
+    },
+    "contextRequest": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "const": "houseatlas.measurement-occurrence-context-request.v1"
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "selector": {
+          "$ref": "#/$defs/contextSelector"
+        }
+      },
+      "required": [
+        "profile",
+        "scope",
+        "selector"
+      ],
+      "additionalProperties": false
+    },
+    "admissibleInput": {
+      "type": "object",
+      "properties": {
+        "expectation": {
+          "$ref": "#/$defs/inputExpectation"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenanceInput"
+        }
+      },
+      "required": [
+        "expectation",
+        "provenance"
+      ],
+      "additionalProperties": false
+    },
+    "methodOption": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "$ref": "#/$defs/method"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "available",
+            "unavailable"
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acquisition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/acquisition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "support": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/support"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/admissibleInput"
+          },
+          "maxItems": 64
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          },
+          "maxItems": 64
+        }
+      },
+      "required": [
+        "method",
+        "status",
+        "reason",
+        "acquisition",
+        "support",
+        "inputs",
+        "operations"
+      ],
+      "additionalProperties": false
+    },
+    "committedMutationIdentity": {
+      "type": "object",
+      "properties": {
+        "mutationId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "assertion": {
+          "$ref": "#/$defs/assertionVersion"
+        },
+        "proposalSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "receiptSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "mutationId",
+        "assertion",
+        "proposalSha256",
+        "receiptSha256"
+      ],
+      "additionalProperties": false
+    },
+    "contextCoverage": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/completeContextCoverage"
+        },
+        {
+          "$ref": "#/$defs/limitedContextCoverage"
+        }
+      ]
+    },
+    "contextResponse": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "const": "houseatlas.measurement-occurrence-context.v1"
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "actorId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "readPoint": {
+          "$ref": "#/$defs/readPoint"
+        },
+        "selector": {
+          "$ref": "#/$defs/contextSelector"
+        },
+        "target": {
+          "$ref": "#/$defs/targetExpectation"
+        },
+        "targetAdmission": {
+          "$ref": "#/$defs/targetAdmission"
+        },
+        "coverage": {
+          "$ref": "#/$defs/contextCoverage"
+        },
+        "claims": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/currentResponse"
+          },
+          "maxItems": 1024
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/methodOption"
+          },
+          "minItems": 7,
+          "maxItems": 7
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceProposal"
+          },
+          "maxItems": 64
+        },
+        "committedMutations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/committedMutationIdentity"
+          },
+          "maxItems": 1024
+        },
+        "unrecordedIntentRecovery": {
+          "const": "unavailable-after-client-state-loss"
+        },
+        "writeEligibility": {
+          "$ref": "#/$defs/writeEligibility"
+        },
+        "historical": {
+          "$ref": "#/$defs/historicalContext"
+        }
+      },
+      "required": [
+        "profile",
+        "scope",
+        "actorId",
+        "readPoint",
+        "selector",
+        "target",
+        "targetAdmission",
+        "coverage",
+        "claims",
+        "methods",
+        "evidence",
+        "committedMutations",
+        "unrecordedIntentRecovery",
+        "writeEligibility",
+        "historical"
+      ],
+      "additionalProperties": false
+    },
+    "contextProblem": {
+      "type": "string",
+      "enum": [
+        "authority-unavailable",
+        "stale-selection",
+        "incomplete-coverage"
+      ]
+    },
+    "contextError": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "const": "houseatlas.measurement-context-error.v1"
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "code": {
+          "$ref": "#/$defs/contextProblem"
+        }
+      },
+      "required": [
+        "profile",
+        "scope",
+        "code"
+      ],
+      "additionalProperties": false
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "sourceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_.:-]+$"
+    },
+    "objectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_.:$-]+$"
+    },
+    "scope": {
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "homeId": {
+          "$ref": "#/$defs/uuid"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "homeId"
+      ],
+      "additionalProperties": false
+    },
+    "nativeRecordRef": {
+      "type": "object",
+      "properties": {
+        "recordType": {
+          "type": "string",
+          "enum": [
+            "identity",
+            "location-semantics",
+            "evidence",
+            "asset",
+            "geodata-document",
+            "geometry",
+            "scene-association"
+          ]
+        },
+        "recordId": {
+          "$ref": "#/$defs/uuid"
+        }
+      },
+      "required": [
+        "recordType",
+        "recordId"
+      ],
+      "additionalProperties": false
+    },
+    "nativeExpectation": {
+      "type": "object",
+      "properties": {
+        "record": {
+          "$ref": "#/$defs/nativeRecordRef"
+        },
+        "expectedRevision": {
+          "$ref": "#/$defs/revision"
+        },
+        "expectedPayloadSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "record",
+        "expectedRevision",
+        "expectedPayloadSha256"
+      ],
+      "additionalProperties": false
+    },
+    "nativeRevision": {
+      "type": "object",
+      "properties": {
+        "record": {
+          "$ref": "#/$defs/nativeRecordRef"
+        },
+        "revision": {
+          "$ref": "#/$defs/revision"
+        },
+        "payloadSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "record",
+        "revision",
+        "payloadSha256"
+      ],
+      "additionalProperties": false
+    },
+    "assertionExpectation": {
+      "type": "object",
+      "properties": {
+        "assertionId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "expectedRevision": {
+          "$ref": "#/$defs/revision"
+        },
+        "expectedPayloadSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "assertionId",
+        "expectedRevision",
+        "expectedPayloadSha256"
+      ],
+      "additionalProperties": false
+    },
+    "assertionVersion": {
+      "type": "object",
+      "properties": {
+        "assertionId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "revision": {
+          "$ref": "#/$defs/revision"
+        },
+        "payloadSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "assertionId",
+        "revision",
+        "payloadSha256"
+      ],
+      "additionalProperties": false
+    },
+    "evidenceRole": {
+      "type": "string",
+      "enum": [
+        "supports",
+        "contradicts",
+        "context"
+      ]
+    },
+    "evidenceProposal": {
+      "type": "object",
+      "properties": {
+        "reference": {
+          "$ref": "#/$defs/nativeExpectation"
+        },
+        "role": {
+          "$ref": "#/$defs/evidenceRole"
+        }
+      },
+      "required": [
+        "reference",
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    "evidenceLink": {
+      "type": "object",
+      "properties": {
+        "evidence": {
+          "$ref": "#/$defs/nativeRevision"
+        },
+        "role": {
+          "$ref": "#/$defs/evidenceRole"
+        }
+      },
+      "required": [
+        "evidence",
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    "method": {
+      "type": "string",
+      "enum": [
+        "guessed",
+        "estimated",
+        "directly-measured",
+        "photo-fitted",
+        "derived",
+        "imported",
+        "user-reported-measured"
+      ]
+    },
+    "inputMethod": {
+      "type": "string",
+      "enum": [
+        "guessed",
+        "estimated",
+        "directly-measured",
+        "photo-fitted",
+        "derived",
+        "imported",
+        "legacy-user-reported-method-unspecified",
+        "user-reported-measured"
+      ]
+    },
+    "areaUnit": {
+      "type": "string",
+      "enum": [
+        "mm2",
+        "cm2",
+        "m2"
+      ]
+    },
+    "decimalToken": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[0-9]+(\\.[0-9]{1,18})?$"
+    },
+    "targetExpectation": {
+      "type": "object",
+      "properties": {
+        "buildingId": {
+          "$ref": "#/$defs/sourceId"
+        },
+        "roomId": {
+          "$ref": "#/$defs/sourceId"
+        },
+        "levelId": {
+          "$ref": "#/$defs/sourceId"
+        },
+        "occurrenceId": {
+          "$ref": "#/$defs/sourceId"
+        },
+        "publicationId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "sourceRevisionId": {
+          "$ref": "#/$defs/sourceId"
+        },
+        "sourceSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "semanticsSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "overviewManifestSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "selectionRevision": {
+          "$ref": "#/$defs/sha256"
+        },
+        "artifactId": {
+          "const": "model"
+        },
+        "artifactSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "artifactBytes": {
+          "$ref": "#/$defs/revision"
+        },
+        "targetFeatureSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sourceObjectIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/objectId"
+          },
+          "maxItems": 64,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "buildingId",
+        "roomId",
+        "levelId",
+        "occurrenceId",
+        "publicationId",
+        "sourceRevisionId",
+        "sourceSha256",
+        "semanticsSha256",
+        "overviewManifestSha256",
+        "selectionRevision",
+        "artifactId",
+        "artifactSha256",
+        "artifactBytes",
+        "targetFeatureSha256",
+        "sourceObjectIds"
+      ],
+      "additionalProperties": false
+    },
+    "inputExpectation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "selected-model"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "native"
+            },
+            "reference": {
+              "$ref": "#/$defs/nativeExpectation"
+            }
+          },
+          "required": [
+            "kind",
+            "reference"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "assertion"
+            },
+            "assertionId": {
+              "$ref": "#/$defs/uuid"
+            },
+            "expectedRevision": {
+              "$ref": "#/$defs/revision"
+            },
+            "expectedPayloadSha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          },
+          "required": [
+            "kind",
+            "assertionId",
+            "expectedRevision",
+            "expectedPayloadSha256"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "proposalOperation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "create"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "correct"
+            },
+            "assertionId": {
+              "$ref": "#/$defs/uuid"
+            },
+            "expectedRevision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740990
+            },
+            "expectedPayloadSha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          },
+          "required": [
+            "kind",
+            "assertionId",
+            "expectedRevision",
+            "expectedPayloadSha256"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "areaProposal": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ordinaryAreaProposal"
+        },
+        {
+          "$ref": "#/$defs/personalAreaProposal"
+        }
+      ]
+    },
+    "proposal": {
+      "type": "object",
+      "properties": {
+        "domain": {
+          "const": "houseatlas.measurement-assertions.online-proposal/1"
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "mutationId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "operation": {
+          "$ref": "#/$defs/proposalOperation"
+        },
+        "target": {
+          "$ref": "#/$defs/targetExpectation"
+        },
+        "property": {
+          "const": "occurrence-area"
+        },
+        "area": {
+          "$ref": "#/$defs/areaProposal"
+        },
+        "reason": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "required": [
+        "domain",
+        "scope",
+        "mutationId",
+        "operation",
+        "target",
+        "property",
+        "area",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "modelLineage": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "unified-atlas-publication"
+        },
+        "sourceRevisionId": {
+          "$ref": "#/$defs/sourceId"
+        },
+        "sourceSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "semanticsSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "overviewManifestSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "selectionRevision": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "kind",
+        "sourceRevisionId",
+        "sourceSha256",
+        "semanticsSha256",
+        "overviewManifestSha256",
+        "selectionRevision"
+      ],
+      "additionalProperties": false
+    },
+    "modelCustody": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "unknown"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "native-records"
+            },
+            "geometry": {
+              "$ref": "#/$defs/nativeRevision"
+            },
+            "association": {
+              "$ref": "#/$defs/nativeRevision"
+            }
+          },
+          "required": [
+            "kind",
+            "geometry",
+            "association"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "physicalRegistration": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "unknown"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "reviewed"
+            },
+            "evidence": {
+              "$ref": "#/$defs/nativeRevision"
+            }
+          },
+          "required": [
+            "kind",
+            "evidence"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "modelPin": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "buildingId": {
+          "$ref": "#/$defs/sourceId"
+        },
+        "publicationId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "artifactId": {
+          "const": "model"
+        },
+        "artifactSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "artifactBytes": {
+          "$ref": "#/$defs/revision"
+        },
+        "lineage": {
+          "$ref": "#/$defs/modelLineage"
+        },
+        "custody": {
+          "$ref": "#/$defs/modelCustody"
+        },
+        "physicalRegistration": {
+          "$ref": "#/$defs/physicalRegistration"
+        }
+      },
+      "required": [
+        "scope",
+        "buildingId",
+        "publicationId",
+        "artifactId",
+        "artifactSha256",
+        "artifactBytes",
+        "lineage",
+        "custody",
+        "physicalRegistration"
+      ],
+      "additionalProperties": false
+    },
+    "semanticTarget": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "namespace": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "producer-publication"
+            },
+            "publicationId": {
+              "$ref": "#/$defs/uuid"
+            }
+          },
+          "required": [
+            "kind",
+            "publicationId"
+          ],
+          "additionalProperties": false
+        },
+        "buildingId": {
+          "$ref": "#/$defs/sourceId"
+        },
+        "roomId": {
+          "$ref": "#/$defs/sourceId"
+        },
+        "floorId": {
+          "$ref": "#/$defs/sourceId"
+        },
+        "occurrenceId": {
+          "$ref": "#/$defs/sourceId"
+        },
+        "feature": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "room"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "scope",
+        "namespace",
+        "buildingId",
+        "roomId",
+        "floorId",
+        "occurrenceId",
+        "feature"
+      ],
+      "additionalProperties": false
+    },
+    "exactArea": {
+      "type": "object",
+      "properties": {
+        "decimalToken": {
+          "$ref": "#/$defs/decimalToken"
+        },
+        "unit": {
+          "$ref": "#/$defs/areaUnit"
+        },
+        "quantityKind": {
+          "const": "area"
+        }
+      },
+      "required": [
+        "decimalToken",
+        "unit",
+        "quantityKind"
+      ],
+      "additionalProperties": false
+    },
+    "uncertainty": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "supported",
+            "inferred",
+            "unknown",
+            "disputed",
+            "withdrawn",
+            "superseded"
+          ]
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "explanation"
+      ],
+      "additionalProperties": false
+    },
+    "support": {
+      "type": "object",
+      "properties": {
+        "corroboration": {
+          "type": "string",
+          "enum": [
+            "not-established",
+            "corroborated"
+          ]
+        },
+        "uncertainties": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/uncertainty"
+          },
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "guessed",
+              "estimated",
+              "photo-fitted",
+              "inferred-mesh",
+              "method-unspecified",
+              "imported-unqualified",
+              "user-reported-measurement"
+            ]
+          },
+          "maxItems": 7,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "corroboration",
+        "uncertainties",
+        "limitations"
+      ],
+      "additionalProperties": false
+    },
+    "inputPin": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "model"
+            },
+            "model": {
+              "$ref": "#/$defs/modelPin"
+            }
+          },
+          "required": [
+            "kind",
+            "model"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "native"
+            },
+            "native": {
+              "$ref": "#/$defs/nativeRevision"
+            }
+          },
+          "required": [
+            "kind",
+            "native"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "assertion"
+            },
+            "assertion": {
+              "$ref": "#/$defs/assertionVersion"
+            }
+          },
+          "required": [
+            "kind",
+            "assertion"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "provenanceInput": {
+      "type": "object",
+      "properties": {
+        "pin": {
+          "$ref": "#/$defs/inputPin"
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/inputMethod"
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true
+        },
+        "support": {
+          "$ref": "#/$defs/support"
+        }
+      },
+      "required": [
+        "pin",
+        "methods",
+        "support"
+      ],
+      "additionalProperties": false
+    },
+    "contradiction": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "assertions"
+            },
+            "raisedBy": {
+              "$ref": "#/$defs/assertionVersion"
+            },
+            "against": {
+              "$ref": "#/$defs/assertionVersion"
+            }
+          },
+          "required": [
+            "kind",
+            "raisedBy",
+            "against"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "evidence"
+            },
+            "raisedBy": {
+              "$ref": "#/$defs/assertionVersion"
+            },
+            "evidence": {
+              "$ref": "#/$defs/nativeRevision"
+            }
+          },
+          "required": [
+            "kind",
+            "raisedBy",
+            "evidence"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "claimReview": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "no-known-issue"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "ambiguous"
+            },
+            "reason": {
+              "$ref": "#/$defs/text"
+            }
+          },
+          "required": [
+            "kind",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "inconsistent"
+            },
+            "reason": {
+              "$ref": "#/$defs/text"
+            }
+          },
+          "required": [
+            "kind",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "record": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "$ref": "#/$defs/assertionVersion"
+        },
+        "previous": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/assertionVersion"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/semanticTarget"
+        },
+        "property": {
+          "const": "occurrence-area"
+        },
+        "value": {
+          "$ref": "#/$defs/exactArea"
+        },
+        "enteredAgainst": {
+          "$ref": "#/$defs/modelPin"
+        },
+        "targetFeatureSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "method": {
+          "$ref": "#/$defs/method"
+        },
+        "support": {
+          "$ref": "#/$defs/support"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/provenanceInput"
+          },
+          "maxItems": 64
+        },
+        "operation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceLink"
+          },
+          "maxItems": 64
+        },
+        "supersedes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/assertionVersion"
+          },
+          "maxItems": 0
+        },
+        "contradicts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/assertionVersion"
+          },
+          "maxItems": 64,
+          "uniqueItems": true
+        },
+        "resolutions": {
+          "type": "array",
+          "items": {
+            "type": "null"
+          },
+          "maxItems": 0
+        },
+        "review": {
+          "$ref": "#/$defs/claimReview"
+        },
+        "changeReason": {
+          "$ref": "#/$defs/text"
+        },
+        "nativeAuditId": {
+          "$ref": "#/$defs/uuid"
+        }
+      },
+      "required": [
+        "version",
+        "previous",
+        "target",
+        "property",
+        "value",
+        "enteredAgainst",
+        "targetFeatureSha256",
+        "method",
+        "support",
+        "inputs",
+        "operation",
+        "evidence",
+        "supersedes",
+        "contradicts",
+        "resolutions",
+        "review",
+        "changeReason",
+        "nativeAuditId"
+      ],
+      "additionalProperties": false
+    },
+    "receiptKey": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "actorId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "mutationId": {
+          "$ref": "#/$defs/uuid"
+        }
+      },
+      "required": [
+        "scope",
+        "actorId",
+        "mutationId"
+      ],
+      "additionalProperties": false
+    },
+    "auditAnchor": {
+      "type": "object",
+      "properties": {
+        "auditId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "actorId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "mutationId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "serverRecordedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "previousRevision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/revision"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resultRevision": {
+          "$ref": "#/$defs/revision"
+        }
+      },
+      "required": [
+        "auditId",
+        "actorId",
+        "mutationId",
+        "serverRecordedAt",
+        "previousRevision",
+        "resultRevision"
+      ],
+      "additionalProperties": false
+    },
+    "targetAdmission": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "resolved"
+        },
+        "roomIdentity": {
+          "$ref": "#/$defs/nativeRevision"
+        },
+        "roomSemantics": {
+          "$ref": "#/$defs/nativeRevision"
+        },
+        "mappingReview": {
+          "$ref": "#/$defs/nativeRevision"
+        },
+        "sourceObjectIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/objectId"
+          },
+          "maxItems": 64,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "kind",
+        "roomIdentity",
+        "roomSemantics",
+        "mappingReview",
+        "sourceObjectIds"
+      ],
+      "additionalProperties": false
+    },
+    "acquisition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "unqualified"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "image-informed-estimate"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "direct-measurement"
+            },
+            "review": {
+              "$ref": "#/$defs/nativeRevision"
+            }
+          },
+          "required": [
+            "kind",
+            "review"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "photo-fit"
+            },
+            "review": {
+              "$ref": "#/$defs/nativeRevision"
+            }
+          },
+          "required": [
+            "kind",
+            "review"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$ref": "#/$defs/userReportedAcquisition"
+        }
+      ]
+    },
+    "pendingWork": {
+      "type": "object",
+      "properties": {
+        "assertion": {
+          "$ref": "#/$defs/assertionVersion"
+        },
+        "model": {
+          "$ref": "#/$defs/modelPin"
+        },
+        "targetFeatureSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "unresolvedConflicts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/contradiction"
+          },
+          "maxItems": 1024
+        }
+      },
+      "required": [
+        "assertion",
+        "model",
+        "targetFeatureSha256",
+        "unresolvedConflicts"
+      ],
+      "additionalProperties": false
+    },
+    "committedVersion": {
+      "type": "object",
+      "properties": {
+        "assertion": {
+          "$ref": "#/$defs/record"
+        },
+        "proposal": {
+          "$ref": "#/$defs/proposal"
+        },
+        "proposalSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "receiptKey": {
+          "$ref": "#/$defs/receiptKey"
+        },
+        "audit": {
+          "$ref": "#/$defs/auditAnchor"
+        },
+        "targetAdmission": {
+          "$ref": "#/$defs/targetAdmission"
+        },
+        "acquisition": {
+          "$ref": "#/$defs/acquisition"
+        },
+        "pending": {
+          "$ref": "#/$defs/pendingWork"
+        }
+      },
+      "required": [
+        "assertion",
+        "proposal",
+        "proposalSha256",
+        "receiptKey",
+        "audit",
+        "targetAdmission",
+        "acquisition",
+        "pending"
+      ],
+      "additionalProperties": false
+    },
+    "audit": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "auditId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "assertionId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "operation": {
+          "type": "string",
+          "enum": [
+            "create",
+            "correct"
+          ]
+        },
+        "previousRevision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/revision"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resultRevision": {
+          "$ref": "#/$defs/revision"
+        },
+        "actorId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "reason": {
+          "$ref": "#/$defs/text"
+        },
+        "mutationId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "beforeDigest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "afterDigest": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "auditId",
+        "scope",
+        "assertionId",
+        "operation",
+        "previousRevision",
+        "resultRevision",
+        "actorId",
+        "at",
+        "reason",
+        "mutationId",
+        "beforeDigest",
+        "afterDigest"
+      ],
+      "additionalProperties": false
+    },
+    "receiptBody": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "houseatlas.measurement-receipt/1"
+        },
+        "committed": {
+          "$ref": "#/$defs/committedVersion"
+        },
+        "audit": {
+          "$ref": "#/$defs/audit"
+        }
+      },
+      "required": [
+        "format",
+        "committed",
+        "audit"
+      ],
+      "additionalProperties": false
+    },
+    "readPoint": {
+      "type": "object",
+      "properties": {
+        "marker": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "required": [
+        "marker"
+      ],
+      "additionalProperties": false
+    },
+    "currentConflict": {
+      "type": "object",
+      "properties": {
+        "contradiction": {
+          "$ref": "#/$defs/contradiction"
+        },
+        "affectedHeads": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/assertionVersion"
+          },
+          "minItems": 1,
+          "maxItems": 1024,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "contradiction",
+        "affectedHeads"
+      ],
+      "additionalProperties": false
+    },
+    "currentConflicts": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/completeCurrentConflicts"
+        },
+        {
+          "$ref": "#/$defs/unavailableCurrentProjection"
+        }
+      ]
+    },
+    "currentValueReview": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "review-required"
+            },
+            "assertion": {
+              "$ref": "#/$defs/assertionVersion"
+            },
+            "readPoint": {
+              "$ref": "#/$defs/readPoint"
+            },
+            "conflictingAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/assertionVersion"
+              },
+              "minItems": 1,
+              "maxItems": 1024,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "status",
+            "assertion",
+            "readPoint",
+            "conflictingAssertions"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "no-unequal-active-assertions"
+            },
+            "assertion": {
+              "$ref": "#/$defs/assertionVersion"
+            },
+            "readPoint": {
+              "$ref": "#/$defs/readPoint"
+            },
+            "conflictingAssertions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/assertionVersion"
+              },
+              "maxItems": 0
+            }
+          },
+          "required": [
+            "status",
+            "assertion",
+            "readPoint",
+            "conflictingAssertions"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$ref": "#/$defs/unavailableCurrentProjection"
+        }
+      ]
+    },
+    "currentResponse": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "const": "houseatlas.measurement-current.v1"
+        },
+        "head": {
+          "$ref": "#/$defs/receiptBody"
+        },
+        "readPoint": {
+          "$ref": "#/$defs/readPoint"
+        },
+        "currentConflicts": {
+          "$ref": "#/$defs/currentConflicts"
+        },
+        "currentValueReview": {
+          "$ref": "#/$defs/currentValueReview"
+        },
+        "receiptDigest": {
+          "$ref": "#/$defs/retainedReceiptDigest"
+        }
+      },
+      "required": [
+        "profile",
+        "head",
+        "readPoint",
+        "currentConflicts",
+        "currentValueReview",
+        "receiptDigest"
+      ],
+      "additionalProperties": false
+    },
+    "fullHistory": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "const": "houseatlas.measurement-history.v1"
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "assertionId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "expectedCurrentHead": {
+          "$ref": "#/$defs/assertionVersion"
+        },
+        "readPoint": {
+          "$ref": "#/$defs/readPoint"
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/receiptBody"
+          },
+          "minItems": 1,
+          "maxItems": 1024
+        },
+        "receiptDigests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/retainedReceiptDigest"
+          },
+          "maxItems": 1024,
+          "minItems": 1
+        }
+      },
+      "required": [
+        "profile",
+        "scope",
+        "assertionId",
+        "expectedCurrentHead",
+        "readPoint",
+        "versions",
+        "receiptDigests"
+      ],
+      "additionalProperties": false
+    },
+    "mutationResult": {
+      "type": "object",
+      "properties": {
+        "profile": {
+          "const": "houseatlas.measurement-mutation-result.v1"
+        },
+        "receipt": {
+          "$ref": "#/$defs/receiptBody"
+        },
+        "receiptSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "profile",
+        "receipt",
+        "receiptSha256",
+        "replayed"
+      ],
+      "additionalProperties": false
+    },
+    "mutationOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "committed"
+            },
+            "result": {
+              "$ref": "#/$defs/mutationResult"
+            }
+          },
+          "required": [
+            "status",
+            "result"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "const": "not-recorded-at-read-point"
+            },
+            "scope": {
+              "$ref": "#/$defs/scope"
+            },
+            "mutationId": {
+              "$ref": "#/$defs/uuid"
+            },
+            "readPoint": {
+              "$ref": "#/$defs/readPoint"
+            }
+          },
+          "required": [
+            "status",
+            "scope",
+            "mutationId",
+            "readPoint"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "personalMeasurementAttestation": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "personally-measured"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "ordinaryAreaProposal": {
+      "type": "object",
+      "properties": {
+        "decimalToken": {
+          "$ref": "#/$defs/decimalToken"
+        },
+        "unit": {
+          "$ref": "#/$defs/areaUnit"
+        },
+        "quantityKind": {
+          "const": "area"
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "guessed",
+            "estimated",
+            "directly-measured",
+            "photo-fitted",
+            "derived",
+            "imported"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceProposal"
+          },
+          "maxItems": 64
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/inputExpectation"
+          },
+          "maxItems": 64
+        },
+        "operation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "contradicts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/assertionExpectation"
+          },
+          "maxItems": 64,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "decimalToken",
+        "unit",
+        "quantityKind",
+        "method",
+        "evidence",
+        "inputs",
+        "operation",
+        "contradicts"
+      ],
+      "additionalProperties": false
+    },
+    "personalAreaProposal": {
+      "type": "object",
+      "properties": {
+        "decimalToken": {
+          "$ref": "#/$defs/decimalToken"
+        },
+        "unit": {
+          "$ref": "#/$defs/areaUnit"
+        },
+        "quantityKind": {
+          "const": "area"
+        },
+        "method": {
+          "const": "user-reported-measured"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceProposal"
+          },
+          "maxItems": 64
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/inputExpectation"
+          },
+          "maxItems": 64
+        },
+        "operation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "contradicts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/assertionExpectation"
+          },
+          "maxItems": 64,
+          "uniqueItems": true
+        },
+        "attestation": {
+          "$ref": "#/$defs/personalMeasurementAttestation"
+        }
+      },
+      "required": [
+        "decimalToken",
+        "unit",
+        "quantityKind",
+        "method",
+        "evidence",
+        "inputs",
+        "operation",
+        "contradicts",
+        "attestation"
+      ],
+      "additionalProperties": false
+    },
+    "userReportedAcquisition": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "user-reported-measurement"
+        },
+        "attestation": {
+          "$ref": "#/$defs/personalMeasurementAttestation"
+        },
+        "actorId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "recordedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "kind",
+        "attestation",
+        "actorId",
+        "recordedAt"
+      ],
+      "additionalProperties": false
+    },
+    "retainedReceiptDigest": {
+      "type": "object",
+      "properties": {
+        "assertion": {
+          "$ref": "#/$defs/assertionVersion"
+        },
+        "receiptSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "assertion",
+        "receiptSha256"
+      ],
+      "additionalProperties": false
+    },
+    "advisoryWriteEligible": {
+      "type": "object",
+      "properties": {
+        "advisory": {
+          "const": true
+        },
+        "status": {
+          "const": "eligible"
+        }
+      },
+      "required": [
+        "advisory",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "writeIneligibilityReason": {
+      "type": "string",
+      "enum": [
+        "read-only-role",
+        "target-not-admitted",
+        "stale-selection",
+        "required-source-access-unavailable",
+        "mutation-history-coverage-unavailable",
+        "required-mutation-owner-unavailable"
+      ]
+    },
+    "advisoryWriteIneligible": {
+      "type": "object",
+      "properties": {
+        "advisory": {
+          "const": true
+        },
+        "status": {
+          "const": "ineligible"
+        },
+        "reason": {
+          "$ref": "#/$defs/writeIneligibilityReason"
+        }
+      },
+      "required": [
+        "advisory",
+        "status",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "writeEligibility": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/advisoryWriteEligible"
+        },
+        {
+          "$ref": "#/$defs/advisoryWriteIneligible"
+        }
+      ]
+    },
+    "comparisonUnavailableReason": {
+      "type": "string",
+      "enum": [
+        "historical-association-unreviewed",
+        "historical-source-unavailable",
+        "historical-disclosure-unavailable",
+        "historical-coverage-incomplete"
+      ]
+    },
+    "unavailableCurrentProjection": {
+      "type": "object",
+      "properties": {
+        "assertion": {
+          "$ref": "#/$defs/assertionVersion"
+        },
+        "readPoint": {
+          "$ref": "#/$defs/readPoint"
+        },
+        "status": {
+          "const": "unavailable"
+        },
+        "reason": {
+          "$ref": "#/$defs/comparisonUnavailableReason"
+        }
+      },
+      "required": [
+        "assertion",
+        "readPoint",
+        "status",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "completeCurrentConflicts": {
+      "type": "object",
+      "properties": {
+        "assertion": {
+          "$ref": "#/$defs/assertionVersion"
+        },
+        "readPoint": {
+          "$ref": "#/$defs/readPoint"
+        },
+        "conflicts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/currentConflict"
+          },
+          "maxItems": 1024
+        }
+      },
+      "required": [
+        "assertion",
+        "readPoint",
+        "conflicts"
+      ],
+      "additionalProperties": false
+    },
+    "associationReviewReason": {
+      "type": "string",
+      "enum": [
+        "native-room-candidate-only",
+        "occurrence-part-ambiguous",
+        "reviewed-occurrence-association-missing"
+      ]
+    },
+    "associationUnavailableReason": {
+      "type": "string",
+      "enum": [
+        "original-artifact-unavailable",
+        "historical-mapping-owner-unavailable"
+      ]
+    },
+    "reviewedHistoricalAssociation": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "reviewed"
+        },
+        "relation": {
+          "type": "string",
+          "enum": [
+            "applicable",
+            "not-applicable"
+          ]
+        },
+        "review": {
+          "$ref": "#/$defs/nativeRevision"
+        }
+      },
+      "required": [
+        "status",
+        "relation",
+        "review"
+      ],
+      "additionalProperties": false
+    },
+    "unreviewedHistoricalAssociation": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "review-required"
+        },
+        "reason": {
+          "$ref": "#/$defs/associationReviewReason"
+        }
+      },
+      "required": [
+        "status",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "unavailableHistoricalAssociation": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "unavailable"
+        },
+        "reason": {
+          "$ref": "#/$defs/associationUnavailableReason"
+        }
+      },
+      "required": [
+        "status",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "historicalAssociation": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/reviewedHistoricalAssociation"
+        },
+        {
+          "$ref": "#/$defs/unreviewedHistoricalAssociation"
+        },
+        {
+          "$ref": "#/$defs/unavailableHistoricalAssociation"
+        }
+      ]
+    },
+    "completeHistoricalCoverage": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "complete"
+        },
+        "readPoint": {
+          "$ref": "#/$defs/readPoint"
+        }
+      },
+      "required": [
+        "status",
+        "readPoint"
+      ],
+      "additionalProperties": false
+    },
+    "unreviewedHistoricalCoverage": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "association-review-required"
+        },
+        "readPoint": {
+          "$ref": "#/$defs/readPoint"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/associationReviewReason"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "status",
+        "readPoint",
+        "reasons"
+      ],
+      "additionalProperties": false
+    },
+    "historicalUnavailableReason": {
+      "type": "string",
+      "enum": [
+        "disclosure-not-authorized",
+        "receipt-enumeration-incomplete",
+        "original-artifact-unavailable",
+        "historical-mapping-owner-unavailable"
+      ]
+    },
+    "unavailableHistoricalCoverage": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "unavailable"
+        },
+        "readPoint": {
+          "$ref": "#/$defs/readPoint"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/historicalUnavailableReason"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "status",
+        "readPoint",
+        "reasons"
+      ],
+      "additionalProperties": false
+    },
+    "historicalCoverage": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/completeHistoricalCoverage"
+        },
+        {
+          "$ref": "#/$defs/unreviewedHistoricalCoverage"
+        },
+        {
+          "$ref": "#/$defs/unavailableHistoricalCoverage"
+        }
+      ]
+    },
+    "historicalProducerContext": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "recorded-context-unverified",
+            "required-native-custody-qualified"
+          ]
+        },
+        "originalModel": {
+          "$ref": "#/$defs/modelPin"
+        },
+        "currentApplicability": {
+          "const": "not-qualified-by-inventory-validation"
+        }
+      },
+      "required": [
+        "state",
+        "originalModel",
+        "currentApplicability"
+      ],
+      "additionalProperties": false
+    },
+    "historicalStream": {
+      "type": "object",
+      "properties": {
+        "history": {
+          "$ref": "#/$defs/fullHistory"
+        },
+        "association": {
+          "$ref": "#/$defs/historicalAssociation"
+        },
+        "producerContext": {
+          "$ref": "#/$defs/historicalProducerContext"
+        }
+      },
+      "required": [
+        "history",
+        "association",
+        "producerContext"
+      ],
+      "additionalProperties": false
+    },
+    "historicalContext": {
+      "type": "object",
+      "properties": {
+        "coverage": {
+          "$ref": "#/$defs/historicalCoverage"
+        },
+        "streams": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/historicalStream"
+          },
+          "maxItems": 1024
+        }
+      },
+      "required": [
+        "coverage",
+        "streams"
+      ],
+      "additionalProperties": false
+    },
+    "completeContextCoverage": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "complete-for-exact-publication-occurrence"
+        },
+        "priorPublications": {
+          "const": "not-retargeted"
+        },
+        "retainedHomeVersions": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1024
+        },
+        "mutationCoverage": {
+          "const": "current-actor-complete-home-retained-measurement-receipts"
+        }
+      },
+      "required": [
+        "status",
+        "priorPublications",
+        "retainedHomeVersions",
+        "mutationCoverage"
+      ],
+      "additionalProperties": false
+    },
+    "limitedContextCoverage": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "limited-current-publication-occurrence"
+        },
+        "priorPublications": {
+          "const": "not-retargeted"
+        },
+        "mutationCoverage": {
+          "const": "unavailable"
+        }
+      },
+      "required": [
+        "status",
+        "priorPublications",
+        "mutationCoverage"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -25,6 +25,25 @@ pub use presence_history::PresenceHistoryCatalog;
 #[path = "geodata_full_store.rs"]
 mod geodata_full_store;
 pub use geodata_full_store::{FullGeodataBundle, FullGeodataIdentity};
+#[path = "measurement_assertions.rs"]
+mod measurement_assertions;
+#[path = "measurement_assertions_repository.rs"]
+mod measurement_assertions_repository;
+#[path = "measurement_profile.rs"]
+mod measurement_profile;
+#[path = "measurement_recovery.rs"]
+mod measurement_recovery;
+pub use measurement_assertions::{
+    MeasurementBinding, MeasurementContextInput, MeasurementOccurrenceReviewInput,
+    MeasurementPreparation, MeasurementRead,
+};
+pub use measurement_profile::{
+    MeasurementProfileIdentity, MeasurementProfileSelection, measurement_catalog_pin,
+};
+pub use measurement_recovery::{
+    MeasurementBundle, MeasurementBundleReport, MeasurementOpenInput, MeasurementRecoveryEvidence,
+    MeasurementRestoreInput,
+};
 #[path = "presence_transaction.rs"]
 pub(crate) mod presence_transaction;
 #[path = "recovery.rs"]

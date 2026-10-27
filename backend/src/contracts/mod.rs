@@ -3,6 +3,7 @@
 //! formats, numeric bounds, uniqueItems, oneOf exclusivity, or if/then rules.
 mod generated;
 mod json_value;
+pub mod measurement_assertions;
 mod numeric;
 pub mod semantics;
 pub mod stock;
