@@ -1,5 +1,5 @@
 import { getPosition } from 'suncalc';
-import type { SceneDaylight } from '../canonical-ifc/mesh-appearance';
+import type { Backdrop, SceneDaylight } from '../canonical-ifc/mesh-appearance';
 import { skyLight } from '../canonical-ifc/sky-light';
 
 type Rgb = readonly [number, number, number];
@@ -94,4 +94,12 @@ export function stageColors(dusk: number): Record<`--ua-${string}`, string> {
   for (const key of Object.keys(STAGE_DAY) as (keyof typeof STAGE_DAY)[])
     out[`--ua-${key.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`)}`] = mixHex(STAGE_DAY[key], STAGE_NIGHT[key], dusk);
   return out;
+}
+
+/** The stage's glow as the stylesheet places it (`.ua-stage`): centre and radii, as fractions of the stage. */
+export const STAGE_GLOW_AT = [.46, .4] as const, STAGE_GLOW_RADII = [.72, .64] as const;
+/** The stage behind the 3D view for the hour, which the surroundings fade into. */
+export function stageBackdrop(dusk: number): Backdrop {
+  return { top: mixHex(STAGE_DAY.skyTop, STAGE_NIGHT.skyTop, dusk), bottom: mixHex(STAGE_DAY.skyBottom, STAGE_NIGHT.skyBottom, dusk),
+    glow: mixHex(STAGE_DAY.glow, STAGE_NIGHT.glow, dusk), glowAt: STAGE_GLOW_AT, glowRadii: STAGE_GLOW_RADII };
 }

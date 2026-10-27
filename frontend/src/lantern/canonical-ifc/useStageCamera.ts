@@ -13,7 +13,7 @@ export function useReducedMotionPreference(): boolean {
   return useSyncExternalStore(subscribeMotion, () => matchMedia(motionQuery).matches, () => false);
 }
 
-const PITCH_3D = { min: 12, max: 68 }, ZOOM = { min: .6, max: 8 };
+export const PITCH_3D = { min: 12, max: 68 }, ZOOM = { min: .6, max: 8 };
 export const DEFAULT_ORBIT = { yaw: -32, pitch: 36 } as const;
 export interface StageFraming { readonly zoom: number; readonly panX: number; readonly panY: number }
 
