@@ -165,7 +165,14 @@ export function mountQuantityWebMcp(o: {
   // parseInput creates a fresh object for each invocation. The adapter retains
   // that input through service and presentation, whose context/signal objects
   // have independent lifetimes. Equal inputs must never share custody.
-  const expected = new WeakMap<JsonObject, { readonly output: QuantityToolOutput; readonly reservation: QuantityHandoffReservation | null }>();
+  type Completed = { readonly input: JsonObject; readonly output: QuantityToolOutput; readonly reservation: QuantityHandoffReservation | null };
+  const expected = new WeakMap<JsonObject, Completed>();
+  const completed = new Set<Completed>();
+  let disposed = false;
+  const end = (entry: Completed) => {
+    expected.delete(entry.input);
+    if (completed.delete(entry)) entry.reservation?.end();
+  };
   const currentAdmission = () => { const a = admission.getSnapshot(); return a && facade.getBindingIdentity() === a.bindingIdentity ? a : null; };
   // Zero installed sources leaves the tool unregistered.
   const snapshotOf = (a: QuantityToolAdmission | null): SessionSnapshot => a && a.installedSources.length > 0
@@ -178,7 +185,7 @@ export function mountQuantityWebMcp(o: {
     getSnapshot: () => snapshotOf(currentAdmission()),
     subscribe: changed => { const off = admission.subscribe(changed), offBinding = facade.subscribeSessionBinding(changed); return () => { off(); offBinding(); }; },
   };
-  return startWebMcp({
+  const handle = startWebMcp({
     modelContext: o.modelContext,
     sessions,
     catalog: { toolsFor: session => { const a = admittedFor(session); return a ? [quantityTool(a, admission, facade)] : []; } },
@@ -189,7 +196,15 @@ export function mountQuantityWebMcp(o: {
         const { signal } = context;
         const source = input['source'] as unknown as SourceRef, quantity = input['quantity'] as number, reason = input['reason'] as string;
         const finish = (output: QuantityToolOutput, reservation: QuantityHandoffReservation | null) => {
-          expected.set(input, { output, reservation }); return output as unknown as JsonValue;
+          // Retire the completed assistant wait even if presentation is withheld.
+          // A deadline can settle that wait while owner work remains pending;
+          // reservation.end() ends invocation custody, never that owner work.
+          if (disposed) reservation?.end();
+          else {
+            const entry = { input, output, reservation };
+            expected.set(input, entry); completed.add(entry);
+          }
+          return output as unknown as JsonValue;
         };
         // Reserved synchronously so two invocations can never both pass the busy check.
         const reservation = offers.reserve();
@@ -243,11 +258,20 @@ export function mountQuantityWebMcp(o: {
       async apply(toolName, result, context, input) {
         const entry = expected.get(input); expected.delete(input);
         // The transport clone is compared structurally; reference identity is not expected after cloning.
-        if (!entry || !sameJson(result, entry.output)) { entry?.reservation?.end(); throw new TypeError('Quantity tool result differs from custody'); }
+        if (!entry || !sameJson(result, entry.output)) { if (entry) end(entry); throw new TypeError('Quantity tool result differs from custody'); }
         try { await o.visible.apply(toolName, result, context, input); context.signal.throwIfAborted(); }
-        catch (error) { entry.reservation?.end(); throw error; }
+        catch (error) { end(entry); throw error; }
+        completed.delete(entry);
         entry.reservation?.acknowledge();
       },
     },
   });
+  return { ...handle, dispose() {
+    if (disposed) return;
+    disposed = true;
+    handle.dispose();
+    // Do not end pending handoffs or abort their owner signal. Completed
+    // custody includes a result still awaiting its presentation acknowledgement.
+    for (const entry of completed) end(entry);
+  } };
 }

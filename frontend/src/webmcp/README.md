@@ -173,3 +173,19 @@ companion and adds three synthetic cases for normal acknowledgement after the
 view commit, simultaneous identical inputs, and disposal before or during presentation.
 Fake preview/handoff owners supply no approval or submission capability; the
 checks do not qualify native quantity effects or real-person approval.
+
+Quantity mount disposal also retires completed custody whose result is withheld,
+including a result awaiting view acknowledgement. A still-pending handoff is
+preserved until it settles; its completion then ends the assistant invocation
+without acknowledging an unseen result. No owner signal is aborted. The actual
+custody owner continues to block closure while a person attempt is in flight and
+to retain an independent client uncertainty hold after presentation closure.
+
+Three further bootstrap cases use the production QuantityHandoffs/Handoff
+classes from a separate temporary module bundle. They check withheld dismissal
+and expiry followed by deliberate closure and same-session reuse, immediate
+closure eligibility during abandoned presentation, and an uncancelled pending
+synthetic submission across disposal/deadline with retained result/uncertainty.
+Client promises are fake; the actual custody classes are neither extracted nor
+replaced, and React is not mounted. These checks supply no provider, actual
+approval/submission, browser, deployment or operational acceptance evidence.
