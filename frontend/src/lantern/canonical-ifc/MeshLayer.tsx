@@ -84,7 +84,7 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     const ready = () => {
       if (drawn) return;
       drawn = true; latest.current.onReady(props.meshes);
-      if (PROBE && !probed) { probed = true; setTimeout(() => void probe(performance.now()), PROBE_DELAY_MS); }
+      if (PROBE && !probed) setTimeout(() => void probe(performance.now()), PROBE_DELAY_MS);
     };
     // Contact shading strength (0 to 1), the pending settle timer, and when the fade-in began.
     let shading = 0, settle: ReturnType<typeof setTimeout> | null = null, fading: number | null = null;
@@ -119,7 +119,10 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     };
     /** The speed check takes over the canvas while it runs; normal drawing resumes after. */
     const probe = async (shownAt: number) => {
-      if (disposed || !scene || latest.current.hidden) return;
+      // A canvas replaced meanwhile leaves the check to its successor; a hidden one (Plan, or a set still swapping in) waits until it is shown.
+      if (probed || disposed || !scene) return;
+      if (latest.current.hidden || latest.current.building) { setTimeout(() => void probe(shownAt), PROBE_DELAY_MS); return; }
+      probed = true;
       if (frame !== null) cancelAnimationFrame(frame); frame = null;
       probing = true;
       try {

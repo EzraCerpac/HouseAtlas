@@ -57,6 +57,8 @@ export async function runRenderProbe({ scene, meshes, projection, width, height,
         scene.render(turned(projection, frame * STEP), null, w, h, test.shading);
         await scene.finished();
         if (frame >= WARMUP) times.push(performance.now() - start);
+        // Untimed: let the page handle input and present between frames (WebGL2's read-back finishes synchronously).
+        await new Promise(resolve => setTimeout(resolve));
       }
       times.sort((a, b) => a - b);
       rows.push(`${test.label.padEnd(20)}${ms(percentile(times, .5)).padStart(9)}${ms(percentile(times, .9)).padStart(10)}`);
