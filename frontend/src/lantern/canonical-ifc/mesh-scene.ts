@@ -30,6 +30,11 @@ export interface MeshScene {
    * `occlusion` (0 to 1) blends in contact shading; 0 skips its passes entirely.
    * Returns true while another frame of the same view would still refine the contact shading. */
   render(projection: Projection, appearance: AppearanceInput | null, width: number, height: number, occlusion: number): boolean;
+  /** For the speed check (render-probe.ts): resolves once the GPU has finished every frame drawn so far. */
+  finished(): Promise<void>;
+  /** For the speed check: draws only this share of each layer's triangles, 1 for the whole model,
+   * and returns the vertices the next frame without contact shading draws. */
+  share(fraction: number): number;
   dispose(): void;
 }
 
@@ -741,6 +746,22 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
         internals._nodes.nodeFrame.update();
         pipeline.render();
         return history.settling;
+      },
+      async finished() {
+        const device = (renderer.backend as { device?: { queue: { onSubmittedWorkDone(): Promise<void> } } }).device;
+        if (device) { await device.queue.onSubmittedWorkDone(); return; }
+        // WebGL2: reading one pixel back waits for every command before it.
+        const gl = (renderer.backend as { gl?: WebGL2RenderingContext }).gl;
+        gl?.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+      },
+      share(fraction) {
+        let vertices = 0;
+        for (const { mesh } of layers) {
+          const count = mesh.geometry.getAttribute('position').count, kept = fraction >= 1 ? Infinity : 3 * Math.floor(count * fraction / 3);
+          mesh.geometry.setDrawRange(0, kept);
+          if (mesh.visible) vertices += Math.min(count, kept);
+        }
+        return vertices;
       },
       dispose() {
         if (disposed) return; disposed = true;

@@ -31,6 +31,10 @@ const SETTLE_MS = 180, FADE_MS = 240;
  * skips a refining frame that would end past it, so a slow GPU stops after a
  * few averaged frames instead of drawing for seconds. */
 const REFINE_MS = 400;
+/** The on-device speed check (render-probe.ts) runs once per page, this long after the first model is on screen. */
+const PROBE = typeof location !== 'undefined' && new URLSearchParams(location.search).has('render-probe'), PROBE_DELAY_MS = 1500;
+/** The page's one check: not yet run, running on some canvas, or reported. */
+let probeState: 'idle' | 'running' | 'done' = 'idle';
 
 /** A stable number per prepared mesh set, for the canvas key. */
 const meshSets = new WeakMap<readonly PreparedMesh[], number>();
@@ -74,11 +78,15 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
   useLayoutEffect(() => {
     const element = canvas.current; if (!element || props.meshes.length === 0) return;
     const usesMaterials = props.sourceMaterials === true && props.meshes.some(mesh => mesh.sourceMaterial !== undefined);
-    let disposed = false, frame: number | null = null, scene: MeshScene | null = null, drawn = false;
+    let disposed = false, frame: number | null = null, scene: MeshScene | null = null, drawn = false, probing = false, buildMs = 0;
     // The scene builds over several frames; releasing the canvas abandons that build.
     const building = new AbortController();
     // Ready once a frame is drawn (or there is nothing to draw while hidden), so promoting this canvas never shows it empty.
-    const ready = () => { if (!drawn) { drawn = true; latest.current.onReady(props.meshes); } };
+    const ready = () => {
+      if (drawn) return;
+      drawn = true; latest.current.onReady(props.meshes);
+      if (PROBE && probeState !== 'done') setTimeout(() => void probe(performance.now()), PROBE_DELAY_MS);
+    };
     // Contact shading strength (0 to 1), the pending settle timer, and when the fade-in began.
     let shading = 0, settle: ReturnType<typeof setTimeout> | null = null, fading: number | null = null;
     // Whether the pending frame only refines the last one, until when refining may go on, and when the last frame was drawn.
@@ -86,7 +94,7 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     const still = () => { settle = null; fading = performance.now(); schedule(); };
     const schedule = (refine = false) => {
       if (!refine) refineOnly = false;
-      if (disposed || !scene || frame !== null || document.hidden) return;
+      if (disposed || !scene || frame !== null || document.hidden || probing) return;
       refineOnly = refine;
       frame = requestAnimationFrame(() => { frame = null; try { render(); } catch { fail('The 3D model cannot be rendered.'); } });
     };
@@ -103,15 +111,43 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       if (rebuilds < REBUILDS) { release(); setRebuilds(count => count + 1); } else fail(message);
     };
     const visibility = () => { if (!document.hidden) schedule(); };
+    /** The drawing buffer: layout size at the device's pixel ratio up to 2, within RENDER_LIMITS.pixels. */
+    const size = (): [number, number] => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const w = Math.max(1, Math.round(element.clientWidth * dpr)), h = Math.max(1, Math.round(element.clientHeight * dpr));
+      const fit = Math.min(1, Math.sqrt(RENDER_LIMITS.pixels / (w * h)));
+      return [Math.max(1, Math.floor(w * fit)), Math.max(1, Math.floor(h * fit))];
+    };
+    /** The speed check takes over the canvas while it runs; normal drawing resumes after. */
+    const probe = async (shownAt: number) => {
+      // A canvas replaced meanwhile leaves the check to its successor; a hidden one (Plan, or a set still swapping in),
+      // or one whose predecessor is still checking, waits until it can run.
+      if (probeState === 'done' || disposed || !scene) return;
+      if (probeState === 'running' || latest.current.hidden || latest.current.building) { setTimeout(() => void probe(shownAt), PROBE_DELAY_MS); return; }
+      probeState = 'running';
+      if (frame !== null) cancelAnimationFrame(frame); frame = null;
+      probing = true;
+      try {
+        const { runRenderProbe, showProbeReport } = await import('./render-probe');
+        const [width, height] = size();
+        if (!disposed && scene) {
+          const report = await runRenderProbe({ scene, meshes: props.meshes, projection: latest.current.projection, width, height,
+            shownAt: shownAt - PROBE_DELAY_MS, buildMs, signal: building.signal });
+          if (!disposed) { probeState = 'done'; showProbeReport(report); }
+        }
+      } catch {
+        // A check that cannot finish leaves the view as it was; one cut short by a released canvas passes to its successor.
+      }
+      if (probeState === 'running') probeState = disposed ? 'idle' : 'done';
+      probing = false; moved.current = true; schedule();
+    };
     const render = () => {
       if (disposed || !scene) return;
       const p = latest.current; if (p.hidden) { ready(); return; }
       // A refining frame is expected to cost about what the last one did.
       const now = performance.now(), refine = refineOnly; refineOnly = false;
       if (!refine) refineUntil = now + REFINE_MS; else if (2 * now - drawnAt > refineUntil) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      let w = Math.max(1, Math.round(element.clientWidth * dpr)), h = Math.max(1, Math.round(element.clientHeight * dpr));
-      const fit = Math.min(1, Math.sqrt(RENDER_LIMITS.pixels / (w * h))); w = Math.max(1, Math.floor(w * fit)); h = Math.max(1, Math.floor(h * fit));
+      const [w, h] = size();
       if (moved.current) { moved.current = false; shading = 0; fading = null; if (settle !== null) clearTimeout(settle); settle = null; }
       if (fading !== null) {
         shading = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 1 : Math.min(1, (performance.now() - fading) / FADE_MS);
@@ -125,8 +161,10 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     const resize = new ResizeObserver(() => schedule()); resize.observe(element);
     try { materialGpuResources(props.meshes, usesMaterials, props.uploadBytes); } catch { fail('The 3D model cannot be rendered.'); }
     if (!disposed) {
+      const buildStart = performance.now();
       void import('./mesh-scene').then(({ createMeshScene }) => createMeshScene(element, props.meshes, usesMaterials, lost, building.signal)).then(created => {
         if (disposed) { created.dispose(); return; }
+        buildMs = performance.now() - buildStart;
         scene = created; stale.current = true; element.dataset.renderer = created.backend;
         redraw.current = schedule; schedule();
       }, () => fail(drawable() ? 'The 3D model cannot be rendered.' : 'This browser cannot draw the 3D model. Update the browser to view it.'));

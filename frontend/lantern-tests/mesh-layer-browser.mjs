@@ -210,6 +210,15 @@ try {
     assert.equal(await evaluate(`document.querySelector('output').textContent`), '', 'MeshLayer reported a failure while the hour moved');
     console.log(`relit hour: ${scrub.passes} passes per frame, ${kept.toFixed(2)} mean channel difference from the hour drawn whole (the hour moved ${moved.toFixed(2)})`);
 
+    // The on-device speed check: once the model is shown it times every case, reports them, and drawing resumes.
+    await open('/lantern-tests/render-bench/index.html?frames=0&pieces=200&render-probe', 480, 480);
+    const report = await poll(`document.querySelector('[aria-label="3D speed check"] pre')?.textContent`, 240_000, 'The speed check did not report');
+    for (const row of ['As drawn', '¼ of the pixels', '½ of the triangles', '¼ of the triangles', 'Contact shading']) assert.match(report, new RegExp(`${row} +\\d+\\.\\d ms +\\d+\\.\\d ms`), report);
+    assert.match(report, new RegExp(`^${expected} · 480 × 480 px`, 'm'), report);
+    await poll(`window.lastDrawn > Number(document.querySelector('[aria-label="3D speed check"]').dataset.shownAt)`, 30_000, 'The view did not redraw after the speed check');
+    assert.equal(await evaluate(`document.querySelector('output').textContent`), '', 'MeshLayer reported a failure during the speed check');
+    console.log(report);
+
     // 2. Embedded PNG materials: textured, selected, dimmed and ghost samples each draw on the same backend.
     await open('/lantern-tests/embedded-png-material-visual/index.html', 1400, 900);
     await poll(`document.querySelectorAll('canvas[data-renderer]').length === 4`, 120_000, 'Material samples did not draw');

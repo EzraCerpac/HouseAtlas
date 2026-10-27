@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "42b8f92cf7f4e5024f4cc9af73ce8f892b29324dc29274286342f081dac0239b",
+  "sourceDigestSha256": "701b1d3a50da197f202a6f70d6121e93b97da3a03fc2b5d32f16df337c035225",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -154,8 +154,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 12661,
-      "sha256": "e06555503d8f969614542dc09bc4a49d50e7f41b6a9c3e2bcc75ca7f2c8cab4e",
+      "bytes": 12787,
+      "sha256": "68b041d23c1f301b46ee2e4196eb300723ddfd1b0d163fa5ead762a383bd7c32",
       "owner": "core-integration"
     },
     {
@@ -4487,9 +4487,9 @@
     {
       "path": "backend/src/providers/network/failure_contract.rs",
       "mode": "100644",
-      "owner": "network",
       "bytes": 8633,
-      "sha256": "8bc67adf9740a83ea1e0b664560a8ddfc5b6d2b4481183a71793e9b8acdc3920"
+      "sha256": "8bc67adf9740a83ea1e0b664560a8ddfc5b6d2b4481183a71793e9b8acdc3920",
+      "owner": "network"
     },
     {
       "path": "backend/src/providers/network/healthy.rs",
@@ -6307,9 +6307,9 @@
     {
       "path": "docs/contracts/measurement-linear-alignment.md",
       "mode": "100644",
-      "owner": "contracts",
       "bytes": 10673,
-      "sha256": "1997662e6d5e1511f69acc63e0de3cabac3a5c59b52bf8c71402d2084c873e53"
+      "sha256": "1997662e6d5e1511f69acc63e0de3cabac3a5c59b52bf8c71402d2084c873e53",
+      "owner": "contracts"
     },
     {
       "path": "docs/contracts/measurement-linear-proposal.md",
@@ -6363,15 +6363,15 @@
     {
       "path": "docs/contributing/formatting.md",
       "mode": "100644",
-      "owner": "core-integration",
       "bytes": 3186,
-      "sha256": "e457035d43dab3ac9ca91ebfde9e490820564779c7493061c5cffbc707ce19b4"
+      "sha256": "e457035d43dab3ac9ca91ebfde9e490820564779c7493061c5cffbc707ce19b4",
+      "owner": "core-integration"
     },
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 211001,
-      "sha256": "f9568a61e37090d2fdbf679022f3bb5ea8bd52d770a20529c989aeacaeeeaf18",
+      "bytes": 211418,
+      "sha256": "cc9788908adbf7b552e7cd794f40b0bcf7ffb06de14d464cf48de0eb9a13aacf",
       "owner": "core-integration"
     },
     {
@@ -7308,9 +7308,9 @@
     {
       "path": "frontend/capture-drafts-tests/receipt.fixture.mjs",
       "mode": "100644",
-      "owner": "web",
       "bytes": 2095,
-      "sha256": "a22df7f510fd9f54407b4f52a21ad51db0f9b54787fa7f63abf1766380ca92b1"
+      "sha256": "a22df7f510fd9f54407b4f52a21ad51db0f9b54787fa7f63abf1766380ca92b1",
+      "owner": "web"
     },
     {
       "path": "frontend/capture-evidence-tests/fixtures/synthetic-document.pdf",
@@ -7805,8 +7805,8 @@
     {
       "path": "frontend/lantern-tests/mesh-layer-browser.mjs",
       "mode": "100644",
-      "bytes": 23001,
-      "sha256": "e703347c72509f011aa92e603ca7e8f3410d7d7b0b740b11f0ee38ee7b9a07fb",
+      "bytes": 23995,
+      "sha256": "97a2c582293ed72544985c1cb78c8d87265187c77c94d91053186f9cfd8a99c2",
       "owner": "web"
     },
     {
@@ -9030,9 +9030,9 @@
     {
       "path": "frontend/src/capture-drafts/receipt.ts",
       "mode": "100644",
-      "owner": "web",
       "bytes": 5033,
-      "sha256": "6ad058799b7c68e4cce8446ec69314aad69b28b85ff8da6dc55e1849e0f5e297"
+      "sha256": "6ad058799b7c68e4cce8446ec69314aad69b28b85ff8da6dc55e1849e0f5e297",
+      "owner": "web"
     },
     {
       "path": "frontend/src/capture-drafts/types.ts",
@@ -9156,8 +9156,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/MeshLayer.tsx",
       "mode": "100644",
-      "bytes": 9409,
-      "sha256": "cfb458bf6a2561f52fb0ecd991b9527aa4207dd105fa3bdb6cf6dfc5d62b6d83",
+      "bytes": 11685,
+      "sha256": "10c5139dff96d916b13f762ff9276b7a0db6de641e1afb2abe867ed3cc57c68b",
       "owner": "web"
     },
     {
@@ -9212,8 +9212,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-scene.ts",
       "mode": "100644",
-      "bytes": 53850,
-      "sha256": "30dc8e7248a344e577ca55aa98fe246d1d836da48b9b81b3754f56c93646be3c",
+      "bytes": 55050,
+      "sha256": "c69dcc5021136113135306e07b237f01c472ac2b2e7f2b0e85be9d475bce1913",
       "owner": "web"
     },
     {
@@ -9228,6 +9228,13 @@
       "mode": "100644",
       "bytes": 3576,
       "sha256": "00d4e8828ed1eadc3165cc6f0d15f8cbe461a76954a56feffdf4d9d6a391ea18",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/render-probe.ts",
+      "mode": "100644",
+      "bytes": 5482,
+      "sha256": "91bbbc278bcd49debaadad9bf929ea8b61816bc83f5b482a3cf08d91ce1b9550",
       "owner": "web"
     },
     {
@@ -10591,9 +10598,9 @@
     {
       "path": "mise.toml",
       "mode": "100644",
-      "owner": "core-integration",
       "bytes": 372,
-      "sha256": "87f0216f5b89bf108619ec525fda9f0cb79d0a337198a584e5bffeb832098744"
+      "sha256": "87f0216f5b89bf108619ec525fda9f0cb79d0a337198a584e5bffeb832098744",
+      "owner": "core-integration"
     },
     {
       "path": "package-lock.json",
@@ -12551,9 +12558,9 @@
     {
       "path": "tools/rust-integration/format.mjs",
       "mode": "100644",
-      "owner": "core-integration",
       "bytes": 1272,
-      "sha256": "9d811576ce90e5663863676b34250bb786df196729c3a5925a806aa6cc844d2b"
+      "sha256": "9d811576ce90e5663863676b34250bb786df196729c3a5925a806aa6cc844d2b",
+      "owner": "core-integration"
     },
     {
       "path": "tools/rust-integration/healthy-agent-host-loopback.mjs",

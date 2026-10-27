@@ -217,6 +217,13 @@ shader, without additional browser infrastructure or per-lamp occlusion claims.
 The existing CPU daylight cases retain aiming, visibility, clipping, merging
 and the 16-slot cap; pixel checks do not establish real-fixture visual strength.
 
+The same selections open the generated house with `?render-probe` (the
+on-device speed check, `render-probe.ts`) and check that its report lists all
+five cases (as drawn, a quarter of the pixels, half and a quarter of the
+triangles, contact shading) and that the view redraws afterwards. The timings
+come from the runner's software GPU and say nothing about any device; only the
+check run on the device itself does.
+
 ```sh
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2   # in the healthy suite
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgpu   # local: Chromium headless shell
