@@ -542,6 +542,63 @@ pub(crate) mod test_support {
         drop(f.temp);
         Ok(())
     }
+    #[tokio::test]
+    async fn configured_context_distinguishes_stale_selection_from_unavailable_owner()
+    -> Result<(), Failure> {
+        let f = Store::generated_measurement_startup_fixture().await?;
+        let (app, core, lease) = f.opened()?;
+        let scope = json!({
+            "workspaceId": f.config.homes[0].workspace_id.as_str(),
+            "homeId": f.config.homes[0].home_id.as_str(),
+        });
+        f.admitted(&app, &f.selector).await?;
+        let mut stale_selector = f.selector.clone();
+        stale_selector["selectionRevision"] = json!("ef".repeat(32));
+        assert_ne!(stale_selector, f.selector);
+        let (status, result) = f
+            .exchange(
+                &app,
+                "POST",
+                "/occurrence-context",
+                json!({"profile":"houseatlas.measurement-occurrence-context-request.v1",
+                    "scope":scope,"selector":stale_selector}),
+            )
+            .await?;
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(
+            result,
+            json!({"profile":"houseatlas.measurement-context-error.v1",
+                "scope":scope,"code":"stale-selection"}),
+        );
+
+        // Only generated producer files are withheld. The unchanged current
+        // selector still has to qualify its original owner; no stale fallback.
+        let publication = f.temp.path().join("publication");
+        let withheld = f.temp.path().join("withheld-current-publication");
+        fs::rename(&publication, &withheld)?;
+        let response = f
+            .exchange(
+                &app,
+                "POST",
+                "/occurrence-context",
+                json!({"profile":"houseatlas.measurement-occurrence-context-request.v1",
+                    "scope":scope,"selector":f.selector}),
+            )
+            .await;
+        fs::rename(&withheld, &publication)?;
+        let (status, result) = response?;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            result,
+            json!({"profile":"houseatlas.measurement-context-error.v1",
+                "scope":scope,"code":"authority-unavailable"}),
+        );
+        f.admitted(&app, &f.selector).await?;
+        drop(app);
+        drop(core);
+        drop(lease);
+        Ok(())
+    }
     // Generated native cases require their documented exact-selector qualification.
     #[tokio::test]
     async fn configured_personal_create_correct_history_outcome_and_client_wire()

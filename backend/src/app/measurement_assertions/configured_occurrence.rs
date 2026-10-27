@@ -94,6 +94,9 @@ impl ConfiguredOccurrences {
             .ok_or_else(unavailable)
     }
     fn selected(&self, selector: &Value) -> s::Result<&ConfiguredInput> {
+        // A missing captured current owner is unavailable. An unmatched selector
+        // is stale; native owner qualification still follows an exact match.
+        self.primary()?;
         self.inputs
             .iter()
             .find(|i| {
@@ -102,7 +105,12 @@ impl ConfiguredOccurrences {
                         .as_ref()
                         .is_some_and(|o| o.configured_selector() == *selector)
             })
-            .ok_or_else(unavailable)
+            .ok_or_else(|| {
+                s::Error::new(
+                    "measurement-context-stale-selection",
+                    "Occurrence selection changed",
+                )
+            })
     }
     fn for_proposal(&self, p: &online::OnlineProposal) -> s::Result<&ConfiguredInput> {
         let raw = wire::parse(

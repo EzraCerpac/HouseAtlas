@@ -161,9 +161,11 @@ async fn run(
                     ai_account,
                     geodata_selection,
                     measurement_selection,
-                    model_overview,
-                    atlas_scene,
-                    atlas_room_links,
+                    PublicationSelections {
+                        model_overview,
+                        atlas_scene,
+                        atlas_room_links,
+                    },
                     persistent_lease,
                 )
                 .await
@@ -303,11 +305,9 @@ async fn run_disposable(config: Config) -> Result<(), lifecycle::Failure> {
     Ok(())
 }
 
-async fn run_persistent(
-    config: houseatlas_backend::config::server::ServerConfig,
-    ai_account: Option<houseatlas_backend::config::ai_account::ServerAccountSelection>,
-    geodata_selection: Option<ServerGeodataSelection>,
-    measurement_selection: houseatlas_backend::config::measurement_profile::ServerMeasurementSelection,
+/// Parsed publication selections move together through either persistent listener.
+/// Measurement preparation consumes the original handles without reopening them.
+struct PublicationSelections {
     model_overview: Option<
         houseatlas_backend::config::model_overview::ServerModelOverviewSelection,
     >,
@@ -315,9 +315,17 @@ async fn run_persistent(
     atlas_room_links: Option<
         houseatlas_backend::config::atlas_room_links::ServerAtlasRoomLinksSelection,
     >,
+}
+
+async fn run_persistent(
+    config: houseatlas_backend::config::server::ServerConfig,
+    ai_account: Option<houseatlas_backend::config::ai_account::ServerAccountSelection>,
+    geodata_selection: Option<ServerGeodataSelection>,
+    measurement_selection: houseatlas_backend::config::measurement_profile::ServerMeasurementSelection,
+    publications: PublicationSelections,
     persistent_lease: &mut Option<Arc<lifecycle::persistent::ServerLease>>,
 ) -> Result<(), lifecycle::Failure> {
-    if let Some(selection) = &model_overview {
+    if let Some(selection) = &publications.model_overview {
         selection.validate_config(&config)?;
     }
     use houseatlas_backend::{config::server::read_tls_files, lifecycle::persistent::ServerEvent};
@@ -333,9 +341,7 @@ async fn run_persistent(
             ai_account,
             geodata_policy,
             measurement_selection,
-            model_overview,
-            atlas_scene,
-            atlas_room_links,
+            publications,
             persistent_lease,
         )
         .await;
@@ -348,7 +354,11 @@ async fn run_persistent(
     let (certificate, key) = read_tls_files(&config)?;
     let tls = axum_server::tls_rustls::RustlsConfig::from_pem(certificate, key).await?;
     let selected = Arc::clone(&config);
-    let (mut model_overview, mut atlas_scene) = (model_overview, atlas_scene);
+    let PublicationSelections {
+        mut model_overview,
+        mut atlas_scene,
+        atlas_room_links,
+    } = publications;
     let prepared =
         prepare_measurements(measurement_selection, &mut model_overview, &mut atlas_scene)?;
     let full_geodata = geodata_policy.is_some() && prepared.is_none();
@@ -421,13 +431,7 @@ async fn run_gateway(
     ai_account: Option<houseatlas_backend::config::ai_account::ServerAccountSelection>,
     geodata_policy: Option<Arc<dyn GeodataSourcePolicy>>,
     measurement_selection: houseatlas_backend::config::measurement_profile::ServerMeasurementSelection,
-    model_overview: Option<
-        houseatlas_backend::config::model_overview::ServerModelOverviewSelection,
-    >,
-    atlas_scene: Option<houseatlas_backend::config::atlas_scene::ServerAtlasSceneSelection>,
-    atlas_room_links: Option<
-        houseatlas_backend::config::atlas_room_links::ServerAtlasRoomLinksSelection,
-    >,
+    publications: PublicationSelections,
     persistent_lease: &mut Option<Arc<lifecycle::persistent::ServerLease>>,
 ) -> Result<(), lifecycle::Failure> {
     use houseatlas_backend::{
@@ -441,7 +445,11 @@ async fn run_gateway(
     }
     let files = Arc::new(frontend(&config.frontend_directory)?);
     let selected = Arc::clone(&config);
-    let (mut model_overview, mut atlas_scene) = (model_overview, atlas_scene);
+    let PublicationSelections {
+        mut model_overview,
+        mut atlas_scene,
+        atlas_room_links,
+    } = publications;
     let prepared =
         prepare_measurements(measurement_selection, &mut model_overview, &mut atlas_scene)?;
     let full_geodata = geodata_policy.is_some() && prepared.is_none();

@@ -268,6 +268,20 @@ pub(super) fn append(
             "Measurement outcome exceeds bound",
         ));
     }
+    // Count canonical UTF-8 bytes, not SQLite TEXT characters, in the caller's
+    // original write transaction before any audit/receipt/head row is changed.
+    let retained_bytes: i64 = tx.query_row(
+        "SELECT COALESCE(SUM(length(CAST(body AS BLOB))),0) FROM measurement_mutation_receipts WHERE workspace_id=?1 AND home_id=?2",
+        params![scope.workspace_id, scope.home_id],
+        |row| row.get(0),
+    )?;
+    let retained_bytes = usize::try_from(retained_bytes).map_err(|_| invalid())?;
+    if retained_bytes.saturating_add(body.len()) > MAX_HOME_BYTES {
+        return Err(Error::new(
+            "export-too-large",
+            "Complete measurement closure exceeds bound",
+        ));
+    }
     tx.execute("INSERT INTO measurement_audits(workspace_id,home_id,assertion_id,audit_id,actor_id,mutation_id,body) VALUES(?1,?2,?3,?4,?5,?6,?7)",
         params![scope.workspace_id,scope.home_id,id,audit_id,verified_actor,mutation,wire::canonical(&outcome["audit"]).map_err(map)?])?;
     tx.execute(
@@ -443,6 +457,90 @@ mod tests {
                 .unwrap()
                 .body,
             b
+        );
+    }
+    #[test]
+    fn cumulative_home_receipt_bytes_refuse_append_without_partial_writes() {
+        let mut db = database();
+        let explanation = "é".repeat(510);
+        let padded_receipt = |index: usize| {
+            let mut value = receipt(
+                10_000 + index as u64,
+                9011,
+                20_000 + index as u64,
+                "12.5",
+                None,
+            );
+            let assertion = &mut value["committed"]["assertion"];
+            assertion["support"]["uncertainties"] = json!(
+                (0..64)
+                    .map(|component| json!({
+                        "status": "inferred",
+                        "explanation": format!("{component:04}{explanation}")
+                    }))
+                    .collect::<Vec<_>>()
+            );
+            assertion["version"]["payloadSha256"] =
+                json!(wire::assertion_payload_digest(assertion).unwrap());
+            value["committed"]["pending"]["assertion"] =
+                value["committed"]["assertion"]["version"].clone();
+            value["audit"]["afterDigest"] =
+                json!(wire::full_assertion_digest(&value["committed"]["assertion"]).unwrap());
+            value
+        };
+        let first = padded_receipt(0);
+        let receipt_bytes = wire::canonical(&first).unwrap().len();
+        assert!(receipt_bytes < MAX_RECEIPT_BYTES);
+        let retained_versions = MAX_HOME_BYTES / receipt_bytes;
+        assert!(retained_versions > 1 && retained_versions < MAX_HOME_VERSIONS);
+        let tx = db
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .unwrap();
+        for index in 0..retained_versions {
+            let value = padded_receipt(index);
+            assert_eq!(wire::canonical(&value).unwrap().len(), receipt_bytes);
+            append(&tx, &scope(), &id(9011), &value).unwrap();
+        }
+        // All receipts are individually valid and below 1 MiB. The next one
+        // crosses the cumulative UTF-8 byte bound before the version limit.
+        let overflow = padded_receipt(retained_versions);
+        assert_eq!(wire::canonical(&overflow).unwrap().len(), receipt_bytes);
+        assert_eq!(
+            append(&tx, &scope(), &id(9011), &overflow)
+                .unwrap_err()
+                .code,
+            "export-too-large"
+        );
+        let overflow_mutation = id(20_000 + retained_versions as u64);
+        let overflow_assertion = id(10_000 + retained_versions as u64);
+        let saved = lookup(&tx, &scope(), &id(9011), &overflow_mutation).unwrap();
+        assert!(saved.is_none());
+        let current = head(&tx, &scope(), &overflow_assertion).unwrap();
+        assert!(current.is_none());
+        // Committing after refusal must retain only the earlier complete rows,
+        // rather than depending on the caller to roll back a partial append.
+        tx.commit().unwrap();
+        for table in [
+            "measurement_mutation_receipts",
+            "measurement_heads",
+            "measurement_audits",
+        ] {
+            assert_eq!(
+                db.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row
+                    .get::<_, i64>(0))
+                    .unwrap(),
+                retained_versions as i64
+            );
+        }
+        let complete = complete_home(&db, &scope()).unwrap();
+        assert_eq!(complete.len(), retained_versions);
+        assert_eq!(complete[0].body, first);
+        let tx = db
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .unwrap();
+        assert_eq!(
+            append(&tx, &scope(), &id(9011), &first).unwrap_err().code,
+            "idempotency-conflict"
         );
     }
     #[test]

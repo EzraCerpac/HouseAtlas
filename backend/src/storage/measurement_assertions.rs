@@ -1337,35 +1337,64 @@ mod integration_tests {
         scope: Scope,
         cookie: String,
         csrf: String,
+        password_account: bool,
         selector: Value,
     }
     impl Fixture {
         async fn generate() -> std::result::Result<Self, Failure> {
+            Self::generate_with_password_account(false).await
+        }
+        async fn generate_with_password_account(
+            password_account: bool,
+        ) -> std::result::Result<Self, Failure> {
             let temp = tempfile::Builder::new()
                 .permissions(fs::Permissions::from_mode(0o700))
                 .tempdir()?;
             let root = fs::canonicalize(temp.path())?;
+            let authentication = if password_account {
+                json!({"mode":"password"})
+            } else {
+                json!({"mode":"loopback-local","identity":{"userId":id(4),"actorId":id(5),"username":"synthetic-local","scope":{"workspaceId":id(2),"homeId":id(3)}}})
+            };
             let config: ServerConfig = serde_json::from_value(
                 json!({"schemaVersion":1,"deploymentId":id(1),"dataDirectory":root.join("data"),"logDirectory":root.join("data/logs"),
                 "frontendDirectory":root.join("frontend"),"tlsCertificate":root.join("unused-cert.pem"),"tlsPrivateKey":root.join("unused-key.pem"),"listen":"127.0.0.1:48743","origin":ORIGIN,
                 "homes":[{"workspaceId":id(2),"homeId":id(3),"label":"Generated measurement home"}],"mcpCommands":"read-only",
-                "authentication":{"mode":"loopback-local","identity":{"userId":id(4),"actorId":id(5),"username":"synthetic-local","scope":{"workspaceId":id(2),"homeId":id(3)}}}}),
+                "authentication":authentication}),
             )?;
-            persistent::initialize_without_password(&config)?;
+            let password = "generated-measurement-viewer-password";
+            if password_account {
+                let provisioning = root.join("provisioning.json");
+                private(
+                    &provisioning,
+                    &serde_json::to_vec(&json!({"schemaVersion":1,"users":[{"userId":id(4),"actorId":id(5),
+                        "username":"synthetic-local","password":password,
+                        "memberships":[{"workspaceId":id(2),"homeId":id(3),"role":"editor"}]}]}))?,
+                )?;
+                persistent::initialize(&config, &provisioning)?;
+            } else {
+                persistent::initialize_without_password(&config)?;
+            }
             let (core, lease) = persistent::reopen(&config)?;
-            let host = Host::new(core, ORIGIN.into(), Arc::new(BTreeMap::new()), vec![])?
-                .with_loopback_local()?;
+            let host = Host::new(core, ORIGIN.into(), Arc::new(BTreeMap::new()), vec![])?;
+            let host = if password_account {
+                host
+            } else {
+                host.with_loopback_local()?
+            };
             let core = host.core.clone();
             let app = router(host);
+            let (login_path, login_body) = if password_account {
+                (
+                    "/api/atlas/auth/login",
+                    json!({"username":"synthetic-local","password":password}),
+                )
+            } else {
+                ("/api/atlas/auth/local", json!({}))
+            };
             let login = app
                 .clone()
-                .oneshot(request(
-                    "POST",
-                    "/api/atlas/auth/local",
-                    json!({}),
-                    None,
-                    None,
-                ))
+                .oneshot(request("POST", login_path, login_body, None, None))
                 .await?;
             assert_eq!(login.status(), StatusCode::OK);
             let cookie = login.headers()["set-cookie"]
@@ -1601,6 +1630,7 @@ mod integration_tests {
                 scope,
                 cookie,
                 csrf,
+                password_account,
                 selector,
             })
         }
@@ -1657,11 +1687,13 @@ mod integration_tests {
                 home: home.clone(),
                 homes: vec![home],
             };
-            Ok(
-                Host::new(core, ORIGIN.into(), Arc::new(BTreeMap::new()), vec![])?
-                    .with_loopback_local()?
-                    .with_measurements(binding)?,
-            )
+            let host = Host::new(core, ORIGIN.into(), Arc::new(BTreeMap::new()), vec![])?;
+            let host = if self.password_account {
+                host
+            } else {
+                host.with_loopback_local()?
+            };
+            Ok(host.with_measurements(binding)?)
         }
         fn prefix(&self) -> String {
             format!(
@@ -1754,6 +1786,7 @@ mod integration_tests {
                 scope,
                 cookie,
                 csrf,
+                password_account: _,
                 selector,
             } = f;
             let policy = generated_document_policy(&scope)?;
@@ -2000,7 +2033,9 @@ mod integration_tests {
     #[tokio::test]
     async fn context_post_accepts_viewer_read_without_mutation_authority()
     -> std::result::Result<(), Failure> {
-        let f = Fixture::generate().await?;
+        // Loopback-local deliberately requires its sole account to be Editor.
+        // Password authentication permits the real current Viewer membership.
+        let f = Fixture::generate_with_password_account(true).await?;
         let (store, binding) = f.open()?;
         let host = f.host(store, binding)?;
         let app = router(host);
@@ -2851,16 +2886,20 @@ mod integration_tests {
             .map_err(|_| "Access poisoned")?
             .put_source(&registration, Some(true))?;
         let mut evidence = evidence_payload();
-        evidence["provenance"]["source"] = json!({"workspaceId":id(2),"homeId":id(3),"key":{"sourceInstanceId":id(2600),"collectionId":"generated-historical-evidence","sourceKind":"homebox-entity","externalId":"generated-record"}});
-        let command = json!({"schemaVersion":3,"commandId":"atlas.evidence.replace","requestId":id(2601),"context":f.scope,"target":{"authority":"atlas","recordType":"evidence","recordId":id(100)},"payload":evidence,
-        "idempotencyKey":id(2602),"reason":"Retain generated historical source reference","approvalReceiptId":null,"preconditions":{"target":{"kind":"atlas","value":1},"guards":[]}});
+        evidence["provenance"]["source"] = json!({"workspaceId":id(2),"homeId":id(3),"key":{"sourceInstanceId":id(2600),"collectionId":"generated-historical-evidence","sourceKind":"homebox-entity","externalId":id(2603)}});
+        // Wire3 evidence.replace has an empty payload. The existing frozen
+        // native mutation route accepts this complete Evidence replacement.
+        let command = json!({"schemaVersion":1,"mutationId":id(2602),"operation":"replace","expectedRevision":1,
+            "reason":"Retain generated historical source reference","guards":[],
+            "value":{"recordType":"evidence","payload":evidence}});
         let (status, result) = exchange(
             &app,
             "POST",
             &format!(
-                "/api/atlas/stock/v3/workspaces/{}/homes/{}/commands",
+                "/api/atlas/v1/workspaces/{}/homes/{}/records/evidence/{}/mutations",
                 id(2),
-                id(3)
+                id(3),
+                id(100)
             ),
             command,
             &f.cookie,
@@ -2868,6 +2907,11 @@ mod integration_tests {
         )
         .await?;
         assert_eq!(status, StatusCode::OK, "{result}");
+        assert_eq!(result["record"]["revision"], 2);
+        assert_eq!(
+            result["record"]["payload"]["provenance"]["source"]["key"]["externalId"],
+            id(2603)
+        );
         f.access
             .lock()
             .map_err(|_| "Access poisoned")?
@@ -3052,7 +3096,7 @@ mod integration_tests {
             "Unrelated generated native source evidence; not an assertion input or mapping review"
         );
         evidence["provenance"]["source"] = json!({"workspaceId":id(2),"homeId":id(3),"key":{"sourceInstanceId":id(2800),"collectionId":"generated-unrelated-evidence",
-        "sourceKind":"homebox-entity","externalId":"generated-unrelated-record"}});
+        "sourceKind":"homebox-entity","externalId":id(2803)}});
         let command = json!({"schemaVersion":3,"commandId":"atlas.evidence.create","requestId":id(2801),"context":f.scope,
         "target":{"authority":"atlas","recordType":"evidence","recordId":id(104)},"payload":evidence,"idempotencyKey":id(2802),
         "reason":"Retain unrelated generated native evidence","approvalReceiptId":null,"preconditions":{"target":null,"guards":[]}});
