@@ -164,3 +164,12 @@ session replacement, partial registration cleanup, and disposal during parsing.
 They use synthetic ports, preserve the original invocation identity, and count
 dispatches to exclude automatic retry. They are not real-browser, server-access,
 installed revocation, provider-outcome or operator disable/recovery evidence.
+
+Quantity custody is keyed by the exact fresh parser-produced input object,
+retained through service and presentation even though their context wrappers
+and signals differ. Value-equal or simultaneous calls cannot share custody.
+The existing bootstrap bundles the actual quantity mount as a temporary
+companion and adds three synthetic cases for normal acknowledgement after the
+view commit, simultaneous identical inputs, and disposal before or during presentation.
+Fake preview/handoff owners supply no approval or submission capability; the
+checks do not qualify native quantity effects or real-person approval.

@@ -2621,6 +2621,17 @@ these cases do not establish installed revocation, operator recovery or device
 acceptance. This extends only this existing bootstrap, with no new CI job,
 dependency or runtime transport.
 
+The bootstrap also bundles `frontend/src/webmcp/quantity/tool.ts` as a separate
+temporary `quantity.js` companion for the same fixture. Three quantity-mount
+cases cover custody across separate service/presentation contexts, simultaneous
+identical caller inputs with one busy handoff, and disposal before or during
+presentation. Fake preview/reservation owners issue no approval or submission.
+The cases assert exact per-invocation parsed-input custody, acknowledgement only
+after visible commit, no acknowledgement after disposal, and no repeat preview.
+All fourteen cases run through the existing registered bootstrap command;
+`run-healthy.mjs` and workflow selection are unchanged. This is not qualification
+of native quantity effects, real-person approval, React UI or live providers.
+
 ## PR lane selection (26 October 2026)
 
 The scope inventory above describes the full main-push suite. Pull requests now
