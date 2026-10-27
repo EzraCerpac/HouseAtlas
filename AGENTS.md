@@ -56,7 +56,13 @@ known/approximate affine fits, property-wide inventory, documentary-only intake,
 reviewed withdrawal, revision reconciliation, stale current identities and
 source-uncertainty hull coverage (including malformed explicit row tolerances).
 These pure in-memory cases create no receipt, native authority or physical
-placement. In `.github/workflows/rust-react-ordinary.yml` that includes
+placement. The same ordinary-core job also runs the eleven explicit
+`packages/contracts/proposals/linear-v1/examples.test.mjs` cases with pinned
+Node and locked Ajv: six unchanged fictional proposals, fixture boundary
+arithmetic, exact decimal grammar, metric-length scalar fields and documentary
+wall endpoint syntax/order. These read-only local checks establish no native
+measurement storage, source identity, physical accuracy or linear route.
+In `.github/workflows/rust-react-ordinary.yml` that includes
 the named Lantern healthy read; the generated Electrical Library `healthy`
 case (existing production reader/projection and fictional original bytes,
 local fake owners only; no mounted PDF UI or native access); `frontend/lantern-tests/run-healthy.mjs` with
@@ -86,7 +92,15 @@ under the tier budget, and refused with stated MiB under a reduced GPU budget;
 no browser or GPU), the
 generated WebMCP batch-discovery descriptor check (schema bytes only), the
 synthetic WebMCP adapter bootstrap (current `index.ts` bundled with Vite, no
-browser or service), and
+browser or service, including five in-process disposal, session-replacement and
+partial-registration lifecycle cases with controlled synthetic promises, plus
+three quantity-custody cases through a companion bundle of the actual quantity
+mount with fake preview/handoff ports and no approval or submission, and three
+completed-custody cases through the actual QuantityHandoffs class with synthetic
+client promises, controlled deadlines, closure/reuse and retained pending-owner
+uncertainty, plus two actual-owner cancellation-window cases covering completed
+invocation/session abort cleanup and repeated busy-result listener retirement,
+without a React/browser mount or native/provider effect), and
 the generated offline outbox check (synthetic IndexedDB and a generated
 server, no browser or network), the generated Unified Atlas overlay feed check
 (compiled feed, stored-overlay codec and Atlas cache against a counting fake
@@ -132,8 +146,14 @@ current owner APIs, track review findings, and run only inspected authorized
 checks. Composition does not accept donors or release product or deployment
 gates; main still requires exact candidate review and CI.
 
+The existing source check runs both the legacy generated-contract consistency
+check and the measurement carrier consistency check using the generator's
+`--measurements --check` mode. This compares generated source without rewriting
+checked-in outputs; it adds no backend activation, browser or native-data acceptance.
+
 PR lane selection is documented in [the CI dependency matrix](docs/contributing/ci-path-selection.md).
 Main pushes retain the full ordinary suite. PRs always retain ordinary-core and
 publication checks; recognized presentation/backend paths select explicit lanes,
 with full coverage for shared or unknown changes. The ordinary-core job also runs
 stdlib selector regressions using disposable synthetic Git histories.
+

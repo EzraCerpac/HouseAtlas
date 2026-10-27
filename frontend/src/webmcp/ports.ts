@@ -48,7 +48,14 @@ export interface ApplicationServicePort {
   execute(toolName: string, input: JsonObject, context: InvocationContext): Promise<JsonValue>;
 }
 
-/** Resolve after the matching UI state is committed; preserve DTO fields/order. */
+/** Resolve after the matching UI state is committed; preserve DTO fields/order.
+ * The original session is retained. This presentation signal also aborts when
+ * the mount is disposed; check it before committing after asynchronous work.
+ * The service's separate signal is not aborted by mount disposal. A retired
+ * view/result is no assertion that underway owner work was cancelled/reversed.
+ * input is the exact parser-produced object supplied to the service, allowing
+ * per-invocation correlation independently of the context wrapper or signal.
+ */
 export interface VisibleResultPort {
   apply(toolName: string, result: JsonValue, context: InvocationContext, input: JsonObject): Promise<void>;
 }

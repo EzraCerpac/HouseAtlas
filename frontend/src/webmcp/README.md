@@ -105,7 +105,7 @@ node frontend/lantern-tests/webmcp-adapter-healthy.mjs
 Use the existing pinned Node 26.10.0 and locked frontend Vite plus
 `packages/contracts` Ajv dependencies. This new bootstrap bundles current
 `frontend/src/webmcp/index.ts` into a uniquely owned temporary ES module
-namespace, then runs the unchanged `healthy.examples.mjs` fixture with
+namespace, then runs the `healthy.examples.mjs` fixture with
 `HOUSEATLAS_AT39_BUILD` pointing there. It propagates fixture failures and removes
 only its own temporary output. Dependency/import failures are reported without
 installing packages or substituting another namespace.
@@ -140,3 +140,61 @@ Guidance follows the [WebMCP draft](https://webmachinelearning.github.io/webmcp/
 and [Chrome imperative API](https://developer.chrome.com/docs/ai/webmcp/imperative-api).
 Registration cleanup and execution cancellation have separate signals;
 cancellation is not a service rollback.
+
+## Disposal and result release
+
+Disposal removes registrations and subscriptions immediately. It fences result
+release after parsing and each asynchronous stage, even when the same session
+revision remains selected. An already dispatched service keeps its original
+invocation session and signal; disposal neither aborts that signal nor retries
+the operation. A missing result after disposal does not establish non-effect.
+Use the existing owner's receipt/history reconciliation before any further
+action; no automatic replay or rollback is implied.
+
+The visible-result port receives that original session with a separate signal
+that also aborts on disposal. It must honor that signal before committing after
+asynchronous work. The adapter also refuses wire release if the port ignores
+abort and acknowledges late. Partial registration failure only retires tool
+availability; it still permits a valid already dispatched result to finish.
+Login/scope replacement retains the existing session-cancellation behavior.
+
+The existing adapter bootstrap includes five controlled-promise lifecycle cases:
+disposal during service completion, disposal during view acknowledgement,
+session replacement, partial registration cleanup, and disposal during parsing.
+They use synthetic ports, preserve the original invocation identity, and count
+dispatches to exclude automatic retry. They are not real-browser, server-access,
+installed revocation, provider-outcome or operator disable/recovery evidence.
+
+Quantity custody is keyed by the exact fresh parser-produced input object,
+retained through service and presentation even though their context wrappers
+and signals differ. Value-equal or simultaneous calls cannot share custody.
+The existing bootstrap bundles the actual quantity mount as a temporary
+companion and adds three synthetic cases for normal acknowledgement after the
+view commit, simultaneous identical inputs, and disposal before or during presentation.
+Fake preview/handoff owners supply no approval or submission capability; the
+checks do not qualify native quantity effects or real-person approval.
+
+Quantity mount disposal also retires completed custody whose result is withheld,
+including a result awaiting view acknowledgement. A still-pending handoff is
+preserved until it settles; its completion then ends the assistant invocation
+without acknowledging an unseen result. No owner signal is aborted. The actual
+custody owner continues to block closure while a person attempt is in flight and
+to retain an independent client uncertainty hold after presentation closure.
+
+Three further bootstrap cases use the production QuantityHandoffs/Handoff
+classes from a separate temporary module bundle. They check withheld dismissal
+and expiry followed by deliberate closure and same-session reuse, immediate
+closure eligibility during abandoned presentation, and an uncancelled pending
+synthetic submission across disposal/deadline with retained result/uncertainty.
+Client promises are fake; the actual custody classes are neither extracted nor
+replaced, and React is not mounted. These checks supply no provider, actual
+approval/submission, browser, deployment or operational acceptance evidence.
+
+Completed entries also observe their original invocation/session cancellation
+signal. Cancellation can withhold a service result before presentation starts;
+that path removes the input/output entry and its abort listener promptly.
+Acknowledgement, disposal and other retirement paths detach the same listener.
+This observes cancellation without requesting any owner cancellation or replay.
+Two further actual-owner cases cover the precise post-completion release window
+for invocation/session replacement and repeated cancelled busy results while a
+prior handoff remains pending. The bootstrap registers nineteen cases in total.

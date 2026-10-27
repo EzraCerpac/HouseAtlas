@@ -1,4 +1,4 @@
-// AT39 healthy synthetic ports only. No browser, listener, provider or mutation.
+// AT39 synthetic adapter and lifecycle ports. No browser, listener, provider or mutation.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -8,6 +8,8 @@ import { test } from 'node:test';
 assert.ok(process.env.HOUSEATLAS_AT39_BUILD, 'Set HOUSEATLAS_AT39_BUILD to the compiled namespace directory');
 const compiled = pathToFileURL(`${process.env.HOUSEATLAS_AT39_BUILD}/`);
 const { startWebMcp, detectModelContext } = await import(new URL('index.js', compiled));
+const { mountQuantityWebMcp, QUANTITY_TOOL_NAME } = await import(new URL('quantity.js', compiled));
+const { QuantityHandoffs } = await import(new URL('quantity-custody.js', compiled));
 const root = new URL('../../../', import.meta.url);
 const read = path => JSON.parse(readFileSync(new URL(path, root), 'utf8'));
 const require = createRequire(new URL('packages/contracts/package.json', root));
@@ -63,13 +65,13 @@ function syntheticBrowser() {
   };
 }
 
-function setup({ sessions = syntheticSession(), result = [], events = [] } = {}) {
-  const browser = syntheticBrowser();
+function setup({ sessions = syntheticSession(), result = [], events = [],
+  browser = syntheticBrowser(), definitions = [definition], visible } = {}) {
   const calls = [];
   const visibleResults = [];
   const handle = startWebMcp({
     modelContext: browser, sessions,
-    catalog: { toolsFor() { return [definition]; } },
+    catalog: { toolsFor() { return definitions; } },
     service: {
       async execute(name, input, context) {
         events.push('service');
@@ -77,7 +79,7 @@ function setup({ sessions = syntheticSession(), result = [], events = [] } = {})
         return result;
       },
     },
-    visible: {
+    visible: visible ?? {
       async apply(name, value, context) {
         // One healthy asynchronous view update; no race/concurrency scenario.
         await Promise.resolve();
@@ -120,7 +122,9 @@ for (const fixture of contexts.cases) {
     assert.equal(calls[0].name, definition.name);
     assert.deepEqual(calls[0].context.session, { state: 'authenticated', revision: 'synthetic-login-1/home-1' });
     assert.equal(calls[0].context.signal.aborted, false);
-    assert.equal(visibleResults[0].context, calls[0].context);
+    assert.equal(visibleResults[0].context.session, calls[0].context.session);
+    assert.notEqual(visibleResults[0].context.signal, calls[0].context.signal);
+    assert.equal(visibleResults[0].context.signal.aborted, false);
     assert.deepEqual(visibleResults[0].value, result);
     assert.notEqual(visibleResults[0].value, output);
     handle.dispose();
@@ -162,4 +166,470 @@ test('healthy sign-in and sign-out availability uses the session port', async ()
   assert.deepEqual(await handle.whenSettled(), { state: 'inactive' });
   assert.equal(browser.tools.size, 0);
   handle.dispose();
+});
+
+function deferred() {
+  let resolve;
+  const promise = new Promise(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+test('disposal fences a late service result without aborting or repeating owner work', async () => {
+  const completion = deferred();
+  const { browser, handle, sessions, calls, visibleResults } = setup({ result: completion.promise });
+  await handle.whenSettled();
+  const retainedTool = browser.tools.get(definition.name);
+  const operation = retainedTool.execute(contexts.record);
+  const rejected = assert.rejects(operation, { name: 'InvalidStateError' });
+  assert.equal(calls.length, 1);
+  handle.dispose();
+  assert.equal(browser.tools.size, 0);
+  assert.equal(sessions.subscriberCount, 0);
+  assert.equal(calls[0].context.signal.aborted, false, 'Disposal is not service cancellation');
+  completion.resolve([]);
+  await rejected;
+  assert.equal(visibleResults.length, 0, 'Retired view must never receive the late result');
+  await assert.rejects(retainedTool.execute(contexts.record), { name: 'InvalidStateError' });
+  assert.equal(calls.length, 1, 'A retained callback must not start new owner work');
+});
+
+test('disposal aborts pending presentation and fences wire return even if the view ignores abort', async () => {
+  const entered = deferred();
+  const acknowledged = deferred();
+  let viewContext;
+  const { browser, handle, calls } = setup({ visible: {
+    async apply(_name, _value, context) {
+      viewContext = context;
+      entered.resolve();
+      // Deliberately ignore abort to exercise the adapter's final release fence.
+      await acknowledged.promise;
+    },
+  } });
+  await handle.whenSettled();
+  const operation = browser.tools.get(definition.name).execute(contexts.record);
+  const rejected = assert.rejects(operation, { name: 'InvalidStateError' });
+  await entered.promise;
+  assert.equal(viewContext.session, calls[0].context.session);
+  handle.dispose();
+  assert.equal(viewContext.signal.aborted, true);
+  assert.equal(calls[0].context.signal.aborted, false);
+  acknowledged.resolve();
+  await rejected;
+  assert.equal(calls.length, 1);
+});
+
+test('session replacement withholds an old result and retains the original invocation identity', async () => {
+  const completion = deferred();
+  const { browser, handle, sessions, calls, visibleResults } = setup({ result: completion.promise });
+  await handle.whenSettled();
+  const operation = browser.tools.get(definition.name).execute(contexts.record);
+  const rejected = assert.rejects(operation, { name: 'AbortError' });
+  sessions.set({ state: 'authenticated', revision: 'synthetic-login-2/home-2' });
+  await handle.whenSettled();
+  assert.equal(calls[0].context.signal.aborted, true);
+  assert.equal(calls[0].context.session.revision, 'synthetic-login-1/home-1');
+  completion.resolve([]);
+  await rejected;
+  assert.equal(visibleResults.length, 0);
+  assert.deepEqual(await browser.tools.get(definition.name).execute(contexts.record), []);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].context.session.revision, 'synthetic-login-2/home-2');
+  assert.equal(visibleResults.length, 1);
+  handle.dispose();
+});
+
+test('partial registration cleanup preserves an already underway canonical result', async () => {
+  const completion = deferred();
+  const browser = syntheticBrowser();
+  const register = browser.registerTool.bind(browser);
+  let operation;
+  browser.registerTool = async (tool, options) => {
+    if (tool.name !== definition.name) throw new Error('Synthetic second registration unavailable');
+    await register(tool, options);
+    operation = tool.execute(contexts.record);
+  };
+  const { handle, calls, visibleResults } = setup({ browser, result: completion.promise,
+    definitions: [definition, { ...definition, name: 'synthetic_second_tool' }] });
+  assert.deepEqual(await handle.whenSettled(), {
+    state: 'failed', phase: 'registration', toolName: 'synthetic_second_tool',
+  });
+  assert.equal(browser.tools.size, 0);
+  assert.equal(browser.registrations[0].signal.aborted, true);
+  assert.equal(calls[0].context.signal.aborted, false);
+  completion.resolve([]);
+  assert.deepEqual(await operation, []);
+  assert.equal(calls.length, 1);
+  assert.equal(visibleResults.length, 1, 'Registration cleanup alone must not discard an underway result');
+  handle.dispose();
+});
+
+test('disposal during input parsing prevents service dispatch', async () => {
+  let handle;
+  const tool = { ...definition, parseInput(input) {
+    handle.dispose();
+    return definition.parseInput(input);
+  } };
+  const mounted = setup({ definitions: [tool] });
+  handle = mounted.handle;
+  await handle.whenSettled();
+  await assert.rejects(mounted.browser.tools.get(definition.name).execute(contexts.record),
+    { name: 'InvalidStateError' });
+  assert.equal(mounted.calls.length, 0);
+  assert.equal(mounted.visibleResults.length, 0);
+});
+
+// Actual quantity mount/adapter and optional actual custody owner. Preview,
+// approval and submission promises are synthetic; no provider or native effects.
+function quantityHarness({ holdOffer = false, visible, realCustody = false, onCustody } = {}) {
+  const uid = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+  const scope = { workspaceId: uid(1), homeId: uid(2) };
+  const source = { ...scope, key: { sourceInstanceId: uid(3), collectionId: uid(4),
+    sourceKind: 'homebox-entity', externalId: uid(5) } };
+  const bindingIdentity = {};
+  let currentBindingIdentity = bindingIdentity;
+  const bindingListeners = new Set();
+  const admitted = { revision: 'synthetic-quantity-custody', bindingIdentity, scope, installedSources: [source] };
+  const input = { source, quantity: 3, reason: 'Synthetic quantity custody' };
+  const prepared = { bindingIdentity, expiresAt: performance.now() + 60000, wire: {
+    format: 'atlas-homebox-quantity-preview/1', resolvedScope: scope, source, previewId: uid(9),
+    requestDigest: 'a'.repeat(64), planDigest: 'b'.repeat(64),
+    request: { schemaVersion: 3, commandId: 'homebox.entity.quantity.set', requestId: uid(8),
+      context: scope, target: { authority: 'homebox', sourceInstanceId: uid(3), collectionId: uid(4),
+        resourceKind: 'entity', resourceId: uid(5) }, payload: { quantity: 3 },
+      idempotencyKey: uid(6), reason: input.reason, approvalReceiptId: uid(10),
+      preconditions: { providerObservation: { kind: 'provider-observation', handle: uid(7) }, atlasGuards: [] } },
+    observed: { quantity: '2.00', updatedAt: null, retrievedAt: '2026-01-01T00:00:00Z' },
+    effect: { quantity: 3, method: 'PATCH', path: `/api/v1/entities/${uid(5)}`, body: { quantity: 3 } },
+    policy: { id: 'synthetic-policy', version: '1', epoch: 1, approval: 'human-required', maximumQuantity: 10 },
+    assurance: { installedBuild: 'configured-not-runtime-attested', causality: false, atomicCompareAndSet: false },
+    lifetime: { remainingMs: 60000 },
+  } };
+  const ended = { approval: null, ended: { outcome: 'ended-before-submission',
+    cause: 'dismissed-by-person', submissionAttempt: 'none-started' } };
+  const counts = { reserve: 0, availability: 0, preview: 0, offer: 0, acknowledge: 0, end: 0,
+    approval: 0, dispatch: 0 };
+  const offered = deferred(), completion = deferred();
+  const views = [];
+  let reserved = false, serviceSignal, fireDeadline, dispatchSignal, uncertainty = null;
+  const submission = deferred();
+  const native = { format: 'atlas-homebox-quantity-result/1', resolvedScope: scope, source,
+    previewId: prepared.wire.previewId, requestDigest: prepared.wire.requestDigest,
+    planDigest: prepared.wire.planDigest, result: { synthetic: true, state: 'observed' } };
+  const facade = {
+    getBindingIdentity: () => currentBindingIdentity, getUncertainty: () => uncertainty,
+    subscribeSessionBinding(changed) { bindingListeners.add(changed); return () => bindingListeners.delete(changed); },
+    isCurrentPrepared: value => value === prepared,
+    async checkAvailability() { counts.availability++; return { state: 'available' }; },
+    async preview() { counts.preview++; return prepared; },
+  };
+  const client = { ...facade, isCurrent: identity => identity === currentBindingIdentity,
+    async approve() { counts.approval++; return { format: 'atlas-homebox-quantity-approval/1',
+      resolvedScope: scope, source, previewId: prepared.wire.previewId,
+      requestDigest: prepared.wire.requestDigest, planDigest: prepared.wire.planDigest,
+      approvalReceiptId: uid(10), evidenceDigest: 'c'.repeat(64) }; },
+    async dispatch(_prepared, _approval, signal) {
+      counts.dispatch++; dispatchSignal = signal; return submission.promise;
+    },
+  };
+  const store = realCustody ? new QuantityHandoffs(client) : null;
+  const realOffers = store?.agentPort();
+  const browser = syntheticBrowser();
+  const handle = mountQuantityWebMcp({ modelContext: browser,
+    admission: { getSnapshot: () => admitted, subscribe: () => () => {} },
+    facade,
+    offers: { reserve() {
+      counts.reserve++;
+      if (realOffers) {
+        const reservation = realOffers.reserve();
+        if (!reservation) return null;
+        return { ...reservation,
+          custody() { const custody = reservation.custody(); onCustody?.(); return custody; },
+          offer(value, signal) {
+            // Capture only this real constructor's timer while still using its
+            // actual callback/timeout handle. No source extraction or class stub.
+            const original = globalThis.setTimeout;
+            let waiting;
+            try {
+              globalThis.setTimeout = (callback, delay, ...args) => {
+                fireDeadline = () => callback(...args);
+                return original(callback, delay, ...args);
+              };
+              waiting = reservation.offer(value, signal);
+            } finally { globalThis.setTimeout = original; }
+            serviceSignal = signal; counts.offer++; offered.resolve();
+            return waiting;
+          },
+          acknowledge() { counts.acknowledge++; reservation.acknowledge(); },
+          end() { counts.end++; reservation.end(); },
+        };
+      }
+      if (reserved) return null;
+      reserved = true;
+      return {
+        release() { reserved = false; }, hold() { throw new Error('Unexpected synthetic hold'); },
+        async offer(value, signal) {
+          assert.equal(value, prepared);
+          serviceSignal = signal; counts.offer++; offered.resolve();
+          return holdOffer ? completion.promise : ended;
+        },
+        custody: () => ({ prepared, approval: null, native: null }),
+        acknowledge() { counts.acknowledge++; reserved = false; },
+        end() { counts.end++; },
+      };
+    } },
+    visible: { async apply(...args) {
+      views.push({ result: args[1], context: args[2], input: args[3] });
+      await visible?.(...args);
+    } },
+  });
+  return { browser, handle, input, prepared, counts, views, offered, store, native,
+    complete: () => completion.resolve(ended), signal: () => serviceSignal,
+    deadline: () => fireDeadline(), submit: () => submission.resolve(native),
+    dispatchSignal: () => dispatchSignal, holdUnknown: () => { uncertainty = 'Synthetic owner outcome unresolved'; },
+    replaceSession() { currentBindingIdentity = {}; for (const changed of [...bindingListeners]) changed(); } };
+}
+
+test('quantity custody survives separate contexts and acknowledges only after the visible commit', async () => {
+  const entered = deferred(), committed = deferred();
+  const q = quantityHarness({ visible: async () => { entered.resolve(); await committed.promise; } });
+  await q.handle.whenSettled();
+  const operation = q.browser.tools.get(QUANTITY_TOOL_NAME).execute(q.input);
+  await Promise.race([entered.promise, operation.then(() => { throw new Error('Returned before view commit'); })]);
+  assert.equal(q.counts.acknowledge, 0);
+  assert.notEqual(q.views[0].context.signal, q.signal());
+  assert.notEqual(q.views[0].input, q.input, 'Each invocation uses its own parsed object');
+  committed.resolve();
+  const result = await operation;
+  assert.equal(result.outcome, 'person-handoff-ended');
+  assert.deepEqual(result.preview, q.prepared.wire);
+  assert.equal(result.ended.submissionAttempt, 'none-started');
+  assert.equal(q.counts.acknowledge, 1);
+  assert.equal(q.counts.end, 0);
+  assert.equal(q.counts.preview, 1);
+  q.handle.dispose();
+});
+
+test('quantity custody stays per invocation for simultaneous identical caller inputs', async () => {
+  const q = quantityHarness({ holdOffer: true });
+  await q.handle.whenSettled();
+  const tool = q.browser.tools.get(QUANTITY_TOOL_NAME);
+  const first = tool.execute(q.input);
+  await Promise.race([q.offered.promise, first.then(() => { throw new Error('Returned before handoff end'); })]);
+  const second = await tool.execute(q.input);
+  assert.equal(second.outcome, 'not-prepared');
+  assert.equal(second.state, 'handoff-active');
+  assert.equal(q.counts.acknowledge, 0, 'Busy result cannot acknowledge the first reservation');
+  q.complete();
+  assert.equal((await first).outcome, 'person-handoff-ended');
+  assert.notEqual(q.views[0].input, q.views[1].input);
+  assert.deepEqual(q.views[0].input, q.views[1].input);
+  assert.equal(q.counts.reserve, 2);
+  assert.equal(q.counts.preview, 1);
+  assert.equal(q.counts.offer, 1);
+  assert.equal(q.counts.acknowledge, 1);
+  assert.equal(q.counts.end, 0);
+  q.handle.dispose();
+});
+
+test('quantity custody does not acknowledge disposal before or during presentation', async () => {
+  for (const duringView of [false, true]) {
+    const entered = deferred(), committed = deferred();
+    const q = quantityHarness({ holdOffer: true,
+      visible: duringView ? async () => { entered.resolve(); await committed.promise; } : undefined });
+    await q.handle.whenSettled();
+    const operation = q.browser.tools.get(QUANTITY_TOOL_NAME).execute(q.input);
+    const rejected = assert.rejects(operation, { name: 'InvalidStateError' });
+    await q.offered.promise;
+    if (duringView) { q.complete(); await entered.promise; }
+    q.handle.dispose();
+    assert.equal(q.signal().aborted, false);
+    assert.equal(q.counts.end, duringView ? 1 : 0, 'Only completed custody retires on disposal');
+    q.complete(); committed.resolve();
+    await rejected;
+    assert.equal(q.views.length, duringView ? 1 : 0);
+    assert.equal(q.counts.end, 1);
+    assert.equal(q.counts.acknowledge, 0);
+    assert.equal(q.counts.preview, 1);
+    assert.equal(q.counts.offer, 1);
+  }
+});
+
+test('actual quantity custody closes and permits reuse after a withheld completed or expired handoff', async () => {
+  for (const cause of ['dismiss', 'deadline']) {
+    const q = quantityHarness({ realCustody: true });
+    await q.handle.whenSettled();
+    const operation = q.browser.tools.get(QUANTITY_TOOL_NAME).execute(q.input);
+    const rejected = assert.rejects(operation, { name: 'InvalidStateError' });
+    await q.offered.promise;
+    const handoff = q.store.getSnapshot();
+    try {
+      assert.equal(handoff.getState().closable, false);
+      q.handle.dispose();
+      assert.equal(q.counts.end, 0, 'Pending handoff is preserved until it settles');
+      assert.equal(q.signal().aborted, false);
+      assert.equal(q.store.agentPort().reserve(), null);
+      if (cause === 'dismiss') handoff.dismiss(); else q.deadline();
+      await rejected;
+      assert.equal(q.views.length, 0);
+      assert.equal(q.counts.end, 1);
+      assert.equal(q.counts.acknowledge, 0);
+      assert.equal(handoff.custody().prepared, q.prepared);
+      assert.equal(handoff.getState().closable, true);
+      handoff.close();
+      assert.equal(q.store.getSnapshot(), null);
+      const next = q.store.agentPort().reserve();
+      assert.ok(next, 'Same client/session can reserve after deliberate closure');
+      next.release();
+      assert.equal(q.counts.dispatch, 0);
+    } finally { handoff.endInvocation(); handoff.close(); q.handle.dispose(); }
+  }
+});
+
+test('actual completed custody retires promptly while an ignored presentation acknowledgement waits', async () => {
+  const entered = deferred(), committed = deferred();
+  const q = quantityHarness({ realCustody: true,
+    visible: async () => { entered.resolve(); await committed.promise; } });
+  await q.handle.whenSettled();
+  const operation = q.browser.tools.get(QUANTITY_TOOL_NAME).execute(q.input);
+  const rejected = assert.rejects(operation, { name: 'InvalidStateError' });
+  await q.offered.promise;
+  const handoff = q.store.getSnapshot();
+  try {
+    handoff.dismiss();
+    await entered.promise;
+    assert.equal(handoff.getState().closable, false);
+    q.handle.dispose();
+    assert.equal(handoff.getState().closable, true, 'No wait for an abandoned view');
+    assert.equal(q.counts.end, 1);
+    assert.equal(q.counts.acknowledge, 0);
+    handoff.close();
+    const next = q.store.agentPort().reserve(); assert.ok(next); next.release();
+    committed.resolve(); await rejected;
+    assert.equal(q.counts.end, 1, 'Late presentation failure cannot retire twice');
+    assert.equal(q.counts.acknowledge, 0);
+  } finally { committed.resolve(); handoff.endInvocation(); handoff.close(); q.handle.dispose(); }
+});
+
+test('actual pending owner submission remains held and uncancelled after disposal and deadline', async () => {
+  const q = quantityHarness({ realCustody: true });
+  await q.handle.whenSettled();
+  const operation = q.browser.tools.get(QUANTITY_TOOL_NAME).execute(q.input);
+  const rejected = assert.rejects(operation, { name: 'InvalidStateError' });
+  await q.offered.promise;
+  const handoff = q.store.getSnapshot();
+  try {
+    await handoff.approve();
+    const pending = handoff.submit();
+    assert.equal(handoff.getState().inFlight, true);
+    q.handle.dispose();
+    assert.equal(q.counts.end, 0);
+    assert.equal(q.signal().aborted, false);
+    assert.equal(q.dispatchSignal().aborted, false);
+    q.deadline(); await rejected;
+    assert.equal(q.counts.end, 1, 'Only the ended assistant wait is retired');
+    assert.equal(handoff.getState().inFlight, true);
+    assert.equal(handoff.getState().closable, false);
+    assert.match(handoff.getState().notice, /Outcome unknown/);
+    assert.equal(handoff.custody().native, null);
+    assert.equal(q.store.agentPort().reserve(), null);
+    q.holdUnknown();
+    q.submit(); await pending;
+    assert.equal(handoff.getState().result.value, q.native, 'Actual owner result remains recorded');
+    assert.equal(handoff.getState().inFlight, false);
+    assert.equal(handoff.getState().closable, true);
+    handoff.close();
+    assert.equal(q.store.agentPort().reserve(), null, 'Owner uncertainty outlives presentation closure');
+    assert.equal(q.counts.dispatch, 1);
+    assert.equal(q.counts.acknowledge, 0);
+    assert.equal(q.views.length, 0);
+  } finally { q.submit(); handoff.endInvocation(); handoff.close(); q.handle.dispose(); }
+});
+
+test('actual completed custody retires on invocation or session abort before adapter release resumes', async () => {
+  for (const cause of ['invocation', 'session']) {
+    const controller = new AbortController();
+    let q;
+    q = quantityHarness({ realCustody: true, onCustody: () => {
+      // Service finish runs synchronously after custody(), then resolves the
+      // adapter await. This queued abort runs before its release continuation.
+      queueMicrotask(() => { if (cause === 'invocation') controller.abort(); else q.replaceSession(); });
+    } });
+    await q.handle.whenSettled();
+    const operation = q.browser.tools.get(QUANTITY_TOOL_NAME).execute(q.input, { signal: controller.signal });
+    const rejected = assert.rejects(operation, { name: 'AbortError' });
+    await q.offered.promise;
+    const handoff = q.store.getSnapshot();
+    try {
+      handoff.dismiss(); await rejected;
+      assert.equal(q.views.length, 0);
+      assert.equal(q.counts.end, 1, 'Completed entry must retire even though presentation was skipped');
+      assert.equal(q.counts.acknowledge, 0);
+      assert.equal(handoff.getState().closable, true);
+      assert.equal(handoff.custody().prepared, q.prepared);
+      handoff.close();
+      const next = q.store.agentPort().reserve(); assert.ok(next); next.release();
+      assert.equal(q.counts.preview, 1);
+      assert.equal(q.counts.dispatch, 0);
+    } finally { handoff.endInvocation(); handoff.close(); q.handle.dispose(); }
+  }
+});
+
+function trackedQuantityInvocation(tool, input, controller) {
+  const original = AbortSignal.any;
+  const listeners = new Set();
+  let serviceSignal;
+  try {
+    AbortSignal.any = signals => {
+      const signal = original.call(AbortSignal, signals);
+      // Observe the actual adapter-created native signal, without replacing
+      // its cancellation semantics or adding production diagnostic hooks.
+      if (!serviceSignal) {
+        serviceSignal = signal;
+        const add = signal.addEventListener.bind(signal), remove = signal.removeEventListener.bind(signal);
+        signal.addEventListener = (type, listener, options) => {
+          if (type === 'abort') listeners.add(listener);
+          add(type, listener, options);
+        };
+        signal.removeEventListener = (type, listener, options) => {
+          if (type === 'abort') listeners.delete(listener);
+          remove(type, listener, options);
+        };
+      }
+      return signal;
+    };
+    return { operation: tool.execute(input, { signal: controller.signal }), listeners,
+      signal: () => serviceSignal };
+  } finally { AbortSignal.any = original; }
+}
+
+test('repeated cancelled busy results detach completed-entry listeners while actual owner work stays pending', async () => {
+  const q = quantityHarness({ realCustody: true });
+  await q.handle.whenSettled();
+  const tool = q.browser.tools.get(QUANTITY_TOOL_NAME);
+  const first = tool.execute(q.input);
+  await q.offered.promise;
+  const handoff = q.store.getSnapshot();
+  try {
+    for (let index = 0; index < 32; index++) {
+      const controller = new AbortController();
+      const tracked = trackedQuantityInvocation(tool, q.input, controller);
+      const rejected = assert.rejects(tracked.operation, { name: 'AbortError' });
+      assert.equal(tracked.listeners.size, 1, 'Synchronous busy completion owns one cleanup listener');
+      controller.abort(); await rejected;
+      assert.equal(tracked.signal().aborted, true);
+      assert.equal(tracked.listeners.size, 0, 'Cancellation must detach the completed-entry cleanup listener');
+      assert.equal(q.counts.end, 0, 'Busy result has no authority over the pending owner reservation');
+      assert.equal(q.signal().aborted, false);
+      assert.equal(handoff.getState().open, true);
+      assert.equal(q.views.length, 0);
+    }
+    assert.equal(q.counts.reserve, 33);
+    assert.equal(q.counts.preview, 1);
+    assert.equal(q.counts.offer, 1);
+    handoff.dismiss(); assert.equal((await first).outcome, 'person-handoff-ended');
+    assert.equal(q.counts.acknowledge, 1);
+    assert.equal(q.counts.end, 0);
+    handoff.close();
+    const next = q.store.agentPort().reserve(); assert.ok(next); next.release();
+  } finally { handoff.endInvocation(); handoff.close(); q.handle.dispose(); }
 });
