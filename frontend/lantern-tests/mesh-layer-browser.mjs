@@ -257,6 +257,37 @@ try {
     }
     assert(mapDifference / 1200 > 4, `Admitted glass maps had no visible effect (${mapDifference / 1200} mean channel difference)`);
     assert.equal(await evaluate(`[...document.querySelectorAll('output')].map(o => o.textContent).join('')`), '');
+
+    // 3. A closed elevated emitter lights a distant receiver without losing its
+    // nearby metal pool; the finite envelope ends at 10 m. Same existing GPU case.
+    await open('/lantern-tests/embedded-png-material-visual/index.html?lamps', 1400, 900);
+    await poll(`document.querySelectorAll('canvas[data-renderer]').length === 4`, 120_000, 'Lamp receivers did not draw');
+    assert.deepEqual(await evaluate(`[...document.querySelectorAll('canvas')].map(c => c.dataset.renderer)`), Array(4).fill(expected));
+    assert.deepEqual(await evaluate(`[...document.querySelectorAll('[data-lamp-height]')].map(s => [Number(s.dataset.lampHeight), s.dataset.bulbOmni, s.dataset.receiverEmitter])`),
+      [1, 6, 10, 12].map(height => [height, 'true', 'false']), 'closed bulbs stay omni and receivers never emit');
+    assert.equal(await evaluate(`[...document.querySelectorAll('output')].map(o => o.textContent).join('')`), '');
+    await new Promise(done => setTimeout(done, 500));
+    const unlitReceivers = await shot(), receiverBoxes = await evaluate(`[...document.querySelectorAll('canvas')].map(c => { const r = c.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; })`);
+    await evaluate(`document.querySelector('#toggle-lamp').click()`);
+    await poll(`document.querySelector('#toggle-lamp').getAttribute('aria-pressed') === 'true'`, 10_000, 'Emitter did not turn on');
+    await new Promise(done => setTimeout(done, 500));
+    const litReceivers = await shot();
+    const receiverDelta = ([x, y, w, h]) => {
+      let red = 0, maximum = 0;
+      for (let dy = -6; dy <= 6; dy++) for (let dx = -6; dx <= 6; dx++) {
+        const at = ((Math.round(y + h / 2) + dy) * litReceivers.width + Math.round(x + w / 2) + dx) * 3;
+        red += litReceivers.pixels[at] - unlitReceivers.pixels[at];
+        for (let k = 0; k < 3; k++) maximum = Math.max(maximum, Math.abs(litReceivers.pixels[at + k] - unlitReceivers.pixels[at + k]));
+      }
+      return { red: red / 169, maximum };
+    };
+    const lampDeltas = receiverBoxes.map(receiverDelta);
+    assert(lampDeltas[0].red > 3, `Nearby nonemissive metal lost its pool: ${JSON.stringify(lampDeltas)}`);
+    assert(lampDeltas[1].red > .5, `A 6 m receiver got no light: ${JSON.stringify(lampDeltas)}`);
+    assert(lampDeltas[2].maximum <= 1 && lampDeltas[3].maximum <= 1,
+      `A receiver at/beyond the finite 10 m limit was lit: ${JSON.stringify(lampDeltas)}`);
+    assert.equal(await evaluate(`[...document.querySelectorAll('output')].map(o => o.textContent).join('')`), '');
+    console.log(`PASS finite omni lamp pools on ${expected}: ${JSON.stringify(lampDeltas)}; approximate illumination, no per-lamp occlusion or device proof`);
     console.log(`PASS ${selected}: generated house (${result.pieces} primitives, ${calls} calls per frame, swapped to a new set without a blank frame; a 6,000-primitive set swapped in over ${big.framesMeanwhile} frames, longest task ${big.longestTaskMs} ms; worker GLB load and digest match) and material samples drawn by three.js on ${expected}; software GPU only, not device proof`);
   }
 } finally {

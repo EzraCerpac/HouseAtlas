@@ -68,9 +68,10 @@ const KEEP_TONE = .75;
 /** How quickly a face turned to the sun takes the sun's colour instead of the sky's. */
 const SUN_TINT_GAIN = 2.5;
 /** After dusk: a lamp's own glass glows in its colour taken this far toward white, as a
- * lit shade looks paler than the light it throws; that light is at full strength up to
- * POOL_RADIUS metres away and gone by POOL_REACH. */
-const GLOW_WHITEN = .6, POOL_RADIUS = 1.2, POOL_REACH = 4;
+ * lit shade looks paler than the light it throws; that light has an inverse-square-like
+ * scale of POOL_RADIUS and is gone by POOL_REACH. The finite omni tail fades
+ * from 5 to 10 m, retaining nearby light and the existing fixed shader work. */
+const GLOW_WHITEN = .6, POOL_RADIUS = 1.2, POOL_REACH = 10;
 /** An aimed lamp's beam instead: full inside BEAM_CORE (a cosine, about 20°) of its
  * aim, gone past BEAM_EDGE (about 42°), and carried further. */
 const BEAM_CORE = .94, BEAM_EDGE = .74, BEAM_RADIUS = 3, BEAM_REACH = 10;

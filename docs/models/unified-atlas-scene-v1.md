@@ -396,7 +396,11 @@ with no separate mark: when their area-weighted outward normals (front faces,
 counter-clockwise) keep at least half of their total area, as a flat or
 one-sided lens does, the lamp throws a beam about 40° wide that way, as
 headlights or a downlight do. A closed or all-round glowing surface, such as a
-bulb or a glass box, lights all around. Building glass, bound as `structure` or
+bulb or a glass box, lights all around. Omni pools retain their 1.2 m
+attenuation scale and fade smoothly from 5 m to zero at 10 m; aimed beams
+keep their 3 m scale, cone and 10 m reach. These are bounded presentation
+lights, without per-lamp wall or shade occlusion. Nonemissive surfaces can
+receive them without becoming emitters. Building glass, bound as `structure` or
 `roof`, is a material with `alphaMode: "BLEND"` and a `baseColorFactor` alpha
 below 1, not `KHR_materials_transmission`, which is refused. At every hour the
 3D view draws it as glass, after the solid house: the alpha is how much of what

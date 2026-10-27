@@ -118,6 +118,13 @@ These cases stay inside the existing `webgl2`/`webgpu` selections. They cover
 separately authored primitives, not intersecting or disconnected panes inside
 one primitive; the rendering limitation is stated in the scene contract.
 
+The same selections compare a closed synthetic omni bulb off/on over fixed
+receivers: nearby nonemissive metal retains its pool, paving 6 m away receives
+light, and receivers at 10 m and 12 m remain unchanged. This samples the actual
+shader, without additional browser infrastructure or per-lamp occlusion claims.
+The existing CPU daylight cases retain aiming, visibility, clipping, merging
+and the 16-slot cap; pixel checks do not establish real-fixture visual strength.
+
 ```sh
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2   # in the healthy suite
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgpu   # local: Chromium headless shell
