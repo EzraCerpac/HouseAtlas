@@ -6,6 +6,8 @@ Review `mise.toml` and `tools/rust-integration/format.mjs` before trusting the
 repository's mise configuration when prompted. The wrapper reads that existing
 Rust version pin and explicitly selects it with `rustup run`; mise does not
 declare another Rust version or install tools through these tasks.
+Unset `RUSTFMT` before either task. The wrapper rejects this override, including
+an empty value, before starting rustup; it never changes your environment.
 
 ## Writer sequence
 

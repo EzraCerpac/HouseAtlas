@@ -8,6 +8,8 @@ const root = new URL('../../', import.meta.url);
 const flags = process.argv.slice(2);
 assert(flags.length === 0 || (flags.length === 1 && flags[0] === '--check'),
   'Usage: node tools/rust-integration/format.mjs [--check]');
+assert(process.env.RUSTFMT === undefined,
+  'Unset RUSTFMT to use the formatter pinned in rust-toolchain.toml');
 const toolchain = readFileSync(new URL('rust-toolchain.toml', root), 'utf8');
 const channel = toolchain.match(/^channel\s*=\s*"(\d+\.\d+\.\d+)"\s*$/m)?.[1];
 assert(channel, 'Expected an exact Rust version in rust-toolchain.toml');
