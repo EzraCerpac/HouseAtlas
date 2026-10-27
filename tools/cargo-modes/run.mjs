@@ -21,10 +21,10 @@ assert(channel, 'Expected an exact Rust version in rust-toolchain.toml');
 function isModeOverride(arg) {
   if (/^(--profile|--release|--manifest-path|--config)(=|$)/.test(arg)) return true;
   if (!/^-[^-]/.test(arg)) return false;
-  // Cargo accepts -r in short-option clusters. Stop at an option whose
-  // remaining text is its value, so -pcrate-r and -Ffeature-r still pass.
+  // Cargo 1.99 accepts -r (release) and -m (manifest-path) in short
+  // clusters. Stop at value-taking options: -pcrate-rm/-Ffeature-rm are values.
   for (const flag of arg.slice(1)) {
-    if (flag === 'r') return true;
+    if (flag === 'r' || flag === 'm') return true;
     if ('pjFZ'.includes(flag)) return false;
   }
   return false;

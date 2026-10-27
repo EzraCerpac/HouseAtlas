@@ -43,7 +43,7 @@ const mappings = { check: ['check', 'dev-check'], dev: ['build', 'dev-incrementa
 for (const [mode, [command, profile]] of Object.entries(mappings)) {
   test(mode + ': forwards exact targets/features from the workspace root', t => {
     const f = fixture(t);
-    const args = ['--example', 'synthetic-example', '-pcrate-r', '-Ffeature-r',
+    const args = ['--example', 'synthetic-example', '-pcrate-rm', '-Ffeature-rm',
       '-j2', '--target-dir', 'target with spaces', '--offline', '--help'];
     const result = f.invoke(mode, args);
     assert.ifError(result.error);
@@ -57,6 +57,8 @@ for (const [mode, [command, profile]] of Object.entries(mappings)) {
 
   for (const args of [
     ['-r'], ['-vr'], ['-rv'], ['-qr'], ['-rj2'], ['-vrj2'], ['-hr'],
+    ['-m', 'other/Cargo.toml'], ['-mother/Cargo.toml'],
+    ['-vm', 'other/Cargo.toml'], ['-qmother/Cargo.toml'], ['-vvmother/Cargo.toml'],
     ['--release'], ['--profile', 'release'], ['--profile=release'],
     ['--manifest-path', 'other/Cargo.toml'], ['--manifest-path=other/Cargo.toml'],
     ['--config', 'profile.dev.opt-level=3'], ['--config=profile.dev.opt-level=3'],
