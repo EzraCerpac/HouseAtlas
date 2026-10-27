@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "07f17f68fe0c7a8cc1704e896522b8cf28f29fb31ff870db86980d63daf9bb54",
+  "sourceDigestSha256": "6d2179435605fc9ec52d1cf857f997ea241d9bf3536bcce089ac53ad21319d6b",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -7364,8 +7364,8 @@
     {
       "path": "frontend/integration/stock-schemas.ts",
       "mode": "100644",
-      "bytes": 888,
-      "sha256": "f5504244b071f08087329449bd24c1ac2c91298a4302514cc707aee4924ac280",
+      "bytes": 698,
+      "sha256": "cf7e6d747c584c4481d83d34479db92b77b7489d1ccae2398d85079460d36ce9",
       "owner": "core-integration"
     },
     {
@@ -7609,8 +7609,8 @@
     {
       "path": "frontend/lantern-tests/healthy-read.mjs",
       "mode": "100644",
-      "bytes": 62413,
-      "sha256": "95bea5a031e10692837831c0031045e6c5160f60e3208aa13acfa1e6aafc5fbb",
+      "bytes": 62162,
+      "sha256": "40b3b64c15870758c1da2a039c5712bcce60c0fea1fa3069286799ff4863ad2a",
       "owner": "web"
     },
     {
@@ -7630,8 +7630,8 @@
     {
       "path": "frontend/lantern-tests/load-numeric-source.mjs",
       "mode": "100644",
-      "bytes": 7300,
-      "sha256": "3a2cb6ebe45998ac02d2753de9b84f477a4d43db28741f4e9831430b92a5a59d",
+      "bytes": 7454,
+      "sha256": "e75d570cfb3fe488d669da7b66e9459903ba348cc6858e4fc088b2370d890eea",
       "owner": "web"
     },
     {
@@ -7777,8 +7777,8 @@
     {
       "path": "frontend/lantern-tests/native-place-levels-intake.mjs",
       "mode": "100644",
-      "bytes": 10854,
-      "sha256": "e9f1c046910273aace852f5f25fdea415cfc20ad83a408ffb70933882c550725",
+      "bytes": 10813,
+      "sha256": "048532926db4072a1487d384c170ce5908971b8378f0e7ee59629d6a58bedf3d",
       "owner": "web"
     },
     {
@@ -8827,22 +8827,22 @@
     {
       "path": "frontend/src/api/pinned-file-client.ts",
       "mode": "100644",
-      "bytes": 19196,
-      "sha256": "a138159704acfa4ba7d5c16f6bf44a94d86fb5bcbf5d0ec999d9d27c003c1efd",
+      "bytes": 19021,
+      "sha256": "8ce75a541c9e02cdea817aa5732d7013e558bebcef16919cea5512ff20341946",
       "owner": "web"
     },
     {
       "path": "frontend/src/api/quantity-client.ts",
       "mode": "100644",
-      "bytes": 11969,
-      "sha256": "0dc1fa30db6173dd082b001e0a416ba07410e5d127965163670ab391ee8fe969",
+      "bytes": 11901,
+      "sha256": "14613c05e0325d26ae68d4510b22bb385a8296a382803efad355d348e2e309d5",
       "owner": "web"
     },
     {
       "path": "frontend/src/api/retained-intent-client.ts",
       "mode": "100644",
-      "bytes": 16138,
-      "sha256": "17ac7bbb1e860202b017f5ef123b208644214c151eebaada0492898c53c7cbbf",
+      "bytes": 15896,
+      "sha256": "f5640595209f0dc2634789560ac60502e77cf64192e56bb9a5af01a477f2b35d",
       "owner": "web"
     },
     {
@@ -10661,8 +10661,15 @@
     {
       "path": "frontend/src/numeric/schema-validator.ts",
       "mode": "100644",
-      "bytes": 24870,
-      "sha256": "feb199dd78dbdae78cd71cadb6fab1762ca8cabac463414e02d75a99749c3fbc",
+      "bytes": 25026,
+      "sha256": "2e99e67ed65db73dfecc176c4cdbc9ca6682b4947efd42365a8e6ffb4df76933",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/numeric/stock-ajv.ts",
+      "mode": "100644",
+      "bytes": 1575,
+      "sha256": "a2f97c40b86b5a640523ba8cacbdd030c4e790bffc92ca7822830d4bc72e27ee",
       "owner": "web"
     },
     {
@@ -11039,8 +11046,8 @@
     {
       "path": "frontend/src/webmcp/quantity/tool.ts",
       "mode": "100644",
-      "bytes": 16954,
-      "sha256": "53f2b912a027eb1b380d86e2b39f6c69da86e495b1a5117c1024ffd7699df0ca",
+      "bytes": 16831,
+      "sha256": "debd9c5f692087d07861827c3d3a576062dd8c64482aa61dc2d165b604549a13",
       "owner": "webmcp"
     },
     {
