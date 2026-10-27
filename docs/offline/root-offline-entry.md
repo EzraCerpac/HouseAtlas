@@ -64,13 +64,22 @@ root registration or an unavailable root update does not invalidate a verified
 Saved receipt.
 
 An update copies each public file an earlier build's cache already verified
-for the same path and digest, and downloads only the rest. Activation retains
-other build caches because either registration may still serve an older build
-during an ordinary update. Verification does not automatically delete other
-build caches: an installation can finish after registration checks, and a
-completed marker proves integrity rather than obsolescence. Older caches can
-therefore remain until explicit cleanup; reused verified bytes still avoid
-unnecessary downloads. Explicit Remove saved public
+for the same path and digest, and downloads only the rest. Each worker pins
+its scope's build in a small pin cache (`houseatlas-saved-shell-pins`): as
+pending before its install checks or writes any bytes, and as active when it
+activates. It stamps its completion marker with its install time. After
+claiming clients, an activating worker prunes earlier
+`houseatlas-saved-public-*` caches, but only once both scopes have an active
+pin. Pin writes and pruning run under one origin-wide Web Lock, because the
+root and Saved registrations activate independently; without the lock API
+nothing is pruned. A prune keeps its own build, every pinned build (a root
+entry whose update has not run yet keeps its bytes; an install that lost its
+cache to an earlier prune refills it after pinning), any build completed after
+its own, any cache without a completed marker, and the most recent earlier build.
+A device therefore holds the current and previous shells after ordinary
+updates instead of one more copy per deploy. The page never prunes:
+an installation can finish after a page-side registration check, which is
+why pruning lives in the single activating worker of each scope. Explicit Remove saved public
 shell checks both exact scopes, fixed script ownership and the displayed build
 reported over MessageChannel before unregistering. It preserves registrations
 for foreign scripts, newer builds and workers still installing. It deletes only
@@ -93,7 +102,9 @@ ordinary registration/activation/message operations. It checks normal root
 responses, the unavailable-network handoff, exact Saved public bytes and build
 pins, root navigation-only dispatch with unchanged native fixed-name assets,
 private-route exclusion, the normal marked Saved entry, a foreign root owner,
-ordinary updates and displayed-build cleanup. Capture labeling is checked
+ordinary updates, pruning to the current and previous shells after three
+updates, a lagging root entry keeping its build (also when its update races a Saved
+prune), and displayed-build cleanup. Capture labeling is checked
 at the existing component source seams, not through fabricated private records
 or a browser render. VM-local transports never replace process-global fetch.
 No listener, browser, native service, credential, real private store, provider,

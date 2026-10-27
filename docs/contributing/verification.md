@@ -57,7 +57,9 @@ The same `frontend checks` job then runs the model bake tests
 generated masters to budget and run the viewer's own preflight, scene admission
 and selector binding on the results, including the generated unified Atlas
 publication densified and baked, and its unsimplified detail tier admitted under
-the Full limits and bound by the same companion:
+the Full limits and bound by the same companion, and both tiers meshopt
+compressed, expanded by the viewer's own decoder and refused when a stream or
+declared size falls outside the admitted subset:
 
 ```sh
 npm ci --prefix tools/model-bake
@@ -2031,7 +2033,7 @@ the same healthy test also checks the actual canonical contract:
 HOUSEATLAS_PERF_CONTRACT_ROOT=/absolute/pinned/harness-checkout node --test --test-concurrency=1 tools/perf/reporting/healthy-reporting.test.mjs
 ```
 
-The pin is `4bb08dfd255c32c385d496ae64705719d5d56e80`, and the sole schema is
+The pin is `8f41c7d71984beb382eb2105e4b0f035262a0d72`, and the sole schema is
 `tools/perf/contract/run.schema.json`, SHA-256
 `642af28eacc14e6fdd7b9f7071979f07abc8dcb9a427773f5d74dab672b7056a`.
 The test opens no listener and calls no remote API, application service, provider

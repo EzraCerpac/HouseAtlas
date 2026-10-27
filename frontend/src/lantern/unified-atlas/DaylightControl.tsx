@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type KeyboardEvent } from 'react';
+import { startTransition, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type KeyboardEvent } from 'react';
 import { getPosition } from 'suncalc';
 import type { SunLocation } from './daylight';
 
@@ -47,13 +47,46 @@ export function DaylightControl({ at, live, night, place, onChange }: {
   const [scrubbing, setScrubbing] = useState(false);
   const head = useRef<HTMLButtonElement>(null);
   const id = useId();
-  const minutes = at.getHours() * 60 + at.getMinutes();
+  const lit = at.getHours() * 60 + at.getMinutes();
+  // The chip and strip follow the finger at once. The lit time follows one
+  // step at a time: the next goes out a frame after the last has landed, so a
+  // slow redraw skips the times in between instead of queueing them.
+  const [shown, setShown] = useState<number | null>(null);
+  const minutes = shown ?? lit;
+  const time = onDay(at, minutes);
+  const latest = useRef(at); latest.current = at;
+  const flow = useRef<{ queued: number | null; sent: number | null; frame: number }>({ queued: null, sent: null, frame: 0 });
+  const send = () => {
+    const state = flow.current;
+    if (state.sent !== null || state.frame || state.queued === null) return;
+    state.frame = requestAnimationFrame(() => {
+      state.frame = 0;
+      if (state.queued === null) return;
+      const next = onDay(latest.current, state.queued); state.queued = null; state.sent = next.getTime();
+      startTransition(() => onChange(next));
+    });
+  };
+  useEffect(() => {
+    const state = flow.current;
+    if (state.sent !== at.getTime()) return;
+    state.sent = null;
+    state.frame = requestAnimationFrame(() => { state.frame = 0; if (state.queued === null) setShown(null); else send(); });
+  // `send` reads only refs, so the effect needs only `at`.
+  }, [at]);
+  useEffect(() => () => cancelAnimationFrame(flow.current.frame), []);
+  const set = (value: number) => {
+    const next = ((Math.round(value / STEP) * STEP) % DAY + DAY) % DAY;
+    setShown(next); flow.current.queued = next; send();
+  };
+  const now = () => {
+    cancelAnimationFrame(flow.current.frame); flow.current = { queued: null, sent: null, frame: 0 };
+    setShown(null); onChange(null);
+  };
   const dayKey = `${at.getFullYear()}-${at.getMonth()}-${at.getDate()}`;
   const altitudes = useMemo(() => Array.from({ length: SAMPLES + 1 },
     (_, k) => getPosition(onDay(at, Math.min(DAY - 1, k * DAY / SAMPLES)), place.latitude, place.longitude).altitude),
   // One path per day and place, not per minute.
   [dayKey, place.latitude, place.longitude]);
-  const set = (value: number) => onChange(onDay(at, ((Math.round(value / STEP) * STEP) % DAY + DAY) % DAY));
   const close = () => { setOpen(false); head.current?.focus({ preventScroll: true }); };
   const keys = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Escape' || !open) return;
@@ -80,13 +113,13 @@ export function DaylightControl({ at, live, night, place, onChange }: {
   const up = Math.max(5, ...altitudes), down = Math.max(5, ...altitudes.map(altitude => -altitude));
   const y = (altitude: number) => 14 - (altitude > 0 ? altitude / up * 9 : altitude / down * 6);
   const path = altitudes.map((altitude, k) => `${k ? 'L' : 'M'}${(2 + k * 22 / SAMPLES).toFixed(2)} ${y(altitude).toFixed(2)}`).join('');
-  const here = getPosition(at, place.latitude, place.longitude).altitude;
+  const here = getPosition(time, place.latitude, place.longitude).altitude;
   const strip = { '--time-sky': `linear-gradient(90deg, ${altitudes.map((altitude, k) => `${sky(altitude)} ${(k / SAMPLES * 100).toFixed(1)}%`).join(', ')})` } as CSSProperties;
   return (
-    <div className={`ua-time${open ? ' is-open' : ''}${live ? '' : ' is-picked'}${scrubbing ? ' is-scrubbing' : ''}`} onKeyDown={keys} onBlur={blur}>
+    <div className={`ua-time${open ? ' is-open' : ''}${live && shown === null ? '' : ' is-picked'}${scrubbing ? ' is-scrubbing' : ''}`} onKeyDown={keys} onBlur={blur}>
       <div className="ua-time-paper">
         <button ref={head} type="button" className="ua-time-head" aria-expanded={open} aria-controls={`${id}-strip`}
-          aria-label={`Lighting time ${clock(at)}${live ? ', now' : ''}`} aria-describedby={`${id}-hint`}
+          aria-label={`Lighting time ${clock(time)}${live && shown === null ? ', now' : ''}`} aria-describedby={`${id}-hint`}
           title="Drag sideways to change the time" onKeyDown={step}
           onPointerDown={event => {
             if (event.button !== 0) return;
@@ -107,19 +140,19 @@ export function DaylightControl({ at, live, night, place, onChange }: {
           onPointerUp={() => { if (drag.current?.moved) setScrubbing(false); }}
           onPointerCancel={stop}
           onClick={() => { const moved = drag.current?.moved; drag.current = null; if (!moved) setOpen(!open); }}>
-          <svg className={`ua-time-glyph${night ? ' is-night' : ''}`} width={26} height={26} viewBox="0 0 26 26" aria-hidden="true">
+          <svg className={`ua-time-glyph${(shown === null ? night : here < 0) ? ' is-night' : ''}`} width={26} height={26} viewBox="0 0 26 26" aria-hidden="true">
             <path className="ua-time-horizon" d="M2 14H24" />
             <path className="ua-time-path" d={path} />
             <circle className="ua-time-sun" cx={2 + minutes / DAY * 22} cy={y(here)} r={3} />
           </svg>
-          <span className="ua-time-clock">{clock(at)}</span>
+          <span className="ua-time-clock">{clock(time)}</span>
           <span id={`${id}-hint`} className="sr-only">Drag sideways or use the arrow keys to change the time.</span>
         </button>
-        {!live && <button type="button" className="ua-time-now" onClick={() => onChange(null)}>Now</button>}
+        {!(live && shown === null) && <button type="button" className="ua-time-now" onClick={now}>Now</button>}
       </div>
       <div id={`${id}-strip`} className="ua-time-card" role="group" aria-label="Lighting time" hidden={!open && !scrubbing}>
         <input type="range" className="ua-time-strip" style={strip} min={0} max={DAY - STEP} step={STEP} value={minutes - minutes % STEP}
-          aria-label="Time of day" aria-valuetext={clock(at)} onChange={event => set(Number(event.currentTarget.value))} />
+          aria-label="Time of day" aria-valuetext={clock(time)} onChange={event => set(Number(event.currentTarget.value))} />
         <div className="ua-time-hours" aria-hidden="true"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div>
       </div>
     </div>

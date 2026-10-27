@@ -15,7 +15,7 @@ import type { PreparedMesh, Projection } from './geometry';
 import type { EmbeddedTexture } from './embedded-png-material';
 import { GLASS_CLEAR, GLASS_FROSTED, MAX_LAMPS, MeshPass, STATE_FLOATS, STATE_TEXELS, writeAppearance, type AppearanceInput } from './mesh-appearance';
 
-/** Meshes per state-table row: one row is exactly 128 × 8 RGBA texels. */
+/** Meshes per state-table row: one row is exactly 128 × STATE_TEXELS RGBA texels. */
 const ROW = 128;
 type F = Node<'float'>; type V3 = Node<'vec3'>; type V4 = Node<'vec4'>; type B = Node<'bool'>;
 
@@ -50,16 +50,26 @@ const INDOOR_REACH = 1;
 /** The point also sits this much higher, in metres, so a slab, lower roof or eave
  * just outside a wall, close above or below that point, never counts as a ceiling. */
 const INDOOR_HEADROOM = .5;
-/** A room map depth nearer than this is a room's footprint; the cleared map reads 1. */
+/** A night face is lit as indoors only when the point this far off it along its normal,
+ * in metres, also lies inside a room volume: floors and inner walls pass, while ledges,
+ * trims, bay roofs and the ground at a wall's foot do not. */
+const ROOM_REACH = .3;
+/** Room volumes at least this tall at the median, in metres, are taken as they are;
+ * flatter pick proxies stand for a room this high above them. */
+const ROOM_VOLUME = .5, ROOM_STOREY = 2.6;
+/** Margin, in metres, around the rooms in their own map, which covers only them so its
+ * texels stay a few centimetres across. */
+const ROOM_PAD = 1;
+/** Deepest point tested in the room map; the cleared map reads 1, so a point below every room stays outside one only where there is none. */
 const ROOM_FAR = .999;
 /** Share of the difference from full tone that selection and overlay tints keep at any hour. */
 const KEEP_TONE = .75;
 /** How quickly a face turned to the sun takes the sun's colour instead of the sky's. */
 const SUN_TINT_GAIN = 2.5;
-/** After dusk: the warm tone of a lamp's own glass, and the light a lamp throws, at
- * full strength up to POOL_RADIUS metres away and gone by POOL_REACH. */
-const EMITTER_GLOW = [1, .93, .74] as const;
-const POOL_TINT = [1, .72, .42] as const, POOL_RADIUS = 1.2, POOL_REACH = 4;
+/** After dusk: a lamp's own glass glows in its colour taken this far toward white, as a
+ * lit shade looks paler than the light it throws; that light is at full strength up to
+ * POOL_RADIUS metres away and gone by POOL_REACH. */
+const GLOW_WHITEN = .6, POOL_RADIUS = 1.2, POOL_REACH = 4;
 /** An aimed lamp's beam instead: full inside BEAM_CORE (a cosine, about 20°) of its
  * aim, gone past BEAM_EDGE (about 42°), and carried further. */
 const BEAM_CORE = .94, BEAM_EDGE = .74, BEAM_RADIUS = 3, BEAM_REACH = 10;
@@ -139,10 +149,11 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const u = {
       ambient: uniform(0), twoSided: uniform(0), light: uniform(new Vector3()), viewDir: uniform(new Vector3()), paper: uniform(new Vector3()),
       ghostAlpha: uniform(0), ghost: uniform(new Vector3()), ghostShade: uniform(new Vector3()),
-      direct: uniform(1), night: uniform(0), lamp: uniform(0), rooms: uniform(0),
+      direct: uniform(1), night: uniform(0), lamp: uniform(0), rooms: uniform(0), roomRaise: uniform(0),
       tint: uniform(new Vector3(1, 1, 1)), sunTint: uniform(new Vector3(1, 1, 1)), lampTint: uniform(new Vector3(1, 1, 1)),
       lamps: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
       lampAims: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
+      lampColors: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
     };
     const toUnitDepth = renderer.coordinateSystem === WebGPUCoordinateSystem;
     const meshId = attribute('meshIndex', 'float');
@@ -168,9 +179,12 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const sunTarget = new RenderTarget(SUN_MAP, SUN_MAP), sunDepth = sunTarget.depthTexture = new DepthTexture(SUN_MAP, SUN_MAP);
     // A comparison sampler with linear filtering: each tap is a bilinear 2 × 2 test in hardware.
     sunDepth.type = FloatType; sunDepth.compareFunction = LessEqualCompare; sunDepth.minFilter = sunDepth.magFilter = LinearFilter;
-    // Room footprints from the same view: at night only a probe over one of them is indoors.
+    // Room volumes from straight above, fitted to the rooms alone: at night only a face
+    // just inside one is indoors. Read as a hard edge, so no rim leaks past a wall.
+    const roomView = new OrthographicCamera(), roomMatrix = uniform(new Matrix4());
+    roomView.coordinateSystem = renderer.coordinateSystem;
     const roomTarget = new RenderTarget(SUN_MAP, SUN_MAP), roomDepth = roomTarget.depthTexture = new DepthTexture(SUN_MAP, SUN_MAP);
-    roomDepth.type = FloatType; roomDepth.compareFunction = LessEqualCompare; roomDepth.minFilter = roomDepth.magFilter = LinearFilter;
+    roomDepth.type = FloatType; roomDepth.compareFunction = LessEqualCompare; roomDepth.minFilter = roomDepth.magFilter = NearestFilter;
     owned.push(sunTarget, roomTarget);
     /** Fraction of the light reaching the point: a few hardware-filtered taps on a disc turned per pixel, as three.js does. */
     const sunShadow = (world: V3): F => {
@@ -194,12 +208,15 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const probe = select(night, varying(positionGeometry).add(facing(normalize(vNormal)).mul(INDOOR_REACH)).add(vec3(0, INDOOR_HEADROOM, 0)), lifted);
     // One variable, so the taps run once per pixel however many terms read the result.
     const outdoors = sunShadow(probe).toVar('outdoors');
-    /** 1 over a room's footprint: any depth drawn there is nearer than the cleared far plane. */
-    const overRoom = (world: V3): F => {
-      const clip = sunMatrix.mul(vec4(world, 1));
-      return float(1).sub(texture(roomDepth, vec2(clip.x.mul(.5).add(.5), float(.5).sub(clip.y.mul(.5)))).compare(ROOM_FAR).x);
+    /** 1 inside a room: below the top of the highest room volume there (a flat pick
+     * proxy reaching a storey up). */
+    const inRoom = (world: V3): F => {
+      const clip = roomMatrix.mul(vec4(world.sub(vec3(0, u.roomRaise, 0)), 1)), depth = toUnitDepth ? clip.z : clip.z.mul(.5).add(.5);
+      const at = vec2(clip.x.mul(.5).add(.5), float(.5).sub(clip.y.mul(.5)));
+      return float(1).sub(texture(roomDepth, at).compare(clamp(depth, 0, ROOM_FAR)).x);
     };
-    const roofed = float(1).sub(outdoors).mul(select(u.rooms.greaterThan(.5), overRoom(probe), float(1)));
+    const roomPoint = varying(positionGeometry).add(facing(normalize(vNormal)).mul(ROOM_REACH));
+    const roofed = float(1).sub(outdoors).mul(select(u.rooms.greaterThan(.5), inRoom(roomPoint), float(1)));
     const sunlit = select(night, float(1), outdoors), indoor = select(night, roofed, float(0));
     const lit = (n: V3): F => {
       const facingSun = dot(n, u.light);
@@ -216,27 +233,27 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       return clamp(c.mul(mix(light, vec3(1), s7.y.mul(KEEP_TONE))), 0, 1);
     };
 
-    /** After dusk, the light the lamps throw on a face: by distance, a little more where
-     * it faces them, and for an aimed lamp only inside its beam. Unlit lamp slots have no
+    /** After dusk, the light the lamps throw on a face, each in its colour: by distance, a
+     * little more where it faces them, and for an aimed lamp only inside its beam. Unlit lamp slots have no
      * strength; the loop is a plain fixed one, since an If around it or a uniform bound
      * drops every tone in the WebGL2 backend. */
-    const pool = (n: V3): F => {
-      const sum = float(0).toVar('pool');
+    const pool = (n: V3): V3 => {
+      const sum = vec3(0).toVar('pool');
       Loop(MAX_LAMPS, ({ i }) => {
-        const lamp = u.lamps.element(i) as unknown as V4, aim = u.lampAims.element(i) as unknown as V4;
+        const lamp = u.lamps.element(i) as unknown as V4, aim = u.lampAims.element(i) as unknown as V4, color = u.lampColors.element(i) as unknown as V4;
         const toward = lamp.xyz.sub(lifted), distance = length(toward), unit = toward.div(max(distance, .001));
         const radius = mix(float(POOL_RADIUS), float(BEAM_RADIUS), aim.w), reach = mix(float(POOL_REACH), float(BEAM_REACH), aim.w);
         const beam = mix(float(1), smoothstep(BEAM_EDGE, BEAM_CORE, dot(unit.negate(), aim.xyz)), aim.w);
         const fall = lamp.w.div(distance.mul(distance).div(radius.mul(radius)).add(1)).mul(float(1).sub(smoothstep(reach.div(2), reach, distance)));
-        sum.addAssign(fall.mul(beam).mul(max(dot(n, unit), 0).mul(.7).add(.3)));
+        sum.addAssign(color.xyz.mul(fall.mul(beam).mul(max(dot(n, unit), 0).mul(.7).add(.3))));
       });
       return sum;
     };
-    /** The night additions to a graded tone: thrown lamp light and glowing lamps.
-     * A kept tone (selection, highlight) is never replaced by glow. */
+    /** The night additions to a graded tone: thrown lamp light and glowing lamps, whose
+     * colour is texel 8. A kept tone (selection, highlight) is never replaced by glow. */
     const lamplit = (graded: V3, tone: V3, n: V3, s7: V4): V3 => {
-      const thrown = graded.add(tone.mul(vec3(...POOL_TINT)).mul(pool(n)).mul(u.lamp)), glow = u.lamp.mul(float(1).sub(s7.y));
-      return clamp(mix(thrown, vec3(...EMITTER_GLOW), glow.mul(s7.w)), 0, 1);
+      const thrown = graded.add(tone.mul(pool(n)).mul(u.lamp)), glow = u.lamp.mul(float(1).sub(s7.y));
+      return clamp(mix(thrown, mix(read(vId, 8).xyz, vec3(1), GLOW_WHITEN), glow.mul(s7.w)), 0, 1);
     };
 
     /** Architectural face tones: flat tops, pitched faces and lit walls. */
@@ -532,6 +549,20 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     }
 
     const corner = new Vector3();
+    /** Fits the room map to the flagged room volumes and says how far above a flat one its room reaches. */
+    const fitRooms = () => {
+      const min = new Vector3(Infinity, Infinity, Infinity), max = new Vector3(-Infinity, -Infinity, -Infinity), heights: number[] = [];
+      for (const [i, mesh] of meshes.entries()) if (table[i * STATE_FLOATS + 26]! > .5) {
+        min.min(new Vector3(...mesh.bounds.min)); max.max(new Vector3(...mesh.bounds.max)); heights.push(mesh.bounds.max[1] - mesh.bounds.min[1]);
+      }
+      heights.sort((a, b) => a - b);
+      u.roomRaise.value = (heights[heights.length >> 1] ?? 0) >= ROOM_VOLUME ? 0 : ROOM_STOREY;
+      const centre = new Vector3().addVectors(min, max).multiplyScalar(.5), half = Math.max(max.x - min.x, max.z - min.z) / 2 + ROOM_PAD;
+      roomView.position.set(centre.x, max.y + 1, centre.z); roomView.up.set(0, 0, -1); roomView.lookAt(centre.x, min.y, centre.z);
+      roomView.left = -half; roomView.right = half; roomView.top = half; roomView.bottom = -half;
+      roomView.near = .5; roomView.far = max.y - min.y + 1.5; roomView.updateMatrixWorld(true); roomView.updateProjectionMatrix();
+      roomMatrix.value.multiplyMatrices(roomView.projectionMatrix, roomView.matrixWorldInverse);
+    };
     const drawSun = () => {
       // At night the map reaches past the house by more than a probe, so a probe
       // beside an outer wall never reads the clamped edge of a roof.
@@ -549,7 +580,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       sun.left = min.x; sun.right = max.x; sun.bottom = min.y; sun.top = max.y; sun.near = -max.z - .1; sun.far = -min.z + .1;
       sun.updateProjectionMatrix(); sunMatrix.value.multiplyMatrices(sun.projectionMatrix, sun.matrixWorldInverse);
       renderer.setRenderTarget(sunTarget); renderer.render(dark ? shelterScene : solidScene, sun);
-      if (dark && u.rooms.value > .5) { renderer.setRenderTarget(roomTarget); renderer.render(roomScene, sun); }
+      if (dark && u.rooms.value > .5) { fitRooms(); renderer.setRenderTarget(roomTarget); renderer.render(roomScene, roomView); }
       renderer.setRenderTarget(null);
     };
 
@@ -597,7 +628,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     }
     for (const [sunScene, target] of [[solidScene, sunTarget], [shelterScene, sunTarget], [roomScene, roomTarget]] as const) for (const body of sunScene.children) {
       renderer.setRenderTarget(target);
-      try { await renderer.compileAsync(body, sun, sunScene); } finally { renderer.setRenderTarget(null); }
+      try { await renderer.compileAsync(body, sunScene === roomScene ? roomView : sun, sunScene); } finally { renderer.setRenderTarget(null); }
       signal?.throwIfAborted(); if (slice.due()) await slice.next();
     }
 
@@ -628,6 +659,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
             point.set(lamp?.at[0] ?? 0, lamp?.at[1] ?? 0, lamp?.at[2] ?? 0, lamp ? frame.lamp : 0); });
           (u.lampAims.array as Vector4[]).forEach((aim, at) => { const toward = frame.lamps[at]?.aim;
             aim.set(toward?.[0] ?? 0, toward?.[1] ?? 0, toward?.[2] ?? 0, toward ? 1 : 0); });
+          (u.lampColors.array as Vector4[]).forEach((color, at) => color.set(...frame.lamps[at]?.color ?? [0, 0, 0], 0));
           for (const { geometry, index, y } of glassBounds) geometry.boundingSphere!.center.y = y + table[index * STATE_FLOATS + 19]!;
           for (const { pass, mesh } of layers) mesh.visible = pass === 'ghost' ? frame.ghosts : frame.passes.has(pass);
         }

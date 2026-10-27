@@ -146,8 +146,11 @@ frame, so the swap never blanks the view. Picking, labels and every other read
 of the stage follow the model whose meshes are on screen (`model-tier.ts`), so
 drawing and picking never use different tiers, and Light is drawn before Full
 is built, however fast Full arrives. A
-failed read, admission or GPU build keeps the overview. The detail is never
-stored offline: a stored copy and saved houses show the overview only.
+failed read, admission or GPU build keeps the overview. A device that reads
+the detail keeps one verified copy between launches (see
+`docs/offline/live-atlas-cache.md`), so it downloads once per release; it is
+not part of the offline copy: a stored copy and saved houses show the overview
+only.
 Reuse the existing Read/Media, same-origin, retained-principal and final-current
 checks. Return private no-store bytes with exact type, length and digest. This
 adds no accounts, grants, tokens or native writes. A changed selection is stale;
@@ -292,6 +295,19 @@ Reuse the existing standard GLTFLoader and its admitted no-external-resource
 profile and aggregate budgets. Target the existing 32 MiB GLB and 64 MiB prepared
 asset limits; validate the actual mounted chunk budget against the server's
 4,000,000-byte per-file ceiling. Do not broaden formats or work limits silently.
+Transfer compression is the one exception, and it widens nothing: an overview
+or detail GLB may require `EXT_meshopt_compression`. The viewer
+(`glb-meshopt.ts`) and the server (`atlas_scene_meshopt.rs`) expand it to the
+plain profile before any other check, so every limit and bounds check here
+applies to the decoded file, while publication pins, `original` and
+Content-Digest stay on the served bytes. The admitted subset is one GLB buffer
+and one fallback buffer (`{"fallback":true}`) that every compressed view
+decodes into; compressed views use `ATTRIBUTES` with a 4-, 8-, 12- or 16-byte
+stride equal to the view's `byteStride`, or `TRIANGLES` with 2- or 4-byte
+indices, and no filter. The decoded views must fit the tier's buffer budget,
+which is checked before decoding. `KHR_mesh_quantization` and every other
+extension stay unsupported; `tools/model-bake` quantizes by snapping Float32
+positions to a grid instead.
 The companion requires exactly one scene with all declared nodes reachable
 once, at most 20,000 nodes and hierarchy depth at most 64, matching the standard
 renderer admission limits.
@@ -392,9 +408,13 @@ after dusk shows the lamp-lit room behind it. Until a model carries these marks,
 own name (never its mesh's or node's) holds a generic glass word counts as
 glass, or as a lamp when the name also holds a lamp word and the material
 states no `emissiveFactor`. A stated zero factor stops a name from making a
-lamp, but a glass word still makes the material building glass. Every lamp
-glows one fixed warm colour; the hue of `emissiveFactor` is not used yet, only
-whether it is nonzero. Day lighting ignores the lamp marks.
+lamp, but a glass word still makes the material building glass. A lamp's
+colour is the hue of its `emissiveFactor`, with its brightest channel taken as
+full, so the factor's strength is not read: its glass glows a paler shade of
+that colour and its pool or beam lights in it. Lamps close enough to merge mix
+their colours. A lamp known only by its name glows warm white.
+`emissiveTexture` stays outside the material profile. Day lighting ignores the
+lamp marks.
 
 Glass is depth-tested over the solid scene and never writes depth. Each source
 glass primitive remains an independently sortable draw, ordered from far to
