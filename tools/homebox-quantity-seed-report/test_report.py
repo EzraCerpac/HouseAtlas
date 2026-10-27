@@ -272,6 +272,15 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(len(self.report(data)["rows"]), 100)
 
     def test_cli_rejects_without_stdout_or_raw_input_in_errors(self):
+        for arguments in [[], ["--synthetic-invalid=fictional-sensitive-value"],
+                          ["--synthetic-invalid", "fictional-sensitive-path"],
+                          ["fictional-sensitive-path", "fictional-extra-argument"]]:
+            with self.subTest(arguments=arguments):
+                invalid = subprocess.run([sys.executable, str(HERE / "cli.py"), *arguments],
+                                         input=b"", capture_output=True, check=False)
+                self.assertEqual(invalid.returncode, 2)
+                self.assertEqual(invalid.stdout, b"")
+                self.assertEqual(invalid.stderr, b"quantity-seed-report: invalid-arguments\n")
         completed = subprocess.run([sys.executable, str(HERE / "cli.py"), "-"],
                                    input=b'{"private-looking-value":', capture_output=True, check=False)
         self.assertEqual(completed.returncode, 2)

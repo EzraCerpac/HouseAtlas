@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "e54640f06f18cf6c475fc3e215ada2919321d784cd32afb8026163d62ec89b6b",
+  "sourceDigestSha256": "a120303dc29792054e1162899678e809a5f65fdb2e0971bcfe797a7a2e0c7c81",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -11564,15 +11564,15 @@
     {
       "path": "tools/homebox-quantity-seed-report/README.md",
       "mode": "100644",
-      "bytes": 9590,
-      "sha256": "a707ffe00e1477e90a0c4aa4d8352aee50a5542982059940d869d374b3a350cd",
+      "bytes": 9735,
+      "sha256": "71287817be397d37d5be12354991f310e8f24288e2b17e3308e47f570d7768a8",
       "owner": "homebox"
     },
     {
       "path": "tools/homebox-quantity-seed-report/cli.py",
       "mode": "100644",
-      "bytes": 1061,
-      "sha256": "28f3b099912b2b56c1aab155e1948b594939998ff7fcc65e5db252d8bcbd36c5",
+      "bytes": 1349,
+      "sha256": "5e9a57a5a795c532f47692ab5b4d83cae118c07d0e4e3aebc77d31da218635c2",
       "owner": "homebox"
     },
     {
@@ -11592,8 +11592,8 @@
     {
       "path": "tools/homebox-quantity-seed-report/test_report.py",
       "mode": "100644",
-      "bytes": 15610,
-      "sha256": "b559fd84d52142662cd4e8d31e2c3221e4eb4613ed0f3bad6eb6a1b7656ffded",
+      "bytes": 16291,
+      "sha256": "40a871a521fdfd3d894c0fd25e48d0d543032ce23e48a461028258b67a4ee62d",
       "owner": "homebox"
     },
     {
