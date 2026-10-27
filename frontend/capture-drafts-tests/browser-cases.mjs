@@ -55,8 +55,9 @@ const selection = () => {
     filename: original.name, reportedContentType: original.type, byteOrigin: 'browser-returned-unmodified' } };
 };
 const admission = () => ({
-  record: { recordId, workspaceId: boundary().workspaceId, homeId: boundary().homeId, lifecycle: 'active', revision: 7 },
-  guards: [], canReplaceClassification: false,
+  record: { recordId, workspaceId: boundary().workspaceId, homeId: boundary().homeId, lifecycle: 'active', revision: 7,
+    payload: { atlasId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } },
+  guards: [{ record: { recordType: 'identity', recordId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }, expectedRevision: 3 }], canReplaceClassification: false,
   attachmentPolicy: { contentTypes: ['image/png'], maximumBytes: 1024,
     licenses: [{ label: 'Synthetic permission', value: { ...license } }] },
 });

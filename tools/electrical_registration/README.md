@@ -16,11 +16,13 @@ The original five generated healthy examples exercise a known affine transform,
 overdetermined approximate residuals, property-wide inventory with selection
 highlighting, a legitimate documentary-only input awaiting controls, and a reviewed nomination withdrawal that retains inventory and provenance. No
 malformed, denial, omission, expiry, replay or crash cases are included. This
-local task-specific command changes no shared ordinary CI or runtime gate.
+command also runs in the existing ordinary-core CI job on pinned Node 26.10.0.
 Three additional generated regression cases cover each stale current identity,
 retained withdrawal history across revisions, and whole-annotation hull coverage
-(including explicit malformed row tolerances). These cases add no CI runner or
-interactive browser scope; report them separately from the original five.
+(including explicit malformed row tolerances). All eight existing cases run in
+one named ordinary-core step; report the three regressions separately from the
+original five. This adds no workflow, dependencies or interactive browser scope,
+and establishes no native or surveyed qualification.
 
 `fitAffine(controls)` accepts explicit `id`, `sourcePoint: [u,v]` and
 `targetPoint: [X,Z]` pairs. Source coordinates are normalized upright image

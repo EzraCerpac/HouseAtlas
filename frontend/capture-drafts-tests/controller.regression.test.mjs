@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
 import { createCaptureDrafts } from '../src/capture-drafts/controller.ts';
+import { draftReceipt, identityGuard, identityId } from './receipt.fixture.mjs';
 
 // This is a deterministic controller/store contract harness, not an IndexedDB
 // implementation or evidence about browser persistence behavior.
@@ -38,8 +39,8 @@ function makeBoundary(actorId = actorA, homeId = homeA, sessionEpoch = {}) {
 
 function makeAdmission(homeId = homeA) {
   return {
-    record: { recordId, workspaceId, homeId, lifecycle: 'active', revision: 7 },
-    guards: [],
+    record: { recordId, workspaceId, homeId, lifecycle: 'active', revision: 7, payload: { atlasId: identityId } },
+    guards: [structuredClone(identityGuard)],
     canReplaceClassification: false,
     attachmentPolicy: {
       contentTypes: ['image/png'],
@@ -387,10 +388,7 @@ describe('capture draft controller synthetic regressions', () => {
     assert.equal((await store.read())[0].state, 'outcome-unknown');
     assert.equal(host.acknowledgementChecks, 0);
 
-    const receipt = {
-      status: 'committed', commandId: 'atlas.batch.execute', requestId: intent.requestId,
-      resolvedScope: { workspaceId, homeId: homeA }, syntheticServerReceipt: true,
-    };
+    const receipt = { ...await draftReceipt(intent), syntheticServerReceipt: true };
     const result = await controller.acknowledge(submission, receipt);
     assert.deepEqual(result, { state: 'server-acknowledged', requestId: intent.requestId, localCleanup: 'removed' });
     assert.equal(host.acknowledgementChecks, 1);
@@ -419,10 +417,7 @@ describe('capture draft controller synthetic regressions', () => {
     const reviewed = await controller.review(id, abortController().signal);
     const submission = await controller.beginAttempt(reviewed.token, { confirmed: true }, abortController().signal);
     const intent = submission.takeForForegroundSubmit();
-    const receipt = {
-      status: 'committed', commandId: 'atlas.batch.execute', requestId: intent.requestId,
-      resolvedScope: { workspaceId, homeId: homeA }, syntheticServerReceipt: true,
-    };
+    const receipt = { ...await draftReceipt(intent), syntheticServerReceipt: true };
     for (const status of [undefined, 'rejected', 'conflict']) {
       await assert.rejects(controller.acknowledge(submission, { ...receipt, status }), /differs from the local attempt/);
     }

@@ -1,6 +1,7 @@
 /** Runs every named healthy frontend check, one process each, and reports
- * timings. Explicit list only: regression, control, intake and handoff-directory
- * commands stay with their documented lanes in docs/contributing/verification.md.
+ * timings. Explicit list only: cases not named below stay with their documented
+ * lanes in docs/contributing/verification.md, including other regression, control,
+ * intake and handoff-directory commands.
  * Browser checks run only when HOUSEATLAS_CHROMIUM is set; checks that read the
  * production build need `npm --prefix frontend run build` first. Not listed:
  * session-bootstrap (external jsdom path). Session-expiry regressions and capture-draft
@@ -31,6 +32,17 @@ const SOURCE = [
   node('pinned-capture-read.mjs'), node('scan-mesh-read.mjs'),
   node('source-documents-reader.test.mjs'),
   node('source-time-display.mjs'),
+  // Capture originals and draft receipt/cleanup correlation: exact synthetic cases only.
+  ['frontend/capture-evidence-tests/foreground.mjs', 'one-shot-originals'],
+  ['frontend/capture-evidence-tests/foreground.mjs', 'original-offer-reused'],
+  ['frontend/capture-evidence-tests/foreground.mjs', 'original-offer-digest-mismatch'],
+  ['frontend/capture-evidence-tests/foreground.mjs', 'original-offer-record-change'],
+  ['frontend/capture-evidence-tests/foreground.mjs', 'original-offer-unavailable'],
+  ['frontend/capture-drafts-tests/combined-host.mjs', '--case', 'healthy-save-review-commit'],
+  ['frontend/capture-drafts-tests/combined-host.mjs', '--case', 'existing-original-receipt-commit'],
+  ['frontend/capture-drafts-tests/combined-host.mjs', '--case', 'receipt-record-closure-keeps-original'],
+  ['frontend/capture-drafts-tests/combined-host.mjs', '--case', 'cleanup-failure-known-commit'],
+  ['frontend/capture-drafts-tests/combined-host.mjs', '--case', 'reused-receipt-object-keeps-unknown'],
   node('topology-read.mjs'),
   node('webmcp-batch-discovery.mjs'), node('webmcp-adapter-healthy.mjs'),
   // Offline / saved copy

@@ -158,6 +158,25 @@ upload retry permission. Any retained row stays locked as `outcome-unknown`.
 Receipt validation is scoped to this call and attempt, rather than remembered
 by response-object identity across submissions. Reusing an earlier response
 object with its earlier request ID cannot certify a later attempt.
+Matching outer request/scope fields alone also cannot certify an attachment.
+Before cleanup, the draft controller requires the existing upload contract's
+active evidence and identity records, corresponding audit count, and the exact
+admitted location identity at its guarded successor revision. That identity
+must include the returned new evidence ID. The evidence must retain the saved
+statement, one Atlas original reference, unknown fact/source provenance and
+the exact opaque browser selection claim. A returned new asset must match
+that reference and the saved original hash, size, MIME, licence and JPEG
+download-only policy. The admitted identity is held only in memory; no guard,
+admission or receipt is added to stored drafts.
+
+The server's existing-original path legitimately returns two records
+(evidence and identity), without an asset-create row. That path remains
+supported without fabricating an asset row or adding a read; authorization
+and exact existing-asset resolution remain with the server. A local receipt
+check is not an independent download/readback of that existing original.
+An empty or unrelated committed batch, inconsistent returned records or
+different original/provenance fields leave the local original locked and do
+not establish a known attachment commit or permission to replay.
 The server acknowledgement is a result from one explicit online action. It is
 not evidence of an offline queue, later sync, or eventual delivery guarantee.
 
@@ -280,14 +299,35 @@ synthetic saves and fake foreground handoffs. It returns the identical first
 receipt object for the second attempt and requires rejection, retained exact
 bytes, no second cleanup, and no redispatch from inspection or the consumed
 review. The controller regression fixture also separates a correlated commit
-with failed local cleanup from missing/noncommitted statuses. These are source
-fixtures, not new CI entries or executed browser/device evidence.
+with failed local cleanup from missing/noncommitted statuses. The separately
+selected controller suite is not part of the bounded registration below.
+The additional prepared `receipt-record-closure-keeps-original` case checks
+schema-valid empty/mismatched receipts against the real closed schema and
+requires retained exact bytes, zero cleanup and no redispatch. The prepared
+`existing-original-receipt-commit` case preserves the two-record server path.
+Both share generated receipt data with the controller fixtures. The exact
+commands below now run through the existing healthy list; preparation and
+registration are not execution results.
 
-The repository README keeps ordinary CI unchanged and requires separate review
-before any named checks in the isolated regression lane. A future capture-draft
-check must be reviewed against the exact source, entrypoint, cases, synthetic
-inputs, disposable roots, local-only transports, bounds, runtime and cleanup
-requirements there. Do not add a test alias or ordinary-CI entrypoint under
-this contract. Passing an authorized synthetic case would establish only its
-reported behavior; it would not qualify a target browser, UI integration,
-security, household acceptance, or deployment.
+The bounded registration on 27 October 2026 selects only these existing
+fake-port commands in `run-healthy.mjs`, using Node 26.10.0 and locked frontend
+dependencies:
+
+```sh
+node frontend/capture-drafts-tests/combined-host.mjs --case healthy-save-review-commit
+node frontend/capture-drafts-tests/combined-host.mjs --case existing-original-receipt-commit
+node frontend/capture-drafts-tests/combined-host.mjs --case receipt-record-closure-keeps-original
+node frontend/capture-drafts-tests/combined-host.mjs --case cleanup-failure-known-commit
+node frontend/capture-drafts-tests/combined-host.mjs --case reused-receipt-object-keeps-unknown
+```
+
+They cover the new/existing asset positives, eighteen schema-valid record
+mismatches, known-commit cleanup failure and reuse of an earlier receipt object.
+Each uses generated Files, a deterministic memory store, injected session/editing
+ports and a global fetch trap. No listener, browser, native service or real
+IndexedDB runs. The thirteen-case controller regression suite and all other
+named draft cases remain separately selected; no test alias, whole-suite
+discovery or new workflow is added. This exact registration supersedes the
+earlier no-ordinary-entrypoint handoff only for these five commands. Passing
+them establishes only their reported behavior, not target storage durability,
+browser/UI integration, household acceptance, recovery or deployment.

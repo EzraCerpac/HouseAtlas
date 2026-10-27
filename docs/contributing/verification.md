@@ -88,6 +88,56 @@ component is external to the bundle: this check does not render PDF pages,
 exercise React dialog/focus behavior or establish installed document access.
 The recorded-page helper/component checks are separate.
 
+## Generated capture original and draft receipt checks
+
+The existing `run-healthy.mjs` SOURCE list adds these ten exact commands,
+one process per command, using Node 26.10.0 and unchanged locked frontend
+dependencies. Inspect `foreground.mjs`, `combined-host.mjs`, their generated
+fixtures and the imported client/controller/receipt validator before execution.
+
+```sh
+node frontend/capture-evidence-tests/foreground.mjs one-shot-originals
+node frontend/capture-evidence-tests/foreground.mjs original-offer-reused
+node frontend/capture-evidence-tests/foreground.mjs original-offer-digest-mismatch
+node frontend/capture-evidence-tests/foreground.mjs original-offer-record-change
+node frontend/capture-evidence-tests/foreground.mjs original-offer-unavailable
+node frontend/capture-drafts-tests/combined-host.mjs --case healthy-save-review-commit
+node frontend/capture-drafts-tests/combined-host.mjs --case existing-original-receipt-commit
+node frontend/capture-drafts-tests/combined-host.mjs --case receipt-record-closure-keeps-original
+node frontend/capture-drafts-tests/combined-host.mjs --case cleanup-failure-known-commit
+node frontend/capture-drafts-tests/combined-host.mjs --case reused-receipt-object-keeps-unknown
+```
+
+The foreground baseline checks exact multipart bytes and one fake POST for
+baseline/progressive JPEG, PNG, PDF and text. `original-offer-reused` adds the
+production resolver's asset GET / HEAD / asset GET over two-record receipts
+for the same five originals. The other three offer cases withhold the offer
+for a wrong digest at equal MIME/size, a revision change after HEAD or a missing
+asset; the validated commit stays retained with one POST. Metadata comparisons
+are neither an atomic lease nor actual original-download byte measurements.
+
+The two draft positives cover created-asset and existing-original receipts,
+durable-marker ordering in the deterministic store and local cleanup. The
+record-closure case supplies exactly eighteen schema-valid mismatches and
+requires zero cleanup, retained exact bytes, unknown inspection and no
+redispatch. The two cleanup cases distinguish a correlated commit with failed
+local deletion from reuse of an earlier receipt for a separate attempt.
+
+These checks use generated Files, fake exchanges/owners and a deterministic
+memory store; the draft harness traps global fetch. No DOM, listener, native
+service, real IndexedDB, credentials or household input is involved. The
+foreground harness temporarily supplies only a fictional window origin.
+Neither harness mounts React or downloads an original from a native server.
+Registration is not an execution result, browser/device acceptance, native
+custody/recovery proof or permission to retry an unknown result.
+
+This is a finite exception for the named receipt/original-offer cases. Other
+selection, stale-target, byte/receipt mismatch, lifecycle, quota, expiry,
+cross-tab and controller regression cases remain separately selected. The
+native UI harness and browser-cases runner remain outside this list. The full
+controller regression file contains thirteen cases and is not selected here.
+No new workflow or browser infrastructure is added.
+
 ## Real-browser offline launch
 
 `frontend/lantern-tests/offline-launch-browser.mjs` serves the built `dist/` on
@@ -2204,7 +2254,7 @@ supported-browser observations after source review and independent deployment
 authority. No broader control suite or production action is released.
 
 
-## Named generated electrical registration positive
+## Named generated electrical registration cases
 
 Read `tools/electrical_registration/README.md`, its pure registration module and
 the generated healthy fixture before this exact command on pinned Node 26.10.0:
@@ -2222,7 +2272,7 @@ explicit; source pixels alone do not establish metric points, surveyed positions
 or current circuits. No browser, actual source, provider, failure/denial/replay/
 expiry/crash control, broad suite or deployment is involved.
 
-The same inspected five healthy examples may also be invoked directly on pinned
+The same eight generated cases may also be invoked directly on pinned
 Node 26.10.0 to retain their individual names when a test subprocess reports
 only a file-level result:
 
@@ -2236,7 +2286,10 @@ The fixture file additionally defines three generated regression cases for
 stale current identities, retained withdrawal reconciliation across revisions,
 and source-uncertainty rectangles crossing the fitted hull (including malformed
 explicit row tolerances). Report those separately from the original five
-healthy cases. No workflow or shared runner is added by these definitions.
+healthy cases. The existing ordinary-core job now invokes this exact file with
+pinned Node 26.10.0, running all eight cases without changing their bodies or
+adding a new workflow, dependency, listener or browser check. Named-case output
+from that step is execution evidence; unrelated green CI is not.
 
 
 ## Named generated native Access read-only validation positive

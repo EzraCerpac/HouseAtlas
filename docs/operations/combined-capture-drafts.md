@@ -82,10 +82,13 @@ native naming and capability clients retain their current binding behavior.
 ## README-registered qualification commands
 
 The exact named host cases and native UI positive below are registered in the
-repository README. They remain outside ordinary CI and within their separately
-bounded synthetic lanes. Registration does not broaden a case or replace the
-required source and artifact review; the native UI case also requires its
-private-packet review before execution.
+repository README. The bounded 27 October ordinary registration additionally
+selects only `healthy-save-review-commit`, `existing-original-receipt-commit`,
+`receipt-record-closure-keeps-original`, `cleanup-failure-known-commit` and
+`reused-receipt-object-keeps-unknown` through the existing healthy runner. All
+other host cases and the native UI positive remain in their separately bounded
+lanes. Registration does not broaden a case or replace source/artifact review;
+the native UI case still requires its private-packet review before execution.
 
 `node frontend/capture-drafts-tests/combined-host.mjs --case NAME` permits one
 named fake-port case per invocation. The README registers healthy cases
