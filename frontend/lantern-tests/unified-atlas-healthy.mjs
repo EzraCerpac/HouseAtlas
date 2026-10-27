@@ -248,6 +248,24 @@ assert.equal(await storedDetailBytes(tight), 0, 'but stores nothing');
 const lost = settled(); await clearDetailStore(host); await lost;
 assert.equal(await storedDetailBytes(host), 0, 'removal clears every copy');
 assert.equal(memory.named.has(DETAIL_STORE_NAME), false);
+// A stored entry its read refuses (wrong length) is replaced by the next verified keep.
+const shortHost = { caches: memoryCaches(), storage: manager(roomy), origin: SYNTHETIC_ATLAS.origin };
+const shortStore = openDetailStore(owner, shortHost);
+kept = settled(); shortStore.keep(composed.sha256, glb.slice()); await kept;
+const shortCache = shortHost.caches.named.get(DETAIL_STORE_NAME), [shortKey] = await shortCache.keys();
+shortCache.rows.set(shortKey.url, new Response(glb.slice(1), { headers: (await shortCache.match(shortKey)).headers }));
+assert.equal(await shortStore.read(composed.sha256, glb.byteLength), null, 'a short entry is not read');
+kept = settled();
+const shortRead = await readDetail(glb, detailScene, shortStore); await kept;
+assert.equal(shortRead.urls.length, 1);
+assert.deepEqual(Buffer.from(await shortStore.read(composed.sha256, glb.byteLength)), Buffer.from(glb), 'the verified download replaces it');
+// Two keeps at once, for different homes, still leave one copy within the quota.
+const raceHost = { caches: memoryCaches(), storage: manager(roomy), origin: SYNTHETIC_ATLAS.origin };
+kept = settled(2);
+openDetailStore(owner, raceHost).keep(composed.sha256, glb.slice());
+openDetailStore({ ...owner, homeId: '00000000-0000-4000-8000-000000000802' }, raceHost).keep('e'.repeat(64), glb.slice());
+await kept;
+assert.equal((await raceHost.caches.named.get(DETAIL_STORE_NAME).keys()).length, 1, 'concurrent keeps replace one at a time');
 const unsupported = openDetailStore(owner, { origin: SYNTHETIC_ATLAS.origin });
 assert.equal(await unsupported.read(composed.sha256, glb.byteLength), null, 'without Cache Storage nothing is stored or read');
 unsupported.keep(composed.sha256, glb.slice());

@@ -23,11 +23,13 @@ export interface DetailStore {
 }
 /** Where the store lives; tests pass their own. */
 export interface DetailStoreHost {
-  readonly caches?: CacheStorage | undefined; readonly storage?: StorageManager | undefined; readonly origin: string;
+  readonly caches?: CacheStorage | undefined; readonly storage?: StorageManager | undefined;
+  readonly locks?: LockManager | undefined; readonly origin: string;
 }
 const browserHost = (): DetailStoreHost => ({
   caches: typeof caches === 'undefined' ? undefined : caches,
   storage: typeof navigator === 'undefined' ? undefined : navigator.storage,
+  locks: typeof navigator === 'undefined' ? undefined : navigator.locks,
   origin: typeof location === 'undefined' ? 'https://houseatlas.invalid' : location.origin,
 });
 
@@ -35,6 +37,12 @@ const listeners = new Set<() => void>();
 const changed = () => { for (const listener of listeners) listener(); };
 // Bumped by every removal, so a write that was already under way does not bring a copy back.
 let generation = 0;
+// Replacing a copy is one step at a time across tabs (Web Locks) and, without them, within this page.
+let pending: Promise<unknown> = Promise.resolve();
+function exclusive(locks: LockManager | undefined, task: () => Promise<void>): Promise<void> {
+  if (locks) return locks.request(DETAIL_STORE_NAME, task);
+  const run = pending.then(task, task); pending = run.catch(() => undefined); return run;
+}
 
 /** The store for one signed-in actor and home. */
 export function openDetailStore(owner: { readonly actorId: string; readonly workspaceId: string; readonly homeId: string },
@@ -53,11 +61,11 @@ export function openDetailStore(owner: { readonly actorId: string; readonly work
       const { caches: storage, storage: manager } = host;
       if (!storage) return;
       const body = new Blob([bytes]), length = bytes.byteLength, key = keyOf(sha256), started = generation;
-      void (async () => {
+      void exclusive(host.locks, async () => {
         const cache = await storage.open(DETAIL_STORE_NAME);
-        // One copy: an earlier release's, or another account's, gives way first.
-        await Promise.all((await cache.keys()).filter(request => request.url !== key).map(request => cache.delete(request)));
-        if (await cache.match(key)) return;
+        // One copy: every stored entry gives way first, an earlier release's,
+        // another account's, or this pin's own copy that its read refused.
+        await Promise.all((await cache.keys()).map(request => cache.delete(request)));
         const estimate = await manager?.estimate?.();
         if (estimate?.quota === undefined || estimate.usage === undefined
           || estimate.quota - estimate.usage < length + DETAIL_STORE_HEADROOM || started !== generation) return;
@@ -65,7 +73,7 @@ export function openDetailStore(owner: { readonly actorId: string; readonly work
         if (started !== generation) { await cache.delete(key); return; }
         // Ask once that the browser not clear it under storage pressure; a refusal changes nothing here.
         if (manager?.persisted && !await manager.persisted()) await manager.persist?.();
-      })().catch(() => undefined).finally(changed);
+      }).catch(() => undefined).finally(changed);
     },
     forget(sha256: string) {
       void open().then(cache => cache?.delete(keyOf(sha256))).catch(() => undefined).finally(changed);
