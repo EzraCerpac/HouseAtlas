@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "4c895f059d2edfa4a955ef19e4f69f24d0d11326c5bfc6715f58b2fcaf2786be",
+  "sourceDigestSha256": "2e8b04d00e28b265ee962f2e30c7c635114d65482b0215ca2a172b8879facfe4",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -35,15 +35,15 @@
     {
       "path": ".github/actions/ordinary-setup/action.yml",
       "mode": "100644",
-      "bytes": 4496,
-      "sha256": "d341ec6da68ad0b26cb9c2af62bcf7008b6d8cc524c8a511463948b1a36edaf4",
+      "bytes": 4688,
+      "sha256": "076094847f49403def2e32e816852af00750207796cc2b175243656498285e76",
       "owner": "core-integration"
     },
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
-      "bytes": 5267,
-      "sha256": "0837e7782614abe41c7ffc041147295bb2d9ec6c0c85a5b1d63259b7d78d1b56",
+      "bytes": 5661,
+      "sha256": "e876b0e8036fe63d6c287d624537ad84ca05652dd15b21345e393a9f0bfee7fc",
       "owner": "core-integration"
     },
     {
@@ -63,8 +63,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 18196,
-      "sha256": "57ae93efd4a7a86960ad64c1cbe2128f3c2966c0ac7c31c364798a1305654947",
+      "bytes": 22195,
+      "sha256": "bb42b1165ef11abed32092bf39a11786303d35db3f4f87f09347dc3637120ca0",
       "owner": "core-integration"
     },
     {
@@ -79,6 +79,48 @@
       "mode": "100644",
       "bytes": 400,
       "sha256": "6d712972d7006598922b96a096bfd6976f787902518fdd929f1cdf3e2787d5ee",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".mise/tasks/bench",
+      "mode": "100755",
+      "bytes": 188,
+      "sha256": "de31846e83c7d785f1330b3d07ec81ae50284a4982c66f05ca7848a7492f995d",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".mise/tasks/cargo-diagnostic",
+      "mode": "100755",
+      "bytes": 182,
+      "sha256": "69052b38707ad64a5b8973efd5be0ee4e74e21bb7d4ed0147b56010f6dbe6e0b",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".mise/tasks/check",
+      "mode": "100755",
+      "bytes": 172,
+      "sha256": "4038875de5fff682fa096a5c650622a8a96b7b8eb2615ff3e9976fa203c94380",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".mise/tasks/dev",
+      "mode": "100755",
+      "bytes": 166,
+      "sha256": "be2cca15bad2f79790f23010b643d0fda4f67c957546869998376344af09a565",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".mise/tasks/perf/runtime-profile",
+      "mode": "100755",
+      "bytes": 222,
+      "sha256": "b2315a3e1890899c9c255b72c67de9bdcab2877c4e543ecdc09de42351c381fc",
+      "owner": "core-integration"
+    },
+    {
+      "path": ".mise/tasks/profiling",
+      "mode": "100755",
+      "bytes": 176,
+      "sha256": "be2987b48f2abb2763b21d22755a1b70b292831572515a56a64f969ca0b275aa",
       "owner": "core-integration"
     },
     {
@@ -105,8 +147,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 10666,
-      "sha256": "e0a7a148397396690f02895bf6cf848dae7a3dc875700ae34a4652cd4b1ecb70",
+      "bytes": 11219,
+      "sha256": "8d0f455955720db449a5704970f190a14333f10da1ceb577303ca66fac8e9eaa",
       "owner": "core-integration"
     },
     {
@@ -119,8 +161,8 @@
     {
       "path": "Cargo.toml",
       "mode": "100644",
-      "bytes": 2555,
-      "sha256": "f8ce1f1b4f7162df91a4bf696e187b1c7840721055c84995c736d3013e3b4cfe",
+      "bytes": 2988,
+      "sha256": "645cd43dc131b2945e55a034d0629d01ade061477405189df03d379917f2590d",
       "owner": "core-integration"
     },
     {
@@ -6291,6 +6333,20 @@
       "owner": "contracts"
     },
     {
+      "path": "docs/contributing/cargo-modes.md",
+      "mode": "100644",
+      "bytes": 4218,
+      "sha256": "3f8cb66651142ee4f6a99f0da8a522022503a073258088d80fa408b47694be36",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/contributing/cargo-timings.md",
+      "mode": "100644",
+      "bytes": 4417,
+      "sha256": "19711a9631779c42821c63333ec3f25fa43fffa62b4240e0b074fbc219c90420",
+      "owner": "core-integration"
+    },
+    {
       "path": "docs/contributing/ci-path-selection.md",
       "mode": "100644",
       "bytes": 4106,
@@ -6307,8 +6363,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 207708,
-      "sha256": "93eec6926f029bac7a146c0fdc3e617bb4bce1c3d2c90781f7c3eb08e058bc12",
+      "bytes": 208781,
+      "sha256": "c87d9122696c3e78fe40c2fe645c99db40ade7cde2644515e250549537ec87a3",
       "owner": "core-integration"
     },
     {
@@ -11625,6 +11681,20 @@
       "owner": "operations-policy"
     },
     {
+      "path": "tools/cargo-modes/run.mjs",
+      "mode": "100644",
+      "bytes": 1956,
+      "sha256": "aa2e5e59bb8c20196e0d91a55297c277f9da8049fb19e255fa573ae8e79b49f7",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/ci/cargo-timings.mjs",
+      "mode": "100644",
+      "bytes": 6993,
+      "sha256": "9cb0f7a9c88c742cde34fdfe522490eed53397c1ccdb27a6062cfa564eaa8617",
+      "owner": "core-integration"
+    },
+    {
       "path": "tools/ci/select_pr_checks.py",
       "mode": "100644",
       "bytes": 5242,
@@ -12451,6 +12521,27 @@
       "owner": "core-integration"
     },
     {
+      "path": "tools/perf/runtime-profile/README.md",
+      "mode": "100644",
+      "bytes": 9733,
+      "sha256": "3346b51b38f8bb01b4386e21c7501779c943857e36e088db6e1134b27ae37c80",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/runtime-profile/run.py",
+      "mode": "100644",
+      "bytes": 29427,
+      "sha256": "d9ddb4c49751ba84bcfc35b2063700609d207ff2bec3320ae4e454c7bdf52653",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/perf/runtime-profile/test_runtime_profile.py",
+      "mode": "100644",
+      "bytes": 18051,
+      "sha256": "cfd1d3cb9b37a75f04da3d22bb540e516fae2ce14d56c852a357bf657e6f8e71",
+      "owner": "core-integration"
+    },
+    {
       "path": "tools/publication/verify-source.mjs",
       "mode": "100644",
       "bytes": 3600,
@@ -12551,8 +12642,8 @@
     {
       "path": "tools/rust-integration/check-source.mjs",
       "mode": "100644",
-      "bytes": 2456,
-      "sha256": "c9c02de6f452849c41646084d958133e9f2a2b9b76e285d1c530651ca9b4408e",
+      "bytes": 2564,
+      "sha256": "f01b1a90c9fd2b893144d78e86bbbe8434cabcfd908ffe21942c76e4b348dbf5",
       "owner": "core-integration"
     },
     {

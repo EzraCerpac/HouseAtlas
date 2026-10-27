@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+#MISE description="Build the backend incrementally; does not start it"
+set -eu
+exec node "$(dirname "$0")/../../tools/cargo-modes/run.mjs" dev "$@"

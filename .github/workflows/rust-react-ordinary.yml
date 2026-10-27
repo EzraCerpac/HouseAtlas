@@ -72,6 +72,17 @@ jobs:
           image: ${{ matrix.os }}
           rust: 'true'
           target-cache: source
+      - name: Prepare Cargo timing diagnostics
+        if: steps.lane.outputs.run == 'true'
+        continue-on-error: true
+        env:
+          TIMING_REGISTRY_HIT: ${{ steps.setup.outputs.registry-hit }}
+          TIMING_REGISTRY_RESTORED: ${{ steps.setup.outputs.registry-restored }}
+          TIMING_TARGET_HIT: ${{ steps.setup.outputs.target-hit }}
+          TIMING_TARGET_RESTORED: ${{ steps.setup.outputs.target-restored }}
+        run: |
+          printf 'HOUSEATLAS_CARGO_TIMINGS_DIR=%s/houseatlas-cargo-timings\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          node tools/ci/cargo-timings.mjs init "$RUNNER_TEMP/houseatlas-cargo-timings"
       - name: Verify source allowlist and unconfigured template
         if: steps.lane.outputs.run == 'true'
         run: npm run verify:publication
@@ -93,12 +104,25 @@ jobs:
         run: node frontend/lantern-tests/healthy-read.mjs
       - name: Genuine native MCP stock get and audit page after fresh circuit commit
         if: steps.lane.outputs.run == 'true' && (runner.os == 'Linux')
-        run: cargo run --locked -p houseatlas-backend --example healthy-agent-stock
+        run: node tools/ci/cargo-timings.mjs run --locked -p houseatlas-backend --example healthy-agent-stock
       - name: Real root Network router TLS inventory GET and archive reopen
         if: steps.lane.outputs.run == 'true' && (runner.os == 'Linux')
         run: |
-          cargo build --locked -p houseatlas-backend --example healthy-network-root-router
+          node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router
           python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"
+      - name: Summarize Cargo timing diagnostics
+        if: steps.lane.outputs.run == 'true' && (always())
+        continue-on-error: true
+        run: node tools/ci/cargo-timings.mjs summary
+      - name: Retain Cargo timing diagnostics
+        if: steps.lane.outputs.run == 'true' && (always())
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cargo-timings-source-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/houseatlas-cargo-timings
+          if-no-files-found: warn
+          retention-days: 14
       - name: Save caches from verified main
         if: steps.lane.outputs.run == 'true'
         uses: ./.github/actions/ordinary-save
@@ -156,13 +180,37 @@ jobs:
           image: ubuntu-24.04
           rust: 'true'
           target-cache: unit-tests
+      - name: Prepare Cargo timing diagnostics
+        if: steps.lane.outputs.run == 'true'
+        continue-on-error: true
+        env:
+          TIMING_REGISTRY_HIT: ${{ steps.setup.outputs.registry-hit }}
+          TIMING_REGISTRY_RESTORED: ${{ steps.setup.outputs.registry-restored }}
+          TIMING_TARGET_HIT: ${{ steps.setup.outputs.target-hit }}
+          TIMING_TARGET_RESTORED: ${{ steps.setup.outputs.target-restored }}
+        run: |
+          printf 'HOUSEATLAS_CARGO_TIMINGS_DIR=%s/houseatlas-cargo-timings\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          node tools/ci/cargo-timings.mjs init "$RUNNER_TEMP/houseatlas-cargo-timings"
       - name: Backend library unit tests (default set)
         if: steps.lane.outputs.run == 'true'
         run: >-
-          cargo test --locked -p houseatlas-backend --lib --
+          node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib --
           --skip http::quantity_http_healthy::
           --skip providers::homebox::write::stock::quantity_flow_healthy::
           --skip providers::homebox::write::stock::quantity_installation_healthy::
+      - name: Summarize Cargo timing diagnostics
+        if: steps.lane.outputs.run == 'true' && (always())
+        continue-on-error: true
+        run: node tools/ci/cargo-timings.mjs summary
+      - name: Retain Cargo timing diagnostics
+        if: steps.lane.outputs.run == 'true' && (always())
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cargo-timings-unit-tests-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/houseatlas-cargo-timings
+          if-no-files-found: warn
+          retention-days: 14
       - name: Save caches from verified main
         if: steps.lane.outputs.run == 'true'
         uses: ./.github/actions/ordinary-save
@@ -256,10 +304,21 @@ jobs:
           image: ubuntu-24.04
           rust: 'true'
           target-cache: loopback
+      - name: Prepare Cargo timing diagnostics
+        if: steps.lane.outputs.run == 'true'
+        continue-on-error: true
+        env:
+          TIMING_REGISTRY_HIT: ${{ steps.setup.outputs.registry-hit }}
+          TIMING_REGISTRY_RESTORED: ${{ steps.setup.outputs.registry-restored }}
+          TIMING_TARGET_HIT: ${{ steps.setup.outputs.target-hit }}
+          TIMING_TARGET_RESTORED: ${{ steps.setup.outputs.target-restored }}
+        run: |
+          printf 'HOUSEATLAS_CARGO_TIMINGS_DIR=%s/houseatlas-cargo-timings\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          node tools/ci/cargo-timings.mjs init "$RUNNER_TEMP/houseatlas-cargo-timings"
       - name: Build the houseatlas binary and the production React app
         if: steps.lane.outputs.run == 'true'
         run: |
-          cargo build --locked -p houseatlas-backend --bin houseatlas
+          node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas
           npm --prefix frontend run build
           printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"
       - name: Real disposable loopback TLS browser read slice
@@ -307,6 +366,19 @@ jobs:
       - name: Real aggregate stock operation events and read-only Changes view
         if: steps.lane.outputs.run == 'true' && (matrix.shard == 3)
         run: node tools/rust-integration/healthy-operation-events-loopback.mjs
+      - name: Summarize Cargo timing diagnostics
+        if: steps.lane.outputs.run == 'true' && (always())
+        continue-on-error: true
+        run: node tools/ci/cargo-timings.mjs summary
+      - name: Retain Cargo timing diagnostics
+        if: steps.lane.outputs.run == 'true' && (always())
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cargo-timings-loopback-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/houseatlas-cargo-timings
+          if-no-files-found: warn
+          retention-days: 14
       - name: Save caches from verified main
         if: steps.lane.outputs.run == 'true' && (matrix.shard == 1)
         uses: ./.github/actions/ordinary-save

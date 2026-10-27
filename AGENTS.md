@@ -62,6 +62,15 @@ Node and locked Ajv: six unchanged fictional proposals, fixture boundary
 arithmetic, exact decimal grammar, metric-length scalar fields and documentary
 wall endpoint syntax/order. These read-only local checks establish no native
 measurement storage, source identity, physical accuracy or linear route.
+The ordinary-core job also runs the sixteen explicit cases in
+`tools/perf/runtime-profile/test_runtime_profile.py` with the runner's Python
+>=3.11 (stdlib only). They use generated profiles, disposable folders and owned
+synthetic child processes to check configuration refusal, sample decoding,
+receipts, deadlines and process-group cleanup. Fake build/profiler commands
+exercise cleanup only; no Cargo build, real profiler, network workload or
+runtime performance collection runs. These checks establish no profiling
+availability or benchmark result.
+
 In `.github/workflows/rust-react-ordinary.yml` that includes
 the named Lantern healthy read; the generated Electrical Library `healthy`
 case (existing production reader/projection and fictional original bytes,
