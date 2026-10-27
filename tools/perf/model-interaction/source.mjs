@@ -13,8 +13,12 @@ export async function modules(root, observed) {
   const embeddedPath = base + 'embedded-png-material.ts';
   const embeddedUrl = existsSync(resolve(root, embeddedPath))
     ? await compile(embeddedPath, { './glb-preflight': preflightUrl }) : null;
+  // Meshopt expansion, likewise mapped where the source has it; generated inputs are plain.
+  const meshoptPath = base + 'glb-meshopt.ts';
+  const meshoptUrl = existsSync(resolve(root, meshoptPath)) ? await compile(meshoptPath, { './glb-preflight': preflightUrl,
+    'three/examples/jsm/libs/meshopt_decoder.module.js': dependencyUrl('three/examples/jsm/libs/meshopt_decoder.module.js') }) : null;
   const standardUrl = await compile(base + 'standard-glb.ts', { './geometry': geometryUrl, './glb-preflight': preflightUrl,
-    ...(embeddedUrl ? { './embedded-png-material': embeddedUrl } : {}),
+    ...(embeddedUrl ? { './embedded-png-material': embeddedUrl } : {}), ...(meshoptUrl ? { './glb-meshopt': meshoptUrl } : {}),
     three: threeUrl, 'three/examples/jsm/loaders/GLTFLoader.js': dependencyUrl('three/examples/jsm/loaders/GLTFLoader.js') });
   const manifestUrl = await compile(base + 'browser-manifest.ts');
   const navigatorUrl = await compile(base + 'ModelNavigator.tsx', { react: dependencyUrl('react'),

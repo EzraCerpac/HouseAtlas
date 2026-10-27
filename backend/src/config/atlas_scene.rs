@@ -419,6 +419,14 @@ fn validate(value: &Value, glb: &[u8], tier: Tier) -> Result<(), String> {
             need(o.geometry_basis.source_ref.is_some() && o.geometry_basis.note.is_some())?;
         }
     }
+    // A meshopt-compressed file is checked as its decoded plain GLB; the pins
+    // above stay on the served bytes.
+    let limits = match tier {
+        Tier::Overview => super::atlas_scene_glb::OVERVIEW,
+        Tier::Detail => super::atlas_scene_glb::DETAIL,
+    };
+    let expanded = super::atlas_scene_meshopt::expand(glb, limits.buffer_bytes())?;
+    let glb = expanded.as_deref().unwrap_or(glb);
     let json_len = u32::from_le_bytes(
         glb.get(12..16)
             .ok_or_else(invalid)?
@@ -436,13 +444,7 @@ fn validate(value: &Value, glb: &[u8], tier: Tier) -> Result<(), String> {
     let mut work = footprint::Work::default();
     let mut supports: BTreeMap<&str, footprint::Support> = BTreeMap::new();
     let mut footprints: BTreeMap<&str, Vec<footprint::Polygon>> = BTreeMap::new();
-    let mut geometry_work = super::atlas_scene_glb::Work::new(
-        materials,
-        match tier {
-            Tier::Overview => super::atlas_scene_glb::OVERVIEW,
-            Tier::Detail => super::atlas_scene_glb::DETAIL,
-        },
-    );
+    let mut geometry_work = super::atlas_scene_glb::Work::new(materials, limits);
     let mut selectors = BTreeSet::new();
     let mut picks = BTreeSet::new();
     for m in &p.mesh_bindings {
