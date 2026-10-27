@@ -13,6 +13,7 @@ import { denoise } from 'three/addons/tsl/display/DenoiseNode.js';
 import { occlusionHistory } from './occlusion-history';
 import type { PreparedMesh, Projection } from './geometry';
 import type { EmbeddedTexture } from './embedded-png-material';
+import { GLOW_HEIGHT, GLOW_SPREAD, LUMA } from './sky-light';
 import { GLASS_CLEAR, GLASS_FROSTED, MAX_LAMPS, MeshPass, STATE_FLOATS, STATE_TEXELS, writeAppearance, type AppearanceInput } from './mesh-appearance';
 
 /** Meshes per state-table row: one row is exactly 128 × STATE_TEXELS RGBA texels. */
@@ -73,9 +74,8 @@ const GLOW_WHITEN = .6, POOL_RADIUS = 1.2, POOL_REACH = 4;
 /** An aimed lamp's beam instead: full inside BEAM_CORE (a cosine, about 20°) of its
  * aim, gone past BEAM_EDGE (about 42°), and carried further. */
 const BEAM_CORE = .94, BEAM_EDGE = .74, BEAM_RADIUS = 3, BEAM_REACH = 10;
-/** Glass reflects a sky for the hour, linear colours: overhead, at the horizon and the
- * ground below it, and the sun's glint, sharp on clear glass and spread on frosted. */
-const GLASS_ZENITH = [.3, .48, .78] as const, GLASS_HORIZON = [.78, .84, .9] as const, GLASS_GROUND = [.2, .2, .19] as const;
+/** Glass reflects the hour's sky dome (sky-light.ts) and the sun's glint, sharp on clear
+ * glass and spread on frosted. */
 const GLINT_SHARP = 600, GLINT_SPREAD = 24, GLINT_GAIN = 3;
 /** Glass seen near head-on still mirrors this much of the sky, as a window does whose
  * room is darker than the day outside; and soft diagonal streaks, this strong and
@@ -154,6 +154,8 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       lamps: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
       lampAims: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
       lampColors: uniformArray(Array.from({ length: MAX_LAMPS }, () => new Vector4()), 'vec4'),
+      // The hour's sky in one array: nine irradiance terms, then zenith, horizon, ground, glow and its direction.
+      sky: uniformArray(Array.from({ length: 14 }, () => new Vector4()), 'vec4'),
     };
     const toUnitDepth = renderer.coordinateSystem === WebGPUCoordinateSystem;
     const meshId = attribute('meshIndex', 'float');
@@ -200,8 +202,23 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const encode = (c: V3): V3 => mix(c.mul(12.92), pow(max(c, vec3(0)), vec3(1 / 2.4)).mul(1.055).sub(.055), step(vec3(.0031308), c));
     const display = (c: V3, useSource: F): V3 => select(useSource.greaterThan(.5), encode(c), c);
     const facing = (n: V3): V3 => select(u.twoSided.greaterThan(.5).and(frontFacing.not()), n.negate(), n);
-    /** Sky light: faces looking up get more of the ambient term than faces looking down. */
-    const sky = (n: V3): F => mix(float(.7), float(1.1), n.y.mul(.5).add(.5));
+    /** The sky's light on a face by the way it faces, from nine spherical-harmonic terms set per
+     * hour: brighter looking up, toward the low sun warmer, away from it bluer. Its luminance
+     * sets how lit the face reads and its colour, grey on a wall square to the sun's side, tints the hour's light. */
+    const skyTerm = (k: number): V3 => (u.sky.element(k) as unknown as V4).xyz;
+    // One variable per normal node, so lit() and graded() share the nine terms in a pixel.
+    const irradiances = new WeakMap<V3, V3>();
+    const irradiance = (n: V3): V3 => {
+      let e = irradiances.get(n);
+      if (!e) { e = evaluate(n).toVar(); irradiances.set(n, e); }
+      return e;
+    };
+    const evaluate = (n: V3): V3 => skyTerm(0).add(skyTerm(1).mul(n.y)).add(skyTerm(2).mul(n.z)).add(skyTerm(3).mul(n.x))
+      .add(skyTerm(4).mul(n.x.mul(n.y))).add(skyTerm(5).mul(n.y.mul(n.z))).add(skyTerm(6).mul(n.z.mul(n.z).mul(3).sub(1)))
+      .add(skyTerm(7).mul(n.x.mul(n.z))).add(skyTerm(8).mul(n.x.mul(n.x).sub(n.y.mul(n.y))));
+    const sky = (n: V3): F => dot(irradiance(n), vec3(LUMA[0], LUMA[1], LUMA[2]));
+    /** The sky's colour on a face at unit luminance. */
+    const skyColor = (n: V3): V3 => { const e = irradiance(n); return e.div(max(dot(e, vec3(LUMA[0], LUMA[1], LUMA[2])), .05)); };
     const night = u.night.greaterThan(.5);
     // By day the lit, lifted point is tested; at night the unlifted point a reach out along the face and a headroom up.
     const lifted = varying(positionGeometry.add(vec3(0, read(meshId, 4).w, 0)));
@@ -229,7 +246,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
      * tints held near full strength. */
     const graded = (c: V3, n: V3, s7: V4): V3 => {
       const sun = float(1).sub(u.ambient).mul(u.direct).mul(max(dot(n, u.light), 0)).mul(sunlit).mul(SUN_TINT_GAIN);
-      const light = mix(mix(u.tint, u.sunTint, clamp(sun, 0, 1)), u.lampTint, u.lamp.mul(indoor));
+      const light = mix(mix(u.tint.mul(skyColor(n)), u.sunTint, clamp(sun, 0, 1)), u.lampTint, u.lamp.mul(indoor));
       return clamp(c.mul(mix(light, vec3(1), s7.y.mul(KEEP_TONE))), 0, 1);
     };
 
@@ -348,7 +365,10 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       const streak = smoothstep(.55, 1, along.sin()).mul(STREAK);
       const fresnel = float(GLASS_SHEEN).add(streak).add(float(1 - GLASS_SHEEN).mul(pow(float(1).sub(head), 5))).mul(mix(float(1), float(.4), frost));
       const R = N.mul(head.mul(2)).sub(V);
-      const sky = mix(mix(vec3(...GLASS_GROUND), vec3(...GLASS_HORIZON), smoothstep(-.25, 0, R.y)), vec3(...GLASS_ZENITH), smoothstep(0, .7, R.y));
+      // The hour's dome, with its glow low toward the sun.
+      const across = max(length(vec2(R.x, R.z)), .001);
+      const toward = pow(max(dot(vec2(R.x, R.z).div(across), vec2(skyTerm(13).x, skyTerm(13).z)), 0), GLOW_SPREAD).mul(pow(float(1).sub(clamp(R.y, 0, 1)), GLOW_HEIGHT));
+      const sky = mix(mix(skyTerm(11), skyTerm(10), smoothstep(-.25, 0, R.y)), skyTerm(9), smoothstep(0, .7, R.y)).add(skyTerm(12).mul(toward).mul(smoothstep(-.05, 0, R.y)));
       const glint = pow(max(dot(R, normalize(u.light)), 0), mix(float(GLINT_SHARP), float(GLINT_SPREAD), frost))
         .mul(u.direct).mul(sunlit).mul(GLINT_GAIN);
       const reflected = sky.mul(u.tint).mul(mix(float(.25), float(1), max(u.direct, float(1).sub(u.lamp)))).add(u.sunTint.mul(glint));
@@ -655,6 +675,9 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
           u.ghostAlpha.value = frame.ghostAlpha; u.ghost.value.set(...frame.ghostColor); u.ghostShade.value.set(...frame.ghostShade);
           u.direct.value = frame.direct; u.night.value = frame.night ? 1 : 0; u.lamp.value = frame.lamp; u.rooms.value = frame.rooms ? 1 : 0;
           u.tint.value.set(...frame.tint); u.sunTint.value.set(...frame.sunTint); u.lampTint.value.set(...frame.lampTint);
+          const { sky } = frame;
+          const dome = [sky.zenith, sky.horizon, sky.ground, sky.glow, sky.glowToward];
+          (u.sky.array as Vector4[]).forEach((slot, k) => slot.set(...(k < 9 ? sky.irradiance.slice(k * 3, k * 3 + 3) as [number, number, number] : dome[k - 9]!), 0));
           (u.lamps.array as Vector4[]).forEach((point, at) => { const lamp = frame.lamps[at];
             point.set(lamp?.at[0] ?? 0, lamp?.at[1] ?? 0, lamp?.at[2] ?? 0, lamp ? frame.lamp : 0); });
           (u.lampAims.array as Vector4[]).forEach((aim, at) => { const toward = frame.lamps[at]?.aim;
