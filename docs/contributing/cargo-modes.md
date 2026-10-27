@@ -66,3 +66,21 @@ not request handling. Separate clean-target, warm rebuild and cached no-op
 observations; no task cleans caches automatically. Runtime comparisons use
 identical synthetic workloads and report their own latency/throughput/error
 results. A profile definition alone establishes no performance improvement.
+
+## Wrapper regression check
+
+`node --test tools/cargo-modes/run.test.mjs` exercises the actual Node wrapper
+in disposable synthetic checkouts with a recording rustup stub. It checks all
+four mode mappings, exact argument forwarding and working directories, and
+rejects long overrides plus `-r` and `-m` (including short-option clusters) before
+spawning a child, even with `--help`. Attached package/feature values containing
+the letters r or m remain ordinary values. This check performs no Cargo compilation,
+tool installation or user/global configuration changes; it does not replace
+real mise discovery or real Cargo parser acceptance.
+
+The pinned Cargo 1.99.0 parser recognizes `-m` as `--manifest-path`,
+including attached values. The wrapper refuses it to preserve workspace
+selection. Cargo already rejects `--profile` combined with `-r`; refusing
+`-r` in the wrapper enforces the task interface rather than demonstrating a
+successful Cargo profile escape. Parser probes must omit `--help`, which can
+bypass argument errors.

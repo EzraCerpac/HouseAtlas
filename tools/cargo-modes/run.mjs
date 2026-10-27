@@ -18,6 +18,18 @@ const channel = readFileSync(new URL('rust-toolchain.toml', root), 'utf8')
   .match(/^channel\s*=\s*"(\d+\.\d+\.\d+)"\s*$/m)?.[1];
 assert(channel, 'Expected an exact Rust version in rust-toolchain.toml');
 
+function isModeOverride(arg) {
+  if (/^(--profile|--release|--manifest-path|--config)(=|$)/.test(arg)) return true;
+  if (!/^-[^-]/.test(arg)) return false;
+  // Cargo 1.99 accepts -r (release) and -m (manifest-path) in short
+  // clusters. Stop at value-taking options: -pcrate-rm/-Ffeature-rm are values.
+  for (const flag of arg.slice(1)) {
+    if (flag === 'r' || flag === 'm') return true;
+    if ('pjFZ'.includes(flag)) return false;
+  }
+  return false;
+}
+
 function run(command) {
   const result = spawnSync('rustup', ['run', channel, ...command], {
     cwd: fileURLToPath(root),
@@ -37,7 +49,7 @@ if (mode === 'diagnostic') {
 } else {
   // Keep the selected mode/workspace fixed; target, feature, offline and timing
   // options pass to Cargo unchanged, without a shell.
-  assert(!args.some(arg => /^(--profile|--release|--manifest-path|--config)(=|$)/.test(arg)),
+  assert(!args.some(isModeOverride),
     'The task selects its profile and workspace; use Cargo directly for overrides');
   const [command, profile] = modes[mode];
   run(['cargo', command, '--locked', '-p', 'houseatlas-backend', '--profile', profile, ...args]);

@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "6413ba0b5cd890c0200c7cd69e798d59e2bba648ae201faeda618a11756aadfc",
+  "sourceDigestSha256": "ff16fed46f1801db3beebfb3c5d9a223a19e0300f8ece715d2b995e12684e9a5",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -42,8 +42,8 @@
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
-      "bytes": 6055,
-      "sha256": "e012b3f1f700870fb1eb5a9c3ca00acb486093b5578d1c40300c1cd02c3e389a",
+      "bytes": 6256,
+      "sha256": "12ac601041d5ac4b23ae0f0323431d1718339e027964de80afb74033d83a1481",
       "owner": "core-integration"
     },
     {
@@ -154,8 +154,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 12098,
-      "sha256": "e1800bd9b9db2c56f7af98f814aa54ed1bd4aedce47af82e379f49a3b9c53a63",
+      "bytes": 12661,
+      "sha256": "e06555503d8f969614542dc09bc4a49d50e7f41b6a9c3e2bcc75ca7f2c8cab4e",
       "owner": "core-integration"
     },
     {
@@ -6342,8 +6342,8 @@
     {
       "path": "docs/contributing/cargo-modes.md",
       "mode": "100644",
-      "bytes": 4218,
-      "sha256": "3f8cb66651142ee4f6a99f0da8a522022503a073258088d80fa408b47694be36",
+      "bytes": 5251,
+      "sha256": "f7bf72f9288eec9e28601080a9cc3c9df41557e05d8fa248708099670e0690f2",
       "owner": "core-integration"
     },
     {
@@ -6370,8 +6370,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 210480,
-      "sha256": "20ef4aa41421a408248d10d02953dac887f738f0bc1c40c6d5737901071f4b25",
+      "bytes": 211460,
+      "sha256": "4870bf8aba745573853fbf5f01566482c32c2dc955c9b6c83a423e5d5468feef",
       "owner": "core-integration"
     },
     {
@@ -11690,8 +11690,15 @@
     {
       "path": "tools/cargo-modes/run.mjs",
       "mode": "100644",
-      "bytes": 1956,
-      "sha256": "aa2e5e59bb8c20196e0d91a55297c277f9da8049fb19e255fa573ae8e79b49f7",
+      "bytes": 2362,
+      "sha256": "fafb1624c5200e11939ea69b1f9ebf04c3a43e19c756f859dc037ad595aca99b",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/cargo-modes/run.test.mjs",
+      "mode": "100644",
+      "bytes": 3543,
+      "sha256": "24f88a1fa705f2e11d6a6d8219abb90bff28cca4e3dd0048ff6bbd9c8057ab4f",
       "owner": "core-integration"
     },
     {
