@@ -21,6 +21,25 @@ a 96 MiB ceiling, 30-day expiry and halving on a quota failure. Sign-out clears
 it together with the scan cache. No session, token, header, native document or
 other API response is stored.
 
+### Full detail model
+
+The detail GLB (up to 256 MiB) is outside that ceiling, so a device on Full
+keeps it in its own Cache Storage cache, `houseatlas-atlas-detail-v1`
+(`frontend/src/lantern/unified-atlas/detail-store.ts`):
+
+- One copy at most, named by the actor and home it was read for and the
+  SHA-256 the scene pins. Keeping a new one first drops every other, so a new
+  release replaces the old copy.
+- It is written only after a download passed every check, and only when the
+  origin's quota (`navigator.storage.estimate()`) leaves 128 MiB free after
+  it, so it never crowds out this cache or the offline shell. The first copy
+  asks `navigator.storage.persist()`.
+- `readUnifiedAtlasDetail` uses it only when a fresh scene pins that digest,
+  and hashes it again in the digest worker first; a copy that misses is
+  dropped and the detail is downloaded.
+- Light never reads or writes it. Settings → Model quality shows the stored size
+  with **Remove**; sign-out clears it with the rest.
+
 ## How a start uses it
 
 1. As soon as the overview selection exists, `stored()` reads the kept scene for
