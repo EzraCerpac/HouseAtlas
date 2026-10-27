@@ -517,8 +517,10 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     solid.vertexNode = vertex(s5 => s5.x.greaterThan(MeshPass.None).and(s5.x.lessThan(MeshPass.Glass)));
     solid.outputNode = Fn(() => {
       const s2 = read(vId, 2), s3 = read(vId, 3);
-      Discard(s2.w.greaterThan(.5).and(vY.greaterThan(s3.w)).or(fade.greaterThanEqual(254 / 255)));
-      return vec4(normalize(cameraViewMatrix.mul(vec4(facing(normalize(vNormal)), 0)).xyz), 1);
+      Discard(s2.w.greaterThan(.5).and(vY.greaterThan(s3.w)));
+      // Alpha: how much contact shading the face takes, none once it has faded into the stage.
+      // The fade follows the view, so it never removes a face here: the sun's map stays one view.
+      return vec4(normalize(cameraViewMatrix.mul(vec4(facing(normalize(vNormal)), 0)).xyz), float(1).sub(fade));
     })();
     owned.push(shared.reference, shared.ghost, shared.glass);
     const layers: { readonly pass: MeshPass | 'ghost'; readonly mesh: Mesh }[] = [];
@@ -619,7 +621,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const history = occlusionHistory(occlusion.getTextureNode(), OCCLUSION_FRAMES);
     const smooth = denoise(history.getTextureNode(), depth, normal, solidCamera) as unknown as V4;
     const strength = uniform(0), color = colorPass.getTextureNode('output');
-    const shade = select(depth.r.lessThan(1), mix(float(1), smooth.r, strength.mul(OCCLUSION_STRENGTH)), 1);
+    const shade = select(depth.r.lessThan(1), mix(float(1), smooth.r, strength.mul(OCCLUSION_STRENGTH).mul(normal.a)), 1);
     const pipeline = new RenderPipeline(renderer, vec4(color.rgb.mul(shade), color.a));
     pipeline.outputColorTransform = false;
     // Contact shading depends on the solid house and the camera, never on the hour: a new
@@ -629,7 +631,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const keptDepth = texture(geometryPass.renderTarget.depthTexture!), keptNormal = texture(geometryPass.renderTarget.texture);
     const kept = texture(history.getTextureNode().value);
     const keptSmooth = denoise(kept, keptDepth, keptNormal, solidCamera) as unknown as V4;
-    const keptShade = select(keptDepth.r.lessThan(1), mix(float(1), keptSmooth.r, strength.mul(OCCLUSION_STRENGTH)), 1);
+    const keptShade = select(keptDepth.r.lessThan(1), mix(float(1), keptSmooth.r, strength.mul(OCCLUSION_STRENGTH).mul(keptNormal.a)), 1);
     const relit = new RenderPipeline(renderer, vec4(color.rgb.mul(keptShade), color.a));
     relit.outputColorTransform = false;
     owned.push(geometryPass, colorPass, occlusion, history, pipeline, relit);
