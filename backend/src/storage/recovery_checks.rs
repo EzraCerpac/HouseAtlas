@@ -126,6 +126,7 @@ enum CoreProfile {
     Presence,
     Geodata,
     GeodataFull,
+    GeodataMeasurements,
 }
 fn validate_core_profile<C: Contract>(
     db: &Connection,
@@ -140,6 +141,9 @@ fn validate_core_profile<C: Contract>(
         CoreProfile::Presence => migrations::validate_presence(db)?,
         CoreProfile::Geodata => super::super::super::geodata::validate_catalog(db)?,
         CoreProfile::GeodataFull => super::super::super::geodata_full::validate_catalog(db)?,
+        CoreProfile::GeodataMeasurements => {
+            super::super::measurement_profile::validate_catalog(db)?
+        }
     }
     let mut integrity_rows = 0;
     each(db, "PRAGMA main.integrity_check", check, |row, _| {
@@ -253,6 +257,9 @@ fn validate_core_profile<C: Contract>(
     check()?;
     Ok(RecoveryImage {
         contract_version: match profile {
+            CoreProfile::GeodataMeasurements => {
+                super::super::measurement_profile::MEASUREMENT_CONTRACT
+            }
             CoreProfile::Geodata | CoreProfile::GeodataFull => "2.0.0",
             _ => CONTRACT_VERSION,
         }
@@ -262,12 +269,18 @@ fn validate_core_profile<C: Contract>(
             CoreProfile::Base | CoreProfile::Activity => DATABASE_LINEAGE.into(),
             CoreProfile::Geodata => "houseatlas-rust-storage/geodata/2".into(),
             CoreProfile::GeodataFull => super::super::super::geodata_full::LINEAGE.into(),
+            CoreProfile::GeodataMeasurements => {
+                super::super::measurement_profile::MEASUREMENT_LINEAGE.into()
+            }
         },
         database_schema: match profile {
             CoreProfile::Base => DATABASE_VERSION,
             CoreProfile::Activity => STOCK_ACTIVITY_DATABASE_VERSION,
             CoreProfile::Presence => presence_profile_definition().version,
             CoreProfile::Geodata | CoreProfile::GeodataFull => 1,
+            CoreProfile::GeodataMeasurements => {
+                super::super::measurement_profile::MEASUREMENT_CATALOG_VERSION
+            }
         },
         assets,
     })
@@ -788,6 +801,39 @@ pub(super) fn validate_geodata_full_core<
     check: Check<'_>,
 ) -> Result<RecoveryImage> {
     let image = validate_core_profile(db, contract, check, CoreProfile::GeodataFull)?;
+    super::super::super::stock_recovery::validate(
+        db,
+        contract,
+        peers.stock,
+        peers.evidence,
+        check,
+    )?;
+    validate_media_policies(&image, peers.evidence, check)?;
+    super::super::super::queue::validate_recovery_queues(
+        db,
+        peers.queues,
+        peers.discovery,
+        peers.stock,
+        peers.evidence,
+        check,
+    )?;
+    Ok(image)
+}
+
+/// The outer measurement catalog changes; original native/Stock/queue/media
+/// qualification remains mandatory and uses the original supplied peers.
+pub(super) fn validate_measurement_core<
+    C: Contract,
+    S: crate::domain::stock::StockContractPort,
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+>(
+    db: &Connection,
+    contract: &C,
+    peers: &super::RecoveryValidationPeers<'_, S, D, E>,
+    check: Check<'_>,
+) -> Result<RecoveryImage> {
+    let image = validate_core_profile(db, contract, check, CoreProfile::GeodataMeasurements)?;
     super::super::super::stock_recovery::validate(
         db,
         contract,

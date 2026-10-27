@@ -1,6 +1,7 @@
 //! Explicit disposable loopback settings; no deployment settings are inferred.
 pub mod ai_account;
 pub mod geodata_profile;
+pub mod measurement_profile;
 pub mod model_overview;
 pub mod providers {
     pub mod homebox;

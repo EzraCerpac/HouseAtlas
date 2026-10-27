@@ -10,6 +10,7 @@ pub mod domain;
 pub mod http;
 pub mod jobs;
 pub mod lifecycle;
+pub mod measurement_assertions;
 pub mod media;
 pub mod storage;
 pub mod transports {

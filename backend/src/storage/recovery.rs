@@ -821,6 +821,19 @@ pub(crate) fn validate_geodata_full_core<
 ) -> Result<RecoveryImage> {
     checks::validate_geodata_full_core(db, contract, peers, check)
 }
+pub(crate) fn validate_measurement_core<
+    C: Contract,
+    S: StockContractPort,
+    D: QueueDiscovery,
+    E: QueueRecoveryEvidence,
+>(
+    db: &Connection,
+    contract: &C,
+    peers: &RecoveryValidationPeers<'_, S, D, E>,
+    check: &mut dyn FnMut() -> Result<()>,
+) -> Result<RecoveryImage> {
+    checks::validate_measurement_core(db, contract, peers, check)
+}
 pub(crate) fn validate_v5_full_peers<
     C: Contract,
     S: StockContractPort,

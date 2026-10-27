@@ -17,6 +17,7 @@ mod capture_claim;
 mod geodata_documents;
 mod geodata_original;
 mod intake;
+mod measurement_assertions;
 mod media;
 mod model_overview;
 mod mutations;
@@ -115,6 +116,7 @@ pub struct Host {
     atlas_scene: Option<Arc<crate::config::atlas_scene::ServerAtlasSceneSelection>>,
     atlas_room_links: Option<Arc<crate::config::atlas_room_links::ServerAtlasRoomLinksSelection>>,
     full_geodata_identity: Option<crate::storage::FullGeodataIdentity>,
+    measurements: Option<Arc<crate::storage::MeasurementBinding>>,
     geodata_dataset: Option<Arc<Mutex<crate::storage::geodata::GeodataStore>>>,
     loopback_local: bool,
     gateway: Option<Arc<crate::app::trusted_gateway::GatewaySocket>>,
@@ -141,6 +143,7 @@ impl Host {
             atlas_scene: None,
             atlas_room_links: None,
             full_geodata_identity: None,
+            measurements: None,
             geodata_dataset: None,
             loopback_local: false,
             gateway: None,
@@ -205,6 +208,32 @@ impl Host {
         self.atlas_scene = Some(Arc::new(selection));
         Ok(self)
     }
+
+    /// Preserve the SAME publication owner allocations retained by the concrete
+    /// measurement authority. This method grants no native/source permission.
+    pub fn with_measurement_publication_owners(
+        mut self,
+        overview: Arc<crate::config::model_overview::ServerModelOverviewSelection>,
+        scene: Arc<crate::config::atlas_scene::ServerAtlasSceneSelection>,
+    ) -> crate::storage::Result<Self> {
+        if self.measurements.is_none()
+            || self.model_overview.is_some()
+            || self.atlas_scene.is_some()
+            || !self.mcp_scopes.iter().any(|scope| overview.matches(scope))
+        {
+            return Err(crate::storage::Error::new(
+                "identity-conflict",
+                "Original measurement publication owners required",
+            ));
+        }
+        scene.verify(&overview).map_err(|_| {
+            crate::storage::Error::new("identity-conflict", "Measurement publication changed")
+        })?;
+        self.model_overview = Some(overview);
+        self.atlas_scene = Some(scene);
+        self.atlas_room_links = None;
+        Ok(self)
+    }
     /// Independent reviewed documentary links; native qualification is separate.
     pub fn with_atlas_room_links(
         mut self,
@@ -250,6 +279,36 @@ impl Host {
         self.full_geodata_identity = Some(store.full_geodata_identity().ok_or(
             crate::storage::Error::new("schema-incompatible", "Full profile not selected"),
         )?);
+        drop(store);
+        drop(core);
+        Ok(self)
+    }
+    /// Explicit source composition only; never selected by default or config.
+    /// Requires the strictly opened measurement Store and its original peers.
+    pub fn with_measurements(
+        mut self,
+        binding: crate::storage::MeasurementBinding,
+    ) -> crate::storage::Result<Self> {
+        let core = self.core.lock().map_err(|_| {
+            crate::storage::Error::new("storage-unavailable", "Native core unavailable")
+        })?;
+        let store = core.store.lock().map_err(|_| {
+            crate::storage::Error::new("storage-unavailable", "Native store unavailable")
+        })?;
+        if self.geodata_dataset.is_some()
+            || !binding.belongs_to(&core.access, &core.vault)
+            || !store.measurement_binding_matches(&binding)
+            || !Arc::ptr_eq(&store.configured_authorization().0, &core.access)
+        {
+            return Err(crate::storage::Error::new(
+                "identity-conflict",
+                "Original measurement profile owners required",
+            ));
+        }
+        self.full_geodata_identity = Some(store.full_geodata_identity().ok_or(
+            crate::storage::Error::new("schema-incompatible", "Full profile not selected"),
+        )?);
+        self.measurements = Some(Arc::new(binding));
         drop(store);
         drop(core);
         Ok(self)
@@ -589,6 +648,7 @@ async fn response_adapter(State(host): State<Host>, mut request: Request, next: 
         && !agents::is_stock_response(&response)
         && !agents::mcp_transport::is_mcp_response(&response)
         && !upload_outcomes::is_outcome_response(&response)
+        && !measurement_assertions::is_context_failure(&response)
     {
         let error = response
             .extensions()
@@ -1273,6 +1333,11 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/offline/v1/workspaces/{workspace_id}/homes/{home_id}/snapshots/{snapshot_id}/resources/{sha256}", get(offline_read_pack::resource).head(auth::session_head).fallback(auth::session_head));
     let base = if host.full_geodata_identity.is_some() {
         base.merge(geodata_documents::full_routes())
+    } else {
+        base
+    };
+    let base = if host.measurements.is_some() {
+        base.merge(measurement_assertions::routes())
     } else {
         base
     };
