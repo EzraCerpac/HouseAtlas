@@ -13,14 +13,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
-      HARNESS_SHA: 4bb08dfd255c32c385d496ae64705719d5d56e80
+      HARNESS_SHA: 8f41c7d71984beb382eb2105e4b0f035262a0d72
       BASE_SHA: ${{ github.event.pull_request.base.sha }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - name: Checkout the reviewed immutable harness without credentials
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: 4bb08dfd255c32c385d496ae64705719d5d56e80
+          ref: 8f41c7d71984beb382eb2105e4b0f035262a0d72
           path: harness
           fetch-depth: 1
           fetch-tags: false

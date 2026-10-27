@@ -13,7 +13,7 @@ it does not define a second measurement schema. A comparison must record the
 full base, head and harness source commits and the GitHub run/attempt. Use the
 same harness and fixture profile for both sources. Differences in harness,
 fixture, environment or runtime must be explicit skips, never inferred speedups.
-The immutable harness source is `4bb08dfd255c32c385d496ae64705719d5d56e80`.
+The immutable harness source is `8f41c7d71984beb382eb2105e4b0f035262a0d72`.
 The sole schema, owned by PR190, is `tools/perf/contract/run.schema.json`, SHA-256
 `642af28eacc14e6fdd7b9f7071979f07abc8dcb9a427773f5d74dab672b7056a`.
 
