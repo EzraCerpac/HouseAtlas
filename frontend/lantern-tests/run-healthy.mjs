@@ -21,6 +21,7 @@ const SOURCE = [
   node('canonical-ifc-viewer.test.mjs', '--healthy'),
   node('canonical-mesh-preparation.test.mjs'),
   node('electricity-overlay-read.mjs'),
+  node('electrical-library-read.mjs', '--case', 'healthy'),
   node('embedded-material-react.mjs'), node('exact-numeric-read.mjs'),
   node('ifc-glb-read.mjs'), node('load-numeric-source.mjs'),
   node('model-review-logic.test.mjs'), node('native-geometry-read.mjs'),

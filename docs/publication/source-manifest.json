@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "e54640f06f18cf6c475fc3e215ada2919321d784cd32afb8026163d62ec89b6b",
+  "sourceDigestSha256": "34ad57956c557aefc77005f07acf373d4cb413684227730558777206f0039a21",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -105,8 +105,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 7791,
-      "sha256": "9d90931301395ea2bc4994eebe3f7fae370b363c7a9ca43ed4c5f20b21175404",
+      "bytes": 7969,
+      "sha256": "5af12c705fbd3bdaa611a26c4fd31b0489304b7b0fc289eb31717b77432732a3",
       "owner": "core-integration"
     },
     {
@@ -6118,8 +6118,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 153849,
-      "sha256": "d91d611e73852fed62414b5cb143de8c8a23bb4fbef95ff9d2ca3f782571e97f",
+      "bytes": 154901,
+      "sha256": "a284f5ff8af04bcdabbcdba3e9c5b6a72b46280ef07f54a70a1b3a9caf5c4a4c",
       "owner": "core-integration"
     },
     {
@@ -7476,8 +7476,8 @@
     {
       "path": "frontend/lantern-tests/electrical-library-read.mjs",
       "mode": "100644",
-      "bytes": 12495,
-      "sha256": "b069d860a441ac3b4ea52ab6e58ea86ef347273d61f4f6b171142a89e4cd3e63",
+      "bytes": 12437,
+      "sha256": "58be664fdffd5178ce89c1e25d54532f96174c5bdf2e2f6ad031fa97b0d1994d",
       "owner": "web"
     },
     {
@@ -7959,8 +7959,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 4655,
-      "sha256": "033147dedd5806b974bc0efef0fbf5f499ee8a3db844e9447e91c239bbe5a7b4",
+      "bytes": 4715,
+      "sha256": "7937c0b505df66668dc4a4a031187f0eaf843b4a331810b9befd071eabea94e9",
       "owner": "web"
     },
     {
