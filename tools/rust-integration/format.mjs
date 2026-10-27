@@ -13,9 +13,13 @@ assert(process.env.RUSTFMT === undefined,
 const toolchain = readFileSync(new URL('rust-toolchain.toml', root), 'utf8');
 const channel = toolchain.match(/^channel\s*=\s*"(\d+\.\d+\.\d+)"\s*$/m)?.[1];
 assert(channel, 'Expected an exact Rust version in rust-toolchain.toml');
-const result = spawnSync('rustup', ['run', channel, 'cargo', 'fmt', '--all', ...flags], {
+// Bypass Cargo fmt aliases and an inherited metadata-helper executable.
+const formatterEnv = { ...process.env };
+delete formatterEnv.CARGO;
+const result = spawnSync('rustup', ['run', channel, 'cargo-fmt', '--all', ...flags], {
   cwd: fileURLToPath(root),
   stdio: 'inherit',
+  env: formatterEnv,
 });
 if (result.error) throw result.error;
 if (result.signal) throw new Error('Formatter interrupted by ' + result.signal);

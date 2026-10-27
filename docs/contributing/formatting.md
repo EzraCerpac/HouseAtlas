@@ -4,8 +4,11 @@ Run these repository tasks in saved cloud checkouts and Mac checkouts with
 mise, Node and the rustup-managed toolchain from `rust-toolchain.toml` available.
 Review `mise.toml` and `tools/rust-integration/format.mjs` before trusting the
 repository's mise configuration when prompted. The wrapper reads that existing
-Rust version pin and explicitly selects it with `rustup run`; mise does not
-declare another Rust version or install tools through these tasks.
+Rust version pin and invokes that toolchain's `cargo-fmt` directly through
+`rustup run`, bypassing `fmt` aliases in Cargo configuration or `CARGO_ALIAS_FMT`.
+It removes `CARGO` only from a copied child environment so the metadata helper
+does not select an inherited executable. mise declares no second Rust version
+and installs no tools through these tasks.
 Unset `RUSTFMT` before either task. The wrapper rejects this override, including
 an empty value, before starting rustup; it never changes your environment.
 

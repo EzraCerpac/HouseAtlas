@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "e8cc9487ecf3ae3f7eb7174c2d3c9e8b6da6e5cb28ba87f4e84edefbf3e24069",
+  "sourceDigestSha256": "4c895f059d2edfa4a955ef19e4f69f24d0d11326c5bfc6715f58b2fcaf2786be",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6301,8 +6301,8 @@
       "path": "docs/contributing/formatting.md",
       "mode": "100644",
       "owner": "core-integration",
-      "bytes": 2971,
-      "sha256": "2a5175151ecd61eda7f3ee4454d6b2ddf4a88caa6639c5b0ffc36c7faf7d736e"
+      "bytes": 3186,
+      "sha256": "e457035d43dab3ac9ca91ebfde9e490820564779c7493061c5cffbc707ce19b4"
     },
     {
       "path": "docs/contributing/verification.md",
@@ -12615,8 +12615,8 @@
       "path": "tools/rust-integration/format.mjs",
       "mode": "100644",
       "owner": "core-integration",
-      "bytes": 1113,
-      "sha256": "edae30879781fcc8b87ec007ce2b948eb8ecde996a552f3d1e77a58a5ab58be3"
+      "bytes": 1272,
+      "sha256": "9d811576ce90e5663863676b34250bb786df196729c3a5925a806aa6cc844d2b"
     },
     {
       "path": "tools/rust-integration/healthy-agent-host-loopback.mjs",
