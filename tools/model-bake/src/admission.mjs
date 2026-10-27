@@ -26,18 +26,26 @@ async function load() {
   const materialURL = await source('src/lantern/canonical-ifc/embedded-png-material.ts', { './glb-preflight': preflightURL });
   const material = await import(materialURL);
   const geometryURL = await source('src/lantern/canonical-ifc/geometry.ts');
+  const meshoptURL = await source('src/lantern/canonical-ifc/glb-meshopt.ts', { './glb-preflight': preflightURL,
+    'three/examples/jsm/libs/meshopt_decoder.module.js': new URL('node_modules/three/examples/jsm/libs/meshopt_decoder.module.js', FRONTEND).href });
+  const meshopt = await import(meshoptURL);
   const standard = await import(await source('src/lantern/canonical-ifc/standard-glb.ts', {
     three: new URL('node_modules/three/build/three.module.js', FRONTEND).href,
     'three/examples/jsm/loaders/GLTFLoader.js': new URL('node_modules/three/examples/jsm/loaders/GLTFLoader.js', FRONTEND).href,
-    './geometry': geometryURL, './glb-preflight': preflightURL, './embedded-png-material': materialURL,
+    './geometry': geometryURL, './glb-preflight': preflightURL, './embedded-png-material': materialURL, './glb-meshopt': meshoptURL,
   }));
   const scene = await import(await source('src/lantern/unified-atlas/scene.ts', {
     '../canonical-ifc/geometry': geometryURL, './types': await source('src/lantern/unified-atlas/types.ts'),
   }));
-  return { preflight, material, standard, scene };
+  return { preflight, material, meshopt, standard, scene };
 }
 
 let modules;
+/** The viewer's own expansion of a meshopt-compressed GLB to its plain profile. */
+export async function expandInViewer(glb, tier = 'overview') {
+  modules ??= await load();
+  return modules.meshopt.expandMeshoptGlb(glb, tier === 'detail' ? modules.preflight.DETAIL_GLB_LIMITS : modules.preflight.STANDARD_GLB_LIMITS);
+}
 /** Returns the admitted work, or throws the viewer's own refusal. `tier` is
  * 'overview' (what every device loads) or 'detail' (the Full tier). */
 export async function admitInViewer(glb, tier = 'overview') {
@@ -45,9 +53,12 @@ export async function admitInViewer(glb, tier = 'overview') {
   const { readGlbContainer, preflightGltf, STANDARD_GLB_LIMITS, DETAIL_GLB_LIMITS } = modules.preflight;
   const limits = tier === 'detail' ? DETAIL_GLB_LIMITS : STANDARD_GLB_LIMITS;
   if (glb.byteLength > limits.bytes) throw new Error(`The ${tier} is ${glb.byteLength} bytes; the viewer admits ${limits.bytes}`);
-  const container = readGlbContainer(glb, limits), admission = preflightGltf(container, limits);
+  // A compressed file is admitted as the viewer admits it: expanded first, every limit on the decoded bytes.
+  const started = performance.now(), plain = await modules.meshopt.expandMeshoptGlb(glb, limits), decodeMs = performance.now() - started;
+  const container = readGlbContainer(plain, limits), admission = preflightGltf(container, limits);
   const plan = modules.material.admitEmbeddedPngMaterials(container, admission, limits);
-  return { ...admission.work, preparedBytes: plan.preparedBytes, gpuBytes: plan.gpuBytes, limits };
+  return { ...admission.work, preparedBytes: plan.preparedBytes, gpuBytes: plan.gpuBytes, limits,
+    ...(plain === glb ? {} : { decodedBytes: plain.byteLength, decodeMs: Number(decodeMs.toFixed(1)) }) };
 }
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');

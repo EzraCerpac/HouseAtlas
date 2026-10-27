@@ -57,7 +57,9 @@ The same `frontend checks` job then runs the model bake tests
 generated masters to budget and run the viewer's own preflight, scene admission
 and selector binding on the results, including the generated unified Atlas
 publication densified and baked, and its unsimplified detail tier admitted under
-the Full limits and bound by the same companion:
+the Full limits and bound by the same companion, and both tiers meshopt
+compressed, expanded by the viewer's own decoder and refused when a stream or
+declared size falls outside the admitted subset:
 
 ```sh
 npm ci --prefix tools/model-bake

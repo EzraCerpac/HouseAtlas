@@ -1,6 +1,7 @@
 import type { ModelOverviewSelection } from '../src/lantern/source-models/overview-types';
 import { admitAtlasScene, ATLAS_LIMITS } from '../src/lantern/unified-atlas/scene';
 import { AtlasReadError, type AtlasReadFailure, type AtlasScene, type StoredAtlasRead, type UnifiedAtlasRead } from '../src/lantern/unified-atlas/types';
+import type { DetailStore } from '../src/lantern/unified-atlas/detail-store';
 import type { UnifiedAtlasCache } from './unified-atlas-cache';
 import { sha256OffThread } from './sha256-thread';
 
@@ -51,10 +52,12 @@ async function receive(response: Response, cap: number, expected: number | null,
 
 /** A local lookup slower than this is skipped in favour of the network. */
 export const CACHE_LOOKUP_MS = 3_000;
+/** The stored detail is up to 256 MiB; reading it locally still beats the download. */
+export const DETAIL_LOOKUP_MS = 15_000;
 /** A slow or failing local store never delays the network read for long. */
-function lookup<T>(pending: Promise<T | null>): Promise<T | null> {
+function lookup<T>(pending: Promise<T | null>, ms: number = CACHE_LOOKUP_MS): Promise<T | null> {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  return Promise.race([pending.catch(() => null), new Promise<null>(resolve => { timer = setTimeout(() => resolve(null), CACHE_LOOKUP_MS); })])
+  return Promise.race([pending.catch(() => null), new Promise<null>(resolve => { timer = setTimeout(() => resolve(null), ms); })])
     .finally(() => clearTimeout(timer));
 }
 
@@ -191,19 +194,34 @@ export async function readUnifiedAtlas(options: ReadOptions & {
 
 /** The publication's optional unsimplified detail GLB, for a device on Full
  * quality, read after `scene` (from a fresh `readUnifiedAtlas` of the same
- * selection) is on screen. One GET of the href that scene pins, with the
- * overview's transport, revision, length and digest checks. The digest runs
- * in a worker, so the Light model keeps drawing while 100+ MB are hashed. It
- * is not cached: at up to 256 MiB it is outside the persistent store's budget. */
-export async function readUnifiedAtlasDetail(options: ReadOptions & { readonly scene: AtlasScene }): Promise<Uint8Array<ArrayBuffer>> {
-  const { selection, scene } = options;
+ * selection) is on screen. With `store`, a copy kept on this device for the
+ * exact digest the scene pins stands in for the GET once it hashes to that
+ * digest; one that does not is dropped. Otherwise one GET of the href that
+ * scene pins, with the overview's transport, revision, length and digest
+ * checks, and the verified bytes are kept. Every digest runs in a worker, so
+ * the Light model keeps drawing while 100+ MB are hashed. */
+export async function readUnifiedAtlasDetail(options: ReadOptions & { readonly scene: AtlasScene; readonly store?: DetailStore | undefined })
+  : Promise<Uint8Array<ArrayBuffer>> {
+  const { selection, scene, store } = options;
   try {
     const { signal, guard, path, get } = connect(options, UNIFIED_ATLAS_READ_LIMITS.detailMs);
     need(scene.detail && scene.publication.publicationId === selection.publicationId, 'absent');
     const revision = scene.selection.revision;
     const href = `${path}/${selection.publicationId}/artifacts/model-detail?expectedSha256=${scene.detail.sha256}&expectedSelectionRevision=${encodeURIComponent(revision)}`;
     need(scene.detail.href === href, 'invalid');
-    return await receiveModel(await get(href, MODEL_MIME), scene.detail, revision, signal, guard,
+    const pin = scene.detail;
+    if (store) {
+      guard();
+      const stored = await lookup(store.read(pin.sha256, pin.bytes), DETAIL_LOOKUP_MS); guard();
+      if (stored && stored.byteLength === pin.bytes) {
+        const { bytes, digest } = await sha256OffThread(stored, signal); guard();
+        if (bytes.byteLength === pin.bytes && hex(digest) === pin.sha256) return bytes;
+        store.forget(pin.sha256);
+      }
+    }
+    const bytes = await receiveModel(await get(href, MODEL_MIME), pin, revision, signal, guard,
       { maxChunks: UNIFIED_ATLAS_READ_LIMITS.detailChunks, sha256: sha256OffThread });
+    store?.keep(pin.sha256, bytes);
+    return bytes;
   } catch (error) { outcome(error, options.signal); }
 }

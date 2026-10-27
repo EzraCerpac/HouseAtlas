@@ -75,6 +75,19 @@ export function primitiveNight(json: Record<string, unknown>, meshIndex: number 
   return LAMP_WORD.test(name) && emissiveFactor === undefined ? 'emitter' : 'glazing';
 }
 
+/** An emitter's colour: the hue of its core `emissiveFactor`, its brightest channel
+ * raised to 1, since the factor's strength is never read. Absent when the material
+ * states no glowing factor, as for a lamp known only by its name. */
+export function primitiveGlow(json: Record<string, unknown>, meshIndex: number | null, primitiveIndex: number | null): readonly [number, number, number] | undefined {
+  if (meshIndex === null || primitiveIndex === null || !Array.isArray(json.meshes) || !Array.isArray(json.materials)) return;
+  const materialIndex: unknown = json.meshes[meshIndex]?.primitives?.[primitiveIndex]?.material;
+  if (!Number.isInteger(materialIndex) || (materialIndex as number) < 0) return;
+  const factor: unknown = json.materials[materialIndex as number]?.emissiveFactor;
+  if (!Array.isArray(factor) || factor.length !== 3 || !factor.every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0)) return;
+  const peak = Math.max(...factor as number[]);
+  return peak > 0 ? Object.freeze(factor.map(value => value / peak)) as unknown as readonly [number, number, number] : undefined;
+}
+
 /** Source appearance never displaces an explicit selection, reference or
  * relation highlight. Other viewers opt out and keep their existing tones. */
 export function sourceMeshColor(mesh: Pick<PreparedMesh, 'sourceBaseColor' | 'occurrenceId'>, state: {
@@ -96,6 +109,8 @@ export interface MeshInput {
   readonly indices: Uint32Array;
   readonly sourceBaseColor?: SourceBaseColor;
   readonly sourceNight?: SourceNight;
+  /** Emitters only: the stated colour of their light. */
+  readonly sourceGlow?: readonly [number, number, number];
   /** Glazing only: the material's roughness, which frosts the pane. */
   readonly sourceRoughness?: number;
   readonly sourceMaterial?: EmbeddedMaterial;
@@ -114,6 +129,7 @@ export interface PreparedMesh {
   readonly bounds: Bounds;
   readonly sourceBaseColor?: SourceBaseColor;
   readonly sourceNight?: SourceNight;
+  readonly sourceGlow?: readonly [number, number, number];
   readonly sourceRoughness?: number;
   /** For an emitter whose glowing faces mostly face one way, that way: its beam. */
   readonly aim?: readonly [number, number, number];
@@ -167,6 +183,7 @@ export function prepareMeshes(meshes: readonly MeshInput[], binding: (mesh: Mesh
     return { meshKey: mesh.meshKey, floorId: mesh.floorId, occurrenceId: binding(mesh), vertices, triangles,
       ...(mesh.sourceBaseColor ? { sourceBaseColor: mesh.sourceBaseColor } : {}),
       ...(mesh.sourceNight ? { sourceNight: mesh.sourceNight } : {}), ...(aim ? { aim } : {}),
+      ...(mesh.sourceNight === 'emitter' && mesh.sourceGlow ? { sourceGlow: mesh.sourceGlow } : {}),
       ...(mesh.sourceRoughness !== undefined ? { sourceRoughness: mesh.sourceRoughness } : {}),
       ...(mesh.sourceMaterial && materialVertices ? { sourceMaterial: mesh.sourceMaterial, materialVertices } : {}),
       yRange: [min[1]!, max[1]!], bounds: { min: [min[0]!, min[1]!, min[2]!], max: [max[0]!, max[1]!, max[2]!] } };

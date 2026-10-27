@@ -28,8 +28,8 @@ async function sourceURL(relative, replacements = {}) {
 const suncalc = new URL('./node_modules/suncalc/index.js', frontend).href;
 const { daylightAt, modelDirection, resolveSunPlace, stageColors } = await import(await sourceURL('../src/lantern/unified-atlas/daylight.ts', { suncalc }));
 const geometryURL = await sourceURL('../src/lantern/canonical-ifc/geometry.ts');
-const { writeAppearance, STATE_FLOATS, MAX_LAMPS, MeshPass } = await import(await sourceURL('../src/lantern/canonical-ifc/mesh-appearance.ts', { './geometry': geometryURL }));
-const { prepareMeshes, primitiveNight, primitiveRoughness } = await import(geometryURL);
+const { writeAppearance, STATE_FLOATS, MAX_LAMPS, LAMP_COLOR, MeshPass } = await import(await sourceURL('../src/lantern/canonical-ifc/mesh-appearance.ts', { './geometry': geometryURL }));
+const { prepareMeshes, primitiveGlow, primitiveNight, primitiveRoughness } = await import(geometryURL);
 
 const near = (actual, expected, tolerance, label) => assert.ok(Math.abs(actual - expected) <= tolerance, `${label}: ${actual} not within ${tolerance} of ${expected}`);
 const vec = (actual, expected, label) => expected.forEach((value, at) => near(actual[at], value, 1e-9, `${label}[${at}]`));
@@ -163,6 +163,27 @@ vec(nightFrame.lamps[0].at, [4.25, .1, .1], 'merged lamp point');
 vec(nightFrame.lamps[1].at, [9.1, 3.1, .1], 'lifted lamp point');
 assert.deepEqual(nightFrame.lamps.map(lamp => lamp.aim), [null, null], 'unaimed lamps light all around');
 
+// Lamp colour: the hue of the emissive factor, brightest channel 1, its strength unread;
+// a lamp known only by name keeps the warm default. The colour sits in texel 8 of each
+// shown emitter and on its lamp point, and lamps that merge mix theirs by count.
+const glows = materials => materials.map((_, index) => primitiveGlow(gltf(materials), 0, index));
+assert.deepEqual(glows([{ emissiveFactor: [.5, .25, 0] }, { emissiveFactor: [.2, .4, .8] }, { emissiveFactor: [0, 0, 0] }, { name: 'Lamp glass' },
+  { emissiveFactor: [1, -1, 0] }, { emissiveFactor: [1, 1] }]), [[1, .5, 0], [.25, .5, 1], undefined, undefined, undefined, undefined]);
+const [blue, unlitPane] = prepareMeshes([
+  { meshKey: 'blue', floorId: null, occurrenceId: null, positions: new Float32Array(9), indices: new Uint32Array([0, 1, 2]), sourceNight: 'emitter', sourceGlow: [.25, .5, 1] },
+  { meshKey: 'pane', floorId: null, occurrenceId: null, positions: new Float32Array(9), indices: new Uint32Array([0, 1, 2]), sourceNight: 'glazing', sourceGlow: [1, 0, 0] },
+]);
+assert.deepEqual(blue.sourceGlow, [.25, .5, 1]); assert.equal(unlitPane.sourceGlow, undefined, 'only emitters carry a colour');
+const hued = [{ ...at('red', 0), sourceGlow: [1, 0, 0] }, { ...at('white', .3), sourceGlow: [1, 1, 1] }, { ...at('white-b', .5), sourceGlow: [1, 1, 1] },
+  at('named', 6), at('dark', 12)];
+const hueTable = new Float32Array(hued.length * STATE_FLOATS);
+const hueFrame = writeAppearance(hued, { ...base, twoSided: true, light: [0, 1, 0], daylight: midnight,
+  emitterKeys: new Set(['red', 'white', 'white-b', 'named']) }, hueTable);
+const texel8 = index => [...hueTable.subarray(index * STATE_FLOATS + 32, index * STATE_FLOATS + 36)];
+assert.deepEqual(hued.map((_, index) => texel8(index)), [[1, 0, 0, 0], [1, 1, 1, 0], [1, 1, 1, 0], [...LAMP_COLOR, 0].map(Math.fround), [0, 0, 0, 0]]);
+vec(hueFrame.lamps[0].color, [1, 2 / 3, 2 / 3], 'three merged lamps mix their colours by count');
+assert.deepEqual(hueFrame.lamps[1].color, LAMP_COLOR, 'a lamp with no stated colour stays warm');
+
 // Building glass: its own see-through pass, out of the solid passes, covering what lies
 // behind by its material alpha (or a light default) and frosted by its roughness;
 // a selected pane keeps the solid pick tone, and without daylight nothing changes.
@@ -232,6 +253,6 @@ assert.equal(crowded.frame.lamps.length, MAX_LAMPS);
 assert.ok(crowded.ms < unlit.ms * 6 + 100, `20,000 separate emitters took ${Math.round(crowded.ms)} ms, against ${Math.round(unlit.ms)} ms without lamps`);
 const dayless = new Float32Array(lit7.length * STATE_FLOATS);
 assert.deepEqual(writeAppearance(lit7, { ...base, glazingKeys: new Set(['glass']), emitterKeys: new Set(['lamp-a']) }, dayless).lamps, []);
-assert.ok(dayless.every((value, index) => index % STATE_FLOATS < 30 || value === 0), 'other viewers never get night marks');
+assert.ok(dayless.every((value, index) => index % STATE_FLOATS < 30 || value === 0), 'other viewers never get night marks or lamp colours');
 
 console.log('unified-atlas-daylight-healthy: ok');

@@ -97,5 +97,6 @@ pub mod atlas_scene;
 mod atlas_scene_footprint;
 mod atlas_scene_glb;
 mod atlas_scene_material;
+mod atlas_scene_meshopt;
 
 pub mod atlas_room_links;
