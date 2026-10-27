@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+#MISE description="Show selected compiler and Cargo versions without compiling"
+set -eu
+exec node "$(dirname "$0")/../../tools/cargo-modes/run.mjs" diagnostic "$@"
