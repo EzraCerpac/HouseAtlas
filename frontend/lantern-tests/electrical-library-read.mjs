@@ -1,7 +1,6 @@
-/** Proposed generated-only checks. Register each exact command with the source
- * owner before execution. The separately selected retirement case is a bounded
- * fake/local-only reentrancy regression, outside the default healthy example.
- * No native host, browser, credentials or writes. */
+/** Generated-only checks. The exact --case healthy command is registered in
+ * run-healthy.mjs. Other named selections remain outside that healthy list.
+ * No native host, browser, credentials or writes; the PDF UI is not mounted. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';

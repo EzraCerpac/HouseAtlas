@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "e54640f06f18cf6c475fc3e215ada2919321d784cd32afb8026163d62ec89b6b",
+  "sourceDigestSha256": "8af58564b360c59bce7a36a9fd9e541e6b217a8fb8c1a94786b9a913c5487d36",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -105,8 +105,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 7791,
-      "sha256": "9d90931301395ea2bc4994eebe3f7fae370b363c7a9ca43ed4c5f20b21175404",
+      "bytes": 7969,
+      "sha256": "5af12c705fbd3bdaa611a26c4fd31b0489304b7b0fc289eb31717b77432732a3",
       "owner": "core-integration"
     },
     {
@@ -4317,6 +4317,13 @@
       "owner": "network"
     },
     {
+      "path": "backend/src/providers/network/failure_contract.rs",
+      "mode": "100644",
+      "owner": "network",
+      "bytes": 8599,
+      "sha256": "df153b26385b57ae2e9869183cf4e7a804bb8341957c0f6d474388e64f48393c"
+    },
+    {
       "path": "backend/src/providers/network/healthy.rs",
       "mode": "100644",
       "bytes": 16068,
@@ -4536,8 +4543,8 @@
     {
       "path": "backend/src/providers/network/mod.rs",
       "mode": "100644",
-      "bytes": 1038,
-      "sha256": "37993776c26838ae3f56bda401acf94e5a72e6d0d938eda21509ce72facd5caa",
+      "bytes": 1074,
+      "sha256": "173146935c33b2fec049595a8a16726e4f1edc028a114efe72d8b3f3c28aec78",
       "owner": "network"
     },
     {
@@ -5537,8 +5544,8 @@
     {
       "path": "backend/src/transports/mcp/lifecycle/synthetic_contracts.rs",
       "mode": "100644",
-      "bytes": 26270,
-      "sha256": "731703fb9a8031073fcfe3418bc625adabd5e89430fd364a8c210b0502d95eea",
+      "bytes": 31528,
+      "sha256": "8d9265f842c904235978606c126374ba4856aa1e2d6cfa1331ac3c6b5ff21d99",
       "owner": "mcp"
     },
     {
@@ -6118,8 +6125,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 153849,
-      "sha256": "d91d611e73852fed62414b5cb143de8c8a23bb4fbef95ff9d2ca3f782571e97f",
+      "bytes": 154901,
+      "sha256": "a284f5ff8af04bcdabbcdba3e9c5b6a72b46280ef07f54a70a1b3a9caf5c4a4c",
       "owner": "core-integration"
     },
     {
@@ -7476,8 +7483,8 @@
     {
       "path": "frontend/lantern-tests/electrical-library-read.mjs",
       "mode": "100644",
-      "bytes": 12495,
-      "sha256": "b069d860a441ac3b4ea52ab6e58ea86ef347273d61f4f6b171142a89e4cd3e63",
+      "bytes": 12437,
+      "sha256": "58be664fdffd5178ce89c1e25d54532f96174c5bdf2e2f6ad031fa97b0d1994d",
       "owner": "web"
     },
     {
@@ -7959,8 +7966,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 4655,
-      "sha256": "033147dedd5806b974bc0efef0fbf5f499ee8a3db844e9447e91c239bbe5a7b4",
+      "bytes": 4715,
+      "sha256": "7937c0b505df66668dc4a4a031187f0eaf843b4a331810b9befd071eabea94e9",
       "owner": "web"
     },
     {
@@ -11564,15 +11571,15 @@
     {
       "path": "tools/homebox-quantity-seed-report/README.md",
       "mode": "100644",
-      "bytes": 9590,
-      "sha256": "a707ffe00e1477e90a0c4aa4d8352aee50a5542982059940d869d374b3a350cd",
+      "bytes": 9735,
+      "sha256": "71287817be397d37d5be12354991f310e8f24288e2b17e3308e47f570d7768a8",
       "owner": "homebox"
     },
     {
       "path": "tools/homebox-quantity-seed-report/cli.py",
       "mode": "100644",
-      "bytes": 1061,
-      "sha256": "28f3b099912b2b56c1aab155e1948b594939998ff7fcc65e5db252d8bcbd36c5",
+      "bytes": 1349,
+      "sha256": "5e9a57a5a795c532f47692ab5b4d83cae118c07d0e4e3aebc77d31da218635c2",
       "owner": "homebox"
     },
     {
@@ -11592,8 +11599,8 @@
     {
       "path": "tools/homebox-quantity-seed-report/test_report.py",
       "mode": "100644",
-      "bytes": 15610,
-      "sha256": "b559fd84d52142662cd4e8d31e2c3221e4eb4613ed0f3bad6eb6a1b7656ffded",
+      "bytes": 16291,
+      "sha256": "40a871a521fdfd3d894c0fd25e48d0d543032ce23e48a461028258b67a4ee62d",
       "owner": "homebox"
     },
     {

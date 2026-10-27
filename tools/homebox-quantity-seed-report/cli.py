@@ -7,11 +7,18 @@ import sys
 from report import InputError, MAX_INPUT, build_report
 
 
+class FixedArgumentParser(argparse.ArgumentParser):
+    def error(self, _message):
+        # argparse's default diagnostics echo rejected arguments. Keep caller
+        # text out of the same fixed-error channel used for document failures.
+        raise InputError("invalid-arguments")
+
+
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = FixedArgumentParser(description=__doc__)
     parser.add_argument("input", help="supplied input file, or - for stdin; retain its exact bytes")
-    args = parser.parse_args()
     try:
+        args = parser.parse_args()
         if args.input == "-":
             original = sys.stdin.buffer.read(MAX_INPUT + 1)
         else:

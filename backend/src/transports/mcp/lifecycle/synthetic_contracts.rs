@@ -662,3 +662,114 @@ fn configured_response_ceiling_preserves_committed_circuit_without_redispatch()
     assert_eq!(entries[0]["state"], "committed");
     Ok(())
 }
+
+#[test]
+fn native_circuit_list_pages_preserve_canonical_records_and_empty_query() -> Result<(), Failure> {
+    fn read_result(reply: Value, request: &Value) -> Result<Value, Failure> {
+        assert_eq!(reply["jsonrpc"], "2.0");
+        assert!(reply.get("error").is_none());
+        assert_eq!(reply["result"]["isError"], false);
+        let wire = reply["result"]["structuredContent"].clone();
+        let text: Value = serde_json::from_str(
+            reply["result"]["content"][0]["text"]
+                .as_str()
+                .ok_or("Missing canonical MCP text")?,
+        )?;
+        assert_eq!(text, wire);
+        assert_eq!(wire["requestId"], request["requestId"]);
+        assert_eq!(wire["commandId"], request["commandId"]);
+        assert_eq!(wire["resolvedScope"], request["context"]);
+        assert_eq!(wire["status"], "read");
+        let validation = wire::StockValidation::new()?;
+        let parsed = wire::StockRequest::parse(&validation, request.clone())?;
+        wire::StockResponse::parse(&validation, &parsed, wire.clone(), &[])?;
+        Ok(wire)
+    }
+    let fixture = Fixture::new()?;
+    let identity = fixture.authenticate()?;
+    let gate = Arc::new(Gate::default());
+    gate.release();
+    // Explicit test profile only; Fixture::open's default remains untouched.
+    let mut session = fixture.open_configured(
+        &identity,
+        &gate,
+        AdapterConfig::default(),
+        &[
+            wire::OperationId::AtlasCircuitCreate,
+            wire::OperationId::AtlasCircuitList,
+            wire::OperationId::AtlasCircuitGet,
+        ],
+    );
+    let mut expected = Vec::new();
+    // Insert out of ID order: pagination order must come from the native owner.
+    for serial in [33, 31, 32] {
+        let mut create = fixture.create(serial);
+        create["payload"]["label"] = json!(format!("Synthetic MCP paged circuit {serial}"));
+        let message: Value = serde_json::from_slice(&call(create.clone(), json!(serial)))?;
+        let reply = frame(&mut session, &identity, message);
+        assert!(reply.get("error").is_none());
+        let committed = &reply["result"]["structuredContent"];
+        assert_eq!(committed["status"], "committed");
+        assert_eq!(committed["replayed"], false);
+        assert_eq!(committed["requestId"], create["requestId"]);
+        expected.push(committed["data"]["records"][0].clone());
+    }
+    expected.sort_by(|left, right| {
+        left["target"]["recordId"]
+            .as_str()
+            .cmp(&right["target"]["recordId"].as_str())
+    });
+    let mut request = json!({"schemaVersion":3,"commandId":"atlas.circuit.list",
+        "requestId":id(29500),"context":fixture.core.home.scope,
+        "target":{"authority":"atlas","recordType":"circuit"},
+        "payload":{"pageSize":1,"cursor":null,"includeArchived":false,
+            "q":"Synthetic MCP paged circuit"}});
+    let mut seen = Vec::new();
+    let mut cursors = std::collections::BTreeSet::new();
+    for page in 0..3 {
+        request["requestId"] = json!(id(29500 + page));
+        let message: Value = serde_json::from_slice(&call(request.clone(), json!(100 + page)))?;
+        let reply = frame(&mut session, &identity, message);
+        let result = read_result(reply, &request)?;
+        assert_eq!(result["data"]["sourceStatus"], "current");
+        let records = result["data"]["records"]
+            .as_array()
+            .ok_or("Missing page records")?;
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0], expected[page as usize]);
+        assert_eq!(records[0]["revision"], 1);
+        assert_eq!(records[0]["payload"]["panel"], Value::Null);
+        seen.push(records[0].clone());
+        let next = &result["data"]["nextCursor"];
+        if page < 2 {
+            let token = next.as_str().ok_or("Native continuation required")?;
+            assert!(!token.is_empty());
+            assert!(cursors.insert(token.to_owned()));
+            request["payload"]["cursor"] = next.clone();
+        } else {
+            assert_eq!(next, &Value::Null);
+        }
+    }
+    assert_eq!(seen, expected);
+    for (index, record) in expected.iter().enumerate() {
+        let get = json!({"schemaVersion":3,"commandId":"atlas.circuit.get",
+            "requestId":id(29600 + index as u32),"context":fixture.core.home.scope,
+            "target":record["target"],"payload":{}});
+        let message: Value = serde_json::from_slice(&call(get.clone(), json!(200 + index)))?;
+        let reply = frame(&mut session, &identity, message);
+        let result = read_result(reply, &get)?;
+        assert_eq!(&result["data"]["records"][0], record);
+    }
+    request["requestId"] = json!(id(29700));
+    request["payload"]["cursor"] = Value::Null;
+    request["payload"]["q"] = json!("Synthetic MCP nonexistent circuit marker");
+    let message: Value = serde_json::from_slice(&call(request.clone(), json!(300)))?;
+    let reply = frame(&mut session, &identity, message);
+    let empty = read_result(reply, &request)?;
+    assert_eq!(empty["data"]["records"], json!([]));
+    assert_eq!(empty["data"]["nextCursor"], Value::Null);
+    assert_eq!(empty["data"]["sourceStatus"], "current");
+    assert_eq!(gate.dispatches.load(Ordering::SeqCst), 10);
+    session.close();
+    Ok(())
+}

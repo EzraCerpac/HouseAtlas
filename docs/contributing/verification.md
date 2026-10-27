@@ -66,6 +66,28 @@ npm ci --prefix tools/model-bake
 node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs
 ```
 
+## Electrical Library healthy read
+
+The healthy frontend list invokes the existing exact command:
+
+```sh
+node frontend/lantern-tests/electrical-library-read.mjs --case healthy
+```
+
+It bundles the production Electrical Library reader/projection and generated
+source owners with the already locked Vite dependencies. It checks correlated
+document/page references, historical provenance, local title/provenance search
+without original reads, explicit original-download bytes/digest and dedicated
+document-owner release. It uses temporary local files and fake owners, not a
+network listener, native host, credentials or private PDF.
+
+Only `healthy` is in the default list. `reentrant-retirement`,
+`pdf-unavailable-metadata` and `dialog-focus-restoration` remain separately
+selected cases, not evidence supplied by the healthy result. The lazy PDF
+component is external to the bundle: this check does not render PDF pages,
+exercise React dialog/focus behavior or establish installed document access.
+The recorded-page helper/component checks are separate.
+
 ## Real-browser offline launch
 
 `frontend/lantern-tests/offline-launch-browser.mjs` serves the built `dist/` on
