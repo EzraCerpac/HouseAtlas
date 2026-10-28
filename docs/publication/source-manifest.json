@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "94d2a57c4da8d08087ee86d875efad30745f9f37b60591c6c9c9eb989b107bad",
+  "sourceDigestSha256": "2c22245e5fe84f235dd47d9b043f7d10e541f0973bbf68fa7791311a43c5dfab",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -5642,8 +5642,8 @@
     {
       "path": "backend/src/transports/mcp/README.md",
       "mode": "100644",
-      "bytes": 11792,
-      "sha256": "24b7f99a40bb00b936f720828a2b08391198c9a2eeb2556b2a641897f5b8692f",
+      "bytes": 14941,
+      "sha256": "d7da37277b1f8106b52e8258d6bd2334e9e7e321bf545ce1339d6dca12bc6562",
       "owner": "mcp"
     },
     {
@@ -11674,10 +11674,17 @@
       "owner": "homebox"
     },
     {
+      "path": "tools/houseatlas-mcp-bridge/README.md",
+      "mode": "100644",
+      "owner": "mcp",
+      "bytes": 4271,
+      "sha256": "e0da53ffb5cef66db0be5be4390be16e301e19741a0c02a09ce5c7d47336924b"
+    },
+    {
       "path": "tools/houseatlas-mcp-bridge/bridge.py",
       "mode": "100644",
-      "bytes": 65702,
-      "sha256": "592e99701a80fa67c49274ee34254426337d816e03d47e31e94e852a577b1fcc",
+      "bytes": 66191,
+      "sha256": "2c3f8f78787461e336cbf350e927079a50fc669e678dc1b1ad3ddcfbe55cc8f8",
       "owner": "mcp"
     },
     {
@@ -11702,10 +11709,17 @@
       "owner": "mcp"
     },
     {
+      "path": "tools/houseatlas-mcp-bridge/read-examples.json",
+      "mode": "100644",
+      "owner": "mcp",
+      "bytes": 643,
+      "sha256": "5d6b17df510e0e7d39ccebfd51f3560db46e61ff992b229730f2c972dce4040b"
+    },
+    {
       "path": "tools/houseatlas-mcp-bridge/test_bridge.py",
       "mode": "100644",
-      "bytes": 80522,
-      "sha256": "030badbfa4bc601759b08cd1f11fa2badc9446a332e470b1d19008a0e230b057",
+      "bytes": 85402,
+      "sha256": "8c481cc6080a753652db115cafa70853d8cf163c593e890b7fdba19777061040",
       "owner": "mcp"
     },
     {
