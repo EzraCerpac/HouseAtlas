@@ -13,7 +13,8 @@ const root = new URL('../src/', import.meta.url);
 const dataUrl = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
 const raw = async path => dataUrl(`export default ${JSON.stringify(await readFile(new URL(path, import.meta.url), 'utf8'))};`);
 const schemas = {
-  '../../../contracts/stock-wire3/agent/agent.schema.json?raw': await raw('../../contracts/stock-wire3/agent/agent.schema.json'),
+  '../../../contracts/client-schemas/agent-exact-pin.json': dataUrl(`export default ${await readFile(new URL('../../contracts/client-schemas/agent-exact-pin.json', import.meta.url), 'utf8')};`),
+  '../../../contracts/client-schemas/agent-exact.schema.json?raw': await raw('../../contracts/client-schemas/agent-exact.schema.json'),
   '../../../packages/contracts/schemas/atlas.schema.json?raw': await raw('../../packages/contracts/schemas/atlas.schema.json'),
 };
 const allowed = new Set(['api/native-evidence-client.ts', 'capture-evidence/selection.ts', 'capture-evidence/types.ts',

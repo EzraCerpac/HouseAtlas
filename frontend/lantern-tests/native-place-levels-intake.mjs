@@ -12,7 +12,7 @@ let { code: quantityCode } = await transformWithOxc(readFileSync(quantitySource,
   { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
 for (const [specifier, replacement] of Object.entries({
   '../numeric/stock-ajv': await loadNumericSource('numeric/stock-ajv.ts'),
-  '../../../contracts/stock-wire3/agent/agent.schema.json': schemaModule('../../contracts/stock-wire3/agent/agent.schema.json'),
+  '../../../contracts/client-schemas/agent-ajv.schema.json': schemaModule('../../contracts/client-schemas/agent-ajv.schema.json'),
   '../../../packages/contracts/schemas/atlas.schema.json': schemaModule('../../packages/contracts/schemas/atlas.schema.json'),
 })) {
   const literal = JSON.stringify(specifier);
