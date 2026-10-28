@@ -89,10 +89,10 @@ tools/call over a serialized host-framed session. The bounded decoder retains
 arbitrary-precision Numbers, request IDs and literal object keys. The host owns
 framing, connection lifetime, idle clocks and transport-level admission.
 
-## Catalog-to-admission parity, version 2
+## Catalog-to-admission parity, version 3
 
-Source baseline: public main `c2f4ed32d10019664338de4cc1fede2e63e2f468`,
-25 October 2026; related issue #288. The shared wire3 catalog contains 168
+Source baseline: public main `21c769e2dc947396acffafca04278249d215d8c8`,
+28 October 2026; related issue #288. The shared wire3 catalog contains 168
 operations in ten families. This bounded change addresses discovery of admitted
 request arms and batch children, not the complete operation qualification matrix.
 
@@ -109,15 +109,45 @@ an invalid empty `oneOf`. Omitted WebMCP admission supplies no child support.
 The shared catalog,
 full `NativeSchemas::schema` API and family output schemas remain unchanged.
 
-| Surface | Actual admission/service owner | Disposition and evidence boundary |
-| --- | --- | --- |
-| Native discovery | `NativeCatalog` with the host's exact operation set | Only admitted top-level input arms; unadmitted arms are omitted. Synthetic descriptor fixtures cover all ten families and an admitted two-read catalog. Checks NOT RUN locally; existing CI owns execution. |
-| Native read profile | `http::agents::mcp::bind_read`, shared StockService | Existing Atlas/cached HomeBox and configured-history admission retained; mapping an ID alone supplies no provider binding. |
-| Mounted native profile | `bind_owned_admission`, OwnedStockService | Existing scoped Network/HomeBox bindings, Editor profile and download owner retained. No new admission or owner is supplied here. |
-| Local Atlas profile | `bind_local_atlas`, shared native stock dispatcher | Existing Access/SQLite read, command, batch and reopened-history fixture retained. Core-only binding still has no asset-download issuer/redemption owner. |
-| WebMCP | Current session/scope, injected schema/service/catalog/download owners | Existing top-level input selection retained. Browser registration, visible completion and installed integration remain NOT RUN here; interactive browser/device acceptance is DEFERRED. |
-| Batch children | Canonical eligibility union intersected with full host admission | Both input descriptors narrow nested children. Native `prepare` still checks every ordered child separately. Synthetic shared profiles/bounds are source fixtures; execution and full batch outcome qualification remain open. |
-| Upload/remap/large operations | Existing dedicated capability/domain owners | No new binding or support claim. Complete transfer, limits, delayed/unknown outcomes and live qualification remain open under #288. Access lifecycle #289 and maintenance callers #290 are separate. |
+| Operation surface / class | Actual service and admission | Limits / disposition | Evidence boundary |
+| --- | --- | --- | --- |
+| All 168 IDs / ten families | OperationMapping joins shared/domain metadata; NativeCatalog selects host IDs and batch children | Metadata maps every ID; it supplies no execution authority | Existing descriptor fixtures; mapping is not operation acceptance |
+| Atlas list/get/history reads | Borrowed StockService uses reads_for(core); native authorization/query owners execute | Thirty Atlas reads plus four cached HomeBox reads; configured history is conditional | Native circuit-list continuation and binding-history fixtures exist; no installed acceptance inferred |
+| Mounted Network/HomeBox reads | OwnedStockService adds only scoped configured bindings; routes to saved Network or native HomeBox owners | Binding/partition and current principal must match; cached reads never demand collection | Provider #285 and installed-operation qualification remain separate |
+| Atlas writes / ordered batches | Explicit Editor composition plus native direct/derived command planner | Each child must be admitted; domain guards/approval/atomic result owners remain unchanged | Existing real Access/SQLite synthetic command/batch/history and bounded-response cases; not broad live-write acceptance |
+| Asset download | Mounted host has real issuer/redemption handles; Core-only local binding excludes it | A link/token is not completed original transfer | Full byte/expiry/current-authorization transfer matrix remains open |
+| WebMCP / seven bindable families | Current session/admission intersected with owner-supplied executable IDs in bindCommandFamilies | Family presence is not service binding; canonical batch children also intersect full admission | Registered synthetic adapter/batch checks are separate from React/gateway and deferred browser/device acceptance |
+| Bridge houseatlas_read / read effect | Fresh native admission intersected with shared catalog effect=read; native invoke owns domain validation | PageSize 1–8, envelope 16 KiB, query 32 KiB, response 2 MiB and JSON bounds | New public evidence-list examples and existing named bridge regression extensions are NOT RUN locally; no private probes |
+| Bridge provider writes / generic upload / scene creation | No generic bridge owner for these surfaces; write facade permits only its existing Atlas WRITES/batch set | UNSUPPORTED through this facade; genericAssetUpload and genericSceneAssociationCreate are false | Dedicated native owners and #285/#287 qualification are not enabled by catalog/schema presence |
+| Bridge unbounded records / chunked generic read | No qualified generic chunked/streaming owner | UNSUPPORTED; pageSize reduction cannot split an oversized single record | Source profile explicitly reports unboundedNativeReadComplete=false |
+| Remap / receipt-dependent variants | Existing native owner and separate exact-impact confirmation owner | CONDITIONAL/UNBOUND when required owner/receipt is absent; no grant expansion here | Exact-impact and complete outcome/transfer acceptance remain open |
+
+Static catalog disposition (not host admission): 154 operations are
+`supported-pending-qualification`, nine are `unsupported-capability`, two are
+`held-policy`, and three are `forbidden-append-only`. The nine metadata rows are
+`homebox.entity.history`, `homebox.entity.restore-deleted`,
+`homebox.location.history`, `homebox.location.restore-deleted`,
+`homebox.file.replace-bytes`, `homebox.file.restore-deleted`,
+`homebox.document-link.retarget`, `homebox.maintenance.attachment-upload` and
+`homebox.maintenance.attachment-delete`. Configured HomeBox history has an actual
+separate reads_for/core dispatch seam despite the catalog's unsupported metadata;
+inspect current admission and that owner instead of treating metadata as either
+a grant or a complete runtime support verdict. Provider restore/file/attachment
+write forms are not bridge Atlas WRITES and remain unavailable through that facade.
+Held IDs are `atlas.binding.reassign-identity` and `atlas.asset.hard-purge`.
+Forbidden append-only forms are `atlas.evidence.replace`, `atlas.geometry.replace`
+and `atlas.reconciliation.replace`; no transport-specific replacement is added.
+
+The complete canonical ID/family/effect/disposition source remains
+[operation-catalog.json](../../../../contracts/stock-wire3/agent/operation-catalog.json).
+Runtime sources are [capabilities.rs](../../http/agents/capabilities.rs),
+[the shared/mounted MCP executor](../../http/agents/mcp.rs),
+[WebMCP bindings](../../../../frontend/src/webmcp/coverage/families.ts) and
+[the bounded bridge](../../../../tools/houseatlas-mcp-bridge/bridge.py).
+[Public bridge guidance](../../../../tools/houseatlas-mcp-bridge/README.md) explains
+scope, target, cursor and correlation with synthetic evidence-list examples.
+This version reconciles source support only; it does not close the full per-operation
+qualification matrix. No local checks or live operations were run for this update.
 
 `healthy_admitted_family_input_descriptors` checks single-arm selection with an
 unrelated admitted family, unchanged reachable definitions, offline descriptor

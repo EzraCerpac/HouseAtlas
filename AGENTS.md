@@ -71,6 +71,16 @@ exercise cleanup only; no Cargo build, real profiler, network workload or
 runtime performance collection runs. These checks establish no profiling
 availability or benchmark result.
 
+Owner-approved finite bridge-read CI exception (28 October 2026): the existing
+ordinary-core job invokes exactly `healthy_large_read_page`,
+`denial_read_profile_bounds` and `denial_read_correlation` in
+`tools/houseatlas-mcp-bridge/test_bridge.py`. They use fake GET/session/admission
+owners and disposable synthetic journal state, with no socket, browser, native
+service, provider, credentials or write invocation. This exception adds no other
+bridge case, regression discovery, runner/workflow, live operation or access.
+Other held controls remain excluded. Exact commands and limits are in the
+verification guide; hosted logs, not registration, establish execution.
+
 In `.github/workflows/rust-react-ordinary.yml` that includes
 the named Lantern healthy read; the generated Electrical Library `healthy`
 case (existing production reader/projection and fictional original bytes,

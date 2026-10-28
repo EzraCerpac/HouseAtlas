@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "94d2a57c4da8d08087ee86d875efad30745f9f37b60591c6c9c9eb989b107bad",
+  "sourceDigestSha256": "08df94e78532d5f9aa691034035740d56d83599975219fcdfdc634a116ffca56",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -42,8 +42,8 @@
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
-      "bytes": 6256,
-      "sha256": "12ac601041d5ac4b23ae0f0323431d1718339e027964de80afb74033d83a1481",
+      "bytes": 6991,
+      "sha256": "caadab267f3bbbd981dc9bf3c56ae9a21920f73328dce8813138317e31acbe8b",
       "owner": "core-integration"
     },
     {
@@ -154,8 +154,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 12813,
-      "sha256": "150a240ada6b0bcd4cb69670f506ead74e9457d1111a38a1c0306307008eb9f5",
+      "bytes": 13482,
+      "sha256": "dce581674e0d45ec812acaab1d07bc3d3dce2e6632004110e86c007077949ce0",
       "owner": "core-integration"
     },
     {
@@ -5642,8 +5642,8 @@
     {
       "path": "backend/src/transports/mcp/README.md",
       "mode": "100644",
-      "bytes": 11792,
-      "sha256": "24b7f99a40bb00b936f720828a2b08391198c9a2eeb2556b2a641897f5b8692f",
+      "bytes": 14941,
+      "sha256": "d7da37277b1f8106b52e8258d6bd2334e9e7e321bf545ce1339d6dca12bc6562",
       "owner": "mcp"
     },
     {
@@ -6370,8 +6370,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 211504,
-      "sha256": "e7b5ed29f6a4772279ef4f2c9130eca3866e77a7021bcd9d1ce702da969a29d8",
+      "bytes": 212573,
+      "sha256": "cd7d746137d67e3d5bc7bd25e3df600efa3d67b666890e90d70eb5c5a6821da0",
       "owner": "core-integration"
     },
     {
@@ -11674,10 +11674,17 @@
       "owner": "homebox"
     },
     {
+      "path": "tools/houseatlas-mcp-bridge/README.md",
+      "mode": "100644",
+      "owner": "mcp",
+      "bytes": 4443,
+      "sha256": "f2558eb15a2d640f283a11c334a44351843638a890e3b411ad7399e74bccf0b8"
+    },
+    {
       "path": "tools/houseatlas-mcp-bridge/bridge.py",
       "mode": "100644",
-      "bytes": 65702,
-      "sha256": "592e99701a80fa67c49274ee34254426337d816e03d47e31e94e852a577b1fcc",
+      "bytes": 66191,
+      "sha256": "2c3f8f78787461e336cbf350e927079a50fc669e678dc1b1ad3ddcfbe55cc8f8",
       "owner": "mcp"
     },
     {
@@ -11702,10 +11709,17 @@
       "owner": "mcp"
     },
     {
+      "path": "tools/houseatlas-mcp-bridge/read-examples.json",
+      "mode": "100644",
+      "owner": "mcp",
+      "bytes": 643,
+      "sha256": "5d6b17df510e0e7d39ccebfd51f3560db46e61ff992b229730f2c972dce4040b"
+    },
+    {
       "path": "tools/houseatlas-mcp-bridge/test_bridge.py",
       "mode": "100644",
-      "bytes": 80522,
-      "sha256": "030badbfa4bc601759b08cd1f11fa2badc9446a332e470b1d19008a0e230b057",
+      "bytes": 85402,
+      "sha256": "8c481cc6080a753652db115cafa70853d8cf163c593e890b7fdba19777061040",
       "owner": "mcp"
     },
     {
