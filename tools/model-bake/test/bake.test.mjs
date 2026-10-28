@@ -381,6 +381,17 @@ test('rewrites only PNGs the viewer admits as authored, and no size below one pi
   const rgbaHeader = Buffer.from(png); rgbaHeader[25] = 6; rgbaHeader.writeUInt32BE(crc32(rgbaHeader.subarray(12, 29)), 29);
   assert.equal(decodePng(new Uint8Array(rgbaHeader)), null);
   assert.throws(() => encodePng({ width: 1, height: 1, rgba: Uint8Array.of(0, 0, 0, 128) }), RangeError);
+  // A palette must come once, before the data, as whole entries; a short header and an image over the viewer's 1024 px are refused too.
+  const plte = n => { const out = Buffer.alloc(n + 12); out.writeUInt32BE(n, 0); out.write('PLTE', 4, 'latin1'); out.writeUInt32BE(crc32(out.subarray(4, 8 + n)), 8 + n); return out; };
+  const idat = at - 8, ihdrEnd = 33;
+  assert.ok(decodePng(new Uint8Array(Buffer.concat([png.subarray(0, ihdrEnd), plte(3), png.subarray(ihdrEnd)]))));
+  for (const bad of [Buffer.concat([png.subarray(0, ihdrEnd), plte(0), png.subarray(ihdrEnd)]), Buffer.concat([png.subarray(0, ihdrEnd), plte(4), png.subarray(ihdrEnd)]),
+    Buffer.concat([png.subarray(0, ihdrEnd), plte(3), plte(3), png.subarray(ihdrEnd)]), Buffer.concat([png.subarray(0, at + length + 4), plte(3), png.subarray(at + length + 4)])])
+    assert.equal(decodePng(new Uint8Array(bad)), null);
+  assert.equal(idat, ihdrEnd);
+  const short = Buffer.from(png); short.writeUInt32BE(4, 8); short.writeUInt32BE(crc32(short.subarray(12, 20)), 20);
+  assert.equal(decodePng(new Uint8Array(short)), null);
+  assert.equal(decodePng(encodePng({ width: 1025, height: 1, rgba: new Uint8Array(1025 * 4).fill(255) })), null);
   // An RGB colour key (tRNS) is not something this bake rewrites.
   const iend = png.indexOf('IEND') - 4, key = Buffer.concat([Buffer.from('tRNS'), Buffer.alloc(6)]), sum = Buffer.alloc(4); sum.writeUInt32BE(crc32(key), 0);
   const keyed = Buffer.concat([png.subarray(0, iend), Buffer.from([0, 0, 0, 6]), key, sum, png.subarray(iend)]);
