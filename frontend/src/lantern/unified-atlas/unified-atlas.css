@@ -283,6 +283,20 @@
 
 .lantern-host .ua-measure-area text { font-size: 11.5px; font-weight: 700; }
 .lantern-host .ua-measure-area text:not(.ua-measure-halo) { fill: var(--ink-2); }
+/* The owner's measured values: the same rule, in ink and a little heavier. */
+.lantern-host .ua-measure .is-measured line { stroke: var(--ink); stroke-width: 1.6; }
+.lantern-host .ua-measure .is-measured text:not(.ua-measure-halo) { fill: var(--ink); }
+.lantern-host .ua-measured {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 7px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: var(--ok);
+  font-size: 11.5px;
+  line-height: 18px;
+  vertical-align: 1px;
+}
 
 /* Room-summary count: one per room part at its label point; a summary, never a device position. */
 .lantern-host .ua-marker {
