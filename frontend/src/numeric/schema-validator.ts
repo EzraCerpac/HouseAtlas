@@ -255,10 +255,16 @@ export function createExactStockResultValidator(): ExactStockResultValidator {
   };
 }
 
+// One reference per raw import: the minifier inlines a string constant at every use,
+// so a second reference would ship each ~1 MB schema text twice in the launch chunk.
+function pinnedDocument(source: string, hash: string): Document {
+  if (sha256(source) !== hash) fail('pinned schema digest mismatch');
+  return JSON.parse(source) as Document;
+}
+
 function buildExactStockResultValidator() {
-  if (sha256(agentSource) !== agentHash || sha256(atlasSource) !== atlasHash) fail('pinned schema digest mismatch');
-  const agent = JSON.parse(agentSource) as Document;
-  const atlas = JSON.parse(atlasSource) as Document;
+  const agent = pinnedDocument(agentSource, agentHash);
+  const atlas = pinnedDocument(atlasSource, atlasHash);
   if (agent.$id !== agentId || atlas.$id !== atlasId || agent.$schema !== dialect || atlas.$schema !== dialect) fail('schema identity or dialect mismatch');
   const formats = { uuid: stringFormat('uuid'), 'date-time': stringFormat('date-time'), uri: stringFormat('uri') };
   const documents: Record<string, Document> = { [agentId]: agent, [atlasId]: atlas };

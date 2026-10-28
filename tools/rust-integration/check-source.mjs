@@ -19,7 +19,6 @@ const run = (command, args) => {
   assert.equal(r.status, 0, command + ' ' + args.join(' '));
 };
 run('node', ['tools/rust-baseline/generate-contracts.mjs', '--check']);
-run('node', ['tools/rust-baseline/generate-contracts.mjs', '--measurements', '--check']);
 run('node', ['backend/src/contracts/stock/generate-catalog.mjs', '--check']);
 run('node', ['tools/rust-baseline/check-contracts.mjs']);
 run('node', ['packages/contracts/history/check-history.mjs']);

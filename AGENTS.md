@@ -190,14 +190,8 @@ current owner APIs, track review findings, and run only inspected authorized
 checks. Composition does not accept donors or release product or deployment
 gates; main still requires exact candidate review and CI.
 
-The existing source check runs both the legacy generated-contract consistency
-check and the measurement carrier consistency check using the generator's
-`--measurements --check` mode. This compares generated source without rewriting
-checked-in outputs; it adds no backend activation, browser or native-data acceptance.
-
 PR lane selection is documented in [the CI dependency matrix](docs/contributing/ci-path-selection.md).
 Main pushes retain the full ordinary suite. PRs always retain ordinary-core and
 publication checks; recognized presentation/backend paths select explicit lanes,
 with full coverage for shared or unknown changes. The ordinary-core job also runs
 stdlib selector regressions using disposable synthetic Git histories.
-

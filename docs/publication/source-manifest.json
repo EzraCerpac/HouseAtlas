@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "31c1bd78b5f0070cd495af6baaef85bb901c7f27c94bce66922824d2297afc1c",
+  "sourceDigestSha256": "95fd95b0384d777c97e828e7cc92375eba528c310e5d646150b47cb5f66d1c5a",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -154,8 +154,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 13586,
-      "sha256": "0899f3ba30a0893248bd0d1c22ca225e3334a646b0f91bdc4ed247300f23322e",
+      "bytes": 13266,
+      "sha256": "6baf25ec1dd08ceed8199a27105ef6356f7e082f49889830c52d7e5b9e3d5b45",
       "owner": "core-integration"
     },
     {
@@ -506,13 +506,6 @@
       "mode": "100644",
       "bytes": 5816,
       "sha256": "b7ab7a08058fefe20cffa3698f5586be126c69c7cd685994897d92d971660a79",
-      "owner": "storage"
-    },
-    {
-      "path": "backend/migrations/0001_geodata_measurements.sql",
-      "mode": "100644",
-      "bytes": 5100,
-      "sha256": "979594e03ae278262e224b22e87ec06e2dffe500186de041f34f27664361ab5b",
       "owner": "storage"
     },
     {
@@ -1148,8 +1141,8 @@
     {
       "path": "backend/src/app.rs",
       "mode": "100644",
-      "bytes": 30617,
-      "sha256": "a607565d1594db8b8d7f2ae974cddacb2bd5d2081b69da446fdbedc9af45d144",
+      "bytes": 30585,
+      "sha256": "a3af3c05ed5e1387a224b04235bb9a9a9b1b60b8e37566c60bdacd012ab9a043",
       "owner": "core-integration"
     },
     {
@@ -1286,27 +1279,6 @@
       "owner": "core-integration"
     },
     {
-      "path": "backend/src/app/measurement_assertions.rs",
-      "mode": "100644",
-      "bytes": 18271,
-      "sha256": "41f90e32d68671f774f9deea76efdd2215b36c8bdec90ecb480df269170efd01",
-      "owner": "core-integration"
-    },
-    {
-      "path": "backend/src/app/measurement_assertions/configured_occurrence.rs",
-      "mode": "100644",
-      "bytes": 9908,
-      "sha256": "62a87facf70b3bcc66fc9c352af73df7b93f30f4fc3934ada25d4f3d4f60bbc8",
-      "owner": "core-integration"
-    },
-    {
-      "path": "backend/src/app/measurement_assertions/occurrence_authority.rs",
-      "mode": "100644",
-      "bytes": 43364,
-      "sha256": "4ec4dbb93b51596fffe00a365ff2d9590e7876a4aad36c471e04cac5ca588604",
-      "owner": "core-integration"
-    },
-    {
       "path": "backend/src/app/media_policy_recovery.rs",
       "mode": "100644",
       "bytes": 1421,
@@ -1405,17 +1377,10 @@
       "owner": "core-integration"
     },
     {
-      "path": "backend/src/config/measurement_profile.rs",
-      "mode": "100644",
-      "bytes": 10525,
-      "sha256": "6a4e47a2ab4aef9a88039458d793b58cd5977f017a08ce2e02b780f58e57f7b7",
-      "owner": "core-integration"
-    },
-    {
       "path": "backend/src/config/mod.rs",
       "mode": "100644",
-      "bytes": 3246,
-      "sha256": "6010bf6973bc131e2c30adc293450bc5fc3ae80dd78ac32c02c2bada0f47bebb",
+      "bytes": 3217,
+      "sha256": "295d6cbd277e4af532fad5d1f6ae5be66d5487694c33fef6a818d48e453592b7",
       "owner": "core-integration"
     },
     {
@@ -1538,13 +1503,6 @@
       "owner": "contracts"
     },
     {
-      "path": "backend/src/contracts/generated_measurement_assertions.rs",
-      "mode": "100644",
-      "bytes": 68234,
-      "sha256": "7f3ffc378af39f038c5353883a4b8a38187ce821f0b16a646d64c7ab879b6322",
-      "owner": "contracts"
-    },
-    {
       "path": "backend/src/contracts/generated_v2.rs",
       "mode": "100644",
       "bytes": 116619,
@@ -1559,17 +1517,10 @@
       "owner": "contracts"
     },
     {
-      "path": "backend/src/contracts/measurement_assertions.rs",
-      "mode": "100644",
-      "bytes": 34578,
-      "sha256": "dff5c9facea439fb4894ce97877ca67b900e45323f3f697f43e5e3f2a0f2360c",
-      "owner": "contracts"
-    },
-    {
       "path": "backend/src/contracts/mod.rs",
       "mode": "100644",
-      "bytes": 11408,
-      "sha256": "f00fed4bd4efd97c37ac1e8ea05d95996e49dbbf860b1619f0101282d2baf3cb",
+      "bytes": 11376,
+      "sha256": "c13798138c757d10e9a1f96c3607cd4349937608fb968420cb3b2cb68552c345",
       "owner": "contracts"
     },
     {
@@ -2511,13 +2462,6 @@
       "owner": "core-integration"
     },
     {
-      "path": "backend/src/http/measurement_assertions.rs",
-      "mode": "100644",
-      "bytes": 20377,
-      "sha256": "f5c6ad50e6f707de60abfd9b79680248d2837adb63edb0950434c7dae09958f9",
-      "owner": "core-integration"
-    },
-    {
       "path": "backend/src/http/media.rs",
       "mode": "100644",
       "bytes": 6351,
@@ -2527,8 +2471,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 61403,
-      "sha256": "e15059fa765b174121246e16c2b020bc49321b3f9603857d1463bac960b4ba84",
+      "bytes": 58617,
+      "sha256": "a9b5d13b070b91383bd6b0fc7bebab1b75ee0d99be91a9e4e443a5298e714556",
       "owner": "core-integration"
     },
     {
@@ -2863,8 +2807,8 @@
     {
       "path": "backend/src/lib.rs",
       "mode": "100644",
-      "bytes": 575,
-      "sha256": "acfdbf05e07b9136d2b90ea4be58dfb640973daa6aac715cda6b794feaf945ff",
+      "bytes": 543,
+      "sha256": "e1fb1bd932448334e4ab2d66e36d5dfb34460d63e0272dffa965c4c8ee676109",
       "owner": "core-integration"
     },
     {
@@ -2898,15 +2842,8 @@
     {
       "path": "backend/src/lifecycle/persistent.rs",
       "mode": "100644",
-      "bytes": 26732,
-      "sha256": "616d7021e8ec9a79110bf5e73cea2eac8844716d0f9d238cfe77e53cb0bf75a1",
-      "owner": "core-integration"
-    },
-    {
-      "path": "backend/src/lifecycle/persistent/measurements.rs",
-      "mode": "100644",
-      "bytes": 44370,
-      "sha256": "2c08068ba1937ff69c8b863f0669fe66b7534dc4c5dccea32db7853fc847db90",
+      "bytes": 26710,
+      "sha256": "e665e006a263ef1f7f10e1551a374450c8088b6826e0ee3f8273d7bbacb33f1e",
       "owner": "core-integration"
     },
     {
@@ -3073,64 +3010,8 @@
     {
       "path": "backend/src/main.rs",
       "mode": "100644",
-      "bytes": 27564,
-      "sha256": "ded3830c3e70a0314353744f80b72356edc07ba0a9b9a9c934222f4dea5fae87",
-      "owner": "core-integration"
-    },
-    {
-      "path": "backend/src/measurement_assertions/decimal.rs",
-      "mode": "100644",
-      "bytes": 4299,
-      "sha256": "ed8b7e825abd6c86d6d38d1df87d5082accbfbb2bb3a29399c7f2f118d3868e8",
-      "owner": "core-integration"
-    },
-    {
-      "path": "backend/src/measurement_assertions/mod.rs",
-      "mode": "100644",
-      "bytes": 854,
-      "sha256": "69b23c52edc6e73f4c828d85d1f2564b99681d75e784945271f2fbdac5ce57f2",
-      "owner": "core-integration"
-    },
-    {
-      "path": "backend/src/measurement_assertions/model_update.rs",
-      "mode": "100644",
-      "bytes": 12950,
-      "sha256": "dfd603e8e3f20b0372194ccffdafa1e0689e68491b572fc968c5e15f719c6125",
-      "owner": "core-integration"
-    },
-    {
-      "path": "backend/src/measurement_assertions/online_contract.rs",
-      "mode": "100644",
-      "bytes": 35732,
-      "sha256": "287ad7d150af61f1ecce58d5189732016aeaa2502db25ecfe655e6c3f3c9b8e3",
-      "owner": "core-integration"
-    },
-    {
-      "path": "backend/src/measurement_assertions/online_contract_tests.rs",
-      "mode": "100644",
-      "bytes": 32619,
-      "sha256": "56beb9b9eecb19b53fb929e065100bbf0ca5df4111540e6762883cb4474e0a9c",
-      "owner": "core-integration"
-    },
-    {
-      "path": "backend/src/measurement_assertions/synthetic_contract_tests.rs",
-      "mode": "100644",
-      "bytes": 40532,
-      "sha256": "f240b05219da270c74750ea27aacebf09a886efb57d384b55850fc3e6f1652ed",
-      "owner": "core-integration"
-    },
-    {
-      "path": "backend/src/measurement_assertions/types.rs",
-      "mode": "100644",
-      "bytes": 8482,
-      "sha256": "096eb7213f542c476e5d0082041db71650e2e65ffcabf014c71d0895e66fe487",
-      "owner": "core-integration"
-    },
-    {
-      "path": "backend/src/measurement_assertions/validation.rs",
-      "mode": "100644",
-      "bytes": 25365,
-      "sha256": "c9e6318f3c491e889f0cb7c1e56ab8c3ffea02c8acbe38ba4e4ec9d5b27bedb9",
+      "bytes": 24488,
+      "sha256": "0da5eedb872b45c00618373c56979855a6f0fe64dfb9ff7994ab2b8e06357358",
       "owner": "core-integration"
     },
     {
@@ -5052,34 +4933,6 @@
       "owner": "storage"
     },
     {
-      "path": "backend/src/storage/measurement_assertions.rs",
-      "mode": "100644",
-      "bytes": 154787,
-      "sha256": "2bc3c87cc607b3a360323a689f0b7b3cb3e22cc512a1f593dc7f18f665580b0f",
-      "owner": "storage"
-    },
-    {
-      "path": "backend/src/storage/measurement_assertions_repository.rs",
-      "mode": "100644",
-      "bytes": 27960,
-      "sha256": "e92f822f3b1bcd75e7818df2300d6d25849017de6a1f79e18e9764d7c0182cc1",
-      "owner": "storage"
-    },
-    {
-      "path": "backend/src/storage/measurement_profile.rs",
-      "mode": "100644",
-      "bytes": 6415,
-      "sha256": "a019379f84f3e5e97fc868f9492ec9301b87ba9c4a8b1586a8cfec2171182e7e",
-      "owner": "storage"
-    },
-    {
-      "path": "backend/src/storage/measurement_recovery.rs",
-      "mode": "100644",
-      "bytes": 33134,
-      "sha256": "33569c8f58b9c3c52db0521574a42e6643b28c8b4b8c0baf43c47ce6af882d57",
-      "owner": "storage"
-    },
-    {
       "path": "backend/src/storage/migrations.rs",
       "mode": "100644",
       "bytes": 8496,
@@ -5089,8 +4942,8 @@
     {
       "path": "backend/src/storage/mod.rs",
       "mode": "100644",
-      "bytes": 4517,
-      "sha256": "6a1a1416a9b6c6def7c3cbfa360d8581a1fea993081605a051745bfe0085e241",
+      "bytes": 4269,
+      "sha256": "cc7b6c4f6912aa655bcc7d3435ceb7f4ea31772151502361281affd7dc611991",
       "owner": "storage"
     },
     {
@@ -5390,15 +5243,15 @@
     {
       "path": "backend/src/storage/recovery.rs",
       "mode": "100644",
-      "bytes": 31069,
-      "sha256": "e48c06e491da25fa71176a9a4600c9eb2e033cd82c1ceb7fb299e60a673568d9",
+      "bytes": 30700,
+      "sha256": "8cd1cd23a5f1c9d62c48dd2a4e3482cf86fef5efb612413e7f23a5258e7632b0",
       "owner": "storage"
     },
     {
       "path": "backend/src/storage/recovery_checks.rs",
       "mode": "100644",
-      "bytes": 31388,
-      "sha256": "e4b8731005298292962124b16a7210e75aee180715a2bb0e1ac15e393ce84620",
+      "bytes": 29850,
+      "sha256": "f796273795f6a66cafbd0c16914102070ef67952285e60a8bf14ccfd98c4c610",
       "owner": "storage"
     },
     {
@@ -5607,8 +5460,8 @@
     {
       "path": "backend/src/storage/store.rs",
       "mode": "100644",
-      "bytes": 24971,
-      "sha256": "3f4a80d7305289a251d2e239344fca4091b6f0601621ac976014de00e779be33",
+      "bytes": 24247,
+      "sha256": "ca7105669f5f14e65648bd3f691d52d3bf84843c48e131b2ee146be84602884e",
       "owner": "storage"
     },
     {
@@ -6291,20 +6144,6 @@
       "owner": "contracts"
     },
     {
-      "path": "docs/contracts/measurement-assertions-online.md",
-      "mode": "100644",
-      "bytes": 6936,
-      "sha256": "2a4e5b20bf766d7b73e925a8ff248de0dca87b13142f8d28b761b69ec8ef74e1",
-      "owner": "core-integration"
-    },
-    {
-      "path": "docs/contracts/measurement-assertions-v1.md",
-      "mode": "100644",
-      "bytes": 5069,
-      "sha256": "6680ffec29aa0392828d9839e5d9dc1a559cfa89737a36134726bc0470042464",
-      "owner": "core-integration"
-    },
-    {
       "path": "docs/contracts/measurement-linear-alignment.md",
       "mode": "100644",
       "bytes": 10673,
@@ -6317,13 +6156,6 @@
       "bytes": 8730,
       "sha256": "9567b3f6dd69b316d2171e0acd1eba3287eaeb7fb2f076dbe532911e1bf38463",
       "owner": "contracts"
-    },
-    {
-      "path": "docs/contracts/measurement-profile-compatibility.md",
-      "mode": "100644",
-      "bytes": 6794,
-      "sha256": "ac6354ddd5c0a42858b2cc1256784bcd60badbdf5ddfcb5ec2fad10a51232f50",
-      "owner": "core-integration"
     },
     {
       "path": "docs/contracts/mutations-and-api.md",
@@ -6370,8 +6202,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 213156,
-      "sha256": "11c2846dbe5798cc6b1da24c5e1b99d96ea202ea103c339f9b3e0639b6cc7b6b",
+      "bytes": 168040,
+      "sha256": "a33a33b1b6603482d452e0c7eb57ac76df611ae86deb57b9af03b283a3c55a30",
       "owner": "core-integration"
     },
     {
@@ -7392,8 +7224,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 39317,
-      "sha256": "4b0b7a17d0d6bec43e202ca5833bb2aaa5c23a39a0ce582a7a93e5a639d9c97f",
+      "bytes": 39506,
+      "sha256": "0e858b886661629fc74714b3688918f3012d39c57f863d37962065c853db1470",
       "owner": "core-integration"
     },
     {
@@ -9086,8 +8918,8 @@
     {
       "path": "frontend/src/lantern/Host.tsx",
       "mode": "100644",
-      "bytes": 9321,
-      "sha256": "d9cc87d4a85f9930cdb920c0b2ead32ba9388f73e5310e00a6bb616b1a7bf519",
+      "bytes": 9937,
+      "sha256": "107e0c728269b5f8df4dfc7c63030617460047e1d41b14ae16ba3314fa123b3c",
       "owner": "web"
     },
     {
@@ -10157,8 +9989,8 @@
     {
       "path": "frontend/src/numeric/schema-validator.ts",
       "mode": "100644",
-      "bytes": 25026,
-      "sha256": "2e99e67ed65db73dfecc176c4cdbc9ca6682b4947efd42365a8e6ffb4df76933",
+      "bytes": 25267,
+      "sha256": "c9736288b3de79816e8a7fc7ab157208620362058868cd119760e132f0eda789",
       "owner": "web"
     },
     {
@@ -10771,13 +10603,6 @@
       "owner": "contracts"
     },
     {
-      "path": "packages/contracts/generated/measurement-assertions.ts",
-      "mode": "100644",
-      "bytes": 22546,
-      "sha256": "418e19d5debaeb0e67d82ab056a5f2fce9002456dbb3bf69217ba03ef9aa1ab3",
-      "owner": "contracts"
-    },
-    {
       "path": "packages/contracts/history/check-history.mjs",
       "mode": "100644",
       "bytes": 6733,
@@ -10873,13 +10698,6 @@
       "mode": "100644",
       "bytes": 2707,
       "sha256": "8e79333053ad280b4bb4095a92d7d4bbac9284b1e3fc98a32b5c06755a95b4a2",
-      "owner": "contracts"
-    },
-    {
-      "path": "packages/contracts/schemas/atlas.measurement-assertions.schema.json",
-      "mode": "100644",
-      "bytes": 56612,
-      "sha256": "9a4456e858d9626c0a413f59f476e2dd6bd8b9d012cdc32e96a9594dbb2e1737",
       "owner": "contracts"
     },
     {
@@ -12481,8 +12299,8 @@
     {
       "path": "tools/rust-baseline/generate-contracts.mjs",
       "mode": "100644",
-      "bytes": 19137,
-      "sha256": "7589a1fb26a1be7ee79e5a5dda0dcf6c2f4c7845a4dc63e28ad550bc6a7f5dc5",
+      "bytes": 16273,
+      "sha256": "d71d295a8bc4d6d3b507c21873d87b69f526f31d6dbdeeff347b6fa960ac6893",
       "owner": "contracts"
     },
     {
@@ -12491,13 +12309,6 @@
       "bytes": 27731,
       "sha256": "eac7c2ff9dedcabb491d93cfd715bbe054d52a0999012b8926644aff09442fa9",
       "owner": "contracts"
-    },
-    {
-      "path": "tools/rust-baseline/measurement-contract-types.ts",
-      "mode": "100644",
-      "bytes": 354,
-      "sha256": "258962cb165339fb9f3e327290f92027027167bba7cb71e281a8384edcb7c84b",
-      "owner": "core-integration"
     },
     {
       "path": "tools/rust-baseline/react-compile.tsx",
@@ -12516,8 +12327,8 @@
     {
       "path": "tools/rust-integration/check-source.mjs",
       "mode": "100644",
-      "bytes": 2564,
-      "sha256": "f01b1a90c9fd2b893144d78e86bbbe8434cabcfd908ffe21942c76e4b348dbf5",
+      "bytes": 2474,
+      "sha256": "7ddc83454d53a942399a5ddb315488180f949cf480f54d97d499e5dc04090cda",
       "owner": "core-integration"
     },
     {
