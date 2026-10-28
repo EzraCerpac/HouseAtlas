@@ -9,10 +9,13 @@ use crate::ai::{
         startup::{
             NativeStartup, StartupInputs, StartupOwners,
             account::NativeAccountStartup,
+            authority::StartupAuthority,
             stock::{NativeReadDomain, NativeReadPrepared},
         },
+        trusted_startup::StartupCustody,
     },
     runtime::HumanReviewPort,
+    stock::{AcceptedStockCommand, SharedStockPort, StockCatalog},
 };
 use axum::Router;
 use std::sync::Arc;
@@ -61,15 +64,17 @@ impl NativeAccountAiApplication {
 
 /// Keep this application owner alive while serving its router and driving any
 /// separately authorized native operation. No worker or listener starts here.
-pub struct NativeAiApplication<O, R>
+pub struct NativeAiApplication<O, R, D = NativeReadDomain>
 where
     O: ConnectionFacts<NativeHostContext>,
-    R: ExactReviewReady<NativeHostContext, NativeReadPrepared>
+    D: SharedStockPort<NativeHostContext> + Send + Sync,
+    D::Prepared: Send + Sync,
+    R: ExactReviewReady<NativeHostContext, AcceptedStockCommand<D::Prepared>>
         + HumanReviewPort<NativeHostContext>
         + Send
         + Sync,
 {
-    startup: NativeStartup<O, NativeReadDomain, R>,
+    startup: NativeStartup<O, D, R>,
     router: Router,
 }
 
@@ -96,11 +101,55 @@ where
         Ok(Self { startup, router })
     }
 
+    /// The existing read factory with explicit original native custody. No
+    /// account-only database is reopened or promoted to a writable journal.
+    pub fn assemble_native_reads_with_custody<C: StartupCustody + 'static>(
+        owners: StartupOwners,
+        inputs: StartupInputs<R, O>,
+        custody: Arc<C>,
+    ) -> Result<Self, AiError> {
+        Self::assemble(
+            owners,
+            inputs,
+            crate::ai::host::startup::stock::native_read_catalog,
+            custody,
+        )
+    }
+}
+
+impl<O, R, D> NativeAiApplication<O, R, D>
+where
+    O: ConnectionFacts<NativeHostContext> + 'static,
+    D: SharedStockPort<NativeHostContext> + Send + Sync + 'static,
+    D::Prepared: Send + Sync + 'static,
+    R: ExactReviewReady<NativeHostContext, AcceptedStockCommand<D::Prepared>>
+        + HumanReviewPort<NativeHostContext>
+        + Send
+        + Sync
+        + 'static,
+{
+    /// Retain the supplied shared stock/review owners through the actual
+    /// application router. The factory may compose reviewed operations only
+    /// through their existing approval/outcome owner; it grants no approval.
+    pub fn assemble<C: StartupCustody + 'static>(
+        owners: StartupOwners,
+        inputs: StartupInputs<R, O>,
+        stock: impl FnOnce(&crate::http::Host, StartupAuthority) -> Result<StockCatalog<D>, AiError>,
+        custody: Arc<C>,
+    ) -> Result<Self, AiError> {
+        custody.revalidate()?;
+        let host = owners.host.clone();
+        let startup = NativeStartup::assemble(owners, inputs, stock)?;
+        let mounted = startup.mounted_router_with_custody(custody)?;
+        let router = crate::http::router_with_ai(host, Some(mounted));
+        Ok(Self { startup, router })
+    }
+
     pub fn router(&self) -> &Router {
         &self.router
     }
 
-    pub fn startup(&self) -> &NativeStartup<O, NativeReadDomain, R> {
+    pub fn startup(&self) -> &NativeStartup<O, D, R> {
         &self.startup
     }
 }
