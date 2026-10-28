@@ -361,13 +361,17 @@ test('averages an image shared by colour and data slots once per role', async ()
   assert.equal(readGlb((await bakeDetail(texturedMaster({ png: encodePng({ width, height, rgba }), roughness: true }), null)).glb).json.images.length, 1);
 });
 
-test('refuses PNG rows with unknown filters and sizes below one pixel', () => {
+test('refuses PNG rows with unknown filters, colour keys and sizes below one pixel', () => {
   const png = Buffer.from(encodePng({ width: 2, height: 1, rgba: new Uint8Array(8).fill(255) }));
   const at = png.indexOf('IDAT') + 4, length = png.readUInt32BE(at - 8), raw = inflateSync(png.subarray(at, at + length));
   raw[0] = 5;
   const body = deflateSync(raw), broken = Buffer.concat([png.subarray(0, at - 8), Buffer.from([0, 0, 0, 0]), Buffer.from('IDAT'), body, Buffer.alloc(4), png.subarray(at + length + 4)]);
   broken.writeUInt32BE(body.length, at - 8);
   assert.equal(decodePng(new Uint8Array(broken)), null);
+  // An RGB colour key (tRNS) is not something this bake rewrites.
+  const iend = png.indexOf('IEND') - 4, keyed = Buffer.concat([png.subarray(0, iend), Buffer.from([0, 0, 0, 6]), Buffer.from('tRNS'), Buffer.alloc(6), Buffer.alloc(4), png.subarray(iend)]);
+  assert.ok(decodePng(new Uint8Array(png)));
+  assert.equal(decodePng(new Uint8Array(keyed)), null);
   assert.throws(() => shrinkImage({ width: 2, height: 2, rgba: new Uint8Array(16) }, 0, 'data'), RangeError);
 });
 

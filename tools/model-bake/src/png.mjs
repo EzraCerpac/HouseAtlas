@@ -23,7 +23,8 @@ export function decodePng(bytes) {
     else if (kind === 'IEND') break;
     at += 12 + length;
   }
-  if (width < 1 || height < 1 || (type === 3 && !palette)) return null;
+  // A transparent colour key on greyscale or RGB is left as authored, for the viewer to judge.
+  if (width < 1 || height < 1 || (type === 3 && !palette) || (alpha && type !== 3)) return null;
   const channels = CHANNELS[type], stride = width * channels, raw = inflateSync(Buffer.concat(data));
   if (raw.length < height * (stride + 1)) return null;
   const rgba = new Uint8Array(width * height * 4);

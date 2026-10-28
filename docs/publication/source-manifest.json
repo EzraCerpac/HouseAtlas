@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "818c7b30d061680b32897fc169aeea970799c19db11ba41a4adfa92b6b3ec933",
+  "sourceDigestSha256": "abc45b07d0a85a0deadb56468dfd62c4a76a5e162b2c405d4701f1200f5d140f",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -11914,15 +11914,15 @@
     {
       "path": "tools/model-bake/src/png.mjs",
       "mode": "100644",
-      "bytes": 6765,
-      "sha256": "d074228ee8421989e341b671dd109d0b0a44b5a0f66e3ba09d9dabd6d3637806",
+      "bytes": 6886,
+      "sha256": "9eb14f857266f1c66bc09ba16a2fff6c2777829fa6be62ae4f80db6dbd8bbdea",
       "owner": "media"
     },
     {
       "path": "tools/model-bake/test/bake.test.mjs",
       "mode": "100644",
-      "bytes": 49423,
-      "sha256": "e3f48c93e54998413185a37d33e8d23b7fd6ac31a9d533501eb25dc910be58f3",
+      "bytes": 49794,
+      "sha256": "ab3e7408dfd01d8ec48328c96d5e536fd85874686589c5f9de40a1d7033fa29a",
       "owner": "media"
     },
     {
