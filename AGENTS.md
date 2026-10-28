@@ -131,8 +131,10 @@ expanded by the viewer's decoder; and
 loopback flows named in the workflow and in the verification guide. A PR that
 extends CI names the added scope here and in the verification guide.
 
-The same frontend runner selects five generated capture-original cases:
-`one-shot-originals`, `original-offer-reused`, `original-offer-digest-mismatch`,
+The same frontend runner selects the capture selection case
+`selection-cancel-reselect`, the foreground case `stale-target-preparation`,
+five generated capture-original cases: `one-shot-originals`,
+`original-offer-reused`, `original-offer-digest-mismatch`,
 `original-offer-record-change` and `original-offer-unavailable`; and five
 fake-port draft cases: `healthy-save-review-commit`,
 `existing-original-receipt-commit`, `receipt-record-closure-keeps-original`,
