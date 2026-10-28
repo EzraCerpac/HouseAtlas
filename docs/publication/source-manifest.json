@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c1a2a45836935d84d038a0f1dc399c95466616633b11ef8d09026ddd4303b5d9",
+  "sourceDigestSha256": "2d0b457bf3339a6abf159202619351d51364f547671a2cb31b4147fedd588b7e",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -154,8 +154,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 13028,
-      "sha256": "b401531cbafb4683d3e794b802f6a1d757d5529e551c48dac6edf9dc1a5b88da",
+      "bytes": 13503,
+      "sha256": "9c8d4478eafad8758552ca764397567619bdcae532fdf32b8f57fbc2eb44568a",
       "owner": "core-integration"
     },
     {
@@ -5682,6 +5682,41 @@
       "owner": "core-integration"
     },
     {
+      "path": "contracts/client-schemas/agent-ajv.schema.json",
+      "mode": "100644",
+      "bytes": 451798,
+      "sha256": "e815bf18fed215770154fe60a1cd5278a3c18114b80b22cf51c5cac23ea14bdb",
+      "owner": "contracts"
+    },
+    {
+      "path": "contracts/client-schemas/agent-exact-pin.json",
+      "mode": "100644",
+      "bytes": 67,
+      "sha256": "e067bff4a28e82d6f45629ef8cf67c9956cf3cd034e88646ea1ef8112f36a622",
+      "owner": "contracts"
+    },
+    {
+      "path": "contracts/client-schemas/agent-exact.schema.json",
+      "mode": "100644",
+      "bytes": 308960,
+      "sha256": "145733ef3c4047d903f66ac3388fffe3c56831d2e003a591b83f4149ebdb9dd6",
+      "owner": "contracts"
+    },
+    {
+      "path": "contracts/client-schemas/operation-catalog.json",
+      "mode": "100644",
+      "bytes": 41995,
+      "sha256": "99feb53a100208e5b894f4fb3affd1ed864ccf9b979a2599e3bb00546d56f247",
+      "owner": "contracts"
+    },
+    {
+      "path": "contracts/client-schemas/pins.json",
+      "mode": "100644",
+      "bytes": 34675,
+      "sha256": "f614c47b752decbdf599397ca4aa89eb3a630b4a668c50011443614e93e8ff8e",
+      "owner": "contracts"
+    },
+    {
       "path": "contracts/geodata-wire-v2/README.md",
       "mode": "100644",
       "bytes": 3627,
@@ -6130,6 +6165,13 @@
       "owner": "contracts"
     },
     {
+      "path": "docs/contracts/client-schema-subsets.md",
+      "mode": "100644",
+      "bytes": 5605,
+      "sha256": "0ce36378dea4e331cd0f417a9a5684fbb898923a8df59c07b36d40a7aea35da0",
+      "owner": "contracts"
+    },
+    {
       "path": "docs/contracts/fixtures/geodata-document-v2.synthetic.json",
       "mode": "100644",
       "bytes": 3258,
@@ -6202,8 +6244,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 168089,
-      "sha256": "0f3f82bfebfb9adcda58ab06d078fbe117ff0f9962a82d0c912475d0f16c540a",
+      "bytes": 169522,
+      "sha256": "f1554258439f87561f53dbea804875930a087f6f95a52f20de736bac15c5c968",
       "owner": "core-integration"
     },
     {
@@ -7061,6 +7103,20 @@
       "owner": "core-integration"
     },
     {
+      "path": "frontend/build/client-schemas-plugin.d.mts",
+      "mode": "100644",
+      "bytes": 83,
+      "sha256": "9d0b3b2b9ba5dd6e3349c0bf8591cd5a4171f03896ded89f6935f7fcaed99711",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/build/client-schemas-plugin.mjs",
+      "mode": "100644",
+      "bytes": 378,
+      "sha256": "9d468e76582016bc63d8dd67b7e56392203cc3ecc28b82c2a0e6197ecf22b617",
+      "owner": "web"
+    },
+    {
       "path": "frontend/build/offline-shell-plugin.mjs",
       "mode": "100644",
       "bytes": 3845,
@@ -7189,8 +7245,8 @@
     {
       "path": "frontend/capture-evidence-tests/foreground.mjs",
       "mode": "100644",
-      "bytes": 18183,
-      "sha256": "94cd538f8e86101631b8b80783071a680ec4bcebf8d2d04a864c0c70ea1dcf6d",
+      "bytes": 18384,
+      "sha256": "88205717098784a63e8f0583fcae0ca03e6ec8fb26448fe187fa89a493ef4b30",
       "owner": "core-integration"
     },
     {
@@ -7406,8 +7462,8 @@
     {
       "path": "frontend/integration/stock-schemas.ts",
       "mode": "100644",
-      "bytes": 698,
-      "sha256": "cf7e6d747c584c4481d83d34479db92b77b7489d1ccae2398d85079460d36ce9",
+      "bytes": 699,
+      "sha256": "97ffa4157b112617181e0de7f2eac4a5906d672e7a57924334a404fe84b8880d",
       "owner": "core-integration"
     },
     {
@@ -7523,6 +7579,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/client-schema-subset.mjs",
+      "mode": "100644",
+      "bytes": 7296,
+      "sha256": "8a2efa07a60a6b9114ea384414e49abf5b9c1651824ad0d5ecf5bc7b224be6a5",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/core-read-visual/fixture.json",
       "mode": "100644",
       "bytes": 60733,
@@ -7616,8 +7679,8 @@
     {
       "path": "frontend/lantern-tests/healthy-read.mjs",
       "mode": "100644",
-      "bytes": 62162,
-      "sha256": "40b3b64c15870758c1da2a039c5712bcce60c0fea1fa3069286799ff4863ad2a",
+      "bytes": 62255,
+      "sha256": "0df9502ef336dd763403ce819586b33cb81ae391baea0e4d6c6095f693efe3d0",
       "owner": "web"
     },
     {
@@ -7637,8 +7700,8 @@
     {
       "path": "frontend/lantern-tests/load-numeric-source.mjs",
       "mode": "100644",
-      "bytes": 7419,
-      "sha256": "3587e7c3a8901faaeceb84df0225c4e2d74db6aa3585a1187b58a19e86f9d29c",
+      "bytes": 7554,
+      "sha256": "098b147ff8221adc44b9eac24076968d8e368ca8267f66ae02c82a743e276f0d",
       "owner": "web"
     },
     {
@@ -7651,15 +7714,15 @@
     {
       "path": "frontend/lantern-tests/native-evidence-request-read.mjs",
       "mode": "100644",
-      "bytes": 7995,
-      "sha256": "28f0cf094f1efc5c4395dd33e08442e71f80b049b96fe8a07faa9d61370d063c",
+      "bytes": 8235,
+      "sha256": "a840fcf54c1242e525aea6140d50b8617cf6e56c4b2ba83fced6655088e5deb6",
       "owner": "web"
     },
     {
       "path": "frontend/lantern-tests/native-evidence-upload-diagnostics.mjs",
       "mode": "100644",
-      "bytes": 23447,
-      "sha256": "9c192d208674ce4068ee61b25f41f85533d676653f222ecab7b1e4b0c8f1f757",
+      "bytes": 23687,
+      "sha256": "e43074e31e1f5b2b91d71189d40bdbc75fd35d0882b6e2970ff00b4249d7875b",
       "owner": "web"
     },
     {
@@ -7728,8 +7791,8 @@
     {
       "path": "frontend/lantern-tests/native-place-levels-intake.mjs",
       "mode": "100644",
-      "bytes": 10813,
-      "sha256": "048532926db4072a1487d384c170ce5908971b8378f0e7ee59629d6a58bedf3d",
+      "bytes": 10815,
+      "sha256": "4c5cbe92917b22ef9260c88fca21325fa6288adfd719a1305d96210c231d7cbb",
       "owner": "web"
     },
     {
@@ -8659,29 +8722,29 @@
     {
       "path": "frontend/src/api/operation-history-client.ts",
       "mode": "100644",
-      "bytes": 8729,
-      "sha256": "d299a10cc70e9606b00caa0271d7fc9c632f217e520521180fa19c517a0b13bf",
+      "bytes": 8726,
+      "sha256": "270fbe6e766624e519d5b2e9ff0d00a19a98f43c1029e89d9175c505b95b0f5f",
       "owner": "web"
     },
     {
       "path": "frontend/src/api/pinned-file-client.ts",
       "mode": "100644",
-      "bytes": 19021,
-      "sha256": "8ce75a541c9e02cdea817aa5732d7013e558bebcef16919cea5512ff20341946",
+      "bytes": 19022,
+      "sha256": "e1300c9272849d9b5f40d9c47dd10c87f81d5b89e64a764dbb90bc024acb11d4",
       "owner": "web"
     },
     {
       "path": "frontend/src/api/quantity-client.ts",
       "mode": "100644",
-      "bytes": 11901,
-      "sha256": "14613c05e0325d26ae68d4510b22bb385a8296a382803efad355d348e2e309d5",
+      "bytes": 11902,
+      "sha256": "433149495277b7e0cb5814e24c2bd9ac3a6423f358a66273adfc2b608dbde9fd",
       "owner": "web"
     },
     {
       "path": "frontend/src/api/retained-intent-client.ts",
       "mode": "100644",
-      "bytes": 15896,
-      "sha256": "f5640595209f0dc2634789560ac60502e77cf64192e56bb9a5af01a477f2b35d",
+      "bytes": 15894,
+      "sha256": "be7f314458d84596a67ae2f01499c6b41dcfef49995bba607d61a8f679671f6a",
       "owner": "web"
     },
     {
@@ -10010,15 +10073,15 @@
     {
       "path": "frontend/src/numeric/schema-validator.ts",
       "mode": "100644",
-      "bytes": 25267,
-      "sha256": "c9736288b3de79816e8a7fc7ab157208620362058868cd119760e132f0eda789",
+      "bytes": 25264,
+      "sha256": "757f2a6334a85be9fc95e3da93aa2f11f0bcb33ec092f5dd31bfaf5dd2108324",
       "owner": "web"
     },
     {
       "path": "frontend/src/numeric/stock-ajv.ts",
       "mode": "100644",
-      "bytes": 1575,
-      "sha256": "a2f97c40b86b5a640523ba8cacbdd030c4e790bffc92ca7822830d4bc72e27ee",
+      "bytes": 1576,
+      "sha256": "210c3ba9ffd690eff754b0c093259e81e5a09adc4447b742427a72c99d102192",
       "owner": "web"
     },
     {
@@ -10409,8 +10472,8 @@
     {
       "path": "frontend/src/webmcp/stock-schema.ts",
       "mode": "100644",
-      "bytes": 4081,
-      "sha256": "9708ac58ce5212e331dce96836b77ebae9533c19dd8250a6b0a365a2d2d4d826",
+      "bytes": 4079,
+      "sha256": "29c184ebe229905fe7d65dab27eef50a71f1e7886a82f1e0f9cbd5371766f3ad",
       "owner": "webmcp"
     },
     {
@@ -10444,8 +10507,8 @@
     {
       "path": "frontend/vite.config.ts",
       "mode": "100644",
-      "bytes": 1373,
-      "sha256": "f25577b7e3680dcbb802e02273221bc04d70bdfcdcfe95ce97a07208eef49140",
+      "bytes": 1469,
+      "sha256": "bdec4d010d9ec666d4a1c4a156f7c3e7f985a88ce70eb73a95abd5033ab195ad",
       "owner": "core-integration"
     },
     {
@@ -11303,6 +11366,20 @@
       "owner": "core-integration"
     },
     {
+      "path": "tools/client-schemas/generate.mjs",
+      "mode": "100644",
+      "bytes": 6046,
+      "sha256": "9393d7f164416778117fb3c97dd73f09a1da12183a61e3b36245d494dadc4852",
+      "owner": "contracts"
+    },
+    {
+      "path": "tools/client-schemas/subset.mjs",
+      "mode": "100644",
+      "bytes": 4823,
+      "sha256": "cfcc7e69e9d281524b1ca9ef112cb5f7ddbba71e6e7a66962654b3824b99d8df",
+      "owner": "contracts"
+    },
+    {
       "path": "tools/core-integration/browser-harness.mjs",
       "mode": "100644",
       "bytes": 3495,
@@ -11431,8 +11508,8 @@
     {
       "path": "tools/geometry/native-scan-import.test.mjs",
       "mode": "100644",
-      "bytes": 54273,
-      "sha256": "f6f3cc53a1d33eaaf5dbec30ba523189e9da323bcbc9faf52cb555f5bd39f8bf",
+      "bytes": 54279,
+      "sha256": "c3befd22881bb1525037d5e35d4b697beab0fad722414495bbb98cbdf2dc39e0",
       "owner": "media"
     },
     {

@@ -1,4 +1,4 @@
-import agent from "../../contracts/stock-wire3/agent/agent.schema.json";
+import agent from "../../contracts/client-schemas/agent-ajv.schema.json";
 import { stockAjv } from "../src/numeric/stock-ajv";
 import type { StockSchemaPort } from "../src/webmcp/stock.js";
 

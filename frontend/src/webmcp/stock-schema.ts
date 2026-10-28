@@ -1,10 +1,10 @@
-import agentSchema from "../../../contracts/stock-wire3/agent/agent.schema.json";
+import agentSchema from "../../../contracts/client-schemas/agent-ajv.schema.json";
 import atlasSchema from "../../../packages/contracts/schemas/atlas.schema.json";
-import operationCatalog from "../../../contracts/stock-wire3/agent/operation-catalog.json";
+import operationCatalog from "../../../contracts/client-schemas/operation-catalog.json";
 import toolFamilies from "../../../contracts/stock-wire3/agent/tool-families.json";
 import type { JsonObject, JsonValue } from "./ports.js";
 
-/** Exact shared inputs, not a second operation registry or generated contract. */
+/** Generated projections of pinned shared inputs, never a capability registry. */
 export const stockCatalog = operationCatalog;
 export const stockFamilies = toolFamilies;
 export const stockSchemaId = agentSchema.$id;
