@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "04866a39846a7e9f35310974857f6ffc4e01589492dc109d2bad9af99b4b2358",
+  "sourceDigestSha256": "809a866d3739ca33a0de348003b63955f99c77489463c0c7f33577d530614dba",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -8351,8 +8351,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
-      "bytes": 118773,
-      "sha256": "895653d082c51b1cd333e3eb9d277dd912e5d061ce137352006fa3b1771cbae0",
+      "bytes": 118751,
+      "sha256": "393f92fa61c59a9bec54fd10dd9a686cec88c0c97f246b4900ffdbcc832b7821",
       "owner": "web"
     },
     {
@@ -9996,8 +9996,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/measurements.ts",
       "mode": "100644",
-      "bytes": 9601,
-      "sha256": "f571b3613d298f247d92046b5a263dcfe31f7b7cd84d084f77fded5c0cc113a1",
+      "bytes": 9590,
+      "sha256": "d35a8bab7689cea3b74886554d616dba637e302b7cc81319e602002c1347fc3b",
       "owner": "web"
     },
     {
@@ -10059,8 +10059,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/scene.ts",
       "mode": "100644",
-      "bytes": 83557,
-      "sha256": "e9f3408809085814a05c679301105c0e4ce1279ee10fd3a9d6a316ef53fa4d68",
+      "bytes": 83487,
+      "sha256": "bf0ec924572725efb18d9d495d35852516f8c7653324191c54425d0d2444782d",
       "owner": "web"
     },
     {
@@ -10080,8 +10080,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/types.ts",
       "mode": "100644",
-      "bytes": 11784,
-      "sha256": "cd51ed1345b8d6ad5501d956fa4d72854b6d8f8b013f65c7ef54a1a646d747b7",
+      "bytes": 11786,
+      "sha256": "ce6cba0f373a6bd44662c9b3953355c79d08afd56de4ba49e94f687ccf19def1",
       "owner": "web"
     },
     {

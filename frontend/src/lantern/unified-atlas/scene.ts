@@ -54,7 +54,6 @@ function row(value: unknown, keys: readonly string[]): Row {
 function list(value: unknown, max: number): readonly unknown[] {
   need(Array.isArray(value)); budget(value.length <= max); return value;
 }
-const NOT_MEASURED: OccurrenceMeasurements = { area: null, lengths: [] };
 const MEASURED_BASIS = 'owner-confirmed-measurement';
 /** The optional `measuredDimensions`: present means at least one value, one
  * area at most and one length per wall, as the server admits them. */
@@ -238,7 +237,7 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
     return { spaceOccurrenceId: id(occurrence.spaceOccurrenceId), roomId: room.roomId, buildingId: room.buildingId, levelId: level.levelId,
       bounds: box(occurrence.bounds), planFeatureIds: ids(occurrence.planFeatureIds, ATLAS_LIMITS.polygonPoints),
       geometryBasis: { kind: basis.kind, sourceRef: nullableText(basis.sourceRef, 256), note: nullableText(basis.note, 1024) },
-      measured: occurrence.measuredDimensions === undefined ? NOT_MEASURED : admitMeasured(occurrence.measuredDimensions) };
+      ...occurrence.measuredDimensions === undefined ? {} : { measured: admitMeasured(occurrence.measuredDimensions) } };
   });
   const occurrenceById = unique(occurrences, item => item.spaceOccurrenceId);
   for (const room of rooms) need(sameSet(room.occurrenceIds, occurrences.filter(item => item.roomId === room.roomId).map(item => item.spaceOccurrenceId)));
@@ -301,7 +300,7 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
   }
   // A measured wall lies on one of the occurrence's own room polygons.
   const featureById = new Map(plans.flatMap(plan => plan.features.map(feature => [feature.featureId, feature] as const)));
-  for (const occurrence of occurrences) for (const { edge } of occurrence.measured.lengths) {
+  for (const occurrence of occurrences) for (const { edge } of occurrence.measured?.lengths ?? []) {
     const feature = featureById.get(edge.featureId), outer = feature?.polygons[edge.polygon]?.outer.length ?? 0;
     need(feature?.role === 'room' && occurrence.planFeatureIds.includes(edge.featureId) && edge.from < outer && edge.to < outer);
   }

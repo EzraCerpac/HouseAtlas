@@ -59,7 +59,7 @@ export const measurable = (model: AtlasModel, occurrenceId: string) =>
 export function roomArea(model: AtlasModel, occurrenceId: string): RoomArea | null {
   const occurrence = model.occurrencesById.get(occurrenceId);
   if (!occurrence || !model.selectable.has(occurrenceId)) return null;
-  const partial = model.roomsById.get(occurrence.roomId)!.occurrenceIds.length > 1, given = occurrence.measured.area;
+  const partial = model.roomsById.get(occurrence.roomId)!.occurrenceIds.length > 1, given = occurrence.measured?.area ?? null;
   if (given !== null) return { occurrenceId, squareMetres: given, text: measuredText(given, 'm²'), partial, measured: true };
   if (!measurable(model, occurrenceId)) return null;
   const squareMetres = occurrenceArea(model, occurrenceId);
@@ -106,7 +106,7 @@ const samePoint = (p: Point, q: Point) => p[0] === q[0] && p[1] === q[1];
  * polygon it names, so a straight run with the same ends takes its value. */
 function measuredWalls(model: AtlasModel, occurrenceId: string) {
   const occurrence = model.occurrencesById.get(occurrenceId)!;
-  if (occurrence.measured.lengths.length === 0) return [];
+  if (!occurrence.measured) return [];
   const features = new Map((model.plansByLevel.get(occurrence.levelId) ?? []).flatMap(plan => plan.features.map(f => [f.featureId, f] as const)));
   return occurrence.measured.lengths.map(({ edge, metres }) => {
     const outer = features.get(edge.featureId)!.polygons[edge.polygon]!.outer;

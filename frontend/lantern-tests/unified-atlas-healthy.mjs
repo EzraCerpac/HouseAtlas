@@ -322,7 +322,7 @@ const model = bindAtlasModel(read.scene, loaded);
   const owner = read.scene.occurrences.find(o => o.geometryBasis.kind === 'source-model' && model.selectable.has(o.spaceOccurrenceId)
     && measurements.edgeSpans(model, o.spaceOccurrenceId).length > 1);
   assert.ok(owner, 'a generated room part with outline spans');
-  assert.deepEqual(owner.measured, { area: null, lengths: [] }, 'nothing measured unless the release says so');
+  assert.equal(owner.measured, undefined, 'nothing measured unless the release says so');
   const feature = read.scene.plans.flatMap(plan => plan.features).find(f => f.role === 'room' && f.spaceOccurrenceId === owner.spaceOccurrenceId);
   const outer = feature.polygons[0].outer, first = measurements.ringRuns(outer)[0];
   const from = outer.findIndex(p => p[0] === first.a[0] && p[1] === first.a[1]), to = outer.findIndex(p => p[0] === first.b[0] && p[1] === first.b[1]);
