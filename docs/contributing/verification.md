@@ -2296,32 +2296,6 @@ supported-browser observations after source review and independent deployment
 authority. No broader control suite or production action is released.
 
 
-## Named synthetic linear proposal syntax cases
-
-Read `packages/contracts/proposals/linear-v1/{schema.json,validate.mjs,examples.json,examples.test.mjs}`
-and the [pinned area-candidate alignment](../contracts/measurement-linear-alignment.md)
-before execution. The existing ordinary-core job selects exactly this file with
-pinned Node 26.10.0 and the already installed `packages/contracts` lock:
-
-```sh
-node --test --test-concurrency=1 packages/contracts/proposals/linear-v1/examples.test.mjs
-```
-
-Its eleven test bodies preserve six fictional proposals and cover exact
-leading/trailing-zero entry, the 64-character and 18-fractional-digit limits,
-all-zero and line-terminator refusal, metric scalar field/unit compatibility,
-documentary wall token syntax and canonical endpoint order, distinct height
-datums and disjoint declared boundary tokens. The existing boundary arithmetic
-uses only the explicitly generated fixture coordinates.
-
-The runner reads local fixture/schema bytes and uses the locked Ajv 8.20.0 and
-ajv-formats 3.0.1. It opens no browser, listener, native service or provider,
-issues no write, allocates no source identity, imports none of PR #453's backend
-and adds no dependency or proposal-directory glob. These checks qualify isolated
-syntax and fixture consistency only; they establish no native linear API,
-persistence, physical measurement accuracy or installed/device acceptance.
-Registration is source until exact-candidate hosted logs report execution.
-
 ## Named generated electrical registration cases
 
 Read `tools/electrical_registration/README.md`, its pure registration module and

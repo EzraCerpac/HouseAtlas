@@ -59,8 +59,6 @@ jobs:
           npm run check:http:ordinary
       - name: Run one healthy synthetic Request group
         run: npm run test:ordinary
-      - name: Run the eleven synthetic linear proposal syntax cases
-        run: node --test --test-concurrency=1 packages/contracts/proposals/linear-v1/examples.test.mjs
       - name: Run the eight synthetic electrical registration cases
         run: node --test --test-concurrency=1 tools/electrical_registration/healthy.test.mjs
       - name: Check synthetic host-client options, identities, pacing, MCP and comparison (no host or load)
@@ -95,7 +93,7 @@ jobs:
       - name: Record coverage boundary
         if: always()
         run: |
-          printf '%s\n' 'Scope: the three explicit synthetic bridge read cases (healthy_large_read_page, denial_read_profile_bounds, denial_read_correlation; fake GET/session/admission owners and disposable journal only), integrity, syntax, six module builds, 14 history checks, one healthy synthetic mutation/read/history/DTO Request group, the HomeBox quantity seed report unit tests, eight named synthetic electrical registration cases, eleven named synthetic linear proposal syntax cases, sixteen synthetic runtime profiling guard/receipt cases and the explicit Cargo mode process-routing regressions and nine host-client options, driver-identity, pacing, MCP and comparison cases (two exact Node files; generated temp files and fake ports only, no host or load).' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'Scope: the three explicit synthetic bridge read cases (healthy_large_read_page, denial_read_profile_bounds, denial_read_correlation; fake GET/session/admission owners and disposable journal only), integrity, syntax, six module builds, 14 history checks, one healthy synthetic mutation/read/history/DTO Request group, the HomeBox quantity seed report unit tests, eight named synthetic electrical registration cases, sixteen synthetic runtime profiling guard/receipt cases and the explicit Cargo mode process-routing regressions and nine host-client options, driver-identity, pacing, MCP and comparison cases (two exact Node files; generated temp files and fake ports only, no host or load).' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'Command outcomes are reported in the steps above; this summary alone is not a pass claim.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'New explicit source-presence admission is blocked and unexercised.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'Beyond the eight named electrical cases and the three exact scoped bridge read cases, guard reversal, mutation/omission controls, adversarial, denial, failure injection, concurrency and private-intake checks remain stopped and excluded.' >> "$GITHUB_STEP_SUMMARY"
