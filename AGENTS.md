@@ -130,7 +130,9 @@ expanded by the viewer's decoder; and
 `cargo test --locked -p houseatlas-backend --lib` with its default
 (non-`#[ignore]`) set, skipping the three quantity tests that need
 `HOUSEATLAS_QUANTITY_REFERENCE_DIR`; and the healthy `tools/rust-integration`
-loopback flows named in the workflow and in the verification guide. A PR that
+loopback flows (including pure fake-child/clock CDP startup/framing/error cases
+inside the already admitted media flow; one 60 s startup request, unchanged
+15 s subsequent calls and close-aware owned-child cleanup) named in the workflow and in the verification guide. A PR that
 extends CI names the added scope here and in the verification guide.
 
 The same frontend runner selects the capture selection case

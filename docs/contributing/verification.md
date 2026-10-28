@@ -186,6 +186,31 @@ native UI harness and browser-cases runner remain outside this list. The full
 controller regression file contains thirteen cases and is not selected here.
 No new workflow or browser infrastructure is added.
 
+## Native media Chromium startup
+
+The existing healthy media loopback invokes in-process `browser-pipe-cases.mjs`
+coverage before native work: fragmented NUL/UTF-8 frames, exact response IDs,
+silent startup, malformed frames, process/pipe exit and write errors, terminal
+pending-call release and the handshake/exit continuation race. Fake EventEmitters
+and a controlled clock launch no child, browser, socket or service.
+
+The media flow makes one `Browser.getVersion` request with a 60 s launch-only
+budget before page/cookie work. It never retries or relaunches. Subsequent CDP
+calls retain 15 s. Readiness is a correlated, valid version response from a
+still-live pipe, not the spawn event or successful write alone. Startup receipts
+contain only timing, counts and process/pipe state; no CDP payloads or stderr.
+This bounded wait accommodates delay without diagnosing its cause. Framing,
+child exits and pipe/write failures fail immediately rather than waiting out
+that budget. Other copied loopback flows are unchanged by this increment.
+
+Media teardown reuses the close-aware owned-child helper: 2 s graceful, 2 s TERM
+and 3 s KILL, with no broad process discovery or signals. Failed startup does
+not attempt another handshake or protocol close. Removal waits for browser and
+service closure; uncertain closure retains synthetic scratch. Cleanup failures
+are additional diagnostics when a primary assertion failed, and fail an otherwise
+successful case. The existing CI job limit and application assertions are unchanged.
+Registration is not an execution result or device acceptance.
+
 ## Real-browser offline launch
 
 `frontend/lantern-tests/offline-launch-browser.mjs` serves the built `dist/` on
