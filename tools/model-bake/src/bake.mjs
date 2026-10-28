@@ -14,6 +14,7 @@
 import { createHash } from 'node:crypto';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import { COMPONENTS, maxScale, meshInstances, readAccessor, readGlb, writeGlb } from './glb.mjs';
+import { decodePng, encodePng, shrinkImage } from './png.mjs';
 
 export const BAKE_DEFAULTS = Object.freeze({
   /** Drawn triangles, counted per node instance like the viewer counts them. */
@@ -29,6 +30,10 @@ export const BAKE_DEFAULTS = Object.freeze({
    * before simplification, so exporter-split or clipped surfaces collapse as
    * one surface. Welding keeps the first source vertex of each cell. */
   weld: 0.0005,
+  /** Embedded textures larger than this many pixels on a side are halved until
+   * they fit: the overview is what phones draw, and its GPU budget holds the
+   * geometry and every texture. The Full tier keeps them as authored. */
+  textureSize: 512,
 
 });
 /** Roles whose primitives must stay byte-identical. */
@@ -194,7 +199,7 @@ const bounds = values => {
  * overview's companion binds both; the returned companion differs from it
  * only in `original`, which pins this GLB instead. */
 export async function bakeDetail(masterBytes, companion) {
-  const { glb, companion: baked, report } = await bakeOverview(masterBytes, companion, { triangles: Infinity });
+  const { glb, companion: baked, report } = await bakeOverview(masterBytes, companion, { triangles: Infinity, textureSize: Infinity });
   return { glb, companion: baked, drawnTriangles: report.overview.drawnTriangles, report };
 }
 
@@ -347,10 +352,47 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
       if (primitive.material !== undefined) primitive.material = index.get(primitive.material);
     json.materials = kept.map(at => materials[at]);
   }
-  for (const image of json.images ?? []) if (image.bufferView !== undefined) {
-    const view = source.bufferViews[image.bufferView], start = view.byteOffset ?? 0;
-    image.bufferView = addView(bin.subarray(start, start + view.byteLength));
+  // How each image is sampled, for averaging it: normal map, colour (sRGB) or data.
+  // An overview image to be halved that is read in more than one role gets a copy
+  // per further role (and its textures one too), so each is averaged the way it
+  // is sampled. Images that already fit stay shared.
+  const decodedViews = new Map(), decoded = image => {
+    if (!Number.isFinite(options.textureSize) || image.bufferView === undefined || image.mimeType !== 'image/png') return null;
+    if (!decodedViews.has(image.bufferView)) {
+      const view = source.bufferViews[image.bufferView], start = view.byteOffset ?? 0;
+      decodedViews.set(image.bufferView, decodePng(bin.subarray(start, start + view.byteLength)));
+    }
+    return decodedViews.get(image.bufferView);
+  };
+  const shrinks = image => { const pixels = decoded(image); return pixels !== null && Math.max(pixels.width, pixels.height) > options.textureSize; };
+  const slots = (json.materials ?? []).flatMap(material => [[material.normalTexture, 'normal'], [material.pbrMetallicRoughness?.baseColorTexture, 'srgb'],
+    [material.emissiveTexture, 'srgb'], [material.pbrMetallicRoughness?.metallicRoughnessTexture, 'data'], [material.occlusionTexture, 'data']])
+    .filter(([info]) => json.textures?.[info?.index]?.source !== undefined);
+  const imageRoles = new Map(), copies = new Map();
+  for (const [info, role] of slots) {
+    const texture = json.textures[info.index], at = texture.source;
+    if (!imageRoles.has(at)) imageRoles.set(at, role);
+    if (imageRoles.get(at) === role || !shrinks(json.images[at])) continue;
+    if (!copies.has(`${info.index}:${role}`)) {
+      let image = copies.get(`image ${at}:${role}`);
+      if (image === undefined) { image = json.images.push({ ...json.images[at] }) - 1; imageRoles.set(image, role); copies.set(`image ${at}:${role}`, image); }
+      copies.set(`${info.index}:${role}`, json.textures.push({ ...texture, source: image }) - 1);
+    }
+    info.index = copies.get(`${info.index}:${role}`);
   }
+  const textures = [];
+  (json.images ?? []).forEach((image, at) => {
+    if (image.bufferView === undefined) return;
+    const view = source.bufferViews[image.bufferView], start = view.byteOffset ?? 0;
+    let bytes = bin.subarray(start, start + view.byteLength);
+    const pixels = decoded(image);
+    if (shrinks(image)) {
+      const shrunk = shrinkImage(pixels, options.textureSize, imageRoles.get(at) ?? 'data');
+      textures.push({ image: at, role: imageRoles.get(at) ?? 'data', from: [pixels.width, pixels.height], to: [shrunk.width, shrunk.height], bytes: bytes.byteLength });
+      bytes = encodePng(shrunk); textures.at(-1).bakedBytes = bytes.byteLength;
+    } else if (Number.isFinite(options.textureSize) && !pixels) textures.push({ image: at, kept: 'not an opaque 8-bit RGB, non-interlaced, well-formed PNG; left for the viewer to judge' });
+    image.bufferView = addView(bytes);
+  });
   json.accessors = accessors; json.bufferViews = views;
   const outBin = writer.bytes();
   if (views.length === 0) { delete json.accessors; delete json.bufferViews; delete json.buffers; }
@@ -366,7 +408,10 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
       profile: 'houseatlas.overview-bake-report.v2',
       master: { sha256: sha256(masterBytes), bytes: masterBytes.byteLength, binBytes: bin?.byteLength ?? 0, drawnTriangles: drawn(report.map(r => ({ ...r, bakedTriangles: r.triangles }))) },
       overview: { sha256: sha256(outBytes), bytes: outBytes.byteLength, binBytes: outBin.byteLength, drawnTriangles: drawn(report) },
-      budget: { triangles: options.triangles, maxError: options.maxError, structureWeight: options.structureWeight, siteWeight: options.siteWeight, weld: options.weld },
+      budget: { triangles: options.triangles, maxError: options.maxError, structureWeight: options.structureWeight, siteWeight: options.siteWeight, weld: options.weld,
+        textureSize: options.textureSize },
+      // Images halved to fit textureSize (and any this bake could not read, kept as authored).
+      textures,
       rolesFrom: companion ? 'companion' : 'node-extras',
       // Upper bounds on how far baked geometry departs from the master: simplification plus welding.
       weldDisplacementMetres: displaced,

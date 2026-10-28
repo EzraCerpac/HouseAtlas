@@ -117,7 +117,7 @@ server, no browser or network), the generated Unified Atlas overlay feed check
 source owner and synthetic IndexedDB, no browser or real source), and the
 generated backup settings check (decoding and the CSRF save exchange against
 a generated transport, no browser or network); the `tools/model-bake` tests on generated
-geometry, including viewer admission and selector binding of a baked generated
+geometry, including overview texture halving, viewer admission and selector binding of a baked generated
 unified Atlas publication and its detail tier, and their meshopt compression
 expanded by the viewer's decoder; and
 `cargo test --locked -p houseatlas-backend --lib` with its default
