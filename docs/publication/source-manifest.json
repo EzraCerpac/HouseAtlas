@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "2652affc6f03fec3909e66081a1e1191ac1d08e9566b2726cdd0849b72ec3ceb",
+  "sourceDigestSha256": "f2446dd69fce18475a0b3a6c23a08de6d103da2db5d355cd3a8df0aabdfcec01",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -7644,8 +7644,8 @@
     {
       "path": "frontend/lantern-tests/backup-settings-healthy.mjs",
       "mode": "100644",
-      "bytes": 7158,
-      "sha256": "832233831c5179a0a3fd7895f17d07297805e3598bf2b3a3cd6d2861ade11092",
+      "bytes": 7527,
+      "sha256": "13fd8eaa5a1d4bb7778bd4b3f80af105774e67a5097e5301a2c5c8a8d6660a49",
       "owner": "web"
     },
     {
@@ -9149,8 +9149,8 @@
     {
       "path": "frontend/src/lantern/backups.ts",
       "mode": "100644",
-      "bytes": 8091,
-      "sha256": "1c71f373a3d282e63806e9d00511b1cb60a69545942dd071d8cfa6fafdab943f",
+      "bytes": 8503,
+      "sha256": "411843f3d113597b7df6bc9a6beae9ebc10f9c23714b3beb493ca58f500cfe7a",
       "owner": "web"
     },
     {
