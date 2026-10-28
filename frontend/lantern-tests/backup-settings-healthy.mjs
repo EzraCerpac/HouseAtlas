@@ -28,16 +28,16 @@ const success = { finished: '2026-10-27T04:01:10+00:00', recoveryPoint: '2026-10
 
 // What the section says.
 {
-  assert.equal(describeRetention({ keep: 'forever' }), 'Every nightly iCloud backup is kept.');
+  assert.equal(describeRetention({ keep: 'forever' }), 'Every nightly iCloud backup is kept. This choice covers the iCloud backups only, never the server’s own data or copies saved on your devices.');
   assert.equal(describeRetention({ keep: 'recent', nights: 30, months: 12 }),
-    'Keeps the last 30 nightly backups and the first one of each of the last 12 months. The next nightly backup deletes older ones from iCloud.');
+    'Keeps the last 30 nightly backups and the first one of each of the last 12 months. The next nightly backup deletes older ones from iCloud. This choice covers the iCloud backups only, never the server’s own data or copies saved on your devices.');
   assert.equal(describeRetention({ keep: 'recent', nights: 7, months: 0 }),
-    'Keeps the last 7 nightly backups. The next nightly backup deletes older ones from iCloud.');
+    'Keeps the last 7 nightly backups. The next nightly backup deletes older ones from iCloud. This choice covers the iCloud backups only, never the server’s own data or copies saved on your devices.');
   assert.deepEqual(describeStatus(null), ['No nightly backup has reported yet.']);
   const lines = describeStatus({ lastSuccess: { finished: success.finished, archiveBytes: 2_400_000 }, lastFailure: null,
     removed: { archives: 2, modelFiles: 1, bytes: 150_000_000 }, stored: { archives: 42, bytes: 1_400_000_000 }, problem: null });
   assert.deepEqual(lines, [
-    'Last backup 27 Oct 2026, 04:01 UTC, 2.4 MB, checked by restoring the copy from iCloud.',
+    'Last backup 27 Oct 2026, 04:01 UTC, 2.4 MB, saved to iCloud. Its test restore passed; that checks the copy, it is not a full recovery.',
     'iCloud holds 42 backups, 1.4 GB in all. The last run deleted 2 older backups and 1 unused model file (150 MB).',
   ]);
   const failed = describeStatus({ lastSuccess: { finished: success.finished, archiveBytes: 1 },

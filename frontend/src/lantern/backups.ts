@@ -70,10 +70,13 @@ export function formatBytes(bytes: number): string {
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
+// The choice is about the iCloud copies only; say so, so it never reads as a policy for the working data.
+const SCOPE = 'This choice covers the iCloud backups only, never the server’s own data or copies saved on your devices.';
+
 export function describeRetention(retention: Retention): string {
-  if (retention.keep === 'forever') return 'Every nightly iCloud backup is kept.';
+  if (retention.keep === 'forever') return `Every nightly iCloud backup is kept. ${SCOPE}`;
   const monthly = retention.months > 0 ? ` and the first one of each of the last ${plural(retention.months, 'month', 'months')}` : '';
-  return `Keeps the last ${plural(retention.nights, 'nightly backup', 'nightly backups')}${monthly}. The next nightly backup deletes older ones from iCloud.`;
+  return `Keeps the last ${plural(retention.nights, 'nightly backup', 'nightly backups')}${monthly}. The next nightly backup deletes older ones from iCloud. ${SCOPE}`;
 }
 
 /** One or two short lines: how the last run went, and what iCloud holds. */
@@ -85,7 +88,8 @@ export function describeStatus(status: BackupStatus | null): readonly string[] {
     lines.push(`The backup on ${formatDate(failure.at)} stopped at “${failure.step}”.`
       + (success ? ` The newest good one is from ${formatDate(success.finished)}.` : ''));
   } else if (success) {
-    lines.push(`Last backup ${formatDate(success.finished)}, ${formatBytes(success.archiveBytes)}, checked by restoring the copy from iCloud.`);
+    // A passed test restore shows the copy is complete; it is not a recovery of the house, so never call it one.
+    lines.push(`Last backup ${formatDate(success.finished)}, ${formatBytes(success.archiveBytes)}, saved to iCloud. Its test restore passed; that checks the copy, it is not a full recovery.`);
   }
   if (status.stored) {
     const removed = status.removed && status.removed.archives + status.removed.modelFiles > 0
