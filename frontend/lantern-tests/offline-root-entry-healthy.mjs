@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { EventEmitter } from 'node:events';
 import { existsSync } from 'node:fs';
-import { trackOfflineBrowser, removeOfflineScratch } from './offline-launch-cleanup.mjs';
+import { trackOfflineBrowser, removeOfflineScratch, finishOfflineCleanup } from './offline-launch-cleanup.mjs';
 import { offlineShellPlugin } from '../build/offline-shell-plugin.mjs';
 assert.equal(process.version, 'v26.10.0'); assert.deepEqual(process.argv.slice(2), []);
 const frontend = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -205,6 +205,35 @@ async function checkOwnedBrowserCleanup() {
     await assert.rejects(removeOfflineScratch(scratch), /Refusing cleanup/);
   } finally { rmSync(folder, { recursive: true, force: true }); }
   cases.push('owned-browser-ack-exit-close-signals-timeout-and-bounded-profile-cleanup');
+
+  const primary = new Error('generated original assertion'), shutdown = new Error('generated shutdown failure'),
+    transport = new Error('generated transport failure'), removalError = new Error('generated removal failure');
+  const reports = []; let removed = false;
+  const combined = async (failure, options) => {
+    let retained = null;
+    try { throw failure; }
+    catch (error) { retained = { error }; throw error; }
+    finally { await finishOfflineCleanup({ ...options, primaryFailure: retained, report: failure => reports.push(failure) }); }
+  };
+  await assert.rejects(combined(primary, { stopBrowser: async () => { throw shutdown; },
+    releaseTransport: [() => { throw transport; }], removeScratch: () => { removed = true; } }), error => error === primary);
+  assert.equal(removed, false, 'failed shutdown keeps profile');
+  assert.deepEqual(reports, [{ phase: 'browser shutdown', error: shutdown }, { phase: 'transport release', error: transport }]);
+  reports.length = 0;
+  await assert.rejects(combined(primary, { stopBrowser: async () => {}, removeScratch: () => { throw removalError; } }), error => error === primary);
+  assert.deepEqual(reports, [{ phase: 'profile removal', error: removalError }]);
+  // Falsy thrown values are still primary failures, and cleanup-only errors still fail.
+  await assert.rejects(combined(0, { stopBrowser: async () => { throw shutdown; } }), error => error === 0);
+  await assert.rejects(finishOfflineCleanup({ stopBrowser: async () => {}, removeScratch: () => { throw removalError; } }), error => error === removalError);
+  await assert.rejects(finishOfflineCleanup({ stopBrowser: async () => { throw shutdown; },
+    releaseTransport: [() => { throw transport; }] }), error =>
+    error instanceof AggregateError && error.cause === shutdown && error.errors[0] === shutdown && error.errors[1] === transport);
+  const order = [];
+  await finishOfflineCleanup({ beforeShutdown: [() => order.push('held')], stopBrowser: async () => { order.push('closed'); },
+    releaseTransport: [() => order.push('transport')], removeScratch: () => order.push('removed') });
+  assert.deepEqual(order, ['held', 'closed', 'transport', 'removed']);
+  cases.push('original-test-failure-preserved-with-shutdown-and-removal-diagnostics');
+
 }
 
 try {

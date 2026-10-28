@@ -232,6 +232,10 @@ shutdown helper with fake child events and generated temporary directories:
 delayed close after exit/ack, missing acknowledgement, TERM/KILL fallback,
 already closed child, retained scratch on timeout, retry exhaustion and
 successful bounded cleanup. It launches no browser or real child process.
+The original test exception remains primary if shutdown or removal also fails;
+all cleanup diagnostics are reported separately. When the test itself passed,
+cleanup failure still fails the case. Combined-failure assertions use synthetic
+errors and verify original identity, cleanup-only failure and ordered release.
 These checks concern harness reliability, not offline application or device
 acceptance.
 

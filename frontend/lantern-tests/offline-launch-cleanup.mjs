@@ -56,3 +56,27 @@ export async function removeOfflineScratch(directory, { remove = rmSync, retryDe
     }
   }
 }
+
+/** Keep a test's original thrown value primary while reporting every cleanup
+ * failure. Without a prior test failure, cleanup failures still fail the case. */
+export async function finishOfflineCleanup({ primaryFailure = null, beforeShutdown = [], stopBrowser,
+  releaseTransport = [], removeScratch, report = ({ phase, error }) => console.error('Additional offline cleanup failure (' + phase + '):', error) }) {
+  const failures = [];
+  const attempt = async (phase, run) => {
+    try { await run(); return true; }
+    catch (error) { failures.push({ phase, error }); return false; }
+  };
+  for (const release of beforeShutdown) await attempt('held response release', release);
+  const stopped = await attempt('browser shutdown', stopBrowser);
+  for (const release of releaseTransport) await attempt('transport release', release);
+  if (stopped) await attempt('profile removal', removeScratch);
+  if (primaryFailure !== null) {
+    for (const failure of failures) {
+      try { report(failure); } catch { /* reporting must not replace the primary test failure */ }
+    }
+    return;
+  }
+  if (failures.length === 1) throw failures[0].error;
+  if (failures.length > 1)
+    throw new AggregateError(failures.map(failure => failure.error), 'Offline harness cleanup failed', { cause: failures[0].error });
+}
