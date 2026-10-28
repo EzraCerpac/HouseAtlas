@@ -4,7 +4,7 @@ import type { Surroundings } from '../canonical-ifc/mesh-appearance';
 import type { StandardGlb } from '../canonical-ifc/standard-glb';
 import {
   AtlasReadError, type AtlasBuilding, type AtlasCoverage, type AtlasExclusion, type AtlasGeographic, type AtlasLevel, type AtlasMeshBinding, type AtlasOccurrence,
-  type AtlasOverlayBinding, type AtlasPlan, type AtlasPlanFeature, type AtlasPolygon, type AtlasRoom, type AtlasScene, type Box, type MeshRole,
+  type AtlasOverlayBinding, type AtlasPlan, type AtlasPlanFeature, type AtlasPolygon, type AtlasRoom, type AtlasScene, type Box, type MeasuredEdge, type MeshRole, type OccurrenceMeasurements,
   type OverlayAnchor, type OverlayKind, type PlanRole, type Vec3,
 } from './types';
 
@@ -53,6 +53,34 @@ function row(value: unknown, keys: readonly string[]): Row {
 }
 function list(value: unknown, max: number): readonly unknown[] {
   need(Array.isArray(value)); budget(value.length <= max); return value;
+}
+const NOT_MEASURED: OccurrenceMeasurements = { area: null, lengths: [] };
+const MEASURED_BASIS = 'owner-confirmed-measurement';
+/** The optional `measuredDimensions`: present means at least one value, one
+ * area at most and one length per wall, as the server admits them. */
+function admitMeasured(value: unknown): OccurrenceMeasurements {
+  const rows = list(value, 1024); need(rows.length > 0);
+  const amount = (item: unknown): number => {
+    need(typeof item === 'number' && Number.isFinite(item) && item > 0 && item <= ATLAS_LIMITS.coordinate); return item;
+  };
+  let area: number | null = null;
+  const lengths: { edge: MeasuredEdge; metres: number }[] = [], walls = new Set<string>();
+  for (const item of rows) {
+    if (isRow(item) && item.quantity === 'area') {
+      const dimension = row(item, ['quantity', 'value', 'unit', 'basis']);
+      need(area === null && dimension.unit === 'm2' && dimension.basis === MEASURED_BASIS); area = amount(dimension.value);
+      continue;
+    }
+    const dimension = row(item, ['quantity', 'value', 'unit', 'basis', 'edge']);
+    need(dimension.quantity === 'length' && dimension.unit === 'm' && dimension.basis === MEASURED_BASIS);
+    const at = row(dimension.edge, ['featureId', 'polygon', 'from', 'to']);
+    const edge = { featureId: id(at.featureId), polygon: integer(at.polygon, 0, ATLAS_LIMITS.polygonPoints),
+      from: integer(at.from, 0, ATLAS_LIMITS.polygonPoints), to: integer(at.to, 0, ATLAS_LIMITS.polygonPoints) };
+    const key = `${edge.featureId}/${edge.polygon}/${edge.from}/${edge.to}`;
+    need(edge.from !== edge.to && !walls.has(key)); walls.add(key);
+    lengths.push({ edge, metres: amount(dimension.value) });
+  }
+  return { area, lengths };
 }
 /** The optional `frame.geographic`: present means all three values, in range. */
 function admitGeographic(value: unknown): AtlasGeographic {
@@ -201,14 +229,16 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
   });
   const roomById = unique(rooms, item => item.roomId);
   const occurrences = list(envelope.occurrences, ATLAS_LIMITS.occurrences).map<AtlasOccurrence>(item => {
-    const occurrence = row(item, ['spaceOccurrenceId', 'roomId', 'buildingId', 'levelId', 'bounds', 'planFeatureIds', 'geometryBasis']);
+    const occurrenceKeys = ['spaceOccurrenceId', 'roomId', 'buildingId', 'levelId', 'bounds', 'planFeatureIds', 'geometryBasis'];
+    const occurrence = row(item, isRow(item) && Object.hasOwn(item, 'measuredDimensions') ? [...occurrenceKeys, 'measuredDimensions'] : occurrenceKeys);
     const room = roomById.get(occurrence.roomId as string), level = levelById.get(occurrence.levelId as string);
     need(room && level && room.buildingId === occurrence.buildingId && level.buildingId === occurrence.buildingId);
     const basis = row(occurrence.geometryBasis, ['kind', 'sourceRef', 'note']);
     need(basis.kind === 'source-model' || basis.kind === 'owner-estimated-pick-proxy');
     return { spaceOccurrenceId: id(occurrence.spaceOccurrenceId), roomId: room.roomId, buildingId: room.buildingId, levelId: level.levelId,
       bounds: box(occurrence.bounds), planFeatureIds: ids(occurrence.planFeatureIds, ATLAS_LIMITS.polygonPoints),
-      geometryBasis: { kind: basis.kind, sourceRef: nullableText(basis.sourceRef, 256), note: nullableText(basis.note, 1024) } };
+      geometryBasis: { kind: basis.kind, sourceRef: nullableText(basis.sourceRef, 256), note: nullableText(basis.note, 1024) },
+      measured: occurrence.measuredDimensions === undefined ? NOT_MEASURED : admitMeasured(occurrence.measuredDimensions) };
   });
   const occurrenceById = unique(occurrences, item => item.spaceOccurrenceId);
   for (const room of rooms) need(sameSet(room.occurrenceIds, occurrences.filter(item => item.roomId === room.roomId).map(item => item.spaceOccurrenceId)));
@@ -268,6 +298,12 @@ export function admitAtlasScene(value: unknown, expected: { readonly scope: Read
   for (const occurrence of occurrences) for (const featureId of occurrence.planFeatureIds) need(featureIds.has(featureId));
   for (const occurrence of occurrences) {
     need(sameSet(featuresByOccurrence.get(occurrence.spaceOccurrenceId) ?? [], occurrence.planFeatureIds));
+  }
+  // A measured wall lies on one of the occurrence's own room polygons.
+  const featureById = new Map(plans.flatMap(plan => plan.features.map(feature => [feature.featureId, feature] as const)));
+  for (const occurrence of occurrences) for (const { edge } of occurrence.measured.lengths) {
+    const feature = featureById.get(edge.featureId), outer = feature?.polygons[edge.polygon]?.outer.length ?? 0;
+    need(feature?.role === 'room' && occurrence.planFeatureIds.includes(edge.featureId) && edge.from < outer && edge.to < outer);
   }
 
   const overlayBindings = rawOverlays.map<AtlasOverlayBinding>(item => {

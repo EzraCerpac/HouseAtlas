@@ -45,6 +45,17 @@ export interface AtlasOccurrence {
   readonly bounds: Box;
   readonly planFeatureIds: readonly string[];
   readonly geometryBasis: { readonly kind: GeometryBasisKind; readonly sourceRef: string | null; readonly note: string | null };
+  /** Owner-confirmed values the model carries; empty when it carries none. */
+  readonly measured: OccurrenceMeasurements;
+}
+/** A wall by position in this publication: outer-ring vertices of one of the
+ * occurrence's room polygons where it starts and ends, in ring order. */
+export interface MeasuredEdge { readonly featureId: string; readonly polygon: number; readonly from: number; readonly to: number }
+export interface OccurrenceMeasurements {
+  /** Square metres, or null. */
+  readonly area: number | null;
+  /** Metres per wall. */
+  readonly lengths: readonly { readonly edge: MeasuredEdge; readonly metres: number }[];
 }
 export type MeshRole = 'structure' | 'roof' | 'slab' | 'room-pick' | 'context';
 export interface AtlasMeshBinding {

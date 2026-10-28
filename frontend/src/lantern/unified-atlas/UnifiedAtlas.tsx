@@ -26,7 +26,7 @@ import { PublishedOverlayDetails, PublishedUnplacedBinding } from './PublishedOv
 import { atlasLevelName, countClearedLabelY, countMarkerTarget, countMarkerWidth, LABEL_TAG_RISE, labelHitWidth, placePlanRoomLabels, planLabelFrame, planLabelObstacles,
   planRoomLabelFits, preparePlanLabelPaper, atlasBuildingName, atlasExclusionText, atlasOccurrenceName, preparePlanLabelShape, visibleCountMarkers, visibleLabelHits, type CountMarker, type PlanLabelInput, type RoomLabel } from './labels';
 import { documentaryOverlayIndex, type BuildingCoverage, type DocumentaryRecord, type PropertyRecords, type SourceFact } from './runtime-overlays';
-import { edgeSpans, estimatedOccurrences, MEASUREMENT_BASIS, placeLabels, roomArea } from './measurements';
+import { carriesMeasurements, edgeSpans, estimatedOccurrences, MEASURED_BASIS, MEASUREMENT_BASIS, placeLabels, roomArea } from './measurements';
 import { useDocumentaryOverlays } from './useDocumentaryOverlays';
 import type { OverlayFeedSnapshot } from './overlay-feed';
 import { modelUpdatesAllowed, useModelUpdates } from './model-updates';
@@ -972,7 +972,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
       const area = roomArea(model, occurrenceId), at = area && anchorOf(occurrenceId);
       if (!area || !at) return [];
       const text = area.partial ? `${area.text}, this part` : area.text;
-      return [{ key: occurrenceId, text, x: at.x, y: at.y + 17, w: text.length * 6.6 + 10, h: 16 }];
+      return [{ key: occurrenceId, text, measured: area.measured, x: at.x, y: at.y + 17, w: text.length * 6.6 + 10, h: 16 }];
     }), blocked, size);
     const owners = selected !== null && measured.includes(selected) ? [selected] : measured;
     const spans = owners.flatMap(occurrenceId => {
@@ -985,7 +985,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
         const w = span.text.length * 6.4 + 8;
         if (nl < 1e-6 || screen < w + 12) return [];
         const ux = nx / nl, uy = ny / nl;
-        return [{ key: span.key, text: span.text, length: screen, w, h: 15, x: m[0] + ux * 12, y: m[1] + uy * 12,
+        return [{ key: span.key, text: span.text, measured: span.measured, length: screen, w, h: 15, x: m[0] + ux * 12, y: m[1] + uy * 12,
           line: [a[0] + ux * 4, a[1] + uy * 4, b[0] + ux * 4, b[1] + uy * 4] as const }];
       });
     }).sort((p, q) => q.length - p.length);
@@ -1484,12 +1484,12 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
               x={row.x - 4} y={row.y - 4} width={8} height={8} transform={`rotate(45 ${row.x} ${row.y})`} />)}
           </g>}
           {measuring && <g className="ua-measure">
-            {measures.spans.map(row => <g key={row.key}>
+            {measures.spans.map(row => <g key={row.key} className={row.measured ? 'is-measured' : undefined}>
               <line x1={row.line[0]} y1={row.line[1]} x2={row.line[2]} y2={row.line[3]} />
               <text className="ua-measure-halo" x={row.x} y={row.y} textAnchor="middle" dy="0.35em">{row.text}</text>
               <text x={row.x} y={row.y} textAnchor="middle" dy="0.35em">{row.text}</text>
             </g>)}
-            {measures.areas.map(row => <g key={row.key} className="ua-measure-area">
+            {measures.areas.map(row => <g key={row.key} className={`ua-measure-area${row.measured ? ' is-measured' : ''}`}>
               <text className="ua-measure-halo" x={row.x} y={row.y} textAnchor="middle" dy="0.35em">{row.text}</text>
               <text x={row.x} y={row.y} textAnchor="middle" dy="0.35em">{row.text}</text>
             </g>)}
@@ -1557,7 +1557,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
               id: lensGraph?.id ?? graphId, open: lensGraph?.open ?? showGraph,
               toggle: () => { if (shortLayerDetails) setDrawer(null); (lensGraph?.toggle ?? toggleGraph)(); },
             } : null} />)}
-          {measuring && <MeasurementKey estimated={estimated} shown={measured.length} />}
+          {measuring && <MeasurementKey estimated={estimated} shown={measured.length} exact={measured.filter(key => carriesMeasurements(model, key)).length} />}
         </LayerDetailsDock>}
         {tiles.length > 0 && <nav id={`${foldIds}-floors`} className={`ua-tiles${drawer === 'floors' ? ' is-unfolded' : ''}`} aria-label="Other floors">
           {tiles.map(level => <PlanTile key={level.levelId} model={model} level={level} layers={active} tints={tints} selected={selected}
@@ -1875,6 +1875,7 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
   const room = model.roomsById.get(occurrence.roomId)!;
   const basis = occurrence.geometryBasis;
   const area = state.layers.measurements ? roomArea(model, occurrence.spaceOccurrenceId) : null;
+  const spans = state.layers.measurements ? edgeSpans(model, occurrence.spaceOccurrenceId) : [];
   const overlays = OVERLAY_KINDS.map(kind => {
     const index = model.overlays.get(kind)!;
     return { kind, placement: index.placed.get(occurrence.spaceOccurrenceId) ?? null,
@@ -1902,20 +1903,22 @@ function Inspector({ model, state, dispatch, context, openNetwork, openDocuments
       <dl className="ua-facts ua-room-facts">
         <div><dt>Layout</dt><dd>{basis.kind === 'owner-estimated-pick-proxy' ? 'Estimated layout' : 'From the model'}</dd></div>
         <div><dt>Home place</dt><dd className={`ua-link is-${room.nativeBinding.status}`}>{runtime?.rooms.has(room.roomId) ? 'Linked for these sources' : room.nativeBinding.status === 'historical' ? 'Link needs review' : LINK_LABEL[room.nativeBinding.status]}</dd></div>
-        {state.layers.measurements && <div><dt>Area</dt><dd><AreaValue geometryBasis={basis} area={area} /></dd></div>}
+        {state.layers.measurements && <div><dt>Area</dt><dd><AreaValue geometryBasis={basis} area={area} />
+          {area?.measured && <span className="ua-measured">Measured</span>}</dd></div>}
       </dl>
 
       {runtime && <RoomContentsSummary runtime={runtime} roomId={room.roomId} layers={state.layers} />}
 
       {/* Open while Measurements is on; it folds away when a long list of
           spans would push the records down. */}
-      {state.layers.measurements && area && <section aria-label="Model outline dimensions" className="ua-records ua-spans-section">
+      {spans.length > 0 && <section aria-label="Model outline dimensions" className="ua-records ua-spans-section">
         <details className="ua-spans" open>
           <summary><Icon name="ruler" size={16} className="ua-spans-glyph" />
-            <span className="ua-spans-title">Outline spans{area.partial ? ' for this room part' : ''}</span></summary>
-          <p>{MEASUREMENT_BASIS}</p>
-          <dl className="ua-facts">{edgeSpans(model, occurrence.spaceOccurrenceId).map((span, at) =>
-            <div key={span.key}><dt>Outline span {at + 1}</dt><dd>{span.text}</dd></div>)}</dl>
+            <span className="ua-spans-title">Outline spans{area?.partial ? ' for this room part' : ''}</span></summary>
+          <p>{area?.measured || spans.some(span => span.measured) ? MEASURED_BASIS : MEASUREMENT_BASIS}</p>
+          <dl className="ua-facts">{spans.map((span, at) =>
+            <div key={span.key}><dt>Outline span {at + 1}</dt><dd>{span.text}
+              {span.measured && <span className="ua-measured">Measured</span>}</dd></div>)}</dl>
         </details>
       </section>}
 
@@ -2142,7 +2145,7 @@ function OverlayKey({ layer, openNetwork, availability, records, stored, buildin
 
 /** The measurement qualifier on one line: approximate, and how many outlines
  * are estimated; the basis opens below it. */
-function MeasurementKey({ estimated, shown }: { readonly estimated: number; readonly shown: number }) {
+function MeasurementKey({ estimated, shown, exact }: { readonly estimated: number; readonly shown: number; readonly exact: number }) {
   const [closed, setClosed] = useState(true);
   const bodyId = useId();
   return <section className={`ua-key ua-measure-key${closed ? ' is-closed' : ''}`} aria-label="Measurements layer"
@@ -2151,11 +2154,11 @@ function MeasurementKey({ estimated, shown }: { readonly estimated: number; read
       <svg className="ua-rule-glyph" width={17} height={17} viewBox="0 0 24 24" aria-hidden="true">
         <path d="M3.5 15.5 15.5 3.5l5 5-12 12Z M7 12l2 2 M10 9l2.5 2.5 M13 6l2 2" /></svg>
       <span className="ua-key-label">Measurements</span>
-      <span className="ua-key-count">{shown === 0 ? 'Choose a floor or room' : `Approximate${estimated > 0 ? `, ${plural(estimated, 'estimated outline')}` : ''}`}</span>
+      <span className="ua-key-count">{shown === 0 ? 'Choose a floor or room' : `${exact > 0 ? `${plural(exact, 'room part')} measured, the rest approximate` : 'Approximate'}${estimated > 0 ? `, ${plural(estimated, 'estimated outline')}` : ''}`}</span>
       <Icon name="chevronDown" size={16} />
     </button>
     <div className="ua-key-body" id={bodyId} hidden={closed}>
-      <p>{MEASUREMENT_BASIS}</p>
+      <p>{exact > 0 ? MEASURED_BASIS : MEASUREMENT_BASIS}</p>
       {shown === 0 && <p className="ua-key-note">Choose a floor or room to see its dimensions.</p>}
       {estimated > 0 && <p className="ua-key-note">{plural(estimated, 'room part')} with an estimated outline not measured.</p>}
     </div>

@@ -65,6 +65,7 @@ const { makeProjection, pointInShape, prepareMeshes, sourceMeshColor } = await i
 const { readGlbContainer } = await import(preflightURL);
 const { loadStandardGlb } = await import(standardURL);
 const scene = await import(sceneURL);
+const measurements = await import(await sourceURL('../src/lantern/unified-atlas/measurements.ts', { './scene': sceneURL }));
 const { readUnifiedAtlas, readUnifiedAtlasDetail } = await import(readerURL);
 const { buildSyntheticAtlas, buildSingleFloorBuildingsAtlas, composeAtlasEnvelope, createAtlasTransport, atlasScenePath, SYNTHETIC_ATLAS, SYNTHETIC_OCCURRENCES,
   SYNTHETIC_ATLAS_DRAWN_PRIMITIVES } = await import(syntheticURL);
@@ -313,6 +314,42 @@ assert.equal(admittedWide.coverage.unselectableCount, 4096);
 const loaded = await loadStandardGlb(read.model, 'atlas', new AbortController().signal);
 assert.equal(loaded.drawn.length, SYNTHETIC_ATLAS_DRAWN_PRIMITIVES, 'every primitive of every node use is drawn once');
 const model = bindAtlasModel(read.scene, loaded);
+
+// Owner-measured dimensions travel on the occurrence: absent means none; a
+// measured area and a measured wall replace the "≈" outline values as given,
+// and the other walls keep their approximate spans.
+{
+  const owner = read.scene.occurrences.find(o => o.geometryBasis.kind === 'source-model' && model.selectable.has(o.spaceOccurrenceId)
+    && measurements.edgeSpans(model, o.spaceOccurrenceId).length > 1);
+  assert.ok(owner, 'a generated room part with outline spans');
+  assert.deepEqual(owner.measured, { area: null, lengths: [] }, 'nothing measured unless the release says so');
+  const feature = read.scene.plans.flatMap(plan => plan.features).find(f => f.role === 'room' && f.spaceOccurrenceId === owner.spaceOccurrenceId);
+  const outer = feature.polygons[0].outer, first = measurements.ringRuns(outer)[0];
+  const from = outer.findIndex(p => p[0] === first.a[0] && p[1] === first.a[1]), to = outer.findIndex(p => p[0] === first.b[0] && p[1] === first.b[1]);
+  const basis = 'owner-confirmed-measurement';
+  const wall = { quantity: 'length', value: 3.52, unit: 'm', basis, edge: { featureId: feature.featureId, polygon: 0, from, to } };
+  const withMeasured = dimensions => {
+    const envelope = { ...composed.envelope, occurrences: composed.envelope.occurrences.map(o =>
+      o.spaceOccurrenceId === owner.spaceOccurrenceId ? { ...o, measuredDimensions: dimensions } : o) };
+    return scene.admitAtlasScene(envelope, { scope, publicationId: selection.publicationId }, new TextEncoder().encode(JSON.stringify(envelope)).byteLength);
+  };
+  const admitted = withMeasured([{ quantity: 'area', value: 14.65, unit: 'm2', basis }, wall]);
+  const measuredModel = bindAtlasModel(admitted, loaded);
+  const area = measurements.roomArea(measuredModel, owner.spaceOccurrenceId);
+  assert.equal(area.measured, true); assert.equal(area.text, '14.65 m²');
+  const spans = measurements.edgeSpans(measuredModel, owner.spaceOccurrenceId), before = measurements.edgeSpans(model, owner.spaceOccurrenceId);
+  assert.equal(spans.length, before.length, 'a measured run replaces its outline span, never adds one');
+  assert.deepEqual(spans.filter(span => span.measured).map(span => span.text), ['3.52 m']);
+  assert.ok(spans.filter(span => !span.measured).every(span => span.text.startsWith('≈ ')));
+  assert.equal(measurements.carriesMeasurements(measuredModel, owner.spaceOccurrenceId), true);
+  assert.equal(measurements.carriesMeasurements(model, owner.spaceOccurrenceId), false);
+  for (const wrong of [[], [{ quantity: 'area', value: 14, unit: 'm2', basis }, { quantity: 'area', value: 15, unit: 'm2', basis }],
+    [wall, wall], [{ ...wall, value: 0 }], [{ ...wall, unit: 'cm' }], [{ ...wall, basis: 'outline' }],
+    [{ ...wall, edge: { ...wall.edge, to: from } }], [{ ...wall, edge: { ...wall.edge, to: outer.length } }],
+    [{ ...wall, edge: { ...wall.edge, polygon: feature.polygons.length } }], [{ ...wall, note: 'x' }],
+    [{ quantity: 'height', value: 2.6, unit: 'm', basis }]])
+    assert.throws(() => withMeasured(wrong), error => error.reason === 'invalid', JSON.stringify(wrong));
+}
 
 // Tier ownership: the stage reads the model whose meshes are on screen. Light
 // draws first even when Full is already bound; Full is drawn behind it and owns
