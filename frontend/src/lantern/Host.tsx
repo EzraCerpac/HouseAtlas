@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { AtlasContentActions } from '../app/App';
 import { createOperationHistoryClient, type OperationHistoryRead } from '../api/operation-history-client';
@@ -33,6 +33,13 @@ import './styles/topology.css';
 
 // The assistant handoff mounts only in WebMCP browsers; others never download it.
 const QuantityHandoffLeaf = lazy(() => import('../webmcp/quantity/QuantityHandoff').then(m => ({ default: m.QuantityHandoffLeaf })));
+
+/** A handoff chunk that fails to load leaves the tool unregistered and the Atlas mounted. */
+class OptionalToolBoundary extends Component<{ readonly children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() { return this.state.failed ? null : this.props.children; }
+}
 
 /** The existing session/view/stock owners remain above this presentation seam. */
 export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinnedFiles, networkRelations, topology, nativePlaces, nativeEvidenceDocuments, sourceModels, sourceDocuments, sourceElectricalLibrary, houseAcquisition }: {
@@ -124,7 +131,7 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   return <StoreProvider key={projection.house.id} projection={projection} actions={ports}>
     <TopologyProvider client={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments}><SourcePortsContext value={sources}><App /></SourcePortsContext><ReloadPlacesOnSync /></TopologyProvider>
     <NativeActions />
-    {quantityWebMcp && actions.quantity && <Suspense fallback={null}><QuantityHandoffLeaf client={actions.quantity} admission={quantityWebMcp.admission} modelContext={quantityWebMcp.modelContext} /></Suspense>}
+    {quantityWebMcp && actions.quantity && <OptionalToolBoundary><Suspense fallback={null}><QuantityHandoffLeaf client={actions.quantity} admission={quantityWebMcp.admission} modelContext={quantityWebMcp.modelContext} /></Suspense></OptionalToolBoundary>}
     {actions.notice && <p className="lantern-reload-notice" role="status">{actions.notice}</p>}
   </StoreProvider>;
 }
