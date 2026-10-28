@@ -11,6 +11,7 @@ import {
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { denoise } from 'three/addons/tsl/display/DenoiseNode.js';
 import { occlusionHistory } from './occlusion-history';
+import { PreparationRefused, prepareEffectPipelines } from './prepare-effect-pipelines';
 import type { PreparedMesh, Projection } from './geometry';
 import type { EmbeddedTexture } from './embedded-png-material';
 import { GLOW_HEIGHT, GLOW_SPREAD, LUMA } from './sky-light';
@@ -707,6 +708,17 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     for (const [within, view, target] of [[solidScene, sun, sunTarget], [shelterScene, sun, sunTarget], [roomScene, roomView, roomTarget],
       [scene, camera, colorPass.renderTarget], [solidScene, solidCamera, geometryPass.renderTarget]] as const) for (const body of within.children) {
       await compile(body as Mesh, view, within, target); if (slice.due()) await slice.next();
+    }
+
+    // Preparing early only saves the first shaded frame its pause, so a clean refusal
+    // (an unrecognised three.js shape) keeps the view and leaves that frame to compile
+    // as it did before. Cancellation and any other failure still end the build.
+    try {
+      await prepareEffectPipelines(renderer, { pipeline, relit, occlusion, history, passes: [geometryPass, colorPass] }, () => slice.next(), signal);
+    } catch (error) {
+      signal?.throwIfAborted();
+      if (!(error instanceof PreparationRefused)) throw error;
+      console.warn('Effect pipelines not prepared; the first shaded frame compiles them', error);
     }
 
     // The view the contact shading history belongs to; any change starts it over.
