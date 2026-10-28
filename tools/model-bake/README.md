@@ -24,7 +24,10 @@ viewer's 600,000), `--max-error` (largest context error in metres before the
 bake refuses, default 0.05), `--structure-weight` (structure and roof error as
 a share of the context error, default 0.25), `--site-weight` (site context
 error as a multiple of it, default 4), `--weld` (weld distance in
-metres, default 0.0005), `--grid` (position snapping grid for compression in
+metres, default 0.0005), `--texture-size` (largest side, in pixels, of an
+embedded texture in the overview, default 512; larger PNGs are halved until they
+fit, colour maps averaged in linear light, normal maps as renormalized vectors,
+data maps as stored; `detail.glb` keeps them as authored), `--grid` (position snapping grid for compression in
 metres, default 2^-12, about 0.24 mm) and `--plain` (write uncompressed GLBs).
 
 ## What it keeps
@@ -155,7 +158,7 @@ the same companion under the same budget; see
 node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs
 ```
 
-Eighteen cases on generated geometry: baking to budget (locked footprints,
+Cases on generated geometry: baking to budget (locked footprints,
 source-vertex positions, a flat wall and welded terrain soup collapsing, viewer
 admission), a master that already fits (kept as authored while an unused mesh,
 a dead accessor and their bytes drop, with bindings remapped), roles read from
@@ -163,8 +166,10 @@ node extras without a companion, refusals for a foreign companion pin and an
 unreachable budget or a weld larger than the cap, a bake whose error exceeds whole 5 mm parts (house
 chain, garden gravel, a strip thinner than the weld) that still leaves every
 primitive non-empty, the world stretch of a rotation under a nonuniform scale,
-the command line refusing an `--out` that holds its inputs, and a textured
-panel with non-affine UVs kept as authored, and the frontend's generated unified
+the command line refusing an `--out` that holds its inputs, a textured
+panel with non-affine UVs kept as authored, its 1024 px colour and normal maps
+halved to the texture size in the overview (linear-light and vector averages)
+and kept as authored in the detail, and the frontend's generated unified
 Atlas publication, densified and baked, binding in the viewer with the same
 primitive slots, roles, buildings, levels, room picks and selectable rooms as
 before the bake (and refusing a companion that leaves a primitive unclaimed),

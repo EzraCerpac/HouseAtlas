@@ -13,11 +13,11 @@ import { COMPRESS_DEFAULTS, compressGlb } from './src/compress.mjs';
 const { values } = parseArgs({ options: {
   model: { type: 'string' }, companion: { type: 'string' }, out: { type: 'string' }, detail: { type: 'boolean' },
   geographic: { type: 'string' }, triangles: { type: 'string' }, 'max-error': { type: 'string' }, 'structure-weight': { type: 'string' }, 'site-weight': { type: 'string' }, weld: { type: 'string' },
-  grid: { type: 'string' }, plain: { type: 'boolean' },
+  grid: { type: 'string' }, plain: { type: 'boolean' }, 'texture-size': { type: 'string' },
 } });
 if (!values.model || !values.out) {
   console.error('Usage: bake.mjs --model master.glb [--companion atlas-scene.json [--geographic LAT,LON,NORTH]] --out DIR [--detail] '
-    + `[--triangles ${BAKE_DEFAULTS.triangles}] [--max-error ${BAKE_DEFAULTS.maxError}] [--structure-weight ${BAKE_DEFAULTS.structureWeight}] [--site-weight ${BAKE_DEFAULTS.siteWeight}] [--weld ${BAKE_DEFAULTS.weld}] [--grid ${COMPRESS_DEFAULTS.grid} | --plain]`);
+    + `[--triangles ${BAKE_DEFAULTS.triangles}] [--max-error ${BAKE_DEFAULTS.maxError}] [--structure-weight ${BAKE_DEFAULTS.structureWeight}] [--site-weight ${BAKE_DEFAULTS.siteWeight}] [--weld ${BAKE_DEFAULTS.weld}] [--texture-size ${BAKE_DEFAULTS.textureSize}] [--grid ${COMPRESS_DEFAULTS.grid} | --plain]`);
   process.exit(2);
 }
 const isSymlink = path => { try { return lstatSync(path).isSymbolicLink(); } catch { return false; } };
@@ -28,6 +28,7 @@ const overrides = {
   ...(values['structure-weight'] ? { structureWeight: number(values['structure-weight'], 'structure-weight') } : {}),
   ...(values['site-weight'] ? { siteWeight: number(values['site-weight'], 'site-weight') } : {}),
   ...(values.weld ? { weld: number(values.weld, 'weld') } : {}),
+  ...(values['texture-size'] ? { textureSize: Math.floor(number(values['texture-size'], 'texture-size')) } : {}),
 };
 // Outputs are only ever created, never overwritten: an --out that already holds
 // a file of the same name (the master itself, a link to it, an earlier bake) is

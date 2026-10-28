@@ -76,7 +76,8 @@ The same `frontend checks` job then runs the model bake tests
 (`tools/model-bake/test/bake.test.mjs`) on generated geometry. They bake
 generated masters to budget and run the viewer's own preflight, scene admission
 and selector binding on the results, including the generated unified Atlas
-publication densified and baked, and its unsimplified detail tier admitted under
+publication densified and baked, overview textures halved to the texture size
+while the detail keeps them as authored, and its unsimplified detail tier admitted under
 the Full limits and bound by the same companion, and both tiers meshopt
 compressed, expanded by the viewer's own decoder and refused when a stream or
 declared size falls outside the admitted subset:
