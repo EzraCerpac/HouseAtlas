@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "bd0f0c2d4e825f0e3e217f24974469f47a6931d5c59852d87b604e58e0a39857",
+  "sourceDigestSha256": "50201d16ed72a817bbee5e2995effd3e1dedccc677390a0b330ec8327eb2b743",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -9058,8 +9058,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-scene.ts",
       "mode": "100644",
-      "bytes": 56898,
-      "sha256": "2c31e1180272c544a9fb30ec40c1d72b934254c7cbe1eec4df24ca30424d91ec",
+      "bytes": 57234,
+      "sha256": "2baa91d5bfa66f3446757946e7f7a59cfdd90dd9977ba46a5dd13e53f3e909a7",
       "owner": "web"
     },
     {
@@ -9079,8 +9079,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/prepare-effect-pipelines.ts",
       "mode": "100644",
-      "bytes": 7242,
-      "sha256": "37de0abd0efeea68a9bbda8423e4943407e750428c714c7f6f73ce18e6524a73",
+      "bytes": 7249,
+      "sha256": "69e94dabc903d750ce1ea75720e52a4aefa5281b020041796d5d6a4d47ff3b8c",
       "owner": "web"
     },
     {

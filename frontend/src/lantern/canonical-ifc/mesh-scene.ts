@@ -710,7 +710,14 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       await compile(body as Mesh, view, within, target); if (slice.due()) await slice.next();
     }
 
-    await prepareEffectPipelines(renderer, { pipeline, relit, occlusion, history, passes: [geometryPass, colorPass] }, () => slice.next(), signal);
+    // Preparing early only saves the first shaded frame its pause; a refusal from
+    // the adapter must not cost the view, so anything but cancellation is dropped.
+    try {
+      await prepareEffectPipelines(renderer, { pipeline, relit, occlusion, history, passes: [geometryPass, colorPass] }, () => slice.next(), signal);
+    } catch (error) {
+      signal?.throwIfAborted();
+      console.warn('Effect pipelines were not prepared ahead of the first shaded frame', error);
+    }
 
     // The view the contact shading history belongs to; any change starts it over.
     let disposed = false, sunStale = true, averaged: Projection | null = null;

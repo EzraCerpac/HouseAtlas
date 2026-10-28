@@ -72,7 +72,7 @@ export async function prepareEffectPipelines(renderer: WebGPURenderer, effects: 
         at?: RenderTarget | null, mrt?: unknown, level = depth) { return get.call(this, at, mrt, level); });
       try {
         if (reset) {
-          RendererUtils.resetRendererState(renderer);
+          RendererUtils.resetRendererState(renderer, saved);
           renderer.toneMapping = NoToneMapping; renderer.outputColorSpace = ColorManagement.workingColorSpace; renderer.xr.enabled = false;
         }
         renderer.setRenderTarget(target);
