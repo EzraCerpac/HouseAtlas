@@ -41,8 +41,8 @@ behavior is unchanged, so omitting these flags preserves old startup behavior.
 Capture and preparation run on the existing persistent reopen blocking worker.
 They retain the original Core's Access and Store allocations through Host
 construction; applying to replacement owners is refused. Both direct TLS and
-trusted-gateway serving branches use this same handoff, including the existing
-measurement-enabled Host path. No additional listener or worker is started.
+trusted-gateway serving branches use this same handoff. No additional listener
+or worker is started.
 
 ## Cached-only composition and authority
 

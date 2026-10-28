@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "3d48daa59771e86e20bb85fce06722e1ce09cb1c320e9807d077b583c352d5e1",
+  "sourceDigestSha256": "d0a9bd81bd6d6e4623b925f4930d5e6e8b3dca174643b005c740aa54f27a67a4",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -2847,20 +2847,6 @@
       "owner": "core-integration"
     },
     {
-      "path": "backend/src/lifecycle/persistent.rs",
-      "mode": "100644",
-      "bytes": 26734,
-      "sha256": "8ab9d39a6f61e6b32390b32f9937614f075de1fac0b1d0a28e3a64acf4931a14",
-      "owner": "core-integration"
-    },
-    {
-      "path": "backend/src/lifecycle/persistent.rs",
-      "mode": "100644",
-      "bytes": 26734,
-      "sha256": "8ab9d39a6f61e6b32390b32f9937614f075de1fac0b1d0a28e3a64acf4931a14",
-      "owner": "core-integration"
-    },
-    {
       "path": "backend/src/lifecycle/persistent/provider_reads.rs",
       "mode": "100644",
       "bytes": 9979,
@@ -3033,20 +3019,6 @@
       "mode": "100644",
       "bytes": 5318,
       "sha256": "ad6ae816d18f2f83dfa74905471d4d90c6f252c6194c12ad99edfc949560d17a",
-      "owner": "core-integration"
-    },
-    {
-      "path": "backend/src/main.rs",
-      "mode": "100644",
-      "bytes": 26397,
-      "sha256": "426cbf1654e64349dbc6e8d5654eeba4a299b4aa9c003497bcfc518af6961759",
-      "owner": "core-integration"
-    },
-    {
-      "path": "backend/src/main.rs",
-      "mode": "100644",
-      "bytes": 26397,
-      "sha256": "426cbf1654e64349dbc6e8d5654eeba4a299b4aa9c003497bcfc518af6961759",
       "owner": "core-integration"
     },
     {
@@ -6776,8 +6748,8 @@
     {
       "path": "docs/providers/persistent-cached-provider-selection.md",
       "mode": "100644",
-      "bytes": 7210,
-      "sha256": "4b94f03f465f4c43d75d4b309f63cb7627dad320e06449e11c6cbcddd7200e60",
+      "bytes": 7156,
+      "sha256": "3f8739679fe56b3354c47942305f7f1a4c2cc2ba7e6923c82195db41bff82451",
       "owner": "homebox"
     },
     {
