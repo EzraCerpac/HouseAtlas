@@ -165,8 +165,9 @@ node frontend/capture-evidence-tests/foreground.mjs receipt-digest-mismatch
 ```
 
 Each command selects one bounded source fixture. The ordinary healthy runner
-now selects only `one-shot-originals` from this original group; the other four
-commands remain separately selected. The selection case holds header and
+now selects `selection-cancel-reselect`, `stale-target-preparation` and
+`one-shot-originals` from this group; `original-byte-mismatch` and
+`receipt-digest-mismatch` remain separately selected. The selection case holds header and
 full-text File reads, aborts the
 old caller, selects a replacement before the old read settles, and then selects
 the same original File again. It does not mount EvidencePicker or dispatch a DOM
