@@ -164,6 +164,36 @@ struct Occurrence {
     bounds: Bounds,
     plan_feature_ids: Vec<String>,
     geometry_basis: GeometryBasis,
+    /// Dimensions the model's owner measured; absent, never empty, when none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    measured_dimensions: Option<Vec<MeasuredDimension>>,
+}
+/// An owner-confirmed value the model carries beside its geometry. It labels
+/// the room part; it never rescales or verifies the drawn outline.
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "quantity", rename_all = "kebab-case", deny_unknown_fields)]
+enum MeasuredDimension {
+    Area {
+        value: f64,
+        unit: String,
+        basis: String,
+    },
+    Length {
+        value: f64,
+        unit: String,
+        basis: String,
+        edge: MeasuredEdge,
+    },
+}
+/// A wall by position in this companion: the outer-ring vertices of one of the
+/// occurrence's room polygons where it starts and ends, walking in ring order.
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct MeasuredEdge {
+    feature_id: String,
+    polygon: usize,
+    from: usize,
+    to: usize,
 }
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -290,6 +320,46 @@ fn same_keys(input: &Value, typed: &Value) -> bool {
 enum Tier {
     Overview,
     Detail,
+}
+/// One area at most, one length per wall, each a positive value in its unit on
+/// a room polygon this occurrence owns.
+fn measured(
+    o: &Occurrence,
+    dimensions: &[MeasuredDimension],
+    features: &BTreeMap<String, (&String, &PlanFeature)>,
+) -> Result<(), String> {
+    let value_ok = |v: f64| v.is_finite() && v > 0. && v <= 1_000_000.;
+    let basis_ok = |b: &str| b == "owner-confirmed-measurement";
+    need(!dimensions.is_empty() && dimensions.len() <= 1024)?;
+    let (mut areas, mut walls) = (0, BTreeSet::new());
+    for dimension in dimensions {
+        match dimension {
+            MeasuredDimension::Area { value, unit, basis } => {
+                areas += 1;
+                need(areas == 1 && value_ok(*value) && unit == "m2" && basis_ok(basis))?;
+            }
+            MeasuredDimension::Length {
+                value,
+                unit,
+                basis,
+                edge,
+            } => {
+                let (_, f) = features.get(&edge.feature_id).ok_or_else(invalid)?;
+                let ring = f.polygons.get(edge.polygon).map(|p| p.outer.len());
+                need(
+                    value_ok(*value)
+                        && unit == "m"
+                        && basis_ok(basis)
+                        && f.role == "room"
+                        && o.plan_feature_ids.contains(&edge.feature_id)
+                        && ring.is_some_and(|n| edge.from < n && edge.to < n)
+                        && edge.from != edge.to
+                        && walls.insert((&edge.feature_id, edge.polygon, edge.from, edge.to)),
+                )?;
+            }
+        }
+    }
+    Ok(())
 }
 fn validate(value: &Value, glb: &[u8], tier: Tier) -> Result<(), String> {
     let p: Publication = serde_json::from_value(value.clone()).map_err(|_| invalid())?;
@@ -638,6 +708,9 @@ fn validate(value: &Value, glb: &[u8], tier: Tier) -> Result<(), String> {
                     && f.space_occurrence_id.as_deref() == Some(o.space_occurrence_id.as_str())
             }))?;
         }
+        if let Some(dimensions) = &o.measured_dimensions {
+            measured(o, dimensions, &features)?;
+        }
     }
     need(
         unique(&p.coverage.selectable_occurrences, 4096)
@@ -907,5 +980,79 @@ mod tests {
         assert!(!admits(Some(
             json!({"latitude":0,"longitude":0,"northDeg":"0"})
         )));
+    }
+    /// Admits one occurrence's dimensions as `validate` does, against a single
+    /// square room feature with one polygon of four outer vertices.
+    fn measures(dimensions: Value) -> bool {
+        let mut row = json!({"spaceOccurrenceId":"o1","roomId":"r1","buildingId":"b1","levelId":"l1",
+            "bounds":{"min":[0,0,0],"max":[4,3,4]},"planFeatureIds":["f1"],
+            "geometryBasis":{"kind":"source-model","sourceRef":null,"note":null}});
+        if !dimensions.is_null() {
+            row["measuredDimensions"] = dimensions;
+        }
+        let feature: PlanFeature = serde_json::from_value(json!({"featureId":"f1","roomId":"r1",
+            "spaceOccurrenceId":"o1","role":"room","polygons":[{"outer":[[0,0],[4,0],[4,4],[0,4]],"holes":[]}]}))
+        .unwrap();
+        let level = "l1".to_string();
+        let features = BTreeMap::from([("f1".to_string(), (&level, &feature))]);
+        serde_json::from_value::<Occurrence>(row.clone()).is_ok_and(|typed| {
+            same_keys(&row, &serde_json::to_value(&typed).unwrap())
+                && typed
+                    .measured_dimensions
+                    .as_deref()
+                    .is_none_or(|d| measured(&typed, d, &features).is_ok())
+        })
+    }
+    #[test]
+    fn measured_dimensions_are_optional_owner_confirmed_and_on_own_walls() {
+        let basis = "owner-confirmed-measurement";
+        let area =
+            |value: Value| json!({"quantity":"area","value":value,"unit":"m2","basis":basis});
+        let wall = |from: usize, to: usize| {
+            json!({"quantity":"length","value":3.52,"unit":"m","basis":basis,
+            "edge":{"featureId":"f1","polygon":0,"from":from,"to":to}})
+        };
+        assert!(measures(Value::Null));
+        assert!(measures(json!([
+            area(json!(14.65)),
+            wall(0, 1),
+            wall(1, 3)
+        ])));
+        assert!(!measures(json!([])), "absent, never empty");
+        assert!(
+            !measures(json!([area(json!(14)), area(json!(15))])),
+            "one area"
+        );
+        assert!(
+            !measures(json!([wall(0, 1), wall(0, 1)])),
+            "one value per wall"
+        );
+        assert!(!measures(json!([area(json!(0))])));
+        assert!(!measures(json!([area(json!("14"))])));
+        assert!(!measures(json!([wall(0, 0)])));
+        assert!(!measures(json!([wall(0, 4)])), "vertex out of range");
+        assert!(!measures(
+            json!([{"quantity":"area","value":14,"unit":"m","basis":basis}])
+        ));
+        assert!(!measures(
+            json!([{"quantity":"area","value":14,"unit":"m2","basis":"outline"}])
+        ));
+        assert!(!measures(
+            json!([{"quantity":"height","value":2.6,"unit":"m","basis":basis}])
+        ));
+        assert!(
+            !measures(
+                json!([{"quantity":"length","value":3,"unit":"m","basis":basis,
+            "edge":{"featureId":"f2","polygon":0,"from":0,"to":1}}])
+            ),
+            "another feature"
+        );
+        assert!(!measures(
+            json!([{"quantity":"length","value":3,"unit":"m","basis":basis,
+            "edge":{"featureId":"f1","polygon":1,"from":0,"to":1}}])
+        ));
+        assert!(!measures(
+            json!([{"quantity":"area","value":14,"unit":"m2","basis":basis,"note":"x"}])
+        ));
     }
 }

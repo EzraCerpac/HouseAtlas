@@ -175,8 +175,27 @@ Room = {roomId,buildingId,label,nativePlaceId:null|UUID,
 Occurrence = {spaceOccurrenceId,roomId,buildingId,levelId,
               bounds:{min:[x,y,z],max:[x,y,z]},planFeatureIds:[id],
               geometryBasis:{kind:"source-model"|"owner-estimated-pick-proxy",
-                             sourceRef:null|string,note:null|string}}
+                             sourceRef:null|string,note:null|string},
+              measuredDimensions?:[MeasuredDimension]}
+MeasuredDimension =
+    {quantity:"area",value:number,unit:"m2",basis:"owner-confirmed-measurement"}
+  | {quantity:"length",value:number,unit:"m",basis:"owner-confirmed-measurement",
+     edge:{featureId,polygon,from,to}}
 ```
+
+`measuredDimensions` is optional and absent, never empty, when the owner has
+measured nothing for that room part. It carries values the model's owner
+measured on site; it is never filled from outline geometry, estimates or counts,
+and it never rescales the drawn geometry. Each value is finite, positive and at
+most 1,000,000 in its unit. An occurrence has at most one area and one length
+per wall. A wall is named by position in this same companion: a `role:"room"`
+feature listed in the occurrence's `planFeatureIds`, an index into its
+`polygons`, and the outer-ring vertex indices (`from` ≠ `to`) where the wall
+starts and ends, walking in ring order along the room's inside face. Values are
+re-emitted with every release, so no identity across revisions is needed. The
+viewer shows a measured value as given, without "≈", and keeps approximate
+outline values for everything else; a wall that is not one straight outline run
+is listed with the room but not drawn.
 
 Source building, level and logical room IDs persist in producer custom
 properties or its retained identity map. They are separate from nullable native

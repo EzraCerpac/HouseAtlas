@@ -2,11 +2,13 @@ import type { PlanRing } from '../canonical-ifc/model';
 import { occurrenceArea, type AtlasModel } from './scene';
 
 /** Approximate model dimensions from the admitted model frame (metres) and
- * the publication's own room polygons. They are never measured or as-built
- * values: physical registration is unknown, and estimated pick proxies are
- * left out rather than measured. Names and room types never produce a size. */
+ * the publication's own room polygons, unless the model carries the owner's
+ * measured value for that room part or wall: that value is shown as given,
+ * without "≈". Estimated pick proxies are never measured from their outline.
+ * Names and room types never produce a size. */
 
 export const MEASUREMENT_BASIS = 'Approximate model dimensions from the room outlines, not measured on site.';
+export const MEASURED_BASIS = 'Values marked Measured were measured on site and come with the model; the others are approximate, from the room outlines.';
 /** Shorter runs are left unlabelled: they are mostly wall returns and reveals. */
 export const MIN_SPAN_M = .8;
 
@@ -16,6 +18,8 @@ export interface RoomArea {
   readonly text: string;
   /** The room has other parts; this area is this part only. */
   readonly partial: boolean;
+  /** The owner's measured value, carried by the model. */
+  readonly measured: boolean;
 }
 export interface EdgeSpan {
   readonly key: string;
@@ -26,6 +30,10 @@ export interface EdgeSpan {
   readonly text: string;
   /** Unit normal toward the room's inside, in scene X/Z. */
   readonly inward: readonly [number, number];
+  readonly measured: boolean;
+  /** One straight outline run, so it can be drawn along the wall. A measured
+   * wall that is not one run is listed only: its ends' chord is not the wall. */
+  readonly drawn: boolean;
 }
 
 /** One decimal below 10 m², whole metres above: the outline supports no more. */
@@ -37,17 +45,29 @@ export function areaText(squareMetres: number): string {
 export function lengthText(metres: number): string {
   return `≈ ${(Math.round(metres * 10) / 10).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`;
 }
+/** A measured value as the owner gave it: significant digits, not decimals,
+ * so however small an admitted value is it is never shown as zero. */
+export const measuredText = (value: number, unit: 'm' | 'm²') =>
+  `${value.toLocaleString(undefined, { maximumSignificantDigits: 15 })} ${unit}`;
+
+/** The model carries at least one of the owner's measured values for this room part. */
+export function carriesMeasurements(model: AtlasModel, occurrenceId: string): boolean {
+  const measured = model.occurrencesById.get(occurrenceId)?.measured;
+  return !!measured && (measured.area !== null || measured.lengths.length > 0);
+}
 
 export const measurable = (model: AtlasModel, occurrenceId: string) =>
   model.selectable.has(occurrenceId) && model.occurrencesById.get(occurrenceId)?.geometryBasis.kind === 'source-model';
 
 export function roomArea(model: AtlasModel, occurrenceId: string): RoomArea | null {
+  const occurrence = model.occurrencesById.get(occurrenceId);
+  if (!occurrence || !model.selectable.has(occurrenceId)) return null;
+  const partial = model.roomsById.get(occurrence.roomId)!.occurrenceIds.length > 1, given = occurrence.measured?.area ?? null;
+  if (given !== null) return { occurrenceId, squareMetres: given, text: measuredText(given, 'm²'), partial, measured: true };
   if (!measurable(model, occurrenceId)) return null;
   const squareMetres = occurrenceArea(model, occurrenceId);
   if (!(squareMetres > 0)) return null;
-  const room = model.roomsById.get(model.occurrencesById.get(occurrenceId)!.roomId)!;
-  return { occurrenceId, squareMetres, text: areaText(squareMetres),
-    partial: room.occurrenceIds.length > 1 };
+  return { occurrenceId, squareMetres, text: areaText(squareMetres), partial, measured: false };
 }
 
 const signedArea = (ring: PlanRing) => {
@@ -82,17 +102,44 @@ export function ringRuns(ring: PlanRing): readonly { readonly a: readonly [numbe
   });
 }
 
+type Point = readonly [number, number];
+const samePoint = (p: Point, q: Point) => p[0] === q[0] && p[1] === q[1];
+
+/** The occurrence's measured walls with their end points, each on the room
+ * polygon it names, so a straight run with the same ends takes its value. */
+function measuredWalls(model: AtlasModel, occurrenceId: string) {
+  const occurrence = model.occurrencesById.get(occurrenceId)!;
+  if (!occurrence.measured) return [];
+  const features = new Map((model.plansByLevel.get(occurrence.levelId) ?? []).flatMap(plan => plan.features.map(f => [f.featureId, f] as const)));
+  return occurrence.measured.lengths.map(({ edge, metres }) => {
+    const outer = features.get(edge.featureId)!.polygons[edge.polygon]!.outer;
+    return { outer, a: outer[edge.from]! as Point, b: outer[edge.to]! as Point, metres, key: `${edge.featureId}/${edge.polygon}/${edge.from}/${edge.to}` };
+  });
+}
+
 export function edgeSpans(model: AtlasModel, occurrenceId: string): readonly EdgeSpan[] {
-  if (!measurable(model, occurrenceId)) return [];
-  return (model.roomPolygons.get(occurrenceId) ?? []).flatMap((polygon, part) => {
+  if (!model.selectable.has(occurrenceId) || !model.occurrencesById.has(occurrenceId)) return [];
+  const walls = measuredWalls(model, occurrenceId), used = new Set<string>();
+  const span = (key: string, a: Point, b: Point, turn: number, given: number | null, drawn = true): EdgeSpan => {
+    const dx = b[0] - a[0], dz = b[1] - a[1], length = Math.hypot(dx, dz) || 1, metres = given ?? length;
+    return { key, occurrenceId, a, b, metres, text: given === null ? lengthText(metres) : measuredText(given, 'm'),
+      inward: [-dz / length * turn, dx / length * turn] as const, measured: given !== null, drawn };
+  };
+  // Outline runs only where the outline itself is the model's (not an estimate).
+  const runs = (measurable(model, occurrenceId) ? model.roomPolygons.get(occurrenceId) ?? [] : []).flatMap((polygon, part) => {
     const turn = Math.sign(signedArea(polygon.outer)) || 1;
     return ringRuns(polygon.outer).flatMap((run, at) => {
-      const dx = run.b[0] - run.a[0], dz = run.b[1] - run.a[1], metres = Math.hypot(dx, dz);
-      if (metres < MIN_SPAN_M) return [];
-      return [{ key: `${occurrenceId}/${part}/${at}`, occurrenceId, a: run.a, b: run.b, metres, text: lengthText(metres),
-        inward: [-dz / metres * turn, dx / metres * turn] as const }];
+      // Runs walk the ring in order, as `from` → `to` does; reversed ends name
+      // the rest of the ring, not this wall.
+      const wall = walls.find(w => w.outer === polygon.outer && samePoint(w.a, run.a) && samePoint(w.b, run.b));
+      if (wall) { used.add(wall.key); return [span(`${occurrenceId}/${part}/${at}`, run.a, run.b, turn, wall.metres)]; }
+      return Math.hypot(run.b[0] - run.a[0], run.b[1] - run.a[1]) < MIN_SPAN_M ? [] : [span(`${occurrenceId}/${part}/${at}`, run.a, run.b, turn, null)];
     });
   });
+  // A measured wall that is not one straight run is still listed, never drawn.
+  const rest = walls.filter(wall => !used.has(wall.key))
+    .map(wall => span(`${occurrenceId}/measured/${wall.key}`, wall.a, wall.b, Math.sign(signedArea(wall.outer)) || 1, wall.metres, false));
+  return [...runs, ...rest];
 }
 
 /** Rooms left out because the publication marks their outline as estimated. */
