@@ -37,7 +37,8 @@ export function decodePng(bytes) {
   }
   if (!ended) return null;
   const stride = width * 3;
-  let raw; try { raw = inflateSync(Buffer.concat(data)); } catch { return null; }
+  // Inflate no further than the scanlines the header declares.
+  let raw; try { raw = inflateSync(Buffer.concat(data), { maxOutputLength: height * (stride + 1) }); } catch { return null; }
   if (raw.length !== height * (stride + 1)) return null;
   const rgba = new Uint8Array(width * height * 4).fill(255);
   let previous = new Uint8Array(stride);

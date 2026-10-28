@@ -369,6 +369,8 @@ test('rewrites only PNGs the viewer admits as authored, and no size below one pi
     out.writeUInt32BE(crc32(out.subarray(4, 8 + body.length)), 8 + body.length); return out; };
   const withData = data => new Uint8Array(Buffer.concat([png.subarray(0, at - 8), chunk(data), png.subarray(at + length + 4)]));
   assert.ok(decodePng(withData(deflateSync(raw))));
+  // Data that inflates past the declared scanlines is refused without inflating it all.
+  assert.equal(decodePng(withData(deflateSync(Buffer.alloc(raw.length * 1000)))), null);
   raw[0] = 5;
   assert.equal(decodePng(withData(deflateSync(raw))), null);
   // A chunk whose checksum does not match is not rewritten either.
