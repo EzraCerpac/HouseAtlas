@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import { fullFormats } from 'ajv-formats/dist/formats.js';
-import agentSource from '../../../contracts/stock-wire3/agent/agent.schema.json?raw';
+import agentSource from '../../../contracts/client-schemas/agent-exact.schema.json?raw';
+import agentHash from '../../../contracts/client-schemas/agent-exact-pin.json';
 import atlasSource from '../../../packages/contracts/schemas/atlas.schema.json?raw';
 import { ExactDecimal, isExactDecimal } from './decimal';
 import type { LosslessJson } from './lossless-json';
@@ -100,7 +101,6 @@ const nativeEvidenceShapes = Object.freeze({
 const agentId = 'urn:houseatlas:agent:stock:3';
 const atlasId = 'https://houseatlas.invalid/contracts/1.1.0/atlas.schema.json';
 const dialect = 'https://json-schema.org/draft/2020-12/schema';
-const agentHash = '44afff94ad51135282e0a34c1efd1ad77e240dd55bd8dff13cfb8120cdf4b5ca';
 const atlasHash = 'c7c380b317e3cc640c8c437bf360e5f04d443f91ec03a54cc0f23a98b5a13b0c';
 
 type Schema = boolean | Record<string, unknown>;

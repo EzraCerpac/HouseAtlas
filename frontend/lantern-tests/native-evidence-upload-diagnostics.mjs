@@ -9,7 +9,7 @@ const root = new URL('../src/', import.meta.url);
 const dataUrl = code => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
 const raw = async relative => dataUrl(`export default ${JSON.stringify(await readFile(new URL(relative, import.meta.url), 'utf8'))};`);
 const moduleCache = new Map();
-const schemaAgent = await raw('../../contracts/stock-wire3/agent/agent.schema.json');
+const schemaAgent = await raw('../../contracts/client-schemas/agent-exact.schema.json');
 const schemaAtlas = await raw('../../packages/contracts/schemas/atlas.schema.json');
 const formats = new URL('../node_modules/ajv-formats/dist/formats.js', import.meta.url).href;
 const sourcePath = relative => new URL(relative, root);
@@ -29,7 +29,8 @@ async function load(relative) {
   const imports = [...code.matchAll(/^\s*import\s+(?:[\s\S]*?\s+from\s+)?["']([^"']+)["'];?\s*$/gm)].map(match => match[1]);
   for (const specifier of imports) {
     let destination;
-    if (specifier === '../../../contracts/stock-wire3/agent/agent.schema.json?raw') destination = schemaAgent;
+    if (specifier === '../../../contracts/client-schemas/agent-exact.schema.json?raw') destination = schemaAgent;
+    else if (specifier === '../../../contracts/client-schemas/agent-exact-pin.json') destination = dataUrl(`export default ${await readFile(new URL('../../contracts/client-schemas/agent-exact-pin.json', import.meta.url), 'utf8')};`);
     else if (specifier === '../../../packages/contracts/schemas/atlas.schema.json?raw') destination = schemaAtlas;
     else if (specifier === 'ajv-formats/dist/formats.js') destination = formats;
     else {

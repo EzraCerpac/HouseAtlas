@@ -1,4 +1,4 @@
-import agent from '../../../contracts/stock-wire3/agent/agent.schema.json';
+import agent from '../../../contracts/client-schemas/agent-ajv.schema.json';
 import pinnedV4 from '../../../contracts/stock-wire4/pinned-homebox-file.v4.schema.json';
 import atlas from '../../../packages/contracts/schemas/atlas.schema.json';
 import type { AtlasSessionInfo } from '../app/session';

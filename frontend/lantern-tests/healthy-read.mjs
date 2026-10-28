@@ -8,8 +8,10 @@ import { transformWithOxc } from 'vite';
 import { projectView } from '../src/lantern/adapters/read.ts';
 import { loadNumericSource } from './load-numeric-source.mjs';
 import { createOperationHistoryClient } from '../src/api/operation-history-client.ts';
+import { checkClientSchemaSubset } from './client-schema-subset.mjs';
 import { demoSnapshot, demoOptions } from '../../web/demo/fixtures.mjs';
 import { prepareAtlasView } from '../../web/src/prepare.mjs';
+checkClientSchemaSubset();
 const { createGeometryClient } = await import(await loadNumericSource('api/geometry-client.ts'));
 const { createEvidenceClient } = await import(await loadNumericSource('api/evidence-client.ts'));
 const { ExactDecimal } = await import(await loadNumericSource('numeric/decimal.ts'));
@@ -20,8 +22,8 @@ let { code: retainedCode } = await transformWithOxc(readFileSync(retainedSource,
   { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
 const retainedImports = {
   '../numeric/stock-ajv': await loadNumericSource('numeric/stock-ajv.ts'),
-  '../../../contracts/stock-wire3/agent/agent.schema.json': new URL('../../contracts/stock-wire3/agent/agent.schema.json', import.meta.url).href,
-  '../../../contracts/stock-wire3/agent/operation-catalog.json': new URL('../../contracts/stock-wire3/agent/operation-catalog.json', import.meta.url).href,
+  '../../../contracts/client-schemas/agent-ajv.schema.json': new URL('../../contracts/client-schemas/agent-ajv.schema.json', import.meta.url).href,
+  '../../../contracts/client-schemas/operation-catalog.json': new URL('../../contracts/client-schemas/operation-catalog.json', import.meta.url).href,
   '../numeric/decimal': await loadNumericSource('numeric/decimal.ts'),
   '../numeric/lossless-json': await loadNumericSource('numeric/lossless-json.ts'),
   '../numeric/schema-validator': await loadNumericSource('numeric/schema-validator.ts'),

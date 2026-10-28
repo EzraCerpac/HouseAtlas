@@ -1,6 +1,6 @@
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
-import operationCatalog from '../../../contracts/stock-wire3/agent/operation-catalog.json' with { type: 'json' };
+import operationCatalog from '../../../contracts/client-schemas/operation-catalog.json' with { type: 'json' };
 import type { Scope } from '../app/types';
 import type { RecordRefRecordType } from './generated/contracts';
 

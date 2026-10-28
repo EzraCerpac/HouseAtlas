@@ -4,9 +4,10 @@ import react from '@vitejs/plugin-react';
 import { offlineShellPlugin } from './build/offline-shell-plugin.mjs';
 import { pdfjsBinaryDataPlugin } from './build/pdfjs-binary-data-plugin.mjs';
 import { threeNoticeBanner } from './build/three-notice-banner.mjs';
+import { clientSchemasPlugin } from './build/client-schemas-plugin.mjs';
 
 export default defineConfig({
-  plugins: [react(), pdfjsBinaryDataPlugin(process.cwd()), offlineShellPlugin()],
+  plugins: [clientSchemasPlugin(), react(), pdfjsBinaryDataPlugin(process.cwd()), offlineShellPlugin()],
   // The Full model's GLB worker bundles three.js, so it carries the same notice.
   worker: { rolldownOptions: { output: { postBanner: threeNoticeBanner(process.cwd()) } } },
   build: {

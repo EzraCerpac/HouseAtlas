@@ -7,14 +7,14 @@ const source = (path) => new URL(path.startsWith('integration/') ? `../${path}` 
 const dataUrl = (code) => `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
 const rawSchema = (path) => dataUrl(`export default ${JSON.stringify(readFileSync(new URL(path, import.meta.url), 'utf8'))};`);
 const jsonSchema = (path) => dataUrl(`export default ${JSON.stringify(JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8')))};`);
-const agentSchema = rawSchema('../../contracts/stock-wire3/agent/agent.schema.json');
+const agentSchema = rawSchema('../../contracts/client-schemas/agent-exact.schema.json');
 const atlasSchema = rawSchema('../../packages/contracts/schemas/atlas.schema.json');
-const agentJson = jsonSchema('../../contracts/stock-wire3/agent/agent.schema.json');
+const agentJson = jsonSchema('../../contracts/client-schemas/agent-ajv.schema.json');
 const atlasJson = jsonSchema('../../packages/contracts/schemas/atlas.schema.json');
 // This existing client retains native JSON import attributes after compilation.
-const retainedAgentJson = `data:application/json;base64,${readFileSync(new URL('../../contracts/stock-wire3/agent/agent.schema.json', import.meta.url)).toString('base64')}`;
+const retainedAgentJson = `data:application/json;base64,${readFileSync(new URL('../../contracts/client-schemas/agent-ajv.schema.json', import.meta.url)).toString('base64')}`;
 const retainedAtlasJson = `data:application/json;base64,${readFileSync(new URL('../../packages/contracts/schemas/atlas.schema.json', import.meta.url)).toString('base64')}`;
-const retainedCatalogJson = `data:application/json;base64,${readFileSync(new URL('../../contracts/stock-wire3/agent/operation-catalog.json', import.meta.url)).toString('base64')}`;
+const retainedCatalogJson = `data:application/json;base64,${readFileSync(new URL('../../contracts/client-schemas/operation-catalog.json', import.meta.url)).toString('base64')}`;
 const pinnedV4Json = jsonSchema('../../contracts/stock-wire4/pinned-homebox-file.v4.schema.json');
 const formats = new URL('../node_modules/ajv-formats/dist/formats.js', import.meta.url).href;
 const ajv = new URL('../node_modules/ajv/dist/2020.js', import.meta.url).href;
@@ -23,14 +23,15 @@ const links = Object.freeze({
   'numeric/decimal.ts': {},
   'numeric/lossless-json.ts': { './decimal': 'numeric/decimal.ts' },
   'numeric/schema-validator.ts': {
+    '../../../contracts/client-schemas/agent-exact-pin.json': jsonSchema('../../contracts/client-schemas/agent-exact-pin.json'),
     './decimal': 'numeric/decimal.ts',
     'ajv-formats/dist/formats.js': formats,
-    '../../../contracts/stock-wire3/agent/agent.schema.json?raw': agentSchema,
+    '../../../contracts/client-schemas/agent-exact.schema.json?raw': agentSchema,
     '../../../packages/contracts/schemas/atlas.schema.json?raw': atlasSchema,
   },
   'numeric/stock-ajv.ts': {
     'ajv/dist/2020.js': ajv, 'ajv-formats': addFormats,
-    '../../../contracts/stock-wire3/agent/agent.schema.json': retainedAgentJson,
+    '../../../contracts/client-schemas/agent-ajv.schema.json': retainedAgentJson,
     '../../../packages/contracts/schemas/atlas.schema.json': retainedAtlasJson,
   },
   'numeric/stock-decoded.ts': {
@@ -68,13 +69,13 @@ const links = Object.freeze({
   'capture-evidence/types.ts': {},
   'api/quantity-client.ts': {
     '../numeric/stock-ajv': 'numeric/stock-ajv.ts',
-    '../../../contracts/stock-wire3/agent/agent.schema.json': agentJson,
+    '../../../contracts/client-schemas/agent-ajv.schema.json': agentJson,
     '../../../packages/contracts/schemas/atlas.schema.json': atlasJson,
   },
   'api/retained-intent-client.ts': {
     '../numeric/stock-ajv': 'numeric/stock-ajv.ts',
-    '../../../contracts/stock-wire3/agent/agent.schema.json': retainedAgentJson,
-    '../../../contracts/stock-wire3/agent/operation-catalog.json': retainedCatalogJson,
+    '../../../contracts/client-schemas/agent-ajv.schema.json': retainedAgentJson,
+    '../../../contracts/client-schemas/operation-catalog.json': retainedCatalogJson,
     '../numeric/decimal': 'numeric/decimal.ts',
     '../numeric/lossless-json': 'numeric/lossless-json.ts',
     '../numeric/schema-validator': 'numeric/schema-validator.ts',
@@ -103,7 +104,7 @@ const links = Object.freeze({
   },
   'api/pinned-file-client.ts': {
     '../numeric/stock-ajv': 'numeric/stock-ajv.ts',
-    '../../../contracts/stock-wire3/agent/agent.schema.json': agentJson,
+    '../../../contracts/client-schemas/agent-ajv.schema.json': agentJson,
     '../../../contracts/stock-wire4/pinned-homebox-file.v4.schema.json': pinnedV4Json,
     '../../../packages/contracts/schemas/atlas.schema.json': atlasJson,
   },
