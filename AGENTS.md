@@ -56,12 +56,7 @@ known/approximate affine fits, property-wide inventory, documentary-only intake,
 reviewed withdrawal, revision reconciliation, stale current identities and
 source-uncertainty hull coverage (including malformed explicit row tolerances).
 These pure in-memory cases create no receipt, native authority or physical
-placement. The same ordinary-core job also runs the eleven explicit
-`packages/contracts/proposals/linear-v1/examples.test.mjs` cases with pinned
-Node and locked Ajv: six unchanged fictional proposals, fixture boundary
-arithmetic, exact decimal grammar, metric-length scalar fields and documentary
-wall endpoint syntax/order. These read-only local checks establish no native
-measurement storage, source identity, physical accuracy or linear route.
+placement.
 The ordinary-core job also runs the sixteen explicit cases in
 `tools/perf/runtime-profile/test_runtime_profile.py` with the runner's Python
 >=3.11 (stdlib only). They use generated profiles, disposable folders and owned
