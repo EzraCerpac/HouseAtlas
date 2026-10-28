@@ -234,6 +234,36 @@ async function checkOwnedBrowserCleanup() {
   assert.deepEqual(order, ['held', 'closed', 'transport', 'removed']);
   cases.push('original-test-failure-preserved-with-shutdown-and-removal-diagnostics');
 
+  // A resource accepted while the fake browser is stopping must be released,
+  // including when shutdown times out and profile removal is intentionally skipped.
+  for (const timesOut of [false, true]) {
+    const resources = new Set(), released = [], lateChild = new FakeChild();
+    let accepting = true, profileRemoved = false;
+    const resource = name => ({ destroy() { assert.equal(accepting, false); released.push(name); } });
+    resources.add(resource('early'));
+    const stopLate = trackOfflineBrowser(lateChild, { graceMs: 5, termMs: 5, killMs: 5 });
+    const cleanupReports = [];
+    await finishOfflineCleanup({
+      primaryFailure: timesOut ? { error: primary } : null,
+      stopBrowser: () => stopLate(() => {
+        resources.add(resource('during-stop'));
+        if (!timesOut) lateChild.finish();
+        return new Promise(() => {});
+      }),
+      releaseTransport: (function* () {
+        yield () => { accepting = false; };
+        for (const current of resources) yield () => current.destroy();
+      })(),
+      removeScratch: () => { profileRemoved = true; },
+      report: failure => cleanupReports.push(failure),
+    });
+    assert.deepEqual(released, ['early', 'during-stop']);
+    assert.equal(profileRemoved, !timesOut);
+    assert.equal(cleanupReports.length, timesOut ? 1 : 0);
+    if (timesOut) assert.match(cleanupReports[0].error.message, /profile retained/);
+  }
+  cases.push('live-transport-enumeration-after-browser-stop-and-timeout');
+
 }
 
 try {

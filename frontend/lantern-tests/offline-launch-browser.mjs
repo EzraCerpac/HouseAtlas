@@ -268,7 +268,11 @@ try {
     primaryFailure,
     beforeShutdown: [...held].map(response => () => response.destroy()),
     stopBrowser: () => stopBrowser(() => cdp.send('Browser.close')),
-    releaseTransport: [() => { if (server.listening) server.close(); }, ...[...sockets].map(socket => () => socket.destroy())],
+    // Enumerate after shutdown, with acceptance stopped before reading the live set.
+    releaseTransport: (function* () {
+      yield () => { if (server.listening) server.close(); };
+      for (const socket of sockets) yield () => socket.destroy();
+    })(),
     removeScratch: () => removeOfflineScratch(scratch),
   });
 }

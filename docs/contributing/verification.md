@@ -236,6 +236,9 @@ The original test exception remains primary if shutdown or removal also fails;
 all cleanup diagnostics are reported separately. When the test itself passed,
 cleanup failure still fails the case. Combined-failure assertions use synthetic
 errors and verify original identity, cleanup-only failure and ordered release.
+Transport release stops listener acceptance, then enumerates the live owned socket
+set after browser shutdown. Synthetic coverage adds a resource during fake-child
+shutdown and verifies its release on both successful close and shutdown timeout.
 These checks concern harness reliability, not offline application or device
 acceptance.
 
