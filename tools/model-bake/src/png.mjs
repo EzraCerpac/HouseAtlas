@@ -1,55 +1,52 @@
 /** Embedded PNG textures for the overview: decode, halve until they fit a
- * pixel size, encode again. Only what an overview map needs: 8-bit greyscale,
- * RGB, palette, grey-alpha and RGBA, not interlaced. Anything else is left as
- * authored, and the caller reports it. */
+ * pixel size, encode again. The bake rewrites only what the viewer would admit
+ * as authored (embedded-png-material.ts admitRgbPng): opaque 8-bit RGB, not
+ * interlaced, with whole, checksummed framing. Anything else is left as
+ * authored, for the viewer's own checks to judge, and the caller reports it. */
 import { crc32, deflateSync, inflateSync } from 'node:zlib';
 
 const SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-const CHANNELS = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 };
+const letters = bytes => [...bytes].every(v => v >= 65 && v <= 90 || v >= 97 && v <= 122);
 
-/** RGBA pixels of a PNG, or null where this decoder does not read the format. */
+/** RGBA pixels (alpha 255) of a PNG, or null where the bake leaves the PNG as authored. */
 export function decodePng(bytes) {
   const png = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (png.length < 8 || !png.subarray(0, 8).equals(SIGNATURE)) return null;
-  let at = 8, width = 0, height = 0, type = -1, palette = null, alpha = null; const data = [];
-  while (at + 8 <= png.length) {
-    const length = png.readUInt32BE(at), kind = png.toString('latin1', at + 4, at + 8), body = png.subarray(at + 8, at + 8 + length);
-    // A damaged chunk is left as authored, for the viewer's own checks to refuse.
-    if (at + 12 + length > png.length || crc32(png.subarray(at + 4, at + 8 + length)) !== png.readUInt32BE(at + 8 + length)) return null;
+  let at = 8, width = 0, height = 0, ended = false, dataEnded = false; const data = [];
+  while (at < png.length) {
+    if (ended || at + 12 > png.length) return null;
+    const length = png.readUInt32BE(at), end = at + 12 + length, type = png.subarray(at + 4, at + 8), kind = type.toString('latin1');
+    if (end > png.length || !letters(type) || (type[2] & 32) !== 0 || crc32(png.subarray(at + 4, end - 4)) !== png.readUInt32BE(end - 4)) return null;
+    const body = png.subarray(at + 8, end - 4);
+    if ((at === 8) !== (kind === 'IHDR')) return null;
     if (kind === 'IHDR') {
-      width = body.readUInt32BE(0); height = body.readUInt32BE(4); type = body[9];
-      if (body[8] !== 8 || body[12] !== 0 || !(type in CHANNELS)) return null;
-    } else if (kind === 'PLTE') palette = body;
-    else if (kind === 'tRNS') alpha = body;
-    else if (kind === 'IDAT') data.push(body);
-    else if (kind === 'IEND') break;
-    at += 12 + length;
+      width = body.readUInt32BE(0); height = body.readUInt32BE(4);
+      if (length !== 13 || width < 1 || height < 1 || body[8] !== 8 || body[9] !== 2 || body[10] !== 0 || body[11] !== 0 || body[12] !== 0) return null;
+    } else if (kind === 'IDAT') {
+      if (dataEnded) return null; data.push(body);
+    } else {
+      if (data.length) dataEnded = true;
+      if (kind === 'IEND') { if (length !== 0 || !data.length) return null; ended = true; }
+      else if (kind !== 'PLTE' && ((type[0] & 32) === 0 || kind === 'tRNS' || ['acTL', 'fcTL', 'fdAT'].includes(kind))) return null;
+    }
+    at = end;
   }
-  // A transparent colour key on greyscale or RGB is left as authored, for the viewer to judge.
-  if (width < 1 || height < 1 || (type === 3 && !palette) || (alpha && type !== 3)) return null;
-  const channels = CHANNELS[type], stride = width * channels, raw = inflateSync(Buffer.concat(data));
-  if (raw.length < height * (stride + 1)) return null;
-  const rgba = new Uint8Array(width * height * 4);
+  if (!ended) return null;
+  const stride = width * 3;
+  let raw; try { raw = inflateSync(Buffer.concat(data)); } catch { return null; }
+  if (raw.length !== height * (stride + 1)) return null;
+  const rgba = new Uint8Array(width * height * 4).fill(255);
   let previous = new Uint8Array(stride);
   for (let y = 0; y < height; y++) {
     const filter = raw[y * (stride + 1)];
     if (filter > 4) return null;
     const line = Uint8Array.from(raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1)));
     for (let x = 0; x < stride; x++) {
-      const a = x >= channels ? line[x - channels] : 0, b = previous[x], c = x >= channels ? previous[x - channels] : 0;
+      const a = x >= 3 ? line[x - 3] : 0, b = previous[x], c = x >= 3 ? previous[x - 3] : 0;
       const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
       line[x] = (line[x] + [0, a, b, (a + b) >> 1, pa <= pb && pa <= pc ? a : pb <= pc ? b : c][filter]) & 255;
     }
-    for (let x = 0; x < width; x++) {
-      const s = x * channels, o = (y * width + x) * 4;
-      if (type === 3) {
-        const i = line[s]; rgba.set(palette.subarray(i * 3, i * 3 + 3), o); rgba[o + 3] = alpha && i < alpha.length ? alpha[i] : 255;
-      } else if (channels <= 2) {
-        rgba[o] = rgba[o + 1] = rgba[o + 2] = line[s]; rgba[o + 3] = channels === 2 ? line[s + 1] : 255;
-      } else {
-        rgba[o] = line[s]; rgba[o + 1] = line[s + 1]; rgba[o + 2] = line[s + 2]; rgba[o + 3] = channels === 4 ? line[s + 3] : 255;
-      }
-    }
+    for (let x = 0; x < width; x++) rgba.set(line.subarray(x * 3, x * 3 + 3), (y * width + x) * 4);
     previous = line;
   }
   return { width, height, rgba };
@@ -61,10 +58,10 @@ const chunk = (kind, body) => {
   return Buffer.concat([head, body, tail]);
 };
 
-/** An RGB PNG, or RGBA where any pixel is not opaque; Paeth-filtered rows. */
+/** An 8-bit RGB PNG with Paeth-filtered rows, from opaque RGBA pixels. */
 export function encodePng({ width, height, rgba }) {
-  let opaque = true; for (let i = 3; i < rgba.length; i += 4) if (rgba[i] !== 255) { opaque = false; break; }
-  const channels = opaque ? 3 : 4, stride = width * channels, raw = Buffer.alloc(height * (stride + 1));
+  for (let i = 3; i < rgba.length; i += 4) if (rgba[i] !== 255) throw new RangeError('encodePng writes opaque RGB only');
+  const channels = 3, stride = width * channels, raw = Buffer.alloc(height * (stride + 1));
   let previous = new Uint8Array(stride);
   for (let y = 0; y < height; y++) {
     const line = new Uint8Array(stride);
@@ -77,7 +74,7 @@ export function encodePng({ width, height, rgba }) {
     }
     previous = line;
   }
-  const header = Buffer.alloc(13); header.writeUInt32BE(width, 0); header.writeUInt32BE(height, 4); header[8] = 8; header[9] = opaque ? 2 : 6;
+  const header = Buffer.alloc(13); header.writeUInt32BE(width, 0); header.writeUInt32BE(height, 4); header[8] = 8; header[9] = 2;
   return new Uint8Array(Buffer.concat([SIGNATURE, chunk('IHDR', header), chunk('IDAT', deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]));
 }
 

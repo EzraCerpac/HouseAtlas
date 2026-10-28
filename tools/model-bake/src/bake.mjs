@@ -390,7 +390,7 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
       const shrunk = shrinkImage(pixels, options.textureSize, imageRoles.get(at) ?? 'data');
       textures.push({ image: at, role: imageRoles.get(at) ?? 'data', from: [pixels.width, pixels.height], to: [shrunk.width, shrunk.height], bytes: bytes.byteLength });
       bytes = encodePng(shrunk); textures.at(-1).bakedBytes = bytes.byteLength;
-    } else if (Number.isFinite(options.textureSize) && !pixels) textures.push({ image: at, kept: 'not an 8-bit non-interlaced PNG this bake reads' });
+    } else if (Number.isFinite(options.textureSize) && !pixels) textures.push({ image: at, kept: 'not an opaque 8-bit RGB, non-interlaced, well-formed PNG; left for the viewer to judge' });
     image.bufferView = addView(bytes);
   });
   json.accessors = accessors; json.bufferViews = views;

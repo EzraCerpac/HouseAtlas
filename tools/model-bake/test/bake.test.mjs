@@ -362,7 +362,7 @@ test('averages an image shared by colour and data slots once per role', async ()
   assert.equal(readGlb((await bakeDetail(texturedMaster({ png: encodePng({ width, height, rgba }), roughness: true }), null)).glb).json.images.length, 1);
 });
 
-test('refuses damaged chunks, unknown row filters, colour keys and sizes below one pixel', () => {
+test('rewrites only PNGs the viewer admits as authored, and no size below one pixel', () => {
   const png = Buffer.from(encodePng({ width: 2, height: 1, rgba: new Uint8Array(8).fill(255) }));
   const at = png.indexOf('IDAT') + 4, length = png.readUInt32BE(at - 8), raw = inflateSync(png.subarray(at, at + length));
   const chunk = body => { const out = Buffer.alloc(body.length + 12); out.writeUInt32BE(body.length, 0); out.write('IDAT', 4, 'latin1'); body.copy(out, 8);
@@ -374,6 +374,13 @@ test('refuses damaged chunks, unknown row filters, colour keys and sizes below o
   // A chunk whose checksum does not match is not rewritten either.
   const damaged = Buffer.from(png); damaged[at + length] ^= 1;
   assert.equal(decodePng(new Uint8Array(damaged)), null);
+  // A PNG cut before its end, or followed by stray bytes, is not rewritten.
+  assert.equal(decodePng(new Uint8Array(png.subarray(0, png.length - 12))), null);
+  assert.equal(decodePng(new Uint8Array(Buffer.concat([png, Buffer.alloc(4)]))), null);
+  // Nor is a format the viewer refuses as authored, such as RGBA.
+  const rgbaHeader = Buffer.from(png); rgbaHeader[25] = 6; rgbaHeader.writeUInt32BE(crc32(rgbaHeader.subarray(12, 29)), 29);
+  assert.equal(decodePng(new Uint8Array(rgbaHeader)), null);
+  assert.throws(() => encodePng({ width: 1, height: 1, rgba: Uint8Array.of(0, 0, 0, 128) }), RangeError);
   // An RGB colour key (tRNS) is not something this bake rewrites.
   const iend = png.indexOf('IEND') - 4, key = Buffer.concat([Buffer.from('tRNS'), Buffer.alloc(6)]), sum = Buffer.alloc(4); sum.writeUInt32BE(crc32(key), 0);
   const keyed = Buffer.concat([png.subarray(0, iend), Buffer.from([0, 0, 0, 6]), key, sum, png.subarray(iend)]);
