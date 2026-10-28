@@ -357,7 +357,8 @@ test('averages an image shared by colour and data slots once per role', async ()
   assert.deepEqual(pixel(pbr.baseColorTexture), [188, 188, 188, 255]);
   assert.deepEqual(pixel(pbr.metallicRoughnessTexture), [128, 128, 128, 255]);
   assert.deepEqual(result.report.textures.map(t => t.role), ['srgb', 'data']);
-  // The detail keeps the one shared image.
+  // An image that already fits, and the detail, keep the one shared image.
+  assert.equal(readGlb((await bakeOverview(texturedMaster({ png: encodePng({ width, height, rgba }), roughness: true }), null, { triangles: 8_000, textureSize: 1024 })).glb).json.images.length, 1);
   assert.equal(readGlb((await bakeDetail(texturedMaster({ png: encodePng({ width, height, rgba }), roughness: true }), null)).glb).json.images.length, 1);
 });
 

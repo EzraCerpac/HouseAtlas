@@ -353,8 +353,18 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     json.materials = kept.map(at => materials[at]);
   }
   // How each image is sampled, for averaging it: normal map, colour (sRGB) or data.
-  // An overview image read in more than one role gets a copy per further role
-  // (and its textures one too), so each is averaged the way it is sampled.
+  // An overview image to be halved that is read in more than one role gets a copy
+  // per further role (and its textures one too), so each is averaged the way it
+  // is sampled. Images that already fit stay shared.
+  const decodedViews = new Map(), decoded = image => {
+    if (!Number.isFinite(options.textureSize) || image.bufferView === undefined || image.mimeType !== 'image/png') return null;
+    if (!decodedViews.has(image.bufferView)) {
+      const view = source.bufferViews[image.bufferView], start = view.byteOffset ?? 0;
+      decodedViews.set(image.bufferView, decodePng(bin.subarray(start, start + view.byteLength)));
+    }
+    return decodedViews.get(image.bufferView);
+  };
+  const shrinks = image => { const pixels = decoded(image); return pixels !== null && Math.max(pixels.width, pixels.height) > options.textureSize; };
   const slots = (json.materials ?? []).flatMap(material => [[material.normalTexture, 'normal'], [material.pbrMetallicRoughness?.baseColorTexture, 'srgb'],
     [material.emissiveTexture, 'srgb'], [material.pbrMetallicRoughness?.metallicRoughnessTexture, 'data'], [material.occlusionTexture, 'data']])
     .filter(([info]) => json.textures?.[info?.index]?.source !== undefined);
@@ -362,7 +372,7 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
   for (const [info, role] of slots) {
     const texture = json.textures[info.index], at = texture.source;
     if (!imageRoles.has(at)) imageRoles.set(at, role);
-    if (imageRoles.get(at) === role || !Number.isFinite(options.textureSize)) continue;
+    if (imageRoles.get(at) === role || !shrinks(json.images[at])) continue;
     if (!copies.has(`${info.index}:${role}`)) {
       let image = copies.get(`image ${at}:${role}`);
       if (image === undefined) { image = json.images.push({ ...json.images[at] }) - 1; imageRoles.set(image, role); copies.set(`image ${at}:${role}`, image); }
@@ -375,12 +385,12 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     if (image.bufferView === undefined) return;
     const view = source.bufferViews[image.bufferView], start = view.byteOffset ?? 0;
     let bytes = bin.subarray(start, start + view.byteLength);
-    const decoded = Number.isFinite(options.textureSize) && image.mimeType === 'image/png' ? decodePng(bytes) : null;
-    if (decoded && Math.max(decoded.width, decoded.height) > options.textureSize) {
-      const shrunk = shrinkImage(decoded, options.textureSize, imageRoles.get(at) ?? 'data');
-      textures.push({ image: at, role: imageRoles.get(at) ?? 'data', from: [decoded.width, decoded.height], to: [shrunk.width, shrunk.height], bytes: bytes.byteLength });
+    const pixels = decoded(image);
+    if (shrinks(image)) {
+      const shrunk = shrinkImage(pixels, options.textureSize, imageRoles.get(at) ?? 'data');
+      textures.push({ image: at, role: imageRoles.get(at) ?? 'data', from: [pixels.width, pixels.height], to: [shrunk.width, shrunk.height], bytes: bytes.byteLength });
       bytes = encodePng(shrunk); textures.at(-1).bakedBytes = bytes.byteLength;
-    } else if (Number.isFinite(options.textureSize) && !decoded) textures.push({ image: at, kept: 'not an 8-bit non-interlaced PNG this bake reads' });
+    } else if (Number.isFinite(options.textureSize) && !pixels) textures.push({ image: at, kept: 'not an 8-bit non-interlaced PNG this bake reads' });
     image.bufferView = addView(bytes);
   });
   json.accessors = accessors; json.bufferViews = views;
