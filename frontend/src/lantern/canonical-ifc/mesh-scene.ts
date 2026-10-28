@@ -11,6 +11,7 @@ import {
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { denoise } from 'three/addons/tsl/display/DenoiseNode.js';
 import { occlusionHistory } from './occlusion-history';
+import { prepareEffectPipelines } from './prepare-effect-pipelines';
 import type { PreparedMesh, Projection } from './geometry';
 import type { EmbeddedTexture } from './embedded-png-material';
 import { GLOW_HEIGHT, GLOW_SPREAD, LUMA } from './sky-light';
@@ -708,6 +709,8 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       [scene, camera, colorPass.renderTarget], [solidScene, solidCamera, geometryPass.renderTarget]] as const) for (const body of within.children) {
       await compile(body as Mesh, view, within, target); if (slice.due()) await slice.next();
     }
+
+    await prepareEffectPipelines(renderer, { pipeline, relit, occlusion, history, passes: [geometryPass, colorPass] }, () => slice.next(), signal);
 
     // The view the contact shading history belongs to; any change starts it over.
     let disposed = false, sunStale = true, averaged: Projection | null = null;
