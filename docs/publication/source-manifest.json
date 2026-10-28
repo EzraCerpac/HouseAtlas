@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "f2446dd69fce18475a0b3a6c23a08de6d103da2db5d355cd3a8df0aabdfcec01",
+  "sourceDigestSha256": "147cc6edad8f6cc9c32d9df029cccb9c5c314e5559f17fff62eee0615aca98af",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -7392,8 +7392,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 39317,
-      "sha256": "4b0b7a17d0d6bec43e202ca5833bb2aaa5c23a39a0ce582a7a93e5a639d9c97f",
+      "bytes": 39506,
+      "sha256": "0e858b886661629fc74714b3688918f3012d39c57f863d37962065c853db1470",
       "owner": "core-integration"
     },
     {
@@ -9086,8 +9086,8 @@
     {
       "path": "frontend/src/lantern/Host.tsx",
       "mode": "100644",
-      "bytes": 9321,
-      "sha256": "d9cc87d4a85f9930cdb920c0b2ead32ba9388f73e5310e00a6bb616b1a7bf519",
+      "bytes": 9937,
+      "sha256": "107e0c728269b5f8df4dfc7c63030617460047e1d41b14ae16ba3314fa123b3c",
       "owner": "web"
     },
     {
@@ -10157,8 +10157,8 @@
     {
       "path": "frontend/src/numeric/schema-validator.ts",
       "mode": "100644",
-      "bytes": 25026,
-      "sha256": "2e99e67ed65db73dfecc176c4cdbc9ca6682b4947efd42365a8e6ffb4df76933",
+      "bytes": 25267,
+      "sha256": "c9736288b3de79816e8a7fc7ab157208620362058868cd119760e132f0eda789",
       "owner": "web"
     },
     {
