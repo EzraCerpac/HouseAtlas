@@ -33,6 +33,8 @@ const SOURCE = [
   node('source-documents-reader.test.mjs'),
   node('source-time-display.mjs'),
   // Capture originals and draft receipt/cleanup correlation: exact synthetic cases only.
+  ['frontend/capture-evidence-tests/selection.mjs', '--case', 'selection-cancel-reselect'],
+  ['frontend/capture-evidence-tests/foreground.mjs', 'stale-target-preparation'],
   ['frontend/capture-evidence-tests/foreground.mjs', 'one-shot-originals'],
   ['frontend/capture-evidence-tests/foreground.mjs', 'original-offer-reused'],
   ['frontend/capture-evidence-tests/foreground.mjs', 'original-offer-digest-mismatch'],
