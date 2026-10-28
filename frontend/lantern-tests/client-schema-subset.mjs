@@ -12,6 +12,9 @@ const json = path => JSON.parse(read(path));
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const validator = (...documents) => {
   const ajv = new Ajv2020({ strict: true, allErrors: true, allowUnionTypes: true });
+  // Ajv resolves $anchor while collecting references, but its strict keyword
+  // check still rejects it when compiling the anchored definition.
+  ajv.addKeyword('$anchor');
   addFormats(ajv); documents.forEach(document => ajv.addSchema(document)); return ajv;
 };
 

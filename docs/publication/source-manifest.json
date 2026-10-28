@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "2d0b457bf3339a6abf159202619351d51364f547671a2cb31b4147fedd588b7e",
+  "sourceDigestSha256": "cb952b84754501ed2a479b1992ef14504b4883148bc9e5cc2ba86876b79998f6",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -7581,8 +7581,8 @@
     {
       "path": "frontend/lantern-tests/client-schema-subset.mjs",
       "mode": "100644",
-      "bytes": 7296,
-      "sha256": "8a2efa07a60a6b9114ea384414e49abf5b9c1651824ad0d5ecf5bc7b224be6a5",
+      "bytes": 7471,
+      "sha256": "dd9099c8b0be66f30efb73f199b6dc92cf74e793db5729b55cc6eb42a9a28489",
       "owner": "web"
     },
     {
