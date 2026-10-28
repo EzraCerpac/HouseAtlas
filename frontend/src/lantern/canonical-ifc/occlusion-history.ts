@@ -31,6 +31,13 @@ export class OcclusionHistory extends TempNode {
 
   getTextureNode(): TextureNode { return this.output; }
 
+  /** Compile this exact runtime quad/target after setup, without a sample,
+   * history swap, resize or weight change. Only the unpublished build calls it. */
+  async prepareQuad(compile: (quad: QuadMesh, target: RenderTarget) => Promise<void>): Promise<void> {
+    if (this.count !== 0 || this.material.fragmentNode == null) throw new Error('History must be initialized and unrendered before preparation');
+    await compile(this.quad, this.latest);
+  }
+
   /** Whether another frame would still lower the grain. */
   get settling(): boolean { return this.count < this.frames; }
 
