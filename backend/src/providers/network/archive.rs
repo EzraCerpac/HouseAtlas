@@ -15,6 +15,17 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, path::Path};
 
+const SCHEMA: &str = "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA trusted_schema=OFF;
+            CREATE TABLE IF NOT EXISTS network_archive_meta(version INTEGER PRIMARY KEY CHECK(version=1));
+            INSERT OR IGNORE INTO network_archive_meta VALUES(1);
+            CREATE TABLE IF NOT EXISTS network_archive_generation_ids(partition_key TEXT NOT NULL,generation_id TEXT NOT NULL,PRIMARY KEY(partition_key,generation_id));
+            CREATE TRIGGER IF NOT EXISTS network_archive_ids_no_update BEFORE UPDATE ON network_archive_generation_ids BEGIN SELECT RAISE(ABORT,'permanent generation id'); END;
+            CREATE TRIGGER IF NOT EXISTS network_archive_ids_no_delete BEFORE DELETE ON network_archive_generation_ids BEGIN SELECT RAISE(ABORT,'permanent generation id'); END;
+            CREATE TABLE IF NOT EXISTS network_archive_reservations(partition_key TEXT NOT NULL,generation_id TEXT NOT NULL,reserved_bytes INTEGER NOT NULL CHECK(reserved_bytes>0),PRIMARY KEY(partition_key,generation_id));
+            CREATE TABLE IF NOT EXISTS network_archive_catalog(partition_key TEXT NOT NULL,generation_id TEXT NOT NULL,body_sha256 TEXT NOT NULL,projected_receipt_sha256 TEXT NOT NULL,segment_sha256 TEXT NOT NULL,segment_name TEXT NOT NULL UNIQUE,segment_bytes INTEGER NOT NULL CHECK(segment_bytes>0),header_json TEXT NOT NULL,PRIMARY KEY(partition_key,generation_id));
+            CREATE TRIGGER IF NOT EXISTS network_archive_catalog_no_update BEFORE UPDATE ON network_archive_catalog BEGIN SELECT RAISE(ABORT,'immutable catalog'); END;
+            CREATE TRIGGER IF NOT EXISTS network_archive_catalog_no_delete BEFORE DELETE ON network_archive_catalog BEGIN SELECT RAISE(ABORT,'immutable catalog'); END;";
+
 pub const MAX_ACTIVE_SEGMENT_BYTES: usize = 16 * 1024 * 1024;
 pub const MAX_RETAINED_SEGMENT_BYTES: usize = 256 * 1024 * 1024;
 pub const MAX_ARCHIVE_ROW_BYTES: usize = 10 * 1024 * 1024;
@@ -188,19 +199,40 @@ impl NetworkImmutableArchive {
     /// catalog rows and segment bytes are fully enumerated and hash-verified;
     /// missing, extra, oversized, or partial files fail closed.
     pub fn open(path: &Path) -> Result<Self> {
-        let owner = DatabaseOwner::open(path)?;
-        let segments = owner.segments()?;
+        Self::open_mode(path, false)
+    }
+    pub fn open_existing(path: &Path) -> Result<Self> {
+        Self::open_mode(path, true)
+    }
+    fn open_mode(path: &Path, existing: bool) -> Result<Self> {
+        let owner = if existing {
+            DatabaseOwner::open_existing(path)?
+        } else {
+            DatabaseOwner::open(path)?
+        };
+        let segments = if existing {
+            owner.existing_segments()?
+        } else {
+            owner.segments()?
+        };
         owner.check()?;
-        let db = Connection::open_with_flags(
-            owner.path(),
-            OpenFlags::SQLITE_OPEN_READ_WRITE
-                | OpenFlags::SQLITE_OPEN_CREATE
-                | OpenFlags::SQLITE_OPEN_NO_MUTEX
-                | OpenFlags::SQLITE_OPEN_NOFOLLOW,
-        )
-        .map_err(|_| err())?;
+        let db = if existing {
+            owner.open_read_only()?
+        } else {
+            Connection::open_with_flags(
+                owner.path(),
+                OpenFlags::SQLITE_OPEN_READ_WRITE
+                    | OpenFlags::SQLITE_OPEN_CREATE
+                    | OpenFlags::SQLITE_OPEN_NO_MUTEX
+                    | OpenFlags::SQLITE_OPEN_NOFOLLOW,
+            )
+            .map_err(|_| err())?
+        };
         db.busy_timeout(std::time::Duration::from_secs(5))
             .map_err(|_| err())?;
+        if existing {
+            super::native_owner::validate_existing_schema(&db, SCHEMA)?;
+        }
         let tables: Vec<String> = db
             .prepare(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
@@ -230,16 +262,9 @@ impl NetworkImmutableArchive {
                 .map_err(|_| err())?;
             ensure(versions == [1])?;
         }
-        db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA trusted_schema=OFF;
-            CREATE TABLE IF NOT EXISTS network_archive_meta(version INTEGER PRIMARY KEY CHECK(version=1));
-            INSERT OR IGNORE INTO network_archive_meta VALUES(1);
-            CREATE TABLE IF NOT EXISTS network_archive_generation_ids(partition_key TEXT NOT NULL,generation_id TEXT NOT NULL,PRIMARY KEY(partition_key,generation_id));
-            CREATE TRIGGER IF NOT EXISTS network_archive_ids_no_update BEFORE UPDATE ON network_archive_generation_ids BEGIN SELECT RAISE(ABORT,'permanent generation id'); END;
-            CREATE TRIGGER IF NOT EXISTS network_archive_ids_no_delete BEFORE DELETE ON network_archive_generation_ids BEGIN SELECT RAISE(ABORT,'permanent generation id'); END;
-            CREATE TABLE IF NOT EXISTS network_archive_reservations(partition_key TEXT NOT NULL,generation_id TEXT NOT NULL,reserved_bytes INTEGER NOT NULL CHECK(reserved_bytes>0),PRIMARY KEY(partition_key,generation_id));
-            CREATE TABLE IF NOT EXISTS network_archive_catalog(partition_key TEXT NOT NULL,generation_id TEXT NOT NULL,body_sha256 TEXT NOT NULL,projected_receipt_sha256 TEXT NOT NULL,segment_sha256 TEXT NOT NULL,segment_name TEXT NOT NULL UNIQUE,segment_bytes INTEGER NOT NULL CHECK(segment_bytes>0),header_json TEXT NOT NULL,PRIMARY KEY(partition_key,generation_id));
-            CREATE TRIGGER IF NOT EXISTS network_archive_catalog_no_update BEFORE UPDATE ON network_archive_catalog BEGIN SELECT RAISE(ABORT,'immutable catalog'); END;
-            CREATE TRIGGER IF NOT EXISTS network_archive_catalog_no_delete BEFORE DELETE ON network_archive_catalog BEGIN SELECT RAISE(ABORT,'immutable catalog'); END;") .map_err(|_| err())?;
+        if !existing {
+            db.execute_batch(SCHEMA).map_err(|_| err())?;
+        }
         owner.check()?;
         segments.check()?;
         let archive = Self {
