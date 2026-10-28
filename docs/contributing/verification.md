@@ -131,12 +131,14 @@ The recorded-page helper/component checks are separate.
 
 ## Generated capture original and draft receipt checks
 
-The existing `run-healthy.mjs` SOURCE list adds these ten exact commands,
+The existing `run-healthy.mjs` SOURCE list adds these twelve exact commands,
 one process per command, using Node 26.10.0 and unchanged locked frontend
 dependencies. Inspect `foreground.mjs`, `combined-host.mjs`, their generated
 fixtures and the imported client/controller/receipt validator before execution.
 
 ```sh
+node frontend/capture-evidence-tests/selection.mjs --case selection-cancel-reselect
+node frontend/capture-evidence-tests/foreground.mjs stale-target-preparation
 node frontend/capture-evidence-tests/foreground.mjs one-shot-originals
 node frontend/capture-evidence-tests/foreground.mjs original-offer-reused
 node frontend/capture-evidence-tests/foreground.mjs original-offer-digest-mismatch
@@ -149,7 +151,12 @@ node frontend/capture-drafts-tests/combined-host.mjs --case cleanup-failure-know
 node frontend/capture-drafts-tests/combined-host.mjs --case reused-receipt-object-keeps-unknown
 ```
 
-The foreground baseline checks exact multipart bytes and one fake POST for
+The selection case holds File reads at the header and text boundaries, aborts
+the old caller and selects a replacement and then the same original again; it
+mounts no picker. The stale-target case holds the final fresh admission read,
+then retires the binding or session or cancels, and requires that a late reply
+cannot revive preparation before a fresh generation selects the same bytes
+without sending. The foreground baseline checks exact multipart bytes and one fake POST for
 baseline/progressive JPEG, PNG, PDF and text. `original-offer-reused` adds the
 production resolver's asset GET / HEAD / asset GET over two-record receipts
 for the same five originals. The other three offer cases withhold the offer
@@ -172,8 +179,8 @@ Neither harness mounts React or downloads an original from a native server.
 Registration is not an execution result, browser/device acceptance, native
 custody/recovery proof or permission to retry an unknown result.
 
-This is a finite exception for the named receipt/original-offer cases. Other
-selection, stale-target, byte/receipt mismatch, lifecycle, quota, expiry,
+This is a finite exception for the named selection, stale-target and
+receipt/original-offer cases. Other selection, byte/receipt mismatch, lifecycle, quota, expiry,
 cross-tab and controller regression cases remain separately selected. The
 native UI harness and browser-cases runner remain outside this list. The full
 controller regression file contains thirteen cases and is not selected here.
