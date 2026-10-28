@@ -14,6 +14,12 @@ interface ContextAccess {
   _renderContexts: { get(target?: RenderTarget | null, mrt?: unknown, depth?: number): unknown };
 }
 
+/** A guard declining the preparation while the renderer is in a state the
+ * adapter fully restores: either before anything was changed, or between
+ * completed compilations. Only this refusal may be skipped by the caller; any
+ * other failure can leave three.js's own render state half swapped. */
+export class PreparationRefused extends Error {}
+
 /** Temporarily replace an instance member, preserving inherited methods too. */
 function replaceMember(owner: object, key: string, value: unknown): () => void {
   const original = Object.getOwnPropertyDescriptor(owner, key);
@@ -33,7 +39,7 @@ function quadVertex(quad: QuadMesh) {
   try {
     quad.render({ render() { vertex = material.vertexNode; captured = true; } } as unknown as WebGPURenderer);
   } finally { material.vertexNode = original; }
-  if (!captured || vertex == null) throw new Error('Unsupported Three fullscreen vertex setup');
+  if (!captured || vertex == null) throw new PreparationRefused('Unsupported Three fullscreen vertex setup');
   return vertex;
 }
 
@@ -45,15 +51,15 @@ function quadVertex(quad: QuadMesh) {
 export async function prepareEffectPipelines(renderer: WebGPURenderer, effects: {
   pipeline: RenderPipeline; relit: RenderPipeline; occlusion: Node; history: OcclusionHistory; passes: readonly Node[];
 }, nextSlice: () => Promise<void>, signal?: AbortSignal): Promise<void> {
-  if (REVISION !== '186') throw new Error('Effect preparation requires review for this Three revision');
-  if (effects.history.count !== 0) throw new Error('Effect preparation must precede history rendering');
+  if (REVISION !== '186') throw new PreparationRefused('Effect preparation requires review for this Three revision');
+  if (effects.history.count !== 0) throw new PreparationRefused('Effect preparation must precede history rendering');
   signal?.throwIfAborted();
   const contexts = (renderer as unknown as ContextAccess)._renderContexts;
-  if (!contexts || typeof contexts.get !== 'function') throw new Error('Unsupported Three render-context preparation');
+  if (!contexts || typeof contexts.get !== 'function') throw new PreparationRefused('Unsupported Three render-context preparation');
   const restoreUpdates: (() => void)[] = [];
   try {
     for (const node of new Set([...effects.passes, effects.occlusion, effects.history])) {
-      if (typeof node.updateBefore !== 'function') throw new Error('Unsupported effect update hook');
+      if (typeof node.updateBefore !== 'function') throw new PreparationRefused('Unsupported effect update hook');
       restoreUpdates.push(replaceMember(node, 'updateBefore', () => false));
     }
 
@@ -61,7 +67,7 @@ export async function prepareEffectPipelines(renderer: WebGPURenderer, effects: 
       signal?.throwIfAborted();
       const material = quad.material as NodeMaterial;
       if (!quad.isQuadMesh || !material.isNodeMaterial || material.fragmentNode == null)
-        throw new Error('Effect graph was not initialized before preparation');
+        throw new PreparationRefused('Effect graph was not initialized before preparation');
       const vertex = material.vertexNode, culled = quad.frustumCulled;
       const saved = RendererUtils.saveRendererState(renderer), xr = renderer.xr.enabled;
       // compileAsync otherwise always selects depth 0. AO/history draw inside
@@ -89,12 +95,12 @@ export async function prepareEffectPipelines(renderer: WebGPURenderer, effects: 
     const compileOutput = async (pipeline: RenderPipeline) => {
       const access = pipeline as unknown as PipelineAccess;
       if (pipeline.renderer !== renderer || typeof access._update !== 'function' || !access._quadMesh)
-        throw new Error('Unsupported Three output-pipeline preparation');
+        throw new PreparationRefused('Unsupported Three output-pipeline preparation');
       access._update();
       const checkCallbacks = () => {
         if (!access._contextData || access._contextData.onBeforePipelineCallbacks.length
           || access._contextData.onAfterPipelineCallbacks.length)
-          throw new Error('Effect preparation does not support pipeline callbacks');
+          throw new PreparationRefused('Effect preparation does not support pipeline callbacks');
       };
       checkCallbacks();
       const tone = renderer.toneMapping, color = renderer.outputColorSpace, xr = renderer.xr.enabled;
@@ -114,7 +120,7 @@ export async function prepareEffectPipelines(renderer: WebGPURenderer, effects: 
     // after that, against its final material and native RedFormat target.
     const ao = effects.occlusion as unknown as OcclusionAccess;
     if (!ao._material?.isNodeMaterial || !ao._aoRenderTarget?.isRenderTarget)
-      throw new Error('Unsupported Three AO preparation');
+      throw new PreparationRefused('Unsupported Three AO preparation');
     await compileQuad(new QuadMesh(ao._material), ao._aoRenderTarget, 1, true);
     await compileOutput(effects.relit);
     if (effects.history.count !== 0) throw new Error('Effect preparation advanced the history');
