@@ -85,7 +85,9 @@ its explicit list, including the `offline-launch`, `hung-network` and
 (generated build output on a loopback listener, no backend; live-launch also
 seeds a generated Atlas and waiting outbox entry through production storage APIs,
 closes and reopens the tab, and checks cached content, exact queue retention and
-no write dispatch), the generated CPU
+no write dispatch), and fake-child/temporary-directory shutdown and bounded
+profile-cleanup checks inside the existing offline-root-entry healthy case
+(no browser or real child launch), the generated CPU
 mesh-preparation equivalence check, the `webgl2` case of
 `mesh-layer-browser.mjs`, which draws generated meshes through MeshLayer in the
 runner's software GPU and swaps in a second mesh set without a blank frame,

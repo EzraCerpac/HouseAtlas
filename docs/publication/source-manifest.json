@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d5e6310e8390708d46fddfb0426dabf5194ce8f075dbf3f44d1e3671478bddda",
+  "sourceDigestSha256": "896fe133d3f85afe0a515a5c28a612fb99dc3184ca9c05f3cf561470822c49ca",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -154,8 +154,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 12830,
-      "sha256": "902b8b904395e802c18fe2c50bf577f3177597c93884e4c5ec57048c46d10a6b",
+      "bytes": 12996,
+      "sha256": "f5568b87f8ae444af823a96d5c13041470a6973c7496aa5296b97f4e0e81de10",
       "owner": "core-integration"
     },
     {
@@ -6202,8 +6202,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 166559,
-      "sha256": "8e4ca5f3a384b88b32d7af3b57ea6b0fc7843d7f5301325f8c30f152f10a1034",
+      "bytes": 167528,
+      "sha256": "8e72ebd46501813bdbbf027c0e821709ff9de58721b2245aedf7c7819540645e",
       "owner": "core-integration"
     },
     {
@@ -7875,8 +7875,15 @@
     {
       "path": "frontend/lantern-tests/offline-launch-browser.mjs",
       "mode": "100644",
-      "bytes": 17535,
-      "sha256": "31e52a5b19df4df53c6bda0b591f5c02fe4a82bb4c8574fa22a29a48276a4550",
+      "bytes": 17666,
+      "sha256": "a9cfc1d099abfd251fbaebfaba0a70df91e29cedbd0901a798fefff61b4816dc",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/offline-launch-cleanup.mjs",
+      "mode": "100644",
+      "bytes": 3120,
+      "sha256": "116e39a38f80b6d36fa823944234ca24726d1e4b95f977f42c53fe7cadba9d4d",
       "owner": "web"
     },
     {
@@ -7889,8 +7896,8 @@
     {
       "path": "frontend/lantern-tests/offline-root-entry-healthy.mjs",
       "mode": "100644",
-      "bytes": 28066,
-      "sha256": "94692038c856d6f51980690833f0d7ff6900b109c7c61b3bd50bcbbd05aaf2e6",
+      "bytes": 32008,
+      "sha256": "e31f56e349ff9c6cf5b631dfc110e4c27b61cb46900b6b55112bc8ff737687a0",
       "owner": "web"
     },
     {

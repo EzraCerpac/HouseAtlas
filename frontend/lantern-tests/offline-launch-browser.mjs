@@ -14,11 +14,12 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { transformWithOxc } from 'vite';
+import { trackOfflineBrowser, removeOfflineScratch } from './offline-launch-cleanup.mjs';
 
 const CASES = { 'offline-launch': 2_000, 'hung-network': 3_000, 'live-launch': 2_000 };
 assert.equal(process.argv.length, 4, 'Select --case offline-launch, hung-network or live-launch');
@@ -128,6 +129,7 @@ const browser = spawn(chromium, ['--headless=new', '--no-sandbox', '--disable-gp
   '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update',
   '--disable-sync', '--user-data-dir=' + join(scratch, 'profile'), 'about:blank'],
 { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] });
+const stopBrowser = trackOfflineBrowser(browser);
 const cdp = new Pipe(browser);
 const timeout = (ms, label) => new Promise((_, reject) => setTimeout(() => reject(new Error(label)), ms).unref());
 try {
@@ -260,9 +262,10 @@ try {
   console.log(`PASS ${selected}: Saved shell shown ${launchMs} ms after reopening /; generated build only, not iOS or installed-PWA proof`);
 } finally {
   for (const response of held) response.destroy();
-  await cdp.send('Browser.close').catch(() => {});
-  browser.kill();
-  if (server.listening) server.close();
-  for (const socket of sockets) socket.destroy();
-  rmSync(scratch, { recursive: true, force: true });
+  try { await stopBrowser(() => cdp.send('Browser.close')); }
+  finally {
+    if (server.listening) server.close();
+    for (const socket of sockets) socket.destroy();
+  }
+  await removeOfflineScratch(scratch);
 }
