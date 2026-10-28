@@ -1,0 +1,17 @@
+{
+  "format": "houseatlas-synthetic-wire3-read-examples/1",
+  "synthetic": true,
+  "evidenceList": {
+    "schemaVersion": 3,
+    "commandId": "atlas.evidence.list",
+    "requestId": "00000000-0000-4000-8000-000000000101",
+    "context": {
+      "workspaceId": "00000000-0000-4000-8000-000000000001",
+      "homeId": "00000000-0000-4000-8000-000000000002"
+    },
+    "target": {"authority": "atlas", "recordType": "evidence"},
+    "payload": {"cursor": null, "pageSize": 1, "includeArchived": false}
+  },
+  "continuationRequestId": "00000000-0000-4000-8000-000000000102",
+  "syntheticCursor": "synthetic-owner-issued-cursor-not-a-live-token"
+}
