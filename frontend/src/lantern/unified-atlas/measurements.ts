@@ -31,6 +31,9 @@ export interface EdgeSpan {
   /** Unit normal toward the room's inside, in scene X/Z. */
   readonly inward: readonly [number, number];
   readonly measured: boolean;
+  /** One straight outline run, so it can be drawn along the wall. A measured
+   * wall that is not one run is listed only: its ends' chord is not the wall. */
+  readonly drawn: boolean;
 }
 
 /** One decimal below 10 m², whole metres above: the outline supports no more. */
@@ -117,10 +120,10 @@ function measuredWalls(model: AtlasModel, occurrenceId: string) {
 export function edgeSpans(model: AtlasModel, occurrenceId: string): readonly EdgeSpan[] {
   if (!model.selectable.has(occurrenceId) || !model.occurrencesById.has(occurrenceId)) return [];
   const walls = measuredWalls(model, occurrenceId), used = new Set<string>();
-  const span = (key: string, a: Point, b: Point, turn: number, given: number | null): EdgeSpan => {
-    const dx = b[0] - a[0], dz = b[1] - a[1], drawn = Math.hypot(dx, dz) || 1, metres = given ?? drawn;
+  const span = (key: string, a: Point, b: Point, turn: number, given: number | null, drawn = true): EdgeSpan => {
+    const dx = b[0] - a[0], dz = b[1] - a[1], length = Math.hypot(dx, dz) || 1, metres = given ?? length;
     return { key, occurrenceId, a, b, metres, text: given === null ? lengthText(metres) : measuredText(given, 'm'),
-      inward: [-dz / drawn * turn, dx / drawn * turn] as const, measured: given !== null };
+      inward: [-dz / length * turn, dx / length * turn] as const, measured: given !== null, drawn };
   };
   // Outline runs only where the outline itself is the model's (not an estimate).
   const runs = (measurable(model, occurrenceId) ? model.roomPolygons.get(occurrenceId) ?? [] : []).flatMap((polygon, part) => {
@@ -133,9 +136,9 @@ export function edgeSpans(model: AtlasModel, occurrenceId: string): readonly Edg
       return Math.hypot(run.b[0] - run.a[0], run.b[1] - run.a[1]) < MIN_SPAN_M ? [] : [span(`${occurrenceId}/${part}/${at}`, run.a, run.b, turn, null)];
     });
   });
-  // A measured wall that is not one straight run still shows, end to end.
+  // A measured wall that is not one straight run is still listed, never drawn.
   const rest = walls.filter(wall => !used.has(wall.key))
-    .map(wall => span(`${occurrenceId}/measured/${wall.key}`, wall.a, wall.b, Math.sign(signedArea(wall.outer)) || 1, wall.metres));
+    .map(wall => span(`${occurrenceId}/measured/${wall.key}`, wall.a, wall.b, Math.sign(signedArea(wall.outer)) || 1, wall.metres, false));
   return [...runs, ...rest];
 }
 

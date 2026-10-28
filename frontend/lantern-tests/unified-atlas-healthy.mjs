@@ -346,7 +346,13 @@ const model = bindAtlasModel(read.scene, loaded);
   // Reversed ends walk the rest of the ring: listed end to end, never on this run.
   const reversed = measurements.edgeSpans(bindAtlasModel(withMeasured([{ ...wall, value: 12, edge: { ...wall.edge, from: to, to: from } }]), loaded), owner.spaceOccurrenceId);
   assert.equal(reversed.length, before.length + 1); assert.equal(reversed[0].text, before[0].text);
-  assert.deepEqual(reversed.filter(span => span.measured).map(span => span.text), ['12 m']);
+  assert.deepEqual(reversed.filter(span => span.measured).map(span => [span.text, span.drawn]), [['12 m', false]], 'listed, never drawn');
+  // Two sides in ring order are not one wall: listed only, never drawn as their chord.
+  const second = measurements.ringRuns(outer)[1], corner = outer.findIndex(p => p[0] === second.b[0] && p[1] === second.b[1]);
+  const bent = measurements.edgeSpans(bindAtlasModel(withMeasured([{ ...wall, value: 8, edge: { ...wall.edge, to: corner } }]), loaded), owner.spaceOccurrenceId);
+  assert.deepEqual(bent.filter(span => span.measured).map(span => [span.text, span.drawn]), [['8 m', false]]);
+  assert.ok(bent.filter(span => !span.measured).every(span => span.drawn));
+  assert.ok(spans.every(span => span.drawn), 'a measured single run is drawn along its wall');
   assert.equal(measurements.roomArea(bindAtlasModel(withMeasured([{ quantity: 'area', value: 0.004, unit: 'm2', basis }]), loaded),
     owner.spaceOccurrenceId).text, '0.004 m²', 'a small measured value is never shown as zero');
   for (const wrong of [[], [{ quantity: 'area', value: 14, unit: 'm2', basis }, { quantity: 'area', value: 15, unit: 'm2', basis }],

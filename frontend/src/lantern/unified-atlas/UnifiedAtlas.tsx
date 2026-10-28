@@ -977,7 +977,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
     const owners = selected !== null && measured.includes(selected) ? [selected] : measured;
     const spans = owners.flatMap(occurrenceId => {
       const y = model.floorY.get(model.occurrencesById.get(occurrenceId)!.levelId)! + lift(occurrenceId);
-      return edgeSpans(model, occurrenceId).flatMap(span => {
+      return edgeSpans(model, occurrenceId).filter(span => span.drawn).flatMap(span => {
         const a = projection.project(span.a[0], y, span.a[1]), b = projection.project(span.b[0], y, span.b[1]);
         const mx = (span.a[0] + span.b[0]) / 2, mz = (span.a[1] + span.b[1]) / 2;
         const m = projection.project(mx, y, mz), n = projection.project(mx + span.inward[0], y, mz + span.inward[1]);

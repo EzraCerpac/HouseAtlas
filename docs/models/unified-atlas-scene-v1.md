@@ -195,7 +195,7 @@ starts and ends, walking in ring order along the room's inside face. Values are
 re-emitted with every release, so no identity across revisions is needed. The
 viewer shows a measured value as given, without "≈", and keeps approximate
 outline values for everything else; a wall that is not one straight outline run
-is still listed end to end.
+is listed with the room but not drawn.
 
 Source building, level and logical room IDs persist in producer custom
 properties or its retained identity map. They are separate from nullable native
