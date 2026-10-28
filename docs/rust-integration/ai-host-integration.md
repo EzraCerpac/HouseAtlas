@@ -77,7 +77,7 @@ Qualification, availability, permission and spending checks still apply. The
 existing credential-backed HTTP transport also uses this predicate before
 submission. No live runtime, credential abstraction or endpoint is added.
 
-### Provider facts and unresolved owner choice
+### Provider protocol facts and qualification
 
 Checked the current official documentation on 25 October 2026:
 
@@ -85,7 +85,7 @@ Checked the current official documentation on 25 October 2026:
 | --- | --- | --- |
 | Local sign-in helper | The [OSS sign-in flow](https://developers.openai.com/siwc/token-sharing-open-source/sign-in) uses an exact loopback callback. HouseAtlas bounds its callback worker to ten minutes. | Bootstrap only; it supplies no continuing inference process or phone relay. |
 | Issued website client | [Website sign-in](https://developers.openai.com/siwc/website) is a limited partner trial and covers identity; plan-use authorization is separate. | No issued website-client input or entitlement is established here. The native credential path currently requires `LocalPublicClient`. |
-| Local/self-hosted inference companion | The [plan-use overview](https://developers.openai.com/siwc/token-sharing-open-source) describes OSS/local hosts, with separate interest intake for remotely hosted offerings. | This would be an explicit runtime-placement decision. A phone would depend on that process being available; this change creates no relay or network exposure. |
+| Local/self-hosted inference companion | The [plan-use overview](https://developers.openai.com/siwc/token-sharing-open-source) describes OSS/local hosts, with separate interest intake for remotely hosted offerings. | Availability must be observed independently. A phone depends on the serving process being available; this source creates no relay or network exposure. |
 
 The [token reference](https://developers.openai.com/siwc/token-sharing-open-source/token-reference)
 specifies one-hour access tokens and rotating 30-day refresh tokens. Those
@@ -96,12 +96,13 @@ sign-in or a subscription name does not verify zero paid use.
 requires the current account's model catalog and public streaming Responses
 endpoint, with `store=false`, `stream=true` and a completed terminal event.
 
-**Exact decision still needed:** choose an explicitly available local/self-hosted
-inference companion, including its phone availability dependency, or pursue a
-separately issued website integration with confirmed provider eligibility.
-Neither is selected by this source change. Until that choice and its original
-admission inputs exist, keep the runtime unavailable/unqualified and spending
-held. No default model or API-key fallback is supplied.
+**Remaining qualification:** the concrete native startup already composes the
+OpenAI SIWC/Responses transport. Its source composition does not require a new
+companion-versus-website design question. Actual supported-runtime/account
+eligibility, protected credential custody and live qualification remain open.
+Until original runtime and spending admission are established, keep the runtime
+unavailable/unqualified and spending held. No default model or API-key fallback
+is supplied.
 
 ### Evidence boundary
 
@@ -111,6 +112,41 @@ usage and zero inference/domain calls. They use synthetic observations only.
 Compilation, Clippy, tests and publication verification are NOT RUN locally
 under the approved git-first workflow; existing CI owns those checks. No
 account action, protected credential access, browser/device check or inference
-was performed. Source composition is inspected; runtime selection and genuine
+was performed. Source composition is inspected; provider eligibility and genuine
 enrollment/model/review/spend inputs remain BLOCKED, and live/device acceptance
 remains deferred to #295 and its existing owners. No acceptance box is closed.
+
+## Shared stock and custody composition — 28 October 2026
+
+`NativeAiApplication<O,R,D>` now retains a supplied `SharedStockPort` domain
+instead of fixing every application to `NativeReadDomain`. Its explicit
+`assemble(owners, inputs, stock, custody)` uses `NativeStartup::assemble` and
+mounts the returned original host with custody. The existing read-only type
+default and `assemble_native_reads` source API remain compatible;
+`assemble_native_reads_with_custody` supplies the bounded read composition with
+the same explicit custody contract. No binary or browser entry is activated.
+
+The factory receives the same Host and StartupAuthority as native startup.
+Its prepared-command type determines the required original review owner, so
+root can compose an existing reviewed stock service without reconstructing
+commands, approvals or outcomes. Supplying a factory does not admit writes.
+
+`StartupCustody` is a trusted native input, not a serialized claim or a new
+credential store. It is checked before assembly, when mounting, before each
+full-host call and after either its success or error. The inner host retains
+its existing access/enrollment checks, credential leases and request journal.
+Custody loss suppresses release and never resubmits the call; already submitted
+effects and unresolved outcomes remain with their original owners.
+
+The SELECT-only account observation databases remain separate and are not
+promoted to writable inference custody. A genuine full-host physical custody
+implementation and its writable original stores still require qualification.
+This seam creates no key, credential, grant, provider request or inference task.
+
+Two in-process contract tests use only a synthetic custody flag and counting
+HostApi. They cover success/error forwarding, refusal before a call, and custody
+loss before release of either success or error, with no replay. They do not
+qualify filesystem replacement, native encryption, SQLite durability, provider
+eligibility, reviewed domain execution or device availability. Compilation,
+Clippy and tests are NOT RUN locally; existing CI and the integration owner
+retain verification, publication-manifest reconciliation, conflicts and merge.

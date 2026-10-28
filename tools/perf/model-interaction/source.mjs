@@ -20,13 +20,9 @@ export async function modules(root, observed) {
   const standardUrl = await compile(base + 'standard-glb.ts', { './geometry': geometryUrl, './glb-preflight': preflightUrl,
     ...(embeddedUrl ? { './embedded-png-material': embeddedUrl } : {}), ...(meshoptUrl ? { './glb-meshopt': meshoptUrl } : {}),
     three: threeUrl, 'three/examples/jsm/loaders/GLTFLoader.js': dependencyUrl('three/examples/jsm/loaders/GLTFLoader.js') });
-  const manifestUrl = await compile(base + 'browser-manifest.ts');
-  const navigatorUrl = await compile(base + 'ModelNavigator.tsx', { react: dependencyUrl('react'),
-    'react/jsx-runtime': dependencyUrl('react/jsx-runtime') });
   const sampleUrl = await compile('frontend/lantern-tests/canonical-ifc-visual/standard-glb-sample.ts');
-  const [geometry, preflight, standard, manifest, navigator, sample, react, server] = await Promise.all([
-    import(geometryUrl), import(preflightUrl), import(standardUrl), import(manifestUrl), import(navigatorUrl), import(sampleUrl),
-    import(dependencyUrl('react')), import(dependencyUrl('react-dom/server')),
+  const [geometry, preflight, standard, sample] = await Promise.all([
+    import(geometryUrl), import(preflightUrl), import(standardUrl), import(sampleUrl),
   ]);
-  return { geometry, preflight, standard, manifest, navigator, sample, react, server };
+  return { geometry, preflight, standard, sample };
 }

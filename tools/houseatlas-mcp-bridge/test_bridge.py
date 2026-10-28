@@ -158,6 +158,42 @@ class FakeOwner:
 
 
 class Cases(unittest.TestCase):
+    def evidence_example_pages(self):
+        example = json.loads((HERE / 'read-examples.json').read_text())
+        self.assertTrue(example['synthetic'])
+        req = example['evidenceList']
+        self.assertEqual(req['context'], SCOPE)
+        schema = json.loads((b.ROOT / 'contracts/stock-wire3/agent/agent.schema.json').read_text())
+        arm = schema['$defs']['request_atlas_evidence_list']
+        self.assertEqual(set(req), set(arm['required']))
+        self.assertEqual(req['target'], {key: value['const'] for key, value in
+                                       arm['properties']['target']['properties'].items()})
+        seen, changes = [], {}
+        original = self.owner.exchange
+        def exchange(method, path, *args, **kwargs):
+            if path.endswith('/admission'):
+                headers, body = original(method, path, *args, **kwargs)
+                result = b.strict_json(body)
+                result['commandIds'] = sorted(set(result['commandIds']) | {'atlas.evidence.list'})
+                return headers, b.compact(result).encode()
+            if '/invoke?' in path:
+                raw = b.urllib.parse.parse_qs(path.split('?', 1)[1])['request'][0]
+                request = b.strict_json(raw)
+                if request['commandId'] == 'atlas.evidence.list':
+                    self.owner.calls.append((method, path))
+                    seen.append(raw)
+                    cursor = example['syntheticCursor'] if request['payload']['cursor'] is None else None
+                    result = {'schemaVersion': 3, 'commandId': request['commandId'],
+                              'requestId': request['requestId'], 'resolvedScope': SCOPE,
+                              'status': 'read', 'replayed': False,
+                              'data': {'records': [self.owner.records[('evidence', EVIDENCE)]],
+                                       'nextCursor': cursor, 'sourceStatus': 'current'}}
+                    result.update(changes)
+                    return {'content-type': 'application/json'}, b.compact(result).encode()
+            return original(method, path, *args, **kwargs)
+        self.owner.exchange = exchange
+        return example, seen, changes
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(prefix='houseatlas-mcp-synthetic-')
         os.chmod(self.tmp.name, 0o700)
@@ -1029,6 +1065,28 @@ class Cases(unittest.TestCase):
         return req,body,limits
 
     def healthy_large_read_page(self):
+        example, seen, _ = self.evidence_example_pages()
+        req = copy.deepcopy(example['evidenceList'])
+        raw = b.compact(req)
+        first = b.strict_json(self.bridge.read(raw))
+        self.assertEqual(first['data']['nextCursor'], example['syntheticCursor'])
+        req['requestId'] = example['continuationRequestId']
+        req['payload']['cursor'] = first['data']['nextCursor']
+        following = b.compact(req)
+        last = b.strict_json(self.bridge.read(following))
+        self.assertEqual(seen, [raw, following])
+        self.assertEqual(last['requestId'], example['continuationRequestId'])
+        self.assertEqual(last['resolvedScope'], SCOPE)
+        self.assertEqual(last['commandId'], 'atlas.evidence.list')
+        self.assertIsNone(last['data']['nextCursor'])
+        self.assertEqual(req['target'], example['evidenceList']['target'])
+        self.assertEqual(req['context'], example['evidenceList']['context'])
+        self.assertEqual(self.owner.posts, [])
+        upper = copy.deepcopy(example['evidenceList'])
+        upper['requestId'] = uid(103)
+        upper['payload']['pageSize'] = b.MAX_READ_PAGE
+        self.assertEqual(b.strict_json(self.bridge.read(b.compact(upper)))['status'], 'read')
+        self.assertEqual(b.strict_json(seen[-1])['payload']['pageSize'], 8)
         req,body,limits = self.large_page_fixture(); raw = b.compact(req)
         self.assertEqual(self.bridge.read(raw),body.decode())
         self.assertEqual(limits,[b.MAX_READ])
@@ -1036,6 +1094,22 @@ class Cases(unittest.TestCase):
         self.assertEqual(self.owner.posts, [])
 
     def denial_read_profile_bounds(self):
+        example, seen, _ = self.evidence_example_pages()
+        for context in ({}, {**SCOPE, 'buildingId': BUILDING},
+                        {**SCOPE, 'homeId': uid(999)}):
+            req = copy.deepcopy(example['evidenceList'])
+            req['context'] = context
+            with self.assertRaisesRegex(b.BridgeError, 'Wire3 scope differs'):
+                self.bridge.read(b.compact(req))
+        req = copy.deepcopy(example['evidenceList'])
+        req['schemaVersion'] = 2
+        with self.assertRaisesRegex(b.BridgeError, 'Wire3 scope differs'):
+            self.bridge.read(b.compact(req))
+        for size in (0, b.MAX_READ_PAGE + 1):
+            req = copy.deepcopy(example['evidenceList'])
+            req['payload']['pageSize'] = size
+            with self.assertRaises(b.BridgeError): self.bridge.read(b.compact(req))
+        self.assertEqual(seen, [])
         req = request('atlas.identity.list'); req['payload'] = {'cursor':None,'pageSize':9,'includeArchived':False}
         with self.assertRaises(b.BridgeError): self.bridge.read(b.compact(req))
         self.assertFalse(any('/invoke?' in path for _,path in self.owner.calls))
@@ -1138,6 +1212,14 @@ class Cases(unittest.TestCase):
         self.owner.wrong_scope = True
         req = request('atlas.identity.get')
         with self.assertRaises(b.BridgeError): self.bridge.read(b.compact(req))
+        self.owner.wrong_scope = False
+        example, _, changes = self.evidence_example_pages()
+        for field, value in (('requestId', uid(999)), ('commandId', 'atlas.identity.list'),
+                             ('resolvedScope', {**SCOPE, 'homeId': uid(999)})):
+            changes.clear()
+            changes[field] = value
+            with self.assertRaisesRegex(b.BridgeError, 'Native result correlation differs'):
+                self.bridge.read(b.compact(example['evidenceList']))
         self.assertEqual(self.owner.posts, [])
 
     def failure_unknown_persistence(self):

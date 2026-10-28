@@ -1,8 +1,7 @@
 # Generated model and interaction CPU measurements
 
 This independently owned lane calls the production standard GLB loader,
-manifest reader/binder, navigation index, triangle picker, room plan picker
-and production React static renderer. It owns only this directory, with the
+closed preflight, triangle picker and room plan picker. It owns only this directory, with the
 mechanical publication-manifest entries for its files. It does not change
 frontend code, the existing reporting contract, workflows or ordinary CI.
 
@@ -38,30 +37,22 @@ versions, lock hash, CPU and cgroup limits. Changed observations are failed.
 Dirty runs are for local investigation only. Preserve raw JSON externally;
 local runs have no GitHub Actions identity and are not hosted evidence.
 
-The fixed `model-interaction-cpu-v1` profile generates 100, 1,000 and 5,000
+The fixed `model-interaction-cpu-v2` profile generates 100, 1,000 and 5,000
 translated nodes sharing an embedded eight-vertex/twelve-triangle box, with
-10, 100 and 500 additional geometry-free room nodes. A complete generated v1
-manifest pins each GLB, supplies two storeys and explicit matching identities,
-and preserves unknown physical registration. A separate plan-only workload
+10, 100 and 500 additional geometry-free room nodes. A separate plan-only workload
 has one explicit square per product on one synthetic floor. It does not infer
 plan geometry from room metadata. Fixture byte counts and hashes, including
 the canonical ordered plan data, are recorded for every size.
 
 Three warmups precede nine raw timings. Timers exclude compilation, fixture
 generation, common preparation, assertion checks and inspector profiling.
-Preflight includes container JSON decoding. Manifest reading includes UTF-8
-decoding, JSON parsing, complete structure/identity checks and projection.
-Binding receives precomputed digests and bounds; it does not include hashing.
-GLB loading includes preflight, owned loader input, actual GLTFLoader execution,
+Preflight includes container JSON decoding. GLB loading includes preflight, owned loader input, actual GLTFLoader execution,
 world transforms, flat normals/buffers and loader-resource disposal.
-Navigation receives the admitted manifest and loaded GLB. Picking uses fixed
-projections and an asserted middle-node/room hit. SSR renders the complete
-product and room lists to a string, with its index prepared beforehand.
+Picking uses fixed projections and an asserted middle-node/room hit.
 
 Each operation's result is checked outside the timer. The healthy tests also
-check transformed bounds, identity joins, storey membership, geometry-free
-rooms and plan holes/nesting/floor separation. A focused static-render check
-includes product and geometry-free room rows. On current source, an untextured
+check transformed bounds, geometry-free nodes and plan holes/nesting/floor
+separation. On current source, an untextured
 fixture also executes the optional embedded-material dynamic import and checks
 its source hash and unchanged geometry; this requires no browser or image
 decoder. That one compatibility case is skipped on source revisions predating
@@ -96,7 +87,8 @@ claims in this lane.
 ## Integration handoff
 
 The output format is `houseatlas.perf.model-interaction/1`, method
-`model-interaction-cpu` revision 1. It is deliberately separate from
+`model-interaction-cpu` revision 2 (revision 1 also measured the retired
+local model-file manifest reader, binder, navigation index and navigator SSR). It is deliberately separate from
 `houseatlas.perf.run/1`: existing reporter policies/schema must be extended by
 their owners before ingestion. Do not splice these rows into the old method,
 compare different fixture sizes, or relabel sampled bytes as deterministic.
@@ -110,17 +102,12 @@ samples plus raw process snapshots). Each measured row has `id`, `status`,
 | --- | --- |
 | `frontend.standard_glb.load_ms` | Full standard GLB CPU load/preparation/disposal, ms |
 | `frontend.standard_glb.preflight_ms` | Container decoding plus closed admission, ms |
-| `frontend.manifest.read_ms` | Complete manifest decoding/admission/projection, ms |
-| `frontend.manifest.bind_ms` | Exact-pin and semantic-node binding checks, ms |
-| `frontend.navigation.index_ms` | Index over admitted products and room occurrences, ms |
-| `frontend.mesh.pick_ms` | Production triangle hit and node association assertion, ms |
+| `frontend.mesh.pick_ms` | Production triangle hit on the middle drawn node, ms |
 | `frontend.room.plan_pick_ms` | Production explicit plan-room pick, ms |
-| `frontend.navigator.ssr_ms` | Complete production static React rendering, ms |
 | `frontend.standard_glb.prepared_bytes` | Prepared typed-array payload bytes |
 | Each timing ID with `_ms` replaced by `_sampled_js_bytes` | Statistical V8 JS allocation estimate, sampled-js-bytes |
 
 Source integration remains with the source owner; frontend and reporting
-ownership remain separate. The navigation grouping optimization has already
-landed in PR #201. Earlier allocation observations describe the original source
-revision, not current performance. This lane measures whichever pinned source
-is selected and does not repeat that optimization or change UI files.
+ownership remain separate. Earlier allocation observations describe the
+original source revision, not current performance. This lane measures
+whichever pinned source is selected and does not change UI files.

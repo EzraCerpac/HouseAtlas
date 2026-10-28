@@ -301,6 +301,12 @@ where
     pub fn mounted_router(&self) -> axum::Router {
         self.mounted.mounted_router()
     }
+    pub fn mounted_router_with_custody<C: super::trusted_startup::StartupCustody + 'static>(
+        &self,
+        custody: Arc<C>,
+    ) -> Result<axum::Router, AiError> {
+        self.mounted.mounted_router_with_custody(custody)
+    }
     pub fn receipt_identity(
         &self,
         context: &NativeHostContext,

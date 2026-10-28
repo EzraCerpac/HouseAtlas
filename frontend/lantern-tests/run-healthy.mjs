@@ -19,13 +19,13 @@ const cases = (file, flag, names) => names.map(name => node(file, ...(flag ? [fl
 
 const SOURCE = [
   node('healthy-read.mjs'),
-  node('canonical-ifc-viewer.test.mjs', '--healthy'),
+  node('canonical-geometry.test.mjs', '--healthy'),
   node('canonical-mesh-preparation.test.mjs'),
   node('electricity-overlay-read.mjs'),
   node('electrical-library-read.mjs', '--case', 'healthy'),
   node('embedded-material-react.mjs'), node('exact-numeric-read.mjs'),
   node('ifc-glb-read.mjs'), node('load-numeric-source.mjs'),
-  node('model-review-logic.test.mjs'), node('native-geometry-read.mjs'),
+  node('site-publication-logic.test.mjs'), node('native-geometry-read.mjs'),
   node('native-geometry-retention.mjs'), node('native-geometry-persistence.mjs'), node('native-geometry-write.mjs'), node('native-place-search-healthy.mjs'),
   node('native-place-write.mjs'), node('native-scan-succession.mjs'),
   node('network-overlay-read.mjs'), node('pdf-fixture-resources.mjs'),

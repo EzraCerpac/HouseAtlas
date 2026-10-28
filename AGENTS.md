@@ -71,6 +71,16 @@ exercise cleanup only; no Cargo build, real profiler, network workload or
 runtime performance collection runs. These checks establish no profiling
 availability or benchmark result.
 
+Owner-approved finite bridge-read CI exception (28 October 2026): the existing
+ordinary-core job invokes exactly `healthy_large_read_page`,
+`denial_read_profile_bounds` and `denial_read_correlation` in
+`tools/houseatlas-mcp-bridge/test_bridge.py`. They use fake GET/session/admission
+owners and disposable synthetic journal state, with no socket, browser, native
+service, provider, credentials or write invocation. This exception adds no other
+bridge case, regression discovery, runner/workflow, live operation or access.
+Other held controls remain excluded. Exact commands and limits are in the
+verification guide; hosted logs, not registration, establish execution.
+
 In `.github/workflows/rust-react-ordinary.yml` that includes
 the named Lantern healthy read; the generated Electrical Library `healthy`
 case (existing production reader/projection and fictional original bytes,
@@ -87,7 +97,8 @@ runner's software GPU and swaps in a second mesh set without a blank frame,
 including generated mapped-glass samples and differently tinted/frosted panes
 under reversed primitive submission order and opposite camera views,
 plus a closed omni bulb with nearby nonemissive metal and receivers at 6 m
-and at/beyond its finite 10 m envelope,
+and at/beyond its finite 10 m envelope, and the `?render-probe` speed check
+(all five cases reported, drawing resumes; software-GPU timings are not device evidence),
 `unified-atlas-plan-wheel-browser.mjs`, which pans and pinch-zooms the generated
 unified Atlas Plan with trusted wheel input in the runner's Chromium, and the generated Unified Atlas compact layer-details
 and control-names checks (compiled source and markup only, no browser), the
@@ -116,7 +127,7 @@ server, no browser or network), the generated Unified Atlas overlay feed check
 source owner and synthetic IndexedDB, no browser or real source), and the
 generated backup settings check (decoding and the CSRF save exchange against
 a generated transport, no browser or network); the `tools/model-bake` tests on generated
-geometry, including viewer admission and selector binding of a baked generated
+geometry, including overview texture halving, viewer admission and selector binding of a baked generated
 unified Atlas publication and its detail tier, and their meshopt compression
 expanded by the viewer's decoder; and
 `cargo test --locked -p houseatlas-backend --lib` with its default

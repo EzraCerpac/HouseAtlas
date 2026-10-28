@@ -10,6 +10,8 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { localMatrix, maxScale, multiply, readAccessor, readGlb, writeGlb } from '../src/glb.mjs';
+import { decodePng, encodePng, shrinkImage } from '../src/png.mjs';
+import { crc32, deflateSync, inflateSync } from 'node:zlib';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 
@@ -271,8 +273,9 @@ test('the command line never overwrites its inputs', () => {
 });
 
 /** A flat 60 x 60 textured panel whose U wobbles along x (a non-affine
- * mapping), beside a dense untextured relief wall that sets the bake error. */
-function texturedMaster() {
+ * mapping), beside a dense untextured relief wall that sets the bake error.
+ * `png` replaces the 1-pixel base colour map; `normal` also uses it as the normal map. */
+function texturedMaster({ png: map, normal = false, roughness = false } = {}) {
   const parts = [], accessors = [], views = [];
   let length = 0;
   const add = (array, type, componentType, extra = {}) => {
@@ -292,7 +295,7 @@ function texturedMaster() {
   const panel = grid(60, (x, y) => [x * 2, y * 2, 1], (x, y) => [x + 0.05 * Math.sin(x * 40), y]);
   // Gentle 5 mm relief, so the bake error lands in millimetres.
   const wall = grid(120, (x, y) => [x * 4, y * 2.6, 0.005 * Math.sin(x * 40) * Math.sin(y * 40)], () => [0, 0]);
-  const png = Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
+  const png = map ?? Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
   const meshes = [
     { name: 'Panel', primitives: [{ attributes: { POSITION: add(panel.positions, 'VEC3', 5126, minMax([...panel.positions])), TEXCOORD_0: add(panel.uvs, 'VEC2', 5126) },
       indices: add(panel.indices, 'SCALAR', 5125), material: 0, mode: 4 }] },
@@ -300,7 +303,7 @@ function texturedMaster() {
   ];
   views.push({ buffer: 0, byteOffset: length, byteLength: png.byteLength }); parts.push(png); length += (png.byteLength + 3) & ~3;
   const json = { asset: { version: '2.0' }, scene: 0, scenes: [{ nodes: [0, 1] }], nodes: [{ mesh: 0, name: 'Panel' }, { mesh: 1, name: 'Wall' }], meshes,
-    materials: [{ pbrMetallicRoughness: { baseColorTexture: { index: 0 } } }], textures: [{ source: 0 }], images: [{ bufferView: views.length - 1, mimeType: 'image/png' }],
+    materials: [{ pbrMetallicRoughness: { baseColorTexture: { index: 0 } }, ...(normal ? { normalTexture: { index: 0 } } : {}) }].map(m => roughness ? { ...m, pbrMetallicRoughness: { ...m.pbrMetallicRoughness, metallicRoughnessTexture: { index: 0 } } } : m), textures: [{ source: 0, sampler: 0 }], samplers: [{ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 }], images: [{ bufferView: views.length - 1, mimeType: 'image/png' }],
     accessors, bufferViews: views, buffers: [{ byteLength: length }] };
   const bin = new Uint8Array(length); let at = 0;
   for (const part of parts) { bin.set(part, at); at += (part.byteLength + 3) & ~3; }
@@ -318,6 +321,85 @@ test('keeps textured primitives as authored', async () => {
   assert.deepEqual(uv({ json, bin }, 'TEXCOORD_0'), uv(master, 'TEXCOORD_0'));
   assert.equal(json.images.length, 1);
   assert.ok(row(result, 'Wall').changed);
+});
+
+test('halves overview textures to the texture size and keeps them in the detail', async () => {
+  // 1024 x 600 stripes: whole columns alternate black and white, so a halved
+  // colour map is mid-grey in linear light (sRGB 188) and a halved data map 128.
+  const width = 1024, height = 600, rgba = new Uint8Array(width * height * 4);
+  for (let i = 0; i < width * height; i++) rgba.fill(i % width % 2 ? 255 : 0, i * 4, i * 4 + 3), rgba[i * 4 + 3] = 255;
+  const map = encodePng({ width, height, rgba });
+  assert.deepEqual(decodePng(map), { width, height, rgba });
+  const imageOf = glb => { const { json, bin } = readGlb(glb), view = json.bufferViews[json.images[0].bufferView];
+    return decodePng(bin.subarray(view.byteOffset ?? 0, (view.byteOffset ?? 0) + view.byteLength)); };
+  const glb = texturedMaster({ png: map });
+  const result = await bakeOverview(glb, null, { triangles: 8_000 }), baked = imageOf(result.glb);
+  assert.deepEqual([baked.width, baked.height], [512, 300]);
+  assert.deepEqual([...baked.rgba.subarray(0, 4)], [188, 188, 188, 255]);
+  assert.deepEqual(result.report.textures, [{ image: 0, role: 'srgb', from: [1024, 600], to: [512, 300], bytes: map.byteLength, bakedBytes: result.report.textures[0].bakedBytes }]);
+  assert.deepEqual([...imageOf((await bakeOverview(glb, null, { triangles: 8_000, textureSize: 256 })).glb).rgba.subarray(0, 4)], [188, 188, 188, 255]);
+  // The Full tier keeps the authored map, and a texture size it already fits changes nothing.
+  assert.deepEqual(imageOf((await bakeDetail(glb, null)).glb), { width, height, rgba });
+  assert.deepEqual(imageOf((await bakeOverview(glb, null, { triangles: 8_000, textureSize: 1024 })).glb), { width, height, rgba });
+  // A normal map averages vectors: opposite tilts ±x halve to straight up.
+  for (let i = 0; i < width * height; i++) rgba.set(i % width % 2 ? [218, 128, 218, 255] : [37, 128, 218, 255], i * 4);
+  const flat = imageOf((await bakeOverview(texturedMaster({ png: encodePng({ width, height, rgba }), normal: true }), null, { triangles: 8_000 })).glb);
+  assert.deepEqual([...flat.rgba.subarray(0, 4)], [128, 128, 255, 255]);
+});
+
+test('averages an image shared by colour and data slots once per role', async () => {
+  const width = 1024, height = 8, rgba = new Uint8Array(width * height * 4);
+  for (let i = 0; i < width * height; i++) rgba.fill(i % width % 2 ? 255 : 0, i * 4, i * 4 + 3), rgba[i * 4 + 3] = 255;
+  const result = await bakeOverview(texturedMaster({ png: encodePng({ width, height, rgba }), roughness: true }), null, { triangles: 8_000 });
+  const { json, bin } = readGlb(result.glb), pbr = json.materials[0].pbrMetallicRoughness;
+  const pixel = info => { const view = json.bufferViews[json.images[json.textures[info.index].source].bufferView];
+    return [...decodePng(bin.subarray(view.byteOffset ?? 0, (view.byteOffset ?? 0) + view.byteLength)).rgba.subarray(0, 4)]; };
+  assert.deepEqual(pixel(pbr.baseColorTexture), [188, 188, 188, 255]);
+  assert.deepEqual(pixel(pbr.metallicRoughnessTexture), [128, 128, 128, 255]);
+  assert.deepEqual(result.report.textures.map(t => t.role), ['srgb', 'data']);
+  // An image that already fits, and the detail, keep the one shared image.
+  assert.equal(readGlb((await bakeOverview(texturedMaster({ png: encodePng({ width, height, rgba }), roughness: true }), null, { triangles: 8_000, textureSize: 1024 })).glb).json.images.length, 1);
+  assert.equal(readGlb((await bakeDetail(texturedMaster({ png: encodePng({ width, height, rgba }), roughness: true }), null)).glb).json.images.length, 1);
+});
+
+test('rewrites only PNGs the viewer admits as authored, and no size below one pixel', () => {
+  const png = Buffer.from(encodePng({ width: 2, height: 1, rgba: new Uint8Array(8).fill(255) }));
+  const at = png.indexOf('IDAT') + 4, length = png.readUInt32BE(at - 8), raw = inflateSync(png.subarray(at, at + length));
+  const chunk = body => { const out = Buffer.alloc(body.length + 12); out.writeUInt32BE(body.length, 0); out.write('IDAT', 4, 'latin1'); body.copy(out, 8);
+    out.writeUInt32BE(crc32(out.subarray(4, 8 + body.length)), 8 + body.length); return out; };
+  const withData = data => new Uint8Array(Buffer.concat([png.subarray(0, at - 8), chunk(data), png.subarray(at + length + 4)]));
+  assert.ok(decodePng(withData(deflateSync(raw))));
+  // Data that inflates past the declared scanlines is refused without inflating it all.
+  assert.equal(decodePng(withData(deflateSync(Buffer.alloc(raw.length * 1000)))), null);
+  raw[0] = 5;
+  assert.equal(decodePng(withData(deflateSync(raw))), null);
+  // A chunk whose checksum does not match is not rewritten either.
+  const damaged = Buffer.from(png); damaged[at + length] ^= 1;
+  assert.equal(decodePng(new Uint8Array(damaged)), null);
+  // A PNG cut before its end, or followed by stray bytes, is not rewritten.
+  assert.equal(decodePng(new Uint8Array(png.subarray(0, png.length - 12))), null);
+  assert.equal(decodePng(new Uint8Array(Buffer.concat([png, Buffer.alloc(4)]))), null);
+  // Nor is a format the viewer refuses as authored, such as RGBA.
+  const rgbaHeader = Buffer.from(png); rgbaHeader[25] = 6; rgbaHeader.writeUInt32BE(crc32(rgbaHeader.subarray(12, 29)), 29);
+  assert.equal(decodePng(new Uint8Array(rgbaHeader)), null);
+  assert.throws(() => encodePng({ width: 1, height: 1, rgba: Uint8Array.of(0, 0, 0, 128) }), RangeError);
+  // A palette must come once, before the data, as whole entries; a short header and an image over the viewer's 1024 px are refused too.
+  const plte = n => { const out = Buffer.alloc(n + 12); out.writeUInt32BE(n, 0); out.write('PLTE', 4, 'latin1'); out.writeUInt32BE(crc32(out.subarray(4, 8 + n)), 8 + n); return out; };
+  const idat = at - 8, ihdrEnd = 33;
+  assert.ok(decodePng(new Uint8Array(Buffer.concat([png.subarray(0, ihdrEnd), plte(3), png.subarray(ihdrEnd)]))));
+  for (const bad of [Buffer.concat([png.subarray(0, ihdrEnd), plte(0), png.subarray(ihdrEnd)]), Buffer.concat([png.subarray(0, ihdrEnd), plte(4), png.subarray(ihdrEnd)]),
+    Buffer.concat([png.subarray(0, ihdrEnd), plte(3), plte(3), png.subarray(ihdrEnd)]), Buffer.concat([png.subarray(0, at + length + 4), plte(3), png.subarray(at + length + 4)])])
+    assert.equal(decodePng(new Uint8Array(bad)), null);
+  assert.equal(idat, ihdrEnd);
+  const short = Buffer.from(png); short.writeUInt32BE(4, 8); short.writeUInt32BE(crc32(short.subarray(12, 20)), 20);
+  assert.equal(decodePng(new Uint8Array(short)), null);
+  assert.equal(decodePng(encodePng({ width: 1025, height: 1, rgba: new Uint8Array(1025 * 4).fill(255) })), null);
+  // An RGB colour key (tRNS) is not something this bake rewrites.
+  const iend = png.indexOf('IEND') - 4, key = Buffer.concat([Buffer.from('tRNS'), Buffer.alloc(6)]), sum = Buffer.alloc(4); sum.writeUInt32BE(crc32(key), 0);
+  const keyed = Buffer.concat([png.subarray(0, iend), Buffer.from([0, 0, 0, 6]), key, sum, png.subarray(iend)]);
+  assert.ok(decodePng(new Uint8Array(png)));
+  assert.equal(decodePng(new Uint8Array(keyed)), null);
+  assert.throws(() => shrinkImage({ width: 2, height: 2, rgba: new Uint8Array(16) }, 0, 'data'), RangeError);
 });
 
 /** The frontend's generated unified Atlas publication (three buildings, split

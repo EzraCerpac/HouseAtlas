@@ -1,5 +1,25 @@
 # HouseAtlas
 
+## Approved scoped bridge read cases
+
+The owner approved exactly these three existing selections for the existing
+ordinary-core job on 28 October 2026:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 tools/houseatlas-mcp-bridge/test_bridge.py healthy_large_read_page
+PYTHONDONTWRITEBYTECODE=1 python3 tools/houseatlas-mcp-bridge/test_bridge.py denial_read_profile_bounds
+PYTHONDONTWRITEBYTECODE=1 python3 tools/houseatlas-mcp-bridge/test_bridge.py denial_read_correlation
+```
+
+They exercise synthetic evidence-list raw forwarding/cursor reuse, page bounds,
+closed scope and response correlation using fake GET/session/admission owners
+and owned disposable journal state. They invoke no write, socket, native service,
+provider, browser, real credentials or live data. The finite exception does not
+release other HEALTHY/REGRESSION selections, broad discovery, or other held
+controls. Existing Python on the standard runner suffices; no dependency or new
+workflow/job is added. No local run is claimed; exact-head hosted step/case logs
+must demonstrate execution and outcomes.
+
 ## CI layout
 
 The `Rust React ordinary core` workflow splits its checks into parallel jobs:
@@ -76,7 +96,8 @@ The same `frontend checks` job then runs the model bake tests
 (`tools/model-bake/test/bake.test.mjs`) on generated geometry. They bake
 generated masters to budget and run the viewer's own preflight, scene admission
 and selector binding on the results, including the generated unified Atlas
-publication densified and baked, and its unsimplified detail tier admitted under
+publication densified and baked, overview textures halved to the texture size
+while the detail keeps them as authored, and its unsimplified detail tier admitted under
 the Full limits and bound by the same companion, and both tiers meshopt
 compressed, expanded by the viewer's own decoder and refused when a stream or
 declared size falls outside the admitted subset:
@@ -217,6 +238,13 @@ shader, without additional browser infrastructure or per-lamp occlusion claims.
 The existing CPU daylight cases retain aiming, visibility, clipping, merging
 and the 16-slot cap; pixel checks do not establish real-fixture visual strength.
 
+The same selections open the generated house with `?render-probe` (the
+on-device speed check, `render-probe.ts`) and check that its report lists all
+five cases (as drawn, a quarter of the pixels, half and a quarter of the
+triangles, contact shading) and that the view redraws afterwards. The timings
+come from the runner's software GPU and say nothing about any device; only the
+check run on the device itself does.
+
 ```sh
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2   # in the healthy suite
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgpu   # local: Chromium headless shell
@@ -312,24 +340,21 @@ owner lifecycles, native rotation/reclamation, global capacity recovery, capture
 replay, security, browser/device acceptance or deployment. Frontend typecheck and
 existing healthy reader checks remain separate and require locked dependencies.
 
-The isolated canonical IFC viewer check uses generated presentations, the
-checked-in two-floor v2 artifacts and a fake read port. Inspect the runner and
-its imports before this focused local command with Node 26.10.0 and the locked
-frontend dependencies:
+The canonical geometry check uses generated presentations and generated
+standard GLB samples. Inspect the runner and its imports before this focused
+local command with Node 26.10.0 and the locked frontend dependencies:
 
 ```sh
-node frontend/lantern-tests/canonical-ifc-viewer.test.mjs --healthy
+node frontend/lantern-tests/canonical-geometry.test.mjs --healthy
 ```
 
-It covers artifact pins, logical rooms with multiple floor-qualified
-occurrences, selection memory, overlay joins and CPU plan/3D picking. It also
-reads one public closed-profile GLB without assigning rooms or floors. The
-visual fixture at `/lantern-tests/canonical-ifc-visual/` supports `?fixture=a`,
-`b`, `coverage`, `scene` and `local`. Actual browser layout and GPU checks are
-separate. This command adds no live scene service, household intake,
+It covers logical rooms with multiple floor-qualified occurrences, one shared
+frame, CPU plan/3D picking and standard GLB loading (baked poses, opaque
+extras, reused meshes, source colours). Actual browser layout and GPU checks
+are separate. This command adds no live scene service, household intake,
 application mount, deployment or held lifecycle/control-test permission.
 The `--healthy` selection excludes the script's malformed-record, duplicate
-admission, cancellation and artifact/manifest refusal controls. The default
+admission, cancellation and preflight refusal controls. The default
 mixed runner is not the ordinary command; this selection grants no permission
 to execute held controls and changes no CI workflow.
 
@@ -1367,21 +1392,18 @@ recovery, release a resend, change ordinary CI or accept deployment.
 
 ## Source Documents frontend reader and mounted host
 
-The optional local model review and source-site consumer have one focused
-healthy synthetic check. Inspect `frontend/lantern-tests/model-review-logic.test.mjs`
-and its finite renderer-owner, local-reader, publication and synthetic-fixture
-imports, then use Node 26.10.0 and the locked frontend dependencies:
+The source-site consumer has one focused healthy synthetic check. Inspect
+`frontend/lantern-tests/site-publication-logic.test.mjs` and its finite
+publication and synthetic-fixture imports, then use Node 26.10.0 and the
+locked frontend dependencies:
 
 ```sh
-node frontend/lantern-tests/model-review-logic.test.mjs
+node frontend/lantern-tests/site-publication-logic.test.mjs
 ```
 
-It checks original File-object ownership, normal renderer replacement, an
-acknowledged local JSON representation, exact synthetic site pins/2D source
-coordinates, finite shared-budget arithmetic and generated read/load ordering.
-It uses no browser, listener, native service, private input or
-external provider. A fake acknowledgement does not establish actual browser
-display. The generated `/lantern-tests/model-review-visual/`,
+It checks exact synthetic site pins/2D source coordinates, finite
+shared-budget arithmetic and generated read/load ordering. It uses no browser,
+listener, native service, private input or external provider. The generated
 `/lantern-tests/source-host-visual/` and `/lantern-tests/scene-drawing-timing/`
 fixtures support separately owned loopback browser review of the real React
 components, source documents/site views and anonymous stage observations.
