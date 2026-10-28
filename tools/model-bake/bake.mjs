@@ -22,13 +22,14 @@ if (!values.model || !values.out) {
 }
 const isSymlink = path => { try { return lstatSync(path).isSymbolicLink(); } catch { return false; } };
 const number = (text, name) => { const n = Number(text); if (!Number.isFinite(n) || n <= 0) throw new Error(`--${name} must be a positive number`); return n; };
+const pixels = (text, name) => { const n = Math.floor(number(text, name)); if (n < 1) throw new Error(`--${name} must be at least one pixel`); return n; };
 const overrides = {
   ...(values.triangles ? { triangles: Math.floor(number(values.triangles, 'triangles')) } : {}),
   ...(values['max-error'] ? { maxError: number(values['max-error'], 'max-error') } : {}),
   ...(values['structure-weight'] ? { structureWeight: number(values['structure-weight'], 'structure-weight') } : {}),
   ...(values['site-weight'] ? { siteWeight: number(values['site-weight'], 'site-weight') } : {}),
   ...(values.weld ? { weld: number(values.weld, 'weld') } : {}),
-  ...(values['texture-size'] ? { textureSize: Math.floor(number(values['texture-size'], 'texture-size')) } : {}),
+  ...(values['texture-size'] ? { textureSize: pixels(values['texture-size'], 'texture-size') } : {}),
 };
 // Outputs are only ever created, never overwritten: an --out that already holds
 // a file of the same name (the master itself, a link to it, an earlier bake) is

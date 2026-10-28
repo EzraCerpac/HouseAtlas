@@ -29,7 +29,9 @@ export function decodePng(bytes) {
   const rgba = new Uint8Array(width * height * 4);
   let previous = new Uint8Array(stride);
   for (let y = 0; y < height; y++) {
-    const filter = raw[y * (stride + 1)], line = Uint8Array.from(raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1)));
+    const filter = raw[y * (stride + 1)];
+    if (filter > 4) return null;
+    const line = Uint8Array.from(raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1)));
     for (let x = 0; x < stride; x++) {
       const a = x >= channels ? line[x - channels] : 0, b = previous[x], c = x >= channels ? previous[x - channels] : 0;
       const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
@@ -85,6 +87,7 @@ const toSrgb = value => { const c = value <= .0031308 ? value * 12.92 : 1.055 * 
  * until neither side exceeds `size`. Colour maps average in linear light,
  * normal maps average the vectors and renormalize, data maps average as stored. */
 export function shrinkImage(image, size, role) {
+  if (!(size >= 1)) throw new RangeError(`texture size ${size} is below one pixel`);
   let { width, height, rgba } = image;
   while (width > size || height > size) {
     const w = Math.max(1, Math.ceil(width / 2)), h = Math.max(1, Math.ceil(height / 2)), out = new Uint8Array(w * h * 4);

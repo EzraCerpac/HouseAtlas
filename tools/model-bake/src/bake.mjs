@@ -353,13 +353,22 @@ export async function bakeOverview(masterBytes, companion, overrides = {}) {
     json.materials = kept.map(at => materials[at]);
   }
   // How each image is sampled, for averaging it: normal map, colour (sRGB) or data.
-  const imageRoles = new Map(), use = (info, role) => {
-    const at = info && json.textures?.[info.index]?.source; if (at === undefined) return;
-    const prior = imageRoles.get(at); imageRoles.set(at, prior === 'normal' || role === 'normal' ? 'normal' : prior === 'srgb' ? prior : role);
-  };
-  for (const material of json.materials ?? []) {
-    use(material.normalTexture, 'normal'); use(material.pbrMetallicRoughness?.baseColorTexture, 'srgb'); use(material.emissiveTexture, 'srgb');
-    use(material.pbrMetallicRoughness?.metallicRoughnessTexture, 'data'); use(material.occlusionTexture, 'data');
+  // An overview image read in more than one role gets a copy per further role
+  // (and its textures one too), so each is averaged the way it is sampled.
+  const slots = (json.materials ?? []).flatMap(material => [[material.normalTexture, 'normal'], [material.pbrMetallicRoughness?.baseColorTexture, 'srgb'],
+    [material.emissiveTexture, 'srgb'], [material.pbrMetallicRoughness?.metallicRoughnessTexture, 'data'], [material.occlusionTexture, 'data']])
+    .filter(([info]) => json.textures?.[info?.index]?.source !== undefined);
+  const imageRoles = new Map(), copies = new Map();
+  for (const [info, role] of slots) {
+    const texture = json.textures[info.index], at = texture.source;
+    if (!imageRoles.has(at)) imageRoles.set(at, role);
+    if (imageRoles.get(at) === role || !Number.isFinite(options.textureSize)) continue;
+    if (!copies.has(`${info.index}:${role}`)) {
+      let image = copies.get(`image ${at}:${role}`);
+      if (image === undefined) { image = json.images.push({ ...json.images[at] }) - 1; imageRoles.set(image, role); copies.set(`image ${at}:${role}`, image); }
+      copies.set(`${info.index}:${role}`, json.textures.push({ ...texture, source: image }) - 1);
+    }
+    info.index = copies.get(`${info.index}:${role}`);
   }
   const textures = [];
   (json.images ?? []).forEach((image, at) => {

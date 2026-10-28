@@ -10,7 +10,8 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { localMatrix, maxScale, multiply, readAccessor, readGlb, writeGlb } from '../src/glb.mjs';
-import { decodePng, encodePng } from '../src/png.mjs';
+import { decodePng, encodePng, shrinkImage } from '../src/png.mjs';
+import { deflateSync, inflateSync } from 'node:zlib';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 
@@ -274,7 +275,7 @@ test('the command line never overwrites its inputs', () => {
 /** A flat 60 x 60 textured panel whose U wobbles along x (a non-affine
  * mapping), beside a dense untextured relief wall that sets the bake error.
  * `png` replaces the 1-pixel base colour map; `normal` also uses it as the normal map. */
-function texturedMaster({ png: map, normal = false } = {}) {
+function texturedMaster({ png: map, normal = false, roughness = false } = {}) {
   const parts = [], accessors = [], views = [];
   let length = 0;
   const add = (array, type, componentType, extra = {}) => {
@@ -302,7 +303,7 @@ function texturedMaster({ png: map, normal = false } = {}) {
   ];
   views.push({ buffer: 0, byteOffset: length, byteLength: png.byteLength }); parts.push(png); length += (png.byteLength + 3) & ~3;
   const json = { asset: { version: '2.0' }, scene: 0, scenes: [{ nodes: [0, 1] }], nodes: [{ mesh: 0, name: 'Panel' }, { mesh: 1, name: 'Wall' }], meshes,
-    materials: [{ pbrMetallicRoughness: { baseColorTexture: { index: 0 } }, ...(normal ? { normalTexture: { index: 0 } } : {}) }], textures: [{ source: 0, sampler: 0 }], samplers: [{ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 }], images: [{ bufferView: views.length - 1, mimeType: 'image/png' }],
+    materials: [{ pbrMetallicRoughness: { baseColorTexture: { index: 0 } }, ...(normal ? { normalTexture: { index: 0 } } : {}) }].map(m => roughness ? { ...m, pbrMetallicRoughness: { ...m.pbrMetallicRoughness, metallicRoughnessTexture: { index: 0 } } } : m), textures: [{ source: 0, sampler: 0 }], samplers: [{ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 }], images: [{ bufferView: views.length - 1, mimeType: 'image/png' }],
     accessors, bufferViews: views, buffers: [{ byteLength: length }] };
   const bin = new Uint8Array(length); let at = 0;
   for (const part of parts) { bin.set(part, at); at += (part.byteLength + 3) & ~3; }
@@ -344,6 +345,30 @@ test('halves overview textures to the texture size and keeps them in the detail'
   for (let i = 0; i < width * height; i++) rgba.set(i % width % 2 ? [218, 128, 218, 255] : [37, 128, 218, 255], i * 4);
   const flat = imageOf((await bakeOverview(texturedMaster({ png: encodePng({ width, height, rgba }), normal: true }), null, { triangles: 8_000 })).glb);
   assert.deepEqual([...flat.rgba.subarray(0, 4)], [128, 128, 255, 255]);
+});
+
+test('averages an image shared by colour and data slots once per role', async () => {
+  const width = 1024, height = 8, rgba = new Uint8Array(width * height * 4);
+  for (let i = 0; i < width * height; i++) rgba.fill(i % width % 2 ? 255 : 0, i * 4, i * 4 + 3), rgba[i * 4 + 3] = 255;
+  const result = await bakeOverview(texturedMaster({ png: encodePng({ width, height, rgba }), roughness: true }), null, { triangles: 8_000 });
+  const { json, bin } = readGlb(result.glb), pbr = json.materials[0].pbrMetallicRoughness;
+  const pixel = info => { const view = json.bufferViews[json.images[json.textures[info.index].source].bufferView];
+    return [...decodePng(bin.subarray(view.byteOffset ?? 0, (view.byteOffset ?? 0) + view.byteLength)).rgba.subarray(0, 4)]; };
+  assert.deepEqual(pixel(pbr.baseColorTexture), [188, 188, 188, 255]);
+  assert.deepEqual(pixel(pbr.metallicRoughnessTexture), [128, 128, 128, 255]);
+  assert.deepEqual(result.report.textures.map(t => t.role), ['srgb', 'data']);
+  // The detail keeps the one shared image.
+  assert.equal(readGlb((await bakeDetail(texturedMaster({ png: encodePng({ width, height, rgba }), roughness: true }), null)).glb).json.images.length, 1);
+});
+
+test('refuses PNG rows with unknown filters and sizes below one pixel', () => {
+  const png = Buffer.from(encodePng({ width: 2, height: 1, rgba: new Uint8Array(8).fill(255) }));
+  const at = png.indexOf('IDAT') + 4, length = png.readUInt32BE(at - 8), raw = inflateSync(png.subarray(at, at + length));
+  raw[0] = 5;
+  const body = deflateSync(raw), broken = Buffer.concat([png.subarray(0, at - 8), Buffer.from([0, 0, 0, 0]), Buffer.from('IDAT'), body, Buffer.alloc(4), png.subarray(at + length + 4)]);
+  broken.writeUInt32BE(body.length, at - 8);
+  assert.equal(decodePng(new Uint8Array(broken)), null);
+  assert.throws(() => shrinkImage({ width: 2, height: 2, rgba: new Uint8Array(16) }, 0, 'data'), RangeError);
 });
 
 /** The frontend's generated unified Atlas publication (three buildings, split
