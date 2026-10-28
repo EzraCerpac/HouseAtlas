@@ -355,6 +355,8 @@ const model = bindAtlasModel(read.scene, loaded);
   assert.ok(spans.every(span => span.drawn), 'a measured single run is drawn along its wall');
   assert.equal(measurements.roomArea(bindAtlasModel(withMeasured([{ quantity: 'area', value: 0.004, unit: 'm2', basis }]), loaded),
     owner.spaceOccurrenceId).text, '0.004 m²', 'a small measured value is never shown as zero');
+  assert.ok(!/^0 /.test(measurements.measuredText(1e-7, 'm')), 'however small');
+  assert.equal(measurements.measuredText(1234.5, 'm²'), (1234.5).toLocaleString() + ' m²');
   for (const wrong of [[], [{ quantity: 'area', value: 14, unit: 'm2', basis }, { quantity: 'area', value: 15, unit: 'm2', basis }],
     [wall, wall], [{ ...wall, value: 0 }], [{ ...wall, unit: 'cm' }], [{ ...wall, basis: 'outline' }],
     [{ ...wall, edge: { ...wall.edge, to: from } }], [{ ...wall, edge: { ...wall.edge, to: outer.length } }],

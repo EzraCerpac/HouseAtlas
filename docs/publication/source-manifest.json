@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "4c89aad672bd7f6b8f5056b706fd9105d8c67e727315d03fb606e1046043889f",
+  "sourceDigestSha256": "596d0c8d2744e46869d7fc90fd4ad27a96be6afce0079fc0ed25137c6cb2ba7f",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -8351,8 +8351,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
-      "bytes": 119457,
-      "sha256": "5011a29dd31813b4ae40bee818707f05c8033ad6e3bd2da5d470308f951a6ab6",
+      "bytes": 119632,
+      "sha256": "734723f070ee4687a672a10598293c6915885e73f87d5517181ec771b23e65d6",
       "owner": "web"
     },
     {
@@ -9996,8 +9996,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/measurements.ts",
       "mode": "100644",
-      "bytes": 9814,
-      "sha256": "6cc7095ccd55d6efe75f4bc2aa2838767b59f1ce1c566b92ae89a32cfa9ca16f",
+      "bytes": 9841,
+      "sha256": "7a1379bb5e89437a5fc6e36c7d5e50c1c992d94f54b048906f33cdf398e811d9",
       "owner": "web"
     },
     {

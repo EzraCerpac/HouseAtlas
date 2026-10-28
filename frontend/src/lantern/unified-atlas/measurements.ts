@@ -45,10 +45,10 @@ export function areaText(squareMetres: number): string {
 export function lengthText(metres: number): string {
   return `≈ ${(Math.round(metres * 10) / 10).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`;
 }
-/** A measured value as the owner gave it: never rounded to a coarser figure,
- * so a small value is never shown as zero. */
+/** A measured value as the owner gave it: significant digits, not decimals,
+ * so however small an admitted value is it is never shown as zero. */
 export const measuredText = (value: number, unit: 'm' | 'm²') =>
-  `${value.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${unit}`;
+  `${value.toLocaleString(undefined, { maximumSignificantDigits: 15 })} ${unit}`;
 
 /** The model carries at least one of the owner's measured values for this room part. */
 export function carriesMeasurements(model: AtlasModel, occurrenceId: string): boolean {
