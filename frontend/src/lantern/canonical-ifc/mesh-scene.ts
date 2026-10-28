@@ -716,6 +716,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     try {
       await prepareEffectPipelines(renderer, { pipeline, relit, occlusion, history, passes: [geometryPass, colorPass] }, () => slice.next(), signal);
     } catch (error) {
+      signal?.throwIfAborted();
       if (!(error instanceof PreparationRefused)) throw error;
       console.warn('Effect pipelines not prepared; the first shaded frame compiles them', error);
     }
