@@ -219,6 +219,29 @@ through a canonical signed-in live session, iOS, installed-PWA and real content
 remain separate acceptance. `unified-atlas-cache-healthy.mjs` checks the cached
 copy's actor isolation and lifecycle without a browser.
 
+Offline browser teardown observes its owned child immediately after spawn.
+It allows up to 2 s for protocol-requested closure, then 2 s after TERM and
+3 s after KILL, always waiting for the child's close event rather than the
+protocol acknowledgement or kill return value. A failed shutdown retains
+the generated profile and fails the check. Only the fixture's own temporary
+directory is removed, with at most five 100 ms retries for transient
+ENOTEMPTY, EBUSY or EPERM; unrelated errors are not retried.
+
+The already listed `offline-root-entry-healthy.mjs` case also exercises this
+shutdown helper with fake child events and generated temporary directories:
+delayed close after exit/ack, missing acknowledgement, TERM/KILL fallback,
+already closed child, retained scratch on timeout, retry exhaustion and
+successful bounded cleanup. It launches no browser or real child process.
+The original test exception remains primary if shutdown or removal also fails;
+all cleanup diagnostics are reported separately. When the test itself passed,
+cleanup failure still fails the case. Combined-failure assertions use synthetic
+errors and verify original identity, cleanup-only failure and ordered release.
+Transport release stops listener acceptance, then enumerates the live owned socket
+set after browser shutdown. Synthetic coverage adds a resource during fake-child
+shutdown and verifies its release on both successful close and shutdown timeout.
+These checks concern harness reliability, not offline application or device
+acceptance.
+
 ## Real-browser 3D drawing
 
 `frontend/lantern-tests/mesh-layer-browser.mjs` builds two generated pages (a

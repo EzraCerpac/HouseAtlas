@@ -8,6 +8,9 @@ import { dirname, join, resolve } from 'node:path';
 import { stripTypeScriptTypes } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { EventEmitter } from 'node:events';
+import { existsSync } from 'node:fs';
+import { trackOfflineBrowser, removeOfflineScratch, finishOfflineCleanup } from './offline-launch-cleanup.mjs';
 import { offlineShellPlugin } from '../build/offline-shell-plugin.mjs';
 assert.equal(process.version, 'v26.10.0'); assert.deepEqual(process.argv.slice(2), []);
 const frontend = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -144,7 +147,127 @@ function shellPage(api, storage, build, marked = false) {
   vm.runInContext(source + '\nglobalThis.api = { verifySavedShell, removeSavedShell };', context);
   return { ...context.api, fetches };
 }
+async function checkOwnedBrowserCleanup() {
+  class FakeChild extends EventEmitter {
+    exitCode = null; signalCode = null; signals = []; stdio = []; unreferenced = false;
+    kill(signal) { this.signals.push(signal); this.onSignal?.(signal); return true; }
+    unref() { this.unreferenced = true; }
+    finish(signal = null) {
+      this.exitCode = signal ? null : 0; this.signalCode = signal; this.emit('exit', this.exitCode, signal);
+      setImmediate(() => this.emit('close', this.exitCode, signal));
+    }
+  }
+  const fast = { graceMs: 10, termMs: 10, killMs: 50 };
+  // A protocol acknowledgement and even exit are insufficient: stdio close comes later.
+  const acknowledged = new FakeChild(), stop = trackOfflineBrowser(acknowledged, fast);
+  let returned = false;
+  const pending = stop(() => { acknowledged.finish(); return Promise.resolve({}); }).then(() => { returned = true; });
+  await Promise.resolve(); await Promise.resolve();
+  assert.equal(returned, false, 'wait for close after exit/ack');
+  await pending; assert.deepEqual(acknowledged.signals, []);
+  await stop(() => { throw new Error('duplicate close request'); });
+  // Missing acknowledgement cannot hang shutdown; signal only this child.
+  const term = new FakeChild(); term.onSignal = signal => { if (signal === 'SIGTERM') term.finish(signal); };
+  await trackOfflineBrowser(term, fast)(() => new Promise(() => {}));
+  assert.deepEqual(term.signals, ['SIGTERM']);
+  const forced = new FakeChild(); forced.onSignal = signal => { if (signal === 'SIGKILL') forced.finish(signal); };
+  await trackOfflineBrowser(forced, fast)(() => Promise.reject(new Error('pipe closed')));
+  assert.deepEqual(forced.signals, ['SIGTERM', 'SIGKILL']);
+  const already = new FakeChild(), stopAlready = trackOfflineBrowser(already, fast);
+  already.finish(); await new Promise(resolve => setImmediate(resolve));
+  await stopAlready(() => { throw new Error('already closed'); }); assert.deepEqual(already.signals, []);
+  const folder = mkdtempSync(join(tmpdir(), 'houseatlas-offline-launch-'));
+  try {
+    writeFileSync(join(folder, 'generated-profile'), 'synthetic only');
+    const stuck = new FakeChild(); let removal = false;
+    await assert.rejects(async () => {
+      await trackOfflineBrowser(stuck, { graceMs: 5, termMs: 5, killMs: 5 })(() => new Promise(() => {}));
+      removal = true; await removeOfflineScratch(folder);
+    }, /profile retained/);
+    assert.equal(removal, false); assert.equal(existsSync(folder), true); assert.equal(stuck.unreferenced, true);
+    let attempts = 0;
+    await removeOfflineScratch(folder, { retryDelayMs: 1, retries: 2, remove: (path, options) => {
+      assert.equal(path, folder);
+      if (++attempts <= 2) throw Object.assign(new Error('generated helper still closing'), { code: 'ENOTEMPTY' });
+      rmSync(path, options);
+    } });
+    assert.equal(attempts, 3); assert.equal(existsSync(folder), false);
+    let capped = 0;
+    await assert.rejects(removeOfflineScratch(folder, { retryDelayMs: 1, retries: 2, remove: () => {
+      capped++; throw Object.assign(new Error('generated busy profile'), { code: 'EBUSY' });
+    } }), /generated busy profile/);
+    assert.equal(capped, 3);
+    let denied = 0;
+    await assert.rejects(removeOfflineScratch(folder, { remove: () => {
+      denied++; throw Object.assign(new Error('generated permission error'), { code: 'EACCES' });
+    } }), /generated permission error/);
+    assert.equal(denied, 1, 'do not retry unrelated filesystem errors');
+    await assert.rejects(removeOfflineScratch(scratch), /Refusing cleanup/);
+  } finally { rmSync(folder, { recursive: true, force: true }); }
+  cases.push('owned-browser-ack-exit-close-signals-timeout-and-bounded-profile-cleanup');
+
+  const primary = new Error('generated original assertion'), shutdown = new Error('generated shutdown failure'),
+    transport = new Error('generated transport failure'), removalError = new Error('generated removal failure');
+  const reports = []; let removed = false;
+  const combined = async (failure, options) => {
+    let retained = null;
+    try { throw failure; }
+    catch (error) { retained = { error }; throw error; }
+    finally { await finishOfflineCleanup({ ...options, primaryFailure: retained, report: failure => reports.push(failure) }); }
+  };
+  await assert.rejects(combined(primary, { stopBrowser: async () => { throw shutdown; },
+    releaseTransport: [() => { throw transport; }], removeScratch: () => { removed = true; } }), error => error === primary);
+  assert.equal(removed, false, 'failed shutdown keeps profile');
+  assert.deepEqual(reports, [{ phase: 'browser shutdown', error: shutdown }, { phase: 'transport release', error: transport }]);
+  reports.length = 0;
+  await assert.rejects(combined(primary, { stopBrowser: async () => {}, removeScratch: () => { throw removalError; } }), error => error === primary);
+  assert.deepEqual(reports, [{ phase: 'profile removal', error: removalError }]);
+  // Falsy thrown values are still primary failures, and cleanup-only errors still fail.
+  await assert.rejects(combined(0, { stopBrowser: async () => { throw shutdown; } }), error => error === 0);
+  await assert.rejects(finishOfflineCleanup({ stopBrowser: async () => {}, removeScratch: () => { throw removalError; } }), error => error === removalError);
+  await assert.rejects(finishOfflineCleanup({ stopBrowser: async () => { throw shutdown; },
+    releaseTransport: [() => { throw transport; }] }), error =>
+    error instanceof AggregateError && error.cause === shutdown && error.errors[0] === shutdown && error.errors[1] === transport);
+  const order = [];
+  await finishOfflineCleanup({ beforeShutdown: [() => order.push('held')], stopBrowser: async () => { order.push('closed'); },
+    releaseTransport: [() => order.push('transport')], removeScratch: () => order.push('removed') });
+  assert.deepEqual(order, ['held', 'closed', 'transport', 'removed']);
+  cases.push('original-test-failure-preserved-with-shutdown-and-removal-diagnostics');
+
+  // A resource accepted while the fake browser is stopping must be released,
+  // including when shutdown times out and profile removal is intentionally skipped.
+  for (const timesOut of [false, true]) {
+    const resources = new Set(), released = [], lateChild = new FakeChild();
+    let accepting = true, profileRemoved = false;
+    const resource = name => ({ destroy() { assert.equal(accepting, false); released.push(name); } });
+    resources.add(resource('early'));
+    const stopLate = trackOfflineBrowser(lateChild, { graceMs: 5, termMs: 5, killMs: 5 });
+    const cleanupReports = [];
+    await finishOfflineCleanup({
+      primaryFailure: timesOut ? { error: primary } : null,
+      stopBrowser: () => stopLate(() => {
+        resources.add(resource('during-stop'));
+        if (!timesOut) lateChild.finish();
+        return new Promise(() => {});
+      }),
+      releaseTransport: (function* () {
+        yield () => { accepting = false; };
+        for (const current of resources) yield () => current.destroy();
+      })(),
+      removeScratch: () => { profileRemoved = true; },
+      report: failure => cleanupReports.push(failure),
+    });
+    assert.deepEqual(released, ['early', 'during-stop']);
+    assert.equal(profileRemoved, !timesOut);
+    assert.equal(cleanupReports.length, timesOut ? 1 : 0);
+    if (timesOut) assert.match(cleanupReports[0].error.message, /profile retained/);
+  }
+  cases.push('live-transport-enumeration-after-browser-stop-and-timeout');
+
+}
+
 try {
+  await checkOwnedBrowserCleanup();
   const first = generatedBuild('first'), second = generatedBuild('second'); assert.notEqual(first.buildId, second.buildId);
   const storage = cacheStorage(), api = serviceWorkers(); api.setTarget(first, storage);
   const page = shellPage(api, storage, first);
