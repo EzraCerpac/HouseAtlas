@@ -2,6 +2,7 @@
 //! login/session receipt, provider, archive admission or recovery is created.
 use super::Failure;
 pub mod measurements;
+pub mod provider_reads;
 use crate::{
     access as a,
     app::{Core, ReadAuthority, ServerRuntime, Store},

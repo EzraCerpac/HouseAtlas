@@ -103,6 +103,19 @@ impl NetworkSettings {
     pub fn provider(&self) -> Result<n::NetworkProvider, n::NetworkError> {
         n::NetworkProvider::new(self.source().clone(), self.review.clone(), self.limits)
     }
+    /// Cached startup may reopen existing custody but must not bootstrap stores.
+    pub fn require_existing_cached_storage(&self) -> Result<(), n::NetworkError> {
+        use std::os::unix::fs::MetadataExt;
+        for path in [&self.sidecar_path, &self.sidecar_path.with_extension("raw-archive.sqlite")] {
+            let meta = std::fs::symlink_metadata(path)
+                .map_err(|_| n::NetworkError::new(n::ErrorCode::Upstream))?;
+            if !meta.is_file() || meta.file_type().is_symlink() || meta.nlink() != 1
+                || meta.uid() != rustix::process::geteuid().as_raw() || meta.mode() & 0o777 != 0o600 {
+                return Err(n::NetworkError::new(n::ErrorCode::InvalidSchema));
+            }
+        }
+        Ok(())
+    }
     pub(crate) fn open_sidecar(&self) -> Result<n::SqliteNetworkSidecar, n::NetworkError> {
         n::SqliteNetworkSidecar::open(&self.sidecar_path, std::slice::from_ref(self.source()))
     }

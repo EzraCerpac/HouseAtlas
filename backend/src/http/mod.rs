@@ -427,6 +427,27 @@ impl Host {
         self
     }
 
+    /// Explicit cached-only source selection. No client, credential or grant.
+    pub fn with_cached_homebox_sources(
+        mut self,
+        sources: Vec<crate::config::providers::homebox::TrustedHomeBoxSource>,
+    ) -> crate::storage::Result<Self> {
+        let mut partitions = std::collections::BTreeSet::new();
+        if !self.homebox_cache_sources.is_empty() || sources.len() > 8 {
+            return Err(crate::storage::Error::new("invalid-contract", "Cached HomeBox selection unavailable"));
+        }
+        for source in &sources {
+            let partition = source.partition();
+            if !self.mcp_scopes.iter().any(|scope| scope.workspace_id == partition.workspace_id
+                && scope.home_id == partition.home_id)
+                || !partitions.insert(serde_json::to_string(&partition)?) {
+                return Err(crate::storage::Error::new("invalid-contract", "Cached HomeBox selection unavailable"));
+            }
+        }
+        self.homebox_cache_sources = Arc::new(sources);
+        Ok(self)
+    }
+
     /// Trusted optional native GET and credential custody configuration. No
     /// provider request or source grant is issued at startup; each request must
     /// qualify the exact current Store registration and original Access handles.
