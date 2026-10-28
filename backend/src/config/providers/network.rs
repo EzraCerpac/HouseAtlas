@@ -20,6 +20,7 @@ pub struct NetworkSettings {
     limits: n::Limits,
     stale_after_ms: i64,
     sidecar_path: PathBuf,
+    existing_cached_storage: bool,
 }
 impl NetworkSettings {
     #[allow(clippy::too_many_arguments)]
@@ -78,6 +79,7 @@ impl NetworkSettings {
             limits,
             stale_after_ms,
             sidecar_path: private_directory.join(sidecar_name),
+            existing_cached_storage: false,
         })
     }
     /// Adds a reviewed trust root while retaining certificate/hostname checks.
@@ -103,7 +105,20 @@ impl NetworkSettings {
     pub fn provider(&self) -> Result<n::NetworkProvider, n::NetworkError> {
         n::NetworkProvider::new(self.source().clone(), self.review.clone(), self.limits)
     }
+    /// Select the original opener's existing-only, read-only policy. This is
+    /// retained through construction, rather than a metadata-only preflight.
+    pub fn for_existing_cached_storage(mut self) -> Self {
+        self.existing_cached_storage = true;
+        self
+    }
     pub(crate) fn open_sidecar(&self) -> Result<n::SqliteNetworkSidecar, n::NetworkError> {
-        n::SqliteNetworkSidecar::open(&self.sidecar_path, std::slice::from_ref(self.source()))
+        if self.existing_cached_storage {
+            n::SqliteNetworkSidecar::open_existing(
+                &self.sidecar_path,
+                std::slice::from_ref(self.source()),
+            )
+        } else {
+            n::SqliteNetworkSidecar::open(&self.sidecar_path, std::slice::from_ref(self.source()))
+        }
     }
 }

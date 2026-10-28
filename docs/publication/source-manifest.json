@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "eda1b0660886600bd79a76c9f7747772f221a8f51d14b87411d3326f8858f7ff",
+  "sourceDigestSha256": "d5e6310e8390708d46fddfb0426dabf5194ce8f075dbf3f44d1e3671478bddda",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -1421,8 +1421,8 @@
     {
       "path": "backend/src/config/providers/network.rs",
       "mode": "100644",
-      "bytes": 4386,
-      "sha256": "db55cfdf6ea68340003c41838a1091665b2c5a3f1e99fb3a0def88b390651cb4",
+      "bytes": 4972,
+      "sha256": "67511b4fc406d6b3f2adeda0969775cdad67359d6b45dfb97329d113b795c86a",
       "owner": "core-integration"
     },
     {
@@ -2471,8 +2471,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 58617,
-      "sha256": "a9b5d13b070b91383bd6b0fc7bebab1b75ee0d99be91a9e4e443a5298e714556",
+      "bytes": 59778,
+      "sha256": "53046888d1757b95e7ec9aefb25a4c64262c05c06a3e8655f9ed634b68439d7e",
       "owner": "core-integration"
     },
     {
@@ -2842,8 +2842,22 @@
     {
       "path": "backend/src/lifecycle/persistent.rs",
       "mode": "100644",
-      "bytes": 26710,
-      "sha256": "e665e006a263ef1f7f10e1551a374450c8088b6826e0ee3f8273d7bbacb33f1e",
+      "bytes": 26734,
+      "sha256": "8ab9d39a6f61e6b32390b32f9937614f075de1fac0b1d0a28e3a64acf4931a14",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/lifecycle/persistent/provider_reads.rs",
+      "mode": "100644",
+      "bytes": 9979,
+      "sha256": "fa9d8107b3339bdde314bce2f58d5107002282b9dc88d940005355d57f15398b",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/lifecycle/persistent/provider_reads/tests.rs",
+      "mode": "100644",
+      "bytes": 18574,
+      "sha256": "6e002e2f96873bb668266cddc6d623ce3bbd66fef8be5b416b8436674a56825f",
       "owner": "core-integration"
     },
     {
@@ -3010,8 +3024,8 @@
     {
       "path": "backend/src/main.rs",
       "mode": "100644",
-      "bytes": 24488,
-      "sha256": "0da5eedb872b45c00618373c56979855a6f0fe64dfb9ff7994ab2b8e06357358",
+      "bytes": 26397,
+      "sha256": "426cbf1654e64349dbc6e8d5654eeba4a299b4aa9c003497bcfc518af6961759",
       "owner": "core-integration"
     },
     {
@@ -4347,15 +4361,15 @@
     {
       "path": "backend/src/providers/network/archive.rs",
       "mode": "100644",
-      "bytes": 37707,
-      "sha256": "da5f429cba08ebf1044e3dad0cbb06a7d135c3f217606a8115de381acf6dde25",
+      "bytes": 38393,
+      "sha256": "f7e7ad7ef6b406cc4506f065f107016fb0b54375fa2cddcde35c9ea089be9865",
       "owner": "network"
     },
     {
       "path": "backend/src/providers/network/durable.rs",
       "mode": "100644",
-      "bytes": 25764,
-      "sha256": "c34abf9b06802ee12655c16dac043713f81f6299120d2fb4b6ed5808fd7f771a",
+      "bytes": 26696,
+      "sha256": "845106ef0ccbe7449d6b93f2292acb430eaeb5d88c5cdf9f5b6c57864510e35a",
       "owner": "network"
     },
     {
@@ -4529,8 +4543,8 @@
     {
       "path": "backend/src/providers/network/host_runtime/native_owner.rs",
       "mode": "100644",
-      "bytes": 10116,
-      "sha256": "b73bf5b128c8cd96f89dae099bf50b782731ceae82bc38e15b944cd2faa346e5",
+      "bytes": 15339,
+      "sha256": "155986ce5aa9c7b5cde3115aa84e2d980aea154065e90cd1ccfbf1abefd82159",
       "owner": "network"
     },
     {
@@ -6715,6 +6729,13 @@
       "mode": "100644",
       "bytes": 6465,
       "sha256": "0475973eb19d3d2403578bbbd884b18bc22c6f0bf6ca59afe7a0150c0acbc614",
+      "owner": "homebox"
+    },
+    {
+      "path": "docs/providers/persistent-cached-provider-selection.md",
+      "mode": "100644",
+      "bytes": 7156,
+      "sha256": "3f8739679fe56b3354c47942305f7f1a4c2cc2ba7e6923c82195db41bff82451",
       "owner": "homebox"
     },
     {
