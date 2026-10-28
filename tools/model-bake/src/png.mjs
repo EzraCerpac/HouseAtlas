@@ -2,7 +2,7 @@
  * pixel size, encode again. Only what an overview map needs: 8-bit greyscale,
  * RGB, palette, grey-alpha and RGBA, not interlaced. Anything else is left as
  * authored, and the caller reports it. */
-import { deflateSync, inflateSync } from 'node:zlib';
+import { crc32, deflateSync, inflateSync } from 'node:zlib';
 
 const SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const CHANNELS = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 };
@@ -14,6 +14,8 @@ export function decodePng(bytes) {
   let at = 8, width = 0, height = 0, type = -1, palette = null, alpha = null; const data = [];
   while (at + 8 <= png.length) {
     const length = png.readUInt32BE(at), kind = png.toString('latin1', at + 4, at + 8), body = png.subarray(at + 8, at + 8 + length);
+    // A damaged chunk is left as authored, for the viewer's own checks to refuse.
+    if (at + 12 + length > png.length || crc32(png.subarray(at + 4, at + 8 + length)) !== png.readUInt32BE(at + 8 + length)) return null;
     if (kind === 'IHDR') {
       width = body.readUInt32BE(0); height = body.readUInt32BE(4); type = body[9];
       if (body[8] !== 8 || body[12] !== 0 || !(type in CHANNELS)) return null;
@@ -53,11 +55,9 @@ export function decodePng(bytes) {
   return { width, height, rgba };
 }
 
-const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
-const crc = bytes => { let c = 0xffffffff; for (const byte of bytes) c = crcTable[(c ^ byte) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
 const chunk = (kind, body) => {
   const head = Buffer.alloc(8); head.writeUInt32BE(body.length, 0); head.write(kind, 4, 'latin1');
-  const tail = Buffer.alloc(4); tail.writeUInt32BE(crc(Buffer.concat([head.subarray(4), body])), 0);
+  const tail = Buffer.alloc(4); tail.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), body])), 0);
   return Buffer.concat([head, body, tail]);
 };
 

@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { localMatrix, maxScale, multiply, readAccessor, readGlb, writeGlb } from '../src/glb.mjs';
 import { decodePng, encodePng, shrinkImage } from '../src/png.mjs';
-import { deflateSync, inflateSync } from 'node:zlib';
+import { crc32, deflateSync, inflateSync } from 'node:zlib';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 
@@ -362,15 +362,21 @@ test('averages an image shared by colour and data slots once per role', async ()
   assert.equal(readGlb((await bakeDetail(texturedMaster({ png: encodePng({ width, height, rgba }), roughness: true }), null)).glb).json.images.length, 1);
 });
 
-test('refuses PNG rows with unknown filters, colour keys and sizes below one pixel', () => {
+test('refuses damaged chunks, unknown row filters, colour keys and sizes below one pixel', () => {
   const png = Buffer.from(encodePng({ width: 2, height: 1, rgba: new Uint8Array(8).fill(255) }));
   const at = png.indexOf('IDAT') + 4, length = png.readUInt32BE(at - 8), raw = inflateSync(png.subarray(at, at + length));
+  const chunk = body => { const out = Buffer.alloc(body.length + 12); out.writeUInt32BE(body.length, 0); out.write('IDAT', 4, 'latin1'); body.copy(out, 8);
+    out.writeUInt32BE(crc32(out.subarray(4, 8 + body.length)), 8 + body.length); return out; };
+  const withData = data => new Uint8Array(Buffer.concat([png.subarray(0, at - 8), chunk(data), png.subarray(at + length + 4)]));
+  assert.ok(decodePng(withData(deflateSync(raw))));
   raw[0] = 5;
-  const body = deflateSync(raw), broken = Buffer.concat([png.subarray(0, at - 8), Buffer.from([0, 0, 0, 0]), Buffer.from('IDAT'), body, Buffer.alloc(4), png.subarray(at + length + 4)]);
-  broken.writeUInt32BE(body.length, at - 8);
-  assert.equal(decodePng(new Uint8Array(broken)), null);
+  assert.equal(decodePng(withData(deflateSync(raw))), null);
+  // A chunk whose checksum does not match is not rewritten either.
+  const damaged = Buffer.from(png); damaged[at + length] ^= 1;
+  assert.equal(decodePng(new Uint8Array(damaged)), null);
   // An RGB colour key (tRNS) is not something this bake rewrites.
-  const iend = png.indexOf('IEND') - 4, keyed = Buffer.concat([png.subarray(0, iend), Buffer.from([0, 0, 0, 6]), Buffer.from('tRNS'), Buffer.alloc(6), Buffer.alloc(4), png.subarray(iend)]);
+  const iend = png.indexOf('IEND') - 4, key = Buffer.concat([Buffer.from('tRNS'), Buffer.alloc(6)]), sum = Buffer.alloc(4); sum.writeUInt32BE(crc32(key), 0);
+  const keyed = Buffer.concat([png.subarray(0, iend), Buffer.from([0, 0, 0, 6]), key, sum, png.subarray(iend)]);
   assert.ok(decodePng(new Uint8Array(png)));
   assert.equal(decodePng(new Uint8Array(keyed)), null);
   assert.throws(() => shrinkImage({ width: 2, height: 2, rgba: new Uint8Array(16) }, 0, 'data'), RangeError);
