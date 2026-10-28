@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "a9d5344e97d384d716c91654870afb439ac8e3d1ee1db445473c31f0cccad7a1",
+  "sourceDigestSha256": "2652affc6f03fec3909e66081a1e1191ac1d08e9566b2726cdd0849b72ec3ceb",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -1057,8 +1057,8 @@
     {
       "path": "backend/src/ai/host/trusted_startup.rs",
       "mode": "100644",
-      "bytes": 8815,
-      "sha256": "aedc4c503a444d4138473e5d18897fcf9f51310a1f55516b3fbe4f7ffff04573",
+      "bytes": 8768,
+      "sha256": "74ce89274e2f56ccfbdbdf79524870bc629516c3f9275d226708f98fde2b507d",
       "owner": "ai"
     },
     {

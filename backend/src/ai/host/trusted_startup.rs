@@ -186,11 +186,7 @@ mod custody_tests {
     }
     impl HostApi for Api {
         type Context = ();
-        fn call<'a>(
-            &'a self,
-            _: &'a (),
-            _: HostCommand,
-        ) -> PortFuture<'a, serde_json::Value> {
+        fn call<'a>(&'a self, _: &'a (), _: HostCommand) -> PortFuture<'a, serde_json::Value> {
             Box::pin(async move {
                 self.calls.fetch_add(1, Ordering::SeqCst);
                 if self.lose_custody {
