@@ -31,7 +31,7 @@ import type { ModelOverviewSelection } from "../src/lantern/source-models/overvi
 import { createAccountObservationClient } from "../src/ai/host/account-client";
 import { AccountObservationProvider } from "../src/ai/AccountObservation";
 import { detectModelContext } from "../src/webmcp/browser";
-import { quantityAdmissionUrl, readQuantityAdmission, type QuantityAdmissionPort, type QuantityToolAdmission } from "../src/webmcp/quantity/tool";
+import type { QuantityAdmissionPort, QuantityToolAdmission } from "../src/webmcp/quantity/tool";
 import type { Scope } from "../src/api/generated/contracts";
 import type { AtlasSessionClient, AtlasSessionInfo } from "../src/app/session";
 import "../src/styles/atlas.css";
@@ -635,6 +635,8 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
         const quantityRead = (async () => {
         if (modelContext) {
           try {
+            // The quantity tool loads only in WebMCP browsers.
+            const { quantityAdmissionUrl, readQuantityAdmission } = await import("../src/webmcp/quantity/tool");
             // Headers and body share one deadline; a late row is never published.
             const row = await withAdmissionDeadline(signal, async deadline => {
               const response = await fetch(quantityAdmissionUrl(scope), {
