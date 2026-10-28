@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "2c22245e5fe84f235dd47d9b043f7d10e541f0973bbf68fa7791311a43c5dfab",
+  "sourceDigestSha256": "08df94e78532d5f9aa691034035740d56d83599975219fcdfdc634a116ffca56",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -42,8 +42,8 @@
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
-      "bytes": 6256,
-      "sha256": "12ac601041d5ac4b23ae0f0323431d1718339e027964de80afb74033d83a1481",
+      "bytes": 6991,
+      "sha256": "caadab267f3bbbd981dc9bf3c56ae9a21920f73328dce8813138317e31acbe8b",
       "owner": "core-integration"
     },
     {
@@ -154,8 +154,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 12813,
-      "sha256": "150a240ada6b0bcd4cb69670f506ead74e9457d1111a38a1c0306307008eb9f5",
+      "bytes": 13482,
+      "sha256": "dce581674e0d45ec812acaab1d07bc3d3dce2e6632004110e86c007077949ce0",
       "owner": "core-integration"
     },
     {
@@ -6370,8 +6370,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 211504,
-      "sha256": "e7b5ed29f6a4772279ef4f2c9130eca3866e77a7021bcd9d1ce702da969a29d8",
+      "bytes": 212573,
+      "sha256": "cd7d746137d67e3d5bc7bd25e3df600efa3d67b666890e90d70eb5c5a6821da0",
       "owner": "core-integration"
     },
     {
@@ -11677,8 +11677,8 @@
       "path": "tools/houseatlas-mcp-bridge/README.md",
       "mode": "100644",
       "owner": "mcp",
-      "bytes": 4271,
-      "sha256": "e0da53ffb5cef66db0be5be4390be16e301e19741a0c02a09ce5c7d47336924b"
+      "bytes": 4443,
+      "sha256": "f2558eb15a2d640f283a11c334a44351843638a890e3b411ad7399e74bccf0b8"
     },
     {
       "path": "tools/houseatlas-mcp-bridge/bridge.py",

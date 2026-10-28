@@ -69,9 +69,10 @@ python3 tools/houseatlas-mcp-bridge/test_bridge.py denial_read_correlation
 
 They use fake GET/session/admission owners and disposable synthetic journal
 state, with no provider or native service. They check raw envelope forwarding,
-returned cursor reuse, closed scope, page bounds and result correlation. These
-are the existing separately selected lanes, not new ordinary-CI registration.
-The new assertions are unrun locally at publication. No live capability probe,
+returned cursor reuse, closed scope, page bounds and result correlation. These exact three selections now run in the existing ordinary-core job under
+the owner's finite 28 October 2026 exception. All other bridge controls remain
+separately selected and excluded from that exception. The assertions are unrun
+locally at publication; hosted case logs must establish actual execution. No live capability probe,
 credential, grant, connector deployment or browser/device acceptance follows.
 
 See the native [versioned source matrix](../../backend/src/transports/mcp/README.md#catalog-to-admission-parity-version-3)
