@@ -230,3 +230,97 @@ fn network_mount_reuses_explicit_existing_custody_without_source_enrollment() {
     mounts.apply(host).unwrap();
     assert_eq!(counts(&f.config), before);
 }
+
+fn provision_network(f: &Fixture) -> (Value, std::path::PathBuf) {
+    let directory = f.config.data_directory.join("provider-cache");
+    fs::create_dir(&directory).unwrap();
+    fs::set_permissions(&directory, fs::Permissions::from_mode(0o700)).unwrap();
+    let v = network_packet(f, &directory);
+    let parsed: Packet = serde_json::from_value(v.clone()).unwrap();
+    let entry = parsed.network_cached.into_iter().next().unwrap();
+    let registry = ProviderRegistry::from_trusted_configuration(vec![entry.registration]).unwrap();
+    let settings = NetworkSettings::new(registry.sources()[0].clone(), &entry.origin,
+        entry.review, entry.limits, entry.connect_timeout_ms, entry.idle_timeout_ms,
+        entry.stale_after_ms, &directory).unwrap();
+    settings.open_sidecar().unwrap().close().unwrap();
+    let path = fs::read_dir(&directory).unwrap().map(|e| e.unwrap().path())
+        .find(|p| p.extension().is_some_and(|x| x == "sqlite")
+            && !p.to_string_lossy().ends_with("raw-archive.sqlite")).unwrap();
+    (v, path)
+}
+
+#[test]
+fn network_empty_existing_databases_are_not_initialized_or_repaired() {
+    for archive in [false, true] {
+        let f = Fixture::new();
+        let (v, sidecar) = provision_network(&f);
+        let path = if archive { sidecar.with_extension("raw-archive.sqlite") } else { sidecar };
+        // Keep the original 0600 inode and custody lock, but remove its schema.
+        fs::OpenOptions::new().write(true).truncate(true).open(&path).unwrap();
+        let before = counts(&f.config);
+        assert!(ProviderReadMounts::prepare(&f.config, &f.core,
+            Some(f.selection(&v)), &f.lease).is_err());
+        assert_eq!(fs::metadata(&path).unwrap().len(), 0);
+        assert_eq!(counts(&f.config), before);
+        let db = rusqlite::Connection::open_with_flags(&path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+        let tables: i64 = db.query_row("SELECT count(*) FROM sqlite_schema", [], |r| r.get(0)).unwrap();
+        assert_eq!(tables, 0);
+    }
+}
+
+#[test]
+fn network_empty_private_files_do_not_provision_constructor_or_segment_custody() {
+    let f = Fixture::new();
+    let directory = f.config.data_directory.join("provider-cache");
+    fs::create_dir(&directory).unwrap();
+    fs::set_permissions(&directory, fs::Permissions::from_mode(0o700)).unwrap();
+    let v = network_packet(&f, &directory);
+    let registration: n::SourceRegistration = serde_json::from_value(v["networkCached"][0]["registration"].clone()).unwrap();
+    let partition = n::partition_key(&registration.scope).unwrap();
+    let sidecar = directory.join(format!("network-{:x}.sqlite", Sha256::digest(partition.as_bytes())));
+    for path in [&sidecar, &sidecar.with_extension("raw-archive.sqlite")] {
+        fs::OpenOptions::new().create_new(true).write(true).mode(0o600).open(path).unwrap();
+    }
+    assert!(ProviderReadMounts::prepare(&f.config, &f.core,
+        Some(f.selection(&v)), &f.lease).is_err());
+    assert_eq!(fs::read_dir(&directory).unwrap().count(), 2);
+    assert_eq!(fs::metadata(&sidecar).unwrap().len(), 0);
+    assert_eq!(fs::metadata(sidecar.with_extension("raw-archive.sqlite")).unwrap().len(), 0);
+}
+
+#[test]
+fn network_existing_only_never_recreates_removed_database_or_segment_custody() {
+    for member in ["sidecar", "archive", "segments"] {
+        let f = Fixture::new();
+        let (v, sidecar) = provision_network(&f);
+        let path = match member {
+            "sidecar" => sidecar,
+            "archive" => sidecar.with_extension("raw-archive.sqlite"),
+            "segments" => sidecar.with_extension("raw-archive.segments"),
+            _ => unreachable!(),
+        };
+        if path.is_dir() { fs::remove_dir(&path).unwrap(); } else { fs::remove_file(&path).unwrap(); }
+        let before = counts(&f.config);
+        assert!(ProviderReadMounts::prepare(&f.config, &f.core,
+            Some(f.selection(&v)), &f.lease).is_err(), "{member}");
+        assert!(!path.exists(), "{member} was recreated");
+        assert_eq!(counts(&f.config), before);
+    }
+}
+
+#[test]
+fn network_existing_schema_requires_immutable_triggers_without_repair() {
+    let f = Fixture::new();
+    let (v, sidecar) = provision_network(&f);
+    let db = rusqlite::Connection::open(&sidecar).unwrap();
+    db.execute_batch("DROP TRIGGER core_network_no_update").unwrap();
+    db.close().unwrap();
+    assert!(ProviderReadMounts::prepare(&f.config, &f.core,
+        Some(f.selection(&v)), &f.lease).is_err());
+    let db = rusqlite::Connection::open_with_flags(&sidecar,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+    let count: i64 = db.query_row("SELECT count(*) FROM sqlite_schema WHERE name='core_network_no_update'",
+        [], |r| r.get(0)).unwrap();
+    assert_eq!(count, 0);
+}

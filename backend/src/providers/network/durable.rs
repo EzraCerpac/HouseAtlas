@@ -11,6 +11,13 @@ use crate::storage::OriginalStagedCachePublication;
 use rusqlite::{Connection, OpenFlags, TransactionBehavior, params};
 use std::{collections::BTreeSet, path::Path};
 
+const SCHEMA: &str = "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA trusted_schema=OFF;
+            CREATE TABLE IF NOT EXISTS core_network_meta(version INTEGER PRIMARY KEY CHECK(version=1));
+            INSERT OR IGNORE INTO core_network_meta VALUES(1);
+            CREATE TABLE IF NOT EXISTS core_network_generations(partition_key TEXT NOT NULL,generation_id TEXT NOT NULL,sha256 TEXT NOT NULL,body TEXT NOT NULL,PRIMARY KEY(partition_key,generation_id));
+            CREATE TRIGGER IF NOT EXISTS core_network_no_update BEFORE UPDATE ON core_network_generations BEGIN SELECT RAISE(ABORT,'immutable generation'); END;
+            CREATE TRIGGER IF NOT EXISTS core_network_no_delete BEFORE DELETE ON core_network_generations BEGIN SELECT RAISE(ABORT,'immutable generation'); END;";
+
 pub struct SqliteNetworkSidecar {
     db: Connection,
     sources: Vec<SourceRegistration>,
@@ -65,23 +72,33 @@ impl SqliteNetworkSidecar {
     /// Trusted private host path and immutable source registry, never browser
     /// input. Native SQLite FULL/WAL commits supply the durable stage boundary.
     pub fn open(path: &Path, sources: &[SourceRegistration]) -> Result<Self> {
+        Self::open_mode(path, sources, false)
+    }
+    /// Reopen only provisioned custody; no schema repair or database creation.
+    pub fn open_existing(path: &Path, sources: &[SourceRegistration]) -> Result<Self> {
+        Self::open_mode(path, sources, true)
+    }
+    fn open_mode(path: &Path, sources: &[SourceRegistration], existing: bool) -> Result<Self> {
         let mut keys = BTreeSet::new();
         for source in sources {
             validate_registration(source)?;
             guard(keys.insert(partition_key(&source.scope)?))?;
         }
-        let owner = DatabaseOwner::open(path)?;
+        let owner = if existing { DatabaseOwner::open_existing(path)? } else { DatabaseOwner::open(path)? };
         owner.check()?;
-        let db = Connection::open_with_flags(
+        let db = if existing { owner.open_read_only()? } else { Connection::open_with_flags(
             owner.path(),
             OpenFlags::SQLITE_OPEN_READ_WRITE
                 | OpenFlags::SQLITE_OPEN_CREATE
                 | OpenFlags::SQLITE_OPEN_NO_MUTEX
                 | OpenFlags::SQLITE_OPEN_NOFOLLOW,
         )
-        .map_err(sql_error)?;
+        .map_err(sql_error)? };
         db.busy_timeout(std::time::Duration::from_secs(5))
             .map_err(sql_error)?;
+        if existing {
+            super::native_owner::validate_existing_schema(&db, SCHEMA)?;
+        }
         let tables: Vec<String> = db
             .prepare(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
@@ -106,16 +123,17 @@ impl SqliteNetworkSidecar {
                 .map_err(sql_error)?;
             guard(versions == [1])?;
         }
-        db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA trusted_schema=OFF;
-            CREATE TABLE IF NOT EXISTS core_network_meta(version INTEGER PRIMARY KEY CHECK(version=1));
-            INSERT OR IGNORE INTO core_network_meta VALUES(1);
-            CREATE TABLE IF NOT EXISTS core_network_generations(partition_key TEXT NOT NULL,generation_id TEXT NOT NULL,sha256 TEXT NOT NULL,body TEXT NOT NULL,PRIMARY KEY(partition_key,generation_id));
-            CREATE TRIGGER IF NOT EXISTS core_network_no_update BEFORE UPDATE ON core_network_generations BEGIN SELECT RAISE(ABORT,'immutable generation'); END;
-            CREATE TRIGGER IF NOT EXISTS core_network_no_delete BEFORE DELETE ON core_network_generations BEGIN SELECT RAISE(ABORT,'immutable generation'); END;").map_err(sql_error)?;
+        if !existing {
+            db.execute_batch(SCHEMA).map_err(sql_error)?;
+        }
         // Validate the original sidecar schema before creating any separate
         // archive artifacts. The original sidecar inode lease stays held.
         let archive =
-            super::NetworkImmutableArchive::open(&path.with_extension("raw-archive.sqlite"))?;
+            if existing {
+                super::NetworkImmutableArchive::open_existing(&path.with_extension("raw-archive.sqlite"))?
+            } else {
+                super::NetworkImmutableArchive::open(&path.with_extension("raw-archive.sqlite"))?
+            };
         owner.check()?;
         archive.check_owner()?;
         Ok(Self {

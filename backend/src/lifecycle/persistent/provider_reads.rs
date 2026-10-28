@@ -188,8 +188,8 @@ impl ProviderReadMounts {
                 return Err(unavailable());
             }
             let settings = NetworkSettings::new(configured, &value.origin, value.review, value.limits,
-                value.connect_timeout_ms, value.idle_timeout_ms, value.stale_after_ms, &value.private_directory)?;
-            settings.require_existing_cached_storage()?;
+                value.connect_timeout_ms, value.idle_timeout_ms, value.stale_after_ms, &value.private_directory)?
+                .for_existing_cached_storage();
             network.push(NetworkBinding::from_trusted_configuration(core, settings, value.entities)?);
         }
         Ok(Self { original: Some((core.access.clone(), core.store.clone())), homebox, network })

@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "87ad29482bfa88c4b5f5f7462846d509684748ac8af0dd31a9d9d01176ad744f",
+  "sourceDigestSha256": "00164de7eac880d692b70033d40c68b0413d9be74c89c2833b3fc7518216543b",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -1456,8 +1456,8 @@
     {
       "path": "backend/src/config/providers/network.rs",
       "mode": "100644",
-      "bytes": 5139,
-      "sha256": "bba8b8f7cb23f8d9d393cfa6d9ad3eb32e34940c6f211e5cefd782cc04d709b7",
+      "bytes": 4925,
+      "sha256": "3d9d931d5ca8c039367833071ebbf707fc7cf6e64728f18d1a36fb8331eae553",
       "owner": "core-integration"
     },
     {
@@ -2912,15 +2912,15 @@
     {
       "path": "backend/src/lifecycle/persistent/provider_reads.rs",
       "mode": "100644",
-      "bytes": 8813,
-      "sha256": "1e403e17f751cb7d136f9bec95966f860935d626ac5fea0c9e7b09ec1bba0149",
+      "bytes": 8803,
+      "sha256": "8f2ceef9e662562a8b492bf4e78a2c435a58a1fe932685f272e2184dba869816",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/lifecycle/persistent/provider_reads/tests.rs",
       "mode": "100644",
-      "bytes": 11920,
-      "sha256": "e2e7077fb7289f743bcc1e6e099b1e5d5a9fcfdf7411bccf7c002dbe9f8906ea",
+      "bytes": 16710,
+      "sha256": "33de11b6bb861b7cf370d6609b7cd1948f1b66ec6817ae266dfff775ef913b02",
       "owner": "core-integration"
     },
     {
@@ -4480,15 +4480,15 @@
     {
       "path": "backend/src/providers/network/archive.rs",
       "mode": "100644",
-      "bytes": 37707,
-      "sha256": "da5f429cba08ebf1044e3dad0cbb06a7d135c3f217606a8115de381acf6dde25",
+      "bytes": 38246,
+      "sha256": "faefa912f97b943c4319a928b526a16373dee50d9d8f6ccd007210d2ab7816b7",
       "owner": "network"
     },
     {
       "path": "backend/src/providers/network/durable.rs",
       "mode": "100644",
-      "bytes": 25764,
-      "sha256": "c34abf9b06802ee12655c16dac043713f81f6299120d2fb4b6ed5808fd7f771a",
+      "bytes": 26585,
+      "sha256": "d8767a02c3b139165e3a16fbab158e8148e85b9eb13c611f7d47b4ab98730000",
       "owner": "network"
     },
     {
@@ -4662,8 +4662,8 @@
     {
       "path": "backend/src/providers/network/host_runtime/native_owner.rs",
       "mode": "100644",
-      "bytes": 10116,
-      "sha256": "b73bf5b128c8cd96f89dae099bf50b782731ceae82bc38e15b944cd2faa346e5",
+      "bytes": 14830,
+      "sha256": "0578d4c0ad9079cdda4272868e46a042fb9ed0d52ecd8971945e9411ca9d81ba",
       "owner": "network"
     },
     {
@@ -6916,8 +6916,8 @@
     {
       "path": "docs/providers/persistent-cached-provider-selection.md",
       "mode": "100644",
-      "bytes": 6334,
-      "sha256": "345501786cf701e189f298e417cba32a56c230edfeca616a46d65ee32f472f8c",
+      "bytes": 7210,
+      "sha256": "4b94f03f465f4c43d75d4b309f63cb7627dad320e06449e11c6cbcddd7200e60",
       "owner": "homebox"
     },
     {

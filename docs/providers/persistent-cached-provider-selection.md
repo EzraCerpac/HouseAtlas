@@ -61,11 +61,21 @@ existing SourceRefs, validated by the original builder; no entity IDs or grants
 are synthesized. The directory must be the canonical private existing
 `<dataDirectory>/provider-cache`. The partition-derived sidecar and raw-archive
 SQLite files must already be regular 0600 files owned by the service user.
-Startup refuses missing custody before invoking the original opener, rather
-than bootstrapping a new sidecar/archive. Original database ownership, schema
-validation, locks and SQLite reopening still apply. The existing opener may
-perform its normal schema/connection maintenance; it performs no generation
-publication or inventory request. Preparation creates no credential lease.
+Startup selects an existing-only policy in the original opener. That policy
+uses no CREATE flag for database or constructor-custody members, requires the
+existing segment directory and custody locks, and opens both SQLite databases
+read-only. It requires the complete original schema, including immutable-row
+triggers; empty files and missing schema members fail without initialization or
+repair. The reference schema is built in memory only. Explicit provisioning
+continues to use the separate original creation path.
+
+Database and segment inode leases stay held. The database path is checked
+against the retained original inode before and after SQLite open, after schema/
+archive validation, and by the existing owner checks on subsequent operations.
+Removal or replacement fails closed, without recreating a database or segment
+directory. Original database ownership, locks and full archive verification
+still apply. Preparation performs no generation publication or inventory
+request and creates no credential lease.
 
 A selected profile is data, not a ConfigureSource/PublishCache/Read grant.
 Startup does not install Access/Store registrations, enable a source, change
@@ -94,11 +104,14 @@ existing recovery owner before operational use. This source increment does not
 change backup/restore scope, private configuration, services, grants or providers.
 It does not qualify an actual provider version, source, TLS target or credential.
 
-Seven generated in-process fixture sources cover paired argument parsing,
+The generated in-process fixture sources cover paired argument parsing,
 closed shape/scope/owner/registration limits, profile/configuration pin changes,
 same-owner cached mounting without enrollment, absent-selection identity,
 replacement-owner refusal, missing Network custody without bootstrap, and
-explicit existing synthetic Network custody. No listener or provider exchange
-is used. Fixtures, formatting, build and Clippy are UNRUN locally and delegated
+explicit existing synthetic Network custody. Additional regressions cover
+zero-byte sidecar/archive files, missing database/segment members, missing
+immutable triggers without repair, and removal/replacement while an original
+database inode lease is retained around SQLite open. No listener or provider
+exchange is used. New fixtures, formatting, build and Clippy are UNRUN locally and delegated
 to existing CI. No runner/workflow change is included. Source/CI success does
 not establish installed, live-provider or deferred browser/device acceptance.

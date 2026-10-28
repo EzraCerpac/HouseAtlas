@@ -34,10 +34,10 @@ struct CustodyLock {
     inode: u64,
 }
 impl CustodyLock {
-    fn open(parent: &PrivateDir, kind: &str, resource: &str) -> Result<Self> {
+    fn open_mode(parent: &PrivateDir, kind: &str, resource: &str, create: bool) -> Result<Self> {
         parent.check().map_err(|_| unavailable())?;
         let directory = parent
-            .child(".network-constructor-custody", true)
+            .child(".network-constructor-custody", create)
             .map_err(|_| unavailable())?;
         let name = format!("{kind}-{:x}", Sha256::digest(resource.as_bytes()));
         let file = File::from(
@@ -45,7 +45,7 @@ impl CustodyLock {
                 &directory.file,
                 &name,
                 OFlags::RDWR
-                    | OFlags::CREATE
+                    | if create { OFlags::CREATE } else { OFlags::empty() }
                     | OFlags::NOFOLLOW
                     | OFlags::NONBLOCK
                     | OFlags::CLOEXEC,
@@ -93,6 +93,27 @@ impl CustodyLock {
     }
 }
 
+/// Require the complete original schema, including immutable-row triggers.
+/// Build the reference in memory only; never run CREATE/repair on retained data.
+pub(super) fn validate_existing_schema(db: &rusqlite::Connection, schema: &str) -> Result<()> {
+    fn rows(db: &rusqlite::Connection, limit: usize) -> Result<Vec<(String, String, String, String)>> {
+        let mut statement = db.prepare(
+            "SELECT type,name,tbl_name,sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY name,type LIMIT ?1"
+        ).map_err(|_| unavailable())?;
+        let rows = statement.query_map([limit as i64], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+            .map_err(|_| unavailable())?
+            .collect::<std::result::Result<Vec<_>, _>>().map_err(|_| unavailable())?;
+        Ok(rows)
+    }
+    let reference = rusqlite::Connection::open_in_memory().map_err(|_| unavailable())?;
+    reference.execute_batch(schema).map_err(|_| unavailable())?;
+    let expected = rows(&reference, 32)?;
+    if expected.is_empty() || expected.len() >= 32 || rows(db, expected.len() + 1)? != expected {
+        return Err(unavailable());
+    }
+    Ok(())
+}
+
 /// Bind the actual private database inode while retaining a separate custody
 /// lock. Independent constructors and processes compete on that custody file.
 pub(super) struct DatabaseOwner {
@@ -105,6 +126,12 @@ pub(super) struct DatabaseOwner {
 }
 impl DatabaseOwner {
     pub(super) fn open(path: &Path) -> Result<Self> {
+        Self::open_mode(path, true)
+    }
+    pub(super) fn open_existing(path: &Path) -> Result<Self> {
+        Self::open_mode(path, false)
+    }
+    fn open_mode(path: &Path, create: bool) -> Result<Self> {
         if !path.is_absolute() {
             return Err(unavailable());
         }
@@ -121,7 +148,7 @@ impl DatabaseOwner {
                 &directory.file,
                 &name,
                 OFlags::RDWR
-                    | OFlags::CREATE
+                    | if create { OFlags::CREATE } else { OFlags::empty() }
                     | OFlags::NOFOLLOW
                     | OFlags::NONBLOCK
                     | OFlags::CLOEXEC,
@@ -133,7 +160,11 @@ impl DatabaseOwner {
         if !metadata.is_file() || metadata.mode() & 0o077 != 0 || metadata.nlink() != 1 {
             return Err(unavailable());
         }
-        let custody = CustodyLock::open(&directory, "database", &name)?;
+        if !create && (metadata.mode() & 0o777 != 0o600
+            || metadata.uid() != rustix::process::geteuid().as_raw()) {
+            return Err(unavailable());
+        }
+        let custody = CustodyLock::open_mode(&directory, "database", &name, create)?;
         let owner = Self {
             directory,
             file,
@@ -150,6 +181,21 @@ impl DatabaseOwner {
     }
     pub(super) fn path(&self) -> PathBuf {
         self.directory.path.join(&self.name)
+    }
+    /// Retain the inode lease before and after SQLite's separate path open.
+    /// READ_ONLY excludes database creation and all schema repair on this path.
+    pub(super) fn open_read_only(&self) -> Result<rusqlite::Connection> {
+        self.check()?;
+        let db = rusqlite::Connection::open_with_flags(
+            self.path(),
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY
+                | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX
+                | rusqlite::OpenFlags::SQLITE_OPEN_NOFOLLOW,
+        ).map_err(|_| unavailable())?;
+        self.check()?;
+        db.execute_batch("PRAGMA trusted_schema=OFF; PRAGMA query_only=ON;")
+            .map_err(|_| unavailable())?;
+        Ok(db)
     }
     pub(super) fn check(&self) -> Result<()> {
         self.custody.check()?;
@@ -173,6 +219,12 @@ impl DatabaseOwner {
         Ok(())
     }
     pub(super) fn segments(&self) -> Result<SegmentOwner> {
+        self.segments_mode(true)
+    }
+    pub(super) fn existing_segments(&self) -> Result<SegmentOwner> {
+        self.segments_mode(false)
+    }
+    fn segments_mode(&self, create: bool) -> Result<SegmentOwner> {
         self.check()?;
         let name = self
             .path()
@@ -183,9 +235,9 @@ impl DatabaseOwner {
             .to_owned();
         let directory = self
             .directory
-            .child(&name, true)
+            .child(&name, create)
             .map_err(|_| unavailable())?;
-        let custody = CustodyLock::open(&self.directory, "segments", &name)?;
+        let custody = CustodyLock::open_mode(&self.directory, "segments", &name, create)?;
         directory.sync().map_err(|_| unavailable())?;
         self.directory.sync().map_err(|_| unavailable())?;
         let owner = SegmentOwner { directory, custody };
@@ -274,5 +326,51 @@ impl SegmentOwner {
         let members = self.directory.members().map_err(|_| unavailable())?;
         self.check()?;
         Ok(members)
+    }
+}
+
+#[cfg(test)]
+mod existing_tests {
+    use super::*;
+    use std::{fs, io::Write, os::unix::fs::{OpenOptionsExt, PermissionsExt}};
+
+    #[test]
+    fn retained_existing_database_owner_refuses_removal_and_replacement_before_sqlite_open() {
+        for replace in [false, true] {
+            let temp = tempfile::tempdir().unwrap();
+            let directory = fs::canonicalize(temp.path()).unwrap();
+            fs::set_permissions(&directory, fs::Permissions::from_mode(0o700)).unwrap();
+            let path = directory.join("synthetic.sqlite");
+            drop(DatabaseOwner::open(&path).unwrap()); // explicit provisioning
+            let owner = DatabaseOwner::open_existing(&path).unwrap();
+            fs::remove_file(&path).unwrap();
+            if replace {
+                let mut file = fs::OpenOptions::new().create_new(true).write(true)
+                    .mode(0o600).open(&path).unwrap();
+                file.write_all(b"synthetic replacement").unwrap();
+            }
+            assert!(owner.open_read_only().is_err());
+            if replace {
+                assert_eq!(fs::read(&path).unwrap(), b"synthetic replacement");
+            } else {
+                assert!(!path.exists());
+            }
+        }
+    }
+
+    #[test]
+    fn retained_existing_database_owner_refuses_replacement_after_sqlite_open() {
+        let temp = tempfile::tempdir().unwrap();
+        let directory = fs::canonicalize(temp.path()).unwrap();
+        fs::set_permissions(&directory, fs::Permissions::from_mode(0o700)).unwrap();
+        let path = directory.join("synthetic.sqlite");
+        drop(DatabaseOwner::open(&path).unwrap());
+        let owner = DatabaseOwner::open_existing(&path).unwrap();
+        let db = owner.open_read_only().unwrap();
+        fs::rename(&path, path.with_extension("removed")).unwrap();
+        fs::OpenOptions::new().create_new(true).write(true).mode(0o600).open(&path).unwrap();
+        assert!(owner.check().is_err());
+        assert!(db.execute_batch("CREATE TABLE forbidden(value TEXT)").is_err());
+        assert_eq!(fs::metadata(&path).unwrap().len(), 0);
     }
 }
