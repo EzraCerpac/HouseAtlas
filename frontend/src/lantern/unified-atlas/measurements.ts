@@ -42,9 +42,10 @@ export function areaText(squareMetres: number): string {
 export function lengthText(metres: number): string {
   return `≈ ${(Math.round(metres * 10) / 10).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`;
 }
-/** A measured value as the owner gave it, to the centimetre (or cm²). */
+/** A measured value as the owner gave it: never rounded to a coarser figure,
+ * so a small value is never shown as zero. */
 export const measuredText = (value: number, unit: 'm' | 'm²') =>
-  `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${unit}`;
+  `${value.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${unit}`;
 
 /** The model carries at least one of the owner's measured values for this room part. */
 export function carriesMeasurements(model: AtlasModel, occurrenceId: string): boolean {
@@ -125,8 +126,9 @@ export function edgeSpans(model: AtlasModel, occurrenceId: string): readonly Edg
   const runs = (measurable(model, occurrenceId) ? model.roomPolygons.get(occurrenceId) ?? [] : []).flatMap((polygon, part) => {
     const turn = Math.sign(signedArea(polygon.outer)) || 1;
     return ringRuns(polygon.outer).flatMap((run, at) => {
-      const wall = walls.find(w => w.outer === polygon.outer
-        && (samePoint(w.a, run.a) && samePoint(w.b, run.b) || samePoint(w.a, run.b) && samePoint(w.b, run.a)));
+      // Runs walk the ring in order, as `from` → `to` does; reversed ends name
+      // the rest of the ring, not this wall.
+      const wall = walls.find(w => w.outer === polygon.outer && samePoint(w.a, run.a) && samePoint(w.b, run.b));
       if (wall) { used.add(wall.key); return [span(`${occurrenceId}/${part}/${at}`, run.a, run.b, turn, wall.metres)]; }
       return Math.hypot(run.b[0] - run.a[0], run.b[1] - run.a[1]) < MIN_SPAN_M ? [] : [span(`${occurrenceId}/${part}/${at}`, run.a, run.b, turn, null)];
     });
