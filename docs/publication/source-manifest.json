@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "94d2a57c4da8d08087ee86d875efad30745f9f37b60591c6c9c9eb989b107bad",
+  "sourceDigestSha256": "b4dbf2f69befd20168c23c9a6c9a52aaea03fbf606a22ec258525f61f8e7e04f",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -994,8 +994,8 @@
     {
       "path": "backend/src/ai/host/startup/mod.rs",
       "mode": "100644",
-      "bytes": 15475,
-      "sha256": "cb7af0f03e5fda384185b6d5f06b04132aeafc172eb4bd1175a3ad2aeae3397f",
+      "bytes": 15713,
+      "sha256": "964752802d2304e240462eff542bdf206365c85eedbf3ec10bc97b9683529a3b",
       "owner": "ai"
     },
     {
@@ -1057,8 +1057,8 @@
     {
       "path": "backend/src/ai/host/trusted_startup.rs",
       "mode": "100644",
-      "bytes": 3914,
-      "sha256": "f8c669595f2b73f35607a00120b216b479bea3c5b2159401e424edec677744ca",
+      "bytes": 8815,
+      "sha256": "aedc4c503a444d4138473e5d18897fcf9f51310a1f55516b3fbe4f7ffff04573",
       "owner": "ai"
     },
     {
@@ -1155,8 +1155,8 @@
     {
       "path": "backend/src/app/ai_native_startup.rs",
       "mode": "100644",
-      "bytes": 3691,
-      "sha256": "4d2a2f14ee34d587d591882c8a05ee9205650154f1af203191afa4509ecd116a",
+      "bytes": 5674,
+      "sha256": "c89cad6fe19d3983b390a803cf3019968ad4d90cfa2eff2ecedcc4fc2adfe545",
       "owner": "core-integration"
     },
     {
@@ -6972,8 +6972,8 @@
     {
       "path": "docs/rust-integration/ai-host-integration.md",
       "mode": "100644",
-      "bytes": 7710,
-      "sha256": "7d51705aeef0397cb09c6956550f92689aaded4d5e052291f701a7f98b29958f",
+      "bytes": 9942,
+      "sha256": "da64dd1d5665fbd15a54f32c3fcbba80128d48d369b9d4f91d27561299e30cea",
       "owner": "core-integration"
     },
     {
