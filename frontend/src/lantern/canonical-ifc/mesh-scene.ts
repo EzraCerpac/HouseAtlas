@@ -1,6 +1,6 @@
 import {
-  Box3, BufferAttribute, BufferGeometry, CustomBlending, DataTexture, DepthTexture, DoubleSide, FloatType, InterleavedBuffer, InterleavedBufferAttribute,
-  LessEqualCompare, LinearFilter, LinearMipmapLinearFilter, LinearSRGBColorSpace, Matrix4, Mesh, NearestFilter, NoColorSpace, NoToneMapping, NodeMaterial,
+  BackSide, Box3, BufferAttribute, BufferGeometry, type Camera, CustomBlending, DataTexture, DepthTexture, DoubleSide, FloatType, InterleavedBuffer, InterleavedBufferAttribute,
+  FrontSide, LessEqualCompare, LinearFilter, LinearMipmapLinearFilter, LinearSRGBColorSpace, Matrix4, Mesh, NearestFilter, NoColorSpace, NoToneMapping, NodeMaterial,
   OneFactor, OneMinusSrcAlphaFactor, OrthographicCamera, RenderPipeline, RenderTarget, RepeatWrapping, RGBAFormat, Scene, Sphere, SRGBColorSpace, UnsignedByteType, Vector3,
   Vector2, Vector4, WebGPUCoordinateSystem, WebGPURenderer, type Node,
 } from 'three/webgpu';
@@ -670,8 +670,26 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     // shelter pipelines are compiled too, so the first frame after dusk waits on none.
     const uploaded = new Set<BufferGeometry>();
     let pending = 0;
+    /** Compiles `body` as `target` will draw it. three.js draws a two-sided see-through
+     * material as its back faces, then its front faces, each with its own shader, while
+     * compileAsync prepares only the two-sided one. Each side is compiled here on its own
+     * stand-in object, as the frame draws each side as its own render object. */
+    const compile = async (body: Mesh, view: Camera, within: Scene, target: RenderTarget | null) => {
+      const material = body.material as NodeMaterial;
+      const sides = material.transparent && material.side === DoubleSide && !material.forceSinglePass ? [BackSide, FrontSide] as const : null;
+      renderer.setRenderTarget(target);
+      try {
+        if (!sides) await renderer.compileAsync(body, view, within);
+        else for (const side of sides) {
+          const stand = new Mesh(body.geometry, material); stand.matrixAutoUpdate = false; stand.matrixWorld.copy(body.matrixWorld);
+          material.side = side;
+          try { await renderer.compileAsync(stand, view, within); } finally { material.side = DoubleSide; }
+        }
+      } finally { renderer.setRenderTarget(null); }
+      signal?.throwIfAborted();
+    };
     for (const { mesh } of layers) {
-      await renderer.compileAsync(mesh, camera, scene); signal?.throwIfAborted();
+      await compile(mesh, camera, scene, null);
       if (!uploaded.has(mesh.geometry)) {
         uploaded.add(mesh.geometry);
         // Interleaved attributes share one array; count it once.
@@ -679,10 +697,14 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       }
       if (pending >= PIECE_BYTES || slice.due()) { pending = 0; await slice.next(); }
     }
-    for (const [sunScene, target] of [[solidScene, sunTarget], [shelterScene, sunTarget], [roomScene, roomTarget]] as const) for (const body of sunScene.children) {
-      renderer.setRenderTarget(target);
-      try { await renderer.compileAsync(body, sunScene === roomScene ? roomView : sun, sunScene); } finally { renderer.setRenderTarget(null); }
-      signal?.throwIfAborted(); if (slice.due()) await slice.next();
+    // The contact shading passes draw the same objects into targets of their own, so they
+    // need pipelines of their own too; without them the first shaded frame, once the view
+    // settles, compiles them all at once. The colour pass takes the canvas's samples when
+    // its pipeline is set up; it is given them here first.
+    colorPass.renderTarget.samples = renderer.samples;
+    for (const [within, view, target] of [[solidScene, sun, sunTarget], [shelterScene, sun, sunTarget], [roomScene, roomView, roomTarget],
+      [scene, camera, colorPass.renderTarget], [solidScene, solidCamera, geometryPass.renderTarget]] as const) for (const body of within.children) {
+      await compile(body as Mesh, view, within, target); if (slice.due()) await slice.next();
     }
 
     // The view the contact shading history belongs to; any change starts it over.
