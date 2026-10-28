@@ -114,9 +114,15 @@ async fn run(
     let (arguments, ai_account) =
         houseatlas_backend::config::ai_account::ServerAccountSelection::from_arguments(&arguments)
             .map_err(|error| format!("HouseAtlas AI account settings: {error}"))?;
+    let (arguments, provider_reads) =
+        lifecycle::persistent::provider_reads::ProviderReadSelection::from_arguments(&arguments)
+            .map_err(|error| format!("HouseAtlas cached provider settings: {error}"))?;
     if let Some(command) = ServerCommand::from_arguments(&arguments)
         .map_err(|error| format!("HouseAtlas settings: {error}"))?
     {
+        if provider_reads.is_some() && !matches!(&command, ServerCommand::Serve(_)) {
+            return Err("Cached provider selection is accepted only by serve".into());
+        }
         return match command {
             ServerCommand::Backup(selection) => {
                 if ai_account.is_some() {
@@ -156,11 +162,14 @@ async fn run(
             ServerCommand::Serve(config) => {
                 run_persistent(
                     config,
+                    provider_reads,
                     ai_account,
                     geodata_selection,
-                    model_overview,
-                    atlas_scene,
-                    atlas_room_links,
+                    PublicationSelections {
+                        model_overview,
+                        atlas_scene,
+                        atlas_room_links,
+                    },
                     persistent_lease,
                 )
                 .await
@@ -202,6 +211,9 @@ async fn run(
                 Ok(())
             }
         };
+    }
+    if provider_reads.is_some() {
+        return Err("Cached provider selection requires persistent serve".into());
     }
     let config = Config::from_args().map_err(|e| format!("HouseAtlas settings: {e}"))?;
     run_disposable(config).await
@@ -300,20 +312,24 @@ async fn run_disposable(config: Config) -> Result<(), lifecycle::Failure> {
     Ok(())
 }
 
+/// Selected model publications, passed to both persistent listeners together.
+struct PublicationSelections {
+    model_overview:
+        Option<houseatlas_backend::config::model_overview::ServerModelOverviewSelection>,
+    atlas_scene: Option<houseatlas_backend::config::atlas_scene::ServerAtlasSceneSelection>,
+    atlas_room_links:
+        Option<houseatlas_backend::config::atlas_room_links::ServerAtlasRoomLinksSelection>,
+}
+
 async fn run_persistent(
     config: houseatlas_backend::config::server::ServerConfig,
+    provider_reads: Option<lifecycle::persistent::provider_reads::ProviderReadSelection>,
     ai_account: Option<houseatlas_backend::config::ai_account::ServerAccountSelection>,
     geodata_selection: Option<ServerGeodataSelection>,
-    model_overview: Option<
-        houseatlas_backend::config::model_overview::ServerModelOverviewSelection,
-    >,
-    atlas_scene: Option<houseatlas_backend::config::atlas_scene::ServerAtlasSceneSelection>,
-    atlas_room_links: Option<
-        houseatlas_backend::config::atlas_room_links::ServerAtlasRoomLinksSelection,
-    >,
+    publications: PublicationSelections,
     persistent_lease: &mut Option<Arc<lifecycle::persistent::ServerLease>>,
 ) -> Result<(), lifecycle::Failure> {
-    if let Some(selection) = &model_overview {
+    if let Some(selection) = &publications.model_overview {
         selection.validate_config(&config)?;
     }
     use houseatlas_backend::{config::server::read_tls_files, lifecycle::persistent::ServerEvent};
@@ -326,15 +342,19 @@ async fn run_persistent(
     ) {
         return run_gateway(
             config,
+            provider_reads,
             ai_account,
             geodata_policy,
-            model_overview,
-            atlas_scene,
-            atlas_room_links,
+            publications,
             persistent_lease,
         )
         .await;
     }
+    let PublicationSelections {
+        model_overview,
+        atlas_scene,
+        atlas_room_links,
+    } = publications;
     let config = Arc::new(config);
     if std::fs::canonicalize(&config.frontend_directory)? != config.frontend_directory {
         return Err("Persistent frontend directory must be canonical".into());
@@ -344,13 +364,17 @@ async fn run_persistent(
     let tls = axum_server::tls_rustls::RustlsConfig::from_pem(certificate, key).await?;
     let selected = Arc::clone(&config);
     let full_geodata = geodata_policy.is_some();
-    let (core, lease) =
-        tokio::task::spawn_blocking(move || reopen_persistent(&selected, geodata_policy)).await??;
+    let provider_selected = provider_reads.is_some();
+    let (core, lease, provider_mounts) = tokio::task::spawn_blocking(move || {
+        reopen_persistent(&selected, geodata_policy, provider_reads)
+    })
+    .await??;
     let lease = Arc::new(lease);
     *persistent_lease = Some(Arc::clone(&lease));
     let mut host = Host::new(core, config.origin.clone(), files, Vec::new())?
         .with_mcp_command_profile(config.command_profile())
         .with_backup_folder(config.data_directory.join("backup"));
+    host = provider_mounts.apply(host)?;
     if full_geodata {
         host = host.with_full_geodata()?;
     }
@@ -378,7 +402,7 @@ async fn run_persistent(
         listener.local_addr()?,
         config.origin
     );
-    report_persistent_sources(account_selected);
+    report_persistent_sources(account_selected, provider_selected);
     lease.event(ServerEvent::Listening)?;
     let handle = axum_server::Handle::new();
     let shutdown = handle.clone();
@@ -406,15 +430,10 @@ async fn run_persistent(
 /// terminated by the separately registered native Tailscale gateway owner.
 async fn run_gateway(
     config: houseatlas_backend::config::server::ServerConfig,
+    provider_reads: Option<lifecycle::persistent::provider_reads::ProviderReadSelection>,
     ai_account: Option<houseatlas_backend::config::ai_account::ServerAccountSelection>,
     geodata_policy: Option<Arc<dyn GeodataSourcePolicy>>,
-    model_overview: Option<
-        houseatlas_backend::config::model_overview::ServerModelOverviewSelection,
-    >,
-    atlas_scene: Option<houseatlas_backend::config::atlas_scene::ServerAtlasSceneSelection>,
-    atlas_room_links: Option<
-        houseatlas_backend::config::atlas_room_links::ServerAtlasRoomLinksSelection,
-    >,
+    publications: PublicationSelections,
     persistent_lease: &mut Option<Arc<lifecycle::persistent::ServerLease>>,
 ) -> Result<(), lifecycle::Failure> {
     use houseatlas_backend::{
@@ -427,10 +446,18 @@ async fn run_gateway(
         return Err("Persistent frontend directory must be canonical".into());
     }
     let files = Arc::new(frontend(&config.frontend_directory)?);
+    let PublicationSelections {
+        model_overview,
+        atlas_scene,
+        atlas_room_links,
+    } = publications;
     let selected = Arc::clone(&config);
     let full_geodata = geodata_policy.is_some();
-    let (core, lease) =
-        tokio::task::spawn_blocking(move || reopen_persistent(&selected, geodata_policy)).await??;
+    let provider_selected = provider_reads.is_some();
+    let (core, lease, provider_mounts) = tokio::task::spawn_blocking(move || {
+        reopen_persistent(&selected, geodata_policy, provider_reads)
+    })
+    .await??;
     let lease = Arc::new(lease);
     *persistent_lease = Some(Arc::clone(&lease));
     let policy = core
@@ -446,6 +473,7 @@ async fn run_gateway(
     let mut host = Host::new(core, config.origin.clone(), files, Vec::new())?
         .with_mcp_command_profile(config.command_profile())
         .with_backup_folder(config.data_directory.join("backup"));
+    host = provider_mounts.apply(host)?;
     if full_geodata {
         host = host.with_full_geodata()?;
     }
@@ -472,7 +500,7 @@ async fn run_gateway(
             "HouseAtlas private Unix gateway listening for {}",
             config.origin
         );
-        report_persistent_sources(account_selected);
+        report_persistent_sources(account_selected, provider_selected);
         let mut terminate =
             tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
         let (drain_started, drain_signal) = tokio::sync::oneshot::channel();
@@ -514,17 +542,26 @@ async fn run_gateway(
 fn reopen_persistent(
     config: &houseatlas_backend::config::server::ServerConfig,
     policy: Option<Arc<dyn GeodataSourcePolicy>>,
+    provider_reads: Option<lifecycle::persistent::provider_reads::ProviderReadSelection>,
 ) -> Result<
     (
         houseatlas_backend::app::Core,
         lifecycle::persistent::ServerLease,
+        lifecycle::persistent::provider_reads::ProviderReadMounts,
     ),
     lifecycle::Failure,
 > {
-    match policy {
-        Some(policy) => lifecycle::persistent::reopen_full_geodata(config, policy),
-        None => lifecycle::persistent::reopen(config),
-    }
+    let (core, lease) = match policy {
+        Some(policy) => lifecycle::persistent::reopen_full_geodata(config, policy)?,
+        None => lifecycle::persistent::reopen(config)?,
+    };
+    let providers = lifecycle::persistent::provider_reads::ProviderReadMounts::prepare(
+        config,
+        &core,
+        provider_reads,
+        &lease,
+    )?;
+    Ok((core, lease, providers))
 }
 
 async fn prepare_persistent_account(
@@ -561,8 +598,15 @@ async fn mount_persistent_account(
     }
 }
 
-fn report_persistent_sources(account_selected: bool) {
-    if account_selected {
+fn report_persistent_sources(account_selected: bool, provider_selected: bool) {
+    if provider_selected {
+        println!(
+            "Explicit cached provider profile selected; current native grants required; no refresh performed"
+        );
+        if account_selected {
+            println!("Existing AI account observation selected");
+        }
+    } else if account_selected {
         println!(
             "HomeBox and Network unconfigured; existing AI account observation selected; historical Media admission unavailable"
         );
