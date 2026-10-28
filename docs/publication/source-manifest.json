@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "3cbde030b51066c8f7fb0f6b03ebad5fb912b39ff188538bcbb26b5783efc2dc",
+  "sourceDigestSha256": "484e983be21af2f9a3ff445a091596cc90e919778f66aff716aa4d8e531f42f5",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -9058,8 +9058,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-scene.ts",
       "mode": "100644",
-      "bytes": 55050,
-      "sha256": "c69dcc5021136113135306e07b237f01c472ac2b2e7f2b0e85be9d475bce1913",
+      "bytes": 56680,
+      "sha256": "1915bb46139d3229342b4c57348b35116a31e2cb2ee97fe144c3403f79e3c12a",
       "owner": "web"
     },
     {
