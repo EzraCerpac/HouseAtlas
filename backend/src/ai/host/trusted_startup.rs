@@ -7,11 +7,11 @@ use super::{
     HostAuthority,
     enrollment::EnrollmentOwner,
     native::{NativeHostAuthority, NativeHostContext},
-    service::{AiHost, HostPeers},
+    service::{AiHost, HostApi, HostCommand, HostPeers},
     status::StatusJournal,
 };
 use crate::{
-    ai::{AiError, RunLimits},
+    ai::{AiError, PortFuture, RunLimits},
     http::{Host, ai::ReceiptEnrollment},
 };
 use axum::Router;
@@ -19,6 +19,37 @@ use serde::Serialize;
 use std::sync::Arc;
 
 type NativeAiHost<P> = AiHost<P, NativeHostAuthority<ReceiptEnrollment<EnrollmentOwner>>>;
+
+/// Original native custody owner supplied by the application, never an HTTP
+/// assertion. It checks the retained physical stores/handles without creating
+/// credentials, granting authority or qualifying a runtime. The account-only
+/// SELECT custody is not a writable inference-store implementation.
+pub trait StartupCustody: Send + Sync {
+    fn revalidate(&self) -> Result<(), AiError>;
+}
+
+struct CustodiedApi<H, C> {
+    api: Arc<H>,
+    custody: Arc<C>,
+}
+impl<H: HostApi, C: StartupCustody> HostApi for CustodiedApi<H, C> {
+    type Context = H::Context;
+
+    fn call<'a>(
+        &'a self,
+        context: &'a Self::Context,
+        command: HostCommand,
+    ) -> PortFuture<'a, serde_json::Value> {
+        Box::pin(async move {
+            self.custody.revalidate()?;
+            let result = self.api.call(context, command).await;
+            // Fence successful and failed results alike. The original host
+            // retains submitted work and receipts; custody loss never retries.
+            self.custody.revalidate()?;
+            result
+        })
+    }
+}
 
 /// Correlation data only. It cannot recreate a native context, credential,
 /// dispatch authority or HTTP admission. Cancellation epoch is omitted so a
@@ -108,5 +139,113 @@ impl<P: HostPeers<Context = NativeHostContext> + 'static> TrustedAiStartup<P> {
             Arc::clone(&self.api),
             Arc::clone(&self.enrollment),
         )
+    }
+
+    /// Explicit full-host composition with the same retained native custody
+    /// around every authenticated call. Starts no listener or native operation.
+    pub fn mounted_router_with_custody<C: StartupCustody + 'static>(
+        &self,
+        custody: Arc<C>,
+    ) -> Result<Router, AiError> {
+        custody.revalidate()?;
+        Ok(crate::http::ai::mounted_router(
+            self.host.clone(),
+            Arc::new(CustodiedApi {
+                api: Arc::clone(&self.api),
+                custody,
+            }),
+            Arc::clone(&self.enrollment),
+        ))
+    }
+}
+
+#[cfg(test)]
+mod custody_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    struct Custody {
+        current: AtomicBool,
+        checks: AtomicUsize,
+    }
+    impl StartupCustody for Custody {
+        fn revalidate(&self) -> Result<(), AiError> {
+            self.checks.fetch_add(1, Ordering::SeqCst);
+            if self.current.load(Ordering::SeqCst) {
+                Ok(())
+            } else {
+                Err(AiError::ConnectionUnavailable)
+            }
+        }
+    }
+    struct Api {
+        custody: Arc<Custody>,
+        calls: AtomicUsize,
+        lose_custody: bool,
+        fail: bool,
+    }
+    impl HostApi for Api {
+        type Context = ();
+        fn call<'a>(&'a self, _: &'a (), _: HostCommand) -> PortFuture<'a, serde_json::Value> {
+            Box::pin(async move {
+                self.calls.fetch_add(1, Ordering::SeqCst);
+                if self.lose_custody {
+                    self.custody.current.store(false, Ordering::SeqCst);
+                }
+                if self.fail {
+                    Err(AiError::DomainUnavailable)
+                } else {
+                    Ok(serde_json::json!({"synthetic": true}))
+                }
+            })
+        }
+    }
+    fn fixture(current: bool, lose_custody: bool, fail: bool) -> CustodiedApi<Api, Custody> {
+        let custody = Arc::new(Custody {
+            current: AtomicBool::new(current),
+            checks: AtomicUsize::new(0),
+        });
+        CustodiedApi {
+            api: Arc::new(Api {
+                custody: Arc::clone(&custody),
+                calls: AtomicUsize::new(0),
+                lose_custody,
+                fail,
+            }),
+            custody,
+        }
+    }
+    #[tokio::test]
+    async fn original_custody_fences_calls_and_preserves_typed_results() {
+        for fail in [false, true] {
+            let host = fixture(true, false, fail);
+            let result = host.call(&(), HostCommand::Connection).await;
+            if fail {
+                assert_eq!(result, Err(AiError::DomainUnavailable));
+            } else {
+                assert_eq!(result, Ok(serde_json::json!({"synthetic": true})));
+            }
+            assert_eq!(host.api.calls.load(Ordering::SeqCst), 1);
+            assert_eq!(host.custody.checks.load(Ordering::SeqCst), 2);
+        }
+    }
+    #[tokio::test]
+    async fn custody_loss_blocks_dispatch_or_release_without_replay() {
+        let host = fixture(false, false, false);
+        assert_eq!(
+            host.call(&(), HostCommand::Connection).await,
+            Err(AiError::ConnectionUnavailable)
+        );
+        assert_eq!(host.api.calls.load(Ordering::SeqCst), 0);
+        assert_eq!(host.custody.checks.load(Ordering::SeqCst), 1);
+        for fail in [false, true] {
+            let host = fixture(true, true, fail);
+            assert_eq!(
+                host.call(&(), HostCommand::Connection).await,
+                Err(AiError::ConnectionUnavailable)
+            );
+            assert_eq!(host.api.calls.load(Ordering::SeqCst), 1);
+            assert_eq!(host.custody.checks.load(Ordering::SeqCst), 2);
+        }
     }
 }

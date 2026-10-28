@@ -1,5 +1,25 @@
 # HouseAtlas
 
+## Approved scoped bridge read cases
+
+The owner approved exactly these three existing selections for the existing
+ordinary-core job on 28 October 2026:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 tools/houseatlas-mcp-bridge/test_bridge.py healthy_large_read_page
+PYTHONDONTWRITEBYTECODE=1 python3 tools/houseatlas-mcp-bridge/test_bridge.py denial_read_profile_bounds
+PYTHONDONTWRITEBYTECODE=1 python3 tools/houseatlas-mcp-bridge/test_bridge.py denial_read_correlation
+```
+
+They exercise synthetic evidence-list raw forwarding/cursor reuse, page bounds,
+closed scope and response correlation using fake GET/session/admission owners
+and owned disposable journal state. They invoke no write, socket, native service,
+provider, browser, real credentials or live data. The finite exception does not
+release other HEALTHY/REGRESSION selections, broad discovery, or other held
+controls. Existing Python on the standard runner suffices; no dependency or new
+workflow/job is added. No local run is claimed; exact-head hosted step/case logs
+must demonstrate execution and outcomes.
+
 ## CI layout
 
 The `Rust React ordinary core` workflow splits its checks into parallel jobs:
