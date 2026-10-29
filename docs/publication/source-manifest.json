@@ -62,8 +62,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 22195,
-      "sha256": "bb42b1165ef11abed32092bf39a11786303d35db3f4f87f09347dc3637120ca0",
+      "bytes": 22616,
+      "sha256": "8ee290b15602eeddf527a638d1df2cbd83751b0c8f04f63bef2aa993cb774b60",
       "owner": "core-integration"
     },
     {
@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 15273,
-      "sha256": "f758a1d7883d358cecbb679271cc440afeb31fc36f8b1b5608ad0f41e3e7f56d",
+      "bytes": 15459,
+      "sha256": "93e90a87a6a891806d772afe02b67c83a5e36f56f2b9d575b8afb8f679a47168",
       "owner": "core-integration"
     },
     {
@@ -6397,8 +6397,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 193447,
-      "sha256": "1236521a7b8a0f23c64f53704ff0d7de51b093d4dedd942d97882c97588be68f",
+      "bytes": 193843,
+      "sha256": "e911e1e93e76b12831e39de03ff0236f237d53809080069551509317065dc6aa",
       "owner": "core-integration"
     },
     {
@@ -11549,8 +11549,8 @@
     {
       "path": "tools/ci/lanes.json",
       "mode": "100644",
-      "bytes": 51574,
-      "sha256": "f6a888628e8a1116eb43b0e18758237230b6fe7062eef6f6d2156ce34a78a7d4",
+      "bytes": 52342,
+      "sha256": "1134a13c9781918e65cf77a349de645932f249cdf219cdec2f204eba7ac72314",
       "owner": "core-integration"
     },
     {
