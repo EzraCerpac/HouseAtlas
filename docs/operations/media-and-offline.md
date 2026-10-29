@@ -43,7 +43,9 @@ blocked content cannot render. Rendering is an AT-12 choice, not code in AT-05.
 
 Use `Cache-Control: private, no-store` for authenticated private responses and
 downloads in the first release. Browser-held in-memory content is not an offline
-archive. No service worker or general persisted private media/document cache is promised.
+archive. The public-shell service workers of the
+[root offline entry](../offline/root-offline-entry.md) verify only public bytes;
+no general persisted private media/document cache is promised.
 No automatic hard purge of original assets, tombstones, binding reservations,
 audit or reconciliation journals is authorized. Uncommitted staging cleanup is
 distinct from deleting committed or retained bytes.
@@ -76,8 +78,9 @@ authorization cache, native record or disconnected edit. It contains no token,
 cookie, CSRF value, owner configuration or native vault path. Already saved
 bytes cannot reliably be recalled remotely; device storage and deletion belong
 to the explicit local-save choice. External HomeBox attachment references are
-not backed-up bytes. No upstream fetch, background mirroring, outbox, automatic
-replay, new account, permission screen or access-window mechanism is added.
+not backed-up bytes. This amendment adds no upstream fetch, background
+mirroring, outbox, automatic replay, new account, permission screen or
+access-window mechanism.
 The earlier disconnected guarantee limitations continue for an unsaved home;
 a complete local save requires every listed resource verified by digest, type
 and size. A fully downloaded partial pack still has partial coverage. Explicit model v2
@@ -96,8 +99,12 @@ the exporter alone does not establish full offline viewing.
 | Principal revoked or session expired | Login/denial; private cache/media not available to that principal | Direct URL and stale cache denial tests |
 | NAS or LAN unavailable; phone disconnected | No cold-start Atlas or private-document guarantee in version one | State the limitation in family acceptance; an already-open page is not evidence of offline support |
 
-The promise is server-side read-only outage browsing. No disconnected editing,
-mutation queue, multi-source synchronization or media mirroring is added. Native
+The promise is server-side read-only outage browsing. The offline outbox
+(`frontend/src/outbox/`) is the only disconnected edit path: it keeps Atlas
+place name, classification and create edits on the device and sends them when
+the server is reachable (automatically or when the person asks). It posts the
+stored request unchanged; a refusal such as a changed record waits for the
+person. No multi-source synchronization or media mirroring is added. Native
 HomeBox edits require its service, a verified route and the user's actual native
 rights. Do not offer a fake local edit to a cached inventory field.
 
@@ -106,7 +113,8 @@ explicit opt-in staging of browser-returned originals and evidence form values.
 These are local unsent drafts, not cached server media or saved Atlas records.
 Submission requires a separate user-confirmed foreground action with current
 session, home and fresh place information. Browser-managed storage is not a
-durable backup; no worker, automatic replay or disconnected record edit is added.
+durable backup; this amendment adds no worker, automatic replay or
+disconnected record edit.
 
 Proposed refresh is every five minutes while the server is running, with one
 non-overlapping generation per source partition and backoff after errors.

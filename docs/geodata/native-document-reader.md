@@ -6,9 +6,10 @@ scene-evidence lookup contract. The actual routes and byte frame are specified
 in `native-document-persistence-v2.md`; a full-app host must explicitly select
 the compatible dataset before those routes exist beside the legacy app.
 
-This document defines the consumer boundary for the separately owned frontend
-implementation. It does not claim that a Document UI or PNG preview endpoint is
-already installed. Opus remains the frontend implementation owner.
+This document defines the consumer boundary. The frontend implementation is
+`frontend/integration/native-source-document-reader.ts` with the
+`SourceDocuments` view in `frontend/src/lantern/source-documents/`. The PNG
+`/preview` route is mounted only beside a selected full geodata identity.
 
 ## Read ports
 

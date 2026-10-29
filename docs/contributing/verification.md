@@ -1004,15 +1004,9 @@ these cases are outside ordinary
 CI and do not qualify native grant revocation, original verification or deployment.
 See [the issue-specific scope](../../docs/geometry/drawing-evidence-lookup-150.md).
 
-The generated-only pdf-navigation case exercises the in-app PDF.js canvas with
-an in-memory 18-page A0 PDF whose pages have distinct synthetic labels, page
-colors and a four-color JPEG2000 image. It checks local decoder, CMap and font
-resources, viewport fit, nonblank canvas pixels and three stable page captures for
-page 12 through 18, then verifies a pixel-changing zoom, page/zoom reversal,
-and close/reopen at 390×844. It uses an owned loopback browser fixture and is
-outside ordinary CI. Inspect the complete runner, generated PDF builder, and
-NativeSceneDrawing before running. The PDF exists only in memory and the
-fixture's private output contains the bounded browser report, not PDF bytes.
+The generated-only pdf-navigation case and its runner
+`frontend/lantern-tests/native-room-drawing-source.mjs` were removed in #414
+and have no replacement command here.
 PDF.js, its worker, OpenJPEG/JBIG2 WASM and JavaScript decoders, CMaps and standard
 fonts are bundled locally in the lazy drawing reader; no PDF
 bytes or URLs are sent to a viewer service. The PDF.js worker is emitted as a
@@ -1020,8 +1014,6 @@ bytes or URLs are sent to a viewer service. The PDF.js worker is emitted as a
 check also verifies every output file is an allowed type and at most 4,000,000
 bytes. PDF.js's Apache 2.0 license and notice remain in the public source at
 `frontend/licenses/` and are not copied into the compiled server asset tree.
-
-HOUSEATLAS_CHROMIUM=/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome HOUSEATLAS_FIXTURE_EVIDENCE=/absolute/private/pdf-navigation-result node frontend/lantern-tests/native-room-drawing-source.mjs pdf-navigation
 
 A separately named build/resource check compiles the actual drawing fixture with
 the PDF resource plugin and GETs the worker and decoder files from its owned

@@ -41,7 +41,8 @@ storage; they do not authenticate a replaced whole packet. Power-loss, target
 filesystem and retention are unqualified; predecessor recovery results are not
 transferred to this successor.
 
-README.md gives the sole ordinary verification lane and coverage limits.
+The [verification guide](../contributing/verification.md) gives the ordinary
+verification commands and coverage limits.
 Declaration checks are syntax-only; retained stopped controls are not executed
 or certified. The new source manifest describes this standalone snapshot and
 does not refresh a historical freeze or expose private intake records.

@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "c5d2cf76c8707d5deabc7266922c7bc983c13c7aa5ecaf2fda15a16d2bf8496d",
+  "sourceDigestSha256": "15ddc41d65351585f7155d63f188e5e65e2d9e2e926bdacb751e5ed45b3c272b",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6139,15 +6139,15 @@
     {
       "path": "docs/ci-performance.md",
       "mode": "100644",
-      "bytes": 11591,
-      "sha256": "39827b7b224bf69da418b49e64f24090e19c192835adddb31ab21c11a4d4ae42",
+      "bytes": 11585,
+      "sha256": "eb973c8efdd2a8908bddb697714137344756f191f5e6531658543196c00e5ae7",
       "owner": "core-integration"
     },
     {
       "path": "docs/contracts/adoption-and-open-decisions.md",
       "mode": "100644",
-      "bytes": 2279,
-      "sha256": "71891361021ea135a81a062d491c9e5599248a668fb43bd60462d47c95524315",
+      "bytes": 2410,
+      "sha256": "6f4f7dcbab495d775e1d40eae72322cc768a1445db615956772b42b684dec749",
       "owner": "contracts"
     },
     {
@@ -6209,8 +6209,8 @@
     {
       "path": "docs/contracts/ownership-and-identity.md",
       "mode": "100644",
-      "bytes": 14428,
-      "sha256": "5b80cdff4b0904ff3c6c0f770e759d8d267b75e3afd13a1b23a0738394be825f",
+      "bytes": 14533,
+      "sha256": "fdfffadad6bebfc4c0fc8a53da542b89da25395a141687df94e55ed4bcf13308",
       "owner": "contracts"
     },
     {
@@ -6244,8 +6244,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 173379,
-      "sha256": "518091ffc92376fe95325475031132f0bd09530dca4568e933b8210becf2cecb",
+      "bytes": 172621,
+      "sha256": "5acd4b33ade93c8d297e4179a8690769ce1c46a19621634f9d6f46e67e17d8f2",
       "owner": "core-integration"
     },
     {
@@ -6272,8 +6272,8 @@
     {
       "path": "docs/coordination/worker-handoff.md",
       "mode": "100644",
-      "bytes": 1420,
-      "sha256": "9b20e13d5052166ff6ece65d86bbae8bbf23b54ed47c9aaf4394e83f89c57d21",
+      "bytes": 1270,
+      "sha256": "897fb00038336905b698a8639defce8a9459f8586210963a735aaf59d6b5016a",
       "owner": "core-integration"
     },
     {
@@ -6286,8 +6286,8 @@
     {
       "path": "docs/core-integration/README.md",
       "mode": "100644",
-      "bytes": 2969,
-      "sha256": "5de8d92fb49f846fca4319ec425641b5597b1ed45a078a89c082c882fd9cec8a",
+      "bytes": 3016,
+      "sha256": "20e864c6c21d64f39f2c8b2fd22d5588811b01a6b8c3b4ce2e8e1ce88cbb93d2",
       "owner": "core-integration"
     },
     {
@@ -6370,8 +6370,8 @@
     {
       "path": "docs/geodata/native-document-reader.md",
       "mode": "100644",
-      "bytes": 4427,
-      "sha256": "1ec4d13c543d7da3ed57d666fad479554aad813618394e673ae513e38ba3eaa7",
+      "bytes": 4493,
+      "sha256": "05f0d7a6b116a0cd8f74d4e7fa9dd78b288b7e31d597808cccea037d80f7808e",
       "owner": "core-integration"
     },
     {
@@ -6454,22 +6454,22 @@
     {
       "path": "docs/geometry/native-document-read.md",
       "mode": "100644",
-      "bytes": 4939,
-      "sha256": "8226e8abea2a1affa6a42e515be06128b70efd2ec693ccfd0dffd2b67ef137af",
+      "bytes": 5069,
+      "sha256": "ce5ec6b14c132153f7928f80c8869d73536c246503bd300bbc6babe861ecf0dd",
       "owner": "web"
     },
     {
       "path": "docs/geometry/native-evidence-document-ui.md",
       "mode": "100644",
-      "bytes": 1624,
-      "sha256": "34667ea09baec57c7ef6eaa7650cf090ff722cf50ebf3104c92ab18ee1184897",
+      "bytes": 1659,
+      "sha256": "a001e24c2cecefa4e66dd20897ddc9af7c85e7d9d9cfff8ee70e495433e0a24d",
       "owner": "web"
     },
     {
       "path": "docs/geometry/native-geometry-association.md",
       "mode": "100644",
-      "bytes": 4537,
-      "sha256": "b63ddab9bf5139f76b9d33e21e841de698148ecffff0458511d33d42884cb8a6",
+      "bytes": 4431,
+      "sha256": "e2d1d24de782c44f860fe08452a5ce6ec819a4c9d901a8f1bdc5ee7113c56e09",
       "owner": "web"
     },
     {
@@ -6566,8 +6566,8 @@
     {
       "path": "docs/models/unified-atlas-scene-v1.md",
       "mode": "100644",
-      "bytes": 31614,
-      "sha256": "632a1ba699f6c6c6774490ee746f204841c8c31f9f18c099093c79e78dedbda7",
+      "bytes": 31720,
+      "sha256": "7e8a677c6ef1643af56aa3a2f17c7d92328a9a670c51242b41403ffa0577409a",
       "owner": "core-integration"
     },
     {
@@ -6636,8 +6636,8 @@
     {
       "path": "docs/operations/acceptance-300.md",
       "mode": "100644",
-      "bytes": 11478,
-      "sha256": "28a268a5c741566bccac74a278e1041e17fdf781728728bf90df8251dd72d678",
+      "bytes": 11453,
+      "sha256": "0000beaac90a43a71b1dc759674d46d64f99ba06819ed5249a533dcf8c5d2f4e",
       "owner": "operations-policy"
     },
     {
@@ -6685,8 +6685,8 @@
     {
       "path": "docs/operations/media-and-offline.md",
       "mode": "100644",
-      "bytes": 9672,
-      "sha256": "95d844d017cab6739d4395198e3620d0d67d4118ffa7b49bf0c88a4b7d5c3ef5",
+      "bytes": 10093,
+      "sha256": "6f15adcd5cc65729acc465dca93a043ce1d3119f91446ac5bbbc8a6b61f237ee",
       "owner": "operations-policy"
     },
     {
@@ -6790,8 +6790,8 @@
     {
       "path": "docs/publication/provenance.md",
       "mode": "100644",
-      "bytes": 3039,
-      "sha256": "c657c256a7102d86905aa4f4663e8c43207fabfd11f30a6802b43f9b95a356df",
+      "bytes": 3070,
+      "sha256": "d0fe5ae04677f8b4ee12bc8d223e56314f9263592f30e82b983a502ce78a67ed",
       "owner": "core-integration"
     },
     {
@@ -6818,8 +6818,8 @@
     {
       "path": "docs/rust-baseline/numeric-semantics.md",
       "mode": "100644",
-      "bytes": 6294,
-      "sha256": "a599b527a5aa628d5a86cbb765482d73270ab091e0105be955b816bdb35e98da",
+      "bytes": 5884,
+      "sha256": "40ba76a2f8c7e30a051003b442d26af5b32d6711217c554095caba947f5b207e",
       "owner": "contracts"
     },
     {
@@ -6832,8 +6832,8 @@
     {
       "path": "docs/rust-integration/README.md",
       "mode": "100644",
-      "bytes": 45686,
-      "sha256": "92042276d66d0e71f82598240342f8c440286de1e7861b741a256daf551d2e0b",
+      "bytes": 45998,
+      "sha256": "3bec35f38b79d405c7baf3f3058115c44926e57ebb4c67718778429acfad0994",
       "owner": "core-integration"
     },
     {
@@ -6846,8 +6846,8 @@
     {
       "path": "docs/rust-integration/agents.md",
       "mode": "100644",
-      "bytes": 17516,
-      "sha256": "e26247b0fe5b85ad31c66b0836b419d481e3ab35603ad00ef060eb62b57182e6",
+      "bytes": 17538,
+      "sha256": "acf4f46432b4652851901a9ad932d643ac7e6a0c4e8d9c888be561d209762f6b",
       "owner": "core-integration"
     },
     {
@@ -7000,15 +7000,15 @@
     {
       "path": "docs/rust-integration/stock-writes.md",
       "mode": "100644",
-      "bytes": 4862,
-      "sha256": "e79ca59a0bb6b31114d7601d57e20b4e935f8a90d32c78aea98edf661541a717",
+      "bytes": 4929,
+      "sha256": "6d82275532be20642bcc80f9826560a56b6c0fa2a4260cfefa55cc3f556206ef",
       "owner": "core-integration"
     },
     {
       "path": "docs/rust-integration/upload-preparation.md",
       "mode": "100644",
-      "bytes": 9408,
-      "sha256": "3c87f966a9d11a11204a83168cc5c343aa066cb678403f2240d6af762b53938f",
+      "bytes": 9417,
+      "sha256": "ed9a118f4ea7cb75e9c9d0099d7f0f39d146f492f50fdd6f66ca24b32ba22902",
       "owner": "core-integration"
     },
     {

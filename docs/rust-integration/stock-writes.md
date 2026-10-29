@@ -54,7 +54,8 @@ runtime evidence; compilation and catalog admission do not qualify all 31 forms.
 It also issues PNG/text stock download handles through native WebMCP and HTTP,
 checks visible canonical issued metadata before native return, and redeems
 original bytes with authenticated GET/HEAD. These six additional requests do
-not establish the unmounted download link UI or MCP handle lifecycle. It makes
+not exercise the download link UI that `frontend/integration/main.tsx` mounts
+through the gateway boundary, or the MCP handle lifecycle. It makes
 no stock history, provider, replay or rejected call.
 
 The native `healthy-agent-loopback.mjs` runner also exercises the newly admitted
