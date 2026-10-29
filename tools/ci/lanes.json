@@ -98,7 +98,7 @@
       "toolchain": ["python3"],
       "files": ["tools/ci/select_pr_checks.py", "tools/ci/test_select_pr_checks.py", "tools/ci/check_lanes.py", "tools/ci/test_check_lanes.py"],
       "scope": "Stdlib selector cases over disposable synthetic Git histories and `check_lanes.py` cases over temporary synthetic repositories.",
-      "cases": {"counter": "python-unittest-methods", "dir": "tools/ci", "pattern": "test_*.py", "expected": 22},
+      "cases": {"counter": "python-unittest-methods", "dir": "tools/ci", "pattern": "test_*.py", "expected": 23},
       "claims": [["docs/contributing/verification.md", "runs `python3 -m unittest discover -s tools/ci -p 'test_*.py' -v`"]]
     },
     {
