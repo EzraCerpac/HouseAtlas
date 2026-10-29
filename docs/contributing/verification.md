@@ -76,8 +76,8 @@ and starts no subprocess or network connection. It reads the small workflow YAML
 subset these files use and refuses tabs, anchors, aliases, quoted run commands,
 unnamed run steps, workflow, job and run-step keys it does not read (such as
 `defaults` or `container`) and other forms outside it. It fails when a run step
-has no manifest row or a row has no step; when a command, condition, step env or
-option (`shell`, `working-directory`, `continue-on-error`, `timeout-minutes`),
+has no manifest row or a row has no step; when a command, condition, step `id`
+(which later conditions read as `steps.<id>.outputs`), step env or option (`shell`, `working-directory`, `continue-on-error`, `timeout-minutes`),
 trigger, workflow or job env, job selection, `needs` or listed file differs; when
 a recorded case count differs (unittest methods,
 top-level `test(` calls, `run-healthy.mjs` list entries, bridge case choices or
@@ -102,7 +102,7 @@ hosted step logs remain the execution record.
 | Workflow / job | Step | Command | Runs when | Cases | Scope |
 | --- | --- | --- | --- | --- | --- |
 | ordinary-core / ordinary-core | Synthetic PR selector regressions (stdlib and disposable Git histories) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/ci -p 'test_*.py' -v` | every run | 22 unittest methods | Stdlib selector cases over disposable synthetic Git histories and `check_lanes.py` cases over temporary synthetic repositories. |
-| ordinary-core / ordinary-core | Check the CI command manifest against these workflows (stdlib, repository files only) | `python3 -B -I tools/ci/check_lanes.py --check` | every run |  | This manifest against both ordinary workflows and their two composite actions: triggers, workflow and job env, job selection and needs, run lines, step conditions, env and options, files, case counts, prose claims, toolchain pins and this table. Reads repository files only; runs no listed command. |
+| ordinary-core / ordinary-core | Check the CI command manifest against these workflows (stdlib, repository files only) | `python3 -B -I tools/ci/check_lanes.py --check` | every run |  | This manifest against both ordinary workflows and their two composite actions: triggers, workflow and job env, job selection and needs, run lines, step conditions, ids, env and options, files, case counts, prose claims, toolchain pins and this table. Reads repository files only; runs no listed command. |
 | ordinary-core / ordinary-core | Verify publication file set and template | `npm run verify:publication` | every run |  | Exact regular-file set, modes, digests and logical ownership from the source manifest, and the unconfigured deployment template. |
 | ordinary-core / ordinary-core | Build six ordinary modules | `npm run build:ordinary` | every run |  | Syntax of the JavaScript reference server modules, six named module builds and publication integrity; no listener. |
 | ordinary-core / ordinary-core | Check additive HTTP history schema and valid examples | `node --check packages/contracts/history/check-history.mjs`<br>`npm run check:http:ordinary` | every run |  | Checker syntax, then static compatibility, local schema and fixed valid history-example checks. |
