@@ -155,6 +155,21 @@ impl EnrollmentOwner {
     ) -> bool {
         Arc::ptr_eq(&self.access, access) && self.journal.same_owner(journal)
     }
+
+    pub(crate) fn with_store_fence<T>(
+        &self,
+        check: impl FnOnce() -> Result<T, AiError>,
+    ) -> Result<T, AiError> {
+        // Match stop_original's enrollment -> journal lock order. Both actual
+        // owner connections are quiescent during the physical custody check.
+        let db = self.db.lock().map_err(|_| AiError::DomainUnavailable)?;
+        if !db.is_autocommit() {
+            return Err(AiError::DomainUnavailable);
+        }
+        let result = self.journal.with_connection_fence(check);
+        drop(db);
+        result
+    }
     pub fn new(
         connection: Connection,
         access: Arc<Mutex<access::AccessBoundary>>,
@@ -189,7 +204,27 @@ impl EnrollmentOwner {
         access: Arc<Mutex<access::AccessBoundary>>,
         journal: StatusJournal,
     ) -> Result<Self, AiError> {
-        super::status::validate_existing_read_only_schema(
+        Self::open_existing(connection, access, journal, true)
+    }
+
+    /// Full-host opt-in over existing writable state. Retain the original
+    /// Access/journal owners; validate only, without installing approval or
+    /// reconstructing OriginalEnrollment authority from stored rows.
+    pub fn open_existing_writable(
+        connection: Connection,
+        access: Arc<Mutex<access::AccessBoundary>>,
+        journal: StatusJournal,
+    ) -> Result<Self, AiError> {
+        Self::open_existing(connection, access, journal, false)
+    }
+
+    fn open_existing(
+        connection: Connection,
+        access: Arc<Mutex<access::AccessBoundary>>,
+        journal: StatusJournal,
+        read_only: bool,
+    ) -> Result<Self, AiError> {
+        super::status::validate_existing_schema(
             &connection,
             &[
                 (
@@ -213,8 +248,13 @@ impl EnrollmentOwner {
                     ),
                 ),
             ],
+            read_only,
         )?;
-        journal.require_read_only()?;
+        if read_only {
+            journal.require_read_only()?;
+        } else {
+            journal.require_writable()?;
+        }
         {
             let mut statement = connection
                 .prepare(
