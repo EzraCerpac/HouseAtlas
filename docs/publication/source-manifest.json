@@ -783,8 +783,8 @@
     {
       "path": "backend/src/ai/host/README.md",
       "mode": "100644",
-      "bytes": 24594,
-      "sha256": "cb263e8d31e792307eb9498788c7cac13c5869ef8c13b38b5e83b30877014bcf",
+      "bytes": 24611,
+      "sha256": "4b962ccd17a23b5c92bb4240aaf3dd6cae5c49a9382adb9a3eb2adc7458304a5",
       "owner": "ai"
     },
     {
@@ -1070,8 +1070,50 @@
     {
       "path": "backend/src/ai/oauth.rs",
       "mode": "100644",
-      "bytes": 79677,
-      "sha256": "deb97b75630dd96da90cf324def06248235137afd01fe432a50dd17bbda5b259",
+      "bytes": 13895,
+      "sha256": "54f3d74216f0036efe6439d556a334e573ed88aaa2295b91dcde68ad9ed942fd",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/oauth/authorize.rs",
+      "mode": "100644",
+      "bytes": 4858,
+      "sha256": "c6f4c3001f9239fba0e207f157d61ab8e3c68d89d46f4a6b98bcdc7dc6be3638",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/oauth/callback.rs",
+      "mode": "100644",
+      "bytes": 8728,
+      "sha256": "cfb8e484349996df77eb45fc4e39ca9c903acc83f2c157c2cb3d01e3f05a9a18",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/oauth/checks.rs",
+      "mode": "100644",
+      "bytes": 7573,
+      "sha256": "e5a7af659904e7670fd8ce4fe5f2d76eb6bf20694e41cdcd6dd24aa4ecc28eff",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/oauth/disconnect.rs",
+      "mode": "100644",
+      "bytes": 4899,
+      "sha256": "a4c273d4fce3e30fd2c55a1952ca48d81172bdaa0d520c5406e69e04ac559163",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/oauth/healthy_examples.rs",
+      "mode": "100644",
+      "bytes": 28945,
+      "sha256": "8febc15123c59ebfccbf5322ff5d7d70924215860c2c066cc66b596035c37731",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/oauth/refresh.rs",
+      "mode": "100644",
+      "bytes": 8415,
+      "sha256": "fce4b8de93812bcfc04845955b6b22bb33c96fb772f6c81f366503631a1f961a",
       "owner": "ai"
     },
     {
