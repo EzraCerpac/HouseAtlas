@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "cb952b84754501ed2a479b1992ef14504b4883148bc9e5cc2ba86876b79998f6",
+  "sourceDigestSha256": "f3448902089cf660f75739c5b79e23491a94b90fe05b034539120db1f0000642",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -63,8 +63,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 22195,
-      "sha256": "bb42b1165ef11abed32092bf39a11786303d35db3f4f87f09347dc3637120ca0",
+      "bytes": 22616,
+      "sha256": "8ee290b15602eeddf527a638d1df2cbd83751b0c8f04f63bef2aa993cb774b60",
       "owner": "core-integration"
     },
     {
