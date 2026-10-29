@@ -117,16 +117,29 @@ export function unsupportedBrowser(policy, result) {
   return policy.id.startsWith('browser.') && result.status === 'skipped' && !result.failed &&
     result.base === null && result.head === null && result.reason === 'base-unsupported; head-unsupported';
 }
+const hasBudget = policy => ['maximum', 'minimum', 'maxRegressionPercent'].some(key => policy[key] !== undefined);
+const informationalShift = (policy, result) => policy.kind === 'timing' && !hasBudget(policy) &&
+  !result.failed && ['improved', 'degraded'].includes(result.status);
 function resultLabel(policy, result) {
   if (result.status === 'skipped') return `⚪ ${cell(result.reason.replaceAll('-', ' '))}${result.failed ? '; ❌ failed' : ''}`;
   if (result.failed) return '❌ Budget failed';
+  if (informationalShift(policy, result)) return '➖ Shift (informational)';
   const status = ({ improved: '✅ Improved', degraded: '❌ Regressed', unchanged: '➖ Unchanged',
     'within-noise': '➖ Within noise', 'insufficient-samples': '⚪ Too few samples' })[result.status];
-  return policy.kind === 'deterministic' ? `${status}; ${['maximum', 'minimum', 'maxRegressionPercent'].some(key => policy[key] !== undefined) ? 'budget passed' : 'no budget'}` : status;
+  return policy.kind === 'deterministic' ? `${status}; ${hasBudget(policy) ? 'budget passed' : 'no budget'}` : status;
 }
-export function renderSummary(comparisons) {
-  const count = statuses => comparisons.filter(row => statuses.includes(row.status)).length;
+export function renderSummary(comparisons, policies) {
+  // Policy comes from the trusted caller, never metric names or uploaded rows.
+  const byId = new Map(policies.map(policy => [policy.id, policy]));
+  const informational = comparisons.filter(row => {
+    const policy = byId.get(row.id);
+    if (!policy) throw new Error('Missing summary policy');
+    return informationalShift(policy, row);
+  });
+  const shifts = new Set(informational);
+  const count = statuses => comparisons.filter(row => !shifts.has(row) && statuses.includes(row.status)).length;
   const groups = [[count(['improved']), '✅', 'improved'], [count(['degraded']), '❌', 'regressed'],
+    [informational.length, '➖', 'timing shifts (informational)'],
     [count(['unchanged', 'within-noise']), '➖', 'unchanged / within noise'],
     [count(['skipped', 'insufficient-samples']), '⚪', 'unavailable']];
   return groups.filter(([n]) => n).map(([n, icon, label]) => `${icon} ${n} ${label}`).join(' · ') || '⚪ No comparable measurements';
