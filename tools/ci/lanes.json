@@ -32,8 +32,8 @@
       "pins": []
     },
     "chromium": {
-      "version": null,
-      "pins": [[".github/workflows/rust-react-ordinary.yml", "HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome"]]
+      "version": "156.0.8078.47",
+      "pins": [[".github/actions/ordinary-setup/action.yml", "CHROME_VERSION: '156.0.8078.47'"]]
     }
   },
   "lanes": {
@@ -68,7 +68,7 @@
         "source": {"runsOn": "${{ matrix.os }}", "if": "${{ !cancelled() }}", "matrix": {"os": "[ubuntu-24.04, macos-15]"}, "needs": "changes", "env": {}, "lane": "backend"},
         "unit-tests": {"runsOn": "ubuntu-24.04", "if": "${{ !cancelled() }}", "matrix": null, "needs": "changes", "env": {}, "lane": "backend"},
         "frontend": {"runsOn": "ubuntu-24.04", "if": "${{ !cancelled() }}", "matrix": null, "needs": "changes", "env": {}, "lane": "frontend"},
-        "loopback": {"runsOn": "ubuntu-24.04", "if": "${{ !cancelled() }}", "matrix": {"shard": "[1, 2, 3]"}, "needs": "changes", "env": {"HOUSEATLAS_CHROMIUM": "/usr/bin/google-chrome"}, "lane": "loopback"},
+        "loopback": {"runsOn": "ubuntu-24.04", "if": "${{ !cancelled() }}", "matrix": {"shard": "[1, 2, 3]"}, "needs": "changes", "env": {}, "lane": "loopback"},
         "ci-ok": {"runsOn": "ubuntu-24.04", "if": "${{ always() }}", "matrix": null, "needs": "[changes, source, unit-tests, frontend, loopback]", "env": {}, "lane": null}
       }
     }
@@ -577,10 +577,9 @@
       "kind": "test",
       "if": "steps.lane.outputs.run == 'true'",
       "run": ["node frontend/lantern-tests/run-healthy.mjs"],
-      "env": {"HOUSEATLAS_CHROMIUM": "/usr/bin/google-chrome"},
       "toolchain": ["node", "chromium"],
       "files": ["frontend/lantern-tests/run-healthy.mjs"],
-      "scope": "Every entry of the explicit run-healthy list, one process each; browser entries use the runner's Chrome against generated build output.",
+      "scope": "Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output.",
       "cases": {"counter": "run-healthy-list", "file": "frontend/lantern-tests/run-healthy.mjs", "expected": {"SOURCE": 69, "BUILD": 1, "BROWSER": 5}},
       "claims": [
         ["frontend/lantern-tests/run-healthy.mjs", "['offline-launch', 'hung-network', 'live-launch']"],
@@ -649,7 +648,7 @@
       "run": ["node tools/rust-integration/healthy-loopback.mjs"],
       "toolchain": ["node", "chromium"],
       "files": ["tools/rust-integration/healthy-loopback.mjs"],
-      "scope": "Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome."
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
     },
     {
       "id": "rr.loopback.core",
@@ -661,7 +660,7 @@
       "run": ["node tools/rust-integration/healthy-core-loopback.mjs"],
       "toolchain": ["node", "chromium"],
       "files": ["tools/rust-integration/healthy-core-loopback.mjs"],
-      "scope": "Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome."
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
     },
     {
       "id": "rr.loopback.stock-write",
@@ -673,7 +672,7 @@
       "run": ["node tools/rust-integration/healthy-stock-write-loopback.mjs"],
       "toolchain": ["node", "chromium"],
       "files": ["tools/rust-integration/healthy-stock-write-loopback.mjs"],
-      "scope": "Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome."
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
     },
     {
       "id": "rr.loopback.stock-history",
@@ -685,7 +684,7 @@
       "run": ["node tools/rust-integration/healthy-stock-history-loopback.mjs"],
       "toolchain": ["node", "chromium"],
       "files": ["tools/rust-integration/healthy-stock-history-loopback.mjs"],
-      "scope": "Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome."
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
     },
     {
       "id": "rr.loopback.standalone-asset",
@@ -709,7 +708,7 @@
       "run": ["node tools/rust-integration/healthy-media-loopback.mjs"],
       "toolchain": ["node", "chromium"],
       "files": ["tools/rust-integration/healthy-media-loopback.mjs"],
-      "scope": "Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome."
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
     },
     {
       "id": "rr.loopback.stock",
@@ -721,7 +720,7 @@
       "run": ["node tools/rust-integration/healthy-stock-loopback.mjs"],
       "toolchain": ["node", "chromium"],
       "files": ["tools/rust-integration/healthy-stock-loopback.mjs"],
-      "scope": "Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome."
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
     },
     {
       "id": "rr.loopback.human-host",
@@ -733,7 +732,7 @@
       "run": ["node tools/rust-integration/healthy-human-host-loopback.mjs"],
       "toolchain": ["node", "chromium"],
       "files": ["tools/rust-integration/healthy-human-host-loopback.mjs"],
-      "scope": "Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome."
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
     },
     {
       "id": "rr.loopback.upload",
@@ -745,7 +744,7 @@
       "run": ["node tools/rust-integration/healthy-upload-loopback.mjs"],
       "toolchain": ["node", "chromium"],
       "files": ["tools/rust-integration/healthy-upload-loopback.mjs"],
-      "scope": "Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome."
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
     },
     {
       "id": "rr.loopback.mcp-lifecycle",
@@ -769,7 +768,7 @@
       "run": ["node tools/rust-integration/healthy-agent-loopback.mjs"],
       "toolchain": ["node", "chromium"],
       "files": ["tools/rust-integration/healthy-agent-loopback.mjs"],
-      "scope": "Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome."
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
     },
     {
       "id": "rr.loopback.agent-host",
@@ -781,7 +780,7 @@
       "run": ["node tools/rust-integration/healthy-agent-host-loopback.mjs"],
       "toolchain": ["node", "chromium"],
       "files": ["tools/rust-integration/healthy-agent-host-loopback.mjs"],
-      "scope": "Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome."
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
     },
     {
       "id": "rr.loopback.homebox-cache-unicode",
@@ -793,7 +792,7 @@
       "run": ["node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs"],
       "toolchain": ["node", "chromium"],
       "files": ["tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs"],
-      "scope": "Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome."
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
     },
     {
       "id": "rr.loopback.atlas-lists",
@@ -805,7 +804,7 @@
       "run": ["node tools/rust-integration/healthy-atlas-lists-loopback.mjs"],
       "toolchain": ["node", "chromium"],
       "files": ["tools/rust-integration/healthy-atlas-lists-loopback.mjs"],
-      "scope": "Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome."
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
     },
     {
       "id": "rr.loopback.operation-events",
@@ -817,7 +816,7 @@
       "run": ["node tools/rust-integration/healthy-operation-events-loopback.mjs"],
       "toolchain": ["node", "chromium"],
       "files": ["tools/rust-integration/healthy-operation-events-loopback.mjs"],
-      "scope": "Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome."
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
     },
     {
       "id": "rr.loopback.timing-summary",
@@ -858,6 +857,21 @@
       "toolchain": ["node", "npm", "rust"],
       "files": [],
       "scope": "Asserts the checked-out `SOURCE_SHA`, Node 26.10.0 and npm 11.19.1, points Cargo and npm at runner temporary folders, and installs and asserts Rust 1.99.0 when the job asks for Rust."
+    },
+    {
+      "id": "action.setup.chrome",
+      "workflow": "ordinary-setup/action.yml",
+      "job": "runs",
+      "step": "Install exact Chrome for Testing",
+      "kind": "setup",
+      "if": "inputs.chrome == 'true'",
+      "run": ["dir=\"$RUNNER_TEMP/houseatlas-chrome\"", "mkdir -p \"$dir\"", "curl --fail --silent --show-error --location --retry 3 --output \"$dir/chrome-linux64.zip\" \"https://storage.googleapis.com/chrome-for-testing-public/$CHROME_VERSION/linux64/chrome-linux64.zip\"", "printf '%s  %s\\n' \"$CHROME_SHA256\" \"$dir/chrome-linux64.zip\" | sha256sum --check --strict", "unzip -q \"$dir/chrome-linux64.zip\" -d \"$dir\"", "rm \"$dir/chrome-linux64.zip\"", "test \"$(\"$dir/chrome-linux64/chrome\" --version | sed 's/ *$//')\" = \"Google Chrome for Testing $CHROME_VERSION\"", "printf 'HOUSEATLAS_CHROMIUM=%s\\n' \"$dir/chrome-linux64/chrome\" >> \"$GITHUB_ENV\""],
+      "env": {"CHROME_VERSION": "156.0.8078.47", "CHROME_SHA256": "e6c94490f0b6b337225aeb2d2a5034858516b7017356980ba94f5176d8774a50"},
+      "options": {"shell": "bash"},
+      "toolchain": ["chromium"],
+      "files": [],
+      "scope": "Downloads Chrome for Testing 156.0.8078.47, checks its sha256 and reported version, and exports HOUSEATLAS_CHROMIUM for the frontend and loopback jobs.",
+      "claims": [["docs/contributing/verification.md", "downloads Chrome for Testing 156.0.8078.47 for linux64"]]
     },
     {
       "id": "action.setup.install",
