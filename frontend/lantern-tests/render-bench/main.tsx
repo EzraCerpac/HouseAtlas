@@ -13,7 +13,8 @@ import { GlbFormatError } from '../../src/lantern/canonical-ifc/glb-preflight';
 import { loadStandardGlb } from '../../src/lantern/canonical-ifc/standard-glb';
 import { loadStandardGlbInWorker } from '../../src/lantern/canonical-ifc/standard-glb-thread';
 import { sha256OffThread } from '../../integration/sha256-thread';
-import { BufferGeometry } from 'three/webgpu';
+import { BufferGeometry, RenderPipeline, WebGPURenderer } from 'three/webgpu';
+import { OcclusionHistory } from '../../src/lantern/canonical-ifc/occlusion-history';
 import { daylightAt } from '../../src/lantern/unified-atlas/daylight';
 import { box as sampleBox, buildGlb } from '../canonical-ifc-visual/standard-glb-sample';
 
@@ -115,35 +116,148 @@ function house(pieces: number): MeshInput[] {
   return meshes;
 }
 
-/** Swaps in a second prepared set, as a Full model replaces Light, and records
- * the fewest canvases on screen at any moment until the new set is shown alone,
- * how many WebGL draws the new canvas made before the old one went, how many
- * frames the page drew meanwhile, its longest task, and any bounding sphere computed. */
+/** Generated-fixture witnesses, scoped by the actual renderer/canvas. The
+ * backend hook counts creation (cache misses), not getForRender lookups.
+ * Private API shapes are locked to Three r186; unsupported instrumentation fails. */
+interface SwapRenderer {
+  domElement: HTMLCanvasElement;
+  backend: { createRenderPipeline: (...args: unknown[]) => unknown; draw: (...args: unknown[]) => unknown };
+}
+interface SwapWitness {
+  preparation: string; error: string | null; compiling: number; prepared: Set<object>;
+  runtimeCreated: number; postShownCreated: number; preparedQuadUses: number;
+  outputFrames: number; historyFrames: number; historyCount: number;
+  fullShadeFrames: number; renderedAt: number; shown: boolean;
+}
+const witnesses = new WeakMap<HTMLCanvasElement, SwapWitness>(), restoreWitnesses: (() => void)[] = [];
+function replaceWitness(owner: object, key: string, value: unknown) {
+  const prior = Object.getOwnPropertyDescriptor(owner, key);
+  Object.defineProperty(owner, key, { configurable: true, writable: true, value });
+  restoreWitnesses.push(() => { if (prior) Object.defineProperty(owner, key, prior); else Reflect.deleteProperty(owner, key); });
+}
+function witness(renderer: SwapRenderer): SwapWitness {
+  const canvas = renderer.domElement;
+  let row = witnesses.get(canvas); if (row) return row;
+  row = { preparation: 'unobserved', error: null, compiling: 0, prepared: new Set(),
+    runtimeCreated: 0, postShownCreated: 0, preparedQuadUses: 0, outputFrames: 0,
+    historyFrames: 0, historyCount: 0, fullShadeFrames: 0, renderedAt: 0, shown: false };
+  witnesses.set(canvas, row); const state = row, backend = renderer.backend;
+  if (!backend || typeof backend.createRenderPipeline !== 'function' || typeof backend.draw !== 'function') {
+    state.error = 'Unsupported Three backend pipeline instrumentation'; return state;
+  }
+  const create = backend.createRenderPipeline, draw = backend.draw;
+  replaceWitness(backend, 'createRenderPipeline', function(this: typeof backend, ...args: unknown[]) {
+    const result = create.apply(this, args);
+    const pipeline = (args[0] as { pipeline?: object } | undefined)?.pipeline;
+    if (!pipeline || typeof pipeline !== 'object') state.error = 'Missing created backend pipeline identity';
+    else if (state.compiling > 0) state.prepared.add(pipeline);
+    else { state.runtimeCreated++; if (state.shown) state.postShownCreated++; }
+    return result;
+  });
+  replaceWitness(backend, 'draw', function(this: typeof backend, ...args: unknown[]) {
+    const result = draw.apply(this, args);
+    const object = args[0] as { pipeline?: object; object?: { isQuadMesh?: boolean } } | undefined;
+    if (object?.object?.isQuadMesh && object.pipeline && state.prepared.has(object.pipeline)) state.preparedQuadUses++;
+    return result;
+  });
+  return state;
+}
+const compileAsync = WebGPURenderer.prototype.compileAsync;
+replaceWitness(WebGPURenderer.prototype, 'compileAsync', async function(this: WebGPURenderer, ...args: Parameters<typeof compileAsync>) {
+  const state = witness(this as unknown as SwapRenderer); state.compiling++;
+  try { return await compileAsync.apply(this, args); } finally { state.compiling--; }
+});
+const pipelineRender = RenderPipeline.prototype.render;
+replaceWitness(RenderPipeline.prototype, 'render', function(this: RenderPipeline, ...args: Parameters<typeof pipelineRender>) {
+  const result = pipelineRender.apply(this, args);
+  witness(this.renderer as unknown as SwapRenderer).outputFrames++; return result;
+});
+const updateHistory = OcclusionHistory.prototype.updateBefore;
+replaceWitness(OcclusionHistory.prototype, 'updateBefore', function(this: OcclusionHistory, ...args: Parameters<typeof updateHistory>) {
+  const result = updateHistory.apply(this, args);
+  const state = witness(args[0].renderer as unknown as SwapRenderer);
+  if (this.count > 0) { state.historyFrames++; state.historyCount = this.count; }
+  return result;
+});
+const hookOwner = globalThis as unknown as {
+  __swapRender?: (canvas: HTMLCanvasElement, shading: number) => void;
+  __swapPreparation?: (canvas: HTMLCanvasElement, outcome: string) => void;
+};
+replaceWitness(hookOwner, '__swapRender', (canvas: HTMLCanvasElement, shading: number) => {
+  const state = witnesses.get(canvas); if (!state) return;
+  state.renderedAt = performance.now(); if (shading === 1) state.fullShadeFrames++;
+});
+replaceWitness(hookOwner, '__swapPreparation', (canvas: HTMLCanvasElement, outcome: string) => {
+  const state = witnesses.get(canvas); if (state) state.preparation = outcome;
+});
+window.addEventListener('pagehide', () => { for (const restore of restoreWitnesses.reverse()) restore(); }, { once: true });
+
+/** Observe build separately from the new canvas's actual shaded/fade endpoint.
+ * The existing case's 2 s quiet observation is retained, not a latency budget.
+ * Poll deadlines in the driver bound completion; unsupported timing is explicit. */
 function watchSwap(root: HTMLElement, into: object = {}) {
   const visible = () => [...root.querySelectorAll('canvas')].filter(canvas => !canvas.hidden && canvas.style.visibility !== 'hidden').length;
   const old = root.querySelector('canvas');
-  let next: HTMLCanvasElement | null = null;
-  const report = Object.assign(into, { fewestVisible: visible(), mostCanvases: root.querySelectorAll('canvas').length, newDrawsWhenShown: -1, done: false,
-    framesMeanwhile: 0, longestTaskMs: 0, sphereVertices: 0 });
+  let next: HTMLCanvasElement | null = null, shownAt: number | null = null;
+  const entries: PerformanceEntry[] = [];
+  const report = Object.assign(into, { fewestVisible: visible(), mostCanvases: root.querySelectorAll('canvas').length,
+    newDrawsWhenShown: -1, done: false, error: null as string | null, observerSupported: false,
+    framesMeanwhile: 0, longestTaskMs: 0, buildLongestTaskMs: 0, postShownLongestTaskMs: 0,
+    postShownObservationMs: 0, sphereVertices: 0, preparation: 'unobserved',
+    historyFrames: 0, historyCount: 0, outputFrames: 0, fullShadeFrames: 0,
+    preparedPipelines: 0, preparedQuadUses: 0, runtimeCreated: 0, postShownCreated: 0 });
   const sphereStart = spheres.vertices;
-  const tick = () => { if (report.done) return; report.framesMeanwhile++; raf(tick); }; raf(tick);
-  const tasks = new PerformanceObserver(list => { for (const entry of list.getEntries()) report.longestTaskMs = Math.max(report.longestTaskMs, Math.round(entry.duration)); });
-  try { tasks.observe({ type: 'longtask' }); } catch { /* no long task timing in this browser */ }
+  let tasks: PerformanceObserver | null = null;
   const observer = new MutationObserver(() => {
     const canvases = [...root.querySelectorAll('canvas')];
     next ??= canvases.find(canvas => canvas !== old) ?? null;
     report.fewestVisible = Math.min(report.fewestVisible, visible());
     report.mostCanvases = Math.max(report.mostCanvases, canvases.length);
-    if (report.mostCanvases > 1 && canvases.length === 1 && visible() === 1) {
-      // WebGL draws only; WebGPU submissions carry no canvas.
-      report.newDrawsWhenShown = next ? canvasDraws.get(next) ?? 0 : -1; report.done = true; observer.disconnect();
-      for (const entry of tasks.takeRecords()) report.longestTaskMs = Math.max(report.longestTaskMs, Math.round(entry.duration));
-      tasks.disconnect(); report.sphereVertices = spheres.vertices - sphereStart;
+    if (shownAt === null && report.mostCanvases > 1 && canvases.length === 1 && visible() === 1) {
+      shownAt = performance.now();
+      report.newDrawsWhenShown = next ? canvasDraws.get(next) ?? 0 : -1;
+      const state = next && witnesses.get(next); if (state) state.shown = true;
     }
   });
+  const finish = () => {
+    observer.disconnect();
+    if (tasks) { entries.push(...tasks.takeRecords()); tasks.disconnect(); }
+    for (const entry of entries) {
+      report.longestTaskMs = Math.max(report.longestTaskMs, entry.duration);
+      // A task crossing the shown boundary is conservatively included in both.
+      if (shownAt === null || entry.startTime < shownAt) report.buildLongestTaskMs = Math.max(report.buildLongestTaskMs, entry.duration);
+      if (shownAt !== null && entry.startTime + entry.duration > shownAt)
+        report.postShownLongestTaskMs = Math.max(report.postShownLongestTaskMs, entry.duration);
+    }
+    report.sphereVertices = spheres.vertices - sphereStart; report.done = true;
+  };
   observer.observe(root, { subtree: true, childList: true, attributes: true });
-  return report;
+  try {
+    if (!PerformanceObserver.supportedEntryTypes.includes('longtask')) throw new Error('Unsupported longtask observer');
+    tasks = new PerformanceObserver(list => entries.push(...list.getEntries()));
+    tasks.observe({ type: 'longtask' }); report.observerSupported = true;
+  } catch { report.error = 'Unsupported longtask observer'; finish(); return report; }
+  const tick = () => {
+    if (report.done) return;
+    if (shownAt === null) report.framesMeanwhile++;
+    const state = next && witnesses.get(next);
+    if (state) {
+      Object.assign(report, { preparation: state.preparation, historyFrames: state.historyFrames,
+        historyCount: state.historyCount, outputFrames: state.outputFrames, fullShadeFrames: state.fullShadeFrames,
+        preparedPipelines: state.prepared.size, preparedQuadUses: state.preparedQuadUses,
+        runtimeCreated: state.runtimeCreated, postShownCreated: state.postShownCreated });
+      if (state.error) { report.error = state.error; finish(); return; }
+      if (state.preparation === 'refused') { report.error = 'Effect preparation was cleanly refused'; finish(); return; }
+      if (shownAt !== null && state.preparation === 'prepared' && state.historyFrames > 0 && state.outputFrames > 0
+        && state.fullShadeFrames > 0 && performance.now() - state.renderedAt > 2000) {
+        report.postShownObservationMs = performance.now() - shownAt; finish(); return;
+      }
+    }
+    raf(tick);
+  };
+  raf(tick); return report;
 }
+
 
 /** The same generated GLB loaded on this thread and in the worker: identical
  * output, the bytes moved to the worker, and its refusals and cancellation
