@@ -389,6 +389,24 @@ These cases stay inside the existing `webgl2`/`webgpu` selections. They cover
 separately authored primitives, not intersecting or disconnected panes inside
 one primitive; the rendering limitation is stated in the scene contract.
 
+The existing generated-house swap checks keep their long-task observer alive
+after old-canvas removal through actual output/history execution, a completed
+render with shading exactly one, and the existing two-second quiet observation.
+Test-build-only, exact-shape guarded hooks report preparation success versus
+clean refusal and actual render inputs; production source files are unchanged.
+Fixture wrappers count actual backend pipeline creation and runtime quad reuse
+by the new renderer/canvas. They preserve original calls/results/errors and are
+restored on page exit. Unsupported observation/instrumentation is a failure,
+not a zero-duration success. Observer records are drained before disconnect.
+
+Build and post-shown task durations and runtime pipeline creations are reported
+separately. There is no adopted software-GPU latency or zero-creation budget:
+these numbers are characterization, not the deferred Mac WebGPU 100 ms
+acceptance. Actual shading/prepared-pipeline reuse is asserted, but complete
+cache coverage needs the observed creation counts reviewed before a stricter
+assertion. Existing 60/120-second completion deadlines limit hangs only.
+This extends the existing webgl2 selection; webgpu/bench stay opt-in.
+
 The same selections compare a closed synthetic omni bulb off/on over fixed
 receivers: nearby nonemissive metal retains its pool, paving 6 m away receives
 light, and receivers at 10 m and 12 m remain unchanged. This samples the actual
