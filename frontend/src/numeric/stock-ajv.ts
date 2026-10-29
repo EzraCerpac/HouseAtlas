@@ -1,7 +1,7 @@
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import type { AnySchemaObject, ValidateFunction } from 'ajv';
-import agent from '../../../contracts/stock-wire3/agent/agent.schema.json' with { type: 'json' };
+import agent from '../../../contracts/client-schemas/agent-ajv.schema.json' with { type: 'json' };
 import atlas from '../../../packages/contracts/schemas/atlas.schema.json' with { type: 'json' };
 
 /** The one Ajv for the pinned stock contracts (Atlas and agent), built on first

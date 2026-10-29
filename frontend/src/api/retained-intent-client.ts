@@ -1,5 +1,5 @@
-import agent from '../../../contracts/stock-wire3/agent/agent.schema.json' with { type: 'json' };
-import catalog from '../../../contracts/stock-wire3/agent/operation-catalog.json' with { type: 'json' };
+import agent from '../../../contracts/client-schemas/agent-ajv.schema.json' with { type: 'json' };
+import catalog from '../../../contracts/client-schemas/operation-catalog.json' with { type: 'json' };
 import { isExactDecimal } from '../numeric/decimal';
 import { JSON_LIMITS, parseLosslessJson, type LosslessJson } from '../numeric/lossless-json';
 import { createExactStockResultValidator } from '../numeric/schema-validator';

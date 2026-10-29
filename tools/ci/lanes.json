@@ -1,0 +1,903 @@
+{
+  "format": "houseatlas-ci-lanes/1",
+  "toolchains": {
+    "node": {
+      "version": "26.10.0",
+      "pins": [
+        [".node-version", "26.10.0"],
+        [".github/workflows/ordinary-core.yml", "node-version: '26.10.0'"],
+        [".github/workflows/ordinary-core.yml", "test \"$(node --version)\" = \"v26.10.0\""],
+        [".github/actions/ordinary-setup/action.yml", "node-version: '26.10.0'"],
+        [".github/actions/ordinary-setup/action.yml", "test \"$(node --version)\" = \"v26.10.0\""],
+        ["tools/rust-integration/check-source.mjs", "assert.equal(process.version, 'v26.10.0')"]
+      ]
+    },
+    "npm": {
+      "version": "11.19.1",
+      "pins": [
+        [".github/workflows/ordinary-core.yml", "test \"$(npm --version)\" = \"11.19.1\""],
+        [".github/actions/ordinary-setup/action.yml", "test \"$(npm --version)\" = \"11.19.1\""]
+      ]
+    },
+    "rust": {
+      "version": "1.99.0",
+      "pins": [
+        ["rust-toolchain.toml", "channel = \"1.99.0\""],
+        [".github/actions/ordinary-setup/action.yml", "rustup toolchain install 1.99.0"],
+        [".github/actions/ordinary-setup/action.yml", "test \"$(rustc --version | cut -d ' ' -f 2)\" = \"1.99.0\""]
+      ]
+    },
+    "python3": {
+      "version": null,
+      "pins": []
+    },
+    "chromium": {
+      "version": "156.0.8078.47",
+      "pins": [[".github/actions/ordinary-setup/action.yml", "CHROME_VERSION: '156.0.8078.47'"]]
+    }
+  },
+  "lanes": {
+    "backend": {
+      "runLane": "${{ needs.changes.result != 'success' || (needs.changes.outputs.backend != 'false') }}",
+      "when": "runs on pushes, after failed change selection, and on PRs except frontend-presentation-only or docs-only changes"
+    },
+    "frontend": {
+      "runLane": "${{ needs.changes.result != 'success' || (needs.changes.outputs.frontend != 'false') }}",
+      "when": "runs on pushes, after failed change selection, and on PRs except backend-only or docs-only changes"
+    },
+    "loopback": {
+      "runLane": "${{ needs.changes.result != 'success' || (needs.changes.outputs.loopback != 'none' && (needs.changes.outputs.loopback != 'smoke' || matrix.shard == 1)) }}",
+      "when": "runs all three shards on pushes, after failed change selection, and on PRs except docs-only changes; frontend-presentation-only PRs run shard 1 only"
+    }
+  },
+  "workflows": {
+    "ordinary-core.yml": {
+      "name": "Ordinary synthetic core",
+      "on": {"push": {"branches": "[main]"}, "pull_request": null},
+      "env": {},
+      "jobs": {
+        "ordinary-core": {"runsOn": "ubuntu-24.04", "if": null, "matrix": null, "needs": null, "env": {}, "lane": null}
+      }
+    },
+    "rust-react-ordinary.yml": {
+      "name": "Rust React ordinary core",
+      "on": {"pull_request": null, "push": {"branches": "[main]"}},
+      "env": {"CARGO_INCREMENTAL": "0", "CARGO_PROFILE_DEV_DEBUG": "0", "SOURCE_SHA": "${{ github.event.pull_request.head.sha || github.sha }}"},
+      "jobs": {
+        "changes": {"runsOn": "ubuntu-24.04", "if": null, "matrix": null, "needs": null, "env": {}, "lane": null},
+        "source": {"runsOn": "${{ matrix.os }}", "if": "${{ !cancelled() }}", "matrix": {"os": "[ubuntu-24.04, macos-15]"}, "needs": "changes", "env": {}, "lane": "backend"},
+        "unit-tests": {"runsOn": "ubuntu-24.04", "if": "${{ !cancelled() }}", "matrix": null, "needs": "changes", "env": {}, "lane": "backend"},
+        "frontend": {"runsOn": "ubuntu-24.04", "if": "${{ !cancelled() }}", "matrix": null, "needs": "changes", "env": {}, "lane": "frontend"},
+        "loopback": {"runsOn": "ubuntu-24.04", "if": "${{ !cancelled() }}", "matrix": {"shard": "[1, 2, 3]"}, "needs": "changes", "env": {}, "lane": "loopback"},
+        "ci-ok": {"runsOn": "ubuntu-24.04", "if": "${{ always() }}", "matrix": null, "needs": "[changes, source, unit-tests, frontend, loopback]", "env": {}, "lane": null}
+      }
+    }
+  },
+  "actions": {
+    "ordinary-setup/action.yml": {
+      "name": "Ordinary job setup"
+    },
+    "ordinary-save/action.yml": {
+      "name": "Ordinary job cache save"
+    }
+  },
+  "outOfScopeWorkflows": {
+    "performance.yml": "separate synthetic PR performance lane; base/head measurements from a pinned harness checkout",
+    "performance-report.yml": "workflow_run reporter for the synthetic PR performance lane, from the default-branch checkout",
+    "synthetic-readme-media.yml": "separately authorized README media capture; ephemeral review artifacts only"
+  },
+  "steps": [
+    {
+      "id": "core.ci-tools",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Synthetic PR selector regressions (stdlib and disposable Git histories)",
+      "kind": "test",
+      "if": null,
+      "run": ["PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/ci -p 'test_*.py' -v"],
+      "toolchain": ["python3"],
+      "files": ["tools/ci/select_pr_checks.py", "tools/ci/test_select_pr_checks.py", "tools/ci/check_lanes.py", "tools/ci/test_check_lanes.py"],
+      "scope": "Stdlib selector cases over disposable synthetic Git histories and `check_lanes.py` cases over temporary synthetic repositories.",
+      "cases": {"counter": "python-unittest-methods", "dir": "tools/ci", "pattern": "test_*.py", "expected": 23},
+      "claims": [["docs/contributing/verification.md", "runs `python3 -m unittest discover -s tools/ci -p 'test_*.py' -v`"]]
+    },
+    {
+      "id": "core.ci-lanes",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Check the CI command manifest against these workflows (stdlib, repository files only)",
+      "kind": "check",
+      "if": null,
+      "run": ["python3 -B -I tools/ci/check_lanes.py --check"],
+      "toolchain": ["python3"],
+      "files": ["tools/ci/check_lanes.py", "tools/ci/lanes.json", "docs/contributing/verification.md"],
+      "scope": "This manifest against both ordinary workflows and their two composite actions: triggers, workflow and job env, job selection and needs, run lines, step conditions, ids, env and options, files, case counts, prose claims, toolchain pins and this table. Reads repository files only; runs no listed command.",
+      "claims": [["AGENTS.md", "python3 -B -I tools/ci/check_lanes.py --check"]]
+    },
+    {
+      "id": "core.runtime",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Verify runtime and revision",
+      "kind": "setup",
+      "if": null,
+      "run": ["test \"$(node --version)\" = \"v26.10.0\"", "test \"$(npm --version)\" = \"11.19.1\"", "test \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\""],
+      "toolchain": ["node", "npm"],
+      "files": [],
+      "scope": "Asserts Node 26.10.0, npm 11.19.1 and the checked-out event SHA."
+    },
+    {
+      "id": "core.npm-cache",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Set isolated npm content cache",
+      "kind": "plumbing",
+      "if": null,
+      "run": ["printf 'npm_config_cache=%s/houseatlas-npm\\n' \"$RUNNER_TEMP\" >> \"$GITHUB_ENV\""],
+      "toolchain": [],
+      "files": [],
+      "scope": "Points npm at a runner temporary cache folder."
+    },
+    {
+      "id": "core.install",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Install exact locks without scripts or audit",
+      "kind": "setup",
+      "if": null,
+      "run": ["npm ci --ignore-scripts --no-audit --no-fund", "npm ci --prefix packages/contracts --ignore-scripts --no-audit --no-fund"],
+      "toolchain": ["node", "npm"],
+      "files": ["package-lock.json", "packages/contracts/package-lock.json"],
+      "scope": "Root and contracts locks, no install scripts or audit."
+    },
+    {
+      "id": "core.publication",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Verify publication file set and template",
+      "kind": "check",
+      "if": null,
+      "run": ["npm run verify:publication"],
+      "toolchain": ["node", "npm"],
+      "files": ["package.json", "tools/publication/verify-source.mjs", "docs/publication/source-manifest.json"],
+      "scope": "Exact regular-file set, modes, digests and logical ownership from the source manifest, and the unconfigured deployment template.",
+      "claims": [["docs/contributing/verification.md", "`verify:publication` checks the explicit current regular-file set, modes, digests, logical ownership and unconfigured deployment template"]]
+    },
+    {
+      "id": "core.publication-refresh",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Run the twelve synthetic publication manifest regenerator cases",
+      "kind": "test",
+      "if": null,
+      "run": ["node --test --test-concurrency=1 tools/publication/refresh-manifest.test.mjs"],
+      "toolchain": ["node"],
+      "files": ["tools/publication/refresh-manifest.test.mjs", "tools/publication/refresh-manifest.mjs", "tools/publication/verify-source.mjs"],
+      "scope": "The actual regenerator against generated trees and manifests in disposable temporary folders, once checked by a temporary copy of the publication verifier; no network, and the repository manifest is neither read nor written.",
+      "cases": {"counter": "node-test-toplevel", "files": ["tools/publication/refresh-manifest.test.mjs"], "expected": 12},
+      "claims": [
+        ["AGENTS.md", "twelve cases build tiny generated trees"],
+        ["docs/contributing/verification.md", "node --test --test-concurrency=1 tools/publication/refresh-manifest.test.mjs"]
+      ]
+    },
+    {
+      "id": "core.build",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Build six ordinary modules",
+      "kind": "build",
+      "if": null,
+      "run": ["npm run build:ordinary"],
+      "toolchain": ["node", "npm"],
+      "files": ["package.json", "tools/core-integration/build.mjs"],
+      "scope": "Syntax of the JavaScript reference server modules, six named module builds and publication integrity; no listener.",
+      "claims": [["docs/contributing/verification.md", "`build:ordinary` checks syntax and six named module builds"]]
+    },
+    {
+      "id": "core.http-history",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Check additive HTTP history schema and valid examples",
+      "kind": "check",
+      "if": null,
+      "run": ["node --check packages/contracts/history/check-history.mjs", "npm run check:http:ordinary"],
+      "toolchain": ["node", "npm"],
+      "files": ["package.json", "packages/contracts/history/check-history.mjs"],
+      "scope": "Checker syntax, then static compatibility, local schema and fixed valid history-example checks.",
+      "claims": [["docs/contributing/verification.md", "`check:http:ordinary` runs 14 static compatibility, local schema and fixed valid history-example checks"]]
+    },
+    {
+      "id": "core.request-group",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Run one healthy synthetic Request group",
+      "kind": "test",
+      "if": null,
+      "run": ["npm run test:ordinary"],
+      "toolchain": ["node", "npm"],
+      "files": ["package.json", "server/test/correction-3.positive.mjs"],
+      "scope": "One healthy synthetic WHATWG Request group against the JavaScript reference core, with fake GET transports and disposable stores; no socket or provider.",
+      "claims": [["docs/contributing/verification.md", "`test:ordinary` names exactly one healthy synthetic WHATWG Request group"]]
+    },
+    {
+      "id": "core.electrical",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Run the eight synthetic electrical registration cases",
+      "kind": "test",
+      "if": null,
+      "run": ["node --test --test-concurrency=1 tools/electrical_registration/healthy.test.mjs"],
+      "toolchain": ["node"],
+      "files": ["tools/electrical_registration/healthy.test.mjs"],
+      "scope": "Generated pure in-memory registration cases; no receipt, native authority or physical placement.",
+      "cases": {"counter": "node-test-toplevel", "files": ["tools/electrical_registration/healthy.test.mjs"], "expected": 8},
+      "claims": [
+        ["AGENTS.md", "The same job runs the eight existing generated"],
+        [".github/workflows/ordinary-core.yml", "eight named synthetic electrical registration cases"]
+      ]
+    },
+    {
+      "id": "core.host-client",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Check synthetic host-client options, identities, pacing, MCP and comparison (no host or load)",
+      "kind": "test",
+      "if": null,
+      "run": ["node --test --test-concurrency=1 tools/perf/host-client/options.test.mjs tools/perf/host-client/compare.test.mjs"],
+      "toolchain": ["node"],
+      "files": ["tools/perf/host-client/options.test.mjs", "tools/perf/host-client/compare.test.mjs"],
+      "scope": "Option limits, sample-qualified summaries, driver fingerprints over generated files, synthetic pacing, fake-port MCP exchanges and a bounded comparison subprocess; no host, load or profiler.",
+      "cases": {"counter": "node-test-toplevel", "files": ["tools/perf/host-client/options.test.mjs", "tools/perf/host-client/compare.test.mjs"], "expected": 9},
+      "claims": [
+        ["AGENTS.md", "These nine stdlib-only cases"],
+        ["docs/contributing/verification.md", "The nine cases check"]
+      ]
+    },
+    {
+      "id": "core.cargo-modes",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Run synthetic Cargo mode argument-routing regressions",
+      "kind": "test",
+      "if": null,
+      "run": ["node --test --test-concurrency=1 tools/cargo-modes/run.test.mjs"],
+      "toolchain": ["node"],
+      "files": ["tools/cargo-modes/run.test.mjs", "tools/cargo-modes/run.mjs"],
+      "scope": "Wrapper and toolchain pin copied into disposable checkouts with a recording rustup stub; cases are generated in loops, so no count is pinned. Runs no Cargo compiler."
+    },
+    {
+      "id": "core.deploy-nas",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Check the NAS deploy tool with a fake service",
+      "kind": "test",
+      "if": null,
+      "run": ["PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'"],
+      "toolchain": ["python3"],
+      "files": ["tools/deploy-nas/test_deploy_nas.py"],
+      "scope": "Temp folders and a fake service; no launchd, network or real data.",
+      "cases": {"counter": "python-unittest-methods", "dir": "tools/deploy-nas", "pattern": "test_*.py", "expected": 43}
+    },
+    {
+      "id": "core.backup",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Check the nightly backup script with a fake service and iCloud helper",
+      "kind": "test",
+      "if": null,
+      "run": ["PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/backup -p 'test_*.py'"],
+      "toolchain": ["python3"],
+      "files": ["tools/backup/test_houseatlas_backup.py"],
+      "scope": "Temp folders, a fake service and a fake iCloud helper, including the content-addressed model store.",
+      "cases": {"counter": "python-unittest-methods", "dir": "tools/backup", "pattern": "test_*.py", "expected": 24}
+    },
+    {
+      "id": "core.homebox-seed",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Run the HomeBox quantity seed report's synthetic unit tests",
+      "kind": "test",
+      "if": null,
+      "run": ["python3 --version", "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/homebox-quantity-seed-report -p test_report.py -v"],
+      "toolchain": ["python3"],
+      "files": ["tools/homebox-quantity-seed-report/test_report.py"],
+      "scope": "Synthetic HomeBox quantity seed report unit tests; prints the runner Python version.",
+      "cases": {"counter": "python-unittest-methods", "dir": "tools/homebox-quantity-seed-report", "pattern": "test_report.py", "expected": 14},
+      "claims": [["AGENTS.md", "also runs the 14 synthetic `tools/homebox-quantity-seed-report` unit tests"]]
+    },
+    {
+      "id": "core.runtime-profile",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Run the sixteen synthetic runtime profiling guard and receipt cases",
+      "kind": "test",
+      "if": null,
+      "run": ["python3 -c 'import sys; assert sys.version_info >= (3, 11), \"Python >=3.11 required\"; print(sys.version)'", "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/perf/runtime-profile -p test_runtime_profile.py -v"],
+      "toolchain": ["python3"],
+      "files": ["tools/perf/runtime-profile/test_runtime_profile.py"],
+      "scope": "Asserts Python >=3.11, then configuration refusal, sample decoding, receipts, deadlines and process-group cleanup with fake build/profiler commands.",
+      "cases": {"counter": "python-unittest-methods", "dir": "tools/perf/runtime-profile", "pattern": "test_runtime_profile.py", "expected": 16},
+      "claims": [
+        ["AGENTS.md", "also runs the sixteen explicit cases"],
+        ["docs/contributing/verification.md", "also runs the sixteen explicit cases"]
+      ]
+    },
+    {
+      "id": "core.bridge",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Run the three scoped synthetic bridge read cases",
+      "kind": "test",
+      "if": null,
+      "run": ["PYTHONDONTWRITEBYTECODE=1 python3 tools/houseatlas-mcp-bridge/test_bridge.py healthy_large_read_page", "PYTHONDONTWRITEBYTECODE=1 python3 tools/houseatlas-mcp-bridge/test_bridge.py denial_read_profile_bounds", "PYTHONDONTWRITEBYTECODE=1 python3 tools/houseatlas-mcp-bridge/test_bridge.py denial_read_correlation"],
+      "toolchain": ["python3"],
+      "files": ["tools/houseatlas-mcp-bridge/test_bridge.py"],
+      "scope": "Owner-approved finite exception: fake GET/session/admission owners and disposable journal state; no socket, write or provider.",
+      "cases": {"counter": "python-argparse-choices", "file": "tools/houseatlas-mcp-bridge/test_bridge.py", "expected": 3},
+      "claims": [
+        ["AGENTS.md", "invokes exactly `healthy_large_read_page`"],
+        ["docs/contributing/verification.md", "approved exactly these three existing selections"]
+      ]
+    },
+    {
+      "id": "core.summary",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Record coverage boundary",
+      "kind": "summary",
+      "if": "always()",
+      "run": ["printf '%s\\n' 'Scope: stdlib selector and CI command-manifest checks, synthetic deploy-nas and backup tool tests, the three explicit synthetic bridge read cases (healthy_large_read_page, denial_read_profile_bounds, denial_read_correlation; fake GET/session/admission owners and disposable journal only), integrity, syntax, six module builds, 14 history checks, one healthy synthetic mutation/read/history/DTO Request group, the HomeBox quantity seed report unit tests, eight named synthetic electrical registration cases, sixteen synthetic runtime profiling guard/receipt cases, the explicit Cargo mode process-routing regressions, twelve synthetic publication manifest regenerator cases (temporary trees only) and nine host-client options, driver-identity, pacing, MCP and comparison cases (two exact Node files; generated temp files and fake ports only, no host or load).' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'Command outcomes are reported in the steps above; this summary alone is not a pass claim.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'New explicit source-presence admission is blocked and unexercised.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'Beyond the eight named electrical cases and the three exact scoped bridge read cases, guard reversal, mutation/omission controls, adversarial, denial, failure injection, concurrency and private-intake checks remain stopped and excluded.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'No provider, target, secret recovery, HTTPS, pilot, deployment, full security or production qualification.' >> \"$GITHUB_STEP_SUMMARY\""],
+      "toolchain": [],
+      "files": [],
+      "scope": "Writes the job scope and exclusions to the step summary; not a pass claim."
+    },
+    {
+      "id": "rr.changes.select",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "changes",
+      "step": "Select conservative lanes",
+      "stepId": "select",
+      "kind": "selector",
+      "if": null,
+      "run": ["python3 tools/ci/select_pr_checks.py"],
+      "toolchain": ["python3"],
+      "files": ["tools/ci/select_pr_checks.py"],
+      "scope": "Writes backend, frontend and loopback lane outputs from the PR merge-base diff; non-PR events and detection failures select full coverage."
+    },
+    {
+      "id": "rr.source.lane",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "source",
+      "step": "Select this stable check",
+      "stepId": "lane",
+      "kind": "plumbing",
+      "if": null,
+      "run": ["printf 'run=%s\\n' \"$RUN_LANE\" >> \"$GITHUB_OUTPUT\"", "if [ \"$RUN_LANE\" != true ]; then", "  printf '%s\\n' 'Not selected by changed paths; publication checks remain in ordinary-core.' >> \"$GITHUB_STEP_SUMMARY\"", "fi"],
+      "toolchain": [],
+      "files": [],
+      "scope": "Writes this job's lane decision to the step output and summary."
+    },
+    {
+      "id": "rr.source.timing-init",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "source",
+      "step": "Prepare Cargo timing diagnostics",
+      "kind": "plumbing",
+      "if": "steps.lane.outputs.run == 'true'",
+      "run": ["printf 'HOUSEATLAS_CARGO_TIMINGS_DIR=%s/houseatlas-cargo-timings\\n' \"$RUNNER_TEMP\" >> \"$GITHUB_ENV\"", "node tools/ci/cargo-timings.mjs init \"$RUNNER_TEMP/houseatlas-cargo-timings\""],
+      "env": {"TIMING_REGISTRY_HIT": "${{ steps.setup.outputs.registry-hit }}", "TIMING_REGISTRY_RESTORED": "${{ steps.setup.outputs.registry-restored }}", "TIMING_TARGET_HIT": "${{ steps.setup.outputs.target-hit }}", "TIMING_TARGET_RESTORED": "${{ steps.setup.outputs.target-restored }}"},
+      "options": {"continue-on-error": "true"},
+      "toolchain": ["node"],
+      "files": ["tools/ci/cargo-timings.mjs"],
+      "scope": "Points Cargo timing diagnostics at a runner temporary folder."
+    },
+    {
+      "id": "rr.source.publication",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "source",
+      "step": "Verify source allowlist and unconfigured template",
+      "kind": "check",
+      "if": "steps.lane.outputs.run == 'true'",
+      "run": ["npm run verify:publication"],
+      "toolchain": ["node", "npm"],
+      "files": ["package.json", "tools/publication/verify-source.mjs", "docs/publication/source-manifest.json"],
+      "scope": "The same publication verifier as ordinary-core, on the exact candidate head."
+    },
+    {
+      "id": "rr.source.check-source-full",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "source",
+      "step": "Compile actual Rust and React source and named healthy examples",
+      "kind": "check",
+      "if": "steps.lane.outputs.run == 'true' && (runner.os != 'Linux')",
+      "run": ["if [ \"$CHECK_FRONTEND\" = true ]; then", "  node tools/rust-integration/check-source.mjs", "else", "  node tools/rust-integration/check-source.mjs --skip-frontend", "fi"],
+      "env": {"CHECK_FRONTEND": "${{ needs.changes.result != 'success' || needs.changes.outputs.frontend != 'false' }}"},
+      "toolchain": ["node", "npm", "rust"],
+      "files": ["tools/rust-integration/check-source.mjs"],
+      "scope": "Generated contract and catalog checks, HTTP history, rustfmt, Clippy, four named healthy examples and the binary; the React typecheck and build only when the frontend lane is selected.",
+      "claims": [["tools/rust-integration/check-source.mjs", "four explicitly named healthy native examples"]]
+    },
+    {
+      "id": "rr.source.check-source",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "source",
+      "step": "Compile actual Rust source and named healthy examples (binary and React app in their own jobs)",
+      "kind": "check",
+      "if": "steps.lane.outputs.run == 'true' && (runner.os == 'Linux')",
+      "run": ["node tools/rust-integration/check-source.mjs --skip-binary --skip-frontend"],
+      "toolchain": ["node", "rust"],
+      "files": ["tools/rust-integration/check-source.mjs"],
+      "scope": "Generated contract and catalog checks, HTTP history, rustfmt, Clippy and four named healthy examples; the binary and React app build in other jobs."
+    },
+    {
+      "id": "rr.source.healthy-read",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "source",
+      "step": "Verify the named Lantern healthy read",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true'",
+      "run": ["node frontend/lantern-tests/healthy-read.mjs"],
+      "toolchain": ["node"],
+      "files": ["frontend/lantern-tests/healthy-read.mjs"],
+      "scope": "Synthetic projection examples and generated client-schema parity in process; no listener or write."
+    },
+    {
+      "id": "rr.source.agent-stock",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "source",
+      "step": "Genuine native MCP stock get and audit page after fresh circuit commit",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true' && (runner.os == 'Linux')",
+      "run": ["node tools/ci/cargo-timings.mjs run --locked -p houseatlas-backend --example healthy-agent-stock"],
+      "toolchain": ["node", "rust"],
+      "files": ["tools/ci/cargo-timings.mjs", "tools/rust-integration/examples/healthy_agent_stock.rs"],
+      "scope": "In-process MCP over the real root owner composition in disposable synthetic state; no HTTP listener."
+    },
+    {
+      "id": "rr.source.network-router",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "source",
+      "step": "Real root Network router TLS inventory GET and archive reopen",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true' && (runner.os == 'Linux')",
+      "run": ["node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router", "python3 tools/rust-integration/healthy-network-loopback.py \"$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router\""],
+      "toolchain": ["node", "python3", "rust"],
+      "files": ["tools/ci/cargo-timings.mjs", "tools/rust-integration/healthy-network-loopback.py", "tools/rust-integration/examples/healthy_network_host.rs"],
+      "scope": "Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser."
+    },
+    {
+      "id": "rr.source.timing-summary",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "source",
+      "step": "Summarize Cargo timing diagnostics",
+      "kind": "plumbing",
+      "if": "steps.lane.outputs.run == 'true' && (always())",
+      "run": ["node tools/ci/cargo-timings.mjs summary"],
+      "options": {"continue-on-error": "true"},
+      "toolchain": ["node"],
+      "files": ["tools/ci/cargo-timings.mjs"],
+      "scope": "Summarizes Cargo timing diagnostics; continues on error."
+    },
+    {
+      "id": "rr.source.summary",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "source",
+      "step": "Record scope",
+      "kind": "summary",
+      "if": "steps.lane.outputs.run == 'true' && (always())",
+      "run": ["printf '%s\\n' 'Actual locked Rust/TS source compilation and four named healthy examples; Linux additionally runs the explicitly named genuine in-process MCP stock get/history after a fresh native circuit commit, actual SQLite/access/domain/React loopback TLS reads, session/login/logout, fresh circuit create, atomic local identity batch, fresh owned PNG/text commits, actual download GET/HEAD and safe-rendered PNG preview; genuine native stock circuit/asset reads compared with actual frozen SQLite rows, and managed stock PNG/text handles issued through native WebMCP/HTTP then redeemed with authenticated GET/HEAD.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'The separately named upload runner submits two fresh React attachment intents for one generated PNG, verifies the existing-original plan and unchanged original provenance, exact asset revision guard, canonical receipts and actual SQLite rows, with one original consumption and zero pending stages. It is not replay, fault or cleanup-failure qualification.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'On Linux the binary build, unit tests, frontend checks and loopback flows run in the parallel jobs of this workflow; their outcomes are in those jobs.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'macOS source compilation is separate from target NAS build/runtime qualification and supplies no target release.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'All stopped rejection, guards, replay, expiry, revocation, fault, crash, concurrency and provider controls remain unrun.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'The separate host runner performs one authorized cached HomeBox read with the original full projections, dates and generation preserved; one fresh native WebMCP location classification replacement with full references and canonical React completion; actual record/admission readback; mounted MCP HTTP initialization/discovery/get/first audit page; and read-only SQLite reason observation. It does not submit the human form.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'The separately named human host runner uses a fresh disposable fixture and one actual React classification form submission through the real editing HTTP port. It preserves HomeBox canEdit=false, the full short reason, original source/evidence/identity references and guards, then checks canonical receipt retention through view refresh and genuine native/MCP readback. Upload, provider refresh/network I/O and populated recovery runtime remain outside both host flows.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'The named stock write runner adds only fresh local circuit and identity singles plus ordered identity-only and mixed circuit/identity batches through the actual original AT11 fence and native atomic stock journal, with frozen record/history readback and read-only durable journal counts.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'The named stock history runner adds three first-page/search reads over genuine stock-owned audits; nonnull cursor continuation is not demonstrated.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'The named native WebMCP runner uses actual document.modelContext discovery and invocation, genuine stock identity get, fresh circuit and identity singles, one mixed identity/circuit batch, record readback and first circuit audit page, with canonical results committed to React before tool return. No modelContext or stock service stub is installed.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'The separately named Unicode cache runner uses the fixed public opaque-collection profile, actual Viewer authority and one cached-only query GET. It compares both complete projections and original cache metadata with read-only SQLite source/cache/projection rows. No HTTP authentication mutation, editing, MCP, old-path comparison or provider I/O runs in that flow.' >> \"$GITHUB_STEP_SUMMARY\""],
+      "toolchain": [],
+      "files": [],
+      "scope": "Writes the job scope and exclusions to the step summary; not a pass claim."
+    },
+    {
+      "id": "rr.unit-tests.lane",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "unit-tests",
+      "step": "Select this stable check",
+      "stepId": "lane",
+      "kind": "plumbing",
+      "if": null,
+      "run": ["printf 'run=%s\\n' \"$RUN_LANE\" >> \"$GITHUB_OUTPUT\"", "if [ \"$RUN_LANE\" != true ]; then", "  printf '%s\\n' 'Not selected by changed paths; publication checks remain in ordinary-core.' >> \"$GITHUB_STEP_SUMMARY\"", "fi"],
+      "toolchain": [],
+      "files": [],
+      "scope": "Writes this job's lane decision to the step output and summary."
+    },
+    {
+      "id": "rr.unit-tests.timing-init",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "unit-tests",
+      "step": "Prepare Cargo timing diagnostics",
+      "kind": "plumbing",
+      "if": "steps.lane.outputs.run == 'true'",
+      "run": ["printf 'HOUSEATLAS_CARGO_TIMINGS_DIR=%s/houseatlas-cargo-timings\\n' \"$RUNNER_TEMP\" >> \"$GITHUB_ENV\"", "node tools/ci/cargo-timings.mjs init \"$RUNNER_TEMP/houseatlas-cargo-timings\""],
+      "env": {"TIMING_REGISTRY_HIT": "${{ steps.setup.outputs.registry-hit }}", "TIMING_REGISTRY_RESTORED": "${{ steps.setup.outputs.registry-restored }}", "TIMING_TARGET_HIT": "${{ steps.setup.outputs.target-hit }}", "TIMING_TARGET_RESTORED": "${{ steps.setup.outputs.target-restored }}"},
+      "options": {"continue-on-error": "true"},
+      "toolchain": ["node"],
+      "files": ["tools/ci/cargo-timings.mjs"],
+      "scope": "Points Cargo timing diagnostics at a runner temporary folder."
+    },
+    {
+      "id": "rr.unit-tests.lib",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "unit-tests",
+      "step": "Backend library unit tests (default set)",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true'",
+      "run": ["node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::"],
+      "toolchain": ["node", "rust"],
+      "files": ["tools/ci/cargo-timings.mjs"],
+      "scope": "Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`.",
+      "cases": {"counter": "cargo-skip", "expected": 3},
+      "claims": [["AGENTS.md", "skipping the three quantity tests that need"]]
+    },
+    {
+      "id": "rr.unit-tests.timing-summary",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "unit-tests",
+      "step": "Summarize Cargo timing diagnostics",
+      "kind": "plumbing",
+      "if": "steps.lane.outputs.run == 'true' && (always())",
+      "run": ["node tools/ci/cargo-timings.mjs summary"],
+      "options": {"continue-on-error": "true"},
+      "toolchain": ["node"],
+      "files": ["tools/ci/cargo-timings.mjs"],
+      "scope": "Summarizes Cargo timing diagnostics; continues on error."
+    },
+    {
+      "id": "rr.frontend.lane",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "frontend",
+      "step": "Select this stable check",
+      "stepId": "lane",
+      "kind": "plumbing",
+      "if": null,
+      "run": ["printf 'run=%s\\n' \"$RUN_LANE\" >> \"$GITHUB_OUTPUT\"", "if [ \"$RUN_LANE\" != true ]; then", "  printf '%s\\n' 'Not selected by changed paths; publication checks remain in ordinary-core.' >> \"$GITHUB_STEP_SUMMARY\"", "fi"],
+      "toolchain": [],
+      "files": [],
+      "scope": "Writes this job's lane decision to the step output and summary."
+    },
+    {
+      "id": "rr.frontend.build",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "frontend",
+      "step": "Strict TypeScript and production React build",
+      "kind": "build",
+      "if": "steps.lane.outputs.run == 'true'",
+      "run": ["npm --prefix frontend run typecheck", "npm --prefix frontend run build"],
+      "toolchain": ["node", "npm"],
+      "files": ["frontend/package.json"],
+      "scope": "Strict TypeScript check and production Vite build of `frontend`."
+    },
+    {
+      "id": "rr.frontend.healthy",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "frontend",
+      "step": "All named healthy frontend checks and real-browser offline launch",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true'",
+      "run": ["node frontend/lantern-tests/run-healthy.mjs"],
+      "toolchain": ["node", "chromium"],
+      "files": ["frontend/lantern-tests/run-healthy.mjs"],
+      "scope": "Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output.",
+      "cases": {"counter": "run-healthy-list", "file": "frontend/lantern-tests/run-healthy.mjs", "expected": {"SOURCE": 69, "BUILD": 1, "BROWSER": 5}},
+      "claims": [
+        ["frontend/lantern-tests/run-healthy.mjs", "['offline-launch', 'hung-network', 'live-launch']"],
+        ["AGENTS.md", "`frontend/lantern-tests/run-healthy.mjs` with\nits explicit list"]
+      ]
+    },
+    {
+      "id": "rr.frontend.model-bake",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "frontend",
+      "step": "Model bake on generated geometry, admitted and bound by the viewer",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true'",
+      "run": ["npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund", "node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs"],
+      "toolchain": ["node", "npm"],
+      "files": ["tools/model-bake/package-lock.json", "tools/model-bake/test/bake.test.mjs"],
+      "scope": "Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results.",
+      "cases": {"counter": "node-test-toplevel", "files": ["tools/model-bake/test/bake.test.mjs"], "expected": 22}
+    },
+    {
+      "id": "rr.loopback.lane",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Select this stable check",
+      "stepId": "lane",
+      "kind": "plumbing",
+      "if": null,
+      "run": ["printf 'run=%s\\n' \"$RUN_LANE\" >> \"$GITHUB_OUTPUT\"", "if [ \"$RUN_LANE\" != true ]; then", "  printf '%s\\n' 'Not selected by changed paths; publication checks remain in ordinary-core.' >> \"$GITHUB_STEP_SUMMARY\"", "fi"],
+      "toolchain": [],
+      "files": [],
+      "scope": "Writes this job's lane decision to the step output and summary."
+    },
+    {
+      "id": "rr.loopback.timing-init",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Prepare Cargo timing diagnostics",
+      "kind": "plumbing",
+      "if": "steps.lane.outputs.run == 'true'",
+      "run": ["printf 'HOUSEATLAS_CARGO_TIMINGS_DIR=%s/houseatlas-cargo-timings\\n' \"$RUNNER_TEMP\" >> \"$GITHUB_ENV\"", "node tools/ci/cargo-timings.mjs init \"$RUNNER_TEMP/houseatlas-cargo-timings\""],
+      "env": {"TIMING_REGISTRY_HIT": "${{ steps.setup.outputs.registry-hit }}", "TIMING_REGISTRY_RESTORED": "${{ steps.setup.outputs.registry-restored }}", "TIMING_TARGET_HIT": "${{ steps.setup.outputs.target-hit }}", "TIMING_TARGET_RESTORED": "${{ steps.setup.outputs.target-restored }}"},
+      "options": {"continue-on-error": "true"},
+      "toolchain": ["node"],
+      "files": ["tools/ci/cargo-timings.mjs"],
+      "scope": "Points Cargo timing diagnostics at a runner temporary folder."
+    },
+    {
+      "id": "rr.loopback.build",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Build the houseatlas binary and the production React app",
+      "kind": "build",
+      "if": "steps.lane.outputs.run == 'true'",
+      "run": ["node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas", "npm --prefix frontend run build", "printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\\n' \"$CARGO_TARGET_DIR\" >> \"$GITHUB_ENV\""],
+      "toolchain": ["node", "npm", "rust"],
+      "files": ["tools/ci/cargo-timings.mjs"],
+      "scope": "Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`."
+    },
+    {
+      "id": "rr.loopback.tls-read",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Real disposable loopback TLS browser read slice",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true' && (matrix.shard == 1)",
+      "run": ["node tools/rust-integration/healthy-loopback.mjs"],
+      "toolchain": ["node", "chromium"],
+      "files": ["tools/rust-integration/healthy-loopback.mjs"],
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
+    },
+    {
+      "id": "rr.loopback.core",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Real disposable auth reads and fresh local writes",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true' && (matrix.shard == 1)",
+      "run": ["node tools/rust-integration/healthy-core-loopback.mjs"],
+      "toolchain": ["node", "chromium"],
+      "files": ["tools/rust-integration/healthy-core-loopback.mjs"],
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
+    },
+    {
+      "id": "rr.loopback.stock-write",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Real disposable fresh stock singles and atomic direct-map batches",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true' && (matrix.shard == 1)",
+      "run": ["node tools/rust-integration/healthy-stock-write-loopback.mjs"],
+      "toolchain": ["node", "chromium"],
+      "files": ["tools/rust-integration/healthy-stock-write-loopback.mjs"],
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
+    },
+    {
+      "id": "rr.loopback.stock-history",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Real disposable native stock audit first pages and search",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true' && (matrix.shard == 1)",
+      "run": ["node tools/rust-integration/healthy-stock-history-loopback.mjs"],
+      "toolchain": ["node", "chromium"],
+      "files": ["tools/rust-integration/healthy-stock-history-loopback.mjs"],
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
+    },
+    {
+      "id": "rr.loopback.standalone-asset",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Real standalone text asset through Access, Media, stock and SQLite",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true' && (matrix.shard == 1)",
+      "run": ["node tools/rust-integration/healthy-standalone-asset-loopback.mjs"],
+      "toolchain": ["node"],
+      "files": ["tools/rust-integration/healthy-standalone-asset-loopback.mjs"],
+      "scope": "Compiled binary, disposable TLS loopback host and built React app; no browser."
+    },
+    {
+      "id": "rr.loopback.media",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Real disposable owned media commits and GET HEAD delivery",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true' && (matrix.shard == 2)",
+      "run": ["node tools/rust-integration/healthy-media-loopback.mjs"],
+      "toolchain": ["node", "chromium"],
+      "files": ["tools/rust-integration/healthy-media-loopback.mjs"],
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
+    },
+    {
+      "id": "rr.loopback.stock",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Real disposable native stock circuit and asset reads",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true' && (matrix.shard == 2)",
+      "run": ["node tools/rust-integration/healthy-stock-loopback.mjs"],
+      "toolchain": ["node", "chromium"],
+      "files": ["tools/rust-integration/healthy-stock-loopback.mjs"],
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
+    },
+    {
+      "id": "rr.loopback.human-host",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Real React human classification cached read and mounted MCP audit",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true' && (matrix.shard == 2)",
+      "run": ["node tools/rust-integration/healthy-human-host-loopback.mjs"],
+      "toolchain": ["node", "chromium"],
+      "files": ["tools/rust-integration/healthy-human-host-loopback.mjs"],
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
+    },
+    {
+      "id": "rr.loopback.upload",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Real React fresh attachment and existing-original reuse",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true' && (matrix.shard == 2)",
+      "run": ["node tools/rust-integration/healthy-upload-loopback.mjs"],
+      "toolchain": ["node", "chromium"],
+      "files": ["tools/rust-integration/healthy-upload-loopback.mjs"],
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
+    },
+    {
+      "id": "rr.loopback.mcp-lifecycle",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Real mounted MCP sessions across one Access rotation",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true' && (matrix.shard == 2)",
+      "run": ["node tools/rust-integration/healthy-mcp-lifecycle-loopback.mjs"],
+      "toolchain": ["node"],
+      "files": ["tools/rust-integration/healthy-mcp-lifecycle-loopback.mjs"],
+      "scope": "Compiled binary, disposable TLS loopback host and built React app; no browser."
+    },
+    {
+      "id": "rr.loopback.agent",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Real native browser WebMCP stock read fresh create and audit page",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true' && (matrix.shard == 3)",
+      "run": ["node tools/rust-integration/healthy-agent-loopback.mjs"],
+      "toolchain": ["node", "chromium"],
+      "files": ["tools/rust-integration/healthy-agent-loopback.mjs"],
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
+    },
+    {
+      "id": "rr.loopback.agent-host",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Real cached HomeBox read native WebMCP classification and mounted MCP audit",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true' && (matrix.shard == 3)",
+      "run": ["node tools/rust-integration/healthy-agent-host-loopback.mjs"],
+      "toolchain": ["node", "chromium"],
+      "files": ["tools/rust-integration/healthy-agent-host-loopback.mjs"],
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
+    },
+    {
+      "id": "rr.loopback.homebox-cache-unicode",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Real cached Unicode collection read with complete SQLite facts",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true' && (matrix.shard == 3)",
+      "run": ["node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs"],
+      "toolchain": ["node", "chromium"],
+      "files": ["tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs"],
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
+    },
+    {
+      "id": "rr.loopback.atlas-lists",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Real Atlas ten lists, invoke parity and native WebMCP cursor continuation",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true' && (matrix.shard == 3)",
+      "run": ["node tools/rust-integration/healthy-atlas-lists-loopback.mjs"],
+      "toolchain": ["node", "chromium"],
+      "files": ["tools/rust-integration/healthy-atlas-lists-loopback.mjs"],
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
+    },
+    {
+      "id": "rr.loopback.operation-events",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Real aggregate stock operation events and read-only Changes view",
+      "kind": "test",
+      "if": "steps.lane.outputs.run == 'true' && (matrix.shard == 3)",
+      "run": ["node tools/rust-integration/healthy-operation-events-loopback.mjs"],
+      "toolchain": ["node", "chromium"],
+      "files": ["tools/rust-integration/healthy-operation-events-loopback.mjs"],
+      "scope": "Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build."
+    },
+    {
+      "id": "rr.loopback.timing-summary",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "loopback",
+      "step": "Summarize Cargo timing diagnostics",
+      "kind": "plumbing",
+      "if": "steps.lane.outputs.run == 'true' && (always())",
+      "run": ["node tools/ci/cargo-timings.mjs summary"],
+      "options": {"continue-on-error": "true"},
+      "toolchain": ["node"],
+      "files": ["tools/ci/cargo-timings.mjs"],
+      "scope": "Summarizes Cargo timing diagnostics; continues on error."
+    },
+    {
+      "id": "rr.ci-ok.require",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "ci-ok",
+      "step": "Require successful or skipped jobs",
+      "kind": "check",
+      "if": null,
+      "run": ["for result in $RESULTS; do", "  case \"$result\" in", "    success|skipped) ;;", "    *) exit 1 ;;", "  esac", "done"],
+      "env": {"RESULTS": "${{ join(needs.*.result, ' ') }}"},
+      "toolchain": [],
+      "files": [],
+      "scope": "Runs after the selector, source, unit-test, frontend and loopback jobs; fails unless each succeeded or was skipped by lane selection."
+    },
+    {
+      "id": "action.setup.verify",
+      "workflow": "ordinary-setup/action.yml",
+      "job": "runs",
+      "step": "Verify revision and runtime",
+      "kind": "setup",
+      "if": null,
+      "run": ["test \"$(git rev-parse HEAD)\" = \"$SOURCE_SHA\"", "test \"$(node --version)\" = \"v26.10.0\"", "test \"$(npm --version)\" = \"11.19.1\"", "printf 'CARGO_TARGET_DIR=%s/houseatlas-target\\n' \"$RUNNER_TEMP\" >> \"$GITHUB_ENV\"", "printf 'npm_config_cache=%s/houseatlas-npm\\n' \"$RUNNER_TEMP\" >> \"$GITHUB_ENV\"", "if [ \"$INSTALL_RUST\" = true ]; then", "  rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy", "  test \"$(rustc --version | cut -d ' ' -f 2)\" = \"1.99.0\"", "fi"],
+      "env": {"INSTALL_RUST": "${{ inputs.rust }}"},
+      "options": {"shell": "bash"},
+      "toolchain": ["node", "npm", "rust"],
+      "files": [],
+      "scope": "Asserts the checked-out `SOURCE_SHA`, Node 26.10.0 and npm 11.19.1, points Cargo and npm at runner temporary folders, and installs and asserts Rust 1.99.0 when the job asks for Rust."
+    },
+    {
+      "id": "action.setup.chrome",
+      "workflow": "ordinary-setup/action.yml",
+      "job": "runs",
+      "step": "Install exact Chrome for Testing",
+      "kind": "setup",
+      "if": "inputs.chrome == 'true'",
+      "run": ["dir=\"$RUNNER_TEMP/houseatlas-chrome\"", "mkdir -p \"$dir\"", "curl --fail --silent --show-error --location --retry 3 --output \"$dir/chrome-linux64.zip\" \"https://storage.googleapis.com/chrome-for-testing-public/$CHROME_VERSION/linux64/chrome-linux64.zip\"", "printf '%s  %s\\n' \"$CHROME_SHA256\" \"$dir/chrome-linux64.zip\" | sha256sum --check --strict", "unzip -q \"$dir/chrome-linux64.zip\" -d \"$dir\"", "rm \"$dir/chrome-linux64.zip\"", "test \"$(\"$dir/chrome-linux64/chrome\" --version | sed 's/ *$//')\" = \"Google Chrome for Testing $CHROME_VERSION\"", "printf 'HOUSEATLAS_CHROMIUM=%s\\n' \"$dir/chrome-linux64/chrome\" >> \"$GITHUB_ENV\""],
+      "env": {"CHROME_VERSION": "156.0.8078.47", "CHROME_SHA256": "e6c94490f0b6b337225aeb2d2a5034858516b7017356980ba94f5176d8774a50"},
+      "options": {"shell": "bash"},
+      "toolchain": ["chromium"],
+      "files": [],
+      "scope": "Downloads Chrome for Testing 156.0.8078.47, checks its sha256 and reported version, and exports HOUSEATLAS_CHROMIUM for the frontend and loopback jobs.",
+      "claims": [["docs/contributing/verification.md", "downloads Chrome for Testing 156.0.8078.47 for linux64"]]
+    },
+    {
+      "id": "action.setup.install",
+      "workflow": "ordinary-setup/action.yml",
+      "job": "runs",
+      "step": "Install exact npm locks without scripts",
+      "kind": "setup",
+      "if": null,
+      "run": ["npm ci --ignore-scripts --no-audit --no-fund", "npm ci --prefix packages/contracts --ignore-scripts --no-audit --no-fund", "npm ci --prefix frontend --ignore-scripts --no-audit --no-fund"],
+      "options": {"shell": "bash"},
+      "toolchain": ["node", "npm"],
+      "files": ["package-lock.json", "packages/contracts/package-lock.json", "frontend/package-lock.json"],
+      "scope": "Root, contracts and frontend locks, no install scripts or audit."
+    },
+    {
+      "id": "action.save.prune",
+      "workflow": "ordinary-save/action.yml",
+      "job": "runs",
+      "step": "Prune workspace build outputs before saving",
+      "kind": "plumbing",
+      "if": "github.event_name == 'push' && github.ref == 'refs/heads/main' && inputs.target-key != '' && inputs.target-hit != 'true'",
+      "run": ["target=\"$RUNNER_TEMP/houseatlas-target\"", "for profile in \"$target\"/*/; do", "  [ -d \"$profile/deps\" ] || continue", "  rm -rf \"$profile/examples\" \"$profile/incremental\" \"$profile\"/houseatlas \"$profile\"/houseatlas.d", "  rm -rf \"$profile\"/deps/houseatlas* \"$profile\"/deps/libhouseatlas* \"$profile\"/.fingerprint/houseatlas-*", "done", "du -sh \"$target\""],
+      "options": {"shell": "bash"},
+      "toolchain": [],
+      "files": [],
+      "scope": "On verified main pushes only, removes workspace crate outputs before the build cache save so only compiled dependencies are kept."
+    }
+  ]
+}

@@ -65,12 +65,17 @@ offline peer composition are described in [Media archive source](media-policy-ar
 
 ## Actual running core
 
-The binary requires explicit disposable settings, creates private scratch state
-under `/tmp` and binds TLS only to IPv4 loopback. It checks actual request
+Without a subcommand, the binary requires explicit disposable settings, creates
+private scratch state under `/tmp` and binds TLS only to IPv4 loopback. The
+`initialize`, `serve` and `rebind-origin` modes instead read an explicit
+persistent configuration and listen address
+([persistent server](../operations/persistent-server.md)); `backup`,
+`restore-check`, `upgrade-state-receipt` and `rollback-state-receipt` are
+separate lifecycle modes. It checks actual request
 origin/authority and headers, derives the login client key from the connection
 IP, bounds body streams, and passes original opaque authority to domain and
 storage. Responses retain the private no-store/header adapter documented in
-[read-corrections.md](read-corrections.md).
+[read-corrections.md](../history/rust-integration/read-corrections.md).
 
 The binary establishes creation mask `0077` before starting runtime worker
 threads. After creating the private disposable directory, the host supplies its
@@ -214,7 +219,7 @@ budget. SSE, session DELETE, OAuth,
 bearer-login and MCP mutations are unavailable. These unavailable paths and
 lifecycle controls remain source-only.
 
-The intake correction is in [intake-correction.md](intake-correction.md).
+The intake correction is in [intake-correction.md](../history/rust-integration/intake-correction.md).
 Native stock read, write and audit bindings are in [stock-reads.md](stock-reads.md),
 [stock-writes.md](stock-writes.md) and [stock-history.md](stock-history.md).
 The actual MCP/WebMCP protocols and remaining browser scope are in

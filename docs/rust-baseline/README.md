@@ -1,5 +1,7 @@
 # Rust baseline
 
+> Status: historical — describes the AT51 scaffold before the backend modules, application, CI and full publication manifest; its type and numeric conventions remain current. Current: [docs/rust-integration/README.md](../rust-integration/README.md).
+
 AT51 adds shared scaffolding on published HouseAtlas commit
 `9f7561d99e09a680ec5282ca0c8aed4e10c6cbc9`. The `houseatlas-backend` library
 (`houseatlas_backend` in Rust) exports `contracts`. No feature module, application

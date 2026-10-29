@@ -1,17 +1,5 @@
 # HouseAtlas
 
-The isolated canonical IFC source revision seam uses only generated receipts and
-an in-memory SQLite ledger in these named checks. Inspect
-`backend/src/media/canonical_ifc_source.rs` before running them:
-
-```sh
-cargo test --offline --locked -p houseatlas-backend --lib media::canonical_ifc_source::tests::synthetic_source_revision_validation -- --exact --test-threads=1
-cargo test --offline --locked -p houseatlas-backend --lib media::canonical_ifc_source::tests::synthetic_source_ledger_parent_and_immutability -- --exact --test-threads=1
-cargo test --offline --locked -p houseatlas-backend --lib media::canonical_ifc_source::tests::synthetic_source_ledger_rejects_atlas_schema -- --exact --test-threads=1
-cargo test --offline --locked -p houseatlas-backend --lib media::canonical_ifc_source::tests::synthetic_source_requires_retained_ifc_bytes -- --exact --test-threads=1
-cargo test --offline --locked -p houseatlas-backend --lib media::canonical_ifc_source::tests -- --test-threads=1
-```
-
 HouseAtlas connects rooms, belongings, documents and physical infrastructure in a home atlas. Browse a home without a floorplan, select a building and its reviewed rooms, and keep source dates, unknowns and evidence visible.
 
 HomeBox owns inventory, attachments and maintenance; HouseAtlas owns physical identities, reviewed bindings and optional geometry, circuits and valves. Network observations are a separate passive, read-only source. Browsing does not collect data or write upstream.
@@ -58,50 +46,9 @@ npm run check:http:ordinary
 npm run test:ordinary
 ```
 
-These checks cover publication integrity, module syntax/builds, valid HTTP history examples and one healthy synthetic Request group. They call no provider and certify no security, live integration or deployment readiness. New explicit source-presence admissions remain blocked pending their separately reviewed extension.
+These checks cover publication integrity, module syntax/builds, valid HTTP history examples and one healthy synthetic Request group. `test:ordinary` and the `server/` and `web/` part of `build:ordinary` check the JavaScript reference core and UI ([server/README.md](server/README.md)), not the running Rust/React service. They call no provider and certify no security, live integration or deployment readiness. New explicit source-presence admissions remain blocked pending their separately reviewed extension.
 
-The separate IFC/GLB checks use a tiny generated triangle and fake local
-transports. Inspect `backend/src/media/ifc_glb.rs` and
-`frontend/lantern-tests/ifc-glb-read.mjs` before running them:
-
-```sh
-cargo test --offline --locked -p houseatlas-backend --lib media::ifc_glb::tests::healthy_ifc_glb_lineage_and_axes -- --exact --test-threads=1
-cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision --example healthy-native-ifc-glb
-node frontend/lantern-tests/ifc-glb-read.mjs
-```
-
-They verify source-byte binding, bounded display parsing, synthetic native
-custody/association/readback and persistent reopen, without proving converter
-execution, IFC project units, physical alignment or native acceptance of a
-household model.
-
-The [IFC publication preparation](tools/ifc_publication/README.md) has a
-separate local-only synthetic check. Inspect its Python source before running:
-
-```sh
-python3 -m unittest discover -s tools/ifc_publication -p test_publish.py
-python3 -m unittest discover -s tools/ifc_publication -p test_publish_v2.py
-python3 tools/ifc_publication/make_synthetic_fixture.py --output /tmp/houseatlas-ifc-synthetic
-python3 tools/ifc_publication/make_synthetic_fixture_v2.py --output /tmp/houseatlas-ifc-synthetic-v2
-```
-
-These test v1 and v2 revision binding, repeatable fake conversion, occurrence
-identity, and artifact hashes. They do not certify real IFC tessellation or
-select a publication for live use. The proposed [v2 scene read contract](docs/canonical-ifc/scene-read-contract-v2.md)
-and its two-floor synthetic fixture exercise one logical room spanning two
-floor-qualified IFC space occurrences. Its routes and ready state are mock
-contract examples, not live service behavior.
-
-The canonical model and geometry modules the unified Atlas draws with have a
-focused synthetic check:
-
-```sh
-node frontend/lantern-tests/canonical-geometry.test.mjs --healthy
-```
-
-It checks occurrence admission, one shared frame, CPU plan/3D picking and
-standard GLB loading. These checks do not qualify actual model placement, GPU
-picking or a live scene endpoint.
+Focused synthetic checks for the canonical IFC source, IFC/GLB, IFC publication and canonical geometry seams are listed with their scope and limits in the [verification guide](docs/contributing/verification.md#canonical-ifc-source-ifcglb-and-publication-seam-checks). The IFC publication check includes the two-floor synthetic fixture of the proposed [v2 scene read contract](docs/canonical-ifc/scene-read-contract-v2.md).
 
 ## Development and verification
 
@@ -116,7 +63,7 @@ The current development snapshot includes a Rust backend, SQLite persistence and
 [The complete verification guide](docs/contributing/verification.md) retains every previously documented named command and its scope, prerequisites and limitations. Read it before running any other check; broad suites and held controls are not authorized by this README.
 
 - [Rust/React development slice](docs/rust-integration/README.md): actual native source, disposable local settings and exact ordinary commands.
-- [UI integration](web/README.md): source ownership, access, freshness and host seams.
+- [Reference UI contract](web/README.md): source ownership, access, freshness and host seams of the JavaScript reference UI; [frontend/src/app/INTEGRATION.md](frontend/src/app/INTEGRATION.md) records the React port against it.
 - [Repository coordination](docs/coordination/worker-handoff.md) and [publication provenance](docs/publication/provenance.md).
 - [Operations and rollout](docs/operations/qualification-and-rollout.md): target and acceptance requirements.
 - [NAS deploy tool](tools/deploy-nas/README.md): deploy a `main` commit or a model release to the NAS, and roll it back; `python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'` checks it with a fake service.

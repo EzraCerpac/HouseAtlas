@@ -19,12 +19,13 @@ test('healthy samples retain medians, nearest-rank p95 and matching-direction de
   assert.equal(summary.value, 10.5); assert.equal(summary.p95, 19); assert.equal(summary.count, 20);
   const row = compareMetric(policy, { samples: Array(9).fill(100) }, { samples: Array(9).fill(80) });
   assert.equal(row.deltaAbsolute, -20); assert.equal(row.deltaPercent, -20); assert.equal(row.status, 'improved');
-  assert(renderTable([policy], [row]).includes('✅ Improved'));
+  assert(renderTable([policy], [row]).includes('➖ Shift (informational)'));
   assert(renderTable([policy], [row]).includes('-20.0%'));
 });
 test('healthy deterministic decimal boundary meets its configured relative budget', () => {
   const row = compareMetric({ ...policy, kind: 'deterministic', maxRegressionPercent: 10 }, { samples: [0.3] }, { samples: [0.33] });
   assert.equal(row.failed, false);
+  assert(renderTable([{ ...policy, kind: 'deterministic', maxRegressionPercent: 10 }], [row]).includes('❌ Regressed; budget passed'));
 });
 test('accepted finite values retain distinct zero-baseline and percentage-overflow evidence', () => {
   const overflow = compareMetric(policy, { samples: [Number.MIN_VALUE] }, { samples: [1] });
@@ -68,8 +69,16 @@ test('compact statuses retain direction, noise and sample semantics before displ
   const rows = policies.map((p, i) => compareMetric(p, { samples: Array(i === 5 ? 1 : 9).fill(100) }, { samples: Array(i === 5 ? 1 : 9).fill(heads[i]) }));
   assert.deepEqual(rows.map(row => row.status), ['improved', 'degraded', 'within-noise', 'unchanged', 'improved', 'insufficient-samples']);
   const table = renderTable(policies, rows);
-  for (const text of ['✅ Improved', '❌ Regressed', '➖ Within noise', '➖ Unchanged', '⚪ Too few samples', '↑', '+20.0%']) assert(table.includes(text));
+  for (const text of ['➖ Shift (informational)', '➖ Within noise', '➖ Unchanged', '⚪ Too few samples', '↑', '+20.0%']) assert(table.includes(text));
+  assert(!table.includes('✅') && !table.includes('❌'));
+  assert.equal(table.split('Shift (informational)').length - 1, 3);
   assert(rows.every(row => row.failed === false));
+  const report = makeReport({ identity: { ...identity, harnessSha: HARNESS_SHA }, policies,
+    base: new Map(policies.map((p, i) => [p.id, { samples: Array(i === 5 ? 1 : 9).fill(100) }])),
+    head: new Map(policies.map((p, i) => [p.id, { samples: Array(i === 5 ? 1 : 9).fill(heads[i]) }])) });
+  assert(report.markdown.includes('➖ 3 timing shifts (informational)'));
+  assert(!report.markdown.includes('✅') && !report.markdown.includes('❌'));
+  assert.deepEqual(report.comparisons, rows);
   const size = { ...policy, kind: 'deterministic', unit: 'bytes' };
   const unbudgeted = compareMetric(size, { samples: [100] }, { samples: [120] });
   assert.equal(unbudgeted.failed, false);
@@ -85,7 +94,11 @@ test('concise report groups only unsupported browser coverage and links essentia
     base: new Map([[policy.id, { samples: Array(9).fill(100) }], ['browser.draw_ms', unsupported('base')], ['browser.other_ms', { samples: Array(9).fill(10) }]]),
     head: new Map([[policy.id, { samples: Array(9).fill(80) }], ['browser.draw_ms', unsupported('head')], ['browser.other_ms', { samples: Array(9).fill(10) }]]) });
   const [primary, details] = result.markdown.split('<details>');
-  assert(primary.includes('✅ 1 improved'));
+  assert(primary.includes('➖ 1 timing shifts (informational)'));
+  assert(!primary.includes('✅') && !primary.includes('❌'));
+  assert.equal(result.comparisons[0].status, 'improved');
+  assert.equal(result.comparisons[0].deltaPercent, -20);
+  assert.equal(result.failed, false);
   assert(primary.includes('⚪ Browser/GPU: 1 metric unsupported.'));
   assert(!primary.includes('| Browser draw'));
   assert(primary.includes('| Available browser work'));
@@ -111,6 +124,7 @@ test('display rounding preserves exact budget outcomes, limits and machine compa
   const result = makeReport({ identity: { ...identity, harnessSha: HARNESS_SHA }, policies: [p],
     base: new Map([[p.id, { samples: [100] }]]), head: new Map([[p.id, { samples: [100.0000001] }]]) });
   assert.equal(result.failed, true);
+  assert(result.markdown.includes('❌ 1 regressed'));
   assert(result.markdown.includes('❌ Budget failed'));
   assert(result.markdown.includes('| 0.0% |'));
   assert(result.markdown.includes('regression ≤ 1e-8%'));

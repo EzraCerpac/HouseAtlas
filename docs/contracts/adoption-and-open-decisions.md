@@ -3,7 +3,9 @@
 Contract 1.1.0 / record schema 1 uses opaque UUID identities, per-record integer
 revisions and explicit guards. Source-qualified keys remain reserved across
 homes in one workspace, including retired/tombstoned bindings. Source edits
-use verified native HomeBox navigation; Network remains GET-only.
+use verified native HomeBox navigation, except the approved quantity PATCH a
+configured host can dispatch ([quantity application](../operations/quantity-application.md));
+Network remains GET-only.
 
 Evidence, geometry versions and reconciliation journals are append-only.
 Retain uncertainty and immutable original asset identity. Geometry is optional

@@ -1,4 +1,4 @@
-import agent from '../../../contracts/stock-wire3/agent/agent.schema.json';
+import agent from '../../../contracts/client-schemas/agent-ajv.schema.json';
 import atlas from '../../../packages/contracts/schemas/atlas.schema.json';
 import type { SourceRef, Scope } from './generated/contracts';
 import { compileOnUse, stockAjv } from '../numeric/stock-ajv';

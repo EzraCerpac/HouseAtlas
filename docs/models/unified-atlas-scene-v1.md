@@ -1,6 +1,7 @@
 # Unified Atlas scene export v1
 
-Draft producer and consumer handoff. The routes below are proposed, not live.
+Producer and consumer handoff. The routes below are mounted; they return 404
+unless the host selects a scene through the paired options below.
 This is a read model for one Blender/Bonsai publication, not a native import or
 registration framework. The currently served overview GLB alone does not satisfy
 this contract or establish room, floor, plan or overlay bindings.
@@ -102,10 +103,11 @@ and read hrefs; there is no circular self-hash. Native link IDs, source overlay
 anchors and receipt hashes in the companion are documentary references, not
 current native authorization.
 
-The proposed artifact read is
-`GET /api/atlas/models/v1/workspaces/{workspaceId}/homes/{homeId}/atlas/{publicationId}/artifacts/{artifactId}?expectedSha256={sha256}&expectedSelectionRevision={revision}`.
-The artifact IDs are `model` and, optionally, `detail` (route segment
-`model-detail`); their bytes come through the selected overview reader. Plans
+The artifact read is
+`GET /api/atlas/models/v1/workspaces/{workspaceId}/homes/{homeId}/atlas/{publicationId}/artifacts/model?expectedSha256={sha256}&expectedSelectionRevision={revision}`,
+with the fixed segment `model-detail` in place of `model` for the optional
+detail tier. The artifact IDs are `model` and, optionally, `detail`; their
+bytes come through the selected overview reader. Plans
 are inline companion JSON, so this adds no general artifact registry or
 download platform.
 

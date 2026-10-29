@@ -151,7 +151,7 @@ async function fixture(labels = ['One', 'Two']) {
 
 test('real source runtime records exact compiled decimal/mesh/client and schema dependencies', () => {
   assert(runtime.provenance.modules.some(pin => pin.path === 'frontend/src/numeric/decimal.ts' && /^[a-f0-9]{64}$/.test(pin.compiledSha256)));
-  assert(runtime.provenance.modules.some(pin => pin.path.endsWith('agent.schema.json?raw')));
+  assert(runtime.provenance.modules.some(pin => pin.path.endsWith('agent-exact.schema.json?raw')));
 });
 test('maximum escaped request and response wire bodies durably reopen without changing wire bounds', async () => {
   const files = await fixture(['Journal']);

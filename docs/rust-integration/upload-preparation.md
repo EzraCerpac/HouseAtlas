@@ -11,7 +11,7 @@ owners in this route.
 
 This continuation starts from reviewed PR39 main
 `501ccf6507d5924b7acf36675140294596e990a4`, tree
-`027efbbe00688bea65560f20231ed17ac28fab2f`. Both CI workflows preserve the exact
+`027efbbe00688bea65560f20231ed17ac28fab2f`. Both ordinary CI workflows preserve the exact
 subsequent CI40 source at `8f9b0dae87233c9833ef42c85a3afca692eb7efe`.
 
 Current owner successors are Media PR63

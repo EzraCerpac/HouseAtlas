@@ -1,5 +1,7 @@
 # AT51 verification
 
+> Status: historical — AT51 verification record of 2026-10-06; its geodata v2 closure commands remain current. Current: [contracts/geodata-wire-v2/README.md](../../contracts/geodata-wire-v2/README.md).
+
 Verified on 2026-10-06 in the isolated `codex/rust-at51` checkout based on public
 `EzraCerpac/HouseAtlas` commit `9f7561d99e09a680ec5282ca0c8aed4e10c6cbc9`.
 The checkout had one reachable commit and no private ancestry. All changes are

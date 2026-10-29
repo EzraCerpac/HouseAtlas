@@ -249,9 +249,10 @@ dates, stale caches, evidence qualifiers and missing file access are explicit.
 Inventory fields are read-only. Editing uses verified native HomeBox links.
 
 The enamel plate, limewash, cobalt, item-row, rating-plate and responsive
-design is preserved. `styles/atlas.css` is an exact copy of the published
-`web/src/styles.css`; React renders native JSX rather than importing the
-legacy renderer/controller. English copy follows `web/AGENTS.md`. The reload
+design is preserved. `styles/atlas.css` derives from the published
+`web/src/styles.css` but is no longer an exact copy; React renders native JSX
+rather than importing the legacy renderer/controller.
+English copy follows `web/AGENTS.md`. The reload
 control explicitly reads saved information and does not claim a provider
 refresh. Skip links, heading/document focus, labels, archive state, current
 navigation and file fallbacks are implemented.

@@ -340,13 +340,13 @@ in the owner handoff, separately from operational qualification.
 The existing source already preserves uncertain refresh checkpoints and remote
 revocation obligations. `oauth_lifecycle_scenarios.rs` fills missing in-process
 scenario coverage through the actual `OAuthLifecycle`, reusing the private
-synthetic peers in `oauth.rs`. Its three unit tests observe invocation persistence
-before the fake refresh, transport/general-rejection holds without a second
-submission, invalid-grant reauthorization with local credential clearing, and
-local disconnect persisted before an unconfirmed fake revocation. A subsequent
-refresh remains locally held and cannot reconnect or retry remote revocation.
-Retained material after unconfirmed revocation is intentional; this is not a
-claim of local credential removal or remote success.
+synthetic peers in `oauth/healthy_examples.rs`. Its three unit tests observe
+invocation persistence before the fake refresh, transport/general-rejection
+holds without a second submission, invalid-grant reauthorization with local
+credential clearing, and local disconnect persisted before an unconfirmed fake
+revocation. A subsequent refresh remains locally held and cannot reconnect or
+retry remote revocation. Retained material after unconfirmed revocation is
+intentional; this is not a claim of local credential removal or remote success.
 
 Each lifecycle case also attempts to acquire the actual `StoredSession` with a
 deliberately stale ready observation. Record state still denies an inference

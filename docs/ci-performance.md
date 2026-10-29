@@ -3,7 +3,7 @@
 This separate requested lane identifies the exact PR base tip and head for every
 PR target. It runs one pinned synthetic harness sequentially against both
 sources and regenerates one speedup/degradation table from validated raw runs.
-The existing ordinary workflows and their main/dev scope remain unchanged;
+The existing ordinary workflows and their triggers remain unchanged;
 this separate reporting lane adds no service, stored credential, provider,
 household input or deployment qualification.
 
@@ -19,8 +19,13 @@ The sole schema, owned by PR190, is `tools/perf/contract/run.schema.json`, SHA-2
 
 The comment uses a five-column table: metric, base/head medians, percentage
 change and result. Percentage deltas have one decimal; timing values use three
-significant digits and sizes use IEC units. ✅ marks improvements, ❌ regressions
-or budget failures, ➖ unchanged/within-noise results and ⚪ unavailable evidence.
+significant digits and sizes use IEC units. Unbudgeted timing increases and
+decreases use neutral ➖ Shift (informational) labels and a separate timing-shift
+summary count. Their numeric deltas and machine statuses remain unchanged.
+Trusted policy, not metric names or measurement payloads, selects this display.
+Deterministic metrics retain ✅ improvements and ❌ regressions; actual budget
+failures retain ❌. ➖ also marks unchanged/within-noise results and ⚪ unavailable
+evidence. Configured budgets and real measurement failures are not neutralized.
 Both missing-side reasons remain explicit. Unsupported browser/GPU coverage is
 one short note; measured, blocked or failed browser rows are not hidden.
 
@@ -120,7 +125,10 @@ before GitHub can trigger it; a candidate-only PR cannot prove hosted writes.
 Before installation, hosted PR checks collect raw records and ordinary source
 checks run as before. Inspected local healthy checks qualify reporter changes;
 the trusted automatic suite validates the accepted default implementation rather
-than executing proposed reporter/test changes before review.
+than executing proposed reporter/test changes before review. A green performance
+report on a reporter PR does not qualify that PR's edited assertions. Under the
+git-first workflow, unexecuted candidate checks remain explicitly unqualified;
+this change does not expand CI or move candidate code across that trust boundary.
 GitHub describes the trust boundary in its
 [workflow event reference](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run)
 and [secure use reference](https://docs.github.com/en/actions/reference/security/secure-use#mitigating-the-risks-of-untrusted-code-checkout).
