@@ -68,7 +68,8 @@
         "source": {"runsOn": "${{ matrix.os }}", "if": "${{ !cancelled() }}", "matrix": {"os": "[ubuntu-24.04, macos-15]"}, "needs": "changes", "env": {}, "lane": "backend"},
         "unit-tests": {"runsOn": "ubuntu-24.04", "if": "${{ !cancelled() }}", "matrix": null, "needs": "changes", "env": {}, "lane": "backend"},
         "frontend": {"runsOn": "ubuntu-24.04", "if": "${{ !cancelled() }}", "matrix": null, "needs": "changes", "env": {}, "lane": "frontend"},
-        "loopback": {"runsOn": "ubuntu-24.04", "if": "${{ !cancelled() }}", "matrix": {"shard": "[1, 2, 3]"}, "needs": "changes", "env": {"HOUSEATLAS_CHROMIUM": "/usr/bin/google-chrome"}, "lane": "loopback"}
+        "loopback": {"runsOn": "ubuntu-24.04", "if": "${{ !cancelled() }}", "matrix": {"shard": "[1, 2, 3]"}, "needs": "changes", "env": {"HOUSEATLAS_CHROMIUM": "/usr/bin/google-chrome"}, "lane": "loopback"},
+        "ci-ok": {"runsOn": "ubuntu-24.04", "if": "${{ always() }}", "matrix": null, "needs": "[changes, source, unit-tests, frontend, loopback]", "env": {}, "lane": null}
       }
     }
   },
@@ -830,6 +831,19 @@
       "toolchain": ["node"],
       "files": ["tools/ci/cargo-timings.mjs"],
       "scope": "Summarizes Cargo timing diagnostics; continues on error."
+    },
+    {
+      "id": "rr.ci-ok.require",
+      "workflow": "rust-react-ordinary.yml",
+      "job": "ci-ok",
+      "step": "Require successful or skipped jobs",
+      "kind": "check",
+      "if": null,
+      "run": ["for result in $RESULTS; do", "  case \"$result\" in", "    success|skipped) ;;", "    *) exit 1 ;;", "  esac", "done"],
+      "env": {"RESULTS": "${{ join(needs.*.result, ' ') }}"},
+      "toolchain": [],
+      "files": [],
+      "scope": "Runs after the selector, source, unit-test, frontend and loopback jobs; fails unless each succeeded or was skipped by lane selection."
     },
     {
       "id": "action.setup.verify",
