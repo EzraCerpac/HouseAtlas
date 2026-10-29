@@ -570,10 +570,13 @@ bindings, with read-only HomeBox inventory projections and a passive Network
 facet. It works without a floorplan. Checked-in fixtures are synthetic.
 
 This development snapshot includes reviewed HTTP, transaction-local source
-authority and browser DTO corrections. New explicit source-presence admissions
-are disabled before writes until a separately reviewed atomic witness extension
-is integrated. Ordinary results do not establish full product, security,
-publication or deployment readiness.
+authority and browser DTO corrections in the JavaScript reference core
+(`server/`, see [server/README.md](../../server/README.md)) and the `packages/*`
+modules it composes; the running service is the Rust/React stack. New explicit
+source-presence admissions are disabled before writes, in `server/` and in the
+Rust backend (`enforce_current_presence_hold`), until a separately reviewed
+atomic witness extension is integrated. Ordinary results do not establish full
+product, security, publication or deployment readiness.
 
 Use Node **26.10.0** and npm **11.19.1**. Install the exact dependency locks:
 
@@ -953,9 +956,11 @@ npm run test:ordinary
 `verify:publication` checks the explicit current regular-file set, modes,
 digests, logical ownership and unconfigured deployment template. Its manifest
 is specific to this snapshot. `build:ordinary` checks syntax and six named
-module builds; declaration checks are syntax only. `check:http:ordinary` runs
+module builds; declaration checks are syntax only. Its `server/` syntax checks
+and `web` build cover the JavaScript reference baseline. `check:http:ordinary` runs
 14 static compatibility, local schema and fixed valid history-example checks.
-`test:ordinary` names exactly one healthy synthetic WHATWG Request group:
+`test:ordinary` names exactly one healthy synthetic WHATWG Request group
+against the JavaScript reference core in `server/`, not the running Rust service:
 canonical single/batch mutations, qualified source claims, record/history/list
 reads, three-field home DTOs and native links. It uses fake GET transports and
 disposable local stores, opens no socket and calls no provider. The source-backed
@@ -1248,7 +1253,8 @@ HOUSEATLAS_SCREENSHOT_PREFIX select private output paths whose parents exist.
 This check is outside ordinary CI. It provides no populated Network/provider,
 actual-household, recovery, security, operator, pilot or deployment acceptance.
 
-The core exports embeddable request/service modules; it provisions no service.
+The JavaScript reference core in `server/` exports embeddable request/service
+modules; it provisions no service.
 `config/deployment.example.json` is a typed unfilled template, not runtime
 configuration or authority. Supply real settings privately only after the
 corresponding gates. CI requires no secrets and performs no deployment.
