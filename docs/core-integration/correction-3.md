@@ -1,5 +1,7 @@
 # Corrected development core
 
+> Status: historical — correction note for core `0.1.1-at13.3`. Current: [docs/core-integration/README.md](README.md).
+
 Core `0.1.1-at13.3` composes storage `0.1.3` / SQLite schema 3, web `0.1.1`
 and the additive HTTP `1.1.0` history sidecar. Executable and fixture bytes are
 preserved from the reviewed composition; publication-only script and metadata

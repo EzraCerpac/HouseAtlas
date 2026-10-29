@@ -1,5 +1,7 @@
 # Native reader and browser command composition
 
+> Status: historical — continuation from `d65bc7d`. Current: [docs/rust-integration/README.md](README.md).
+
 This separate local continuation starts at corrected MCP integration
 `d65bc7d4511524ab9c3afd50b6f60f83b19093f7`. Public exact inputs are the native
 wire head `9eaab4bc39216de486fd8274e1503e3e9df86fad`, reader successor

@@ -1,5 +1,7 @@
 # Contract serialization correction
 
+> Status: historical — AT51 correction note on PR 5 head `7f5faca`. Current: [docs/rust-baseline/numeric-semantics.md](numeric-semantics.md).
+
 This correction appends to PR 5 baseline head
 `7f5faca11aa65a723bb3a4540654e0a436afbacf`. That commit and its original scoped
 patch remain preserved. Correction ownership is limited to contracts, baseline

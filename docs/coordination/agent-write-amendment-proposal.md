@@ -1,5 +1,7 @@
 # Future agent and provider command boundaries
 
+> Status: superseded by [docs/rust-integration/agents.md](../rust-integration/agents.md) and [docs/operations/quantity-application.md](../operations/quantity-application.md).
+
 Future agent transports should call the same typed application authorization,
 validation, revision, audit and receipt boundary. Derive actor/home from a
 verified principal rather than supplied claims. Browser tools must preserve

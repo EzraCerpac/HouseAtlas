@@ -1,8 +1,6 @@
 # Documentary electricity overlay
 
-> **Retired UI.** The panel, scene layer and diagram components described below
-> were removed with the old scan Atlas (#414). The documentary model, adapter and
-> types remain and feed the unified Atlas; the rest is kept as design history.
+> Status: historical — its panel, scene layer and diagram components were removed with the old scan Atlas (#414); the documentary model, adapter and types remain.
 
 `frontend/src/lantern/overlays/electricity` exports `ElectricityOverlayPanel`,
 its immutable domain types, and `adaptDocumentaryElectricity`. The geometry

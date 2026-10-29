@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "15ddc41d65351585f7155d63f188e5e65e2d9e2e926bdacb751e5ed45b3c272b",
+  "sourceDigestSha256": "6a38d4b2c1d52e1614e5014ebe3d7a7d36f049584994c94b153f6343a181b7a5",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -5906,6 +5906,13 @@
       "owner": "contracts"
     },
     {
+      "path": "docs/README.md",
+      "mode": "100644",
+      "bytes": 14979,
+      "sha256": "e86b30d15b9f268418083829ccd20cc5322d2de5b3cccc700b4b25878cc51271",
+      "owner": "core-integration"
+    },
+    {
       "path": "docs/architecture/property-network-connections.md",
       "mode": "100644",
       "bytes": 5454,
@@ -6188,8 +6195,8 @@
     {
       "path": "docs/contracts/geodata-document-v2-proposal.md",
       "mode": "100644",
-      "bytes": 17413,
-      "sha256": "2997120ef5f29662a1acb5c5435a8db2a30cb2436600124e82ddf8e0117c16b7",
+      "bytes": 17619,
+      "sha256": "26b060cdb02341cf18e6e16633c75924cf0f3deccce699b93fe34b1cba68d53e",
       "owner": "contracts"
     },
     {
@@ -6251,22 +6258,22 @@
     {
       "path": "docs/coordination/agent-write-amendment-proposal.md",
       "mode": "100644",
-      "bytes": 1424,
-      "sha256": "d21a8afb94ea2c1f3cfc9957e91f965259ab0b39823df49284efa259a2923d89",
+      "bytes": 1600,
+      "sha256": "abb684b2ef1d68d8a816d3675919989700de6d486f808f78ee69613f35f3ffec",
       "owner": "core-integration"
     },
     {
       "path": "docs/coordination/baseline-scope.md",
       "mode": "100644",
-      "bytes": 996,
-      "sha256": "6fa10a5b99188f34cdf733887d2bfad1ffb25da16235312225b1a4e1861c6001",
+      "bytes": 1115,
+      "sha256": "efc6f779e3b357cb5f037bc091e058ba0f48b969ff4a24691b3dc5e79360a93e",
       "owner": "core-integration"
     },
     {
       "path": "docs/coordination/runtime-and-module-contracts.md",
       "mode": "100644",
-      "bytes": 2013,
-      "sha256": "e498229ba35e55bfb660978c72a54fd6cfb60d07e16bd41fa4c5b3cd61bf1ae7",
+      "bytes": 2171,
+      "sha256": "559187dd644313be4f5b5e58407c928b0abe16c53c0ee8a23c687554af2a214d",
       "owner": "core-integration"
     },
     {
@@ -6293,8 +6300,8 @@
     {
       "path": "docs/core-integration/correction-3.md",
       "mode": "100644",
-      "bytes": 5878,
-      "sha256": "25e64f1b9723e4542df90db54f980e5ca8907f0a85a405249d8018ed78c0ea48",
+      "bytes": 6000,
+      "sha256": "4a4fa4a8114f3b8c2c55fca73c391285eae6d0a0a1a005eb069ce06346dc6fff",
       "owner": "core-integration"
     },
     {
@@ -6440,8 +6447,8 @@
     {
       "path": "docs/geometry/electricity-overlay.md",
       "mode": "100644",
-      "bytes": 13967,
-      "sha256": "8fdc2f2daa7d6b30881938d142904ad32cafbfe46894616f0f1ff2ba41d79597",
+      "bytes": 13891,
+      "sha256": "150ab9025801237d56a8974b470534f5f1948d3cb4da75025fbd28a519d74fd6",
       "owner": "web"
     },
     {
@@ -6531,8 +6538,8 @@
     {
       "path": "docs/geometry/network-overlay.md",
       "mode": "100644",
-      "bytes": 10120,
-      "sha256": "9ee0aaf25646e93dc86fc4bcf366e7cc32255103bd15916dd8b0b6d3a2694a7e",
+      "bytes": 10155,
+      "sha256": "6c57f323da0966654c1d28304856464dc492f492a82dc6113fd4bb2eadb438c2",
       "owner": "web"
     },
     {
@@ -6797,22 +6804,22 @@
     {
       "path": "docs/rust-baseline/README.md",
       "mode": "100644",
-      "bytes": 9443,
-      "sha256": "561fe07406d7e3e0a3ddb8039c78c2afb32b41797fbd275fbb72df23cf6eeacd",
+      "bytes": 9696,
+      "sha256": "3831898b29c1dae20cec7a37099fee70a6dafd3fedeffd50bcf8870bcee484a2",
       "owner": "contracts"
     },
     {
       "path": "docs/rust-baseline/correction-1.md",
       "mode": "100644",
-      "bytes": 3231,
-      "sha256": "ce542d174086f075f69f61097cb6da8219e475cf186803952a805f109212afff",
+      "bytes": 3376,
+      "sha256": "980ce6f5b156199d7959d352899441a94da1ced385557e595c6fc36b8e6a3bf7",
       "owner": "contracts"
     },
     {
       "path": "docs/rust-baseline/correction-2.md",
       "mode": "100644",
-      "bytes": 2526,
-      "sha256": "2f045ea008c51c9c9922e0094cf13b6fd437c356561d307829957dd60d211a35",
+      "bytes": 2671,
+      "sha256": "37922b368e4fede76f66c2e127f295c224c9e5854b1cb0d37dfeea28aa930119",
       "owner": "contracts"
     },
     {
@@ -6825,8 +6832,8 @@
     {
       "path": "docs/rust-baseline/verification.md",
       "mode": "100644",
-      "bytes": 4838,
-      "sha256": "c18e6ceb70c7b07a16664588c074835ce43544996072dda825583ed852346950",
+      "bytes": 5043,
+      "sha256": "5d83405ad66f29753fb702888ae9b6dc41daef3fc675a115861ce24fab3f6222",
       "owner": "contracts"
     },
     {
@@ -6839,8 +6846,8 @@
     {
       "path": "docs/rust-integration/access-session-binding.md",
       "mode": "100644",
-      "bytes": 3027,
-      "sha256": "8d71f1135e984602e8c09f10d86de3e21ac4d6483f007f196e3d6b5b0f4193e4",
+      "bytes": 3151,
+      "sha256": "f1a9db1c4218e59af41b8ba4d9eb36a2cb22c3b5388b07670b0735a27c14e3e1",
       "owner": "core-integration"
     },
     {
@@ -6860,8 +6867,8 @@
     {
       "path": "docs/rust-integration/atlas-list-handlers.md",
       "mode": "100644",
-      "bytes": 4707,
-      "sha256": "02a61bb3898155388b282c55a19ef9d829336bb0f20177b5d262121cdd72e0f1",
+      "bytes": 4831,
+      "sha256": "bd27021107ff74a36713301d5c88c4c857c630f4297dee4de4fb3fcc4c2fc5cb",
       "owner": "core-integration"
     },
     {
@@ -6874,8 +6881,8 @@
     {
       "path": "docs/rust-integration/core-continuation.md",
       "mode": "100644",
-      "bytes": 2780,
-      "sha256": "ba33a20cfacfe2eb4ab95f73745db009f98e1caecfe8fbfe1c38a0bc228f0864",
+      "bytes": 2909,
+      "sha256": "6de52d4c721f00ea12667eb51ad935d40a0e0b11afbda01010dbb48a118d651b",
       "owner": "core-integration"
     },
     {
@@ -6895,22 +6902,22 @@
     {
       "path": "docs/rust-integration/host-corrections.md",
       "mode": "100644",
-      "bytes": 2266,
-      "sha256": "c2d24195e61d056494d18ecbc9edf7076acd0dfadb892f229d3c561ceb2dc7bd",
+      "bytes": 2388,
+      "sha256": "ba7db96f6ff506cd10b33a725a71956ff731e916ce26a31cd5abfd69fce98d9e",
       "owner": "core-integration"
     },
     {
       "path": "docs/rust-integration/intake-correction.md",
       "mode": "100644",
-      "bytes": 3095,
-      "sha256": "07a06286e96a22a691e79101326b3c9aff8390f6d935498ffd52fbeab7e95cad",
+      "bytes": 3240,
+      "sha256": "1c9dadaea0163c886475e423cb2ff7865bd03c94d8dd83021a65b12aa2fe96c3",
       "owner": "core-integration"
     },
     {
       "path": "docs/rust-integration/mcp-lifecycle-mount.md",
       "mode": "100644",
-      "bytes": 5985,
-      "sha256": "83134811b72e0f113a89c6debd12f60f4cb59be34adb66633db07319bbd05f50",
+      "bytes": 6100,
+      "sha256": "f06ded58f14618ebf3f4b94cdaaac5bf4958099f312538f8a7e3d0906e353af5",
       "owner": "core-integration"
     },
     {
@@ -6930,8 +6937,8 @@
     {
       "path": "docs/rust-integration/native-reader-and-webmcp.md",
       "mode": "100644",
-      "bytes": 4851,
-      "sha256": "153ff84efc628591fd8de16ea53a72875545f28b0ccb7219437341701e1813c1",
+      "bytes": 4961,
+      "sha256": "5989296e8fb047be0e4f97f60eed7e70c861f52548ef181d8cb20629aed67b40",
       "owner": "core-integration"
     },
     {
@@ -6951,8 +6958,8 @@
     {
       "path": "docs/rust-integration/owned-media.md",
       "mode": "100644",
-      "bytes": 3100,
-      "sha256": "26a67765bd723fe040c3b04d482da4baa0cb1b0c9fcd6a0f33c0da7571eee68b",
+      "bytes": 3222,
+      "sha256": "12347c6cded1d7424e572a50773b29df19844f0e12e308385fd843da5fecc82a",
       "owner": "core-integration"
     },
     {
@@ -6965,15 +6972,15 @@
     {
       "path": "docs/rust-integration/read-corrections.md",
       "mode": "100644",
-      "bytes": 3393,
-      "sha256": "cf9f1d5303ade4c7318d4d419ded75a9bd87e2ba4181445f7accf217be877447",
+      "bytes": 3522,
+      "sha256": "b487d660a093dc8b48b2762e03a8462cc24eb3bf63bfa16c80ee833f7cc39cdc",
       "owner": "core-integration"
     },
     {
       "path": "docs/rust-integration/review-source-ledger.md",
       "mode": "100644",
-      "bytes": 22348,
-      "sha256": "db54588edbcf4f1ff02e2efc02b4ea650e9ec8a8d79c7acfe48550d28e9c326c",
+      "bytes": 22535,
+      "sha256": "bff0a0853d3857be32b7ba820e58702fc149b68322fc4ebf74b1d8aa9c1d544e",
       "owner": "core-integration"
     },
     {
@@ -7021,15 +7028,15 @@
     {
       "path": "docs/rust-integration/verification.md",
       "mode": "100644",
-      "bytes": 2670,
-      "sha256": "c3aa40396541f4353c56103d98ab9de80941adafd700d993a7d7d2edd2ef11ad",
+      "bytes": 2813,
+      "sha256": "13446572274fd5ca5e8ec3620337e5e59f0cb044d0dbcbf5be0dbdf81b6dc6be",
       "owner": "core-integration"
     },
     {
       "path": "docs/rust-integration/webmcp-gateway-source.md",
       "mode": "100644",
-      "bytes": 4664,
-      "sha256": "63e307c6552417ef4c95e73b79e6f8f665deee93286c30b9b149bfb0e3dc2356",
+      "bytes": 4775,
+      "sha256": "16f59b96294d7ecaf5f450eaeb2375f84dc7d7bbd475fd60d57be6f408eb77d7",
       "owner": "core-integration"
     },
     {

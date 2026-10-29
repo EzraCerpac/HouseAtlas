@@ -1,5 +1,7 @@
 # Native core ordinary evidence
 
+> Status: historical — evidence for an earlier native core checkpoint. Current: [docs/rust-integration/README.md](README.md).
+
 This records the earlier immutable native core checkpoint. The subsequent owned-media
 continuation and its updated module bindings are recorded in owned-media.md.
 

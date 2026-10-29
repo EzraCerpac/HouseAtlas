@@ -1,5 +1,7 @@
 # Checked numeric processing correction
 
+> Status: historical — AT51 correction note on PR 5 head `dac410e`. Current: [docs/rust-baseline/numeric-semantics.md](numeric-semantics.md).
+
 This correction appends to PR 5 correction head
 `dac410e22f63a231118f513a0a565093e0836213`. Both that head and the original
 `7f5faca11aa65a723bb3a4540654e0a436afbacf` scaffold remain preserved. Only the
