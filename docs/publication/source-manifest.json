@@ -23,7 +23,6 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d3e5cb0e4e8b0a2b3635b5fe87c2d00f5086c2d225022ef16f7654326012f0d1",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -42,8 +41,8 @@
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
-      "bytes": 7018,
-      "sha256": "5cdd0d825466721005b8a4f7c8608894f871e278cc225caa7ae2660c73355c1b",
+      "bytes": 7353,
+      "sha256": "815951785c717a154834da8c74146dffb30b4288ae35a9f39307d210b1fa4df7",
       "owner": "core-integration"
     },
     {
@@ -154,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 15013,
-      "sha256": "bc707eaae685fc698f52b0aaf32a28e99e4d93b91ab5fc7f1650a7c37484c3a5",
+      "bytes": 15579,
+      "sha256": "a88905a90dc7d1aea8998df348df600af37bdc445fac10328e2e150091c1c95f",
       "owner": "core-integration"
     },
     {
@@ -6237,22 +6236,22 @@
     {
       "path": "docs/contributing/ci-path-selection.md",
       "mode": "100644",
-      "bytes": 4205,
-      "sha256": "590726cbd9713374367624d29f817190d05cb5c2dbb0ce12df233382d28b5a87",
+      "bytes": 6783,
+      "sha256": "0fda4ac993602c7c7c9eb1b35fc2c0f8b2532b6c6051cd47e3105cfd0c9b6bb5",
       "owner": "core-integration"
     },
     {
       "path": "docs/contributing/formatting.md",
       "mode": "100644",
-      "bytes": 3186,
-      "sha256": "e457035d43dab3ac9ca91ebfde9e490820564779c7493061c5cffbc707ce19b4",
+      "bytes": 4783,
+      "sha256": "a944153f5180966cd938ceedef5cd074e7e3b064f73f16d80ebb1212ba18217a",
       "owner": "core-integration"
     },
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 192160,
-      "sha256": "1f2fe9e382f1a8f2330e0ec60bcac07dc2321d45fac48c97b280dac459412987",
+      "bytes": 193928,
+      "sha256": "c9f5b8832e94fd1b1d9eab02c203aec7265fcf89f19d872eac8b98b33ab5ab2d",
       "owner": "core-integration"
     },
     {
@@ -11375,8 +11374,8 @@
     {
       "path": "tools/ci/lanes.json",
       "mode": "100644",
-      "bytes": 51168,
-      "sha256": "b711d3e32bc505f551521da68b5025750bb1b11ad88fbca8a0c08935fb6c8374",
+      "bytes": 52342,
+      "sha256": "2210ffbcc00435653eb9bd55445e83c81de66b27e748fa91eee0138c1a53b15b",
       "owner": "core-integration"
     },
     {
@@ -12339,10 +12338,24 @@
       "owner": "core-integration"
     },
     {
+      "path": "tools/publication/refresh-manifest.mjs",
+      "mode": "100644",
+      "bytes": 9414,
+      "sha256": "7df1ac96755350bea892690a23fcb96783c0a9c16daa9e27c1da38031c6db1d0",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/publication/refresh-manifest.test.mjs",
+      "mode": "100644",
+      "bytes": 12367,
+      "sha256": "101b6f32854b81c6ce48028c227c89b544a13912241f5c10dc4024295334e999",
+      "owner": "core-integration"
+    },
+    {
       "path": "tools/publication/verify-source.mjs",
       "mode": "100644",
-      "bytes": 3600,
-      "sha256": "ee20a1773dc1635634c9fca4598f65f69ca6532294d393c37510fdc8c1898207",
+      "bytes": 3949,
+      "sha256": "27dee2799849ad9316e67ac795bac3ce8b4921655dbdeb700027bb802902980e",
       "owner": "core-integration"
     },
     {

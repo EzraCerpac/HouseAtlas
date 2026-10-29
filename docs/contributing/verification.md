@@ -107,6 +107,7 @@ hosted step logs remain the execution record.
 | ordinary-core / ordinary-core | Synthetic PR selector regressions (stdlib and disposable Git histories) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/ci -p 'test_*.py' -v` | every run | 23 unittest methods | Stdlib selector cases over disposable synthetic Git histories and `check_lanes.py` cases over temporary synthetic repositories. |
 | ordinary-core / ordinary-core | Check the CI command manifest against these workflows (stdlib, repository files only) | `python3 -B -I tools/ci/check_lanes.py --check` | every run |  | This manifest against both ordinary workflows and their two composite actions: triggers, workflow and job env, job selection and needs, run lines, step conditions, ids, env and options, files, case counts, prose claims, toolchain pins and this table. Reads repository files only; runs no listed command. |
 | ordinary-core / ordinary-core | Verify publication file set and template | `npm run verify:publication` | every run |  | Exact regular-file set, modes, digests and logical ownership from the source manifest, and the unconfigured deployment template. |
+| ordinary-core / ordinary-core | Run the twelve synthetic publication manifest regenerator cases | `node --test --test-concurrency=1 tools/publication/refresh-manifest.test.mjs` | every run | 12 top-level tests | The actual regenerator against generated trees and manifests in disposable temporary folders, once checked by a temporary copy of the publication verifier; no network, and the repository manifest is neither read nor written. |
 | ordinary-core / ordinary-core | Build six ordinary modules | `npm run build:ordinary` | every run |  | Syntax of the JavaScript reference server modules, six named module builds and publication integrity; no listener. |
 | ordinary-core / ordinary-core | Check additive HTTP history schema and valid examples | `node --check packages/contracts/history/check-history.mjs`<br>`npm run check:http:ordinary` | every run |  | Checker syntax, then static compatibility, local schema and fixed valid history-example checks. |
 | ordinary-core / ordinary-core | Run one healthy synthetic Request group | `npm run test:ordinary` | every run |  | One healthy synthetic WHATWG Request group against the JavaScript reference core, with fake GET transports and disposable stores; no socket or provider. |
@@ -3031,6 +3032,31 @@ Inspect the wrapper and fixture file before running. Generated temporary roots
 are removed by the test cleanup; the recording stub captures arguments and
 working directory only. A failed case fails the existing ordinary-core step.
 No profile build or runtime benchmark is part of this registration.
+
+## Synthetic publication manifest regenerator
+
+The existing ordinary-core job also runs, after `verify:publication`, the twelve
+cases of the [manifest regenerator](formatting.md#publication-manifest) with
+pinned Node and `--test-concurrency=1`:
+
+```sh
+node --test --test-concurrency=1 tools/publication/refresh-manifest.test.mjs
+```
+
+Each case builds a tiny generated tree and manifest in a disposable temporary
+folder and runs the actual `tools/publication/refresh-manifest.mjs` with
+`--root` there. They cover an unchanged tree (byte-for-byte no-op), edited,
+deleted and new files, owner refusal and unknown owners, executable-bit changes,
+`--check` exit codes, symlink, conflict-marker, malformed `--owners-from` and
+unsafe-path refusal, and `--owners-from` (filled new rows, reported kept owners
+and a refused base-added owner) and the removal of a stored aggregate digest; the
+expected rows are recomputed independently, and one case
+runs a temporary copy of `verify-source.mjs` (with copies of the two unfilled
+templates it reads) against the regenerated tree and checks its printed source
+digest. The cases open no network
+connection, write only their temporary folders and neither read nor write the
+repository manifest. They do not establish that the repository manifest is
+current; `verify:publication` checks that.
 
 ## Generated browser schema subset
 

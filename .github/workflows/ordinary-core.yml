@@ -2,7 +2,8 @@ name: Ordinary synthetic core
 on:
   push:
     branches: [main]
-  # Every PR runs, including stacked PRs whose base is another branch; pushes run on main only.
+  # Every non-conflicted PR runs, including stacked PRs whose base is another branch
+  # (GitHub starts no pull_request run while a PR conflicts with its base); pushes run on main only.
   pull_request:
 permissions:
   contents: read
@@ -53,6 +54,8 @@ jobs:
           npm ci --prefix packages/contracts --ignore-scripts --no-audit --no-fund
       - name: Verify publication file set and template
         run: npm run verify:publication
+      - name: Run the twelve synthetic publication manifest regenerator cases
+        run: node --test --test-concurrency=1 tools/publication/refresh-manifest.test.mjs
       - name: Build six ordinary modules
         run: npm run build:ordinary
       - name: Check additive HTTP history schema and valid examples
@@ -95,7 +98,7 @@ jobs:
       - name: Record coverage boundary
         if: always()
         run: |
-          printf '%s\n' 'Scope: stdlib selector and CI command-manifest checks, synthetic deploy-nas and backup tool tests, the three explicit synthetic bridge read cases (healthy_large_read_page, denial_read_profile_bounds, denial_read_correlation; fake GET/session/admission owners and disposable journal only), integrity, syntax, six module builds, 14 history checks, one healthy synthetic mutation/read/history/DTO Request group, the HomeBox quantity seed report unit tests, eight named synthetic electrical registration cases, sixteen synthetic runtime profiling guard/receipt cases and the explicit Cargo mode process-routing regressions and nine host-client options, driver-identity, pacing, MCP and comparison cases (two exact Node files; generated temp files and fake ports only, no host or load).' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'Scope: stdlib selector and CI command-manifest checks, synthetic deploy-nas and backup tool tests, the three explicit synthetic bridge read cases (healthy_large_read_page, denial_read_profile_bounds, denial_read_correlation; fake GET/session/admission owners and disposable journal only), integrity, syntax, six module builds, 14 history checks, one healthy synthetic mutation/read/history/DTO Request group, the HomeBox quantity seed report unit tests, eight named synthetic electrical registration cases, sixteen synthetic runtime profiling guard/receipt cases, the explicit Cargo mode process-routing regressions, twelve synthetic publication manifest regenerator cases (temporary trees only) and nine host-client options, driver-identity, pacing, MCP and comparison cases (two exact Node files; generated temp files and fake ports only, no host or load).' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'Command outcomes are reported in the steps above; this summary alone is not a pass claim.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'New explicit source-presence admission is blocked and unexercised.' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' 'Beyond the eight named electrical cases and the three exact scoped bridge read cases, guard reversal, mutation/omission controls, adversarial, denial, failure injection, concurrency and private-intake checks remain stopped and excluded.' >> "$GITHUB_STEP_SUMMARY"

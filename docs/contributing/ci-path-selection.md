@@ -44,10 +44,14 @@ resolved, selection falls back to full; no guessed base or API list is used.
 The existing test jobs still check out the exact candidate head, while
 ordinary-core checks the event merge tree. This preserves their prior behavior.
 
-Both workflows always trigger. Existing matrix/check names remain present:
+Both workflows trigger on every main push and on PR open, push and reopen
+events, except that GitHub starts no `pull_request` run while the PR head
+conflicts with its base (see below). Existing matrix/check names remain present:
 unselected jobs run a short selection/summary step and omit their expensive
-checkout/setup/build/test steps. Keeping those jobs avoids required matrix checks
-remaining pending. Even an unselected macOS check briefly allocates its existing
+checkout/setup/build/test steps. Keeping those jobs reports every existing check
+name on each run, so a branch rule requiring one would not wait on a job that
+never started; no such rule is defined in this repository's files. Even an
+unselected macOS check briefly allocates its existing
 runner; no new runner type, action, permission or external service is introduced.
 A failed/missing selector job makes dependent jobs run full (unless the workflow
 was cancelled). Main pushes always select full. Each job summary records omitted
@@ -58,3 +62,47 @@ Changes to this selector/workflow are themselves full-suite changes. Focused
 regression cases run in ordinary-core, covering the matrix, generated metadata,
 shared/unknown paths, rename/deletion, failure fallback, and a divergent target
 branch plus fork-like head checked out as a synthetic merge commit.
+
+## Merge conflicts suppress PR CI
+
+A PR whose head conflicts with its base gets no `pull_request` run of either
+workflow, so no lane is selected or skipped: nothing runs. The publication
+manifest used to make this common: it stored one `sourceDigestSha256` line that
+changed in every PR that changed a file, so once one such PR merged, every other
+open PR that changed a file conflicted there. #431, #449, #453 and #493 had no
+Actions run on their final heads while they conflicted with main in this
+manifest (#453 also in other files); their code was first tested by the
+integration PRs that absorbed them.
+
+`verify-source.mjs` now computes and prints that aggregate instead of storing
+it, and refuses a manifest that stores it. Each row keeps its fields on separate
+lines, so PRs that change different files merge cleanly in the manifest. Two PRs
+still conflict there when they change the same file or add files whose rows
+sort next to each other. A stack merged with squash commits also conflicts on
+rows that more than one layer changed; merge commits keep each layer's base.
+
+Merge the base and regenerate the manifest, in a checkout without build output
+or other stray files (see [Publication manifest](formatting.md#publication-manifest)):
+
+```sh
+git merge origin/main
+# Resolve and `git add` every other conflicted file first.
+git checkout --ours docs/publication/source-manifest.json
+base=$(mktemp)
+git show MERGE_HEAD:docs/publication/source-manifest.json > "$base"
+node tools/publication/refresh-manifest.mjs --owners-from "$base"
+rm "$base"
+npm run verify:publication
+git add docs/publication/source-manifest.json
+git commit
+```
+
+The conflicted manifest is not JSON, so the regenerator refuses it until one
+side is taken. That side keeps its `owners` list, other top-level fields and
+existing owners; `--owners-from` only supplies owners for files the base added,
+and the merged tree supplies every byte count, digest and the file set. Owner
+changes and new `owners` entries made on the base are not merged: the
+regenerator lists kept rows whose base owner differs, and refuses a base-added
+file whose owner is not in the kept `owners` list. Edit those rows or the
+`owners` list by hand, then rerun. Push the merge before expecting CI. A PR with no Actions run on
+its head is untested.

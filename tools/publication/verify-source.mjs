@@ -33,7 +33,10 @@ for (const row of manifest.files) {
   assert.equal(bytes.length, row.bytes, row.path);
   assert.equal(hash(bytes), row.sha256, row.path);
 }
-assert.equal(hash(Buffer.from(manifest.files.map(r => `${r.path}\t${r.mode}\t${r.bytes}\t${r.sha256}\n`).join(''))), manifest.sourceDigestSha256);
+// The aggregate is computed and printed, not stored: a stored copy would only
+// repeat the rows above and would make every file-changing PR conflict on one line.
+assert(!Object.hasOwn(manifest, 'sourceDigestSha256'), 'The aggregate source digest is printed by this check, not stored in the manifest');
+const sourceDigest = hash(Buffer.from(manifest.files.map(r => `${r.path}\t${r.mode}\t${r.bytes}\t${r.sha256}\n`).join('')));
 assert.equal(lstatSync(join(root, manifestPath)).mode & 0o111, 0);
 assert.equal(process.version, 'v26.10.0');
 const policy = JSON.parse(readFileSync(join(root, 'packages/operations-policy/policy.json')));
@@ -52,4 +55,4 @@ assert(Object.values(config.ports).every(v => v === null));
 assert.deepEqual(config.membership.viewerAccountIds, []); assert.deepEqual(config.membership.editorAccountIds, []);
 assert.equal(config.membership.operatorAccountId, null); assert(Object.values(config.recovery).every(v => v === null));
 assert.equal(config.credentialsConfigured, false); assert.equal(config.persistentGrantsConfigured, false);
-console.log(`Publication file set, modes, ${manifest.files.length} digests, logical ownership and unfilled template consistent; manifest itself requires exact-tree review`);
+console.log(`Publication file set, modes, ${manifest.files.length} digests, logical ownership and unfilled template consistent; source digest ${sourceDigest} (${manifest.sourceDigestAlgorithm}); manifest itself requires exact-tree review`);

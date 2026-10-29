@@ -164,6 +164,23 @@
       "claims": [["docs/contributing/verification.md", "`verify:publication` checks the explicit current regular-file set, modes, digests, logical ownership and unconfigured deployment template"]]
     },
     {
+      "id": "core.publication-refresh",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Run the twelve synthetic publication manifest regenerator cases",
+      "kind": "test",
+      "if": null,
+      "run": ["node --test --test-concurrency=1 tools/publication/refresh-manifest.test.mjs"],
+      "toolchain": ["node"],
+      "files": ["tools/publication/refresh-manifest.test.mjs", "tools/publication/refresh-manifest.mjs", "tools/publication/verify-source.mjs"],
+      "scope": "The actual regenerator against generated trees and manifests in disposable temporary folders, once checked by a temporary copy of the publication verifier; no network, and the repository manifest is neither read nor written.",
+      "cases": {"counter": "node-test-toplevel", "files": ["tools/publication/refresh-manifest.test.mjs"], "expected": 12},
+      "claims": [
+        ["AGENTS.md", "twelve cases build tiny generated trees"],
+        ["docs/contributing/verification.md", "node --test --test-concurrency=1 tools/publication/refresh-manifest.test.mjs"]
+      ]
+    },
+    {
       "id": "core.build",
       "workflow": "ordinary-core.yml",
       "job": "ordinary-core",
@@ -329,7 +346,7 @@
       "step": "Record coverage boundary",
       "kind": "summary",
       "if": "always()",
-      "run": ["printf '%s\\n' 'Scope: stdlib selector and CI command-manifest checks, synthetic deploy-nas and backup tool tests, the three explicit synthetic bridge read cases (healthy_large_read_page, denial_read_profile_bounds, denial_read_correlation; fake GET/session/admission owners and disposable journal only), integrity, syntax, six module builds, 14 history checks, one healthy synthetic mutation/read/history/DTO Request group, the HomeBox quantity seed report unit tests, eight named synthetic electrical registration cases, sixteen synthetic runtime profiling guard/receipt cases and the explicit Cargo mode process-routing regressions and nine host-client options, driver-identity, pacing, MCP and comparison cases (two exact Node files; generated temp files and fake ports only, no host or load).' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'Command outcomes are reported in the steps above; this summary alone is not a pass claim.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'New explicit source-presence admission is blocked and unexercised.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'Beyond the eight named electrical cases and the three exact scoped bridge read cases, guard reversal, mutation/omission controls, adversarial, denial, failure injection, concurrency and private-intake checks remain stopped and excluded.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'No provider, target, secret recovery, HTTPS, pilot, deployment, full security or production qualification.' >> \"$GITHUB_STEP_SUMMARY\""],
+      "run": ["printf '%s\\n' 'Scope: stdlib selector and CI command-manifest checks, synthetic deploy-nas and backup tool tests, the three explicit synthetic bridge read cases (healthy_large_read_page, denial_read_profile_bounds, denial_read_correlation; fake GET/session/admission owners and disposable journal only), integrity, syntax, six module builds, 14 history checks, one healthy synthetic mutation/read/history/DTO Request group, the HomeBox quantity seed report unit tests, eight named synthetic electrical registration cases, sixteen synthetic runtime profiling guard/receipt cases, the explicit Cargo mode process-routing regressions, twelve synthetic publication manifest regenerator cases (temporary trees only) and nine host-client options, driver-identity, pacing, MCP and comparison cases (two exact Node files; generated temp files and fake ports only, no host or load).' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'Command outcomes are reported in the steps above; this summary alone is not a pass claim.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'New explicit source-presence admission is blocked and unexercised.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'Beyond the eight named electrical cases and the three exact scoped bridge read cases, guard reversal, mutation/omission controls, adversarial, denial, failure injection, concurrency and private-intake checks remain stopped and excluded.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'No provider, target, secret recovery, HTTPS, pilot, deployment, full security or production qualification.' >> \"$GITHUB_STEP_SUMMARY\""],
       "toolchain": [],
       "files": [],
       "scope": "Writes the job scope and exclusions to the step summary; not a pass claim."
