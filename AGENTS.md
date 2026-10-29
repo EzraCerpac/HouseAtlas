@@ -45,8 +45,10 @@ slow, noisy or need special setup. Keep a test out of default runs with
 unit tests with such names can run with everything else. Prefer explicit lists
 to globbing so CI scope stays readable.
 
-Ordinary CI runs the existing workflows on pushes to `main` and pull requests
-targeting `main`. `.github/workflows/ordinary-core.yml` also runs the 14
+Ordinary CI (`ordinary-core.yml` and `rust-react-ordinary.yml`) runs on pushes
+to `main` and on every pull request, including stacked PRs whose base is another
+branch.
+`.github/workflows/ordinary-core.yml` also runs the 14
 synthetic `tools/homebox-quantity-seed-report` unit tests and the synthetic
 `tools/deploy-nas` and `tools/backup` tests (temp folders, a fake service and
 a fake iCloud helper; no launchd, network or real data) with the runner's
@@ -133,6 +135,23 @@ expanded by the viewer's decoder; and
 loopback flows named in the workflow and in the verification guide. A PR that
 extends CI names the added scope here and in the verification guide.
 
+`tools/ci/lanes.json` and the generated command inventory in the verification
+guide are the authoritative list of `run:` steps in `ordinary-core.yml`,
+`rust-react-ordinary.yml` and their composite actions under `.github/actions/`.
+The ordinary-core job runs `python3 -B -I tools/ci/check_lanes.py --check`
+(Python standard library only; reads repository files, no subprocess or network)
+to compare that manifest with those files: triggers, workflow and job env, job
+runner, condition, matrix and needs, each run step's command, condition, id,
+env and options such as `continue-on-error`, and the run steps' order within each
+job, plus recorded case counts, prose claims, toolchain pins and the generated
+table. A run step that reads `steps.<id>` before an earlier step has that id is
+refused. It refuses workflow, job and run-step
+keys it does not read. `uses:` steps and their inputs, permissions, concurrency,
+job outputs, job timeouts and `fail-fast` are not compared. Its synthetic cases
+run in the existing `tools/ci` discover step. Every new or changed run step, step
+env or step option needs a matching manifest row; the check fails otherwise. It
+runs none of the listed commands.
+
 The existing Lantern `healthy-read.mjs` check also compares the generated client
 schema resources with their pinned full authority, checks scope/file v3/v4
 validation and rejection parity, and exercises synthetic recursive references,
@@ -198,7 +217,8 @@ PR lane selection is documented in [the CI dependency matrix](docs/contributing/
 Main pushes retain the full ordinary suite. PRs always retain ordinary-core and
 publication checks; recognized presentation/backend paths select explicit lanes,
 with full coverage for shared or unknown changes. The ordinary-core job also runs
-stdlib selector regressions using disposable synthetic Git histories.
+stdlib selector regressions using disposable synthetic Git histories and the
+`tools/ci/check_lanes.py` cases over temporary folders.
 
 When a pull request is authorized to merge, enable auto-merge
 so GitHub merges it after the required checks pass.

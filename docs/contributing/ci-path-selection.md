@@ -3,7 +3,8 @@
 References #402, #302 and #310. Main pushes run the full existing suite. PRs
 always run ordinary-core: source publication verification, six ordinary module
 builds, schema/basic checks, and existing synthetic tooling checks. Its stdlib
-selector regressions use only disposable Git histories.
+selector regressions use only disposable Git histories, and the `check_lanes.py`
+cases and manifest check use temporary folders and repository files only.
 
 | Added/modified paths (plus optional Markdown docs and source manifest) | Backend source/unit jobs | Standalone frontend suite | Existing cross-stack loopbacks |
 | --- | --- | --- | --- |
