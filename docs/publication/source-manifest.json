@@ -5655,8 +5655,8 @@
     {
       "path": "backend/src/transports/mcp/README.md",
       "mode": "100644",
-      "bytes": 14941,
-      "sha256": "d7da37277b1f8106b52e8258d6bd2334e9e7e321bf545ce1339d6dca12bc6562",
+      "bytes": 15627,
+      "sha256": "f134f8c7b8ddc4483e38554ccc761e24e57de8e53806b9dede2035ea2884d39f",
       "owner": "mcp"
     },
     {
@@ -7106,6 +7106,13 @@
       "mode": "100644",
       "bytes": 22351,
       "sha256": "b76735a4d4044586946770a2fdc4c608674671d46e9411b4e89eb978947ee36d",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/rust-integration/mcp-operation-qualification-v4.md",
+      "mode": "100644",
+      "bytes": 49704,
+      "sha256": "d3611bdaead28e72217a22379aa3b44568e22d2849b96f50d976beb86a093f58",
       "owner": "core-integration"
     },
     {
