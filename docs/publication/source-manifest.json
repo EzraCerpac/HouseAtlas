@@ -8399,8 +8399,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-control-names-healthy.mjs",
       "mode": "100644",
-      "bytes": 6299,
-      "sha256": "03cfe6d21bdfa533f04cedd2c35199baf3bcbadd432762c784aa86287a3ddb04",
+      "bytes": 6430,
+      "sha256": "6557aac27378b8b3a5da57ad8bfd47824aa0b3024a6a89ffb7ac2415379df893",
       "owner": "web"
     },
     {
@@ -10000,10 +10000,31 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/unified-atlas/AtlasInspector.tsx",
+      "mode": "100644",
+      "bytes": 16281,
+      "sha256": "1fbf30a589b2cbd55aeb9b1647dc9d2363485007d7e5fb81dcd80e31d2619f7e",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/unified-atlas/AtlasKeys.tsx",
+      "mode": "100644",
+      "bytes": 12914,
+      "sha256": "8f307aaed15460ecc9a5928e2d59f82f737371fe11028e42ae94ccedd9d2c79d",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/unified-atlas/DaylightControl.tsx",
       "mode": "100644",
       "bytes": 9594,
       "sha256": "7ee3a3ff76a47871875e62d1a8d2d55ea3f4758cb7c0a25dcb43ce741d57ba66",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/unified-atlas/FloorStack.tsx",
+      "mode": "100644",
+      "bytes": 11400,
+      "sha256": "1485ef71e76805c97fdeeeb92a83d710f5260af18f31f010d01f366ee98f4431",
       "owner": "web"
     },
     {
@@ -10037,8 +10058,15 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 157848,
-      "sha256": "90cce10026f5a9f69ca7c076d810440bb7f9a9ff104888abf57ae4d06f246712",
+      "bytes": 117610,
+      "sha256": "04bf11e6552006ceefc7c669df3f4a64788b67089f3d07ac2a2fbe888de7a712",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/unified-atlas/atlas-text.ts",
+      "mode": "100644",
+      "bytes": 1489,
+      "sha256": "36b5a1f912e1b7b777155f80201ddc03bdeeac75b0b4c2a48a9b9eda1ac278c1",
       "owner": "web"
     },
     {

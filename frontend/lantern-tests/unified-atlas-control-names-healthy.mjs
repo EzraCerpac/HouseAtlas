@@ -71,8 +71,9 @@ assert.equal(atlasExclusionText(generated, { id: 'source:unknown', reason: null 
 assert.equal(atlasExclusionText(generated, { id: null, reason: 'Outline is open' }), 'Outline is open');
 assert.equal(atlasExclusionText(generated, { id: null, reason: null }), 'No source ID or reason given.');
 
-// The shell uses these names and shows the whole model hash as selectable text.
-const shell = readFileSync(new URL('../src/lantern/unified-atlas/UnifiedAtlas.tsx', import.meta.url), 'utf8');
+// The shell and its panel files use these names and show the whole model hash as selectable text.
+const shell = ['UnifiedAtlas.tsx', 'atlas-text.ts', 'FloorStack.tsx', 'AtlasInspector.tsx', 'AtlasKeys.tsx']
+  .map(file => readFileSync(new URL(`../src/lantern/unified-atlas/${file}`, import.meta.url), 'utf8')).join('\n');
 const css = readFileSync(new URL('../src/lantern/unified-atlas/unified-atlas.css', import.meta.url), 'utf8');
 assert.doesNotMatch(shell, /'Unnamed'/);
 assert.doesNotMatch(shell, /sha256\.slice\(/);
