@@ -61,9 +61,9 @@ moved file, its old owner); otherwise it refuses and lists the paths. Because
 the walk includes untracked files, build output such as `target/` and other
 stray files also make it refuse: run it from a clean checkout, such as a
 separate `git worktree`, or remove them first. `--check` writes nothing and
-exits 1 when a refresh would change the manifest; refusals exit 2. It runs no
-controls and does not check the deployment template, which
-`verify:publication` still does. After a merge, see
+exits 1 when a refresh would change the manifest; refusals and unexpected
+errors exit 2. It runs no controls and does not check the deployment template,
+which `verify:publication` still does. After a merge, see
 [Merge conflicts suppress PR CI](ci-path-selection.md#merge-conflicts-suppress-pr-ci).
 
 ## CI and adoption

@@ -3043,8 +3043,9 @@ Each case builds a tiny generated tree and manifest in a disposable temporary
 folder and runs the actual `tools/publication/refresh-manifest.mjs` with
 `--root` there. They cover an unchanged tree (byte-for-byte no-op), edited,
 deleted and new files, owner refusal and unknown owners, executable-bit changes,
-`--check` exit codes, symlink, conflict-marker and unsafe-path refusal, and
-`--owners-from`; the output digest is recomputed independently, and one case
+`--check` exit codes, symlink, conflict-marker, malformed `--owners-from` and
+unsafe-path refusal, and `--owners-from` (filled new rows, reported kept owners
+and a refused base-added owner); the output digest is recomputed independently, and one case
 runs a temporary copy of `verify-source.mjs` (with copies of the two unfilled
 templates it reads) against the regenerated tree. The cases open no network
 connection, write only their temporary folders and neither read nor write the

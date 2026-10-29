@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "0831f7875f2d086aff196d722d9afa052b16940283b350a94b6d2fc3a4bf6ab6",
+  "sourceDigestSha256": "48df6279e183c7bb306b15221300465f354171eed323df37f383a0735d35aa71",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -42,8 +42,8 @@
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
-      "bytes": 7263,
-      "sha256": "853bed2d7e27af5c4aa89d8c7f5e4a25a872ba679f6cd8ba54c425612078829e",
+      "bytes": 7353,
+      "sha256": "815951785c717a154834da8c74146dffb30b4288ae35a9f39307d210b1fa4df7",
       "owner": "core-integration"
     },
     {
@@ -6237,22 +6237,22 @@
     {
       "path": "docs/contributing/ci-path-selection.md",
       "mode": "100644",
-      "bytes": 5975,
-      "sha256": "32179194cd4b0c29a5f1aaf63b5620a906bc912a87f7fffc1c6b34824d87a6e0",
+      "bytes": 6295,
+      "sha256": "9ac6e8562ea959cc386f1ad7187f4094d1d638cb81a6924ff46c879314c17c24",
       "owner": "core-integration"
     },
     {
       "path": "docs/contributing/formatting.md",
       "mode": "100644",
-      "bytes": 4717,
-      "sha256": "32931311d5bceee3923040b5fc8faa2522a7f13254e48354e54a5bf4b421cd51",
+      "bytes": 4739,
+      "sha256": "79be4f38380fe1d287e91e8b56d0e4c3c06ff2748a3f94276a5cd3f9a1bea4fc",
       "owner": "core-integration"
     },
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 193079,
-      "sha256": "d5fb3b0f39e0142ce0ffb5dae68cf3e17880f46702bcd516abbfd516c4f999a5",
+      "bytes": 193177,
+      "sha256": "2920c9fadad44e8b47ad86561e22457e338bd04e141f6e4fc9379013a73a6147",
       "owner": "core-integration"
     },
     {
@@ -12341,15 +12341,15 @@
     {
       "path": "tools/publication/refresh-manifest.mjs",
       "mode": "100644",
-      "bytes": 8296,
-      "sha256": "29b89eb606bfe8185819a132df462fc258c751d1272c3a0893e2ea895785b9a2",
+      "bytes": 9306,
+      "sha256": "634114603c4dcd4374358dc190d1dea61a37a45dea475b0490cbb498d320eb31",
       "owner": "core-integration"
     },
     {
       "path": "tools/publication/refresh-manifest.test.mjs",
       "mode": "100644",
-      "bytes": 9980,
-      "sha256": "ff5690a555e4dadfc27c85ad37a2a16fc1520c302ffa2cd77d2488eef1ea9bc2",
+      "bytes": 11757,
+      "sha256": "20870805c78e66ac32d85a2cead1b82787e6a8e18228246030b0520caedea257",
       "owner": "core-integration"
     },
     {

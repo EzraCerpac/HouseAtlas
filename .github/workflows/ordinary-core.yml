@@ -2,7 +2,8 @@ name: Ordinary synthetic core
 on:
   push:
     branches: [main]
-  # Every PR runs, including stacked PRs whose base is another branch; pushes run on main only.
+  # Every non-conflicted PR runs, including stacked PRs whose base is another branch
+  # (GitHub starts no pull_request run while a PR conflicts with its base); pushes run on main only.
   pull_request:
 permissions:
   contents: read

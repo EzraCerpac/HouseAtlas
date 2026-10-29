@@ -9,8 +9,10 @@
 // Existing rows keep their owner (an --owner naming another is refused); files
 // no longer present drop out. A path with no row needs --owner, or a row in an
 // --owners-from manifest (for example the other side of a merge); every owner
-// must be listed in this manifest's owners.
-// Exit 0: written or already current. 1: --check found drift. 2: refused.
+// must be listed in this manifest's owners. An --owners-from row that names
+// another owner for a kept row is reported, not applied.
+// Exit 0: written or already current. 1: --check found drift. 2: refused, or
+// an unexpected error.
 import { createHash } from 'node:crypto';
 import { lstatSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
@@ -41,10 +43,17 @@ function readManifest(file, what) {
   let text;
   try { text = readFileSync(file, 'utf8'); } catch (error) { refuse(`cannot read ${what} ${file}: ${error.message}`); }
   if (/^(<{7}|={7}|>{7}|\|{7})( |$)/m.test(text)) {
-    refuse(`${what} ${file} contains merge conflict markers; take one side first, for example ` +
-      `git checkout --ours ${manifestPath}, and pass the other side with --owners-from`);
+    refuse(`${what} ${file} contains merge conflict markers; ` + (what === 'manifest'
+      ? `take one side first, for example git checkout --ours ${manifestPath}, and pass the other side with --owners-from`
+      : `pass a clean copy, for example from git show MERGE_HEAD:${manifestPath}`));
   }
-  try { return { text, manifest: JSON.parse(text) }; } catch (error) { refuse(`${what} ${file} is not JSON: ${error.message}`); }
+  let manifest;
+  try { manifest = JSON.parse(text); } catch (error) { refuse(`${what} ${file} is not JSON: ${error.message}`); }
+  const rows = manifest?.files;
+  if (!Array.isArray(rows) || !rows.every(row => typeof row?.path === 'string' && typeof row.owner === 'string')) {
+    refuse(`${what} ${file}: files must be a list of {path, owner} rows`);
+  }
+  return { text, manifest };
 }
 
 function listed(paths, limit = 20) {
@@ -76,7 +85,7 @@ function refresh(argv) {
   if (JSON.stringify(manifest.self) !== JSON.stringify({ path: manifestPath, mode: '100644', digest: 'anchored-by-reviewed-tree' })) {
     refuse(`${manifestPath}: unexpected self entry`);
   }
-  if (!Array.isArray(manifest.owners) || !Array.isArray(manifest.files)) refuse(`${manifestPath}: owners and files must be lists`);
+  if (!Array.isArray(manifest.owners)) refuse(`${manifestPath}: owners must be a list`);
   const stat = lstatSync(file);
   if (!stat.isFile() || (stat.mode & 0o111)) refuse(`${manifestPath} must be a regular non-executable file`);
 
@@ -86,9 +95,10 @@ function refresh(argv) {
     if (!manifest.owners.includes(row.owner)) refuse(`${manifestPath}: ${row.path} has unknown owner ${JSON.stringify(row.owner)}`);
     owners.set(row.path, row.owner);
   }
-  const fallback = new Map();
+  const fallback = new Map(), keptOurs = [];
   for (const other of values['owners-from']) {
-    for (const row of readManifest(resolve(other), '--owners-from manifest').manifest.files ?? []) {
+    for (const row of readManifest(resolve(other), '--owners-from manifest').manifest.files) {
+      if (owners.has(row.path) && owners.get(row.path) !== row.owner) keptOurs.push(`${row.path} (ours ${owners.get(row.path)}, --owners-from ${row.owner})`);
       if (!fallback.has(row.path)) fallback.set(row.path, row.owner);
     }
   }
@@ -110,7 +120,10 @@ function refresh(argv) {
   for (const path of actual) {
     const owner = owners.get(path) ?? explicit.get(path) ?? fallback.get(path);
     if (owner === undefined) { unowned.push(path); continue; }
-    if (!manifest.owners.includes(owner)) refuse(`${path}: owner ${JSON.stringify(owner)} is not in ${manifestPath} owners (${manifest.owners.join(', ')})`);
+    if (!manifest.owners.includes(owner)) {
+      refuse(`${path}: owner ${JSON.stringify(owner)} is not in ${manifestPath} owners (${manifest.owners.join(', ')})` +
+        (owner === fallback.get(path) && !explicit.has(path) ? '; if the base added that owner, add it to owners by hand and rerun' : ''));
+    }
     rows.push({ path, owner });
   }
   if (unowned.length) {
@@ -133,25 +146,26 @@ function refresh(argv) {
   const added = actual.filter(path => !old.has(path));
   const removed = [...old.keys()].filter(path => !present.has(path));
   const changed = manifest.files.filter(row => old.has(row.path) && old.get(row.path) !== JSON.stringify(row)).map(row => row.path);
-  const summary = [['added', added], ['removed', removed], ['changed', changed]]
-    .filter(([, paths]) => paths.length).map(([label, paths]) => `${label} ${paths.length}:\n${listed(paths)}`).join('\n');
+  const section = (label, paths) => paths.length ? `${label} ${paths.length}:\n${listed(paths)}` : '';
+  const summary = [['added', added], ['removed', removed], ['changed', changed]].map(([label, paths]) => section(label, paths)).filter(Boolean).join('\n');
+  const kept = keptOurs.length ? `\n${section('kept ours where --owners-from names another owner', keptOurs)}` : '';
   if (after === before) {
-    console.log(`${manifestPath} is current (${manifest.files.length} rows)`);
+    console.log(`${manifestPath} is current (${manifest.files.length} rows)${kept}`);
     return 0;
   }
   if (values.check) {
-    console.log(`${manifestPath} is stale; a refresh would change it\n${summary || 'formatting or aggregate digest only'}`);
+    console.log(`${manifestPath} is stale; a refresh would change it\n${summary || 'formatting or aggregate digest only'}${kept}`);
     return 1;
   }
   writeFileSync(file, after);
-  console.log(`Rewrote ${manifestPath} (${manifest.files.length} rows)\n${summary || 'formatting or aggregate digest only'}`);
+  console.log(`Rewrote ${manifestPath} (${manifest.files.length} rows)\n${summary || 'formatting or aggregate digest only'}${kept}`);
   return 0;
 }
 
 try {
   process.exitCode = refresh(process.argv.slice(2));
 } catch (error) {
-  if (!(error instanceof Refusal) && !String(error?.code).startsWith('ERR_PARSE_ARGS')) throw error;
-  console.error(`refresh-manifest: refused: ${error.message}`);
+  const refused = error instanceof Refusal || String(error?.code).startsWith('ERR_PARSE_ARGS');
+  console.error(refused ? `refresh-manifest: refused: ${error.message}` : `refresh-manifest: failed: ${error?.stack ?? error}`);
   process.exitCode = 2;
 }

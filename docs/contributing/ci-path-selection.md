@@ -91,7 +91,11 @@ git commit
 ```
 
 The conflicted manifest is not JSON, so the regenerator refuses it until one
-side is taken. That side supplies only owners: `--owners-from` adds owners for
-files the base added, and the merged tree supplies every byte count, digest and
-the file set. Push the merge before expecting CI. A PR with no Actions run on
+side is taken. That side keeps its `owners` list, other top-level fields and
+existing owners; `--owners-from` only supplies owners for files the base added,
+and the merged tree supplies every byte count, digest and the file set. Owner
+changes and new `owners` entries made on the base are not merged: the
+regenerator lists kept rows whose base owner differs, and refuses a base-added
+file whose owner is not in the kept `owners` list. Edit those rows or the
+`owners` list by hand, then rerun. Push the merge before expecting CI. A PR with no Actions run on
 its head is untested.

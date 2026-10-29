@@ -8,8 +8,10 @@ import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpath
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
-const script = new URL('./refresh-manifest.mjs', import.meta.url).pathname;
+// fileURLToPath decodes the URL, so a checkout path with spaces still resolves.
+const script = fileURLToPath(new URL('./refresh-manifest.mjs', import.meta.url));
 const repo = new URL('../../', import.meta.url);
 const manifestPath = 'docs/publication/source-manifest.json';
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -171,6 +173,18 @@ test('conflict markers, misdirected --owner and unsafe paths are refused', t => 
   assert.match(result.stderr, /contains merge conflict markers; take one side first/);
   assert.equal(f.manifest(), conflicted);
   writeFileSync(join(f.root, manifestPath), clean);
+  const other = join(f.base, 'other-side-manifest.json');
+  for (const [text, message] of [
+    [conflicted, /--owners-from manifest .* contains merge conflict markers; pass a clean copy, for example from git show MERGE_HEAD:/],
+    ['{"files":{}}', /--owners-from manifest .*: files must be a list of \{path, owner\} rows/],
+    ['{"files":[null]}', /--owners-from manifest .*: files must be a list of \{path, owner\} rows/],
+  ]) {
+    writeFileSync(other, text);
+    result = f.run('--check', '--owners-from', other);
+    assert.equal(result.status, 2, text);
+    assert.match(result.stderr, message);
+    assert.doesNotMatch(result.stderr, /git checkout --ours|failed:/);
+  }
   for (const [args, message] of [
     [['--owner', 'README.md=beta'], /README\.md already has a row owned by alpha/],
     [['--owner', 'missing.txt=alpha'], /missing\.txt is not a regular file/],
@@ -190,13 +204,24 @@ test('conflict markers, misdirected --owner and unsafe paths are refused', t => 
 
 test('--owners-from supplies owners for paths added on the other side of a merge', t => {
   const f = fixture(t);
+  const before = f.manifest();
   f.write('docs/other-side.md', 'added on the base branch\n');
   const other = join(f.base, 'other-side-manifest.json');
+  // An owner the base added to its owners list is not merged: refused with a next step.
+  writeFileSync(other, JSON.stringify({ owners: [...owners, 'gamma'], files: [{ path: 'docs/other-side.md', owner: 'gamma' }] }));
+  let result = f.run('--owners-from', other);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /docs\/other-side\.md: owner "gamma" is not in .* owners \(alpha, beta\); if the base added that owner, add it to owners by hand and rerun/);
+  assert.equal(f.manifest(), before);
   writeFileSync(other, JSON.stringify({ files: [{ path: 'docs/other-side.md', owner: 'beta' }, { path: 'README.md', owner: 'beta' }] }));
-  const result = f.run('--owners-from', other);
+  result = f.run('--owners-from', other);
   assert.equal(result.status, 0, result.stderr);
-  // The existing README.md row keeps its owner; only the missing row is filled.
+  // The existing README.md row keeps its owner and the difference is reported; only the missing row is filled.
   assert.equal(f.manifest(), expectedManifest(f.root, { ...initial, 'docs/other-side.md': 'beta' }));
+  assert.match(result.stdout, /added 1:\n {2}docs\/other-side\.md\nkept ours where --owners-from names another owner 1:\n {2}README\.md \(ours alpha, --owners-from beta\)/);
+  result = f.run('--check', '--owners-from', other);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /is current \(5 rows\)\nkept ours where --owners-from names another owner 1:\n {2}README\.md/);
 });
 
 test('output passes a temporary copy of the actual publication verifier', t => {
