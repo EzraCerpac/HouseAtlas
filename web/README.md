@@ -2,17 +2,19 @@
 
 Status: reference UI. The React app in `frontend/` supersedes it (port notes:
 [frontend/src/app/INTEGRATION.md](../frontend/src/app/INTEGRATION.md)); the
-product does not deploy or serve this package. `src/prepare.mjs` and
-`demo/fixtures.mjs` produce the input view for
-`frontend/lantern-tests/healthy-read.mjs`. `demo/server.mjs` is a disposable
-loopback synthetic harness only. [AGENTS.md](AGENTS.md) remains the UI copy
-rule. Edits are limited to alignment forced by shared contract changes; see
-[server/README.md](../server/README.md).
+product does not deploy or serve this package. `server/` imports
+`src/prepare.mjs` and `src/model.mjs` and serves `src/` as its browser assets;
+`tools/core-integration/` reads `src/`. `frontend/lantern-tests/healthy-read.mjs`
+and `session-bootstrap*` build their input view with `src/prepare.mjs` and
+`demo/fixtures.mjs`. [backend/src/domain/README.md](../backend/src/domain/README.md)
+cites `src/{prepare,model}.mjs` as behavioral references. `demo/server.mjs` is a
+disposable loopback synthetic harness only. Edits other than to
+[AGENTS.md](AGENTS.md), the current UI copy rule, are limited to alignment
+forced by shared contract changes; see [server/README.md](../server/README.md).
 
 Web `0.1.1` consumes contract `1.0.0`, record schema 1, synthetic fixtures and
 operations policy `1.0.0`. It adds no dependency. Node/npm pins and the exact
-ordinary lane are documented in the
-[verification guide](../docs/contributing/verification.md).
+ordinary lane are documented in the root README.
 
 The UI provides home-scoped rooms/containers and item cards, breadcrumbs,
 separate direct/nested counts, name/model/reviewed-alias/document search,

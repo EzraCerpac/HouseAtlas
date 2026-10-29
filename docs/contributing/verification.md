@@ -570,12 +570,13 @@ bindings, with read-only HomeBox inventory projections and a passive Network
 facet. It works without a floorplan. Checked-in fixtures are synthetic.
 
 This development snapshot includes reviewed HTTP, transaction-local source
-authority and browser DTO corrections. New explicit source-presence admissions
-are disabled before writes until a separately reviewed atomic witness extension
-is integrated. These corrections are in the JavaScript reference core in
-`server/` ([server/README.md](../../server/README.md)); the running service is
-the Rust/React stack. Ordinary results do not establish full product, security,
-publication or deployment readiness.
+authority and browser DTO corrections in the JavaScript reference core
+(`server/`, see [server/README.md](../../server/README.md)) and the `packages/*`
+modules it composes; the running service is the Rust/React stack. New explicit
+source-presence admissions are disabled before writes, in `server/` and in the
+Rust backend (`enforce_current_presence_hold`), until a separately reviewed
+atomic witness extension is integrated. Ordinary results do not establish full
+product, security, publication or deployment readiness.
 
 Use Node **26.10.0** and npm **11.19.1**. Install the exact dependency locks:
 

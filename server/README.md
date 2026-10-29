@@ -16,8 +16,8 @@ The bytes are unchanged since `9f7561d` except for `49f1cf7`, which aligned
 one expectation in `test/correction-3.positive.mjs` with the reviewed contract
 `1.1.0`. Behavior is not frozen: these modules import the live
 `packages/contracts`, `packages/access`, `packages/media`, `packages/storage`,
-`adapters/homebox` and `adapters/network`, which keep changing. This status
-does not extend to those packages.
+`adapters/homebox` and `adapters/network`. This status does not freeze or
+extend to those modules.
 
 ## What still uses it
 
@@ -25,9 +25,10 @@ does not extend to those packages.
   that `service.mjs` and `router.mjs` contain no listener or fetch call.
 - `npm run test:ordinary` runs `test/correction-3.positive.mjs`: one healthy
   synthetic Request group against these modules and the current contracts.
-- Held controls, outside ordinary CI: `test/core.test.mjs`,
-  `test/controller-integration.test.mjs` and
-  `test/native-navigation.positive.mjs`. `tools/core-integration/preview.mjs` and
+- Not in ordinary CI: the held controls `test/core.test.mjs` and
+  `test/controller-integration.test.mjs` (denial, revocation, expiry and
+  failure cases), and `test/native-navigation.positive.mjs`, one positive
+  assembly run explicitly. `tools/core-integration/preview.mjs` and
   `browser-harness.mjs` import `test/support.mjs`; `failure-controls.mjs`
   runs `test/core.test.mjs` against mutants of `src/service.mjs`.
 - Behavioral references for the Rust port:

@@ -184,10 +184,9 @@ they add no ordinary check scope, persistent access, household intake, native
 qualification or deployment. Generated media requires inspection before any
 coordinated commit; the workflow never commits it automatically.
 
-web/AGENTS.md governs interface text, including in frontend/. Preserve
-accessible names, scope, uncertainty, freshness, access and file availability.
-Use short functional headings and guidance only when needed for the current
-action or state.
+web/AGENTS.md governs interface text. Preserve accessible names, scope,
+uncertainty, freshness, access and file availability. Use short functional
+headings and guidance only when needed for the current action or state.
 
 Scoped development PRs target main; there is no separate dev branch. Use one
 integration writer and preserve donor ancestry. Resolve overlaps against the
