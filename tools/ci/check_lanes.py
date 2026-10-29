@@ -272,14 +272,20 @@ def unread(name, mapping, allowed, what):
             raise LaneError(f'{name}: {what} key {key!r} is not read by this checker')
 
 
+STEP_REFERENCE = re.compile(r'\bsteps\.([A-Za-z0-9_-]+)\.')
+
+
 def read_steps(name, owner, steps):
     if not isinstance(steps, list):
         raise LaneError(f'{name}: {owner} has no steps list')
-    result, seen = [], set()
+    result, seen, earlier = [], set(), set()
     for step in steps:
         if not isinstance(step, dict):
             raise LaneError(f'{name}: {owner} has a non-mapping step')
+        step_id = step.get('id')
         if 'run' not in step:
+            if step_id is not None:
+                earlier.add(plain(name, step_id, f'id of a uses step in {owner}'))
             continue
         run = step['run']
         if 'name' not in step:
@@ -293,13 +299,24 @@ def read_steps(name, owner, steps):
             lines = run.lines
         else:
             lines = [plain(name, run, f'run of {title!r}')]
+        # A condition, env value or command that reads steps.<id> before that step
+        # has run sees no output, so the step is silently skipped or misled.
+        condition = plain(name, step.get('if'), f'if of {title!r}', optional=True)
+        env = env_map(name, step.get('env'), title)
+        text = ' '.join([condition or '', *env.values(), *lines])
+        for reference in STEP_REFERENCE.findall(text):
+            if reference not in earlier:
+                raise LaneError(f'{name}: run step {title!r} in {owner} reads steps.{reference} '
+                                'before any earlier step has that id')
+        if step_id is not None:
+            earlier.add(plain(name, step_id, f'id of {title!r}'))
         result.append({
             'step': title,
             # Later steps' conditions name this id (steps.<id>.outputs), so it is compared too.
             'stepId': plain(name, step.get('id'), f'id of {title!r}', optional=True),
-            'if': plain(name, step.get('if'), f'if of {title!r}', optional=True),
+            'if': condition,
             'run': lines,
-            'env': env_map(name, step.get('env'), title),
+            'env': env,
             'options': {key: normalized(name, step[key]) for key in STEP_OPTIONS if key in step},
         })
     return result
@@ -665,6 +682,14 @@ def check(root, manifest, workflows, docs_text, actions=None):
     for key in sorted(set(rows) - set(actual_steps)):
         if key[0] in parsed:
             errors.append(f'step {rows[key]["id"]}: stale row; {key[0]} job {key[1]} has no run step {key[2]!r}')
+    # Order matters: a step that moves before the step whose output it reads is skipped.
+    for name, workflow in parsed.items():
+        for job, record in workflow['jobs'].items():
+            actual = [step['step'] for step in record['steps']]
+            listed = [key[2] for key in rows if key[:2] == (name, job) and key in actual_steps]
+            if [title for title in actual if (name, job, title) in rows] != listed:
+                errors.append(f'{source(name)} job {job}: run steps are in order {actual!r}, '
+                              f'manifest rows list {listed!r}')
 
     for key, row in rows.items():
         if key not in actual_steps:

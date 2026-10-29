@@ -220,6 +220,42 @@ class CheckLanesTests(unittest.TestCase):
                   '        if: always()\n        continue-on-error: true\n        env:\n          SAMPLE: one\n')
         self.assert_fails("step core.lines: step options are {'continue-on-error': 'true'}, manifest says {}")
 
+    def test_run_step_order_and_earlier_step_references(self):
+        # Swapping two run steps fails until the manifest rows are reordered too.
+        self.edit('.github/workflows/core.yml', """      - name: Run sample tests
+        run: python3 -m unittest discover -s tools/sample -p 'test_*.py'
+      - name: Run two node lines
+        if: always()
+        run: |
+          node tools/sample/a.mjs
+          node tools/sample/a.mjs --again
+""", """      - name: Run two node lines
+        if: always()
+        run: |
+          node tools/sample/a.mjs
+          node tools/sample/a.mjs --again
+      - name: Run sample tests
+        run: python3 -m unittest discover -s tools/sample -p 'test_*.py'
+""")
+        self.assert_fails("core.yml job core: run steps are in order ['Run two node lines', 'Run sample tests', "
+                          "'Run folded'], manifest rows list ['Run sample tests', 'Run two node lines', 'Run folded']")
+        data = manifest()
+        data['steps'][0], data['steps'][1] = data['steps'][1], data['steps'][0]
+        self.write_manifest(data)
+        self.assertEqual(self.run_checker('--write'), (0, ''))
+        # A step may read the outputs of an earlier step, including a uses: step ...
+        self.edit('.github/workflows/core.yml', '      - name: Checkout\n', '      - name: Checkout\n        id: early\n')
+        self.edit('.github/workflows/core.yml', '      - name: Run folded\n', "      - name: Run folded\n        if: steps.early.outputs.ok == 'true'\n")
+        data['steps'][2]['if'] = "steps.early.outputs.ok == 'true'"
+        self.write_manifest(data)
+        self.assertEqual(self.run_checker('--write'), (0, ''))
+        # ... but not of a step that runs later in the job.
+        self.edit('.github/workflows/core.yml', "        if: steps.early.outputs.ok == 'true'\n",
+                  "        id: late\n")
+        self.edit('.github/workflows/core.yml', '      - name: Run two node lines\n        if: always()\n',
+                  "      - name: Run two node lines\n        if: steps.late.outputs.ok == 'true'\n")
+        self.assert_fails("run step 'Run two node lines' in job core reads steps.late before any earlier step has that id")
+
     def test_unread_workflow_job_and_step_keys_are_refused(self):
         cases = {
             "run step 'Run folded' key 'uses'": WORKFLOW.replace(
@@ -293,11 +329,14 @@ class CheckLanesTests(unittest.TestCase):
         self.edit('.github/workflows/core.yml', "needs.core.result == 'failure' }}", "needs.core.result != 'success' }}")
         self.edit('.github/workflows/core.yml', '        shard: [1, 2]\n    runs-on: ubuntu-24.04', '        shard: [1, 2]\n    runs-on: macos-15')
         self.assert_fails("core.yml job laned: runsOn is 'macos-15', manifest says 'ubuntu-24.04'")
+        # Renaming only the id leaves a later condition reading an output no earlier step has.
         self.edit('.github/workflows/core.yml', '        id: lane\n', '        id: lane-renamed\n')
+        self.assert_fails("run step 'Run laned' in job laned reads steps.lane before any earlier step has that id")
+        # Renaming the id and its reader together still needs the manifest row.
+        self.edit('.github/workflows/core.yml', "if: steps.lane.outputs", "if: steps.lane-renamed.outputs")
         self.assert_fails("step laned.select: step id is 'lane-renamed', manifest says 'lane'")
-        self.edit('.github/workflows/core.yml', '        id: lane-renamed\n', '')
-        self.assert_fails("step laned.select: step id is None, manifest says 'lane'")
-        self.edit('.github/workflows/core.yml', '      - name: Select\n', '      - name: Select\n        id: lane\n')
+        self.edit('.github/workflows/core.yml', "if: steps.lane-renamed.outputs", "if: steps.lane.outputs")
+        self.edit('.github/workflows/core.yml', '        id: lane-renamed\n', '        id: lane\n')
         data['workflows']['core.yml']['jobs']['laned']['lane'] = None
         self.write_manifest(data)
         self.assert_fails('core.yml job laned: has a RUN_LANE selector but no manifest lane')
@@ -320,7 +359,7 @@ const BROWSER = [];
                   '      - name: Run healthy list\n        run: node frontend/lantern-tests/run-healthy.mjs\n'
                   '      - name: Run folded')
         data = manifest()
-        data['steps'].append({
+        data['steps'].insert(2, {
             'id': 'core.healthy', 'workflow': 'core.yml', 'job': 'core', 'step': 'Run healthy list', 'kind': 'test',
             'if': None, 'run': ['node frontend/lantern-tests/run-healthy.mjs'], 'toolchain': ['node'],
             'files': ['frontend/lantern-tests/run-healthy.mjs'], 'scope': 'Listed entries.',
