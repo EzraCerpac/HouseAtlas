@@ -24,10 +24,11 @@ must demonstrate execution and outcomes.
 
 The `Rust React ordinary core` workflow splits its checks into parallel jobs:
 `source` (publication allowlist, generated contracts, fmt, clippy, the four
-named healthy examples and the Lantern healthy read; on macOS also the binary and
-the React app; on Linux also the `healthy-agent-stock` example and the
-network-router flow), `backend unit tests`, `frontend checks`, and three
-`loopback flows` shards that each build the binary and the React app. The
+named healthy examples and the Lantern healthy read; on macOS also the binary,
+and the React app when the frontend lane is selected; on Linux also the
+`healthy-agent-stock` example and the network-router flow), `backend unit
+tests`, `frontend checks`, and three `loopback flows` shards that each build the
+binary and the React app. The
 [command inventory](#ordinary-ci-command-inventory) below lists every command.
 CI builds use `CARGO_PROFILE_DEV_DEBUG=0`. Only main pushes save caches; the
 Cargo cache holds compiled dependencies keyed by `Cargo.lock` and the toolchain.
@@ -59,23 +60,31 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/backup -p 'test_
 ## Ordinary CI command inventory
 
 `tools/ci/lanes.json` lists every `run:` step of
-`.github/workflows/ordinary-core.yml` and
-`.github/workflows/rust-react-ordinary.yml` with its exact command, condition,
-toolchains, files, case count and scope. The ordinary-core job checks it:
+`.github/workflows/ordinary-core.yml`,
+`.github/workflows/rust-react-ordinary.yml` and the composite actions under
+`.github/actions/` with its exact command, condition, env, step options,
+toolchains, files, case count and scope, plus each workflow's triggers and env
+and each job's runner, condition, matrix, needs and env. The ordinary-core job
+checks it:
 
 ```sh
-PYTHONDONTWRITEBYTECODE=1 python3 -I tools/ci/check_lanes.py --check
+python3 -B -I tools/ci/check_lanes.py --check
 ```
 
 The checker uses the Python 3.9+ standard library, reads repository files only
 and starts no subprocess or network connection. It reads the small workflow YAML
 subset these files use and refuses tabs, anchors, aliases, quoted run commands,
-unnamed run steps and other forms outside it. It fails when a run step has no
-manifest row or a row has no step; when a command, condition, job selection or
-listed file differs; when a recorded case count differs (unittest methods,
+unnamed run steps, workflow, job and run-step keys it does not read (such as
+`defaults` or `container`) and other forms outside it. It fails when a run step
+has no manifest row or a row has no step; when a command, condition, step env or
+option (`shell`, `working-directory`, `continue-on-error`, `timeout-minutes`),
+trigger, workflow or job env, job selection, `needs` or listed file differs; when
+a recorded case count differs (unittest methods,
 top-level `test(` calls, `run-healthy.mjs` list entries, bridge case choices or
 Cargo `--skip` flags); when a recorded prose claim or toolchain pin is gone; or
-when the table below is stale. Its synthetic cases in
+when the table below is stale. It does not compare `uses:` steps or their
+inputs, permissions, concurrency, job outputs, job timeouts or `fail-fast`. Its
+synthetic cases in
 `tools/ci/test_check_lanes.py` use temporary folders only and run in the
 existing `unittest discover -s tools/ci -p 'test_*.py'` step. After changing the
 manifest, regenerate the table:
@@ -92,8 +101,8 @@ hosted step logs remain the execution record.
 
 | Workflow / job | Step | Command | Runs when | Cases | Scope |
 | --- | --- | --- | --- | --- | --- |
-| ordinary-core / ordinary-core | Synthetic PR selector regressions (stdlib and disposable Git histories) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/ci -p 'test_*.py' -v` | every run | 15 unittest methods | Stdlib selector cases over disposable synthetic Git histories and `check_lanes.py` cases over temporary synthetic repositories. |
-| ordinary-core / ordinary-core | Check the CI command manifest against these workflows (stdlib, repository files only) | `PYTHONDONTWRITEBYTECODE=1 python3 -I tools/ci/check_lanes.py --check` | every run |  | This manifest against both ordinary workflows: run lines, conditions, files, case counts, prose claims, toolchain pins and this table. Reads repository files only; runs no listed command. |
+| ordinary-core / ordinary-core | Synthetic PR selector regressions (stdlib and disposable Git histories) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/ci -p 'test_*.py' -v` | every run | 22 unittest methods | Stdlib selector cases over disposable synthetic Git histories and `check_lanes.py` cases over temporary synthetic repositories. |
+| ordinary-core / ordinary-core | Check the CI command manifest against these workflows (stdlib, repository files only) | `python3 -B -I tools/ci/check_lanes.py --check` | every run |  | This manifest against both ordinary workflows and their two composite actions: triggers, workflow and job env, job selection and needs, run lines, step conditions, env and options, files, case counts, prose claims, toolchain pins and this table. Reads repository files only; runs no listed command. |
 | ordinary-core / ordinary-core | Verify publication file set and template | `npm run verify:publication` | every run |  | Exact regular-file set, modes, digests and logical ownership from the source manifest, and the unconfigured deployment template. |
 | ordinary-core / ordinary-core | Build six ordinary modules | `npm run build:ordinary` | every run |  | Syntax of the JavaScript reference server modules, six named module builds and publication integrity; no listener. |
 | ordinary-core / ordinary-core | Check additive HTTP history schema and valid examples | `node --check packages/contracts/history/check-history.mjs`<br>`npm run check:http:ordinary` | every run |  | Checker syntax, then static compatibility, local schema and fixed valid history-example checks. |
@@ -108,14 +117,14 @@ hosted step logs remain the execution record.
 | ordinary-core / ordinary-core | Run the three scoped synthetic bridge read cases | `PYTHONDONTWRITEBYTECODE=1 python3 tools/houseatlas-mcp-bridge/test_bridge.py healthy_large_read_page`<br>`PYTHONDONTWRITEBYTECODE=1 python3 tools/houseatlas-mcp-bridge/test_bridge.py denial_read_profile_bounds`<br>`PYTHONDONTWRITEBYTECODE=1 python3 tools/houseatlas-mcp-bridge/test_bridge.py denial_read_correlation` | every run | 3 named cases | Owner-approved finite exception: fake GET/session/admission owners and disposable journal state; no socket, write or provider. |
 | rust-react-ordinary / changes | Select conservative lanes | `python3 tools/ci/select_pr_checks.py` | every run |  | Writes backend, frontend and loopback lane outputs from the PR merge-base diff; non-PR events and detection failures select full coverage. |
 | rust-react-ordinary / source | Verify source allowlist and unconfigured template | `npm run verify:publication` | backend lane; matrix os [ubuntu-24.04, macos-15] |  | The same publication verifier as ordinary-core, on the exact candidate head. |
-| rust-react-ordinary / source | Compile actual Rust and React source and named healthy examples | `if [ "$CHECK_FRONTEND" = true ]; then`<br>`  node tools/rust-integration/check-source.mjs`<br>`else`<br>`  node tools/rust-integration/check-source.mjs --skip-frontend`<br>`fi` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os != 'Linux'` |  | Generated contract and catalog checks, HTTP history, rustfmt, Clippy, four named healthy examples and the binary; the React typecheck and build only when the frontend lane is selected. |
+| rust-react-ordinary / source | Compile actual Rust and React source and named healthy examples | `CHECK_FRONTEND=${{ needs.changes.result != 'success' \|\| needs.changes.outputs.frontend != 'false' }}`<br>`if [ "$CHECK_FRONTEND" = true ]; then`<br>`  node tools/rust-integration/check-source.mjs`<br>`else`<br>`  node tools/rust-integration/check-source.mjs --skip-frontend`<br>`fi` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os != 'Linux'` |  | Generated contract and catalog checks, HTTP history, rustfmt, Clippy, four named healthy examples and the binary; the React typecheck and build only when the frontend lane is selected. |
 | rust-react-ordinary / source | Compile actual Rust source and named healthy examples (binary and React app in their own jobs) | `node tools/rust-integration/check-source.mjs --skip-binary --skip-frontend` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Generated contract and catalog checks, HTTP history, rustfmt, Clippy and four named healthy examples; the binary and React app build in other jobs. |
 | rust-react-ordinary / source | Verify the named Lantern healthy read | `node frontend/lantern-tests/healthy-read.mjs` | backend lane; matrix os [ubuntu-24.04, macos-15] |  | Synthetic projection examples and generated client-schema parity in process; no listener or write. |
 | rust-react-ordinary / source | Genuine native MCP stock get and audit page after fresh circuit commit | `node tools/ci/cargo-timings.mjs run --locked -p houseatlas-backend --example healthy-agent-stock` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | In-process MCP over the real root owner composition in disposable synthetic state; no HTTP listener. |
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 69 source, 1 build, 5 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the runner's Chrome against generated build output. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `HOUSEATLAS_CHROMIUM=/usr/bin/google-chrome`<br>`node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 69 source, 1 build, 5 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the runner's Chrome against generated build output. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome. |
@@ -134,7 +143,8 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / loopback | Real Atlas ten lists, invoke parity and native WebMCP cursor continuation | `node tools/rust-integration/healthy-atlas-lists-loopback.mjs` | loopback lane; `matrix.shard == 3` |  | Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome. |
 | rust-react-ordinary / loopback | Real aggregate stock operation events and read-only Changes view | `node tools/rust-integration/healthy-operation-events-loopback.mjs` | loopback lane; `matrix.shard == 3` |  | Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome. |
 
-15 setup, plumbing and summary run steps are listed in `tools/ci/lanes.json` and omitted here.
+18 setup, plumbing and summary run steps (3 of them in composite actions under `.github/actions`) are listed in `tools/ci/lanes.json` and omitted here. Commands show step env values first.
+Triggers: `ordinary-core.yml` on push (branches [main]), pull_request; `rust-react-ordinary.yml` on pull_request, push (branches [main]).
 The backend lane runs on pushes, after failed change selection, and on PRs except frontend-presentation-only or docs-only changes. The frontend lane runs on pushes, after failed change selection, and on PRs except backend-only or docs-only changes. The loopback lane runs all three shards on pushes, after failed change selection, and on PRs except docs-only changes; frontend-presentation-only PRs run shard 1 only.
 Toolchains: `node` 26.10.0, `npm` 11.19.1, `rust` 1.99.0, `python3` (runner-provided, unpinned), `chromium` (runner-provided, unpinned).
 Not ordinary scope: `performance-report.yml` (workflow_run reporter for the synthetic PR performance lane, from the default-branch checkout); `performance.yml` (separate synthetic PR performance lane; base/head measurements from a pinned harness checkout); `synthetic-readme-media.yml` (separately authorized README media capture; ephemeral review artifacts only).

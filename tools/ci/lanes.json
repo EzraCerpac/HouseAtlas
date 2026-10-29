@@ -53,19 +53,31 @@
   "workflows": {
     "ordinary-core.yml": {
       "name": "Ordinary synthetic core",
+      "on": {"push": {"branches": "[main]"}, "pull_request": null},
+      "env": {},
       "jobs": {
-        "ordinary-core": {"runsOn": "ubuntu-24.04", "if": null, "matrix": null, "lane": null}
+        "ordinary-core": {"runsOn": "ubuntu-24.04", "if": null, "matrix": null, "needs": null, "env": {}, "lane": null}
       }
     },
     "rust-react-ordinary.yml": {
       "name": "Rust React ordinary core",
+      "on": {"pull_request": null, "push": {"branches": "[main]"}},
+      "env": {"CARGO_INCREMENTAL": "0", "CARGO_PROFILE_DEV_DEBUG": "0", "SOURCE_SHA": "${{ github.event.pull_request.head.sha || github.sha }}"},
       "jobs": {
-        "changes": {"runsOn": "ubuntu-24.04", "if": null, "matrix": null, "lane": null},
-        "source": {"runsOn": "${{ matrix.os }}", "if": "${{ !cancelled() }}", "matrix": {"os": "[ubuntu-24.04, macos-15]"}, "lane": "backend"},
-        "unit-tests": {"runsOn": "ubuntu-24.04", "if": "${{ !cancelled() }}", "matrix": null, "lane": "backend"},
-        "frontend": {"runsOn": "ubuntu-24.04", "if": "${{ !cancelled() }}", "matrix": null, "lane": "frontend"},
-        "loopback": {"runsOn": "ubuntu-24.04", "if": "${{ !cancelled() }}", "matrix": {"shard": "[1, 2, 3]"}, "lane": "loopback"}
+        "changes": {"runsOn": "ubuntu-24.04", "if": null, "matrix": null, "needs": null, "env": {}, "lane": null},
+        "source": {"runsOn": "${{ matrix.os }}", "if": "${{ !cancelled() }}", "matrix": {"os": "[ubuntu-24.04, macos-15]"}, "needs": "changes", "env": {}, "lane": "backend"},
+        "unit-tests": {"runsOn": "ubuntu-24.04", "if": "${{ !cancelled() }}", "matrix": null, "needs": "changes", "env": {}, "lane": "backend"},
+        "frontend": {"runsOn": "ubuntu-24.04", "if": "${{ !cancelled() }}", "matrix": null, "needs": "changes", "env": {}, "lane": "frontend"},
+        "loopback": {"runsOn": "ubuntu-24.04", "if": "${{ !cancelled() }}", "matrix": {"shard": "[1, 2, 3]"}, "needs": "changes", "env": {"HOUSEATLAS_CHROMIUM": "/usr/bin/google-chrome"}, "lane": "loopback"}
       }
+    }
+  },
+  "actions": {
+    "ordinary-setup/action.yml": {
+      "name": "Ordinary job setup"
+    },
+    "ordinary-save/action.yml": {
+      "name": "Ordinary job cache save"
     }
   },
   "outOfScopeWorkflows": {
@@ -85,7 +97,7 @@
       "toolchain": ["python3"],
       "files": ["tools/ci/select_pr_checks.py", "tools/ci/test_select_pr_checks.py", "tools/ci/check_lanes.py", "tools/ci/test_check_lanes.py"],
       "scope": "Stdlib selector cases over disposable synthetic Git histories and `check_lanes.py` cases over temporary synthetic repositories.",
-      "cases": {"counter": "python-unittest-methods", "dir": "tools/ci", "pattern": "test_*.py", "expected": 15},
+      "cases": {"counter": "python-unittest-methods", "dir": "tools/ci", "pattern": "test_*.py", "expected": 22},
       "claims": [["docs/contributing/verification.md", "runs `python3 -m unittest discover -s tools/ci -p 'test_*.py' -v`"]]
     },
     {
@@ -95,11 +107,11 @@
       "step": "Check the CI command manifest against these workflows (stdlib, repository files only)",
       "kind": "check",
       "if": null,
-      "run": ["PYTHONDONTWRITEBYTECODE=1 python3 -I tools/ci/check_lanes.py --check"],
+      "run": ["python3 -B -I tools/ci/check_lanes.py --check"],
       "toolchain": ["python3"],
       "files": ["tools/ci/check_lanes.py", "tools/ci/lanes.json", "docs/contributing/verification.md"],
-      "scope": "This manifest against both ordinary workflows: run lines, conditions, files, case counts, prose claims, toolchain pins and this table. Reads repository files only; runs no listed command.",
-      "claims": [["AGENTS.md", "python3 -I tools/ci/check_lanes.py --check"]]
+      "scope": "This manifest against both ordinary workflows and their two composite actions: triggers, workflow and job env, job selection and needs, run lines, step conditions, env and options, files, case counts, prose claims, toolchain pins and this table. Reads repository files only; runs no listed command.",
+      "claims": [["AGENTS.md", "python3 -B -I tools/ci/check_lanes.py --check"]]
     },
     {
       "id": "core.runtime",
@@ -353,6 +365,8 @@
       "kind": "plumbing",
       "if": "steps.lane.outputs.run == 'true'",
       "run": ["printf 'HOUSEATLAS_CARGO_TIMINGS_DIR=%s/houseatlas-cargo-timings\\n' \"$RUNNER_TEMP\" >> \"$GITHUB_ENV\"", "node tools/ci/cargo-timings.mjs init \"$RUNNER_TEMP/houseatlas-cargo-timings\""],
+      "env": {"TIMING_REGISTRY_HIT": "${{ steps.setup.outputs.registry-hit }}", "TIMING_REGISTRY_RESTORED": "${{ steps.setup.outputs.registry-restored }}", "TIMING_TARGET_HIT": "${{ steps.setup.outputs.target-hit }}", "TIMING_TARGET_RESTORED": "${{ steps.setup.outputs.target-restored }}"},
+      "options": {"continue-on-error": "true"},
       "toolchain": ["node"],
       "files": ["tools/ci/cargo-timings.mjs"],
       "scope": "Points Cargo timing diagnostics at a runner temporary folder."
@@ -377,6 +391,7 @@
       "kind": "check",
       "if": "steps.lane.outputs.run == 'true' && (runner.os != 'Linux')",
       "run": ["if [ \"$CHECK_FRONTEND\" = true ]; then", "  node tools/rust-integration/check-source.mjs", "else", "  node tools/rust-integration/check-source.mjs --skip-frontend", "fi"],
+      "env": {"CHECK_FRONTEND": "${{ needs.changes.result != 'success' || needs.changes.outputs.frontend != 'false' }}"},
       "toolchain": ["node", "npm", "rust"],
       "files": ["tools/rust-integration/check-source.mjs"],
       "scope": "Generated contract and catalog checks, HTTP history, rustfmt, Clippy, four named healthy examples and the binary; the React typecheck and build only when the frontend lane is selected.",
@@ -438,6 +453,7 @@
       "kind": "plumbing",
       "if": "steps.lane.outputs.run == 'true' && (always())",
       "run": ["node tools/ci/cargo-timings.mjs summary"],
+      "options": {"continue-on-error": "true"},
       "toolchain": ["node"],
       "files": ["tools/ci/cargo-timings.mjs"],
       "scope": "Summarizes Cargo timing diagnostics; continues on error."
@@ -474,6 +490,8 @@
       "kind": "plumbing",
       "if": "steps.lane.outputs.run == 'true'",
       "run": ["printf 'HOUSEATLAS_CARGO_TIMINGS_DIR=%s/houseatlas-cargo-timings\\n' \"$RUNNER_TEMP\" >> \"$GITHUB_ENV\"", "node tools/ci/cargo-timings.mjs init \"$RUNNER_TEMP/houseatlas-cargo-timings\""],
+      "env": {"TIMING_REGISTRY_HIT": "${{ steps.setup.outputs.registry-hit }}", "TIMING_REGISTRY_RESTORED": "${{ steps.setup.outputs.registry-restored }}", "TIMING_TARGET_HIT": "${{ steps.setup.outputs.target-hit }}", "TIMING_TARGET_RESTORED": "${{ steps.setup.outputs.target-restored }}"},
+      "options": {"continue-on-error": "true"},
       "toolchain": ["node"],
       "files": ["tools/ci/cargo-timings.mjs"],
       "scope": "Points Cargo timing diagnostics at a runner temporary folder."
@@ -500,6 +518,7 @@
       "kind": "plumbing",
       "if": "steps.lane.outputs.run == 'true' && (always())",
       "run": ["node tools/ci/cargo-timings.mjs summary"],
+      "options": {"continue-on-error": "true"},
       "toolchain": ["node"],
       "files": ["tools/ci/cargo-timings.mjs"],
       "scope": "Summarizes Cargo timing diagnostics; continues on error."
@@ -536,6 +555,7 @@
       "kind": "test",
       "if": "steps.lane.outputs.run == 'true'",
       "run": ["node frontend/lantern-tests/run-healthy.mjs"],
+      "env": {"HOUSEATLAS_CHROMIUM": "/usr/bin/google-chrome"},
       "toolchain": ["node", "chromium"],
       "files": ["frontend/lantern-tests/run-healthy.mjs"],
       "scope": "Every entry of the explicit run-healthy list, one process each; browser entries use the runner's Chrome against generated build output.",
@@ -578,6 +598,8 @@
       "kind": "plumbing",
       "if": "steps.lane.outputs.run == 'true'",
       "run": ["printf 'HOUSEATLAS_CARGO_TIMINGS_DIR=%s/houseatlas-cargo-timings\\n' \"$RUNNER_TEMP\" >> \"$GITHUB_ENV\"", "node tools/ci/cargo-timings.mjs init \"$RUNNER_TEMP/houseatlas-cargo-timings\""],
+      "env": {"TIMING_REGISTRY_HIT": "${{ steps.setup.outputs.registry-hit }}", "TIMING_REGISTRY_RESTORED": "${{ steps.setup.outputs.registry-restored }}", "TIMING_TARGET_HIT": "${{ steps.setup.outputs.target-hit }}", "TIMING_TARGET_RESTORED": "${{ steps.setup.outputs.target-restored }}"},
+      "options": {"continue-on-error": "true"},
       "toolchain": ["node"],
       "files": ["tools/ci/cargo-timings.mjs"],
       "scope": "Points Cargo timing diagnostics at a runner temporary folder."
@@ -782,9 +804,50 @@
       "kind": "plumbing",
       "if": "steps.lane.outputs.run == 'true' && (always())",
       "run": ["node tools/ci/cargo-timings.mjs summary"],
+      "options": {"continue-on-error": "true"},
       "toolchain": ["node"],
       "files": ["tools/ci/cargo-timings.mjs"],
       "scope": "Summarizes Cargo timing diagnostics; continues on error."
+    },
+    {
+      "id": "action.setup.verify",
+      "workflow": "ordinary-setup/action.yml",
+      "job": "runs",
+      "step": "Verify revision and runtime",
+      "kind": "setup",
+      "if": null,
+      "run": ["test \"$(git rev-parse HEAD)\" = \"$SOURCE_SHA\"", "test \"$(node --version)\" = \"v26.10.0\"", "test \"$(npm --version)\" = \"11.19.1\"", "printf 'CARGO_TARGET_DIR=%s/houseatlas-target\\n' \"$RUNNER_TEMP\" >> \"$GITHUB_ENV\"", "printf 'npm_config_cache=%s/houseatlas-npm\\n' \"$RUNNER_TEMP\" >> \"$GITHUB_ENV\"", "if [ \"$INSTALL_RUST\" = true ]; then", "  rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy", "  test \"$(rustc --version | cut -d ' ' -f 2)\" = \"1.99.0\"", "fi"],
+      "env": {"INSTALL_RUST": "${{ inputs.rust }}"},
+      "options": {"shell": "bash"},
+      "toolchain": ["node", "npm", "rust"],
+      "files": [],
+      "scope": "Asserts the checked-out `SOURCE_SHA`, Node 26.10.0 and npm 11.19.1, points Cargo and npm at runner temporary folders, and installs and asserts Rust 1.99.0 when the job asks for Rust."
+    },
+    {
+      "id": "action.setup.install",
+      "workflow": "ordinary-setup/action.yml",
+      "job": "runs",
+      "step": "Install exact npm locks without scripts",
+      "kind": "setup",
+      "if": null,
+      "run": ["npm ci --ignore-scripts --no-audit --no-fund", "npm ci --prefix packages/contracts --ignore-scripts --no-audit --no-fund", "npm ci --prefix frontend --ignore-scripts --no-audit --no-fund"],
+      "options": {"shell": "bash"},
+      "toolchain": ["node", "npm"],
+      "files": ["package-lock.json", "packages/contracts/package-lock.json", "frontend/package-lock.json"],
+      "scope": "Root, contracts and frontend locks, no install scripts or audit."
+    },
+    {
+      "id": "action.save.prune",
+      "workflow": "ordinary-save/action.yml",
+      "job": "runs",
+      "step": "Prune workspace build outputs before saving",
+      "kind": "plumbing",
+      "if": "github.event_name == 'push' && github.ref == 'refs/heads/main' && inputs.target-key != '' && inputs.target-hit != 'true'",
+      "run": ["target=\"$RUNNER_TEMP/houseatlas-target\"", "for profile in \"$target\"/*/; do", "  [ -d \"$profile/deps\" ] || continue", "  rm -rf \"$profile/examples\" \"$profile/incremental\" \"$profile\"/houseatlas \"$profile\"/houseatlas.d", "  rm -rf \"$profile\"/deps/houseatlas* \"$profile\"/deps/libhouseatlas* \"$profile\"/.fingerprint/houseatlas-*", "done", "du -sh \"$target\""],
+      "options": {"shell": "bash"},
+      "toolchain": [],
+      "files": [],
+      "scope": "On verified main pushes only, removes workspace crate outputs before the build cache save so only compiled dependencies are kept."
     }
   ]
 }
