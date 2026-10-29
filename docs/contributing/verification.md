@@ -2846,10 +2846,11 @@ portrait drawer folding it, with focus on its fold and the room still selected.
 their source position, rooms sharing a label on one floor add their source
 room position, parts of one room on a floor count off in source order, final
 collisions get a source-order suffix, and exclusion notes show only the
-source ID and reason (no invented name). It also checks that the shell uses
-those names for the building chooser, room list and map label targets and
-shows the whole model SHA-256 as selectable text. It runs in CI through
-`run-healthy.mjs`:
+source ID and reason (no invented name). It also checks that the shell
+(`UnifiedAtlas.tsx` and its panel files `atlas-text.ts`, `FloorStack.tsx`,
+`AtlasInspector.tsx` and `AtlasKeys.tsx`) uses those names for the building
+chooser, room list and map label targets and shows the whole model SHA-256 as
+selectable text. It runs in CI through `run-healthy.mjs`:
 
 ```sh
 node frontend/lantern-tests/unified-atlas-control-names-healthy.mjs
