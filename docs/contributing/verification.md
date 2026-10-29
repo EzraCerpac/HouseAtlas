@@ -79,6 +79,9 @@ unnamed run steps, workflow, job and run-step keys it does not read (such as
 has no manifest row or a row has no step; when a command, condition, step `id`
 (which later conditions read as `steps.<id>.outputs`), step env or option (`shell`, `working-directory`, `continue-on-error`, `timeout-minutes`),
 trigger, workflow or job env, job selection, `needs` or listed file differs; when
+a job's run steps are in a different order from their manifest rows; when a run
+step's condition, env or command reads `steps.<id>` before any earlier step
+(run or `uses:`) in its job has that id; when
 a recorded case count differs (unittest methods,
 top-level `test(` calls, `run-healthy.mjs` list entries, bridge case choices or
 Cargo `--skip` flags); when a recorded prose claim or toolchain pin is gone; or
@@ -101,7 +104,7 @@ hosted step logs remain the execution record.
 
 | Workflow / job | Step | Command | Runs when | Cases | Scope |
 | --- | --- | --- | --- | --- | --- |
-| ordinary-core / ordinary-core | Synthetic PR selector regressions (stdlib and disposable Git histories) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/ci -p 'test_*.py' -v` | every run | 22 unittest methods | Stdlib selector cases over disposable synthetic Git histories and `check_lanes.py` cases over temporary synthetic repositories. |
+| ordinary-core / ordinary-core | Synthetic PR selector regressions (stdlib and disposable Git histories) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/ci -p 'test_*.py' -v` | every run | 23 unittest methods | Stdlib selector cases over disposable synthetic Git histories and `check_lanes.py` cases over temporary synthetic repositories. |
 | ordinary-core / ordinary-core | Check the CI command manifest against these workflows (stdlib, repository files only) | `python3 -B -I tools/ci/check_lanes.py --check` | every run |  | This manifest against both ordinary workflows and their two composite actions: triggers, workflow and job env, job selection and needs, run lines, step conditions, ids, env and options, files, case counts, prose claims, toolchain pins and this table. Reads repository files only; runs no listed command. |
 | ordinary-core / ordinary-core | Verify publication file set and template | `npm run verify:publication` | every run |  | Exact regular-file set, modes, digests and logical ownership from the source manifest, and the unconfigured deployment template. |
 | ordinary-core / ordinary-core | Run the twelve synthetic publication manifest regenerator cases | `node --test --test-concurrency=1 tools/publication/refresh-manifest.test.mjs` | every run | 12 top-level tests | The actual regenerator against generated trees and manifests in disposable temporary folders, once checked by a temporary copy of the publication verifier; no network, and the repository manifest is neither read nor written. |
