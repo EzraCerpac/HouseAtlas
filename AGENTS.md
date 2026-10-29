@@ -45,8 +45,9 @@ slow, noisy or need special setup. Keep a test out of default runs with
 unit tests with such names can run with everything else. Prefer explicit lists
 to globbing so CI scope stays readable.
 
-Ordinary CI runs the existing workflows on pushes to `main` and pull requests
-targeting `main`. `.github/workflows/ordinary-core.yml` also runs the 14
+Ordinary CI runs the existing workflows on pushes to `main` and on every pull
+request, including stacked PRs whose base is another branch.
+`.github/workflows/ordinary-core.yml` also runs the 14
 synthetic `tools/homebox-quantity-seed-report` unit tests and the synthetic
 `tools/deploy-nas` and `tools/backup` tests (temp folders, a fake service and
 a fake iCloud helper; no launchd, network or real data) with the runner's
@@ -132,6 +133,16 @@ expanded by the viewer's decoder; and
 `HOUSEATLAS_QUANTITY_REFERENCE_DIR`; and the healthy `tools/rust-integration`
 loopback flows named in the workflow and in the verification guide. A PR that
 extends CI names the added scope here and in the verification guide.
+
+`tools/ci/lanes.json` and the generated command inventory in the verification
+guide are the authoritative list of ordinary CI run steps. The ordinary-core job
+runs `PYTHONDONTWRITEBYTECODE=1 python3 -I tools/ci/check_lanes.py --check`
+(Python standard library only; reads repository files, no subprocess or network)
+to compare that manifest with both ordinary workflows, recorded case counts,
+prose claims, toolchain pins and the generated table. Its synthetic cases run in
+the existing `tools/ci` discover step. Every new or changed CI run step needs a
+matching manifest row; the check fails otherwise. It runs none of the listed
+commands.
 
 The existing Lantern `healthy-read.mjs` check also compares the generated client
 schema resources with their pinned full authority, checks scope/file v3/v4

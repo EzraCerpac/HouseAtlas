@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "b472a8c3c39c292857afdcb4243f817356d341c9a4546aff499e02b6e99112ea",
+  "sourceDigestSha256": "23d8045f407e192c0c1b90e0b419af8e0913e5b4181e399b1bd083991a19c5ab",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -42,8 +42,8 @@
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
-      "bytes": 6767,
-      "sha256": "ac6be0e5296a264de7c69edee6790d15d222428c5810f5458f99770d63f6b8fd",
+      "bytes": 7041,
+      "sha256": "1cb9af6deb64f5e0f7cf241f5c659ebfbb10b8cd8c653c92c8ca31ba7252cdab",
       "owner": "core-integration"
     },
     {
@@ -154,8 +154,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 13503,
-      "sha256": "9c8d4478eafad8758552ca764397567619bdcae532fdf32b8f57fbc2eb44568a",
+      "bytes": 14188,
+      "sha256": "42d5c6d2e31c952b8bd9dde8c12db7bc440c3a83b0f64f12f6c5f28ac39f6674",
       "owner": "core-integration"
     },
     {
@@ -6251,8 +6251,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 173081,
-      "sha256": "e79a805498047b78f6c955190c16bec35b687d3e2ec930dfa6ef793059b062b0",
+      "bytes": 190506,
+      "sha256": "6bda0e94f10cf77aa58a4d5c091f9fe8c460779bca8ae31adb45319c30b32982",
       "owner": "core-integration"
     },
     {
@@ -11366,10 +11366,31 @@
       "owner": "core-integration"
     },
     {
+      "path": "tools/ci/check_lanes.py",
+      "mode": "100644",
+      "bytes": 33122,
+      "sha256": "35afdf716218a4c7fce64641244bb69ce88c1569aeb04cc16478f54301e88610",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/ci/lanes.json",
+      "mode": "100644",
+      "bytes": 45412,
+      "sha256": "eea759aea474e30f3701f574da017c0e5d054f7c067668daedfc046c7c1255d8",
+      "owner": "core-integration"
+    },
+    {
       "path": "tools/ci/select_pr_checks.py",
       "mode": "100644",
       "bytes": 5242,
       "sha256": "239473c12a88dba75feb60a9ec4d51dc8ddfbe129e3646051efbf554b1930842",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/ci/test_check_lanes.py",
+      "mode": "100644",
+      "bytes": 9677,
+      "sha256": "305f856f027945b7431b8e0630acc519d07695f9b1d593554439f598d2a7b9d8",
       "owner": "core-integration"
     },
     {
