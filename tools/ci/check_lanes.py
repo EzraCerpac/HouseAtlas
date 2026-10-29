@@ -35,7 +35,7 @@ TOP_KEYS = {'format', 'toolchains', 'lanes', 'workflows', 'actions', 'outOfScope
 WORKFLOW_KEYS = {'name', 'on', 'env', 'jobs'}
 JOB_KEYS = {'runsOn', 'if', 'matrix', 'needs', 'env', 'lane'}
 ROW_KEYS = {'id', 'workflow', 'job', 'step', 'kind', 'if', 'run', 'toolchain', 'files', 'scope'}
-ROW_OPTIONAL = {'env', 'options', 'cases', 'claims'}
+ROW_OPTIONAL = {'stepId', 'env', 'options', 'cases', 'claims'}
 # Keys the reader accepts; anything else is refused rather than silently ignored.
 READ_WORKFLOW_KEYS = {'name', 'on', 'permissions', 'concurrency', 'env', 'jobs'}
 READ_JOB_KEYS = {'name', 'needs', 'if', 'strategy', 'runs-on', 'timeout-minutes', 'env', 'outputs',
@@ -295,6 +295,8 @@ def read_steps(name, owner, steps):
             lines = [plain(name, run, f'run of {title!r}')]
         result.append({
             'step': title,
+            # Later steps' conditions name this id (steps.<id>.outputs), so it is compared too.
+            'stepId': plain(name, step.get('id'), f'id of {title!r}', optional=True),
             'if': plain(name, step.get('if'), f'if of {title!r}', optional=True),
             'run': lines,
             'env': env_map(name, step.get('env'), title),
@@ -673,6 +675,8 @@ def check(root, manifest, workflows, docs_text, actions=None):
             errors.append(f'{where}: run differs from the workflow{run_difference(step["run"], row["run"])}')
         if row['if'] != step['if']:
             errors.append(f'{where}: if is {step["if"]!r}, manifest says {row["if"]!r}')
+        if row.get('stepId') != step['stepId']:
+            errors.append(f'{where}: step id is {step["stepId"]!r}, manifest says {row.get("stepId")!r}')
         # A lane job's RUN_LANE is compared with its lane above; every other env value is compared here.
         env = {name: value for name, value in step['env'].items()
                if not (name == 'RUN_LANE' and key[:2] in lane_jobs)}

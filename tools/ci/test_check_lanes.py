@@ -276,7 +276,7 @@ class CheckLanesTests(unittest.TestCase):
             'needs': 'core', 'env': {}, 'lane': 'sample'}
         data['steps'] += [
             {'id': 'laned.select', 'workflow': 'core.yml', 'job': 'laned', 'step': 'Select', 'kind': 'plumbing',
-             'if': None, 'run': ['printf \'run=%s\\n\' "$RUN_LANE" >> "$GITHUB_OUTPUT"'], 'toolchain': [],
+             'stepId': 'lane', 'if': None, 'run': ['printf \'run=%s\\n\' "$RUN_LANE" >> "$GITHUB_OUTPUT"'], 'toolchain': [],
              'files': [], 'scope': 'Lane output.'},
             {'id': 'laned.run', 'workflow': 'core.yml', 'job': 'laned', 'step': 'Run laned', 'kind': 'test',
              'if': "steps.lane.outputs.run == 'true' && (matrix.shard == 1)", 'run': ['node tools/sample/a.mjs --laned'],
@@ -293,6 +293,11 @@ class CheckLanesTests(unittest.TestCase):
         self.edit('.github/workflows/core.yml', "needs.core.result == 'failure' }}", "needs.core.result != 'success' }}")
         self.edit('.github/workflows/core.yml', '        shard: [1, 2]\n    runs-on: ubuntu-24.04', '        shard: [1, 2]\n    runs-on: macos-15')
         self.assert_fails("core.yml job laned: runsOn is 'macos-15', manifest says 'ubuntu-24.04'")
+        self.edit('.github/workflows/core.yml', '        id: lane\n', '        id: lane-renamed\n')
+        self.assert_fails("step laned.select: step id is 'lane-renamed', manifest says 'lane'")
+        self.edit('.github/workflows/core.yml', '        id: lane-renamed\n', '')
+        self.assert_fails("step laned.select: step id is None, manifest says 'lane'")
+        self.edit('.github/workflows/core.yml', '      - name: Select\n', '      - name: Select\n        id: lane\n')
         data['workflows']['core.yml']['jobs']['laned']['lane'] = None
         self.write_manifest(data)
         self.assert_fails('core.yml job laned: has a RUN_LANE selector but no manifest lane')
