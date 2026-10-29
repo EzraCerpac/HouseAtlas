@@ -3,7 +3,7 @@
 This separate requested lane identifies the exact PR base tip and head for every
 PR target. It runs one pinned synthetic harness sequentially against both
 sources and regenerates one speedup/degradation table from validated raw runs.
-The existing ordinary workflows and their main/dev scope remain unchanged;
+The existing ordinary workflows and their triggers remain unchanged;
 this separate reporting lane adds no service, stored credential, provider,
 household input or deployment qualification.
 

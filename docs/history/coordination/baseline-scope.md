@@ -1,5 +1,7 @@
 # Snapshot scope
 
+> Status: historical — scope of the initial JavaScript publication snapshot. Current: [README.md](../../../README.md).
+
 The core composes storage, HomeBox, Network, web, access and media modules.
 Contracts define source-qualified identities, explicit revisions, uncertainty
 and scoped projections. HomeBox owns inventory/location/file/maintenance data;

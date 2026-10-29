@@ -1,5 +1,7 @@
 # Per-thread source disposition ledger
 
+> Status: historical — 53-thread review snapshot at baseline `fd68e93`; its line citations are not maintained. Current: [docs/rust-integration/dev-composition.md](../../rust-integration/dev-composition.md).
+
 Each row is one unresolved GitHub review comment in the captured snapshot. Disposition reflects baseline `fd68e9325abd0dabb41c7874094c7ef423ba0327` plus the scoped composition corrections identified below; a fixed source finding remains unresolved in GitHub because review state was read-only. The SafeRendered historical finding remains mitigated by fail-closed recovery. Fresh review/upload producer code and concrete native archive policies now exist; cold-start and legacy recovery still require independently admitted physical origin and complete expected generation evidence.
 
 The delegation referenced 52 review threads. The available historical snapshot and fresh GitHub read both contain the same 53 unresolved roots among 78 historical threads (101 comments, including 23 replies); no genuine 52-comment baseline was available to identify an extra row. All 53 are retained below. No GitHub review state was changed. Baseline line references may move during composition.

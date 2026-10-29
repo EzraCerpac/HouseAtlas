@@ -190,7 +190,7 @@ Citations remain unavailable. Changes now reads the actual bounded
 partial stock-only coverage; authored per-record history remains separate.
 Prototype fixture engines are not mounted.
 
-The read-only [review ledger](review-source-ledger.md) retains the captured 53
+The read-only [review ledger](../history/rust-integration/review-source-ledger.md) retains the captured 53
 comments despite the delegation’s 52-thread reference; no review state was
 closed. The original Access `b1fbc9d` read-fence donor was published and integrated.
 Its source-read guard revalidates the original partition and explicitly supplied

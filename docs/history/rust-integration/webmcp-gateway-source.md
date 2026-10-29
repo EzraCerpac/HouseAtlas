@@ -1,5 +1,7 @@
 # WebMCP gateway source candidate
 
+> Status: superseded by [frontend/src/webmcp/gateway/README.md](../../../frontend/src/webmcp/gateway/README.md).
+
 This candidate adopts all 23 regular files in `frontend/src/webmcp/**` byte for
 byte from `d5f57d88e79a0ef916904f72bfd86716187702e4`. Its base is accepted main
 `8f4065a3ee831df0b30d14f597c25a7bbcc7f212`, tree

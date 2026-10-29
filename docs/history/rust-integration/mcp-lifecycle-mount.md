@@ -1,5 +1,7 @@
 # Native MCP lifecycle mount
 
+> Status: historical — continuation from main `ba20a24`. Current: [docs/rust-integration/README.md](../../rust-integration/README.md).
+
 This continuation starts at corrected main
 `ba20a24deedd780e4ddd00bc7446aa484257970a`, tree
 `b6a2dadee4f16a83beb5c9635a93a74700ed32f8`. It copies the six exact MCP

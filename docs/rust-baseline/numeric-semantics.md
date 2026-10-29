@@ -6,28 +6,23 @@ changes them into strings. Canonical per-field bounds, published schemas and
 generated TypeScript are unchanged. The backend explicitly reports unsupported
 numeric processing outside the bounded representation described below.
 
-## Feature selection for the integrator
+## Feature selection
 
-The shared manifest owner should select the existing exact versions as follows:
+The workspace `Cargo.toml` selects the exact versions and features:
 
 ```toml
-serde_json = { version = "=1.0.151", features = ["arbitrary_precision", "raw_value"] }
+serde_json = { version = "=1.0.151", features = ["arbitrary_precision", "float_roundtrip", "raw_value"] }
 jsonschema = { version = "=0.58.6", default-features = false, features = ["arbitrary-precision"] }
 ```
 
-AT51 correction ownership excludes shared manifests and locks, so they are not
-edited in this handoff. The accepted object-preservation compiler harness selected
-all three features explicitly. The unchanged scoped runner selects the precision
-pair with Cargo flags and inherits `raw_value` when the shared manifest selects
-it. The existing lock supports that selection.
-Ordinary compiler/fixture success is evidence for that feature configuration;
-it is not evidence that the integrator has selected the features in its build.
+`houseatlas-backend` inherits both through `workspace = true`. Ordinary
+compiler/fixture success is evidence for that feature configuration.
 
 The checked parser calls the feature-gated `serde_json::Number::as_str`, so the
 source requires the parser feature rather than silently compiling with rounded
-tokens. The compiler runner explicitly selects both precision features. The integrator
-must also select the matching schema arithmetic feature in its manifest;
-enabling only the parser feature is insufficient for schema numeric comparisons.
+tokens. The compiler runner explicitly selects both precision features. The workspace
+manifest also selects the matching schema arithmetic feature; enabling only the
+parser feature is insufficient for schema numeric comparisons.
 `raw_value` supports the object-preserving parser and open HomeBox DTO conversion.
 Those DTOs require serde_json's raw capture protocol; generic Serde deserializers
 and buffered `flatten`/`untagged` wrappers around them are unsupported. None is

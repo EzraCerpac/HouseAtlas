@@ -215,12 +215,11 @@ automatic retry or acceptance claim.
 
 The root exposes a transient session-change notification hook; external confirmed
 rotation-event producers and their positive runtime evidence remain missing.
-Specialized batch forms, complete human editing and attachment flows, provider
-refresh, actual Network/recovery
-execution, real source setup and remote AI clients remain missing. Access's
-separately accepted recovery successor remains unadopted because its
-`domain::queue_recovery` dependency is absent from the accepted Domain input.
-No queue,
+The [specialized batch forms](atlas-specialized-writes.md) and the owned
+[attachment upload](upload-preparation.md) are mounted. Complete human editing,
+provider refresh, actual Network/recovery execution, real source setup and
+remote AI clients remain missing. `domain::queue_recovery` and the Access
+recovery extensions are present ([README](README.md)); no queue,
 restore or reopened-host runtime flow has run in this slice. Historical schema2
 recovery evidence does not establish schema4 or populated stock/queue image
 compatibility. Populated recovery requires independently qualified discovery,

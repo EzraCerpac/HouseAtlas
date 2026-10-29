@@ -10,7 +10,7 @@ This package does not complete those prerequisites or release their consumers.
 
 | System | Editable authority | Atlas behavior |
 | --- | --- | --- |
-| HomeBox | Inventory fields; location labels and parentage; files, photos and external attachments; item maintenance | Native read projections and verified HomeBox navigation |
+| HomeBox | Inventory fields; location labels and parentage; files, photos and external attachments; item maintenance | Native read projections and verified HomeBox navigation; a configured host can also dispatch an approved [quantity PATCH](../operations/quantity-application.md) |
 | Atlas | Permanent physical identities; reviewed qualified bindings and semantic annotations; circuits, valves, physical evidence relations; optional geometry; its original assets; its audit | Revision-checked owned-record mutations |
 | Network | Curated network inventory, observations, confidence and history | Allowlisted GET projections; existing UI for changes or diagnostics |
 

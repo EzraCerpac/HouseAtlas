@@ -1,5 +1,7 @@
 # Native host corrections
 
+> Status: historical — change note for native host corrections. Current: [docs/rust-integration/README.md](../../rust-integration/README.md).
+
 The host preserves the actual MCP owner's bounded response bytes. It no longer
 adds a null request ID to an unidentified error. Root HTTP intake errors also
 omit the ID when no request has been identified. Known string or numeric IDs

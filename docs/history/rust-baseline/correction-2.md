@@ -1,5 +1,7 @@
 # Checked numeric processing correction
 
+> Status: historical — AT51 correction note on PR 5 head `dac410e`. Current: [docs/rust-baseline/numeric-semantics.md](../../rust-baseline/numeric-semantics.md).
+
 This correction appends to PR 5 correction head
 `dac410e22f63a231118f513a0a565093e0836213`. Both that head and the original
 `7f5faca11aa65a723bb3a4540654e0a436afbacf` scaffold remain preserved. Only the
@@ -18,7 +20,7 @@ Instance validation and embedded schema compilation traverse every numeric
 value before calling jsonschema. Private number wrappers check deserialization;
 open-object serializers recursively check extras as well as modeled-key
 collisions. Unsupported processing is an explicit error. The exact API and
-feature requirements are recorded in [numeric-semantics.md](numeric-semantics.md).
+feature requirements are recorded in [numeric-semantics.md](../../rust-baseline/numeric-semantics.md).
 
 Published core/history schemas, healthy fixtures, generated Rust/TypeScript DTO
 shapes and JavaScript canonicalization remain unchanged. This supplies no audit

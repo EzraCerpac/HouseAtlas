@@ -14,9 +14,7 @@ run affected authorized ordinary checks and audit the exact resulting tree.
 Record the new origin-to-publication mapping privately before any coordinated
 publication commit. Never import private ancestry or provisional acceptance.
 
-The initial tree is artifact-only. The history coordinator alone commits the
-exact sanitized tree using a verified nonprivate identity and new ancestry.
-Independent final review then pins the full new commit, tree, main branch and
-all-and-only reachable publication commits. Remote creation/push, canonical
-checkout and hosted CI need their final scoped release. Publish only the exact
+The repository, its `main` history and hosted CI now exist; scoped PRs target
+`main`. The history coordinator alone commits accepted sanitized trees using a
+verified nonprivate identity, without private ancestry. Publish only the exact
 reviewed main ref with push.followTags=false; no tags, mirrors or deployments.
