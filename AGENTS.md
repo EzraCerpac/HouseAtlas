@@ -141,9 +141,11 @@ guide are the authoritative list of `run:` steps in `ordinary-core.yml`,
 The ordinary-core job runs `python3 -B -I tools/ci/check_lanes.py --check`
 (Python standard library only; reads repository files, no subprocess or network)
 to compare that manifest with those files: triggers, workflow and job env, job
-runner, condition, matrix and needs, and each run step's command, condition, id,
-env and options such as `continue-on-error`, plus recorded case counts, prose claims,
-toolchain pins and the generated table. It refuses workflow, job and run-step
+runner, condition, matrix and needs, each run step's command, condition, id,
+env and options such as `continue-on-error`, and the run steps' order within each
+job, plus recorded case counts, prose claims, toolchain pins and the generated
+table. A run step that reads `steps.<id>` before an earlier step has that id is
+refused. It refuses workflow, job and run-step
 keys it does not read. `uses:` steps and their inputs, permissions, concurrency,
 job outputs, job timeouts and `fail-fast` are not compared. Its synthetic cases
 run in the existing `tools/ci` discover step. Every new or changed run step, step
