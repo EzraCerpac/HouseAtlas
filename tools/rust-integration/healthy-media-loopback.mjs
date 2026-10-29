@@ -1,6 +1,9 @@
 // Positive native core plus actual local owned PNG/text availability and delivery.
 // No rejection/replay/expiry/revocation/fault/crash/concurrency control or provider.
 import assert from 'node:assert/strict';
+import { BrowserPipe, STARTUP_TIMEOUT_MS } from './browser-pipe.mjs';
+import { browserPipeSyntheticCases } from './browser-pipe-cases.mjs';
+import { trackOfflineBrowser } from '../../frontend/lantern-tests/offline-launch-cleanup.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, existsSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -9,6 +12,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 assert.equal(process.version, 'v26.10.0');
+// Same admitted media lane; pure fake-child/clock coverage before native work.
+await browserPipeSyntheticCases();
 const binary = process.env.HOUSEATLAS_BINARY;
 assert(binary && existsSync(binary), 'Supply the locked compiled HOUSEATLAS_BINARY');
 const chromium = process.env.HOUSEATLAS_CHROMIUM ?? ['/usr/bin/google-chrome', '/usr/bin/chromium'].find(existsSync);
@@ -24,7 +29,8 @@ async function until(check, label, ms = 20000) {
 }
 const openssl = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', key, '-out', cert, '-days', '1', '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1'], { encoding: 'utf8' });
 assert.equal(openssl.status, 0, 'Disposable certificate creation');
-let service, browser, cdp, serviceOutput = '', serviceError = '';
+let service, browser, cdp, stopBrowser, serviceFailure, serviceClosed = false, primaryFailure = false;
+let serviceOutput = '', serviceError = '';
 const observedUrls = [], responses = [], runtimeErrors = [];
 let phase = 'bootstrap';
 const requestPhases = new Map();
@@ -41,55 +47,44 @@ function assertOrdinaryResponses(label, origin) {
   }
   assert.equal(unexpected.length, 0, label);
 }
-class Pipe {
-  next = 0; pending = new Map(); buffer = Buffer.alloc(0);
-  constructor(process) {
-    this.process = process;
-    process.stdio[4].on('data', bytes => {
-      this.buffer = Buffer.concat([this.buffer, bytes]);
-      let end;
-      while ((end = this.buffer.indexOf(0)) !== -1) {
-        const raw = this.buffer.subarray(0, end).toString(); this.buffer = this.buffer.subarray(end + 1);
-        if (!raw) continue;
-        const message = JSON.parse(raw);
-        if (message.id) {
-          const pending = this.pending.get(message.id); if (!pending) continue;
-          this.pending.delete(message.id); clearTimeout(pending.timer);
-          message.error ? pending.reject(new Error(message.error.message)) : pending.resolve(message.result);
-        } else if (message.method === 'Network.requestWillBeSent') {
-          observedUrls.push(message.params.request.url);
-          requestPhases.set(message.params.requestId, { method: message.params.request.method, requestPhase: phase });
-        } else if (message.method === 'Network.responseReceived') {
-          const request = requestPhases.get(message.params.requestId);
-          responses.push({ url: message.params.response.url, status: message.params.response.status,
-            method: request?.method ?? 'unknown', requestPhase: request?.requestPhase ?? 'unknown', responsePhase: phase });
-          requestPhases.delete(message.params.requestId);
-        }
-        else if (message.method === 'Runtime.exceptionThrown') runtimeErrors.push(message.params.exceptionDetails.text);
-      }
-    });
-  }
-  send(method, params = {}, sessionId) {
-    const id = ++this.next;
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('CDP timeout: ' + method)); }, 15000);
-      this.pending.set(id, { resolve, reject, timer });
-      this.process.stdio[3].write(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + '\0');
-    });
-  }
-}
 try {
   service = spawn(resolve(binary), ['--disposable-dir', data, '--frontend-dist', join(root, 'frontend/dist'), '--tls-cert', cert, '--tls-key', key], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
+  service.on('error', error => { serviceFailure = error; });
+  service.once('close', () => { serviceClosed = true; });
   service.stdout.on('data', b => { serviceOutput += b; }); service.stderr.on('data', b => { serviceError += b; });
   await until(() => {
-    if (service.exitCode !== null) throw new Error('Rust startup failed: ' + serviceError);
+    if (serviceFailure) throw serviceFailure;
+    if (service.exitCode !== null || service.signalCode !== null) throw new Error('Rust startup failed: ' + serviceError);
     return existsSync(join(data, 'smoke-session.json')) && serviceOutput.includes('listening at');
   }, 'actual Rust TLS listener', 30000);
   const { origin, cookie, login, editorLogin, preparedMedia } = JSON.parse(readFileSync(join(data, 'smoke-session.json')));
   assert.match(origin, /^https:\/\/127\.0\.0\.1:\d+$/);
   browser = spawn(chromium, ['--headless=new', '--no-sandbox', '--disable-gpu', '--remote-debugging-pipe', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--disable-features=MediaRouter,OptimizationHints', '--ignore-certificate-errors', '--user-data-dir=' + join(scratch, 'browser'), 'about:blank'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
-  cdp = new Pipe(browser);
-  const version = await cdp.send('Browser.getVersion');
+  stopBrowser = trackOfflineBrowser(browser);
+  cdp = new BrowserPipe(browser, message => {
+    if (message.method === 'Network.requestWillBeSent') {
+      observedUrls.push(message.params.request.url);
+      requestPhases.set(message.params.requestId, { method: message.params.request.method, requestPhase: phase });
+    } else if (message.method === 'Network.responseReceived') {
+      const request = requestPhases.get(message.params.requestId);
+      responses.push({ url: message.params.response.url, status: message.params.response.status,
+        method: request?.method ?? 'unknown', requestPhase: request?.requestPhase ?? 'unknown', responsePhase: phase });
+      requestPhases.delete(message.params.requestId);
+    } else if (message.method === 'Runtime.exceptionThrown') runtimeErrors.push(message.params.exceptionDetails.text);
+  });
+  const startupStarted = performance.now();
+  let version;
+  try {
+    // One launch-only budget, no retry or page/cookie work until correlated ready.
+    version = await cdp.startup();
+    console.log(JSON.stringify({ startupOnly: true, budgetMs: STARTUP_TIMEOUT_MS,
+      milliseconds: Math.round(performance.now() - startupStarted), ...cdp.snapshot() }));
+  } catch (error) {
+    console.error(JSON.stringify({ startupOnly: true, beforeAnyPageOrCookie: true,
+      budgetMs: STARTUP_TIMEOUT_MS, milliseconds: Math.round(performance.now() - startupStarted),
+      ...cdp.snapshot() }));
+    throw error;
+  }
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params) => cdp.send(method, params, sessionId);
@@ -274,19 +269,34 @@ try {
   const evidence = { rust:serviceOutput.trim(), browser:version.product, apiReads:api.map(({path,status})=>({path,status})), coreReads, writes, media, authResponses:responses.filter(r=>r.url.startsWith(origin+'/api/atlas/auth/')).map(r=>({path:new URL(r.url).pathname,status:r.status})), scopedRead:result.status, rooms:1, items:1, persisted:JSON.parse(rows.stdout), observedRequests:observedUrls.length, scope:'Actual native schema/graph/JCS, Rust/SQLite/access/domain/React positive loopback TLS session/login/logout, canonical paged reads, fresh circuit create, atomic local identity batch, native owned PNG/text availability and actual GET/HEAD download plus safe PNG preview. No rejected request, stopped control, recovery or external provider.' };
   if (process.env.HOUSEATLAS_EVIDENCE) writeFileSync(process.env.HOUSEATLAS_EVIDENCE, JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));
+} catch (error) {
+  primaryFailure = true; throw error;
 } finally {
-  try {
-    if (cdp && browser?.exitCode === null) await cdp.send('Browser.close').catch(() => {});
-    if (browser?.exitCode === null) await until(() => browser.exitCode !== null, 'ordinary Chromium shutdown', 10000);
-  } finally {
-    try {
-      if (service?.exitCode === null) {
-        service.kill('SIGINT');
-        await until(() => service.exitCode !== null, 'graceful Rust shutdown', 10000);
-        assert.equal(service.exitCode, 0, 'Graceful ordinary shutdown');
-      }
-    } finally {
+  const failures = [];
+  let browserClosed = !browser;
+  const attempt = async (phase, run) => {
+    try { await run(); return true; }
+    catch (error) { failures.push({ phase, error }); return false; }
+  };
+  if (stopBrowser) browserClosed = await attempt('browser shutdown', () => stopBrowser(
+    () => cdp?.ready ? cdp.send('Browser.close') : Promise.resolve()));
+  // Retire command timers/owned pipe handles after the close-aware stop. On a
+  // startup refusal there is no second 15 s protocol wait or Browser.close retry.
+  cdp?.dispose();
+  await attempt('service shutdown', async () => {
+    if (!service || serviceClosed) return;
+    if (service.exitCode === null && service.signalCode === null) service.kill('SIGINT');
+    await until(() => serviceClosed, 'graceful Rust close', 10000);
+    assert.equal(service.exitCode, 0, 'Graceful ordinary shutdown');
+  });
+  if (browserClosed && (!service || serviceClosed)) {
+    await attempt('scratch removal', async () => {
       rmSync(scratch, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
-    }
+    });
+  } else console.error('Owned media scratch retained: child closure unconfirmed');
+  if (primaryFailure) {
+    for (const { phase, error } of failures) console.error('Additional media cleanup failure (' + phase + '):', error);
+  } else if (failures.length) {
+    throw new AggregateError(failures.map(row => row.error), 'Media harness cleanup failed', { cause: failures[0].error });
   }
 }
