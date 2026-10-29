@@ -2419,6 +2419,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/http/browser_reads.rs",
+      "mode": "100644",
+      "bytes": 4847,
+      "sha256": "bfff32653ef58494281253489734d3cdcf0c6c447b583a2fc20caec28a6616a3",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/http/capture_claim.rs",
       "mode": "100644",
       "bytes": 1699,
@@ -2489,6 +2496,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/http/host_config.rs",
+      "mode": "100644",
+      "bytes": 18026,
+      "sha256": "97f7213f74e385b2197cbd54b4941575a4e7e080192bb1b0f72470663b9c1d30",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/http/intake.rs",
       "mode": "100644",
       "bytes": 3562,
@@ -2512,8 +2526,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 59778,
-      "sha256": "53046888d1757b95e7ec9aefb25a4c64262c05c06a3e8655f9ed634b68439d7e",
+      "bytes": 24590,
+      "sha256": "74840e27a7c21d5c864a77be5c152a12ab12247733c591b475aef294e7f319d8",
       "owner": "core-integration"
     },
     {
@@ -2671,6 +2685,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/http/read_authority.rs",
+      "mode": "100644",
+      "bytes": 7615,
+      "sha256": "483a15c17431c4b290e4df31cb8b489345e948a50e0237345263cc4dbe0ce763",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/http/reads.rs",
       "mode": "100644",
       "bytes": 19176,
@@ -2682,6 +2703,13 @@
       "mode": "100644",
       "bytes": 4918,
       "sha256": "bdb75e59be0c11e6f6e6982889cc8868614786e4101cc09b8c8a37051d812762",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/http/response_layer.rs",
+      "mode": "100644",
+      "bytes": 5183,
+      "sha256": "5a0a4a224c3bb27fccd4959280b4d8162710ef5df4a310b2138ccf1cdab53f1f",
       "owner": "core-integration"
     },
     {
