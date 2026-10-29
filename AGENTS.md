@@ -193,6 +193,15 @@ child invocation. These process-routing checks run no Cargo compiler, actual
 Rust tool, profiler, network workload or installation. Real mise discovery and
 pinned Cargo parser observations remain separate evidence.
 
+The existing ordinary-core job also runs exactly
+`tools/publication/refresh-manifest.test.mjs` with pinned Node 26.10.0 and
+`--test-concurrency=1`. Its twelve cases build tiny generated trees and
+manifests in disposable temporary folders and run the actual
+`tools/publication/refresh-manifest.mjs` against them with `--root`; one case
+checks the output with a temporary copy of the publication verifier. They open
+no network connection, write only those temporary folders and neither read nor
+write the repository manifest, which `verify:publication` alone checks.
+
 The separately authorized Synthetic README media workflow captures only
 checked-in generated fixtures through the actual React renderer and fake read
 transports on an owned loopback server. Its scoped PR/main triggers and manual

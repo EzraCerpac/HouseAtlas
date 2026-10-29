@@ -23,9 +23,10 @@ an empty value, before starting rustup; it never changes your environment.
 3. Review `git diff --stat` and the exact `git diff`. Include only intended
    formatting in your change. If unrelated formatting appears, stop and
    coordinate its disposition before publishing.
-4. Refresh the publication manifest's byte counts and SHA-256 entries for the
-   final reviewed files, and its aggregate source digest, after formatting.
-   Formatting after this refresh would invalidate those entries.
+4. Refresh the publication manifest for the final reviewed files after
+   formatting with `node tools/publication/refresh-manifest.mjs` (see
+   [Publication manifest](#publication-manifest)). Formatting after this
+   refresh would invalidate its entries.
 5. Run `mise run fmt:check`. It reports formatting differences without changing
    source. It does not refresh the publication manifest.
 6. Deliberately stage only owned paths and review `git diff --cached` before
@@ -36,6 +37,34 @@ an empty value, before starting rustup; it never changes your environment.
 Formatting parses Rust source but does not compile it or establish type,
 Clippy or test success. Keep compilation, strict Clippy and tests in the existing
 CI lanes; do not run blanket Clippy fixes as part of publication.
+
+## Publication manifest
+
+`docs/publication/source-manifest.json` lists every source file's path, Git
+mode, byte count, SHA-256 and logical owner, plus one aggregate digest over all
+rows. Regenerate the rows and digest from the working tree with pinned Node
+26.10.0, then check the result:
+
+```sh
+node tools/publication/refresh-manifest.mjs --owner path/to/new-file.mjs=core-integration
+node tools/publication/refresh-manifest.mjs --check
+npm run verify:publication
+```
+
+The regenerator walks the tree with the rules of
+`tools/publication/verify-source.mjs`: it skips only `.git`, `node_modules` and
+`dist` entries, refuses symlinks and other non-regular files, takes the mode from
+the executable bits and sorts rows by path. It rewrites only the manifest.
+Existing rows keep their owner; files no longer present drop out. A file without
+a row needs `--owner PATH=OWNER` naming one of the manifest's `owners` (for a
+moved file, its old owner); otherwise it refuses and lists the paths. Because
+the walk includes untracked files, build output such as `target/` and other
+stray files also make it refuse: run it from a clean checkout, such as a
+separate `git worktree`, or remove them first. `--check` writes nothing and
+exits 1 when a refresh would change the manifest; refusals exit 2. It runs no
+controls and does not check the deployment template, which
+`verify:publication` still does. After a merge, see
+[Merge conflicts suppress PR CI](ci-path-selection.md#merge-conflicts-suppress-pr-ci).
 
 ## CI and adoption
 
