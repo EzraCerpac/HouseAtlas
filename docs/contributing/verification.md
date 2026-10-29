@@ -400,11 +400,16 @@ restored on page exit. Unsupported observation/instrumentation is a failure,
 not a zero-duration success. Observer records are drained before disconnect.
 
 Build and post-shown task durations and runtime pipeline creations are reported
-separately. There is no adopted software-GPU latency or zero-creation budget:
-these numbers are characterization, not the deferred Mac WebGPU 100 ms
-acceptance. Actual shading/prepared-pipeline reuse is asserted, but complete
-cache coverage needs the observed creation counts reviewed before a stricter
-assertion. Existing 60/120-second completion deadlines limit hangs only.
+separately. Quad material identities are registered at compileAsync entry,
+including cache hits. Every post-show effect draw is classified using the
+actual RenderObject.material; unknown quad materials fail rather than disappear
+from the denominator. The case requires effect draws, reuse for every such draw,
+zero unprepared effect draws and zero post-show pipeline creations for those
+materials. Pipelines are renderer-local and may be shared across materials;
+quad-object identity and ping-pong target identity are not cache contracts.
+Unused relit paths are not forced to execute. Total mesh/background creations
+and latency remain informational; this is not the deferred Mac WebGPU 100 ms
+acceptance. Existing 60/120-second completion deadlines limit hangs only.
 This extends the existing webgl2 selection; webgpu/bench stay opt-in.
 
 The same selections compare a closed synthetic omni bulb off/on over fixed

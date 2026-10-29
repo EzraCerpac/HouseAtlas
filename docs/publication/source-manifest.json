@@ -6397,8 +6397,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 198479,
-      "sha256": "060ba26a81920108f8f9ba2cf1821ae78e3bb01a29b1ce8f962cf612f9e244af",
+      "bytes": 198871,
+      "sha256": "e5dbf33eff83c13f4c4e677b1712929c3db40551bd0fc1480be447d0a399ef75",
       "owner": "core-integration"
     },
     {
@@ -7867,8 +7867,8 @@
     {
       "path": "frontend/lantern-tests/mesh-layer-browser.mjs",
       "mode": "100644",
-      "bytes": 27541,
-      "sha256": "db4423c5894f7ce0d59059e3141a011a2a8b59939a6751401ecb472d908cd283",
+      "bytes": 28119,
+      "sha256": "5d8053b94da4e922f16d56434acd16fe9f4b517f88459d59c3f06ecc8cebc27c",
       "owner": "web"
     },
     {
@@ -8168,8 +8168,8 @@
     {
       "path": "frontend/lantern-tests/render-bench/main.tsx",
       "mode": "100644",
-      "bytes": 25246,
-      "sha256": "424e54ee6ad7bba1606720b0c91f1cd63c5d7d8e4d73369e018c28f2d94da357",
+      "bytes": 27664,
+      "sha256": "1d25a216ea9ffad7c10b929ab980d809cc90b657e64ec845e59372913c1facc9",
       "owner": "web"
     },
     {
