@@ -385,3 +385,19 @@ jobs:
         with:
           target-key: ${{ steps.setup.outputs.target-key }}
           target-hit: ${{ steps.setup.outputs.target-hit }}
+
+  ci-ok:
+    needs: [changes, source, unit-tests, frontend, loopback]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require successful or skipped jobs
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            case "$result" in
+              success|skipped) ;;
+              *) exit 1 ;;
+            esac
+          done
