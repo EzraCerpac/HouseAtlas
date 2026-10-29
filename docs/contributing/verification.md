@@ -341,6 +341,65 @@ native-place flows (`healthy-native-place-ui`, `healthy-native-place-evidence`,
 `healthy-building-ui` and `healthy-contextual-capture` pin source commits from
 the private development history.
 
+## Canonical IFC source, IFC/GLB and publication seam checks
+
+The four named `canonical_ifc_source` tests and
+`healthy_ifc_glb_lineage_and_axes` are not `#[ignore]`, so the default set in
+[Backend unit tests](#backend-unit-tests) also runs them in CI.
+`ifc-glb-read.mjs` is in the explicit `run-healthy.mjs` list of the
+[Healthy frontend suite](#healthy-frontend-suite). No workflow runs the
+`healthy-native-ifc-glb` example or the `tools/ifc_publication` Python
+commands; they remain manual.
+
+The isolated canonical IFC source revision seam uses only generated receipts and
+an in-memory SQLite ledger in these named checks. Inspect
+`backend/src/media/canonical_ifc_source.rs` before running them:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib media::canonical_ifc_source::tests::synthetic_source_revision_validation -- --exact --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib media::canonical_ifc_source::tests::synthetic_source_ledger_parent_and_immutability -- --exact --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib media::canonical_ifc_source::tests::synthetic_source_ledger_rejects_atlas_schema -- --exact --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib media::canonical_ifc_source::tests::synthetic_source_requires_retained_ifc_bytes -- --exact --test-threads=1
+cargo test --offline --locked -p houseatlas-backend --lib media::canonical_ifc_source::tests -- --test-threads=1
+```
+
+The separate IFC/GLB checks use a tiny generated triangle and fake local
+transports. Inspect `backend/src/media/ifc_glb.rs` and
+`frontend/lantern-tests/ifc-glb-read.mjs` before running them:
+
+```sh
+cargo test --offline --locked -p houseatlas-backend --lib media::ifc_glb::tests::healthy_ifc_glb_lineage_and_axes -- --exact --test-threads=1
+cargo run --offline --locked -p houseatlas-backend --features serde_json/arbitrary_precision,serde_json/raw_value,jsonschema/arbitrary-precision --example healthy-native-ifc-glb
+node frontend/lantern-tests/ifc-glb-read.mjs
+```
+
+They verify source-byte binding, bounded display parsing, synthetic native
+custody/association/readback and persistent reopen, without proving converter
+execution, IFC project units, physical alignment or native acceptance of a
+household model.
+
+The [IFC publication preparation](../../tools/ifc_publication/README.md) has a
+separate local-only synthetic check. Inspect its Python source before running:
+
+```sh
+python3 -m unittest discover -s tools/ifc_publication -p test_publish.py
+python3 -m unittest discover -s tools/ifc_publication -p test_publish_v2.py
+python3 tools/ifc_publication/make_synthetic_fixture.py --output /tmp/houseatlas-ifc-synthetic
+python3 tools/ifc_publication/make_synthetic_fixture_v2.py --output /tmp/houseatlas-ifc-synthetic-v2
+```
+
+These test v1 and v2 revision binding, repeatable fake conversion, occurrence
+identity, and artifact hashes. They do not certify real IFC tessellation or
+select a publication for live use. The proposed [v2 scene read contract](../canonical-ifc/scene-read-contract-v2.md)
+and its two-floor synthetic fixture exercise one logical room spanning two
+floor-qualified IFC space occurrences. Its routes and ready state are mock
+contract examples, not live service behavior.
+
+The focused canonical geometry check (`canonical-geometry.test.mjs --healthy`)
+for the model and geometry modules the unified Atlas draws with is described in
+the next section. It does not qualify actual model placement, GPU picking or a
+live scene endpoint.
+
 ## Generated annual-session integration regressions
 
 Inspect `frontend/lantern-tests/session-policy-integration.mjs`, the production
