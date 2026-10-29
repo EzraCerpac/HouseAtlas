@@ -783,8 +783,8 @@
     {
       "path": "backend/src/ai/host/README.md",
       "mode": "100644",
-      "bytes": 24594,
-      "sha256": "cb263e8d31e792307eb9498788c7cac13c5869ef8c13b38b5e83b30877014bcf",
+      "bytes": 24611,
+      "sha256": "4b962ccd17a23b5c92bb4240aaf3dd6cae5c49a9382adb9a3eb2adc7458304a5",
       "owner": "ai"
     },
     {
@@ -1070,8 +1070,50 @@
     {
       "path": "backend/src/ai/oauth.rs",
       "mode": "100644",
-      "bytes": 79677,
-      "sha256": "deb97b75630dd96da90cf324def06248235137afd01fe432a50dd17bbda5b259",
+      "bytes": 13895,
+      "sha256": "54f3d74216f0036efe6439d556a334e573ed88aaa2295b91dcde68ad9ed942fd",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/oauth/authorize.rs",
+      "mode": "100644",
+      "bytes": 4858,
+      "sha256": "c6f4c3001f9239fba0e207f157d61ab8e3c68d89d46f4a6b98bcdc7dc6be3638",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/oauth/callback.rs",
+      "mode": "100644",
+      "bytes": 8728,
+      "sha256": "cfb8e484349996df77eb45fc4e39ca9c903acc83f2c157c2cb3d01e3f05a9a18",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/oauth/checks.rs",
+      "mode": "100644",
+      "bytes": 7573,
+      "sha256": "e5a7af659904e7670fd8ce4fe5f2d76eb6bf20694e41cdcd6dd24aa4ecc28eff",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/oauth/disconnect.rs",
+      "mode": "100644",
+      "bytes": 4899,
+      "sha256": "a4c273d4fce3e30fd2c55a1952ca48d81172bdaa0d520c5406e69e04ac559163",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/oauth/healthy_examples.rs",
+      "mode": "100644",
+      "bytes": 28945,
+      "sha256": "8febc15123c59ebfccbf5322ff5d7d70924215860c2c066cc66b596035c37731",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/oauth/refresh.rs",
+      "mode": "100644",
+      "bytes": 8415,
+      "sha256": "fce4b8de93812bcfc04845955b6b22bb33c96fb772f6c81f366503631a1f961a",
       "owner": "ai"
     },
     {
@@ -2377,6 +2419,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/http/browser_reads.rs",
+      "mode": "100644",
+      "bytes": 4847,
+      "sha256": "bfff32653ef58494281253489734d3cdcf0c6c447b583a2fc20caec28a6616a3",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/http/capture_claim.rs",
       "mode": "100644",
       "bytes": 1699,
@@ -2447,6 +2496,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/http/host_config.rs",
+      "mode": "100644",
+      "bytes": 18026,
+      "sha256": "97f7213f74e385b2197cbd54b4941575a4e7e080192bb1b0f72470663b9c1d30",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/http/intake.rs",
       "mode": "100644",
       "bytes": 3562,
@@ -2470,8 +2526,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 59778,
-      "sha256": "53046888d1757b95e7ec9aefb25a4c64262c05c06a3e8655f9ed634b68439d7e",
+      "bytes": 24590,
+      "sha256": "74840e27a7c21d5c864a77be5c152a12ab12247733c591b475aef294e7f319d8",
       "owner": "core-integration"
     },
     {
@@ -2629,6 +2685,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/http/read_authority.rs",
+      "mode": "100644",
+      "bytes": 7615,
+      "sha256": "483a15c17431c4b290e4df31cb8b489345e948a50e0237345263cc4dbe0ce763",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/http/reads.rs",
       "mode": "100644",
       "bytes": 19176,
@@ -2640,6 +2703,13 @@
       "mode": "100644",
       "bytes": 4918,
       "sha256": "bdb75e59be0c11e6f6e6982889cc8868614786e4101cc09b8c8a37051d812762",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/http/response_layer.rs",
+      "mode": "100644",
+      "bytes": 5183,
+      "sha256": "5a0a4a224c3bb27fccd4959280b4d8162710ef5df4a310b2138ccf1cdab53f1f",
       "owner": "core-integration"
     },
     {
@@ -3282,8 +3352,85 @@
     {
       "path": "backend/src/media/native_queued_upload.rs",
       "mode": "100644",
-      "bytes": 95716,
-      "sha256": "3fc6c8dbe385b9b3cc2acf92934b13b051a198bea7f5e02a0de0bd9274b579d2",
+      "bytes": 13259,
+      "sha256": "6d176e8c480972adb5a968eb207dba0d2b99f84be80c76d8d6069934f5d79883",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/native_queued_upload/admission.rs",
+      "mode": "100644",
+      "bytes": 5103,
+      "sha256": "6f4f3b5ae9dcfc7c0ecd81dca979d9c39732bea0fc45404860ecb868446309ee",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/native_queued_upload/bind.rs",
+      "mode": "100644",
+      "bytes": 19801,
+      "sha256": "fa0b81b941c2fd69514e30882b8f4653304c91228c3fdf3151bff303a8294316",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/native_queued_upload/custody.rs",
+      "mode": "100644",
+      "bytes": 8615,
+      "sha256": "a906ca396ff1a0a53c3be6ff9f9736505ac044b772bb9a5a028060455713d903",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/native_queued_upload/dispatch.rs",
+      "mode": "100644",
+      "bytes": 5025,
+      "sha256": "c68a7a48462b38327b9b4542bfcb20b43789b127cba043a0620012ef0f6ad9d0",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/native_queued_upload/facts.rs",
+      "mode": "100644",
+      "bytes": 4734,
+      "sha256": "fdcde775dc146f917c31312efe085f242d977e62a7235cd7268b41700538488c",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/native_queued_upload/guards.rs",
+      "mode": "100644",
+      "bytes": 2662,
+      "sha256": "42bfbf71242273324f385a8990d0412a516d56c3780928c87f88f377533bf016",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/native_queued_upload/historical.rs",
+      "mode": "100644",
+      "bytes": 11061,
+      "sha256": "872cada77c5040d6182bdb7140784af58d0adf68c8e6e2891f003e24fc0d55f9",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/native_queued_upload/original.rs",
+      "mode": "100644",
+      "bytes": 10723,
+      "sha256": "bf26f34701b7c7075e750528f8da26c934a42b88f21e1a792a6b7bc8abc6a816",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/native_queued_upload/prepared.rs",
+      "mode": "100644",
+      "bytes": 7781,
+      "sha256": "eadf0e21641aa80a781c943acc8ebadaf374418ea2e2675d82a2288ed423c86d",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/native_queued_upload/prepared_codec.rs",
+      "mode": "100644",
+      "bytes": 3201,
+      "sha256": "7c68624c5ba431ec3ccfa0602dafda92f452676be84e3b357b47c3d029dfb143",
+      "owner": "media"
+    },
+    {
+      "path": "backend/src/media/native_queued_upload/stage.rs",
+      "mode": "100644",
+      "bytes": 4587,
+      "sha256": "f41f4fb352db711f1adcb59f40d0c7fba515e9974bf97c0430eb7030cf15baf5",
       "owner": "media"
     },
     {
