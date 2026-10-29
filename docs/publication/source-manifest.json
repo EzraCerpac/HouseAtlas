@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "d609ba74dd7c40b8d21c76d915db8a404be737ea25cdc6cc7b4b238c6d1255c4",
+  "sourceDigestSha256": "46e8c3cf48b8b7331a46db9781aaf02a7c7c81f76bb2c4095f2725c8dca2140a",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -63,8 +63,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 22195,
-      "sha256": "bb42b1165ef11abed32092bf39a11786303d35db3f4f87f09347dc3637120ca0",
+      "bytes": 22616,
+      "sha256": "8ee290b15602eeddf527a638d1df2cbd83751b0c8f04f63bef2aa993cb774b60",
       "owner": "core-integration"
     },
     {
@@ -154,8 +154,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 14707,
-      "sha256": "54460f06003ba39ebfe06129393ada8635c43f2ea0ec9cdcc688757e5e218ec1",
+      "bytes": 14893,
+      "sha256": "d6d01b025301eeefa2bff6b273388c001bab9bc08a6edb935bae17ff5b42476b",
       "owner": "core-integration"
     },
     {
@@ -6251,8 +6251,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 191562,
-      "sha256": "f988d8217173d6e5a2176e70870e6b1b3dd8e5f6c1d6e3be009c81efc3129566",
+      "bytes": 191958,
+      "sha256": "5b84d0fe6f0aecf94ed9751d7b85b4e12d0e55d8cd3ffacf27c4c55f34751fad",
       "owner": "core-integration"
     },
     {
@@ -11375,8 +11375,8 @@
     {
       "path": "tools/ci/lanes.json",
       "mode": "100644",
-      "bytes": 50400,
-      "sha256": "3ec8815af9625e818918bcc12606bd95fd1f2bbf97e415870ae893f78d1b0785",
+      "bytes": 51168,
+      "sha256": "29f530207bc142743d304c4a78dc0a018e8f1b337409dfec01137dd9cab4d649",
       "owner": "core-integration"
     },
     {

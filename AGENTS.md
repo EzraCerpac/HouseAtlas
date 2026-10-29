@@ -217,3 +217,7 @@ publication checks; recognized presentation/backend paths select explicit lanes,
 with full coverage for shared or unknown changes. The ordinary-core job also runs
 stdlib selector regressions using disposable synthetic Git histories and the
 `tools/ci/check_lanes.py` cases over temporary folders.
+
+When a pull request is authorized to merge, enable auto-merge
+so GitHub merges it after the required checks pass.
+Investigate failed or missing checks instead of bypassing the ruleset.
