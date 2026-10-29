@@ -54,7 +54,7 @@ export function makeReport({ identity, policies, base, head }) {
       policy.maxRegressionPercent === undefined ? '' : `regression ≤ ${policy.maxRegressionPercent}%`].filter(Boolean);
     return limits.length ? [`Budget (${cell(policy.label)}): ${limits.join(', ')}.`] : [];
   });
-  const markdown = [COMMENT_MARKER, '### Synthetic performance', '', renderSummary(visible),
+  const markdown = [COMMENT_MARKER, '### Synthetic performance', '', renderSummary(visible, policies),
     ...(failed ? ['', '**❌ Budget or measurement failed.**'] : []), '',
     renderTable(policies, comparisons), '', 'Medians · ↓ lower / ↑ higher is better · timings informational.',
     ...(unsupported ? ['', `⚪ Browser/GPU: ${unsupported} ${unsupported === 1 ? 'metric' : 'metrics'} unsupported.`] : []), '',

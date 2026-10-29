@@ -22,7 +22,7 @@ function fakeApi(comments = []) {
 }
 test('report records exact commits, absolute medians, delta, noise and scope', () => {
   const { markdown, failed } = report();
-  for (const text of [identity.baseSha, identity.headSha, identity.harnessSha, '100 ms', '75 ms', '-25.0%', '✅ Improved', 'timings informational', 'Synthetic, untrusted observations']) assert(markdown.includes(text));
+  for (const text of [identity.baseSha, identity.headSha, identity.harnessSha, '100 ms', '75 ms', '-25.0%', '➖ Shift (informational)', 'timings informational', 'Synthetic, untrusted observations']) assert(markdown.includes(text));
   assert.equal(failed, false);
   assert.throws(() => makeReport({ identity: { ...identity, repository: 'bad\nrepo' }, policies }));
   assert.throws(() => makeReport({ identity: { ...identity, unexpected: 'raw artifact text' }, policies }));
