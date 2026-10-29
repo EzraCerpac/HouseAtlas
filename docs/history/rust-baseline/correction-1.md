@@ -1,6 +1,6 @@
 # Contract serialization correction
 
-> Status: historical — AT51 correction note on PR 5 head `7f5faca`. Current: [docs/rust-baseline/numeric-semantics.md](numeric-semantics.md).
+> Status: historical — AT51 correction note on PR 5 head `7f5faca`. Current: [docs/rust-baseline/numeric-semantics.md](../../rust-baseline/numeric-semantics.md).
 
 This correction appends to PR 5 baseline head
 `7f5faca11aa65a723bb3a4540654e0a436afbacf`. That commit and its original scoped
@@ -35,7 +35,7 @@ set against its schema properties, including the optional item fields.
 ## Numeric proposal and evidence
 
 Integer classification and literal-number comparison now delegate to the locked
-schema library's numeric operations. [numeric-semantics.md](numeric-semantics.md)
+schema library's numeric operations. [numeric-semantics.md](../../rust-baseline/numeric-semantics.md)
 proposes paired precision features to the shared manifest owner, documents the
 previous default-mode rounding and discloses remaining scientific-notation,
 JavaScript consumer and canonical-digest questions. No schema maximum, string

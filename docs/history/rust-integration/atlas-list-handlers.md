@@ -1,6 +1,6 @@
 # Root Atlas list handlers
 
-> Status: historical — integration candidate from main `8f4065a`. Current: [docs/rust-integration/README.md](README.md).
+> Status: historical — integration candidate from main `8f4065a`. Current: [docs/rust-integration/README.md](../../rust-integration/README.md).
 
 This root integration starts from accepted main
 `8f4065a3ee831df0b30d14f597c25a7bbcc7f212`, tree

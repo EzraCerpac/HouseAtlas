@@ -1253,7 +1253,7 @@ The core exports embeddable request/service modules; it provisions no service.
 configuration or authority. Supply real settings privately only after the
 corresponding gates. CI requires no secrets and performs no deployment.
 
-See docs/core-integration/correction-3.md for the corrected behavior and held
+See docs/history/core-integration/correction-3.md for the corrected behavior and held
 capability, docs/publication/provenance.md for maintenance, and docs/operations
 for generic target/recovery requirements. Open-source licensing remains a
 decision for a future public release; no license has been selected.

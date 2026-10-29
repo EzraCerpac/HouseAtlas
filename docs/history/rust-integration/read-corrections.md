@@ -1,6 +1,6 @@
 # Read slice corrections
 
-> Status: historical — read slice correction candidate from `fde9586`. Current: [docs/rust-integration/README.md](README.md).
+> Status: historical — read slice correction candidate from `fde9586`. Current: [docs/rust-integration/README.md](../../rust-integration/README.md).
 
 This narrow candidate starts from immutable first-slice commit
 fde9586f41c32924543fe7066fb0481b02744b8c, tree

@@ -1,6 +1,6 @@
 # Native core ordinary evidence
 
-> Status: historical — evidence for an earlier native core checkpoint. Current: [docs/rust-integration/README.md](README.md).
+> Status: historical — evidence for an earlier native core checkpoint. Current: [docs/rust-integration/README.md](../../rust-integration/README.md).
 
 This records the earlier immutable native core checkpoint. The subsequent owned-media
 continuation and its updated module bindings are recorded in owned-media.md.
@@ -38,4 +38,5 @@ fault, crash or concurrency control was run. Hosted exact-head CI is recorded
 separately on the candidate PR; local results do not imply hosted results.
 
 First-slice historical evidence is retained in verification.md and
-read-corrections.md. The current scope and detailed limitations are in README.md.
+read-corrections.md. The current scope and detailed limitations are in
+[docs/rust-integration/README.md](../../rust-integration/README.md).

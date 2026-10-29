@@ -17,7 +17,8 @@ it remains a heuristic, not comprehensive credential-content detection.
 New explicit source-presence admissions are blocked before writes. No durable
 atomic generation/epoch witness extension is present. An unrelated review-only
 revision may retain its earlier observation while requiring current source
-authority. See correction-3.md for the exact trigger and scope.
+authority. See [correction-3.md](../history/core-integration/correction-3.md) for the exact
+trigger and scope.
 
 Source refresh captures grants and cache epoch before transport, then revalidates
 authority before publication. Complete HomeBox generations retain native links

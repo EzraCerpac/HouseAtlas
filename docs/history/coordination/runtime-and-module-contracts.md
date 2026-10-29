@@ -1,6 +1,6 @@
 # Runtime and module contracts
 
-> Status: historical — runtime pins and owner list of the initial snapshot. Current: [docs/contributing/verification.md](../contributing/verification.md).
+> Status: historical — runtime pins and owner list of the initial snapshot. Current: [docs/contributing/verification.md](../../contributing/verification.md).
 
 Ordinary core verification pins Node 26.10.0 and npm 11.19.1. Python 3.14.8
 is used only by retained operations design tooling and is outside ordinary CI.

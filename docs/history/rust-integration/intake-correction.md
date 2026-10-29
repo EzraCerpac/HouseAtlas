@@ -1,6 +1,6 @@
 # HTTP intake correction
 
-> Status: historical — HTTP intake correction candidate on the native core checkpoint. Current: [docs/rust-integration/README.md](README.md).
+> Status: historical — HTTP intake correction candidate on the native core checkpoint. Current: [docs/rust-integration/README.md](../../rust-integration/README.md).
 
 This narrow candidate continues the immutable native core checkpoint.
 It changes root-owned HTTP

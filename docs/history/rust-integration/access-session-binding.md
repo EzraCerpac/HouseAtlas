@@ -1,6 +1,6 @@
 # Access authenticated session binding
 
-> Status: historical — integration candidate from main `49ba00d`. Current: [docs/rust-integration/README.md](README.md).
+> Status: historical — integration candidate from main `49ba00d`. Current: [docs/rust-integration/README.md](../../rust-integration/README.md).
 
 This independent integration candidate starts from accepted main
 `49ba00d59259365e4979e6d654f19f5f0ccd1135`, tree

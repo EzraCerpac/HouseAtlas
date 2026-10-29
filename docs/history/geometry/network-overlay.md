@@ -1,6 +1,6 @@
 # Network overlay beside provisional scans
 
-> Status: historical — its panel, scene layer and diagram components were removed with the old scan Atlas (#414); the documentary model, adapter and types remain. Current: [docs/architecture/property-network-connections.md](../architecture/property-network-connections.md).
+> Status: historical — its panel, scene layer and diagram components were removed with the old scan Atlas (#414); the documentary model, adapter and types remain. Current: [docs/architecture/property-network-connections.md](../../architecture/property-network-connections.md).
 
 `frontend/src/lantern/overlays/network/index.ts` exports `NetworkOverlayPanel`, `NetworkTopology`, and their typed documentary data/selection interface. This module performs no source reads or writes. The integration owner mounts it beside the scan and supplies a bounded authorized projection; no household inventory is checked into this module.
 

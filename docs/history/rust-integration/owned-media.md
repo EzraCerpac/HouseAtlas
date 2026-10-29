@@ -1,6 +1,6 @@
 # Native owned-media ordinary evidence
 
-> Status: historical — evidence for the owned-media checkpoint. Current: [docs/rust-integration/README.md](README.md).
+> Status: historical — evidence for the owned-media checkpoint. Current: [docs/rust-integration/README.md](../../rust-integration/README.md).
 
 The locked source runner passed actual Rust library/binary/declared modules,
 rustfmt and warnings-denied Clippy, strict TypeScript/Vite and exactly the three

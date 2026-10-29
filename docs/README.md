@@ -3,6 +3,9 @@
 Status of every Markdown file under `docs/`. Current is the default.
 Historical and superseded files also carry a status line under their
 title, linking the current document where one exists.
+Those that no tool, pin or current content ties to their path are kept
+under `history/`, in their original subdirectory. `contracts/history/` is
+the current HTTP history contract, not a record.
 
 ## Top level
 
@@ -54,9 +57,6 @@ title, linking the current document where one exists.
 
 | Document | Status | Covers |
 | --- | --- | --- |
-| [agent-write-amendment-proposal.md](coordination/agent-write-amendment-proposal.md) | superseded | Early agent and provider command boundaries |
-| [baseline-scope.md](coordination/baseline-scope.md) | historical | Initial snapshot scope |
-| [runtime-and-module-contracts.md](coordination/runtime-and-module-contracts.md) | historical | Initial runtime pins and module owners |
 | [worker-handoff.md](coordination/worker-handoff.md) | current | Standalone maintenance and publication handoff |
 | [workspace-policy.md](coordination/workspace-policy.md) | current | Publication workspace policy |
 
@@ -65,7 +65,6 @@ title, linking the current document where one exists.
 | Document | Status | Covers |
 | --- | --- | --- |
 | [README.md](core-integration/README.md) | current | Offline core composition |
-| [correction-3.md](core-integration/correction-3.md) | historical | Core `0.1.1-at13.3` correction |
 | [upload-diagnostics.md](core-integration/upload-diagnostics.md) | current | Private upload diagnostics |
 
 ## demo/
@@ -95,7 +94,6 @@ title, linking the current document where one exists.
 | [assistant-native-scan-scene.md](geometry/assistant-native-scan-scene.md) | current | Assistant scene intake |
 | [assistant-scan-replacement.md](geometry/assistant-scan-replacement.md) | current | Assistant scan replacement planning |
 | [drawing-evidence-lookup-150.md](geometry/drawing-evidence-lookup-150.md) | current | Drawing evidence lookup (#150) |
-| [electricity-overlay.md](geometry/electricity-overlay.md) | historical | Retired electricity overlay UI |
 | [issue-149-room-anchor-acceptance.md](geometry/issue-149-room-anchor-acceptance.md) | current | Room anchor save validation (#149) |
 | [native-document-read.md](geometry/native-document-read.md) | current | Native original document read port |
 | [native-evidence-document-ui.md](geometry/native-evidence-document-ui.md) | current | Saved native evidence original |
@@ -108,7 +106,6 @@ title, linking the current document where one exists.
 | [native-scan-succession.md](geometry/native-scan-succession.md) | current | Native scan succession |
 | [native-scene-association.md](geometry/native-scene-association.md) | current | Native scene association |
 | [native-scene-source.md](geometry/native-scene-source.md) | current | Native scene source |
-| [network-overlay.md](geometry/network-overlay.md) | historical | Retired network overlay UI |
 
 ## mcp-bridge/
 
@@ -181,8 +178,6 @@ title, linking the current document where one exists.
 | Document | Status | Covers |
 | --- | --- | --- |
 | [README.md](rust-baseline/README.md) | historical | AT51 Rust scaffold; type conventions still current |
-| [correction-1.md](rust-baseline/correction-1.md) | historical | AT51 contract serialization correction |
-| [correction-2.md](rust-baseline/correction-2.md) | historical | AT51 numeric processing correction |
 | [numeric-semantics.md](rust-baseline/numeric-semantics.md) | current | Checked numeric semantics |
 | [verification.md](rust-baseline/verification.md) | historical | AT51 verification; geodata v2 commands still current |
 
@@ -191,31 +186,64 @@ title, linking the current document where one exists.
 | Document | Status | Covers |
 | --- | --- | --- |
 | [README.md](rust-integration/README.md) | current | Native Rust/React core and host |
-| [access-session-binding.md](rust-integration/access-session-binding.md) | historical | Access session binding candidate |
 | [agents.md](rust-integration/agents.md) | current | Native stock agent composition |
 | [ai-host-integration.md](rust-integration/ai-host-integration.md) | current | AI host composition |
-| [atlas-list-handlers.md](rust-integration/atlas-list-handlers.md) | historical | Atlas list handlers candidate |
 | [atlas-specialized-writes.md](rust-integration/atlas-specialized-writes.md) | current | Specialized Atlas writes |
-| [core-continuation.md](rust-integration/core-continuation.md) | historical | Native core checkpoint evidence |
 | [credential-platform.md](rust-integration/credential-platform.md) | current | Credential platform composition |
 | [dev-composition.md](rust-integration/dev-composition.md) | current | Development composition |
-| [host-corrections.md](rust-integration/host-corrections.md) | historical | Native host corrections |
-| [intake-correction.md](rust-integration/intake-correction.md) | historical | HTTP intake correction |
-| [mcp-lifecycle-mount.md](rust-integration/mcp-lifecycle-mount.md) | historical | MCP lifecycle mount continuation |
 | [media-policy-archive.md](rust-integration/media-policy-archive.md) | current | Media policy archive |
 | [native-owner-composition.md](rust-integration/native-owner-composition.md) | current | Native owner composition |
-| [native-reader-and-webmcp.md](rust-integration/native-reader-and-webmcp.md) | historical | Reader and WebMCP continuation |
 | [native-storage-composition.md](rust-integration/native-storage-composition.md) | current | Native storage composition |
 | [network-archive-custody.md](rust-integration/network-archive-custody.md) | current | Network original archive |
-| [owned-media.md](rust-integration/owned-media.md) | historical | Owned-media checkpoint evidence |
 | [queue-original-preparation.md](rust-integration/queue-original-preparation.md) | current | Queue preparation retention |
-| [read-corrections.md](rust-integration/read-corrections.md) | historical | Read slice corrections |
-| [review-source-ledger.md](rust-integration/review-source-ledger.md) | historical | Review thread disposition ledger |
 | [stock-downloads.md](rust-integration/stock-downloads.md) | current | Managed stock asset downloads |
 | [stock-history.md](rust-integration/stock-history.md) | current | Native stock audit history |
 | [stock-reads.md](rust-integration/stock-reads.md) | current | Native stock record reads |
 | [stock-writes.md](rust-integration/stock-writes.md) | current | Fresh native stock writes |
 | [upload-preparation.md](rust-integration/upload-preparation.md) | current | Owned attachment upload |
 | [upload-review-composition.md](rust-integration/upload-review-composition.md) | current | Attachment intake composition |
-| [verification.md](rust-integration/verification.md) | historical | First read slice verification |
-| [webmcp-gateway-source.md](rust-integration/webmcp-gateway-source.md) | superseded | WebMCP gateway source candidate |
+
+## history/coordination/
+
+| Document | Status | Covers |
+| --- | --- | --- |
+| [agent-write-amendment-proposal.md](history/coordination/agent-write-amendment-proposal.md) | superseded | Early agent and provider command boundaries |
+| [baseline-scope.md](history/coordination/baseline-scope.md) | historical | Initial snapshot scope |
+| [runtime-and-module-contracts.md](history/coordination/runtime-and-module-contracts.md) | historical | Initial runtime pins and module owners |
+
+## history/core-integration/
+
+| Document | Status | Covers |
+| --- | --- | --- |
+| [correction-3.md](history/core-integration/correction-3.md) | historical | Core `0.1.1-at13.3` correction |
+
+## history/geometry/
+
+| Document | Status | Covers |
+| --- | --- | --- |
+| [electricity-overlay.md](history/geometry/electricity-overlay.md) | historical | Retired electricity overlay UI |
+| [network-overlay.md](history/geometry/network-overlay.md) | historical | Retired network overlay UI |
+
+## history/rust-baseline/
+
+| Document | Status | Covers |
+| --- | --- | --- |
+| [correction-1.md](history/rust-baseline/correction-1.md) | historical | AT51 contract serialization correction |
+| [correction-2.md](history/rust-baseline/correction-2.md) | historical | AT51 numeric processing correction |
+
+## history/rust-integration/
+
+| Document | Status | Covers |
+| --- | --- | --- |
+| [access-session-binding.md](history/rust-integration/access-session-binding.md) | historical | Access session binding candidate |
+| [atlas-list-handlers.md](history/rust-integration/atlas-list-handlers.md) | historical | Atlas list handlers candidate |
+| [core-continuation.md](history/rust-integration/core-continuation.md) | historical | Native core checkpoint evidence |
+| [host-corrections.md](history/rust-integration/host-corrections.md) | historical | Native host corrections |
+| [intake-correction.md](history/rust-integration/intake-correction.md) | historical | HTTP intake correction |
+| [mcp-lifecycle-mount.md](history/rust-integration/mcp-lifecycle-mount.md) | historical | MCP lifecycle mount continuation |
+| [native-reader-and-webmcp.md](history/rust-integration/native-reader-and-webmcp.md) | historical | Reader and WebMCP continuation |
+| [owned-media.md](history/rust-integration/owned-media.md) | historical | Owned-media checkpoint evidence |
+| [read-corrections.md](history/rust-integration/read-corrections.md) | historical | Read slice corrections |
+| [review-source-ledger.md](history/rust-integration/review-source-ledger.md) | historical | Review thread disposition ledger |
+| [verification.md](history/rust-integration/verification.md) | historical | First read slice verification |
+| [webmcp-gateway-source.md](history/rust-integration/webmcp-gateway-source.md) | superseded | WebMCP gateway source candidate |
