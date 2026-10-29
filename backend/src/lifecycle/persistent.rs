@@ -16,7 +16,7 @@ use std::{
     io::Write,
     os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt},
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, Weak},
 };
 use zeroize::Zeroizing;
 
@@ -27,6 +27,8 @@ pub struct ServerLease {
     _lock: File,
     log: Mutex<File>,
     _offline_snapshot: Option<tempfile::TempDir>,
+    // Bound only by persistent reopen, never inferred from a path or label.
+    ai_access: Option<Weak<Mutex<a::AccessBoundary>>>,
 }
 
 impl ServerLease {
@@ -67,6 +69,7 @@ impl ServerLease {
             _lock: lock,
             log: Mutex::new(log),
             _offline_snapshot: None,
+            ai_access: None,
         })
     }
 
@@ -96,6 +99,24 @@ impl ServerLease {
             return Err("Server data directory changed".into());
         }
         Ok(())
+    }
+
+    pub(super) fn ai_root(&self, access: &crate::app::Access) -> Result<&Path, Failure> {
+        self.check()?;
+        let lock = self._lock.metadata()?;
+        let named_lock = private_metadata(&self.root.join("server.lock"))?;
+        if lock.dev() != named_lock.dev() || lock.ino() != named_lock.ino() {
+            return Err("Original server lock changed".into());
+        }
+        let original = self
+            .ai_access
+            .as_ref()
+            .and_then(Weak::upgrade)
+            .ok_or("Server lease has no original application owner")?;
+        if !Arc::ptr_eq(&original, access) || self._offline_snapshot.is_some() {
+            return Err("Server lease does not own this application".into());
+        }
+        Ok(&self.root)
     }
 }
 
@@ -545,6 +566,7 @@ fn reopen_selected(
         atlas_list_pages: crate::domain::stock::AtlasListPages::default(),
         media_policy_evidence: Mutex::default(),
     };
+    lease.ai_access = Some(Arc::downgrade(&core.access));
     Ok((core, lease))
 }
 

@@ -29,7 +29,18 @@ impl StatusJournal {
     /// scope normalization, transaction or persisted cancellation adoption.
     /// Root owns the secure existing-file open and live path/sidecar fencing.
     pub fn open_existing_read_only(connection: Connection) -> Result<Self, AiError> {
-        validate_existing_read_only_schema(
+        Self::open_existing(connection, true)
+    }
+
+    /// Explicit full-host reopen over the original supplied writable handle.
+    /// SELECT-only validation; never creates/migrates schema, adopts legacy
+    /// action scopes, or turns persisted uncertainty into active work.
+    pub fn open_existing_writable(connection: Connection) -> Result<Self, AiError> {
+        Self::open_existing(connection, false)
+    }
+
+    fn open_existing(connection: Connection, read_only: bool) -> Result<Self, AiError> {
+        validate_existing_schema(
             &connection,
             &[
                 ("index", "sqlite_autoindex_ai_host_status_1", "ai_host_status", None),
@@ -44,6 +55,7 @@ impl StatusJournal {
                        scope TEXT NOT NULL, id TEXT NOT NULL, category TEXT NOT NULL, payload TEXT NOT NULL)")),
                 ("table", "sqlite_sequence", "sqlite_sequence", Some("CREATE TABLE sqlite_sequence(name,seq)")),
             ],
+            read_only,
         )?;
         validate_current_journal_rows(&connection)?;
         Ok(Self {
@@ -61,9 +73,32 @@ impl StatusJournal {
         }
     }
 
+    pub(super) fn require_writable(&self) -> Result<(), AiError> {
+        if !self.db()?.is_readonly("main").map_err(db_error)? {
+            Ok(())
+        } else {
+            Err(AiError::DomainUnavailable)
+        }
+    }
+
     /// Both durable status and live cancellation state must have one owner.
     pub(crate) fn same_owner(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.db, &other.db) && Arc::ptr_eq(&self.active, &other.active)
+    }
+
+    pub(crate) fn with_connection_fence<T>(
+        &self,
+        check: impl FnOnce() -> Result<T, AiError>,
+    ) -> Result<T, AiError> {
+        let db = self.db()?;
+        if !db.is_autocommit() {
+            return Err(AiError::DomainUnavailable);
+        }
+        // Retain the original connection mutex while physical custody is
+        // checked, so its own rollback journal cannot be mistaken for a loss.
+        let result = check();
+        drop(db);
+        result
     }
     /// Supply a dedicated, securely opened private SQLite database. The host
     /// does not choose a path, migrate the Atlas schema or store credentials.
@@ -834,12 +869,26 @@ impl StatusJournal {
 /// Exact compiled DDL comparison. The tokenizer preserves identifier/literal
 /// boundaries like the existing Access schema validator; it does not accept
 /// arbitrary equivalent schemas or construct a writable reference database.
-pub(super) fn validate_existing_read_only_schema(
+pub(super) fn validate_existing_schema(
     connection: &Connection,
     expected: &[(&str, &str, &str, Option<&str>)],
+    read_only: bool,
 ) -> Result<(), AiError> {
-    if !connection.is_readonly("main").map_err(db_error)? || !connection.is_autocommit() {
+    if connection.is_readonly("main").map_err(db_error)? != read_only || !connection.is_autocommit() {
         return Err(AiError::DomainUnavailable);
+    }
+    if !read_only {
+        let (query_only, synchronous): (i64, i64) = connection
+            .query_row(
+                "SELECT query_only,synchronous FROM pragma_query_only,pragma_synchronous",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(db_error)?;
+        // Observe the supplied connection policy; never normalize it here.
+        if query_only != 0 || !matches!(synchronous, 2 | 3) {
+            return Err(AiError::DomainUnavailable);
+        }
     }
     let mut databases = connection
         .prepare("SELECT name FROM pragma_database_list")
@@ -953,7 +1002,7 @@ fn validate_current_journal_rows(connection: &Connection) -> Result<(), AiError>
         match kind.as_str() {
             "action" => {
                 // A six-field legacy key requires a separately authorized
-                // migration; this read-only constructor never upgrades it.
+                // migration; this strict constructor never upgrades it.
                 current_scope(&scope, 5)?;
                 let raw = payload.ok_or(AiError::DomainUnavailable)?;
                 if cancelled != 0 {
