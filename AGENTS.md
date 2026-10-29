@@ -199,3 +199,7 @@ Main pushes retain the full ordinary suite. PRs always retain ordinary-core and
 publication checks; recognized presentation/backend paths select explicit lanes,
 with full coverage for shared or unknown changes. The ordinary-core job also runs
 stdlib selector regressions using disposable synthetic Git histories.
+
+When a pull request is authorized to merge, enable auto-merge
+so GitHub merges it after the required checks pass.
+Investigate failed or missing checks instead of bypassing the ruleset.
