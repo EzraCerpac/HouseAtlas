@@ -3045,9 +3045,11 @@ folder and runs the actual `tools/publication/refresh-manifest.mjs` with
 deleted and new files, owner refusal and unknown owners, executable-bit changes,
 `--check` exit codes, symlink, conflict-marker, malformed `--owners-from` and
 unsafe-path refusal, and `--owners-from` (filled new rows, reported kept owners
-and a refused base-added owner); the output digest is recomputed independently, and one case
+and a refused base-added owner) and the removal of a stored aggregate digest; the
+expected rows are recomputed independently, and one case
 runs a temporary copy of `verify-source.mjs` (with copies of the two unfilled
-templates it reads) against the regenerated tree. The cases open no network
+templates it reads) against the regenerated tree and checks its printed source
+digest. The cases open no network
 connection, write only their temporary folders and neither read nor write the
 repository manifest. They do not establish that the repository manifest is
 current; `verify:publication` checks that.

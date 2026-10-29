@@ -41,9 +41,9 @@ CI lanes; do not run blanket Clippy fixes as part of publication.
 ## Publication manifest
 
 `docs/publication/source-manifest.json` lists every source file's path, Git
-mode, byte count, SHA-256 and logical owner, plus one aggregate digest over all
-rows. Regenerate the rows and digest from the working tree with pinned Node
-26.10.0, then check the result:
+mode, byte count, SHA-256 and logical owner. `verify:publication` prints the
+aggregate digest over all rows; the manifest does not store it. Regenerate the
+rows from the working tree with pinned Node 26.10.0, then check the result:
 
 ```sh
 node tools/publication/refresh-manifest.mjs --owner path/to/new-file.mjs=core-integration

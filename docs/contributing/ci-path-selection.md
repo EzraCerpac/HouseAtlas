@@ -67,12 +67,19 @@ branch plus fork-like head checked out as a synthetic merge commit.
 
 A PR whose head conflicts with its base gets no `pull_request` run of either
 workflow, so no lane is selected or skipped: nothing runs. The publication
-manifest makes this common. Its single `sourceDigestSha256` line changes in
-every PR that changes a file, so once one such PR merges, every other open PR
-that changes a file conflicts there. #431, #449, #453 and #493 had no Actions
-run on their final heads while they conflicted with main in this manifest (#453
-also in other files); their code was first tested by the integration PRs that
-absorbed them.
+manifest used to make this common: it stored one `sourceDigestSha256` line that
+changed in every PR that changed a file, so once one such PR merged, every other
+open PR that changed a file conflicted there. #431, #449, #453 and #493 had no
+Actions run on their final heads while they conflicted with main in this
+manifest (#453 also in other files); their code was first tested by the
+integration PRs that absorbed them.
+
+`verify-source.mjs` now computes and prints that aggregate instead of storing
+it, and refuses a manifest that stores it. Each row keeps its fields on separate
+lines, so PRs that change different files merge cleanly in the manifest. Two PRs
+still conflict there when they change the same file or add files whose rows
+sort next to each other. A stack merged with squash commits also conflicts on
+rows that more than one layer changed; merge commits keep each layer's base.
 
 Merge the base and regenerate the manifest, in a checkout without build output
 or other stray files (see [Publication manifest](formatting.md#publication-manifest)):

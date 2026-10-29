@@ -19,21 +19,19 @@ const owners = ['alpha', 'beta'];
 // "src-a.txt" sorts before "src/..." by full path, after it in a per-directory walk.
 const initial = { 'README.md': 'alpha', 'src-a.txt': 'beta', 'src/run.sh': 'beta', 'src/z.json': 'alpha' };
 
-// Independent of the script: rows and digest as verify-source.mjs checks them.
+// Independent of the script: rows as verify-source.mjs checks them.
 function expectedManifest(root, ownerOf) {
   const files = Object.keys(ownerOf).sort().map(path => {
     const bytes = readFileSync(join(root, path));
     const mode = (statSync(join(root, path)).mode & 0o111) ? '100755' : '100644';
     return { path, mode, bytes: bytes.length, sha256: sha(bytes), owner: ownerOf[path] };
   });
-  const digest = sha(Buffer.from(files.map(r => `${r.path}\t${r.mode}\t${r.bytes}\t${r.sha256}\n`).join('')));
   return JSON.stringify({
     format: 'houseatlas-publication-source/1',
     status: 'synthetic-test-tree',
     self: { path: manifestPath, mode: '100644', digest: 'anchored-by-reviewed-tree' },
     owners,
     sourceDigestAlgorithm: 'SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest',
-    sourceDigestSha256: digest,
     files,
   }, null, 2) + '\n';
 }
@@ -72,7 +70,7 @@ test('unchanged tree is a byte-for-byte no-op and --check passes', t => {
   }
 });
 
-test('edited file updates bytes, sha256 and the aggregate digest', t => {
+test('edited file updates bytes and sha256; a stored aggregate digest is dropped', t => {
   const f = fixture(t);
   const before = JSON.parse(f.manifest());
   f.write('src/z.json', '{"synthetic": false, "edited": true}\n');
@@ -80,7 +78,15 @@ test('edited file updates bytes, sha256 and the aggregate digest', t => {
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /changed 1:\n {2}src\/z\.json/);
   assert.equal(f.manifest(), expectedManifest(f.root, initial));
-  assert.notEqual(JSON.parse(f.manifest()).sourceDigestSha256, before.sourceDigestSha256);
+  assert.notEqual(JSON.parse(f.manifest()).files.at(-1).sha256, before.files.at(-1).sha256);
+  // An older manifest that stores the aggregate is stale until the field is removed.
+  const { files, ...head } = JSON.parse(f.manifest());
+  writeFileSync(join(f.root, manifestPath), JSON.stringify({ ...head, sourceDigestSha256: '0'.repeat(64), files }, null, 2) + '\n');
+  const check = f.run('--check');
+  assert.equal(check.status, 1, check.stderr);
+  assert.match(check.stdout, /is stale; a refresh would change it\nstored aggregate digest removed/);
+  assert.equal(f.run().status, 0);
+  assert.equal(f.manifest(), expectedManifest(f.root, initial));
 });
 
 test('deleted file drops its row', t => {
@@ -166,7 +172,7 @@ test('symlink is refused', t => {
 test('conflict markers, misdirected --owner and unsafe paths are refused', t => {
   const f = fixture(t);
   const clean = f.manifest();
-  const conflicted = clean.replace(/( {2}"sourceDigestSha256": .*\n)/, '<<<<<<< ours\n$1=======\n  "sourceDigestSha256": "0",\n>>>>>>> theirs\n');
+  const conflicted = clean.replace(/( {2}"status": .*\n)/, '<<<<<<< ours\n$1=======\n  "status": "other",\n>>>>>>> theirs\n');
   writeFileSync(join(f.root, manifestPath), conflicted);
   let result = f.run();
   assert.equal(result.status, 2);
@@ -237,5 +243,7 @@ test('output passes a temporary copy of the actual publication verifier', t => {
   const verified = spawnSync(process.execPath, [join(f.root, 'tools/publication/verify-source.mjs')], { encoding: 'utf8' });
   assert.equal(verified.status, 0, verified.stderr);
   assert.match(verified.stdout, /7 digests/);
+  const digest = sha(Buffer.from(JSON.parse(f.manifest()).files.map(r => `${r.path}\t${r.mode}\t${r.bytes}\t${r.sha256}\n`).join('')));
+  assert.match(verified.stdout, new RegExp(`source digest ${digest} `));
   assert.equal(f.manifest(), expectedManifest(f.root, { ...initial, ...Object.fromEntries(copied.map(path => [path, 'alpha'])) }));
 });

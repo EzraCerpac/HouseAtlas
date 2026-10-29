@@ -1,5 +1,4 @@
-// Rewrites the publication source manifest's file rows and aggregate digest from
-// the working tree, using the walk and file rules of verify-source.mjs. Reads the
+// Rewrites the publication source manifest's file rows from the working tree, using the walk and file rules of verify-source.mjs. Reads the
 // tree and the named manifests; writes only the manifest, and nothing in --check.
 // Never runs controls, Git or network calls.
 //
@@ -139,7 +138,9 @@ function refresh(argv) {
     const full = join(root, path), bytes = readFileSync(full);
     return { path, mode: (lstatSync(full).mode & 0o111) ? '100755' : '100644', bytes: bytes.length, sha256: hash(bytes), owner };
   });
-  manifest.sourceDigestSha256 = hash(Buffer.from(manifest.files.map(r => `${r.path}\t${r.mode}\t${r.bytes}\t${r.sha256}\n`).join('')));
+  // verify-source.mjs computes and prints the aggregate digest; a stored copy is dropped.
+  const droppedDigest = Object.hasOwn(manifest, 'sourceDigestSha256');
+  delete manifest.sourceDigestSha256;
   const after = JSON.stringify(manifest, null, 2) + '\n';
 
   const old = new Map(JSON.parse(before).files.map(row => [row.path, JSON.stringify(row)]));
@@ -154,11 +155,11 @@ function refresh(argv) {
     return 0;
   }
   if (values.check) {
-    console.log(`${manifestPath} is stale; a refresh would change it\n${summary || 'formatting or aggregate digest only'}${kept}`);
+    console.log(`${manifestPath} is stale; a refresh would change it\n${summary || (droppedDigest ? 'stored aggregate digest removed' : 'formatting only')}${kept}`);
     return 1;
   }
   writeFileSync(file, after);
-  console.log(`Rewrote ${manifestPath} (${manifest.files.length} rows)\n${summary || 'formatting or aggregate digest only'}${kept}`);
+  console.log(`Rewrote ${manifestPath} (${manifest.files.length} rows)\n${summary || (droppedDigest ? 'stored aggregate digest removed' : 'formatting only')}${kept}`);
   return 0;
 }
 

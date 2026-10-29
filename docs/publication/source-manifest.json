@@ -23,7 +23,6 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "48df6279e183c7bb306b15221300465f354171eed323df37f383a0735d35aa71",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -6237,22 +6236,22 @@
     {
       "path": "docs/contributing/ci-path-selection.md",
       "mode": "100644",
-      "bytes": 6295,
-      "sha256": "9ac6e8562ea959cc386f1ad7187f4094d1d638cb81a6924ff46c879314c17c24",
+      "bytes": 6783,
+      "sha256": "0fda4ac993602c7c7c9eb1b35fc2c0f8b2532b6c6051cd47e3105cfd0c9b6bb5",
       "owner": "core-integration"
     },
     {
       "path": "docs/contributing/formatting.md",
       "mode": "100644",
-      "bytes": 4739,
-      "sha256": "79be4f38380fe1d287e91e8b56d0e4c3c06ff2748a3f94276a5cd3f9a1bea4fc",
+      "bytes": 4783,
+      "sha256": "a944153f5180966cd938ceedef5cd074e7e3b064f73f16d80ebb1212ba18217a",
       "owner": "core-integration"
     },
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 193177,
-      "sha256": "2920c9fadad44e8b47ad86561e22457e338bd04e141f6e4fc9379013a73a6147",
+      "bytes": 193260,
+      "sha256": "a9ff2dbe38c4f84fd663c35c0a3ef317a0d26efad1e0065b021785652a38030f",
       "owner": "core-integration"
     },
     {
@@ -12341,22 +12340,22 @@
     {
       "path": "tools/publication/refresh-manifest.mjs",
       "mode": "100644",
-      "bytes": 9306,
-      "sha256": "634114603c4dcd4374358dc190d1dea61a37a45dea475b0490cbb498d320eb31",
+      "bytes": 9414,
+      "sha256": "7df1ac96755350bea892690a23fcb96783c0a9c16daa9e27c1da38031c6db1d0",
       "owner": "core-integration"
     },
     {
       "path": "tools/publication/refresh-manifest.test.mjs",
       "mode": "100644",
-      "bytes": 11757,
-      "sha256": "20870805c78e66ac32d85a2cead1b82787e6a8e18228246030b0520caedea257",
+      "bytes": 12367,
+      "sha256": "101b6f32854b81c6ce48028c227c89b544a13912241f5c10dc4024295334e999",
       "owner": "core-integration"
     },
     {
       "path": "tools/publication/verify-source.mjs",
       "mode": "100644",
-      "bytes": 3600,
-      "sha256": "ee20a1773dc1635634c9fca4598f65f69ca6532294d393c37510fdc8c1898207",
+      "bytes": 3949,
+      "sha256": "27dee2799849ad9316e67ac795bac3ce8b4921655dbdeb700027bb802902980e",
       "owner": "core-integration"
     },
     {
