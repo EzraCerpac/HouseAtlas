@@ -68,7 +68,7 @@ HTTP history contract, not a record.
 
 | Document | Status | Covers |
 | --- | --- | --- |
-| [README.md](core-integration/README.md) | current | Offline core composition |
+| [README.md](core-integration/README.md) | current | JavaScript reference core composition (`server/`, `web/`) |
 | [upload-diagnostics.md](core-integration/upload-diagnostics.md) | current | Private upload diagnostics |
 
 ## demo/

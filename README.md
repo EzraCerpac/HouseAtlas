@@ -46,7 +46,7 @@ npm run check:http:ordinary
 npm run test:ordinary
 ```
 
-These checks cover publication integrity, module syntax/builds, valid HTTP history examples and one healthy synthetic Request group. They call no provider and certify no security, live integration or deployment readiness. New explicit source-presence admissions remain blocked pending their separately reviewed extension.
+These checks cover publication integrity, module syntax/builds, valid HTTP history examples and one healthy synthetic Request group. `test:ordinary` and the `server/` and `web/` part of `build:ordinary` check the JavaScript reference core and UI ([server/README.md](server/README.md)), not the running Rust/React service. They call no provider and certify no security, live integration or deployment readiness. New explicit source-presence admissions remain blocked pending their separately reviewed extension.
 
 Focused synthetic checks for the canonical IFC source, IFC/GLB, IFC publication and canonical geometry seams are listed with their scope and limits in the [verification guide](docs/contributing/verification.md#canonical-ifc-source-ifcglb-and-publication-seam-checks). The IFC publication check includes the two-floor synthetic fixture of the proposed [v2 scene read contract](docs/canonical-ifc/scene-read-contract-v2.md).
 
@@ -63,7 +63,7 @@ The current development snapshot includes a Rust backend, SQLite persistence and
 [The complete verification guide](docs/contributing/verification.md) retains every previously documented named command and its scope, prerequisites and limitations. Read it before running any other check; broad suites and held controls are not authorized by this README.
 
 - [Rust/React development slice](docs/rust-integration/README.md): actual native source, disposable local settings and exact ordinary commands.
-- [UI integration](web/README.md): source ownership, access, freshness and host seams.
+- [Reference UI contract](web/README.md): source ownership, access, freshness and host seams of the JavaScript reference UI; [frontend/src/app/INTEGRATION.md](frontend/src/app/INTEGRATION.md) records the React port against it.
 - [Repository coordination](docs/coordination/worker-handoff.md) and [publication provenance](docs/publication/provenance.md).
 - [Operations and rollout](docs/operations/qualification-and-rollout.md): target and acceptance requirements.
 - [NAS deploy tool](tools/deploy-nas/README.md): deploy a `main` commit or a model release to the NAS, and roll it back; `python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'` checks it with a fake service.

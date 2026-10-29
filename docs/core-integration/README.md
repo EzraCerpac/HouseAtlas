@@ -1,5 +1,9 @@
 # Offline core composition
 
+This describes the JavaScript reference composition in `server/` and `web/`
+([server/README.md](../../server/README.md)); the running service is the
+Rust/React stack ([docs/rust-integration/README.md](../rust-integration/README.md)).
+
 Storage, HomeBox, Network, web, access and media are composed by
 `createCoreService` and `createCoreRouter`. The router receives WHATWG Requests
 and returns Responses. Neither module opens a listener or implements an HTTP
