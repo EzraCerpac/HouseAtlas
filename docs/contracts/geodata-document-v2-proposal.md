@@ -1,7 +1,5 @@
 # Native geodata Document contract proposal, version 2
 
-> Status: superseded by [contracts/geodata-wire-v2/README.md](../../contracts/geodata-wire-v2/README.md) and [docs/geodata/native-document-persistence-v2.md](../geodata/native-document-persistence-v2.md).
-
 Status: review proposal, no runtime adoption. This change installs no Document
 record, route, migration, importer, renderer or live source. Existing geodata
 qualification is an unselected media seam. An uploaded native Asset alone is

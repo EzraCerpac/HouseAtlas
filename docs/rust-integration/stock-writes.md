@@ -55,8 +55,9 @@ It also issues PNG/text stock download handles through native WebMCP and HTTP,
 checks visible canonical issued metadata before native return, and redeems
 original bytes with authenticated GET/HEAD. These six additional requests do
 not exercise the download link UI that `frontend/integration/main.tsx` mounts
-through the gateway boundary, or the MCP handle lifecycle. It makes
-no stock history, provider, replay or rejected call.
+through the stock command coverage boundary (`CommandCoverageBoundary`), or
+the MCP handle lifecycle. It makes no stock history, provider, replay or
+rejected call.
 
 The native `healthy-agent-loopback.mjs` runner also exercises the newly admitted
 identity single and mixed identity/circuit batch through actual

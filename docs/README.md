@@ -4,8 +4,12 @@ Status of every Markdown file under `docs/`. Current is the default.
 Historical and superseded files also carry a status line under their
 title, linking the current document where one exists.
 Those that no tool, pin or current content ties to their path are kept
-under `history/`, in their original subdirectory. `contracts/history/` is
-the current HTTP history contract, not a record.
+under `history/`, in their original subdirectory, except records that
+still hold current commands. `contracts/geodata-document-v2-proposal.md`
+keeps its original status line because
+`contracts/geodata-document-v2-manifest.json` pins its bytes; its
+superseded status is given only here. `contracts/history/` is the current
+HTTP history contract, not a record.
 
 ## Top level
 
