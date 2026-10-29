@@ -23,7 +23,7 @@
     "webmcp"
   ],
   "sourceDigestAlgorithm": "SHA256 of UTF-8 sorted path TAB Git-mode TAB bytes TAB file-SHA256 LF; excludes this manifest",
-  "sourceDigestSha256": "db664dcdc72785623989665a0f1e6488280821a9c48898750d60e6003b9812c8",
+  "sourceDigestSha256": "15ffd8f408c3bdb793d7ade336a43c7805ab80e1d51efeac4e2b048bd292d80f",
   "files": [
     {
       "path": ".github/actions/ordinary-save/action.yml",
@@ -175,8 +175,8 @@
     {
       "path": "README.md",
       "mode": "100644",
-      "bytes": 8769,
-      "sha256": "7b49d50c0246d1813c581c82217f99792552153fc84758785f86015f3d15c6fa",
+      "bytes": 6041,
+      "sha256": "0366dcb15b8a8224bc57d60eaefac46bf113078cd0f2ff0e481a3ae60ad8322c",
       "owner": "core-integration"
     },
     {
@@ -6244,8 +6244,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 169522,
-      "sha256": "f1554258439f87561f53dbea804875930a087f6f95a52f20de736bac15c5c968",
+      "bytes": 173379,
+      "sha256": "518091ffc92376fe95325475031132f0bd09530dca4568e933b8210becf2cecb",
       "owner": "core-integration"
     },
     {
