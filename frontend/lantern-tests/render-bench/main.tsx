@@ -124,7 +124,9 @@ interface SwapRenderer {
   backend: { createRenderPipeline: (...args: unknown[]) => unknown; draw: (...args: unknown[]) => unknown };
 }
 interface SwapWitness {
-  preparation: string; error: string | null; compiling: number; prepared: Set<object>;
+  preparation: string; error: string | null; compiling: number; prepared: Set<object>; effectMaterials: Set<object>;
+  effectDraws: number; reusedEffectDraws: number; unpreparedEffectDraws: number;
+  postShownEffectCreated: number; unknownEffectMaterialDraws: number;
   runtimeCreated: number; postShownCreated: number; preparedQuadUses: number;
   outputFrames: number; historyFrames: number; historyCount: number;
   fullShadeFrames: number; renderedAt: number; shown: boolean;
@@ -138,7 +140,8 @@ function replaceWitness(owner: object, key: string, value: unknown) {
 function witness(renderer: SwapRenderer): SwapWitness {
   const canvas = renderer.domElement;
   let row = witnesses.get(canvas); if (row) return row;
-  row = { preparation: 'unobserved', error: null, compiling: 0, prepared: new Set(),
+  row = { preparation: 'unobserved', error: null, compiling: 0, prepared: new Set(), effectMaterials: new Set(),
+    effectDraws: 0, reusedEffectDraws: 0, unpreparedEffectDraws: 0, postShownEffectCreated: 0, unknownEffectMaterialDraws: 0,
     runtimeCreated: 0, postShownCreated: 0, preparedQuadUses: 0, outputFrames: 0,
     historyFrames: 0, historyCount: 0, fullShadeFrames: 0, renderedAt: 0, shown: false };
   witnesses.set(canvas, row); const state = row, backend = renderer.backend;
@@ -148,23 +151,55 @@ function witness(renderer: SwapRenderer): SwapWitness {
   const create = backend.createRenderPipeline, draw = backend.draw;
   replaceWitness(backend, 'createRenderPipeline', function(this: typeof backend, ...args: unknown[]) {
     const result = create.apply(this, args);
-    const pipeline = (args[0] as { pipeline?: object } | undefined)?.pipeline;
+    const object = args[0] as { pipeline?: object; material?: object } | undefined;
+    const pipeline = object?.pipeline;
     if (!pipeline || typeof pipeline !== 'object') state.error = 'Missing created backend pipeline identity';
-    else if (state.compiling > 0) state.prepared.add(pipeline);
-    else { state.runtimeCreated++; if (state.shown) state.postShownCreated++; }
+    else if (state.compiling > 0 && !state.shown) state.prepared.add(pipeline);
+    else {
+      state.runtimeCreated++;
+      if (state.shown) {
+        state.postShownCreated++;
+      }
+    }
+    // A late compileAsync must not launder a post-show creation as preparation.
+    if (state.shown && object?.material && state.effectMaterials.has(object.material))
+      state.postShownEffectCreated++;
     return result;
   });
   replaceWitness(backend, 'draw', function(this: typeof backend, ...args: unknown[]) {
     const result = draw.apply(this, args);
-    const object = args[0] as { pipeline?: object; object?: { isQuadMesh?: boolean } } | undefined;
+    // RenderObject.material is the actual material used by this draw. A
+    // different quad may use it; the history's target may have ping-ponged.
+    const object = args[0] as { pipeline?: object; material?: object; object?: { isQuadMesh?: boolean } } | undefined;
     if (object?.object?.isQuadMesh && object.pipeline && state.prepared.has(object.pipeline)) state.preparedQuadUses++;
+    if (state.shown) {
+      if (object?.material && state.effectMaterials.has(object.material)) {
+        state.effectDraws++;
+        if (!object.pipeline || typeof object.pipeline !== 'object') state.error = 'Missing executed effect pipeline identity';
+        else if (state.prepared.has(object.pipeline)) state.reusedEffectDraws++;
+        else state.unpreparedEffectDraws++;
+      } else if (object?.object?.isQuadMesh) {
+        state.unknownEffectMaterialDraws++;
+        state.error = 'Unsupported post-show quad material classification';
+      }
+    }
     return result;
   });
   return state;
 }
 const compileAsync = WebGPURenderer.prototype.compileAsync;
 replaceWitness(WebGPURenderer.prototype, 'compileAsync', async function(this: WebGPURenderer, ...args: Parameters<typeof compileAsync>) {
-  const state = witness(this as unknown as SwapRenderer); state.compiling++;
+  const state = witness(this as unknown as SwapRenderer);
+  // Register at entry, including cache hits that create no new pipeline.
+  // GTAO prepares a different quad object from the one used at runtime.
+  const object = args[0] as unknown as { isQuadMesh?: boolean; material?: object };
+  if (object?.isQuadMesh) {
+    if (state.shown) state.error = 'Unexpected post-show asynchronous effect preparation';
+    else if (!object.material || typeof object.material !== 'object' || Array.isArray(object.material))
+      state.error = 'Unsupported prepared effect material';
+    else state.effectMaterials.add(object.material);
+  }
+  state.compiling++;
   try { return await compileAsync.apply(this, args); } finally { state.compiling--; }
 });
 const pipelineRender = RenderPipeline.prototype.render;
@@ -205,7 +240,9 @@ function watchSwap(root: HTMLElement, into: object = {}) {
     framesMeanwhile: 0, longestTaskMs: 0, buildLongestTaskMs: 0, postShownLongestTaskMs: 0,
     postShownObservationMs: 0, sphereVertices: 0, preparation: 'unobserved',
     historyFrames: 0, historyCount: 0, outputFrames: 0, fullShadeFrames: 0,
-    preparedPipelines: 0, preparedQuadUses: 0, runtimeCreated: 0, postShownCreated: 0 });
+    preparedPipelines: 0, preparedQuadUses: 0, runtimeCreated: 0, postShownCreated: 0,
+    preparedEffectMaterials: 0, effectDraws: 0, reusedEffectDraws: 0, unpreparedEffectDraws: 0,
+    postShownEffectCreated: 0, unknownEffectMaterialDraws: 0 });
   const sphereStart = spheres.vertices;
   let tasks: PerformanceObserver | null = null;
   const observer = new MutationObserver(() => {
@@ -245,7 +282,10 @@ function watchSwap(root: HTMLElement, into: object = {}) {
       Object.assign(report, { preparation: state.preparation, historyFrames: state.historyFrames,
         historyCount: state.historyCount, outputFrames: state.outputFrames, fullShadeFrames: state.fullShadeFrames,
         preparedPipelines: state.prepared.size, preparedQuadUses: state.preparedQuadUses,
-        runtimeCreated: state.runtimeCreated, postShownCreated: state.postShownCreated });
+        runtimeCreated: state.runtimeCreated, postShownCreated: state.postShownCreated,
+        preparedEffectMaterials: state.effectMaterials.size, effectDraws: state.effectDraws,
+        reusedEffectDraws: state.reusedEffectDraws, unpreparedEffectDraws: state.unpreparedEffectDraws,
+        postShownEffectCreated: state.postShownEffectCreated, unknownEffectMaterialDraws: state.unknownEffectMaterialDraws });
       if (state.error) { report.error = state.error; finish(); return; }
       if (state.preparation === 'refused') { report.error = 'Effect preparation was cleanly refused'; finish(); return; }
       if (shownAt !== null && state.preparation === 'prepared' && state.historyFrames > 0 && state.outputFrames > 0

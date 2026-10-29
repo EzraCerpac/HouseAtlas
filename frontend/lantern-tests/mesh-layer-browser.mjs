@@ -205,8 +205,13 @@ try {
       assert(value.preparedPipelines > 0 && value.preparedQuadUses > 0, label + ': no prepared backend pipeline actually reused by a runtime quad');
       for (const key of ['buildLongestTaskMs', 'postShownLongestTaskMs', 'runtimeCreated', 'postShownCreated'])
         assert(Number.isFinite(value[key]) && value[key] >= 0, label + ': missing characterization ' + key);
-      // No adopted software-GPU latency or zero-creation budget exists. Report
-      // real creations here; characterize CI before asserting prepared variants.
+      assert(value.preparedEffectMaterials > 0 && value.effectDraws > 0, label + ': no classified post-show effect draws');
+      assert.equal(value.unknownEffectMaterialDraws, 0, label + ': unknown post-show quad material');
+      assert.equal(value.reusedEffectDraws, value.effectDraws, label + ': not every executed effect reused a prepared pipeline');
+      assert.equal(value.unpreparedEffectDraws, 0, label + ': an executed effect pipeline was unprepared');
+      assert.equal(value.postShownEffectCreated, 0, label + ': an effect material created a pipeline after show');
+      // This is deterministic cache coverage, not a timing budget. Unrelated
+      // mesh/background creations and software-GPU long tasks stay informational.
       console.log(JSON.stringify({ swapCharacterization: label, backend: expected, ...value,
         timingPolicy: 'informational; not the deferred Mac 100 ms acceptance' }));
     };
