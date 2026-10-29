@@ -345,9 +345,12 @@ the private development history.
 
 The four named `canonical_ifc_source` tests and
 `healthy_ifc_glb_lineage_and_axes` are not `#[ignore]`, so the default set in
-[Backend unit tests](#backend-unit-tests) also runs them in CI.
-`ifc-glb-read.mjs` is in the explicit `run-healthy.mjs` list of the
-[Healthy frontend suite](#healthy-frontend-suite). No workflow runs the
+[Backend unit tests](#backend-unit-tests) runs them in CI on main pushes and on
+PRs that select the backend lane. `ifc-glb-read.mjs` and
+`canonical-geometry.test.mjs --healthy` are in the explicit `run-healthy.mjs`
+list of the [Healthy frontend suite](#healthy-frontend-suite), which runs on
+main pushes and on PRs that select the frontend lane (see the
+[CI dependency matrix](ci-path-selection.md)). No workflow runs the
 `healthy-native-ifc-glb` example or the `tools/ifc_publication` Python
 commands; they remain manual.
 
@@ -396,8 +399,10 @@ floor-qualified IFC space occurrences. Its routes and ready state are mock
 contract examples, not live service behavior.
 
 The focused canonical geometry check (`canonical-geometry.test.mjs --healthy`)
-for the model and geometry modules the unified Atlas draws with is described in
-the next section. It does not qualify actual model placement, GPU picking or a
+for the model and geometry modules the unified Atlas draws with is described at
+the end of
+[Generated annual-session integration regressions](#generated-annual-session-integration-regressions).
+It does not qualify actual model placement, GPU picking or a
 live scene endpoint.
 
 ## Generated annual-session integration regressions
