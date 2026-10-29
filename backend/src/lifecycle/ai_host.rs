@@ -317,7 +317,8 @@ mod existing_store_tests {
 
     fn selected(path: &Path) -> ExistingFullHostDatabase {
         let metadata = fs::metadata(path).unwrap();
-        ExistingFullHostDatabase::select(path.to_path_buf(), metadata.dev(), metadata.ino()).unwrap()
+        ExistingFullHostDatabase::select(path.to_path_buf(), metadata.dev(), metadata.ino())
+            .unwrap()
     }
     fn root() -> tempfile::TempDir {
         let root = tempfile::tempdir().unwrap();

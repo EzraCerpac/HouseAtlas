@@ -874,7 +874,8 @@ pub(super) fn validate_existing_schema(
     expected: &[(&str, &str, &str, Option<&str>)],
     read_only: bool,
 ) -> Result<(), AiError> {
-    if connection.is_readonly("main").map_err(db_error)? != read_only || !connection.is_autocommit() {
+    if connection.is_readonly("main").map_err(db_error)? != read_only || !connection.is_autocommit()
+    {
         return Err(AiError::DomainUnavailable);
     }
     if !read_only {

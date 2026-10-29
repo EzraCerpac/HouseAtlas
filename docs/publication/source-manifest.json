@@ -1028,8 +1028,8 @@
     {
       "path": "backend/src/ai/host/status.rs",
       "mode": "100644",
-      "bytes": 48400,
-      "sha256": "beab940961e81db522d2eb11d413c5a585d2ac6f3017701c3788a3ce08a7c97f",
+      "bytes": 48404,
+      "sha256": "61191d20ccbbd525d44145d3dc8a3d540c622e92c3e981142cba55caa8a5221c",
       "owner": "ai"
     },
     {
@@ -2890,8 +2890,8 @@
     {
       "path": "backend/src/lifecycle/ai_host.rs",
       "mode": "100644",
-      "bytes": 14650,
-      "sha256": "d3381f4683e00394d409de5e31246d3e84d5868ad56f5fe4c08b8d6267408a74",
+      "bytes": 14663,
+      "sha256": "01e109e0f714fbd0e6c49df866744cf6b36b285286c89074f7ec7145266a7d87",
       "owner": "core-integration"
     },
     {
