@@ -120,9 +120,10 @@ remains deferred to #295 and its existing owners. No acceptance box is closed.
 
 `NativeAiApplication<O,R,D>` now retains a supplied `SharedStockPort` domain
 instead of fixing every application to `NativeReadDomain`. Its explicit
-`assemble(owners, inputs, stock, custody)` uses `NativeStartup::assemble` and
-mounts the returned original host with custody. The existing read-only type
-default and `assemble_native_reads` source API remain compatible;
+`assemble(owners, inputs, stock, custody)` uses
+`NativeStartup::assemble_with_custody` and mounts the returned host with the same
+retained custody. The existing read-only type default and
+`assemble_native_reads` source API remain compatible;
 `assemble_native_reads_with_custody` supplies the bounded read composition with
 the same explicit custody contract. No binary or browser entry is activated.
 
@@ -146,9 +147,9 @@ persistent reopen. The lease is bound to the same original Access allocation;
 an unrelated lease or offline backup snapshot cannot be adopted. No binary or
 configuration path calls this API by default.
 
-`NativeFullHostCustody` retains that lease, the original enrollment/journal
-allocations, and private file/directory handles. It checks the selected canonical
-paths, device/inode, owner, mode, link count, rollback-journal header and absence
+`NativeFullHostCustody` retains that lease, the enrollment/journal allocations
+constructed by strict reopen, and private file/directory handles. It checks the
+selected canonical paths, device/inode, owner, mode, link count, rollback-journal header and absence
 of unresolved sidecars. The original lease's lock-file identity is checked too.
 Enrollment then journal connection fences use the existing lock order while
 checking physical custody, avoiding checks during their own rollback writes.
@@ -169,9 +170,14 @@ already clean DELETE-mode files. The account-only opener remains READ_ONLY.
 
 This increment implements the existing-file custody/preparation seam, not native
 key custody, hostile-path/concurrent-process/crash qualification or permission
-to select actual stores. The supplied connection handles remain the sole owners
-of their SQLite operations under the existing persistent server lease protocol.
-Source preparation creates no key, credential, grant, provider request or task.
+to select actual stores. Preparation reopens caller-pinned paths and retains
+those newly opened connections; it does not retain a caller's original SQLite
+Connection. This is trusted single-owner pinned reopen under the existing
+persistent server lease protocol. Separate file/path device/inode checks do not
+prove SQLite's underlying descriptor identity or exclude ABA replacement between
+checks. Hostile or concurrently modified filesystems require separate protocol
+qualification. Source preparation creates no key, credential, grant, provider
+request or task.
 
 Two in-process contract tests use only a synthetic custody flag and counting
 HostApi. They cover success/error forwarding, refusal before a call, and custody
