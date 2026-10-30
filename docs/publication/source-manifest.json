@@ -6936,8 +6936,8 @@
     {
       "path": "docs/operations/local-capture-drafts.md",
       "mode": "100644",
-      "bytes": 20680,
-      "sha256": "606b072312fba181d4713c782f5e5471ed66fbecca37be106a0afc3a4c2b1bb5",
+      "bytes": 24107,
+      "sha256": "2d0d41c3b8c9697e61067545fb40c0f0f84dd6889003b2c19eb6e26add2f5ce9",
       "owner": "core-integration"
     },
     {
@@ -7365,6 +7365,13 @@
       "mode": "100644",
       "bytes": 24370,
       "sha256": "4c412bf2a1b3f3fa10ffca3acda0de73294b5f47ca168b87d549ccfe20ec0a78",
+      "owner": "core-integration"
+    },
+    {
+      "path": "frontend/capture-drafts-tests/indexeddb-durability.regression.test.mjs",
+      "mode": "100644",
+      "bytes": 9959,
+      "sha256": "efda54f99b1b3e9a4a77c4bf6e86bc1f5d217274d81c4047a3b0cf62445cb82c",
       "owner": "core-integration"
     },
     {
@@ -9099,8 +9106,8 @@
     {
       "path": "frontend/src/capture-drafts/indexeddb.ts",
       "mode": "100644",
-      "bytes": 3443,
-      "sha256": "feea541ee1b360513d13189fbb3dc2d2f9784656ea4051b5987930d216f64cf6",
+      "bytes": 4550,
+      "sha256": "773f245836c4882ebca93130ffe50e1a25e6f787a1caf9fac465acd471739657",
       "owner": "core-integration"
     },
     {
