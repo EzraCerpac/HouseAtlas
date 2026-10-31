@@ -3167,6 +3167,15 @@ stale/invalid supplied-policy no-fallback behavior, absent-policy fallback,
 same-source null-to-policy and changed-membership updates through the actual
 easing initializer/RAF-step kernel and section/frame conversion (finite values,
 retained/retired keys and terminal settlement; no mounted hook/effect/RAF claim),
+and optional protected display-policy GETs through the actual reader: exact
+scope/publication/digest/revision and length, refusal before model work, and
+selection retirement. The existing `unified-atlas-cache-healthy.mjs` case also
+checks exact policy retention, metadata-only replacement/removal, revision refusal
+and actor partitioning over the actual cache and synthetic IndexedDB. These are
+generated in-process transports/disks, not native/authenticated/browser evidence.
+The ordinary Rust library set includes the three pure
+`config::atlas_display_policy` contract/options tests (no native/private files).
+The same generated multilevel source also covers
 unchanged semantic containment and vertices, one navigation group,
 both members' actual CPU room picks, union framing, per-level wall cuts through group/All/lower transition starts,
 ends and interrupted/reversed retargets, lower-level connecting-structure association, Plan

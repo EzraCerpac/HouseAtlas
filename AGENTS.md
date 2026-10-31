@@ -84,6 +84,9 @@ the existing unified Atlas healthy case also checks explicit publication-pinned
 display groups, admitted-read metadata precedence/null/no-fallback behavior,
 same-source policy key changes through the actual easing initializer/step and
 finite section conversion/settlement (no mounted hook or RAF/browser test),
+plus bounded protected display-policy responses with exact context/digest/revision,
+refusal and selection retirement; the existing cache healthy case checks policy-only
+replacement/removal, cold retention and actor separation without a browser,
 unchanged geometry/containment, both members' CPU room picks,
 union framing, retained per-part cuts through transition starts/ends and reversals,
 connecting-structure association,
@@ -140,7 +143,8 @@ geometry, including overview texture halving, viewer admission and selector bind
 unified Atlas publication and its detail tier, and their meshopt compression
 expanded by the viewer's decoder; and
 `cargo test --locked -p houseatlas-backend --lib` with its default
-(non-`#[ignore]`) set, skipping the three quantity tests that need
+(non-`#[ignore]`) set, including the three pure synthetic display-policy
+contract/options tests (no native service or private files), skipping the three quantity tests that need
 `HOUSEATLAS_QUANTITY_REFERENCE_DIR`; and the healthy `tools/rust-integration`
 loopback flows (including pure fake-child/clock CDP startup/framing/error cases
 inside the already admitted media flow; one 60 s startup request, unchanged

@@ -518,5 +518,71 @@ await openProcess(disk, actorA, async ({ cache, store }) => {
   assert.equal(await stored(cache, v1), null, 'sign-out clears every stored copy');
 });
 
+// Policy-only refreshes share model/envelope bytes, but must replace their
+// retained display metadata. Actual cache/reader and synthetic disk; no browser.
+{
+  const policyDisk = createSyntheticDisk(), version = versions[0], selection = selectionOf(version);
+  const { createHash } = await import('node:crypto');
+  let label = 'Generated protected group', configured = true;
+  const baseTransport = createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(scope),
+    envelopeBytes: version.composed.envelopeBytes, href: version.composed.href, glb: version.glb,
+    sha256: version.composed.sha256, manifestSha256: version.composed.manifestSha256, revision: SYNTHETIC_ATLAS.revision });
+  const original = await readUnifiedAtlas({ selection, signal: signal(), origin: SYNTHETIC_ATLAS.origin,
+    isCurrent: () => true, transport: baseTransport });
+  const transport = async (url, options) => {
+    const value = { profile: 'houseatlas.atlas-display-selection.v1', ...scope,
+      displayConfig: { profile: 'houseatlas.atlas-display.v1', publicationId: selection.publicationId,
+        semanticsSha256: original.scene.publication.semanticsSha256,
+        groups: [{ levelIds: ['syn-level-split', 'syn-level-upper'], label }], memberships: [] } };
+    const bytes = Buffer.from(JSON.stringify(value)), hash = createHash('sha256').update(bytes);
+    const digest = hash.digest();
+    if (url.includes('/display-policy?')) {
+      assert.equal(configured, true);
+      assert.ok(url.includes(`expectedSha256=${digest.toString('hex')}&`));
+      return new Response(bytes, { headers: { 'content-type': 'application/json', 'content-length': String(bytes.length),
+        'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff',
+        'x-atlas-selection-revision': original.scene.selection.revision, 'content-digest': `sha-256=:${digest.toString('base64')}:` } });
+    }
+    const response = await baseTransport(url, options), headers = new Headers(response.headers);
+    if (configured && url.includes('?expectedManifestSha256=')) {
+      headers.set('x-atlas-display-policy-sha256', digest.toString('hex'));
+      headers.set('x-atlas-display-policy-bytes', String(bytes.length));
+    }
+    return new Response(response.body, { status: response.status, headers });
+  };
+  await openProcess(policyDisk, actorA, async ({ cache }) => {
+    const freshPolicy = () => readUnifiedAtlas({ selection, signal: signal(), origin: SYNTHETIC_ATLAS.origin,
+      isCurrent: () => true, transport, cache });
+    assert.equal((await freshPolicy()).displayConfig.groups[0].label, label);
+    label = 'Generated replacement group';
+    assert.equal((await freshPolicy()).displayConfig.groups[0].label, label);
+  });
+  await openProcess(policyDisk, actorA, async ({ cache }) => {
+    const copy = await stored(cache, selection);
+    assert.equal(copy.displayConfig.groups[0].label, label, 'same-envelope policy change survives cold reopen');
+    assert.deepEqual(Buffer.from(copy.model), Buffer.from(version.glb));
+    const raw = await cache.scene(selection.publicationId, selection.manifestSha256);
+    const staleBytes = Buffer.from(JSON.stringify({ profile: 'houseatlas.atlas-display-selection.v1',
+      ...scope, displayConfig: copy.displayConfig }));
+    const fake = { ...cache, async scene() { return { ...raw, displayPolicy: {
+      bytes: new Uint8Array(staleBytes), sha256: createHash('sha256').update(staleBytes).digest('hex'), selectionRevision: '0'.repeat(64),
+    } }; } };
+    assert.equal(await readCachedUnifiedAtlas({ selection, signal: signal(), cache: fake }), null,
+      'a retained policy with another revision cannot annotate this stored scene');
+    configured = false;
+    const fresh = await readUnifiedAtlas({ selection, signal: signal(), origin: SYNTHETIC_ATLAS.origin,
+      isCurrent: () => true, transport, cache });
+    assert.equal(fresh.displayConfig, undefined);
+  });
+  await openProcess(policyDisk, actorA, async ({ cache }) => {
+    assert.equal((await stored(cache, selection)).displayConfig, undefined,
+      'explicitly unconfigured fresh descriptor retires previously retained policy even when envelope is unchanged');
+  });
+  await openProcess(policyDisk, actorB, async ({ cache }) => {
+    assert.equal(await stored(cache, selection), null, 'another actor cannot read the policy-bearing scene partition');
+  });
+  results.push('protected display policy: exact cold copy, same-envelope replacement/removal, revision refusal and actor partition');
+}
+
 for (const line of results) console.log(line);
 console.log('Unified Atlas cache healthy checks passed.');

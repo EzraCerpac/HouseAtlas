@@ -21,6 +21,7 @@ impl Host {
             offline_packs: Arc::new(Mutex::new(offline_read_pack::Registry::default())),
             atlas_scene: None,
             atlas_room_links: None,
+            atlas_display_policy: None,
             full_geodata_identity: None,
             geodata_dataset: None,
             loopback_local: false,
@@ -67,6 +68,7 @@ impl Host {
         }
         self.atlas_scene = None;
         self.atlas_room_links = None;
+        self.atlas_display_policy = None;
         self.model_overview = Some(Arc::new(selection));
         Ok(self)
     }
@@ -89,6 +91,7 @@ impl Host {
             )
         })?;
         self.atlas_room_links = None;
+        self.atlas_display_policy = None;
         self.atlas_scene = Some(Arc::new(selection));
         Ok(self)
     }
@@ -115,6 +118,31 @@ impl Host {
             )
         })?;
         self.atlas_room_links = Some(Arc::new(selection));
+        Ok(self)
+    }
+    /// Optional exact-publication display membership, never geometry or authority.
+    pub fn with_atlas_display_policy(
+        mut self,
+        selection: crate::config::atlas_display_policy::ServerAtlasDisplayPolicySelection,
+    ) -> crate::storage::Result<Self> {
+        let scene = self.atlas_scene.as_ref().ok_or(crate::storage::Error::new(
+            "identity-conflict",
+            "Display policy requires selected scene",
+        ))?;
+        let overview = self
+            .model_overview
+            .as_ref()
+            .ok_or(crate::storage::Error::new(
+                "identity-conflict",
+                "Display policy requires selected overview",
+            ))?;
+        selection.read(scene, overview).map_err(|_| {
+            crate::storage::Error::new(
+                "identity-conflict",
+                "Display policy does not match selected scene",
+            )
+        })?;
+        self.atlas_display_policy = Some(Arc::new(selection));
         Ok(self)
     }
     /// Compose Documents with native/Stock routes only on the original full

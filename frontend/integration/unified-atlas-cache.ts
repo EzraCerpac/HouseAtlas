@@ -9,7 +9,8 @@ import { openVerifiedByteCache, type NativeGeometryScanCache, type ScanCacheLimi
  * fresh scene pins their exact digest; a stored scene is shown only as the
  * last loaded copy while the fresh read runs, and stored overlay records only
  * while no current overlay frame is held. No session, token, descriptor header,
- * native document or other API response is stored. Every operation is best effort.
+ * native document or other API response is stored, except the bounded exact-publication
+ * display-policy bytes described below. Every operation is best effort.
  * A non-secret canonical-actor witness selects the last-copy pointer. A stale
  * read can keep bytes in its own partition, but cannot select another account's
  * offline copy or restore a pointer from before an account change. */
@@ -22,9 +23,17 @@ export const ATLAS_CACHE_LIMITS: ScanCacheLimits = Object.freeze({
   entries: 10, bytes: 96 * MiB, entryBytes: 33 * MiB, unusedMs: 30 * 24 * 60 * 60 * 1000,
 });
 
+/** Exact bounded presentation bytes, not a retained session/descriptor/grant. */
+export interface StoredAtlasDisplayPolicy {
+  readonly bytes: Uint8Array<ArrayBuffer>;
+  readonly sha256: string;
+  readonly selectionRevision: string;
+}
+const DISPLAY_POLICY_BYTES = 32 * 1024;
 export interface StoredAtlasScene {
   readonly envelope: Uint8Array<ArrayBuffer>;
   readonly entryBuildingId: string | null;
+  readonly displayPolicy?: StoredAtlasDisplayPolicy;
   /** When this page's predecessor kept the scene; display only. */
   readonly storedAt: string;
 }
@@ -32,7 +41,7 @@ export interface StoredAtlasScene {
 export interface UnifiedAtlasCache {
   scene(publicationId: string, manifestSha256: string): Promise<StoredAtlasScene | null>;
   model(sha256: string, bytes: number): Promise<Uint8Array<ArrayBuffer> | null>;
-  keepScene(publicationId: string, manifestSha256: string, envelope: Uint8Array, envelopeSha256: string, entryBuildingId: string | null): void;
+  keepScene(publicationId: string, manifestSha256: string, envelope: Uint8Array, envelopeSha256: string, entryBuildingId: string | null, displayPolicy?: StoredAtlasDisplayPolicy): void;
   keepModel(sha256: string, bytes: Uint8Array): void;
   /** The overlay records stored for exactly this scene, as their kept bytes. Display only. */
   overlays(publicationId: string, revision: string, semanticsSha256: string): Promise<Uint8Array<ArrayBuffer> | null>;
@@ -141,6 +150,8 @@ export function createUnifiedAtlasCache(store: NativeGeometryScanCache,
     JSON.stringify(['overlays', publicationId, revision, semanticsSha256]);
   // The scene this page knows is in the one scene slot, so an unchanged scene is not written again.
   let persisted: string | null = null, pointed: string | null = null;
+  const identity = (key: string, envelopeSha256: string, entryBuildingId: string | null, policySha256: string | undefined, revision: string | undefined) =>
+    JSON.stringify([key, envelopeSha256, entryBuildingId, policySha256 ?? null, revision ?? null]);
   return Object.freeze({
     async scene(publicationId: string, manifestSha256: string) {
       const record = await store.read(partition, sceneKey(publicationId, manifestSha256));
@@ -152,14 +163,29 @@ export function createUnifiedAtlasCache(store: NativeGeometryScanCache,
       // Stored bytes must still be the envelope the server sent; anything else is neither shown nor kept.
       const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', envelope));
       if (Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join('') !== meta.envelopeSha256) return null;
-      persisted = `${sceneKey(publicationId, manifestSha256)}/${meta.envelopeSha256}`;
-      return { envelope, entryBuildingId: meta.entryBuildingId, storedAt: meta.storedAt };
+      let displayPolicy: StoredAtlasDisplayPolicy | undefined;
+      if (meta.displayPolicy !== undefined && meta.displayPolicy !== null) {
+        const pin = meta.displayPolicy;
+        if (!pin || typeof pin !== 'object' || Array.isArray(pin)) return null;
+        const row = pin as Record<string, unknown>;
+        if (Object.keys(row).length !== 3 || typeof row.text !== 'string' || row.text.length > DISPLAY_POLICY_BYTES
+          || typeof row.selectionRevision !== 'string' || row.selectionRevision.length === 0 || row.selectionRevision.length > 1024
+          || typeof row.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(row.sha256)) return null;
+        const bytes = new TextEncoder().encode(row.text);
+        if (bytes.byteLength === 0 || bytes.byteLength > DISPLAY_POLICY_BYTES) return null;
+        const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+        if (Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join('') !== row.sha256) return null;
+        displayPolicy = { bytes, sha256: row.sha256, selectionRevision: row.selectionRevision };
+      }
+      persisted = identity(sceneKey(publicationId, manifestSha256), meta.envelopeSha256, meta.entryBuildingId, displayPolicy?.sha256, displayPolicy?.selectionRevision);
+      return { envelope, entryBuildingId: meta.entryBuildingId, storedAt: meta.storedAt,
+        ...(displayPolicy === undefined ? {} : { displayPolicy }) };
     },
     async model(sha256: string, bytes: number) {
       const record = await store.read(partition, JSON.stringify(['model', sha256]));
       return record && record.byteLength === bytes ? new Uint8Array(record) : null;
     },
-    keepScene(publicationId: string, manifestSha256: string, envelope: Uint8Array, envelopeSha256: string, entryBuildingId: string | null) {
+    keepScene(publicationId: string, manifestSha256: string, envelope: Uint8Array, envelopeSha256: string, entryBuildingId: string | null, displayPolicy?: StoredAtlasDisplayPolicy) {
       const key = sceneKey(publicationId, manifestSha256);
       // Only a canonical actor witness can select an offline display. Its own
       // pointer key prevents a late A read from replacing B's selected copy.
@@ -168,10 +194,18 @@ export function createUnifiedAtlasCache(store: NativeGeometryScanCache,
           publicationId, manifestSha256, actorRevision: actor.revision });
         if (pointed !== pointer) { pointed = pointer; const key = pointerKey(actor); store.write(LAST_PARTITION, key, key, new TextEncoder().encode(pointer)); }
       }
-      if (persisted === `${key}/${envelopeSha256}`) return;
-      persisted = `${key}/${envelopeSha256}`;
+      const next = identity(key, envelopeSha256, entryBuildingId, displayPolicy?.sha256, displayPolicy?.selectionRevision);
+      if (persisted === next) return;
+      if (displayPolicy !== undefined && (displayPolicy.bytes.byteLength === 0
+        || displayPolicy.bytes.byteLength > DISPLAY_POLICY_BYTES || !/^[0-9a-f]{64}$/.test(displayPolicy.sha256)
+        || displayPolicy.selectionRevision.length === 0 || displayPolicy.selectionRevision.length > 1024)) return;
+      const policy = displayPolicy === undefined ? null : {
+        text: new TextDecoder('utf-8', { fatal: true }).decode(displayPolicy.bytes), sha256: displayPolicy.sha256,
+        selectionRevision: displayPolicy.selectionRevision,
+      };
+      persisted = next;
       // One slot: the newest scene for this home replaces earlier ones.
-      store.write(partition, 'scene', key, pack({ publicationId, manifestSha256, envelopeSha256, entryBuildingId, storedAt: new Date().toISOString() }, envelope));
+      store.write(partition, 'scene', key, pack({ publicationId, manifestSha256, envelopeSha256, entryBuildingId, displayPolicy: policy, storedAt: new Date().toISOString() }, envelope));
     },
     keepModel(sha256: string, bytes: Uint8Array) {
       store.write(partition, 'model', JSON.stringify(['model', sha256]), bytes);
