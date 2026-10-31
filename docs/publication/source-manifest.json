@@ -12858,8 +12858,8 @@
     {
       "path": "tools/rust-integration/healthy-stock-history-loopback.mjs",
       "mode": "100644",
-      "bytes": 38024,
-      "sha256": "02dbf498ff796c2ff804e47799438da0f394446ee7c1acbe1ad240646f2c5233",
+      "bytes": 38324,
+      "sha256": "59a781138e5982a73ddd6e8d86b3248da70d7036eb93522cf6c830990b83af43",
       "owner": "core-integration"
     },
     {

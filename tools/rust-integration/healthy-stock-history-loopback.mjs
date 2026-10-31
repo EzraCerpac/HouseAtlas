@@ -29,7 +29,9 @@ const observedUrls = [], responses = [], runtimeErrors = [];
 // Diagnostics expose route shapes and fixed classifications only: no origin,
 // query values, dynamic IDs, cookies, headers, bodies or raw error messages.
 const requests = new Map(), loadingFailures = [];
-let phase = 'startup';
+let phase = 'startup', requestSequence = 0;
+const observationStart = performance.now();
+const elapsedMs = () => Math.round((performance.now() - observationStart) * 1000) / 1000;
 const routeWords = new Set(('api atlas auth session login logout view rooms items homes workspaces records circuit identity asset evidence history commands media downloads availability preview original v1 v3 stock homebox entities network relations').split(' '));
 function requestDiagnostic(request, type) {
   let route = ':unparsed';
@@ -38,7 +40,7 @@ function requestDiagnostic(request, type) {
   } catch {}
   const method = /^(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)$/.test(request.method) ? request.method : 'OTHER';
   const resource = ['Document', 'Stylesheet', 'Image', 'Media', 'Font', 'Script', 'XHR', 'Fetch', 'Other'].includes(type) ? type : 'Other';
-  return { method, route, resource, requestPhase: phase };
+  return { requestId: ++requestSequence, method, route, resource, requestPhase: phase, requestedMs: elapsedMs() };
 }
 function assertOrdinaryResponses(origin, message) {
   const ordinary = row => row.status === 200 || (row.status === 204 && row.url === origin + '/favicon.ico');
@@ -70,10 +72,10 @@ class Pipe {
           requests.set(message.params.requestId, requestDiagnostic(message.params.request, message.params.type));
         } else if (message.method === 'Network.responseReceived') {
           responses.push({ url: message.params.response.url, status: message.params.response.status,
-            diagnostic: { ...(requests.get(message.params.requestId) ?? { method: 'UNKNOWN', route: ':unobserved', resource: 'Other' }), responsePhase: phase } });
+            diagnostic: { ...(requests.get(message.params.requestId) ?? { method: 'UNKNOWN', route: ':unobserved', resource: 'Other' }), responsePhase: phase, receivedMs: elapsedMs() } });
         } else if (message.method === 'Network.loadingFailed') {
           loadingFailures.push({ ...(requests.get(message.params.requestId) ?? { method: 'UNKNOWN', route: ':unobserved', resource: 'Other' }),
-            responsePhase: phase, classification: message.params.canceled ? 'cancelled' : message.params.blockedReason ? 'blocked' : 'transport' });
+            responsePhase: phase, receivedMs: elapsedMs(), classification: message.params.canceled ? 'cancelled' : message.params.blockedReason ? 'blocked' : 'transport' });
         } else if (message.method === 'Runtime.exceptionThrown') runtimeErrors.push(message.params.exceptionDetails.text);
       }
     });
@@ -196,6 +198,7 @@ try {
   await evaluate(`document.getElementById('atlas-username').value=${JSON.stringify(login.username)}; document.getElementById('atlas-password').value=${JSON.stringify(login.password)}; document.querySelector('.session-form').requestSubmit()`);
   assert.equal(await evaluate("document.getElementById('atlas-password')?.value ?? ''"), '');
   await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'Actual successful HTTP login and React home');
+  phase = 'viewer-login-dialog';
   await openAtlasTools();
   const refreshedCookies = await send('Network.getCookies', {urls:[origin]});
   const actualSessionCookie = refreshedCookies.cookies.find(c=>c.name===cookie.slice(0,split));
@@ -206,7 +209,7 @@ try {
   // Fresh local-only commands, each submitted once. The browser's real editor
   // login replaces its viewer session; every write carries freshly issued CSRF.
   // This is not a provider operation, replay, stale guard or rejected request.
-  phase = 'editor-login-and-writes';
+  phase = 'editor-replacement-and-writes';
   const writes = await evaluate(`(async () => {
     const prefix=${JSON.stringify(prefix)}, login=${JSON.stringify(editorLogin)}, results=[];
     const request=async(path,body,csrf)=>{const response=await fetch(path,{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',redirect:'error',headers:body?{'content-type':'application/json',...(csrf?{'x-atlas-csrf':csrf}:{})}:{},...(body?{body:JSON.stringify(body)}:{})}); const value=await response.json(); results.push({path,status:response.status});if(response.status!==200)throw new Error('Ordinary fresh local write/read failed');return value;};
