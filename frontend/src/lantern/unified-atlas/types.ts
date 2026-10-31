@@ -9,6 +9,28 @@ import type { StoredOverlays } from './stored-overlays';
 export type Vec3 = readonly [number, number, number];
 export interface Box { readonly min: Vec3; readonly max: Vec3 }
 
+/** Host-owned display policy for one exact semantic publication. These are
+ * presentation memberships, never geometry containment or native authority. */
+export interface AtlasDisplayGroup {
+  readonly levelIds: readonly string[];
+  readonly label: string;
+}
+export interface AtlasDisplayMembership {
+  readonly nodeIndex: number;
+  readonly meshIndex: number;
+  readonly primitiveIndex: number;
+  readonly levelIds: readonly string[];
+  /** Connecting structures can remain full-height in their display scope. */
+  readonly cutaway: 'level' | 'preserve';
+}
+export interface AtlasDisplayConfig {
+  readonly profile: 'houseatlas.atlas-display.v1';
+  readonly publicationId: string;
+  readonly semanticsSha256: string;
+  readonly groups: readonly AtlasDisplayGroup[];
+  readonly memberships: readonly AtlasDisplayMembership[];
+}
+
 export interface AtlasBuilding {
   readonly buildingId: string;
   readonly label: string;

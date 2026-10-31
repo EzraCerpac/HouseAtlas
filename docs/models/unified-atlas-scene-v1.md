@@ -503,3 +503,39 @@ source path using synthetic assets and a GL call recorder. They do not establish
 actual shader execution, GPU pixels, private-candidate admission, installed
 identity or browser/device acceptance. The product-readiness observations above
 remain separate.
+
+## Optional application display groups
+
+The application can read one inert `<script type="application/json"
+id="houseatlas-atlas-display">` in its host document. This optional presentation
+policy is limited to 32 KiB and uses `houseatlas.atlas-display.v1`. It contains
+exact `publicationId` and `semanticsSha256` pins, `groups` and `memberships`.
+No configured policy means the existing individual-level behavior. A different
+publication/semantic digest leaves grouping unconfigured; names never retarget
+it. A malformed matching policy refuses the view instead of guessing.
+
+Each group is `{ levelIds: string[], label: string }`, with at least two distinct
+existing levels in one building. Groups cannot overlap. The first ID is the
+navigation anchor, still a real level; all source levels and elevations remain
+unchanged. The floor picker steps through groups, 3D frames/picks both members,
+and member wall parts use their own floor-relative cut heights. Shared parts
+keep their existing source positions and a section at their highest selected
+member. An indivisible shared primitive is not spatially split by this policy.
+
+Plan shows one actual member at a time, with explicit Plan level buttons in the
+floor picker. Selecting a room retains its actual occurrence and level. Plan
+and 3D preserve their separate camera framing; overlapping plans are not merged.
+
+An optional membership row identifies one exact already-admitted primitive by
+`nodeIndex`, `meshIndex`, `primitiveIndex`, and supplies display-only `levelIds`
+plus `cutaway: "level" | "preserve"`. Only structure/slab bindings in the same
+building qualify. A connecting flight can therefore remain full-height in its
+lower-level display while its genuine multilevel containment tags remain intact.
+All-floors and exploded views retain their existing source-level behavior.
+This grants neither room-pick authority nor a geometry/native association.
+
+The host owns this configuration and must serialize inert JSON safely (including
+escaping `<` as `\u003c`); do not place private installation policies in this
+public repository. The same admitted policy is carried into the detail-model
+swap. Configuration, private installation readback, physical acceptance and
+interactive/device verification are separate from source/hosted CI evidence.

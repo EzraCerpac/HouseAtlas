@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, type CSSProperties } from 'react';
 import { Icon } from '../components/Icon';
 import { TONE_COLOR } from '../canonical-ifc/tones';
-import type { AtlasAction, AtlasModel, AtlasViewState } from './scene';
+import { displayLevelIds, type AtlasAction, type AtlasModel, type AtlasViewState } from './scene';
 import type { AtlasLevel, AtlasOccurrence, AtlasRoom } from './types';
 import { PublishedOverlayDetails } from './PublishedOverlayDetails';
 import { atlasBuildingName, atlasExclusionText, atlasLevelName, atlasOccurrenceName } from './labels';
@@ -13,7 +13,7 @@ import { DocumentaryRecords } from './AtlasKeys';
 
 /** Floors listed for the current scope, highest first. */
 export function listedLevels(model: AtlasModel, state: AtlasViewState): readonly AtlasLevel[] {
-  return state.levelId !== null ? [model.levelsById.get(state.levelId)!]
+  return state.levelId !== null ? (state.view === 'plan' ? [state.levelId] : displayLevelIds(model, state.levelId)).map(id => model.levelsById.get(id)!)
     : model.scene.buildings.filter(row => state.buildingId === null || row.buildingId === state.buildingId)
       .flatMap(row => [...model.levelsByBuilding.get(row.buildingId)!].reverse());
 }

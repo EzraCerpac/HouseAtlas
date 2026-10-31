@@ -1,15 +1,15 @@
 import { useMemo, useRef, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react';
 import { Icon } from '../components/Icon';
-import type { AtlasAction, AtlasModel, AtlasViewState } from './scene';
+import { displayLevelAnchor, displayLevelIds, displayLevelLabel, displayLevels, type AtlasAction, type AtlasModel, type AtlasViewState } from './scene';
 import type { AtlasLevel } from './types';
 import { atlasBuildingName, atlasLevelName } from './labels';
 import { plural } from './atlas-text';
 
 /** Short rung marks from each floor's own display name: initials, without a
  * trailing "floor". Marks that repeat within a building gain a source-order number. */
-function floorMarks(model: AtlasModel, levels: readonly AtlasLevel[]): ReadonlyMap<string, string> {
+function floorMarks(model: AtlasModel, levels: readonly AtlasLevel[], grouped = true): ReadonlyMap<string, string> {
   const marks = levels.map(level => {
-    const words = atlasLevelName(model, level.levelId).split(' · ')[0]!.split(/\s+/).filter(Boolean);
+    const words = ((grouped ? displayLevelLabel(model, level.levelId) : null) ?? atlasLevelName(model, level.levelId)).split(' · ')[0]!.split(/\s+/).filter(Boolean);
     const kept = words.length > 1 && /^floor$/i.test(words[words.length - 1]!) ? words.slice(0, -1) : words;
     return kept.map(word => /[\p{L}\p{N}]/u.exec(word)?.[0] ?? '').join('').slice(0, 2).toUpperCase() || '·';
   });
@@ -53,23 +53,27 @@ export function FloorStack({ model, levels, buildings, buildingNav, building, st
   readonly open: boolean; readonly setOpen: (open: boolean) => void;
   readonly head: RefObject<HTMLButtonElement | null>; readonly panelId: string;
 }) {
-  const top = [...levels].reverse();
-  const marks = useMemo(() => floorMarks(model, levels), [model, levels]);
+  const choices = useMemo(() => displayLevels(model, levels), [model, levels]);
+  const top = [...choices].reverse();
+  const activeLevels = new Set(displayLevelIds(model, state.levelId));
+  const currentAnchor = state.levelId === null ? null : displayLevelAnchor(model, state.levelId);
+  const marks = useMemo(() => floorMarks(model, choices), [model, choices]);
+  const memberMarks = useMemo(() => floorMarks(model, levels, false), [model, levels]);
   const buildingMark = useMemo(() => buildingMarks(model, buildings), [model, buildings]);
   const gaps = top.map((level, at) => {
     const below = top[at + 1]; if (!below) return 0;
     return Math.max(48, (model.floorY.get(level.levelId)! - model.floorY.get(below.levelId)!) * 22);
   });
   const whole = state.levelId === null && state.buildingId !== null;
-  const current = state.levelId === null ? null : model.levelsById.get(state.levelId) ?? null;
-  const floorName = current ? atlasLevelName(model, current.levelId) : null;
+  const current = currentAnchor === null ? null : model.levelsById.get(currentAnchor) ?? null;
+  const floorName = current ? displayLevelLabel(model, current.levelId) ?? atlasLevelName(model, current.levelId) : null;
   const mark = current ? marks.get(current.levelId) ?? '·' : building && levels.length > 0 ? 'All' : null;
   const where = building ? `${building.label}, ${floorName ?? 'all floors'}` : 'All buildings';
   // Low to high, then the whole building above the top floor.
-  const steps: readonly (string | null)[] = [...levels.map(level => level.levelId), null];
+  const steps: readonly (string | null)[] = [...choices.map(level => level.levelId), null];
   const step = (by: 1 | -1) => {
     if (levels.length === 0) return;
-    const at = steps.indexOf(state.levelId), next = steps[Math.max(0, Math.min(steps.length - 1, at + by))]!;
+    const at = steps.indexOf(currentAnchor), next = steps[Math.max(0, Math.min(steps.length - 1, at + by))]!;
     if (next !== state.levelId || at === -1) dispatch({ type: 'level', levelId: next });
   };
   const pick = (levelId: string | null) => {
@@ -103,7 +107,7 @@ export function FloorStack({ model, levels, buildings, buildingNav, building, st
         <svg key={state.levelId ?? state.buildingId ?? 'site'} className="ua-stack-glyph" width={26} height={26} viewBox="0 0 26 26" aria-hidden="true">
           {slabs.length > 0 ? slabs.map((level, at) => <rect key={level.levelId} x={4} width={18} rx={1.4}
             y={4 + at * (19 / slabs.length)} height={Math.max(2.5, 19 / slabs.length - 1.6)}
-            className={whole || state.levelId === level.levelId ? 'is-lit' : selectionLevel === level.levelId ? 'is-held' : undefined} />)
+            className={whole || activeLevels.has(level.levelId) ? 'is-lit' : selectionLevel === level.levelId ? 'is-held' : undefined} />)
             : <path d="M4 21V11l9-7 9 7v10Z M10 21v-6h6v6" />}
         </svg>
         {mark && <span className="ua-stack-mark">{mark}</span>}
@@ -129,25 +133,33 @@ export function FloorStack({ model, levels, buildings, buildingNav, building, st
             <span className="ua-rung-tick ua-rung-tick-all" aria-hidden="true">All</span>
             <span className="ua-rung-name">All floors</span></button></li>
           {top.map((level, at) => {
-            const here = state.levelId === level.levelId;
-            const drawn = !here && state.levelId === null && shownLevel === level.levelId;
-            const holds = selectionLevel === level.levelId, also = !holds && contextLevels.has(level.levelId);
-            const rooms = level.occurrenceIds.filter(key => model.selectable.has(key)).length;
-            const hasPlan = model.plansByLevel.has(level.levelId);
+            const here = currentAnchor === level.levelId;
+            const members = displayLevelIds(model, level.levelId);
+            const drawn = !here && state.levelId === null && shownLevel !== null && members.includes(shownLevel);
+            const holds = selectionLevel !== null && members.includes(selectionLevel), also = !holds && members.some(id => contextLevels.has(id));
+            const rooms = members.flatMap(id => model.levelsById.get(id)!.occurrenceIds).filter(key => model.selectable.has(key)).length;
+            const hasPlan = members.some(id => model.plansByLevel.has(id));
             // Spacing above this floor: its height difference to the floor listed before it.
             return <li key={level.levelId} style={at > 0 ? { '--rung-gap': `${gaps[at - 1]}px` } as CSSProperties : undefined}>
               <button type="button" className={`ua-rung ua-stack-row${here ? ' is-current' : drawn ? ' is-shown' : ''}`} aria-pressed={here}
                 title={level.elevationBasis ?? undefined}
-                aria-label={`${atlasLevelName(model, level.levelId)}: ${plural(rooms, 'room')}${hasPlan ? '' : ', no plan'}${drawn ? ', plan shown' : ''}${holds ? ', has the selected room' : also ? ', has another part of the selected room' : ''}`}
+                aria-label={`${(displayLevelLabel(model, level.levelId) ?? atlasLevelName(model, level.levelId))}: ${plural(rooms, 'room')}${hasPlan ? '' : ', no plan'}${drawn ? ', plan shown' : ''}${holds ? ', has the selected room' : also ? ', has another part of the selected room' : ''}`}
                 onClick={() => pick(level.levelId)}>
                 <span className="ua-rung-tick" aria-hidden="true">{marks.get(level.levelId)}</span>
-                <span className="ua-rung-name">{atlasLevelName(model, level.levelId)}</span>
+                <span className="ua-rung-name">{(displayLevelLabel(model, level.levelId) ?? atlasLevelName(model, level.levelId))}</span>
                 <span className="ua-rung-sub">{rooms.toLocaleString()}{hasPlan ? '' : ' · no plan'}</span>
                 {(holds || also) && <span className={`ua-rung-mark${also ? ' is-context' : ''}`} aria-hidden="true" />}
               </button>
             </li>;
           })}
         </ol>}
+        {state.view === 'plan' && state.levelId !== null && activeLevels.size > 1 && <div role="group" aria-label="Plan level">
+          {[...activeLevels].map(levelId => <button key={levelId} type="button" className="ua-rung ua-stack-row"
+            aria-pressed={state.levelId === levelId} onClick={() => dispatch({ type: 'level', levelId })}>
+            <span className="ua-rung-tick" aria-hidden="true">{memberMarks.get(levelId)}</span>
+            <span className="ua-rung-name">{atlasLevelName(model, levelId)}</span>
+          </button>)}
+        </div>}
         {canExplode && <button type="button" className="ua-rung ua-stack-row ua-stack-spread" aria-pressed={state.exploded}
           onClick={() => dispatch({ type: 'explode', exploded: !state.exploded })}>
           <span className="ua-rung-tick" aria-hidden="true"><Icon name="explode" size={17} /></span>

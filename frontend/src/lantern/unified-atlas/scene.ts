@@ -5,7 +5,7 @@ import type { StandardGlb } from '../canonical-ifc/standard-glb';
 import {
   AtlasReadError, type AtlasBuilding, type AtlasCoverage, type AtlasExclusion, type AtlasGeographic, type AtlasLevel, type AtlasMeshBinding, type AtlasOccurrence,
   type AtlasOverlayBinding, type AtlasPlan, type AtlasPlanFeature, type AtlasPolygon, type AtlasRoom, type AtlasScene, type Box, type MeasuredEdge, type MeshRole, type OccurrenceMeasurements,
-  type OverlayAnchor, type OverlayKind, type PlanRole, type Vec3,
+  type OverlayAnchor, type OverlayKind, type PlanRole, type Vec3, type AtlasDisplayConfig, type AtlasDisplayGroup, type AtlasDisplayMembership,
 } from './types';
 
 /** Admission and presentation for one unified Atlas scene.
@@ -380,6 +380,8 @@ function admitCoverage(value: unknown, occurrences: ReadonlyMap<string, AtlasOcc
 // Binding to the pinned GLB
 
 export interface AtlasPart {
+  /** Equal semantic clip rules share one track, stable across Light/Full. */
+  readonly sectionKey: string;
   readonly mesh: PreparedMesh;
   readonly role: MeshRole;
   readonly buildingId: string;
@@ -412,6 +414,9 @@ export interface OverlayLayerIndex {
 }
 export interface AtlasModel {
   readonly scene: AtlasScene;
+  readonly displayConfig: AtlasDisplayConfig | null;
+  readonly displayGroups: ReadonlyMap<string, AtlasDisplayGroup>;
+  readonly displayMemberships: ReadonlyMap<string, AtlasDisplayMembership>;
   readonly parts: readonly AtlasPart[];
   readonly meshes: readonly PreparedMesh[];
   readonly buildingsById: ReadonlyMap<string, AtlasBuilding>;
@@ -445,9 +450,69 @@ export interface AtlasModel {
 const median = (values: readonly number[]) => { const sorted = [...values].sort((a, b) => a - b); return sorted.length ? sorted[Math.floor(sorted.length / 2)]! : 0; };
 const ringRings = (feature: AtlasPlanFeature): readonly PlanRing[] => feature.polygons.flatMap(polygon => [polygon.outer, ...polygon.holes]);
 
+/** Admit only explicit, same-building memberships for the exact publication.
+ * Unmatched policies cannot follow a replacement publication by name/index. */
+export function admitAtlasDisplay(scene: AtlasScene, value: unknown): AtlasDisplayConfig | null {
+  if (value === undefined || value === null) return null;
+  budget(utf8Bytes(value) <= 32 * 1024);
+  const config = row(value, ['profile', 'publicationId', 'semanticsSha256', 'groups', 'memberships']);
+  need(config.profile === 'houseatlas.atlas-display.v1');
+  const publicationId = id(config.publicationId), semanticsSha256 = sha(config.semanticsSha256);
+  if (publicationId !== scene.publication.publicationId || semanticsSha256 !== scene.publication.semanticsSha256) return null;
+  const levels = new Map(scene.levels.map(level => [level.levelId, level]));
+  const claimed = new Set<string>();
+  const groups = list(config.groups, ATLAS_LIMITS.levels).map(item => {
+    const group = row(item, ['levelIds', 'label']), levelIds = ids(group.levelIds, ATLAS_LIMITS.levels);
+    need(levelIds.length >= 2);
+    const building = levels.get(levelIds[0]!)?.buildingId;
+    need(building !== undefined);
+    for (const levelId of levelIds) { need(levels.get(levelId)?.buildingId === building && !claimed.has(levelId)); claimed.add(levelId); }
+    return { levelIds, label: text(group.label, 128) };
+  });
+  const selectors = new Set<string>();
+  const memberships = list(config.memberships, ATLAS_LIMITS.drawnPrimitives).map(item => {
+    const member = row(item, ['nodeIndex', 'meshIndex', 'primitiveIndex', 'levelIds', 'cutaway']);
+    const nodeIndex = integer(member.nodeIndex, 0, 1_000_000), meshIndex = integer(member.meshIndex, 0, 1_000_000), primitiveIndex = integer(member.primitiveIndex, 0, 1_000_000);
+    const key = `${nodeIndex}/${meshIndex}/${primitiveIndex}`;
+    need(!selectors.has(key)); selectors.add(key);
+    const binding = scene.meshBindings.find(binding => binding.nodeIndex === nodeIndex && binding.meshIndex === meshIndex && binding.primitiveIndices.includes(primitiveIndex));
+    need(binding !== undefined && (binding.role === 'structure' || binding.role === 'slab'));
+    const levelIds = ids(member.levelIds, ATLAS_LIMITS.levels);
+    need(levelIds.length > 0 && levelIds.every(levelId => levels.get(levelId)?.buildingId === binding.buildingId));
+    need(member.cutaway === 'level' || member.cutaway === 'preserve');
+    return { nodeIndex, meshIndex, primitiveIndex, levelIds, cutaway: member.cutaway } as AtlasDisplayMembership;
+  });
+  return { profile: 'houseatlas.atlas-display.v1', publicationId, semanticsSha256, groups, memberships };
+}
+
+/** The group's anchor is a real level, never a replacement semantic identity. */
+export const displayLevelIds = (model: AtlasModel, levelId: string | null): readonly string[] =>
+  levelId === null ? [] : model.displayGroups.get(levelId)?.levelIds ?? [levelId];
+export const displayLevelAnchor = (model: AtlasModel, levelId: string): string => displayLevelIds(model, levelId)[0]!;
+export const displayLevelLabel = (model: AtlasModel, levelId: string): string | null => model.displayGroups.get(levelId)?.label ?? null;
+/** Exactly the scopes where presentation uses an explicit primitive membership. */
+function activeDisplayMembership(model: AtlasModel, part: AtlasPart, state: AtlasViewState): AtlasDisplayMembership | null {
+  if (state.view !== '3d' || state.levelId === null || model.levelsById.get(state.levelId)?.buildingId !== part.buildingId
+    || (state.exploded && hasExplodableLevels(model, part.buildingId))) return null;
+  return model.displayMemberships.get(part.mesh.meshKey) ?? null;
+}
+
+/** Ordinary labels cover every selected member, but keep lower context quiet. */
+export const plainLabelInFocus = (model: AtlasModel, presentation: AtlasPresentation, occurrenceId: string): boolean =>
+  presentation.focusLevelId === null || presentation.focusLevels.has(model.occurrencesById.get(occurrenceId)!.levelId);
+
+export function displayLevels(model: AtlasModel, levels: readonly AtlasLevel[]): readonly AtlasLevel[] {
+  return levels.filter(level => displayLevelAnchor(model, level.levelId) === level.levelId);
+}
+
 /** Matches every declared selector to exactly one actual loader primitive and
  * every loader primitive to exactly one declaration. */
-export function bindAtlasModel(scene: AtlasScene, glb: Pick<StandardGlb, 'drawn' | 'meshes'>): AtlasModel {
+export function bindAtlasModel(scene: AtlasScene, glb: Pick<StandardGlb, 'drawn' | 'meshes'>, display?: unknown): AtlasModel {
+  const displayConfig = admitAtlasDisplay(scene, display);
+  const displayGroups = new Map<string, AtlasDisplayGroup>();
+  for (const group of displayConfig?.groups ?? []) for (const levelId of group.levelIds) displayGroups.set(levelId, group);
+  const displayMemberships = new Map<string, AtlasDisplayMembership>();
+  const membershipBySelector = new Map((displayConfig?.memberships ?? []).map(item => [`${item.nodeIndex}/${item.meshIndex}/${item.primitiveIndex}`, item]));
   need(glb.drawn.length === glb.meshes.length);
   const drawnAt = new Map<string, number>();
   glb.drawn.forEach((drawn, at) => {
@@ -464,7 +529,10 @@ export function bindAtlasModel(scene: AtlasScene, glb: Pick<StandardGlb, 'drawn'
     const occurrenceId = binding.role === 'room-pick' ? binding.spaceOccurrenceId : null;
     const levelId = binding.levelIds.length === 1 ? binding.levelIds[0]! : null;
     const source = glb.meshes[at]!;
-    claimed[at] = { mesh: { ...source, floorId: levelId, occurrenceId }, role: binding.role, buildingId: binding.buildingId,
+    const membership = membershipBySelector.get(`${binding.nodeIndex}/${binding.meshIndex}/${primitive}`);
+    if (membership) displayMemberships.set(source.meshKey, membership);
+    const sectionKey = displayConfig === null ? '' : `p:${JSON.stringify([binding.buildingId, binding.role, binding.levelIds, membership?.levelIds ?? null, membership?.cutaway ?? null])}`;
+    claimed[at] = { sectionKey, mesh: { ...source, floorId: levelId, occurrenceId }, role: binding.role, buildingId: binding.buildingId,
       levelIds: binding.levelIds, levelId, occurrenceId };
   }
   // Explicit building and level membership for every drawn primitive.
@@ -524,7 +592,7 @@ export function bindAtlasModel(scene: AtlasScene, glb: Pick<StandardGlb, 'drawn'
   else need(selectable.size === scene.coverage.selectableCount);
   const work = { remaining: LABEL_WORK }, labels = new Map<string, LabelAnchor>();
   for (const key of selectable) { const point = labelPoint(shapes.get(key)!, work); if (point) labels.set(key, point); }
-  return { scene, parts, meshes: parts.map(part => part.mesh), buildingsById, levelsById, roomsById, occurrencesById, levelsByBuilding,
+  return { scene, displayConfig, displayGroups, displayMemberships, parts, meshes: parts.map(part => part.mesh), buildingsById, levelsById, roomsById, occurrencesById, levelsByBuilding,
     floorBuildings, defaultBuildingId, levelIndex, floorY, spread, plansByLevel, featureRings, shapes, roomPolygons, labels, selectable, pickParts, overlays: joinOverlays(scene, roomsById, occurrencesById, selectable) };
 }
 
@@ -715,7 +783,8 @@ export function atlasReducer(model: AtlasModel, state: AtlasViewState, action: A
       const level = model.levelsById.get(action.levelId);
       if (!level) return state;
       // The current floor again leaves its room for the floor itself.
-      if (state.levelId === level.levelId && state.buildingId === level.buildingId)
+      if (state.buildingId === level.buildingId && (state.levelId === level.levelId
+        || (state.view === '3d' && !state.exploded && state.levelId !== null && displayLevelAnchor(model, state.levelId) === displayLevelAnchor(model, level.levelId))))
         return state.occurrenceId === null ? state : { ...state, occurrenceId: null };
       return { ...state, buildingId: level.buildingId, levelId: level.levelId,
         occurrenceId: selected?.levelId === level.levelId ? state.occurrenceId : null };
@@ -771,6 +840,8 @@ export interface AtlasPresentation {
   /** Building glazing currently drawn transparent; highlighted panes stay solid. */
   readonly transparent: ReadonlySet<string>;
   readonly focusLevelId: string | null;
+  /** Selected display membership; Plan always has at most one member. */
+  readonly focusLevels: ReadonlySet<string>;
   /** Floors drawn as plans: the focus floor, or each building's lowest planned floor for the property. */
   readonly planLevels: readonly string[];
   /** Faded cutaway in normal (unexploded) 3D: null fades a whole hidden part,
@@ -790,10 +861,12 @@ export function presentAtlas(model: AtlasModel, state: AtlasViewState, highlight
   const focusLevelId = plan ? (state.buildingId === null ? null : planLevelId(model, state)) : state.levelId;
   const planLevels = !plan ? [] : focusLevelId !== null ? [focusLevelId] : sitePlanLevels(model);
   const planned = new Set(planLevels);
+  const focusLevels = new Set(focusLevelId === null ? [] : plan ? [focusLevelId] : displayLevelIds(model, focusLevelId));
+  const topFocus = highestLevel(model, [...focusLevels]);
   const exploded = state.exploded && !plan && hasExplodableLevels(model, state.buildingId);
   const offsets = new Map<string, number>();
   for (const [buildingId, levels] of model.levelsByBuilding) levels.forEach((level, at) => offsets.set(level.levelId, at * model.spread.get(buildingId)!));
-  const focusIndex = focusLevelId === null ? null : model.levelIndex.get(focusLevelId)!;
+  const focusIndex = topFocus === null ? null : model.levelIndex.get(topFocus)!;
   const focusBuilding = focusLevelId === null ? state.buildingId : model.levelsById.get(focusLevelId)!.buildingId;
   const visibleLevels = new Set<string>();
   for (const level of model.scene.levels) {
@@ -822,13 +895,23 @@ export function presentAtlas(model: AtlasModel, state: AtlasViewState, highlight
       clip = shown === undefined ? null : sectionOf(model, shown);
     } else if (part.levelId !== null) {
       visible = visibleLevels.has(part.levelId);
-      clip = partExploded ? sectionOf(model, part.levelId) : focusLevelId !== null ? sectionOf(model, focusLevelId) : null;
-      dim = focusLevelId !== null && part.levelId !== focusLevelId ? .5 : 0;
+      clip = partExploded ? sectionOf(model, part.levelId) : topFocus !== null
+        ? sectionOf(model, focusLevels.has(part.levelId) ? part.levelId : topFocus) : null;
+      dim = focusLevelId !== null && !focusLevels.has(part.levelId) ? .5 : 0;
     } else {
       // Shared or level-free geometry stays at its source position.
       visible = focusIndex === null || partExploded || members.length === 0 || Math.min(...members) <= focusIndex;
-      clip = partExploded ? (highest ? sectionOf(model, highest) : null) : focusLevelId !== null ? sectionOf(model, focusLevelId) : null;
+      const sharedFocus = highestLevel(model, part.levelIds.filter(levelId => focusLevels.has(levelId)));
+      clip = partExploded ? (highest ? sectionOf(model, highest) : null) : topFocus !== null ? sectionOf(model, sharedFocus ?? topFocus) : null;
       dim = partExploded ? .4 : focusLevelId !== null ? .3 : 0;
+    }
+    // Display association is separate from the immutable containment tags.
+    const membership = activeDisplayMembership(model, part, state);
+    if (membership) {
+      const matched = membership.levelIds.filter(levelId => focusLevels.has(levelId));
+      visible = matched.length > 0;
+      clip = membership.cutaway === 'preserve' ? null : matched.length ? sectionOf(model, highestLevel(model, matched)!) : null;
+      dim = 0;
     }
     if (part.role === 'room-pick' && (part.occurrenceId === null || !highlighted.has(part.occurrenceId))) visible = false;
     if (!visible) hidden.add(key);
@@ -841,7 +924,7 @@ export function presentAtlas(model: AtlasModel, state: AtlasViewState, highlight
   for (const key of model.selectable) {
     const occurrence = model.occurrencesById.get(key)!;
     if (exploded ? visibleLevels.has(occurrence.levelId) && (state.buildingId === null || occurrence.buildingId === state.buildingId)
-      : focusLevelId !== null && occurrence.levelId === focusLevelId) pickable.add(key);
+      : focusLevels.has(occurrence.levelId)) pickable.add(key);
   }
   // Normal cutaway keeps every floor in its source position and fades the
   // roof and the floors above the focus instead of separating them.
@@ -852,7 +935,7 @@ export function presentAtlas(model: AtlasModel, state: AtlasViewState, highlight
     if (hidden.has(key)) ghosts.set(key, null);
     else if (clip !== null && clip < part.mesh.yRange[1]) ghosts.set(key, clip);
   }
-  return { offsets, explodeTarget: exploded ? 1 : 0, visibleLevels, hidden, clips, dims, pickable, transparent, focusLevelId, planLevels, ghosts };
+  return { offsets, explodeTarget: exploded ? 1 : 0, visibleLevels, hidden, clips, dims, pickable, transparent, focusLevelId, focusLevels, planLevels, ghosts };
 }
 
 // ---------------------------------------------------------------------------
@@ -874,7 +957,7 @@ export function sectionCeilings(model: AtlasModel): readonly number[] {
 /** Height each section plane settles at: the focus floor's section when that
  * building is stacked or in plan, else its ceiling. */
 export function sectionTargets(model: AtlasModel, presentation: AtlasPresentation, ceilings: readonly number[]): readonly number[] {
-  const focus = presentation.focusLevelId;
+  const focus = highestLevel(model, [...presentation.focusLevels]);
   const focusBuilding = focus === null ? null : model.levelsById.get(focus)!.buildingId;
   return model.floorBuildings.map((building, at) => building.buildingId === focusBuilding && presentation.explodeTarget === 0
     ? Math.min(ceilings[at]!, sectionOf(model, focus!)) : ceilings[at]!);
@@ -893,8 +976,30 @@ export function atlasOrigin(model: AtlasModel): Vec3 {
 
 /** Section heights as easing goals, relative to the datum height. A 3 m move
  * near source Y = 100 000 m must ease like the same move near 0 m. */
-export const sectionGoals = (targets: readonly number[], datum: number): Record<string, number> =>
-  Object.fromEntries(targets.map((target, at) => [`s${at}`, target - datum]));
+export const sectionGoals = (targets: readonly number[], datum: number, parts: Readonly<Record<string, number>> = {}): Record<string, number> =>
+  Object.fromEntries([...targets.map((target, at) => [`s${at}`, target - datum]), ...Object.entries(parts).map(([key, target]) => [key, target - datum])]);
+
+/** Local section goals share the existing easing owner. Equal clip rules use
+ * one stable track; each part retains its actual current height on retarget,
+ * including group -> All floors and reversals below a new target height.
+ * Explosion still owns its separate source-relative wipe. */
+export function partSectionTargets(model: AtlasModel, presentation: AtlasPresentation, targets: readonly number[], ceilings: readonly number[]): Readonly<Record<string, number>> {
+  if (model.displayConfig === null) return {};
+  const index = new Map(model.floorBuildings.map((building, at) => [building.buildingId, at]));
+  return Object.fromEntries(model.parts.filter(part => part.role !== 'context').map(part => {
+    const at = index.get(part.buildingId);
+    const ceiling = at === undefined ? part.mesh.yRange[1] : ceilings[at]!;
+    const fallback = at === undefined ? ceiling : targets[at]!;
+    const goal = presentation.explodeTarget === 1 ? ceiling : presentation.clips.get(part.mesh.meshKey)
+      ?? (presentation.hidden.has(part.mesh.meshKey) ? fallback : ceiling);
+    return [part.sectionKey, Math.min(ceiling, goal)];
+  }));
+}
+
+export const partSectionCuts = (eased: Readonly<Record<string, number>>, targets: Readonly<Record<string, number>>, datum: number): Readonly<Record<string, number>> =>
+  Object.fromEntries(Object.entries(targets).map(([key, target]) => {
+    const value = eased[key]!; return [key, value === target - datum ? target : value + datum];
+  }));
 
 /** Eased goals back in source Y. A settled goal returns its exact target, so
  * settled and reduced-motion presentations are the target presentation. */
@@ -911,10 +1016,12 @@ export const sectionCuts = (eased: Readonly<Record<string, number>>, targets: re
  * picker applies; drawing, picking, labels and markers all use the result, so
  * no room control stands where its floor is not yet revealed. */
 export function easePresentation(model: AtlasModel, presentation: AtlasPresentation, t: number,
-  cuts: readonly number[], targets: readonly number[], ceilings: readonly number[]): AtlasPresentation {
+  cuts: readonly number[], targets: readonly number[], ceilings: readonly number[],
+  parts?: { readonly cuts: Readonly<Record<string, number>>; readonly targets: Readonly<Record<string, number>> }): AtlasPresentation {
   const exploding = t !== presentation.explodeTarget;
   const cutting = cuts.map((cut, at) => cut !== targets[at]);
-  if (!exploding && !cutting.some(Boolean)) return presentation;
+  const movingParts = new Set(parts ? Object.keys(parts.targets).filter(key => parts.cuts[key] !== parts.targets[key]) : []);
+  if (!exploding && !cutting.some(Boolean) && movingParts.size === 0) return presentation;
   const plan = presentation.planLevels.length > 0;
   const index = new Map(model.floorBuildings.map((building, at) => [building.buildingId, at]));
   const explodable = new Map<string, boolean>();
@@ -926,7 +1033,10 @@ export function easePresentation(model: AtlasModel, presentation: AtlasPresentat
       clips.set(key, presentation.clips.get(key) ?? null); continue;
     }
     const at = index.get(part.buildingId);
-    const cut = at === undefined || cuts[at]! >= ceilings[at]! - 1e-3 ? null : cuts[at]!;
+    const height = parts?.cuts[part.sectionKey] ?? (at === undefined ? part.mesh.yRange[1] : cuts[at]!);
+    const ceiling = at === undefined ? part.mesh.yRange[1] : ceilings[at]!;
+    const cut = height >= ceiling - 1e-3 ? null : height;
+    const partMoving = movingParts.has(part.sectionKey);
     if (!explodable.has(part.buildingId)) explodable.set(part.buildingId, hasExplodableLevels(model, part.buildingId));
     let wipe: number | null = null;
     if (t > 1e-3 && explodable.get(part.buildingId)) {
@@ -940,12 +1050,12 @@ export function easePresentation(model: AtlasModel, presentation: AtlasPresentat
     const clip = cut === null ? wipe : wipe === null ? cut : Math.min(cut, wipe);
     let visible = !was;
     // Room picks keep their target visibility; only their section moves.
-    if (was && part.role !== 'room-pick' && ((at !== undefined && cutting[at]) || (exploding && part.role === 'roof')))
+    if (was && part.role !== 'room-pick' && ((at !== undefined && cutting[at]) || partMoving || (exploding && part.role === 'roof')))
       visible = clip === null || part.mesh.yRange[0] < clip;
     if (!visible) hidden.add(key);
     clips.set(key, clip);
     // A moving section fades what it cuts away; the explosion wipe does not.
-    if (wipe === null && !plan && GHOST_ROLES.has(part.role) && at !== undefined && (cutting[at] || presentation.ghosts.has(key))) {
+    if (wipe === null && !plan && GHOST_ROLES.has(part.role) && at !== undefined && (cutting[at] || partMoving || presentation.ghosts.has(key))) {
       if (!visible) ghosts.set(key, null);
       else if (clip !== null && clip < part.mesh.yRange[1]) ghosts.set(key, clip);
     }
@@ -1016,7 +1126,8 @@ export function frameBox(model: AtlasModel, state: AtlasViewState, presentation:
         || (part.role === 'room-pick' && part.levelIds.some(levelId => presentation.visibleLevels.has(levelId)));
       if (part.role === 'context' || !shown) continue;
       if (buildingId !== null && part.buildingId !== buildingId) continue;
-      if (t === 0 && focus !== null && part.levelId !== focus && !(part.levelId === null && part.levelIds.includes(focus))) continue;
+      const displayMembers = model.displayMemberships.get(part.mesh.meshKey)?.levelIds ?? part.levelIds;
+      if (t === 0 && focus !== null && !displayMembers.some(levelId => presentation.focusLevels.has(levelId))) continue;
       const lift = levelLift(presentation, part.levelId, t), b = part.mesh.bounds;
       const top = Math.min(b.max[1], presentation.clips.get(part.mesh.meshKey) ?? Infinity);
       add(b.min[0], b.min[1] + lift, b.min[2]); add(b.max[0], Math.max(b.min[1], top) + lift, b.max[2]);
@@ -1182,7 +1293,9 @@ export function pickTarget(model: AtlasModel, presentation: AtlasPresentation, s
   if (room && (!surface || ownFloor || room.depth >= surface.hit.depth - PICK_DEPTH_TOLERANCE))
     return { kind: 'room', occurrenceId: room.occurrenceId };
   if (!surface) return null;
-  const buildingId = surface.part.buildingId, levelId = surfaceLevel(model, surface.part.levelIds, surface.hit.y);
+  const buildingId = surface.part.buildingId;
+  const members = activeDisplayMembership(model, surface.part, state)?.levelIds ?? surface.part.levelIds;
+  const levelId = surfaceLevel(model, members, surface.hit.y);
   const deep = buildingId === state.buildingId;
   return deep && levelId !== null ? { kind: 'level', levelId } : { kind: 'building', buildingId };
 }
