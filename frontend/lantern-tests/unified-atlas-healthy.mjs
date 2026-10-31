@@ -442,6 +442,10 @@ const model = bindAtlasModel(read.scene, loaded);
   assert.deepEqual(presentAtlas(grouped, otherPlan, new Set()).planLevels, ['syn-level-split']);
   const back = atlasReducer(grouped, otherPlan, { type: 'view', view: '3d' });
   assert.deepEqual([...presentAtlas(grouped, back, new Set()).focusLevels], ['syn-level-split', 'syn-level-upper']);
+  const explodedChoice = atlasReducer(grouped, { ...base, exploded: true }, { type: 'level', levelId: 'syn-level-upper' });
+  assert.equal(explodedChoice.levelId, 'syn-level-upper', 'Exploded surface navigation retains the exact authored member');
+  const explodedPlan = atlasReducer(grouped, explodedChoice, { type: 'view', view: 'plan' });
+  assert.deepEqual(presentAtlas(grouped, explodedPlan, new Set()).planLevels, ['syn-level-upper'], 'returning to Plan retains that authored member');
   assert.equal(scene.admitAtlasDisplay(read.scene, { ...policy, semanticsSha256: '0'.repeat(64) }), null, 'no retargeting after publication changes');
   assert.throws(() => scene.admitAtlasDisplay(read.scene, { ...policy, groups: [...policy.groups, ...policy.groups] }),
     'overlapping groups cannot assign ambiguous navigation');

@@ -784,7 +784,7 @@ export function atlasReducer(model: AtlasModel, state: AtlasViewState, action: A
       if (!level) return state;
       // The current floor again leaves its room for the floor itself.
       if (state.buildingId === level.buildingId && (state.levelId === level.levelId
-        || (state.view === '3d' && state.levelId !== null && displayLevelAnchor(model, state.levelId) === displayLevelAnchor(model, level.levelId))))
+        || (state.view === '3d' && !state.exploded && state.levelId !== null && displayLevelAnchor(model, state.levelId) === displayLevelAnchor(model, level.levelId))))
         return state.occurrenceId === null ? state : { ...state, occurrenceId: null };
       return { ...state, buildingId: level.buildingId, levelId: level.levelId,
         occurrenceId: selected?.levelId === level.levelId ? state.occurrenceId : null };
