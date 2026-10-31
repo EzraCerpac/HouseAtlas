@@ -20,12 +20,36 @@ before reaching React. Token counts must be exactly representable nonnegative
 JavaScript integers or null. Arbitrary tool JSON uses the existing JavaScript
 number model; full numeric fidelity remains unqualified.
 
-`AiHost` keeps one shared `useAiSession` above page navigation.
-`AiSettingsSection` renders `AiPanelView` in the existing Settings list.
+`AiHost` keeps a small availability/currentness facade above page navigation.
+The first mounted `AiSettingsSection` (Ask or Settings) loads `AiSessionOwner`
+and `AiPanelView`. The single session owner then stays mounted above navigation,
+including while every panel is closed; prompt, review, request and cancellation
+reconciliation state do not reset when a panel reopens. Loading is remembered for
+the host lifetime, so subsequent authorized-scope changes use the original keyed
+hook lifecycle. Losing the authorized binding still removes the owner immediately.
+Snapshots from another client, full scope or receipt identity never render.
+Fresh context objects for the same binding retain the panel and use the current
+scope label and model-render identity.
+
+`AiSettingsSection` renders the original `AiPanelView` and account section in the
+existing Settings list. Suspense is local to the AI owner/view; application
+children remain mounted while its chunk loads. The shared `LazyPlaceEditor`
+likewise loads the unchanged editor only for an eligible detail, retaining the
+original target keys and props in both native and Lantern consumers. Atlas,
+outbox and sync remain eager. These boundaries add no inference, account action,
+service activation or capability.
 `AiActivityStatus` displays a factual pending/result notice and Settings link
 on other pages. Canonical output, typed errors, recorded operation IDs, usage,
 review previews and original-ID reconciliation use the shared AI module.
 Inference eligibility and paid-use policy are not reimplemented here.
+
+References #417. This source-only split follows the schema integration in #494;
+baseline main `9afe87ac508f6397f1d2bcc14666185948df6506`, read 29 October 2026.
+Existing hosted CI must supply candidate raw/gzip launch measurements and
+offline/healthy outcomes. No local build, test, typecheck or compilation was run,
+and no test registration, harness, workflow or size budget was changed. Source,
+CI, merge and deferred device/visual acceptance remain separate; Claude retains
+CI/conflict repair and merge ownership.
 
 After cancellation of an idle review returns a matching `confirmed` receipt,
 the host composition performs one original-request status lookup through the
