@@ -6419,7 +6419,7 @@
       "path": "docs/contributing/verification.md",
       "mode": "100644",
       "bytes": 200833,
-      "sha256": "003733e276a371b2a4569faf27adbc5119d3e5d4bdf6853c444cba6dc71ce271",
+      "sha256": "b3dd08e7804c4a629a7f8da3547ba261a8adf1ae2084cd24af877af9cbd93211",
       "owner": "core-integration"
     },
     {
@@ -11585,7 +11585,7 @@
       "path": "tools/ci/lanes.json",
       "mode": "100644",
       "bytes": 53858,
-      "sha256": "24a897404e0bac97d18d7e3ee91efbb396efc489b513829b1fd2cdacdad5da74",
+      "sha256": "b87b16206449e18f8c165f34bb7ff9904fac0bcd62531f60dd1543d27e0fb79a",
       "owner": "core-integration"
     },
     {
