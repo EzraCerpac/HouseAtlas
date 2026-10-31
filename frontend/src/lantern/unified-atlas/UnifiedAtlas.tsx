@@ -16,8 +16,8 @@ import { PREPARED_BYTES_PER_TRIANGLE } from '../site-artifacts/site-budget';
 import { createLiveAtlasPresentationPort, savedAtlasInitialState } from '../../offline/saved-atlas-presentation';
 import type { AtlasPresentationPort, AtlasPresentationSelection } from './types';
 import {
-  atlasOrigin, atlasReducer, atlasSurroundings, bindAtlasModel, contextOccurrenceIds, easePresentation, frameBox, hasExplodableLevels, initialAtlasState, isAtlasGlazing, labelHeight,
-  levelLift, occurrenceLiftLevel, partLifts, pickTarget, planFeaturesForLevel, planPickTarget, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
+  admitAtlasDisplayForRead, atlasOrigin, atlasReducer, atlasSurroundings, bindAtlasModel, displayLevelAnchor, displayLevelLabel, contextOccurrenceIds, easePresentation, frameBox, hasExplodableLevels, initialAtlasState, isAtlasGlazing, labelHeight,
+  levelLift, occurrenceLiftLevel, partLifts, partSectionTargets, partSectionCuts, pickTarget, plainLabelInFocus, planFeaturesForLevel, planPickTarget, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
   targetAction, type AtlasAction, type AtlasLayer, type AtlasModel, type AtlasViewState, type OverlayLayerIndex,
 } from './scene';
 import { AtlasReadError, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
@@ -81,6 +81,8 @@ const memoryKey = (model: AtlasModel, overview: AtlasPresentationSelection) => {
   let owner = overviewOwners.get(identity);
   if (owner === undefined) { owner = ++nextOverviewOwner; overviewOwners.set(identity, owner); }
   const { scope, publication, selection } = model.scene;
+  // Display policy only groups existing identities; changing it must not
+  // remount this same admitted source and discard the selected room/floor.
   return `${owner}/${overview.kind === 'live' ? overview.overview.manifestSha256 : `${overview.localRevision}/${overview.snapshotId}/${overview.overviewManifestSha256}`}/${scope.workspaceId}/${scope.homeId}/${publication.publicationId}/${publication.semanticsSha256}/${selection.revision}`;
 };
 function remember(key: string, state: AtlasViewState) {
@@ -165,7 +167,19 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
   useEffect(() => {
     if (!selection) return;
     const controller = new AbortController(), signal = controller.signal;
+    // Legacy optional host fallback. Protected read metadata takes precedence,
+    // including explicit null. No private values need enter the static index.
+    const displayElement = document.getElementById('houseatlas-atlas-display');
+    const displayText = displayElement instanceof HTMLScriptElement && displayElement.type === 'application/json' ? displayElement.textContent : null;
+    let hostDisplayConfig: unknown;
+    try {
+      if (displayText !== null) {
+        if (new TextEncoder().encode(displayText).byteLength > 32 * 1024) throw new Error('Display policy too large');
+        hostDisplayConfig = JSON.parse(displayText);
+      }
+    } catch { hostDisplayConfig = {}; } // Matching malformed host configuration refuses rather than guesses.
     const bind = async (read: UnifiedAtlasRead) => {
+      const policy = admitAtlasDisplayForRead(read, hostDisplayConfig);
       const { loadStandardGlb } = await import('../canonical-ifc/standard-glb');
       signal.throwIfAborted();
       // Prepared geometry is reserved from the preflight counts before the loader allocates.
@@ -173,7 +187,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
         if ((admission.work.gpuBytes ?? admission.work.triangles * PREPARED_BYTES_PER_TRIANGLE) > RENDER_LIMITS.uploadBytes) throw new AtlasReadError('too-large');
       }, { embeddedPngMaterials: true });
       signal.throwIfAborted();
-      return bindAtlasModel(read.scene, glb);
+      return bindAtlasModel(read.scene, glb, policy);
     };
     // Stale while revalidate: this device's last verified copy of the same
     // publication and manifest shows at once; the fresh read still decides.
@@ -213,7 +227,8 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
         signal.throwIfAborted();
         // The same scene and model bytes confirm the copy on screen in place.
         const same = shown && read.envelopeSha256 !== undefined && read.envelopeSha256 === shown.read.envelopeSha256
-          && read.scene.model.sha256 === shown.read.scene.model.sha256 && read.entryBuildingId === shown.read.entryBuildingId;
+          && read.scene.model.sha256 === shown.read.scene.model.sha256 && read.entryBuildingId === shown.read.entryBuildingId
+          && JSON.stringify(shown.model.displayConfig) === JSON.stringify(admitAtlasDisplayForRead(read, hostDisplayConfig));
         outcome = { status: 'ready', model: same ? shown.model : await bind(read), entryBuildingId: read.entryBuildingId };
         storedCopy.current = null;
         refused.current = null;
@@ -256,7 +271,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
           if ((admission.work.gpuBytes ?? admission.work.triangles * PREPARED_BYTES_PER_TRIANGLE) > RENDER_LIMITS.detailUploadBytes) throw new AtlasReadError('too-large');
         }, { embeddedPngMaterials: true, limits: DETAIL_GLB_LIMITS });
         signal.throwIfAborted();
-        const model = bindAtlasModel(light.scene, glb);
+        const model = bindAtlasModel(light.scene, glb, light.displayConfig);
         if (!signal.aborted) setDetail({ light, model, failed: false });
       } catch { if (!signal.aborted) setDetail({ light, model: null, failed: true }); }
     })();
@@ -542,14 +557,16 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
     return { min: [0, 1, 2].map(axis => c[axis]! - s[axis]! / 2), max: [0, 1, 2].map(axis => c[axis]! + s[axis]! / 2) } as unknown as { min: readonly [number, number, number]; max: readonly [number, number, number] };
   }, [eased, origin]);
 
-  // One section plane per building: it sweeps to the focus floor while the
-  // floors above fade, and the same eased clips are drawn, picked and labelled.
+  // Building planes and per-part cuts share one persistent easing owner;
+  // retargeting retains each actual current cut for drawing, picking and labels.
   // Heights ease relative to the model's own datum, wherever the source frame puts it.
   const ceilings = useMemo(() => sectionCeilings(model), [model]);
   const sectionGoal = useMemo(() => sectionTargets(model, presentation, ceilings), [model, presentation, ceilings]);
-  const sectionEased = useEased(sectionGoals(sectionGoal, origin[1]), { reduced, tau: 210 });
+  const partGoals = useMemo(() => partSectionTargets(model, presentation, sectionGoal, ceilings), [model, presentation, sectionGoal, ceilings]);
+  const sectionEased = useEased(sectionGoals(sectionGoal, origin[1], partGoals), { reduced, tau: 210 });
   const cuts = useMemo(() => sectionCuts(sectionEased, sectionGoal, origin[1]), [sectionEased, sectionGoal, origin]);
-  const shown = useMemo(() => easePresentation(model, presentation, t, cuts, sectionGoal, ceilings), [model, presentation, t, cuts, sectionGoal, ceilings]);
+  const partCuts = useMemo(() => partSectionCuts(sectionEased, partGoals, origin[1]), [sectionEased, partGoals, origin]);
+  const shown = useMemo(() => easePresentation(model, presentation, t, cuts, sectionGoal, ceilings, { cuts: partCuts, targets: partGoals }), [model, presentation, t, cuts, sectionGoal, ceilings, partCuts, partGoals]);
 
   const [sheetOpen, setSheetOpen] = useState(false);
   // The collapsed head can wrap at narrow widths or enlarged text sizes.
@@ -715,18 +732,20 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   // A new place is framed whole: zoom and pan return, the chosen orbit stays.
   // Within one place, Plan and 3D each keep the user's own zoom and pan, so a
   // look at the other view and back returns to the same framing.
-  const place = `${state.buildingId}\n${state.levelId}\n${state.exploded}`;
-  const framed = useRef({ place, view: state.view });
-  const viewFraming = useRef(new Map<AtlasViewState['view'], StageFraming>());
+  const placeLevel = state.levelId === null ? null : displayLevelAnchor(model, state.levelId);
+  const place = `${state.buildingId}\n${placeLevel}\n${state.exploded}`;
+  const frameView = plan ? `plan:${state.levelId}` : '3d';
+  const framed = useRef({ place, view: frameView });
+  const viewFraming = useRef(new Map<string, StageFraming>());
   useEffect(() => {
     const left = framed.current;
-    if (left.place === place && left.view === state.view) return;
+    if (left.place === place && left.view === frameView) return;
     if (left.place === place) viewFraming.current.set(left.view, camera.framing); else viewFraming.current.clear();
-    framed.current = { place, view: state.view };
-    const saved = viewFraming.current.get(state.view);
+    framed.current = { place, view: frameView };
+    const saved = viewFraming.current.get(frameView);
     if (saved) camera.restore(saved); else camera.reframe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [place, state.view]);
+  }, [place, frameView]);
 
   // Plans relative to the fixed origin; one translate follows the eased centre.
   // Each drawn floor keeps its own height, so the property plan never stacks floors.
@@ -882,9 +901,9 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
     for (const occurrenceId of live) {
       const at = anchorOf(occurrenceId); if (!at) continue;
       const tier = occurrenceId === selected ? 'selected' : context.includes(occurrenceId) ? 'context' : 'plain';
-      // Plain labels stay on the floor in focus; lower floors seen through the section stay quiet.
+      // Plain labels cover the selected group; lower context stays quiet.
       if (tier === 'plain' && ((!settledPlan && at.clearance * projection.k < 18)
-        || (presentation.focusLevelId !== null && model.occurrencesById.get(occurrenceId)!.levelId !== presentation.focusLevelId))) continue;
+        || !plainLabelInFocus(model, presentation, occurrenceId))) continue;
       const lifted = markerAt.has(occurrenceId) ? 22 : 0;
       const metrics = planTextMetrics.get(occurrenceId), preferredY = at.y - lifted;
       // Ease the extra full-target clearance with Plan, so settlement itself
@@ -1048,14 +1067,14 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   const ladderLevels = ladderBuildingId === null ? [] : model.levelsByBuilding.get(ladderBuildingId) ?? [];
   const building = ladderBuildingId === null ? null : model.buildingsById.get(ladderBuildingId)!;
   const focusLevel = presentation.focusLevelId === null ? null : model.levelsById.get(presentation.focusLevelId)!;
-  const scopeLabel = focusLevel ? atlasLevelName(model, focusLevel.levelId, buildings.length > 1)
+  const scopeLabel = focusLevel ? (!plan ? displayLevelLabel(model, focusLevel.levelId) : null) ?? atlasLevelName(model, focusLevel.levelId, buildings.length > 1)
     : state.buildingId === null && model.scene.buildings.length > 1 ? 'all buildings' : building ? atlasBuildingName(model, building.buildingId) : 'this model';
   const canExplode = !plan && hasExplodableLevels(model, state.buildingId);
   const selectionLevel = selected ? model.occurrencesById.get(selected)!.levelId : null;
   const contextLevels = new Set(context.map(key => model.occurrencesById.get(key)!.levelId));
   // One level out, named for where it leads.
   const buildingName = building ? atlasBuildingName(model, building.buildingId) : null;
-  const backTo = state.occurrenceId !== null ? (state.levelId !== null ? atlasLevelName(model, state.levelId) : buildingName)
+  const backTo = state.occurrenceId !== null ? (state.levelId !== null ? (!plan ? displayLevelLabel(model, state.levelId) : null) ?? atlasLevelName(model, state.levelId) : buildingName)
     : state.levelId !== null ? buildingName
     : state.buildingId !== null ? 'All buildings' : null;
   const buildingNav = model.scene.buildings.length > 1 && buildings.length > 0;

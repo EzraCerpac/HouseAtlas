@@ -34,8 +34,8 @@
     {
       "path": ".github/actions/ordinary-setup/action.yml",
       "mode": "100644",
-      "bytes": 4688,
-      "sha256": "076094847f49403def2e32e816852af00750207796cc2b175243656498285e76",
+      "bytes": 6087,
+      "sha256": "94c55a166bb4493a5e916ed57f1ed91e306ec71d2bc33a45d66b8a2da9e93e2c",
       "owner": "core-integration"
     },
     {
@@ -62,8 +62,8 @@
     {
       "path": ".github/workflows/rust-react-ordinary.yml",
       "mode": "100644",
-      "bytes": 22616,
-      "sha256": "8ee290b15602eeddf527a638d1df2cbd83751b0c8f04f63bef2aa993cb774b60",
+      "bytes": 22540,
+      "sha256": "60449355c50b8ad19b7694ea7db348ad02a64e1d93e205e571e45f86bbd03cb4",
       "owner": "core-integration"
     },
     {
@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 15579,
-      "sha256": "a88905a90dc7d1aea8998df348df600af37bdc445fac10328e2e150091c1c95f",
+      "bytes": 17338,
+      "sha256": "ea0b366b82e094b96cc5e78643415ac26b0168eb1dcebe3c5f706dbacc4c06e4",
       "owner": "core-integration"
     },
     {
@@ -832,8 +832,8 @@
     {
       "path": "backend/src/ai/host/enrollment.rs",
       "mode": "100644",
-      "bytes": 24876,
-      "sha256": "456d79d3a754ff017a2f5f459c730e62c0e6060c58ca949b49c1f785887b5bf4",
+      "bytes": 26293,
+      "sha256": "a9a26ae76fa8486422c095ecdd152ffb53bb191d219324919a60846b0b0c0836",
       "owner": "ai"
     },
     {
@@ -986,8 +986,8 @@
     {
       "path": "backend/src/ai/host/startup/mod.rs",
       "mode": "100644",
-      "bytes": 15713,
-      "sha256": "964752802d2304e240462eff542bdf206365c85eedbf3ec10bc97b9683529a3b",
+      "bytes": 18890,
+      "sha256": "fba1d3ef220e49ed103285c4a34ece02738136ccf4322518485ea8050dbe6aa0",
       "owner": "ai"
     },
     {
@@ -1028,8 +1028,8 @@
     {
       "path": "backend/src/ai/host/status.rs",
       "mode": "100644",
-      "bytes": 46618,
-      "sha256": "1cfdcd7d76b27a54d32b28ce2f0c9af2ecc5bec8a38244904325456069570433",
+      "bytes": 48404,
+      "sha256": "61191d20ccbbd525d44145d3dc8a3d540c622e92c3e981142cba55caa8a5221c",
       "owner": "ai"
     },
     {
@@ -1049,8 +1049,8 @@
     {
       "path": "backend/src/ai/host/trusted_startup.rs",
       "mode": "100644",
-      "bytes": 8768,
-      "sha256": "74ce89274e2f56ccfbdbdf79524870bc629516c3f9275d226708f98fde2b507d",
+      "bytes": 11047,
+      "sha256": "673051e6404b5b70976dd9abbad379a21d3e6a71ac4c9aab340526a917986d0a",
       "owner": "ai"
     },
     {
@@ -1189,8 +1189,8 @@
     {
       "path": "backend/src/app/ai_native_startup.rs",
       "mode": "100644",
-      "bytes": 5674,
-      "sha256": "c89cad6fe19d3983b390a803cf3019968ad4d90cfa2eff2ecedcc4fc2adfe545",
+      "bytes": 5721,
+      "sha256": "6cea12dbf6d5727a808c22f57bb440e7909b2a053aca4f38a24d5cd50f3f6b34",
       "owner": "core-integration"
     },
     {
@@ -1369,6 +1369,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/config/atlas_display_policy.rs",
+      "mode": "100644",
+      "bytes": 12955,
+      "sha256": "431b655f5ad7ecab95977315b09c01dd2e53f023b8c0303614d72a395adc71e0",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/config/atlas_room_links.rs",
       "mode": "100644",
       "bytes": 6879,
@@ -1420,8 +1427,8 @@
     {
       "path": "backend/src/config/mod.rs",
       "mode": "100644",
-      "bytes": 3217,
-      "sha256": "295d6cbd277e4af532fad5d1f6ae5be66d5487694c33fef6a818d48e453592b7",
+      "bytes": 3247,
+      "sha256": "b3029a2818f94f4a6859540b33607cdfb984136e11d733c7d9953d35283c82d3",
       "owner": "core-integration"
     },
     {
@@ -2391,6 +2398,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/http/atlas_display_policy.rs",
+      "mode": "100644",
+      "bytes": 3613,
+      "sha256": "59f05213c4e8ab8cc7ed65f2249488ad8a8208e9ee3102328db95912a37db392",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/http/atlas_room_links.rs",
       "mode": "100644",
       "bytes": 3275,
@@ -2400,8 +2414,8 @@
     {
       "path": "backend/src/http/atlas_scene.rs",
       "mode": "100644",
-      "bytes": 9396,
-      "sha256": "a0bda91b712d974959eaaa3dea744fd4696374af33c344bd11124813e66efe9b",
+      "bytes": 10078,
+      "sha256": "fd1ba36a5ad2eb5efee6687ccd098fccedd668131ccec4c497f496c6fc357e58",
       "owner": "core-integration"
     },
     {
@@ -2498,8 +2512,8 @@
     {
       "path": "backend/src/http/host_config.rs",
       "mode": "100644",
-      "bytes": 18026,
-      "sha256": "97f7213f74e385b2197cbd54b4941575a4e7e080192bb1b0f72470663b9c1d30",
+      "bytes": 19149,
+      "sha256": "ad3e0cc700e751ebfcdb728999fb319088b17b8959e6f3e8e8e9609f30e8232a",
       "owner": "core-integration"
     },
     {
@@ -2526,8 +2540,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 24590,
-      "sha256": "74840e27a7c21d5c864a77be5c152a12ab12247733c591b475aef294e7f319d8",
+      "bytes": 24940,
+      "sha256": "ffe72ad3d3b63188ab1554e1eaf67d197501d8c278dd54387dd97f6f1dd72c79",
       "owner": "core-integration"
     },
     {
@@ -2888,6 +2902,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/lifecycle/ai_host.rs",
+      "mode": "100644",
+      "bytes": 14663,
+      "sha256": "01e109e0f714fbd0e6c49df866744cf6b36b285286c89074f7ec7145266a7d87",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/lifecycle/backup.rs",
       "mode": "100644",
       "bytes": 21249,
@@ -2904,15 +2925,15 @@
     {
       "path": "backend/src/lifecycle/mod.rs",
       "mode": "100644",
-      "bytes": 12571,
-      "sha256": "25676c98519d287a055f6c9b4eca1a4b0f8e6e3133939e4ea1a1468600558417",
+      "bytes": 12588,
+      "sha256": "4b7a90d485ae9aee4fe78cd6bf213cfcdcdd3c18dd495412b8e420fe13a0eaa8",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/lifecycle/persistent.rs",
       "mode": "100644",
-      "bytes": 26734,
-      "sha256": "8ab9d39a6f61e6b32390b32f9937614f075de1fac0b1d0a28e3a64acf4931a14",
+      "bytes": 27721,
+      "sha256": "a2eba1f07802550f7152df850e67df71e2c177b94e7d1bca19b387f69dff78ca",
       "owner": "core-integration"
     },
     {
@@ -3093,8 +3114,8 @@
     {
       "path": "backend/src/main.rs",
       "mode": "100644",
-      "bytes": 26397,
-      "sha256": "426cbf1654e64349dbc6e8d5654eeba4a299b4aa9c003497bcfc518af6961759",
+      "bytes": 27178,
+      "sha256": "764d9d3bf5c3d401f05cd5dbf802cc14f1f2a5dde64fe837f8cf8681bf4173a3",
       "owner": "core-integration"
     },
     {
@@ -5655,8 +5676,8 @@
     {
       "path": "backend/src/transports/mcp/README.md",
       "mode": "100644",
-      "bytes": 14941,
-      "sha256": "d7da37277b1f8106b52e8258d6bd2334e9e7e321bf545ce1339d6dca12bc6562",
+      "bytes": 15627,
+      "sha256": "f134f8c7b8ddc4483e38554ccc761e24e57de8e53806b9dede2035ea2884d39f",
       "owner": "mcp"
     },
     {
@@ -6292,8 +6313,8 @@
     {
       "path": "docs/ci-performance.md",
       "mode": "100644",
-      "bytes": 11585,
-      "sha256": "eb973c8efdd2a8908bddb697714137344756f191f5e6531658543196c00e5ae7",
+      "bytes": 12239,
+      "sha256": "8d2d951b1b35ece39ca902f88e7500e8b3dbe715a94263222429231d461b963f",
       "owner": "core-integration"
     },
     {
@@ -6397,8 +6418,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 194045,
-      "sha256": "cde8fdf6263d29647100b68189e62ba548f75c9470c06adfbfef6ea8d2cd919d",
+      "bytes": 200833,
+      "sha256": "b3dd08e7804c4a629a7f8da3547ba261a8adf1ae2084cd24af877af9cbd93211",
       "owner": "core-integration"
     },
     {
@@ -6817,8 +6838,8 @@
     {
       "path": "docs/models/unified-atlas-scene-v1.md",
       "mode": "100644",
-      "bytes": 31720,
-      "sha256": "7e8a677c6ef1643af56aa3a2f17c7d92328a9a670c51242b41403ffa0577409a",
+      "bytes": 39546,
+      "sha256": "fa30d119fa4f52da01f23161d5a2c24e4b6e4f4fa8773e3423b3f33e14d47795",
       "owner": "core-integration"
     },
     {
@@ -6929,8 +6950,8 @@
     {
       "path": "docs/operations/local-capture-drafts.md",
       "mode": "100644",
-      "bytes": 20680,
-      "sha256": "606b072312fba181d4713c782f5e5471ed66fbecca37be106a0afc3a4c2b1bb5",
+      "bytes": 24107,
+      "sha256": "2d0d41c3b8c9697e61067545fb40c0f0f84dd6889003b2c19eb6e26add2f5ce9",
       "owner": "core-integration"
     },
     {
@@ -7083,8 +7104,8 @@
     {
       "path": "docs/rust-integration/ai-host-integration.md",
       "mode": "100644",
-      "bytes": 9942,
-      "sha256": "da64dd1d5665fbd15a54f32c3fcbba80128d48d369b9d4f91d27561299e30cea",
+      "bytes": 13144,
+      "sha256": "dcbff476642986cc3b856b97620ac2f8d661b0e752f2d238c00f1a7a5e2310b0",
       "owner": "core-integration"
     },
     {
@@ -7106,6 +7127,13 @@
       "mode": "100644",
       "bytes": 22351,
       "sha256": "b76735a4d4044586946770a2fdc4c608674671d46e9411b4e89eb978947ee36d",
+      "owner": "core-integration"
+    },
+    {
+      "path": "docs/rust-integration/mcp-operation-qualification-v4.md",
+      "mode": "100644",
+      "bytes": 49704,
+      "sha256": "d3611bdaead28e72217a22379aa3b44568e22d2849b96f50d976beb86a093f58",
       "owner": "core-integration"
     },
     {
@@ -7351,6 +7379,13 @@
       "mode": "100644",
       "bytes": 24370,
       "sha256": "4c412bf2a1b3f3fa10ffca3acda0de73294b5f47ca168b87d549ccfe20ec0a78",
+      "owner": "core-integration"
+    },
+    {
+      "path": "frontend/capture-drafts-tests/indexeddb-durability.regression.test.mjs",
+      "mode": "100644",
+      "bytes": 9959,
+      "sha256": "efda54f99b1b3e9a4a77c4bf6e86bc1f5d217274d81c4047a3b0cf62445cb82c",
       "owner": "core-integration"
     },
     {
@@ -7622,8 +7657,8 @@
     {
       "path": "frontend/integration/unified-atlas-cache.ts",
       "mode": "100644",
-      "bytes": 12815,
-      "sha256": "2495fdf45db7b56dd254805e10257885b37419f04d2423eb70c6e3ce9f67181c",
+      "bytes": 15474,
+      "sha256": "0f925cbd80af5da524d227c380d3737463116bb0617775005e049c0984055e19",
       "owner": "core-integration"
     },
     {
@@ -7636,8 +7671,8 @@
     {
       "path": "frontend/integration/unified-atlas-reader.ts",
       "mode": "100644",
-      "bytes": 15413,
-      "sha256": "a8fec0381a32ec87d18c11fc65bc937cddcf1a798adf229a9fed271656b3b656",
+      "bytes": 18529,
+      "sha256": "933ed70967927b13c693ff751074fd3ad01f9a0fae5ed6ed3e2d8f65db1f5e1d",
       "owner": "core-integration"
     },
     {
@@ -7860,8 +7895,8 @@
     {
       "path": "frontend/lantern-tests/mesh-layer-browser.mjs",
       "mode": "100644",
-      "bytes": 23995,
-      "sha256": "97a2c582293ed72544985c1cb78c8d87265187c77c94d91053186f9cfd8a99c2",
+      "bytes": 28119,
+      "sha256": "5d8053b94da4e922f16d56434acd16fe9f4b517f88459d59c3f06ecc8cebc27c",
       "owner": "web"
     },
     {
@@ -8161,8 +8196,8 @@
     {
       "path": "frontend/lantern-tests/render-bench/main.tsx",
       "mode": "100644",
-      "bytes": 18452,
-      "sha256": "6c18fdbf754e2dc92661f496582ed29406af79ee5a53557a71dca92d682fc35b",
+      "bytes": 27664,
+      "sha256": "1d25a216ea9ffad7c10b929ab980d809cc90b657e64ec845e59372913c1facc9",
       "owner": "web"
     },
     {
@@ -8385,8 +8420,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-cache-healthy.mjs",
       "mode": "100644",
-      "bytes": 32908,
-      "sha256": "7481b36f4775674c3cba41599703d91d68b13ea6127ad16a4fc9f048f9dd3618",
+      "bytes": 37426,
+      "sha256": "7d15f60c86c8f9f8999824b2299e37b0f4634aa0a4d03f5aa5a14f410a8234fd",
       "owner": "web"
     },
     {
@@ -8413,8 +8448,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
-      "bytes": 119632,
-      "sha256": "734723f070ee4687a672a10598293c6915885e73f87d5517181ec771b23e65d6",
+      "bytes": 141679,
+      "sha256": "e52f7d5d1bcad45cf59dbb39ab851f6fbaf14524174d57d10fc3cfcd4d4543e6",
       "owner": "web"
     },
     {
@@ -9099,8 +9134,8 @@
     {
       "path": "frontend/src/capture-drafts/indexeddb.ts",
       "mode": "100644",
-      "bytes": 3443,
-      "sha256": "feea541ee1b360513d13189fbb3dc2d2f9784656ea4051b5987930d216f64cf6",
+      "bytes": 4550,
+      "sha256": "773f245836c4882ebca93130ffe50e1a25e6f787a1caf9fac465acd471739657",
       "owner": "core-integration"
     },
     {
@@ -9218,8 +9253,8 @@
     {
       "path": "frontend/src/lantern/atlas/useCamera.ts",
       "mode": "100644",
-      "bytes": 2461,
-      "sha256": "07e47d1dd4b7f105500d2eb010e52fb42bb2be38494f633a7c7b1d347d1afeb0",
+      "bytes": 3854,
+      "sha256": "6c5a648a89475ced502f336994390b66c0de6c86c96e744741c250c17e258761",
       "owner": "web"
     },
     {
@@ -10016,8 +10051,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/AtlasInspector.tsx",
       "mode": "100644",
-      "bytes": 16281,
-      "sha256": "1fbf30a589b2cbd55aeb9b1647dc9d2363485007d7e5fb81dcd80e31d2619f7e",
+      "bytes": 16388,
+      "sha256": "ef63f282e51c58d89a603c332c802160bcfee9e1a58f33e4b274c1718660c55a",
       "owner": "web"
     },
     {
@@ -10037,8 +10072,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/FloorStack.tsx",
       "mode": "100644",
-      "bytes": 11400,
-      "sha256": "1485ef71e76805c97fdeeeb92a83d710f5260af18f31f010d01f366ee98f4431",
+      "bytes": 12780,
+      "sha256": "702a082b8742dfa0da43a7c9e4cf103eb9402b0b7be361212b9e004b74562a27",
       "owner": "web"
     },
     {
@@ -10072,8 +10107,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 117610,
-      "sha256": "04bf11e6552006ceefc7c669df3f4a64788b67089f3d07ac2a2fbe888de7a712",
+      "bytes": 119370,
+      "sha256": "031a907c230e6e463f0b2b2d2a7c626f071d2b7cc467aaf741580819dad06a91",
       "owner": "web"
     },
     {
@@ -10170,8 +10205,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/scene.ts",
       "mode": "100644",
-      "bytes": 83487,
-      "sha256": "bf0ec924572725efb18d9d495d35852516f8c7653324191c54425d0d2444782d",
+      "bytes": 92832,
+      "sha256": "e7114cd364410f3e1a8aec57a987e57f697eb10f2dc40fe021b257483ac999aa",
       "owner": "web"
     },
     {
@@ -10191,8 +10226,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/types.ts",
       "mode": "100644",
-      "bytes": 11786,
-      "sha256": "ce6cba0f373a6bd44662c9b3953355c79d08afd56de4ba49e94f687ccf19def1",
+      "bytes": 12975,
+      "sha256": "599e8e5810da1183af0ad4ed8dec2b85f826df89ee30f00fb593e305dac476ab",
       "owner": "web"
     },
     {
@@ -11563,8 +11598,8 @@
     {
       "path": "tools/ci/lanes.json",
       "mode": "100644",
-      "bytes": 52342,
-      "sha256": "2210ffbcc00435653eb9bd55445e83c81de66b27e748fa91eee0138c1a53b15b",
+      "bytes": 53858,
+      "sha256": "b87b16206449e18f8c165f34bb7ff9904fac0bcd62531f60dd1543d27e0fb79a",
       "owner": "core-integration"
     },
     {
@@ -11640,8 +11675,8 @@
     {
       "path": "tools/deploy-nas/README.md",
       "mode": "100644",
-      "bytes": 6887,
-      "sha256": "1be11336f04b127cabc6c4b8322221362ea0b788e9e3f004d6d6b4ef655f8b8c",
+      "bytes": 9653,
+      "sha256": "dd022d96182ec58d7c702cb83ff4b209777eeb559533812b1535aa3f58b2b6ca",
       "owner": "core-integration"
     },
     {
@@ -11654,15 +11689,15 @@
     {
       "path": "tools/deploy-nas/deploy_nas.py",
       "mode": "100644",
-      "bytes": 52534,
-      "sha256": "1e60b596ef07af4086553865c84c30249f8be4bdbe4c665f3282a511e9f298c3",
+      "bytes": 64949,
+      "sha256": "be4ba06edd904ef804bbafd64c7e58e3f13c315a5bdc8d73ef560c22c2cbdb9e",
       "owner": "core-integration"
     },
     {
       "path": "tools/deploy-nas/test_deploy_nas.py",
       "mode": "100644",
-      "bytes": 37037,
-      "sha256": "d4aa2b4500d4956bdba6bb1754b9bc6b53f08414abba82e8dc592e9ba68c6b29",
+      "bytes": 47381,
+      "sha256": "95f30defff9e59b981f89c1ca0ba62194ea2cf5209c4e924f2dcb90d96d589fe",
       "owner": "core-integration"
     },
     {
@@ -12389,8 +12424,8 @@
     {
       "path": "tools/perf/reporting/compare.mjs",
       "mode": "100644",
-      "bytes": 9463,
-      "sha256": "aeb91a03cc884d659c24e0ef4a7b700f5bb26a4684535f2f04a4ba64486e5f47",
+      "bytes": 10242,
+      "sha256": "9684262f4daacc06349f36bbfffdcad17d5d3c9d70e7d869a3ed4684b55d8e0a",
       "owner": "core-integration"
     },
     {
@@ -12431,8 +12466,8 @@
     {
       "path": "tools/perf/reporting/healthy-reporting.test.mjs",
       "mode": "100644",
-      "bytes": 11744,
-      "sha256": "dba55f41e11026677cf069b5bcd99fc0eece99ed528fb4ff1a7ff04a16d887f4",
+      "bytes": 12808,
+      "sha256": "b69593fbb389045499f0b54f04ebefe67ddcd05e58a924c19ec49425343f3e68",
       "owner": "core-integration"
     },
     {
@@ -12487,15 +12522,15 @@
     {
       "path": "tools/perf/reporting/report.mjs",
       "mode": "100644",
-      "bytes": 5074,
-      "sha256": "236966ed8c914343f97d0b74d454ccc4db2d667dc0c3cc854d5ab11d3fef5c8d",
+      "bytes": 5084,
+      "sha256": "bf1d1a41d420693cffb45f84e79f11dc50b0b7bf1e181f922652a49b2d0071b1",
       "owner": "core-integration"
     },
     {
       "path": "tools/perf/reporting/report.test.mjs",
       "mode": "100644",
-      "bytes": 6188,
-      "sha256": "00fa744abb1c5a6b39766a63f5b5ccf8becd83fff78bd27460a620e1f8a16ccf",
+      "bytes": 6201,
+      "sha256": "9d6c297aa90cb7ab8215ec5f931dd51017355a5de922c958373d46ced85d3390",
       "owner": "core-integration"
     },
     {
@@ -12550,8 +12585,8 @@
     {
       "path": "tools/readme-media/capture.mjs",
       "mode": "100644",
-      "bytes": 39466,
-      "sha256": "96d8e53e494794ec903e25e462fa3aa209648359befeb41e7908f7b4e09a129c",
+      "bytes": 39680,
+      "sha256": "9562944804cfc798598090e164e128c7d81d49d69e123f81ec4ba18a707bb128",
       "owner": "web"
     },
     {
@@ -12623,6 +12658,20 @@
       "bytes": 669,
       "sha256": "a1bb600e7af13db6ef9743121ed9cfdea1bd039ea27868dda8f2336712d7d648",
       "owner": "contracts"
+    },
+    {
+      "path": "tools/rust-integration/browser-pipe-cases.mjs",
+      "mode": "100644",
+      "bytes": 7275,
+      "sha256": "596ad44502e3beb626b92d781dc2597bcb8ce532b45871903ebdd4f6fc49418e",
+      "owner": "core-integration"
+    },
+    {
+      "path": "tools/rust-integration/browser-pipe.mjs",
+      "mode": "100644",
+      "bytes": 4850,
+      "sha256": "49b26ee2c2018d885d2f3760cc2aebba0f20e1346f7995e3d68a682187338b30",
+      "owner": "core-integration"
     },
     {
       "path": "tools/rust-integration/browser-startup-observation.mjs",
@@ -12774,8 +12823,8 @@
     {
       "path": "tools/rust-integration/healthy-media-loopback.mjs",
       "mode": "100644",
-      "bytes": 28124,
-      "sha256": "e354a2cd9e349bfc721cd46f1468c835fefb3a5d320d04161733ee32c6af57ef",
+      "bytes": 29045,
+      "sha256": "3dff14f37b7ce4a580c8259c2771e1d5173e6cdd057bb34cb41bcf43208929a3",
       "owner": "core-integration"
     },
     {
@@ -12823,8 +12872,8 @@
     {
       "path": "tools/rust-integration/healthy-stock-history-loopback.mjs",
       "mode": "100644",
-      "bytes": 35586,
-      "sha256": "aa5ed60eb9389810e86bd90c0587003354ba9cdf7ef378eb3dde1e0ec0ced054",
+      "bytes": 38324,
+      "sha256": "59a781138e5982a73ddd6e8d86b3248da70d7036eb93522cf6c830990b83af43",
       "owner": "core-integration"
     },
     {

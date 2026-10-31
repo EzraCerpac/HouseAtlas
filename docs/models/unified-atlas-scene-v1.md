@@ -503,3 +503,126 @@ source path using synthetic assets and a GL call recorder. They do not establish
 actual shader execution, GPU pixels, private-candidate admission, installed
 identity or browser/device acceptance. The product-readiness observations above
 remain separate.
+
+## Optional application display groups
+
+### Protected optional display-policy carrier
+
+Persistent serving may select an additional private file with the paired
+`--atlas-display-policy` and `--atlas-display-policy-sha256` options. These
+options require the already selected overview and Atlas scene; they are absent
+by default and add no listener, credential or grant. The canonical file must
+share the overview manifest's directory, have the current process owner and
+mode 0600, and sit in that owner's canonical mode-0700 directory. Symlinks,
+hard links, replacement identities, changed bytes and mismatched pins refuse.
+
+The file is at most 32 KiB, with exactly these fields:
+
+- `profile: "houseatlas.atlas-display-selection.v1"`
+- `workspaceId` and `homeId`, equal to the selected overview scope
+- `displayConfig`, the existing closed `houseatlas.atlas-display.v1` policy
+
+The inner policy must name the selected publication and exact semantic digest.
+Groups and primitive memberships are validated against the admitted scene,
+including same-building membership, unique selectors and structure/slab roles.
+They confer no new room identity, containment or read authority. The private
+file does not contain a predicted selection revision: the server allocates that
+revision at startup and binds the selected policy to that exact allocation.
+
+Only the existing scoped, authorized descriptor advertises a configured file,
+using `x-atlas-display-policy-sha256` and `x-atlas-display-policy-bytes`.
+Both absent means no extra request. A partial or malformed advertisement is a
+failure. The selected publication's sibling GET is
+`/api/atlas/models/v1/workspaces/{workspaceId}/homes/{homeId}/atlas/{publicationId}/display-policy`,
+with exact `expectedSha256`, `expectedSemanticsSha256` and
+`expectedSelectionRevision` query pins in that order. It uses the same
+`authorized_read_phased` scope/Read owner, HEAD/fallback guards and final
+release as the other protected Atlas reads. It returns exact file bytes with
+JSON type, length, Content-Digest and the selected revision. File/scene/original
+availability fences are checked before release; an unavailable configured file
+refuses the descriptor/read rather than becoming unconfigured. Descriptor
+policy checks do not allocate another model-byte copy.
+
+The production reader admits the advertised byte limit before requesting the
+sidecar, checks its exact response length/digest/revision and selected scope,
+then uses the same policy admission as the presentation. It retains the
+existing deadline, same-origin/no-redirect/no-store transport and selection,
+session, expiry and abort fences. A configured missing sidecar is stale, not
+an absent Atlas; no model request follows a policy refusal.
+
+Verified policy bytes and their digest/revision may accompany the exact stored
+scene in the existing actor/home/publication cache partition. They are display
+metadata, never session or native authority. Cold reads rehash and re-admit them
+against the retained scene and revision. A policy-only replacement or removal
+updates that metadata even if model/envelope bytes have not changed. Existing
+cache byte/entry bounds, actor witness and sign-out cleanup remain unchanged;
+no separate queue or cache is introduced.
+
+The ordinary Rust unit set includes three synthetic contract/options tests in
+`config::atlas_display_policy`. Existing Atlas healthy/cache cases cover
+fresh, refused and retired policy reads, cold retention, metadata-only updates,
+removal and actor partitioning. Registration/source alone does not establish
+execution. This carrier supplies no real policy values, installer persistence
+or rollback operation. Current-publication private configuration, authorized
+installation/readback and deferred interactive/device acceptance remain
+separate.
+
+`UnifiedAtlasRead` (including its stored-read subtype) may carry optional
+`displayConfig: AtlasDisplayConfig | null` metadata from the existing admitted
+read/port owner. The production bind and stale-while-revalidate comparison use
+the same closed publication/digest/membership admission. A supplied policy wins
+over legacy host metadata, explicit null disables grouping, and stale or invalid
+supplied metadata never falls through to another source. Undefined preserves the
+legacy optional-host fallback; with neither source, individual levels remain.
+This field is not a new raw scene-envelope member, native grant or fetch API.
+Display metadata does not change the admitted source's selection-memory identity;
+existing room/floor identities remain valid when a grouping policy changes.
+The easing owner initializes newly introduced local section keys before render
+consumption and before each animation step, retains finite existing tracks and
+retires removed keys. Its timing/settlement constants remain unchanged.
+
+A protected source must populate it within the existing selection/signal/read
+fence and retain configured-source failures as failures, not pretend they mean
+explicitly unconfigured. A stored-read owner may include only metadata retained
+for that exact admitted publication. The field alone does not fetch a sidecar;
+the optional protected carrier above supplies and retains verified metadata.
+There is no installer hook. Protected delivery/currentness and private
+installation remain separate qualification.
+
+The static index is not assumed authenticated. Do not embed private policies
+there; use a qualified protected read carrier. The legacy inert-host mechanism
+below remains available for already-protected or nonprivate synthetic hosts.
+
+The application can read one inert `<script type="application/json"
+id="houseatlas-atlas-display">` in its host document. This optional presentation
+policy is limited to 32 KiB and uses `houseatlas.atlas-display.v1`. It contains
+exact `publicationId` and `semanticsSha256` pins, `groups` and `memberships`.
+No configured policy means the existing individual-level behavior. A different
+publication/semantic digest leaves grouping unconfigured; names never retarget
+it. A malformed matching policy refuses the view instead of guessing.
+
+Each group is `{ levelIds: string[], label: string }`, with at least two distinct
+existing levels in one building. Groups cannot overlap. The first ID is the
+navigation anchor, still a real level; all source levels and elevations remain
+unchanged. The floor picker steps through groups, 3D frames/picks both members,
+and member wall parts use their own floor-relative cut heights. Shared parts
+keep their existing source positions and a section at their highest selected
+member. An indivisible shared primitive is not spatially split by this policy.
+
+Plan shows one actual member at a time, with explicit Plan level buttons in the
+floor picker. Selecting a room retains its actual occurrence and level. Plan
+and 3D preserve their separate camera framing; overlapping plans are not merged.
+
+An optional membership row identifies one exact already-admitted primitive by
+`nodeIndex`, `meshIndex`, `primitiveIndex`, and supplies display-only `levelIds`
+plus `cutaway: "level" | "preserve"`. Only structure/slab bindings in the same
+building qualify. A connecting flight can therefore remain full-height in its
+lower-level display while its genuine multilevel containment tags remain intact.
+All-floors and exploded views retain their existing source-level behavior.
+This grants neither room-pick authority nor a geometry/native association.
+
+The host owns this configuration and must serialize inert JSON safely (including
+escaping `<` as `\u003c`); do not place private installation policies in this
+public repository. The same admitted policy is carried into the detail-model
+swap. Configuration, private installation readback, physical acceptance and
+interactive/device verification are separate from source/hosted CI evidence.

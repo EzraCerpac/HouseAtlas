@@ -8,6 +8,7 @@ in an env file outside Git (see README.md); nothing private is in this file.
 from __future__ import annotations
 
 import argparse
+import base64
 import contextlib
 import datetime as dt
 import fcntl
@@ -26,6 +27,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlencode
 
 DEFAULT_CONFIG = Path("~/.config/houseatlas/deploy-nas.env").expanduser()
 REPO_URL = "https://github.com/EzraCerpac/HouseAtlas"
@@ -45,6 +47,7 @@ MODEL_FLAGS = {
     "publication.json": "--model-overview-manifest",
     "atlas-scene.json": "--atlas-scene-manifest",
     "reviewed-room-links.json": "--atlas-room-links-manifest",
+    "display-policy.json": "--atlas-display-policy",
 }
 # The server refuses room links that do not match the selected scene, so a release carries both.
 REQUIRED_MODEL_FILES = ("publication.json", "atlas-scene.json", "reviewed-room-links.json")
@@ -150,11 +153,24 @@ def with_binary(service: dict, binary: Path) -> dict:
     return out
 
 
-def with_model(service: dict, files: dict[str, Path]) -> dict:
+def with_model(service: dict, files: dict[str, Path], *, without_display_policy=False) -> dict:
     """Point every model flag the release provides at it, with its pinned SHA-256."""
     args = list(service["ProgramArguments"])
+    selected = display_policy_args(args)
+    replacement = files.get("display-policy.json")
+    if without_display_policy and replacement is not None:
+        raise DeployError("choose replacement policy or explicit retirement, not both")
+    if selected and replacement is None and not without_display_policy:
+        raise DeployError("selected display policy requires a replacement or --without-display-policy")
+    if selected:
+        for flag in ("--atlas-display-policy", "--atlas-display-policy-sha256"):
+            at = args.index(flag)
+            del args[at:at + 2]
     for name, path in files.items():
         flag = MODEL_FLAGS[name]
+        if name == "display-policy.json":
+            args += [flag, str(path), flag + "-sha256", sha256_file(path)]
+            continue
         args = with_flag(args, flag, str(path))
         args = with_flag(args, flag + "-sha256", sha256_file(path))
     out = dict(service)
@@ -167,11 +183,75 @@ SMOKE_FLAGS = {*MODEL_FLAGS.values(), *(f + "-sha256" for f in MODEL_FLAGS.value
 
 def model_args(args: list[str]) -> list[str]:
     """Only the model pins and entry building: live-only selections (accounts, custody) need the live data."""
+    display_policy_args(args)
     out = []
     for i, a in enumerate(args[:-1]):
         if a in SMOKE_FLAGS:
             out += [a, args[i + 1]]
     return out
+
+
+def display_policy_args(args: list[str]) -> tuple[Path, str] | None:
+    """Only the paired optional policy selection; never infer or repair one."""
+    values = []
+    for flag in ("--atlas-display-policy", "--atlas-display-policy-sha256"):
+        positions = [i for i, value in enumerate(args) if value == flag]
+        if len(positions) > 1 or (positions and (positions[0] + 1 >= len(args) or args[positions[0] + 1].startswith("--"))):
+            raise DeployError("display policy requires unique paired arguments")
+        values.append(args[positions[0] + 1] if positions else None)
+    path, digest = values
+    if path is None and digest is None:
+        return None
+    if path is None or digest is None or not Path(path).is_absolute() or not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise DeployError("display policy requires an absolute path and paired SHA-256")
+    return Path(path), digest
+
+
+def file_identity(path: Path) -> tuple:
+    st = path.lstat()
+    return (st.st_dev, st.st_ino, st.st_mode, st.st_uid, st.st_nlink, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+
+
+def release_paths(files: dict[str, Path]) -> list[Path]:
+    release = files["publication.json"].parent
+    pub = json.loads(files["publication.json"].read_text())
+    return [*files.values(), release / "overview.glb", *([release / "detail.glb"] if pub.get("detail") else [])]
+
+
+def release_stamp(files: dict[str, Path]) -> tuple:
+    """Immutable inputs only; no marker or temporary file in the pinned directory."""
+    paths = [files["publication.json"].parent, *release_paths(files)]
+    return tuple((str(path), file_identity(path)) for path in paths)
+
+
+def private_policy_bytes(path: Path, digest: str) -> bytes:
+    try:
+        return _private_policy_bytes(path, digest)
+    except OSError as error:
+        raise DeployError("policy source is unavailable or changed") from error
+
+
+def _private_policy_bytes(path: Path, digest: str) -> bytes:
+    """Read bounded canonical owner-private bytes without following a symlink."""
+    if not path.is_absolute() or Path(os.path.realpath(path)) != path or not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise DeployError("policy source requires a canonical absolute path and SHA-256")
+    parent = path.parent
+    before_parent = file_identity(parent)
+    parent_stat = parent.lstat()
+    if not stat.S_ISDIR(parent_stat.st_mode) or stat.S_IMODE(parent_stat.st_mode) != 0o700 or parent_stat.st_uid != os.getuid():
+        raise DeployError("policy source parent must be private and owned by this user")
+    before = file_identity(path)
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(fd, "rb") as source:
+        st = os.fstat(source.fileno())
+        if not stat.S_ISREG(st.st_mode) or stat.S_IMODE(st.st_mode) != 0o600 or st.st_uid != os.getuid() or st.st_nlink != 1 or not 0 < st.st_size <= 32768:
+            raise DeployError("policy source must be a single-link private file of at most 32 KiB")
+        if (st.st_dev, st.st_ino, st.st_mode, st.st_uid, st.st_nlink, st.st_size, st.st_mtime_ns, st.st_ctime_ns) != before:
+            raise DeployError("policy source changed during capture")
+        body = source.read(32769)
+    if len(body) > 32768 or hashlib.sha256(body).hexdigest() != digest or file_identity(path) != before or file_identity(parent) != before_parent:
+        raise DeployError("policy source bytes or identity changed")
+    return body
 
 
 # --------------------------------------------------------------- storage gate
@@ -252,6 +332,9 @@ def validate_release(release: Path, data_dir: Path) -> dict[str, Path]:
             raise DeployError(f"{release} has no {p.name}")
         if not stat.S_ISREG(st.st_mode) or stat.S_IMODE(st.st_mode) != 0o600 or st.st_nlink != 1 or st.st_uid != os.getuid():
             raise DeployError(f"{p} must be a regular 0600 file with one link, owned by this user")
+    policy = files.get("display-policy.json")
+    if policy is not None and not 0 < policy.stat().st_size <= 32768:
+        raise DeployError("display policy must be at most 32 KiB")
     return files
 
 
@@ -477,17 +560,17 @@ class Checks:
 
 
 def http_checks(rt: Runner, base: str, *, assets: list[str], ws: str, home: str,
-                expect_publication: str | None = None, insecure=False) -> Checks:
+                expect_publication: str | None = None, expect_policy: str | None = None, insecure=False) -> Checks:
     """What a phone needs after a deploy: login, shell pages, old and new assets, model, logout."""
     c = Checks()
     try:
-        _http_checks(c, rt, base, assets, ws, home, expect_publication, insecure)
+        _http_checks(c, rt, base, assets, ws, home, expect_publication, expect_policy, insecure)
     except (ValueError, KeyError, TypeError, AttributeError) as e:  # malformed answer from the server
         c.expect(False, f"unexpected response: {type(e).__name__}: {e}")
     return c
 
 
-def _http_checks(c: Checks, rt: Runner, base: str, assets, ws, home, expect_publication, insecure) -> None:
+def _http_checks(c: Checks, rt: Runner, base: str, assets, ws, home, expect_publication, expect_policy, insecure) -> None:
     hdr = [f"Origin: {base}", "Sec-Fetch-Site: same-origin"]
     get = lambda path, **kw: rt.curl(base + path, headers=hdr, insecure=insecure, **kw)
     code, _, body = get("/api/atlas/auth/mode")
@@ -508,6 +591,7 @@ def _http_checks(c: Checks, rt: Runner, base: str, assets, ws, home, expect_publ
     for path in ("/api/atlas/auth/session", f"/api/atlas/v1/workspaces/{ws}/homes/{home}/view", "/api/atlas/rooms"):
         code, _, _ = get(path, cookie=cookie)
         c.expect(code == 200, f"{path} {code}")
+    d = {}
     code, _, body = get(f"/api/atlas/models/v1/workspaces/{ws}/homes/{home}/overview", cookie=cookie)
     if c.expect(code == 200, f"model overview descriptor {code}"):
         d = json.loads(body)
@@ -516,6 +600,37 @@ def _http_checks(c: Checks, rt: Runner, base: str, assets, ws, home, expect_publ
         code, _, glb = get(d["original"]["href"], cookie=cookie, timeout=120)
         c.expect(code == 200 and hashlib.sha256(glb).hexdigest() == d["original"]["sha256"],
                  f"model GLB {code}, {len(glb)} bytes, SHA-256 matches descriptor")
+    if expect_policy is not None:
+        atlas = f"/api/atlas/models/v1/workspaces/{ws}/homes/{home}/atlas"
+        code, h, body = get(atlas, cookie=cookie)
+        if c.expect(code == 200 and h.get("x-atlas-display-policy-sha256") == expect_policy,
+                    "protected Atlas descriptor advertises selected policy"):
+            scene = json.loads(body)
+            revision, semantics = scene["selection"]["revision"], scene["publication"]["semanticsSha256"]
+            length = h.get("x-atlas-display-policy-bytes", "")
+            admitted = (isinstance(revision, str) and re.fullmatch(r"[0-9a-f]{64}", revision)
+                        and isinstance(semantics, str) and re.fullmatch(r"[0-9a-f]{64}", semantics)
+                        and re.fullmatch(r"[1-9][0-9]{0,4}", length) and int(length) <= 32768
+                        and h.get("x-atlas-selection-revision") == revision
+                        and scene["scope"] == {"workspaceId": ws, "homeId": home}
+                        and scene["publication"]["publicationId"] == d["publicationId"])
+            if c.expect(bool(admitted), "protected policy descriptor context and bounds match"):
+                query = urlencode(dict(expectedSha256=expect_policy, expectedSemanticsSha256=semantics,
+                                       expectedSelectionRevision=revision))
+                code, h, body = get(atlas + "/" + scene["publication"]["publicationId"] + "/display-policy?" + query, cookie=cookie)
+                digest = hashlib.sha256(body).digest()
+                wire = json.loads(body) if code == 200 and len(body) <= 32768 else {}
+                config = wire.get("displayConfig", {})
+                c.expect(code == 200 and len(body) == int(length) and digest.hex() == expect_policy
+                         and h.get("content-length") == length
+                         and h.get("content-type", "").split(";")[0].strip() == "application/json"
+                         and h.get("cache-control") == NO_STORE and h.get("x-content-type-options") == "nosniff"
+                         and h.get("content-digest") == "sha-256=:" + base64.b64encode(digest).decode() + ":"
+                         and h.get("x-atlas-selection-revision") == revision
+                         and wire.get("profile") == "houseatlas.atlas-display-selection.v1"
+                         and wire.get("workspaceId") == ws and wire.get("homeId") == home
+                         and config.get("publicationId") == d["publicationId"] and config.get("semanticsSha256") == semantics,
+                         "protected display policy exact bytes, response pins and context match")
     code, _, body = get("/api/atlas/auth/session", cookie=cookie)
     csrf = json.loads(body or b"{}").get("csrfToken", "") if code == 200 else ""
     code, _, _ = rt.curl(base + "/api/atlas/auth/logout", method="POST", cookie=cookie,
@@ -598,7 +713,7 @@ class Deployer:
                 raise DeployError(f"smoke server exited: {(work / 'serve.out').read_text()[-1500:]}")
             ws, home = self.scope()
             checks = http_checks(self.rt, conf["origin"], assets=assets, ws=ws, home=home,
-                                 expect_publication=expect_publication, insecure=True)
+                                 expect_publication=expect_publication, expect_policy=(display_policy_args(serve_args) or (None, None))[1], insecure=True)
         finally:
             with contextlib.suppress(ProcessLookupError):
                 os.killpg(proc.pid, signal.SIGTERM)
@@ -660,7 +775,8 @@ class Deployer:
         pid = self.wait_running(record["binary"])
         ws, home = self.scope()
         c = http_checks(self.rt, self.cfg.gateway_url, assets=assets, ws=ws, home=home,
-                        expect_publication=record.get("publication"))
+                        expect_publication=record.get("publication"),
+                        expect_policy=(display_policy_args(read_plist(self.cfg.plist)["ProgramArguments"]) or (None, None))[1])
         c.lines.insert(0, f"PASS service pid {pid} runs {record['binary']}")
         return c
 
@@ -803,18 +919,34 @@ class Deployer:
             self.prune_into(record)
         return record
 
-    def model(self, release: Path, *, prepare_only=False, auto_rollback=True) -> dict:
+    def model(self, release: Path, *, prepare_only=False, auto_rollback=True, without_display_policy=False,
+              policy_only=False, expected_service: str | None = None, expected_inputs: dict[str, str] | None = None) -> dict:
         cfg = self.cfg
         self.require_settled()
         baseline = sha256_file(cfg.plist)
+        if expected_service is not None and baseline != expected_service:
+            raise DeployError("selected service changed while staging; nothing live was touched")
         live = self.live()
         release = release.expanduser()
         files = validate_release(release, live["data_dir"])
+        if policy_only and (expected_service is None or expected_inputs is None):
+            raise DeployError("policy-only transaction requires its exact staged input pins")
+        if expected_inputs is not None:
+            paths = release_paths(files)
+            if set(expected_inputs) != {path.name for path in paths} or any(sha256_file(path) != expected_inputs[path.name] for path in paths):
+                raise DeployError("staged publication no longer matches the unchanged selected inputs")
         publication = json.loads(files["publication.json"].read_text())["publicationId"]
         name = next_name(cfg.setup_root, f"model-switch-{release.name}-{dt.date.today():%Y%m%d}")
         d = cfg.setup_root / name
+        service = with_model(live["service"], files, without_display_policy=without_display_policy)
+        if ("display-policy.json" in files or display_policy_args(live["service"]["ProgramArguments"]) or without_display_policy):
+            current = Path(flag_value(live["service"]["ProgramArguments"], "--model-overview-manifest") or "")
+            if release == current.parent:
+                raise DeployError("policy changes require a new inactive immutable release")
+            if cfg.setup_root == current.parent or current.parent in cfg.setup_root.parents:
+                raise DeployError("preparation must stay outside the active pinned directory")
         (d / "recovery").mkdir(parents=True)
-        service = with_model(live["service"], files)
+        stamp = release_stamp(files)
         self.say(f"[1/3] Smoke-testing publication {publication} on throwaway state")
         assets = entry_scripts(live["frontend"] / "index.html")
         c = self.smoke(live["binary"], live["frontend"], model_args(service["ProgramArguments"]), d / "smoke",
@@ -823,6 +955,8 @@ class Deployer:
             self.say(f"  {line}")
         if c.failures:
             raise DeployError("smoke test failed; nothing live was touched")
+        if release_stamp(validate_release(release, live["data_dir"])) != stamp:
+            raise DeployError("release inputs changed after smoke; nothing live was touched")
         before, after = d / "recovery/service.before.plist", d / "recovery/service.after.plist"
         shutil.copy2(cfg.plist, before)
         if sha256_file(before) != baseline:
@@ -831,6 +965,7 @@ class Deployer:
             plistlib.dump(service, f)
         self.rt.run(["plutil", "-lint", str(after)])
         record = dict(id=name, kind="model", release=str(release), publication=publication, dir=str(d),
+                      display_policy_only=policy_only,
                       binary=str(live["binary"]), before_plist=str(before), after_plist=str(after),
                       assets=assets, status="prepared", created=now())
         write_rollback_script(record, cfg)
@@ -852,6 +987,45 @@ class Deployer:
         save_record(cfg.ledger, record)
         self.say("[3/3] Verifying through the gateway")
         return self.finish(record, assets, auto_rollback)
+
+    def policy(self, source: Path, digest: str, *, prepare_only=False, auto_rollback=True) -> dict:
+        """Stage unchanged selected publication plus policy; use the one model transaction."""
+        self.require_settled()
+        baseline = sha256_file(self.cfg.plist)
+        live = self.live()
+        args = live["service"]["ProgramArguments"]
+        active = Path(flag_value(args, "--model-overview-manifest") or "").parent
+        files = validate_release(active, live["data_dir"])
+        for name in REQUIRED_MODEL_FILES:
+            flag = MODEL_FLAGS[name]
+            if flag_value(args, flag) != str(files[name]) or flag_value(args, flag + "-sha256") != sha256_file(files[name]):
+                raise DeployError("selected release paths or pins are not the current immutable release")
+        body = private_policy_bytes(source.expanduser(), digest)
+        setup = self.cfg.setup_root
+        if not setup.is_absolute() or Path(os.path.realpath(setup)) != setup or setup == active or active in setup.parents:
+            raise DeployError("policy staging must be outside the active pinned directory")
+        stamp = release_stamp(files)
+        paths = [path for path in release_paths(files) if path.name != "display-policy.json"]
+        expected = {path.name: sha256_file(path) for path in paths}
+        stage = setup / next_name(setup, f"display-policy-stage-{dt.date.today():%Y%m%d}")
+        stage.mkdir(parents=True, mode=0o700)
+        stage.chmod(0o700)
+        for path in paths:
+            target = stage / path.name
+            shutil.copy2(path, target)
+            target.chmod(0o600)
+            if sha256_file(target) != expected[path.name]:
+                raise DeployError("staged publication bytes changed")
+        policy = stage / "display-policy.json"
+        with policy.open("xb") as out:
+            out.write(body)
+        policy.chmod(0o600)
+        if release_stamp(files) != stamp or sha256_file(policy) != digest:
+            raise DeployError("selected release changed while staging; nothing live was touched")
+        # All model/scene/original bytes are exact copies. The server's existing
+        # smoke path validates policy scope/selectors before the stopped swap.
+        return self.model(stage, prepare_only=prepare_only, auto_rollback=auto_rollback, policy_only=True,
+                          expected_service=baseline, expected_inputs={**expected, "display-policy.json": digest})
 
     def rollback(self, record: dict | None = None, *, force=False) -> dict:
         cfg = self.cfg
@@ -899,7 +1073,8 @@ class Deployer:
             ws, home = self.scope()
             assets = sorted(set(entry_scripts(Path(record.get("frontend") or self.live()["frontend"]) / "index.html"))
                             | set(record.get("assets", [])))
-            c = http_checks(self.rt, cfg.gateway_url, assets=assets, ws=ws, home=home)
+            c = http_checks(self.rt, cfg.gateway_url, assets=assets, ws=ws, home=home,
+                            expect_policy=(display_policy_args(read_plist(cfg.plist)["ProgramArguments"]) or (None, None))[1])
             c.lines.insert(0, f"PASS service pid {pid} runs {binary}")
         except Exception as e:
             c = Checks()
@@ -1040,6 +1215,12 @@ def main(argv=None) -> int:
     p.add_argument("release", type=Path)
     p.add_argument("--prepare-only", action="store_true")
     p.add_argument("--no-auto-rollback", action="store_true")
+    p.add_argument("--without-display-policy", action="store_true", help="explicitly retire selected policy when the new release has none")
+    p = sub.add_parser("policy", help="stage policy with an unchanged selected publication and use the existing transaction")
+    p.add_argument("source", type=Path)
+    p.add_argument("--sha256", required=True)
+    p.add_argument("--prepare-only", action="store_true")
+    p.add_argument("--no-auto-rollback", action="store_true")
     p = sub.add_parser("rollback", help="undo the newest live record")
     p.add_argument("--force", action="store_true", help="roll back even if the service plist changed since")
     p = sub.add_parser("prune", help="remove build caches and frontends that no rollback needs")
@@ -1055,7 +1236,10 @@ def main(argv=None) -> int:
                 dep.deploy(a.sha, prepare_only=a.prepare_only, storage_reviewed=a.storage_reviewed,
                            auto_rollback=not a.no_auto_rollback, prune=not a.no_prune)
             elif a.cmd == "model":
-                dep.model(a.release, prepare_only=a.prepare_only, auto_rollback=not a.no_auto_rollback)
+                dep.model(a.release, prepare_only=a.prepare_only, auto_rollback=not a.no_auto_rollback,
+                          without_display_policy=a.without_display_policy)
+            elif a.cmd == "policy":
+                dep.policy(a.source, a.sha256, prepare_only=a.prepare_only, auto_rollback=not a.no_auto_rollback)
             elif a.cmd == "prune":
                 dep.prune_alone(dry_run=a.dry_run)
             else:

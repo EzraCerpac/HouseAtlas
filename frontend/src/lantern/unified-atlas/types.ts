@@ -9,6 +9,28 @@ import type { StoredOverlays } from './stored-overlays';
 export type Vec3 = readonly [number, number, number];
 export interface Box { readonly min: Vec3; readonly max: Vec3 }
 
+/** Host-owned display policy for one exact semantic publication. These are
+ * presentation memberships, never geometry containment or native authority. */
+export interface AtlasDisplayGroup {
+  readonly levelIds: readonly string[];
+  readonly label: string;
+}
+export interface AtlasDisplayMembership {
+  readonly nodeIndex: number;
+  readonly meshIndex: number;
+  readonly primitiveIndex: number;
+  readonly levelIds: readonly string[];
+  /** Connecting structures can remain full-height in their display scope. */
+  readonly cutaway: 'level' | 'preserve';
+}
+export interface AtlasDisplayConfig {
+  readonly profile: 'houseatlas.atlas-display.v1';
+  readonly publicationId: string;
+  readonly semanticsSha256: string;
+  readonly groups: readonly AtlasDisplayGroup[];
+  readonly memberships: readonly AtlasDisplayMembership[];
+}
+
 export interface AtlasBuilding {
   readonly buildingId: string;
   readonly label: string;
@@ -138,6 +160,11 @@ export interface AtlasScene {
 /** Verified scene plus the exact pinned model bytes for the same selection revision. */
 export interface UnifiedAtlasRead {
   readonly scene: AtlasScene;
+  /** Optional display metadata owned by this admitted read. A protected
+   * source may supply it without exposing private values in static HTML.
+   * null explicitly disables grouping; undefined keeps legacy host fallback.
+   * The consumer still admits exact publication/digest and membership pins. */
+  readonly displayConfig?: AtlasDisplayConfig | null;
   readonly model: Uint8Array<ArrayBuffer>;
   /** Optional presentation metadata owned by this exact admitted read. Null is
    * explicitly unconfigured; omitted local ports may supply their own callback. */

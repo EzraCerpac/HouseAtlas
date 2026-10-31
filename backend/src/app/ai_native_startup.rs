@@ -139,7 +139,8 @@ where
     ) -> Result<Self, AiError> {
         custody.revalidate()?;
         let host = owners.host.clone();
-        let startup = NativeStartup::assemble(owners, inputs, stock)?;
+        let startup =
+            NativeStartup::assemble_with_custody(owners, inputs, stock, Arc::clone(&custody))?;
         let mounted = startup.mounted_router_with_custody(custody)?;
         let router = crate::http::router_with_ai(host, Some(mounted));
         Ok(Self { startup, router })

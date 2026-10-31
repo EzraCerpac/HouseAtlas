@@ -33,34 +33,51 @@ export function openDraftStore(factory: IDBFactory = indexedDB): DraftStore {
     const db = await database;
     if (closed) throw new Error('Local draft storage is closed');
     return new Promise<T>((resolve, reject) => {
-      const transaction = db.transaction(storeName, mode);
-      const store = transaction.objectStore(storeName);
+      const unavailable = () => new Error('Local draft storage with strict durability is unavailable');
+      let transaction: IDBTransaction;
+      try {
+        // Write completion may release a foreground handoff or confirm cleanup.
+        // Never substitute the browser's default/relaxed commit policy.
+        transaction = mode === 'readwrite' ? db.transaction(storeName, mode, { durability: 'strict' }) : db.transaction(storeName, mode);
+      } catch (error) { reject(mode === 'readwrite' ? unavailable() : error); return; }
       let value: T;
       let failure: unknown;
-      const timer = setTimeout(() => {
-        failure = new Error('Local draft storage did not complete');
-        try { transaction.abort(); } catch { /* Completion handlers settle. */ }
-      }, deadlineMs);
+      let failed = false;
       const finish = () => clearTimeout(timer);
-      transaction.oncomplete = () => { finish(); resolve(value); };
+      const fail = (error: unknown) => {
+        failed = true; failure = error; finish();
+        try { transaction.abort(); } catch { /* No successful result is released. */ }
+        reject(error);
+      };
+      const timer = setTimeout(() => fail(new Error('Local draft storage did not complete')), deadlineMs);
+      transaction.oncomplete = () => { finish(); if (failed) reject(failure); else resolve(value); };
       transaction.onabort = () => { finish(); reject(failure ?? transaction.error ?? new Error('Local draft transaction was not saved')); };
-      transaction.onerror = () => { failure ??= transaction.error; };
+      transaction.onerror = () => { failed = true; failure ??= transaction.error ?? new Error('Local draft transaction failed'); };
+      // Install terminal handlers before inspecting capability or aborting.
+      // Old browsers may reject/ignore the options or omit this property.
+      try {
+        if (mode === 'readwrite' && transaction.durability !== 'strict') { fail(unavailable()); return; }
+      } catch { fail(unavailable()); return; }
       // One extra row detects incompatible over-capacity storage without an
       // unbounded census. No original bytes are decoded in this transaction.
-      const request = store.getAll(undefined, 5);
-      request.onsuccess = () => {
-        try {
-          const rows = request.result as DraftRow[];
-          validateRows(rows);
-          const next = edit(rows);
-          validateRows(next.rows);
-          if (mode === 'readwrite') {
-            store.clear();
-            for (const row of next.rows) store.put(row);
-          }
-          value = next.value;
-        } catch (error) { failure = error; transaction.abort(); }
-      };
+      try {
+        const store = transaction.objectStore(storeName);
+        const request = store.getAll(undefined, 5);
+        request.onsuccess = () => {
+          if (failed) return;
+          try {
+            const rows = request.result as DraftRow[];
+            validateRows(rows);
+            const next = edit(rows);
+            validateRows(next.rows);
+            if (mode === 'readwrite') {
+              store.clear();
+              for (const row of next.rows) store.put(row);
+            }
+            value = next.value;
+          } catch (error) { fail(error); }
+        };
+      } catch (error) { fail(error); }
     });
   }
   return {

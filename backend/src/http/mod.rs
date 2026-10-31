@@ -12,6 +12,7 @@ mod headers;
 mod homebox_pinned_discovery;
 mod homebox_pinned_files;
 pub use homebox_pinned_files::PinnedHomeBoxFileBinding;
+mod atlas_display_policy;
 mod atlas_room_links;
 mod atlas_scene;
 mod browser_reads;
@@ -122,6 +123,8 @@ pub struct Host {
     offline_packs: Arc<Mutex<offline_read_pack::Registry>>,
     atlas_scene: Option<Arc<crate::config::atlas_scene::ServerAtlasSceneSelection>>,
     atlas_room_links: Option<Arc<crate::config::atlas_room_links::ServerAtlasRoomLinksSelection>>,
+    atlas_display_policy:
+        Option<Arc<crate::config::atlas_display_policy::ServerAtlasDisplayPolicySelection>>,
     full_geodata_identity: Option<crate::storage::FullGeodataIdentity>,
     geodata_dataset: Option<Arc<Mutex<crate::storage::geodata::GeodataStore>>>,
     loopback_local: bool,
@@ -419,7 +422,8 @@ pub fn router_with_ai(host: Host, ai: Option<Router>) -> Router {
         .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas",get(atlas_scene::descriptor).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas/{publication_id}/artifacts/model",get(atlas_scene::model).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas/{publication_id}/artifacts/model-detail",get(atlas_scene::model_detail).head(auth::session_head).fallback(auth::session_head))
-        .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas/{publication_id}/room-links",get(atlas_room_links::read).head(auth::session_head).fallback(auth::session_head));
+        .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas/{publication_id}/room-links",get(atlas_room_links::read).head(auth::session_head).fallback(auth::session_head))
+        .route("/api/atlas/models/v1/workspaces/{workspace_id}/homes/{home_id}/atlas/{publication_id}/display-policy",get(atlas_display_policy::read).head(auth::session_head).fallback(auth::session_head));
     let base = base
         .route("/api/atlas/offline/v1/workspaces/{workspace_id}/homes/{home_id}/manifest", get(offline_read_pack::manifest).head(auth::session_head).fallback(auth::session_head))
         .route("/api/atlas/offline/v1/workspaces/{workspace_id}/homes/{home_id}/snapshots/{snapshot_id}/manifest", get(offline_read_pack::retained_manifest).head(auth::session_head).fallback(auth::session_head))

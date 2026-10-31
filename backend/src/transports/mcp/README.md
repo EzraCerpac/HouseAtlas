@@ -89,12 +89,14 @@ tools/call over a serialized host-framed session. The bounded decoder retains
 arbitrary-precision Numbers, request IDs and literal object keys. The host owns
 framing, connection lifetime, idle clocks and transport-level admission.
 
-## Catalog-to-admission parity, version 3
+<a id="catalog-to-admission-parity-version-3"></a>
 
-Source baseline: public main `21c769e2dc947396acffafca04278249d215d8c8`,
-28 October 2026; related issue #288. The shared wire3 catalog contains 168
-operations in ten families. This bounded change addresses discovery of admitted
-request arms and batch children, not the complete operation qualification matrix.
+## Catalog-to-admission parity, version 4
+
+Source baseline: public main `8d49266113bdd808e760f821adc8b6daac0e1cff`,
+29 October 2026; related issue #288. The shared wire3 catalog contains 168
+operations in ten families. Discovery specializes admitted request arms and batch
+children; the execution ledger below separately records per-operation evidence.
 
 Previously `NativeCatalog` published the full family input union even when the
 host admitted only two reads. It now selects the host-admitted operation schema
@@ -129,10 +131,11 @@ Static catalog disposition (not host admission): 154 operations are
 `homebox.location.history`, `homebox.location.restore-deleted`,
 `homebox.file.replace-bytes`, `homebox.file.restore-deleted`,
 `homebox.document-link.retarget`, `homebox.maintenance.attachment-upload` and
-`homebox.maintenance.attachment-delete`. Configured HomeBox history has an actual
-separate reads_for/core dispatch seam despite the catalog's unsupported metadata;
-inspect current admission and that owner instead of treating metadata as either
-a grant or a complete runtime support verdict. Provider restore/file/attachment
+`homebox.maintenance.attachment-delete`. Configured HomeBox history admits the
+distinct `homebox.entity.mediated-history` and `homebox.location.mediated-history`
+operations through reads_for/core. It does not admit `homebox.entity.history` or
+`homebox.location.history`; those unsupported IDs must not be relabeled as bound
+because their names resemble the mediated-history IDs. Provider restore/file/attachment
 write forms are not bridge Atlas WRITES and remain unavailable through that facade.
 Held IDs are `atlas.binding.reassign-identity` and `atlas.asset.hard-purge`.
 Forbidden append-only forms are `atlas.evidence.replace`, `atlas.geometry.replace`
@@ -146,8 +149,15 @@ Runtime sources are [capabilities.rs](../../http/agents/capabilities.rs),
 [the bounded bridge](../../../../tools/houseatlas-mcp-bridge/bridge.py).
 [Public bridge guidance](../../../../tools/houseatlas-mcp-bridge/README.md) explains
 scope, target, cursor and correlation with synthetic evidence-list examples.
-This version reconciles source support only; it does not close the full per-operation
-qualification matrix. No local checks or live operations were run for this update.
+The [version 4 execution ledger](../../../../docs/rust-integration/mcp-operation-qualification-v4.md)
+joins every one of the 168 IDs to profile applicability, real service ownership,
+exact existing execution evidence and a bounded disposition. It records all 19
+MCP and three bridge cases observed again on this source baseline, while
+distinguishing metadata/fake-owner coverage from real Access/StockService/SQLite
+execution. It leaves actual expiry, remap, media transfer and unknown-outcome
+qualification explicit. This reconciliation completes the source/evidence index,
+not the still-open per-operation installed/live/browser acceptance. No local
+checks, new tests or live operations were run for this update.
 
 `healthy_admitted_family_input_descriptors` checks single-arm selection with an
 unrelated admitted family, unchanged reachable definitions, offline descriptor

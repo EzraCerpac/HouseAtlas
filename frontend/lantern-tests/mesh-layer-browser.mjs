@@ -32,7 +32,37 @@ assert(chromium && existsSync(chromium), 'Set HOUSEATLAS_CHROMIUM to the inspect
 const frontend = fileURLToPath(new URL('../', import.meta.url));
 const scratch = mkdtempSync(join(tmpdir(), 'houseatlas-mesh-layer-'));
 const dist = join(scratch, 'dist');
-await build({ root: frontend, configFile: false, logLevel: 'silent', plugins: [react()], base: './', publicDir: false,
+/** Test-build-only witnesses: exact source guards, no production-file edits.
+ * Calls retain original this/arguments/results/errors; hooks run only AFTER the
+ * actual preparation/render returned. They do not schedule or draw a frame. */
+const swapWitnessPlugin = {
+  name: 'generated-swap-witness', enforce: 'pre',
+  transform(code, id) {
+    const hooks = [
+      ['/canonical-ifc/MeshLayer.tsx',
+        'if (scene.render(p.projection, stale.current ? p : null, w, h, shading)) schedule(true);',
+        `const refining = scene.render(p.projection, stale.current ? p : null, w, h, shading);
+        (globalThis as unknown as { __swapRender?: (canvas: HTMLCanvasElement, shading: number) => void }).__swapRender?.(element, shading);
+        if (refining) schedule(true);`],
+      ['/canonical-ifc/mesh-scene.ts',
+        'await prepareEffectPipelines(renderer, { pipeline, relit, occlusion, history, passes: [geometryPass, colorPass] }, () => slice.next(), signal);',
+        `await prepareEffectPipelines(renderer, { pipeline, relit, occlusion, history, passes: [geometryPass, colorPass] }, () => slice.next(), signal);
+        (globalThis as unknown as { __swapPreparation?: (canvas: HTMLCanvasElement, outcome: string) => void }).__swapPreparation?.(canvas, 'prepared');`],
+      ['/canonical-ifc/mesh-scene.ts',
+        "console.warn('Effect pipelines not prepared; the first shaded frame compiles them', error);",
+        `(globalThis as unknown as { __swapPreparation?: (canvas: HTMLCanvasElement, outcome: string) => void }).__swapPreparation?.(canvas, 'refused');
+        console.warn('Effect pipelines not prepared; the first shaded frame compiles them', error);`],
+    ];
+    let changed = false;
+    for (const [suffix, before, after] of hooks) if (id.split('?')[0].endsWith(suffix)) {
+      assert.equal(code.split(before).length, 2, 'Swap witness source shape changed: ' + suffix);
+      code = code.replace(before, after); changed = true;
+    }
+    return changed ? { code, map: null } : null;
+  },
+};
+
+await build({ root: frontend, configFile: false, logLevel: 'silent', plugins: [swapWitnessPlugin, react()], base: './', publicDir: false,
   build: { outDir: dist, rolldownOptions: { input: ['render-bench', 'embedded-png-material-visual'].map(page => join(frontend, `lantern-tests/${page}/index.html`)) } } });
 
 const MIME = { '.html': 'text/html', '.js': 'text/javascript' };
@@ -164,8 +194,29 @@ try {
     assert(lantern > 20, `The selected room's lantern tone is missing (${lantern} pixels)`);
     // A new mesh set builds behind the one on screen and replaces it only once drawn: never a blank stage.
     await evaluate('window.swapReport = window.swap(), true');
-    await poll('window.swapReport.done', 60_000, 'The swapped mesh set was not shown');
+    await poll('window.swapReport.done', 60_000, 'The swapped mesh set did not finish actual settled shading');
+    const assertShadedSwap = (value, label) => {
+      assert.equal(value.error, null, label + ': unsupported/refused instrumentation');
+      assert.equal(value.observerSupported, true, label + ': longtask observation unavailable');
+      assert.equal(value.preparation, 'prepared', label + ': preparation was not successful');
+      assert(value.historyFrames > 0 && value.historyCount > 0 && value.outputFrames > 0, label + ': actual shaded/history frames missing');
+      assert(value.fullShadeFrames > 0, label + ': real render never completed with shading === 1');
+      assert(value.postShownObservationMs >= 2000, label + ': settled observation incomplete');
+      assert(value.preparedPipelines > 0 && value.preparedQuadUses > 0, label + ': no prepared backend pipeline actually reused by a runtime quad');
+      for (const key of ['buildLongestTaskMs', 'postShownLongestTaskMs', 'runtimeCreated', 'postShownCreated'])
+        assert(Number.isFinite(value[key]) && value[key] >= 0, label + ': missing characterization ' + key);
+      assert(value.preparedEffectMaterials > 0 && value.effectDraws > 0, label + ': no classified post-show effect draws');
+      assert.equal(value.unknownEffectMaterialDraws, 0, label + ': unknown post-show quad material');
+      assert.equal(value.reusedEffectDraws, value.effectDraws, label + ': not every executed effect reused a prepared pipeline');
+      assert.equal(value.unpreparedEffectDraws, 0, label + ': an executed effect pipeline was unprepared');
+      assert.equal(value.postShownEffectCreated, 0, label + ': an effect material created a pipeline after show');
+      // This is deterministic cache coverage, not a timing budget. Unrelated
+      // mesh/background creations and software-GPU long tasks stay informational.
+      console.log(JSON.stringify({ swapCharacterization: label, backend: expected, ...value,
+        timingPolicy: 'informational; not the deferred Mac 100 ms acceptance' }));
+    };
     const swap = await evaluate('window.swapReport');
+    assertShadedSwap(swap, 'ordinary');
     assert.equal(swap.mostCanvases, 2, 'the new set builds on its own canvas');
     assert.equal(swap.fewestVisible, 1, 'a canvas stays on screen throughout the swap');
     if (expected === 'webgl2') assert(swap.newDrawsWhenShown >= 1, 'the new set has drawn before the old one is removed');
@@ -174,8 +225,9 @@ try {
     // A much larger set, as the Full model replaces Light: it merges, uploads and
     // compiles over several frames while the old set stays on screen.
     await evaluate('window.bigSwap = window.swap(6000), true');
-    await poll('window.bigSwap.done', 120_000, 'The larger mesh set was not shown');
+    await poll('window.bigSwap.done', 120_000, 'The larger mesh set did not finish actual settled shading');
     const big = await evaluate('window.bigSwap');
+    assertShadedSwap(big, 'larger');
     assert.equal(big.fewestVisible, 1, 'a canvas stays on screen throughout the larger swap');
     assert(big.sphereVertices < 100, `no frame walks the larger set's vertices for a bounding sphere (${big.sphereVertices})`);
     assert(big.framesMeanwhile >= 3, `the page keeps drawing while the larger set builds (${big.framesMeanwhile} frames)`);

@@ -1,8 +1,8 @@
 import type { ModelOverviewSelection } from '../src/lantern/source-models/overview-types';
-import { admitAtlasScene, ATLAS_LIMITS } from '../src/lantern/unified-atlas/scene';
-import { AtlasReadError, type AtlasReadFailure, type AtlasScene, type StoredAtlasRead, type UnifiedAtlasRead } from '../src/lantern/unified-atlas/types';
+import { admitAtlasDisplay, admitAtlasScene, ATLAS_LIMITS } from '../src/lantern/unified-atlas/scene';
+import { AtlasReadError, type AtlasReadFailure, type AtlasDisplayConfig, type AtlasScene, type StoredAtlasRead, type UnifiedAtlasRead } from '../src/lantern/unified-atlas/types';
 import type { DetailStore } from '../src/lantern/unified-atlas/detail-store';
-import type { UnifiedAtlasCache } from './unified-atlas-cache';
+import type { StoredAtlasDisplayPolicy, UnifiedAtlasCache } from './unified-atlas-cache';
 import { sha256OffThread } from './sha256-thread';
 
 /** Opt-in unified Atlas read for the selected overview publication: one
@@ -17,6 +17,7 @@ export const UNIFIED_ATLAS_READ_LIMITS = Object.freeze({ headers: 16 * 1024, chu
   /** The detail GLB is up to 256 MiB: more chunks, and five minutes at about 7 Mbit/s. */
   detailChunks: 65_536, detailMs: 300_000 });
 const JSON_MIME = 'application/json', MODEL_MIME = 'model/gltf-binary';
+const DISPLAY_POLICY_BYTES = 32 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, SHA = /^[0-9a-f]{64}$/;
 function fail(reason: AtlasReadFailure): never { throw new AtlasReadError(reason); }
 function need(ok: unknown, reason: AtlasReadFailure = 'unavailable'): asserts ok { if (!ok) fail(reason); }
@@ -50,6 +51,30 @@ async function receive(response: Response, cap: number, expected: number | null,
   finally { signal.removeEventListener('abort', cancel); reader.releaseLock(); }
 }
 
+/** Exact selected context wraps presentation-only policy; no native IDs or authority.
+ * Used for both fresh protected bytes and the same partition's retained copy. */
+function decodeDisplayPolicy(bytes: Uint8Array, scene: AtlasScene) {
+  need(bytes.byteLength > 0 && bytes.byteLength <= DISPLAY_POLICY_BYTES, 'too-large');
+  let value: unknown;
+  try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); } catch { fail('invalid'); }
+  need(value !== null && typeof value === 'object' && !Array.isArray(value), 'invalid');
+  const row = value as Record<string, unknown>;
+  const keys = ['profile', 'workspaceId', 'homeId', 'displayConfig'];
+  need(Object.keys(row).length === keys.length && keys.every(key => Object.hasOwn(row, key)), 'invalid');
+  need(row.profile === 'houseatlas.atlas-display-selection.v1', 'invalid');
+  need(row.workspaceId === scene.scope.workspaceId && row.homeId === scene.scope.homeId, 'stale');
+  const policy = admitAtlasDisplay(scene, row.displayConfig);
+  need(policy !== null, 'stale');
+  return policy;
+}
+function displayPolicyPin(headers: Headers): { bytes: number; sha256: string } | null {
+  const sha256 = headers.get('x-atlas-display-policy-sha256'), length = headers.get('x-atlas-display-policy-bytes');
+  if (sha256 === null && length === null) return null;
+  need(sha256 !== null && SHA.test(sha256) && length !== null && /^[1-9][0-9]{0,4}$/.test(length)
+    && Number(length) <= DISPLAY_POLICY_BYTES, 'invalid');
+  return { sha256, bytes: Number(length) };
+}
+
 /** A local lookup slower than this is skipped in favour of the network. */
 export const CACHE_LOOKUP_MS = 3_000;
 /** The stored detail is up to 256 MiB; reading it locally still beats the download. */
@@ -80,7 +105,16 @@ export async function readCachedUnifiedAtlas(options: {
     if (!model || model.byteLength !== scene.model.bytes
       || hex(new Uint8Array(await crypto.subtle.digest('SHA-256', model))) !== scene.model.sha256) return null;
     const envelopeSha256 = hex(new Uint8Array(await crypto.subtle.digest('SHA-256', stored.envelope))); signal.throwIfAborted();
-    return { scene, model, entryBuildingId: stored.entryBuildingId, envelopeSha256, storedAt: stored.storedAt };
+    let policy: AtlasDisplayConfig | undefined;
+    if (stored.displayPolicy !== undefined) {
+      const pin = stored.displayPolicy;
+      if (pin.selectionRevision !== scene.selection.revision || !SHA.test(pin.sha256) || pin.bytes.byteLength > DISPLAY_POLICY_BYTES
+        || hex(new Uint8Array(await crypto.subtle.digest('SHA-256', pin.bytes))) !== pin.sha256) return null;
+      signal.throwIfAborted();
+      policy = decodeDisplayPolicy(pin.bytes, scene);
+    }
+    return { scene, model, entryBuildingId: stored.entryBuildingId, envelopeSha256, storedAt: stored.storedAt,
+      ...(policy === undefined ? {} : { displayConfig: policy }) };
   } catch (error) {
     if (signal.aborted) throw error;
     return null;
@@ -103,14 +137,14 @@ function connect(options: ReadOptions, ms: number = UNIFIED_ATLAS_READ_LIMITS.ms
     && SHA.test(selection.manifestSha256));
   const guard = () => { signal.throwIfAborted(); need(isCurrent() && Date.parse(selection.expiresAt) > Date.now(), 'stale'); };
   const path = `/api/atlas/models/v1/workspaces/${selection.scope.workspaceId}/homes/${selection.scope.homeId}/atlas`;
-  const get = async (href: string, mime: string) => {
+  const get = async (href: string, mime: string, missing: AtlasReadFailure = 'absent') => {
     guard(); const url = new URL(href, origin).href;
     const response = await (options.transport ?? fetch)(url, {
       method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal, headers: { Accept: mime },
     });
     try {
       guard();
-      need(response.status !== 404 || mime !== JSON_MIME, 'absent');
+      need(response.status !== 404 || mime !== JSON_MIME, missing);
       need(response.status !== 409 && response.status !== 412, 'stale');
       // An explicit refusal is not a transport failure: no stored copy stays on screen for it.
       need(response.status !== 401 && response.status !== 403, 'denied');
@@ -127,10 +161,10 @@ function connect(options: ReadOptions, ms: number = UNIFIED_ATLAS_READ_LIMITS.ms
 }
 type Sha256 = (bytes: Uint8Array<ArrayBuffer>, signal: AbortSignal) => Promise<{ readonly bytes: Uint8Array<ArrayBuffer>; readonly digest: Uint8Array }>;
 const sha256Here: Sha256 = async bytes => ({ bytes, digest: new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)) });
-/** Model bytes for a pinned artifact: the served revision before and after the
+/** Bytes for a pinned artifact: the served revision before and after the
  * byte work, then the exact length, digest and content digest. `sha256` may
  * hash elsewhere; only the bytes it hands back, once they match, are returned. */
-async function receiveModel(body: Response, pin: Readonly<{ bytes: number; sha256: string }>, revision: string,
+async function receivePinned(body: Response, pin: Readonly<{ bytes: number; sha256: string }>, revision: string,
   signal: AbortSignal, guard: () => void, { maxChunks, sha256 = sha256Here }: Readonly<{ maxChunks?: number; sha256?: Sha256 }> = {})
   : Promise<Uint8Array<ArrayBuffer>> {
   try {
@@ -161,7 +195,9 @@ export async function readUnifiedAtlas(options: ReadOptions & {
     const servedManifest = () => need(descriptor.headers.get('x-atlas-overview-manifest-sha256') === selection.manifestSha256, 'stale');
     // Pin the exact overview selected by this owner, independently of the
     // model, source and companion digests. Check before consuming its body.
-    try { servedManifest(); } catch (error) { void descriptor.body?.cancel().catch(() => undefined); throw error; }
+    let policyPin: ReturnType<typeof displayPolicyPin>;
+    try { servedManifest(); policyPin = displayPolicyPin(descriptor.headers); }
+    catch (error) { void descriptor.body?.cancel().catch(() => undefined); throw error; }
     const envelope = await receive(descriptor, ATLAS_LIMITS.envelopeBytes, null, signal, guard);
     let json: unknown;
     try { json = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(envelope)); } catch { fail('invalid'); }
@@ -175,20 +211,29 @@ export async function readUnifiedAtlas(options: ReadOptions & {
     need(descriptor.headers.get('x-atlas-selection-revision') === revision, 'stale');
     const href = `${path}/${selection.publicationId}/artifacts/model?expectedSha256=${scene.model.sha256}&expectedSelectionRevision=${encodeURIComponent(revision)}`;
     need(scene.model.href === href, 'invalid');
+    let retainedPolicy: StoredAtlasDisplayPolicy | undefined;
+    let displayConfig: AtlasDisplayConfig | undefined;
+    if (policyPin !== null) {
+      const policyHref = `${path}/${selection.publicationId}/display-policy?expectedSha256=${policyPin.sha256}&expectedSemanticsSha256=${scene.publication.semanticsSha256}&expectedSelectionRevision=${encodeURIComponent(revision)}`;
+      const bytes = await receivePinned(await get(policyHref, JSON_MIME, 'stale'), policyPin, revision, signal, guard);
+      displayConfig = decodeDisplayPolicy(bytes, scene);
+      guard();
+      retainedPolicy = { bytes, sha256: policyPin.sha256, selectionRevision: revision };
+    }
     const envelopeSha256 = hex(new Uint8Array(await crypto.subtle.digest('SHA-256', envelope))); guard();
     const cache = options.cache ? await lookup(Promise.resolve(options.cache)) : null; guard();
-    const keepScene = () => cache?.keepScene(selection.publicationId, selection.manifestSha256, envelope, envelopeSha256, entryBuildingId);
+    const keepScene = () => cache?.keepScene(selection.publicationId, selection.manifestSha256, envelope, envelopeSha256, entryBuildingId, retainedPolicy);
     if (cache) {
       // Stored bytes stand in for the GET only when they hash to the digest this fresh scene pins.
       const stored = await lookup(cache.model(scene.model.sha256, scene.model.bytes)); guard();
       if (stored && stored.byteLength === scene.model.bytes && hex(new Uint8Array(await crypto.subtle.digest('SHA-256', stored))) === scene.model.sha256) {
         guard(); keepScene();
-        return { scene, model: stored, entryBuildingId, envelopeSha256 };
+        return { scene, model: stored, entryBuildingId, envelopeSha256, ...(displayConfig === undefined ? {} : { displayConfig }) };
       }
     }
-    const bytes = await receiveModel(await get(href, MODEL_MIME), scene.model, revision, signal, guard);
+    const bytes = await receivePinned(await get(href, MODEL_MIME), scene.model, revision, signal, guard);
     cache?.keepModel(scene.model.sha256, bytes); keepScene();
-    return { scene, model: bytes, entryBuildingId, envelopeSha256 };
+    return { scene, model: bytes, entryBuildingId, envelopeSha256, ...(displayConfig === undefined ? {} : { displayConfig }) };
   } catch (error) { outcome(error, options.signal); }
 }
 
@@ -219,7 +264,7 @@ export async function readUnifiedAtlasDetail(options: ReadOptions & { readonly s
         store.forget(pin.sha256);
       }
     }
-    const bytes = await receiveModel(await get(href, MODEL_MIME), pin, revision, signal, guard,
+    const bytes = await receivePinned(await get(href, MODEL_MIME), pin, revision, signal, guard,
       { maxChunks: UNIFIED_ATLAS_READ_LIMITS.detailChunks, sha256: sha256OffThread });
     store?.keep(pin.sha256, bytes);
     return bytes;

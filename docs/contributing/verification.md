@@ -114,7 +114,7 @@ hosted step logs remain the execution record.
 | ordinary-core / ordinary-core | Run the eight synthetic electrical registration cases | `node --test --test-concurrency=1 tools/electrical_registration/healthy.test.mjs` | every run | 8 top-level tests | Generated pure in-memory registration cases; no receipt, native authority or physical placement. |
 | ordinary-core / ordinary-core | Check synthetic host-client options, identities, pacing, MCP and comparison (no host or load) | `node --test --test-concurrency=1 tools/perf/host-client/options.test.mjs tools/perf/host-client/compare.test.mjs` | every run | 9 top-level tests | Option limits, sample-qualified summaries, driver fingerprints over generated files, synthetic pacing, fake-port MCP exchanges and a bounded comparison subprocess; no host, load or profiler. |
 | ordinary-core / ordinary-core | Run synthetic Cargo mode argument-routing regressions | `node --test --test-concurrency=1 tools/cargo-modes/run.test.mjs` | every run |  | Wrapper and toolchain pin copied into disposable checkouts with a recording rustup stub; cases are generated in loops, so no count is pinned. Runs no Cargo compiler. |
-| ordinary-core / ordinary-core | Check the NAS deploy tool with a fake service | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'` | every run | 43 unittest methods | Temp folders and a fake service; no launchd, network or real data. |
+| ordinary-core / ordinary-core | Check the NAS deploy tool with a fake service | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'` | every run | 52 unittest methods | Temp folders and a fake service; no launchd, network or real data. |
 | ordinary-core / ordinary-core | Check the nightly backup script with a fake service and iCloud helper | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/backup -p 'test_*.py'` | every run | 24 unittest methods | Temp folders, a fake service and a fake iCloud helper, including the content-addressed model store. |
 | ordinary-core / ordinary-core | Run the HomeBox quantity seed report's synthetic unit tests | `python3 --version`<br>`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/homebox-quantity-seed-report -p test_report.py -v` | every run | 14 unittest methods | Synthetic HomeBox quantity seed report unit tests; prints the runner Python version. |
 | ordinary-core / ordinary-core | Run the sixteen synthetic runtime profiling guard and receipt cases | `python3 -c 'import sys; assert sys.version_info >= (3, 11), "Python >=3.11 required"; print(sys.version)'`<br>`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/perf/runtime-profile -p test_runtime_profile.py -v` | every run | 16 unittest methods | Asserts Python >=3.11, then configuration refusal, sample decoding, receipts, deadlines and process-group cleanup with fake build/profiler commands. |
@@ -128,30 +128,30 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `HOUSEATLAS_CHROMIUM=/usr/bin/google-chrome`<br>`node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 69 source, 1 build, 5 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the runner's Chrome against generated build output. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 69 source, 1 build, 5 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
-| rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome. |
-| rust-react-ordinary / loopback | Real disposable auth reads and fresh local writes | `node tools/rust-integration/healthy-core-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome. |
-| rust-react-ordinary / loopback | Real disposable fresh stock singles and atomic direct-map batches | `node tools/rust-integration/healthy-stock-write-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome. |
-| rust-react-ordinary / loopback | Real disposable native stock audit first pages and search | `node tools/rust-integration/healthy-stock-history-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome. |
+| rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
+| rust-react-ordinary / loopback | Real disposable auth reads and fresh local writes | `node tools/rust-integration/healthy-core-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
+| rust-react-ordinary / loopback | Real disposable fresh stock singles and atomic direct-map batches | `node tools/rust-integration/healthy-stock-write-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
+| rust-react-ordinary / loopback | Real disposable native stock audit first pages and search | `node tools/rust-integration/healthy-stock-history-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
 | rust-react-ordinary / loopback | Real standalone text asset through Access, Media, stock and SQLite | `node tools/rust-integration/healthy-standalone-asset-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host and built React app; no browser. |
-| rust-react-ordinary / loopback | Real disposable owned media commits and GET HEAD delivery | `node tools/rust-integration/healthy-media-loopback.mjs` | loopback lane; `matrix.shard == 2` |  | Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome. |
-| rust-react-ordinary / loopback | Real disposable native stock circuit and asset reads | `node tools/rust-integration/healthy-stock-loopback.mjs` | loopback lane; `matrix.shard == 2` |  | Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome. |
-| rust-react-ordinary / loopback | Real React human classification cached read and mounted MCP audit | `node tools/rust-integration/healthy-human-host-loopback.mjs` | loopback lane; `matrix.shard == 2` |  | Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome. |
-| rust-react-ordinary / loopback | Real React fresh attachment and existing-original reuse | `node tools/rust-integration/healthy-upload-loopback.mjs` | loopback lane; `matrix.shard == 2` |  | Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome. |
+| rust-react-ordinary / loopback | Real disposable owned media commits and GET HEAD delivery | `node tools/rust-integration/healthy-media-loopback.mjs` | loopback lane; `matrix.shard == 2` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
+| rust-react-ordinary / loopback | Real disposable native stock circuit and asset reads | `node tools/rust-integration/healthy-stock-loopback.mjs` | loopback lane; `matrix.shard == 2` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
+| rust-react-ordinary / loopback | Real React human classification cached read and mounted MCP audit | `node tools/rust-integration/healthy-human-host-loopback.mjs` | loopback lane; `matrix.shard == 2` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
+| rust-react-ordinary / loopback | Real React fresh attachment and existing-original reuse | `node tools/rust-integration/healthy-upload-loopback.mjs` | loopback lane; `matrix.shard == 2` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
 | rust-react-ordinary / loopback | Real mounted MCP sessions across one Access rotation | `node tools/rust-integration/healthy-mcp-lifecycle-loopback.mjs` | loopback lane; `matrix.shard == 2` |  | Compiled binary, disposable TLS loopback host and built React app; no browser. |
-| rust-react-ordinary / loopback | Real native browser WebMCP stock read fresh create and audit page | `node tools/rust-integration/healthy-agent-loopback.mjs` | loopback lane; `matrix.shard == 3` |  | Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome. |
-| rust-react-ordinary / loopback | Real cached HomeBox read native WebMCP classification and mounted MCP audit | `node tools/rust-integration/healthy-agent-host-loopback.mjs` | loopback lane; `matrix.shard == 3` |  | Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome. |
-| rust-react-ordinary / loopback | Real cached Unicode collection read with complete SQLite facts | `node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs` | loopback lane; `matrix.shard == 3` |  | Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome. |
-| rust-react-ordinary / loopback | Real Atlas ten lists, invoke parity and native WebMCP cursor continuation | `node tools/rust-integration/healthy-atlas-lists-loopback.mjs` | loopback lane; `matrix.shard == 3` |  | Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome. |
-| rust-react-ordinary / loopback | Real aggregate stock operation events and read-only Changes view | `node tools/rust-integration/healthy-operation-events-loopback.mjs` | loopback lane; `matrix.shard == 3` |  | Compiled binary, disposable TLS loopback host, built React app and the runner's Chrome. |
+| rust-react-ordinary / loopback | Real native browser WebMCP stock read fresh create and audit page | `node tools/rust-integration/healthy-agent-loopback.mjs` | loopback lane; `matrix.shard == 3` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
+| rust-react-ordinary / loopback | Real cached HomeBox read native WebMCP classification and mounted MCP audit | `node tools/rust-integration/healthy-agent-host-loopback.mjs` | loopback lane; `matrix.shard == 3` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
+| rust-react-ordinary / loopback | Real cached Unicode collection read with complete SQLite facts | `node tools/rust-integration/healthy-homebox-cache-unicode-loopback.mjs` | loopback lane; `matrix.shard == 3` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
+| rust-react-ordinary / loopback | Real Atlas ten lists, invoke parity and native WebMCP cursor continuation | `node tools/rust-integration/healthy-atlas-lists-loopback.mjs` | loopback lane; `matrix.shard == 3` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
+| rust-react-ordinary / loopback | Real aggregate stock operation events and read-only Changes view | `node tools/rust-integration/healthy-operation-events-loopback.mjs` | loopback lane; `matrix.shard == 3` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
 | rust-react-ordinary / ci-ok | Require successful or skipped jobs | `RESULTS=${{ join(needs.*.result, ' ') }}`<br>`for result in $RESULTS; do`<br>`  case "$result" in`<br>`    success\|skipped) ;;`<br>`    *) exit 1 ;;`<br>`  esac`<br>`done` | every run |  | Runs after the selector, source, unit-test, frontend and loopback jobs; fails unless each succeeded or was skipped by lane selection. |
 
-18 setup, plumbing and summary run steps (3 of them in composite actions under `.github/actions`) are listed in `tools/ci/lanes.json` and omitted here. Commands show step env values first.
+19 setup, plumbing and summary run steps (4 of them in composite actions under `.github/actions`) are listed in `tools/ci/lanes.json` and omitted here. Commands show step env values first.
 Triggers: `ordinary-core.yml` on push (branches [main]), pull_request; `rust-react-ordinary.yml` on pull_request, push (branches [main]).
 The backend lane runs on pushes, after failed change selection, and on PRs except frontend-presentation-only or docs-only changes. The frontend lane runs on pushes, after failed change selection, and on PRs except backend-only or docs-only changes. The loopback lane runs all three shards on pushes, after failed change selection, and on PRs except docs-only changes; frontend-presentation-only PRs run shard 1 only.
-Toolchains: `node` 26.10.0, `npm` 11.19.1, `rust` 1.99.0, `python3` (runner-provided, unpinned), `chromium` (runner-provided, unpinned).
+Toolchains: `node` 26.10.0, `npm` 11.19.1, `rust` 1.99.0, `python3` (runner-provided, unpinned), `chromium` 156.0.8078.47.
 Not ordinary scope: `performance-report.yml` (workflow_run reporter for the synthetic PR performance lane, from the default-branch checkout); `performance.yml` (separate synthetic PR performance lane; base/head measurements from a pinned harness checkout); `synthetic-readme-media.yml` (separately authorized README media capture; ephemeral review artifacts only).
 
 <!-- ci-lanes:end -->
@@ -189,7 +189,8 @@ node frontend/lantern-tests/run-healthy.mjs --only offline   # subset by substri
 ```
 
 Without `HOUSEATLAS_CHROMIUM` the browser checks are skipped and reported as
-such. The list excludes regression, control, expiry, intake and handoff-directory
+such. CI sets it to the pinned Chrome for Testing build described under
+[Pinned CI browser](#pinned-ci-browser). The list excludes regression, control, expiry, intake and handoff-directory
 commands, including the session-policy, capture-draft controller and
 native-place-levels-intake (concurrency) selections; those keep their own lanes below. A check added to this directory is
 not run by CI until it is added to the list.
@@ -288,6 +289,31 @@ native UI harness and browser-cases runner remain outside this list. The full
 controller regression file contains thirteen cases and is not selected here.
 No new workflow or browser infrastructure is added.
 
+## Native media Chromium startup
+
+The existing healthy media loopback invokes in-process `browser-pipe-cases.mjs`
+coverage before native work: fragmented NUL/UTF-8 frames, exact response IDs,
+silent startup, malformed frames, process/pipe exit and write errors, terminal
+pending-call release and the handshake/exit continuation race. Fake EventEmitters
+and a controlled clock launch no child, browser, socket or service.
+
+The media flow makes one `Browser.getVersion` request with a 60 s launch-only
+budget before page/cookie work. It never retries or relaunches. Subsequent CDP
+calls retain 15 s. Readiness is a correlated, valid version response from a
+still-live pipe, not the spawn event or successful write alone. Startup receipts
+contain only timing, counts and process/pipe state; no CDP payloads or stderr.
+This bounded wait accommodates delay without diagnosing its cause. Framing,
+child exits and pipe/write failures fail immediately rather than waiting out
+that budget. Other copied loopback flows are unchanged by this increment.
+
+Media teardown reuses the close-aware owned-child helper: 2 s graceful, 2 s TERM
+and 3 s KILL, with no broad process discovery or signals. Failed startup does
+not attempt another handshake or protocol close. Removal waits for browser and
+service closure; uncertain closure retains synthetic scratch. Cleanup failures
+are additional diagnostics when a primary assertion failed, and fail an otherwise
+successful case. The existing CI job limit and application assertions are unchanged.
+Registration is not an execution result or device acceptance.
+
 ## Real-browser offline launch
 
 `frontend/lantern-tests/offline-launch-browser.mjs` serves the built `dist/` on
@@ -363,6 +389,29 @@ These cases stay inside the existing `webgl2`/`webgpu` selections. They cover
 separately authored primitives, not intersecting or disconnected panes inside
 one primitive; the rendering limitation is stated in the scene contract.
 
+The existing generated-house swap checks keep their long-task observer alive
+after old-canvas removal through actual output/history execution, a completed
+render with shading exactly one, and the existing two-second quiet observation.
+Test-build-only, exact-shape guarded hooks report preparation success versus
+clean refusal and actual render inputs; production source files are unchanged.
+Fixture wrappers count actual backend pipeline creation and runtime quad reuse
+by the new renderer/canvas. They preserve original calls/results/errors and are
+restored on page exit. Unsupported observation/instrumentation is a failure,
+not a zero-duration success. Observer records are drained before disconnect.
+
+Build and post-shown task durations and runtime pipeline creations are reported
+separately. Quad material identities are registered at compileAsync entry,
+including cache hits. Every post-show effect draw is classified using the
+actual RenderObject.material; unknown quad materials fail rather than disappear
+from the denominator. The case requires effect draws, reuse for every such draw,
+zero unprepared effect draws and zero post-show pipeline creations for those
+materials. Pipelines are renderer-local and may be shared across materials;
+quad-object identity and ping-pong target identity are not cache contracts.
+Unused relit paths are not forced to execute. Total mesh/background creations
+and latency remain informational; this is not the deferred Mac WebGPU 100 ms
+acceptance. Existing 60/120-second completion deadlines limit hangs only.
+This extends the existing webgl2 selection; webgpu/bench stay opt-in.
+
 The same selections compare a closed synthetic omni bulb off/on over fixed
 receivers: nearby nonemissive metal retains its pool, paving 6 m away receives
 light, and receivers at 10 m and 12 m remain unchanged. This samples the actual
@@ -435,7 +484,31 @@ node tools/rust-integration/healthy-atlas-lists-loopback.mjs
 The flows need `HOUSEATLAS_BINARY` and a built `frontend/dist`. All except
 `healthy-mcp-lifecycle-loopback.mjs` and `healthy-standalone-asset-loopback.mjs`
 also drive Chrome from `HOUSEATLAS_CHROMIUM`, falling back to
-`/usr/bin/google-chrome` or `/usr/bin/chromium` when it is unset.
+`/usr/bin/google-chrome` or `/usr/bin/chromium` when it is unset. CI always sets
+it to the [pinned CI browser](#pinned-ci-browser).
+
+### Pinned CI browser
+
+The `frontend` and `loopback` jobs pass `chrome: 'true'` to
+`.github/actions/ordinary-setup`, which downloads Chrome for Testing
+156.0.8078.47 for linux64, checks the archive against the SHA-256 recorded in the
+action, checks that the binary reports exactly that version, and exports
+`HOUSEATLAS_CHROMIUM`. The runner image's own Chrome is not used, so a GitHub
+image update cannot change the browser under the flows. Several loopback flows
+accept only inspected `Browser.getVersion` products (for example the native
+WebMCP input-form map in `tools/rust-integration/healthy-human-host-loopback.mjs`)
+and refuse any other version.
+
+To move to a newer build:
+
+1. Pick a version from the Chrome for Testing
+   [known-good versions](https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json)
+   and download its `linux64/chrome-linux64.zip`.
+2. Inspect the behavior those allowlists guard, then add its exact
+   `Chrome/<version>` product to every allowlist in the CI loopback flows.
+3. Update `CHROME_VERSION` and `CHROME_SHA256` in the action, the `chromium`
+   toolchain version and the `action.setup.chrome` row in `tools/ci/lanes.json`,
+   and this section, then run `python3 -B -I tools/ci/check_lanes.py --write`.
 
 The Linux `source` job, not the loopback job, runs the network-router flow,
 which uses no browser. CI wraps the build in `tools/ci/cargo-timings.mjs`; the
@@ -3084,3 +3157,31 @@ launch selections continue to cover the actual clients. See
 [the consumer audit and boundaries](../contracts/client-schema-subsets.md).
 Source generation and synthetic equality establish no device latency or
 operational acceptance; record hosted launch raw/gzip measurements separately.
+
+### Grouped-level display coverage
+
+The existing `node frontend/lantern-tests/unified-atlas-healthy.mjs` case also
+uses its generated multilevel model to check the explicit display-policy
+contract: admitted-read metadata precedence, explicit-null disabling,
+stale/invalid supplied-policy no-fallback behavior, absent-policy fallback,
+same-source null-to-policy and changed-membership updates through the actual
+easing initializer/RAF-step kernel and section/frame conversion (finite values,
+retained/retired keys and terminal settlement; no mounted hook/effect/RAF claim),
+and optional protected display-policy GETs through the actual reader: exact
+scope/publication/digest/revision and length, refusal before model work, and
+selection retirement. The existing `unified-atlas-cache-healthy.mjs` case also
+checks exact policy retention, metadata-only replacement/removal, revision refusal
+and actor partitioning over the actual cache and synthetic IndexedDB. These are
+generated in-process transports/disks, not native/authenticated/browser evidence.
+The ordinary Rust library set includes the three pure
+`config::atlas_display_policy` contract/options tests (no native/private files).
+The same generated multilevel source also covers
+unchanged semantic containment and vertices, one navigation group,
+both members' actual CPU room picks, union framing, per-level wall cuts through group/All/lower transition starts,
+ends and interrupted/reversed retargets, lower-level connecting-structure association, Plan
+member switching and the actual Floor Stack's React server markup. Small
+in-process policy assertions reject overlapping groups and cross-building
+memberships. The existing runner and its deadline are unchanged; this adds no
+browser/CI lane, native source or latency budget. Markup and CPU geometry do not
+establish keyboard/swipe events, visual appearance, private policy deployment
+or device acceptance. No such interactive check is run by this case.

@@ -79,11 +79,24 @@ Other held controls remain excluded. Exact commands and limits are in the
 verification guide; hosted logs, not registration, establish execution.
 
 In `.github/workflows/rust-react-ordinary.yml` that includes
-the named Lantern healthy read; the generated Electrical Library `healthy`
+the named Lantern healthy read;
+the existing unified Atlas healthy case also checks explicit publication-pinned
+display groups, admitted-read metadata precedence/null/no-fallback behavior,
+same-source policy key changes through the actual easing initializer/step and
+finite section conversion/settlement (no mounted hook or RAF/browser test),
+plus bounded protected display-policy responses with exact context/digest/revision,
+refusal and selection retirement; the existing cache healthy case checks policy-only
+replacement/removal, cold retention and actor separation without a browser,
+unchanged geometry/containment, both members' CPU room picks,
+union framing, retained per-part cuts through transition starts/ends and reversals,
+connecting-structure association,
+single-plan switching and actual Floor Stack server markup. Its small generated
+policy checks also refuse overlapping groups and cross-building display joins;
+no new runner, browser lane or native authority is added; the generated Electrical Library `healthy`
 case (existing production reader/projection and fictional original bytes,
 local fake owners only; no mounted PDF UI or native access); `frontend/lantern-tests/run-healthy.mjs` with
 its explicit list, including the `offline-launch`, `hung-network` and
-`live-launch` cases in the runner's Chromium against the built public shell
+`live-launch` cases in the pinned Chrome for Testing build against the built public shell
 (generated build output on a loopback listener, no backend; live-launch also
 seeds a generated Atlas and waiting outbox entry through production storage APIs,
 closes and reopens the tab, and checks cached content, exact queue retention and
@@ -99,7 +112,7 @@ plus a closed omni bulb with nearby nonemissive metal and receivers at 6 m
 and at/beyond its finite 10 m envelope, and the `?render-probe` speed check
 (all five cases reported, drawing resumes; software-GPU timings are not device evidence),
 `unified-atlas-plan-wheel-browser.mjs`, which pans and pinch-zooms the generated
-unified Atlas Plan with trusted wheel input in the runner's Chromium, and the generated Unified Atlas compact layer-details
+unified Atlas Plan with trusted wheel input in the pinned Chrome for Testing build, and the generated Unified Atlas compact layer-details
 and control-names checks (compiled source and markup only, no browser), the
 generated time-of-day lighting check (sun positions for a neutral reference
 place and appearance tables only, including glass-pass opacity/frost and
@@ -130,10 +143,20 @@ geometry, including overview texture halving, viewer admission and selector bind
 unified Atlas publication and its detail tier, and their meshopt compression
 expanded by the viewer's decoder; and
 `cargo test --locked -p houseatlas-backend --lib` with its default
-(non-`#[ignore]`) set, skipping the three quantity tests that need
+(non-`#[ignore]`) set, including the three pure synthetic display-policy
+contract/options tests (no native service or private files), skipping the three quantity tests that need
 `HOUSEATLAS_QUANTITY_REFERENCE_DIR`; and the healthy `tools/rust-integration`
-loopback flows named in the workflow and in the verification guide. A PR that
+loopback flows (including pure fake-child/clock CDP startup/framing/error cases
+inside the already admitted media flow; one 60 s startup request, unchanged
+15 s subsequent calls and close-aware owned-child cleanup) named in the workflow and in the verification guide. A PR that
 extends CI names the added scope here and in the verification guide.
+
+The frontend and loopback jobs of `rust-react-ordinary.yml` run their browser
+checks in one exact Chrome for Testing build, not the runner image's Chrome: the
+shared setup action downloads it, verifies its recorded SHA-256 and reported
+version, and exports `HOUSEATLAS_CHROMIUM`. The browser flows' native-input
+allowlists accept only inspected versions, so bump the pinned version and
+checksum only after inspecting the new build and adding it to those allowlists.
 
 `tools/ci/lanes.json` and the generated command inventory in the verification
 guide are the authoritative list of `run:` steps in `ordinary-core.yml`,

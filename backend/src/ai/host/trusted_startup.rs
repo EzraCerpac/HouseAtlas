@@ -28,11 +28,11 @@ pub trait StartupCustody: Send + Sync {
     fn revalidate(&self) -> Result<(), AiError>;
 }
 
-struct CustodiedApi<H, C> {
+struct CustodiedApi<H, C: ?Sized> {
     api: Arc<H>,
     custody: Arc<C>,
 }
-impl<H: HostApi, C: StartupCustody> HostApi for CustodiedApi<H, C> {
+impl<H: HostApi, C: StartupCustody + ?Sized> HostApi for CustodiedApi<H, C> {
     type Context = H::Context;
 
     fn call<'a>(
@@ -49,6 +49,23 @@ impl<H: HostApi, C: StartupCustody> HostApi for CustodiedApi<H, C> {
             result
         })
     }
+}
+
+/// Also used by direct native entry points, which do not pass through HostApi.
+/// A lost release fence preserves original journals/results but discloses no
+/// success, never retries and never recreates credentials.
+pub(crate) async fn fence_custody<T>(
+    custody: Option<&dyn StartupCustody>,
+    operation: impl std::future::Future<Output = Result<T, AiError>>,
+) -> Result<T, AiError> {
+    if let Some(custody) = custody {
+        custody.revalidate()?;
+    }
+    let result = operation.await;
+    if let Some(custody) = custody {
+        custody.revalidate()?;
+    }
+    result
 }
 
 /// Correlation data only. It cannot recreate a native context, credential,
@@ -148,14 +165,18 @@ impl<P: HostPeers<Context = NativeHostContext> + 'static> TrustedAiStartup<P> {
         custody: Arc<C>,
     ) -> Result<Router, AiError> {
         custody.revalidate()?;
-        Ok(crate::http::ai::mounted_router(
+        Ok(self.mounted_router_retained(custody))
+    }
+
+    pub(crate) fn mounted_router_retained(&self, custody: Arc<dyn StartupCustody>) -> Router {
+        crate::http::ai::mounted_router(
             self.host.clone(),
             Arc::new(CustodiedApi {
                 api: Arc::clone(&self.api),
                 custody,
             }),
             Arc::clone(&self.enrollment),
-        ))
+        )
     }
 }
 
@@ -247,5 +268,44 @@ mod custody_tests {
             assert_eq!(host.api.calls.load(Ordering::SeqCst), 1);
             assert_eq!(host.custody.checks.load(Ordering::SeqCst), 2);
         }
+    }
+
+    #[tokio::test]
+    async fn direct_native_boundary_fences_the_original_result_without_replay() {
+        for fail in [false, true] {
+            let host = fixture(true, false, fail);
+            let result = fence_custody(
+                Some(host.custody.as_ref()),
+                host.api.call(&(), HostCommand::Connection),
+            )
+            .await;
+            assert_eq!(result.is_err(), fail);
+            assert_eq!(host.api.calls.load(Ordering::SeqCst), 1);
+            assert_eq!(host.custody.checks.load(Ordering::SeqCst), 2);
+
+            let lost = fixture(true, true, fail);
+            assert_eq!(
+                fence_custody(
+                    Some(lost.custody.as_ref()),
+                    lost.api.call(&(), HostCommand::Connection),
+                )
+                .await,
+                Err(AiError::ConnectionUnavailable)
+            );
+            assert_eq!(lost.api.calls.load(Ordering::SeqCst), 1);
+
+            let absent = fixture(false, false, fail);
+            assert_eq!(
+                fence_custody(
+                    Some(absent.custody.as_ref()),
+                    absent.api.call(&(), HostCommand::Connection),
+                )
+                .await,
+                Err(AiError::ConnectionUnavailable)
+            );
+            assert_eq!(absent.api.calls.load(Ordering::SeqCst), 0);
+        }
+        // This exercises the same boundary utility used by native entry points,
+        // not an actual callback, refresh, credential lease or provider.
     }
 }

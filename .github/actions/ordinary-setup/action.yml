@@ -1,5 +1,5 @@
 name: Ordinary job setup
-description: Exact Node and Rust runtimes, isolated caches and locked npm installs for one Rust React ordinary job.
+description: Exact Node, Rust and Chrome runtimes, isolated caches and locked npm installs for one Rust React ordinary job.
 inputs:
   image:
     description: Runner image label, part of every cache key
@@ -10,6 +10,9 @@ inputs:
   target-cache:
     description: Name of this job's Cargo build cache; empty restores none
     default: ''
+  chrome:
+    description: Install the exact Chrome for Testing build and export HOUSEATLAS_CHROMIUM
+    default: 'false'
 outputs:
   npm-key:
     value: ${{ steps.npm-cache.outputs.cache-primary-key }}
@@ -50,6 +53,25 @@ runs:
           rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
           test "$(rustc --version | cut -d ' ' -f 2)" = "1.99.0"
         fi
+    # Browser flows accept only inspected Chrome versions (their native-input allowlists),
+    # so CI uses this checksum-verified build, not the runner image's own Chrome, which
+    # changes when GitHub updates the image. Bump both values only after inspecting the
+    # new version and adding it to those allowlists (docs/contributing/verification.md).
+    - name: Install exact Chrome for Testing
+      if: inputs.chrome == 'true'
+      shell: bash
+      env:
+        CHROME_VERSION: '156.0.8078.47'
+        CHROME_SHA256: e6c94490f0b6b337225aeb2d2a5034858516b7017356980ba94f5176d8774a50
+      run: |
+        dir="$RUNNER_TEMP/houseatlas-chrome"
+        mkdir -p "$dir"
+        curl --fail --silent --show-error --location --retry 3 --output "$dir/chrome-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/$CHROME_VERSION/linux64/chrome-linux64.zip"
+        printf '%s  %s\n' "$CHROME_SHA256" "$dir/chrome-linux64.zip" | sha256sum --check --strict
+        unzip -q "$dir/chrome-linux64.zip" -d "$dir"
+        rm "$dir/chrome-linux64.zip"
+        test "$("$dir/chrome-linux64/chrome" --version | sed 's/ *$//')" = "Google Chrome for Testing $CHROME_VERSION"
+        printf 'HOUSEATLAS_CHROMIUM=%s\n' "$dir/chrome-linux64/chrome" >> "$GITHUB_ENV"
     # Cache public package content only, never node_modules, npm logs or credentials.
     # PRs only restore; only successful main pushes may publish caches.
     - name: Restore exact npm content cache

@@ -249,6 +249,7 @@ jobs:
           image: ubuntu-24.04
           rust: 'false'
           target-cache: ''
+          chrome: 'true'
       - name: Strict TypeScript and production React build
         if: steps.lane.outputs.run == 'true'
         run: |
@@ -256,8 +257,6 @@ jobs:
           npm --prefix frontend run build
       - name: All named healthy frontend checks and real-browser offline launch
         if: steps.lane.outputs.run == 'true'
-        env:
-          HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
         run: node frontend/lantern-tests/run-healthy.mjs
       - name: Model bake on generated geometry, admitted and bound by the viewer
         if: steps.lane.outputs.run == 'true'
@@ -276,8 +275,6 @@ jobs:
         shard: [1, 2, 3]
     runs-on: ubuntu-24.04
     timeout-minutes: 25
-    env:
-      HOUSEATLAS_CHROMIUM: /usr/bin/google-chrome
     steps:
       - name: Select this stable check
         id: lane
@@ -304,6 +301,7 @@ jobs:
           image: ubuntu-24.04
           rust: 'true'
           target-cache: loopback
+          chrome: 'true'
       - name: Prepare Cargo timing diagnostics
         if: steps.lane.outputs.run == 'true'
         continue-on-error: true

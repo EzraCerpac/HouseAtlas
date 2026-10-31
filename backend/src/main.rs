@@ -109,6 +109,10 @@ async fn run(
         houseatlas_backend::config::atlas_room_links::ServerAtlasRoomLinksSelection::from_arguments(
             &arguments, atlas_scene.as_ref(), model_overview.as_ref(),
         ).map_err(|error|format!("HouseAtlas Atlas room-link settings: {error}"))?;
+    let (arguments, atlas_display_policy) =
+        houseatlas_backend::config::atlas_display_policy::ServerAtlasDisplayPolicySelection::from_arguments(
+            &arguments, atlas_scene.as_ref(), model_overview.as_ref(),
+        ).map_err(|error| format!("HouseAtlas Atlas display-policy settings: {error}"))?;
     let (arguments, geodata_selection) = ServerGeodataSelection::from_arguments(&arguments)
         .map_err(|error| format!("HouseAtlas full geodata settings: {error}"))?;
     let (arguments, ai_account) =
@@ -169,6 +173,7 @@ async fn run(
                         model_overview,
                         atlas_scene,
                         atlas_room_links,
+                        atlas_display_policy,
                     },
                     persistent_lease,
                 )
@@ -319,6 +324,8 @@ struct PublicationSelections {
     atlas_scene: Option<houseatlas_backend::config::atlas_scene::ServerAtlasSceneSelection>,
     atlas_room_links:
         Option<houseatlas_backend::config::atlas_room_links::ServerAtlasRoomLinksSelection>,
+    atlas_display_policy:
+        Option<houseatlas_backend::config::atlas_display_policy::ServerAtlasDisplayPolicySelection>,
 }
 
 async fn run_persistent(
@@ -354,6 +361,7 @@ async fn run_persistent(
         model_overview,
         atlas_scene,
         atlas_room_links,
+        atlas_display_policy,
     } = publications;
     let config = Arc::new(config);
     if std::fs::canonicalize(&config.frontend_directory)? != config.frontend_directory {
@@ -386,6 +394,9 @@ async fn run_persistent(
     }
     if let Some(selection) = atlas_room_links {
         host = host.with_atlas_room_links(selection)?;
+    }
+    if let Some(selection) = atlas_display_policy {
+        host = host.with_atlas_display_policy(selection)?;
     }
     if !config.authentication.is_password() {
         host = host.with_loopback_local()?;
@@ -450,6 +461,7 @@ async fn run_gateway(
         model_overview,
         atlas_scene,
         atlas_room_links,
+        atlas_display_policy,
     } = publications;
     let selected = Arc::clone(&config);
     let full_geodata = geodata_policy.is_some();
@@ -485,6 +497,9 @@ async fn run_gateway(
     }
     if let Some(selection) = atlas_room_links {
         host = host.with_atlas_room_links(selection)?;
+    }
+    if let Some(selection) = atlas_display_policy {
+        host = host.with_atlas_display_policy(selection)?;
     }
     let account_selected = ai_account.is_some();
     let ai_account =

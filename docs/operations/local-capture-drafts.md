@@ -261,6 +261,45 @@ receipt. Fresh place/admission information is loaded for review and again
 before handoff. The draft records only the target reference and editable
 evidence fields needed to request that future read and foreground action.
 
+## Write completion policy
+
+Every production `DraftStore.change()` uses a `readwrite` transaction with
+`{ durability: 'strict' }` and requires the transaction to report
+`durability === 'strict'` before object-store access, edit callbacks or writes.
+This applies to save, the pre-handoff unknown marker and explicit local cleanup.
+A rejected options argument, ignored options, missing/non-strict durability
+property or unreadable capability makes the write explicitly unavailable.
+There is no retry with default/relaxed durability. Read-only listing/review
+continues to use read-only transactions without that write requirement.
+
+Terminal handlers are installed before checking capability or aborting. A
+refused transaction issues no object-store request; abort failure or an ignored
+abort still rejects deterministically, and a late completion cannot publish a
+successful result. Request success alone never releases the change result:
+the actual transaction `complete` event remains the success barrier. Transaction
+errors, setup failures and deadlines reject instead of authorizing handoff.
+The controller still awaits the marker change before issuing its existing
+one-use foreground capability. No IDs, authority fields, stored-row schema or
+server replay protocol change. A failed strict cleanup after a validated
+server commit remains local cleanup unconfirmed; it does not authorize upload.
+
+This closes a source-policy gap, not an observed crash/duplicate incident:
+default durability may be relaxed, so a completed marker need not have been
+verified on persistent media before a later effect. If that marker were lost
+and an older unsent row reopened, fresh review would generate different intent
+IDs; original-asset reuse alone does not deduplicate the evidence attachment.
+The retained eviction/no-backup warning is not acceptance of that marker policy.
+See the [IndexedDB durability definition](https://www.w3.org/TR/IndexedDB/#transaction-durability)
+and [Chrome's default-durability change](https://developer.chrome.com/blog/indexeddb-durability-mode-now-defaults-to-relaxed/).
+
+Strict is still a browser/OS durability request. Checking its reported value
+does not prove flushing, crash/power-loss survival, hardware behavior, storage
+retention or target-browser/device compatibility. It cannot retroactively
+qualify an earlier default-durability write. Originals and unknown outcomes
+must not be inferred absent or safe to resend from an empty database, an unsent
+row or a saved-state observation. Existing explicit cleanup, no replay and
+browser-managed-loss limits remain in force.
+
 ## Bounds, expiry and loss
 
 The current validated limits are 10 MiB per file, 4 drafts, 32 MiB combined
@@ -292,6 +331,18 @@ explain local loss and cleanup before opt-in and must report failed sign-out
 cleanup honestly; it may still end the session and immediately hide all drafts.
 
 ## Verification boundary
+
+`frontend/capture-drafts-tests/indexeddb-durability.regression.test.mjs`
+contains six focused, unregistered source assertions against the production
+`openDraftStore` and a controlled IDB interface double. They cover strict
+options/reporting before access, completion ordering, option/capability refusal
+without fallback, missing/default/relaxed reporting, abort throwing/ignored,
+read-only availability, request-success followed by abort, setup failure and
+error followed by late callbacks/completion. Only generated rows/originals and
+controlled events are used. They are authored but **NOT RUN**, add no CI case
+or lane, and establish no actual IndexedDB, crash or installed-browser behavior.
+The five already registered cases below still use memory storage; passing
+them does not exercise this production durability policy.
 
 The prepared `reused-receipt-object-keeps-unknown` case in
 `frontend/capture-drafts-tests/combined-host.mjs` uses two deliberately separate

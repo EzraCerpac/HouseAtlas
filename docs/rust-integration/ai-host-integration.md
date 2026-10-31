@@ -120,9 +120,10 @@ remains deferred to #295 and its existing owners. No acceptance box is closed.
 
 `NativeAiApplication<O,R,D>` now retains a supplied `SharedStockPort` domain
 instead of fixing every application to `NativeReadDomain`. Its explicit
-`assemble(owners, inputs, stock, custody)` uses `NativeStartup::assemble` and
-mounts the returned original host with custody. The existing read-only type
-default and `assemble_native_reads` source API remain compatible;
+`assemble(owners, inputs, stock, custody)` uses
+`NativeStartup::assemble_with_custody` and mounts the returned host with the same
+retained custody. The existing read-only type default and
+`assemble_native_reads` source API remain compatible;
 `assemble_native_reads_with_custody` supplies the bounded read composition with
 the same explicit custody contract. No binary or browser entry is activated.
 
@@ -139,9 +140,44 @@ Custody loss suppresses release and never resubmits the call; already submitted
 effects and unresolved outcomes remain with their original owners.
 
 The SELECT-only account observation databases remain separate and are not
-promoted to writable inference custody. A genuine full-host physical custody
-implementation and its writable original stores still require qualification.
-This seam creates no key, credential, grant, provider request or inference task.
+promoted to writable inference custody. The explicit production preparation API
+is now `lifecycle::ai_host::prepare`: its caller supplies the pinned configuration,
+distinct `FullHostStoreSelection` and the original `Arc<ServerLease>` returned by
+persistent reopen. The lease is bound to the same original Access allocation;
+an unrelated lease or offline backup snapshot cannot be adopted. No binary or
+configuration path calls this API by default.
+
+`NativeFullHostCustody` retains that lease, the enrollment/journal allocations
+constructed by strict reopen, and private file/directory handles. It checks the
+selected canonical paths, device/inode, owner, mode, link count, rollback-journal header and absence
+of unresolved sidecars. The original lease's lock-file identity is checked too.
+Enrollment then journal connection fences use the existing lock order while
+checking physical custody, avoiding checks during their own rollback writes.
+Any failed check permanently retires that custody allocation; restoring a path
+does not silently resume it. The same retained owner reaches HTTP and direct
+native entry points, including callback wait completion and refresh. A custody
+loss suppresses release without replay or erasing the original journals.
+
+`StatusJournal::open_existing_writable` and
+`EnrollmentOwner::open_existing_writable` consume caller-selected existing
+connections. They compare the exact compiled schema and current row formats,
+require writable autocommit/current durability policy and use SELECTs only.
+They never invoke the creating/migrating constructors, upgrade legacy action
+keys, normalize policy or adopt persisted work as live. Actual request/action
+uncertainty remains in the same stores; opening enrollment supplies no proof or
+approval. The full-host opener uses READ_WRITE without CREATE and accepts only
+already clean DELETE-mode files. The account-only opener remains READ_ONLY.
+
+This increment implements the existing-file custody/preparation seam, not native
+key custody, hostile-path/concurrent-process/crash qualification or permission
+to select actual stores. Preparation reopens caller-pinned paths and retains
+those newly opened connections; it does not retain a caller's original SQLite
+Connection. This is trusted single-owner pinned reopen under the existing
+persistent server lease protocol. Separate file/path device/inode checks do not
+prove SQLite's underlying descriptor identity or exclude ABA replacement between
+checks. Hostile or concurrently modified filesystems require separate protocol
+qualification. Source preparation creates no key, credential, grant, provider
+request or task.
 
 Two in-process contract tests use only a synthetic custody flag and counting
 HostApi. They cover success/error forwarding, refusal before a call, and custody
@@ -150,3 +186,14 @@ qualify filesystem replacement, native encryption, SQLite durability, provider
 eligibility, reviewed domain execution or device availability. Compilation,
 Clippy and tests are NOT RUN locally; existing CI and the integration owner
 retain verification, publication-manifest reconciliation, conflicts and merge.
+
+Three additional ordinary in-process tests are authored: generated existing-file
+journal/enrollment reopen (original bytes and owner allocations, with an
+unconfirmed request retained and a read-only connection not promoted), and the
+shared direct-native custody boundary with a counting fake operation. They are
+discovered by the existing backend library job without workflow/runner changes.
+They do not drive a real callback, refresh, credential lease, provider or full
+native application; those operational paths remain unrun. No tests or local
+build/format-check/Clippy/publication qualification ran during this increment.
+Runtime/eligibility/spending, protected key custody, exclusive refresh
+qualification and deferred browser/device acceptance remain separate and open.

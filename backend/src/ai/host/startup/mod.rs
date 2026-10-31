@@ -23,7 +23,7 @@ use crate::ai::{
         native::NativeHostContext,
         status::StatusJournal,
         transport::{HttpResponses, HttpTarget},
-        trusted_startup::{AiReceiptIdentity, TrustedAiStartup},
+        trusted_startup::{AiReceiptIdentity, StartupCustody, TrustedAiStartup, fence_custody},
     },
     oauth::LifecycleReceipt,
     runtime::HumanReviewPort,
@@ -88,6 +88,7 @@ where
     callbacks: Arc<LocalCredentialHost>,
     lifecycle: Arc<NativeLifecycle<O>>,
     account: NativeAccountFacts,
+    custody: Option<Arc<dyn StartupCustody>>,
 }
 impl<R> NativeStartup<NativeAccountFacts, stock::NativeReadDomain, R>
 where
@@ -122,7 +123,13 @@ where
         inputs: AccountOnlyStartupInputs<R>,
         stock: impl FnOnce(&crate::http::Host, StartupAuthority) -> Result<StockCatalog<D>, AiError>,
     ) -> Result<Self, AiError> {
-        Self::assemble_with_observation(owners, inputs, stock, |account| Arc::new(account.clone()))
+        Self::assemble_with_observation(
+            owners,
+            inputs,
+            stock,
+            |account| Arc::new(account.clone()),
+            None,
+        )
     }
 }
 impl<O, R> NativeStartup<O, stock::NativeReadDomain, R>
@@ -162,6 +169,27 @@ where
         inputs: StartupInputs<R, O>,
         stock: impl FnOnce(&crate::http::Host, StartupAuthority) -> Result<StockCatalog<D>, AiError>,
     ) -> Result<Self, AiError> {
+        Self::assemble_selected(owners, inputs, stock, None)
+    }
+
+    /// Retain the same custody owner for HTTP and direct native operations.
+    /// This consumes existing owners only; it supplies no runtime admission.
+    pub fn assemble_with_custody<C: StartupCustody + 'static>(
+        owners: StartupOwners,
+        inputs: StartupInputs<R, O>,
+        stock: impl FnOnce(&crate::http::Host, StartupAuthority) -> Result<StockCatalog<D>, AiError>,
+        custody: Arc<C>,
+    ) -> Result<Self, AiError> {
+        custody.revalidate()?;
+        Self::assemble_selected(owners, inputs, stock, Some(custody))
+    }
+
+    fn assemble_selected(
+        owners: StartupOwners,
+        inputs: StartupInputs<R, O>,
+        stock: impl FnOnce(&crate::http::Host, StartupAuthority) -> Result<StockCatalog<D>, AiError>,
+        custody: Option<Arc<dyn StartupCustody>>,
+    ) -> Result<Self, AiError> {
         let StartupInputs {
             original_review,
             original_observation,
@@ -181,6 +209,7 @@ where
             },
             stock,
             |_| original_observation,
+            custody,
         )
     }
     fn assemble_with_observation(
@@ -188,6 +217,7 @@ where
         inputs: AccountOnlyStartupInputs<R>,
         stock: impl FnOnce(&crate::http::Host, StartupAuthority) -> Result<StockCatalog<D>, AiError>,
         observation: impl FnOnce(&NativeAccountFacts) -> Arc<O>,
+        custody: Option<Arc<dyn StartupCustody>>,
     ) -> Result<Self, AiError> {
         let StartupOwners {
             host,
@@ -296,32 +326,67 @@ where
             callbacks,
             lifecycle,
             account,
+            custody,
         })
     }
     pub fn mounted_router(&self) -> axum::Router {
-        self.mounted.mounted_router()
+        match &self.custody {
+            Some(custody) => self.mounted.mounted_router_retained(Arc::clone(custody)),
+            None => self.mounted.mounted_router(),
+        }
     }
     pub fn mounted_router_with_custody<C: super::trusted_startup::StartupCustody + 'static>(
         &self,
         custody: Arc<C>,
     ) -> Result<axum::Router, AiError> {
+        if let Some(retained) = &self.custody {
+            let supplied: Arc<dyn StartupCustody> = custody;
+            if !Arc::ptr_eq(retained, &supplied) {
+                return Err(AiError::ConnectionUnavailable);
+            }
+            retained.revalidate()?;
+            return Ok(self.mounted_router());
+        }
         self.mounted.mounted_router_with_custody(custody)
+    }
+    fn check_custody(&self) -> Result<(), AiError> {
+        match &self.custody {
+            Some(custody) => custody.revalidate(),
+            None => Ok(()),
+        }
     }
     pub fn receipt_identity(
         &self,
         context: &NativeHostContext,
     ) -> Result<AiReceiptIdentity, AiError> {
+        self.check_custody()?;
         self.authority
             .revalidate_action_receipt(context, context.registration())?;
-        self.mounted.receipt_identity(context)
+        let result = self.mounted.receipt_identity(context);
+        self.check_custody()?;
+        result
     }
     pub fn choose_model(&self, context: &NativeHostContext, model: &str) -> Result<(), AiError> {
-        self.selection.choose(&self.authority, context, model)
+        self.check_custody()?;
+        let result = self.selection.choose(&self.authority, context, model);
+        self.check_custody()?;
+        result
     }
     /// Native account/authorization observation before any model is selected.
     /// Root may project this through its original authenticated bootstrap. No
     /// provider query, workspace inference, route mount or consent runs here.
     pub async fn observe_account(
+        &self,
+        context: &NativeHostContext,
+        cancel: &Cancellation,
+    ) -> Result<NativeAccountObservation, AiError> {
+        fence_custody(
+            self.custody.as_deref(),
+            self.observe_account_inner(context, cancel),
+        )
+        .await
+    }
+    async fn observe_account_inner(
         &self,
         context: &NativeHostContext,
         cancel: &Cancellation,
@@ -348,6 +413,16 @@ where
         &self,
         original: &crate::access::Principal,
     ) -> Result<(), AiError> {
+        fence_custody(
+            self.custody.as_deref(),
+            self.enroll_existing_approval_inner(original),
+        )
+        .await
+    }
+    async fn enroll_existing_approval_inner(
+        &self,
+        original: &crate::access::Principal,
+    ) -> Result<(), AiError> {
         let binding = self
             .authority
             .configuration
@@ -359,6 +434,7 @@ where
         self.authority
             .enrollment
             .install_existing_approval(original, &registration)?;
+        self.check_custody()?;
         let captured = self.authority.enrollment.capture(original)?;
         if captured != binding {
             return Err(AiError::ConnectionUnavailable);
@@ -369,6 +445,7 @@ where
             &crate::transports::mcp::NativePrincipalPort::new(Arc::clone(&self.authority.access)),
         )
         .await?;
+        self.check_custody()?;
         self.credential_authority
             .enroll_initial_record(&self.credentials.0, &context, &registration)
             .await
@@ -381,10 +458,23 @@ where
         &self,
         cancel: &Cancellation,
     ) -> Result<LifecycleReceipt, AiError> {
+        fence_custody(
+            self.custody.as_deref(),
+            self.process_next_callback_inner(cancel),
+        )
+        .await
+    }
+    async fn process_next_callback_inner(
+        &self,
+        cancel: &Cancellation,
+    ) -> Result<LifecycleReceipt, AiError> {
         let deadline = std::time::Instant::now() + Duration::from_secs(600);
         let captured = crate::ai::host::transport::bounded(cancel, deadline, self.callbacks.next())
             .await
             .map_err(|_| AiError::ConnectionUnavailable)??;
+        // Waiting for the callback retains custody but does not prove it is
+        // still current. Check before any captured code can reach lifecycle.
+        self.check_custody()?;
         cancel.checkpoint()?;
         let context = NativeHostContext::capture(
             captured.original,
@@ -393,6 +483,7 @@ where
         )
         .await?;
         self.authority.revalidate(&context, &captured.binding)?;
+        self.check_custody()?;
         self.lifecycle
             .complete(
                 &context,
@@ -405,6 +496,6 @@ where
     /// Trusted explicit refresh consumer, retaining the accepted durable
     /// exchange/rotation checkpoints. No timer, replay or refresh starts here.
     pub async fn refresh(&self, context: &NativeHostContext) -> Result<LifecycleReceipt, AiError> {
-        self.lifecycle.refresh(context).await
+        fence_custody(self.custody.as_deref(), self.lifecycle.refresh(context)).await
     }
 }
