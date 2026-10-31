@@ -8434,8 +8434,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
-      "bytes": 129090,
-      "sha256": "0a64338a7cde45cff28293984de15d342ef76b13ef657713d0703ed12c63de05",
+      "bytes": 129109,
+      "sha256": "8f41660dacec64f07e5a830997035019cf6a558ccd62dfc9a851f895cfe8dd38",
       "owner": "web"
     },
     {

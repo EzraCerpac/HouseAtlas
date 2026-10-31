@@ -371,7 +371,7 @@ const model = bindAtlasModel(read.scene, loaded);
     canExplode: true, compact: false, open: true, setOpen() {}, head: { current: null }, panelId: 'generated-group-panel' };
   const markup = renderToStaticMarkup(createElement(FloorStack, props));
   assert.equal((markup.match(/class="ua-rung-name">Generated split-level group</g) ?? []).length, 1, 'one group choice in the rail');
-  const planMarkup = renderToStaticMarkup(createElement(FloorStack, { ...props, state: { ...base, view: 'plan' } }));
+  const planMarkup = renderToStaticMarkup(createElement(FloorStack, { ...props, canExplode: false, state: { ...base, view: 'plan' } }));
   assert.match(planMarkup, /aria-label="Plan level"/);
   const memberMarkup = planMarkup.slice(planMarkup.indexOf('aria-label="Plan level"'));
   assert.equal((memberMarkup.match(/class="ua-rung-tick"/g) ?? []).length, 2, 'both member switches have marker cells before name columns');
