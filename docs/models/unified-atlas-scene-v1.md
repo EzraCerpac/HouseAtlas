@@ -506,6 +506,31 @@ remain separate.
 
 ## Optional application display groups
 
+`UnifiedAtlasRead` (including its stored-read subtype) may carry optional
+`displayConfig: AtlasDisplayConfig | null` metadata from the existing admitted
+read/port owner. The production bind and stale-while-revalidate comparison use
+the same closed publication/digest/membership admission. A supplied policy wins
+over legacy host metadata, explicit null disables grouping, and stale or invalid
+supplied metadata never falls through to another source. Undefined preserves the
+legacy optional-host fallback; with neither source, individual levels remain.
+This field is not a new raw scene-envelope member, native grant or fetch API.
+Display metadata does not change the admitted source's selection-memory identity;
+existing room/floor identities remain valid when a grouping policy changes.
+The easing owner initializes newly introduced local section keys before render
+consumption and before each animation step, retains finite existing tracks and
+retires removed keys. Its timing/settlement constants remain unchanged.
+
+A protected source must populate it within the existing selection/signal/read
+fence and retain configured-source failures as failures, not pretend they mean
+explicitly unconfigured. A stored-read owner may include only metadata retained
+for that exact admitted publication. This change neither fetches a sidecar nor
+adds cache persistence or an installer hook. Protected delivery/currentness and
+private installation remain separate qualification.
+
+The static index is not assumed authenticated. Do not embed private policies
+there; use a qualified protected read carrier. The legacy inert-host mechanism
+below remains available for already-protected or nonprivate synthetic hosts.
+
 The application can read one inert `<script type="application/json"
 id="houseatlas-atlas-display">` in its host document. This optional presentation
 policy is limited to 32 KiB and uses `houseatlas.atlas-display.v1`. It contains

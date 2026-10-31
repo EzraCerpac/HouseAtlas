@@ -3162,7 +3162,12 @@ operational acceptance; record hosted launch raw/gzip measurements separately.
 
 The existing `node frontend/lantern-tests/unified-atlas-healthy.mjs` case also
 uses its generated multilevel model to check the explicit display-policy
-contract: unchanged semantic containment and vertices, one navigation group,
+contract: admitted-read metadata precedence, explicit-null disabling,
+stale/invalid supplied-policy no-fallback behavior, absent-policy fallback,
+same-source null-to-policy and changed-membership updates through the actual
+easing initializer/RAF-step kernel and section/frame conversion (finite values,
+retained/retired keys and terminal settlement; no mounted hook/effect/RAF claim),
+unchanged semantic containment and vertices, one navigation group,
 both members' actual CPU room picks, union framing, per-level wall cuts through group/All/lower transition starts,
 ends and interrupted/reversed retargets, lower-level connecting-structure association, Plan
 member switching and the actual Floor Stack's React server markup. Small

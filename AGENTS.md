@@ -81,7 +81,10 @@ verification guide; hosted logs, not registration, establish execution.
 In `.github/workflows/rust-react-ordinary.yml` that includes
 the named Lantern healthy read;
 the existing unified Atlas healthy case also checks explicit publication-pinned
-display groups, unchanged geometry/containment, both members' CPU room picks,
+display groups, admitted-read metadata precedence/null/no-fallback behavior,
+same-source policy key changes through the actual easing initializer/step and
+finite section conversion/settlement (no mounted hook or RAF/browser test),
+unchanged geometry/containment, both members' CPU room picks,
 union framing, retained per-part cuts through transition starts/ends and reversals,
 connecting-structure association,
 single-plan switching and actual Floor Stack server markup. Its small generated

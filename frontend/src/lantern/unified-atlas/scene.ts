@@ -5,7 +5,7 @@ import type { StandardGlb } from '../canonical-ifc/standard-glb';
 import {
   AtlasReadError, type AtlasBuilding, type AtlasCoverage, type AtlasExclusion, type AtlasGeographic, type AtlasLevel, type AtlasMeshBinding, type AtlasOccurrence,
   type AtlasOverlayBinding, type AtlasPlan, type AtlasPlanFeature, type AtlasPolygon, type AtlasRoom, type AtlasScene, type Box, type MeasuredEdge, type MeshRole, type OccurrenceMeasurements,
-  type OverlayAnchor, type OverlayKind, type PlanRole, type Vec3, type AtlasDisplayConfig, type AtlasDisplayGroup, type AtlasDisplayMembership,
+  type OverlayAnchor, type OverlayKind, type PlanRole, type Vec3, type AtlasDisplayConfig, type AtlasDisplayGroup, type AtlasDisplayMembership, type UnifiedAtlasRead,
 } from './types';
 
 /** Admission and presentation for one unified Atlas scene.
@@ -483,6 +483,13 @@ export function admitAtlasDisplay(scene: AtlasScene, value: unknown): AtlasDispl
     return { nodeIndex, meshIndex, primitiveIndex, levelIds, cutaway: member.cutaway } as AtlasDisplayMembership;
   });
   return { profile: 'houseatlas.atlas-display.v1', publicationId, semanticsSha256, groups, memberships };
+}
+
+/** The admitted read owns an explicitly supplied policy, including null.
+ * A stale/invalid supplied policy never falls through to another source.
+ * This is presentation admission only, not an access check or a new read. */
+export function admitAtlasDisplayForRead(read: Pick<UnifiedAtlasRead, 'scene' | 'displayConfig'>, hostFallback?: unknown): AtlasDisplayConfig | null {
+  return admitAtlasDisplay(read.scene, read.displayConfig === undefined ? hostFallback : read.displayConfig);
 }
 
 /** The group's anchor is a real level, never a replacement semantic identity. */
