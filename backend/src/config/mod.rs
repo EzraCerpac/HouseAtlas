@@ -100,3 +100,4 @@ mod atlas_scene_material;
 mod atlas_scene_meshopt;
 
 pub mod atlas_room_links;
+pub mod atlas_display_policy;

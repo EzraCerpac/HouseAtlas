@@ -506,6 +506,67 @@ remain separate.
 
 ## Optional application display groups
 
+### Protected optional display-policy carrier
+
+Persistent serving may select an additional private file with the paired
+`--atlas-display-policy` and `--atlas-display-policy-sha256` options. These
+options require the already selected overview and Atlas scene; they are absent
+by default and add no listener, credential or grant. The canonical file must
+share the overview manifest's directory, have the current process owner and
+mode 0600, and sit in that owner's canonical mode-0700 directory. Symlinks,
+hard links, replacement identities, changed bytes and mismatched pins refuse.
+
+The file is at most 32 KiB, with exactly these fields:
+
+- `profile: "houseatlas.atlas-display-selection.v1"`
+- `workspaceId` and `homeId`, equal to the selected overview scope
+- `displayConfig`, the existing closed `houseatlas.atlas-display.v1` policy
+
+The inner policy must name the selected publication and exact semantic digest.
+Groups and primitive memberships are validated against the admitted scene,
+including same-building membership, unique selectors and structure/slab roles.
+They confer no new room identity, containment or read authority. The private
+file does not contain a predicted selection revision: the server allocates that
+revision at startup and binds the selected policy to that exact allocation.
+
+Only the existing scoped, authorized descriptor advertises a configured file,
+using `x-atlas-display-policy-sha256` and `x-atlas-display-policy-bytes`.
+Both absent means no extra request. A partial or malformed advertisement is a
+failure. The selected publication's sibling GET is
+`/api/atlas/models/v1/workspaces/{workspaceId}/homes/{homeId}/atlas/{publicationId}/display-policy`,
+with exact `expectedSha256`, `expectedSemanticsSha256` and
+`expectedSelectionRevision` query pins in that order. It uses the same
+`authorized_read_phased` scope/Read owner, HEAD/fallback guards and final
+release as the other protected Atlas reads. It returns exact file bytes with
+JSON type, length, Content-Digest and the selected revision. File/scene/original
+availability fences are checked before release; an unavailable configured file
+refuses the descriptor/read rather than becoming unconfigured. Descriptor
+policy checks do not allocate another model-byte copy.
+
+The production reader admits the advertised byte limit before requesting the
+sidecar, checks its exact response length/digest/revision and selected scope,
+then uses the same policy admission as the presentation. It retains the
+existing deadline, same-origin/no-redirect/no-store transport and selection,
+session, expiry and abort fences. A configured missing sidecar is stale, not
+an absent Atlas; no model request follows a policy refusal.
+
+Verified policy bytes and their digest/revision may accompany the exact stored
+scene in the existing actor/home/publication cache partition. They are display
+metadata, never session or native authority. Cold reads rehash and re-admit them
+against the retained scene and revision. A policy-only replacement or removal
+updates that metadata even if model/envelope bytes have not changed. Existing
+cache byte/entry bounds, actor witness and sign-out cleanup remain unchanged;
+no separate queue or cache is introduced.
+
+The ordinary Rust unit set includes three synthetic contract/options tests in
+`config::atlas_display_policy`. Existing Atlas healthy/cache cases cover
+fresh, refused and retired policy reads, cold retention, metadata-only updates,
+removal and actor partitioning. Registration/source alone does not establish
+execution. This carrier supplies no real policy values, installer persistence
+or rollback operation. Current-publication private configuration, authorized
+installation/readback and deferred interactive/device acceptance remain
+separate.
+
 `UnifiedAtlasRead` (including its stored-read subtype) may carry optional
 `displayConfig: AtlasDisplayConfig | null` metadata from the existing admitted
 read/port owner. The production bind and stale-while-revalidate comparison use
@@ -523,9 +584,10 @@ retires removed keys. Its timing/settlement constants remain unchanged.
 A protected source must populate it within the existing selection/signal/read
 fence and retain configured-source failures as failures, not pretend they mean
 explicitly unconfigured. A stored-read owner may include only metadata retained
-for that exact admitted publication. This change neither fetches a sidecar nor
-adds cache persistence or an installer hook. Protected delivery/currentness and
-private installation remain separate qualification.
+for that exact admitted publication. The field alone does not fetch a sidecar;
+the optional protected carrier above supplies and retains verified metadata.
+There is no installer hook. Protected delivery/currentness and private
+installation remain separate qualification.
 
 The static index is not assumed authenticated. Do not embed private policies
 there; use a qualified protected read carrier. The legacy inert-host mechanism

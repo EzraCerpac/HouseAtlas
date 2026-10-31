@@ -117,6 +117,65 @@ assert.equal(entryRead.entryBuildingId, 'syn-building-house');
 assert.deepEqual(entryRead.scene, read.scene);
 assert.deepEqual(Buffer.from(entryRead.model), Buffer.from(read.model));
 
+// Protected presentation sidecar: actual reader, original generated scene/model,
+// exact private-policy wire contract, fake same-origin responses only.
+{
+  const { AtlasReadError } = await import(typesURL);
+  const displayConfig = { profile: 'houseatlas.atlas-display.v1',
+    publicationId: read.scene.publication.publicationId, semanticsSha256: read.scene.publication.semanticsSha256,
+    groups: [{ levelIds: ['syn-level-split', 'syn-level-upper'], label: 'Generated protected group' }],
+    memberships: [{ nodeIndex: 2, meshIndex: 0, primitiveIndex: 4, levelIds: ['syn-level-ground'], cutaway: 'preserve' }] };
+  const wrapper = { profile: 'houseatlas.atlas-display-selection.v1', ...scope,
+    displayConfig };
+  const sha = bytes => createHash('sha256').update(bytes).digest('hex');
+  const makeTransport = ({ value = wrapper, advertisedLength, omitLength = false, status = 200,
+    responseRevision = read.scene.selection.revision, corruptDigest = false, retire = () => {} } = {}) => {
+    const bytes = Buffer.from(JSON.stringify(value)), digest = sha(bytes), observed = [];
+    const policyHref = `${atlasScenePath(scope)}/${selection.publicationId}/display-policy?expectedSha256=${digest}&expectedSemanticsSha256=${read.scene.publication.semanticsSha256}&expectedSelectionRevision=${encodeURIComponent(read.scene.selection.revision)}`;
+    return { observed, policyHref, async transport(url, options) {
+      observed.push(url);
+      if (url === SYNTHETIC_ATLAS.origin + policyHref) {
+        retire();
+        return new Response(bytes, { status, headers: { 'content-type': 'application/json',
+          'content-length': String(bytes.length), 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff',
+          'x-atlas-selection-revision': responseRevision,
+          'content-digest': `sha-256=:${corruptDigest ? Buffer.alloc(32).toString('base64') : createHash('sha256').update(bytes).digest('base64')}:` } });
+      }
+      const response = await transport(url, options), headers = new Headers(response.headers);
+      if (url.includes('?expectedManifestSha256=')) {
+        headers.set('x-atlas-display-policy-sha256', digest);
+        if (!omitLength) headers.set('x-atlas-display-policy-bytes', String(advertisedLength ?? bytes.length));
+      }
+      return new Response(response.body, { status: response.status, headers });
+    } };
+  };
+  const valid = makeTransport();
+  const result = await readUnifiedAtlas({ selection, signal: new AbortController().signal,
+    origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true, transport: valid.transport });
+  assert.deepEqual(result.displayConfig, displayConfig);
+  assert.deepEqual(valid.observed, [calls[0], SYNTHETIC_ATLAS.origin + valid.policyHref, SYNTHETIC_ATLAS.origin + composed.href],
+    'configured read gets bounded pinned policy before model; absent read above still has only two GETs');
+  for (const parameters of [
+    { value: { ...wrapper, homeId: '00000000-0000-4000-8000-000000000899' } },
+    { value: { ...wrapper, displayConfig: { ...displayConfig, semanticsSha256: '0'.repeat(64) } } },
+    { status: 404 }, { responseRevision: 'replacement' }, { corruptDigest: true },
+    { advertisedLength: 32769 }, { omitLength: true },
+  ]) {
+    const fake = makeTransport(parameters);
+    await assert.rejects(readUnifiedAtlas({ selection, signal: new AbortController().signal,
+      origin: SYNTHETIC_ATLAS.origin, isCurrent: () => true, transport: fake.transport }),
+    error => error instanceof AtlasReadError && error.reason !== 'absent',
+    'configured failure is not an unconfigured/absent Atlas');
+    assert.equal(fake.observed.some(url => url.includes('/artifacts/model')), false, 'no model work after policy refusal');
+  }
+  let current = true;
+  const retired = makeTransport({ retire() { current = false; } });
+  await assert.rejects(readUnifiedAtlas({ selection, signal: new AbortController().signal,
+    origin: SYNTHETIC_ATLAS.origin, isCurrent: () => current, transport: retired.transport }),
+  error => error?.reason === 'stale');
+  assert.equal(retired.observed.some(url => url.includes('/artifacts/model')), false);
+}
+
 // Valid scalar text at the backend's human-field bounds. These generated
 // source strings are retained exactly, not normalized or interpreted as dates.
 const scalarText = (prefix, count) => prefix + '🧭'.repeat(count - [...prefix].length);

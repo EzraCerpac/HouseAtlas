@@ -41,6 +41,7 @@ pub(super) async fn descriptor(
             let expected_query=format!("expectedManifestSha256={manifest_sha256}");
             if uri.query().is_some_and(|query|query!=expected_query){return Err(failure(StatusCode::CONFLICT));}
             let revision=scene.revision.clone();overview.read_original().map_err(|_|failure(StatusCode::CONFLICT))?;
+            if let Some(policy)=host.atlas_display_policy.as_deref(){policy.read(scene,overview).map_err(|_|failure(StatusCode::CONFLICT))?;}
             let p=&scene.value;let mut wire=json!({"profile":"houseatlas.unified-atlas-scene.v1","scope":p["scope"],"selection":{"revision":revision,"publicationId":p["publicationId"]},"publication":{"publicationId":p["publicationId"],"sourceRevisionId":p["sourceRevisionId"],"sourceSha256":p["sourceSha256"],"semanticsSha256":scene.semantics_sha256},"artifacts":[{"artifactId":"model","role":"model","contentType":"model/gltf-binary","bytes":overview.manifest.original.bytes,"sha256":overview.manifest.original.sha256,"href":format!("/api/atlas/models/v1/workspaces/{}/homes/{}/atlas/{}/artifacts/model?expectedSha256={}&expectedSelectionRevision={}",scope.workspace_id,scope.home_id,overview.manifest.publication_id,overview.manifest.original.sha256,revision)}]});
             if let Some(detail)=&overview.manifest.detail{wire["artifacts"].as_array_mut().ok_or_else(||failure(StatusCode::SERVICE_UNAVAILABLE))?.push(json!({"artifactId":"detail","role":"detail","contentType":"model/gltf-binary","bytes":detail.bytes,"sha256":detail.sha256,"href":format!("/api/atlas/models/v1/workspaces/{}/homes/{}/atlas/{}/artifacts/model-detail?expectedSha256={}&expectedSelectionRevision={}",scope.workspace_id,scope.home_id,overview.manifest.publication_id,detail.sha256,revision)}));}
             for key in ["frame","buildings","levels","rooms","occurrences","meshBindings","plans","overlayBindings","coverage"] {wire[key]=p[key].clone();}
@@ -48,6 +49,12 @@ pub(super) async fn descriptor(
             current_overview.read_original().map_err(|_|failure(StatusCode::CONFLICT))?;
             let mut response=json_response(wire);response.headers_mut().insert("x-atlas-selection-revision",header::HeaderValue::from_str(&revision).map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE))?);
             response.headers_mut().insert("x-atlas-overview-manifest-sha256",header::HeaderValue::from_str(&manifest_sha256).map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE))?);
+            if let Some(policy)=host.atlas_display_policy.as_deref(){
+                policy.read(current,current_overview).map_err(|_|failure(StatusCode::CONFLICT))?;
+                for (key,value) in [("x-atlas-display-policy-sha256",policy.sha256().to_owned()),("x-atlas-display-policy-bytes",policy.bytes().to_string())]{
+                    response.headers_mut().insert(header::HeaderName::from_static(key),header::HeaderValue::from_str(&value).map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE))?);
+                }
+            }
             if let Some(entry)=current.entry_building_id(){response.headers_mut().insert("x-atlas-entry-building-id",header::HeaderValue::from_str(entry).map_err(|_|failure(StatusCode::SERVICE_UNAVAILABLE))?);}
             Ok(response)
         })
