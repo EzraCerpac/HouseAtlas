@@ -380,6 +380,8 @@ function admitCoverage(value: unknown, occurrences: ReadonlyMap<string, AtlasOcc
 // Binding to the pinned GLB
 
 export interface AtlasPart {
+  /** Equal semantic clip rules share one track, stable across Light/Full. */
+  readonly sectionKey: string;
   readonly mesh: PreparedMesh;
   readonly role: MeshRole;
   readonly buildingId: string;
@@ -529,7 +531,8 @@ export function bindAtlasModel(scene: AtlasScene, glb: Pick<StandardGlb, 'drawn'
     const source = glb.meshes[at]!;
     const membership = membershipBySelector.get(`${binding.nodeIndex}/${binding.meshIndex}/${primitive}`);
     if (membership) displayMemberships.set(source.meshKey, membership);
-    claimed[at] = { mesh: { ...source, floorId: levelId, occurrenceId }, role: binding.role, buildingId: binding.buildingId,
+    const sectionKey = displayConfig === null ? '' : `p:${JSON.stringify([binding.buildingId, binding.role, binding.levelIds, membership?.levelIds ?? null, membership?.cutaway ?? null])}`;
+    claimed[at] = { sectionKey, mesh: { ...source, floorId: levelId, occurrenceId }, role: binding.role, buildingId: binding.buildingId,
       levelIds: binding.levelIds, levelId, occurrenceId };
   }
   // Explicit building and level membership for every drawn primitive.
@@ -973,8 +976,30 @@ export function atlasOrigin(model: AtlasModel): Vec3 {
 
 /** Section heights as easing goals, relative to the datum height. A 3 m move
  * near source Y = 100 000 m must ease like the same move near 0 m. */
-export const sectionGoals = (targets: readonly number[], datum: number): Record<string, number> =>
-  Object.fromEntries(targets.map((target, at) => [`s${at}`, target - datum]));
+export const sectionGoals = (targets: readonly number[], datum: number, parts: Readonly<Record<string, number>> = {}): Record<string, number> =>
+  Object.fromEntries([...targets.map((target, at) => [`s${at}`, target - datum]), ...Object.entries(parts).map(([key, target]) => [key, target - datum])]);
+
+/** Local section goals share the existing easing owner. Equal clip rules use
+ * one stable track; each part retains its actual current height on retarget,
+ * including group -> All floors and reversals below a new target height.
+ * Explosion still owns its separate source-relative wipe. */
+export function partSectionTargets(model: AtlasModel, presentation: AtlasPresentation, targets: readonly number[], ceilings: readonly number[]): Readonly<Record<string, number>> {
+  if (model.displayConfig === null) return {};
+  const index = new Map(model.floorBuildings.map((building, at) => [building.buildingId, at]));
+  return Object.fromEntries(model.parts.filter(part => part.role !== 'context').map(part => {
+    const at = index.get(part.buildingId);
+    const ceiling = at === undefined ? part.mesh.yRange[1] : ceilings[at]!;
+    const fallback = at === undefined ? ceiling : targets[at]!;
+    const goal = presentation.explodeTarget === 1 ? ceiling : presentation.clips.get(part.mesh.meshKey)
+      ?? (presentation.hidden.has(part.mesh.meshKey) ? fallback : ceiling);
+    return [part.sectionKey, Math.min(ceiling, goal)];
+  }));
+}
+
+export const partSectionCuts = (eased: Readonly<Record<string, number>>, targets: Readonly<Record<string, number>>, datum: number): Readonly<Record<string, number>> =>
+  Object.fromEntries(Object.entries(targets).map(([key, target]) => {
+    const value = eased[key]!; return [key, value === target - datum ? target : value + datum];
+  }));
 
 /** Eased goals back in source Y. A settled goal returns its exact target, so
  * settled and reduced-motion presentations are the target presentation. */
@@ -991,10 +1016,12 @@ export const sectionCuts = (eased: Readonly<Record<string, number>>, targets: re
  * picker applies; drawing, picking, labels and markers all use the result, so
  * no room control stands where its floor is not yet revealed. */
 export function easePresentation(model: AtlasModel, presentation: AtlasPresentation, t: number,
-  cuts: readonly number[], targets: readonly number[], ceilings: readonly number[]): AtlasPresentation {
+  cuts: readonly number[], targets: readonly number[], ceilings: readonly number[],
+  parts?: { readonly cuts: Readonly<Record<string, number>>; readonly targets: Readonly<Record<string, number>> }): AtlasPresentation {
   const exploding = t !== presentation.explodeTarget;
   const cutting = cuts.map((cut, at) => cut !== targets[at]);
-  if (!exploding && !cutting.some(Boolean)) return presentation;
+  const movingParts = new Set(parts ? Object.keys(parts.targets).filter(key => parts.cuts[key] !== parts.targets[key]) : []);
+  if (!exploding && !cutting.some(Boolean) && movingParts.size === 0) return presentation;
   const plan = presentation.planLevels.length > 0;
   const index = new Map(model.floorBuildings.map((building, at) => [building.buildingId, at]));
   const explodable = new Map<string, boolean>();
@@ -1006,7 +1033,10 @@ export function easePresentation(model: AtlasModel, presentation: AtlasPresentat
       clips.set(key, presentation.clips.get(key) ?? null); continue;
     }
     const at = index.get(part.buildingId);
-    const cut = at === undefined || cuts[at]! >= ceilings[at]! - 1e-3 ? null : cuts[at]!;
+    const height = parts?.cuts[part.sectionKey] ?? (at === undefined ? part.mesh.yRange[1] : cuts[at]!);
+    const ceiling = at === undefined ? part.mesh.yRange[1] : ceilings[at]!;
+    const cut = height >= ceiling - 1e-3 ? null : height;
+    const partMoving = movingParts.has(part.sectionKey);
     if (!explodable.has(part.buildingId)) explodable.set(part.buildingId, hasExplodableLevels(model, part.buildingId));
     let wipe: number | null = null;
     if (t > 1e-3 && explodable.get(part.buildingId)) {
@@ -1017,25 +1047,15 @@ export function easePresentation(model: AtlasModel, presentation: AtlasPresentat
         if (level !== null) wipe = lerp(top, Math.min(top, sectionOf(model, level)), t);
       }
     }
-    const targetClip = presentation.clips.get(key) ?? null;
-    const membership = model.displayMemberships.get(key);
-    let localCut = cut;
-    if (!plan && at !== undefined && !exploding && t === 0) {
-      if (membership?.cutaway === 'preserve' && !was) localCut = null;
-      else if (targetClip !== null && targetClip !== targets[at] && targets[at] !== ceilings[at]) {
-        const progress = Math.max(0, Math.min(1, (ceilings[at]! - cuts[at]!) / (ceilings[at]! - targets[at]!)));
-        localCut = lerp(ceilings[at]!, targetClip, progress);
-      }
-    }
-    const clip = localCut === null ? wipe : wipe === null ? localCut : Math.min(localCut, wipe);
+    const clip = cut === null ? wipe : wipe === null ? cut : Math.min(cut, wipe);
     let visible = !was;
     // Room picks keep their target visibility; only their section moves.
-    if (was && part.role !== 'room-pick' && ((at !== undefined && cutting[at]) || (exploding && part.role === 'roof')))
+    if (was && part.role !== 'room-pick' && ((at !== undefined && cutting[at]) || partMoving || (exploding && part.role === 'roof')))
       visible = clip === null || part.mesh.yRange[0] < clip;
     if (!visible) hidden.add(key);
     clips.set(key, clip);
     // A moving section fades what it cuts away; the explosion wipe does not.
-    if (wipe === null && !plan && GHOST_ROLES.has(part.role) && at !== undefined && (cutting[at] || presentation.ghosts.has(key))) {
+    if (wipe === null && !plan && GHOST_ROLES.has(part.role) && at !== undefined && (cutting[at] || partMoving || presentation.ghosts.has(key))) {
       if (!visible) ghosts.set(key, null);
       else if (clip !== null && clip < part.mesh.yRange[1]) ghosts.set(key, clip);
     }

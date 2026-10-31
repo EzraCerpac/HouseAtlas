@@ -403,10 +403,35 @@ const model = bindAtlasModel(read.scene, loaded);
   assert.deepEqual(sampleSurface({ ...base, levelId: null }, 0), { kind: 'level', levelId: 'syn-level-upper' });
   assert.deepEqual(sampleSurface({ ...base, levelId: 'syn-level-ground', exploded: true }, 1), { kind: 'level', levelId: 'syn-level-upper' });
   const ceilings = scene.sectionCeilings(grouped), targets = scene.sectionTargets(grouped, shown, ceilings);
-  const moving = scene.easePresentation(grouped, shown, 0, targets.map((target, at) => (target + ceilings[at]) / 2), targets, ceilings);
+  const partGoals = scene.partSectionTargets(grouped, shown, targets, ceilings);
+  const full = presentAtlas(grouped, { ...base, levelId: null }, new Set());
+  const fullTargets = scene.sectionTargets(grouped, full, ceilings);
+  const fullParts = scene.partSectionTargets(grouped, full, fullTargets, ceilings);
+  const midParts = Object.fromEntries(Object.entries(partGoals).map(([key, target]) => [key, (target + fullParts[key]) / 2]));
+  const moving = scene.easePresentation(grouped, shown, 0, targets.map((target, at) => (target + ceilings[at]) / 2), targets, ceilings,
+    { cuts: midParts, targets: partGoals });
   const lowWall = grouped.parts.find(part => part.role === 'structure' && part.levelId === 'syn-level-split');
   const highWall = grouped.parts.find(part => part.role === 'structure' && part.levelId === 'syn-level-upper');
   assert.ok(moving.clips.get(lowWall.mesh.meshKey) < moving.clips.get(highWall.mesh.meshKey), 'per-level cuts also differ in transition');
+  const lowerTargets = scene.sectionTargets(grouped, lower, ceilings);
+  const lowerParts = scene.partSectionTargets(grouped, lower, lowerTargets, ceilings);
+  const atState = (target, globals, currentGlobals, currentParts) => scene.easePresentation(grouped, target, 0, currentGlobals, globals, ceilings,
+    { cuts: currentParts, targets: scene.partSectionTargets(grouped, target, globals, ceilings) });
+  // Start values are retained owner state, not a ratio recomputed from the new
+  // global target. These are actual production frame/cut functions, no fake hook.
+  for (const wall of [lowWall, highWall]) {
+    const key = wall.mesh.meshKey;
+    assert.equal(atState(full, fullTargets, targets, partGoals).clips.get(key), shown.clips.get(key), 'group -> All retains each start cut');
+    assert.equal(atState(shown, targets, fullTargets, fullParts).clips.get(key), full.clips.get(key), 'All -> group retains each start cut');
+    assert.equal(atState(shown, targets, lowerTargets, lowerParts).clips.get(key), lower.clips.get(key), 'lower -> group starts below the target without clamping');
+    assert.equal(atState(shown, targets, targets, partGoals).clips.get(key), shown.clips.get(key), 'group settles exactly');
+    assert.equal(atState(full, fullTargets, fullTargets, fullParts).clips.get(key), full.clips.get(key), 'All settles exactly');
+    const movingGlobals = targets.map((target, at) => (target + fullTargets[at]) / 2);
+    assert.equal(atState(full, fullTargets, movingGlobals, midParts).clips.get(key), moving.clips.get(key), 'interrupted group -> All does not jump');
+    assert.equal(atState(shown, targets, movingGlobals, midParts).clips.get(key), moving.clips.get(key), 'reversal retains the same current cut');
+  }
+  const datum = scene.atlasOrigin(grouped)[1];
+  assert.deepEqual(scene.partSectionCuts(scene.sectionGoals(targets, datum, partGoals), partGoals, datum), partGoals, 'relative-datum owner records retain exact settled part heights');
   const selected = atlasReducer(grouped, base, { type: 'select', occurrenceId: 'syn-occ-bath' });
   assert.equal(selected.levelId, 'syn-level-upper');
   assert.equal(selected.occurrenceId, 'syn-occ-bath');

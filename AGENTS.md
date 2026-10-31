@@ -82,7 +82,8 @@ In `.github/workflows/rust-react-ordinary.yml` that includes
 the named Lantern healthy read;
 the existing unified Atlas healthy case also checks explicit publication-pinned
 display groups, unchanged geometry/containment, both members' CPU room picks,
-union framing, per-level cuts and transition, connecting-structure association,
+union framing, retained per-part cuts through transition starts/ends and reversals,
+connecting-structure association,
 single-plan switching and actual Floor Stack server markup. Its small generated
 policy checks also refuse overlapping groups and cross-building display joins;
 no new runner, browser lane or native authority is added; the generated Electrical Library `healthy`

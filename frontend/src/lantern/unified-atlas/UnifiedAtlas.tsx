@@ -17,7 +17,7 @@ import { createLiveAtlasPresentationPort, savedAtlasInitialState } from '../../o
 import type { AtlasPresentationPort, AtlasPresentationSelection } from './types';
 import {
   admitAtlasDisplay, atlasOrigin, atlasReducer, atlasSurroundings, bindAtlasModel, displayLevelAnchor, displayLevelLabel, contextOccurrenceIds, easePresentation, frameBox, hasExplodableLevels, initialAtlasState, isAtlasGlazing, labelHeight,
-  levelLift, occurrenceLiftLevel, partLifts, pickTarget, plainLabelInFocus, planFeaturesForLevel, planPickTarget, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
+  levelLift, occurrenceLiftLevel, partLifts, partSectionTargets, partSectionCuts, pickTarget, plainLabelInFocus, planFeaturesForLevel, planPickTarget, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
   targetAction, type AtlasAction, type AtlasLayer, type AtlasModel, type AtlasViewState, type OverlayLayerIndex,
 } from './scene';
 import { AtlasReadError, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
@@ -555,14 +555,16 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
     return { min: [0, 1, 2].map(axis => c[axis]! - s[axis]! / 2), max: [0, 1, 2].map(axis => c[axis]! + s[axis]! / 2) } as unknown as { min: readonly [number, number, number]; max: readonly [number, number, number] };
   }, [eased, origin]);
 
-  // One section plane per building: it sweeps to the focus floor while the
-  // floors above fade, and the same eased clips are drawn, picked and labelled.
+  // Building planes and per-part cuts share one persistent easing owner;
+  // retargeting retains each actual current cut for drawing, picking and labels.
   // Heights ease relative to the model's own datum, wherever the source frame puts it.
   const ceilings = useMemo(() => sectionCeilings(model), [model]);
   const sectionGoal = useMemo(() => sectionTargets(model, presentation, ceilings), [model, presentation, ceilings]);
-  const sectionEased = useEased(sectionGoals(sectionGoal, origin[1]), { reduced, tau: 210 });
+  const partGoals = useMemo(() => partSectionTargets(model, presentation, sectionGoal, ceilings), [model, presentation, sectionGoal, ceilings]);
+  const sectionEased = useEased(sectionGoals(sectionGoal, origin[1], partGoals), { reduced, tau: 210 });
   const cuts = useMemo(() => sectionCuts(sectionEased, sectionGoal, origin[1]), [sectionEased, sectionGoal, origin]);
-  const shown = useMemo(() => easePresentation(model, presentation, t, cuts, sectionGoal, ceilings), [model, presentation, t, cuts, sectionGoal, ceilings]);
+  const partCuts = useMemo(() => partSectionCuts(sectionEased, partGoals, origin[1]), [sectionEased, partGoals, origin]);
+  const shown = useMemo(() => easePresentation(model, presentation, t, cuts, sectionGoal, ceilings, { cuts: partCuts, targets: partGoals }), [model, presentation, t, cuts, sectionGoal, ceilings, partCuts, partGoals]);
 
   const [sheetOpen, setSheetOpen] = useState(false);
   // The collapsed head can wrap at narrow widths or enlarged text sizes.
