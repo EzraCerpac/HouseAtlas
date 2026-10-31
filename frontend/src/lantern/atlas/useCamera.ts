@@ -1,5 +1,34 @@
 import { useEffect, useRef, useState } from 'react';
 
+/** Reconcile a changed key set before either rendering or advancing it. Keep
+ * finite existing tracks, initialize new tracks at their finite target, and
+ * retire removed tracks. Stable valid input keeps its object identity. */
+export function initializeEased<T extends Record<string, number>>(current: Readonly<Record<string, number>>, target: T): T {
+  const keys = Object.keys(target);
+  let same = Object.keys(current).length === keys.length;
+  for (const key of keys) {
+    if (!Number.isFinite(target[key])) throw new RangeError('Easing targets must be finite');
+    if (!Object.hasOwn(current, key) || !Number.isFinite(current[key])) same = false;
+  }
+  if (same) return current as T;
+  return Object.fromEntries(keys.map(key => [key, Number.isFinite(current[key]) ? current[key]! : target[key]!])) as T;
+}
+
+/** The production RAF step, shared with the generated key-update checks. */
+export function advanceEased<T extends Record<string, number>>(current: Readonly<Record<string, number>>, target: T, alpha: number): { value: T; settled: boolean } {
+  const retained = initializeEased(current, target);
+  const next = { ...retained } as Record<string, number>;
+  let settled = true;
+  for (const key of Object.keys(target)) {
+    const targetValue = target[key]!;
+    const value = retained[key]! + (targetValue - retained[key]!) * alpha;
+    const close = Math.abs(targetValue - value) < Math.max(0.002, Math.abs(targetValue) * 1e-4);
+    next[key] = close ? targetValue : value;
+    if (!close) settled = false;
+  }
+  return { value: next as T, settled };
+}
+
 /**
  * Eases a set of numeric camera values toward their targets.
  * Keys listed in `snap` jump immediately (used while dragging).
@@ -27,6 +56,7 @@ export function useEased<T extends Record<string, number>>(
       setValue(goal.current);
       return;
     }
+    cur.current = initializeEased(cur.current, goal.current);
     if (opts.snap?.length) {
       const snapped = { ...cur.current };
       for (const k of opts.snap) (snapped as Record<string, number>)[k as string] = goal.current[k]!;
@@ -36,21 +66,10 @@ export function useEased<T extends Record<string, number>>(
       const dt = last.current == null ? 16 : Math.min(48, t - last.current);
       last.current = t;
       const a = 1 - Math.exp(-dt / tau);
-      const c = cur.current;
-      const g = goal.current;
-      const next = { ...c } as Record<string, number>;
-      let settled = true;
-      for (const k of Object.keys(g)) {
-        const current = c[k]!;
-        const targetValue = g[k]!;
-        const v = current + (targetValue - current) * a;
-        const close = Math.abs(targetValue - v) < Math.max(0.002, Math.abs(targetValue) * 1e-4);
-        next[k] = close ? targetValue : v;
-        if (!close) settled = false;
-      }
-      cur.current = next as T;
+      const next = advanceEased(cur.current, goal.current, a);
+      cur.current = next.value;
       setValue(cur.current);
-      if (settled) {
+      if (next.settled) {
         raf.current = null;
         last.current = null;
       } else {
@@ -69,5 +88,7 @@ export function useEased<T extends Record<string, number>>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig, opts.reduced, snapSig]);
 
-  return value;
+  // A render can introduce keys before the passive effect or next RAF runs.
+  // Downstream section conversion must receive finite values in that frame.
+  return initializeEased(value, target);
 }

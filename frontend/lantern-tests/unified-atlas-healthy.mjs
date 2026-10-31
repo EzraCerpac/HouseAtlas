@@ -52,6 +52,10 @@ const floorStackURL = await sourceURL('../src/lantern/unified-atlas/FloorStack.t
   '../components/Icon': iconURL, './scene': sceneURL, './labels': labelsURL, './atlas-text': atlasTextURL,
 });
 const { FloorStack } = await import(floorStackURL);
+const easingURL = await sourceURL('../src/lantern/atlas/useCamera.ts', {
+  react: new URL('./node_modules/react/index.js', frontend).href,
+});
+const { initializeEased, advanceEased } = await import(easingURL);
 const tonesURL = await sourceURL('../src/lantern/canonical-ifc/tones.ts');
 const planPresentationURL = await sourceURL('../src/lantern/unified-atlas/plan-presentation.tsx', {
   react: new URL('./node_modules/react/index.js', frontend).href,
@@ -445,6 +449,51 @@ const model = bindAtlasModel(read.scene, loaded);
   }
   const datum = scene.atlasOrigin(grouped)[1];
   assert.deepEqual(scene.partSectionCuts(scene.sectionGoals(targets, datum, partGoals), partGoals, datum), partGoals, 'relative-datum owner records retain exact settled part heights');
+  // Same admitted scene, retained camera owner: metadata can add/remove local
+  // section keys. Exercise the actual render initializer and RAF-step kernel,
+  // then feed their values through the production section conversion/frame.
+  const plainModel = bindAtlasModel(read.scene, loaded, scene.admitAtlasDisplayForRead({ ...read, displayConfig: null }));
+  const plainPresentation = presentAtlas(plainModel, base, new Set());
+  const plainTargets = scene.sectionTargets(plainModel, plainPresentation, ceilings);
+  const plainRecord = scene.sectionGoals(plainTargets, datum, scene.partSectionTargets(plainModel, plainPresentation, plainTargets, ceilings));
+  const groupedRecord = scene.sectionGoals(targets, datum, partGoals);
+  assert.equal(plainModel.scene, grouped.scene, 'null -> policy keeps the exact admitted source');
+  const seeded = initializeEased(plainRecord, groupedRecord);
+  for (const key of Object.keys(plainRecord)) assert.equal(seeded[key], plainRecord[key], 'existing track is retained');
+  assert.ok(Object.values(seeded).every(Number.isFinite), 'new local keys are finite before partSectionCuts consumes them');
+  assert.equal(initializeEased(seeded, groupedRecord), seeded, 'unchanged valid keys retain reference identity');
+  const changedPolicy = { ...policy, memberships: [{ ...policy.memberships[0], levelIds: ['syn-level-split', 'syn-level-upper'], cutaway: 'level' }] };
+  const changedModel = bindAtlasModel(read.scene, loaded, scene.admitAtlasDisplayForRead({ ...read, displayConfig: changedPolicy }));
+  const changedPresentation = presentAtlas(changedModel, base, new Set());
+  const changedGlobals = scene.sectionTargets(changedModel, changedPresentation, ceilings);
+  const changedParts = scene.partSectionTargets(changedModel, changedPresentation, changedGlobals, ceilings);
+  const changedRecord = scene.sectionGoals(changedGlobals, datum, changedParts);
+  const movingRecord = advanceEased(scene.sectionGoals(fullTargets, datum, fullParts), groupedRecord, 0.2).value;
+  const replaced = initializeEased(movingRecord, changedRecord);
+  assert.equal(changedModel.scene, grouped.scene, 'membership update keeps the exact admitted source');
+  assert.equal(replaced[lowWall.sectionKey], movingRecord[lowWall.sectionKey], 'membership update retains another moving wall track');
+  assert.equal(Object.hasOwn(replaced, shared.sectionKey), false, 'retired membership track is removed');
+  const changedShared = changedModel.parts.find(part => changedModel.displayMemberships.has(part.mesh.meshKey));
+  assert.equal(replaced[changedShared.sectionKey], changedRecord[changedShared.sectionKey], 'replacement track starts at its finite target');
+  for (const update of [
+    { model: grouped, presentation: shown, globals: targets, parts: partGoals, current: plainRecord, goal: groupedRecord },
+    { model: changedModel, presentation: changedPresentation, globals: changedGlobals, parts: changedParts, current: movingRecord, goal: changedRecord },
+  ]) {
+    let value = initializeEased(update.current, update.goal), settled = false;
+    for (let frame = 0; frame < 256; frame++) {
+      const converted = scene.partSectionCuts(value, update.parts, datum);
+      assert.ok(Object.values(converted).every(Number.isFinite));
+      const rendered = scene.easePresentation(update.model, update.presentation, 0,
+        scene.sectionCuts(value, update.globals, datum), update.globals, ceilings, { cuts: converted, targets: update.parts });
+      assert.ok([...rendered.clips.values()].every(cut => cut === null || Number.isFinite(cut)), 'updated metadata never produces NaN clips');
+      const next = advanceEased(value, update.goal, 0.2);
+      value = next.value;
+      assert.ok(Object.values(value).every(Number.isFinite));
+      if (next.settled) { settled = true; break; }
+    }
+    assert.equal(settled, true, 'production step reaches the stop condition instead of perpetually scheduling RAF');
+    assert.deepEqual(value, update.goal);
+  }
   const selected = atlasReducer(grouped, base, { type: 'select', occurrenceId: 'syn-occ-bath' });
   assert.equal(selected.levelId, 'syn-level-upper');
   assert.equal(selected.occurrenceId, 'syn-occ-bath');

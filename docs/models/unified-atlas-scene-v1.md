@@ -516,6 +516,9 @@ legacy optional-host fallback; with neither source, individual levels remain.
 This field is not a new raw scene-envelope member, native grant or fetch API.
 Display metadata does not change the admitted source's selection-memory identity;
 existing room/floor identities remain valid when a grouping policy changes.
+The easing owner initializes newly introduced local section keys before render
+consumption and before each animation step, retains finite existing tracks and
+retires removed keys. Its timing/settlement constants remain unchanged.
 
 A protected source must populate it within the existing selection/signal/read
 fence and retain configured-source failures as failures, not pretend they mean
