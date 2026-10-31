@@ -2304,6 +2304,11 @@ numeric representation states without executing adversarial, mutation/omission,
 reversal, denial or failure-injection cases. Other reporting test files retain
 held cases and are excluded from this automatic lane; listing or reading their
 source is not authorization to execute them.
+The same healthy file includes valid normalized startup samples at each trusted
+raw/gzip ceiling and one byte above it, plus a stricter canonical maximum and
+accepted unavailable observations. These check reporter policy routing and
+exact numeric outcomes only; they collect no performance data and add no runner
+registration. Their automatic execution begins with accepted default source.
 
 With the clean pinned harness checkout and its exact public lock installed,
 the same healthy test also checks the actual canonical contract:
@@ -2320,9 +2325,10 @@ or real account. It supplies no actual browser/GPU or full security qualificatio
 The automatic job prepares that pinned fixture in its own root and supplies no
 job token to the test step. It has no measurement artifact or collector workspace.
 Deleting the test from accepted default source fails instead of becoming a legacy
-skip. Proposed reporter/test changes require inspection and this named local
-healthy verification before acceptance; the automatic suite exercises accepted
-default source and does not execute those proposals before review.
+skip. Proposed reporter/test changes require inspection; the automatic suite
+exercises accepted default source and does not execute those proposals before
+review. Under the owner's git-first publication workflow, report unrun local
+checks explicitly rather than making a local test a publication prerequisite.
 
 The unprivileged measurement job separately installs only exact public locks
 with scripts/audit/funding disabled, then invokes this same clean harness

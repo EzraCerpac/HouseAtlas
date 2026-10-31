@@ -50,7 +50,36 @@ is displayed as `no budget`; missing data is displayed as a skip. A zero baselin
 has a null percentage with `deltaPercentStatus: zero-baseline`. A derived
 percentage overflow has a null value with the distinct `overflow` status and
 an explicit table label. Neither becomes zero or an invented infinite speedup.
-The initial owned policy configures no new deterministic budget.
+The pinned measurement contract itself configures no deterministic budgets.
+The trusted reporter overlays startup ceilings only after canonical validation:
+
+| Metric | Absolute maximum (bytes) |
+| --- | ---: |
+| Entry and HTML modulepreload JavaScript | 1,843,578 |
+| Offline gzip of startup JavaScript | 303,827 |
+
+These retain the achieved #522 candidate sizes, with no added headroom. The
+31 October 2026 hosted comparison measured main `0cbc21c294ee08abde254c57315da8973316d132`
+at 1,887,021 raw / 313,065 gzip bytes and candidate
+`9dba30e7bec50b544049536f6086640e21b8e7c0` at the ceilings above, using the
+unchanged harness pin and node-zlib-default gzip profile. See the
+[successful same-head measurement](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41247246165)
+and [exact raw pair](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41246861787/artifacts/13059563548).
+The resulting main `26e7faafc3d2c3c462b886a35c83e744b1233dda` passed all eleven
+ordinary checks, including all three offline launch cases. These byte ceilings
+retain the measured reduction; they establish no device latency target.
+
+`reporting/adapter.mjs` adds only those maxima to the validated owner's policy
+rows, retaining any stricter owner maximum and every other field. Other metrics
+are unchanged. Intentional startup growth needs an explicit policy review;
+measurements cannot choose or relax their own limits. A breached limit sets the
+existing report's failed flag and existing publisher job's nonzero exit. This
+does not add a workflow, registration, permission or branch-protection rule.
+The collector, contract/schema and harness digest stay pinned. The reporter
+loads these limits only from its trusted default-branch source, so a budget PR's
+own artifact cannot enable candidate policy before integration. Automatic
+healthy tests likewise exercise accepted default source, not candidate tests.
+
 An absolute maximum/minimum still applies to a valid measured head when the
 base is explicitly unsupported. The comparison remains skipped with null
 deltas; a head outside its absolute limit sets the report's failed flag.
