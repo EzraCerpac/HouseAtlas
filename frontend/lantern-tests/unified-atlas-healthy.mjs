@@ -395,6 +395,7 @@ const model = bindAtlasModel(read.scene, loaded);
   assert.equal(selected.levelId, 'syn-level-upper');
   assert.equal(selected.occurrenceId, 'syn-occ-bath');
   const plan = atlasReducer(grouped, selected, { type: 'view', view: 'plan' });
+  assert.equal(atlasReducer(grouped, plan, { type: 'level', levelId: 'syn-level-upper' }).occurrenceId, null, 'current Plan member still leaves its room');
   assert.deepEqual(presentAtlas(grouped, plan, new Set()).planLevels, ['syn-level-upper'], 'Plan uses one actual member');
   const otherPlan = atlasReducer(grouped, plan, { type: 'level', levelId: 'syn-level-split' });
   assert.deepEqual(presentAtlas(grouped, otherPlan, new Set()).planLevels, ['syn-level-split']);

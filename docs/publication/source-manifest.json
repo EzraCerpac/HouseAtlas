@@ -8434,8 +8434,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
-      "bytes": 127287,
-      "sha256": "acf06cee4a0e00b81f0fcfe29b09f23c401ead9700038b199f85254401e418f5",
+      "bytes": 127443,
+      "sha256": "f5230a1801b6c167bd7c45a1a98362d86d6e3697ffb9f326fdea4dd03d08c03b",
       "owner": "web"
     },
     {
@@ -10177,8 +10177,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/scene.ts",
       "mode": "100644",
-      "bytes": 89640,
-      "sha256": "4af2d9a8426b429560ac4419a2ce730c69841a079cc3a63ac8d299b18ae01eb9",
+      "bytes": 89709,
+      "sha256": "e9b896925625161062e0571cf08140001c7cc472087abe9dd30ec9f565447743",
       "owner": "web"
     },
     {

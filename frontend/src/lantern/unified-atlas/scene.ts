@@ -769,8 +769,8 @@ export function atlasReducer(model: AtlasModel, state: AtlasViewState, action: A
       const level = model.levelsById.get(action.levelId);
       if (!level) return state;
       // The current floor again leaves its room for the floor itself.
-      if (state.levelId !== null && displayLevelAnchor(model, state.levelId) === displayLevelAnchor(model, level.levelId)
-        && state.buildingId === level.buildingId && state.view === '3d')
+      if (state.buildingId === level.buildingId && (state.levelId === level.levelId
+        || (state.view === '3d' && state.levelId !== null && displayLevelAnchor(model, state.levelId) === displayLevelAnchor(model, level.levelId))))
         return state.occurrenceId === null ? state : { ...state, occurrenceId: null };
       return { ...state, buildingId: level.buildingId, levelId: level.levelId,
         occurrenceId: selected?.levelId === level.levelId ? state.occurrenceId : null };
@@ -1011,7 +1011,7 @@ export function easePresentation(model: AtlasModel, presentation: AtlasPresentat
     let localCut = cut;
     if (!plan && at !== undefined && !exploding && t === 0) {
       if (membership?.cutaway === 'preserve' && !was) localCut = null;
-      else if (targetClip !== null && targets[at] !== ceilings[at]) {
+      else if (targetClip !== null && targetClip !== targets[at] && targets[at] !== ceilings[at]) {
         const progress = Math.max(0, Math.min(1, (ceilings[at]! - cuts[at]!) / (ceilings[at]! - targets[at]!)));
         localCut = lerp(ceilings[at]!, targetClip, progress);
       }
