@@ -56,8 +56,9 @@ baseline main `9afe87ac508f6397f1d2bcc14666185948df6506`, read 29 October 2026.
 Existing hosted CI must supply candidate raw/gzip launch measurements and
 offline/healthy outcomes. No local build, test, typecheck or compilation was run,
 and no test registration, harness, workflow or size budget was changed. Source,
-CI, merge and deferred device/visual acceptance remain separate; Claude retains
-CI/conflict repair and merge ownership.
+CI, merge and deferred device/visual acceptance remain separate. Codex owns
+scoped CI/conflict repair and eligible merge coordination; the parent sequences
+integration with other writers.
 
 After cancellation of an idle review returns a matching `confirmed` receipt,
 the host composition performs one original-request status lookup through the
