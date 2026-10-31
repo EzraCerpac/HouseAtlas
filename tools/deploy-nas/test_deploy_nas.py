@@ -80,6 +80,24 @@ class Pure(unittest.TestCase):
             self.assertEqual(dn.rollback_target(records)["id"], "a")
 
 
+    def test_policy_smoke_args_keep_exact_pair_without_other_custody(self):
+        policy = ["--atlas-display-policy", "/srv/model/display-policy.json", "--atlas-display-policy-sha256", "a" * 64]
+        args = SERVICE["ProgramArguments"] + policy + ["--ai-account-selection", "/srv/ai.json"]
+        selected = dn.model_args(args)
+        self.assertEqual(selected[-4:], policy)
+        self.assertNotIn("--ai-account-selection", selected)
+        self.assertEqual(dn.with_binary(dict(SERVICE, ProgramArguments=args), Path("/srv/new/houseatlas"))["ProgramArguments"][1:], args[1:])
+
+    def test_policy_arguments_refuse_partial_or_duplicate_selection(self):
+        for args in [
+            ["--atlas-display-policy", "/srv/policy.json"],
+            ["--atlas-display-policy-sha256", "a" * 64],
+            ["--atlas-display-policy", "relative.json", "--atlas-display-policy-sha256", "a" * 64],
+            ["--atlas-display-policy", "/srv/policy.json", "--atlas-display-policy", "/srv/other.json"],
+        ]:
+            with self.assertRaises(dn.DeployError):
+                dn.model_args(args)
+
 class FrontendUnion(unittest.TestCase):
     def test_keeps_old_assets_and_drops_old_pages(self):
         with tempfile.TemporaryDirectory() as t:
@@ -159,6 +177,99 @@ class ModelRelease(unittest.TestCase):
         self.assertIn("publication.json", dn.validate_release(self.rel, self.data))
 
 
+    def test_policy_replacement_and_explicit_retirement(self):
+        files = dn.validate_release(self.rel, self.data)
+        selected = dict(SERVICE, ProgramArguments=SERVICE["ProgramArguments"] + [
+            "--atlas-display-policy", "/srv/old/display-policy.json", "--atlas-display-policy-sha256", "a" * 64])
+        with self.assertRaises(dn.DeployError):
+            dn.with_model(selected, files)
+        retired = dn.with_model(selected, files, without_display_policy=True)["ProgramArguments"]
+        self.assertNotIn("--atlas-display-policy", retired)
+        self.assertEqual(dn.flag_value(retired, "--atlas-entry-building-id"), "main_house")
+        policy = write(self.rel / "display-policy.json", '{"profile":"synthetic"}')
+        files = dn.validate_release(self.rel, self.data)
+        replaced = dn.with_model(selected, files)["ProgramArguments"]
+        self.assertEqual(dn.display_policy_args(replaced), (policy, dn.sha256_file(policy)))
+        self.assertEqual(replaced.count("--atlas-display-policy"), 1)
+        with self.assertRaises(dn.DeployError):
+            dn.with_model(selected, files, without_display_policy=True)
+
+    def test_private_policy_source_bounds_and_identity(self):
+        policy = write(self.root / "source-policy.json", '{"profile":"synthetic"}')
+        digest = dn.sha256_file(policy)
+        self.assertEqual(dn.private_policy_bytes(policy, digest), policy.read_bytes())
+        policy.chmod(0o644)
+        self.assertRaises(dn.DeployError, dn.private_policy_bytes, policy, digest)
+        policy.chmod(0o600)
+        os.link(policy, self.root / "second-policy-link")
+        self.assertRaises(dn.DeployError, dn.private_policy_bytes, policy, digest)
+        (self.root / "second-policy-link").unlink()
+        alias = self.root / "policy-alias"
+        alias.symlink_to(policy)
+        self.assertRaises(dn.DeployError, dn.private_policy_bytes, alias, digest)
+        write(policy, "x" * 32769)
+        self.assertRaises(dn.DeployError, dn.private_policy_bytes, policy, dn.sha256_file(policy))
+
+    def staged_policy(self):
+        files = dn.validate_release(self.rel, self.data)
+        live_service = dn.with_model(SERVICE, files)
+        cfg = dn.Config(setup_root=self.root / "setup", plist=self.root / "service.plist",
+                        label="synthetic", gateway_url="https://gateway.invalid", smoke_template=self.root / "smoke.json")
+        cfg.plist.write_bytes(plistlib.dumps(live_service))
+        write(self.root / "frontend/index.html", '<script src="/assets/synthetic.js">')
+        live = dict(service=live_service, binary=Path(live_service["ProgramArguments"][0]),
+                    frontend=self.root / "frontend", data_dir=self.data)
+        class StageOnly(dn.Deployer):
+            def require_settled(self):
+                pass
+            def live(self):
+                return live
+            def model(self, release, **options):
+                return dict(release=release, options=options)
+        class NoEffects(dn.Runner):
+            def run(self, *args, **kwargs):
+                raise AssertionError("unexpected external command")
+            def curl(self, *args, **kwargs):
+                raise AssertionError("unexpected network request")
+        dep = StageOnly(cfg, NoEffects(cfg), out=io.StringIO())
+        policy = write(self.root / "source-policy.json", '{"profile":"synthetic"}')
+        original = dn.release_stamp(files)
+        before_service = cfg.plist.read_bytes()
+        result = dep.policy(policy, dn.sha256_file(policy), prepare_only=True)
+        return dep, files, policy, original, before_service, result
+
+    def test_policy_stages_new_immutable_copy_without_active_writes(self):
+        dep, files, policy, original, before_service, result = self.staged_policy()
+        stage = result["release"]
+        self.assertNotEqual(stage, self.rel)
+        self.assertEqual(stage.parent, dep.cfg.setup_root)
+        self.assertEqual(stage.stat().st_mode & 0o777, 0o700)
+        for source in dn.release_paths(files):
+            self.assertEqual(dn.sha256_file(stage / source.name), dn.sha256_file(source))
+            self.assertEqual((stage / source.name).stat().st_nlink, 1)
+            self.assertEqual((stage / source.name).stat().st_mode & 0o777, 0o600)
+        self.assertEqual((stage / "display-policy.json").read_bytes(), policy.read_bytes())
+        self.assertEqual(dn.release_stamp(files), original)
+        self.assertEqual(dep.cfg.plist.read_bytes(), before_service)
+        self.assertTrue(result["options"]["policy_only"])
+        self.assertEqual(result["options"]["expected_service"], hashlib.sha256(before_service).hexdigest())
+        self.assertEqual(result["options"]["expected_inputs"]["publication.json"], dn.sha256_file(files["publication.json"]))
+
+    def test_policy_transaction_refuses_changed_service_and_post_smoke_inputs(self):
+        dep, files, policy, original, before_service, result = self.staged_policy()
+        stage, options = result["release"], result["options"]
+        with self.assertRaises(dn.DeployError):
+            dn.Deployer.model(dep, stage, prepare_only=True, policy_only=True,
+                              expected_service="0" * 64, expected_inputs=options["expected_inputs"])
+        def changed_smoke(*args, **kwargs):
+            write(stage / "display-policy.json", '{"changed":true}')
+            return dn.Checks()
+        dep.smoke = changed_smoke
+        with self.assertRaises(dn.DeployError):
+            dn.Deployer.model(dep, stage, **options)
+        self.assertEqual(dep.cfg.plist.read_bytes(), before_service)
+        self.assertEqual(dn.release_stamp(files), original)
+
 class FakeService(dn.Runner):
     """launchd plus a gateway that serves whatever binary the plist names."""
 
@@ -210,6 +321,47 @@ class FakeService(dn.Runner):
         return 200, {}, b"{}"
 
 
+class PolicyHttpChecks(unittest.TestCase):
+    def check(self, *, corrupt=False, configured=True):
+        cfg = dn.Config(setup_root=Path("/unused"), plist=Path("/unused/service.plist"),
+                        label="synthetic", gateway_url="https://gateway.invalid", smoke_template=Path("/unused/smoke.json"))
+        rt = FakeService(cfg)
+        calls = []
+        body = json.dumps({"profile": "houseatlas.atlas-display-selection.v1", "workspaceId": "w", "homeId": "h",
+                           "displayConfig": {"profile": "houseatlas.atlas-display.v1", "publicationId": "p",
+                                             "semanticsSha256": "b" * 64, "groups": [], "memberships": []}}).encode()
+        digest = hashlib.sha256(body).hexdigest()
+        original = rt.curl
+        def curl(url, **kwargs):
+            calls.append(url)
+            atlas = "https://gateway.invalid/api/atlas/models/v1/workspaces/w/homes/h/atlas"
+            if url == atlas:
+                return 200, {"x-atlas-display-policy-sha256": digest, "x-atlas-display-policy-bytes": str(len(body)),
+                             "x-atlas-selection-revision": "c" * 64}, json.dumps({
+                    "scope": {"workspaceId": "w", "homeId": "h"}, "selection": {"revision": "c" * 64},
+                    "publication": {"publicationId": "p", "semanticsSha256": "b" * 64}}).encode()
+            if url.startswith(atlas + "/p/display-policy?"):
+                return 200, {"content-type": "application/json", "content-length": str(len(body)), "cache-control": dn.NO_STORE,
+                             "x-content-type-options": "nosniff", "x-atlas-selection-revision": "c" * 64,
+                             "content-digest": "bad" if corrupt else "sha-256=:" + dn.base64.b64encode(hashlib.sha256(body).digest()).decode() + ":"}, body
+            return original(url, **kwargs)
+        rt.curl = curl
+        return dn.http_checks(rt, "https://gateway.invalid", assets=[], ws="w", home="h",
+                              expect_policy=digest if configured else None), calls
+
+    def test_policy_response_pins_and_default_absence(self):
+        result, calls = self.check()
+        self.assertFalse(result.failures)
+        self.assertEqual(sum("/display-policy?" in url for url in calls), 1)
+        absent, calls = self.check(configured=False)
+        self.assertFalse(absent.failures)
+        self.assertFalse(any("/homes/h/atlas" in url for url in calls))
+
+    def test_policy_bad_content_digest_refuses_verification(self):
+        result, _ = self.check(corrupt=True)
+        self.assertTrue(result.failures)
+
+
 class SwapAndRollback(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -251,6 +403,21 @@ class SwapAndRollback(unittest.TestCase):
         self.assertEqual(dn.ledger_records(self.cfg.ledger)[-1]["status"], "rolled-back")
         with self.assertRaises(dn.DeployError):
             dep.rollback()
+
+    def test_policy_rollback_restores_exact_arguments_and_keeps_private_files(self):
+        policy = write(self.root / "policy.json", '{"profile":"synthetic"}')
+        after = dict(self.new, ProgramArguments=self.new["ProgramArguments"] + [
+            "--atlas-display-policy", str(policy), "--atlas-display-policy-sha256", dn.sha256_file(policy)])
+        Path(self.record["after_plist"]).write_bytes(plistlib.dumps(after))
+        svc = FakeService(self.cfg)
+        dep = dn.Deployer(self.cfg, svc, out=io.StringIO())
+        dep.swap(self.record, self.root / "events.log", self.moves)
+        self.assertEqual(dn.display_policy_args(dn.read_plist(self.cfg.plist)["ProgramArguments"]), (policy, dn.sha256_file(policy)))
+        dn.save_record(self.cfg.ledger, self.record)
+        dep.rollback()
+        self.assertEqual(dn.read_plist(self.cfg.plist), self.old)
+        self.assertTrue(policy.exists())
+        self.assertEqual(policy.read_text(), '{"profile":"synthetic"}')
 
     def test_failed_gateway_verification_rolls_back(self):
         svc = FakeService(self.cfg, healthy=lambda binary: not binary.endswith("new/houseatlas"))

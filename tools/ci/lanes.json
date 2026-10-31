@@ -276,7 +276,7 @@
       "toolchain": ["python3"],
       "files": ["tools/deploy-nas/test_deploy_nas.py"],
       "scope": "Temp folders and a fake service; no launchd, network or real data.",
-      "cases": {"counter": "python-unittest-methods", "dir": "tools/deploy-nas", "pattern": "test_*.py", "expected": 43}
+      "cases": {"counter": "python-unittest-methods", "dir": "tools/deploy-nas", "pattern": "test_*.py", "expected": 52}
     },
     {
       "id": "core.backup",

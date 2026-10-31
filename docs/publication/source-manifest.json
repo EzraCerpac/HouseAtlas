@@ -6419,7 +6419,7 @@
       "path": "docs/contributing/verification.md",
       "mode": "100644",
       "bytes": 200833,
-      "sha256": "003733e276a371b2a4569faf27adbc5119d3e5d4bdf6853c444cba6dc71ce271",
+      "sha256": "b3dd08e7804c4a629a7f8da3547ba261a8adf1ae2084cd24af877af9cbd93211",
       "owner": "core-integration"
     },
     {
@@ -11585,7 +11585,7 @@
       "path": "tools/ci/lanes.json",
       "mode": "100644",
       "bytes": 53858,
-      "sha256": "24a897404e0bac97d18d7e3ee91efbb396efc489b513829b1fd2cdacdad5da74",
+      "sha256": "b87b16206449e18f8c165f34bb7ff9904fac0bcd62531f60dd1543d27e0fb79a",
       "owner": "core-integration"
     },
     {
@@ -11661,8 +11661,8 @@
     {
       "path": "tools/deploy-nas/README.md",
       "mode": "100644",
-      "bytes": 6887,
-      "sha256": "1be11336f04b127cabc6c4b8322221362ea0b788e9e3f004d6d6b4ef655f8b8c",
+      "bytes": 9653,
+      "sha256": "dd022d96182ec58d7c702cb83ff4b209777eeb559533812b1535aa3f58b2b6ca",
       "owner": "core-integration"
     },
     {
@@ -11675,15 +11675,15 @@
     {
       "path": "tools/deploy-nas/deploy_nas.py",
       "mode": "100644",
-      "bytes": 52534,
-      "sha256": "1e60b596ef07af4086553865c84c30249f8be4bdbe4c665f3282a511e9f298c3",
+      "bytes": 64949,
+      "sha256": "be4ba06edd904ef804bbafd64c7e58e3f13c315a5bdc8d73ef560c22c2cbdb9e",
       "owner": "core-integration"
     },
     {
       "path": "tools/deploy-nas/test_deploy_nas.py",
       "mode": "100644",
-      "bytes": 37037,
-      "sha256": "d4aa2b4500d4956bdba6bb1754b9bc6b53f08414abba82e8dc592e9ba68c6b29",
+      "bytes": 47381,
+      "sha256": "95f30defff9e59b981f89c1ca0ba62194ea2cf5209c4e924f2dcb90d96d589fe",
       "owner": "core-integration"
     },
     {

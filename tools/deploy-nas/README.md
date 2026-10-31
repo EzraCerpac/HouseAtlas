@@ -59,6 +59,52 @@ those flags, restarts the service and checks through the gateway that the new
 `publicationId` is served and its GLB matches. Rolling back restores the
 previous flags.
 
+## Optional display policy
+
+`policy SOURCE --sha256 SHA256 [--prepare-only]` stages a NEW immutable release
+for the currently selected publication. The source is a reviewed canonical
+owner-private file (0600, one link, at most 32 KiB, private 0700 parent), with the
+exact `houseatlas.atlas-display-selection.v1` contract described in
+[the Atlas contract](../../docs/models/unified-atlas-scene-v1.md).
+
+The existing tool verifies the current service's publication/scene/room-link
+paths and pins, copies those exact files plus overview and optional Full GLB to
+a new private release outside the active pinned directory, and adds
+`display-policy.json`. It checks copied hashes, source identities and the
+original service hash, then uses the existing model transaction and ledger.
+Publication/model/scene bytes and identities remain unchanged; selectors are
+never translated by names, source indices or proximity.
+
+Nothing is inserted into the active publication directory. Staging and smoke
+happen before the old service is stopped; inputs are revalidated before the
+existing stopped-service plist swap. The new server validates the co-resident
+policy again at startup. The old release and its files remain intact for exact
+prior-argument rollback. Interrupted/failed staging is not an activation and
+does not delete its private evidence.
+
+Both code-deploy smoke and gateway verification carry configured policy
+arguments and check the protected descriptor/body pins, context, revision and
+private/no-store response. Unconfigured operations make no policy request.
+A later `model` switch with a selected policy must provide a matching
+`display-policy.json` in its inactive release, or deliberately use
+`--without-display-policy`. The tool refuses silent carry-over; retirement
+removes only the argument pair, never old private files. Replacement and
+retirement cannot be requested together.
+
+`--prepare-only` leaves a prepared record and does not activate it. There is
+no invented resume command: any later real operation needs the existing sole
+operator's explicit activation window and current-input checks. Rollback
+restores the recorded prior plist and selected paths, preserving both releases;
+an older binary is never paired with newly appended flags by manual editing.
+Do not change files under a running process's pinned directory or hand-edit its
+arguments around the ledger.
+
+The existing synthetic test module covers argument handling, private-source
+bounds, staging without active-directory writes, stale service/input refusal,
+fake HTTP pin checks and fake-service rollback. It launches no service/network
+or browser. Source/CI success does not establish private configuration,
+installed readback, model/device/visual acceptance or a released activation.
+
 ## Records and rollback
 
 Each deploy or model switch is a record in `<SETUP_ROOT>/deploy-nas/ledger.jsonl`
