@@ -36,8 +36,16 @@ existing Settings list. Suspense is local to the AI owner/view; application
 children remain mounted while its chunk loads. The shared `LazyPlaceEditor`
 likewise loads the unchanged editor only for an eligible detail, retaining the
 original target keys and props in both native and Lantern consumers. Atlas,
-outbox and sync remain eager. These boundaries add no inference, account action,
-service activation or capability.
+outbox and sync remain eager. Separate local error boundaries contain AI owner
+and panel failures; a panel failure leaves an already-active session owner
+mounted. Owner failure clears its published snapshot without replacing the
+application children. Both failures show the factual unavailable/reload result
+inside Ask or Settings and stay unavailable for the host lifetime. The editor
+reuses the existing optional-viewer error boundary beside the other detail
+content. Rejected lazy imports remain cached; only an explicit Reload app action
+starts a fresh document. No automatic import retry or operation replay occurs.
+These boundaries add no inference, account action, service activation or
+capability.
 `AiActivityStatus` displays a factual pending/result notice and Settings link
 on other pages. Canonical output, typed errors, recorded operation IDs, usage,
 review previews and original-ID reconciliation use the shared AI module.

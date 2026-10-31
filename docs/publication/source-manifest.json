@@ -8686,8 +8686,8 @@
     {
       "path": "frontend/src/ai/host/AiHost.tsx",
       "mode": "100644",
-      "bytes": 6125,
-      "sha256": "e0385e88d333a1a07f8fb5760259537eb86bcfa3a5a97d8be483f8d6b4be2fad",
+      "bytes": 8256,
+      "sha256": "343b0ddd0fd69442db8f5d090a20753b233f77ad38f40714f66e681eddbb718e",
       "owner": "ai"
     },
     {
@@ -8700,8 +8700,8 @@
     {
       "path": "frontend/src/ai/host/README.md",
       "mode": "100644",
-      "bytes": 17918,
-      "sha256": "3cbf4aa1a89abd0c7d8e88c3e0bbbaa3934ffd2cca6be846ce6e98ab5236cf27",
+      "bytes": 18509,
+      "sha256": "7df120bcb70ea718978f725b2b4af119958241a99e9b294f96ce0c61c896d533",
       "owner": "ai"
     },
     {
@@ -8932,8 +8932,8 @@
       "path": "frontend/src/app/LazyPlaceEditor.tsx",
       "mode": "100644",
       "owner": "web",
-      "bytes": 513,
-      "sha256": "b269e1df3de9c6e1f7308d071dc687711d2ce95dede4ac32977548a8953cc794"
+      "bytes": 682,
+      "sha256": "8fe2308734630eb978322854abcd2f8c76892eaa19f787009a7ca7596432a23c"
     },
     {
       "path": "frontend/src/app/PlaceEditor.tsx",

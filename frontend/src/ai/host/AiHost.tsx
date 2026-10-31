@@ -1,4 +1,4 @@
-import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { Component, createContext, lazy, Suspense, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { AiModelsBinding } from '../AiPanel.js';
 import { failureMessages } from '../model.js';
 import type { useAiSession } from '../useAiSession.js';
@@ -6,6 +6,26 @@ import type { AiClient, AiReceiptIdentity } from '../types.js';
 
 const SessionOwner = lazy(() => import('./AiSessionOwner.js').then(module => ({ default: module.AiSessionOwner })));
 const SettingsView = lazy(() => import('./AiSessionOwner.js').then(module => ({ default: module.AiSettingsView })));
+
+function AiUnavailable() {
+  return <div className="setting ai-host" role="alert">
+    <p>The AI panel could not load here. Reload the app to try again.</p>
+    <button type="button" className="btn btn-small" onClick={() => window.location.reload()}>Reload app</button>
+  </div>;
+}
+
+/** The owner and view have separate boundaries; a failed view leaves the owner
+ * mounted. Only the explicit page reload retries a cached rejected import. */
+class AiLazyBoundary extends Component<{
+  readonly children: ReactNode;
+  readonly fallback: ReactNode;
+  readonly onError: () => void;
+}, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() { this.props.onError(); }
+  render() { return this.state.failed ? this.props.fallback : this.props.children; }
+}
 
 /** Supplied by the authenticated host; a home label or role is not a scope key. */
 export interface AiHostContext {
@@ -31,6 +51,8 @@ export interface AiHostSnapshot {
 interface Host {
   readonly activate: () => void;
   readonly display: AiHostDisplay | null;
+  readonly unavailable: boolean;
+  readonly onViewError: () => void;
 }
 const HostContext = createContext<Host | null>(null);
 
@@ -51,29 +73,44 @@ export function AiHost({ context, children }: {
   // authorized scope. Later scope changes retain the original hook lifecycle.
   const [activated, setActivated] = useState(false);
   const activate = useCallback(() => setActivated(true), []);
+  // Import failures stay unavailable across navigation and scope changes. No
+  // boundary reset, new lazy identity or automatic request replay is attempted.
+  const [ownerUnavailable, setOwnerUnavailable] = useState(false);
+  const [viewUnavailable, setViewUnavailable] = useState(false);
+  const onOwnerError = useCallback(() => setOwnerUnavailable(true), []);
+  const onViewError = useCallback(() => setViewUnavailable(true), []);
   return context
-    ? <BoundHost key={context.scopeKey} context={context} activated={activated} activate={activate}>{children}</BoundHost>
+    ? <BoundHost key={context.scopeKey} context={context} activated={activated} activate={activate}
+        ownerUnavailable={ownerUnavailable} viewUnavailable={viewUnavailable}
+        onOwnerError={onOwnerError} onViewError={onViewError}>{children}</BoundHost>
     : <HostContext.Provider value={null}>{children}</HostContext.Provider>;
 }
-function BoundHost({ context, children, activated, activate }: {
+function BoundHost({ context, children, activated, activate, ownerUnavailable, viewUnavailable, onOwnerError, onViewError }: {
   readonly context: AiHostContext;
   readonly children: ReactNode;
   readonly activated: boolean;
   readonly activate: () => void;
+  readonly ownerUnavailable: boolean;
+  readonly viewUnavailable: boolean;
+  readonly onOwnerError: () => void;
+  readonly onViewError: () => void;
 }) {
   const [snapshot, setSnapshot] = useState<AiHostSnapshot | null>(null);
+  const ownerError = useCallback(() => { setSnapshot(null); onOwnerError(); }, [onOwnerError]);
   // Never expose a snapshot from an old client, full scope or receipt identity,
   // even in the render before the lazy owner reconciles its hook. Fresh context
   // objects for the same binding keep the panel mounted and use today's label
   // and render identity, just as the original host did.
-  const display = snapshot && sameBinding(snapshot.context, context) ? {
+  const display = !ownerUnavailable && snapshot && sameBinding(snapshot.context, context) ? {
     ...snapshot.display, scopeLabel: context.scopeLabel,
     modelsBinding: { client: context.client, scopeKey: context.scopeKey, renderIdentity: context,
       ...(context.receiptIdentity ? { receiptIdentity: context.receiptIdentity } : {}) },
   } : null;
-  return <HostContext.Provider value={{ activate, display }}>
+  return <HostContext.Provider value={{ activate, display, unavailable: ownerUnavailable || viewUnavailable, onViewError }}>
     {children}
-    {activated && <Suspense fallback={null}><SessionOwner context={context} onSnapshot={setSnapshot} /></Suspense>}
+    {activated && !ownerUnavailable && <AiLazyBoundary fallback={null} onError={ownerError}>
+      <Suspense fallback={null}><SessionOwner context={context} onSnapshot={setSnapshot} /></Suspense>
+    </AiLazyBoundary>}
   </HostContext.Provider>;
 }
 
@@ -88,8 +125,11 @@ export function AiSettingsSection() {
   const host = useContext(HostContext);
   const activate = host?.activate;
   useEffect(() => { activate?.(); }, [activate]);
+  if (host?.unavailable) return <AiUnavailable />;
   if (!host?.display) return null;
-  return <Suspense fallback={null}><SettingsView display={host.display} /></Suspense>;
+  return <AiLazyBoundary fallback={<AiUnavailable />} onError={host.onViewError}>
+    <Suspense fallback={null}><SettingsView display={host.display} /></Suspense>
+  </AiLazyBoundary>;
 }
 
 /** Small factual notice outside Settings; canonical output stays in the panel. */
