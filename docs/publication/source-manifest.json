@@ -8721,15 +8721,22 @@
     {
       "path": "frontend/src/ai/host/AiHost.tsx",
       "mode": "100644",
-      "bytes": 5817,
-      "sha256": "6b7a5cad12e44dc41f4347671551fdbdeec93b68f4712b1edfd70d606df2deeb",
+      "bytes": 8256,
+      "sha256": "343b0ddd0fd69442db8f5d090a20753b233f77ad38f40714f66e681eddbb718e",
       "owner": "ai"
+    },
+    {
+      "path": "frontend/src/ai/host/AiSessionOwner.tsx",
+      "mode": "100644",
+      "owner": "ai",
+      "bytes": 2923,
+      "sha256": "04766ed04cbf2a1798b453f0c845c37c5ec1aaebe14f1364da5164a5d8d7d8c0"
     },
     {
       "path": "frontend/src/ai/host/README.md",
       "mode": "100644",
-      "bytes": 16274,
-      "sha256": "82a8496c50bd9635f19e071b6c43e29cdcba374a3ca733924282c7b0259faeee",
+      "bytes": 18577,
+      "sha256": "a43a06e0c9ac4ac3b68104834bd4b8c7fbdd9291c4fb9ac0fa17d4569beb545e",
       "owner": "ai"
     },
     {
@@ -8957,6 +8964,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/app/LazyPlaceEditor.tsx",
+      "mode": "100644",
+      "owner": "web",
+      "bytes": 682,
+      "sha256": "8fe2308734630eb978322854abcd2f8c76892eaa19f787009a7ca7596432a23c"
+    },
+    {
       "path": "frontend/src/app/PlaceEditor.tsx",
       "mode": "100644",
       "bytes": 19114,
@@ -9036,8 +9050,8 @@
     {
       "path": "frontend/src/app/pages.tsx",
       "mode": "100644",
-      "bytes": 17530,
-      "sha256": "ca0bef741c2c90db59f7a7fe3250fdc7fa0c6eb12aa31ae9c1f1313ed4995321",
+      "bytes": 17534,
+      "sha256": "25a4c9ebac8f1f82e1f4b00907a6f8d36482b8b8458ce3724721b1fdbfd525fe",
       "owner": "web"
     },
     {
@@ -9540,8 +9554,8 @@
     {
       "path": "frontend/src/lantern/components/SourceDetails.tsx",
       "mode": "100644",
-      "bytes": 3105,
-      "sha256": "c9ef878440049839a4da657aed9f0f837df499916216601fdc1a3925ec9ed25d",
+      "bytes": 3109,
+      "sha256": "fd08c0e90b952f750aee381a094667808769fbe412517c8001e8d151d561445c",
       "owner": "web"
     },
     {

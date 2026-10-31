@@ -29,7 +29,7 @@ import {
 import type { Entry, ReadyView, Scope } from "./types";
 import type { SessionSettings } from "./session";
 import type { AtlasEditingClient } from "./editing";
-import { PlaceEditor } from "./PlaceEditor";
+import { PlaceEditor } from "./LazyPlaceEditor";
 import { AiSettingsSection } from "../ai/host/index.js";
 
 const homeChoiceKey = (scope: Scope) => JSON.stringify([scope.workspaceId, scope.homeId]);

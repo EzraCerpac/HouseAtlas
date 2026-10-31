@@ -1,6 +1,6 @@
 import { ancestry, nativeLink, safeWebUrl, sameScope, sourceKey } from '../../app/model';
 import { RecordStatus } from '../../app/components';
-import { PlaceEditor } from '../../app/PlaceEditor';
+import { PlaceEditor } from '../../app/LazyPlaceEditor';
 import { useStore } from '../state/store';
 import { fmtDateTime } from '../data/time';
 import { Section } from './ui';
