@@ -10,9 +10,57 @@ import { makeAvailabilityReport, parseAvailabilityZip } from './availability.mjs
 import { makeReport } from './report.mjs';
 import { publishOrigin } from './origin.mjs';
 import { HARNESS_SHA, SCHEMA_SHA256 } from './measurement.mjs';
+import { compareRuns } from './adapter.mjs';
 import { context, fakeOriginApi, identity, zipFixture } from './test-fixtures.mjs';
 
 const policy = { id: 'example.cpu', label: 'Synthetic CPU duration', unit: 'ms', kind: 'timing', direction: 'lower' };
+test('trusted startup ceilings preserve exact measured limits through the normalized adapter', () => {
+  const maxima = [['frontend.startup_js.bytes', 1843578], ['frontend.startup_js.gzip_bytes', 303827]];
+  const policies = maxima.map(([id]) => Object.freeze({ id, label: id, unit: 'bytes', kind: 'deterministic', direction: 'lower' }));
+  const extra = Object.freeze({ ...policies[0], id: 'example.other.bytes', maximum: 10 });
+  const contract = { schemaSha256: SCHEMA_SHA256, policies: [...policies, extra],
+    // Valid normalized examples only; these are not another wire schema.
+    validateRun: () => true, reportView: value => value };
+  const view = (side, values) => ({ sourceCommit: identity[`${side}Sha`], sourceTree: identity[`${side}Tree`], dirty: false,
+    harnessCommit: HARNESS_SHA, schemaSha256: SCHEMA_SHA256, fixtureFingerprint: '1'.repeat(64), comparisonFingerprint: '2'.repeat(64),
+    metrics: maxima.map(([id], index) => ({ id, status: 'measured', samples: [values[index]] }))
+      .concat({ id: extra.id, status: 'measured', samples: [10] }) });
+  const baseRun = view('base', [1887021, 313065]), headRun = view('head', maxima.map(([, limit]) => limit));
+  const compare = candidate => compareRuns({ identity: { ...identity, harnessSha: HARNESS_SHA }, baseRun, headRun: candidate, contract });
+  const boundary = compare(headRun);
+  assert.equal(boundary.failed, false);
+  for (const [, limit] of maxima) assert(boundary.markdown.includes(`max ${limit} bytes`));
+  assert(boundary.markdown.includes('max 10 bytes'));
+  for (const [index, [id, limit]] of maxima.entries()) {
+    const over = structuredClone(headRun);
+    over.metrics[index].samples = [limit + 1];
+    const result = compare(over);
+    assert.equal(result.failed, true);
+    assert.equal(result.comparisons.find(row => row.id === id).head.value, limit + 1);
+    assert(result.markdown.includes('❌ Budget failed'));
+  }
+  assert(policies.every(value => value.maximum === undefined));
+  assert.equal(extra.maximum, 10);
+});
+
+test('trusted startup ceiling retains a stricter canonical maximum and unavailable observations', () => {
+  const id = 'frontend.startup_js.bytes';
+  const contract = { schemaSha256: SCHEMA_SHA256, policies: [{ id, label: 'Generated startup bytes', unit: 'bytes', kind: 'deterministic', direction: 'lower', maximum: 100 }],
+    validateRun: () => true, reportView: value => value };
+  const view = (side, metric) => ({ sourceCommit: identity[`${side}Sha`], sourceTree: identity[`${side}Tree`], dirty: false,
+    harnessCommit: HARNESS_SHA, schemaSha256: SCHEMA_SHA256, fixtureFingerprint: '1'.repeat(64), comparisonFingerprint: '2'.repeat(64), metrics: [{ id, ...metric }] });
+  const compare = (base, head) => compareRuns({ identity: { ...identity, harnessSha: HARNESS_SHA }, baseRun: view('base', base), headRun: view('head', head), contract });
+  const result = compare({ status: 'unsupported' }, { status: 'measured', samples: [101] });
+  assert.equal(result.failed, true);
+  assert.equal(result.comparisons[0].head.value, 101);
+  assert.equal(result.comparisons[0].deltaPercent, null);
+  assert.equal(result.comparisons[0].reason, 'base-unsupported');
+  assert(result.markdown.includes('max 100 bytes'));
+  const absent = compare({ status: 'measured', samples: [100] }, { status: 'unsupported' });
+  assert.equal(absent.comparisons[0].head, null);
+  assert.equal(absent.comparisons[0].reason, 'head-unsupported');
+});
+
 test('healthy samples retain medians, nearest-rank p95 and matching-direction deltas', () => {
   const samples = Array.from({ length: 20 }, (_, i) => i + 1);
   const summary = summarize(samples);

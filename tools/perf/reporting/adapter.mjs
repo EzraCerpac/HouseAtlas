@@ -4,6 +4,22 @@
 import { makeReport, validateIdentity } from './report.mjs';
 
 const sha = (value, length) => typeof value === 'string' && new RegExp(`^[0-9a-f]{${length}}$`).test(value);
+// Reporter-owned ceilings retain the achieved #522 startup bytes. Keep this
+// outside contract/harness: changing those files changes the pinned collector.
+const startupMaximums = Object.freeze({
+  'frontend.startup_js.bytes': 1843578,
+  'frontend.startup_js.gzip_bytes': 303827,
+});
+function reporterPolicies(policies) {
+  return policies.map(policy => {
+    if (!Object.hasOwn(startupMaximums, policy.id)) return policy;
+    if (policy.kind !== 'deterministic' || policy.unit !== 'bytes' || policy.direction !== 'lower' ||
+        policy.maximum !== undefined && (!Number.isFinite(policy.maximum) || policy.maximum < 0)) throw new Error('Invalid startup budget policy');
+    // Retain any stricter owner maximum and every other canonical policy field.
+    const maximum = Math.min(startupMaximums[policy.id], policy.maximum ?? Infinity);
+    return { ...policy, maximum };
+  });
+}
 function checkedView(run, contract, commit, tree, harness) {
   try {
     if (!contract.validateRun(run)) throw new Error();
@@ -36,7 +52,7 @@ export function compareRuns({ identity, baseRun, headRun, contract }) {
     if (row.status !== 'measured') return [policy.id, { skipReason: `${side}-${row.status}`, failed: row.status === 'failed' }];
     return [policy.id, { samples: row.samples, ...(mismatch ? { skipReason: mismatch } : {}) }];
   }));
-  const result = makeReport({ identity, policies: contract.policies, base: normalize(base, 'base'), head: normalize(head, 'head') });
+  const result = makeReport({ identity, policies: reporterPolicies(contract.policies), base: normalize(base, 'base'), head: normalize(head, 'head') });
   const profiles = { schemaSha256: contract.schemaSha256,
     baseFixture: base.fixtureFingerprint, headFixture: head.fixtureFingerprint,
     baseComparison: base.comparisonFingerprint, headComparison: head.comparisonFingerprint };

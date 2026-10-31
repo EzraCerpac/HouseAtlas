@@ -114,6 +114,14 @@ from API data. No PR number or Markdown is accepted from an artifact.
 
 The privileged publisher imports the validator and policy only from its trusted
 default-branch checkout, with the trusted harness lock installed without scripts.
+After canonical run/identity validation, the adapter overlays reporter-owned
+startup maxima of **1,843,578 raw bytes** and **303,827 gzip bytes**. These are
+the achieved #522 sizes with no added allowance; a stricter canonical maximum
+is retained. Other policies, validation, unavailable reasons and comparison
+rules stay intact. The fixed contract/harness source is not edited or repinned.
+The existing publisher exits nonzero for a budget breach; it adds no branch
+protection or workflow. Exact baseline, evidence and rationale are in
+[`docs/ci-performance.md`](../../../docs/ci-performance.md).
 It also checks the pinned harness commit/tree and the exact trusted owned-file
 digest. Merge PR190's canonical files before PR189 for immediate metric posting;
 the reverse order safely produces contract-unavailable rows until installation.
@@ -126,8 +134,9 @@ token and has no collector filesystem or measurement artifacts. Candidate test
 presence, contents and imports never select automatic cases; a missing accepted
 default-source test fails. Retained adversarial and mutation/omission files
 remain held and are source-reviewed rather than invoked by this lane. Proposed
-reporter changes require source inspection and the named local healthy check
-before acceptance; this automatic suite exercises accepted default code.
+reporter changes require source inspection; this automatic suite exercises
+accepted default code. Candidate test additions do not execute in this lane
+before integration. Report that distinction and any unrun local checks explicitly.
 
 The comment presents five columns with one-decimal percentage deltas, concise
 status symbols and a single unsupported-browser/GPU note. The short Evidence
