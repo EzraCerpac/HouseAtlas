@@ -12,8 +12,8 @@ mod headers;
 mod homebox_pinned_discovery;
 mod homebox_pinned_files;
 pub use homebox_pinned_files::PinnedHomeBoxFileBinding;
-mod atlas_room_links;
 mod atlas_display_policy;
+mod atlas_room_links;
 mod atlas_scene;
 mod browser_reads;
 mod capture_claim;
@@ -123,7 +123,8 @@ pub struct Host {
     offline_packs: Arc<Mutex<offline_read_pack::Registry>>,
     atlas_scene: Option<Arc<crate::config::atlas_scene::ServerAtlasSceneSelection>>,
     atlas_room_links: Option<Arc<crate::config::atlas_room_links::ServerAtlasRoomLinksSelection>>,
-    atlas_display_policy: Option<Arc<crate::config::atlas_display_policy::ServerAtlasDisplayPolicySelection>>,
+    atlas_display_policy:
+        Option<Arc<crate::config::atlas_display_policy::ServerAtlasDisplayPolicySelection>>,
     full_geodata_identity: Option<crate::storage::FullGeodataIdentity>,
     geodata_dataset: Option<Arc<Mutex<crate::storage::geodata::GeodataStore>>>,
     loopback_local: bool,

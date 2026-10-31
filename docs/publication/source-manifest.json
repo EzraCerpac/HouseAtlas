@@ -1371,8 +1371,8 @@
     {
       "path": "backend/src/config/atlas_display_policy.rs",
       "mode": "100644",
-      "bytes": 11508,
-      "sha256": "e3c6b1a60beeaf89ac7447bee2dbed8ec027261d142f1de2303c1b80438194dc",
+      "bytes": 12955,
+      "sha256": "431b655f5ad7ecab95977315b09c01dd2e53f023b8c0303614d72a395adc71e0",
       "owner": "core-integration"
     },
     {
@@ -1428,7 +1428,7 @@
       "path": "backend/src/config/mod.rs",
       "mode": "100644",
       "bytes": 3247,
-      "sha256": "60b6ba6c6aa6ab006c116f9ec2940b63ecebfeefef5ca80c06d4097c1e098162",
+      "sha256": "b3029a2818f94f4a6859540b33607cdfb984136e11d733c7d9953d35283c82d3",
       "owner": "core-integration"
     },
     {
@@ -2400,8 +2400,8 @@
     {
       "path": "backend/src/http/atlas_display_policy.rs",
       "mode": "100644",
-      "bytes": 3489,
-      "sha256": "fdbd4b66673bb568f94d0e31f06d0f7397af494f024ee8f0ff390a0245af1ec3",
+      "bytes": 3613,
+      "sha256": "59f05213c4e8ab8cc7ed65f2249488ad8a8208e9ee3102328db95912a37db392",
       "owner": "core-integration"
     },
     {
@@ -2512,8 +2512,8 @@
     {
       "path": "backend/src/http/host_config.rs",
       "mode": "100644",
-      "bytes": 19026,
-      "sha256": "fdb03416ffc27b3979b7c040aea913cfedce33b8446bbe11b2a461e3e47056a0",
+      "bytes": 19149,
+      "sha256": "ad3e0cc700e751ebfcdb728999fb319088b17b8959e6f3e8e8e9609f30e8232a",
       "owner": "core-integration"
     },
     {
@@ -2540,8 +2540,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 24932,
-      "sha256": "484f83e7104964101c32057b5f80874aa1f4a0937f2dfd986fc7805473e95ef2",
+      "bytes": 24940,
+      "sha256": "ffe72ad3d3b63188ab1554e1eaf67d197501d8c278dd54387dd97f6f1dd72c79",
       "owner": "core-integration"
     },
     {

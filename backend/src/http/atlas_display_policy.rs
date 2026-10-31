@@ -42,12 +42,16 @@ pub(super) async fn read(
                 let revision = scene.revision.clone();
                 let query = format!(
                     "expectedSha256={}&expectedSemanticsSha256={}&expectedSelectionRevision={}",
-                    policy.sha256(), scene.semantics_sha256, revision
+                    policy.sha256(),
+                    scene.semantics_sha256,
+                    revision
                 );
                 if uri.query() != Some(query.as_str()) {
                     return Err(failure(StatusCode::CONFLICT));
                 }
-                overview.read_original().map_err(|_| failure(StatusCode::CONFLICT))?;
+                overview
+                    .read_original()
+                    .map_err(|_| failure(StatusCode::CONFLICT))?;
                 let bytes = policy
                     .read(scene, overview)
                     .map_err(|_| failure(StatusCode::CONFLICT))?;
@@ -71,7 +75,9 @@ pub(super) async fn read(
                 policy
                     .read(scene, overview)
                     .map_err(|_| failure(StatusCode::CONFLICT))?;
-                overview.read_original().map_err(|_| failure(StatusCode::CONFLICT))?;
+                overview
+                    .read_original()
+                    .map_err(|_| failure(StatusCode::CONFLICT))?;
                 Ok(response)
             },
         )

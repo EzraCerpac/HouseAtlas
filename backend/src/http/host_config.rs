@@ -126,14 +126,22 @@ impl Host {
         selection: crate::config::atlas_display_policy::ServerAtlasDisplayPolicySelection,
     ) -> crate::storage::Result<Self> {
         let scene = self.atlas_scene.as_ref().ok_or(crate::storage::Error::new(
-            "identity-conflict", "Display policy requires selected scene",
+            "identity-conflict",
+            "Display policy requires selected scene",
         ))?;
-        let overview = self.model_overview.as_ref().ok_or(crate::storage::Error::new(
-            "identity-conflict", "Display policy requires selected overview",
-        ))?;
-        selection.read(scene, overview).map_err(|_| crate::storage::Error::new(
-            "identity-conflict", "Display policy does not match selected scene",
-        ))?;
+        let overview = self
+            .model_overview
+            .as_ref()
+            .ok_or(crate::storage::Error::new(
+                "identity-conflict",
+                "Display policy requires selected overview",
+            ))?;
+        selection.read(scene, overview).map_err(|_| {
+            crate::storage::Error::new(
+                "identity-conflict",
+                "Display policy does not match selected scene",
+            )
+        })?;
         self.atlas_display_policy = Some(Arc::new(selection));
         Ok(self)
     }
