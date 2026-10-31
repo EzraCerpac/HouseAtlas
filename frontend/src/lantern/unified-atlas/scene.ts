@@ -488,6 +488,17 @@ export const displayLevelIds = (model: AtlasModel, levelId: string | null): read
   levelId === null ? [] : model.displayGroups.get(levelId)?.levelIds ?? [levelId];
 export const displayLevelAnchor = (model: AtlasModel, levelId: string): string => displayLevelIds(model, levelId)[0]!;
 export const displayLevelLabel = (model: AtlasModel, levelId: string): string | null => model.displayGroups.get(levelId)?.label ?? null;
+/** Exactly the scopes where presentation uses an explicit primitive membership. */
+function activeDisplayMembership(model: AtlasModel, part: AtlasPart, state: AtlasViewState): AtlasDisplayMembership | null {
+  if (state.view !== '3d' || state.levelId === null || model.levelsById.get(state.levelId)?.buildingId !== part.buildingId
+    || (state.exploded && hasExplodableLevels(model, part.buildingId))) return null;
+  return model.displayMemberships.get(part.mesh.meshKey) ?? null;
+}
+
+/** Ordinary labels cover every selected member, but keep lower context quiet. */
+export const plainLabelInFocus = (model: AtlasModel, presentation: AtlasPresentation, occurrenceId: string): boolean =>
+  presentation.focusLevelId === null || presentation.focusLevels.has(model.occurrencesById.get(occurrenceId)!.levelId);
+
 export function displayLevels(model: AtlasModel, levels: readonly AtlasLevel[]): readonly AtlasLevel[] {
   return levels.filter(level => displayLevelAnchor(model, level.levelId) === level.levelId);
 }
@@ -892,8 +903,8 @@ export function presentAtlas(model: AtlasModel, state: AtlasViewState, highlight
       dim = partExploded ? .4 : focusLevelId !== null ? .3 : 0;
     }
     // Display association is separate from the immutable containment tags.
-    const membership = model.displayMemberships.get(key);
-    if (membership && own && !plan && !partExploded && focusLevelId !== null) {
+    const membership = activeDisplayMembership(model, part, state);
+    if (membership) {
       const matched = membership.levelIds.filter(levelId => focusLevels.has(levelId));
       visible = matched.length > 0;
       clip = membership.cutaway === 'preserve' ? null : matched.length ? sectionOf(model, highestLevel(model, matched)!) : null;
@@ -1263,7 +1274,7 @@ export function pickTarget(model: AtlasModel, presentation: AtlasPresentation, s
     return { kind: 'room', occurrenceId: room.occurrenceId };
   if (!surface) return null;
   const buildingId = surface.part.buildingId;
-  const members = model.displayMemberships.get(surface.part.mesh.meshKey)?.levelIds ?? surface.part.levelIds;
+  const members = activeDisplayMembership(model, surface.part, state)?.levelIds ?? surface.part.levelIds;
   const levelId = surfaceLevel(model, members, surface.hit.y);
   const deep = buildingId === state.buildingId;
   return deep && levelId !== null ? { kind: 'level', levelId } : { kind: 'building', buildingId };

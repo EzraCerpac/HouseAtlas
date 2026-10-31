@@ -346,6 +346,8 @@ const model = bindAtlasModel(read.scene, loaded);
   const expected = read.scene.occurrences.filter(row => ['syn-level-split', 'syn-level-upper'].includes(row.levelId)
     && grouped.selectable.has(row.spaceOccurrenceId)).map(row => row.spaceOccurrenceId).sort();
   assert.deepEqual([...shown.pickable].sort(), expected, 'both member levels retain their own room picks');
+  assert.ok(expected.every(id => scene.plainLabelInFocus(grouped, shown, id)), 'both members admit their ordinary labels and keyboard targets');
+  assert.equal(scene.plainLabelInFocus(grouped, shown, 'syn-occ-hall'), false, 'lower context remains quiet');
   for (const levelId of shown.focusLevels) {
     const wall = grouped.parts.find(part => part.role === 'structure' && part.levelId === levelId);
     assert.ok(wall);
@@ -371,6 +373,8 @@ const model = bindAtlasModel(read.scene, loaded);
   assert.equal((markup.match(/class="ua-rung-name">Generated split-level group</g) ?? []).length, 1, 'one group choice in the rail');
   const planMarkup = renderToStaticMarkup(createElement(FloorStack, { ...props, state: { ...base, view: 'plan' } }));
   assert.match(planMarkup, /aria-label="Plan level"/);
+  const memberMarkup = planMarkup.slice(planMarkup.indexOf('aria-label="Plan level"'));
+  assert.equal((memberMarkup.match(/class="ua-rung-tick"/g) ?? []).length, 2, 'both member switches have marker cells before name columns');
   assert.match(planMarkup, /Split level/);
   assert.match(planMarkup, /Upper floor/i);
   for (const levelId of shown.focusLevels) for (const occurrenceId of grouped.levelsById.get(levelId).occurrenceIds) {
@@ -386,6 +390,18 @@ const model = bindAtlasModel(read.scene, loaded);
   assert.equal(lower.hidden.has(shared.mesh.meshKey), false);
   assert.equal(lower.clips.get(shared.mesh.meshKey), null, 'connecting structure keeps its full height in its display scope');
   assert.equal(shown.hidden.has(shared.mesh.meshKey), true, 'lower-flight association is separate from grouped membership');
+  // Isolate the genuine shared slab surface from unrelated walls/room proxies
+  // to verify that All floors/Exploded retain the source-level pick semantics.
+  const sampleSurface = (state, t) => {
+    const presentation = { ...presentAtlas(grouped, state, new Set()), pickable: new Set(),
+      hidden: new Set(grouped.parts.filter(part => part !== shared).map(part => part.mesh.meshKey)) };
+    const bounds = shared.mesh.bounds, projection = makeProjection({ yaw: 0, pitch: 90, zoom: 1, panX: 0, panY: 0 }, bounds, { width: 960, height: 640 }, 0);
+    const pixel = projection.project((bounds.min[0] + bounds.max[0]) / 2, bounds.max[1], (bounds.min[2] + bounds.max[2]) / 2);
+    return scene.pickTarget(grouped, presentation, state, t, projection, pixel[0], pixel[1]);
+  };
+  assert.deepEqual(sampleSurface({ ...base, levelId: 'syn-level-ground' }, 0), { kind: 'level', levelId: 'syn-level-ground' });
+  assert.deepEqual(sampleSurface({ ...base, levelId: null }, 0), { kind: 'level', levelId: 'syn-level-upper' });
+  assert.deepEqual(sampleSurface({ ...base, levelId: 'syn-level-ground', exploded: true }, 1), { kind: 'level', levelId: 'syn-level-upper' });
   const ceilings = scene.sectionCeilings(grouped), targets = scene.sectionTargets(grouped, shown, ceilings);
   const moving = scene.easePresentation(grouped, shown, 0, targets.map((target, at) => (target + ceilings[at]) / 2), targets, ceilings);
   const lowWall = grouped.parts.find(part => part.role === 'structure' && part.levelId === 'syn-level-split');

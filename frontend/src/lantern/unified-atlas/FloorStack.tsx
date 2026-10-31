@@ -7,9 +7,9 @@ import { plural } from './atlas-text';
 
 /** Short rung marks from each floor's own display name: initials, without a
  * trailing "floor". Marks that repeat within a building gain a source-order number. */
-function floorMarks(model: AtlasModel, levels: readonly AtlasLevel[]): ReadonlyMap<string, string> {
+function floorMarks(model: AtlasModel, levels: readonly AtlasLevel[], grouped = true): ReadonlyMap<string, string> {
   const marks = levels.map(level => {
-    const words = (displayLevelLabel(model, level.levelId) ?? atlasLevelName(model, level.levelId)).split(' · ')[0]!.split(/\s+/).filter(Boolean);
+    const words = ((grouped ? displayLevelLabel(model, level.levelId) : null) ?? atlasLevelName(model, level.levelId)).split(' · ')[0]!.split(/\s+/).filter(Boolean);
     const kept = words.length > 1 && /^floor$/i.test(words[words.length - 1]!) ? words.slice(0, -1) : words;
     return kept.map(word => /[\p{L}\p{N}]/u.exec(word)?.[0] ?? '').join('').slice(0, 2).toUpperCase() || '·';
   });
@@ -58,6 +58,7 @@ export function FloorStack({ model, levels, buildings, buildingNav, building, st
   const activeLevels = new Set(displayLevelIds(model, state.levelId));
   const currentAnchor = state.levelId === null ? null : displayLevelAnchor(model, state.levelId);
   const marks = useMemo(() => floorMarks(model, choices), [model, choices]);
+  const memberMarks = useMemo(() => floorMarks(model, levels, false), [model, levels]);
   const buildingMark = useMemo(() => buildingMarks(model, buildings), [model, buildings]);
   const gaps = top.map((level, at) => {
     const below = top[at + 1]; if (!below) return 0;
@@ -155,6 +156,7 @@ export function FloorStack({ model, levels, buildings, buildingNav, building, st
         {state.view === 'plan' && state.levelId !== null && activeLevels.size > 1 && <div role="group" aria-label="Plan level">
           {[...activeLevels].map(levelId => <button key={levelId} type="button" className="ua-rung ua-stack-row"
             aria-pressed={state.levelId === levelId} onClick={() => dispatch({ type: 'level', levelId })}>
+            <span className="ua-rung-tick" aria-hidden="true">{memberMarks.get(levelId)}</span>
             <span className="ua-rung-name">{atlasLevelName(model, levelId)}</span>
           </button>)}
         </div>}

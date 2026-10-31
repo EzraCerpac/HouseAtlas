@@ -17,7 +17,7 @@ import { createLiveAtlasPresentationPort, savedAtlasInitialState } from '../../o
 import type { AtlasPresentationPort, AtlasPresentationSelection } from './types';
 import {
   admitAtlasDisplay, atlasOrigin, atlasReducer, atlasSurroundings, bindAtlasModel, displayLevelAnchor, displayLevelLabel, contextOccurrenceIds, easePresentation, frameBox, hasExplodableLevels, initialAtlasState, isAtlasGlazing, labelHeight,
-  levelLift, occurrenceLiftLevel, partLifts, pickTarget, planFeaturesForLevel, planPickTarget, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
+  levelLift, occurrenceLiftLevel, partLifts, pickTarget, plainLabelInFocus, planFeaturesForLevel, planPickTarget, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
   targetAction, type AtlasAction, type AtlasLayer, type AtlasModel, type AtlasViewState, type OverlayLayerIndex,
 } from './scene';
 import { AtlasReadError, type AtlasReadFailure, type MeshRole, type OverlayKind, type StoredAtlasRead, type UnifiedAtlasPort,
@@ -897,9 +897,9 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
     for (const occurrenceId of live) {
       const at = anchorOf(occurrenceId); if (!at) continue;
       const tier = occurrenceId === selected ? 'selected' : context.includes(occurrenceId) ? 'context' : 'plain';
-      // Plain labels stay on the floor in focus; lower floors seen through the section stay quiet.
+      // Plain labels cover the selected group; lower context stays quiet.
       if (tier === 'plain' && ((!settledPlan && at.clearance * projection.k < 18)
-        || (presentation.focusLevelId !== null && model.occurrencesById.get(occurrenceId)!.levelId !== presentation.focusLevelId))) continue;
+        || !plainLabelInFocus(model, presentation, occurrenceId))) continue;
       const lifted = markerAt.has(occurrenceId) ? 22 : 0;
       const metrics = planTextMetrics.get(occurrenceId), preferredY = at.y - lifted;
       // Ease the extra full-target clearance with Plan, so settlement itself
