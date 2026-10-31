@@ -160,6 +160,11 @@ export interface AtlasScene {
 /** Verified scene plus the exact pinned model bytes for the same selection revision. */
 export interface UnifiedAtlasRead {
   readonly scene: AtlasScene;
+  /** Optional display metadata owned by this admitted read. A protected
+   * source may supply it without exposing private values in static HTML.
+   * null explicitly disables grouping; undefined keeps legacy host fallback.
+   * The consumer still admits exact publication/digest and membership pins. */
+  readonly displayConfig?: AtlasDisplayConfig | null;
   readonly model: Uint8Array<ArrayBuffer>;
   /** Optional presentation metadata owned by this exact admitted read. Null is
    * explicitly unconfigured; omitted local ports may supply their own callback. */

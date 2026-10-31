@@ -331,7 +331,20 @@ const model = bindAtlasModel(read.scene, loaded);
     semanticsSha256: read.scene.publication.semanticsSha256,
     groups: [{ levelIds: ['syn-level-split', 'syn-level-upper'], label: 'Generated split-level group' }],
     memberships: [{ nodeIndex: 2, meshIndex: 0, primitiveIndex: 4, levelIds: ['syn-level-ground'], cutaway: 'preserve' }] };
-  const grouped = bindAtlasModel(read.scene, loaded, policy);
+  // A protected source can attach metadata to the existing admitted read.
+  // This uses the same admission function as the production bind/refresh path.
+  const suppliedRead = { ...read, displayConfig: policy };
+  const admittedPolicy = scene.admitAtlasDisplayForRead(suppliedRead, {});
+  assert.deepEqual(admittedPolicy, policy, 'admitted-read metadata wins over malformed legacy fallback');
+  assert.equal(suppliedRead.scene, read.scene);
+  assert.equal(suppliedRead.model, read.model, 'display metadata does not change original bytes');
+  assert.equal(scene.admitAtlasDisplayForRead({ ...read, displayConfig: null }, policy), null, 'explicit null suppresses legacy grouping');
+  assert.equal(scene.admitAtlasDisplayForRead({ ...read, displayConfig: { ...policy, semanticsSha256: '0'.repeat(64) } }, policy), null,
+    'stale supplied metadata cannot fall through to a matching legacy policy');
+  assert.throws(() => scene.admitAtlasDisplayForRead({ ...read, displayConfig: {} }, policy), 'invalid supplied metadata cannot fall through');
+  assert.deepEqual(scene.admitAtlasDisplayForRead(read, policy), policy, 'absent metadata preserves explicit legacy host fallback');
+  assert.equal(scene.admitAtlasDisplayForRead(read), null, 'no metadata or host policy retains ungrouped behavior');
+  const grouped = bindAtlasModel(read.scene, loaded, admittedPolicy);
   assert.equal(grouped.scene, model.scene, 'display policy does not rewrite the admitted semantic scene');
   assert.deepEqual(grouped.parts.map(part => part.levelIds), model.parts.map(part => part.levelIds));
   assert.deepEqual(grouped.meshes.map(mesh => mesh.vertices), model.meshes.map(mesh => mesh.vertices));

@@ -16,7 +16,7 @@ import { PREPARED_BYTES_PER_TRIANGLE } from '../site-artifacts/site-budget';
 import { createLiveAtlasPresentationPort, savedAtlasInitialState } from '../../offline/saved-atlas-presentation';
 import type { AtlasPresentationPort, AtlasPresentationSelection } from './types';
 import {
-  admitAtlasDisplay, atlasOrigin, atlasReducer, atlasSurroundings, bindAtlasModel, displayLevelAnchor, displayLevelLabel, contextOccurrenceIds, easePresentation, frameBox, hasExplodableLevels, initialAtlasState, isAtlasGlazing, labelHeight,
+  admitAtlasDisplayForRead, atlasOrigin, atlasReducer, atlasSurroundings, bindAtlasModel, displayLevelAnchor, displayLevelLabel, contextOccurrenceIds, easePresentation, frameBox, hasExplodableLevels, initialAtlasState, isAtlasGlazing, labelHeight,
   levelLift, occurrenceLiftLevel, partLifts, partSectionTargets, partSectionCuts, pickTarget, plainLabelInFocus, planFeaturesForLevel, planPickTarget, presentAtlas, sectionCeilings, sectionCuts, sectionGoals, sectionTargets,
   targetAction, type AtlasAction, type AtlasLayer, type AtlasModel, type AtlasViewState, type OverlayLayerIndex,
 } from './scene';
@@ -81,7 +81,9 @@ const memoryKey = (model: AtlasModel, overview: AtlasPresentationSelection) => {
   let owner = overviewOwners.get(identity);
   if (owner === undefined) { owner = ++nextOverviewOwner; overviewOwners.set(identity, owner); }
   const { scope, publication, selection } = model.scene;
-  return `${owner}/${overview.kind === 'live' ? overview.overview.manifestSha256 : `${overview.localRevision}/${overview.snapshotId}/${overview.overviewManifestSha256}`}/${scope.workspaceId}/${scope.homeId}/${publication.publicationId}/${publication.semanticsSha256}/${selection.revision}/${JSON.stringify(model.displayConfig)}`;
+  // Display policy only groups existing identities; changing it must not
+  // remount this same admitted source and discard the selected room/floor.
+  return `${owner}/${overview.kind === 'live' ? overview.overview.manifestSha256 : `${overview.localRevision}/${overview.snapshotId}/${overview.overviewManifestSha256}`}/${scope.workspaceId}/${scope.homeId}/${publication.publicationId}/${publication.semanticsSha256}/${selection.revision}`;
 };
 function remember(key: string, state: AtlasViewState) {
   memory.delete(key); memory.set(key, state);
@@ -165,19 +167,19 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
   useEffect(() => {
     if (!selection) return;
     const controller = new AbortController(), signal = controller.signal;
-    // Optional inert JSON, supplied by the host for one exact semantic publication.
-    // No live/native authority or source geometry is created by this policy.
+    // Legacy optional host fallback. Protected read metadata takes precedence,
+    // including explicit null. No private values need enter the static index.
     const displayElement = document.getElementById('houseatlas-atlas-display');
     const displayText = displayElement instanceof HTMLScriptElement && displayElement.type === 'application/json' ? displayElement.textContent : null;
-    let displayConfig: unknown;
+    let hostDisplayConfig: unknown;
     try {
       if (displayText !== null) {
         if (new TextEncoder().encode(displayText).byteLength > 32 * 1024) throw new Error('Display policy too large');
-        displayConfig = JSON.parse(displayText);
+        hostDisplayConfig = JSON.parse(displayText);
       }
-    } catch { displayConfig = {}; } // Matching malformed host configuration refuses rather than guesses.
+    } catch { hostDisplayConfig = {}; } // Matching malformed host configuration refuses rather than guesses.
     const bind = async (read: UnifiedAtlasRead) => {
-      const policy = admitAtlasDisplay(read.scene, displayConfig);
+      const policy = admitAtlasDisplayForRead(read, hostDisplayConfig);
       const { loadStandardGlb } = await import('../canonical-ifc/standard-glb');
       signal.throwIfAborted();
       // Prepared geometry is reserved from the preflight counts before the loader allocates.
@@ -226,7 +228,7 @@ function AtlasPresentation({ port: suppliedPort, otherSources, environment }: At
         // The same scene and model bytes confirm the copy on screen in place.
         const same = shown && read.envelopeSha256 !== undefined && read.envelopeSha256 === shown.read.envelopeSha256
           && read.scene.model.sha256 === shown.read.scene.model.sha256 && read.entryBuildingId === shown.read.entryBuildingId
-          && JSON.stringify(shown.model.displayConfig) === JSON.stringify(admitAtlasDisplay(read.scene, displayConfig));
+          && JSON.stringify(shown.model.displayConfig) === JSON.stringify(admitAtlasDisplayForRead(read, hostDisplayConfig));
         outcome = { status: 'ready', model: same ? shown.model : await bind(read), entryBuildingId: read.entryBuildingId };
         storedCopy.current = null;
         refused.current = null;
