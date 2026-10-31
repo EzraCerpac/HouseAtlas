@@ -3157,3 +3157,17 @@ launch selections continue to cover the actual clients. See
 [the consumer audit and boundaries](../contracts/client-schema-subsets.md).
 Source generation and synthetic equality establish no device latency or
 operational acceptance; record hosted launch raw/gzip measurements separately.
+
+### Grouped-level display coverage
+
+The existing `node frontend/lantern-tests/unified-atlas-healthy.mjs` case also
+uses its generated multilevel model to check the explicit display-policy
+contract: unchanged semantic containment and vertices, one navigation group,
+both members' actual CPU room picks, union framing, per-level wall cuts during
+the section transition, lower-level connecting-structure association, Plan
+member switching and the actual Floor Stack's React server markup. Small
+in-process policy assertions reject overlapping groups and cross-building
+memberships. The existing runner and its deadline are unchanged; this adds no
+browser/CI lane, native source or latency budget. Markup and CPU geometry do not
+establish keyboard/swipe events, visual appearance, private policy deployment
+or device acceptance. No such interactive check is run by this case.

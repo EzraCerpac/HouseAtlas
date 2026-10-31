@@ -4,7 +4,7 @@
 // shared presentation used for drawing, picking, plans and labels. Generated
 // data only; no server, browser, GPU, credentials, household input, native
 // host or deployment. It adds no malformed, denial, replay, expiry, crash or
-// private-intake case, and it takes no arguments.
+// private-intake case. Display-policy checks include explicit membership invariants; it takes no arguments.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { transformWithOxc } from 'vite';
@@ -42,6 +42,16 @@ const standardURL = await sourceURL('../src/lantern/canonical-ifc/standard-glb.t
   'three/examples/jsm/loaders/GLTFLoader.js': gltfLoaderURL, './geometry': geometryURL, './glb-preflight': preflightURL });
 const typesURL = await sourceURL('../src/lantern/unified-atlas/types.ts');
 const sceneURL = await sourceURL('../src/lantern/unified-atlas/scene.ts', { '../canonical-ifc/geometry': geometryURL, './types': typesURL });
+const atlasTextURL = await sourceURL('../src/lantern/unified-atlas/atlas-text.ts');
+const iconURL = await sourceURL('../src/lantern/components/Icon.tsx', {
+  'react/jsx-runtime': new URL('./node_modules/react/jsx-runtime.js', frontend).href,
+});
+const floorStackURL = await sourceURL('../src/lantern/unified-atlas/FloorStack.tsx', {
+  react: new URL('./node_modules/react/index.js', frontend).href,
+  'react/jsx-runtime': new URL('./node_modules/react/jsx-runtime.js', frontend).href,
+  '../components/Icon': iconURL, './scene': sceneURL, './labels': labelsURL, './atlas-text': atlasTextURL,
+});
+const { FloorStack } = await import(floorStackURL);
 const tonesURL = await sourceURL('../src/lantern/canonical-ifc/tones.ts');
 const planPresentationURL = await sourceURL('../src/lantern/unified-atlas/plan-presentation.tsx', {
   react: new URL('./node_modules/react/index.js', frontend).href,
@@ -314,6 +324,89 @@ assert.equal(admittedWide.coverage.unselectableCount, 4096);
 const loaded = await loadStandardGlb(read.model, 'atlas', new AbortController().signal);
 assert.equal(loaded.drawn.length, SYNTHETIC_ATLAS_DRAWN_PRIMITIVES, 'every primitive of every node use is drawn once');
 const model = bindAtlasModel(read.scene, loaded);
+
+// Explicit split-level display policy; source containment remains unchanged.
+{
+  const policy = { profile: 'houseatlas.atlas-display.v1', publicationId: read.scene.publication.publicationId,
+    semanticsSha256: read.scene.publication.semanticsSha256,
+    groups: [{ levelIds: ['syn-level-split', 'syn-level-upper'], label: 'Generated split-level group' }],
+    memberships: [{ nodeIndex: 2, meshIndex: 0, primitiveIndex: 4, levelIds: ['syn-level-ground'], cutaway: 'preserve' }] };
+  const grouped = bindAtlasModel(read.scene, loaded, policy);
+  assert.equal(grouped.scene, model.scene, 'display policy does not rewrite the admitted semantic scene');
+  assert.deepEqual(grouped.parts.map(part => part.levelIds), model.parts.map(part => part.levelIds));
+  assert.deepEqual(grouped.meshes.map(mesh => mesh.vertices), model.meshes.map(mesh => mesh.vertices));
+  assert.deepEqual(scene.displayLevels(grouped, grouped.levelsByBuilding.get('syn-building-house')).map(level => level.levelId),
+    ['syn-level-ground', 'syn-level-split'], 'one navigation step for the group');
+  const base = { ...initialAtlasState(grouped, 'syn-building-house'), levelId: 'syn-level-split' };
+  const shown = presentAtlas(grouped, base, new Set());
+  assert.deepEqual([...shown.focusLevels], ['syn-level-split', 'syn-level-upper']);
+  const propertyPlan = presentAtlas(grouped, { ...initialAtlasState(grouped), buildingId: null, view: 'plan' }, new Set());
+  assert.equal(propertyPlan.focusLevels.size, 0, 'property plans are not a selected display group');
+  assert.equal(propertyPlan.pickable.size, 0, 'property Plan still picks a building first');
+  const expected = read.scene.occurrences.filter(row => ['syn-level-split', 'syn-level-upper'].includes(row.levelId)
+    && grouped.selectable.has(row.spaceOccurrenceId)).map(row => row.spaceOccurrenceId).sort();
+  assert.deepEqual([...shown.pickable].sort(), expected, 'both member levels retain their own room picks');
+  for (const levelId of shown.focusLevels) {
+    const wall = grouped.parts.find(part => part.role === 'structure' && part.levelId === levelId);
+    assert.ok(wall);
+    assert.equal(shown.clips.get(wall.mesh.meshKey), grouped.floorY.get(levelId) + scene.SECTION_HEIGHT,
+      'each member wall cuts relative to its own floor');
+  }
+  const box = frameBox(grouped, base, shown);
+  const projection = makeProjection({ yaw: 0, pitch: 90, zoom: 1, panX: 0, panY: 0 }, box, { width: 960, height: 640 }, 0);
+  for (const occurrenceId of expected) {
+    const occurrence = grouped.occurrencesById.get(occurrenceId), point = grouped.labels.get(occurrenceId);
+    assert.ok(point);
+    const pixel = projection.project(point.x, grouped.floorY.get(occurrence.levelId) + 0.6, point.z);
+    // The exact surface target also checks occlusion; this verifies both levels'
+    // own CPU room-pick geometry is admitted in the grouped presentation.
+    assert.equal(pickOccurrence(grouped, shown, 0, projection, pixel[0], pixel[1]), occurrenceId);
+  }
+  const props = { model: grouped, levels: grouped.levelsByBuilding.get('syn-building-house'),
+    buildings: grouped.floorBuildings, buildingNav: true,
+    building: { buildingId: 'syn-building-house', label: 'Generated building' }, state: base,
+    dispatch() {}, chooseBuilding() {}, shownLevel: null, selectionLevel: null, contextLevels: new Set(),
+    canExplode: true, compact: false, open: true, setOpen() {}, head: { current: null }, panelId: 'generated-group-panel' };
+  const markup = renderToStaticMarkup(createElement(FloorStack, props));
+  assert.equal((markup.match(/class="ua-rung-name">Generated split-level group</g) ?? []).length, 1, 'one group choice in the rail');
+  const planMarkup = renderToStaticMarkup(createElement(FloorStack, { ...props, state: { ...base, view: 'plan' } }));
+  assert.match(planMarkup, /aria-label="Plan level"/);
+  assert.match(planMarkup, /Split level/);
+  assert.match(planMarkup, /Upper floor/i);
+  for (const levelId of shown.focusLevels) for (const occurrenceId of grouped.levelsById.get(levelId).occurrenceIds) {
+    if (!grouped.selectable.has(occurrenceId)) continue;
+    const bounds = grouped.occurrencesById.get(occurrenceId).bounds;
+    assert.ok(box.min[0] <= bounds.min[0] && box.max[0] >= bounds.max[0]
+      && box.min[2] <= bounds.min[2] && box.max[2] >= bounds.max[2], 'group frame contains each room footprint');
+  }
+  const shared = grouped.parts.find(part => grouped.displayMemberships.has(part.mesh.meshKey));
+  assert.ok(shared);
+  assert.deepEqual(shared.levelIds, ['syn-level-ground', 'syn-level-upper'], 'multilevel containment is retained');
+  const lower = presentAtlas(grouped, { ...base, levelId: 'syn-level-ground' }, new Set());
+  assert.equal(lower.hidden.has(shared.mesh.meshKey), false);
+  assert.equal(lower.clips.get(shared.mesh.meshKey), null, 'connecting structure keeps its full height in its display scope');
+  assert.equal(shown.hidden.has(shared.mesh.meshKey), true, 'lower-flight association is separate from grouped membership');
+  const ceilings = scene.sectionCeilings(grouped), targets = scene.sectionTargets(grouped, shown, ceilings);
+  const moving = scene.easePresentation(grouped, shown, 0, targets.map((target, at) => (target + ceilings[at]) / 2), targets, ceilings);
+  const lowWall = grouped.parts.find(part => part.role === 'structure' && part.levelId === 'syn-level-split');
+  const highWall = grouped.parts.find(part => part.role === 'structure' && part.levelId === 'syn-level-upper');
+  assert.ok(moving.clips.get(lowWall.mesh.meshKey) < moving.clips.get(highWall.mesh.meshKey), 'per-level cuts also differ in transition');
+  const selected = atlasReducer(grouped, base, { type: 'select', occurrenceId: 'syn-occ-bath' });
+  assert.equal(selected.levelId, 'syn-level-upper');
+  assert.equal(selected.occurrenceId, 'syn-occ-bath');
+  const plan = atlasReducer(grouped, selected, { type: 'view', view: 'plan' });
+  assert.deepEqual(presentAtlas(grouped, plan, new Set()).planLevels, ['syn-level-upper'], 'Plan uses one actual member');
+  const otherPlan = atlasReducer(grouped, plan, { type: 'level', levelId: 'syn-level-split' });
+  assert.deepEqual(presentAtlas(grouped, otherPlan, new Set()).planLevels, ['syn-level-split']);
+  const back = atlasReducer(grouped, otherPlan, { type: 'view', view: '3d' });
+  assert.deepEqual([...presentAtlas(grouped, back, new Set()).focusLevels], ['syn-level-split', 'syn-level-upper']);
+  assert.equal(scene.admitAtlasDisplay(read.scene, { ...policy, semanticsSha256: '0'.repeat(64) }), null, 'no retargeting after publication changes');
+  assert.throws(() => scene.admitAtlasDisplay(read.scene, { ...policy, groups: [...policy.groups, ...policy.groups] }),
+    'overlapping groups cannot assign ambiguous navigation');
+  assert.throws(() => scene.admitAtlasDisplay(read.scene, { ...policy, memberships: [{ ...policy.memberships[0], levelIds: ['syn-level-studio'] }] }),
+    'a display override cannot cross buildings');
+}
+
 
 // Owner-measured dimensions travel on the occurrence: absent means none; a
 // measured area and a measured wall replace the "≈" outline values as given,

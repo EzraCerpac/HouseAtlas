@@ -79,7 +79,13 @@ Other held controls remain excluded. Exact commands and limits are in the
 verification guide; hosted logs, not registration, establish execution.
 
 In `.github/workflows/rust-react-ordinary.yml` that includes
-the named Lantern healthy read; the generated Electrical Library `healthy`
+the named Lantern healthy read;
+the existing unified Atlas healthy case also checks explicit publication-pinned
+display groups, unchanged geometry/containment, both members' CPU room picks,
+union framing, per-level cuts and transition, connecting-structure association,
+single-plan switching and actual Floor Stack server markup. Its small generated
+policy checks also refuse overlapping groups and cross-building display joins;
+no new runner, browser lane or native authority is added; the generated Electrical Library `healthy`
 case (existing production reader/projection and fictional original bytes,
 local fake owners only; no mounted PDF UI or native access); `frontend/lantern-tests/run-healthy.mjs` with
 its explicit list, including the `offline-launch`, `hung-network` and
