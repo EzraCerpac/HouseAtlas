@@ -12095,8 +12095,8 @@
     {
       "path": "tools/model-input-disposition/STORAGE-PROTOCOL.md",
       "mode": "100644",
-      "bytes": 27676,
-      "sha256": "77b5cb6ae2cc1911858eb390bb49038526f4bd12569f5696383cac96783c0a9a",
+      "bytes": 28281,
+      "sha256": "2c65fbda98da5afea7927ec53f7c1dee07f57b474e38f921041efe57565d37f0",
       "owner": "storage"
     },
     {
@@ -12109,8 +12109,8 @@
     {
       "path": "tools/model-input-disposition/storage_adapter.py",
       "mode": "100644",
-      "bytes": 65986,
-      "sha256": "2e977478497fdfb214acbe36dbdb2c308bfa741a2cbf50e3ab56dedb050864ea",
+      "bytes": 67197,
+      "sha256": "7ac4b04d0dc7363812652693a9f8f647a3e135640346c9cb6c7a49dbf8787094",
       "owner": "storage"
     },
     {
@@ -12123,8 +12123,8 @@
     {
       "path": "tools/model-input-disposition/test_storage_adapter.py",
       "mode": "100644",
-      "bytes": 67517,
-      "sha256": "b4b08c8526c1d522fcf437dcb525daba613a4ec183544369ac288915751422f6",
+      "bytes": 67507,
+      "sha256": "83deaf6a8a7997620fce889d503822221d58d5c7827559a6c387cf4f8e462084",
       "owner": "storage"
     },
     {

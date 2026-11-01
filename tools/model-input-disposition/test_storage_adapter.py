@@ -1218,8 +1218,8 @@ class AdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(a.AdapterError,"prerequisite-proof-changed"):
             a.StorageAdapter(config(),self.o).project_current(kind="disposition")
 
-    def test_six_retained_cycles_reuse_validated_ledger_within_call_budget(self):
-        for cycle in range(6):
+    def test_ten_retained_cycles_reuse_bounded_proof_snapshots(self):
+        for cycle in range(10):
             op="cycle"+str(cycle)
             self.intent(operation=op,event_id=op+"_intent")
             self.o.tick()
@@ -1227,7 +1227,7 @@ class AdapterTests(unittest.TestCase):
             self.o.tick()
             self.outcome(operation=op,event_id=op+"_complete",references=self.o.evidence(operation=op,prefix=op))
             self.o.tick()
-        self.assertEqual(self.o.effects,6)
+        self.assertEqual(self.o.effects,10)
         self.assertEqual(a.StorageAdapter(config(),self.o).project_current(kind="disposition")["status"],"supported-observation")
 
     def test_pure_v1_remains_closed_to_fractional_events(self):

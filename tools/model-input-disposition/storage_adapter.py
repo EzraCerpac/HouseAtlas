@@ -712,7 +712,7 @@ class StorageAdapter:
         self._clock(self._ledger())
         return decode(artifact)["document"]
 
-    def _existing(self, raw, events=None, verify_prerequisites=True):
+    def _existing(self, raw, events=None, verify_prerequisites=True, proof_cache=None):
         event = parse_record(raw)
         document = self._read_record(raw, events=events)
         read = self.ports.independent_verification_read(self.config.scope, event["id"], max_bytes=MAX_BYTES)
@@ -757,17 +757,25 @@ class StorageAdapter:
                  ref["route"] in self.config.reference_routes and ref["provenance"] == self.config.registry_provenance and
                  type(ref["bytes"]) is int and 0 <= ref["bytes"] <= MAX_BYTES and
                  parse_ns(ref["recorded"]) <= parse_ns(event["captured"]), "verification-changed")
-        self._admission(event, raw, read.raw, events=events)
+        admission = self._admission(event, raw, read.raw, events=events)
+        if proof_cache is not None:
+            for field, body in (("record", raw), ("verification", read.raw), ("admission", admission)):
+                self._cache_proof(proof_cache, event["id"], field, body)
         # Exact predecessor bytes were frozen in the identity-bound event,
         # not freshly adopted from mutable sidecar lookups at dispatch time.
         for event_id, proof in (event["prerequisite_proofs"].items() if verify_prerequisites else ()):
             for field, method in (("record", self.ports.independent_read),
                                   ("verification", self.ports.independent_verification_read),
                                   ("admission", self.ports.independent_admission_read)):
+                if proof_cache is not None and (event_id, field) in proof_cache:
+                    need(sha(proof_cache[event_id, field]) == proof[field], "prerequisite-proof-changed")
+                    continue
                 retained = method(self.config.scope, event_id, max_bytes=MAX_BYTES)
                 need(type(retained) is Readback and retained.route == self.config.read_route and
                      retained.durable is True and retained.independent is True and
                      sha(retained.raw) == proof[field], "prerequisite-proof-changed")
+                if proof_cache is not None:
+                    self._cache_proof(proof_cache, event_id, field, retained.raw)
         return read.raw
 
     def _deadlines(self, event, events):
@@ -814,11 +822,23 @@ class StorageAdapter:
                                  max(self._admission_floor[1], committed_mono))
         return read.raw
 
+    @staticmethod
+    def _cache_proof(cache, event_id, field, raw):
+        key = (event_id, field)
+        need(key not in cache or cache[key] == raw, "prerequisite-proof-changed")
+        if key not in cache:
+            need(len(cache) < 3 * MAX_RECORDS and
+                 sum(map(len, cache.values())) + len(raw) <= 3 * MAX_LEDGER_BYTES, "proof-cache-limit")
+            cache[key] = raw
+
     def _proofs(self, events):
-        proofs = {}
+        # One bounded snapshot per verification pass, never retained across I/O
+        # persistence stages. Already verified predecessor bytes are checked
+        # against frozen hashes without re-reading the same blobs quadratically.
+        proofs, cache = {}, {}
         for _, event, raw in self._active_history(events):
-            verification = self._existing(raw, events=events)
-            admission = self._admission(event, raw, verification, events=events)
+            verification = self._existing(raw, events=events, proof_cache=cache)
+            admission = cache[event["id"], "admission"]
             proofs[event["id"]] = {"record": sha(raw), "verification": sha(verification),
                                     "admission": sha(admission)}
         return proofs
@@ -966,10 +986,10 @@ class StorageAdapter:
             need(len(events) < MAX_RECORDS, "ledger-limit")
             now = self._clock(events)
             relevant = [(h, e, r) for h, e, r in events if e["kind"] == kind]
+            prepared_proofs = {}
             if phase in ("intent", "observation"):
                 need(not prior, "operation-exists")
-                for _, _, saved in self._active_history(relevant):
-                    self._existing(saved, events=events)
+                prepared_proofs = self._proofs(relevant)
                 if relevant and relevant[-1][1]["phase"] in ("complete", "observation", "reconcile"):
                     latest = relevant[-1][1]
                     for ref in latest["evidence"]:
@@ -998,7 +1018,7 @@ class StorageAdapter:
                          clock_source=now.source, monotonic_ns=str(now.monotonic_ns), fence=fence,
                          registry_sha256=registry, predecessors=[] if not events else [events[-1][0]],
                          reconciles=sorted(reconciles), evidence=list(references), mode=mode,
-                         prerequisite_proofs=self._proofs(relevant) if phase == "intent" else {})
+                         prerequisite_proofs=prepared_proofs if phase == "intent" else {})
             verified = []
             if phase in ("complete", "observation", "reconcile"):
                 need({r["role"] for r in references} == {"outcome", "persistence", "readback"}, "missing-evidence")
@@ -1148,8 +1168,7 @@ class StorageAdapter:
             events = self._ledger()
             sample = self._clock(events)
             relevant = [(h, e, r) for h, e, r in events if e["kind"] == kind]
-            for _hash, _event, raw in self._active_history(relevant):
-                self._existing(raw, events=events)
+            frozen_view_proofs = self._proofs(relevant)
             current_view = self._project(relevant, sample.wall_ns, sample.monotonic_ns)
             if current_view["status"] == "supported-observation":
                 event = relevant[-1][1]
@@ -1160,6 +1179,7 @@ class StorageAdapter:
                     self._resolve_reference(ref, event, sample.wall_ns)
             need([h for h, _, _ in self._ledger()] == [h for h, _, _ in events], "history-frontier")
             need(self._fence(lease) == fence, "fence-changed")
+            need(self._proofs(relevant) == frozen_view_proofs, "prerequisite-proof-changed")
             final_clock = self._clock(events)
             return self._project(relevant, final_clock.wall_ns, final_clock.monotonic_ns)
         finally:

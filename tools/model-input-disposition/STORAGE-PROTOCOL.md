@@ -410,3 +410,12 @@ retained proof admission. Conditional dispatch receives that verified frozen
 set, rather than adopting newly looked-up hashes. Even a canonical, otherwise
 valid changed admission clock cannot replace a dependent intent's prerequisite.
 The qualified immutable resolver remains the trust root for proof issuance.
+
+A proof pass deduplicates previously validated predecessor bytes in a bounded
+snapshot (at most three blobs per retained event and 3 MiB aggregate). No cache
+crosses persistence stages: final dispatch builds a fresh snapshot and the
+owner checks the complete frozen set under conditional invocation. Projection
+compares another fresh snapshot after registry/resolver/fence callbacks. Ledger
+frontier checks remain separate. Ten generated healthy cycles exercise the
+unchanged 1,024-call bound; snapshot caching supplies no immutability authority
+beyond the qualified owner route and real held exclusion.
