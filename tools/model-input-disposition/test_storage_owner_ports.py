@@ -142,6 +142,44 @@ class FilesystemPortsTests(unittest.TestCase):
             with self.assertRaises(BlockingIOError):fcntl.flock(independent,fcntl.LOCK_EX|fcntl.LOCK_NB)
         finally:current.close();os.close(independent)
 
+    def test_full_length_event_ids_generate_bounded_content_bound_references(self):
+        ids1=self.ports._reference_ids("operation0","a"*63+"b")
+        ids2=self.ports._reference_ids("operation0","a"*63+"c")
+        self.assertTrue(set(ids1.values()).isdisjoint(ids2.values()))
+        for index,event_id in enumerate(("a"*52,"a"*53,"a"*63+"b","a"*63+"c")):
+            result=self.ports.record_present(self.adapter,operation="operation"+str(index),event_id=event_id)
+            event=a.parse_record(result["record"])
+            self.assertEqual(event["id"],event_id)
+            self.assertEqual(len(event["evidence"]),3)
+            for ref in event["evidence"]:
+                self.assertEqual(len(ref["id"]),64)
+                raw=(self.dirs["evidence"]/ref["id"]).read_bytes()
+                self.assertEqual(ref["id"],self.ports._reference_ids("operation"+str(index),event_id)[ref["role"]])
+                self.assertEqual(ref["sha256"],a.sha(raw))
+            checked=self.ports.verify_present(self.adapter,operation="operation"+str(index),event_id=event_id)
+            self.assertEqual(checked["projection"]["status"],"supported-observation")
+
+    def test_failed_acquisition_cleanup_consumes_only_remaining_deadline(self):
+        import fcntl
+        (self.dirs["registry"]/self.protected[0].name).write_bytes(b"changed synthetic protected state")
+        slow=f._WORKER.replace('   elif op=="close":',
+            '   elif op=="close":\n    if lock is not None:time.sleep(2)')
+        seen=[];original=f._Child.exchange
+        def track(child,request,*,limit,budget_ns):
+            if request.get("op")=="close" and self.ports.lease is not None and child is self.ports.lease.child:
+                seen.append(budget_ns)
+            return original(child,request,limit=limit,budget_ns=budget_ns)
+        started=time.monotonic()
+        with patch.object(f,"_WORKER",slow),patch.object(f._Child,"exchange",track):
+            with self.assertRaises(a.AdapterError):self.ports.try_acquire(self.registry.scope,"operation0",budget_ns=a.NS)
+        self.assertLess(time.monotonic()-started,1.8)
+        self.assertTrue(seen and all(0<budget<a.NS for budget in seen))
+        if self.ports.lease is not None:
+            independent=os.open(self.lock_path,os.O_RDWR)
+            try:
+                with self.assertRaises(BlockingIOError):fcntl.flock(independent,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            finally:os.close(independent)
+
     def test_v1_stays_unverified_and_closed_to_local_admission_profile(self):
         result=self.record()
         doc=a.admit_request(a.parse_record(result["record"])["request"].encode())
@@ -220,6 +258,13 @@ class FilesystemPortsTests(unittest.TestCase):
                 with self.assertRaises(a.AdapterError):f.basename(value)
         for value in ("unknown","master.json","../master"):
             with self.assertRaises(a.AdapterError):self.ports.stream_state(self.registry.scope,value,budget_ns=self.config.callback_budget_ns)
+        for event_id in ("a"*65,"../event",False):
+            with self.assertRaises(a.AdapterError):self.ports.record_present(self.adapter,operation="operation0",event_id=event_id)
+        with patch.object(a,"sha",return_value="a"*64):
+            with self.assertRaisesRegex(a.AdapterError,"reference-collision"):
+                self.ports.record_present(self.adapter,operation="operation0",event_id="valid")
+        self.assertEqual(list(self.dirs["journal"].iterdir()),[])
+        self.assertEqual(list(self.dirs["evidence"].iterdir()),[])
 
     def test_symlink_and_nonregular_source_entries_are_refused(self):
         path=self.dirs["retained"]/self.payload.name
@@ -295,10 +340,11 @@ class FilesystemPortsTests(unittest.TestCase):
         finally:lease.close()
 
     def test_direct_reference_rebinding_and_missing_body_are_refused(self):
-        self.record();lease=self.acquire()
+        result=self.record();lease=self.acquire()
         try:
-            (self.dirs["evidence"]/"event0_outcome").write_bytes(b"changed generated evidence")
-            with self.assertRaises(a.AdapterError):self.ports.resolve(self.registry.scope,"event0_outcome",max_bytes=a.MAX_BYTES,budget_ns=self.config.callback_budget_ns)
+            outcome=next(ref["id"] for ref in a.parse_record(result["record"])["evidence"] if ref["role"]=="outcome")
+            (self.dirs["evidence"]/outcome).write_bytes(b"changed generated evidence")
+            with self.assertRaises(a.AdapterError):self.ports.resolve(self.registry.scope,outcome,max_bytes=a.MAX_BYTES,budget_ns=self.config.callback_budget_ns)
             with self.assertRaises(a.AdapterError):self.ports.resolve(self.registry.scope,"unissued",max_bytes=a.MAX_BYTES,budget_ns=self.config.callback_budget_ns)
         finally:lease.close()
 
@@ -327,7 +373,9 @@ class FilesystemPortsTests(unittest.TestCase):
     def test_independent_reader_reopens_actual_bytes_in_another_process(self):
         pids=[];original=self.ports._child
         def track(root, **kwargs):
-            child=original(root,**kwargs);pids.append(child.p.pid);return child
+            child=original(root,**kwargs);pids.append(child.p.pid)
+            self.assertEqual(child.p.args[1:4],["-I","-B","-S"])
+            return child
         with patch.object(self.ports,"_child",side_effect=track):
             raw=self.ports._read(self.ports.roots.retained_payload_dir_fd,self.payload.name,1024,self.config.callback_budget_ns,self.payload.fields)
         self.assertEqual(a.sha(raw),self.payload.sha256)
@@ -449,14 +497,12 @@ class FilesystemPortsTests(unittest.TestCase):
         original=self.ports._write
         def expire(root,name,raw,budget_ns):
             ack=original(root,name,raw,budget_ns)
-            if root==self.ports.roots.evidence_dir_fd and name=="event0_outcome":
+            if root==self.ports.roots.evidence_dir_fd and a.decode(raw)["role"]=="outcome":
                 self.ports.permits["operation0"]=replace(self.permits[0],expires_ns=time.time_ns()-1)
             return ack
         with patch.object(self.ports,"_write",side_effect=expire):
             with self.assertRaises(a.AdapterError):self.record()
-        self.assertTrue((self.dirs["evidence"]/"event0_outcome").exists())
-        for name in ("event0_persistence","event0_readback"):
-            self.assertFalse((self.dirs["evidence"]/name).exists())
+        self.assertEqual([a.decode(path.read_bytes())["role"] for path in self.dirs["evidence"].iterdir()],["outcome"])
         self.assertFalse((self.dirs["journal"]/"event_event0").exists())
         self.assertEqual(self.ports.admitted,{})
 
@@ -467,11 +513,10 @@ class FilesystemPortsTests(unittest.TestCase):
                 self.ports.permits["operation0"]=replace(self.permits[0],expires_ns=time.time_ns()+100_000_000)
             return original(root)
         slow=f._WORKER.replace('    grant=q["grant"];wall=time.time_ns();elapsed=time.monotonic_ns()',
-            '    if q["name"]=="event0_outcome":time.sleep(.25)\n    grant=q["grant"];wall=time.time_ns();elapsed=time.monotonic_ns()')
+            '    if q["grant"]["target"]=="evidence" and json.loads(data)["role"]=="outcome":time.sleep(.25)\n    grant=q["grant"];wall=time.time_ns();elapsed=time.monotonic_ns()')
         with patch.object(self.ports,"_write_authorization",side_effect=soon),patch.object(f,"_WORKER",slow):
             with self.assertRaises(a.AdapterError):self.record()
-        for name in ("event0_outcome","event0_persistence","event0_readback"):
-            self.assertFalse((self.dirs["evidence"]/name).exists())
+        self.assertEqual(list(self.dirs["evidence"].iterdir()),[])
         self.assertEqual(self.ports.admitted,{})
 
     def test_wall_and_elapsed_clock_reversal_are_refused(self):

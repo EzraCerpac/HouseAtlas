@@ -88,9 +88,6 @@ try:
      channel.close();control=-1
     finally:
      if candidate is not None:os.close(candidate)
-   elif op=="unlock":
-    if lock is None:raise ValueError()
-    fcntl.flock(lock,fcntl.LOCK_UN);out=b""
    elif op=="list":
     entries=[]
     with os.scandir(root) as iterator:
@@ -185,7 +182,7 @@ class _Child:
         if child is not None:passed.append(child.fileno())
         if held_fd is not None:passed.append(held_fd)
         try:
-            self.p = subprocess.Popen([sys.executable, "-I", "-c", _WORKER if script is None else script,
+            self.p = subprocess.Popen([sys.executable, "-I", "-B", "-S", "-c", _WORKER if script is None else script,
                                        str(root_fd),str(child.fileno() if child is not None else -1)],
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                       stderr=subprocess.DEVNULL, close_fds=True,
@@ -653,8 +650,10 @@ class FilesystemObservationPorts:
             return
         original=sys.exc_info()[0] is not None
         try:
-            lease.child.exchange({"op":"unlock"},limit=0,budget_ns=self.config.callback_budget_ns)
-            lease.child.close(self.config.callback_budget_ns)
+            # Never restart the acquisition deadline and never issue LOCK_UN:
+            # the parent's specific description retains the actual lock until
+            # keeper termination AND all owned helper termination are known.
+            lease.child.close(self._remaining(self.config.callback_budget_ns))
         except Exception:
             self._poison()
             if not original:raise
@@ -892,6 +891,17 @@ class FilesystemObservationPorts:
     def independent_dispatch_boundary(self, *args, **kwargs):
         raise a.AdapterError("filesystem-settlement-unsupported")
 
+    def _reference_ids(self, operation, event_id):
+        self._valid();a.token(operation);a.token(event_id)
+        ids={role:a.sha(a.canonical({"profile":"filesystem-observation-reference-v1",
+             "scope":self.registry.scope,"owner":self.registry.owner,"operation":operation,
+             "event":event_id,"role":role,"original":v1.identity(self.registry.original()),
+             "clock_source":self.clock.source,"process_epoch":self.clock.process_epoch}))
+             for role in ("outcome","persistence","readback")}
+        for ref in ids.values():a.token(ref)
+        need(len(set(ids.values()))==3,"reference-collision")
+        return ids
+
     def record_present(self, adapter, *, operation, event_id):
         """One admitted lock acquisition; actual source reads + evidence writes.
 
@@ -899,6 +909,7 @@ class FilesystemObservationPorts:
         supply disposable roots. No mutation intent or settlement is invented.
         """
         need(type(adapter) is a.StorageAdapter and adapter.config==self.config,"adapter")
+        reference_ids=self._reference_ids(operation,event_id)
         self._permit(operation)
         lease=self.try_acquire(self.registry.scope,operation,budget_ns=self.config.callback_budget_ns)
         need(not self.borrowed,"nested-lock")
@@ -918,12 +929,12 @@ class FilesystemObservationPorts:
             need(operation not in self.observations,"operation-reuse")
             refs=[]
             for role in ("outcome","persistence","readback"):
-                ref=event_id+"_"+role;a.token(ref)
                 sample=self.clock.sample()
                 body=a.canonical(dict(profile=a.EVIDENCE_PROFILE,scope=self.registry.scope,owner=self.registry.owner,
                     operation=operation,kind="disposition",state="present",binding=v1.identity(self.registry.original()),role=role,
                     recorded=a.format_ns(sample.wall_ns),clock_source=self.clock.source,provenance=self.registry.provenance,
                     origin="prospective",cloud_status="not_applicable",carriers=[]))
+                ref=reference_ids[role]
                 need(ref not in self.references,"duplicate-reference")
                 self._write(self.roots.evidence_dir_fd,ref,body,self.config.callback_budget_ns)
                 self.references[ref]=(body,operation)
@@ -943,6 +954,7 @@ class FilesystemObservationPorts:
     def verify_present(self, adapter, *, operation, event_id):
         """Explicit same-process read capability; no inferred operation owner."""
         need(type(adapter) is a.StorageAdapter and adapter.config==self.config,"adapter")
+        a.token(operation);a.token(event_id)
         self._permit(operation)
         lease=self.try_acquire(self.registry.scope,operation,budget_ns=self.config.callback_budget_ns)
         try:

@@ -194,3 +194,15 @@ A failed observation without an established confirmation poisons its owner epoch
 partial evidence cannot be bypassed by choosing another operation ID. Artifacts
 remain intact for reviewed recovery. A genuinely established confirmation is not
 erased by a lost later reply, though unavailable readback still blocks authority.
+
+Failed-acquisition cleanup consumes the same remaining callback deadline. Keepers
+close their own description without issuing `LOCK_UN`; the parent's specific
+lease description is retained until keeper/helper termination is established.
+Unknown cleanup therefore cannot claim or bypass release. Reference IDs are the full SHA-256 of a versioned exact key binding scope, owner,
+operation, the entire event token, original identity, role and process/clock epoch.
+The complete set is checked before acquiring a lease or mutating the scope.
+Valid 64-character event IDs need no suffix truncation; invalid/colliding requests
+leave no partial role or scope writes. Issued bodies remain independently hash
+bound, and changed bytes never reuse an existing reference. Worker
+startup explicitly disables bytecode writes and site hooks as well as isolating
+its environment; only the fixed standard-library program runs.
