@@ -64,6 +64,55 @@ The operational owner must preserve the raw input snapshots and immutable
 private registry mapping, with original byte provenance, before calling. This
 library's hashes authenticate bytes, not the issuer, storage location or truth.
 
+## Bounded streaming pins for large original payloads
+
+The small `PinnedSource` convenience path remains capped at 64 MiB. Large inputs
+use `StreamingSource(manifest_bytes, tuple[StreamPayload, ...])`. Each immutable
+`StreamPayload` declares a reviewed name, opaque private-registry handle, exact
+expected byte count/hash and immutable backing-state digest. Its
+`identity_object()` is explicitly a **declared projection**, never evidence of
+byte verification. `StorageAdapter` independently reads and hashes the actual
+stream before accepting that projection.
+
+The caller must supply explicit `StreamLimits(max_payload_bytes,
+max_source_bytes, chunk_bytes, max_chunks)`. There are no streaming defaults.
+The bounds admit at most 64 GiB per payload, 128 GiB total streamed data per
+adapter call, 1 MiB per chunk and 1048576 chunk/EOF reads; the qualified owner
+selects smaller resource limits appropriate to its route. The exact actual
+input size is not a public fixture or a policy constant. The retained manifest
+is exact original bytes, bounded at 256 KiB; each source retains v1's 128 named
+payload cap. Limits are admission constraints, not deletion/retention policy.
+
+The owner implements `stream_state(scope, handle, budget_ns=...)` and
+`open_stream(scope, handle, expected_state=..., max_bytes=..., max_chunks=...,
+budget_ns=...)`. An opened `StreamReader` exposes immutable `StreamState` and
+`read_chunk(max_bytes=..., budget_ns=...) -> bytes`, followed by `close()`.
+`StreamState` pins the backing identity digest, qualified independent read route
+and durable/independent-readback status. No path, host discovery or caller-supplied
+iterator is accepted. The owner must atomically open the expected immutable
+backing identity and change that identity whenever backing bytes change.
+
+The adapter enforces finite raw-byte chunks, exact cumulative byte count,
+explicit EOF and incremental SHA-256. It refuses short/extra data, mutable or
+unbounded chunk containers, hash mismatch, aliased opaque handles, excessive
+calls and admission violations. It checks qualified backing state before and
+after the read and closes the owned stream on every path. Hashing never loads
+the entire master into memory. A per-call verified cache avoids repeated bulk
+reads while still rechecking backing seals; a restarted adapter must verify
+actual streamed bytes again. The cache does not confer a reusable effect permit.
+Original and release streams remain independent.
+
+Verified stream byte counts/hashes, routes and backing seals are bound into the
+registry digest and separate verification artifact. Before dispatch, the owner
+receives the exact `stream_seals` and must recheck them inside its real
+conditional-dispatch exclusion, alongside the protected fence, authorization,
+clock/deadlines and durable dispatch marker. Cached hashes or a resolver's
+unsupported digest are not that owner guarantee. No distributed exclusion or
+self-authentication of injected storage is implied. The per-operation 1024
+ordinary-port limit is separate from the explicit streamed-chunk budget; owner
+deadlines must also cover the incremental reader. Real route/resource/durability
+qualification remains an operational adoption obligation.
+
 ## Versioned precision and freshness
 
 V2 is separately versioned as `publication-input-storage-v2`, with evidence
@@ -91,7 +140,9 @@ evidence; there is no truncation/rounding or historical-success conversion.
 `Horizons` must be selected explicitly by the caller. Exported **engineering
 proposals** are five minutes for intent dispatch and one hour for observations;
 these are not deployed policy, retention deadlines or storage disappearance.
-Both horizons are measured from the original event/observation instant. They
+Both horizons are measured from the original event/observation instant, using
+wall and elapsed-clock freshness together. Completion also retains its intent
+fence and elapsed lease; changed protected state stops a dependent new intent. They
 cannot be extended by replay. Intent expiry is checked using wall time and
 elapsed monotonic time; reversal or changed clock provenance refuses progress.
 A restarted owner must establish continuity of the qualified elapsed clock;
@@ -146,7 +197,7 @@ Opaque reference objects retain v1's exact id/hash/binding/role shape. The
 resolver must return exactly one immutable retained raw body through a configured
 route, with durable storage and independent status for the readback role. Its
 closed evidence body binds profile, scope, owner, operation, dimension, state,
-original/release hash, role, exact observation timestamp, provenance, prospective
+original/release hash, role, exact observation timestamp, clock source, provenance, prospective
 origin, cloud status and carrier hashes. The adapter checks both those semantics
 and the claimed byte hash; role strings alone are insufficient. Missing,
 ambiguous, rebound, stale/future, wrong-operation, cross-role, wrong-scope/owner,
@@ -192,7 +243,12 @@ incomplete history refuse progress. Before append, the adapter checks the same
 frontier again; the owner must also enforce the atomic expected-tail comparison.
 
 A reconciliation must name **every** retained record hash in that dimension,
-not a caller-selected conflict subset. It uses fresh independently resolved
+not a caller-selected conflict subset. Its genuinely new outcome observation
+must be strictly later than both the recorded and captured instants of **every**
+covered event, including dispatch/unknown cuts. All three references must have
+new immutable IDs and independently established readback at/after that new
+observation. A still-fresh pre-effect or equal-cut observation cannot reconcile
+an uncertain mutation, even with a new capture time and a complete frontier. It uses fresh independently resolved
 observation evidence and the current fence/frontier. Missing conflicts or a
 concurrent append make it stale. Prior failed/interrupted/unknown and opposed
 histories remain immutable and are returned alongside reconciliation hashes.
@@ -206,9 +262,10 @@ V1 has no reconciliation rule and continues to return unknown for conflicts.
 
 Requests, v2 records, evidence bodies and verification artifacts are at most
 256 KiB each; JSON nesting is at most 12. Retained history is at most 256 records
-and 1 MiB aggregate. Each identity admits at most 128 payloads; total supplied
-manifest/payload bytes are at most 64 MiB. Larger sources require separately
-reviewed streaming-pin interfaces; do not silently trust caller-supplied hashes.
+and 1 MiB aggregate. Each identity admits at most 128 payloads. Whole-buffer
+manifest/payload bytes remain capped at 64 MiB; the separately admitted streaming
+path above verifies larger payloads incrementally without trusting declared
+hashes or removing bounds.
 At most eight references and 256 reconciliation hashes are admitted. New work
 must use a fresh authoritative scope when the bounded retained ledger is full,
 under an explicit owner migration protocol; silently dropping old history is not

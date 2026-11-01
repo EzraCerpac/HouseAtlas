@@ -21,6 +21,28 @@ class FakeLease:
         self.owner.locked = False
 
 
+class FakeStream:
+    def __init__(self, owner, handle):
+        self.owner, self.handle, self.position = owner, handle, 0
+        self.state = owner.stream_states[handle]
+
+    def read_chunk(self, *, max_bytes, budget_ns):
+        self.owner.stream_calls.append((max_bytes, budget_ns))
+        self.owner.hook("stream_read")
+        source = self.owner.stream_data[self.handle]
+        if type(source) is tuple:
+            pattern, total = source
+            count = min(max_bytes, total-self.position)
+            chunk = (pattern * (count//len(pattern)+1))[:count]
+        else:
+            chunk = source[self.position:self.position+max_bytes]
+        self.position += len(chunk)
+        return chunk
+
+    def close(self):
+        self.owner.hook("stream_close")
+
+
 class FakeOwner:
     def __init__(self):
         self.clock = a.ClockSample(T0, 10**18, "synthetic_clock")
@@ -35,6 +57,7 @@ class FakeOwner:
         self.read_transform = self.verification_transform = lambda raw: raw
         self.ack_durable = self.read_durable = self.read_independent = True
         self.reference_route = "synthetic_resolver"
+        self.stream_data, self.stream_states, self.stream_calls = {}, {}, []
 
     def hook(self, stage):
         callback = self.hooks.get(stage)
@@ -61,6 +84,15 @@ class FakeOwner:
     def frozen_export(self, *args, **kw):
         self.hook("registry")
         return self.export
+
+    def stream_state(self, scope, handle, **kw):
+        return self.stream_states[handle]
+
+    def open_stream(self, scope, handle, **kw):
+        self.hook("stream_open")
+        if self.stream_states[handle].sha256 != kw["expected_state"]:
+            raise ValueError("synthetic changed stream")
+        return FakeStream(self,handle)
 
     def ledger(self, *args, **kw):
         self.calls.append(("ledger", kw))
@@ -103,9 +135,11 @@ class FakeOwner:
         self.hook("dispatch")
         registry=a.sha(a.canonical({"label":self.export.label,"original":self.export.original.identity_object(),
                                    "release":self.export.release.identity_object() if self.export.release else None,
-                                   "provenance":self.export.provenance}))
+                                   "provenance":self.export.provenance,"streams":kw["stream_seals"]}))
         tail=a.sha(tuple(self.records.values())[-1]) if self.records else None
-        if (not self.locked or not self.allowed or registry != kw["registry_sha256"] or tail != kw["dispatch_sha256"]
+        streams_ok=all(self.stream_states[handle].sha256 == descriptor["state_sha256"]
+                       for handle,descriptor in kw["stream_seals"].items())
+        if (not streams_ok or not self.locked or not self.allowed or registry != kw["registry_sha256"] or tail != kw["dispatch_sha256"]
                 or self.fence.object() != kw["fence"]
                 or self.clock.source != kw["clock_source"]
                 or self.clock.wall_ns >= kw["intent_deadline_ns"]
@@ -127,7 +161,7 @@ class FakeOwner:
             name = prefix + "_" + role
             body = dict(profile=a.EVIDENCE_PROFILE, scope="synthetic_scope", owner="synthetic_owner",
                         operation=operation, kind=kind, state=state, binding=binding, role=role,
-                        recorded=a.format_ns(self.clock.wall_ns), provenance="synthetic_registry",
+                        recorded=a.format_ns(self.clock.wall_ns), clock_source="synthetic_clock", provenance="synthetic_registry",
                         origin="prospective", cloud_status=cloud,
                         carriers=["d" * 64] if kind == "recovery" else [])
             raw = a.canonical(body)
@@ -407,7 +441,7 @@ class AdapterTests(unittest.TestCase):
     def test_reference_role_operation_owner_binding_and_history(self):
         self.prepared()
         for field, value in (("role", "persistence"), ("operation", "other"), ("owner", "other"),
-                             ("binding", "f" * 64), ("origin", "historical")):
+                             ("binding", "f" * 64), ("origin", "historical"), ("clock_source", "other_clock")):
             refs = self.o.evidence()
             self.change_evidence(refs, field, value)
             with self.assertRaises(a.AdapterError):
@@ -563,7 +597,7 @@ class AdapterTests(unittest.TestCase):
         refs=self.o.evidence(state="present")  # Reuses IDs with changed bytes.
         history=tuple(sorted(a.sha(raw) for raw in self.o.records.values()))
         before=dict(self.o.records)
-        with self.assertRaisesRegex(a.AdapterError,"reference-rebound"):
+        with self.assertRaisesRegex(a.AdapterError,"reconciliation-readback"):
             self.adapter.reconcile_operation(self.raw,operation="op",event_id="reconcile",kind="disposition",state="present",references=refs,reconciles=history)
         self.assertEqual(self.o.records,before)
 
@@ -620,6 +654,161 @@ class AdapterTests(unittest.TestCase):
             bad[field]=value
             with self.assertRaises(a.AdapterError):
                 a.parse_record(a.canonical(bad))
+
+    def test_completion_requires_original_fence_and_elapsed_lease(self):
+        self.prepared()
+        fence=self.o.fence
+        self.o.fence=replace(fence,policy="e"*64)
+        with self.assertRaisesRegex(a.AdapterError,"pinned-state-changed"):
+            self.outcome()
+        self.o.fence=fence
+        self.o.clock=replace(self.o.clock,wall_ns=self.o.clock.wall_ns+1,monotonic_ns=10**18+a.PROPOSED_INTENT_NS+1)
+        with self.assertRaisesRegex(a.AdapterError,"intent-expired"):
+            self.outcome()
+        self.assertNotIn("complete",self.o.records)
+
+    def test_dependent_intent_and_current_view_check_fences_and_elapsed_freshness(self):
+        self.completed()
+        fence=self.o.fence
+        self.o.fence=replace(fence,selection="e"*64)
+        with self.assertRaisesRegex(a.AdapterError,"pinned-state-changed"):
+            self.intent(operation="new",event_id="new")
+        self.o.fence=fence
+        self.o.clock=replace(self.o.clock,monotonic_ns=self.o.clock.monotonic_ns+a.PROPOSED_OBSERVATION_NS)
+        self.assertEqual(self.adapter.project_current(kind="disposition")["status"],"unknown")
+
+    def test_reconciliation_requires_post_effect_evidence_and_new_readback(self):
+        self.prepared()
+        self.outcome(phase="unknown",event_id="unknown",references=())
+        self.o.tick()
+        refs=self.o.evidence(prefix="stale",state="present")
+        self.change_evidence(refs,"recorded",a.format_ns(T0))
+        history=tuple(sorted(a.sha(raw) for raw in self.o.records.values()))
+        with self.assertRaisesRegex(a.AdapterError,"reconciliation-stale"):
+            self.adapter.reconcile_operation(self.raw,operation="op",event_id="reconcile",kind="disposition",state="present",references=refs,reconciles=history)
+        self.assertNotIn("reconcile",self.o.records)
+        self.assertEqual(self.adapter.project_current(kind="disposition")["status"],"unknown")
+
+    def test_reconciliation_equal_to_latest_capture_is_not_later(self):
+        self.prepared()
+        self.outcome(phase="unknown",event_id="unknown",references=())
+        refs=self.o.evidence(prefix="equal",state="present")
+        history=tuple(sorted(a.sha(raw) for raw in self.o.records.values()))
+        with self.assertRaisesRegex(a.AdapterError,"reconciliation-stale"):
+            self.adapter.reconcile_operation(self.raw,operation="op",event_id="reconcile",kind="disposition",state="present",references=refs,reconciles=history)
+
+    def streamed(self, data=b"generated streamed bytes", *, limits=None):
+        handle="synthetic_stream"
+        self.o.stream_data[handle]=data
+        state="f"*64
+        self.o.stream_states[handle]=a.StreamState(state,"synthetic_reader",True,True)
+        if type(data) is tuple:
+            pattern,total=data
+            digest=a.hashlib.sha256()
+            for _ in range(total//len(pattern)):
+                digest.update(pattern)
+            if total%len(pattern):
+                digest.update(pattern[:total%len(pattern)])
+            pin=a.StreamPayload("master",handle,total,digest.hexdigest(),state)
+        else:
+            pin=a.StreamPayload("master",handle,len(data),a.sha(data),state)
+        self.o.export=replace(self.o.export,original=a.StreamingSource(b'{ "untouched":true }',(pin,)))
+        self.raw=self.o.request()
+        self.adapter=a.StorageAdapter(config(stream_limits=limits or a.StreamLimits(1024,2048,4,1024)),self.o)
+        return pin
+
+    def test_streaming_hashes_actual_bytes_and_binds_separate_artifact(self):
+        self.streamed()
+        result=self.completed()
+        artifact=a.decode(result["verification"])
+        self.assertEqual(artifact["original"],v1.identity(self.o.export.original.identity_object()))
+        self.assertEqual(artifact["streams"]["synthetic_stream"]["sha256"],a.sha(b"generated streamed bytes"))
+        self.assertTrue(all(size<=4 and budget==a.NS for size,budget in self.o.stream_calls))
+        self.assertNotIn(b"generated streamed bytes",result["record"])
+        self.assertEqual(self.adapter.project_current(kind="disposition")["status"],"supported-observation")
+
+    def test_streaming_mismatch_short_read_and_extra_bytes_refused(self):
+        pin=self.streamed()
+        for actual in (b"changed",b"generated streamed byte",b"generated streamed bytes extra"):
+            self.o.stream_data[pin.handle]=actual
+            with self.assertRaises(a.AdapterError):
+                self.intent()
+        self.assertFalse(self.o.records)
+
+    def test_streaming_state_readback_route_and_independence_required(self):
+        pin=self.streamed()
+        original=self.o.stream_states[pin.handle]
+        for state in (replace(original,sha256="e"*64),replace(original,route="other"),
+                      replace(original,durable=False),replace(original,independent=False)):
+            self.o.stream_states[pin.handle]=state
+            with self.assertRaises(a.AdapterError):
+                self.intent()
+        self.assertFalse(self.o.records)
+
+    def test_streaming_state_changes_during_read_or_dispatch_stop_effect(self):
+        pin=self.streamed()
+        old=self.o.stream_states[pin.handle]
+        self.o.hooks["stream_close"]=lambda o:o.stream_states.update({pin.handle:replace(old,sha256="e"*64)})
+        with self.assertRaises(a.AdapterError):
+            self.intent()
+        self.o.hooks.clear()
+        self.o.stream_states[pin.handle]=old
+        self.intent()
+        self.o.tick()
+        self.o.hooks["dispatch"]=lambda o:o.stream_states.update({pin.handle:replace(old,sha256="e"*64)})
+        with self.assertRaises(a.AdapterError):
+            self.dispatch()
+        self.assertEqual(self.o.effects,0)
+
+    def test_streaming_admission_and_chunk_limits_are_enforced_before_effect(self):
+        self.streamed(limits=a.StreamLimits(1024,2048,4,1))
+        with self.assertRaisesRegex(a.AdapterError,"stream-chunks"):
+            self.intent()
+        self.assertEqual(len(self.o.stream_calls),1)
+        self.adapter=a.StorageAdapter(config(stream_limits=a.StreamLimits(1,2048,4,100)),self.o)
+        with self.assertRaisesRegex(a.AdapterError,"stream-admission"):
+            self.intent()
+        self.adapter=a.StorageAdapter(config(),self.o)
+        with self.assertRaisesRegex(a.AdapterError,"stream-admission"):
+            self.intent()
+        for values in ((True,1,1,1),(1,1,0,1),(2,1,1,1),(1,1,1024**2+1,1)):
+            with self.assertRaises(a.AdapterError):
+                a.StreamLimits(*values)
+        self.assertFalse(self.o.records)
+
+    def test_streaming_opaque_pin_mapping_and_hash_declarations_are_not_trusted(self):
+        pin=self.streamed()
+        for bad in (replace(pin,name="master.glb"),replace(pin,bytes=True),replace(pin,sha256="A"*64)):
+            source=replace(self.o.export.original,payloads=(bad,))
+            with self.assertRaises(ValueError):
+                source.identity_object()
+        self.o.export=replace(self.o.export,original=replace(self.o.export.original,payloads=(replace(pin,sha256="e"*64),)))
+        self.raw=self.o.request()
+        with self.assertRaisesRegex(a.AdapterError,"stream-pin-changed"):
+            self.intent()
+        self.assertFalse(self.o.records)
+
+    def test_streaming_large_generated_source_does_not_require_whole_buffer(self):
+        # A repeated generated stream exceeds the memory-only source cap; the
+        # largest owned chunk is 1 MiB. No source file or actual master is read.
+        chunk=b"x"*(1024**2)
+        self.streamed((chunk,65*1024**2),limits=a.StreamLimits(70*1024**2,80*1024**2,1024**2,100))
+        self.intent()
+        self.assertEqual(len(self.o.stream_calls),66)
+        self.assertTrue(all(size<=1024**2 for size,_ in self.o.stream_calls))
+        self.assertEqual(self.o.effects,0)
+
+    def test_streaming_unbounded_or_mutable_chunks_are_refused(self):
+        self.streamed()
+        original=FakeStream.read_chunk
+        try:
+            for bad in (bytearray(b"x"),(x for x in (b"x",)),b"x"*8):
+                FakeStream.read_chunk=lambda *args,**kwargs:bad
+                with self.assertRaises(a.AdapterError):
+                    self.intent()
+        finally:
+            FakeStream.read_chunk=original
+        self.assertFalse(self.o.records)
 
     def test_pure_v1_remains_closed_to_fractional_events(self):
         document=json.loads(self.raw)

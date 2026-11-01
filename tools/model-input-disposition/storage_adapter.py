@@ -163,9 +163,74 @@ class PinnedSource:
 
 
 @dataclass(frozen=True)
+class StreamLimits:
+    """Explicit reviewed resource admission; no operational defaults."""
+    max_payload_bytes: int
+    max_source_bytes: int
+    chunk_bytes: int
+    max_chunks: int
+
+    def __post_init__(self):
+        for value, ceiling in ((self.max_payload_bytes, 64 * 1024**3),
+                               (self.max_source_bytes, 128 * 1024**3),
+                               (self.chunk_bytes, 1024**2), (self.max_chunks, 1024**2)):
+            need(type(value) is int and 0 < value <= ceiling, "stream-admission")
+        need(self.max_payload_bytes <= self.max_source_bytes, "stream-admission")
+
+
+@dataclass(frozen=True)
+class StreamPayload:
+    name: str
+    handle: str
+    bytes: int
+    sha256: str
+    state_sha256: str
+
+
+@dataclass(frozen=True)
+class StreamingSource:
+    manifest: bytes
+    payloads: tuple
+
+    def identity_object(self):
+        """Declared projection only. Adapter verifies every actual streamed byte."""
+        need(type(self.manifest) is bytes and 0 < len(self.manifest) <= MAX_BYTES, "manifest")
+        need(type(self.payloads) is tuple and 1 <= len(self.payloads) <= 128, "payloads")
+        rows = []
+        handles = set()
+        for pin in self.payloads:
+            need(type(pin) is StreamPayload, "stream-pin")
+            token(pin.name)
+            token(pin.handle)
+            digest(pin.sha256)
+            digest(pin.state_sha256)
+            need(type(pin.bytes) is int and 0 <= pin.bytes <= v1.MAX_COUNT, "count")
+            need(pin.handle not in handles, "stream-alias")
+            handles.add(pin.handle)
+            rows.append(dict(name=pin.name, sha256=pin.sha256, bytes=pin.bytes))
+        source = dict(manifest=dict(sha256=sha(self.manifest), bytes=len(self.manifest)), payloads=rows)
+        v1.identity(source)
+        return source
+
+
+@dataclass(frozen=True)
+class StreamState:
+    sha256: str
+    route: str
+    durable: bool
+    independent: bool
+
+
+class StreamReader(Protocol):
+    state: StreamState
+    def read_chunk(self, *, max_bytes: int, budget_ns: int) -> bytes: ...
+    def close(self) -> None: ...
+
+
+@dataclass(frozen=True)
 class FrozenExport:
-    original: PinnedSource
-    release: PinnedSource | None
+    original: PinnedSource | StreamingSource
+    release: PinnedSource | StreamingSource | None
     label: str
     provenance: str
     retained: bool
@@ -237,6 +302,9 @@ class OwnerPorts(Protocol):
     def authorize(self, scope: str, operation: str, kind: str, mode: str, *, budget_ns: int) -> bool: ...
     def try_acquire(self, scope: str, operation: str, *, budget_ns: int) -> Lease | None: ...
     def frozen_export(self, scope: str, *, budget_ns: int) -> FrozenExport: ...
+    def stream_state(self, scope: str, handle: str, *, budget_ns: int) -> StreamState: ...
+    def open_stream(self, scope: str, handle: str, *, expected_state: str,
+                    max_bytes: int, max_chunks: int, budget_ns: int) -> StreamReader: ...
     def ledger(self, scope: str, *, max_records: int, max_bytes: int, budget_ns: int) -> LedgerSnapshot: ...
     def resolve(self, scope: str, reference: str, *, max_bytes: int, budget_ns: int) -> list[ResolvedReference]: ...
     def append(self, scope: str, key: str, raw: bytes, expected_tail: str | None, *, budget_ns: int) -> WriteAck: ...
@@ -246,7 +314,7 @@ class OwnerPorts(Protocol):
     def dispatch_under_fence(self, scope: str, operation: str, *, fence: dict,
                              intent_deadline_ns: int, elapsed_deadline_ns: int,
                              clock_source: str, registry_sha256: str,
-                             dispatch_sha256: str, effect, budget_ns: int): ...
+                             dispatch_sha256: str, stream_seals: dict, effect, budget_ns: int): ...
 
 
 @dataclass(frozen=True)
@@ -261,6 +329,7 @@ class OwnerConfig:
     kinds: tuple
     horizons: Horizons
     callback_budget_ns: int
+    stream_limits: StreamLimits | None = None
 
     def __post_init__(self):
         for value in (self.scope, self.owner, self.clock_source, self.registry_provenance,
@@ -273,6 +342,7 @@ class OwnerConfig:
         need(type(self.kinds) is tuple and 0 < len(self.kinds) <= 4, "kinds")
         need(all(type(kind) is str and kind in v1.STATES for kind in self.kinds), "kinds")
         need(type(self.horizons) is Horizons, "horizon")
+        need(self.stream_limits is None or type(self.stream_limits) is StreamLimits, "stream-admission")
         need(type(self.callback_budget_ns) is int and 0 < self.callback_budget_ns <= 60 * NS, "callback-budget")
 
 
@@ -349,10 +419,77 @@ class _BoundedPorts:
 class StorageAdapter:
     def __init__(self, config: OwnerConfig, ports: OwnerPorts):
         self.config, self.ports = config, _BoundedPorts(ports, config.callback_budget_ns)
+        self._begin()
+
+    def _begin(self):
+        self.ports.begin()
+        self._stream_cache = {}
+        self._stream_bytes = self._stream_chunks = 0
+
+    def _stream_state(self, handle, expected):
+        state = self.ports.stream_state(self.config.scope, handle)
+        need(type(state) is StreamState and state.sha256 == expected and
+             state.route == self.config.read_route and state.durable is True and
+             state.independent is True, "stream-state")
+        return state
+
+    def _source_object(self, source):
+        need(type(source) in (PinnedSource, StreamingSource), "source")
+        declared = source.identity_object()
+        if type(source) is PinnedSource:
+            return declared
+        limits = self.config.stream_limits
+        need(limits is not None, "stream-admission")
+        need(sum(pin.bytes for pin in source.payloads) + len(source.manifest) <= limits.max_source_bytes,
+             "stream-admission")
+        for pin in source.payloads:
+            need(pin.bytes <= limits.max_payload_bytes, "stream-admission")
+            state = self._stream_state(pin.handle, pin.state_sha256)
+            descriptor = dict(name=pin.name, bytes=pin.bytes, sha256=pin.sha256,
+                              state_sha256=pin.state_sha256, route=state.route)
+            if pin.handle in self._stream_cache:
+                need(self._stream_cache[pin.handle] == descriptor, "stream-alias")
+                continue
+            # Aggregate byte/chunk budgets cover original + release across all
+            # streaming reads within this call, including explicit EOF reads.
+            need(self._stream_bytes + pin.bytes <= limits.max_source_bytes, "stream-admission")
+            stream = self.ports.open_stream(self.config.scope, pin.handle, expected_state=pin.state_sha256,
+                                            max_bytes=pin.bytes, max_chunks=limits.max_chunks-self._stream_chunks)
+            try:
+                try:
+                    opened_state = stream.state
+                except Exception:
+                    raise AdapterError("stream-state") from None
+                need(opened_state == state, "stream-state")
+                hasher, size = hashlib.sha256(), 0
+                while True:
+                    need(self._stream_chunks < limits.max_chunks, "stream-chunks")
+                    requested = min(limits.chunk_bytes, pin.bytes-size+1)
+                    try:
+                        chunk = stream.read_chunk(max_bytes=requested, budget_ns=self.config.callback_budget_ns)
+                    except Exception:
+                        raise AdapterError("stream-read") from None
+                    self._stream_chunks += 1
+                    need(type(chunk) is bytes and len(chunk) <= requested, "stream-chunk")
+                    if not chunk:
+                        break
+                    size += len(chunk)
+                    self._stream_bytes += len(chunk)
+                    need(size <= pin.bytes and self._stream_bytes <= limits.max_source_bytes, "stream-size")
+                    hasher.update(chunk)
+                need(size == pin.bytes and hasher.hexdigest() == pin.sha256, "stream-pin-changed")
+            finally:
+                try:
+                    stream.close()
+                except Exception:
+                    raise AdapterError("stream-close") from None
+            need(self._stream_state(pin.handle, pin.state_sha256) == state, "stream-state")
+            self._stream_cache[pin.handle] = descriptor
+        return declared
 
     def resolve_reference(self, reference, raw_record):
         """Read-only admission uses raw v2 bytes and the injected current clock."""
-        self.ports.begin()
+        self._begin()
         record = parse_record(raw_record)
         self._request(record["request"].encode(), record["operation"], record["kind"], record["state"], record["mode"])
         return self._resolve_reference(reference, record, self._clock(self._ledger()).wall_ns)
@@ -372,10 +509,11 @@ class StorageAdapter:
              and resolved.durable is True, "reference-route")
         need(sha(resolved.raw) == reference["sha256"], "reference-changed")
         body = decode(resolved.raw)
-        keys(body, "profile scope owner operation kind state binding role recorded provenance origin cloud_status carriers")
+        keys(body, "profile scope owner operation kind state binding role recorded clock_source provenance origin cloud_status carriers")
         need(body["profile"] == EVIDENCE_PROFILE and body["origin"] == "prospective", "historical-evidence")
         for name in ("scope", "owner", "operation", "kind", "state"):
             need(body[name] == record[name], "reference-binding")
+        need(body["clock_source"] == self.config.clock_source, "reference-clock")
         token(body["provenance"])
         need(body["provenance"] == self.config.registry_provenance, "reference-provenance")
         doc = admit_request(record["request"].encode("utf-8"))
@@ -408,13 +546,13 @@ class StorageAdapter:
         export = self.ports.frozen_export(self.config.scope)
         need(type(export) is FrozenExport and export.retained is True and
              export.provenance == self.config.registry_provenance, "registry")
-        need(export.label == doc["label"] and export.original.identity_object() == doc["original"], "original-changed")
-        release = None if export.release is None else export.release.identity_object()
+        need(export.label == doc["label"] and self._source_object(export.original) == doc["original"], "original-changed")
+        release = None if export.release is None else self._source_object(export.release)
         need(release == doc["release"], "release-changed")
         if kind in ("qualification", "selection"):
             need(release is not None and v1.identity(release) != v1.identity(doc["original"]), "release-required")
         registry = sha(canonical({"label": export.label, "original": doc["original"],
-                                  "release": release, "provenance": export.provenance}))
+                                  "release": release, "provenance": export.provenance, "streams": self._stream_cache}))
         return doc, registry
 
     def _ledger(self):
@@ -471,12 +609,21 @@ class StorageAdapter:
                      ["intent", "dispatch"], "outcome-state")
                 if event["phase"] == "complete":
                     need(parse_ns(event["recorded"]) > parse_ns(previous_operation[-1]["recorded"]) and
-                         event["state"] == previous_operation[0]["state"], "unresolved-intent")
+                         event["state"] == previous_operation[0]["state"] and
+                         event["fence"] == previous_operation[0]["fence"], "unresolved-intent")
+                    need(parse_ns(event["captured"]) < parse_ns(previous_operation[0]["expires"]) and
+                         int(event["monotonic_ns"]) < int(previous_operation[0]["monotonic_ns"]) +
+                         self.config.horizons.intent_ns, "intent-expired")
             elif event["phase"] == "observation":
                 need(not previous_operation, "operation-exists")
             elif event["phase"] == "reconcile":
                 relevant_hashes = sorted(h for h, e, _ in events if e["kind"] == event["kind"])
                 need(previous_operation and event["reconciles"] == relevant_hashes, "reconciliation-history")
+                covered = [e for _, e, _ in events if e["kind"] == event["kind"]]
+                need(all(parse_ns(event["recorded"]) > max(parse_ns(e["recorded"]), parse_ns(e["captured"]))
+                         for e in covered), "reconciliation-stale")
+                need(all(ref["id"] not in {r["id"] for e in covered for r in e["evidence"]}
+                         for ref in event["evidence"]), "reconciliation-readback")
             if event["phase"] not in ("intent", "dispatch"):
                 need(parse_ns(event["expires"]) == parse_ns(event["recorded"]) + self.config.horizons.observation_ns,
                      "observation-horizon")
@@ -532,7 +679,7 @@ class StorageAdapter:
 
     def verify_durable_readback(self, raw):
         """Read-only: requires both a retained event and its separate artifact."""
-        self.ports.begin()
+        self._begin()
         return decode(self._existing(raw))["document"]
 
     def _existing(self, raw):
@@ -542,7 +689,7 @@ class StorageAdapter:
         need(type(read) is Readback and read.route == self.config.read_route and read.durable is True
              and read.independent is True, "verification-missing")
         artifact = decode(read.raw)
-        keys(artifact, "profile event operation scope owner authority document original registry_sha256 fence recorded captured clock_source references limits")
+        keys(artifact, "profile event operation scope owner authority document original registry_sha256 fence recorded captured clock_source references streams limits")
         need(artifact["authority"] == "injected-owner-evidence" and
              artifact["original"] == v1.identity(admit_request(event["request"].encode())["original"]) and
              artifact["profile"] == "publication-input-storage-verification-v2" and
@@ -552,6 +699,19 @@ class StorageAdapter:
              artifact["fence"] == event["fence"] and artifact["recorded"] == event["recorded"] and
              artifact["captured"] == event["captured"] and artifact["clock_source"] == self.config.clock_source,
              "verification-changed")
+        need(type(artifact["streams"]) is dict and len(artifact["streams"]) <= 256, "verification-changed")
+        for handle, descriptor in artifact["streams"].items():
+            token(handle)
+            keys(descriptor, "name bytes sha256 state_sha256 route")
+            token(descriptor["name"])
+            digest(descriptor["sha256"])
+            digest(descriptor["state_sha256"])
+            need(type(descriptor["bytes"]) is int and 0 <= descriptor["bytes"] <= v1.MAX_COUNT and
+                 descriptor["route"] == self.config.read_route, "verification-changed")
+        request = admit_request(event["request"].encode())
+        need(sha(canonical({"label": request["label"], "original": request["original"],
+                            "release": request["release"], "provenance": self.config.registry_provenance,
+                            "streams": artifact["streams"]})) == event["registry_sha256"], "verification-changed")
         expected_limits = ["injected-routes-only", "cooperating-writers-only", "no-operational-adoption"]
         need(artifact["limits"] == expected_limits and type(artifact["references"]) is list and
              len(artifact["references"]) == (len(event["evidence"]) if event["phase"] in
@@ -569,6 +729,16 @@ class StorageAdapter:
                  parse_ns(ref["recorded"]) <= parse_ns(event["captured"]), "verification-changed")
         return read.raw
 
+    def _fresh(self, event, sample, events=()):
+        need(sample.wall_ns < parse_ns(event["expires"]) and sample.monotonic_ns <
+             int(event["monotonic_ns"]) + parse_ns(event["expires"]) - parse_ns(event["captured"]),
+             "observation-expired")
+        if event["phase"] == "complete":
+            intent = next(e for _, e, _ in events if e["operation"] == event["operation"] and e["phase"] == "intent")
+            need(sample.wall_ns < parse_ns(intent["expires"]) and
+                 sample.monotonic_ns < int(intent["monotonic_ns"]) + self.config.horizons.intent_ns,
+                 "intent-expired")
+
     def _persist(self, event, events, verified, lease):
         raw = canonical(event)
         parse_record(raw)
@@ -584,7 +754,7 @@ class StorageAdapter:
         self._durable(raw, ack, read)
         durable = {"sha256": sha(raw), "bytes": len(raw), "write_route": ack.route,
                    "read_route": read.route, "independent": True}
-        need(self._clock(self._ledger()).wall_ns < parse_ns(event["expires"]), "observation-expired")
+        self._fresh(event, self._clock(self._ledger()), events)
         need(self._fence(lease) == event["fence"], "fence-changed")
         _doc, registry = self._request(event["request"].encode(), event["operation"], event["kind"], event["state"], event["mode"])
         need(registry == event["registry_sha256"], "registry-changed")
@@ -595,18 +765,19 @@ class StorageAdapter:
                     "registry_sha256": event["registry_sha256"], "fence": event["fence"],
                     "recorded": event["recorded"], "captured": event["captured"],
                     "clock_source": event["clock_source"], "references": verified,
+                    "streams": self._stream_cache,
                     "limits": ["injected-routes-only", "cooperating-writers-only", "no-operational-adoption"]}
         encoded = canonical(artifact)
         need(len(encoded) <= MAX_BYTES, "artifact-limit")
         ack = self.ports.append_verification(self.config.scope, event["id"], encoded)
         read = self.ports.independent_verification_read(self.config.scope, event["id"], max_bytes=MAX_BYTES)
         self._durable(encoded, ack, read)
-        need(self._clock(self._ledger()).wall_ns < parse_ns(event["expires"]), "observation-expired")
+        self._fresh(event, self._clock(self._ledger()), events)
         need(self._fence(lease) == event["fence"], "fence-changed")
         return {"record": raw, "verification": encoded}
 
     def _run(self, raw, operation, event_id, kind, state, phase, references=(), reconciles=()):
-        self.ports.begin()
+        self._begin()
         need(type(references) is tuple and len(references) <= 8 and
              type(reconciles) is tuple and len(reconciles) <= MAX_RECORDS, "input-limit")
         for reference in references:
@@ -647,7 +818,10 @@ class StorageAdapter:
                     latest = relevant[-1][1]
                     for ref in latest["evidence"]:
                         self._resolve_reference(ref, latest, now.wall_ns)
-                view = self._project(relevant, now.wall_ns)
+                view = self._project(relevant, now.wall_ns, now.monotonic_ns)
+                if phase == "intent" and relevant:
+                    need(all(relevant[-1][1]["fence"][key] == fence[key] for key in
+                             ("application", "selection", "policy")), "pinned-state-changed")
                 need(not relevant or view["status"] == "supported-observation", "reconcile-first")
             else:
                 need(prior and all(e["request"] == raw.decode() and e["kind"] == kind
@@ -675,6 +849,11 @@ class StorageAdapter:
                 verified = [self._resolve_reference(r, event, now.wall_ns) for r in references]
                 recorded = parse_ns(next(r["recorded"] for r in verified if r["role"] == "outcome"))
                 need(all(parse_ns(r["recorded"]) >= recorded for r in verified), "evidence-order")
+                if phase == "reconcile":
+                    need(all(recorded > max(parse_ns(e["recorded"]), parse_ns(e["captured"]))
+                             for _, e, _ in relevant), "reconciliation-stale")
+                    old_ids = {r["id"] for _, e, _ in relevant for r in e["evidence"]}
+                    need(all(r["id"] not in old_ids for r in references), "reconciliation-readback")
                 if phase == "complete":
                     intent = next(e for e in prior if e["phase"] == "intent")
                     dispatch = next(e for e in prior if e["phase"] == "dispatch")
@@ -682,7 +861,10 @@ class StorageAdapter:
                          recorded > parse_ns(dispatch["recorded"]), "unresolved-intent")
                     # An operation outliving its intent needs explicit read-only
                     # reconciliation, not a rewritten completion lease.
-                    need(now.wall_ns < parse_ns(intent["expires"]), "intent-expired")
+                    need(fence == intent["fence"], "pinned-state-changed")
+                    need(now.wall_ns < parse_ns(intent["expires"]) and
+                         now.monotonic_ns < int(intent["monotonic_ns"]) + self.config.horizons.intent_ns,
+                         "intent-expired")
                 event["recorded"] = format_ns(recorded)
                 event["expires"] = format_ns(recorded + self.config.horizons.observation_ns)
             need(self._fence(lease) == fence, "fence-changed")
@@ -710,7 +892,7 @@ class StorageAdapter:
         Any exception after dispatch persistence is uncertain. There is no retry
         command; reconciliation is read-only and a future cycle needs a new ID.
         """
-        self.ports.begin()
+        self._begin()
         self._request(raw, operation, kind, state, "mutation")
         need(callable(effect), "effect")
         token(event_id)
@@ -748,13 +930,13 @@ class StorageAdapter:
                     self.config.scope, operation, fence=dict(fence),
                     intent_deadline_ns=parse_ns(intent["expires"]), elapsed_deadline_ns=elapsed_deadline,
                     clock_source=self.config.clock_source, registry_sha256=registry,
-                    dispatch_sha256=sha(canonical(event)), effect=effect)
+                    dispatch_sha256=sha(canonical(event)), stream_seals=dict(self._stream_cache), effect=effect)
             except Exception:
                 raise AdapterError("uncertain-effect") from None
         finally:
             self._close(lease)
 
-    def _project(self, events, now_ns):
+    def _project(self, events, now_ns, monotonic_ns):
         if not events:
             return {"status": "unknown", "reason": "no-observation", "history": [], "conflicts": []}
         last = events[-1][1]
@@ -779,14 +961,15 @@ class StorageAdapter:
             supported = supported and not conflicts and not opposed
         else:
             supported = supported and not conflicts and not opposed
-        supported = supported and parse_ns(last["recorded"]) <= now_ns < parse_ns(last["expires"])
+        supported = supported and parse_ns(last["recorded"]) <= now_ns < parse_ns(last["expires"]) and (
+            monotonic_ns < int(last["monotonic_ns"]) + parse_ns(last["expires"]) - parse_ns(last["captured"]))
         return {"status": "supported-observation" if supported else "unknown",
                 "state": last["state"] if supported else None, "history": history,
                 "conflicts": conflicts, "reconciles": last["reconciles"],
                 "authority": "injected-owner-evidence", "limits": ["not-global-exclusion", "not-operational-adoption"]}
 
     def project_current(self, *, kind):
-        self.ports.begin()
+        self._begin()
         need(kind in self.config.kinds, "scope-kind")
         lease = self.ports.try_acquire(self.config.scope, "read_projection")
         need(lease is not None, "lock-busy")
@@ -797,7 +980,7 @@ class StorageAdapter:
             relevant = [(h, e, r) for h, e, r in events if e["kind"] == kind]
             for _hash, _event, raw in relevant:
                 self._existing(raw)
-            current_view = self._project(relevant, sample.wall_ns)
+            current_view = self._project(relevant, sample.wall_ns, sample.monotonic_ns)
             if current_view["status"] == "supported-observation":
                 event = relevant[-1][1]
                 _doc, registry = self._request(event["request"].encode(), event["operation"], kind, event["state"], event["mode"])
@@ -807,7 +990,8 @@ class StorageAdapter:
                     self._resolve_reference(ref, event, sample.wall_ns)
             need([h for h, _, _ in self._ledger()] == [h for h, _, _ in events], "history-frontier")
             need(self._fence(lease) == fence, "fence-changed")
-            return self._project(relevant, self._clock(events).wall_ns)
+            final_clock = self._clock(events)
+            return self._project(relevant, final_clock.wall_ns, final_clock.monotonic_ns)
         finally:
             self._close(lease)
 
