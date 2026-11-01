@@ -116,6 +116,7 @@ hosted step logs remain the execution record.
 | ordinary-core / ordinary-core | Run synthetic Cargo mode argument-routing regressions | `node --test --test-concurrency=1 tools/cargo-modes/run.test.mjs` | every run |  | Wrapper and toolchain pin copied into disposable checkouts with a recording rustup stub; cases are generated in loops, so no count is pinned. Runs no Cargo compiler. |
 | ordinary-core / ordinary-core | Check the NAS deploy tool with a fake service | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/deploy-nas -p 'test_*.py'` | every run | 52 unittest methods | Temp folders and a fake service; no launchd, network or real data. |
 | ordinary-core / ordinary-core | Check the nightly backup script with a fake service and iCloud helper | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/backup -p 'test_*.py'` | every run | 24 unittest methods | Temp folders, a fake service and a fake iCloud helper, including the content-addressed model store. |
+| ordinary-core / ordinary-core | Check synthetic publication-input disposition claims (in memory only) | `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/model-input-disposition -p test_disposition.py -v` | every run | 29 unittest methods | Generated in-memory claim validation, operation-correlated chronology and independent evidence summaries; no payload operations, network, consumers or operational receipts. |
 | ordinary-core / ordinary-core | Run the HomeBox quantity seed report's synthetic unit tests | `python3 --version`<br>`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/homebox-quantity-seed-report -p test_report.py -v` | every run | 14 unittest methods | Synthetic HomeBox quantity seed report unit tests; prints the runner Python version. |
 | ordinary-core / ordinary-core | Run the sixteen synthetic runtime profiling guard and receipt cases | `python3 -c 'import sys; assert sys.version_info >= (3, 11), "Python >=3.11 required"; print(sys.version)'`<br>`PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/perf/runtime-profile -p test_runtime_profile.py -v` | every run | 16 unittest methods | Asserts Python >=3.11, then configuration refusal, sample decoding, receipts, deadlines and process-group cleanup with fake build/profiler commands. |
 | ordinary-core / ordinary-core | Run the three scoped synthetic bridge read cases | `PYTHONDONTWRITEBYTECODE=1 python3 tools/houseatlas-mcp-bridge/test_bridge.py healthy_large_read_page`<br>`PYTHONDONTWRITEBYTECODE=1 python3 tools/houseatlas-mcp-bridge/test_bridge.py denial_read_profile_bounds`<br>`PYTHONDONTWRITEBYTECODE=1 python3 tools/houseatlas-mcp-bridge/test_bridge.py denial_read_correlation` | every run | 3 named cases | Owner-approved finite exception: fake GET/session/admission owners and disposable journal state; no socket, write or provider. |
@@ -3191,3 +3192,20 @@ memberships. The existing runner and its deadline are unchanged; this adds no
 browser/CI lane, native source or latency budget. Markup and CPU geometry do not
 establish keyboard/swipe events, visual appearance, private policy deployment
 or device acceptance. No such interactive check is run by this case.
+
+## Publication-input disposition claims
+
+The existing ordinary-core job runs the generated in-memory stdlib suite:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/model-input-disposition -p test_disposition.py -v
+```
+
+It covers strict bounded JSON validation, original/release identity separation,
+replay and contradictory claims, missing evidence, failed persistence,
+interruption, freshness and independent disposition/recovery/qualification/
+selection summaries. It opens no payloads, emits no operational receipts and
+invokes no consumers, network, services or credentials. See the
+[contract and operational boundary](../../tools/model-input-disposition/README.md).
+Local tests were not run for the git-first source handoff; existing hosted CI
+qualifies published source. Neither source nor CI completes operational adoption.

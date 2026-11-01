@@ -255,3 +255,11 @@ stdlib selector regressions using disposable synthetic Git histories and the
 When a pull request is authorized to merge, enable auto-merge
 so GitHub merges it after the required checks pass.
 Investigate failed or missing checks instead of bypassing the ruleset.
+
+The existing ordinary-core job also runs the explicit stdlib-only
+`tools/model-input-disposition/test_disposition.py` suite. Generated in-memory
+claims exercise bounded strict parsing, exact original/release identities,
+replay/conflict reconciliation, incomplete persistence and independent evidence
+summaries. No filesystem payload operation, network, consumer, receipt emission,
+service, credential or operational adoption occurs. Hosted logs establish test
+outcomes; validated claims establish no authority or custody.
