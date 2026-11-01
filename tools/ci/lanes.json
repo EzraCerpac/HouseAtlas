@@ -305,6 +305,19 @@
       "cases": {"counter": "python-unittest-methods", "dir": "tools/model-input-disposition", "pattern": "test_disposition.py", "expected": 29}
     },
     {
+      "id": "core.model-input-storage-adapter",
+      "workflow": "ordinary-core.yml",
+      "job": "ordinary-core",
+      "step": "Check prospective storage adapter v2 (synthetic injected ports only)",
+      "kind": "test",
+      "if": null,
+      "run": ["PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/model-input-disposition -p test_storage_adapter.py -v"],
+      "toolchain": ["python3"],
+      "files": ["tools/model-input-disposition/test_storage_adapter.py"],
+      "scope": "Generated fake clock, registry, resolver, ledger, readback and conditional-dispatch ports; no real custody, transport, installation, credentials or operational adoption.",
+      "cases": {"counter":"python-unittest-methods","dir":"tools/model-input-disposition","pattern":"test_storage_adapter.py","expected":75}
+    },
+    {
       "id": "core.homebox-seed",
       "workflow": "ordinary-core.yml",
       "job": "ordinary-core",
@@ -359,7 +372,7 @@
       "step": "Record coverage boundary",
       "kind": "summary",
       "if": "always()",
-      "run": ["printf '%s\\n' 'Scope: synthetic publication-input disposition claim parsing/reconciliation/formatting (29 in-memory cases only), stdlib selector and CI command-manifest checks, synthetic deploy-nas and backup tool tests, the three explicit synthetic bridge read cases (healthy_large_read_page, denial_read_profile_bounds, denial_read_correlation; fake GET/session/admission owners and disposable journal only), integrity, syntax, six module builds, 14 history checks, one healthy synthetic mutation/read/history/DTO Request group, the HomeBox quantity seed report unit tests, eight named synthetic electrical registration cases, sixteen synthetic runtime profiling guard/receipt cases, the explicit Cargo mode process-routing regressions, twelve synthetic publication manifest regenerator cases (temporary trees only) and nine host-client options, driver-identity, pacing, MCP and comparison cases (two exact Node files; generated temp files and fake ports only, no host or load).' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'Command outcomes are reported in the steps above; this summary alone is not a pass claim.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'New explicit source-presence admission is blocked and unexercised.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'Beyond the eight named electrical cases and the three exact scoped bridge read cases, guard reversal, mutation/omission controls, adversarial, denial, failure injection, concurrency and private-intake checks remain stopped and excluded.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'No provider, target, secret recovery, HTTPS, pilot, deployment, full security or production qualification.' >> \"$GITHUB_STEP_SUMMARY\""],
+      "run": ["printf '%s\\n' 'Scope: synthetic publication-input disposition claim parsing/reconciliation/formatting (29 pure and 75 adapter in-memory cases only), stdlib selector and CI command-manifest checks, synthetic deploy-nas and backup tool tests, the three explicit synthetic bridge read cases (healthy_large_read_page, denial_read_profile_bounds, denial_read_correlation; fake GET/session/admission owners and disposable journal only), integrity, syntax, six module builds, 14 history checks, one healthy synthetic mutation/read/history/DTO Request group, the HomeBox quantity seed report unit tests, eight named synthetic electrical registration cases, sixteen synthetic runtime profiling guard/receipt cases, the explicit Cargo mode process-routing regressions, twelve synthetic publication manifest regenerator cases (temporary trees only) and nine host-client options, driver-identity, pacing, MCP and comparison cases (two exact Node files; generated temp files and fake ports only, no host or load).' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'Command outcomes are reported in the steps above; this summary alone is not a pass claim.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'New explicit source-presence admission is blocked and unexercised.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'Beyond the eight named electrical cases and the three exact scoped bridge read cases, guard reversal, mutation/omission controls, adversarial, denial, failure injection, concurrency and private-intake checks remain stopped and excluded.' >> \"$GITHUB_STEP_SUMMARY\"", "printf '%s\\n' 'No provider, target, secret recovery, HTTPS, pilot, deployment, full security or production qualification.' >> \"$GITHUB_STEP_SUMMARY\""],
       "toolchain": [],
       "files": [],
       "scope": "Writes the job scope and exclusions to the step summary; not a pass claim."
