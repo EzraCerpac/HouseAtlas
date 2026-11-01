@@ -180,6 +180,50 @@ class FilesystemPortsTests(unittest.TestCase):
                 with self.assertRaises(BlockingIOError):fcntl.flock(independent,fcntl.LOCK_EX|fcntl.LOCK_NB)
             finally:os.close(independent)
 
+    def test_prelease_keeper_and_transferred_rights_have_tracked_cleanup(self):
+        import fcntl
+        for stage in ("before_lock","after_reply","after_receive","install"):
+            with self.subTest(stage=stage):
+                owner=self.owner();seen=[]
+                exchange=f._Child.exchange;receive=f._Child.take_lock;held=f.HeldLease
+                def controlled_exchange(child,request,*,limit,budget_ns):
+                    if request.get("op")=="lock" and stage=="before_lock":
+                        seen.append(stage);raise OSError("synthetic startup refusal")
+                    result=exchange(child,request,limit=limit,budget_ns=budget_ns)
+                    if request.get("op")=="lock" and stage=="after_reply":
+                        seen.append(stage);time.sleep(1.1)
+                    return result
+                def controlled_receive(child,budget_ns):
+                    result=receive(child,budget_ns)
+                    if stage=="after_receive":
+                        seen.append(stage);raise OSError("synthetic received-right reply loss")
+                    return result
+                def controlled_install(*args):
+                    if stage=="install":
+                        seen.append(stage);raise OSError("synthetic lease installation failure")
+                    return held(*args)
+                with patch.object(f._Child,"exchange",controlled_exchange),patch.object(f._Child,"take_lock",controlled_receive),patch.object(f,"HeldLease",controlled_install):
+                    with self.assertRaises(Exception):owner.try_acquire(self.registry.scope,"operation0",budget_ns=a.NS)
+                self.assertEqual(seen,[stage]);self.assertTrue(owner.failed)
+                self.assertIsNone(owner.lease)
+                self.assertEqual(list(self.dirs["journal"].iterdir()),[])
+                owner.close()
+                self.assertTrue(all(child.p.poll() is not None and child.control is None and
+                                    all(desc.fd is None for desc in child.pending_descriptions) for child in owner.children))
+                independent=os.open(self.lock_path,os.O_RDWR)
+                try:
+                    fcntl.flock(independent,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                finally:os.close(independent)
+        raw=os.open(self.lock_path,os.O_RDWR)
+        description=f._OwnedDescription(raw);description.close()
+        replacement=os.open(self.lock_path,os.O_RDWR)
+        if replacement!=raw:
+            os.dup2(replacement,raw);os.close(replacement);replacement=raw
+        try:
+            description.close()
+            os.fstat(replacement)
+        finally:os.close(replacement)
+
     def test_v1_stays_unverified_and_closed_to_local_admission_profile(self):
         result=self.record()
         doc=a.admit_request(a.parse_record(result["record"])["request"].encode())

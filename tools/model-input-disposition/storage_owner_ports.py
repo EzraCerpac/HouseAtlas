@@ -7,6 +7,7 @@ V3 admission is process-local: provisional disk bytes alone never admit anything
 from dataclasses import dataclass, replace
 import base64
 import array
+import fcntl
 import hashlib
 import json
 from functools import wraps
@@ -172,10 +173,21 @@ def bounded_port(method):
     return invoke
 
 
+class _OwnedDescription:
+    def __init__(self, fd):
+        self.fd=fd;self.installed=False
+
+    def close(self):
+        if self.fd is None:return
+        fd=self.fd;self.fd=None
+        os.close(fd)
+
+
 class _Child:
     """Bounded owned local process. Timeout is uncertainty, not cancellation proof."""
     def __init__(self, root_fd, poison, script=None, *, keeper=False, held_fd=None):
         self.poison = poison
+        self.pending_descriptions=[]
         parent,child=socket.socketpair() if keeper else (None,None)
         self.control=parent
         passed=[root_fd]
@@ -198,22 +210,34 @@ class _Child:
 
     def take_lock(self, budget_ns):
         need(self.control is not None,"lock-transfer")
-        received=[]
         try:
             self.control.settimeout(budget_ns/a.NS)
             raw,ancillary,flags,_=self.control.recvmsg(1,socket.CMSG_SPACE(4*array.array("i").itemsize))
+            malformed=False
             for level,kind,data in ancillary:
-                need(level==socket.SOL_SOCKET and kind==socket.SCM_RIGHTS,"lock-transfer")
-                values=array.array("i");values.frombytes(data);received.extend(values)
-            need(raw==b"L" and not flags and len(received)==1,"lock-transfer")
-            os.set_inheritable(received[0],False)
-            return received.pop()
+                if level==socket.SOL_SOCKET and kind==socket.SCM_RIGHTS:
+                    values=array.array("i");width=values.itemsize
+                    values.frombytes(data[:len(data)-len(data)%width])
+                    self.pending_descriptions.extend(_OwnedDescription(fd) for fd in values)
+                    malformed=malformed or len(data)%width!=0
+                else:malformed=True
+            need(not malformed and raw==b"L" and not flags and len(self.pending_descriptions)==1,"lock-transfer")
+            description=self.pending_descriptions[0]
+            if description.fd<=2:
+                replacement=_OwnedDescription(fcntl.fcntl(description.fd,fcntl.F_DUPFD_CLOEXEC,3))
+                self.pending_descriptions.append(replacement)
+                description.close();self.pending_descriptions.remove(description);description=replacement
+            os.set_inheritable(description.fd,False)
+            return description
         except Exception:
             self.poison()
-            for fd in received:os.close(fd)
             raise a.AdapterError("filesystem-lock-transfer") from None
         finally:
-            self.control.close();self.control=None
+            # A timed-out unread SCM_RIGHTS message can itself hold the flock.
+            # Retain its socket until keeper termination is established; once
+            # rights are received their explicit owned handles retain it instead.
+            if self.pending_descriptions and self.control is not None:
+                self.control.close();self.control=None
 
     def exchange(self, request, *, limit, budget_ns):
         need(not self.closed and type(limit) is int and 0 <= limit <= FRAME_LIMIT and
@@ -251,19 +275,24 @@ class _Child:
             raise a.AdapterError("filesystem-io-uncertain") from None
 
     def abort(self, cleanup_ns=50_000_000):
-        if self.closed:return
-        self.closed=True
+        deadline=time.monotonic_ns()+cleanup_ns
         try:
-            self.p.kill()
-            self.p.wait(timeout=cleanup_ns/a.NS)
+            if not self.closed:
+                self.closed=True
+                self.p.kill()
+            self.p.wait(timeout=max(0,deadline-time.monotonic_ns())/a.NS)
         except (OSError,subprocess.TimeoutExpired):
             self.poison()
         finally:
             self.p.stdin.close();self.p.stdout.close()
-            if self.control is not None:self.control.close();self.control=None
+            if self.p.poll() is not None:
+                if self.control is not None:self.control.close();self.control=None
+                for description in self.pending_descriptions:
+                    if not description.installed:description.close()
 
     def close(self, budget_ns):
-        if self.closed:return
+        if self.closed:
+            self.abort(min(50_000_000,budget_ns));return
         deadline=time.monotonic_ns()+budget_ns
         try:
             self.exchange({"op":"close"},limit=0,budget_ns=budget_ns)
@@ -435,10 +464,15 @@ class Stream:
 
 
 class HeldLease:
-    def __init__(self, owner, operation, child, lock_fd):
+    def __init__(self, owner, operation, child, description):
         self.owner,self.operation,self.child=owner,operation,child
-        self.lock_fd=lock_fd
+        self.description=description
         self.closed=False
+
+    @property
+    def lock_fd(self):
+        need(not self.closed and self.description.fd is not None,"stale-lease")
+        return self.description.fd
 
     def snapshot(self):
         need(not self.closed and self.owner.lease is self,"stale-lease")
@@ -490,7 +524,7 @@ class FilesystemObservationPorts:
         need(all(type(fd) is int and fd>2 for fd in supplied),"descriptor")
         duplicated=[]
         try:
-            for fd in supplied:duplicated.append(os.dup(fd))
+            for fd in supplied:duplicated.append(fcntl.fcntl(fd,fcntl.F_DUPFD_CLOEXEC,3))
         except Exception:
             for fd in duplicated:os.close(fd)
             raise a.AdapterError("filesystem-descriptor-duplication") from None
@@ -499,7 +533,7 @@ class FilesystemObservationPorts:
         self.roots,self.registry,self.clock,self.config=roots,registry,clock,config
         self._owned_fds=tuple(duplicated);self._root_ids={};self.closed=False
         self.permits={p.operation:p for p in permits};self.pid=os.getpid()
-        self.lease=None;self.borrowed=False;self.borrow_available=False;self.borrow_alias=False;self.failed=False
+        self.lease=None;self.pending_keeper=None;self.borrowed=False;self.borrow_available=False;self.borrow_alias=False;self.failed=False
         self.admitted={};self.references={};self.children=[];self.observations={};self.deadline=None
         try:
             for fd in self._owned_fds:self._io(fd,{"op":"root"},1024,config.callback_budget_ns)
@@ -616,15 +650,19 @@ class FilesystemObservationPorts:
                  (self.lease.operation==operation or (operation=="read_projection" and self.borrow_alias)),"nested-lock")
             self.borrow_available=False;self.borrowed=True;return BorrowedLease(self.lease)
         self._permit(operation)
-        child=self._child(self.roots.lock.directory_fd,lock_keeper=True)
-        req=self.roots.file_requirements
-        lock=self.roots.lock.entry
-        need(lock.requirements==req,"lock-ownership")
-        child.exchange({"op":"lock","name":lock.name,"expected":lock.fields,"owner":[req.uid,req.gid,req.mode,req.links]},
-                       limit=0,budget_ns=self._remaining(budget_ns))
-        lock_fd=child.take_lock(self._remaining(budget_ns))
-        self.lease=HeldLease(self,operation,child,lock_fd)
+        child=None;held=None
         try:
+            need(self.pending_keeper is None,"pending-acquisition")
+            child=self._child(self.roots.lock.directory_fd,lock_keeper=True)
+            self.pending_keeper=child
+            req=self.roots.file_requirements
+            lock=self.roots.lock.entry
+            need(lock.requirements==req,"lock-ownership")
+            child.exchange({"op":"lock","name":lock.name,"expected":lock.fields,"owner":[req.uid,req.gid,req.mode,req.links]},
+                           limit=0,budget_ns=self._remaining(budget_ns))
+            description=child.take_lock(self._remaining(budget_ns))
+            held=HeldLease(self,operation,child,description)
+            self.lease=held;description.installed=True;self.pending_keeper=None
             anchor=a.canonical({"profile":"filesystem-observation-scope-v1","scope":scope,"owner":self.registry.owner,
                                 "epoch":self.clock.source,"process_epoch":self.clock.process_epoch,"original":v1.identity(self.registry.original())})
             names=json.loads(self._io(self.roots.journal_dir_fd,{"op":"list"},65536,budget_ns))
@@ -633,8 +671,21 @@ class FilesystemObservationPorts:
             else:need("scope" in names and self._read(self.roots.journal_dir_fd,"scope",a.MAX_BYTES,budget_ns)==anchor,"epoch-or-frontier")
             self._fence()
             return self.lease
-        except Exception:
-            self._release();raise
+        except BaseException:
+            self._poison()
+            try:
+                if held is not None and self.lease is held:
+                    held.description.installed=True;self.pending_keeper=None
+                    self._release(held)
+                elif child is not None:
+                    self.pending_keeper=child
+                    remaining=0 if self.deadline is None else max(0,self.deadline-time.monotonic_ns())
+                    child.abort(min(50_000_000,remaining))
+                    if child.p.poll() is not None:
+                        child.abort(0)
+                        if child.control is None and all(d.fd is None for d in child.pending_descriptions):self.pending_keeper=None
+            except Exception:self._poison()
+            raise
 
     def _release(self, expected=None):
         lease=self.lease
@@ -659,7 +710,7 @@ class FilesystemObservationPorts:
             if not original:raise
         finally:
             if lease.child.p.poll() is not None:
-                os.close(lease.lock_fd)
+                lease.description.close()
                 lease.closed=True;self.lease=None
                 self.borrowed=self.borrow_available=self.borrow_alias=False
 
@@ -667,8 +718,16 @@ class FilesystemObservationPorts:
         """Close only owned duplicates after actual child/lease termination."""
         if self.closed:return
         need(os.getpid()==self.pid,"epoch")
+        deadline=self.deadline if self.deadline is not None else time.monotonic_ns()+self.config.callback_budget_ns
+        if self.pending_keeper is not None:
+            child=self.pending_keeper
+            child.abort(min(50_000_000,max(0,deadline-time.monotonic_ns())))
+            if child.p.poll() is not None:child.abort(0)
+            if child.p.poll() is None or child.control is not None or any(d.fd is not None and not d.installed for d in child.pending_descriptions):
+                self._poison();raise a.AdapterError("filesystem-unreaped-child")
+            self.pending_keeper=None
         if self.lease is not None and self.lease.child.p.poll() is not None:
-            os.close(self.lease.lock_fd)
+            self.lease.description.close()
             self.lease.closed=True;self.lease=None
         if self.lease is not None:self._release(self.lease)
         if self.lease is not None or any(c.p.poll() is None for c in self.children):

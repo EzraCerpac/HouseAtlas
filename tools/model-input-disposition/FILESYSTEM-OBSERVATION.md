@@ -206,3 +206,13 @@ leave no partial role or scope writes. Issued bodies remain independently hash
 bound, and changed bytes never reuse an existing reference. Worker
 startup explicitly disables bytecode writes and site hooks as well as isolating
 its environment; only the fixed standard-library program runs.
+
+Keeper ownership is tracked from startup through lock reply, SCM_RIGHTS receive
+and lease installation. Unread queued rights can retain the lock independently
+of the child, so their socket stays tracked until termination is known, then is
+closed; received rights use single-close owned handles. Pre-lease failure sends
+only deadline-bounded/nonblocking termination and poisons progress. Explicit
+resource close can confirm termination and dispose pending rights, but cannot
+promote an acquisition or receipt. Unknown termination retains the actual queued
+or received capability and blocks further work. Standard-I/O descriptor numbers
+are not reused for owned capabilities.

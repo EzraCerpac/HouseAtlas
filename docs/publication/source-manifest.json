@@ -42,7 +42,7 @@
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
       "bytes": 8162,
-      "sha256": "8655567c4fe2faa295794e7bad7e28044589e803dce142aea6034a70836f3631",
+      "sha256": "0e47a8e388c15ce819d50016c6ada5cf0efd971a1f7e9889ce760fbfdb8854dc",
       "owner": "core-integration"
     },
     {
@@ -154,7 +154,7 @@
       "path": "AGENTS.md",
       "mode": "100644",
       "bytes": 19094,
-      "sha256": "c46cb870138b8f797c53e9f2b6c0bbd3d2b5d08a9e84fb2762c6e20087a1c597",
+      "sha256": "9c2464299f1dab1de8a504780e6e70bf4552b91c7e14255eb904c5a8f212dbe8",
       "owner": "core-integration"
     },
     {
@@ -6419,7 +6419,7 @@
       "path": "docs/contributing/verification.md",
       "mode": "100644",
       "bytes": 205127,
-      "sha256": "3cb4076d540d85c1d76492f0763e32fc11ec70cc2376ab0e31e5595ead522168",
+      "sha256": "565fab64231e7329e9b9af2fd4613137bc1626a8cbd1e5a7c855cdb72cac0738",
       "owner": "core-integration"
     },
     {
@@ -11599,7 +11599,7 @@
       "path": "tools/ci/lanes.json",
       "mode": "100644",
       "bytes": 56682,
-      "sha256": "e52a1d2d6ffb1fff71069500f5e788b691ad2894bf2a222ba0f92add248890f4",
+      "sha256": "5fa6054031199890b6b7a3a379fcc00bcaf73d82df352239facd454f53ef8f61",
       "owner": "core-integration"
     },
     {
@@ -12088,8 +12088,8 @@
     {
       "path": "tools/model-input-disposition/FILESYSTEM-OBSERVATION.md",
       "mode": "100644",
-      "bytes": 12864,
-      "sha256": "32c7b05ca609e94625dc93760397e55ef07e9e7593462c05c5a3fc5a753b9471",
+      "bytes": 13539,
+      "sha256": "bb913c288f09f1b4e66d23dd3c6b83d85017b517194c29cb7a6c31bcc077ed39",
       "owner": "storage"
     },
     {
@@ -12123,8 +12123,8 @@
     {
       "path": "tools/model-input-disposition/storage_owner_ports.py",
       "mode": "100644",
-      "bytes": 50716,
-      "sha256": "28135b3c4100451f88b4729c7269a14b1f0a9e524790560267083701e8e32b64",
+      "bytes": 53969,
+      "sha256": "e8be226a5bd1276e98c85c4ea854af428fdf003fda89258a4f197465f076516b",
       "owner": "storage"
     },
     {
@@ -12144,8 +12144,8 @@
     {
       "path": "tools/model-input-disposition/test_storage_owner_ports.py",
       "mode": "100644",
-      "bytes": 35805,
-      "sha256": "62a4918b769e1623e6bdaab335f1daf304de37b70a9f6ffe2dd824ac9bde0a41",
+      "bytes": 38488,
+      "sha256": "90fff1cc38159045cda22a1f65b9ebf0dfe5bfc4ff921581ada3c26e23a6e22a",
       "owner": "storage"
     },
     {
