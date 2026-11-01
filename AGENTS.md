@@ -271,3 +271,13 @@ The separately versioned prospective protocol preserves pure v1 unchanged.
 These in-memory checks perform no actual custody operation, installation,
 transport, credential access or operational adoption; the existing storage owner
 must separately qualify the concrete route, clock continuity and fence semantics.
+
+The same ordinary-core job also runs the 38 disposable methods in
+`tools/model-input-disposition/test_storage_owner_ports.py`. Generated temporary
+directories and owned isolated Python children check supplied descriptors,
+streaming pins, explicit present-only permits, prospective journal completeness,
+bounded reader/fsync/close behavior and v3 process-local admission. All filesystem
+writes and permission fixtures are confined to those disposable roots. No private
+input, NAS contact, transport, installer, credential, mutation dispatch or settled
+effect is exercised. Same-host subprocess readback is not another storage failure
+domain; source/CI success does not establish operational adoption.

@@ -1,0 +1,444 @@
+"""Disposable synthetic filesystem capabilities and owned local children only."""
+from dataclasses import replace
+import json
+import os
+from pathlib import Path
+import signal
+import tempfile
+import time
+import unittest
+from unittest.mock import patch
+
+import disposition as v1
+import storage_adapter as a
+import storage_owner_ports as f
+
+
+class FilesystemPortsTests(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory()
+        self.base=Path(self.temp.name)
+        self.dirs={name:self.base/name for name in ("journal","evidence","registry","retained")}
+        self.fds={}
+        for name,path in self.dirs.items():
+            path.mkdir(mode=0o700)
+            self.fds[name]=os.open(path,os.O_RDONLY|os.O_DIRECTORY)
+        self.lock_path=self.base/"synthetic_lock"
+        self.lock=os.open(self.lock_path,os.O_RDWR|os.O_CREAT|os.O_EXCL,0o600)
+        self.requirements=f.Requirements(os.geteuid(),os.getegid(),0o600)
+        self.directory_requirements=replace(self.requirements,mode=0o700)
+        self.manifest=self.entry("retained","manifest","original.json",b'{ "generated":true }')
+        self.payload=self.entry("retained","master","original.bin",b"generated payload bytes")
+        self.protected=tuple(self.entry("registry",name,name+".json",a.canonical({"synthetic":name}))
+                             for name in ("application","selection","policy"))
+        self.registry=f.FrozenRegistry("synthetic_scope","synthetic_owner","synthetic_registry","generated_export",
+            self.manifest,b'{ "generated":true }',(self.payload,),self.protected,1)
+        self.clock=f.ClockEpoch()
+        self.config=a.OwnerConfig(self.registry.scope,self.registry.owner,self.clock.source,self.registry.provenance,
+            "synthetic_writer","synthetic_reader",("synthetic_resolver",),("disposition",),
+            a.Horizons(a.PROPOSED_INTENT_NS,a.PROPOSED_OBSERVATION_NS),5*a.NS,
+            a.StreamLimits(536870912,1073741824,1048576,4096))
+        self.roots=f.PrivateRoots(self.fds["journal"],self.fds["evidence"],self.fds["registry"],self.fds["retained"],
+            self.lock,self.directory_requirements,self.requirements,True,True)
+        now=time.time_ns()
+        self.permits=tuple(f.OperationPermit(self.registry.scope,self.registry.owner,"operation"+str(i),
+            v1.identity(self.registry.original()),self.clock.source,self.registry.provenance,now-a.NS,now+3600*a.NS,
+            ("journal","evidence")) for i in range(12))
+        self.owners=[]
+        self.ports=self.owner()
+        self.adapter=a.StorageAdapter(self.config,self.ports)
+
+    def tearDown(self):
+        for owner in self.owners:
+            try:owner._release()
+            except Exception:pass
+            for child in owner.children:
+                try:child.p.kill();child.p.wait(timeout=1)
+                except Exception:pass
+                try:child.p.stdin.close();child.p.stdout.close()
+                except OSError:pass
+        for fd in self.fds.values():os.close(fd)
+        os.close(self.lock)
+        self.temp.cleanup()
+
+    def entry(self, root, token, name, raw):
+        path=self.dirs[root]/name
+        fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+        try:os.write(fd,raw)
+        finally:os.close(fd)
+        fields=tuple(getattr(path.stat(),name) for name in f.FIELDS)
+        return f.Entry(token,name,fields,a.sha(raw),self.requirements)
+
+    def owner(self, **changes):
+        args=dict(roots=self.roots,registry=self.registry,permits=self.permits,clock=self.clock,config=self.config)
+        args.update(changes)
+        owner=f.FilesystemObservationPorts(**args)
+        self.owners.append(owner)
+        return owner
+
+    def record(self, index=0):
+        return self.ports.record_present(self.adapter,operation="operation"+str(index),event_id="event"+str(index))
+
+    def acquire(self, index=0):
+        return self.ports.try_acquire(self.registry.scope,"operation"+str(index),budget_ns=self.config.callback_budget_ns)
+
+    def test_present_observation_and_independent_same_process_readback(self):
+        before=(self.dirs["retained"]/self.payload.name).read_bytes()
+        result=self.record()
+        self.assertEqual(a.parse_record(result["record"])["phase"],"observation")
+        marker=a.decode(result["admission"])
+        self.assertEqual(marker["profile"],"publication-input-observation-admission-v3")
+        self.assertNotIn("committed",marker)
+        checked=self.ports.verify_present(self.adapter,operation="operation0",event_id="event0")
+        self.assertEqual(checked["projection"]["status"],"supported-observation")
+        self.assertEqual(checked["projection"]["state"],"present")
+        self.assertEqual(before,(self.dirs["retained"]/self.payload.name).read_bytes())
+        self.assertEqual(self.ports.admitted["event0"][:3],tuple(a.sha(result[k]) for k in ("record","verification","admission")))
+
+    def test_v1_stays_unverified_and_closed_to_local_admission_profile(self):
+        result=self.record()
+        doc=a.admit_request(a.parse_record(result["record"])["request"].encode())
+        self.assertEqual(v1.classify([doc],as_of="2026-01-01T00:00:00Z")["authority"],"unverified")
+        with self.assertRaises(v1.InputError):v1.parse(result["admission"])
+
+    def test_source_projection_preserves_exact_bytes_and_integer_pins(self):
+        exported=self.ports.frozen_export(self.registry.scope,budget_ns=self.config.callback_budget_ns)
+        self.assertEqual(exported.original.manifest,self.registry.exact_manifest)
+        self.assertEqual(exported.original.identity_object(),self.registry.original())
+        self.assertIsNone(exported.release)
+        self.assertTrue(all(type(value) is int for value in self.payload.fields))
+        self.assertGreater(self.payload.fields[7],2**53)
+
+    def test_only_exact_permit_scope_original_epoch_and_issuer_are_admitted(self):
+        for field,value in (("scope","other"),("owner","other"),("epoch","other"),("issuer","other"),("original_identity","a"*64)):
+            with self.subTest(field=field):
+                owner=self.owner(permits=(replace(self.permits[0],**{field:value}),))
+                with self.assertRaises(a.AdapterError):owner.authorize(self.registry.scope,"operation0","disposition","observation",budget_ns=self.config.callback_budget_ns)
+        for kind,mode in (("recovery","observation"),("selection","observation"),("disposition","mutation")):
+            self.assertFalse(self.ports.authorize(self.registry.scope,"operation0",kind,mode,budget_ns=self.config.callback_budget_ns))
+
+    def test_expired_and_not_yet_valid_permits_refuse_before_namespace_write(self):
+        now=time.time_ns()
+        for start,end in ((now-10*a.NS,now-5*a.NS),(now+5*a.NS,now+10*a.NS)):
+            owner=self.owner(permits=(replace(self.permits[0],not_before_ns=start,expires_ns=end),))
+            with self.assertRaises(a.AdapterError):owner.try_acquire(self.registry.scope,"operation0",budget_ns=self.config.callback_budget_ns)
+        self.assertEqual(list(self.dirs["journal"].iterdir()),[])
+
+    def test_direct_non_present_and_mutation_writer_misuse_is_refused(self):
+        result=self.record()
+        lease=self.acquire()
+        try:
+            original=a.parse_record(result["record"])
+            for changed in (dict(state="removed"),dict(phase="intent",mode="mutation"),dict(phase="dispatch",mode="mutation"),dict(kind="recovery",state="unavailable")):
+                raw=a.canonical(dict(original,**changed))
+                with self.assertRaises(a.AdapterError):self.ports.append(self.registry.scope,"event0",raw,a.sha(result["record"]),budget_ns=self.config.callback_budget_ns)
+        finally:lease.close()
+        self.assertEqual(len(list(self.dirs["journal"].glob("event_*"))),1)
+
+    def test_unissued_observation_cannot_use_four_argument_authorize_as_permission(self):
+        self.assertTrue(self.ports.authorize(self.registry.scope,"operation0","disposition","observation",budget_ns=self.config.callback_budget_ns))
+        request=a.canonical(dict(version=1,profile="publication-input-claims-v1",label=self.registry.label,original=self.registry.original(),release=None,events=[]))
+        with self.assertRaises(a.AdapterError):self.adapter.record_observation(request,operation="operation0",event_id="forged",kind="disposition",state="removed",references=())
+        self.assertFalse((self.dirs["journal"]/"event_forged").exists())
+
+    def test_mutation_and_settlement_ports_never_invoke_effect(self):
+        effects=[]
+        with self.assertRaisesRegex(a.AdapterError,"mutation-unsupported"):self.ports.dispatch_under_fence(effect=lambda:effects.append(True))
+        with self.assertRaisesRegex(a.AdapterError,"settlement-unsupported"):self.ports.independent_dispatch_boundary()
+        self.assertEqual(effects,[])
+
+    def test_nested_lock_is_refused_and_helpers_use_one_real_acquisition(self):
+        lease=self.acquire()
+        try:
+            with self.assertRaisesRegex(a.AdapterError,"nested-lock"):self.acquire()
+        finally:lease.close()
+        with patch.object(self.ports,"_child",wraps=self.ports._child) as called:
+            self.record()
+        # The record helper lends its held lease to the adapter; it never flocks twice.
+        self.assertIsNone(self.ports.lease)
+        self.assertTrue(called.call_count>0)
+
+    def test_busy_external_lock_refuses_without_changing_payloads(self):
+        import fcntl
+        independent=os.open(self.lock_path,os.O_RDWR)
+        fcntl.flock(independent,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        try:
+            with self.assertRaises(a.AdapterError):self.acquire()
+            self.assertEqual(list(self.dirs["journal"].iterdir()),[])
+        finally:fcntl.flock(independent,fcntl.LOCK_UN);os.close(independent)
+
+    def test_unknown_names_traversal_and_unregistered_tokens_are_refused(self):
+        for value in ("../source","/source","a/b","a\\b",".","..","https:example"):
+            with self.subTest(value=value):
+                with self.assertRaises(a.AdapterError):f.basename(value)
+        for value in ("unknown","master.json","../master"):
+            with self.assertRaises(a.AdapterError):self.ports.stream_state(self.registry.scope,value,budget_ns=self.config.callback_budget_ns)
+
+    def test_symlink_and_nonregular_source_entries_are_refused(self):
+        path=self.dirs["retained"]/self.payload.name
+        path.unlink();path.symlink_to(self.manifest.name)
+        with self.assertRaises(a.AdapterError):self.ports.stream_state(self.registry.scope,"master",budget_ns=self.config.callback_budget_ns)
+
+    def test_replaced_backing_path_never_substitutes_another_file(self):
+        lease=self.acquire()
+        stream=self.ports.open_stream(self.registry.scope,"master",expected_state=self.ports._state(self.payload).sha256,
+            max_bytes=self.config.stream_limits.max_payload_bytes,max_chunks=4096,budget_ns=self.config.callback_budget_ns)
+        replacement=self.dirs["retained"]/"replacement.bin"
+        replacement.write_bytes(b"other synthetic bytes")
+        os.replace(replacement,self.dirs["retained"]/self.payload.name)
+        try:
+            with self.assertRaises(a.AdapterError):stream.close()
+        finally:lease.close()
+
+    def test_wrong_owner_mode_link_count_and_coverage_are_not_inferred(self):
+        for req in (replace(self.requirements,mode=0o644),replace(self.requirements,uid=self.requirements.uid+1)):
+            with self.assertRaises(a.AdapterError):replace(self.payload,requirements=req)
+        for changed in (dict(cooperating_namespace_exclusive=False),dict(retained_backing_immutable=False)):
+            with self.assertRaises(a.AdapterError):self.owner(roots=replace(self.roots,**changed))
+        with self.assertRaises(a.AdapterError):f.Requirements(True,0,0o600)
+
+    def test_stream_eof_short_extra_hash_and_chunk_bounds(self):
+        lease=self.acquire()
+        try:
+            state=self.ports.stream_state(self.registry.scope,"master",budget_ns=self.config.callback_budget_ns)
+            stream=self.ports.open_stream(self.registry.scope,"master",expected_state=state.sha256,max_bytes=512,max_chunks=4096,budget_ns=self.config.callback_budget_ns)
+            total=b""
+            try:
+                while True:
+                    chunk=stream.read_chunk(max_bytes=4,budget_ns=self.config.callback_budget_ns)
+                    if not chunk:break
+                    self.assertLessEqual(len(chunk),4);total+=chunk
+            finally:stream.close()
+            self.assertEqual(a.sha(total),self.payload.sha256)
+            self.assertEqual(stream.total,self.payload.fields[6])
+        finally:lease.close()
+
+    def test_declared_hash_alone_does_not_verify_actual_payload_bytes(self):
+        bad_registry=replace(self.registry,payloads=(replace(self.payload,sha256="a"*64),))
+        permit=replace(self.permits[0],original_identity=v1.identity(bad_registry.original()))
+        owner=self.owner(registry=bad_registry,permits=(permit,))
+        adapter=a.StorageAdapter(self.config,owner)
+        with self.assertRaises(a.AdapterError):owner.record_present(adapter,operation="operation0",event_id="event0")
+        self.assertFalse((self.dirs["journal"]/"event_event0").exists())
+
+    def test_journal_orphan_and_directory_bound_are_never_hidden(self):
+        self.record();lease=self.acquire()
+        try:
+            path=self.dirs["journal"]/"verify_orphan"
+            path.write_bytes(b"generated orphan")
+            os.chmod(path,0o600)
+            with self.assertRaisesRegex(a.AdapterError,"orphan"):self.ports.ledger(self.registry.scope,max_records=256,max_bytes=a.MAX_LEDGER_BYTES,budget_ns=self.config.callback_budget_ns)
+            for index in range(770):(self.dirs["journal"]/("extra_"+str(index))).touch()
+            with self.assertRaises(a.AdapterError):self.ports.ledger(self.registry.scope,max_records=256,max_bytes=a.MAX_LEDGER_BYTES,budget_ns=self.config.callback_budget_ns)
+        finally:lease.close()
+
+    def test_expected_tail_duplicate_id_and_changed_bytes_do_not_overwrite(self):
+        result=self.record();before=(self.dirs["journal"]/"event_event0").read_bytes();lease=self.acquire()
+        try:
+            for tail in (None,"f"*64,a.sha(result["record"])):
+                with self.assertRaises(a.AdapterError):self.ports.append(self.registry.scope,"event0",result["record"],tail,budget_ns=self.config.callback_budget_ns)
+        finally:lease.close()
+        self.assertEqual(before,(self.dirs["journal"]/"event_event0").read_bytes())
+
+    def test_scope_anchor_change_is_a_frontier_error(self):
+        self.record();lease=self.acquire()
+        try:
+            (self.dirs["journal"]/"scope").write_bytes(b"changed generated anchor")
+            with self.assertRaises(a.AdapterError):self.ports.ledger(self.registry.scope,max_records=256,max_bytes=a.MAX_LEDGER_BYTES,budget_ns=self.config.callback_budget_ns)
+        finally:lease.close()
+
+    def test_direct_reference_rebinding_and_missing_body_are_refused(self):
+        self.record();lease=self.acquire()
+        try:
+            (self.dirs["evidence"]/"event0_outcome").write_bytes(b"changed generated evidence")
+            with self.assertRaises(a.AdapterError):self.ports.resolve(self.registry.scope,"event0_outcome",max_bytes=a.MAX_BYTES,budget_ns=self.config.callback_budget_ns)
+            with self.assertRaises(a.AdapterError):self.ports.resolve(self.registry.scope,"unissued",max_bytes=a.MAX_BYTES,budget_ns=self.config.callback_budget_ns)
+        finally:lease.close()
+
+    def test_disk_only_tentative_admission_cannot_be_promoted(self):
+        self.record();self.ports.admitted.clear();lease=self.acquire()
+        try:
+            self.assertTrue((self.dirs["journal"]/"admit_event0").exists())
+            with self.assertRaisesRegex(a.AdapterError,"admission-unconfirmed"):
+                self.ports.independent_admission_read(self.registry.scope,"event0",max_bytes=a.MAX_BYTES,budget_ns=self.config.callback_budget_ns)
+        finally:lease.close()
+
+    def test_restart_with_same_clock_source_still_refuses_old_scope_epoch(self):
+        self.record()
+        clock=f.ClockEpoch(self.clock.source)
+        owner=self.owner(clock=clock)
+        with self.assertRaisesRegex(a.AdapterError,"epoch-or-frontier"):
+            owner.try_acquire(self.registry.scope,"operation0",budget_ns=self.config.callback_budget_ns)
+        self.assertNotEqual(clock.process_epoch,self.clock.process_epoch)
+
+    def test_changed_protected_pins_stop_admission(self):
+        path=self.dirs["registry"]/self.protected[0].name
+        path.write_bytes(b"changed protected synthetic state")
+        with self.assertRaises(a.AdapterError):self.record()
+        self.assertEqual(self.ports.admitted,{})
+
+    def test_independent_reader_reopens_actual_bytes_in_another_process(self):
+        pids=[];original=self.ports._child
+        def track(root):
+            child=original(root);pids.append(child.p.pid);return child
+        with patch.object(self.ports,"_child",side_effect=track):
+            raw=self.ports._read(self.fds["retained"],self.payload.name,1024,self.config.callback_budget_ns,self.payload.fields)
+        self.assertEqual(a.sha(raw),self.payload.sha256)
+        self.assertTrue(pids and all(pid!=os.getpid() for pid in pids))
+
+    def test_reader_stall_output_bound_and_close_timeout_poison_owner(self):
+        for script,close in (("import time;time.sleep(2)",False),("import os,struct;os.write(1,struct.pack('>I',100000000))",False),("import time;time.sleep(2)",True)):
+            owner=self.owner();child=f._Child(self.fds["retained"],self.lock,owner._poison,script)
+            owner.children.append(child);started=time.monotonic()
+            with self.assertRaises(a.AdapterError):
+                if close:child.close(50_000_000)
+                else:child.exchange({"op":"read"},limit=10,budget_ns=50_000_000)
+            self.assertLess(time.monotonic()-started,1)
+            self.assertTrue(owner.failed)
+
+    def test_expiry_during_admission_write_retains_tentative_but_no_capability(self):
+        original=self.ports._write
+        def expire(root,name,raw,budget_ns):
+            ack=original(root,name,raw,budget_ns)
+            if name.startswith("admit_"):
+                previous=self.clock.sample
+                def late():
+                    sample=previous()
+                    return replace(sample,wall_ns=sample.wall_ns+self.config.horizons.observation_ns,
+                                   monotonic_ns=sample.monotonic_ns+self.config.horizons.observation_ns)
+                self.clock.sample=late
+            return ack
+        with patch.object(self.ports,"_write",side_effect=expire):
+            with self.assertRaises(a.AdapterError):self.record()
+        self.assertTrue((self.dirs["journal"]/"admit_event0").exists())
+        self.assertEqual(self.ports.admitted,{})
+
+    def test_lost_write_ack_never_creates_process_admission(self):
+        original=self.ports._write
+        def lost(root,name,raw,budget_ns):
+            result=original(root,name,raw,budget_ns)
+            if name.startswith("admit_"):raise TimeoutError("synthetic lost reply")
+            return result
+        with patch.object(self.ports,"_write",side_effect=lost):
+            with self.assertRaises(Exception):self.record()
+        self.assertEqual(self.ports.admitted,{})
+        self.assertTrue((self.dirs["journal"]/"admit_event0").exists())
+
+    def test_valid_confirmed_admission_survives_lost_readback_reply_same_process(self):
+        result=self.record();lease=self.acquire()
+        original=self.ports._read
+        def lost(root,name,limit,budget_ns,expected=None):
+            if name.startswith("admit_"):raise TimeoutError("synthetic lost readback")
+            return original(root,name,limit,budget_ns,expected)
+        try:
+            with patch.object(self.ports,"_read",side_effect=lost):
+                with self.assertRaises(TimeoutError):self.ports.independent_admission_read(self.registry.scope,"event0",max_bytes=a.MAX_BYTES,budget_ns=self.config.callback_budget_ns)
+            read=self.ports.independent_admission_read(self.registry.scope,"event0",max_bytes=a.MAX_BYTES,budget_ns=self.config.callback_budget_ns)
+            self.assertIs(type(read),a.ProcessAdmissionReadback)
+            self.assertEqual(read.raw,result["admission"])
+        finally:lease.close()
+
+    def test_plain_readback_flags_cannot_promote_v3_disk_bytes(self):
+        result=self.record();lease=self.acquire()
+        try:
+            read=self.ports.independent_admission_read(self.registry.scope,"event0",max_bytes=a.MAX_BYTES,budget_ns=self.config.callback_budget_ns)
+            with patch.object(self.ports,"independent_admission_read",return_value=a.Readback(read.raw,read.route,True,True)):
+                with self.assertRaises(a.AdapterError):self.adapter.verify_durable_readback(result["record"])
+        finally:lease.close()
+
+    def test_process_admission_binds_all_three_exact_hashes(self):
+        self.record();lease=self.acquire()
+        try:
+            path=self.dirs["journal"]/"admit_event0"
+            original=path.read_bytes();path.write_bytes(original+b" ")
+            with self.assertRaisesRegex(a.AdapterError,"admission-rebound"):
+                self.ports.independent_admission_read(self.registry.scope,"event0",max_bytes=a.MAX_BYTES,budget_ns=self.config.callback_budget_ns)
+        finally:lease.close()
+
+    def test_three_cycles_retain_complete_history_without_truncation(self):
+        results=[self.record(i) for i in range(3)]
+        checked=self.ports.verify_present(self.adapter,operation="operation2",event_id="event2")
+        self.assertEqual(checked["projection"]["history"],[a.sha(result["record"]) for result in results])
+        self.assertEqual(checked["projection"]["status"],"supported-observation")
+        self.assertEqual(len(list(self.dirs["journal"].glob("event_*"))),3)
+        lease=self.acquire(2)
+        try:
+            event=a.parse_record(results[1]["record"]);event["predecessors"]=[]
+            (self.dirs["journal"]/"event_event1").write_bytes(a.canonical(event))
+            with self.assertRaisesRegex(a.AdapterError,"fork-or-orphan"):
+                self.ports.ledger(self.registry.scope,max_records=256,max_bytes=a.MAX_LEDGER_BYTES,budget_ns=self.config.callback_budget_ns)
+        finally:lease.close()
+
+    def test_fsync_stall_is_bounded_and_never_admits_tentative_marker(self):
+        self.config=replace(self.config,callback_budget_ns=2*a.NS)
+        self.ports.config=self.config;self.adapter=a.StorageAdapter(self.config,self.ports)
+        slow=f._WORKER.replace("     os.fsync(fd)",
+            "     if q['name'].startswith('admit_'):__import__('time').sleep(5)\n     os.fsync(fd)")
+        started=time.monotonic()
+        with patch.object(f,"_WORKER",slow):
+            with self.assertRaises(a.AdapterError):self.record()
+        self.assertLess(time.monotonic()-started,15)
+        self.assertTrue((self.dirs["journal"]/"admit_event0").exists())
+        self.assertEqual(self.ports.admitted,{})
+        self.assertTrue(self.ports.failed)
+
+    def test_wall_and_elapsed_clock_reversal_are_refused(self):
+        for field in ("wall_ns","monotonic_ns"):
+            clock=f.ClockEpoch();sample=clock.sample()
+            clock.previous=replace(sample,**{field:getattr(sample,field)+10*a.NS})
+            with self.assertRaisesRegex(a.AdapterError,"clock-reversal"):clock.sample()
+
+    def test_process_capability_epoch_hashes_and_confirmed_horizon_are_checked(self):
+        result=self.record();lease=self.acquire()
+        try:
+            read=self.ports.independent_admission_read(self.registry.scope,"event0",max_bytes=a.MAX_BYTES,budget_ns=self.config.callback_budget_ns)
+            marker=a.decode(read.raw)
+            for changed in (dict(document_sha256="a"*64),dict(verification_sha256="a"*64),dict(admission_sha256="a"*64),
+                            dict(epoch="another_clock"),dict(confirmed=replace(read.confirmed,wall_ns=a.parse_ns(marker["wall_deadline"])))):
+                with patch.object(self.ports,"independent_admission_read",return_value=replace(read,**changed)):
+                    with self.assertRaises(a.AdapterError):self.adapter.verify_durable_readback(result["record"])
+            self.clock.process_epoch="another_process"
+            with self.assertRaisesRegex(a.AdapterError,"epoch"):
+                self.ports.independent_admission_read(self.registry.scope,"event0",max_bytes=a.MAX_BYTES,budget_ns=self.config.callback_budget_ns)
+        finally:lease.close()
+
+    def test_duplicate_json_keys_and_unknown_event_fields_refuse_direct_append(self):
+        result=self.record();lease=self.acquire()
+        try:
+            duplicate=result["record"].replace(b'"state":"present"',b'"state":"present","state":"present"')
+            extra=a.canonical(dict(a.parse_record(result["record"]),unknown=True))
+            for raw in (duplicate,extra):
+                with self.assertRaises(a.AdapterError):self.ports.append(self.registry.scope,"event0",raw,a.sha(result["record"]),budget_ns=self.config.callback_budget_ns)
+            artifact=a.decode(result["verification"]);artifact["unknown"]=True
+            bad=a.canonical(artifact)
+            (self.dirs["journal"]/"verify_event0").write_bytes(bad)
+            proposal=a.decode(result["admission"])
+            proposal.pop("prepared");proposal.pop("prepared_monotonic_ns")
+            proposal["profile"]="publication-input-storage-admission-v2"
+            proposal["verification_sha256"]=a.sha(bad)
+            with self.assertRaises(a.AdapterError):self.ports._check_admission(self.registry.scope,"event0",proposal,self.config.callback_budget_ns)
+        finally:lease.close()
+
+    def test_generated_multichunk_source_is_hashed_with_explicit_eof(self):
+        generated=self.entry("retained","scene","generated.bin",b"x"*(2*1024*1024+3))
+        registry=replace(self.registry,payloads=(generated,))
+        permit=replace(self.permits[0],original_identity=v1.identity(registry.original()))
+        owner=self.owner(registry=registry,permits=(permit,));adapter=a.StorageAdapter(self.config,owner)
+        result=owner.record_present(adapter,operation="operation0",event_id="large")
+        self.assertEqual(a.admit_request(a.parse_record(result["record"])["request"].encode())["original"]["payloads"][0]["bytes"],2*1024*1024+3)
+        self.assertEqual(a.sha((self.dirs["retained"]/generated.name).read_bytes()),generated.sha256)
+
+    def test_nonregular_fifo_and_released_lease_are_refused(self):
+        with self.assertRaisesRegex(a.AdapterError,"lease-required"):
+            self.ports.independent_read(self.registry.scope,"event0",max_bytes=a.MAX_BYTES,budget_ns=self.config.callback_budget_ns)
+        path=self.dirs["retained"]/self.payload.name
+        path.unlink();os.mkfifo(path,0o600)
+        with self.assertRaises(a.AdapterError):self.ports.stream_state(self.registry.scope,"master",budget_ns=self.config.callback_budget_ns)
+
+    def test_missing_verification_after_confirmation_stops_current_projection(self):
+        self.record()
+        (self.dirs["journal"]/"verify_event0").unlink()
+        with self.assertRaises(a.AdapterError):self.ports.verify_present(self.adapter,operation="operation0",event_id="event0")
+
+
+if __name__=="__main__":unittest.main()
