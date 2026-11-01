@@ -132,3 +132,9 @@ installer or credential implementation. V1 APIs and unverified authority remain
 unchanged. The existing sole storage owner must qualify and bind a real route
 for a separately authorized prospective operation; no operational adoption or
 installation follows from source/CI/merge success.
+
+The descriptor-backed first observation scope and separately versioned process-local
+admission are documented in [FILESYSTEM-OBSERVATION.md](FILESYSTEM-OBSERVATION.md).
+It accepts only supplied descriptors/permits for prospective `disposition:present`;
+mutation and settlement remain unsupported. Source/CI success is not installation
+or operational adoption.

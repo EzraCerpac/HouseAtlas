@@ -267,6 +267,27 @@ class Readback:
 
 
 @dataclass(frozen=True)
+class ProcessAdmissionReadback:
+    """V3: exact provisional disk bytes plus an uninterrupted owner capability.
+
+    confirmed is sampled AFTER marker fsync and independent readback. It is
+    deliberately not embedded in those earlier immutable bytes. The qualified
+    owner must bind this capability to the current process epoch and all three
+    hashes; disk bytes alone cannot construct it after restart.
+    """
+    raw: bytes
+    route: str
+    durable: bool
+    independent: bool
+    epoch: str
+    process_epoch: str
+    confirmed: ClockSample
+    document_sha256: str
+    verification_sha256: str
+    admission_sha256: str
+
+
+@dataclass(frozen=True)
 class Fence:
     """Local cooperating-writer sequence; not a distributed exclusion claim."""
     generation: int
@@ -312,7 +333,7 @@ class OwnerPorts(Protocol):
     def append_verification(self, scope: str, key: str, raw: bytes, *, budget_ns: int) -> WriteAck: ...
     def independent_verification_read(self, scope: str, key: str, *, max_bytes: int, budget_ns: int) -> Readback: ...
     def commit_admission(self, scope: str, key: str, proposal: bytes, *, budget_ns: int) -> WriteAck: ...
-    def independent_admission_read(self, scope: str, key: str, *, max_bytes: int, budget_ns: int) -> Readback: ...
+    def independent_admission_read(self, scope: str, key: str, *, max_bytes: int, budget_ns: int) -> Readback | ProcessAdmissionReadback: ...
     def independent_dispatch_boundary(self, scope: str, operation: str, *, max_bytes: int, budget_ns: int) -> Readback: ...
     def dispatch_under_fence(self, scope: str, operation: str, *, fence: dict,
                              intent_deadline_ns: int, elapsed_deadline_ns: int,
@@ -794,6 +815,8 @@ class StorageAdapter:
 
     def _admission(self, event, raw, verification, expected=None, events=None):
         read = self.ports.independent_admission_read(self.config.scope, event["id"], max_bytes=MAX_BYTES)
+        if type(read) is ProcessAdmissionReadback:
+            return self._process_admission(read, event, raw, verification, expected, events)
         need(type(read) is Readback and read.route == self.config.read_route and read.durable is True
              and read.independent is True, "admission-readback")
         marker = decode(read.raw)
@@ -820,6 +843,45 @@ class StorageAdapter:
              "admission-expired")
         self._admission_floor = (max(self._admission_floor[0], committed),
                                  max(self._admission_floor[1], committed_mono))
+        return read.raw
+
+    def _process_admission(self, read, event, raw, verification, expected, events):
+        need(read.route == self.config.read_route and read.durable is True and
+             read.independent is True and read.epoch == self.config.clock_source,
+             "process-admission-route")
+        token(read.process_epoch)
+        marker = decode(read.raw)
+        need(canonical(marker) == read.raw, "admission-byte-identity")
+        keys(marker, "profile event operation scope owner kind mode document_sha256 verification_sha256 registry_sha256 fence stream_seals clock_source validated validated_monotonic_ns wall_deadline elapsed_deadline_ns prepared prepared_monotonic_ns")
+        need(marker["profile"] == "publication-input-observation-admission-v3" and
+             event["kind"] == "disposition" and event["state"] == "present" and
+             event["phase"] == "observation" and event["mode"] == "observation",
+             "process-admission-scope")
+        for name in ("operation", "scope", "owner", "kind", "mode", "registry_sha256", "fence", "clock_source"):
+            need(marker[name] == event[name], "admission-binding")
+        need(marker["event"] == event["id"] and marker["document_sha256"] == read.document_sha256 == sha(raw) and
+             marker["verification_sha256"] == read.verification_sha256 == sha(verification) and
+             read.admission_sha256 == sha(read.raw) and
+             marker["stream_seals"] == decode(verification)["streams"], "admission-binding")
+        if expected is not None:
+            proposal = {k:v for k,v in marker.items() if k not in ("prepared", "prepared_monotonic_ns")}
+            proposal["profile"] = "publication-input-storage-admission-v2"
+            need(proposal == expected, "admission-binding")
+        wall, elapsed = self._deadlines(event, self._ledger() if events is None else events)
+        confirmed = read.confirmed
+        need(type(confirmed) is ClockSample and confirmed.source == read.epoch and
+             type(confirmed.monotonic_ns) is int and 0 <= confirmed.monotonic_ns < 2**63,
+             "process-admission-clock")
+        format_ns(confirmed.wall_ns)
+        need(marker["wall_deadline"] == format_ns(wall) and
+             self._decimal_ns(marker["elapsed_deadline_ns"]) == elapsed and
+             parse_ns(event["captured"]) <= parse_ns(marker["validated"]) <=
+             parse_ns(marker["prepared"]) <= confirmed.wall_ns < wall and
+             int(event["monotonic_ns"]) <= self._decimal_ns(marker["validated_monotonic_ns"]) <=
+             self._decimal_ns(marker["prepared_monotonic_ns"]) <= confirmed.monotonic_ns < elapsed,
+             "process-admission-expired")
+        self._admission_floor = (max(self._admission_floor[0], confirmed.wall_ns),
+                                 max(self._admission_floor[1], confirmed.monotonic_ns))
         return read.raw
 
     @staticmethod

@@ -419,3 +419,12 @@ compares another fresh snapshot after registry/resolver/fence callbacks. Ledger
 frontier checks remain separate. Ten generated healthy cycles exercise the
 unchanged 1,024-call bound; snapshot caching supplies no immutability authority
 beyond the qualified owner route and real held exclusion.
+
+## Narrow process-local observation implementation
+
+[FILESYSTEM-OBSERVATION.md](FILESYSTEM-OBSERVATION.md) defines the separately
+versioned v3 process-local admission result for the descriptor-backed present-only
+ports. V2 marker semantics remain unchanged. Provisional filesystem marker bytes
+contain no committed timestamp; an uninterrupted capability binds actual
+post-fsync/readback clocks, epoch and all exact hashes. Disk-only/restarted
+promotion is refused. Mutation and settlement are unimplemented.

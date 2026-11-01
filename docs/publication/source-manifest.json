@@ -41,8 +41,8 @@
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
-      "bytes": 7906,
-      "sha256": "09f8d8fb5651a8801338f9065b481b6f5b54511c9faea95c52eed4005bc4a4f4",
+      "bytes": 8162,
+      "sha256": "0e47a8e388c15ce819d50016c6ada5cf0efd971a1f7e9889ce760fbfdb8854dc",
       "owner": "core-integration"
     },
     {
@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 18393,
-      "sha256": "9460dd2ef0f2fcba5dc40d0145eddaaff72e70ce25e074b9b5ee3c1b6e199718",
+      "bytes": 19094,
+      "sha256": "9c2464299f1dab1de8a504780e6e70bf4552b91c7e14255eb904c5a8f212dbe8",
       "owner": "core-integration"
     },
     {
@@ -6418,8 +6418,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 204001,
-      "sha256": "36054a668c5963ded3e94c4847009f76ae91e78b5b5046334cbe24079e91635f",
+      "bytes": 205127,
+      "sha256": "565fab64231e7329e9b9af2fd4613137bc1626a8cbd1e5a7c855cdb72cac0738",
       "owner": "core-integration"
     },
     {
@@ -11598,8 +11598,8 @@
     {
       "path": "tools/ci/lanes.json",
       "mode": "100644",
-      "bytes": 55634,
-      "sha256": "e2898f5f7d2cb10b340391a2a2733fb85ae48c26b2cb783887a970c90448e1e5",
+      "bytes": 56682,
+      "sha256": "5fa6054031199890b6b7a3a379fcc00bcaf73d82df352239facd454f53ef8f61",
       "owner": "core-integration"
     },
     {
@@ -12086,17 +12086,24 @@
       "owner": "media"
     },
     {
+      "path": "tools/model-input-disposition/FILESYSTEM-OBSERVATION.md",
+      "mode": "100644",
+      "bytes": 13539,
+      "sha256": "bb913c288f09f1b4e66d23dd3c6b83d85017b517194c29cb7a6c31bcc077ed39",
+      "owner": "storage"
+    },
+    {
       "path": "tools/model-input-disposition/README.md",
       "mode": "100644",
-      "bytes": 8513,
-      "sha256": "4ce060c9d8533706ed1802efc09c2f9255aaf22503eee4bcc5f494661eb1078b",
+      "bytes": 8874,
+      "sha256": "b3953e36e468960f3cfbc685b8d129454aad432f9e23664d4e513d054c3fe383",
       "owner": "storage"
     },
     {
       "path": "tools/model-input-disposition/STORAGE-PROTOCOL.md",
       "mode": "100644",
-      "bytes": 28281,
-      "sha256": "2c65fbda98da5afea7927ec53f7c1dee07f57b474e38f921041efe57565d37f0",
+      "bytes": 28790,
+      "sha256": "8babf159ab1c817e481dc609e8abc8dd7dab964b54927f716b3fb9a9181ac6aa",
       "owner": "storage"
     },
     {
@@ -12109,8 +12116,15 @@
     {
       "path": "tools/model-input-disposition/storage_adapter.py",
       "mode": "100644",
-      "bytes": 67197,
-      "sha256": "7ac4b04d0dc7363812652693a9f8f647a3e135640346c9cb6c7a49dbf8787094",
+      "bytes": 70899,
+      "sha256": "a9f4f771a154cbd83adedbfdaefde030bbd8d57479e062fc1b93454804179bae",
+      "owner": "storage"
+    },
+    {
+      "path": "tools/model-input-disposition/storage_owner_ports.py",
+      "mode": "100644",
+      "bytes": 53969,
+      "sha256": "e8be226a5bd1276e98c85c4ea854af428fdf003fda89258a4f197465f076516b",
       "owner": "storage"
     },
     {
@@ -12125,6 +12139,13 @@
       "mode": "100644",
       "bytes": 67507,
       "sha256": "83deaf6a8a7997620fce889d503822221d58d5c7827559a6c387cf4f8e462084",
+      "owner": "storage"
+    },
+    {
+      "path": "tools/model-input-disposition/test_storage_owner_ports.py",
+      "mode": "100644",
+      "bytes": 38488,
+      "sha256": "90fff1cc38159045cda22a1f65b9ebf0dfe5bfc4ff921581ada3c26e23a6e22a",
       "owner": "storage"
     },
     {
