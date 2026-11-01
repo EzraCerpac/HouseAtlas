@@ -186,7 +186,10 @@ current projection or a new dependent cycle.
 Identical repeated event admission returns the original retained bytes/artifact;
 changed ID content is rejected. This is **storage idempotence only**. A new
 adapter instance consults the durable ledger: it cannot reuse an intent or
-allocate another operation to evade an unresolved dispatch. Dispatch is journaled
+allocate another operation to evade an unresolved dispatch. An intent is usable
+only while it is the current dimensional frontier. A covering reconciliation or
+newer cycle supersedes the old permit, including after restart; a delayed old
+completion cannot establish current authority either. Dispatch is journaled
 before invocation, including the crash-before-invocation window. Even when the
 effect might not have run, the adapter has no automatic retry. Effect success
 followed by completion write/readback failure is also unresolved.

@@ -810,6 +810,40 @@ class AdapterTests(unittest.TestCase):
             FakeStream.read_chunk=original
         self.assertFalse(self.o.records)
 
+    def test_reconciled_old_intent_is_not_a_reusable_dispatch_permit(self):
+        self.adapter.record_observation(self.raw,operation="observe",event_id="observation",kind="disposition",state="present",
+                                        references=self.o.evidence(operation="observe",state="present",prefix="observed"))
+        self.o.tick()
+        self.intent(operation="old",event_id="old_intent")
+        self.o.tick()
+        history=tuple(sorted(a.sha(raw) for raw in self.o.records.values()))
+        self.adapter.reconcile_operation(self.raw,operation="observe",event_id="reconcile",kind="disposition",state="present",
+                                        references=self.o.evidence(operation="observe",state="present",prefix="reconciled"),reconciles=history)
+        with self.assertRaisesRegex(a.AdapterError,"intent-superseded"):
+            self.dispatch(operation="old",event_id="old_dispatch")
+        self.o.tick()
+        self.intent(operation="replacement",event_id="replacement_intent")
+        self.o.tick()
+        self.dispatch(operation="replacement",event_id="replacement_dispatch")
+        with self.assertRaisesRegex(a.AdapterError,"intent-superseded"):
+            self.dispatch(operation="old",event_id="old_dispatch")
+        self.assertEqual(self.o.effects,1)
+        self.assertNotIn("old_dispatch",self.o.records)
+
+    def test_late_completion_after_covering_reconciliation_is_not_current_authority(self):
+        self.adapter.record_observation(self.raw,operation="observe",event_id="observation",kind="disposition",state="present",
+                                        references=self.o.evidence(operation="observe",state="present",prefix="observed"))
+        self.o.tick()
+        self.prepared()
+        self.o.tick()
+        history=tuple(sorted(a.sha(raw) for raw in self.o.records.values()))
+        self.adapter.reconcile_operation(self.raw,operation="observe",event_id="reconcile",kind="disposition",state="present",
+                                        references=self.o.evidence(operation="observe",state="present",prefix="reconciled"),reconciles=history)
+        self.o.tick()
+        with self.assertRaisesRegex(a.AdapterError,"outcome-superseded"):
+            self.outcome()
+        self.assertNotIn("complete",self.o.records)
+
     def test_pure_v1_remains_closed_to_fractional_events(self):
         document=json.loads(self.raw)
         document["events"]=[dict(id="i",operation="op",original=v1.identity(document["original"]),kind="disposition",state="removed",

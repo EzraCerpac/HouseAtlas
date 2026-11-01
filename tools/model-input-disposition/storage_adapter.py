@@ -600,6 +600,9 @@ class StorageAdapter:
                 need(not previous_operation, "operation-exists")
             elif event["phase"] == "dispatch":
                 need(len(previous_operation) == 1 and previous_operation[0]["phase"] == "intent", "dispatch-once")
+                previous_dimension = [e for _, e, _ in events if e["kind"] == event["kind"]]
+                need(previous_dimension and previous_dimension[-1]["id"] == previous_operation[0]["id"],
+                     "intent-superseded")
                 need(event["expires"] == previous_operation[0]["expires"] and not event["evidence"] and
                      event["recorded"] == event["captured"] and
                      parse_ns(previous_operation[0]["recorded"]) < parse_ns(event["recorded"]) <
@@ -608,6 +611,9 @@ class StorageAdapter:
                 need(len(previous_operation) == 2 and [e["phase"] for e in previous_operation] ==
                      ["intent", "dispatch"], "outcome-state")
                 if event["phase"] == "complete":
+                    previous_dimension = [e for _, e, _ in events if e["kind"] == event["kind"]]
+                    need(previous_dimension and previous_dimension[-1]["operation"] == event["operation"] and
+                         previous_dimension[-1]["phase"] == "dispatch", "outcome-superseded")
                     need(parse_ns(event["recorded"]) > parse_ns(previous_operation[-1]["recorded"]) and
                          event["state"] == previous_operation[0]["state"] and
                          event["fence"] == previous_operation[0]["fence"], "unresolved-intent")
@@ -855,6 +861,8 @@ class StorageAdapter:
                     old_ids = {r["id"] for _, e, _ in relevant for r in e["evidence"]}
                     need(all(r["id"] not in old_ids for r in references), "reconciliation-readback")
                 if phase == "complete":
+                    need(relevant and relevant[-1][1]["operation"] == operation and
+                         relevant[-1][1]["phase"] == "dispatch", "outcome-superseded")
                     intent = next(e for e in prior if e["phase"] == "intent")
                     dispatch = next(e for e in prior if e["phase"] == "dispatch")
                     need(recorded > parse_ns(intent["recorded"]) and
@@ -904,6 +912,8 @@ class StorageAdapter:
             prior = [e for _, e, _ in events if e["operation"] == operation]
             need(len(prior) == 1 and prior[0]["phase"] == "intent", "dispatch-once")
             intent = prior[0]
+            relevant = [e for _, e, _ in events if e["kind"] == kind]
+            need(relevant and relevant[-1]["id"] == intent["id"], "intent-superseded")
             need(intent["request"] == raw.decode() and intent["kind"] == kind and
                  intent["state"] == state and intent["fence"] == fence, "pinned-state-changed")
             now = self._clock(events)
