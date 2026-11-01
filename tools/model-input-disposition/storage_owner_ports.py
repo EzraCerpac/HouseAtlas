@@ -4,14 +4,16 @@ All filesystem locations and qualification assertions are supplied capabilities.
 No path, host, credential, installer or retrospective receipt discovery exists.
 V3 admission is process-local: provisional disk bytes alone never admit anything.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import base64
+import array
 import hashlib
 import json
 from functools import wraps
 import os
 import selectors
 import signal
+import socket
 import stat
 import struct
 import subprocess
@@ -43,8 +45,8 @@ def basename(value):
 # output. A reader opens the entry itself and retains its descriptor for streams.
 # Parent bounds every frame and deadline and kills/reaps its own process only.
 _WORKER = r'''
-import os,sys,json,struct,stat,base64,fcntl
-root=int(sys.argv[1]); lock=int(sys.argv[2]); opened=None
+import os,sys,json,struct,stat,base64,fcntl,socket,array,time,hashlib
+root=int(sys.argv[1]); control=int(sys.argv[2]); lock=None; opened=None
 fields=("st_dev","st_ino","st_mode","st_uid","st_gid","st_nlink","st_size","st_mtime_ns","st_ctime_ns")
 def take(n):
  b=b""
@@ -73,10 +75,21 @@ try:
    if op=="root":
     out=json.dumps([getattr(os.fstat(root),k) for k in fields]).encode()
    elif op=="lock":
-    st=os.fstat(lock)
-    if not stat.S_ISREG(st.st_mode) or (st.st_uid,st.st_gid,stat.S_IMODE(st.st_mode),st.st_nlink)!=tuple(q["owner"]):raise ValueError()
-    fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB);out=b""
+    if lock is not None:raise ValueError()
+    candidate=os.open(name(q["name"]),os.O_RDWR|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC,dir_fd=root)
+    try:
+     st=os.fstat(candidate)
+     if not stat.S_ISREG(st.st_mode) or [getattr(st,k) for k in fields]!=q["expected"] or (st.st_uid,st.st_gid,stat.S_IMODE(st.st_mode),st.st_nlink)!=tuple(q["owner"]):raise ValueError()
+     fcntl.flock(candidate,fcntl.LOCK_EX|fcntl.LOCK_NB)
+     lock=candidate;candidate=None;out=b""
+     if control<0:raise ValueError()
+     channel=socket.socket(fileno=control)
+     channel.sendmsg([b"L"],[(socket.SOL_SOCKET,socket.SCM_RIGHTS,array.array("i",[lock]))])
+     channel.close();control=-1
+    finally:
+     if candidate is not None:os.close(candidate)
    elif op=="unlock":
+    if lock is None:raise ValueError()
     fcntl.flock(lock,fcntl.LOCK_UN);out=b""
    elif op=="list":
     entries=[]
@@ -117,6 +130,10 @@ try:
    elif op=="write":
     data=base64.b64decode(q["data"],validate=True)
     if len(data)>262144:raise ValueError()
+    grant=q["grant"];wall=time.time_ns();elapsed=time.monotonic_ns()
+    if (grant["kind"],grant["state"],grant["phase"])!=("disposition","present","observation") or grant["target"] not in grant["allowed_targets"]:raise ValueError()
+    if not grant["not_before"]<=wall<grant["expires"] or wall<grant["sampled_wall"] or not grant["sampled_elapsed"]<=elapsed<grant["elapsed_deadline"]:raise ValueError()
+    if hashlib.sha256(data).hexdigest()!=q["sha256"]:raise ValueError()
     fd=openfile(q["name"],True)
     try:
      while data:
@@ -135,6 +152,7 @@ try:
 except Exception:pass
 finally:
  if opened is not None:os.close(opened)
+ if lock is not None:os.close(lock)
 '''
 
 
@@ -159,15 +177,46 @@ def bounded_port(method):
 
 class _Child:
     """Bounded owned local process. Timeout is uncertainty, not cancellation proof."""
-    def __init__(self, root_fd, lock_fd, poison, script=None):
+    def __init__(self, root_fd, poison, script=None, *, keeper=False, held_fd=None):
         self.poison = poison
-        self.p = subprocess.Popen([sys.executable, "-I", "-c", _WORKER if script is None else script,
-                                   str(root_fd), str(lock_fd)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                  stderr=subprocess.DEVNULL, close_fds=True,
-                                  pass_fds=tuple({root_fd, lock_fd}), env={"LANG":"C"}, start_new_session=True)
+        parent,child=socket.socketpair() if keeper else (None,None)
+        self.control=parent
+        passed=[root_fd]
+        if child is not None:passed.append(child.fileno())
+        if held_fd is not None:passed.append(held_fd)
+        try:
+            self.p = subprocess.Popen([sys.executable, "-I", "-c", _WORKER if script is None else script,
+                                       str(root_fd),str(child.fileno() if child is not None else -1)],
+                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                      stderr=subprocess.DEVNULL, close_fds=True,
+                                      pass_fds=tuple(passed), env={"LANG":"C"}, start_new_session=True)
+        except Exception:
+            if parent is not None:parent.close()
+            raise
+        finally:
+            if child is not None:child.close()
         os.set_blocking(self.p.stdin.fileno(), False)
         os.set_blocking(self.p.stdout.fileno(), False)
         self.closed = False
+
+    def take_lock(self, budget_ns):
+        need(self.control is not None,"lock-transfer")
+        received=[]
+        try:
+            self.control.settimeout(budget_ns/a.NS)
+            raw,ancillary,flags,_=self.control.recvmsg(1,socket.CMSG_SPACE(4*array.array("i").itemsize))
+            for level,kind,data in ancillary:
+                need(level==socket.SOL_SOCKET and kind==socket.SCM_RIGHTS,"lock-transfer")
+                values=array.array("i");values.frombytes(data);received.extend(values)
+            need(raw==b"L" and not flags and len(received)==1,"lock-transfer")
+            os.set_inheritable(received[0],False)
+            return received.pop()
+        except Exception:
+            self.poison()
+            for fd in received:os.close(fd)
+            raise a.AdapterError("filesystem-lock-transfer") from None
+        finally:
+            self.control.close();self.control=None
 
     def exchange(self, request, *, limit, budget_ns):
         need(not self.closed and type(limit) is int and 0 <= limit <= FRAME_LIMIT and
@@ -201,29 +250,33 @@ class _Child:
                                 return bytes(output[5:])
         except Exception:
             self.poison()
-            self.abort()
+            self.abort(min(50_000_000,max(0,deadline-time.monotonic_ns())))
             raise a.AdapterError("filesystem-io-uncertain") from None
 
-    def abort(self):
+    def abort(self, cleanup_ns=50_000_000):
         if self.closed:return
         self.closed=True
         try:
             self.p.kill()
-            self.p.wait(timeout=0)
+            self.p.wait(timeout=cleanup_ns/a.NS)
         except (OSError,subprocess.TimeoutExpired):
             self.poison()
         finally:
             self.p.stdin.close();self.p.stdout.close()
+            if self.control is not None:self.control.close();self.control=None
 
     def close(self, budget_ns):
         if self.closed:return
+        deadline=time.monotonic_ns()+budget_ns
         try:
             self.exchange({"op":"close"},limit=0,budget_ns=budget_ns)
-            self.p.wait(timeout=min(.2,budget_ns/a.NS))
+            remaining=deadline-time.monotonic_ns()
+            need(remaining>0,"close-timeout")
+            self.p.wait(timeout=remaining/a.NS)
         except Exception:
             self.poison()
             raise a.AdapterError("filesystem-close-uncertain") from None
-        finally:self.abort()
+        finally:self.abort(min(50_000_000,max(0,deadline-time.monotonic_ns())))
 
 
 @dataclass(frozen=True)
@@ -260,12 +313,21 @@ class Entry:
 
 
 @dataclass(frozen=True)
+class LockCapability:
+    directory_fd: int
+    entry: Entry
+
+    def __post_init__(self):
+        need(type(self.directory_fd) is int and self.directory_fd>2 and type(self.entry) is Entry,"lock-capability")
+
+
+@dataclass(frozen=True)
 class PrivateRoots:
     journal_dir_fd: int
     evidence_dir_fd: int
     registry_dir_fd: int
     retained_payload_dir_fd: int
-    lock_fd: int
+    lock: LockCapability
     directory_requirements: Requirements
     file_requirements: Requirements
     cooperating_namespace_exclusive: bool
@@ -371,23 +433,39 @@ class Stream:
             need(fields==self.entry.fields,"backing")
         finally:
             if self.owner.deadline is not None and time.monotonic_ns()>=self.owner.deadline:
-                self.owner._poison();self.child.abort()
+                self.owner._poison();self.child.abort(0)
             else:self.child.close(self.owner._remaining(self.owner.config.callback_budget_ns))
 
 
 class HeldLease:
-    def __init__(self, owner, operation, child):
+    def __init__(self, owner, operation, child, lock_fd):
         self.owner,self.operation,self.child=owner,operation,child
+        self.lock_fd=lock_fd
+        self.closed=False
 
     def snapshot(self):
+        need(not self.closed and self.owner.lease is self,"stale-lease")
         return self.owner._fence()
 
     def close(self):
-        owner=self.owner
-        if owner.borrowed:
-            owner.borrowed=False
-            return
-        owner._release()
+        if self.closed:return
+        need(self.owner.lease is self,"stale-lease")
+        self.owner._release(self)
+
+
+class BorrowedLease:
+    def __init__(self, held):
+        self.held=held;self.closed=False
+
+    def snapshot(self):
+        need(not self.closed,"stale-lease")
+        return self.held.snapshot()
+
+    def close(self):
+        if self.closed:return
+        owner=self.held.owner
+        need(owner.lease is self.held and not self.held.closed,"stale-lease")
+        self.closed=True;owner.borrowed=False
 
 
 class FilesystemObservationPorts:
@@ -410,29 +488,57 @@ class FilesystemObservationPorts:
         need(type(roots.file_requirements) is Requirements and type(roots.directory_requirements) is Requirements and
              (roots.file_requirements.uid,roots.file_requirements.gid)==(os.geteuid(),os.getegid()) and
              roots.file_requirements.mode==0o600,"writer-identity")
+        need(type(roots.lock) is LockCapability,"lock-capability")
+        supplied=(roots.journal_dir_fd,roots.evidence_dir_fd,roots.registry_dir_fd,roots.retained_payload_dir_fd,roots.lock.directory_fd)
+        need(all(type(fd) is int and fd>2 for fd in supplied),"descriptor")
+        duplicated=[]
+        try:
+            for fd in supplied:duplicated.append(os.dup(fd))
+        except Exception:
+            for fd in duplicated:os.close(fd)
+            raise a.AdapterError("filesystem-descriptor-duplication") from None
+        roots=replace(roots,journal_dir_fd=duplicated[0],evidence_dir_fd=duplicated[1],registry_dir_fd=duplicated[2],
+                      retained_payload_dir_fd=duplicated[3],lock=LockCapability(duplicated[4],roots.lock.entry))
         self.roots,self.registry,self.clock,self.config=roots,registry,clock,config
+        self._owned_fds=tuple(duplicated);self._root_ids={};self.closed=False
         self.permits={p.operation:p for p in permits};self.pid=os.getpid()
         self.lease=None;self.borrowed=False;self.borrow_available=False;self.borrow_alias=False;self.failed=False
         self.admitted={};self.references={};self.children=[];self.observations={};self.deadline=None
-        root_ids=[]
-        for fd in (roots.journal_dir_fd,roots.evidence_dir_fd,roots.registry_dir_fd,roots.retained_payload_dir_fd):
-            need(type(fd) is int and fd>2,"descriptor")
-            fields=tuple(json.loads(self._io(fd,{"op":"root"},1024,config.callback_budget_ns)))
-            roots.directory_requirements.check(fields,True);root_ids.append(fields[:2])
-        need(len(set(root_ids))==4 and type(roots.lock_fd) is int and roots.lock_fd>2 and roots.lock_fd not in (roots.journal_dir_fd,roots.evidence_dir_fd,roots.registry_dir_fd,roots.retained_payload_dir_fd),"root-alias")
+        try:
+            for fd in self._owned_fds:self._io(fd,{"op":"root"},1024,config.callback_budget_ns)
+            need(len({self._root_ids[fd][:2] for fd in self._owned_fds[:4]})==4,"root-alias")
+        except Exception:
+            for child in self.children:child.abort()
+            for fd in self._owned_fds:os.close(fd)
+            self._owned_fds=();self.closed=True
+            raise
 
     def _poison(self):self.failed=True
 
-    def _valid(self):need(os.getpid()==self.pid and not self.failed,"uncertain-or-restarted")
+    def _valid(self):need(os.getpid()==self.pid and not self.failed and not self.closed,"uncertain-or-restarted")
 
     def _held(self):
         self._valid();need(self.lease is not None,"lease-required")
+        if self.lease.child.p.poll() is not None:
+            self._poison();raise a.AdapterError("filesystem-lease-keeper-lost")
 
-    def _child(self, root):
+    def _child(self, root, *, lock_keeper=False):
+        need(root in self._owned_fds,"unowned-descriptor")
         self.children=[c for c in self.children if c.p.poll() is None]
         need(len(self.children)<64,"children-limit")
-        child=_Child(root,self.roots.lock_fd,self._poison)
+        if self.lease is not None:self._held()
+        child=_Child(root,self._poison,keeper=lock_keeper,
+                     held_fd=self.lease.lock_fd if self.lease is not None else None)
         self.children.append(child)
+        try:
+            fields=tuple(json.loads(child.exchange({"op":"root"},limit=1024,budget_ns=self._remaining(self.config.callback_budget_ns))))
+            self.roots.directory_requirements.check(fields,True)
+            identity=fields[:5]
+            need(root not in self._root_ids or self._root_ids[root]==identity,"root-identity")
+            self._root_ids[root]=identity
+        except Exception:
+            self._poison();child.abort(0 if self.deadline is not None and time.monotonic_ns()>=self.deadline else 50_000_000)
+            raise
         return child
 
     def _remaining(self, budget_ns):
@@ -443,10 +549,13 @@ class FilesystemObservationPorts:
     def _io(self, root, command, limit, budget_ns):
         self._valid()
         child=self._child(root)
-        try:return child.exchange(command,limit=limit,budget_ns=self._remaining(budget_ns))
+        try:
+            if command["op"]=="write":
+                command=dict(command,grant=self._write_authorization(root))
+            return child.exchange(command,limit=limit,budget_ns=self._remaining(budget_ns))
         finally:
             if self.deadline is not None and time.monotonic_ns()>=self.deadline:
-                self._poison();child.abort()
+                self._poison();child.abort(0)
             else:child.close(self._remaining(budget_ns))
 
     def _read(self, root, name, limit, budget_ns, expected=None):
@@ -464,10 +573,25 @@ class FilesystemObservationPorts:
 
     def _write(self, root, name, raw, budget_ns):
         self._held();need(type(raw) is bytes and len(raw)<=a.MAX_BYTES,"write-limit")
-        self._io(root,{"op":"write","name":basename(name),"data":base64.b64encode(raw).decode("ascii")},0,budget_ns)
+        self._write_authorization(root)
+        self._io(root,{"op":"write","name":basename(name),"data":base64.b64encode(raw).decode("ascii"),"sha256":a.sha(raw)},0,budget_ns)
         actual=self._read(root,name,a.MAX_BYTES,budget_ns)
         need(actual==raw,"write-readback")
         return a.WriteAck(self.config.write_route,True)
+
+    def _write_authorization(self, root):
+        self._held()
+        permit=self._permit(self.lease.operation)
+        target="journal" if root==self.roots.journal_dir_fd else "evidence" if root==self.roots.evidence_dir_fd else None
+        need(target in permit.allowed_targets,"write-target")
+        now=self.clock.sample()
+        need(permit.not_before_ns<=now.wall_ns<permit.expires_ns,"authorization")
+        elapsed=now.monotonic_ns+permit.expires_ns-now.wall_ns
+        if self.deadline is not None:elapsed=min(elapsed,self.deadline)
+        return {"scope":permit.scope,"owner":permit.owner,"operation":permit.operation,"original":permit.original_identity,
+                "epoch":permit.epoch,"issuer":permit.issuer,"target":target,"allowed_targets":permit.allowed_targets,
+                "kind":"disposition","state":"present","phase":"observation","not_before":permit.not_before_ns,
+                "expires":permit.expires_ns,"sampled_wall":now.wall_ns,"sampled_elapsed":now.monotonic_ns,"elapsed_deadline":elapsed}
 
     def _permit(self, operation):
         self._valid();a.token(operation)
@@ -493,12 +617,16 @@ class FilesystemObservationPorts:
             self._permit(self.lease.operation)
             need(self.borrow_available and not self.borrowed and
                  (self.lease.operation==operation or (operation=="read_projection" and self.borrow_alias)),"nested-lock")
-            self.borrow_available=False;self.borrowed=True;return self.lease
+            self.borrow_available=False;self.borrowed=True;return BorrowedLease(self.lease)
         self._permit(operation)
-        child=self._child(self.roots.journal_dir_fd)
+        child=self._child(self.roots.lock.directory_fd,lock_keeper=True)
         req=self.roots.file_requirements
-        child.exchange({"op":"lock","owner":[req.uid,req.gid,req.mode,req.links]},limit=0,budget_ns=budget_ns)
-        self.lease=HeldLease(self,operation,child)
+        lock=self.roots.lock.entry
+        need(lock.requirements==req,"lock-ownership")
+        child.exchange({"op":"lock","name":lock.name,"expected":lock.fields,"owner":[req.uid,req.gid,req.mode,req.links]},
+                       limit=0,budget_ns=self._remaining(budget_ns))
+        lock_fd=child.take_lock(self._remaining(budget_ns))
+        self.lease=HeldLease(self,operation,child,lock_fd)
         try:
             anchor=a.canonical({"profile":"filesystem-observation-scope-v1","scope":scope,"owner":self.registry.owner,
                                 "epoch":self.clock.source,"process_epoch":self.clock.process_epoch,"original":v1.identity(self.registry.original())})
@@ -511,14 +639,18 @@ class FilesystemObservationPorts:
         except Exception:
             self._release();raise
 
-    def _release(self):
+    def _release(self, expected=None):
         lease=self.lease
         if lease is None:return
+        need(expected is None or expected is lease,"stale-lease")
+        if self.borrowed:
+            self._poison()
+            if sys.exc_info()[0] is None:raise a.AdapterError("filesystem-borrowed-lease-active")
+            return
         if any(c is not lease.child and c.p.poll() is None for c in self.children):
             self._poison()
             if sys.exc_info()[0] is None:raise a.AdapterError("filesystem-unreaped-child")
             return
-        self.lease=None;self.borrowed=self.borrow_available=self.borrow_alias=False
         original=sys.exc_info()[0] is not None
         try:
             lease.child.exchange({"op":"unlock"},limit=0,budget_ns=self.config.callback_budget_ns)
@@ -526,6 +658,24 @@ class FilesystemObservationPorts:
         except Exception:
             self._poison()
             if not original:raise
+        finally:
+            if lease.child.p.poll() is not None:
+                os.close(lease.lock_fd)
+                lease.closed=True;self.lease=None
+                self.borrowed=self.borrow_available=self.borrow_alias=False
+
+    def close(self):
+        """Close only owned duplicates after actual child/lease termination."""
+        if self.closed:return
+        need(os.getpid()==self.pid,"epoch")
+        if self.lease is not None and self.lease.child.p.poll() is not None:
+            os.close(self.lease.lock_fd)
+            self.lease.closed=True;self.lease=None
+        if self.lease is not None:self._release(self.lease)
+        if self.lease is not None or any(c.p.poll() is None for c in self.children):
+            self._poison();raise a.AdapterError("filesystem-unreaped-child")
+        for fd in self._owned_fds:os.close(fd)
+        self._owned_fds=();self.closed=True
 
     @bounded_port
     def _fence(self):
@@ -785,13 +935,16 @@ class FilesystemObservationPorts:
             result=adapter.record_observation(request,operation=operation,event_id=event_id,kind="disposition",state="present",references=tuple(refs))
             need(not self.borrowed,"borrowed-lease")
             return result
-        finally:self._release()
+        except Exception:
+            if event_id not in self.admitted:self._poison()
+            raise
+        finally:self._release(lease)
 
     def verify_present(self, adapter, *, operation, event_id):
         """Explicit same-process read capability; no inferred operation owner."""
         need(type(adapter) is a.StorageAdapter and adapter.config==self.config,"adapter")
         self._permit(operation)
-        self.try_acquire(self.registry.scope,operation,budget_ns=self.config.callback_budget_ns)
+        lease=self.try_acquire(self.registry.scope,operation,budget_ns=self.config.callback_budget_ns)
         try:
             raw=self.independent_read(self.registry.scope,event_id,max_bytes=a.MAX_BYTES,budget_ns=self.config.callback_budget_ns).raw
             need(a.parse_record(raw)["operation"]==operation,"operation")
@@ -799,4 +952,4 @@ class FilesystemObservationPorts:
             self.borrow_available=self.borrow_alias=True
             projection=adapter.project_current(kind="disposition")
             return {"durable":durable,"projection":projection}
-        finally:self._release()
+        finally:self._release(lease)

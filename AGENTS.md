@@ -272,7 +272,7 @@ These in-memory checks perform no actual custody operation, installation,
 transport, credential access or operational adoption; the existing storage owner
 must separately qualify the concrete route, clock continuity and fence semantics.
 
-The same ordinary-core job also runs the 38 disposable methods in
+The same ordinary-core job also runs the 43 disposable methods in
 `tools/model-input-disposition/test_storage_owner_ports.py`. Generated temporary
 directories and owned isolated Python children check supplied descriptors,
 streaming pins, explicit present-only permits, prospective journal completeness,

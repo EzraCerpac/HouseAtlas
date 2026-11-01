@@ -18,10 +18,14 @@ The caller supplies `PrivateRoots`, `FrozenRegistry`, `OperationPermit` objects,
 descriptors read-only; an admitted observation creates its prospective namespace.
 
 `PrivateRoots` contains already-open distinct journal, evidence, registry and
-retained-payload directory descriptors, plus the existing unlocked lock descriptor.
-Descriptors cannot alias standard I/O. Deliberate `Requirements` bind exact
-uid/gid/mode and regular-file link count. The library changes no permissions,
-discovers no roots and accepts no request-supplied path.
+retained-payload directory descriptors, plus an explicit `LockCapability`: the
+already-open directory descriptor and registered entry for the existing lock.
+No lock path is discovered. Descriptors cannot alias standard I/O. Deliberate `Requirements` bind exact
+uid/gid/mode and regular-file link count. The library duplicates and owns those capabilities, pins directory identity and
+rechecks it before child I/O. Caller close/reuse of the supplied descriptor numbers
+cannot redirect a later write. `close()` releases only the owned duplicates after
+terminal child/lease handling. The library changes no permissions, discovers no
+roots and accepts no request-supplied path.
 
 Two supplied qualification assertions are mandatory: the admitted namespace is
 exclusive to cooperating writers using the actual lock, and retained source
@@ -66,7 +70,14 @@ separately permitted prospective operation. Tests use generated disposable roots
 `record_present` acquires the existing nonblocking flock once, checks actual
 manifest/payload bytes through bounded streams, captures new role-specific
 evidence, persists it and lends its exact held lease to one adapter observation.
-Helpers never reacquire flock; other nested acquisition refuses. `verify_present`
+The keeper opens an independent no-follow lock description through the supplied
+capability, so two instances or aliases cannot treat a shared open-file
+description as two successful acquisitions. Local descriptor passing lends only
+that lease description to its parent and active helpers; helpers never flock it.
+It remains held while any owned helper is genuinely unreaped, including keeper
+loss or parent interruption. No capability from another lease can be unlocked.
+Other nested acquisition refuses; borrowed views are one-shot and real/stale
+lease close is identity-bound and idempotent. `verify_present`
 explicitly binds the read operation before lending the held lease to projection.
 
 Lease snapshots read actual protected pins and bind the supplied cooperating
@@ -168,3 +179,18 @@ Existing ordinary CI uses generated temporary directories and owned local child
 processes only. Actual route durability, actor coverage, clock continuity,
 representative throughput and independent execution still need qualification by
 the sole storage owner. Source/CI/merge success leaves operational adoption open.
+
+Every scope/event/verification/evidence/admission write revalidates the exact
+active operation permit and allowed target both before worker startup and after
+its root check. The child verifies the delegated wall/elapsed expiry and approved
+byte hash immediately before exclusive creation. This admits the write attempt,
+not an atomic durable transaction: an already admitted write can outlive expiry
+and remain uncertain, but cannot authorize another role or marker write. Normal
+disposable fixtures use explicit sixty-second headroom; dedicated timeout cases
+retain short reader/write/close bounds. Those are test settings, not installed
+operational defaults.
+
+A failed observation without an established confirmation poisons its owner epoch;
+partial evidence cannot be bypassed by choosing another operation ID. Artifacts
+remain intact for reviewed recovery. A genuinely established confirmation is not
+erased by a lost later reply, though unavailable readback still blocks authority.
