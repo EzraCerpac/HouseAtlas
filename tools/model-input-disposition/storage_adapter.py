@@ -313,10 +313,11 @@ class OwnerPorts(Protocol):
     def independent_verification_read(self, scope: str, key: str, *, max_bytes: int, budget_ns: int) -> Readback: ...
     def commit_admission(self, scope: str, key: str, proposal: bytes, *, budget_ns: int) -> WriteAck: ...
     def independent_admission_read(self, scope: str, key: str, *, max_bytes: int, budget_ns: int) -> Readback: ...
+    def independent_dispatch_boundary(self, scope: str, operation: str, *, max_bytes: int, budget_ns: int) -> Readback: ...
     def dispatch_under_fence(self, scope: str, operation: str, *, fence: dict,
                              intent_deadline_ns: int, elapsed_deadline_ns: int,
                              clock_source: str, registry_sha256: str,
-                             dispatch_sha256: str, stream_seals: dict, effect, budget_ns: int): ...
+                             dispatch_sha256: str, stream_seals: dict, predecessor_proofs: dict, effect, budget_ns: int): ...
 
 
 @dataclass(frozen=True)
@@ -617,6 +618,8 @@ class StorageAdapter:
                     previous_dimension = [e for _, e, _ in events if e["kind"] == event["kind"]]
                     need(previous_dimension and previous_dimension[-1]["operation"] == event["operation"] and
                          previous_dimension[-1]["phase"] == "dispatch", "outcome-superseded")
+                    need(parse_ns(event["recorded"]) > self._dispatch_cut(
+                        [(h, e, r) for h, e, r in events if e["operation"] == event["operation"]]), "unresolved-dispatch")
                     need(parse_ns(event["recorded"]) > parse_ns(previous_operation[-1]["recorded"]) and
                          event["state"] == previous_operation[0]["state"] and
                          event["fence"] == previous_operation[0]["fence"], "unresolved-intent")
@@ -631,6 +634,8 @@ class StorageAdapter:
                 covered = [e for _, e, _ in events if e["kind"] == event["kind"]]
                 need(all(parse_ns(event["recorded"]) > max(parse_ns(e["recorded"]), parse_ns(e["captured"]))
                          for e in covered), "reconciliation-stale")
+                need(parse_ns(event["recorded"]) > self._dispatch_cut(
+                    [(h, e, r) for h, e, r in events if e["kind"] == event["kind"]]), "reconciliation-dispatch-cut")
                 need(all(ref["id"] not in {r["id"] for e in covered for r in e["evidence"]}
                          for ref in event["evidence"]), "reconciliation-readback")
             if event["phase"] not in ("intent", "dispatch"):
@@ -678,10 +683,10 @@ class StorageAdapter:
         need(type(read) is Readback and read.route == self.config.read_route and read.durable is True
              and read.independent is True and read.raw == raw and sha(read.raw) == sha(raw), "readback")
 
-    def _read_record(self, raw):
+    def _read_record(self, raw, events=None):
         event = parse_record(raw)
         need(event["scope"] == self.config.scope and event["owner"] == self.config.owner, "ledger-scope")
-        need(any(saved == raw for _, _, saved in self._ledger()), "record-not-retained")
+        need(any(saved == raw for _, _, saved in (self._ledger() if events is None else events)), "record-not-retained")
         read = self.ports.independent_read(self.config.scope, event["id"], max_bytes=MAX_BYTES)
         need(type(read) is Readback and read.route == self.config.read_route and read.durable is True
              and read.independent is True and read.raw == raw, "readback")
@@ -695,9 +700,9 @@ class StorageAdapter:
         self._clock(self._ledger())
         return decode(artifact)["document"]
 
-    def _existing(self, raw):
+    def _existing(self, raw, events=None):
         event = parse_record(raw)
-        document = self._read_record(raw)
+        document = self._read_record(raw, events=events)
         read = self.ports.independent_verification_read(self.config.scope, event["id"], max_bytes=MAX_BYTES)
         need(type(read) is Readback and read.route == self.config.read_route and read.durable is True
              and read.independent is True, "verification-missing")
@@ -740,7 +745,7 @@ class StorageAdapter:
                  ref["route"] in self.config.reference_routes and ref["provenance"] == self.config.registry_provenance and
                  type(ref["bytes"]) is int and 0 <= ref["bytes"] <= MAX_BYTES and
                  parse_ns(ref["recorded"]) <= parse_ns(event["captured"]), "verification-changed")
-        self._admission(event, raw, read.raw)
+        self._admission(event, raw, read.raw, events=events)
         return read.raw
 
     def _deadlines(self, event, events):
@@ -757,7 +762,7 @@ class StorageAdapter:
         need(type(value) is str and re.fullmatch(r"0|[1-9][0-9]{0,19}", value) and int(value) < 2**64, "clock")
         return int(value)
 
-    def _admission(self, event, raw, verification, expected=None):
+    def _admission(self, event, raw, verification, expected=None, events=None):
         read = self.ports.independent_admission_read(self.config.scope, event["id"], max_bytes=MAX_BYTES)
         need(type(read) is Readback and read.route == self.config.read_route and read.durable is True
              and read.independent is True, "admission-readback")
@@ -773,7 +778,7 @@ class StorageAdapter:
         if expected is not None:
             need({k:v for k,v in marker.items() if k not in ("committed", "committed_monotonic_ns")} == expected,
                  "admission-binding")
-        wall_deadline, elapsed_deadline = self._deadlines(event, self._ledger())
+        wall_deadline, elapsed_deadline = self._deadlines(event, self._ledger() if events is None else events)
         validated, committed = parse_ns(marker["validated"]), parse_ns(marker["committed"])
         validated_mono, committed_mono = (self._decimal_ns(marker[k]) for k in
                                           ("validated_monotonic_ns", "committed_monotonic_ns"))
@@ -785,6 +790,41 @@ class StorageAdapter:
         self._admission_floor = (max(self._admission_floor[0], committed),
                                  max(self._admission_floor[1], committed_mono))
         return read.raw
+
+    def _proofs(self, events):
+        proofs = {}
+        for _, event, raw in self._active_history(events):
+            verification = self._existing(raw, events=events)
+            admission = self._admission(event, raw, verification, events=events)
+            proofs[event["id"]] = {"record": sha(raw), "verification": sha(verification),
+                                    "admission": sha(admission)}
+        return proofs
+
+    def _dispatch_cut(self, events):
+        # Admission precedes invocation: it is NOT proof that an effect settled.
+        # The qualified owner supplies an independently retained boundary only
+        # after the attempt is settled/quiescent under its real exclusion.
+        cut = -1
+        for _, event, raw in events:
+            if event["phase"] != "dispatch":
+                continue
+            verification = self._existing(raw, events=events)
+            admission = decode(self._admission(event, raw, verification, events=events))
+            read = self.ports.independent_dispatch_boundary(self.config.scope, event["operation"], max_bytes=MAX_BYTES)
+            need(type(read) is Readback and read.route == self.config.read_route and
+                 read.durable is True and read.independent is True, "dispatch-boundary")
+            proof = decode(read.raw)
+            keys(proof, "profile scope owner operation kind dispatch_sha256 registry_sha256 fence clock_source settled settled_monotonic_ns status")
+            need(proof["profile"] == "publication-input-storage-dispatch-boundary-v2" and
+                 proof["status"] == "settled" and proof["dispatch_sha256"] == sha(raw) and
+                 all(proof[k] == event[k] for k in ("scope", "owner", "operation", "kind", "registry_sha256", "fence", "clock_source")),
+                 "dispatch-boundary")
+            settled = parse_ns(proof["settled"])
+            need(settled >= parse_ns(admission["committed"]) and
+                 self._decimal_ns(proof["settled_monotonic_ns"]) >= self._decimal_ns(admission["committed_monotonic_ns"]),
+                 "dispatch-boundary")
+            cut = max(cut, settled)
+        return cut
 
     def _active_history(self, events):
         cut = max((i for i, (_, e, _) in enumerate(events) if e["phase"] == "reconcile"), default=0)
@@ -934,6 +974,7 @@ class StorageAdapter:
                 if phase == "reconcile":
                     need(all(recorded > max(parse_ns(e["recorded"]), parse_ns(e["captured"]))
                              for _, e, _ in relevant), "reconciliation-stale")
+                    need(recorded > self._dispatch_cut(relevant), "reconciliation-dispatch-cut")
                     old_ids = {r["id"] for _, e, _ in relevant for r in e["evidence"]}
                     need(all(r["id"] not in old_ids for r in references), "reconciliation-readback")
                 if phase == "complete":
@@ -941,6 +982,8 @@ class StorageAdapter:
                          relevant[-1][1]["phase"] == "dispatch", "outcome-superseded")
                     intent = next(e for e in prior if e["phase"] == "intent")
                     dispatch = next(e for e in prior if e["phase"] == "dispatch")
+                    need(recorded > self._dispatch_cut(
+                        [(h, e, r) for h, e, r in relevant if e["operation"] == operation]), "unresolved-dispatch")
                     need(recorded > parse_ns(intent["recorded"]) and
                          recorded > parse_ns(dispatch["recorded"]), "unresolved-intent")
                     # An operation outliving its intent needs explicit read-only
@@ -995,7 +1038,7 @@ class StorageAdapter:
             now = self._clock(events)
             need(parse_ns(intent["recorded"]) < now.wall_ns < parse_ns(intent["expires"]), "intent-expired")
             intent_raw = next(r for _, e, r in events if e["id"] == intent["id"])
-            self._existing(intent_raw)
+            self._proofs([(h, e, r) for h, e, r in events if e["kind"] == kind])
             # Persist a distinct dispatch marker while retaining the intent.
             event = dict(intent, id=event_id, phase="dispatch", recorded=format_ns(now.wall_ns),
                          captured=format_ns(now.wall_ns), monotonic_ns=str(now.monotonic_ns),
@@ -1005,7 +1048,9 @@ class StorageAdapter:
             need(self._fence(lease) == fence, "fence-changed")
             _doc, registry = self._request(raw, operation, kind, state, "mutation")
             need(registry == intent["registry_sha256"], "registry-changed")
-            final_clock = self._clock(self._ledger())
+            retained = self._ledger()
+            predecessor_proofs = self._proofs([(h, e, r) for h, e, r in retained if e["kind"] == kind])
+            final_clock = self._clock(retained)
             elapsed_deadline = int(intent["monotonic_ns"]) + self.config.horizons.intent_ns
             need(final_clock.wall_ns < parse_ns(intent["expires"]) and
                  final_clock.monotonic_ns < elapsed_deadline, "intent-expired")
@@ -1016,7 +1061,8 @@ class StorageAdapter:
                     self.config.scope, operation, fence=dict(fence),
                     intent_deadline_ns=parse_ns(intent["expires"]), elapsed_deadline_ns=elapsed_deadline,
                     clock_source=self.config.clock_source, registry_sha256=registry,
-                    dispatch_sha256=sha(canonical(event)), stream_seals=dict(self._stream_cache), effect=effect)
+                    dispatch_sha256=sha(canonical(event)), stream_seals=dict(self._stream_cache),
+                    predecessor_proofs=predecessor_proofs, effect=effect)
             except Exception:
                 raise AdapterError("uncertain-effect") from None
         finally:

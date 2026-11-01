@@ -52,6 +52,7 @@ class FakeOwner:
         self.export = a.FrozenExport(self.original, self.release, "synthetic_export", "synthetic_registry", True)
         self.records, self.verifications, self.refs = {}, {}, {}
         self.admissions = {}
+        self.boundaries = {}
         self.locked = self.busy = False
         self.allowed = self.complete_history = True
         self.hooks, self.calls, self.effects = {}, [], 0
@@ -171,14 +172,31 @@ class FakeOwner:
         tail=a.sha(tuple(self.records.values())[-1]) if self.records else None
         streams_ok=all(self.stream_states[handle].sha256 == descriptor["state_sha256"]
                        for handle,descriptor in kw["stream_seals"].items())
-        if (not streams_ok or not self.locked or not self.allowed or registry != kw["registry_sha256"] or tail != kw["dispatch_sha256"]
+        proofs_ok=all(key in self.records and key in self.verifications and key in self.admissions and
+                      a.sha(self.records[key])==proof["record"] and
+                      a.sha(self.verifications[key])==proof["verification"] and
+                      a.sha(self.admissions[key])==proof["admission"]
+                      for key,proof in kw["predecessor_proofs"].items())
+        if (not proofs_ok or not streams_ok or not self.locked or not self.allowed or registry != kw["registry_sha256"] or tail != kw["dispatch_sha256"]
                 or self.fence.object() != kw["fence"]
                 or self.clock.source != kw["clock_source"]
                 or self.clock.wall_ns >= kw["intent_deadline_ns"]
                 or self.clock.monotonic_ns >= kw["elapsed_deadline_ns"]):
             raise ValueError("synthetic conditional dispatch refused")
         self.effects += 1
-        return effect()
+        try:
+            return effect()
+        finally:
+            event=a.parse_record(tuple(self.records.values())[-1])
+            self.boundaries[operation]=a.canonical(dict(
+                profile="publication-input-storage-dispatch-boundary-v2",status="settled",
+                dispatch_sha256=kw["dispatch_sha256"],settled=a.format_ns(self.clock.wall_ns),
+                settled_monotonic_ns=str(self.clock.monotonic_ns),
+                **{k:event[k] for k in ("scope","owner","operation","kind","registry_sha256","fence","clock_source")}))
+
+    def independent_dispatch_boundary(self, scope, operation, **kw):
+        self.hook("boundary_read")
+        return a.Readback(self.boundaries[operation],"synthetic_reader",True,True)
 
     def request(self):
         return a.canonical(dict(version=1, profile="publication-input-claims-v1", label=self.export.label,
@@ -945,7 +963,7 @@ class AdapterTests(unittest.TestCase):
                     elif fault=="stream":
                         owner.stream_states["synthetic_stream"]=replace(owner.stream_states["synthetic_stream"],sha256="e"*64)
                 if fault=="readback":
-                    self.o.hooks["verification_read"]=lambda _:(_ for _ in ()).throw(OSError("synthetic readback failure"))
+                    self.o.hooks["verification_read"]=lambda o:((_ for _ in ()).throw(OSError("synthetic readback failure")) if "complete" in o.verifications else None)
                 else:
                     self.o.hooks["verification_write"]=mutate
                 with self.assertRaises(a.AdapterError):
@@ -979,7 +997,7 @@ class AdapterTests(unittest.TestCase):
 
     def test_admission_readback_failure_does_not_erase_actual_committed_success(self):
         self.prepared()
-        self.o.hooks["admission_read"]=lambda _:(_ for _ in ()).throw(TimeoutError("synthetic lost readback"))
+        self.o.hooks["admission_read"]=lambda o:((_ for _ in ()).throw(TimeoutError("synthetic lost readback")) if "complete" in o.admissions else None)
         with self.assertRaisesRegex(a.AdapterError,"owner-port-independent_admission_read"):
             self.outcome()
         self.assertIn("complete",self.o.admissions)
@@ -997,6 +1015,154 @@ class AdapterTests(unittest.TestCase):
         self.o.hooks.clear()
         self.assertEqual(a.StorageAdapter(config(),self.o).project_current(kind="disposition")["status"],"supported-observation")
         self.assertEqual(self.o.effects,1)
+
+    def test_reconciliation_rejects_evidence_from_dispatch_persistence(self):
+        self.intent()
+        self.o.tick()
+        captured=[]
+        def during_dispatch(owner):
+            owner.tick()
+            captured.extend(owner.evidence(state="present",prefix="pre_effect"))
+        self.o.hooks["verification_write"]=during_dispatch
+        actual=["present"]
+        self.dispatch(effect=lambda:actual.__setitem__(0,"removed"))
+        self.assertEqual(actual,["removed"])
+        self.o.hooks.clear()
+        self.o.tick()
+        marker=a.decode(self.o.admissions["dispatch"])
+        evidence=a.decode(self.o.refs["pre_effect_outcome"][0].raw)
+        self.assertEqual(evidence["recorded"],marker["committed"])
+        history=tuple(sorted(a.sha(raw) for raw in self.o.records.values()))
+        with self.assertRaisesRegex(a.AdapterError,"reconciliation-dispatch-cut"):
+            self.adapter.reconcile_operation(self.raw,operation="op",event_id="reconcile",kind="disposition",state="present",
+                                            references=tuple(captured),reconciles=history)
+        self.assertNotIn("reconcile",self.o.records)
+        self.assertEqual(self.o.effects,1)
+
+    def test_retained_reconciliation_rejects_dispatch_admission_equal_evidence(self):
+        self.intent()
+        self.o.tick()
+        captured=[]
+        def during_dispatch(owner):
+            owner.tick()
+            captured.extend(owner.evidence(state="present",prefix="retained_pre_effect"))
+        self.o.hooks["verification_write"]=during_dispatch
+        self.dispatch()
+        self.o.hooks.clear()
+        self.o.tick()
+        prior=a.parse_record(self.o.records["dispatch"])
+        recorded=a.decode(self.o.refs["retained_pre_effect_outcome"][0].raw)["recorded"]
+        forged=dict(prior,id="forged",phase="reconcile",state="present",mode="observation",
+                    recorded=recorded,captured=a.format_ns(self.o.clock.wall_ns),
+                    expires=a.format_ns(a.parse_ns(recorded)+a.PROPOSED_OBSERVATION_NS),
+                    monotonic_ns=str(self.o.clock.monotonic_ns),evidence=captured,
+                    predecessors=[a.sha(self.o.records["dispatch"])],
+                    reconciles=sorted(a.sha(raw) for raw in self.o.records.values()))
+        self.o.records["forged"]=a.canonical(forged)
+        with self.assertRaisesRegex(a.AdapterError,"reconciliation-dispatch-cut"):
+            a.StorageAdapter(config(),self.o).project_current(kind="disposition")
+
+    def test_missing_active_predecessor_proofs_block_dependent_dispatch(self):
+        for sidecar in ("verifications","admissions"):
+            with self.subTest(sidecar=sidecar):
+                self.setUp()
+                self.completed()
+                self.o.tick()
+                self.intent(operation="next",event_id="next_intent")
+                getattr(self.o,sidecar).pop("complete")
+                self.o.tick()
+                self.adapter=a.StorageAdapter(config(),self.o)
+                with self.assertRaises(a.AdapterError):
+                    self.dispatch(operation="next",event_id="next_dispatch")
+                self.assertNotIn("next_dispatch",self.o.records)
+                self.assertEqual(self.o.effects,1)
+
+    def test_conditional_dispatch_binds_predecessor_proof_loss_and_rebinding(self):
+        for stage in ("verification_write","dispatch"):
+            for sidecar in ("verifications","admissions"):
+                for changed in (False,True):
+                    with self.subTest(stage=stage,sidecar=sidecar,changed=changed):
+                        self.setUp()
+                        self.completed()
+                        self.o.tick()
+                        self.intent(operation="next",event_id="next_intent")
+                        self.o.tick()
+                        def lose(owner):
+                            data=getattr(owner,sidecar)
+                            if changed:
+                                data["complete"]=data["complete"]+b" "
+                            else:
+                                data.pop("complete")
+                        self.o.hooks[stage]=lose
+                        with self.assertRaises(a.AdapterError):
+                            self.dispatch(operation="next",event_id="next_dispatch")
+                        self.assertEqual(self.o.effects,1)
+                        self.o.hooks.clear()
+                        with self.assertRaises(a.AdapterError):
+                            a.StorageAdapter(config(),self.o).project_current(kind="disposition")
+
+    def test_evidence_collected_in_invocation_gap_cannot_complete_or_reconcile(self):
+        self.intent()
+        self.o.tick()
+        refs=[]
+        def in_gap(owner):
+            owner.tick()
+            refs.extend(owner.evidence(prefix="gap"))
+        self.o.hooks["dispatch"]=in_gap
+        self.dispatch(effect=lambda:self.o.tick())
+        evidence=a.decode(self.o.refs["gap_outcome"][0].raw)
+        self.assertGreater(a.parse_ns(evidence["recorded"]),a.parse_ns(a.decode(self.o.admissions["dispatch"])["committed"]))
+        self.assertLess(a.parse_ns(evidence["recorded"]),a.parse_ns(a.decode(self.o.boundaries["op"])["settled"]))
+        self.o.hooks.clear()
+        self.o.tick()
+        with self.assertRaisesRegex(a.AdapterError,"unresolved-dispatch"):
+            self.outcome(references=tuple(refs))
+        history=tuple(sorted(a.sha(raw) for raw in self.o.records.values()))
+        with self.assertRaisesRegex(a.AdapterError,"reconciliation-dispatch-cut"):
+            self.adapter.reconcile_operation(self.raw,operation="op",event_id="reconcile",kind="disposition",state="removed",
+                                            references=tuple(refs),reconciles=history)
+        self.assertEqual(self.o.effects,1)
+
+    def test_missing_or_rebound_settled_boundary_remains_uncertain(self):
+        for bad in ("missing","rebound","unsettled"):
+            with self.subTest(bad=bad):
+                self.setUp()
+                self.prepared()
+                if bad=="missing":
+                    self.o.boundaries.clear()
+                else:
+                    body=a.decode(self.o.boundaries["op"])
+                    body["operation" if bad=="rebound" else "status"]="other"
+                    self.o.boundaries["op"]=a.canonical(body)
+                with self.assertRaises(a.AdapterError):
+                    self.outcome()
+                self.o.tick()
+                with self.assertRaises(a.AdapterError):
+                    self.adapter.reconcile_operation(self.raw,operation="op",event_id="reconcile",kind="disposition",state="present",
+                        references=self.o.evidence(state="present",prefix="new"),
+                        reconciles=tuple(sorted(a.sha(raw) for raw in self.o.records.values())))
+                self.assertEqual(self.o.effects,1)
+
+    def test_retained_completion_cannot_use_pre_effect_gap_evidence(self):
+        self.intent()
+        self.o.tick()
+        refs=[]
+        def in_gap(owner):
+            owner.tick()
+            refs.extend(owner.evidence(prefix="retained_gap"))
+        self.o.hooks["dispatch"]=in_gap
+        self.dispatch(effect=lambda:self.o.tick())
+        self.o.hooks.clear()
+        self.o.tick()
+        prior=a.parse_record(self.o.records["dispatch"])
+        recorded=a.decode(self.o.refs["retained_gap_outcome"][0].raw)["recorded"]
+        forged=dict(prior,id="forged_complete",phase="complete",recorded=recorded,
+                    captured=a.format_ns(self.o.clock.wall_ns),monotonic_ns=str(self.o.clock.monotonic_ns),
+                    expires=a.format_ns(a.parse_ns(recorded)+a.PROPOSED_OBSERVATION_NS),evidence=refs,
+                    predecessors=[a.sha(self.o.records["dispatch"])])
+        self.o.records["forged_complete"]=a.canonical(forged)
+        with self.assertRaisesRegex(a.AdapterError,"unresolved-dispatch"):
+            a.StorageAdapter(config(),self.o).project_current(kind="disposition")
 
     def test_pure_v1_remains_closed_to_fractional_events(self):
         document=json.loads(self.raw)

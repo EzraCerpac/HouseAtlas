@@ -343,3 +343,49 @@ independent. Source/CI/merge success does not satisfy operational adoption.
 
 **No adapter is installed or wired into an operational caller by this change.
 #497 operational adoption remains open with the existing sole storage owner.**
+
+### Retained dispatch proof admission
+
+Reconciliation evidence must also strictly postdate every covered dispatch's
+qualified durable admission timestamp, not just its earlier captured/recorded
+instant. Evidence collected during dispatch persistence, including exactly at
+admission, cannot establish a post-effect observation. The retained-ledger
+validator enforces the same cut. Missing dispatch admission proof refuses this
+projection rather than inventing a dispatch time. Actual outcome truth still
+requires the qualified operation-specific resolver route.
+
+Before persisting a dependent dispatch, the adapter revalidates the entire active
+dimensional predecessor history's immutable records, verification sidecars and
+admission proofs. Missing prior completion proof cannot be bypassed by an
+already prepared intent. Covered history remains retained; only an explicitly
+qualified fresh reconciliation can establish a new observation. The owner must
+retain those prerequisites under its real exclusion/conditional dispatch route.
+
+`dispatch_under_fence` receives `predecessor_proofs`, a bounded map of each active
+event ID to its exact record/verification/admission hashes, reverified after
+dispatch-marker persistence. The owner must freshly resolve and compare those
+immutable prerequisites under the same actual conditional dispatch boundary,
+not merely trust an earlier library check. Loss or byte rebinding before effect
+invocation refuses dispatch and preserves the already journaled uncertainty.
+
+### Actual settled dispatch boundary
+
+Durable admission is a pre-invocation prerequisite, never a post-effect clock.
+The qualified owner additionally provides `independent_dispatch_boundary(scope,
+operation, max_bytes, budget_ns)`: independently read durable immutable bytes
+with profile `publication-input-storage-dispatch-boundary-v2`, exact scope,
+owner, operation, dimension, dispatch/registry hashes, fence and clock source,
+`status: settled`, and actual `settled`/decimal-string `settled_monotonic_ns`.
+The owner may establish this only after the attempted effect is settled and no
+delayed dependent effect can still run under its actual exclusion semantics.
+An exception or timeout alone does not establish that fact. No implementation
+or emitter for this route is supplied here. Missing, unqualified, rebound or
+unsettled proof blocks completion and reconciliation; a qualified owner must
+establish the actual boundary read-only before progress, without effect replay.
+
+Completion and reconciliation evidence must strictly postdate that settled
+instant, including evidence collected during registry, clock or dispatch callback
+gaps after admission. Live admission and retained-ledger validation enforce the
+same cut. This owner proof is conditional evidence, not a global process or
+distributed-exclusion claim. It preserves the original attempt's uncertainty
+and never fabricates retrospective intent or completion.
