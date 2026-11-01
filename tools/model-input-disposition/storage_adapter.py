@@ -1,0 +1,817 @@
+"""Prospective storage protocol v2. No built-in transport, clock, lock or effect.
+
+All trust is scoped to injected owner ports. Nothing upgrades disposition v1's
+unverified authority. This module is not an installer or an operational caller.
+"""
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+import hashlib
+import json
+import re
+from typing import Protocol
+
+import disposition as v1
+
+PROFILE = "publication-input-storage-v2"
+EVIDENCE_PROFILE = "publication-input-storage-evidence-v2"
+PROPOSED_INTENT_NS = 300 * 1_000_000_000
+PROPOSED_OBSERVATION_NS = 3600 * 1_000_000_000
+MAX_BYTES = 256 * 1024
+MAX_LEDGER_BYTES = 4 * MAX_BYTES
+MAX_RECORDS = 256
+MAX_PORT_CALLS = 1024
+MAX_BODY = 64 * 1024 * 1024
+NS = 1_000_000_000
+EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+STAMP = re.compile(r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})\.([0-9]{9})Z\Z")
+PHASES = {"intent", "dispatch", "complete", "failed", "interrupted", "unknown", "observation", "reconcile"}
+
+
+class AdapterError(ValueError):
+    """Fixed diagnostics exclude private bytes, paths and injected exceptions."""
+
+
+def need(ok, code):
+    if not ok:
+        raise AdapterError(code)
+
+
+def token(value):
+    need(type(value) is str and v1.TOKEN.fullmatch(value), "token")
+
+
+def digest(value):
+    need(type(value) is str and v1.HASH.fullmatch(value), "hash")
+
+
+def keys(value, fields):
+    need(type(value) is dict and set(value) == set(fields.split()), "fields")
+
+
+def canonical(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")
+
+
+def sha(raw):
+    need(type(raw) is bytes, "bytes")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def parse_ns(value):
+    need(type(value) is str, "precision")
+    match = STAMP.fullmatch(value)
+    need(match is not None, "precision")
+    try:
+        stamp = datetime.strptime(match[1], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+        delta = stamp - EPOCH
+        result = (delta.days * 86400 + delta.seconds) * NS + int(match[2])
+    except ValueError:
+        raise AdapterError("timestamp") from None
+    need(result >= 0, "timestamp")
+    return result
+
+
+def format_ns(value):
+    need(type(value) is int and value >= 0, "clock")
+    seconds, fraction = divmod(value, NS)
+    try:
+        stamp = EPOCH + timedelta(seconds=seconds)
+    except OverflowError:
+        raise AdapterError("clock") from None
+    # strftime's year padding is platform-dependent before year 1000.
+    return f"{stamp.year:04}-{stamp.month:02}-{stamp.day:02}T{stamp.hour:02}:{stamp.minute:02}:{stamp.second:02}.{fraction:09}Z"
+
+
+def _pairs(pairs):
+    result = {}
+    for name, value in pairs:
+        need(name not in result, "duplicate-key")
+        result[name] = value
+    return result
+
+
+def decode(raw):
+    need(type(raw) is bytes and len(raw) <= MAX_BYTES, "input-limit")
+    try:
+        text = raw.decode("utf-8")
+        depth = 0
+        quoted = escaped = False
+        for char in text:
+            if quoted:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    quoted = False
+            elif char == '"':
+                quoted = True
+            elif char in "[{":
+                depth += 1
+                need(depth <= 12, "depth")
+            elif char in "]}":
+                depth -= 1
+        return json.loads(text, object_pairs_hook=_pairs,
+                          parse_constant=lambda _: need(False, "number"))
+    except (UnicodeError, ValueError, RecursionError) as error:
+        if isinstance(error, AdapterError):
+            raise
+        raise AdapterError("json") from None
+
+
+@dataclass(frozen=True)
+class ClockSample:
+    wall_ns: int
+    monotonic_ns: int
+    source: str
+
+
+@dataclass(frozen=True)
+class Horizons:
+    """Caller must explicitly select values; proposals are not operational policy."""
+    intent_ns: int
+    observation_ns: int
+
+    def __post_init__(self):
+        for value in (self.intent_ns, self.observation_ns):
+            need(type(value) is int and 0 < value <= 86400 * NS, "horizon")
+
+
+@dataclass(frozen=True)
+class PinnedSource:
+    """Immutable original bytes; opaque names are reviewed registry tokens."""
+    manifest: bytes
+    payloads: tuple
+
+    def identity_object(self):
+        need(type(self.manifest) is bytes and 0 < len(self.manifest) <= MAX_BODY, "manifest")
+        need(type(self.payloads) is tuple and 1 <= len(self.payloads) <= 128, "payloads")
+        need(sum(len(pair[1]) for pair in self.payloads
+                 if type(pair) is tuple and len(pair) == 2 and type(pair[1]) is bytes) + len(self.manifest) <= MAX_BODY,
+             "source-limit")
+        rows = []
+        for pair in self.payloads:
+            need(type(pair) is tuple and len(pair) == 2, "payload")
+            name, raw = pair
+            token(name)
+            need(type(raw) is bytes and len(raw) <= MAX_BODY, "payload")
+            rows.append({"name": name, "sha256": sha(raw), "bytes": len(raw)})
+        source = {"manifest": {"sha256": sha(self.manifest), "bytes": len(self.manifest)}, "payloads": rows}
+        # The original manifest bytes are hashed unchanged, never reserialized.
+        v1.identity(source)
+        return source
+
+
+@dataclass(frozen=True)
+class FrozenExport:
+    original: PinnedSource
+    release: PinnedSource | None
+    label: str
+    provenance: str
+    retained: bool
+
+
+@dataclass(frozen=True)
+class ResolvedReference:
+    raw: bytes
+    route: str
+    durable: bool
+    independent: bool
+
+
+@dataclass(frozen=True)
+class LedgerSnapshot:
+    records: tuple
+    tail: str | None
+    complete: bool
+    provenance: str
+
+
+@dataclass(frozen=True)
+class WriteAck:
+    route: str
+    durable: bool
+
+
+@dataclass(frozen=True)
+class Readback:
+    raw: bytes
+    route: str
+    durable: bool
+    independent: bool
+
+
+@dataclass(frozen=True)
+class Fence:
+    """Local cooperating-writer sequence; not a distributed exclusion claim."""
+    generation: int
+    claim: str
+    application: str
+    selection: str
+    policy: str
+    independent_actor: bool
+
+    def object(self):
+        need(type(self.generation) is int and 0 <= self.generation <= v1.MAX_COUNT, "fence")
+        token(self.claim)
+        for value in (self.application, self.selection, self.policy):
+            digest(value)
+        need(type(self.independent_actor) is bool, "fence")
+        return dict(generation=self.generation, claim=self.claim,
+                    application=self.application, selection=self.selection,
+                    policy=self.policy, independent_actor=self.independent_actor)
+
+
+class Lease(Protocol):
+    def snapshot(self) -> Fence: ...
+    def close(self) -> None: ...
+
+
+class OwnerPorts(Protocol):
+    """Only the established operational owner implements these trusted ports.
+
+    append is exclusive create + fsync with atomic expected-tail comparison;
+    independent_read uses a separate qualified read route. No implementation here.
+    """
+    def now(self, *, budget_ns: int) -> ClockSample: ...
+    def authorize(self, scope: str, operation: str, kind: str, mode: str, *, budget_ns: int) -> bool: ...
+    def try_acquire(self, scope: str, operation: str, *, budget_ns: int) -> Lease | None: ...
+    def frozen_export(self, scope: str, *, budget_ns: int) -> FrozenExport: ...
+    def ledger(self, scope: str, *, max_records: int, max_bytes: int, budget_ns: int) -> LedgerSnapshot: ...
+    def resolve(self, scope: str, reference: str, *, max_bytes: int, budget_ns: int) -> list[ResolvedReference]: ...
+    def append(self, scope: str, key: str, raw: bytes, expected_tail: str | None, *, budget_ns: int) -> WriteAck: ...
+    def independent_read(self, scope: str, key: str, *, max_bytes: int, budget_ns: int) -> Readback: ...
+    def append_verification(self, scope: str, key: str, raw: bytes, *, budget_ns: int) -> WriteAck: ...
+    def independent_verification_read(self, scope: str, key: str, *, max_bytes: int, budget_ns: int) -> Readback: ...
+    def dispatch_under_fence(self, scope: str, operation: str, *, fence: dict,
+                             intent_deadline_ns: int, elapsed_deadline_ns: int,
+                             clock_source: str, registry_sha256: str,
+                             dispatch_sha256: str, effect, budget_ns: int): ...
+
+
+@dataclass(frozen=True)
+class OwnerConfig:
+    scope: str
+    owner: str
+    clock_source: str
+    registry_provenance: str
+    write_route: str
+    read_route: str
+    reference_routes: tuple
+    kinds: tuple
+    horizons: Horizons
+    callback_budget_ns: int
+
+    def __post_init__(self):
+        for value in (self.scope, self.owner, self.clock_source, self.registry_provenance,
+                      self.write_route, self.read_route):
+            token(value)
+        need(self.write_route != self.read_route, "independent-route")
+        need(type(self.reference_routes) is tuple and len(self.reference_routes) > 0, "routes")
+        for route in self.reference_routes:
+            token(route)
+        need(type(self.kinds) is tuple and 0 < len(self.kinds) <= 4, "kinds")
+        need(all(type(kind) is str and kind in v1.STATES for kind in self.kinds), "kinds")
+        need(type(self.horizons) is Horizons, "horizon")
+        need(type(self.callback_budget_ns) is int and 0 < self.callback_budget_ns <= 60 * NS, "callback-budget")
+
+
+def admit_request(raw):
+    # Raw v1 admission is mandatory. No generic JSON decoder precedes it.
+    document = v1.parse(raw)
+    need(document["events"] == [], "historical-request")
+    return document
+
+
+def parse_record(raw):
+    record = decode(raw)
+    keys(record, "profile id operation request scope owner kind state phase recorded captured expires clock_source monotonic_ns fence registry_sha256 predecessors reconciles evidence mode")
+    need(record["profile"] == PROFILE, "profile")
+    for name in ("id", "operation", "scope", "owner", "clock_source"):
+        token(record[name])
+    need(type(record["request"]) is str, "request")
+    admit_request(record["request"].encode("utf-8"))
+    kind = record["kind"]
+    need(type(kind) is str and kind in v1.STATES, "kind")
+    need(type(record["state"]) is str and record["state"] in v1.STATES[kind], "state")
+    need(type(record["phase"]) is str and record["phase"] in PHASES, "phase")
+    need(record["mode"] in ("mutation", "observation"), "mode")
+    recorded, captured, expires = (parse_ns(record[name]) for name in ("recorded", "captured", "expires"))
+    need(recorded <= captured and recorded < expires, "chronology")
+    need(type(record["monotonic_ns"]) is str and re.fullmatch(r"0|[1-9][0-9]{0,18}", record["monotonic_ns"])
+         and int(record["monotonic_ns"]) < 2**63, "clock")
+    need(record["mode"] == ("observation" if record["phase"] in ("observation", "reconcile") else "mutation"), "mode")
+    fence = record["fence"]
+    keys(fence, "generation claim application selection policy independent_actor")
+    Fence(**fence).object()
+    digest(record["registry_sha256"])
+    for name in ("predecessors", "reconciles"):
+        values = record[name]
+        need(type(values) is list and len(values) <= MAX_RECORDS, "history")
+        for value in values:
+            digest(value)
+        need(values == sorted(set(values)), "history")
+    refs = record["evidence"]
+    need(type(refs) is list and len(refs) <= 8, "references")
+    seen = set()
+    for ref in refs:
+        keys(ref, "id sha256 binding role")
+        token(ref["id"])
+        digest(ref["sha256"])
+        digest(ref["binding"])
+        need(ref["role"] in ("outcome", "persistence", "readback"), "role")
+        need(ref["id"] not in seen, "duplicate-reference")
+        seen.add(ref["id"])
+    return record
+
+
+class _BoundedPorts:
+    def __init__(self, ports, budget):
+        self.ports, self.budget, self.calls = ports, budget, 0
+
+    def begin(self):
+        self.calls = 0
+
+    def __getattr__(self, name):
+        callback = getattr(self.ports, name)
+        def bounded(*args, **kwargs):
+            self.calls += 1
+            need(self.calls <= MAX_PORT_CALLS, "port-call-limit")
+            # Synchronous Python cannot cancel a blocking injected call. The
+            # qualified owner must enforce this budget inside every port.
+            try:
+                return callback(*args, budget_ns=self.budget, **kwargs)
+            except Exception:
+                raise AdapterError("owner-port-" + name) from None
+        return bounded
+
+
+class StorageAdapter:
+    def __init__(self, config: OwnerConfig, ports: OwnerPorts):
+        self.config, self.ports = config, _BoundedPorts(ports, config.callback_budget_ns)
+
+    def resolve_reference(self, reference, raw_record):
+        """Read-only admission uses raw v2 bytes and the injected current clock."""
+        self.ports.begin()
+        record = parse_record(raw_record)
+        self._request(record["request"].encode(), record["operation"], record["kind"], record["state"], record["mode"])
+        return self._resolve_reference(reference, record, self._clock(self._ledger()).wall_ns)
+
+    def _resolve_reference(self, reference, record, now_ns):
+        keys(reference, "id sha256 binding role")
+        token(reference["id"])
+        digest(reference["sha256"])
+        digest(reference["binding"])
+        need(reference["role"] in ("outcome", "persistence", "readback"), "role")
+        need(record["scope"] == self.config.scope and record["owner"] == self.config.owner and
+             record["kind"] in self.config.kinds, "reference-scope")
+        matches = self.ports.resolve(self.config.scope, reference["id"], max_bytes=MAX_BYTES)
+        need(type(matches) is list and len(matches) == 1, "reference-ambiguous")
+        resolved = matches[0]
+        need(type(resolved) is ResolvedReference and resolved.route in self.config.reference_routes
+             and resolved.durable is True, "reference-route")
+        need(sha(resolved.raw) == reference["sha256"], "reference-changed")
+        body = decode(resolved.raw)
+        keys(body, "profile scope owner operation kind state binding role recorded provenance origin cloud_status carriers")
+        need(body["profile"] == EVIDENCE_PROFILE and body["origin"] == "prospective", "historical-evidence")
+        for name in ("scope", "owner", "operation", "kind", "state"):
+            need(body[name] == record[name], "reference-binding")
+        token(body["provenance"])
+        need(body["provenance"] == self.config.registry_provenance, "reference-provenance")
+        doc = admit_request(record["request"].encode("utf-8"))
+        source = doc["original"] if record["kind"] in ("disposition", "recovery") else doc["release"]
+        need(source is not None, "release-required")
+        binding = v1.identity(source)
+        if record["kind"] in ("qualification", "selection"):
+            need(binding != v1.identity(doc["original"]), "release-original-alias")
+        need(body["binding"] == binding == reference["binding"] and
+             body["role"] == reference["role"], "reference-binding")
+        observed = parse_ns(body["recorded"])
+        need(observed <= now_ns and now_ns < observed + self.config.horizons.observation_ns, "reference-expired")
+        if reference["role"] == "readback":
+            need(resolved.independent is True, "reference-independent")
+        need(type(body["carriers"]) is list and len(body["carriers"]) <= 128, "carriers")
+        for carrier in body["carriers"]:
+            digest(carrier)
+        need(body["cloud_status"] in ("not_applicable", "uploaded", "pending", "error", "conflict"), "cloud-status")
+        if record["kind"] == "recovery" and record["state"] == "recoverable":
+            need(body["cloud_status"] == "uploaded" and body["carriers"], "cloud-unconfirmed")
+        return {"id": reference["id"], "sha256": sha(resolved.raw), "bytes": len(resolved.raw),
+                "route": resolved.route, "binding": binding, "role": reference["role"],
+                "recorded": body["recorded"], "provenance": body["provenance"]}
+
+    def _request(self, raw, operation, kind, state, mode):
+        doc = admit_request(raw)
+        token(operation)
+        need(kind in self.config.kinds and type(state) is str and state in v1.STATES[kind], "scope-kind")
+        need(self.ports.authorize(self.config.scope, operation, kind, mode) is True, "authorization")
+        export = self.ports.frozen_export(self.config.scope)
+        need(type(export) is FrozenExport and export.retained is True and
+             export.provenance == self.config.registry_provenance, "registry")
+        need(export.label == doc["label"] and export.original.identity_object() == doc["original"], "original-changed")
+        release = None if export.release is None else export.release.identity_object()
+        need(release == doc["release"], "release-changed")
+        if kind in ("qualification", "selection"):
+            need(release is not None and v1.identity(release) != v1.identity(doc["original"]), "release-required")
+        registry = sha(canonical({"label": export.label, "original": doc["original"],
+                                  "release": release, "provenance": export.provenance}))
+        return doc, registry
+
+    def _ledger(self):
+        snapshot = self.ports.ledger(self.config.scope, max_records=MAX_RECORDS, max_bytes=MAX_LEDGER_BYTES)
+        need(type(snapshot) is LedgerSnapshot and snapshot.complete is True and
+             snapshot.provenance == self.config.registry_provenance, "history-incomplete")
+        raws = snapshot.records
+        need(type(raws) is tuple and len(raws) <= MAX_RECORDS and
+             all(type(raw) is bytes for raw in raws) and sum(map(len, raws)) <= MAX_LEDGER_BYTES, "ledger-limit")
+        events, ids, operations, refs, labels = [], {}, {}, {}, {}
+        originals = set()
+        tail = None
+        for raw in raws:
+            event = parse_record(raw)
+            need(event["scope"] == self.config.scope and event["owner"] == self.config.owner and
+                 event["clock_source"] == self.config.clock_source, "ledger-scope")
+            need(event["predecessors"] == ([] if tail is None else [tail]), "ledger-chain")
+            need(event["id"] not in ids, "ledger-duplicate")
+            doc = admit_request(event["request"].encode("utf-8"))
+            original = v1.identity(doc["original"])
+            originals.add(original)
+            need(len(originals) == 1, "history-source")
+            need(doc["label"] not in labels or labels[doc["label"]] == original, "label-conflict")
+            labels[doc["label"]] = original
+            binding = (original, event["kind"], None if event["kind"] in ("disposition", "recovery")
+                       else v1.identity(doc["release"]) if doc["release"] is not None else None)
+            need(event["operation"] not in operations or operations[event["operation"]] == binding, "operation-rebound")
+            operations[event["operation"]] = binding
+            for ref in event["evidence"]:
+                need(ref["id"] not in refs or refs[ref["id"]] == ref, "reference-rebound")
+                refs[ref["id"]] = ref
+            if events:
+                previous = events[-1][1]
+                need(event["clock_source"] == previous["clock_source"] and
+                     parse_ns(event["captured"]) >= parse_ns(previous["captured"]) and
+                     int(event["monotonic_ns"]) >= int(previous["monotonic_ns"]), "clock-reversal")
+            need(all(h in {item[0] for item in events} for h in event["reconciles"]), "reconciliation-history")
+            previous_operation = [e for _, e, _ in events if e["operation"] == event["operation"]]
+            if event["phase"] in ("complete", "observation", "reconcile"):
+                need({r["role"] for r in event["evidence"]} == {"outcome", "persistence", "readback"}, "missing-evidence")
+            if event["phase"] == "intent":
+                need(event["recorded"] == event["captured"] and not event["evidence"] and
+                     parse_ns(event["expires"]) == parse_ns(event["recorded"]) + self.config.horizons.intent_ns,
+                     "intent-horizon")
+                need(not previous_operation, "operation-exists")
+            elif event["phase"] == "dispatch":
+                need(len(previous_operation) == 1 and previous_operation[0]["phase"] == "intent", "dispatch-once")
+                need(event["expires"] == previous_operation[0]["expires"] and not event["evidence"] and
+                     event["recorded"] == event["captured"] and
+                     parse_ns(previous_operation[0]["recorded"]) < parse_ns(event["recorded"]) <
+                     parse_ns(previous_operation[0]["expires"]), "intent-expired")
+            elif event["phase"] in ("complete", "failed", "interrupted", "unknown"):
+                need(len(previous_operation) == 2 and [e["phase"] for e in previous_operation] ==
+                     ["intent", "dispatch"], "outcome-state")
+                if event["phase"] == "complete":
+                    need(parse_ns(event["recorded"]) > parse_ns(previous_operation[-1]["recorded"]) and
+                         event["state"] == previous_operation[0]["state"], "unresolved-intent")
+            elif event["phase"] == "observation":
+                need(not previous_operation, "operation-exists")
+            elif event["phase"] == "reconcile":
+                relevant_hashes = sorted(h for h, e, _ in events if e["kind"] == event["kind"])
+                need(previous_operation and event["reconciles"] == relevant_hashes, "reconciliation-history")
+            if event["phase"] not in ("intent", "dispatch"):
+                need(parse_ns(event["expires"]) == parse_ns(event["recorded"]) + self.config.horizons.observation_ns,
+                     "observation-horizon")
+            tail = sha(raw)
+            ids[event["id"]] = event
+            events.append((tail, event, raw))
+        need(snapshot.tail == tail, "history-frontier")
+        return events
+
+    def _clock(self, events):
+        sample = self.ports.now()
+        need(type(sample) is ClockSample and sample.source == self.config.clock_source, "clock-provenance")
+        format_ns(sample.wall_ns)
+        need(type(sample.monotonic_ns) is int and 0 <= sample.monotonic_ns < 2**63, "clock")
+        if events:
+            old = events[-1][1]
+            need(old["clock_source"] == sample.source and sample.wall_ns >= parse_ns(old["captured"])
+                 and sample.monotonic_ns >= int(old["monotonic_ns"]), "clock-reversal")
+        return sample
+
+    def _fence(self, lease):
+        need(lease is not None, "lock-busy")
+        try:
+            fence = lease.snapshot()
+        except Exception:
+            raise AdapterError("fence-unavailable") from None
+        need(type(fence) is Fence, "fence")
+        obj = fence.object()
+        need(not obj["independent_actor"], "unfenced-actor")
+        return obj
+
+    @staticmethod
+    def _close(lease):
+        try:
+            lease.close()
+        except Exception:
+            raise AdapterError("lease-release-uncertain") from None
+
+    def _durable(self, raw, ack, read):
+        need(type(ack) is WriteAck and ack.route == self.config.write_route and ack.durable is True, "persistence")
+        need(type(read) is Readback and read.route == self.config.read_route and read.durable is True
+             and read.independent is True and read.raw == raw and sha(read.raw) == sha(raw), "readback")
+
+    def _read_record(self, raw):
+        event = parse_record(raw)
+        need(event["scope"] == self.config.scope and event["owner"] == self.config.owner, "ledger-scope")
+        need(any(saved == raw for _, _, saved in self._ledger()), "record-not-retained")
+        read = self.ports.independent_read(self.config.scope, event["id"], max_bytes=MAX_BYTES)
+        need(type(read) is Readback and read.route == self.config.read_route and read.durable is True
+             and read.independent is True and read.raw == raw, "readback")
+        return {"sha256": sha(raw), "bytes": len(raw), "write_route": self.config.write_route,
+                "read_route": read.route, "independent": True}
+
+    def verify_durable_readback(self, raw):
+        """Read-only: requires both a retained event and its separate artifact."""
+        self.ports.begin()
+        return decode(self._existing(raw))["document"]
+
+    def _existing(self, raw):
+        event = parse_record(raw)
+        document = self._read_record(raw)
+        read = self.ports.independent_verification_read(self.config.scope, event["id"], max_bytes=MAX_BYTES)
+        need(type(read) is Readback and read.route == self.config.read_route and read.durable is True
+             and read.independent is True, "verification-missing")
+        artifact = decode(read.raw)
+        keys(artifact, "profile event operation scope owner authority document original registry_sha256 fence recorded captured clock_source references limits")
+        need(artifact["authority"] == "injected-owner-evidence" and
+             artifact["original"] == v1.identity(admit_request(event["request"].encode())["original"]) and
+             artifact["profile"] == "publication-input-storage-verification-v2" and
+             artifact["event"] == event["id"] and artifact["operation"] == event["operation"] and
+             artifact["scope"] == self.config.scope and artifact["owner"] == self.config.owner and
+             artifact["document"] == document and artifact["registry_sha256"] == event["registry_sha256"] and
+             artifact["fence"] == event["fence"] and artifact["recorded"] == event["recorded"] and
+             artifact["captured"] == event["captured"] and artifact["clock_source"] == self.config.clock_source,
+             "verification-changed")
+        expected_limits = ["injected-routes-only", "cooperating-writers-only", "no-operational-adoption"]
+        need(artifact["limits"] == expected_limits and type(artifact["references"]) is list and
+             len(artifact["references"]) == (len(event["evidence"]) if event["phase"] in
+                 ("complete", "observation", "reconcile") else 0), "verification-changed")
+        refs = {ref["id"]: ref for ref in event["evidence"]}
+        seen = set()
+        for ref in artifact["references"]:
+            keys(ref, "id sha256 bytes route binding role recorded provenance")
+            token(ref["id"])
+            need(ref["id"] not in seen and ref["id"] in refs, "verification-changed")
+            seen.add(ref["id"])
+            need(all(ref[name] == refs[ref["id"]][name] for name in ("sha256", "binding", "role")) and
+                 ref["route"] in self.config.reference_routes and ref["provenance"] == self.config.registry_provenance and
+                 type(ref["bytes"]) is int and 0 <= ref["bytes"] <= MAX_BYTES and
+                 parse_ns(ref["recorded"]) <= parse_ns(event["captured"]), "verification-changed")
+        return read.raw
+
+    def _persist(self, event, events, verified, lease):
+        raw = canonical(event)
+        parse_record(raw)
+        need(sum(len(r) for _, _, r in events) + len(raw) <= MAX_LEDGER_BYTES, "ledger-limit")
+        prior_refs = {ref["id"]: ref for _, old, _ in events for ref in old["evidence"]}
+        need(event["id"] not in {old["id"] for _, old, _ in events}, "event-rebound")
+        need(all(ref["id"] not in prior_refs or prior_refs[ref["id"]] == ref for ref in event["evidence"]),
+             "reference-rebound")
+        # Exclusive append must compare this exact authoritative frontier atomically.
+        need([h for h, _, _ in self._ledger()] == [h for h, _, _ in events], "history-frontier")
+        ack = self.ports.append(self.config.scope, event["id"], raw, events[-1][0] if events else None)
+        read = self.ports.independent_read(self.config.scope, event["id"], max_bytes=MAX_BYTES)
+        self._durable(raw, ack, read)
+        durable = {"sha256": sha(raw), "bytes": len(raw), "write_route": ack.route,
+                   "read_route": read.route, "independent": True}
+        need(self._clock(self._ledger()).wall_ns < parse_ns(event["expires"]), "observation-expired")
+        need(self._fence(lease) == event["fence"], "fence-changed")
+        _doc, registry = self._request(event["request"].encode(), event["operation"], event["kind"], event["state"], event["mode"])
+        need(registry == event["registry_sha256"], "registry-changed")
+        artifact = {"profile": "publication-input-storage-verification-v2", "event": event["id"],
+                    "operation": event["operation"], "scope": self.config.scope, "owner": self.config.owner,
+                    "authority": "injected-owner-evidence", "document": durable,
+                    "original": v1.identity(admit_request(event["request"].encode())["original"]),
+                    "registry_sha256": event["registry_sha256"], "fence": event["fence"],
+                    "recorded": event["recorded"], "captured": event["captured"],
+                    "clock_source": event["clock_source"], "references": verified,
+                    "limits": ["injected-routes-only", "cooperating-writers-only", "no-operational-adoption"]}
+        encoded = canonical(artifact)
+        need(len(encoded) <= MAX_BYTES, "artifact-limit")
+        ack = self.ports.append_verification(self.config.scope, event["id"], encoded)
+        read = self.ports.independent_verification_read(self.config.scope, event["id"], max_bytes=MAX_BYTES)
+        self._durable(encoded, ack, read)
+        need(self._clock(self._ledger()).wall_ns < parse_ns(event["expires"]), "observation-expired")
+        need(self._fence(lease) == event["fence"], "fence-changed")
+        return {"record": raw, "verification": encoded}
+
+    def _run(self, raw, operation, event_id, kind, state, phase, references=(), reconciles=()):
+        self.ports.begin()
+        need(type(references) is tuple and len(references) <= 8 and
+             type(reconciles) is tuple and len(reconciles) <= MAX_RECORDS, "input-limit")
+        for reference in references:
+            keys(reference, "id sha256 binding role")
+            token(reference["id"])
+            digest(reference["sha256"])
+            digest(reference["binding"])
+            need(reference["role"] in ("outcome", "persistence", "readback"), "role")
+        for value in reconciles:
+            digest(value)
+        references = tuple(dict(reference) for reference in references)
+        mode = "observation" if phase in ("observation", "reconcile") else "mutation"
+        _doc, registry = self._request(raw, operation, kind, state, mode)
+        token(event_id)
+        lease = self.ports.try_acquire(self.config.scope, operation)
+        need(lease is not None, "lock-busy")
+        try:
+            fence = self._fence(lease)
+            events = self._ledger()
+            need(all(v1.identity(admit_request(e["request"].encode())["original"]) == v1.identity(_doc["original"])
+                     for _, e, _ in events), "history-source")
+            prior = [e for _, e, _ in events if e["operation"] == operation]
+            existing = next((r for _, e, r in events if e["id"] == event_id), None)
+            if existing is not None:
+                old = parse_record(existing)
+                need(all(old[k] == v for k, v in {"request": raw.decode(), "operation": operation,
+                     "kind": kind, "state": state, "phase": phase, "registry_sha256": registry,
+                     "evidence": list(references), "reconciles": sorted(reconciles)}.items()), "event-rebound")
+                return {"record": existing, "verification": self._existing(existing)}
+            need(len(events) < MAX_RECORDS, "ledger-limit")
+            now = self._clock(events)
+            relevant = [(h, e, r) for h, e, r in events if e["kind"] == kind]
+            if phase in ("intent", "observation"):
+                need(not prior, "operation-exists")
+                for _, _, saved in relevant:
+                    self._existing(saved)
+                if relevant and relevant[-1][1]["phase"] in ("complete", "observation", "reconcile"):
+                    latest = relevant[-1][1]
+                    for ref in latest["evidence"]:
+                        self._resolve_reference(ref, latest, now.wall_ns)
+                view = self._project(relevant, now.wall_ns)
+                need(not relevant or view["status"] == "supported-observation", "reconcile-first")
+            else:
+                need(prior and all(e["request"] == raw.decode() and e["kind"] == kind
+                                   and e["registry_sha256"] == registry for e in prior), "operation-rebound")
+            if phase in ("complete", "failed", "interrupted", "unknown"):
+                need((phase != "complete" or state == prior[0]["state"]) and any(e["phase"] == "dispatch" for e in prior) and
+                     not any(e["phase"] in ("complete", "failed", "interrupted", "unknown", "reconcile") for e in prior), "outcome-state")
+            if phase == "reconcile":
+                need(sorted(reconciles) == sorted(h for h, _, _ in relevant) and relevant, "reconciliation-history")
+            else:
+                need(not reconciles, "reconciliation-history")
+            recorded = now.wall_ns
+            event = dict(profile=PROFILE, id=event_id, operation=operation, request=raw.decode(),
+                         scope=self.config.scope, owner=self.config.owner, kind=kind, state=state, phase=phase,
+                         recorded=format_ns(recorded), captured=format_ns(now.wall_ns),
+                         expires=format_ns(recorded + (self.config.horizons.intent_ns if phase == "intent"
+                                                    else self.config.horizons.observation_ns)),
+                         clock_source=now.source, monotonic_ns=str(now.monotonic_ns), fence=fence,
+                         registry_sha256=registry, predecessors=[] if not events else [events[-1][0]],
+                         reconciles=sorted(reconciles), evidence=list(references), mode=mode)
+            verified = []
+            if phase in ("complete", "observation", "reconcile"):
+                need({r["role"] for r in references} == {"outcome", "persistence", "readback"}, "missing-evidence")
+                parse_record(canonical(event))
+                verified = [self._resolve_reference(r, event, now.wall_ns) for r in references]
+                recorded = parse_ns(next(r["recorded"] for r in verified if r["role"] == "outcome"))
+                need(all(parse_ns(r["recorded"]) >= recorded for r in verified), "evidence-order")
+                if phase == "complete":
+                    intent = next(e for e in prior if e["phase"] == "intent")
+                    dispatch = next(e for e in prior if e["phase"] == "dispatch")
+                    need(recorded > parse_ns(intent["recorded"]) and
+                         recorded > parse_ns(dispatch["recorded"]), "unresolved-intent")
+                    # An operation outliving its intent needs explicit read-only
+                    # reconciliation, not a rewritten completion lease.
+                    need(now.wall_ns < parse_ns(intent["expires"]), "intent-expired")
+                event["recorded"] = format_ns(recorded)
+                event["expires"] = format_ns(recorded + self.config.horizons.observation_ns)
+            need(self._fence(lease) == fence, "fence-changed")
+            self._request(raw, operation, kind, state, mode)
+            return self._persist(event, events, verified, lease)
+        finally:
+            self._close(lease)
+
+    def capture_intent(self, raw, *, operation, event_id, kind, state):
+        return self._run(raw, operation, event_id, kind, state, "intent")
+
+    def record_outcome(self, raw, *, operation, event_id, kind, state, phase, references=()):
+        need(phase in ("complete", "failed", "interrupted", "unknown"), "phase")
+        return self._run(raw, operation, event_id, kind, state, phase, references)
+
+    def record_observation(self, raw, *, operation, event_id, kind, state, references):
+        return self._run(raw, operation, event_id, kind, state, "observation", references)
+
+    def reconcile_operation(self, raw, *, operation, event_id, kind, state, references, reconciles):
+        return self._run(raw, operation, event_id, kind, state, "reconcile", references, reconciles)
+
+    def dispatch(self, raw, *, operation, event_id, kind, state, effect):
+        """At most one dispatch per operation, durably journaled BEFORE invocation.
+
+        Any exception after dispatch persistence is uncertain. There is no retry
+        command; reconciliation is read-only and a future cycle needs a new ID.
+        """
+        self.ports.begin()
+        self._request(raw, operation, kind, state, "mutation")
+        need(callable(effect), "effect")
+        token(event_id)
+        lease = self.ports.try_acquire(self.config.scope, operation)
+        need(lease is not None, "lock-busy")
+        try:
+            fence = self._fence(lease)
+            events = self._ledger()
+            prior = [e for _, e, _ in events if e["operation"] == operation]
+            need(len(prior) == 1 and prior[0]["phase"] == "intent", "dispatch-once")
+            intent = prior[0]
+            need(intent["request"] == raw.decode() and intent["kind"] == kind and
+                 intent["state"] == state and intent["fence"] == fence, "pinned-state-changed")
+            now = self._clock(events)
+            need(parse_ns(intent["recorded"]) < now.wall_ns < parse_ns(intent["expires"]), "intent-expired")
+            intent_raw = next(r for _, e, r in events if e["id"] == intent["id"])
+            self._existing(intent_raw)
+            # Persist a distinct dispatch marker while retaining the intent.
+            event = dict(intent, id=event_id, phase="dispatch", recorded=format_ns(now.wall_ns),
+                         captured=format_ns(now.wall_ns), monotonic_ns=str(now.monotonic_ns),
+                         predecessors=[events[-1][0]])
+            need(len(events) < MAX_RECORDS and event_id not in {e["id"] for _, e, _ in events}, "dispatch-id")
+            self._persist(event, events, [], lease)
+            need(self._fence(lease) == fence, "fence-changed")
+            _doc, registry = self._request(raw, operation, kind, state, "mutation")
+            need(registry == intent["registry_sha256"], "registry-changed")
+            final_clock = self._clock(self._ledger())
+            elapsed_deadline = int(intent["monotonic_ns"]) + self.config.horizons.intent_ns
+            need(final_clock.wall_ns < parse_ns(intent["expires"]) and
+                 final_clock.monotonic_ns < elapsed_deadline, "intent-expired")
+            try:
+                # The qualified owner must recheck these conditions under its
+                # real exclusion/conditional-write semantics while dispatching.
+                return self.ports.dispatch_under_fence(
+                    self.config.scope, operation, fence=dict(fence),
+                    intent_deadline_ns=parse_ns(intent["expires"]), elapsed_deadline_ns=elapsed_deadline,
+                    clock_source=self.config.clock_source, registry_sha256=registry,
+                    dispatch_sha256=sha(canonical(event)), effect=effect)
+            except Exception:
+                raise AdapterError("uncertain-effect") from None
+        finally:
+            self._close(lease)
+
+    def _project(self, events, now_ns):
+        if not events:
+            return {"status": "unknown", "reason": "no-observation", "history": [], "conflicts": []}
+        last = events[-1][1]
+        history = [h for h, _, _ in events]
+        reconciled_at = max((i for i, (_, e, _) in enumerate(events) if e["phase"] == "reconcile"), default=-1)
+        active = events[reconciled_at:] if reconciled_at >= 0 else events
+        completed_operations = {e["operation"] for _, e, _ in active if e["phase"] == "complete"}
+        conflicts = [h for h, e, _ in active if e["phase"] in ("failed", "interrupted", "unknown")
+                     or (e["phase"] == "dispatch" and e["operation"] not in completed_operations)]
+        terminals = [e for _, e, _ in active if e["phase"] in ("complete", "observation", "reconcile")]
+        opposed = len({(e["state"], v1.identity(admit_request(e["request"].encode())["release"])
+                        if e["kind"] in ("qualification", "selection") else None) for e in terminals}) > 1
+        supported = last["phase"] in ("complete", "observation", "reconcile")
+        if last["phase"] == "reconcile":
+            supported = last["reconciles"] == sorted(history[:-1])
+        elif last["phase"] == "complete":
+            # A completed own dispatch is supported, but no older failure or
+            # opposed cycle is silently erased.
+            completed_operations = {e["operation"] for _, e, _ in active if e["phase"] == "complete"}
+            conflicts = [h for h, e, _ in active if e["phase"] in ("failed", "interrupted", "unknown")
+                         or (e["phase"] == "dispatch" and e["operation"] not in completed_operations)]
+            supported = supported and not conflicts and not opposed
+        else:
+            supported = supported and not conflicts and not opposed
+        supported = supported and parse_ns(last["recorded"]) <= now_ns < parse_ns(last["expires"])
+        return {"status": "supported-observation" if supported else "unknown",
+                "state": last["state"] if supported else None, "history": history,
+                "conflicts": conflicts, "reconciles": last["reconciles"],
+                "authority": "injected-owner-evidence", "limits": ["not-global-exclusion", "not-operational-adoption"]}
+
+    def project_current(self, *, kind):
+        self.ports.begin()
+        need(kind in self.config.kinds, "scope-kind")
+        lease = self.ports.try_acquire(self.config.scope, "read_projection")
+        need(lease is not None, "lock-busy")
+        try:
+            fence = self._fence(lease)
+            events = self._ledger()
+            sample = self._clock(events)
+            relevant = [(h, e, r) for h, e, r in events if e["kind"] == kind]
+            for _hash, _event, raw in relevant:
+                self._existing(raw)
+            current_view = self._project(relevant, sample.wall_ns)
+            if current_view["status"] == "supported-observation":
+                event = relevant[-1][1]
+                _doc, registry = self._request(event["request"].encode(), event["operation"], kind, event["state"], event["mode"])
+                need(registry == event["registry_sha256"] and fence == event["fence"], "pinned-state-changed")
+                need({r["role"] for r in event["evidence"]} == {"outcome", "persistence", "readback"}, "missing-evidence")
+                for ref in event["evidence"]:
+                    self._resolve_reference(ref, event, sample.wall_ns)
+            need([h for h, _, _ in self._ledger()] == [h for h, _, _ in events], "history-frontier")
+            need(self._fence(lease) == fence, "fence-changed")
+            return self._project(relevant, self._clock(events).wall_ns)
+        finally:
+            self._close(lease)
+
+    @staticmethod
+    def diagnose_v1(raw, *, as_of):
+        """Explicit whole-second v1 diagnostic only; never converts v2 events."""
+        return v1.classify([v1.parse(raw)], as_of=as_of)

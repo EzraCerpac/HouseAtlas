@@ -263,3 +263,11 @@ replay/conflict reconciliation, incomplete persistence and independent evidence
 summaries. No filesystem payload operation, network, consumer, receipt emission,
 service, credential or operational adoption occurs. Hosted logs establish test
 outcomes; validated claims establish no authority or custody.
+
+The same ordinary-core job also runs the 44 generated methods in
+`tools/model-input-disposition/test_storage_adapter.py` against injected fake
+clock, registry, resolver, ledger, readback and conditional-dispatch ports.
+The separately versioned prospective protocol preserves pure v1 unchanged.
+These in-memory checks perform no actual custody operation, installation,
+transport, credential access or operational adoption; the existing storage owner
+must separately qualify the concrete route, clock continuity and fence semantics.

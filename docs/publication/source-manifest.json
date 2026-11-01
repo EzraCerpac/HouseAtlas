@@ -41,8 +41,8 @@
     {
       "path": ".github/workflows/ordinary-core.yml",
       "mode": "100644",
-      "bytes": 7672,
-      "sha256": "b6dd3655a93ae14fe6010c0ae5cbf1241622aac114b5502dad3c636d69d88a9a",
+      "bytes": 7906,
+      "sha256": "e8304ee19b1881ada279f60f68fb123f4705356bf1d7cf20f197b6838ba2323f",
       "owner": "core-integration"
     },
     {
@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 17861,
-      "sha256": "72f67c72022be942d69c1f4c6c12941949b1f66b6358e5ae6bb639ee0f2ad9c0",
+      "bytes": 18393,
+      "sha256": "75bc0f5dd7997ea512ef71081fa02f16cee55253e5aeedc5526e36de64c2ae69",
       "owner": "core-integration"
     },
     {
@@ -6418,8 +6418,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 202597,
-      "sha256": "316bc0208de77f1572fc6d8700ea0e36e63684d2488bcb0bb8ad1128d2157656",
+      "bytes": 204001,
+      "sha256": "816c7806bea775f52daea95d2ad5a86163f0d9ac1b9ea2145312f3dba65c3f84",
       "owner": "core-integration"
     },
     {
@@ -11598,8 +11598,8 @@
     {
       "path": "tools/ci/lanes.json",
       "mode": "100644",
-      "bytes": 54787,
-      "sha256": "e2e7f3be3991b817b69cf2c3a1af5e66c057f7bb339d38124aeedd9717aa9a05",
+      "bytes": 55634,
+      "sha256": "020cd82bd4f284213e5b126ebfb6aac70398b58ba38c31e73c88c3c603412541",
       "owner": "core-integration"
     },
     {
@@ -12088,8 +12088,15 @@
     {
       "path": "tools/model-input-disposition/README.md",
       "mode": "100644",
-      "bytes": 7963,
-      "sha256": "87ccdee4a002f4b901da5eb05529a6686bfe793745c118c34f243b765df9a545",
+      "bytes": 8513,
+      "sha256": "4ce060c9d8533706ed1802efc09c2f9255aaf22503eee4bcc5f494661eb1078b",
+      "owner": "storage"
+    },
+    {
+      "path": "tools/model-input-disposition/STORAGE-PROTOCOL.md",
+      "mode": "100644",
+      "bytes": 16724,
+      "sha256": "2d5242225750ec47f1b1eef68c24a5300ac72c2714ed92aa2d390c6308bcf569",
       "owner": "storage"
     },
     {
@@ -12100,10 +12107,24 @@
       "owner": "storage"
     },
     {
+      "path": "tools/model-input-disposition/storage_adapter.py",
+      "mode": "100644",
+      "bytes": 43420,
+      "sha256": "761dd491e5df54d6041394e56b070954c5939722763fdebc0edef1e63ee49a36",
+      "owner": "storage"
+    },
+    {
       "path": "tools/model-input-disposition/test_disposition.py",
       "mode": "100644",
       "bytes": 15954,
       "sha256": "cc7474fc3cf0ee5b7608797cad7a1dbc15d63a1725e0e9e52ef932d24bce7d39",
+      "owner": "storage"
+    },
+    {
+      "path": "tools/model-input-disposition/test_storage_adapter.py",
+      "mode": "100644",
+      "bytes": 32946,
+      "sha256": "96d8480148c9e5c0f24482c3639cb223a2b4324b9cde5342f371a6c47f982940",
       "owner": "storage"
     },
     {

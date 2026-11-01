@@ -122,3 +122,13 @@ there with its existing writer and a cross-link. This module changes no claims,
 holds, loader/bake implementation, deployment pruning, active releases, services,
 retention or access. Consumer qualification and publication selection remain with
 their existing owner. References #277 and #304; operational acceptance stays open.
+
+## Prospective owner adapter
+
+[STORAGE-PROTOCOL.md](STORAGE-PROTOCOL.md) specifies the separately versioned v2
+precision, durability and reconciliation seam in `storage_adapter.py`.
+Its injected ports have no built-in transport, filesystem custody, clock, lock,
+installer or credential implementation. V1 APIs and unverified authority remain
+unchanged. The existing sole storage owner must qualify and bind a real route
+for a separately authorized prospective operation; no operational adoption or
+installation follows from source/CI/merge success.
