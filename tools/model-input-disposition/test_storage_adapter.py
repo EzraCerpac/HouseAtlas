@@ -51,11 +51,13 @@ class FakeOwner:
         self.release = a.PinnedSource(b'{"synthetic":"release"}', (("overview", b"generated transformed mesh"),))
         self.export = a.FrozenExport(self.original, self.release, "synthetic_export", "synthetic_registry", True)
         self.records, self.verifications, self.refs = {}, {}, {}
+        self.admissions = {}
         self.locked = self.busy = False
         self.allowed = self.complete_history = True
         self.hooks, self.calls, self.effects = {}, [], 0
         self.read_transform = self.verification_transform = lambda raw: raw
         self.ack_durable = self.read_durable = self.read_independent = True
+        self.verification_ack_durable = True
         self.reference_route = "synthetic_resolver"
         self.stream_data, self.stream_states, self.stream_calls = {}, {}, []
 
@@ -125,11 +127,41 @@ class FakeOwner:
         if key in self.verifications and self.verifications[key] != raw:
             raise ValueError("synthetic immutable artifact")
         self.verifications[key] = raw
-        return a.WriteAck("synthetic_writer", True)
+        return a.WriteAck("synthetic_writer", self.verification_ack_durable)
 
     def independent_verification_read(self, scope, key, **kw):
         self.hook("verification_read")
         return a.Readback(self.verification_transform(self.verifications[key]), "synthetic_reader", True, True)
+
+    def commit_admission(self, scope, key, proposal, **kw):
+        self.hook("admission_write")
+        body=a.decode(proposal)
+        tail=a.sha(tuple(self.records.values())[-1]) if self.records else None
+        registry=a.sha(a.canonical({"label":self.export.label,"original":self.export.original.identity_object(),
+                                   "release":self.export.release.identity_object() if self.export.release else None,
+                                   "provenance":self.export.provenance,"streams":body["stream_seals"]}))
+        if (not self.locked or not self.allowed or self.fence.object()!=body["fence"]
+                or self.clock.source!=body["clock_source"] or registry!=body["registry_sha256"]
+                or tail!=body["document_sha256"] or a.sha(self.records[key])!=body["document_sha256"]
+                or a.sha(self.verifications[key])!=body["verification_sha256"]
+                or self.clock.wall_ns<a.parse_ns(body["validated"])
+                or self.clock.monotonic_ns<int(body["validated_monotonic_ns"])
+                or self.clock.wall_ns>=a.parse_ns(body["wall_deadline"])
+                or self.clock.monotonic_ns>=int(body["elapsed_deadline_ns"])
+                or any(self.stream_states[h].sha256!=v["state_sha256"] for h,v in body["stream_seals"].items())):
+            raise ValueError("synthetic conditional durable admission refused")
+        body.update(committed=a.format_ns(self.clock.wall_ns),committed_monotonic_ns=str(self.clock.monotonic_ns))
+        encoded=a.canonical(body)
+        if key in self.admissions and self.admissions[key]!=encoded:
+            raise ValueError("synthetic immutable admission")
+        self.admissions[key]=encoded
+        self.hook("admission_after_commit")
+        return a.WriteAck("synthetic_writer",True)
+
+    def independent_admission_read(self, scope, key, **kw):
+        self.calls.append(("admission_read",kw))
+        self.hook("admission_read")
+        return a.Readback(self.admissions[key],"synthetic_reader",True,True)
 
     def dispatch_under_fence(self, scope, operation, *, effect, **kw):
         self.hook("dispatch")
@@ -843,6 +875,128 @@ class AdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(a.AdapterError,"outcome-superseded"):
             self.outcome()
         self.assertNotIn("complete",self.o.records)
+
+    def test_expiry_during_verification_cannot_become_supported_after_restart(self):
+        self.prepared()
+        self.o.hooks["verification_write"]=lambda o:setattr(o,"clock",replace(o.clock,monotonic_ns=o.clock.monotonic_ns+a.PROPOSED_INTENT_NS))
+        with self.assertRaisesRegex(a.AdapterError,"intent-expired"):
+            self.outcome()
+        self.o.hooks.clear()
+        self.assertIn("complete",self.o.records)
+        self.assertIn("complete",self.o.verifications)
+        self.assertNotIn("complete",self.o.admissions)
+        self.adapter=a.StorageAdapter(config(),self.o)
+        with self.assertRaises(a.AdapterError):
+            self.adapter.project_current(kind="disposition")
+        with self.assertRaises(a.AdapterError):
+            self.intent(operation="replacement",event_id="replacement")
+        self.assertEqual(self.o.effects,1)
+
+    def test_conditional_admission_refuses_expiry_in_final_commit_window(self):
+        self.prepared()
+        self.o.hooks["admission_write"]=lambda o:setattr(o,"clock",replace(o.clock,monotonic_ns=o.clock.monotonic_ns+a.PROPOSED_INTENT_NS))
+        with self.assertRaisesRegex(a.AdapterError,"owner-port-commit_admission"):
+            self.outcome()
+        self.assertNotIn("complete",self.o.admissions)
+        self.o.hooks.clear()
+        with self.assertRaises(a.AdapterError):
+            a.StorageAdapter(config(),self.o).project_current(kind="disposition")
+
+    def test_unadmitted_completion_can_be_covered_only_by_new_readonly_reconciliation(self):
+        self.prepared()
+        self.o.hooks["verification_write"]=lambda o:setattr(o,"clock",replace(o.clock,monotonic_ns=o.clock.monotonic_ns+a.PROPOSED_INTENT_NS))
+        with self.assertRaises(a.AdapterError):
+            self.outcome()
+        self.o.hooks.clear()
+        self.o.tick()
+        history=tuple(sorted(a.sha(raw) for raw in self.o.records.values()))
+        self.adapter=a.StorageAdapter(config(),self.o)
+        self.adapter.reconcile_operation(self.raw,operation="op",event_id="reconcile",kind="disposition",state="present",
+                                        references=self.o.evidence(state="present",prefix="post_failure"),reconciles=history)
+        view=self.adapter.project_current(kind="disposition")
+        self.assertEqual(view["status"],"supported-observation")
+        self.assertEqual(sorted(view["covered_history"]),sorted(history))
+        self.assertNotIn("complete",self.o.admissions)
+        self.intent(operation="new_cycle",event_id="new_intent")
+        self.assertEqual(self.o.effects,1)
+
+    def test_post_write_faults_cannot_publish_authority_after_restart(self):
+        for fault in ("ack","readback","clock","reversal","fence","registry","authority","stream"):
+            with self.subTest(fault=fault):
+                self.setUp()
+                if fault=="stream":
+                    self.streamed()
+                self.prepared()
+                saved_clock,saved_fence,saved_export=self.o.clock,self.o.fence,self.o.export
+                saved_streams=dict(self.o.stream_states)
+                def mutate(owner):
+                    if fault=="ack":
+                        owner.verification_ack_durable=False
+                    elif fault=="clock":
+                        owner.clock=replace(owner.clock,source="other")
+                    elif fault=="reversal":
+                        owner.clock=replace(owner.clock,monotonic_ns=0)
+                    elif fault=="fence":
+                        owner.fence=replace(owner.fence,policy="e"*64)
+                    elif fault=="registry":
+                        owner.export=replace(owner.export,provenance="other")
+                    elif fault=="authority":
+                        owner.allowed=False
+                    elif fault=="stream":
+                        owner.stream_states["synthetic_stream"]=replace(owner.stream_states["synthetic_stream"],sha256="e"*64)
+                if fault=="readback":
+                    self.o.hooks["verification_read"]=lambda _:(_ for _ in ()).throw(OSError("synthetic readback failure"))
+                else:
+                    self.o.hooks["verification_write"]=mutate
+                with self.assertRaises(a.AdapterError):
+                    self.outcome()
+                self.assertIn("complete",self.o.records)
+                self.assertIn("complete",self.o.verifications)
+                self.assertNotIn("complete",self.o.admissions)
+                self.o.hooks.clear()
+                self.o.clock,self.o.fence,self.o.export=saved_clock,saved_fence,saved_export
+                self.o.stream_states=saved_streams
+                self.o.allowed=self.o.verification_ack_durable=True
+                self.adapter=a.StorageAdapter(config(stream_limits=a.StreamLimits(1024,2048,4,1024) if fault=="stream" else None),self.o)
+                with self.assertRaises(a.AdapterError):
+                    self.adapter.project_current(kind="disposition")
+                with self.assertRaises(a.AdapterError):
+                    self.intent(operation="escape",event_id="escape")
+                self.assertEqual(self.o.effects,1)
+
+    def test_valid_atomic_admission_can_be_recovered_after_lost_commit_reply(self):
+        self.prepared()
+        self.o.hooks["admission_after_commit"]=lambda _:(_ for _ in ()).throw(TimeoutError("synthetic lost reply"))
+        with self.assertRaisesRegex(a.AdapterError,"owner-port-commit_admission"):
+            self.outcome()
+        self.assertIn("complete",self.o.admissions)
+        self.o.hooks.clear()
+        self.adapter=a.StorageAdapter(config(),self.o)
+        self.assertEqual(self.adapter.project_current(kind="disposition")["status"],"supported-observation")
+        with self.assertRaises(a.AdapterError):
+            self.dispatch(event_id="retry")
+        self.assertEqual(self.o.effects,1)
+
+    def test_admission_readback_failure_does_not_erase_actual_committed_success(self):
+        self.prepared()
+        self.o.hooks["admission_read"]=lambda _:(_ for _ in ()).throw(TimeoutError("synthetic lost readback"))
+        with self.assertRaisesRegex(a.AdapterError,"owner-port-independent_admission_read"):
+            self.outcome()
+        self.assertIn("complete",self.o.admissions)
+        self.o.hooks.clear()
+        self.adapter=a.StorageAdapter(config(),self.o)
+        self.assertEqual(self.adapter.project_current(kind="disposition")["status"],"supported-observation")
+        self.assertEqual(self.o.effects,1)
+
+    def test_late_reply_does_not_invalidate_an_on_time_conditional_commit(self):
+        self.prepared()
+        self.o.hooks["admission_after_commit"]=lambda o:setattr(o,"clock",replace(o.clock,monotonic_ns=o.clock.monotonic_ns+a.PROPOSED_INTENT_NS))
+        result=self.outcome()
+        marker=a.decode(result["admission"])
+        self.assertLess(int(marker["committed_monotonic_ns"]),int(marker["elapsed_deadline_ns"]))
+        self.o.hooks.clear()
+        self.assertEqual(a.StorageAdapter(config(),self.o).project_current(kind="disposition")["status"],"supported-observation")
+        self.assertEqual(self.o.effects,1)
 
     def test_pure_v1_remains_closed_to_fractional_events(self):
         document=json.loads(self.raw)

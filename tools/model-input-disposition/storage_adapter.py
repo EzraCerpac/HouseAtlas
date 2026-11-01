@@ -311,6 +311,8 @@ class OwnerPorts(Protocol):
     def independent_read(self, scope: str, key: str, *, max_bytes: int, budget_ns: int) -> Readback: ...
     def append_verification(self, scope: str, key: str, raw: bytes, *, budget_ns: int) -> WriteAck: ...
     def independent_verification_read(self, scope: str, key: str, *, max_bytes: int, budget_ns: int) -> Readback: ...
+    def commit_admission(self, scope: str, key: str, proposal: bytes, *, budget_ns: int) -> WriteAck: ...
+    def independent_admission_read(self, scope: str, key: str, *, max_bytes: int, budget_ns: int) -> Readback: ...
     def dispatch_under_fence(self, scope: str, operation: str, *, fence: dict,
                              intent_deadline_ns: int, elapsed_deadline_ns: int,
                              clock_source: str, registry_sha256: str,
@@ -425,6 +427,7 @@ class StorageAdapter:
         self.ports.begin()
         self._stream_cache = {}
         self._stream_bytes = self._stream_chunks = 0
+        self._admission_floor = (0, 0)
 
     def _stream_state(self, handle, expected):
         state = self.ports.stream_state(self.config.scope, handle)
@@ -643,6 +646,8 @@ class StorageAdapter:
         sample = self.ports.now()
         need(type(sample) is ClockSample and sample.source == self.config.clock_source, "clock-provenance")
         format_ns(sample.wall_ns)
+        need(sample.wall_ns >= self._admission_floor[0] and sample.monotonic_ns >= self._admission_floor[1],
+             "clock-reversal")
         need(type(sample.monotonic_ns) is int and 0 <= sample.monotonic_ns < 2**63, "clock")
         if events:
             old = events[-1][1]
@@ -686,7 +691,9 @@ class StorageAdapter:
     def verify_durable_readback(self, raw):
         """Read-only: requires both a retained event and its separate artifact."""
         self._begin()
-        return decode(self._existing(raw))["document"]
+        artifact = self._existing(raw)
+        self._clock(self._ledger())
+        return decode(artifact)["document"]
 
     def _existing(self, raw):
         event = parse_record(raw)
@@ -733,7 +740,55 @@ class StorageAdapter:
                  ref["route"] in self.config.reference_routes and ref["provenance"] == self.config.registry_provenance and
                  type(ref["bytes"]) is int and 0 <= ref["bytes"] <= MAX_BYTES and
                  parse_ns(ref["recorded"]) <= parse_ns(event["captured"]), "verification-changed")
+        self._admission(event, raw, read.raw)
         return read.raw
+
+    def _deadlines(self, event, events):
+        wall = parse_ns(event["expires"])
+        elapsed = int(event["monotonic_ns"]) + wall - parse_ns(event["captured"])
+        if event["phase"] == "complete":
+            intent = next(e for _, e, _ in events if e["operation"] == event["operation"] and e["phase"] == "intent")
+            wall = min(wall, parse_ns(intent["expires"]))
+            elapsed = min(elapsed, int(intent["monotonic_ns"]) + self.config.horizons.intent_ns)
+        return wall, elapsed
+
+    @staticmethod
+    def _decimal_ns(value):
+        need(type(value) is str and re.fullmatch(r"0|[1-9][0-9]{0,19}", value) and int(value) < 2**64, "clock")
+        return int(value)
+
+    def _admission(self, event, raw, verification, expected=None):
+        read = self.ports.independent_admission_read(self.config.scope, event["id"], max_bytes=MAX_BYTES)
+        need(type(read) is Readback and read.route == self.config.read_route and read.durable is True
+             and read.independent is True, "admission-readback")
+        marker = decode(read.raw)
+        keys(marker, "profile event operation scope owner kind mode document_sha256 verification_sha256 registry_sha256 fence stream_seals clock_source validated validated_monotonic_ns wall_deadline elapsed_deadline_ns committed committed_monotonic_ns")
+        need(marker["profile"] == "publication-input-storage-admission-v2", "admission-profile")
+        for name in ("operation", "scope", "owner", "kind", "mode", "registry_sha256", "fence", "clock_source"):
+            need(marker[name] == event[name], "admission-binding")
+        artifact = decode(verification)
+        need(marker["event"] == event["id"] and marker["document_sha256"] == sha(raw) and
+             marker["verification_sha256"] == sha(verification) and marker["stream_seals"] == artifact["streams"],
+             "admission-binding")
+        if expected is not None:
+            need({k:v for k,v in marker.items() if k not in ("committed", "committed_monotonic_ns")} == expected,
+                 "admission-binding")
+        wall_deadline, elapsed_deadline = self._deadlines(event, self._ledger())
+        validated, committed = parse_ns(marker["validated"]), parse_ns(marker["committed"])
+        validated_mono, committed_mono = (self._decimal_ns(marker[k]) for k in
+                                          ("validated_monotonic_ns", "committed_monotonic_ns"))
+        need(marker["wall_deadline"] == format_ns(wall_deadline) and
+             self._decimal_ns(marker["elapsed_deadline_ns"]) == elapsed_deadline and
+             parse_ns(event["captured"]) <= validated <= committed < wall_deadline and
+             int(event["monotonic_ns"]) <= validated_mono <= committed_mono < elapsed_deadline,
+             "admission-expired")
+        self._admission_floor = (max(self._admission_floor[0], committed),
+                                 max(self._admission_floor[1], committed_mono))
+        return read.raw
+
+    def _active_history(self, events):
+        cut = max((i for i, (_, e, _) in enumerate(events) if e["phase"] == "reconcile"), default=0)
+        return events[cut:]
 
     def _fresh(self, event, sample, events=()):
         need(sample.wall_ns < parse_ns(event["expires"]) and sample.monotonic_ns <
@@ -778,9 +833,28 @@ class StorageAdapter:
         ack = self.ports.append_verification(self.config.scope, event["id"], encoded)
         read = self.ports.independent_verification_read(self.config.scope, event["id"], max_bytes=MAX_BYTES)
         self._durable(encoded, ack, read)
-        self._fresh(event, self._clock(self._ledger()), events)
+        final_clock = self._clock(self._ledger())
+        self._fresh(event, final_clock, events)
         need(self._fence(lease) == event["fence"], "fence-changed")
-        return {"record": raw, "verification": encoded}
+        _doc, registry = self._request(event["request"].encode(), event["operation"], event["kind"], event["state"], event["mode"])
+        need(registry == event["registry_sha256"], "registry-changed")
+        wall_deadline, elapsed_deadline = self._deadlines(event, events)
+        proposal = {"profile":"publication-input-storage-admission-v2", "event":event["id"],
+                    "operation":event["operation"], "scope":self.config.scope, "owner":self.config.owner,
+                    "kind":event["kind"], "mode":event["mode"], "document_sha256":sha(raw),
+                    "verification_sha256":sha(encoded), "registry_sha256":registry, "fence":event["fence"],
+                    "stream_seals":dict(self._stream_cache), "clock_source":self.config.clock_source,
+                    "validated":format_ns(final_clock.wall_ns), "validated_monotonic_ns":str(final_clock.monotonic_ns),
+                    "wall_deadline":format_ns(wall_deadline), "elapsed_deadline_ns":str(elapsed_deadline)}
+        proposal_bytes = canonical(proposal)
+        need(len(proposal_bytes) <= MAX_BYTES, "admission-limit")
+        ack = self.ports.commit_admission(self.config.scope, event["id"], proposal_bytes)
+        need(type(ack) is WriteAck and ack.route == self.config.write_route and ack.durable is True, "admission-persistence")
+        # The qualified owner atomically validates actual commit-time deadlines,
+        # fence/frontier/seals and durable prerequisites before admitting. Never
+        # reject a committed admission afterward merely because reply time is late.
+        admission = self._admission(event, raw, encoded, expected=proposal)
+        return {"record": raw, "verification": encoded, "admission": admission}
 
     def _run(self, raw, operation, event_id, kind, state, phase, references=(), reconciles=()):
         self._begin()
@@ -812,13 +886,15 @@ class StorageAdapter:
                 need(all(old[k] == v for k, v in {"request": raw.decode(), "operation": operation,
                      "kind": kind, "state": state, "phase": phase, "registry_sha256": registry,
                      "evidence": list(references), "reconciles": sorted(reconciles)}.items()), "event-rebound")
-                return {"record": existing, "verification": self._existing(existing)}
+                verification = self._existing(existing)
+                return {"record": existing, "verification": verification,
+                        "admission": self._admission(old, existing, verification)}
             need(len(events) < MAX_RECORDS, "ledger-limit")
             now = self._clock(events)
             relevant = [(h, e, r) for h, e, r in events if e["kind"] == kind]
             if phase in ("intent", "observation"):
                 need(not prior, "operation-exists")
-                for _, _, saved in relevant:
+                for _, _, saved in self._active_history(relevant):
                     self._existing(saved)
                 if relevant and relevant[-1][1]["phase"] in ("complete", "observation", "reconcile"):
                     latest = relevant[-1][1]
@@ -975,7 +1051,10 @@ class StorageAdapter:
             monotonic_ns < int(last["monotonic_ns"]) + parse_ns(last["expires"]) - parse_ns(last["captured"]))
         return {"status": "supported-observation" if supported else "unknown",
                 "state": last["state"] if supported else None, "history": history,
-                "conflicts": conflicts, "reconciles": last["reconciles"],
+                "conflicts": [h for h, e, _ in events if e["phase"] in ("failed", "interrupted", "unknown")],
+                "active_conflicts": conflicts,
+                "covered_history": history[:reconciled_at] if reconciled_at >= 0 else [],
+                "history_authority": "retained-not-reverified", "reconciles": last["reconciles"],
                 "authority": "injected-owner-evidence", "limits": ["not-global-exclusion", "not-operational-adoption"]}
 
     def project_current(self, *, kind):
@@ -988,7 +1067,7 @@ class StorageAdapter:
             events = self._ledger()
             sample = self._clock(events)
             relevant = [(h, e, r) for h, e, r in events if e["kind"] == kind]
-            for _hash, _event, raw in relevant:
+            for _hash, _event, raw in self._active_history(relevant):
                 self._existing(raw)
             current_view = self._project(relevant, sample.wall_ns, sample.monotonic_ns)
             if current_view["status"] == "supported-observation":

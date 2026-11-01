@@ -117,7 +117,8 @@ qualification remains an operational adoption obligation.
 
 V2 is separately versioned as `publication-input-storage-v2`, with evidence
 profile `publication-input-storage-evidence-v2` and verification profile
-`publication-input-storage-verification-v2`. It is **not** a v1 extension and
+`publication-input-storage-verification-v2`, plus immutable
+`publication-input-storage-admission-v2` markers. It is **not** a v1 extension and
 cannot be passed to the v1 classifier. V1 remains conservative for opposed
 histories and accepts whole-second timestamps only.
 
@@ -180,8 +181,43 @@ fence observations and resolved reference byte hashes, roles, provenance and
 bindings. It is independently stored/read back too. This avoids self-referential
 receipt hashes and never rewrites intent/completion to append its own proof.
 No sidecar is itself a production receipt. Failure between any stages preserves
-existing bytes and uncertainty. Missing/changed sidecars cannot unlock dispatch,
-current projection or a new dependent cycle.
+existing bytes and uncertainty.
+
+After verification-artifact independent readback, the adapter checks the final
+clocks, original completion lease, fence and registry again. It then calls the
+owner's **conditional durable** `commit_admission(scope, id, proposal_bytes,
+budget_ns=...)`. That owner must enforce the actual commit-time wall/elapsed
+deadlines, clock source, fence/frontier/stream seals, scoped authority and
+already independently read durable event/artifact prerequisites under its real
+transaction semantics. Only then may it retain an immutable admission marker
+and acknowledge durability. There is no built-in implementation or claim that
+an advisory lock alone provides this atomic storage transaction.
+
+The marker binds event and artifact hashes, operation/scope/owner/kind/mode,
+registry and stream seals, fence, actual validated/committed nanosecond clocks
+and both deadlines (elapsed numbers are decimal strings). An independent bounded
+`independent_admission_read` must return the retained exact marker. Missing,
+changed, future, expired-at-commit or context-rebound markers cannot support
+completion after restart. If a lease expires during event/artifact persistence,
+no admission is created; their mere existence remains insufficient. Late reply
+time does not retroactively reject an already valid conditional admission.
+The qualified owner must distinguish durable committed admission from pending/
+uncertain transactions after a lost reply. A genuinely valid on-time commit may
+be recovered through independently retrieved immutable admission proof, even
+when its acknowledgement or readback reply was lost. This is explicit read-only
+recovery of actual committed state, not promotion of a rejected late commit.
+Missing/invalid proof remains blocked until fresh authorized reconciliation;
+this library never redispatches the effect. Synchronous callback cancellation
+and real atomic fsync/conditional-commit guarantees are owner qualifications,
+not facilities supplied by this source library.
+
+Covered incomplete records/artifacts remain retained. A genuinely subsequent
+read-only reconciliation may support a new current observation over them, but
+cannot retroactively admit the old completion. Projection reports all history,
+retained conflict hashes, covered-history references and active conflicts;
+`history_authority: retained-not-reverified` explicitly distinguishes preserved
+history from the new observation's verified owner routes. Missing/changed sidecars or final admissions cannot unlock dispatch,
+current projection or a new dependent cycle without explicit fresh reconciliation.
 
 Identical repeated event admission returns the original retained bytes/artifact;
 changed ID content is rejected. This is **storage idempotence only**. A new
