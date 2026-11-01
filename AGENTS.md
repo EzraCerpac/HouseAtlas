@@ -264,7 +264,7 @@ summaries. No filesystem payload operation, network, consumer, receipt emission,
 service, credential or operational adoption occurs. Hosted logs establish test
 outcomes; validated claims establish no authority or custody.
 
-The same ordinary-core job also runs the 72 generated methods in
+The same ordinary-core job also runs the 75 generated methods in
 `tools/model-input-disposition/test_storage_adapter.py` against injected fake
 clock, registry, resolver, ledger, readback and conditional-dispatch ports.
 The separately versioned prospective protocol preserves pure v1 unchanged.

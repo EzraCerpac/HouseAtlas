@@ -448,6 +448,7 @@ class AdapterTests(unittest.TestCase):
         self.intent()
         self.o.tick()
         self.dispatch(effect=lambda: self.o.tick(a.PROPOSED_INTENT_NS))
+        self.o.tick()
         with self.assertRaisesRegex(a.AdapterError, "intent-expired"):
             self.outcome()
         self.assertNotIn("complete", self.o.records)
@@ -1163,6 +1164,71 @@ class AdapterTests(unittest.TestCase):
         self.o.records["forged_complete"]=a.canonical(forged)
         with self.assertRaisesRegex(a.AdapterError,"unresolved-dispatch"):
             a.StorageAdapter(config(),self.o).project_current(kind="disposition")
+
+    def test_settled_elapsed_clock_floor_survives_divergent_restart(self):
+        for phase in ("complete","reconcile","retained_complete","retained_reconcile"):
+            with self.subTest(phase=phase):
+                self.setUp()
+                self.intent()
+                self.o.tick()
+                admission_mono=self.o.clock.monotonic_ns
+                self.dispatch(effect=lambda:self.o.tick(100))
+                self.o.clock=replace(self.o.clock,wall_ns=self.o.clock.wall_ns+1,monotonic_ns=admission_mono+50)
+                self.adapter=a.StorageAdapter(config(),self.o)
+                refs=self.o.evidence(prefix="after_rollback")
+                history=tuple(sorted(a.sha(raw) for raw in self.o.records.values()))
+                if phase.startswith("retained"):
+                    terminal=phase.split("_")[1]
+                    prior=a.parse_record(self.o.records["dispatch"])
+                    forged=dict(prior,id="forged",phase=terminal,
+                        recorded=a.format_ns(self.o.clock.wall_ns),captured=a.format_ns(self.o.clock.wall_ns),
+                        monotonic_ns=str(self.o.clock.monotonic_ns),evidence=list(refs),
+                        expires=a.format_ns(self.o.clock.wall_ns+a.PROPOSED_OBSERVATION_NS),
+                        mode="observation" if terminal=="reconcile" else "mutation",
+                        predecessors=[a.sha(self.o.records["dispatch"])],
+                        reconciles=list(history) if terminal=="reconcile" else [])
+                    self.o.records["forged"]=a.canonical(forged)
+                    with self.assertRaisesRegex(a.AdapterError,"clock-reversal"):
+                        self.adapter.project_current(kind="disposition")
+                elif phase=="complete":
+                    with self.assertRaisesRegex(a.AdapterError,"clock-reversal"):
+                        self.outcome(references=refs)
+                else:
+                    with self.assertRaisesRegex(a.AdapterError,"clock-reversal"):
+                        self.adapter.reconcile_operation(self.raw,operation="op",event_id="reconcile",kind="disposition",state="removed",
+                            references=refs,reconciles=history)
+                self.assertEqual(self.o.effects,1)
+
+    def test_canonical_admission_rebind_cannot_replace_intent_prerequisite(self):
+        self.completed()
+        self.o.tick()
+        self.intent(operation="next",event_id="next_intent")
+        intent=a.parse_record(self.o.records["next_intent"])
+        pinned=intent["prerequisite_proofs"]["complete"]["admission"]
+        body=a.decode(self.o.admissions["complete"])
+        body["committed"]=a.format_ns(a.parse_ns(body["committed"])+1)
+        body["committed_monotonic_ns"]=str(int(body["committed_monotonic_ns"])+1)
+        self.o.admissions["complete"]=a.canonical(body)
+        self.assertNotEqual(a.sha(self.o.admissions["complete"]),pinned)
+        self.o.tick()
+        with self.assertRaisesRegex(a.AdapterError,"prerequisite-proof-changed"):
+            a.StorageAdapter(config(),self.o).dispatch(self.raw,operation="next",event_id="next_dispatch",kind="disposition",state="removed",effect=lambda:None)
+        self.assertNotIn("next_dispatch",self.o.records)
+        self.assertEqual(self.o.effects,1)
+        with self.assertRaisesRegex(a.AdapterError,"prerequisite-proof-changed"):
+            a.StorageAdapter(config(),self.o).project_current(kind="disposition")
+
+    def test_six_retained_cycles_reuse_validated_ledger_within_call_budget(self):
+        for cycle in range(6):
+            op="cycle"+str(cycle)
+            self.intent(operation=op,event_id=op+"_intent")
+            self.o.tick()
+            self.dispatch(operation=op,event_id=op+"_dispatch")
+            self.o.tick()
+            self.outcome(operation=op,event_id=op+"_complete",references=self.o.evidence(operation=op,prefix=op))
+            self.o.tick()
+        self.assertEqual(self.o.effects,6)
+        self.assertEqual(a.StorageAdapter(config(),self.o).project_current(kind="disposition")["status"],"supported-observation")
 
     def test_pure_v1_remains_closed_to_fractional_events(self):
         document=json.loads(self.raw)

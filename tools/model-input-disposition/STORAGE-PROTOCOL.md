@@ -389,3 +389,24 @@ gaps after admission. Live admission and retained-ledger validation enforce the
 same cut. This owner proof is conditional evidence, not a global process or
 distributed-exclusion claim. It preserves the original attempt's uncertainty
 and never fabricates retrospective intent or completion.
+
+Admission and settled-boundary proof wire bytes must equal the exact canonical
+serialization. Alternate whitespace/encoding cannot silently replace an
+immutable proof while preserving only its decoded JSON meaning.
+
+The independently validated settlement's wall AND elapsed clocks are continuity
+floors. Subsequent/current samples and persisted completion/reconciliation
+captures must not precede either floor; a later wall clock cannot conceal elapsed
+rollback after restart. Missing or uncommitted dispatch admission/boundary is
+conservatively blocked: recovery requires the existing owner to establish actual
+retained qualified facts or an explicitly reviewed migration/recovery protocol.
+This library cannot self-reconcile every missing-proof case, fabricate late
+admission, infer quiescence from timeout or replay the effect.
+
+Intent and dispatch events durably embed `prerequisite_proofs`: the exact prior
+record, verification and admission hashes relied on at preparation. These pins
+are part of the event's original immutable byte identity and are rechecked on
+retained proof admission. Conditional dispatch receives that verified frozen
+set, rather than adopting newly looked-up hashes. Even a canonical, otherwise
+valid changed admission clock cannot replace a dependent intent's prerequisite.
+The qualified immutable resolver remains the trust root for proof issuance.
