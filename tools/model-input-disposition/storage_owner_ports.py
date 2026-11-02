@@ -37,7 +37,7 @@ def need(condition, code):
 
 def basename(value):
     need(type(value) is str and 0 < len(value) <= 128 and value not in (".", "..") and
-         all(c in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-" for c in value)
+         all(c in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-()" for c in value)
          and value[0].isalnum(), "entry")
     return value
 
@@ -61,7 +61,7 @@ def emit(raw):
  while out:
   n=os.write(1,out);out=out[n:]
 def name(s):
- if type(s)!=str or not 0<len(s)<=128 or s in (".","..") or not s[0].isalnum() or any(c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-" for c in s):raise ValueError()
+ if type(s)!=str or not 0<len(s)<=128 or s in (".","..") or not s[0].isalnum() or any(c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-()" for c in s):raise ValueError()
  return s
 def openfile(s,write=False):
  fd=os.open(name(s),(os.O_WRONLY|os.O_CREAT|os.O_EXCL if write else os.O_RDONLY)|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC,0o600,dir_fd=root)
