@@ -259,3 +259,16 @@ immutability remain externally qualified assertions, not facts established by
 this source or a successful lock acquisition. Unsupported in-place writers keep
 observation on hold. Snapshot evidence, if used by a future reviewed protocol,
 must describe snapshot presence rather than the original location's state.
+
+
+## Literal registered parentheses
+
+Registered basenames admit ASCII letters/digits plus `_.-()` after an initial
+ASCII letter/digit, with the existing 128-character limit. Parentheses are literal
+characters passed to directory-relative opens in both parent and isolated worker;
+there is no shell, escaping, normalization, renaming or path interpretation.
+Separators, traversal, dot/dotdot, NUL/control and all other characters still
+refuse. Opaque tokens, operations, scopes, evidence keys and the closed journal
+namespace retain their existing stricter grammar. Source bytes and original
+identity are verified at the actual registered retained location; successful
+snapshot presence does not establish presence at a different original location.

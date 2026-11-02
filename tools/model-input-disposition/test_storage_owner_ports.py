@@ -244,6 +244,79 @@ class FilesystemPortsTests(unittest.TestCase):
                 if child.p.poll() is None and child is not lease.child:child.abort()
             lease.close()
 
+    def test_parenthesized_registered_originals_reach_worker_stream_and_readback(self):
+        manifest=self.entry("retained","manifest","original(1).json",self.registry.exact_manifest)
+        raw=b"generated payload bytes"
+        payload=self.entry("retained","master","original(1).bin",raw)
+        registry=replace(self.registry,manifest=manifest,payloads=(payload,))
+        owner=self.owner(registry=registry);adapter=a.StorageAdapter(self.config,owner)
+        self.assertEqual(v1.identity(registry.original()),self.permits[0].original_identity)
+        original=f._Child.exchange;reads=[];streams={}
+        def observe(child,request,**kwargs):
+            result=original(child,request,**kwargs)
+            if request.get("op")=="read" and request.get("name")==manifest.name:
+                reads.append((child.p.pid,result))
+            if request.get("op")=="open" and request.get("name")==payload.name:
+                streams[child.p.pid]=[]
+            if request.get("op")=="chunk" and child.p.pid in streams:
+                streams[child.p.pid].append(result)
+            return result
+        with patch.object(f._Child,"exchange",observe):
+            result=owner.record_present(adapter,operation="operation0",event_id="parenthesized_original")
+            checked=owner.verify_present(adapter,operation="operation0",event_id="parenthesized_original")
+        self.assertTrue(reads);self.assertTrue(streams)
+        self.assertTrue(all(pid!=os.getpid() and data==registry.exact_manifest for pid,data in reads))
+        for pid,chunks in streams.items():
+            self.assertNotEqual(pid,os.getpid());self.assertTrue(chunks)
+            self.assertEqual(chunks[-1],b"");self.assertEqual(b"".join(chunks),raw)
+        self.assertEqual(checked["projection"]["status"],"supported-observation")
+        self.assertEqual(checked["projection"]["state"],"present")
+        self.assertEqual(v1.identity(a.admit_request(a.parse_record(result["record"])["request"].encode())["original"]),
+                         v1.identity(registry.original()))
+        self.assertEqual((self.dirs["retained"]/manifest.name).read_bytes(),registry.exact_manifest)
+        self.assertEqual((self.dirs["retained"]/payload.name).read_bytes(),raw)
+
+    def test_registered_basename_parent_and_fixed_worker_rejection_parity(self):
+        # A test-only probe calls the actual fixed worker name() helper. Returning
+        # refusal bytes distinguishes its validation from a missing-file error.
+        branch='   if op=="root":'
+        self.assertEqual(f._WORKER.count(branch),1)
+        probe=f._WORKER.replace(branch,'''   if op=="probe_name":
+    try:out=b"V"+name(q["name"]).encode("ascii")
+    except ValueError:out=b"R"
+   elif op=="root":''')
+        child=f._Child(self.fds["retained"],self.ports._poison,probe)
+        self.ports.children.append(child)
+        try:
+            for value in ("original(1).bin","a(","a)","a"*127+")"):
+                self.assertEqual(f.basename(value),value)
+                self.assertEqual(child.exchange({"op":"probe_name","name":value},limit=129,
+                                 budget_ns=self.config.callback_budget_ns),b"V"+value.encode("ascii"))
+            for value in ("",".","..","../x","x/y","x\\y","x\x00y","x\ny","x\ty","x\x7fy",
+                          "(x)","_x","-x",".x","x y","x+y","x[y]","x{y}","x;y","x'y",'x"y',
+                          "x`y","x$y","x%y","x:y","x?y","x*y","xéy","a"*129,None,False):
+                with self.subTest(value=value):
+                    with self.assertRaises(a.AdapterError):f.basename(value)
+                    self.assertEqual(child.exchange({"op":"probe_name","name":value},limit=129,
+                                     budget_ns=self.config.callback_budget_ns),b"R")
+            self.assertEqual(child.exchange({"op":"probe_name","name":"valid(2)"},limit=129,
+                             budget_ns=self.config.callback_budget_ns),b"Vvalid(2)")
+        finally:child.close(self.config.callback_budget_ns)
+
+    def test_parentheses_never_broaden_opaque_tokens_or_request_keys(self):
+        for value in ("operation(1)","scope(1)","evidence(1)","master(1)"):
+            with self.subTest(value=value):
+                with self.assertRaises(a.AdapterError):a.token(value)
+                with self.assertRaises(a.AdapterError):replace(self.payload,token=value)
+        for changes in (dict(operation="operation(1)",event_id="event0"),
+                        dict(operation="operation0",event_id="event(1)")):
+            with self.assertRaises(a.AdapterError):self.ports.record_present(self.adapter,**changes)
+        with self.assertRaises(a.AdapterError):
+            self.ports.stream_state(self.registry.scope,"master(1)",budget_ns=self.config.callback_budget_ns)
+        self.assertEqual(list(self.dirs["journal"].iterdir()),[])
+        self.assertEqual(list(self.dirs["evidence"].iterdir()),[])
+        self.assertFalse(self.ports.failed)
+
     def test_present_observation_and_independent_same_process_readback(self):
         before=(self.dirs["retained"]/self.payload.name).read_bytes()
         result=self.record()
