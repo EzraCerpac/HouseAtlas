@@ -34,14 +34,17 @@ class FilesystemPortsTests(unittest.TestCase):
         self.protected=tuple(self.entry("registry",name,name+".json",a.canonical({"synthetic":name}))
                              for name in ("application","selection","policy"))
         self.registry=f.FrozenRegistry("synthetic_scope","synthetic_owner","synthetic_registry","generated_export",
-            self.manifest,b'{ "generated":true }',(self.payload,),self.protected,1)
+            self.manifest,b'{ "generated":true }',(self.payload,),
+            tuple(f.ProtectedCapability(f.DirectoryCapability(self.fds["registry"],self.directory_requirements),e) for e in self.protected),1)
         self.clock=f.ClockEpoch()
         self.config=a.OwnerConfig(self.registry.scope,self.registry.owner,self.clock.source,self.registry.provenance,
             "synthetic_writer","synthetic_reader",("synthetic_resolver",),("disposition",),
             a.Horizons(a.PROPOSED_INTENT_NS,a.PROPOSED_OBSERVATION_NS),60*a.NS,
             a.StreamLimits(536870912,1073741824,1048576,4096))
         self.roots=f.PrivateRoots(self.fds["journal"],self.fds["evidence"],self.fds["registry"],self.fds["retained"],
-            f.LockCapability(self.lock_dir,self.lock_entry),self.directory_requirements,self.requirements,True,True)
+            f.LockCapability(self.lock_dir,self.lock_entry),
+            tuple(f.DirectoryCapability(fd,self.directory_requirements) for fd in (*self.fds.values(),self.lock_dir)),
+            a.StreamLimits(1048576,3145728,65536,128),self.requirements,True,True)
         now=time.time_ns()
         self.permits=tuple(f.OperationPermit(self.registry.scope,self.registry.owner,"operation"+str(i),
             v1.identity(self.registry.original()),self.clock.source,self.registry.provenance,now-a.NS,now+3600*a.NS,
@@ -86,6 +89,161 @@ class FilesystemPortsTests(unittest.TestCase):
     def acquire(self, index=0):
         return self.ports.try_acquire(self.registry.scope,"operation"+str(index),budget_ns=self.config.callback_budget_ns)
 
+
+    def separated_protected(self):
+        """Generated mixed-mode capabilities; never inspect operational files."""
+        caps=[]
+        for token,mode,raw in (("application",0o755,b"x"*(a.MAX_BYTES+1)),
+                               ("selection",0o600,b"synthetic selected"),("policy",0o600,b"synthetic policy")):
+            root=self.base/("protected_"+token);root.mkdir(mode=0o700)
+            fd=os.open(root,os.O_RDONLY|os.O_DIRECTORY);self.fds["protected_"+token]=fd
+            path=root/(token+".bin")
+            out=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,mode)
+            with os.fdopen(out,"wb") as stream:stream.write(raw)
+            req=replace(self.requirements,mode=mode)
+            entry=f.Entry(token,path.name,tuple(getattr(path.stat(),n) for n in f.FIELDS),a.sha(raw),req)
+            caps.append(f.ProtectedCapability(f.DirectoryCapability(fd,self.directory_requirements),entry))
+        lockroot=self.base/"public_lock_directory";lockroot.mkdir(mode=0o755)
+        lockfd=os.open(lockroot,os.O_RDONLY|os.O_DIRECTORY);self.fds["mixed_lock"]=lockfd
+        lockpath=lockroot/"existing_lock"
+        fd=os.open(lockpath,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o644);os.close(fd)
+        req=replace(self.requirements,mode=0o644)
+        lock=f.Entry("existing_lock",lockpath.name,tuple(getattr(lockpath.stat(),n) for n in f.FIELDS),a.sha(b""),req)
+        directories=tuple(d for d in self.roots.directories if d.directory_fd!=self.lock_dir)+(f.DirectoryCapability(lockfd,replace(self.directory_requirements,mode=0o755)),)
+        roots=replace(self.roots,lock=f.LockCapability(lockfd,lock),directories=directories)
+        return roots,replace(self.registry,protected=tuple(caps))
+
+    def test_separate_modes_roots_and_streamed_protected_binary(self):
+        roots,registry=self.separated_protected()
+        before={p.entry.token:p.entry.fields for p in registry.protected}
+        owner=self.owner(roots=roots,registry=registry);adapter=a.StorageAdapter(self.config,owner)
+        result=owner.record_present(adapter,operation="operation0",event_id="separate_event")
+        checked=owner.verify_present(adapter,operation="operation0",event_id="separate_event")
+        self.assertEqual(checked["projection"]["status"],"supported-observation")
+        self.assertEqual(a.parse_record(result["record"])["state"],"present")
+        self.assertEqual(roots.lock.entry.requirements.mode,0o644)
+        self.assertEqual(roots.file_requirements.mode,0o600)
+        for p in registry.protected:
+            fields=tuple(getattr(os.stat(p.entry.name,dir_fd=p.directory.directory_fd),n) for n in f.FIELDS)
+            self.assertEqual(before[p.entry.token],fields)
+        self.assertTrue(owner.closed is False)
+        owner.close();self.assertTrue(all(c.p.poll() is not None for c in owner.children))
+
+    def test_lock_and_directory_requirements_never_relax_output_privacy(self):
+        roots,registry=self.separated_protected()
+        for mode in (0o622,0o664,0o666):
+            req=replace(self.requirements,mode=mode)
+            fields=list(roots.lock.entry.fields);fields[2]=(fields[2]&~0o777)|mode
+            entry=replace(roots.lock.entry,fields=tuple(fields),requirements=req)
+            owner=self.owner(roots=replace(roots,lock=replace(roots.lock,entry=entry)),registry=registry)
+            with self.assertRaisesRegex(a.AdapterError,"lock-ownership"):
+                owner.try_acquire(registry.scope,"operation0",budget_ns=self.config.callback_budget_ns)
+        for mode in (0o722,0o775,0o777):
+            with self.assertRaises(a.AdapterError):
+                f.DirectoryCapability(self.lock_dir,replace(self.directory_requirements,mode=mode))
+        with self.assertRaisesRegex(a.AdapterError,"writer-identity"):
+            self.owner(roots=replace(roots,file_requirements=replace(self.requirements,mode=0o644)),registry=registry)
+        self.assertEqual(list(self.dirs["journal"].iterdir()),[])
+        self.assertEqual(list(self.dirs["evidence"].iterdir()),[])
+        owner=self.owner(roots=roots,registry=registry)
+        lease=owner.try_acquire(registry.scope,"operation0",budget_ns=self.config.callback_budget_ns)
+        try:
+            path=self.base/"public_lock_directory"/roots.lock.entry.name
+            path.unlink()
+            fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o644);os.close(fd)
+            with self.assertRaises(a.AdapterError):owner._fence()
+            self.assertEqual(owner.admitted,{})
+        finally:lease.close()
+
+    def test_protected_resource_admission_rejects_before_journal_writes(self):
+        roots,registry=self.separated_protected()
+        for limits in (a.StreamLimits(a.MAX_BYTES,3*a.MAX_BYTES,65536,128),
+                       a.StreamLimits(a.MAX_BYTES+1,a.MAX_BYTES+1,65536,128),
+                       a.StreamLimits(1048576,3145728,65536,3)):
+            with self.subTest(limits=limits),self.assertRaisesRegex(a.AdapterError,"protected-admission"):
+                self.owner(roots=replace(roots,protected_limits=limits),registry=registry)
+        self.assertEqual(list(self.dirs["journal"].iterdir()),[])
+
+    def test_protected_root_descriptor_lifetime_and_identity(self):
+        roots,registry=self.separated_protected();owner=self.owner(roots=roots,registry=registry)
+        cap=registry.protected[0];other=os.open(self.dirs["registry"],os.O_RDONLY|os.O_DIRECTORY)
+        try:
+            os.close(cap.directory.directory_fd);os.dup2(other,cap.directory.directory_fd)
+            lease=owner.try_acquire(registry.scope,"operation0",budget_ns=self.config.callback_budget_ns)
+            lease.close()  # owned duplicate still reads the registered binary
+        finally:os.close(other)
+        owner.close()
+        bad=replace(registry,protected=(replace(cap,directory=f.DirectoryCapability(self.fds["registry"],self.directory_requirements)),)+registry.protected[1:])
+        refused=self.owner(roots=roots,registry=bad)
+        with self.assertRaises(a.AdapterError):refused.try_acquire(registry.scope,"operation0",budget_ns=self.config.callback_budget_ns)
+
+    def test_protected_stream_replacement_and_final_fence_refuse(self):
+        roots,registry=self.separated_protected();owner=self.owner(roots=roots,registry=registry)
+        original=f.Stream.read_chunk;changed=[]
+        def change(stream,**kwargs):
+            raw=original(stream,**kwargs)
+            if stream.entry.token=="application" and raw and not changed:
+                changed.append(True)
+                path=self.base/"protected_application"/stream.entry.name
+                path.unlink();path.write_bytes(b"replacement")
+            return raw
+        with patch.object(f.Stream,"read_chunk",change),self.assertRaises(a.AdapterError):
+            owner.record_present(a.StorageAdapter(self.config,owner),operation="operation0",event_id="stream_change")
+        self.assertEqual(changed,[True])
+        self.assertEqual(owner.admitted,{})
+
+    def test_protected_final_fence_rereads_actual_registered_file(self):
+        roots,registry=self.separated_protected();owner=self.owner(roots=roots,registry=registry)
+        original=owner._write;persisted=[];mutated=[]
+        def change(root,name,raw,budget):
+            result=original(root,name,raw,budget)
+            if name.startswith("admit_"):
+                # _write returned only after fsync and independently reopened readback.
+                persisted.append((name,raw))
+                path=self.base/"protected_application"/registry.protected[0].entry.name
+                with path.open("r+b") as stream:stream.write(b"z")
+                mutated.append(True)
+            return result
+        with patch.object(owner,"_write",change),self.assertRaises(a.AdapterError):
+            owner.record_present(a.StorageAdapter(self.config,owner),operation="operation0",event_id="final_change")
+        self.assertEqual([name for name,raw in persisted],["admit_final_change"])
+        self.assertEqual((self.dirs["journal"]/persisted[0][0]).read_bytes(),persisted[0][1])
+        self.assertEqual(mutated,[True])
+        self.assertEqual((self.base/"protected_application"/registry.protected[0].entry.name).read_bytes()[:1],b"z")
+        self.assertEqual(owner.admitted,{})
+
+    def test_protected_requirements_and_directory_registration_refuse(self):
+        roots,registry=self.separated_protected();cap=registry.protected[0]
+        for requirements in (replace(cap.entry.requirements,mode=0o700),
+                             replace(cap.entry.requirements,uid=cap.entry.requirements.uid+1)):
+            with self.subTest(requirements=requirements),self.assertRaises(a.AdapterError):
+                replace(cap.entry,requirements=requirements)
+        linked=self.base/"protected_application"/"linked"
+        os.link(self.base/"protected_application"/cap.entry.name,linked)
+        owner=self.owner(roots=roots,registry=registry)
+        with self.assertRaises(a.AdapterError):owner.try_acquire(registry.scope,"operation0",budget_ns=self.config.callback_budget_ns)
+        self.assertEqual(owner.admitted,{})
+        with self.assertRaises(a.AdapterError):self.owner(roots=replace(roots,directories=roots.directories[:-1]),registry=registry)
+
+    def test_protected_stream_shared_deadline_and_chunk_bounds(self):
+        roots,registry=self.separated_protected();owner=self.owner(roots=roots,registry=registry)
+        lease=owner.try_acquire(registry.scope,"operation0",budget_ns=self.config.callback_budget_ns)
+        try:
+            original=f._Child.exchange;seen=[]
+            def slow(child,request,**kwargs):
+                if request.get("op")=="chunk" and not seen:
+                    seen.append(True);owner.deadline=time.monotonic_ns()+20_000_000
+                    time.sleep(0.03)
+                return original(child,request,**kwargs)
+            with patch.object(f._Child,"exchange",slow),self.assertRaises(a.AdapterError):
+                owner._fence()
+            self.assertEqual(seen,[True])
+        finally:
+            owner.deadline=None
+            for child in owner.children:
+                if child.p.poll() is None and child is not lease.child:child.abort()
+            lease.close()
+
     def test_present_observation_and_independent_same_process_readback(self):
         before=(self.dirs["retained"]/self.payload.name).read_bytes()
         result=self.record()
@@ -117,7 +275,8 @@ class FilesystemPortsTests(unittest.TestCase):
         alias=os.dup(self.lock_dir)
         try:
             second=self.owner()
-            aliased=self.owner(roots=replace(self.roots,lock=f.LockCapability(alias,self.lock_entry)))
+            aliased=self.owner(roots=replace(self.roots,lock=f.LockCapability(alias,self.lock_entry),
+                directories=tuple(replace(d,directory_fd=alias) if d.directory_fd==self.lock_dir else d for d in self.roots.directories)))
             for contender in (second,aliased):
                 with self.assertRaises(a.AdapterError):contender.try_acquire(self.registry.scope,"operation1",budget_ns=self.config.callback_budget_ns)
             independent=os.open(self.lock_path,os.O_RDWR)
