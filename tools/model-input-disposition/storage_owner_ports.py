@@ -81,6 +81,8 @@ try:
     try:
      st=os.fstat(candidate)
      if not stat.S_ISREG(st.st_mode) or [getattr(st,k) for k in fields]!=q["expected"] or (st.st_uid,st.st_gid,stat.S_IMODE(st.st_mode),st.st_nlink)!=tuple(q["owner"]):raise ValueError()
+     if st.st_size!=0 or q["sha256"]!=hashlib.sha256(b"").hexdigest() or os.read(candidate,1)!=b"":raise ValueError()
+     if [getattr(os.fstat(candidate),k) for k in fields]!=q["expected"]:raise ValueError()
      fcntl.flock(candidate,fcntl.LOCK_EX|fcntl.LOCK_NB)
      lock=candidate;candidate=None;out=b""
      if control<0:raise ValueError()
@@ -339,6 +341,27 @@ class Entry:
 
 
 @dataclass(frozen=True)
+class DirectoryCapability:
+    directory_fd: int
+    requirements: Requirements
+
+    def __post_init__(self):
+        need(type(self.directory_fd) is int and self.directory_fd>2 and
+             type(self.requirements) is Requirements and
+             (self.requirements.uid,self.requirements.gid)==(os.geteuid(),os.getegid()) and
+             not self.requirements.mode & 0o022,"directory-capability")
+
+
+@dataclass(frozen=True)
+class ProtectedCapability:
+    directory: DirectoryCapability
+    entry: Entry
+
+    def __post_init__(self):
+        need(type(self.directory) is DirectoryCapability and type(self.entry) is Entry,"protected-capability")
+
+
+@dataclass(frozen=True)
 class LockCapability:
     directory_fd: int
     entry: Entry
@@ -354,7 +377,8 @@ class PrivateRoots:
     registry_dir_fd: int
     retained_payload_dir_fd: int
     lock: LockCapability
-    directory_requirements: Requirements
+    directories: tuple
+    protected_limits: a.StreamLimits
     file_requirements: Requirements
     cooperating_namespace_exclusive: bool
     retained_backing_immutable: bool
@@ -382,8 +406,8 @@ class FrozenRegistry:
              len({x.name for x in self.payloads})==len(self.payloads) and
              self.manifest.name not in {x.name for x in self.payloads},"payloads")
         need(type(self.protected) is tuple and len(self.protected)==3 and
-             all(type(x) is Entry for x in self.protected) and
-             tuple(x.token for x in self.protected)==("application","selection","policy"),"protected")
+             all(type(x) is ProtectedCapability for x in self.protected) and
+             tuple(x.entry.token for x in self.protected)==("application","selection","policy"),"protected")
         need(type(self.generation) is int and 0<=self.generation<=v1.MAX_COUNT,"generation")
 
     def original(self):
@@ -428,11 +452,12 @@ class ClockEpoch:
 
 
 class Stream:
-    def __init__(self, owner, entry, budget_ns, max_chunks):
+    def __init__(self, owner, entry, budget_ns, max_chunks, *, root=None, limits=None):
         self.owner,self.entry=owner,entry
         self.max_chunks=max_chunks
-        self.child=owner._child(owner.roots.retained_payload_dir_fd)
-        fields=tuple(json.loads(self.child.exchange({"op":"open","name":entry.name,"expected":entry.fields},limit=1024,budget_ns=owner._remaining(budget_ns))))
+        self.limits=owner.config.stream_limits if limits is None else limits
+        self.child=owner._child(owner.roots.retained_payload_dir_fd if root is None else root)
+        fields=tuple(json.loads(self.child.exchange({"op":"open","name":entry.name,"expected":entry.fields,"owner":[entry.requirements.uid,entry.requirements.gid,entry.requirements.mode,entry.requirements.links]},limit=1024,budget_ns=owner._remaining(budget_ns))))
         need(fields==entry.fields,"backing")
         self.state=owner._state(entry)
         self.closed=False;self.total=0;self.chunks=0;self.hash=hashlib.sha256()
@@ -440,7 +465,7 @@ class Stream:
     @bounded_port
     def read_chunk(self, *, max_bytes, budget_ns):
         self.owner._held()
-        need(not self.closed and type(max_bytes) is int and 0<max_bytes<=self.owner.config.stream_limits.chunk_bytes,"chunk")
+        need(not self.closed and type(max_bytes) is int and 0<max_bytes<=self.limits.chunk_bytes,"chunk")
         self.chunks+=1
         need(self.chunks<=self.max_chunks,"chunks")
         chunk=self.child.exchange({"op":"chunk","limit":max_bytes},limit=max_bytes,budget_ns=self.owner._remaining(budget_ns))
@@ -516,28 +541,47 @@ class FilesystemObservationPorts:
              sum((p.fields[6]+config.stream_limits.chunk_bytes-1)//config.stream_limits.chunk_bytes+1 for p in registry.payloads)<=config.stream_limits.max_chunks,"stream-admission")
         need(type(permits) is tuple and all(type(p) is OperationPermit for p in permits) and
              len({p.operation for p in permits})==len(permits),"permits")
-        need(type(roots.file_requirements) is Requirements and type(roots.directory_requirements) is Requirements and
+        need(type(roots.file_requirements) is Requirements and
              (roots.file_requirements.uid,roots.file_requirements.gid)==(os.geteuid(),os.getegid()) and
              roots.file_requirements.mode==0o600,"writer-identity")
+        need(type(roots.directories) is tuple and 0<len(roots.directories)<=8 and all(type(d) is DirectoryCapability for d in roots.directories),"directories")
+        need(type(roots.protected_limits) is a.StreamLimits,"protected-limits")
+        protected=tuple(p.entry for p in registry.protected)
+        limits=roots.protected_limits
+        need(all(p.fields[6]<=limits.max_payload_bytes for p in protected) and
+             sum(p.fields[6] for p in protected)<=limits.max_source_bytes and
+             sum((p.fields[6]+limits.chunk_bytes-1)//limits.chunk_bytes+1 for p in protected)<=limits.max_chunks,"protected-admission")
         need(type(roots.lock) is LockCapability,"lock-capability")
-        supplied=(roots.journal_dir_fd,roots.evidence_dir_fd,roots.registry_dir_fd,roots.retained_payload_dir_fd,roots.lock.directory_fd)
+        primary=(roots.journal_dir_fd,roots.evidence_dir_fd,roots.registry_dir_fd,roots.retained_payload_dir_fd,roots.lock.directory_fd)
+        supplied=tuple(dict.fromkeys(primary+tuple(p.directory.directory_fd for p in registry.protected)))
         need(all(type(fd) is int and fd>2 for fd in supplied),"descriptor")
+        requirements={}
+        for cap in roots.directories+tuple(p.directory for p in registry.protected):
+            need(cap.directory_fd not in requirements or requirements[cap.directory_fd]==cap.requirements,"directory-conflict")
+            requirements[cap.directory_fd]=cap.requirements
+        need(set(requirements)==set(supplied),"directory-registration")
+        need(all(requirements[fd].mode==0o700 for fd in primary[:4]),"private-directory")
         duplicated=[]
         try:
             for fd in supplied:duplicated.append(fcntl.fcntl(fd,fcntl.F_DUPFD_CLOEXEC,3))
         except Exception:
             for fd in duplicated:os.close(fd)
             raise a.AdapterError("filesystem-descriptor-duplication") from None
-        roots=replace(roots,journal_dir_fd=duplicated[0],evidence_dir_fd=duplicated[1],registry_dir_fd=duplicated[2],
-                      retained_payload_dir_fd=duplicated[3],lock=LockCapability(duplicated[4],roots.lock.entry))
+        mapping=dict(zip(supplied,duplicated))
+        directories=tuple(DirectoryCapability(mapping[fd],requirements[fd]) for fd in supplied)
+        roots=replace(roots,journal_dir_fd=mapping[primary[0]],evidence_dir_fd=mapping[primary[1]],registry_dir_fd=mapping[primary[2]],
+                      retained_payload_dir_fd=mapping[primary[3]],lock=LockCapability(mapping[primary[4]],roots.lock.entry),directories=directories)
+        registry=replace(registry,protected=tuple(ProtectedCapability(DirectoryCapability(mapping[p.directory.directory_fd],p.directory.requirements),p.entry)
+                                                  for p in registry.protected))
         self.roots,self.registry,self.clock,self.config=roots,registry,clock,config
+        self._directory_requirements={d.directory_fd:d.requirements for d in directories}
         self._owned_fds=tuple(duplicated);self._root_ids={};self.closed=False
         self.permits={p.operation:p for p in permits};self.pid=os.getpid()
         self.lease=None;self.pending_keeper=None;self.borrowed=False;self.borrow_available=False;self.borrow_alias=False;self.failed=False
         self.admitted={};self.references={};self.children=[];self.observations={};self.deadline=None
         try:
             for fd in self._owned_fds:self._io(fd,{"op":"root"},1024,config.callback_budget_ns)
-            need(len({self._root_ids[fd][:2] for fd in self._owned_fds[:4]})==4,"root-alias")
+            need(len({self._root_ids[fd][:2] for fd in (self.roots.journal_dir_fd,self.roots.evidence_dir_fd,self.roots.registry_dir_fd,self.roots.retained_payload_dir_fd)})==4,"root-alias")
         except Exception:
             for child in self.children:child.abort()
             for fd in self._owned_fds:os.close(fd)
@@ -563,7 +607,7 @@ class FilesystemObservationPorts:
         self.children.append(child)
         try:
             fields=tuple(json.loads(child.exchange({"op":"root"},limit=1024,budget_ns=self._remaining(self.config.callback_budget_ns))))
-            self.roots.directory_requirements.check(fields,True)
+            self._directory_requirements[root].check(fields,True)
             identity=fields[:5]
             need(root not in self._root_ids or self._root_ids[root]==identity,"root-identity")
             self._root_ids[root]=identity
@@ -655,10 +699,11 @@ class FilesystemObservationPorts:
             need(self.pending_keeper is None,"pending-acquisition")
             child=self._child(self.roots.lock.directory_fd,lock_keeper=True)
             self.pending_keeper=child
-            req=self.roots.file_requirements
             lock=self.roots.lock.entry
-            need(lock.requirements==req,"lock-ownership")
-            child.exchange({"op":"lock","name":lock.name,"expected":lock.fields,"owner":[req.uid,req.gid,req.mode,req.links]},
+            req=lock.requirements
+            need((req.uid,req.gid)==(os.geteuid(),os.getegid()) and not req.mode & 0o022 and
+                 lock.fields[6]==0 and lock.sha256==a.sha(b""),"lock-ownership")
+            child.exchange({"op":"lock","name":lock.name,"expected":lock.fields,"sha256":lock.sha256,"owner":[req.uid,req.gid,req.mode,req.links]},
                            limit=0,budget_ns=self._remaining(budget_ns))
             description=child.take_lock(self._remaining(budget_ns))
             held=HeldLease(self,operation,child,description)
@@ -738,11 +783,22 @@ class FilesystemObservationPorts:
     @bounded_port
     def _fence(self):
         self._held();self._permit(self.lease.operation)
+        self._entry(self.roots.lock.directory_fd,self.roots.lock.entry,self.config.callback_budget_ns)
         pins=[]
-        for entry in self.registry.protected:
-            self._entry(self.roots.registry_dir_fd,entry,self.config.callback_budget_ns)
-            raw=self._read(self.roots.registry_dir_fd,entry.name,a.MAX_BYTES,self.config.callback_budget_ns,entry.fields)
-            need(a.sha(raw)==entry.sha256,"protected-state")
+        limits=self.roots.protected_limits
+        remaining_chunks=limits.max_chunks
+        total=0
+        for capability in self.registry.protected:
+            entry=capability.entry;root=capability.directory.directory_fd
+            self._entry(root,entry,self.config.callback_budget_ns)
+            stream=Stream(self,entry,self.config.callback_budget_ns,remaining_chunks,root=root,limits=limits)
+            try:
+                while stream.read_chunk(max_bytes=limits.chunk_bytes,budget_ns=self.config.callback_budget_ns):pass
+                remaining_chunks-=stream.chunks;total+=stream.total
+                need(total<=limits.max_source_bytes,"protected-admission")
+            finally:stream.close()
+            # Descriptor stability alone cannot detect basename replacement.
+            self._entry(root,entry,self.config.callback_budget_ns)
             pins.append(entry.sha256)
         return a.Fence(self.registry.generation,self.lease.operation,*pins,False)
 

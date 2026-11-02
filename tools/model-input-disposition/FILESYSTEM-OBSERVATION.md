@@ -216,3 +216,46 @@ resource close can confirm termination and dispose pending rights, but cannot
 promote an acquisition or receipt. Unknown termination retains the actual queued
 or received capability and blocks further work. Standard-I/O descriptor numbers
 are not reused for owned capabilities.
+
+
+## Individually admitted roots and protected streams
+
+Directory requirements are no longer shared across all roots. Supply
+`PrivateRoots.directories` as a tuple of `DirectoryCapability(directory_fd,
+requirements)` registering each of the four private roots and the lock root.
+The four journal/evidence/registry/retained directories require exact current-user
+0700 requirements. The existing lock root can have separately admitted 0755
+requirements. Each capability requires current effective UID/GID and refuses
+group/other-writable modes. All descriptors are duplicated, owned, pinned and
+rechecked before child I/O; none are discovered or permission-adjusted.
+
+The lock entry has its own `Entry.requirements`, independent of newly created
+0600 journal/evidence files. An explicitly pinned current-user 0644 empty regular
+lock with one link is admitted; writable-by-group/other, changed identity, bytes,
+owner or requirements refuse. No replacement lock, chmod/chown or nested flock
+is introduced. Existing kernel lock/SCM_RIGHTS ownership rules remain unchanged.
+
+`FrozenRegistry.protected` is exactly three ordered `ProtectedCapability` objects:
+application, selection, policy. Each binds its own `DirectoryCapability` and
+`Entry`; the application and selection/policy may occupy different existing
+registered directories. They are read from those actual registered roots at
+each fence, never substituted by copies in the private registry.
+
+`PrivateRoots.protected_limits` is a mandatory independent `StreamLimits`
+admission: maximum per-artifact and aggregate bytes, chunk size and total chunk
+count including EOF. Values are caller-supplied engineering bounds, not installed
+policy. Each fence runs under the shared callback elapsed deadline, streams and
+hashes actual file descriptors, checks exact count/hash/EOF and nine integer
+fields, closes under the remaining deadline, and reopens the registered basename
+to detect replacement. The final fence repeats actual protected reads. Explicit
+0755 requirements can qualify a generated executable larger than 256 KiB without
+buffering it; record/evidence/parser limits remain 256 KiB. Source and protected
+stream admissions are separate, and both must be supplied.
+
+This is a concrete capability API change; older constructors with one shared
+directory requirement must be updated explicitly. No defaults infer requirements
+from the current filesystem. Namespace exclusivity and retained-backing
+immutability remain externally qualified assertions, not facts established by
+this source or a successful lock acquisition. Unsupported in-place writers keep
+observation on hold. Snapshot evidence, if used by a future reviewed protocol,
+must describe snapshot presence rather than the original location's state.
