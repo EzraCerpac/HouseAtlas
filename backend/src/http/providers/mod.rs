@@ -136,3 +136,6 @@ mod homebox_native_healthy;
 
 #[cfg(test)]
 mod homebox_stock_healthy;
+
+#[cfg(test)]
+mod homebox_stock_history_healthy;

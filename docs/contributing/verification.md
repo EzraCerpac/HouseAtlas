@@ -558,6 +558,26 @@ existing test selection are retained. This is one positive same-Host lifetime,
 without sockets, TLS, provider calls, browser, expiry/revocation, second-process
 restart, renderer or installed acceptance; no workflow command is added.
 
+The default-library lane additionally selects exactly
+`http::providers::homebox_stock_history_healthy::healthy_native_prepared_homebox_history_cuts_and_reopen`.
+A fresh profile-6 Core/Store bootstraps only a synthetic source/cache epoch.
+Genuine Editor/source/partition Access grants reserve three entity-quantity and
+three location-update intents under explicit SyntheticFixture activity
+registration. Admission remains unavailable and its call count must stay zero;
+no approval, provider observation, dispatch or completion is fabricated.
+Actual Viewer `bind_read`/StockService/HistoryPeer reads equal the shared native
+dispatch result, with canonical wire/schema/text parity. Owner-issued pageSize-1
+cursors preserve the two-reservation cut after a third reservation is added;
+fresh complete chains retain reservation order, exact event/command/actor/intent
+digest/timestamp, prepared state and atlas-mediated-only coverage/completeness.
+Strict `Store::open_existing` in profile 6 retains Access, saved cuts and fresh
+chains; fixed activity/record/source table content stays equal while cursor DATA
+may persist. includeArchived is query data, not resource-archive qualification.
+No profile-5 upgrade, Access/process/session restart, recovered producer/admission
+authority, provider/quantity execution, recovery, installed or browser acceptance
+is proved. This adds one in-process case to the existing selection, with no new
+workflow command, runner or held execution selection.
+
 The same default-library lane already executes the eleven #288 M20–M30 cases;
 their exact names, source pins and hosted logs are in the
 [operation ledger](../rust-integration/mcp-operation-qualification-v4.md#evidence-identity-and-method).
