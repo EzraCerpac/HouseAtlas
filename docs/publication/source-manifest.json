@@ -7174,8 +7174,8 @@
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v4.md",
       "mode": "100644",
-      "bytes": 72062,
-      "sha256": "8087cb33d5183e241765d9757f7c113302cbe98172c1829552733d97b2b0629a",
+      "bytes": 76879,
+      "sha256": "0a8bd86e8112b8d11fc3de8160c940520d3edd7861455760682fab9521e3822c",
       "owner": "core-integration"
     },
     {
