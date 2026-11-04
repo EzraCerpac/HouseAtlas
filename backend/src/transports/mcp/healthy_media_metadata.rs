@@ -8,8 +8,12 @@ use super::{
     target,
 };
 use crate::{
-    app::RequestPrincipal, config::FixtureProfile, contracts, contracts::stock as wire,
-    lifecycle::Failure, storage,
+    app::RequestPrincipal,
+    config::FixtureProfile,
+    contracts,
+    contracts::stock as wire,
+    lifecycle::Failure,
+    storage,
     transports::mcp::{LocalAtlasSession, lifecycle::AuthenticatedIdentity},
 };
 use serde_json::{Value, json};
