@@ -421,7 +421,10 @@ async fn typed_ai_request_executes_native_stock_read_and_retains_unknown_usage()
         .iter()
         .flat_map(|family| {
             family.commands.iter().map(|command| {
-                (family.family.as_str().to_owned(), command.command_id.clone())
+                (
+                    family.family.as_str().to_owned(),
+                    command.command_id.clone(),
+                )
             })
         })
         .collect();

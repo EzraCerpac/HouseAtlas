@@ -1028,8 +1028,8 @@
     {
       "path": "backend/src/ai/host/startup/stock_read_contract.rs",
       "mode": "100644",
-      "bytes": 19113,
-      "sha256": "ab2d61d6a63d1477cf63155271742994a9770c074b887df837da226430dc63a1",
+      "bytes": 19172,
+      "sha256": "f476b054ae9a527afc2625d05a5623ee4f4318996e960d9d420072e4f7fb3897",
       "owner": "ai"
     },
     {
