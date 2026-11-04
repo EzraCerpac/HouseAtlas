@@ -5723,10 +5723,17 @@
       "owner": "mcp"
     },
     {
+      "path": "backend/src/transports/mcp/healthy_infrastructure.rs",
+      "mode": "100644",
+      "bytes": 14313,
+      "sha256": "efff9dc8c6b3bd82f2e2218e4afd124107b426590aad2c841113dcbae82fafe6",
+      "owner": "mcp"
+    },
+    {
       "path": "backend/src/transports/mcp/healthy_local_atlas.rs",
       "mode": "100644",
-      "bytes": 29614,
-      "sha256": "6340d1dfc54fbfd354b6dede5b7faf30d51a6a68066b388c3063c6fe587a662d",
+      "bytes": 29673,
+      "sha256": "4ef5b30f5dfbfe09a7017ae9938e783616b989a20718844fcc52f35c42669b7c",
       "owner": "mcp"
     },
     {
@@ -7146,8 +7153,8 @@
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v4.md",
       "mode": "100644",
-      "bytes": 58585,
-      "sha256": "03e1d03b0c761a14138525e050dec4977e1c63de1dfe3f52cb7c04669b75fb55",
+      "bytes": 62642,
+      "sha256": "17ecebca0b7068976b6dd1b4b04da362572e14b9be28824b2602942aa7113c8f",
       "owner": "core-integration"
     },
     {

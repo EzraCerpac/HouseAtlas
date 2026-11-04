@@ -7,8 +7,8 @@ deliverable, not a new dispatcher, grant list, test suite or acceptance release.
 Version 3 grouped operation classes but did not join individual IDs to execution
 evidence. This ledger lists all 168 canonical IDs once, including family,
 effect/confirmation class, actual owner/profile and a bounded disposition.
-Counts after the M20–M22 increments: 22 QUALIFIED-SYNTHETIC paths,
-61 BLOCKED for broader operation evidence,
+Counts after the M20–M24 increments: 32 QUALIFIED-SYNTHETIC paths,
+51 BLOCKED for broader operation evidence,
 80 UNSUPPORTED-GENERIC, two HELD and three FORBIDDEN. These are profile/evidence
 dispositions, not the static catalog counts (154 pending, nine unsupported,
 two held, three forbidden). A missing generic binding is not proof that a
@@ -152,6 +152,56 @@ referenced or source/media-dependent evidence, other guard/authority variants,
 R/M/W?/B? profiles, installed operations, transfer or unknown outcomes. G-full
 remains on every qualified row; #288 remains open.
 
+### Native valve and circuit increment, 4 November 2026
+
+M23/M24 add actual local Editor Access/StockService/disposable-SQLite evidence
+for stored valve and circuit descriptors. Exact source head
+`3ee7ebaf5025e5d66e70d89b27a98eb507bdfced` (tree
+`48dc0e0a0a9ec71633a0175742d1e7cdf6c4740c`, base
+`48d3422b5e7ce473e9018456fb77001f10bc333c`) was checked out by
+[backend job 126549553919 / run 41822479219](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41822479219/job/126549553919).
+Its log explicitly passed
+`healthy_native_circuit_lifecycle_lists_history_and_reopen` at 11:44:16 UTC
+and `healthy_native_valve_lifecycle_lists_history_and_reopen` in the same
+second. Totals: 238 passed, zero failed, 12 ignored and three filtered out.
+Retained M20–M22 cases also explicitly passed. Two formatting differences on
+historical initial head `4e386dfd` were corrected exactly from hosted output;
+assertions/expectations were unchanged and no local qualification ran.
+
+Each case creates two fictional evidence records through the actual native
+owner, then three descriptors out of UUID order. Circuit also creates an item
+identity through the actual owner for the replacement panel. One descriptor
+follows create/replace/tombstone/restore at revisions 1/2/3/4 with current target
+CAS. Replacement guards cover both old and new evidence references; circuit
+also guards the item-panel identity. Tombstone/restore guard the retained
+replacement references. Valve begins with explicit null label and unknown
+medium, then replaces label/medium/evidence. Circuit begins with explicit null
+label/panel, then replaces label/evidence and uses a real item-panel endpoint.
+Unicode labels and the valid null/unknown payloads remain exact. Companion
+descriptors retain their original null/unknown fields through reopen.
+
+The existing canonical MCP client checks request/command/scope/schema,
+text/structured equality, replayed=false and original-intent digest correlation.
+Commit/get readback requires exact records. Complete filtered owner-cursor lists
+require UUID order and active-only/includeArchived selection through
+replacement/tombstone/restore. Four-event history uses only returned owner
+cursors to terminal null and checks exact event IDs, actor, target,
+original-intent digest, committed state,
+explicit null create preimage and before/after digest continuity. Strict SQLite
+close/reopen requires equal descriptors/dependencies via native get, complete
+fresh list chains and equal complete history entries. Access is retained;
+process/session restart, persisted cursors and crash durability are not proved.
+
+Seven valve dispositions and only the three remaining circuit lifecycle
+dispositions advance from BLOCKED to narrow QUALIFIED-SYNTHETIC
+(22/61 becomes 32/51). Four already-qualified circuit rows gain bounded M24
+evidence without reclassification. Other 154 operation rows, M20–M22 entries,
+static catalog statuses and #533 expiry/session fixtures are preserved.
+These fictional descriptors invoke no physical control. This does not qualify
+all media/relations, endpoint kinds, invalid/reversed guards, lifecycle/authority
+failures, other valve media, R/M/W?/B? profiles, installed execution or unknown
+outcomes. G-full remains on every qualified row and #288 remains open.
+
 | Key | Exact existing case | Observed result | Method and limit |
 | --- | --- | --- | --- |
 | M01 | `transports::mcp::healthy_download::healthy_asset_download_sealed_codecs_preserve_canonical_wire` | PASS | fake download codec |
@@ -176,6 +226,8 @@ remains on every qualified row; #288 remains open.
 | M20 | `transports::mcp::healthy_local_atlas::healthy_native_evidence_create_pages_get_and_reopened_history` | PASS | real Access/StockService/SQLite; three evidence creates, complete filtered native cursor traversal, get/single-create history equality after strict store reopen; retained Access |
 | M21 | `transports::mcp::healthy_local_atlas::identity::healthy_native_identity_lifecycle_lists_history_and_reopen` | PASS | real local Editor/StockService/SQLite; item create/guarded replace/tombstone/restore, complete filtered active/archive lists and four-event history, get and strict store-reopen equality; retained Access |
 | M22 | `transports::mcp::healthy_local_atlas::evidence_lifecycle::healthy_native_evidence_tombstone_restore_pages_history_and_reopen` | PASS | real local Editor/StockService/SQLite; unreferenced evidence create/tombstone/restore, unknown/null payload retention, complete filtered active/archive lists and three-event history, strict reopen equality; retained Access |
+| M23 | `transports::mcp::healthy_local_atlas::infrastructure::healthy_native_valve_lifecycle_lists_history_and_reopen` | PASS | real local Editor/StockService/SQLite; guarded valve descriptor create/replace/tombstone/restore, complete filtered active/archive lists, four-event history and strict reopen equality; retained Access |
+| M24 | `transports::mcp::healthy_local_atlas::infrastructure::healthy_native_circuit_lifecycle_lists_history_and_reopen` | PASS | real local Editor/StockService/SQLite; guarded circuit descriptor lifecycle with actual item-panel dependency, complete filtered active/archive lists, four-event history and strict reopen equality; retained Access |
 | B01 | `healthy_large_read_page` | PASS | Fake bridge evidence-list/cursor forwarding and geometry page below 2 MiB; no native cursor/record owner |
 | B02 | `denial_read_profile_bounds` | PASS | Fake bridge scope/page/response refusal and retained read availability; no native expiry or provider execution |
 | B03 | `denial_read_correlation` | PASS | Fake bridge request ID/command/scope mismatch refusal; no actual private connector invocation |
@@ -195,6 +247,10 @@ command helpers. No lifecycle fixture or workflow selection is replaced.
 M22 lives in `backend/src/transports/mcp/healthy_evidence_lifecycle.rs`, another
 test-only child, reusing M21's actual factory/client/reopen helper through parent
 visibility only. M20/M21 assertions and #533 lifecycle fixtures remain unchanged.
+
+M23/M24 live in `backend/src/transports/mcp/healthy_infrastructure.rs`, a
+test-only child reusing the unchanged actual M21 factory and canonical MCP client.
+Only its module declaration is added; M20–M22 and lifecycle assertions are preserved.
 
 ## Profile and domain owner key
 
@@ -278,20 +334,20 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | `atlas.location-semantics.replace` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
 | `atlas.location-semantics.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
 | `atlas.location-semantics.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.circuit.get` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M12, M15, M16 | QUALIFIED-SYNTHETIC; G-full |
-| `atlas.circuit.list` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M16 | QUALIFIED-SYNTHETIC; G-full |
-| `atlas.circuit.history` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M12, M13, M15 | QUALIFIED-SYNTHETIC; G-full |
-| `atlas.circuit.create` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M12, M13, M15, M16 | QUALIFIED-SYNTHETIC; G-full |
-| `atlas.circuit.replace` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.circuit.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.circuit.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.valve.get` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.valve.list` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.valve.history` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.valve.create` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.valve.replace` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.valve.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.valve.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
+| `atlas.circuit.get` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M12, M15, M16, M24 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.circuit.list` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M16, M24 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.circuit.history` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M12, M13, M15, M24 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.circuit.create` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M12, M13, M15, M16, M24 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.circuit.replace` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M24 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.circuit.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M24 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.circuit.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M24 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.valve.get` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M23 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.valve.list` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M23 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.valve.history` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M23 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.valve.create` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M23 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.valve.replace` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M23 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.valve.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M23 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.valve.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M23 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.relation.get` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
 | `atlas.relation.list` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
 | `atlas.relation.history` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
@@ -437,7 +493,7 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | WebMCP document/session/visible completion | DEFERRED for browser/device; partial synthetic adapter evidence separate | Exact current host binding, one document registration owner, visible commit ordering, replacement context/cleanup and unsupported-browser behavior still require their admitted owner/evidence |
 | Complete per-operation installed matrix | OPEN | This ledger completes the 168-ID source/evidence index only. It cannot certify installed execution, private data, operational roles, whole-profile admission or deferred device acceptance |
 
-The initial version-4 publication changed documentation only. M20–M22 add
+The initial version-4 publication changed documentation only. M20–M24 add
 ordinary in-process native fixture cases in the existing default backend-library
 selection, with no runner/workflow registration change. No
 production routing, credentials, grants, provider calls, held controls, browser,
