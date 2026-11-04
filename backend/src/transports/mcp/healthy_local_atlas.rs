@@ -22,6 +22,9 @@ use super::{
 
 const ORIGIN: &str = "https://atlas.synthetic.invalid";
 
+#[path = "healthy_identity.rs"]
+mod identity;
+
 fn id(n: u32) -> String {
     format!("00000000-0000-4000-8000-{n:012}")
 }

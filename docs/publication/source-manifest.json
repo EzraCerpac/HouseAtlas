@@ -5709,10 +5709,17 @@
       "owner": "mcp"
     },
     {
+      "path": "backend/src/transports/mcp/healthy_identity.rs",
+      "mode": "100644",
+      "bytes": 13736,
+      "sha256": "5a780811444317609f8efc0be9cfa1ec5847ab49813456c9698350e4d0ec3c9c",
+      "owner": "mcp"
+    },
+    {
       "path": "backend/src/transports/mcp/healthy_local_atlas.rs",
       "mode": "100644",
-      "bytes": 29500,
-      "sha256": "980846eb1f82e5c5440ea915241b9059ca54d53f4e376e5be95cfb3d96b31c91",
+      "bytes": 29547,
+      "sha256": "a898e52ffe47aa36576ef9372f5b3ecfdf39c87f1fe9af3d67a6cd194d7f5bbd",
       "owner": "mcp"
     },
     {
