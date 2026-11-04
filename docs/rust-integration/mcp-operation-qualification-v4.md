@@ -7,8 +7,8 @@ deliverable, not a new dispatcher, grant list, test suite or acceptance release.
 Version 3 grouped operation classes but did not join individual IDs to execution
 evidence. This ledger lists all 168 canonical IDs once, including family,
 effect/confirmation class, actual owner/profile and a bounded disposition.
-Counts after the M20–M28 increments: 55 QUALIFIED-SYNTHETIC paths,
-28 BLOCKED for broader operation evidence,
+Counts after the M20–M30 increments: 67 QUALIFIED-SYNTHETIC paths,
+16 BLOCKED for broader operation evidence,
 80 UNSUPPORTED-GENERIC, two HELD and three FORBIDDEN. These are profile/evidence
 dispositions, not the static catalog counts (154 pending, nine unsupported,
 two held, three forbidden). A missing generic binding is not proof that a
@@ -317,6 +317,61 @@ static catalog statuses and #533 are preserved. G-full still excludes other
 source states/reasons, graph/guard/authority variants, actual remap, R/M/W?/B?
 profiles, installed/media/WebMCP/device and unknown outcomes. #288 stays open.
 
+### Native geometry and missing-asset metadata increment, 4 November 2026
+
+M29/M30 add actual local Editor Access/StockService/disposable-SQLite evidence
+through the existing `GeometryMetadata` fixture ingress. Exact source head
+`88b3f60196e8352b8cfe8481b8fa4b0cfded98d8` (tree
+`41561c8f6841473289fccc4dca0eb2a7ed5f18ec`, base
+`b40affea921411bedf3ee27c986b710664902d6c`) was checked out by
+[backend job 126608113001 / run 41839672521](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41839672521/job/126608113001).
+The log explicitly emitted
+`healthy_native_geometry_metadata_pages_history_and_reopen ... ok` at
+13:42:56 UTC and `healthy_native_missing_asset_metadata_history_and_reopen ... ok`
+at 13:42:57 UTC. Totals: 244 passed, zero failed, 12 ignored and three filtered
+out. Initial head `c6fc4ac2` failed compilation before tests with an incorrect
+module import. The correct MCP identity import and exact hosted formatting
+repairs changed no fixture assertions or expectations. No local
+test/build/formatter/Clippy ran; no qualification follows from that failed head.
+
+M29 creates three native geometry metadata records out of UUID order against
+the actual retained, missing original asset. Fresh evidence and a native location
+identity are created through their real owners. Companion mappings are empty;
+the primary mapping is proposed with `homeboxEntity: null`. Unknown units,
+nullable producer version/scale/transform/previous geometry and Unicode fields
+are preserved. `importedAt` is supplied only by the real stock owner, then
+compared unchanged through get, list, history and reopen; it is never submitted
+as fabricated input. Guarded create/tombstone/restore revisions 1/2/3 use current
+target and actual dependency revisions. Complete filtered active/archive list
+chains use one-record native pages, UUID order and only owner-issued cursors.
+Three genuine operation events check canonical request/result correlation,
+actual event/actor/target/original-intent identity, null create preimage and digest
+continuity. The original asset remains exactly unchanged.
+
+M30 reads the actual seeded asset, compares it with the existing fixture ingress
+and requires initially empty history: seed revision 1 and `lastAuditId` supply
+no create audit prehistory. Real download-only review, tombstone and restore
+commit revisions 2/3/4 with complete old/new evidence guards. Availability remains
+missing and renderer receipt is null. Canonical commit/get/list projections omit
+only `storageKey`; authorized native raw reads preserve the full record and key.
+The singleton/empty active/archive lists terminate with null cursors and do not
+qualify multi-page asset listing. Complete three-event history does use actual
+owner-issued cursors, retaining event/actor/target/intent identity. Its first
+non-null preimage digest equals the actual full seeded record's native digest,
+and each later before/after digest equals the real retained record and links
+to the preceding event. No seed create event or media-byte proof is invented.
+
+Both cases strictly close/reopen SQLite, then require exact native get, fresh
+complete list/history chains and full retained-record equality where available.
+Access is retained; process/session restart, cursor survival and crash durability
+are not established. Only twelve dispositions advance (55/28 becomes 67/16):
+six geometry metadata and six missing-asset operations. Other 156 operation rows,
+M20–M28, #533 and static catalog statuses remain unchanged. G-full still excludes
+other payload/guard/authority/profile variants, actual byte availability or
+transfer, imported-shape validity, accepted mapping/placement, renderer,
+installation and WebMCP/device acceptance. Asset creation remains dedicated,
+geometry replacement forbidden, and #288 remains open.
+
 | Key | Exact existing case | Observed result | Method and limit |
 | --- | --- | --- | --- |
 | M01 | `transports::mcp::healthy_download::healthy_asset_download_sealed_codecs_preserve_canonical_wire` | PASS | fake download codec |
@@ -347,6 +402,8 @@ profiles, installed/media/WebMCP/device and unknown outcomes. #288 stays open.
 | M26 | `transports::mcp::healthy_local_atlas::places_relations::healthy_native_documented_relation_lifecycle_pages_and_reopen` | PASS | real local Editor/StockService/SQLite; documented-connection with native item endpoints and unknown medium/uncertainty, guarded lifecycle, complete filtered active/archive lists, four-event history and strict reopen equality; retained Access |
 | M27 | `transports::mcp::healthy_local_atlas::bindings_reconciliation::healthy_native_unresolved_binding_lifecycle_pages_and_reopen` | PASS | real local Editor/StockService/SQLite; unresolved create/rejected review/tombstone/original-derived restore, complete filtered active/archive lists, four-event history and strict reopen equality; retained Access |
 | M28 | `transports::mcp::healthy_local_atlas::bindings_reconciliation::healthy_native_reconciliation_lifecycle_pages_and_reopen` | PASS | real local Editor/StockService/SQLite; reviewed-correction create/tombstone/restore over real retired/accepted unresolved binding pairs, complete filtered active/archive lists, three-event history and strict reopen equality; no remap; retained Access |
+| M29 | `transports::mcp::healthy_local_atlas::media_metadata::healthy_native_geometry_metadata_pages_history_and_reopen` | PASS | real local Editor/StockService/SQLite; missing-original geometry metadata create/get/list/history/tombstone/restore, owner import time, empty/proposed-null-external mappings, complete filtered cursor chains and strict reopen; retained Access; no bytes/shape/accepted placement |
+| M30 | `transports::mcp::healthy_local_atlas::media_metadata::healthy_native_missing_asset_metadata_history_and_reopen` | PASS | real local Editor/StockService/SQLite; seeded missing asset get/list/history/download-only review/tombstone/restore, public projection, initially empty history and actual non-null seed digest anchor, three-event cursor chain and strict reopen; singleton/empty lists only; no transfer |
 | B01 | `healthy_large_read_page` | PASS | Fake bridge evidence-list/cursor forwarding and geometry page below 2 MiB; no native cursor/record owner |
 | B02 | `denial_read_profile_bounds` | PASS | Fake bridge scope/page/response refusal and retained read availability; no native expiry or provider execution |
 | B03 | `denial_read_correlation` | PASS | Fake bridge request ID/command/scope mismatch refusal; no actual private connector invocation |
@@ -380,6 +437,12 @@ M27/M28 live in `backend/src/transports/mcp/healthy_bindings_reconciliation.rs`,
 reusing the unchanged actual M21 factory and M23/M24 canonical read/history
 helpers. Only its test-only child declaration is added; prior helpers and
 M20–M26 assertions remain intact.
+
+M29/M30 live in `backend/src/transports/mcp/healthy_media_metadata.rs`, reusing
+M21's real factory and canonical MCP helpers. The test-only factory's default
+still delegates to exactly the Standard profile; an explicit profile option
+selects the existing GeometryMetadata ingress only for these two cases.
+No production owner, lifecycle fixture or workflow selection changes.
 
 ## Profile and domain owner key
 
@@ -484,23 +547,23 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | `atlas.relation.replace` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M26 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.relation.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M26 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.relation.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M26 | QUALIFIED-SYNTHETIC; G-full |
-| `atlas.geometry.get` | atlas_media_geometry | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
+| `atlas.geometry.get` | atlas_media_geometry | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M29 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.scene-association.get` | atlas_media_geometry | supported-pending-qualification | read; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-admission |
-| `atlas.geometry.list` | atlas_media_geometry | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | B01 | BLOCKED; G-operation |
+| `atlas.geometry.list` | atlas_media_geometry | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | B01, M29 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.scene-association.list` | atlas_media_geometry | supported-pending-qualification | read; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-admission |
-| `atlas.geometry.history` | atlas_media_geometry | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
+| `atlas.geometry.history` | atlas_media_geometry | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M29 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.scene-association.history` | atlas_media_geometry | supported-pending-qualification | read; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-admission |
-| `atlas.geometry.create` | atlas_media_geometry | supported-pending-qualification | write; none | A-derived; L,E (owner inputs); W?; B-write? | none beyond shared metadata | BLOCKED; G-media/operation |
+| `atlas.geometry.create` | atlas_media_geometry | supported-pending-qualification | write; none | A-derived; L,E (owner inputs); W?; B-write? | M29 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.scene-association.create` | atlas_media_geometry | supported-pending-qualification | write; none | D-native; D only; not generic; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-dedicated |
-| `atlas.geometry.tombstone` | atlas_media_geometry | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.geometry.restore` | atlas_media_geometry | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.asset.get` | atlas_media_geometry | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.asset.list` | atlas_media_geometry | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.asset.history` | atlas_media_geometry | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
+| `atlas.geometry.tombstone` | atlas_media_geometry | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M29 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.geometry.restore` | atlas_media_geometry | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M29 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.asset.get` | atlas_media_geometry | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M30 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.asset.list` | atlas_media_geometry | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M30 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.asset.history` | atlas_media_geometry | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M30 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.asset.create` | atlas_media_geometry | supported-pending-qualification | write; none | D-native; D only; not generic; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-dedicated |
-| `atlas.asset.review` | atlas_media_geometry | supported-pending-qualification | write; none | A-derived; L,E (owner inputs); W?; B-write? | none beyond shared metadata | BLOCKED; G-media/operation |
-| `atlas.asset.tombstone` | atlas_media_geometry | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.asset.restore` | atlas_media_geometry | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
+| `atlas.asset.review` | atlas_media_geometry | supported-pending-qualification | write; none | A-derived; L,E (owner inputs); W?; B-write? | M30 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.asset.tombstone` | atlas_media_geometry | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M30 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.asset.restore` | atlas_media_geometry | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M30 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.reconciliation.get` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M28 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.reconciliation.list` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M28 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.reconciliation.history` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M28 | QUALIFIED-SYNTHETIC; G-full |
@@ -622,7 +685,7 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | WebMCP document/session/visible completion | DEFERRED for browser/device; partial synthetic adapter evidence separate | Exact current host binding, one document registration owner, visible commit ordering, replacement context/cleanup and unsupported-browser behavior still require their admitted owner/evidence |
 | Complete per-operation installed matrix | OPEN | This ledger completes the 168-ID source/evidence index only. It cannot certify installed execution, private data, operational roles, whole-profile admission or deferred device acceptance |
 
-The initial version-4 publication changed documentation only. M20–M28 add
+The initial version-4 publication changed documentation only. M20–M30 add
 ordinary in-process native fixture cases in the existing default backend-library
 selection, with no runner/workflow registration change. No
 production routing, credentials, grants, provider calls, held controls, browser,

@@ -30,11 +30,15 @@ pub(super) struct Fixture {
 
 impl Fixture {
     pub(super) fn new() -> Result<Self, Failure> {
+        Self::with_profile(crate::config::FixtureProfile::Standard)
+    }
+
+    pub(super) fn with_profile(profile: crate::config::FixtureProfile) -> Result<Self, Failure> {
         let scratch = tempfile::Builder::new()
             .prefix("houseatlas-mcp288-identity-")
             .tempdir_in("/tmp")?;
         let directory = scratch.path().join("fixture");
-        let core = lifecycle::prepare(&directory, ORIGIN)?;
+        let core = lifecycle::prepare_with_profile(&directory, ORIGIN, profile)?;
         let scope = access_scope(&core.home.scope)?;
         let context = json!({"workspaceId":core.home.scope.workspace_id,
             "homeId":core.home.scope.home_id});
