@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 20928,
-      "sha256": "332ff732847d47a1b46f408e0533b46f696a32853549809ca516900eb0bd3659",
+      "bytes": 23247,
+      "sha256": "12ab5a0307771ca183dbb796a4b2549ae66ed24a7b06b18b199143363b7f58f2",
       "owner": "core-integration"
     },
     {
@@ -6460,8 +6460,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 209091,
-      "sha256": "fa9e3634b7530edfbe9f3e62b9880287c8b1b82edee2086a7b9ecf86dbf57aeb",
+      "bytes": 211506,
+      "sha256": "76f55620cfb6ab0599fa23414ef54f9b53214e6c74028ea31632fbfb355ccdf2",
       "owner": "core-integration"
     },
     {
@@ -7174,8 +7174,8 @@
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v4.md",
       "mode": "100644",
-      "bytes": 76879,
-      "sha256": "0a8bd86e8112b8d11fc3de8160c940520d3edd7861455760682fab9521e3822c",
+      "bytes": 82261,
+      "sha256": "8a7507cc079d2d4d383b4a0673bb372b228b7f84e41148a627c80775cdc3caa0",
       "owner": "core-integration"
     },
     {

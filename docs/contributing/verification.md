@@ -527,6 +527,40 @@ listener, provider call, refresh, continuation/search/archive, opaque-ID
 compatibility, mediated history, native tags/fields/maintenance, installed
 acceptance or new workflow command. All other held selections remain separate.
 
+The same default-library lane already executes the eleven #288 M20–M30 cases;
+their exact names, source pins and hosted logs are in the
+[operation ledger](../rust-integration/mcp-operation-qualification-v4.md#evidence-identity-and-method).
+Sources are [healthy_local_atlas.rs](../../backend/src/transports/mcp/healthy_local_atlas.rs)
+and its test-only `healthy_identity.rs`, `healthy_evidence_lifecycle.rs`,
+`healthy_infrastructure.rs`, `healthy_places_relations.rs`,
+`healthy_bindings_reconciliation.rs` and `healthy_media_metadata.rs` children.
+Actual synthetic Access/StockService/disposable SQLite owns the bounded evidence,
+identity, valve/circuit, proposed location-semantics, documented-relation,
+unresolved binding/correction-journal and geometry/missing-asset metadata paths.
+They preserve applicable unknown/null/Unicode payloads, canonical guarded results,
+complete filtered owner-cursor lists, ordered audit/intent/digest histories and
+strict store-reopen equality with retained Access. Asset listing is singleton/empty
+only; initial seeded asset history is empty and actual later events use its real
+non-null seed digest anchor. No arbitrary variants, process/session restart,
+crash durability, source adoption/remap, available bytes/transfer, renderer,
+accepted placement, installed provider or WebMCP/device acceptance follows.
+This paragraph documents already executed scope without changing CI commands,
+registration, source assertions or held selections.
+
+The default-library lane also retains the three existing #533 cases in
+`backend/src/transports/mcp/lifecycle/synthetic_contracts.rs`, with prefix
+`transports::mcp::lifecycle::synthetic_contracts::`:
+`absolute_expiry_at_dispatch_rejects_original_credentials_without_owner_work`,
+`absolute_expiry_withholds_completed_read_and_fresh_login_cannot_rebind` and
+`http_rotation_rejects_old_cookie_and_session_before_fresh_initialization`.
+The first two use controlled generated Access/MCP clock and owner-Gate seams,
+covering dispatch/disclosure and old-session non-rebinding limits. The third
+uses actual in-process middleware/router/rotation and registry, refusing old
+cookie/session before fresh initialization. They use no listener, TLS, browser,
+provider or private installed state; installed-authority acceptance is not
+established. This describes existing execution without altering #289 source,
+tests, workflow or operational acceptance.
+
 ## Loopback integration tests in CI
 
 On Linux the `loopback` job of the `Rust React ordinary core` workflow runs the
