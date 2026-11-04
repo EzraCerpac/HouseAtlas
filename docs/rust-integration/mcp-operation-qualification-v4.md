@@ -7,8 +7,8 @@ deliverable, not a new dispatcher, grant list, test suite or acceptance release.
 Version 3 grouped operation classes but did not join individual IDs to execution
 evidence. This ledger lists all 168 canonical IDs once, including family,
 effect/confirmation class, actual owner/profile and a bounded disposition.
-Counts after the M20–M24 increments: 32 QUALIFIED-SYNTHETIC paths,
-51 BLOCKED for broader operation evidence,
+Counts after the M20–M26 increments: 46 QUALIFIED-SYNTHETIC paths,
+37 BLOCKED for broader operation evidence,
 80 UNSUPPORTED-GENERIC, two HELD and three FORBIDDEN. These are profile/evidence
 dispositions, not the static catalog counts (154 pending, nine unsupported,
 two held, three forbidden). A missing generic binding is not proof that a
@@ -202,6 +202,61 @@ all media/relations, endpoint kinds, invalid/reversed guards, lifecycle/authorit
 failures, other valve media, R/M/W?/B? profiles, installed execution or unknown
 outcomes. G-full remains on every qualified row and #288 remains open.
 
+### Native proposed-place and documented-relation increment, 4 November 2026
+
+M25/M26 add actual local Editor Access/StockService/disposable-SQLite evidence
+for proposed location-semantics and ordinary documented-connection records.
+Exact source head `0a51cfdd49ef528daa7ad9e2b0a818c7972d6cd9` (tree
+`eecb467712f2e52d38161a73fa86b914f31bcf7e`, base
+`fd8da69ad9ce10de936fdba0a89ccb390f402750`) was checked out by
+[backend job 126564468589 / run 41826948683](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41826948683/job/126564468589).
+The log explicitly passed
+`healthy_native_documented_relation_lifecycle_pages_and_reopen` at 12:16:01 UTC
+and `healthy_native_location_semantics_lifecycle_pages_and_reopen` at 12:16:07.
+Totals: 240 passed, zero failed, 12 ignored and three filtered out. Retained
+M20–M24 cases also explicitly passed. One tuple-wrapping difference on historical
+initial head `c12f0872` was corrected exactly from hosted output; no assertion
+or expectation changed and no local qualification ran.
+
+Both cases create two fictional evidence dependencies through the actual native
+owner. M25 creates native location identities, while M26 creates native item
+identities for both connection endpoints. Three family records are created out
+of UUID order; one follows create/replace/tombstone/restore at revisions 1/2/3/4.
+Current target CAS and the full union of old/new evidence and native identity
+references are supplied on replacement. Tombstone/restore guard the retained
+replacement references. No dependency, result or cursor is fabricated.
+
+M25 stays proposed: unclassified semantics with omitted optional label/elevation
+are replaced by proposed floor semantics with a Unicode label and explicit
+unknown elevation, on another real native location identity. No null label,
+null elevation, known metres or datum is invented. Unchanged companions preserve
+their omitted fields through reopen. This does not establish accepted
+classification, reviewed physical placement or actual floor/elevation acceptance.
+M26 uses only documented-connection between native items, replacing actual
+endpoints/evidence while preserving unknown medium and uncertainty. The initial
+null uncertainty explanation and replacement Unicode explanation remain exact;
+companions preserve their original nulls. No physical-access/location-membership,
+HomeBox/provider endpoint, circuit/valve control or topology inference is tested.
+
+The unchanged canonical MCP client checks complete request/command/scope/schema,
+text/structured equality, replayed=false and committed original-intent digest.
+Exact committed/get records, complete filtered UUID-ordered owner-cursor lists
+and active-only/includeArchived selection through replacement/tombstone/restore
+are required. Four-event history checks actual event/actor/target/intent
+correlation, committed state, explicit null create preimage and before/after
+digest continuity, to terminal null using only owner cursors. Strict SQLite
+close/reopen requires equal family/dependency records through native get,
+complete fresh list chains and equal complete history entries. Access is
+retained; process/session restart, persisted cursors and crash durability are
+not proved.
+
+Only fourteen location-semantics/relation dispositions advance from BLOCKED
+to narrow QUALIFIED-SYNTHETIC (32/51 becomes 46/37). Other 154 operation rows,
+M20–M24 registry entries, static catalog statuses and #533 are preserved.
+G-full remains: accepted/known-elevation semantics, other relation/endpoint
+variants, arbitrary graph/guard/authority cases, R/M/W?/B? profiles, installed
+execution, media and unknown outcomes remain unqualified. #288 remains open.
+
 | Key | Exact existing case | Observed result | Method and limit |
 | --- | --- | --- | --- |
 | M01 | `transports::mcp::healthy_download::healthy_asset_download_sealed_codecs_preserve_canonical_wire` | PASS | fake download codec |
@@ -228,6 +283,8 @@ outcomes. G-full remains on every qualified row and #288 remains open.
 | M22 | `transports::mcp::healthy_local_atlas::evidence_lifecycle::healthy_native_evidence_tombstone_restore_pages_history_and_reopen` | PASS | real local Editor/StockService/SQLite; unreferenced evidence create/tombstone/restore, unknown/null payload retention, complete filtered active/archive lists and three-event history, strict reopen equality; retained Access |
 | M23 | `transports::mcp::healthy_local_atlas::infrastructure::healthy_native_valve_lifecycle_lists_history_and_reopen` | PASS | real local Editor/StockService/SQLite; guarded valve descriptor create/replace/tombstone/restore, complete filtered active/archive lists, four-event history and strict reopen equality; retained Access |
 | M24 | `transports::mcp::healthy_local_atlas::infrastructure::healthy_native_circuit_lifecycle_lists_history_and_reopen` | PASS | real local Editor/StockService/SQLite; guarded circuit descriptor lifecycle with actual item-panel dependency, complete filtered active/archive lists, four-event history and strict reopen equality; retained Access |
+| M25 | `transports::mcp::healthy_local_atlas::places_relations::healthy_native_location_semantics_lifecycle_pages_and_reopen` | PASS | real local Editor/StockService/SQLite; proposed unclassified/floor-unknown location semantics, guarded lifecycle, complete filtered active/archive lists, four-event history and strict reopen equality; retained Access |
+| M26 | `transports::mcp::healthy_local_atlas::places_relations::healthy_native_documented_relation_lifecycle_pages_and_reopen` | PASS | real local Editor/StockService/SQLite; documented-connection with native item endpoints and unknown medium/uncertainty, guarded lifecycle, complete filtered active/archive lists, four-event history and strict reopen equality; retained Access |
 | B01 | `healthy_large_read_page` | PASS | Fake bridge evidence-list/cursor forwarding and geometry page below 2 MiB; no native cursor/record owner |
 | B02 | `denial_read_profile_bounds` | PASS | Fake bridge scope/page/response refusal and retained read availability; no native expiry or provider execution |
 | B03 | `denial_read_correlation` | PASS | Fake bridge request ID/command/scope mismatch refusal; no actual private connector invocation |
@@ -251,6 +308,11 @@ visibility only. M20/M21 assertions and #533 lifecycle fixtures remain unchanged
 M23/M24 live in `backend/src/transports/mcp/healthy_infrastructure.rs`, a
 test-only child reusing the unchanged actual M21 factory and canonical MCP client.
 Only its module declaration is added; M20–M22 and lifecycle assertions are preserved.
+
+M25/M26 live in `backend/src/transports/mcp/healthy_places_relations.rs`, reusing
+M21's real factory and M23/M24's canonical record/list/history assertions through
+test-only parent visibility. Shared list selection takes the same valve/circuit
+kind/query tuple as before; all prior assertions and M20–M24 entries remain intact.
 
 ## Profile and domain owner key
 
@@ -327,13 +389,13 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | `atlas.evidence.create` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M20, M22 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.evidence.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M22 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.evidence.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M22 | QUALIFIED-SYNTHETIC; G-full |
-| `atlas.location-semantics.get` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.location-semantics.list` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.location-semantics.history` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.location-semantics.create` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.location-semantics.replace` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.location-semantics.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.location-semantics.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
+| `atlas.location-semantics.get` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M25 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.location-semantics.list` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M25 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.location-semantics.history` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M25 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.location-semantics.create` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M25 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.location-semantics.replace` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M25 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.location-semantics.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M25 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.location-semantics.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M25 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.circuit.get` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M12, M15, M16, M24 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.circuit.list` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M16, M24 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.circuit.history` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M12, M13, M15, M24 | QUALIFIED-SYNTHETIC; G-full |
@@ -348,13 +410,13 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | `atlas.valve.replace` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M23 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.valve.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M23 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.valve.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M23 | QUALIFIED-SYNTHETIC; G-full |
-| `atlas.relation.get` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.relation.list` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.relation.history` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.relation.create` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.relation.replace` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.relation.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.relation.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
+| `atlas.relation.get` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M26 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.relation.list` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M26 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.relation.history` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M26 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.relation.create` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M26 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.relation.replace` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M26 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.relation.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M26 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.relation.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M26 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.geometry.get` | atlas_media_geometry | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
 | `atlas.scene-association.get` | atlas_media_geometry | supported-pending-qualification | read; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-admission |
 | `atlas.geometry.list` | atlas_media_geometry | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | B01 | BLOCKED; G-operation |
@@ -493,7 +555,7 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | WebMCP document/session/visible completion | DEFERRED for browser/device; partial synthetic adapter evidence separate | Exact current host binding, one document registration owner, visible commit ordering, replacement context/cleanup and unsupported-browser behavior still require their admitted owner/evidence |
 | Complete per-operation installed matrix | OPEN | This ledger completes the 168-ID source/evidence index only. It cannot certify installed execution, private data, operational roles, whole-profile admission or deferred device acceptance |
 
-The initial version-4 publication changed documentation only. M20–M24 add
+The initial version-4 publication changed documentation only. M20–M26 add
 ordinary in-process native fixture cases in the existing default backend-library
 selection, with no runner/workflow registration change. No
 production routing, credentials, grants, provider calls, held controls, browser,
