@@ -299,7 +299,13 @@ async fn healthy(scenario: Scenario) -> Result<(), Failure> {
                 830 + index,
             );
             let outcome = client.call(&mut session, &intent).await;
-            records[1] = committed(&outcome, &intent, revision, lifecycle, &scenario.replacement);
+            records[1] = committed(
+                &outcome,
+                &intent,
+                revision,
+                lifecycle,
+                &scenario.replacement,
+            );
             get(&client, &mut session, &context, &records[1], 12020 + index).await;
             let active = if operation == "tombstone" {
                 vec![records[0].clone(), records[2].clone()]
@@ -361,7 +367,14 @@ async fn healthy(scenario: Scenario) -> Result<(), Failure> {
         )
         .await?;
         for (index, record) in expected.iter().chain(&dependencies).enumerate() {
-            get(&client, &mut session, &context, record, 12500 + index as u32).await;
+            get(
+                &client,
+                &mut session,
+                &context,
+                record,
+                12500 + index as u32,
+            )
+            .await;
         }
         assert_eq!(
             history(&client, &mut session, &context, &steps, 12600).await?,
