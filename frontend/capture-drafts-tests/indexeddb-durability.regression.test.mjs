@@ -3,8 +3,8 @@ import { createHash } from 'node:crypto';
 import { it } from 'node:test';
 import { openDraftStore } from '../src/capture-drafts/indexeddb.ts';
 
-// Unregistered, source-only assertions against the production store. This
-// controlled IDB interface double establishes no real IndexedDB/crash behavior.
+// Six controlled-interface assertions explicitly selected by ordinary-core.
+// They reach the production store but establish no real IndexedDB/crash behavior.
 const original = 'Synthetic draft original';
 const uuid = digit => `${digit.repeat(8)}-${digit.repeat(4)}-4${digit.repeat(3)}-8${digit.repeat(3)}-${digit.repeat(12)}`;
 function row() {
