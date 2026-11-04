@@ -1,5 +1,27 @@
 # HouseAtlas
 
+## Native AI stock read contract
+
+The existing default backend-library job discovers exactly
+`ai::host::startup::stock::stock_read_contract::typed_ai_request_executes_native_stock_read_and_retains_unknown_usage`
+from `backend/src/ai/host/startup/stock_read_contract.rs`. Its generated Core,
+genuine local Access/enrollment and pinned synthetic configuration exercise
+typed RunInput through AiHost/AiRunner, StockCatalog, NativeReadStock,
+NativeStockConsumer and the unchanged stock executor. Native fixture setup
+creates one circuit first; only the subsequent read is driven through AI.
+Independent frozen record data is checked against the actual canonical response.
+The test validates command/request/scope, tool-output correlation, completed
+result, unknown usage and journal readback after read-only reopen.
+
+Only connection/model/inference inputs are synthetic peers. No listener,
+provider, credential lease/key, approval/review action, device or deployment is
+used. This adds no workflow, explicit runner or new live authority. Local
+build/test/format/Clippy qualification was not run; exact hosted execution is
+separate evidence. [The AI integration guide](../rust-integration/ai-host-integration.md)
+reconciles already-executed finite synthetic tests and their boundaries. Real
+reviewed-write continuation/domain-held coverage remains blocked on the
+concrete original reviewed-stock and trusted human-review bridge.
+
 ## Approved scoped bridge read cases
 
 The owner approved exactly these three existing selections for the existing

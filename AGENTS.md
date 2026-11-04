@@ -383,6 +383,14 @@ When a pull request is authorized to merge, enable auto-merge
 so GitHub merges it after the required checks pass.
 Investigate failed or missing checks instead of bypassing the ruleset.
 
+The existing default backend-library job also discovers the generated
+`ai::host::startup::stock::stock_read_contract` case. It uses actual local
+Core/Access/enrollment/stock execution and the request journal with test-only
+connection/inference peers, one native fixture-setup circuit commit and one AI
+tool read. No listener, provider, credential lease, key, review approval or live
+runtime is used. No workflow or runner is added; the verification guide records
+the exact case and evidence limits.
+
 The existing ordinary-core job also runs the explicit stdlib-only
 `tools/model-input-disposition/test_disposition.py` suite. Generated in-memory
 claims exercise bounded strict parsing, exact original/release identities,
