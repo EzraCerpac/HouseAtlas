@@ -2645,8 +2645,8 @@
     {
       "path": "backend/src/http/providers/homebox_stock_history_healthy.rs",
       "mode": "100644",
-      "bytes": 23314,
-      "sha256": "62600daee2dea6317e719cce9f2aa16456736d5af8401be68fb10132a203a33b",
+      "bytes": 25589,
+      "sha256": "326d0387c5bce24fc9fac058fac8d6f3a9785c53df1c743f578e4b8a4aa159a0",
       "owner": "core-integration"
     },
     {
