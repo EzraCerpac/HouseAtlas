@@ -5725,8 +5725,8 @@
     {
       "path": "backend/src/transports/mcp/healthy_identity.rs",
       "mode": "100644",
-      "bytes": 13999,
-      "sha256": "4366d70cbf381a20192d20e6167e51101a3172aef36e4be68babea5e67c85410",
+      "bytes": 14194,
+      "sha256": "6e771326af465f4a195326b15391d05e4c528bed3fe6b11a22b51b4f09841fc3",
       "owner": "mcp"
     },
     {
@@ -5739,8 +5739,8 @@
     {
       "path": "backend/src/transports/mcp/healthy_local_atlas.rs",
       "mode": "100644",
-      "bytes": 29813,
-      "sha256": "3e27cb81cc9155917f3f45504804165dc8b00912d73574f8f43d1aa4fb74b2e6",
+      "bytes": 29872,
+      "sha256": "cbada5c598113f73671124f050efe2abb2308b831484f711a4db1772004c3fc8",
       "owner": "mcp"
     },
     {
@@ -5748,6 +5748,13 @@
       "mode": "100644",
       "bytes": 9408,
       "sha256": "70d43f8c8c55a6bf33723eb9d9b7632f72c03673695775b5b030a67fc6f9978d",
+      "owner": "mcp"
+    },
+    {
+      "path": "backend/src/transports/mcp/healthy_media_metadata.rs",
+      "mode": "100644",
+      "bytes": 16233,
+      "sha256": "8e604f34d41384d4772cb44a713bb67039bfafe60c81fd85f0e8c161a9fd0774",
       "owner": "mcp"
     },
     {

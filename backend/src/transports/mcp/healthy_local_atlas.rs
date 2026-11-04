@@ -34,6 +34,9 @@ mod identity;
 #[path = "healthy_infrastructure.rs"]
 mod infrastructure;
 
+#[path = "healthy_media_metadata.rs"]
+mod media_metadata;
+
 #[path = "healthy_places_relations.rs"]
 mod places_relations;
 
