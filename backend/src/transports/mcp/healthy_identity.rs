@@ -45,7 +45,8 @@ impl Fixture {
         let (cookie, csrf) = {
             let receipt: Value =
                 serde_json::from_slice(&fs::read(directory.join("smoke-session.json"))?)?;
-            let login_body = serde_json::to_vec(receipt.get("editorLogin").ok_or("Missing login")?)?;
+            let login_body =
+                serde_json::to_vec(receipt.get("editorLogin").ok_or("Missing login")?)?;
             let login_url = format!("{ORIGIN}/api/atlas/auth/login");
             let login = core
                 .access
@@ -189,7 +190,9 @@ async fn list(
         seen.push(result["data"]["records"][0].clone());
         let next = &result["data"]["nextCursor"];
         if index + 1 < expected.len() {
-            let cursor = next.as_str().ok_or("Native identity list cursor required")?;
+            let cursor = next
+                .as_str()
+                .ok_or("Native identity list cursor required")?;
             assert!(!cursor.is_empty());
             assert!(tokens.insert(cursor.to_owned()));
             request["payload"]["cursor"] = next.clone();
@@ -246,7 +249,9 @@ async fn history(
         entries.push(entry.clone());
         let next = &result["data"]["nextCursor"];
         if index + 1 < steps.len() {
-            let cursor = next.as_str().ok_or("Native identity history cursor required")?;
+            let cursor = next
+                .as_str()
+                .ok_or("Native identity history cursor required")?;
             assert!(!cursor.is_empty());
             assert!(tokens.insert(cursor.to_owned()));
             request["payload"]["cursor"] = next.clone();
@@ -330,7 +335,15 @@ async fn healthy() -> Result<(), Failure> {
             } else {
                 records.clone()
             };
-            list(&client, &mut session, &context, &visible, false, 6100 + 10 * index).await?;
+            list(
+                &client,
+                &mut session,
+                &context,
+                &visible,
+                false,
+                6100 + 10 * index,
+            )
+            .await?;
             if operation == "tombstone" {
                 list(&client, &mut session, &context, &records, true, 6150).await?;
             }

@@ -5711,8 +5711,8 @@
     {
       "path": "backend/src/transports/mcp/healthy_identity.rs",
       "mode": "100644",
-      "bytes": 13736,
-      "sha256": "5a780811444317609f8efc0be9cfa1ec5847ab49813456c9698350e4d0ec3c9c",
+      "bytes": 13944,
+      "sha256": "107b6b9c0c669a7777f654bad806458536eb38ee22110b0834986c5d6e5f3021",
       "owner": "mcp"
     },
     {
