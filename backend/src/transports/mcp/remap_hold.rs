@@ -32,7 +32,9 @@ fn input_allows(tools: &[Value], request: &Value) -> Result<bool, Failure> {
 }
 
 fn input_request<'a>(schema: &'a Value, arm: &Value) -> Result<&'a Value, Failure> {
-    let reference = arm["$ref"].as_str().ok_or("Missing actual input reference")?;
+    let reference = arm["$ref"]
+        .as_str()
+        .ok_or("Missing actual input reference")?;
     let pointer = reference
         .strip_prefix('#')
         .ok_or("Expected local input reference")?;
@@ -46,7 +48,10 @@ fn admitted_inputs(tools: &[Value]) -> Result<(), Failure> {
     let mut child_ids = std::collections::BTreeSet::new();
     for tool in tools {
         let schema = &tool["inputSchema"];
-        for arm in schema["oneOf"].as_array().ok_or("Missing actual input arms")? {
+        for arm in schema["oneOf"]
+            .as_array()
+            .ok_or("Missing actual input arms")?
+        {
             let request = input_request(schema, arm)?;
             let id = request["properties"]["commandId"]["const"]
                 .as_str()
@@ -55,7 +60,10 @@ fn admitted_inputs(tools: &[Value]) -> Result<(), Failure> {
             root_ids.insert(id.to_owned());
             if id == "atlas.batch.execute" {
                 let items = &request["properties"]["payload"]["properties"]["commands"]["items"];
-                for child in items["oneOf"].as_array().ok_or("Missing admitted child arms")? {
+                for child in items["oneOf"]
+                    .as_array()
+                    .ok_or("Missing admitted child arms")?
+                {
                     let child = input_request(schema, child)?;
                     let id = child["properties"]["commandId"]["const"]
                         .as_str()

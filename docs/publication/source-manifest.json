@@ -5886,8 +5886,8 @@
     {
       "path": "backend/src/transports/mcp/remap_hold.rs",
       "mode": "100644",
-      "bytes": 12428,
-      "sha256": "78ac3194ac73c6d12a9a648a084c8192169d74c8afb2ac1927fa0efc262150ab",
+      "bytes": 12538,
+      "sha256": "22cfdb7d16f00b34ae3ec4105238353f03d62f44252e56cad094f227c5958d46",
       "owner": "mcp"
     },
     {
