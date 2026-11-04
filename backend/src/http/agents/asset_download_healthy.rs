@@ -458,14 +458,16 @@ fn capture_journal(
     directory: &std::path::Path,
     result: &Value,
     validation: &wire::StockValidation,
-) -> Result<u64, Failure> {
+) -> Result<i64, Failure> {
     let database = rusqlite::Connection::open_with_flags(
         directory.join("atlas.sqlite"),
         rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
     )?;
     let (original, committed): (String, String) = database.query_row(
         "SELECT original_json,commit_json FROM stock_operations WHERE operation_id=?1",
-        [result["operationId"].as_str().ok_or("Missing actual operation")?],
+        [result["operationId"]
+            .as_str()
+            .ok_or("Missing actual operation")?],
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
     let original: Value = serde_json::from_str(&original)?;
@@ -478,7 +480,11 @@ fn capture_journal(
         .ok_or("Missing actual durable child envelopes")?;
     wire::StockResponse::parse(validation, &parsed, result.clone(), children)?;
     assert_eq!(result["data"]["requestDigest"], parsed.intent_digest());
-    Ok(database.query_row("SELECT count(*) FROM stock_operations", [], |row| row.get(0))?)
+    Ok(
+        database.query_row("SELECT count(*) FROM stock_operations", [], |row| {
+            row.get(0)
+        })?,
+    )
 }
 
 async fn contextual_five_originals() -> Result<(), Failure> {
@@ -532,7 +538,9 @@ async fn contextual_five_originals() -> Result<(), Failure> {
         .ok_or("Missing cookie pair")?
         .to_owned();
     let session: Value = serde_json::from_slice(&to_bytes(response.into_body(), 4096).await?)?;
-    let csrf = session["csrfToken"].as_str().ok_or("Missing current CSRF")?;
+    let csrf = session["csrfToken"]
+        .as_str()
+        .ok_or("Missing current CSRF")?;
     let validation = wire::StockValidation::new()?;
     let license = json!({"status":"unknown","reference":null});
     let reason = "Synthetic contextual original round trip";
@@ -571,38 +579,66 @@ async fn contextual_five_originals() -> Result<(), Failure> {
     let baseline_operations = capture_journal(&directory, &setup_result, &validation)?;
     let mut evidence_ids = vec![json!(seed_evidence)];
     let mut asset_ids = std::collections::BTreeSet::new();
-    let mut upload_posts = 0_u64;
+    let mut upload_posts = 0_i64;
     let originals: [(&str, &str, &str, &[u8]); 5] = [
-        ("synthetic-photo.jpg", "image/jpeg", "camera-request",
-            include_bytes!("../../../../frontend/capture-evidence-tests/fixtures/synthetic-photo.jpg")),
-        ("synthetic-photo-progressive.jpg", "image/jpeg", "photo-picker",
-            include_bytes!("../../../../frontend/capture-evidence-tests/fixtures/synthetic-photo-progressive.jpg")),
-        ("synthetic-image.png", "image/png", "photo-picker",
-            include_bytes!("../../../../frontend/capture-evidence-tests/fixtures/synthetic-image.png")),
-        ("synthetic-document.pdf", "application/pdf", "file-picker",
-            include_bytes!("../../../../frontend/capture-evidence-tests/fixtures/synthetic-document.pdf")),
-        ("synthetic-note.txt", "text/plain", "file-picker",
-            include_bytes!("../../../../frontend/capture-evidence-tests/fixtures/synthetic-note.txt")),
+        (
+            "synthetic-photo.jpg",
+            "image/jpeg",
+            "camera-request",
+            include_bytes!(
+                "../../../../frontend/capture-evidence-tests/fixtures/synthetic-photo.jpg"
+            ),
+        ),
+        (
+            "synthetic-photo-progressive.jpg",
+            "image/jpeg",
+            "photo-picker",
+            include_bytes!(
+                "../../../../frontend/capture-evidence-tests/fixtures/synthetic-photo-progressive.jpg"
+            ),
+        ),
+        (
+            "synthetic-image.png",
+            "image/png",
+            "photo-picker",
+            include_bytes!(
+                "../../../../frontend/capture-evidence-tests/fixtures/synthetic-image.png"
+            ),
+        ),
+        (
+            "synthetic-document.pdf",
+            "application/pdf",
+            "file-picker",
+            include_bytes!(
+                "../../../../frontend/capture-evidence-tests/fixtures/synthetic-document.pdf"
+            ),
+        ),
+        (
+            "synthetic-note.txt",
+            "text/plain",
+            "file-picker",
+            include_bytes!(
+                "../../../../frontend/capture-evidence-tests/fixtures/synthetic-note.txt"
+            ),
+        ),
     ];
     for (index, (filename, content_type, method, original)) in originals.into_iter().enumerate() {
-        let admission = capture_json(
-            &app,
-            Method::GET,
-            &place_path,
-            vec![],
-            None,
-            &cookie,
-            None,
-        )
-        .await?;
+        let admission =
+            capture_json(&app, Method::GET, &place_path, vec![], None, &cookie, None).await?;
         assert_eq!(admission["admissionKind"], "native-location");
         assert_eq!(admission["scope"], context);
         assert_eq!(admission["record"]["recordId"], place);
         assert_eq!(admission["identity"]["recordId"], identity);
         assert_eq!(admission["identity"]["revision"], index + 1);
-        assert_eq!(admission["identity"]["payload"]["evidenceIds"], json!(evidence_ids));
+        assert_eq!(
+            admission["identity"]["payload"]["evidenceIds"],
+            json!(evidence_ids)
+        );
         assert_eq!(admission["canAttachEvidence"], true);
-        assert_eq!(admission["attachmentPolicy"]["maximumBytes"], 10 * 1024 * 1024);
+        assert_eq!(
+            admission["attachmentPolicy"]["maximumBytes"],
+            10 * 1024 * 1024
+        );
         assert!(original.len() <= 10 * 1024 * 1024);
         let capture = json!({"schemaVersion":1,"selectionMethod":method,
             "selectedAt":"2026-01-01T00:00:00Z","filename":filename,
@@ -630,14 +666,18 @@ async fn contextual_five_originals() -> Result<(), Failure> {
         )?;
         upload.headers_mut().insert(
             "x-atlas-upload-request-id",
-            metadata["requestId"].as_str().ok_or("Missing fixture request ID")?.parse()?,
+            metadata["requestId"]
+                .as_str()
+                .ok_or("Missing fixture request ID")?
+                .parse()?,
         );
         let started = time::OffsetDateTime::now_utc();
         upload_posts += 1;
         let response = app.clone().oneshot(upload).await?;
         let finished = time::OffsetDateTime::now_utc();
         assert_eq!(response.status(), StatusCode::OK);
-        let result: Value = serde_json::from_slice(&to_bytes(response.into_body(), MAX_RESPONSE).await?)?;
+        let result: Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), MAX_RESPONSE).await?)?;
         assert_eq!(result["commandId"], "atlas.batch.execute");
         assert_eq!(result["requestId"], metadata["requestId"]);
         assert_eq!(result["resolvedScope"], context);
@@ -668,7 +708,10 @@ async fn contextual_five_originals() -> Result<(), Failure> {
         assert!(asset_ids.insert(asset_id.to_owned()));
         evidence_ids.push(json!(evidence_id));
         assert_eq!(updated_identity["revision"], index + 2);
-        assert_eq!(updated_identity["payload"]["evidenceIds"], json!(evidence_ids));
+        assert_eq!(
+            updated_identity["payload"]["evidenceIds"],
+            json!(evidence_ids)
+        );
         assert_eq!(evidence["payload"]["statement"], metadata["statement"]);
         assert_eq!(
             evidence["payload"]["references"],
@@ -691,7 +734,9 @@ async fn contextual_five_originals() -> Result<(), Failure> {
             .ok_or("Missing claim prefix")?;
         assert_eq!(serde_json::from_str::<Value>(claim)?, capture);
         let retrieved = time::OffsetDateTime::parse(
-            provenance["retrievedAt"].as_str().ok_or("Missing actual intake time")?,
+            provenance["retrievedAt"]
+                .as_str()
+                .ok_or("Missing actual intake time")?,
             &time::format_description::well_known::Rfc3339,
         )?;
         assert!(retrieved >= started && retrieved <= finished);
@@ -712,8 +757,7 @@ async fn contextual_five_originals() -> Result<(), Failure> {
                 record["target"]["recordType"].as_str().unwrap(),
                 record["target"]["recordId"].as_str().unwrap()
             );
-            let read =
-                capture_json(&app, Method::GET, &path, vec![], None, &cookie, None).await?;
+            let read = capture_json(&app, Method::GET, &path, vec![], None, &cookie, None).await?;
             assert_eq!(read["status"], "read");
             assert_eq!(read["resolvedScope"], context);
             assert_eq!(read["data"]["sourceStatus"], "current");
