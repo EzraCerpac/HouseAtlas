@@ -193,7 +193,10 @@ async fn healthy(scenario: Scenario) -> Result<(), Failure> {
             (2, "restore", 4, "active"),
         ] {
             let (payload, guards) = if operation == "replace" {
-                (scenario.replacement.clone(), scenario.replace_guards.clone())
+                (
+                    scenario.replacement.clone(),
+                    scenario.replace_guards.clone(),
+                )
             } else {
                 (json!({}), scenario.retained_guards.clone())
             };

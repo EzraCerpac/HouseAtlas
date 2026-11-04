@@ -5753,8 +5753,8 @@
     {
       "path": "backend/src/transports/mcp/healthy_places_relations.rs",
       "mode": "100644",
-      "bytes": 10657,
-      "sha256": "c48ceb6e817ab870f628c612411f06c2c84ff42b4f1d426cc19f5fd37ea9b271",
+      "bytes": 10716,
+      "sha256": "736af4af6d6d3504e30c6b2f2c4e0ae3e8c936cf51635b5e416a2807852d053f",
       "owner": "mcp"
     },
     {
