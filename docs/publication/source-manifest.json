@@ -2617,8 +2617,8 @@
     {
       "path": "backend/src/http/providers/homebox_native_healthy.rs",
       "mode": "100644",
-      "bytes": 21471,
-      "sha256": "d65a46dc82a582eebdb6f470b7490c011bde45b953270eb7477542cf244574a2",
+      "bytes": 23134,
+      "sha256": "5da71d6d1f9bb84f0548ef40a37d2c922bfe27567aa19be070cde924650f97f8",
       "owner": "core-integration"
     },
     {
