@@ -1,7 +1,5 @@
 //! Positive, in-process cached HomeBox stock/MCP read example. No listener or provider IO.
 //! A private clone of the public fixture uses a UUID collection ID for stock wire3.
-#[cfg(test)]
-use crate as houseatlas_backend;
 use houseatlas_backend::{
     access as a,
     app::{Access, Core, ReadAuthority, RequestPrincipal, ServerRuntime, Store, access_scope},

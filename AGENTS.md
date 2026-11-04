@@ -156,6 +156,17 @@ inside the already admitted media flow; one 60 s startup request, unchanged
 15 s subsequent calls and close-aware owned-child cleanup) named in the workflow and in the verification guide. A PR that
 extends CI names the added scope here and in the verification guide.
 
+The default backend-library set also executes exactly
+`http::providers::homebox_stock_healthy::healthy_cached_homebox_stock_and_mcp_reads`,
+calling the existing cached HomeBox example body. Actual synthetic Access/source
+registrations and reopened SQLite feed native StockService and borrowed in-process
+MCP entity/location get/list reads, with full wire parity and unchanged snapshots.
+Each list is one resource with pageSize 100 and null cursors; fixture collection
+IDs are rebound to UUIDs. This adds no listener, provider call, refresh, continuation,
+search/archive, mediated history, opaque-ID compatibility or installed acceptance.
+Private disposable files and the standalone example entry point are preserved;
+no workflow command or held selection is added.
+
 The frontend and loopback jobs of `rust-react-ordinary.yml` run their browser
 checks in one exact Chrome for Testing build, not the runner image's Chrome: the
 shared setup action downloads it, verifies its recorded SHA-256 and reported

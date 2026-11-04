@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 20162,
-      "sha256": "6b15cadd09b99f6d2e87899bde35a3165a46350e7b79ad41cce00b7557861bf7",
+      "bytes": 20928,
+      "sha256": "332ff732847d47a1b46f408e0533b46f696a32853549809ca516900eb0bd3659",
       "owner": "core-integration"
     },
     {
@@ -2631,8 +2631,8 @@
     {
       "path": "backend/src/http/providers/homebox_stock_healthy.rs",
       "mode": "100644",
-      "bytes": 12963,
-      "sha256": "ed5a7983b1274193b5b78bcd199e113a5a37b8bc2d9c2f10147d46e4c3075c7d",
+      "bytes": 12917,
+      "sha256": "fc9f9a3e7d1d58a15eae9f81e1f64f047283f12837f80b8a6e55e228f0dc6e9e",
       "owner": "core-integration"
     },
     {
@@ -2890,8 +2890,8 @@
     {
       "path": "backend/src/lib.rs",
       "mode": "100644",
-      "bytes": 543,
-      "sha256": "e1fb1bd932448334e4ab2d66e36d5dfb34460d63e0272dffa965c4c8ee676109",
+      "bytes": 598,
+      "sha256": "574acc0e866f41cc2530a1f1bbd2feea90be1e9a312fe925c3bce25e0b365699",
       "owner": "core-integration"
     },
     {
@@ -6460,8 +6460,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 208000,
-      "sha256": "1680725497002a7369e1ba74d1a2504b193400f50f7c45169810d77b95e9db2c",
+      "bytes": 209091,
+      "sha256": "fa9e3634b7530edfbe9f3e62b9880287c8b1b82edee2086a7b9ecf86dbf57aeb",
       "owner": "core-integration"
     },
     {

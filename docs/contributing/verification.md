@@ -512,6 +512,21 @@ Tests marked `#[ignore]` stay in their held lanes. The three skipped quantity
 tests need `HOUSEATLAS_QUANTITY_REFERENCE_DIR` pointing at the pinned public
 HomeBox source and remain a manual check.
 
+The existing default backend-library selection also invokes exactly
+`http::providers::homebox_stock_healthy::healthy_cached_homebox_stock_and_mcp_reads`.
+It calls the unchanged `healthy-homebox-cache-stock` example body through actual
+synthetic Access/source registrations, reopened SQLite, native StockService and
+borrowed in-process MCP. Four entity/location get/list reads check complete
+native/structured/text parity, wire validation, stale source status, selected
+identity/name/original timestamps and unchanged snapshots around the reads.
+Each list has one resource, pageSize 100, cursor null and terminal nextCursor null;
+fixture collection IDs are consistently rebound to UUIDs. Access/Store reopen
+precedes reads; no post-read reopen or cursor persistence is proved. Private
+disposable files and the standalone entry point remain unchanged. This adds no
+listener, provider call, refresh, continuation/search/archive, opaque-ID
+compatibility, mediated history, native tags/fields/maintenance, installed
+acceptance or new workflow command. All other held selections remain separate.
+
 ## Loopback integration tests in CI
 
 On Linux the `loopback` job of the `Rust React ordinary core` workflow runs the
