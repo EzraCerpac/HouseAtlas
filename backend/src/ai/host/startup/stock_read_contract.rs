@@ -147,8 +147,10 @@ impl InferencePort<NativeHostContext> for SyntheticRuntime {
                     // Validate the actual owner-issued envelope against the
                     // generated stock contract, not a test substitute result.
                     let validator = wire::StockValidation::new().unwrap();
-                    let parsed = wire::StockRequest::parse(&validator, self.command.clone()).unwrap();
-                    wire::StockResponse::parse(&validator, &parsed, canonical.clone(), &[]).unwrap();
+                    let parsed =
+                        wire::StockRequest::parse(&validator, self.command.clone()).unwrap();
+                    wire::StockResponse::parse(&validator, &parsed, canonical.clone(), &[])
+                        .unwrap();
                     self.received.lock().unwrap().push(canonical);
                     vec![json!({
                         "type":"message", "role":"assistant", "phase":"final_answer",
@@ -189,11 +191,29 @@ impl ExactReviewReady<NativeHostContext, NativeReadPrepared> for Never {
     }
 }
 impl HumanReviewPort<NativeHostContext> for Never {
-    unused_async!(open(c: &'a NativeHostContext, r: &'a ReviewInput, stop: &'a Cancellation) -> HumanReviewResult);
+    unused_async!(
+        open(
+            c: &'a NativeHostContext,
+            r: &'a ReviewInput,
+            stop: &'a Cancellation,
+        ) -> HumanReviewResult
+    );
 }
 impl ConnectionActionPort<NativeHostContext> for Never {
-    unused_async!(act(c: &'a NativeHostContext, r: &'a ConnectionActionRequest, stop: &'a Cancellation) -> ConnectionActionResult);
-    unused_async!(status(c: &'a NativeHostContext, id: &'a str, stop: &'a Cancellation) -> ConnectionActionResult);
+    unused_async!(
+        act(
+            c: &'a NativeHostContext,
+            r: &'a ConnectionActionRequest,
+            stop: &'a Cancellation,
+        ) -> ConnectionActionResult
+    );
+    unused_async!(
+        status(
+            c: &'a NativeHostContext,
+            id: &'a str,
+            stop: &'a Cancellation,
+        ) -> ConnectionActionResult
+    );
 }
 impl ModelsPort<NativeHostContext> for Never {
     unused_async!(discover(c: &'a NativeHostContext, stop: &'a Cancellation) -> AccountModels);
@@ -263,41 +283,54 @@ async fn typed_ai_request_executes_native_stock_read_and_retains_unknown_usage()
     let root = fs::canonicalize(scratch.path())?;
     let core = lifecycle::prepare(&root.join("fixture"), ORIGIN)?;
     let scope = access_scope(&core.home.scope)?;
-    let context = json!({"workspaceId":scope.workspace_id.as_str(),"homeId":scope.home_id.as_str()});
-    let scratch_receipt: Value = serde_json::from_slice(
-        &fs::read(root.join("fixture/smoke-session.json"))?
-    )?;
+    let context =
+        json!({"workspaceId":scope.workspace_id.as_str(),"homeId":scope.home_id.as_str()});
+    let scratch_receipt: Value =
+        serde_json::from_slice(&fs::read(root.join("fixture/smoke-session.json"))?)?;
     let login_body = serde_json::to_vec(&scratch_receipt["editorLogin"])?;
     drop(scratch_receipt);
     let session = core.access.lock().unwrap().login(
-        &evidence(a::Method::Post, None, None), &login_body, "synthetic-ai-native-read"
+        &evidence(a::Method::Post, None, None),
+        &login_body,
+        "synthetic-ai-native-read",
     )?;
     drop(login_body);
     let cookie = session.set_cookie().split(';').next().unwrap().to_owned();
     let editor = core.access.lock().unwrap().authorize(
-        &evidence(a::Method::Post, Some(&cookie), Some(session.info().csrf_token())),
-        &scope, a::Action::Mutate
+        &evidence(
+            a::Method::Post,
+            Some(&cookie),
+            Some(session.info().csrf_token()),
+        ),
+        &scope,
+        a::Action::Mutate,
     )?;
     let target = json!({"authority":"atlas","recordType":"circuit","recordId":id(920)});
     let payload = json!({"label":null,"panel":null,"evidenceIds":[id(100)]});
     // Generate the existing circuit through the unchanged native fixture setup
     // owner before AI runs. Its data below is an independent frozen expectation.
-    let created = stock_dispatch::execute(&core, &RequestPrincipal::new(editor.clone()), json!({
-        "schemaVersion":3,"commandId":"atlas.circuit.create","requestId":id(1200),
-        "context":context,"target":target,"payload":payload,"idempotencyKey":id(1300),
-        "reason":"Generated AI read fixture setup",
-        "preconditions":{"target":null,"guards":[{
-            "target":{"authority":"atlas","recordType":"evidence","recordId":id(100)},
-            "revision":{"kind":"atlas","value":1}
-        }]},"approvalReceiptId":null
-    }))?;
+    let created = stock_dispatch::execute(
+        &core,
+        &RequestPrincipal::new(editor.clone()),
+        json!({
+            "schemaVersion":3,"commandId":"atlas.circuit.create","requestId":id(1200),
+            "context":context,"target":target,"payload":payload,"idempotencyKey":id(1300),
+            "reason":"Generated AI read fixture setup",
+            "preconditions":{"target":null,"guards":[{
+                "target":{"authority":"atlas","recordType":"evidence","recordId":id(100)},
+                "revision":{"kind":"atlas","value":1}
+            }]},"approvalReceiptId":null
+        }),
+    )?;
     let expected_records = json!([{
         "target":target,"revision":1,"lifecycle":"active","payload":payload
     }]);
     assert_eq!(created.wire["status"], "committed");
     assert_eq!(created.wire["data"]["records"], expected_records);
     let principal = core.access.lock().unwrap().authorize(
-        &evidence(a::Method::Get, Some(&cookie), None), &scope, a::Action::Read
+        &evidence(a::Method::Get, Some(&cookie), None),
+        &scope,
+        a::Action::Read,
     )?;
     let access = Arc::clone(&core.access);
     let binding = RegistrationBinding {
@@ -311,12 +344,19 @@ async fn typed_ai_request_executes_native_stock_read_and_retains_unknown_usage()
     let journal_path = root.join("ai-status.sqlite");
     let journal = StatusJournal::new(Connection::open(&journal_path)?)?;
     let enrollment = Arc::new(EnrollmentOwner::new(
-        Connection::open_in_memory()?, Arc::clone(&access), journal.clone()
+        Connection::open_in_memory()?,
+        Arc::clone(&access),
+        journal.clone(),
     )?);
-    enrollment.install_existing_approval(&editor, &TrustedRegistration::from_existing_approval(
-        binding.clone(), RegistrationKind::LocalPublicClient,
-        "Synthetic native read test".into(), "synthetic-test-host".into()
-    )?)?;
+    enrollment.install_existing_approval(
+        &editor,
+        &TrustedRegistration::from_existing_approval(
+            binding.clone(),
+            RegistrationKind::LocalPublicClient,
+            "Synthetic native read test".into(),
+            "synthetic-test-host".into(),
+        )?,
+    )?;
     let config_bytes = serde_json::to_vec(&json!({
         "schemaVersion":1,"applicationOrigin":ORIGIN,"stableHostId":"synthetic-test-host",
         "appName":"Synthetic native read test",
@@ -328,16 +368,28 @@ async fn typed_ai_request_executes_native_stock_read_and_retains_unknown_usage()
         }]
     }))?;
     let config_path = root.join("synthetic-config.json");
-    let mut file = OpenOptions::new().write(true).create_new(true).mode(0o600).open(&config_path)?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&config_path)?;
     file.write_all(&config_bytes)?;
     drop(file);
     let configuration = Arc::new(StartupConfiguration::read_pinned(
-        &config_path, &format!("{:x}", Sha256::digest(&config_bytes))
+        &config_path,
+        &format!("{:x}", Sha256::digest(&config_bytes)),
     )?);
-    let authority = StartupAuthority { access: Arc::clone(&access), enrollment, configuration };
+    let authority = StartupAuthority {
+        access: Arc::clone(&access),
+        enrollment,
+        configuration,
+    };
     let native = NativeHostContext::capture(
-        principal, binding.clone(), &NativePrincipalPort::new(access)
-    ).await?;
+        principal,
+        binding.clone(),
+        &NativePrincipalPort::new(access),
+    )
+    .await?;
     let application = Host::new(core, ORIGIN.into(), Arc::default(), vec![])?;
     let command = json!({
         "schemaVersion":3,"commandId":"atlas.circuit.get","requestId":id(1201),
@@ -347,11 +399,17 @@ async fn typed_ai_request_executes_native_stock_read_and_retains_unknown_usage()
     let host = AiHost {
         peers: Peers {
             runtime: SyntheticRuntime {
-                command, expected_records, requests: Mutex::default(), received: Mutex::default()
+                command,
+                expected_records,
+                requests: Mutex::default(),
+                received: Mutex::default(),
             },
             catalog: native_read_catalog(&application, authority.clone())?,
             continuations: HostContinuations::new(
-                authority.clone(), never.clone(), journal.clone(), Duration::from_secs(60)
+                authority.clone(),
+                never.clone(),
+                journal.clone(),
+                Duration::from_secs(60),
             )?,
             never,
         },
@@ -359,26 +417,51 @@ async fn typed_ai_request_executes_native_stock_read_and_retains_unknown_usage()
         journal: journal.clone(),
         limits: RunLimits::default(),
     };
-    let wire = host.call(&native, HostCommand::Run(RunInput {
-        request_id: REQUEST.into(), prompt: "Read the generated circuit.".into()
-    })).await?;
+    let wire = host
+        .call(
+            &native,
+            HostCommand::Run(RunInput {
+                request_id: REQUEST.into(),
+                prompt: "Read the generated circuit.".into(),
+            }),
+        )
+        .await?;
     let outcome: RunOutcome = serde_json::from_value(wire.clone())?;
-    assert_eq!(outcome, RunOutcome::Completed {
-        text: ANSWER.into(), operation_ids: vec![], usage: Usage::default()
-    });
-    assert_eq!(wire["usage"], json!({"inputTokens":null,"outputTokens":null,"totalTokens":null}));
+    assert_eq!(
+        outcome,
+        RunOutcome::Completed {
+            text: ANSWER.into(),
+            operation_ids: vec![],
+            usage: Usage::default()
+        }
+    );
+    assert_eq!(
+        wire["usage"],
+        json!({"inputTokens":null,"outputTokens":null,"totalTokens":null})
+    );
     assert_eq!(host.peers.runtime.requests.lock().unwrap().len(), 2);
     assert_eq!(host.peers.runtime.received.lock().unwrap().len(), 1);
     assert_eq!(host.peers.never.0.load(Ordering::SeqCst), 0);
     let retained = json!({"status":"finished","requestId":REQUEST,"outcome":wire});
-    assert_eq!(host.call(&native, HostCommand::Status(REQUEST.into())).await?, retained);
-    assert_eq!(serde_json::to_value(journal.read(&binding, REQUEST, true)?)?, retained);
+    assert_eq!(
+        host.call(&native, HostCommand::Status(REQUEST.into()))
+            .await?,
+        retained
+    );
+    assert_eq!(
+        serde_json::to_value(journal.read(&binding, REQUEST, true)?)?,
+        retained
+    );
     drop(host);
     drop(journal);
     let reopened = StatusJournal::open_existing_read_only(Connection::open_with_flags(
-        &journal_path, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NOFOLLOW
+        &journal_path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NOFOLLOW,
     )?)?;
-    assert_eq!(serde_json::to_value(reopened.read(&binding, REQUEST, true)?)?, retained);
+    assert_eq!(
+        serde_json::to_value(reopened.read(&binding, REQUEST, true)?)?,
+        retained
+    );
     assert!(!root.join("unopened-credentials").exists());
     Ok(())
 }

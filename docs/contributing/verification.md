@@ -14,7 +14,7 @@ The test validates command/request/scope, tool-output correlation, completed
 result, unknown usage and journal readback after read-only reopen.
 
 Only connection/model/inference inputs are synthetic peers. No listener,
-provider, credential lease/key, approval/review action, device or deployment is
+provider, credential lease/key, human-review action, device or deployment is
 used. This adds no workflow, explicit runner or new live authority. Local
 build/test/format/Clippy qualification was not run; exact hosted execution is
 separate evidence. [The AI integration guide](../rust-integration/ai-host-integration.md)

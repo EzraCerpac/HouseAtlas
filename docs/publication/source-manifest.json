@@ -1028,9 +1028,9 @@
     {
       "path": "backend/src/ai/host/startup/stock_read_contract.rs",
       "mode": "100644",
-      "owner": "ai",
-      "bytes": 16887,
-      "sha256": "21f50f4d590c151c44804ccbdb2ec308df0a06a2d52afc514c1c1563df844592"
+      "bytes": 17795,
+      "sha256": "1b93e090b190ce665a7bfff6d0fcfc023edb0f1aae1c88f369c8a76824028000",
+      "owner": "ai"
     },
     {
       "path": "backend/src/ai/host/status.rs",
@@ -6488,8 +6488,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 218077,
-      "sha256": "c0bbc7afed0304229fb59e8815ed624f5d2319ca2406b96255d7eb4a053d4712",
+      "bytes": 218074,
+      "sha256": "627ec2cdb1773808c36b878f4ff0eb8d04b4fb02e2f28b96977861e379717830",
       "owner": "core-integration"
     },
     {
