@@ -15,7 +15,7 @@ struct Scenario {
     panel: bool,
 }
 
-fn committed(
+pub(super) fn committed(
     outcome: &Value,
     intent: &Value,
     revision: u64,
@@ -30,7 +30,7 @@ fn committed(
     expected
 }
 
-async fn get(
+pub(super) async fn get(
     client: &Client<'_>,
     session: &mut LocalAtlasSession<'_>,
     context: &Value,
@@ -48,21 +48,21 @@ async fn get(
     assert_eq!(result["data"]["nextCursor"], Value::Null);
 }
 
-async fn list(
+pub(super) async fn list(
     client: &Client<'_>,
     session: &mut LocalAtlasSession<'_>,
     context: &Value,
-    scenario: &Scenario,
+    selection: (&str, &str),
     expected: &[Value],
     include_archived: bool,
     first_request_id: u32,
 ) -> Result<Vec<Value>, Failure> {
     let mut request = json!({"schemaVersion":3,
-        "commandId":format!("atlas.{}.list",scenario.kind),
+        "commandId":format!("atlas.{}.list",selection.0),
         "requestId":id(first_request_id),"context":context,
-        "target":{"authority":"atlas","recordType":scenario.kind},
+        "target":{"authority":"atlas","recordType":selection.0},
         "payload":{"pageSize":1,"cursor":null,"includeArchived":include_archived,
-            "q":scenario.query}});
+            "q":selection.1}});
     let mut seen = Vec::new();
     let mut cursors = BTreeSet::new();
     for (index, record) in expected.iter().enumerate() {
@@ -88,7 +88,7 @@ async fn list(
     Ok(seen)
 }
 
-async fn history(
+pub(super) async fn history(
     client: &Client<'_>,
     session: &mut LocalAtlasSession<'_>,
     context: &Value,
@@ -264,7 +264,7 @@ async fn healthy(scenario: Scenario) -> Result<(), Failure> {
             &client,
             &mut session,
             &context,
-            &scenario,
+            (scenario.kind, scenario.query),
             &records,
             false,
             12010,
@@ -316,7 +316,7 @@ async fn healthy(scenario: Scenario) -> Result<(), Failure> {
                 &client,
                 &mut session,
                 &context,
-                &scenario,
+                (scenario.kind, scenario.query),
                 &active,
                 false,
                 12100 + 10 * index,
@@ -326,7 +326,7 @@ async fn healthy(scenario: Scenario) -> Result<(), Failure> {
                 &client,
                 &mut session,
                 &context,
-                &scenario,
+                (scenario.kind, scenario.query),
                 &records,
                 true,
                 12200 + 10 * index,
@@ -348,7 +348,7 @@ async fn healthy(scenario: Scenario) -> Result<(), Failure> {
                 &client,
                 &mut session,
                 &context,
-                &scenario,
+                (scenario.kind, scenario.query),
                 &expected,
                 false,
                 12400,
@@ -360,7 +360,7 @@ async fn healthy(scenario: Scenario) -> Result<(), Failure> {
             &client,
             &mut session,
             &context,
-            &scenario,
+            (scenario.kind, scenario.query),
             &expected,
             true,
             12410,

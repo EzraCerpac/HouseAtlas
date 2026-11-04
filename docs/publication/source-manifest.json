@@ -5725,15 +5725,15 @@
     {
       "path": "backend/src/transports/mcp/healthy_infrastructure.rs",
       "mode": "100644",
-      "bytes": 14313,
-      "sha256": "efff9dc8c6b3bd82f2e2218e4afd124107b426590aad2c841113dcbae82fafe6",
+      "bytes": 14464,
+      "sha256": "70384dd454d52143f55872fa8e2d090028394049efd3b8722040a0d3f99ca879",
       "owner": "mcp"
     },
     {
       "path": "backend/src/transports/mcp/healthy_local_atlas.rs",
       "mode": "100644",
-      "bytes": 29673,
-      "sha256": "4ef5b30f5dfbfe09a7017ae9938e783616b989a20718844fcc52f35c42669b7c",
+      "bytes": 29736,
+      "sha256": "a599c9c7ad01cc2f7d317f284f0c5541859c486d3dc51fbcd639377d1ca3debf",
       "owner": "mcp"
     },
     {
@@ -5748,6 +5748,13 @@
       "mode": "100644",
       "bytes": 11903,
       "sha256": "a7fa40832bc74a3ef11c223f45343ae4dfa29ee44aaa511421cd406a3cba7445",
+      "owner": "mcp"
+    },
+    {
+      "path": "backend/src/transports/mcp/healthy_places_relations.rs",
+      "mode": "100644",
+      "bytes": 10657,
+      "sha256": "c48ceb6e817ab870f628c612411f06c2c84ff42b4f1d426cc19f5fd37ea9b271",
       "owner": "mcp"
     },
     {
