@@ -7,15 +7,19 @@ deliverable, not a new dispatcher, grant list, test suite or acceptance release.
 Version 3 grouped operation classes but did not join individual IDs to execution
 evidence. This ledger lists all 168 canonical IDs once, including family,
 effect/confirmation class, actual owner/profile and a bounded disposition.
-Counts after the M20–M35 increments: 77 QUALIFIED-SYNTHETIC paths,
-6 BLOCKED for broader operation evidence,
+Counts after the M20–M36 increments: 82 QUALIFIED-SYNTHETIC paths,
+1 BLOCKED for broader operation evidence,
 80 UNSUPPORTED-GENERIC, two HELD and three FORBIDDEN. These are profile/evidence
 dispositions, not the static catalog counts (154 pending, nine unsupported,
 two held, three forbidden). A missing generic binding is not proof that a
 dedicated application/native owner is absent.
 
 QUALIFIED-SYNTHETIC means only the concrete operation/variant executed by the
-listed real Access/StockService/disposable SQLite fixture. It does not qualify
+listed real Access/disposable SQLite/shared native domain owner fixture.
+StockService and direct native-owner compositions are distinguished per row.
+M36 uses an injected-reader owner and unmounted MCP; its configured mounted
+M path remains G-native-configured even when that row is QUALIFIED-SYNTHETIC.
+This does not qualify
 all payloads, actors, profiles or installed operation. Binding create is the
 unresolved synthetic path; explicit binding reviews cover rejected, retired
 and accepted fixture decisions without adopting source presence. Batch evidence
@@ -606,22 +610,69 @@ restart, recovered producer/admission rights, browser/device or installed
 acceptance follows. There is no new production behavior, grant, dependency,
 workflow command or runner. Broader #288 acceptance remains open.
 
-M36 prepares an extension of the existing default-library native HomeBox root
-case, not a new domain owner or production MCP binding. The test-only ServicePort
-delegates every call to `homebox_native::execute_with_reader` with the existing
-injected original-byte GET peer. Actual Access, Store, native domain authority,
-NativePrincipalPort, NativeCatalog, canonical envelopes and result rendering are
-used. Five original direct reads remain; five unmounted MCP calls add full native/
-structured/text parity, independent numeric/date/cost assertions and unchanged
-authorized Store snapshots. **NOT RUN** for this extension pending exact hosted
-named execution; the five operation rows and 77/6 counts remain unchanged.
+M36 qualifies five native-reader variants through the actual shared native
+owner plus an explicitly unmounted synthetic MCP profile. Exact source
+`3c61ccb43da2ffb6c0e2cbaf018784426b18abf1`, tree
+`ed78046e5e7871b7d8e355e238c6dc8802f21009`, has base
+`51ffe63dc13d95e5d5870f97c96d5953bba2af78`.
+[Backend job 126775985742 / run 41887427468](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41887427468/job/126775985742)
+checked out that exact source, explicitly passed the extended
+`healthy_native_homebox_root_reads_preserve_original_authority` at 18:30:30 UTC,
+and finished 248 passed, zero failed, 12 ignored and three filtered out at
+18:32:50 UTC. This extends an already selected default-library case; the test
+count/name and CI command remain unchanged. Final-head checks and review remain
+separately required before merge.
 
-The acceptance boundary is explicit before any disposition change: this tests
-the real injected-reader owner plus an unmounted synthetic MCP profile. It does
-not traverse production OwnedStockService/McpStockContext, configured HTTPS
-credential custody or NativeListPages continuation. Their qualification remains
-separate; no production hook, grant, fake domain result or duplicate dispatcher
-is introduced. Existing fixture lists have one terminal pageSize-100 page only.
+The original real Access/Store/domain fixture and its five direct GET assertion
+remain intact. The existing FixedGet peer supplies public original native bytes,
+not fabricated stock/domain results, and its clock is explicit fixture input.
+Five additional MCP calls use actual NativePrincipalPort, NativeCatalog and a
+finite read-only synthetic admission set. The test-only ServicePort hands off to
+the unchanged `homebox_native::execute_with_reader` owner in a blocking worker;
+it copies no domain or authority policy. That owner retains original principal/
+source/partition grants, validates native GET scope, prepares the immutable
+graph/witness and performs the actual domain dispatch/disclosure. No fake domain
+result, production hook, dispatcher replacement or grant is introduced.
+
+Each call validates full canonical native wire, MCP structured/text equality,
+request/command/scope/status/replayed correlation and schema. Independent
+expectations preserve the exact maximum-safe integer field, native cost strings,
+and the documented empty native date to published null interpretation.
+SourceStatus stays unresolved and observations remain observation-only. All ten
+GETs retain exact tenant/method/path and no Access/Store/Core lock across GET.
+Authorized Store snapshots before/after the direct and MCP phases are equal,
+providing fixed record/cache readback without claiming whole-database immutability.
+Field and maintenance lists are terminal pageSize-100 fixture pages with one
+field and two maintenance rows, respectively; no continuation/search/archive
+or upstream completeness acceptance is inferred. The existing pre-read Store
+close/open is retained; no post-read reopen or Access/process/session restart
+is exercised.
+
+The profile boundary is explicit on every affected operation row:
+`M-fixture` is this unmounted injected-reader MCP profile; `M (binding scoped)`
+remains NOT RUN. Production OwnedStockService/McpStockContext invokes
+NativeHomeBoxReadBinding with configured HTTPS credential custody and, for
+lists, the NativeListPages successor. This test traverses none of those
+configured binding/credential/continuation paths. They remain
+`G-native-configured`, in addition to each row's `G-full`. Neither real native
+owner execution nor full codec parity certifies the configured mounted path.
+
+Initial `2a96a3e4` failed hosted source-platform formatting checks
+([Linux job 126771985949](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41886389687/job/126771985949)).
+Its [backend job 126771986428](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41886389687/job/126771986428)
+printed the extended case PASS at 18:24:31 UTC before cancellation, not a green
+qualified run. Corrected `3c61ccb4` applies exactly the fifteen emitted fixture
+formatting hunks and matching manifest row, preserving original assertions,
+payloads and owner behavior. The complete corrected backend execution above
+supplies this bounded evidence.
+
+Only entity.tags.get, field.list/get and maintenance.list/get advance:
+77/6 becomes 82 qualified / one blocked. The other 163 operation rows,
+static catalog statuses, M20–M35 and #533 remain unchanged. Configured mounted
+MCP/HTTPS credentials/list successors, actual provider/account/installed identity,
+other native payload/query/authority/lifetime variants, writes, browser/device
+and all broader #288 acceptance remain unqualified. No production, workflow,
+dependency, grant, provider-call or deployment change follows from this fixture.
 
 | Key | Exact existing case | Observed result | Method and limit |
 | --- | --- | --- | --- |
@@ -660,7 +711,7 @@ is introduced. Existing fixture lists have one terminal pageSize-100 page only.
 | M33 | `transports::mcp::healthy_local_atlas::remap_hold::native_remap_hold_preserves_store_and_permitted_batch` | PASS (hold only) | actual synthetic Editor/StockService/SQLite hold: null/unproven receipt singles and both mixed-batch orders, actual input-arm/schema and MCP refusal checks, exact retained rows/reopen and permitted direct/derived batch; no remap approval or success |
 | M34 | `http::agents::asset_download_healthy::healthy_mounted_mcp_asset_download_redeems_original` | PASS | actual same-Host generated text multipart upload, mounted MCP issuance and authenticated opaque-handle redemption; canonical parity, measured bytes/headers/hash/size/type and equal asset readback; one positive lifetime only |
 | M35 | `http::providers::homebox_stock_history_healthy::healthy_native_prepared_homebox_history_cuts_and_reopen` | PASS | actual profile-6 source-only bootstrap, six SyntheticFixture prepared reservations, real Viewer shared native/MCP history owner, family-specific saved cuts/fresh chains and strict Store reopen with retained Access; no admission/provider completion |
-| M36 | `http::providers::homebox_native_healthy::healthy_native_homebox_root_reads_preserve_original_authority` (extended) | NOT RUN | actual injected-reader owner plus real NativePrincipalPort/catalog and unmounted delegate-only MCP; five native/five MCP GETs, complete wire parity, numeric/null/date preservation and unchanged authorized Store snapshots; no configured binding/HTTPS/list continuation |
+| M36 | `http::providers::homebox_native_healthy::healthy_native_homebox_root_reads_preserve_original_authority` (extended) | PASS (injected/unmounted only) | actual injected-reader owner plus real NativePrincipalPort/catalog and unmounted delegate-only MCP; five native/five MCP GETs, complete wire parity, numeric/null/date preservation and unchanged authorized Store snapshots; no configured binding/HTTPS/list continuation |
 | B01 | `healthy_large_read_page` | PASS | Fake bridge evidence-list/cursor forwarding and geometry page below 2 MiB; no native cursor/record owner |
 | B02 | `denial_read_profile_bounds` | PASS | Fake bridge scope/page/response refusal and retained read availability; no native expiry or provider execution |
 | B03 | `denial_read_correlation` | PASS | Fake bridge request ID/command/scope mismatch refusal; no actual private connector invocation |
@@ -734,7 +785,8 @@ current Access and owner authorization.
 | A-download | Existing mounted issuer/redemption handle owner | Core-only L excludes this ID; codec/token success does not establish byte transfer |
 | H-cache | HomeBox retained generation query owner | Exactly entity/location get/list; passive cache reads, no upstream write |
 | H-mediated | HomeBox configured mediated-history owner | Exactly entity/location **mediated-history**, not entity/location history; historical owner enablement required |
-| H-native | Scoped NativeHomeBoxReadBinding | Exactly entity.tags.get, field get/list, maintenance get/list; no other HomeBox ID inferred |
+| H-native | Shared homebox_native read owner; configured NativeHomeBoxReadBinding is a separate ingress | Exactly entity.tags.get, field get/list, maintenance get/list; injected GET owner evidence does not certify configured HTTPS/custody or continuation |
+| M-fixture | Test-only unmounted McpAdapter/NativePrincipalPort/NativeCatalog ServicePort delegating to H-native | Exactly the five M36 reads under explicit synthetic admission and injected original-byte GET input; not OwnedStockService/McpStockContext or configured M |
 | N-saved | Saved Network query owner | inventory/snapshot/history only; matching configured source, retained generation, no collection demand |
 | D-native | Dedicated asset/scene creation owner | Not available through these generic stock profiles; dedicated native custody qualification remains separate |
 | not-bound | No R/L/M/E admission in reviewed source | Catalog/family may map the ID, but the generic host supplies no executable owner/admission for it |
@@ -872,12 +924,12 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | `homebox.tag.create` | homebox_tags_fields | supported-pending-qualification | write; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.tag.update` | homebox_tags_fields | supported-pending-qualification | write; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.tag.delete` | homebox_tags_fields | supported-pending-qualification | write; permanent-delete-human | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
-| `homebox.entity.tags.get` | homebox_tags_fields | supported-pending-qualification | read; none | H-native; M (binding scoped); W?; B-read? | none beyond shared metadata | BLOCKED; G-provider |
+| `homebox.entity.tags.get` | homebox_tags_fields | supported-pending-qualification | read; none | H-native (injected GET); M-fixture (unmounted); M (binding scoped, NOT RUN); W?; B-read? | M36 | QUALIFIED-SYNTHETIC; G-native-configured, G-full |
 | `homebox.entity.tags.set` | homebox_tags_fields | supported-pending-qualification | write; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.entity.tags.add` | homebox_tags_fields | supported-pending-qualification | write; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.entity.tags.remove` | homebox_tags_fields | supported-pending-qualification | write; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
-| `homebox.field.list` | homebox_tags_fields | supported-pending-qualification | read; none | H-native; M (binding scoped); W?; B-read? | none beyond shared metadata | BLOCKED; G-provider |
-| `homebox.field.get` | homebox_tags_fields | supported-pending-qualification | read; none | H-native; M (binding scoped); W?; B-read? | none beyond shared metadata | BLOCKED; G-provider |
+| `homebox.field.list` | homebox_tags_fields | supported-pending-qualification | read; none | H-native (injected GET); M-fixture (unmounted); M (binding scoped, NOT RUN); W?; B-read? | M36 | QUALIFIED-SYNTHETIC; G-native-configured, G-full |
+| `homebox.field.get` | homebox_tags_fields | supported-pending-qualification | read; none | H-native (injected GET); M-fixture (unmounted); M (binding scoped, NOT RUN); W?; B-read? | M36 | QUALIFIED-SYNTHETIC; G-native-configured, G-full |
 | `homebox.field.create` | homebox_tags_fields | supported-pending-qualification | write; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.field.update` | homebox_tags_fields | supported-pending-qualification | write; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.field.delete` | homebox_tags_fields | supported-pending-qualification | write; permanent-delete-human | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
@@ -897,8 +949,8 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | `homebox.document-link.update` | homebox_files_links | supported-pending-qualification | write; none | not-bound; no R/L/M/E; W7-unbound; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.document-link.delete` | homebox_files_links | supported-pending-qualification | write; permanent-delete-human | not-bound; no R/L/M/E; W7-unbound; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.document-link.retarget` | homebox_files_links | unsupported-capability | write; permanent-delete-human | not-bound; no R/L/M/E; W7-unbound; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
-| `homebox.maintenance.list` | homebox_maintenance | supported-pending-qualification | read; none | H-native; M (binding scoped); W?; B-read? | none beyond shared metadata | BLOCKED; G-provider |
-| `homebox.maintenance.get` | homebox_maintenance | supported-pending-qualification | read; none | H-native; M (binding scoped); W?; B-read? | none beyond shared metadata | BLOCKED; G-provider |
+| `homebox.maintenance.list` | homebox_maintenance | supported-pending-qualification | read; none | H-native (injected GET); M-fixture (unmounted); M (binding scoped, NOT RUN); W?; B-read? | M36 | QUALIFIED-SYNTHETIC; G-native-configured, G-full |
+| `homebox.maintenance.get` | homebox_maintenance | supported-pending-qualification | read; none | H-native (injected GET); M-fixture (unmounted); M (binding scoped, NOT RUN); W?; B-read? | M36 | QUALIFIED-SYNTHETIC; G-native-configured, G-full |
 | `homebox.maintenance.create` | homebox_maintenance | supported-pending-qualification | write; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.maintenance.update` | homebox_maintenance | supported-pending-qualification | write; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.maintenance.schedule` | homebox_maintenance | supported-pending-qualification | write; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
@@ -961,6 +1013,8 @@ ordinary hold regression. M34 separately adds one in-process actual mounted-Host
 upload/download/redemption case; its positive same-Host text-original lifetime
 changes no production routing or held-control class. M35 adds one actual-owner
 prepared-history case in fresh profile 6, without provider admission/IO or
-production changes. No new runner/workflow command, approval issuer,
+production changes. M36 extends one existing case with actual native-owner
+readback and unmounted MCP parity; configured M remains G-native-configured.
+No new runner/workflow command, approval issuer,
 credential/grant, provider call, browser action, model work or deployment.
 No local build/test/Clippy qualification gate ran.
