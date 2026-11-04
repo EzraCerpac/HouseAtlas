@@ -527,6 +527,23 @@ listener, provider call, refresh, continuation/search/archive, opaque-ID
 compatibility, mediated history, native tags/fields/maintenance, installed
 acceptance or new workflow command. All other held selections remain separate.
 
+The default-library lane also selects exactly
+`transports::mcp::healthy_local_atlas::remap_hold::native_remap_hold_preserves_store_and_permitted_batch`.
+Using real synthetic Editor Access and the shared StockService root, it refuses
+null and supplied-but-unproven receipt UUIDs for singles and containing mixed
+batches in both child orders. Current MCP discovery omits remap and calls refuse;
+all rows in ten fixed owned record/reservation/audit/receipt tables must remain
+equal immediately after each root and MCP refusal. Strict SQLite reopen retains
+those rows with Access retained, then an allowed circuit/create-binding batch
+must commit canonically. This is negative native hold evidence, not an approval
+issuer, approved remap, arbitrary failure suite or installed acceptance.
+The existing Linux `healthy-agent-stock` helper replaces its invalid root remap
+positive with explicit refusal and unchanged snapshot, then uses ordinary
+owner-created binding setup for the independent lower-level seven-child Store
+semantics fixture. Its injected fixture-local authorization is not human
+approval or root admission. No command/workflow, listener, provider, browser,
+grant or other held selection is added.
+
 The same default-library lane already executes the eleven #288 M20–M30 cases;
 their exact names, source pins and hosted logs are in the
 [operation ledger](../rust-integration/mcp-operation-qualification-v4.md#evidence-identity-and-method).

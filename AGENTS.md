@@ -167,6 +167,20 @@ search/archive, mediated history, opaque-ID compatibility or installed acceptanc
 Private disposable files and the standalone example entry point are preserved;
 no workflow command or held selection is added.
 
+The default-library lane additionally selects exactly
+`transports::mcp::healthy_local_atlas::remap_hold::native_remap_hold_preserves_store_and_permitted_batch`.
+Real synthetic Editor Access and StockService refuse remap singles and mixed
+batches (both child orders) with null or supplied-but-unproven receipt UUIDs.
+Actual MCP discovery/refusal and complete read-only equality of ten owned
+record/reservation/audit/receipt tables are checked after each attempt, followed
+by strict store reopen with retained Access and a permitted direct/derived batch.
+This is a native remap hold regression, not an approval issuer or remap success.
+The existing Linux `healthy-agent-stock` helper now expects the root remap hold
+and creates an ordinary binding for its independent lower-level seven-child
+Store fixture; that fixture's injected authorization is not human approval or
+root admission. No new command, listener, provider, browser, grant or installed
+acceptance is added; other held selections remain separate.
+
 The same default-library set includes the eleven merged #288 M20–M30 cases,
 with exact names and execution pins in the
 [operation ledger](docs/rust-integration/mcp-operation-qualification-v4.md#evidence-identity-and-method).

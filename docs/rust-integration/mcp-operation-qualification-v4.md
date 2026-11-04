@@ -430,6 +430,36 @@ catalog statuses remain unchanged. G-full still excludes other profiles and
 variants, bridge/WebMCP/device and installed acceptance. No workflow command,
 provider harness, production admission or authority changes. #288 remains open.
 
+### Native remap hold source increment, 4 November 2026
+
+The exact-impact-human contract requires a separate trusted human approval
+issuer bound to actor/home/target/intent/impact/epochs/expiry and atomic
+consumption. This composition has no remap-specific issuer/consumption owner;
+null or supplied UUID receipt fields, an authenticated session and a lower-level
+planner mapping cannot supply that authority. Native Editor discovery now uses
+the same closed operation predicate as shared-root execution, excluding remap
+and refusing singles or any containing batch before owner work. Other direct,
+derived and batch operations remain admitted. Canonical schemas/catalog status,
+bridge exact-approval holds and existing approval owners are unchanged.
+
+M33 adds one explicit ordinary in-process actual Access/StockService/SQLite
+hold case, currently NOT RUN pending hosted qualification. It covers null and
+unproven receipt UUIDs, direct singles and containing mixed batches in both
+orders, MCP discovery/refusal, exact row equality in ten owned
+record/reservation/audit/receipt tables after each attempt, strict store reopen
+with retained Access and a subsequent permitted direct/derived batch. This is
+negative hold evidence only, never positive remap qualification or an issuer.
+
+The existing specialized root example replaces its invalid positive remap with
+explicit refusal and unchanged native snapshot. Ordinary supported binding
+creation supplies subsequent setup. Its independent lower-level seven-child
+Store fixture retains synthetic authorization and derivation coverage, accurately
+labelled as neither root admission nor human approval. No production bypass,
+receipt fabrication, new grant/endpoint/issuer or workflow is introduced.
+The remap row remains BLOCKED; the 74/9 counts and other 167 rows' dispositions
+are unchanged. Installed exposure, actual human approval/consumption and all
+broader #288 acceptance remain open.
+
 | Key | Exact existing case | Observed result | Method and limit |
 | --- | --- | --- | --- |
 | M01 | `transports::mcp::healthy_download::healthy_asset_download_sealed_codecs_preserve_canonical_wire` | PASS | fake download codec |
@@ -464,6 +494,7 @@ provider harness, production admission or authority changes. #288 remains open.
 | M30 | `transports::mcp::healthy_local_atlas::media_metadata::healthy_native_missing_asset_metadata_history_and_reopen` | PASS | real local Editor/StockService/SQLite; seeded missing asset get/list/history/download-only review/tombstone/restore, public projection, initially empty history and actual non-null seed digest anchor, three-event cursor chain and strict reopen; singleton/empty lists only; no transfer |
 | M31 | `http::providers::homebox_stock_healthy::healthy_cached_homebox_stock_and_mcp_reads` | PASS | real Viewer Access/source registrations/reopened SQLite/native StockService and borrowed MCP; four cached get/list reads, stale dates, canonical parity and unchanged snapshots; UUID-rebound collection, singleton first-page lists only; no provider IO or post-read reopen |
 | M32 | `healthy-network-loopback.py` driving `healthy-network-root-router` / `healthy_network_host.rs` mounted-MCP saved-query loop | PASS | existing real canonical Access/native NetworkBinding/disposable TLS publication; genuine Editor/current-CSRF MCP for three saved reads equals actual Viewer HTTP-owner data, five nodes/one generation/unresolved endpoint; one upstream GET total, immutable archive reopen only |
+| M33 | `transports::mcp::healthy_local_atlas::remap_hold::native_remap_hold_preserves_store_and_permitted_batch` | NOT RUN | actual synthetic Editor/StockService/SQLite hold: null/unproven receipt singles and both mixed-batch orders, current MCP refusal, exact retained rows/reopen and permitted direct/derived batch; no remap approval or success |
 | B01 | `healthy_large_read_page` | PASS | Fake bridge evidence-list/cursor forwarding and geometry page below 2 MiB; no native cursor/record owner |
 | B02 | `denial_read_profile_bounds` | PASS | Fake bridge scope/page/response refusal and retained read availability; no native expiry or provider execution |
 | B03 | `denial_read_correlation` | PASS | Fake bridge request ID/command/scope mismatch refusal; no actual private connector invocation |
@@ -523,7 +554,7 @@ current Access and owner authorization.
 | R | Borrowed `http::agents::mcp::bind_read` / StockService / `capabilities::reads_for` | 30 Atlas read IDs + four cached HomeBox IDs; two mediated-history IDs only when history is enabled |
 | L | `bind_local_atlas` / same StockService under actual Editor issuance | Atlas subset of admitted(core, principal), excluding download; no provider/download owner is added |
 | M | `bind_owned_admission` / OwnedStockService | R plus asset-download handles, three saved Network reads and five native HomeBox reads only with matching configured scope/partition |
-| E | Explicit mounted Editor composition / same native stock planner/store | 31 direct + six derived Atlas IDs and batch; independent root/child admission, CAS/guards and current-principal transaction fence |
+| E | Explicit mounted Editor composition / same native stock planner/store | 31 direct + five admitted derived Atlas IDs and non-remap batch; remap held pending genuine approval issuer/consumption; independent root/child admission, CAS/guards and current-principal transaction fence |
 | W? | `bindAtlasService` and `bindCommandFamilies` / injected StockDispatchPort | Seven bindable families only; executable owner IDs intersect current session/scope admission. No per-operation end-to-end WebMCP service pass is inferred from native or fake adapter tests |
 | W7-unbound | Other three catalog families | The seven-family helper supplies no binding; separately injected gateway owners remain their own qualification |
 | B-read? | `Bridge.read` / fresh native admission and catalog effect=read | Page size 1–8, request envelope 16 KiB, encoded query 32 KiB, response 2 MiB plus JSON depth/nodes; native domain owns target and cursor lineage |
@@ -638,7 +669,7 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | `atlas.reconciliation.create` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M28 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.reconciliation.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M28 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.reconciliation.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M28 | QUALIFIED-SYNTHETIC; G-full |
-| `atlas.binding.remap` | atlas_bindings | supported-pending-qualification | write; exact-impact-human | A-derived; L,E (owner inputs); W?; B-write? | none beyond shared metadata | BLOCKED; G-remap |
+| `atlas.binding.remap` | atlas_bindings | supported-pending-qualification | write; exact-impact-human | native-held; no R/L/M/E; W?; B-write? (separate exact owner required) | M33 NOT RUN | BLOCKED; G-remap |
 | `atlas.asset.download` | atlas_media_geometry | supported-pending-qualification | read; none | A-download; M (issuer/redemption); W?; B-read? | M01, M02 | BLOCKED; G-transfer |
 | `homebox.entity.get` | homebox_entities_locations | supported-pending-qualification | read; none | H-cache; R,M (cache scoped); W?; B-read? | M31 | QUALIFIED-SYNTHETIC; G-full |
 | `homebox.entity.list` | homebox_entities_locations | supported-pending-qualification | read; none | H-cache; R,M (cache scoped); W?; B-read? | M31 | QUALIFIED-SYNTHETIC; G-full |
@@ -746,7 +777,7 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | G-admission / G-dedicated | UNSUPPORTED-GENERIC | No R/L/M/E binding; existing dedicated native owner requires its own custody/integration contract, not a new endpoint/grant/dispatcher here |
 | G-media/operation | BLOCKED | Qualified derivation/Media input owner and exact correlated result evidence required; binding-review evidence does not qualify restore/geometry/asset variants |
 | G-batch | BLOCKED beyond successful local fixture | Ordered two-circuit success is observed; complete intended partial/unknown/per-child failure classes remain unqualified. Atomic Atlas success does not imply provider partial-outcome handling |
-| G-remap | BLOCKED | Existing exact-impact/approval owner, current preimages, durable old/new/journal correlation and actual remap qualification required; no receipt/grant minted |
+| G-remap | BLOCKED; native root/admission hold | No remap-specific trusted human issuer and atomic consumption owner in this composition. Null/supplied receipt IDs are unproven; singles and containing batches refuse. Lower-level synthetic Store authorization is not human approval. A genuine exact actor/home/target/intent/impact/epochs/expiry-bound owner and actual remap qualification remain required; no receipt/grant minted |
 | G-transfer | BLOCKED | Actual owner-issued upload/download, byte/type/size/hash/original identity, expiry and final current authorization/readback remain unqualified. Link rendering/codec equality is not completed transfer |
 | Actual expiry / cancellation lifetime | NOT RUN for expiry | M18 rotation and M19 revocation/membership controls are not clock-driven expiry evidence. No expiry guarantee is inferred |
 | Unknown durable outcome / replay | BLOCKED | Bounded response or dropped delivery after a known commit proves that known synthetic effect survives; it does not qualify every unknown transport failure or authorize retry/replay |

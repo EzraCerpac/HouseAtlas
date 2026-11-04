@@ -1,4 +1,4 @@
-//! Positive, disposable native stock checks for six specialized Atlas forms.
+//! Disposable native stock positives and an explicit unapproved remap hold.
 //! This uses real Access principals and a freshly bootstrapped SQLite store;
 //! fixture sources and missing media stay synthetic. No socket or provider runs.
 
@@ -351,33 +351,38 @@ pub fn healthy() -> Result<(), Failure> {
         restored["data"]["records"][0]["payload"],
         tombstoned["data"]["records"][0]["payload"]
     );
-    let remapped = command(
-        &client,
-        "atlas.binding.remap",
-        target("binding", 301),
-        json!({"oldBindingId":id(301),"newBindingId":id(931),"journalId":id(932),
+    let remap = json!({"schemaVersion":3,"commandId":"atlas.binding.remap",
+        "requestId":id(3005),"context":{"workspaceId":core.home.scope.workspace_id,
+            "homeId":core.home.scope.home_id},"target":target("binding",301),
+        "payload":{"oldBindingId":id(301),"newBindingId":id(931),"journalId":id(932),
             "source":{"sourceInstanceId":id(10),"collectionId":"synthetic-collection-a",
                 "sourceKind":"homebox-entity","externalId":id(504)},
-            "reason":"import-id-remap","evidenceIds":[id(100)]}),
-        Some(1),
-        vec![
-            guard("identity", 201, 1),
-            guard("evidence", 100, 1),
-            guard("binding", 301, 1),
-        ],
-        5,
+            "reason":"import-id-remap","evidenceIds":[id(100)]},
+        "idempotencyKey":id(4005),"reason":"Unapproved remap remains held",
+        "approvalReceiptId":null,"preconditions":{"target":{"kind":"atlas","value":1},
+            "guards":[guard("identity",201,1),guard("evidence",100,1),guard("binding",301,1)]}});
+    wire::StockRequest::parse(&validator, remap.clone())?;
+    let path = format!("/api/atlas/stock/v3/workspaces/{}/homes/{}/commands",
+        core.home.scope.workspace_id,core.home.scope.home_id);
+    let issued = principal(&core, &cookie, &csrf, true, &path)?;
+    let scope = serde_json::from_value(serde_json::to_value(&core.home.scope)?)?;
+    let before = core.store.lock().map_err(|_| "Store unavailable")?
+        .read_snapshot_with_authorization(&ReadAuthority(Arc::clone(&core.access)),&issued,&scope)?;
+    assert!(matches!(stock_dispatch::execute(&core,&issued,remap),
+        Err(houseatlas_backend::domain::stock::StockError::CapabilityHeld)));
+    let after = core.store.lock().map_err(|_| "Store unavailable")?
+        .read_snapshot_with_authorization(&ReadAuthority(Arc::clone(&core.access)),&issued,&scope)?;
+    assert_eq!(before,after);
+    // Independent lower-level Store semantics still need an active binding.
+    // Create it through the ordinary owner; no remap approval is fabricated.
+    let ordinary_binding = command(
+        &client,"atlas.binding.create",target("binding",931),
+        json!({"atlasId":id(201),"source":{"sourceInstanceId":id(10),
+            "collectionId":"synthetic-collection-a","sourceKind":"homebox-entity",
+            "externalId":id(504)},"reviewStatus":"proposed","evidenceIds":[id(100)]}),
+        None,vec![guard("identity",201,1),guard("evidence",100,1)],25,
     )?;
-    let remap_records = remapped["data"]["records"]
-        .as_array()
-        .ok_or("Missing remap records")?;
-    assert_eq!(remap_records.len(), 3);
-    assert_eq!(remap_records[0]["target"], target("binding", 301));
-    assert_eq!(remap_records[1]["target"], target("binding", 931));
-    assert_eq!(remap_records[2]["target"], target("reconciliation", 932));
-    assert_eq!(remap_records[1]["revision"], 1);
-    assert_eq!(remap_records[2]["revision"], 1);
-    assert_eq!(remap_records[0]["payload"]["reviewStatus"], "retired");
-    assert_eq!(remap_records[1]["payload"]["sourceState"], "unresolved");
+    assert_eq!(ordinary_binding["data"]["records"][0]["payload"]["sourceState"],"unresolved");
     let mut geometry_input = geometry_payload;
     geometry_input
         .as_object_mut()
@@ -477,9 +482,8 @@ pub fn healthy() -> Result<(), Failure> {
     for (serial, kind, n, revision) in [
         (1, "binding", 930, 3),
         (2, "binding", 300, 5),
-        (3, "binding", 301, 2),
+        (3, "binding", 301, 1),
         (4, "binding", 931, 2),
-        (5, "reconciliation", 932, 1),
         (6, "geometry", 933, 1),
         (7, "asset", 600, 4),
     ] {
@@ -506,16 +510,7 @@ pub fn healthy() -> Result<(), Failure> {
             0,
         ),
         (14, "binding", 300, "atlas.binding.restore", &restored, 0),
-        (15, "binding", 301, "atlas.binding.remap", &remapped, 0),
-        (16, "binding", 931, "atlas.binding.remap", &remapped, 1),
-        (
-            17,
-            "reconciliation",
-            932,
-            "atlas.binding.remap",
-            &remapped,
-            2,
-        ),
+        (15, "binding", 931, "atlas.binding.create", &ordinary_binding, 0),
         (18, "geometry", 933, "atlas.geometry.create", &geometry, 0),
         (19, "asset", 600, "atlas.asset.review", &asset_reviews[0], 0),
         (20, "asset", 600, "atlas.asset.review", &asset_reviews[1], 0),
@@ -584,7 +579,7 @@ pub fn healthy() -> Result<(), Failure> {
     }
     assert_eq!(mixed_outputs, 9);
     println!(
-        "PASS healthy mixed derived Atlas batch: seven ordered children, nine native entries/audits, genuine Access guard; nine reopened record/history pairs"
+        "PASS healthy mixed derived Atlas batch: seven ordered children, nine native entries/audits, genuine Access guard with fixture-local Store authorization; nine reopened record/history pairs; not root admission or human approval"
     );
     let reviewed = &verified_review.groups[0].native_results[0];
     let got = read(
@@ -628,7 +623,7 @@ pub fn healthy() -> Result<(), Failure> {
     drop(core);
     scratch.close()?;
     println!(
-        "PASS healthy specialized Atlas stock: binding create/review/restore/remap, geometry create, asset review; durable native readback"
+        "PASS healthy specialized Atlas stock: binding create/review/restore, unapproved root remap held without mutation, geometry create, asset review; durable native readback; lower-level synthetic remap semantics are not human approval"
     );
     Ok(())
 }

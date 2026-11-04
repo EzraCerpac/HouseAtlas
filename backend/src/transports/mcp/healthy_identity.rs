@@ -101,6 +101,10 @@ impl Fixture {
         }
     }
 
+    pub(super) fn database_path(&self) -> std::path::PathBuf {
+        self.scratch.path().join("fixture/atlas.sqlite")
+    }
+
     pub(super) fn reopen(mut self) -> Result<Self, Failure> {
         let Core {
             access,

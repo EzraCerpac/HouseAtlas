@@ -1,16 +1,19 @@
 # Specialized Atlas writes
 
 The existing stock commands endpoint and native stock dispatcher now bind the
-Domain owner's six single derived forms: binding create, review, restore and
-remap, geometry create, and asset review. Editor HTTP admission uses the same
-closed Domain operation predicate as execution. The root HTTP batch arm mounts
-the Domain/Storage mixed derived batch adapter described below.
+Domain owner's five admitted single derived forms: binding create, review and
+restore, geometry create, and asset review. Binding remap is held because this
+composition has no remap-specific trusted human approval issuer and atomic
+consumption owner. A nullable or supplied UUID approvalReceiptId is not approval.
+Editor admission and shared-root execution use the same closed operation
+predicate, refusing remap singles and any containing batch before owner work.
+Allowed mixed batches still use the Domain/Storage adapter described below.
 The host retains its existing fresh-only Intake, Validate, Candidate and
 Precommit fence. Retries and replay remain unavailable; retained projection
 support is not permission to execute those phases.
 
 Preparation derives immutable inputs from the actual authorized Store snapshot.
-Binding create and the new side of remap receive `unresolved` source state;
+Binding create and the lower-level remap planner's new side use `unresolved` source state;
 neither the requested key nor its cached projection establishes a presence
 witness. Review and restore retain the complete original binding preimage.
 Each geometry command's import time comes from one server clock sample retained in
@@ -32,8 +35,9 @@ plan's prospective references before sealing. The specialized Storage adapter
 uses the same SQLite connection and command engine, checks preimages against
 the transaction's original snapshot, and preserves the mandatory current-presence
 hold, native transitions, original guards, complete candidate graph and stock
-authorization phases. Remap is one stock operation with three ordered native
-entries; no synthetic batch envelope is introduced. Disclosure is limited to
+authorization phases. Lower-level remap semantics retain one stock operation
+with three ordered native entries; they do not grant generic root admission or
+human approval. No synthetic batch envelope is introduced. Disclosure is limited to
 those exact retained entry targets in the genuine committed candidate.
 
 The native stock commit retains the versioned derivation alongside its original
@@ -52,16 +56,17 @@ Its additional specialized helper uses a separate private temporary synthetic
 Store, real native Access issuance, the shared stock dispatcher and exact positive
 envelopes. Its fixture selects one home and the relevant Atlas records from the
 published optional-geometry graph, with unresolved bindings and a missing,
-blocked synthetic asset. It submits eight fresh commands: create, review,
-tombstone, restore and remap bindings, create geometry, then review the asset
-as download-only and blocked. One further ordinary tombstone prepares the
-restore child in the positive mixed batch below. Remap supplies an explicit
-guard on the old binding for its new journal. After an ordinary close/reopen,
-seven record reads
-and ten matching history reads check the actual saved revisions and audit IDs.
+blocked synthetic asset. It submits eight permitted fresh commands: two binding
+creates, review, tombstone and restore, geometry create, then two asset reviews.
+An unapproved root remap is explicitly refused with unchanged native snapshot;
+ordinary supported creation supplies binding 931 for independent Store coverage.
+One further ordinary tombstone prepares the restore child in the positive mixed
+batch below. After ordinary close/reopen, six record and eight matching history
+reads check actual saved revisions and audit IDs; no root remap journal is invented.
 This is native in-process executor evidence, not HTTP transport qualification.
 It adds no socket, provider call, real credential, user database,
-denial, replay, expiry, revocation, crash, failure or concurrency case. Compilation
+replay, expiry, revocation, crash, failure or concurrency case. The explicit
+unapproved remap refusal is separate from positive semantics coverage. Compilation
 and any reported positive results qualify only their named source and inputs;
 all held control and deployment gates remain unchanged.
 
@@ -112,6 +117,9 @@ Root HTTP preparation, source capture, transaction fence adoption and result
 release use the same original fresh fence. Replay execution is excluded.
 The same named `healthy-agent-stock` example mounts a fixture-only Store peer
 around a genuine Access-issued editor principal and synchronous mutation guard.
+Its injected fixture-local Store authorization exercises lower-level semantics,
+including remap; it is not the shared root, a human approval issuer or production
+approval/admission evidence. No production bypass is added to retain this fixture.
 It pins the same Store original snapshot and immutable plan, captures actual
 source and partition grants including prior remap journals' retired bindings,
 enforces exact Intake/Validate/Candidate/Precommit order and pins the candidate

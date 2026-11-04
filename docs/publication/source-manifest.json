@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 23247,
-      "sha256": "12ab5a0307771ca183dbb796a4b2549ae66ed24a7b06b18b199143363b7f58f2",
+      "bytes": 24256,
+      "sha256": "d8ab96c407e1114f7b6bd0b38691d62aa0ebb2798a89b6dc0644ba59912536c6",
       "owner": "core-integration"
     },
     {
@@ -2323,8 +2323,8 @@
     {
       "path": "backend/src/http/agents/capabilities.rs",
       "mode": "100644",
-      "bytes": 3205,
-      "sha256": "e0c06a444a90062bd7308c433156f6c1f2e4beda460dd69d2b5587ec54008d88",
+      "bytes": 3111,
+      "sha256": "58136ab94f871e55473a8b27011de2bb233a03b14258b5cf8a1bd4ad29127d83",
       "owner": "core-integration"
     },
     {
@@ -2736,8 +2736,8 @@
     {
       "path": "backend/src/http/stock_mutations.rs",
       "mode": "100644",
-      "bytes": 64202,
-      "sha256": "3c6a3b33a6a3926dc8f0bf22cd932f7d686bb3dead831042ef49d56d22355739",
+      "bytes": 64532,
+      "sha256": "f2a90622fc0ce9d29200d34ee9b30730aa18741743b1e75f32a1d34b77b8e8e3",
       "owner": "core-integration"
     },
     {
@@ -5676,8 +5676,8 @@
     {
       "path": "backend/src/transports/mcp/README.md",
       "mode": "100644",
-      "bytes": 15627,
-      "sha256": "f134f8c7b8ddc4483e38554ccc761e24e57de8e53806b9dede2035ea2884d39f",
+      "bytes": 15986,
+      "sha256": "f476236beb834ba0807cc4294af3fc1c5fc11cb2a0c96ca3dfa600650f66c693",
       "owner": "mcp"
     },
     {
@@ -5725,8 +5725,8 @@
     {
       "path": "backend/src/transports/mcp/healthy_identity.rs",
       "mode": "100644",
-      "bytes": 14194,
-      "sha256": "6e771326af465f4a195326b15391d05e4c528bed3fe6b11a22b51b4f09841fc3",
+      "bytes": 14321,
+      "sha256": "474109a15c4d7f5c65ce47425aaf96362c19ae3b4479b70a18d0d9be59234208",
       "owner": "mcp"
     },
     {
@@ -5739,8 +5739,8 @@
     {
       "path": "backend/src/transports/mcp/healthy_local_atlas.rs",
       "mode": "100644",
-      "bytes": 29872,
-      "sha256": "cbada5c598113f73671124f050efe2abb2308b831484f711a4db1772004c3fc8",
+      "bytes": 29999,
+      "sha256": "e22b05dc44b8c48741ea41165fa10791da0b098d8eba27b76de3fb920bc321d8",
       "owner": "mcp"
     },
     {
@@ -5881,6 +5881,13 @@
       "mode": "100644",
       "bytes": 10708,
       "sha256": "b7c0c0ecad16d4f62320cf3d74d9cc16bf2125f8a6cd21257a165e4bd2468ef5",
+      "owner": "mcp"
+    },
+    {
+      "path": "backend/src/transports/mcp/remap_hold.rs",
+      "mode": "100644",
+      "bytes": 8244,
+      "sha256": "1c5e09c4a93e68a952cc103762e1d4041e4bfc58149a790daf2598b67a0b7f41",
       "owner": "mcp"
     },
     {
@@ -6460,8 +6467,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 211506,
-      "sha256": "76f55620cfb6ab0599fa23414ef54f9b53214e6c74028ea31632fbfb355ccdf2",
+      "bytes": 212714,
+      "sha256": "583f6e4377280f9b2a3b200315aedf6be1c627e28d2eafb36a8aecf00b1bdb2b",
       "owner": "core-integration"
     },
     {
@@ -7153,8 +7160,8 @@
     {
       "path": "docs/rust-integration/atlas-specialized-writes.md",
       "mode": "100644",
-      "bytes": 9090,
-      "sha256": "9c233facf297379e248b0047ce1ea2d6e26b0c61d436aab2a066b38535aa88f5",
+      "bytes": 9843,
+      "sha256": "af20ed5c7f91d77bbe0d95640da83db21c963b961092657dafd7f7a3f5dae7d3",
       "owner": "core-integration"
     },
     {
@@ -7174,8 +7181,8 @@
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v4.md",
       "mode": "100644",
-      "bytes": 82261,
-      "sha256": "8a7507cc079d2d4d383b4a0673bb372b228b7f84e41148a627c80775cdc3caa0",
+      "bytes": 84886,
+      "sha256": "1c4d03cd3307709102ba55be08b44724982b87d7c578e9747c16ca9ce1587743",
       "owner": "core-integration"
     },
     {
@@ -12816,8 +12823,8 @@
     {
       "path": "tools/rust-integration/examples/healthy_mixed_derived_atlas.rs",
       "mode": "100644",
-      "bytes": 31515,
-      "sha256": "bea641f8ec1ad974ecff96090ff1f4456395dc6a3c901929505d4839783e0443",
+      "bytes": 31903,
+      "sha256": "7294686b842ed361741ba0f95a33a117045a7f27382b00e10ed88c059787450c",
       "owner": "core-integration"
     },
     {
@@ -12830,8 +12837,8 @@
     {
       "path": "tools/rust-integration/examples/healthy_specialized_atlas.rs",
       "mode": "100644",
-      "bytes": 22369,
-      "sha256": "a7a669deb0460134910de113f0e61e1e0d74fb58ccea04095199682a81859215",
+      "bytes": 23428,
+      "sha256": "3cf63695447e1bdfd9717f7cc0dc2b1ed4262f3e98c8fd6189143435518a20c1",
       "owner": "core-integration"
     },
     {

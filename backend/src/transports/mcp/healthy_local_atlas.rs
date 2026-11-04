@@ -1,6 +1,7 @@
 //! Ordinary positive cases over real Access, native stock and fresh SQLite.
 //! All MCP frames run in process. No listener, provider, fake command service,
-//! retry/replay, denial, failure injection or other held control is executed.
+//! retry/replay or failure injection is executed. The separate remap-hold child
+//! covers unproven remap refusal only; no approval issuer or other held control.
 
 use crate::{
     access as a,
@@ -39,6 +40,9 @@ mod media_metadata;
 
 #[path = "healthy_places_relations.rs"]
 mod places_relations;
+
+#[path = "remap_hold.rs"]
+mod remap_hold;
 
 fn id(n: u32) -> String {
     format!("00000000-0000-4000-8000-{n:012}")
