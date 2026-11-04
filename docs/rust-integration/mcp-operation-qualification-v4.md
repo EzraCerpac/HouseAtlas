@@ -540,6 +540,21 @@ type/size variants, preview/renderer, provider/browser/device or installed
 acceptance. No production behavior, grant, workflow command or dependency changes.
 Broader #288 acceptance remains open.
 
+M35 prepares one ordinary backend-library actual prepared-history case in
+`backend/src/http/providers/homebox_stock_history_healthy.rs`. A fresh profile-6
+Core/Store uses source-only synthetic bootstrap and genuine Editor Access grants
+for six actual prepared reservations. Actual Viewer borrowed MCP and shared
+StockService/HistoryPeer read the native history owner, never the standalone
+example's fixture-local history authority. Two family-specific owner cursor cuts,
+later reservations, complete fresh chains, exact event/actor/original-intent
+correlation and strict store-reopen equality with retained Access are asserted.
+Cursor DATA may legitimately persist; fixed activity/record/source content,
+rather than whole-database bytes, is compared. **NOT RUN** pending exact hosted
+named execution; both history rows and the 75/8 counts remain unchanged.
+Admission is unavailable and must never be called. No approval, provider
+observation/IO/completion, generated target, quantity execution, recovered
+producer/admission, Access/process/session restart or installed acceptance follows.
+
 | Key | Exact existing case | Observed result | Method and limit |
 | --- | --- | --- | --- |
 | M01 | `transports::mcp::healthy_download::healthy_asset_download_sealed_codecs_preserve_canonical_wire` | PASS | fake download codec |
@@ -576,6 +591,7 @@ Broader #288 acceptance remains open.
 | M32 | `healthy-network-loopback.py` driving `healthy-network-root-router` / `healthy_network_host.rs` mounted-MCP saved-query loop | PASS | existing real canonical Access/native NetworkBinding/disposable TLS publication; genuine Editor/current-CSRF MCP for three saved reads equals actual Viewer HTTP-owner data, five nodes/one generation/unresolved endpoint; one upstream GET total, immutable archive reopen only |
 | M33 | `transports::mcp::healthy_local_atlas::remap_hold::native_remap_hold_preserves_store_and_permitted_batch` | PASS (hold only) | actual synthetic Editor/StockService/SQLite hold: null/unproven receipt singles and both mixed-batch orders, actual input-arm/schema and MCP refusal checks, exact retained rows/reopen and permitted direct/derived batch; no remap approval or success |
 | M34 | `http::agents::asset_download_healthy::healthy_mounted_mcp_asset_download_redeems_original` | PASS | actual same-Host generated text multipart upload, mounted MCP issuance and authenticated opaque-handle redemption; canonical parity, measured bytes/headers/hash/size/type and equal asset readback; one positive lifetime only |
+| M35 | `http::providers::homebox_stock_history_healthy::healthy_native_prepared_homebox_history_cuts_and_reopen` | NOT RUN | actual profile-6 source-only bootstrap, six SyntheticFixture prepared reservations, real Viewer shared native/MCP history owner, family-specific saved cuts/fresh chains and strict Store reopen with retained Access; no admission/provider completion |
 | B01 | `healthy_large_read_page` | PASS | Fake bridge evidence-list/cursor forwarding and geometry page below 2 MiB; no native cursor/record owner |
 | B02 | `denial_read_profile_bounds` | PASS | Fake bridge scope/page/response refusal and retained read availability; no native expiry or provider execution |
 | B03 | `denial_read_correlation` | PASS | Fake bridge request ID/command/scope mismatch refusal; no actual private connector invocation |
