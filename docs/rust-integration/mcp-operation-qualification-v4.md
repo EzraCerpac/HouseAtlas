@@ -450,6 +450,18 @@ record/reservation/audit/receipt tables after each attempt, strict store reopen
 with retained Access and a subsequent permitted direct/derived batch. This is
 negative hold evidence only, never positive remap qualification or an issuer.
 
+Historical repaired head `ea7bb52f` in
+[backend job 126660319054 / run 41854746975](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41854746975/job/126660319054)
+ran the case but failed before refusal
+attempts because a substring assertion searched complete tool descriptors,
+including unchanged canonical output schemas (245 passed, one failed).
+That failed execution establishes
+no M33 qualification. The corrected fixture resolves actual input top-level and
+batch-child arms, requires remap absent and permitted arms present, and validates
+canonical refused/permitted requests against those advertised input schemas.
+Output contracts are preserved. NOT RUN refers to this corrected fixture until
+its complete hosted execution is observed.
+
 The existing specialized root example replaces its invalid positive remap with
 explicit refusal and unchanged native snapshot. Ordinary supported binding
 creation supplies subsequent setup. Its independent lower-level seven-child
@@ -786,7 +798,10 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 
 The initial version-4 publication changed documentation only. M20–M31 add
 ordinary in-process native fixture cases in the existing default backend-library
-selection; M32 records the existing Linux loopback harness. No runner/workflow
-command changes. No
-production routing, credentials, grants, provider calls, held controls, browser,
-model work or deployment. No local build/test/Clippy qualification gate ran.
+selection; M32 records the existing Linux loopback harness. Those M20–M32
+increments changed no production routing or held-control classes.
+M33 is separate: its bounded fail-closed predicate changes native Editor
+admission and shared-root remap eligibility, with one explicitly selected
+ordinary hold regression. No new runner/workflow command, approval issuer,
+credential/grant, provider call, browser action, model work or deployment.
+No local build/test/Clippy qualification gate ran.

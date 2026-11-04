@@ -16,6 +16,69 @@ use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 type Rows = BTreeMap<&'static str, Vec<Vec<SqlValue>>>;
 
+fn input_allows(tools: &[Value], request: &Value) -> Result<bool, Failure> {
+    let operation = wire::OperationId::parse(request["commandId"].as_str().unwrap()).unwrap();
+    let family = wire::operation(operation)?.tool_family.as_str();
+    let tool = tools
+        .iter()
+        .find(|tool| tool["name"] == family)
+        .ok_or("Missing actual tool descriptor")?;
+    let validator = jsonschema::options()
+        .with_draft(jsonschema::Draft::Draft202012)
+        .offline()
+        .build(&tool["inputSchema"])
+        .map_err(|_| "Invalid actual input descriptor")?;
+    Ok(validator.is_valid(request))
+}
+
+fn input_request<'a>(schema: &'a Value, arm: &Value) -> Result<&'a Value, Failure> {
+    let reference = arm["$ref"].as_str().ok_or("Missing actual input reference")?;
+    let pointer = reference
+        .strip_prefix('#')
+        .ok_or("Expected local input reference")?;
+    schema
+        .pointer(pointer)
+        .ok_or_else(|| "Missing actual input request".into())
+}
+
+fn admitted_inputs(tools: &[Value]) -> Result<(), Failure> {
+    let mut root_ids = std::collections::BTreeSet::new();
+    let mut child_ids = std::collections::BTreeSet::new();
+    for tool in tools {
+        let schema = &tool["inputSchema"];
+        for arm in schema["oneOf"].as_array().ok_or("Missing actual input arms")? {
+            let request = input_request(schema, arm)?;
+            let id = request["properties"]["commandId"]["const"]
+                .as_str()
+                .ok_or("Missing actual input command")?;
+            assert_ne!(id, "atlas.binding.remap");
+            root_ids.insert(id.to_owned());
+            if id == "atlas.batch.execute" {
+                let items = &request["properties"]["payload"]["properties"]["commands"]["items"];
+                for child in items["oneOf"].as_array().ok_or("Missing admitted child arms")? {
+                    let child = input_request(schema, child)?;
+                    let id = child["properties"]["commandId"]["const"]
+                        .as_str()
+                        .ok_or("Missing actual child command")?;
+                    assert_ne!(id, "atlas.binding.remap");
+                    child_ids.insert(id.to_owned());
+                }
+            }
+        }
+    }
+    for id in [
+        "atlas.binding.create",
+        "atlas.circuit.create",
+        "atlas.batch.execute",
+    ] {
+        assert!(root_ids.contains(id));
+    }
+    for id in ["atlas.binding.create", "atlas.circuit.create"] {
+        assert!(child_ids.contains(id));
+    }
+    Ok(())
+}
+
 fn retained_rows(path: &Path) -> Result<Rows, Failure> {
     // Fixed owned tables, read-only observation; no production SQL interface.
     let database = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
@@ -106,10 +169,14 @@ async fn refused(
     session: &mut super::LocalAtlasSession<'_>,
     request: &Value,
     path: &Path,
+    tools: &[Value],
 ) -> Result<(), Failure> {
     let before = retained_rows(path)?;
     let validator = wire::StockValidation::new()?;
     wire::StockRequest::parse(&validator, request.clone())?;
+    // Output schemas retain canonical result arms; executable discovery is the
+    // actual input schema, which must reject these otherwise canonical inputs.
+    assert!(!input_allows(tools, request)?);
     let current = AuthenticatedIdentity::authenticate_post(
         Arc::clone(&client.core.access),
         &client.evidence(),
@@ -182,20 +249,15 @@ async fn healthy() -> Result<(), Failure> {
             "method":"tools/list","params":{}}),
             )
             .await;
-        let descriptor = serde_json::to_string(&listed["result"]["tools"])?;
-        assert!(!descriptor.contains("\"atlas.binding.remap\""));
-        for permitted in [
-            "atlas.binding.create",
-            "atlas.circuit.create",
-            "atlas.batch.execute",
-        ] {
-            assert!(descriptor.contains(permitted));
-        }
+        let tools = listed["result"]["tools"]
+            .as_array()
+            .ok_or("Missing actual tools")?;
+        admitted_inputs(tools)?;
         original = retained_rows(&path)?;
         for (index, receipt) in [Value::Null, json!(id(23999))].into_iter().enumerate() {
             let serial = 22000 + index as u32 * 10;
             let remap = remap(&context, receipt.clone(), serial);
-            refused(&client, &mut session, &remap, &path).await?;
+            refused(&client, &mut session, &remap, &path, tools).await?;
             assert_eq!(retained_rows(&path)?, original);
             for (offset, children) in [
                 vec![circuit(&context, serial + 1), remap.clone()],
@@ -210,7 +272,7 @@ async fn healthy() -> Result<(), Failure> {
                     receipt.clone(),
                     serial + 3 + offset as u32,
                 );
-                refused(&client, &mut session, &mixed, &path).await?;
+                refused(&client, &mut session, &mixed, &path, tools).await?;
                 assert_eq!(retained_rows(&path)?, original);
             }
         }
@@ -238,6 +300,21 @@ async fn healthy() -> Result<(), Failure> {
             Value::Null,
             22302,
         );
+        let listed = client
+            .frame(
+                &mut session,
+                json!({"jsonrpc":"2.0","id":"remap-hold-permitted-tools",
+                    "method":"tools/list","params":{}}),
+            )
+            .await;
+        let tools = listed["result"]["tools"]
+            .as_array()
+            .ok_or("Missing actual tools")?;
+        admitted_inputs(tools)?;
+        for child in permitted["payload"]["commands"].as_array().unwrap() {
+            assert!(input_allows(tools, child)?);
+        }
+        assert!(input_allows(tools, &permitted)?);
         let result = client.call(&mut session, &permitted).await;
         assert_eq!(result["status"], "committed");
         assert_eq!(result["data"]["records"].as_array().unwrap().len(), 2);

@@ -5886,8 +5886,8 @@
     {
       "path": "backend/src/transports/mcp/remap_hold.rs",
       "mode": "100644",
-      "bytes": 9270,
-      "sha256": "ba6a65c7ddab13a8e3c424a9ca6fdce2bd459c57920572dc0c0f725c751b9cbe",
+      "bytes": 12428,
+      "sha256": "78ac3194ac73c6d12a9a648a084c8192169d74c8afb2ac1927fa0efc262150ab",
       "owner": "mcp"
     },
     {
@@ -7181,8 +7181,8 @@
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v4.md",
       "mode": "100644",
-      "bytes": 84886,
-      "sha256": "1c4d03cd3307709102ba55be08b44724982b87d7c578e9747c16ca9ce1587743",
+      "bytes": 85868,
+      "sha256": "5c84c1e414f1e72f0673e74f9e566998e4f0fdb2cf1101ceb7abd29989d02a08",
       "owner": "core-integration"
     },
     {
