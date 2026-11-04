@@ -1,4 +1,4 @@
-//! One ordinary positive body over real Access, native stock and fresh SQLite.
+//! Ordinary positive cases over real Access, native stock and fresh SQLite.
 //! All MCP frames run in process. No listener, provider, fake command service,
 //! retry/replay, denial, failure injection or other held control is executed.
 
@@ -132,6 +132,7 @@ impl Client<'_> {
             raw
         );
         assert_eq!(raw["commandId"], request["commandId"]);
+        assert_eq!(raw["schemaVersion"], 3);
         assert_eq!(raw["requestId"], request["requestId"]);
         assert_eq!(raw["resolvedScope"], request["context"]);
         assert_eq!(raw["replayed"], false);
@@ -479,6 +480,268 @@ async fn healthy() -> Result<(), Failure> {
             assert_eq!(entries[0]["target"], intent["target"]);
         }
         assert_eq!(second["data"]["nextCursor"], Value::Null);
+        session.close();
+    }
+    drop(core);
+    scratch.close()?;
+    Ok(())
+}
+
+#[test]
+fn healthy_native_evidence_create_pages_get_and_reopened_history() -> Result<(), Failure> {
+    rustix::process::umask(rustix::fs::Mode::from_raw_mode(0o077));
+    tokio::runtime::Builder::new_current_thread()
+        .build()?
+        .block_on(healthy_evidence_pages())
+}
+
+async fn evidence_pages(
+    client: &Client<'_>,
+    session: &mut LocalAtlasSession<'_>,
+    context: &Value,
+    first_request_id: u32,
+) -> Result<Vec<Value>, Failure> {
+    let mut request = json!({"schemaVersion":3,"commandId":"atlas.evidence.list",
+        "requestId":id(first_request_id),"context":context,
+        "target":{"authority":"atlas","recordType":"evidence"},
+        "payload":{"pageSize":2,"cursor":null,"includeArchived":false,
+            "q":"Synthetic MCP evidence traversal"}});
+    let mut records = Vec::new();
+    // Exactly three matching fictional records: two pages, then owner EOF.
+    // No cursor is decoded, synthesized, reused after reopen or inferred.
+    let first = client.call(session, &request).await;
+    assert_eq!(first["status"], "read");
+    assert_eq!(first["data"]["sourceStatus"], "current");
+    let page = first["data"]["records"]
+        .as_array()
+        .ok_or("Missing first evidence page")?;
+    assert_eq!(page.len(), 2);
+    records.extend(page.iter().cloned());
+    let cursor = first["data"]["nextCursor"]
+        .as_str()
+        .ok_or("Native evidence continuation required")?;
+    assert!(!cursor.is_empty());
+    request["requestId"] = json!(id(first_request_id + 1));
+    request["payload"]["cursor"] = json!(cursor);
+    let second = client.call(session, &request).await;
+    assert_eq!(second["status"], "read");
+    assert_eq!(second["data"]["sourceStatus"], "current");
+    let page = second["data"]["records"]
+        .as_array()
+        .ok_or("Missing final evidence page")?;
+    assert_eq!(page.len(), 1);
+    records.extend(page.iter().cloned());
+    assert_eq!(second["data"]["nextCursor"], Value::Null);
+    assert_eq!(
+        records
+            .iter()
+            .map(|record| record["target"]["recordId"].clone())
+            .collect::<Vec<_>>(),
+        vec![json!(id(940)), json!(id(950)), json!(id(960))]
+    );
+    Ok(records)
+}
+
+async fn evidence_readback(
+    client: &Client<'_>,
+    session: &mut LocalAtlasSession<'_>,
+    context: &Value,
+    expected: &[(Value, Value)],
+    first_request_id: u32,
+) -> Result<Vec<Value>, Failure> {
+    let mut histories = Vec::new();
+    let validation = wire::StockValidation::new()?;
+    for (index, (intent, outcome)) in expected.iter().enumerate() {
+        let request_id = first_request_id + 2 * index as u32;
+        let get = json!({"schemaVersion":3,"commandId":"atlas.evidence.get",
+            "requestId":id(request_id),"context":context,
+            "target":intent["target"],"payload":{}});
+        let got = client.call(session, &get).await;
+        assert_eq!(got["status"], "read");
+        assert_eq!(got["data"]["records"].as_array().unwrap().len(), 1);
+        assert_eq!(got["data"]["records"][0], outcome["data"]["records"][0]);
+        // Full payload equality distinguishes explicit null from missing keys.
+        assert_eq!(got["data"]["records"][0]["payload"], intent["payload"]);
+        assert_eq!(
+            got["data"]["records"][0]["payload"]["provenance"]["uncertainty"]["status"],
+            "unknown"
+        );
+        let history = json!({"schemaVersion":3,"commandId":"atlas.evidence.history",
+            "requestId":id(request_id + 1),"context":context,"target":intent["target"],
+            "payload":{"pageSize":1,"cursor":null,"includeArchived":false,
+                "q":"atlas.evidence.create"}});
+        let got = client.call(session, &history).await;
+        assert_eq!(got["status"], "read");
+        assert_eq!(got["data"]["completeness"], "atlas-owned-audit");
+        let entries = got["data"]["entries"]
+            .as_array()
+            .ok_or("Missing native evidence history")?;
+        assert_eq!(entries.len(), 1);
+        assert_eq!(got["data"]["nextCursor"], Value::Null);
+        let parsed = wire::StockRequest::parse(&validation, intent.clone())?;
+        assert_eq!(entries[0]["eventId"], outcome["data"]["auditIds"][0]);
+        assert_eq!(entries[0]["commandId"], intent["commandId"]);
+        assert_eq!(entries[0]["requestDigest"], parsed.intent_digest());
+        assert_eq!(entries[0]["actorId"], id(7));
+        assert_eq!(entries[0]["state"], "committed");
+        assert_eq!(entries[0]["target"], intent["target"]);
+        histories.push(got["data"].clone());
+    }
+    Ok(histories)
+}
+
+async fn healthy_evidence_pages() -> Result<(), Failure> {
+    let scratch = tempfile::Builder::new()
+        .prefix("houseatlas-mcp288-evidence-")
+        .tempdir_in("/tmp")?;
+    let directory = scratch.path().join("fixture");
+    let core = lifecycle::prepare(&directory, ORIGIN)?;
+    let scope = access_scope(&core.home.scope)?;
+    let context = json!({"workspaceId":core.home.scope.workspace_id,
+        "homeId":core.home.scope.home_id});
+    let url = format!(
+        "{ORIGIN}/api/atlas/stock/v3/workspaces/{}/homes/{}/commands",
+        core.home.scope.workspace_id, core.home.scope.home_id
+    );
+    let (cookie, csrf) = {
+        let receipt: Value =
+            serde_json::from_slice(&fs::read(directory.join("smoke-session.json"))?)?;
+        let login_body = serde_json::to_vec(receipt.get("editorLogin").ok_or("Missing login")?)?;
+        let login_url = format!("{ORIGIN}/api/atlas/auth/login");
+        let login = core
+            .access
+            .lock()
+            .map_err(|_| "Access unavailable")?
+            .login(
+                &a::RequestEvidence {
+                    method: a::Method::Post,
+                    url: &login_url,
+                    origin: Some(ORIGIN),
+                    sec_fetch_site: Some("same-origin"),
+                    referer: None,
+                    cookie: None,
+                    authorization: None,
+                    csrf: None,
+                },
+                &login_body,
+                "mcp288-evidence-positive",
+            )?;
+        (
+            login
+                .set_cookie()
+                .split(';')
+                .next()
+                .ok_or("Missing cookie")?
+                .to_owned(),
+            login.info().csrf_token().to_owned(),
+        )
+    };
+    let mut expected = Vec::new();
+    let (before_records, before_histories) = {
+        let client = Client {
+            core: &core,
+            scope: &scope,
+            url: &url,
+            cookie: &cookie,
+            csrf: &csrf,
+        };
+        let mut session = client.open().await;
+        // Deliberately create out of order. Native list sorting must supply
+        // canonical identity order independently of commit/insertion order.
+        for (serial, record_id) in [960, 940, 950].into_iter().enumerate() {
+            let payload = json!({"statement":format!(
+                    "Synthetic MCP evidence traversal {record_id} α"),
+                "provenance":{"source":null,"sourceRevision":null,
+                    "sourceConfidence":null,"evidenceBasis":"unknown","factAt":null,
+                    "retrievedAt":"2026-01-01T12:00:00Z","vantage":null,
+                    "uncertainty":{"status":"unknown","explanation":null}},
+                "supersedesEvidenceIds":[],"references":[]});
+            let intent = command(
+                &context,
+                "atlas.evidence.create",
+                target("evidence", record_id),
+                payload.clone(),
+                None,
+                vec![],
+                100 + serial as u32,
+            );
+            let outcome = client.call(&mut session, &intent).await;
+            assert_eq!(outcome["status"], "committed");
+            assert_eq!(outcome["data"]["auditIds"].as_array().unwrap().len(), 1);
+            assert_eq!(
+                outcome["data"]["records"],
+                json!([{"target":intent["target"],"revision":1,
+                    "lifecycle":"active","payload":payload}])
+            );
+            expected.push((intent, outcome));
+        }
+        expected.sort_by(|left, right| {
+            left.0["target"]["recordId"]
+                .as_str()
+                .cmp(&right.0["target"]["recordId"].as_str())
+        });
+        let records = evidence_pages(&client, &mut session, &context, 1700).await?;
+        let expected_records: Vec<_> = expected
+            .iter()
+            .map(|(_, outcome)| outcome["data"]["records"][0].clone())
+            .collect();
+        assert_eq!(records, expected_records);
+        let histories = evidence_readback(&client, &mut session, &context, &expected, 1710).await?;
+        session.close();
+        (records, histories)
+    };
+    // Strictly close/reopen the real SQLite owner. Access is retained; this is
+    // store readback, not a claim about process restart or installed credentials.
+    let Core {
+        access,
+        store,
+        vault,
+        home,
+        homes,
+        ..
+    } = core;
+    Arc::try_unwrap(store)
+        .map_err(|_| "Store retained")?
+        .into_inner()
+        .map_err(|_| "Store unavailable")?
+        .close()?;
+    let reopened = Store::open(
+        directory.join("atlas.sqlite"),
+        NativeContracts,
+        ReadAuthority(Arc::clone(&access)),
+        NativeMediaRuntime {
+            vault: Arc::clone(&vault),
+            server: ServerRuntime,
+        },
+        storage::StoreOptions::default(),
+    )?;
+    let core = Core {
+        access,
+        store: Arc::new(Mutex::new(reopened)),
+        vault,
+        home,
+        homes,
+        atlas_list_pages: AtlasListPages::default(),
+        media_policy_evidence: Mutex::default(),
+    };
+    {
+        let client = Client {
+            core: &core,
+            scope: &scope,
+            url: &url,
+            cookie: &cookie,
+            csrf: &csrf,
+        };
+        let mut session = client.open().await;
+        // Start a fresh complete cursor chain on the reopened owner.
+        assert_eq!(
+            evidence_pages(&client, &mut session, &context, 1800).await?,
+            before_records
+        );
+        assert_eq!(
+            evidence_readback(&client, &mut session, &context, &expected, 1810).await?,
+            before_histories
+        );
         session.close();
     }
     drop(core);

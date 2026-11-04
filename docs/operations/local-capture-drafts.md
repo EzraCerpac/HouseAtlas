@@ -333,15 +333,18 @@ cleanup honestly; it may still end the session and immediately hide all drafts.
 ## Verification boundary
 
 `frontend/capture-drafts-tests/indexeddb-durability.regression.test.mjs`
-contains six focused, unregistered source assertions against the production
+contains six focused assertions against the production
 `openDraftStore` and a controlled IDB interface double. They cover strict
 options/reporting before access, completion ordering, option/capability refusal
 without fallback, missing/default/relaxed reporting, abort throwing/ignored,
 read-only availability, request-success followed by abort, setup failure and
 error followed by late callbacks/completion. Only generated rows/originals and
-controlled events are used. They are authored but **NOT RUN**, add no CI case
-or lane, and establish no actual IndexedDB, crash or installed-browser behavior.
-The five already registered cases below still use memory storage; passing
+controlled events are used. The existing ordinary-core job now selects exactly
+this file with pinned Node 26.10.0 and `--test-concurrency=1`; hosted per-test
+logs establish execution and outcomes. Registration alone establishes no pass,
+actual IndexedDB, crash or installed-browser behavior. No other draft assertion
+file or directory is selected by this addition. The five registered cases below still use
+memory storage; passing
 them does not exercise this production durability policy.
 
 The prepared `reused-receipt-object-keeps-unknown` case in

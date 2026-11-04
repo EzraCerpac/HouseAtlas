@@ -201,6 +201,17 @@ trap in the draft harness. They add no listener, native service or browser.
 Other capture/draft cases and the full controller regression suite remain
 separately selected; exact commands and limits are in the verification guide.
 
+The existing ordinary-core job separately invokes exactly the six existing
+assertions in `frontend/capture-drafts-tests/indexeddb-durability.regression.test.mjs`
+with pinned Node 26.10.0 and `--test-concurrency=1`. They call the production
+draft store through a controlled IDB interface with generated in-memory rows,
+checking strict write options/reporting, completion ordering, unsupported
+capability refusal without fallback, read-only access, abort/setup failure and
+late-event handling. They use no browser, real IndexedDB, native service,
+network, credential or user draft. Passing these interface checks establishes
+no actual flush, crash/power-loss survival, retention or device compatibility.
+Other draft files and cases are not selected by this addition.
+
 The existing ordinary-core lightweight job also runs exactly
 `tools/perf/host-client/options.test.mjs` and
 `tools/perf/host-client/compare.test.mjs` with pinned Node 26.10.0 and
