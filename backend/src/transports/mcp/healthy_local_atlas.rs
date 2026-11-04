@@ -31,6 +31,9 @@ mod identity;
 #[path = "healthy_infrastructure.rs"]
 mod infrastructure;
 
+#[path = "healthy_places_relations.rs"]
+mod places_relations;
+
 fn id(n: u32) -> String {
     format!("00000000-0000-4000-8000-{n:012}")
 }
