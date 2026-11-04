@@ -78,3 +78,7 @@ pub fn native_read_catalog(
         admitted,
     )?))
 }
+
+#[cfg(test)]
+#[path = "stock_read_contract.rs"]
+mod stock_read_contract;

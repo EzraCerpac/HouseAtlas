@@ -36,9 +36,10 @@ cached display metadata must remain synchronous and perform no lease or I/O.
 
 The permitted source runner checks locked actual Rust library, binary and
 explicit examples, formatting, strict Clippy, generated contracts/history,
-four named healthy native examples, strict TypeScript and Vite. It executes no
-AI protocol, credential, enrollment, inference or cancellation fixture. Healthy
-examples containing synthetic authority peers are compilation inputs only.
+four named healthy native examples, strict TypeScript and Vite. That source
+runner does not execute the AI examples. Separately, the existing default
+backend-library CI job executes the finite AI unit tests described below;
+compiling an example and executing a unit test are different evidence.
 
 Source checks do not qualify an operational AI slice. Existing source composes
 enrollment, encrypted credentials, model/catalog and exact continuation owners;
@@ -47,10 +48,12 @@ required. Admission is durably recorded before model selection. A selection fail
 the original request correlation, typed reason and unknown usage. Prelaunch
 selection failures retain terminal lifecycle receipts; local Stopped outcomes
 release the browser slot while preserving provider uncertainty. Exact integrated
-review remains pending. No AI request, OS credential call, live
+review remains pending. No live AI/provider request, OS credential call, live
 account/provider/NAS, remote listener, spend, credential/grant provisioning or
-deployment occurs. All stopped negative/rejection, guard mutation, replay,
-expiry/revocation, denial, fault/crash and concurrency controls remain unrun.
+deployment occurs. The finite synthetic failure/hold/readiness cases below
+have executed in hosted CI. Other held controls, actual credential/provider
+operations and operational/device qualification remain unfulfilled; a blanket
+claim that every negative or stopped case is unrun is not accurate.
 
 Original input mapping, ancestry and detailed evidence are preserved privately.
 The publication source manifest continues to verify the actual tracked bytes.
@@ -197,3 +200,51 @@ native application; those operational paths remain unrun. No tests or local
 build/format-check/Clippy/publication qualification ran during this increment.
 Runtime/eligibility/spending, protected key custody, exclusive refresh
 qualification and deferred browser/device acceptance remain separate and open.
+
+## Executed coverage and the native read contract — 4 November 2026
+
+Historical local-NOT-RUN statements above describe their source increments,
+not subsequent hosted execution. At main
+`aa00e986a5790aef1b1341141dbbc131f4f63fc7`, the actual
+[backend-library job](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41890669042/job/126786975935)
+reports 248 passed, 0 failed, 12 ignored and 3 filtered. Named passing cases include:
+
+| Cases | Execution established | Remaining boundary |
+| --- | --- | --- |
+| `healthy_published_reads_and_explicit_history`, `healthy_stock_wire3_read_boundary` | Runner read/history and stock wire adapter | Supplied domain outputs, not the native executor |
+| `healthy_completed_resumed_dispatch_correlations` | Runner resume, operation correlation and usage | Stubbed catalog/continuation/inference; injected checkpoint |
+| `healthy_domain_operation_correlation_dto`, `healthy_runtime_wire_projection` | Typed DTO projection | No domain-held operation or review execution |
+| `helper_and_unset_routes_finish_without_inference_or_domain_dispatch`, `runtime_route_requires_an_inference_owner_and_independent_admission`, `selected_model_failure_is_durably_finished_without_execution` | Held route admission and journalled prelaunch failure | No live model/runtime/account observation |
+| All three `trusted_startup::custody_tests` | Mounted/direct result fences | Counting fake operations/custody, not full native application execution |
+| `invalid_grant_requires_explicit_reauthorization_without_refresh_replay`, `uncertain_refresh_keeps_checkpoint_and_never_resubmits`, `local_disconnect_does_not_claim_remote_revocation_or_restore_refresh`, readiness scenarios | Bounded lifecycle uncertainty and independent readiness | Memory credential/provider peers, not native keys, real refresh/revocation |
+| `healthy_tool_capable_completed_stream` | Tool-capable stream decoding | Synthetic transport, not a provider request |
+
+The `healthy-ai-host` example separately exercises a synthetic no-tool request
+and journal/router flow. Its review-required dismissal is seeded with a waiting
+DTO and retained checkpoint; it does not produce review from a tool call or
+execute an approved native mutation. Source compilation alone does not run it.
+
+The new default-library case
+`ai::host::startup::stock::stock_read_contract::typed_ai_request_executes_native_stock_read_and_retains_unknown_usage`
+joins actual `AiHost`/`AiRunner` to `native_read_catalog`, `StockCatalog`,
+`NativeReadStock`, `NativeStockConsumer` and unchanged `stock_dispatch`. It uses
+the existing generated Core/Access fixture, genuine local principals/enrollment,
+and pinned synthetic startup configuration. Native fixture setup creates one
+circuit through the same executor before the AI read. Frozen expected record
+data is an assertion, never a replacement domain response.
+
+Connection/model/inference inputs are test-only peers. The owner-issued read
+envelope returns as a correlated tool output; assertions check its generated
+stock schema, command/request/scope, circuit data, typed completion, unknown
+usage and durable journal result after read-only reopen. No credential directory
+is opened, no listener is installed, and review/discovery/action peers must stay
+unused. This case was authored without local execution; exact-head and
+resulting-main hosted logs must establish its outcome. No CI runner is added.
+
+Genuine reviewed-write `ReviewRequired → approved continuation → DomainHeld`
+remains BLOCKED: `NativeReadStock::prepare` refuses mutations and its review/
+reviewed-execution methods return unavailable. `OriginalReview<R>` forwards an
+existing trusted review owner but does not implement one. The concrete reviewed
+stock/approval bridge is an original-owner integration input; canned domain
+results or seeded review DTOs supply no authority. This read contract does not
+complete the full #294 request/result matrix or live acceptance.
