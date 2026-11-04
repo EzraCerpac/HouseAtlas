@@ -92,9 +92,14 @@ union framing, retained per-part cuts through transition starts/ends and reversa
 connecting-structure association,
 single-plan switching and actual Floor Stack server markup. Its small generated
 policy checks also refuse overlapping groups and cross-building display joins;
-no new runner, browser lane or native authority is added; the generated Electrical Library `healthy`
-case (existing production reader/projection and fictional original bytes,
-local fake owners only; no mounted PDF UI or native access); `frontend/lantern-tests/run-healthy.mjs` with
+no new runner, browser lane or native authority is added; the four generated
+Electrical Library selections `healthy`, `reentrant-retirement`,
+`pdf-unavailable-metadata` and `dialog-focus-restoration` (existing production
+reader/projection, fictional original bytes and fake owners; the focus helper
+uses fictional focus objects, with no React/DOM mount, PDF UI or native access).
+They cover newer-read retirement, unavailable-PDF metadata without open authority,
+and guarded opener restoration without changing the existing healthy case;
+`frontend/lantern-tests/run-healthy.mjs` with
 its explicit list, including the `offline-launch`, `hung-network` and
 `live-launch` cases in the pinned Chrome for Testing build against the built public shell
 (generated build output on a loopback listener, no backend; live-launch also

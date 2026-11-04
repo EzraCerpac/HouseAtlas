@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 19860,
-      "sha256": "d84cb009caaf08b976e4afc9ae312c295b97eca8a47ee3b2e5408db3ab3fa7f2",
+      "bytes": 20162,
+      "sha256": "6b15cadd09b99f6d2e87899bde35a3165a46350e7b79ad41cce00b7557861bf7",
       "owner": "core-integration"
     },
     {
@@ -6418,8 +6418,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 206916,
-      "sha256": "073a7018a47e96881fea0c2fad3f9ae3cf415285b23182fc01577758a868c2fd",
+      "bytes": 208000,
+      "sha256": "1680725497002a7369e1ba74d1a2504b193400f50f7c45169810d77b95e9db2c",
       "owner": "core-integration"
     },
     {
@@ -7797,8 +7797,8 @@
     {
       "path": "frontend/lantern-tests/electrical-library-read.mjs",
       "mode": "100644",
-      "bytes": 12437,
-      "sha256": "58be664fdffd5178ce89c1e25d54532f96174c5bdf2e2f6ad031fa97b0d1994d",
+      "bytes": 12439,
+      "sha256": "1e1bb16a78dc2164584e271bbb58da699f43471fe8a35a0f02558b85d6d3333d",
       "owner": "web"
     },
     {
@@ -8238,8 +8238,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 5939,
-      "sha256": "1e213814e8d3f39ee4f8415d689a184eb7306cc07b73813fbf2a0c9489ef2c07",
+      "bytes": 6166,
+      "sha256": "331c1e014d444b06dcd68f41d3193b5c693d168286214feba6b86650f3548bc8",
       "owner": "web"
     },
     {
@@ -11599,7 +11599,7 @@
       "path": "tools/ci/lanes.json",
       "mode": "100644",
       "bytes": 58132,
-      "sha256": "9711a8ffa0ec25776e3d83c7832e0f5e597a436e991917e2e8ce689cea51337a",
+      "sha256": "5c59b885df54575fe53f9bc631a9229db76e21e543fb59c82430247b1a2aec0f",
       "owner": "core-integration"
     },
     {
