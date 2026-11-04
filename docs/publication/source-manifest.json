@@ -5753,8 +5753,8 @@
     {
       "path": "backend/src/transports/mcp/healthy_media_metadata.rs",
       "mode": "100644",
-      "bytes": 16233,
-      "sha256": "8e604f34d41384d4772cb44a713bb67039bfafe60c81fd85f0e8c161a9fd0774",
+      "bytes": 19677,
+      "sha256": "30e911a74b1090e3aa88190256355e9bd588a28ab1053d684e3ab4bf93f9ad27",
       "owner": "mcp"
     },
     {
