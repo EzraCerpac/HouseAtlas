@@ -131,7 +131,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 69 source, 1 build, 5 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 72 source, 1 build, 5 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
@@ -215,10 +215,14 @@ node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs
 
 ## Electrical Library healthy read
 
-The healthy frontend list invokes the existing exact command:
+The existing frontend SOURCE list invokes these four exact selections, one
+process each, with pinned Node 26.10.0 and unchanged locked frontend dependencies:
 
 ```sh
 node frontend/lantern-tests/electrical-library-read.mjs --case healthy
+node frontend/lantern-tests/electrical-library-read.mjs --case reentrant-retirement
+node frontend/lantern-tests/electrical-library-read.mjs --case pdf-unavailable-metadata
+node frontend/lantern-tests/electrical-library-read.mjs --case dialog-focus-restoration
 ```
 
 It bundles the production Electrical Library reader/projection and generated
@@ -228,12 +232,22 @@ without original reads, explicit original-download bytes/digest and dedicated
 document-owner release. It uses temporary local files and fake owners, not a
 network listener, native host, credentials or private PDF.
 
-Only `healthy` is in the default list. `reentrant-retirement`,
-`pdf-unavailable-metadata` and `dialog-focus-restoration` remain separately
-selected cases, not evidence supplied by the healthy result. The lazy PDF
-component is external to the bundle: this check does not render PDF pages,
-exercise React dialog/focus behavior or establish installed document access.
-The recorded-page helper/component checks are separate.
+`reentrant-retirement` checks synchronous subscriber reentry during retirement,
+binding replacement and initial-owner publication, with current latest frames
+and balanced fake-owner release/disposal. `pdf-unavailable-metadata` preserves
+qualified historical sheet/provenance/search references when optional PDF
+membership is absent or fails, while refusing a drawing client and original open.
+`dialog-focus-restoration` exercises the actual production restoration helper
+with fictional focus objects for loading-fallback and reader-creation-error Close,
+retired scope, disconnected opener and unrelated focus.
+
+Each selection retains the existing runner's 180-second per-process bound and
+uses disposable generated inputs only. No browser, listener, native source,
+private PDF or new workflow is added. The lazy PDF component is external to the
+bundle: these checks do not render PDF pages, mount React/DOM dialog navigation
+or establish native/installed original delivery or device acceptance. The
+recorded-page helper/component checks remain separate. Registration is not an
+execution claim; the exact hosted selection logs provide qualification.
 
 ## Generated capture original and draft receipt checks
 

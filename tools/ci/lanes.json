@@ -630,7 +630,7 @@
       "toolchain": ["node", "chromium"],
       "files": ["frontend/lantern-tests/run-healthy.mjs"],
       "scope": "Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output.",
-      "cases": {"counter": "run-healthy-list", "file": "frontend/lantern-tests/run-healthy.mjs", "expected": {"SOURCE": 69, "BUILD": 1, "BROWSER": 5}},
+      "cases": {"counter": "run-healthy-list", "file": "frontend/lantern-tests/run-healthy.mjs", "expected": {"SOURCE": 72, "BUILD": 1, "BROWSER": 5}},
       "claims": [
         ["frontend/lantern-tests/run-healthy.mjs", "['offline-launch', 'hung-network', 'live-launch']"],
         ["AGENTS.md", "`frontend/lantern-tests/run-healthy.mjs` with\nits explicit list"]
