@@ -2631,15 +2631,15 @@
     {
       "path": "backend/src/http/providers/homebox_stock_healthy.rs",
       "mode": "100644",
-      "bytes": 12822,
-      "sha256": "95176eb703fc052feaeb66b4e73fd17008962c04e1e82a95fb8c425c6380ff12",
+      "bytes": 12963,
+      "sha256": "ed5a7983b1274193b5b78bcd199e113a5a37b8bc2d9c2f10147d46e4c3075c7d",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/http/providers/mod.rs",
       "mode": "100644",
-      "bytes": 4178,
-      "sha256": "fd1ab5e98a59ff83014d4cd40c7aed56cd6a3f9c9f77051995a1e94822550e7e",
+      "bytes": 4219,
+      "sha256": "6ef26680c7c83d81c72641a6335b0fcb0c611a604ebf0d3e41f8d576804cd47d",
       "owner": "core-integration"
     },
     {

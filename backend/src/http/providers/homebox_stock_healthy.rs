@@ -1,5 +1,7 @@
 //! Positive, in-process cached HomeBox stock/MCP read example. No listener or provider IO.
 //! A private clone of the public fixture uses a UUID collection ID for stock wire3.
+#[cfg(test)]
+use crate as houseatlas_backend;
 use houseatlas_backend::{
     access as a,
     app::{Access, Core, ReadAuthority, RequestPrincipal, ServerRuntime, Store, access_scope},
@@ -32,6 +34,11 @@ fn main() -> Result<(), Failure> {
     tokio::runtime::Builder::new_current_thread()
         .build()?
         .block_on(healthy())
+}
+
+#[test]
+fn healthy_cached_homebox_stock_and_mcp_reads() -> Result<(), Failure> {
+    main()
 }
 
 // A new store from a cloned public fixture. Only synthetic collection IDs are
