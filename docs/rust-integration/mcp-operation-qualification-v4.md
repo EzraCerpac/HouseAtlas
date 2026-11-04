@@ -606,6 +606,23 @@ restart, recovered producer/admission rights, browser/device or installed
 acceptance follows. There is no new production behavior, grant, dependency,
 workflow command or runner. Broader #288 acceptance remains open.
 
+M36 prepares an extension of the existing default-library native HomeBox root
+case, not a new domain owner or production MCP binding. The test-only ServicePort
+delegates every call to `homebox_native::execute_with_reader` with the existing
+injected original-byte GET peer. Actual Access, Store, native domain authority,
+NativePrincipalPort, NativeCatalog, canonical envelopes and result rendering are
+used. Five original direct reads remain; five unmounted MCP calls add full native/
+structured/text parity, independent numeric/date/cost assertions and unchanged
+authorized Store snapshots. **NOT RUN** for this extension pending exact hosted
+named execution; the five operation rows and 77/6 counts remain unchanged.
+
+The acceptance boundary is explicit before any disposition change: this tests
+the real injected-reader owner plus an unmounted synthetic MCP profile. It does
+not traverse production OwnedStockService/McpStockContext, configured HTTPS
+credential custody or NativeListPages continuation. Their qualification remains
+separate; no production hook, grant, fake domain result or duplicate dispatcher
+is introduced. Existing fixture lists have one terminal pageSize-100 page only.
+
 | Key | Exact existing case | Observed result | Method and limit |
 | --- | --- | --- | --- |
 | M01 | `transports::mcp::healthy_download::healthy_asset_download_sealed_codecs_preserve_canonical_wire` | PASS | fake download codec |
@@ -643,6 +660,7 @@ workflow command or runner. Broader #288 acceptance remains open.
 | M33 | `transports::mcp::healthy_local_atlas::remap_hold::native_remap_hold_preserves_store_and_permitted_batch` | PASS (hold only) | actual synthetic Editor/StockService/SQLite hold: null/unproven receipt singles and both mixed-batch orders, actual input-arm/schema and MCP refusal checks, exact retained rows/reopen and permitted direct/derived batch; no remap approval or success |
 | M34 | `http::agents::asset_download_healthy::healthy_mounted_mcp_asset_download_redeems_original` | PASS | actual same-Host generated text multipart upload, mounted MCP issuance and authenticated opaque-handle redemption; canonical parity, measured bytes/headers/hash/size/type and equal asset readback; one positive lifetime only |
 | M35 | `http::providers::homebox_stock_history_healthy::healthy_native_prepared_homebox_history_cuts_and_reopen` | PASS | actual profile-6 source-only bootstrap, six SyntheticFixture prepared reservations, real Viewer shared native/MCP history owner, family-specific saved cuts/fresh chains and strict Store reopen with retained Access; no admission/provider completion |
+| M36 | `http::providers::homebox_native_healthy::healthy_native_homebox_root_reads_preserve_original_authority` (extended) | NOT RUN | actual injected-reader owner plus real NativePrincipalPort/catalog and unmounted delegate-only MCP; five native/five MCP GETs, complete wire parity, numeric/null/date preservation and unchanged authorized Store snapshots; no configured binding/HTTPS/list continuation |
 | B01 | `healthy_large_read_page` | PASS | Fake bridge evidence-list/cursor forwarding and geometry page below 2 MiB; no native cursor/record owner |
 | B02 | `denial_read_profile_bounds` | PASS | Fake bridge scope/page/response refusal and retained read availability; no native expiry or provider execution |
 | B03 | `denial_read_correlation` | PASS | Fake bridge request ID/command/scope mismatch refusal; no actual private connector invocation |
@@ -922,6 +940,7 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | G-full | BLOCKED for full operation acceptance | Fixture variants only have synthetic passes; actual installed identity, current role/profile/scope and exact intended operation observation remain with existing acceptance owner. No issue closure follows |
 | G-operation | NOT RUN for the individual operation path in this evidence set | Existing admission/planner may implement the ID; supply a justified actual-service case for that exact ID/variant rather than counting descriptors as execution |
 | G-provider | BLOCKED on provider-specific qualification | #285 reads, #287 mutation contract and #286 recovery inputs gate their respective stages; independent metadata/fixture work need not wait. No live provider call made |
+| G-native-configured | NOT RUN | M36 uses an injected original-byte GET peer and an unmounted synthetic MCP ServicePort. Actual McpStockContext/OwnedStockService with NativeHomeBoxReadBinding, configured HTTPS credential custody and NativeListPages continuation require their own real inputs/execution; injected-reader evidence cannot certify that path |
 | G-admission / G-dedicated | UNSUPPORTED-GENERIC | No R/L/M/E binding; existing dedicated native owner requires its own custody/integration contract, not a new endpoint/grant/dispatcher here |
 | G-media/operation | BLOCKED | Qualified derivation/Media input owner and exact correlated result evidence required; binding-review evidence does not qualify restore/geometry/asset variants |
 | G-batch | BLOCKED beyond successful local fixture | Ordered two-circuit success is observed; complete intended partial/unknown/per-child failure classes remain unqualified. Atomic Atlas success does not imply provider partial-outcome handling |

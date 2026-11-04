@@ -5,11 +5,13 @@ use crate::{
     access as a,
     app::{Core, ReadAuthority, RequestPrincipal, ServerRuntime, Store},
     config::providers::homebox::TrustedHomeBoxSource,
+    contracts::stock as wire,
     domain as d,
     http::{Host, contracts::NativeContracts},
     lifecycle, media,
     providers::homebox::read as r,
     storage as s,
+    transports::mcp,
 };
 use serde_json::{Value, json};
 use std::{
@@ -96,6 +98,86 @@ fn evidence<'a>(method: a::Method, cookie: Option<&'a str>) -> a::RequestEvidenc
         authorization: None,
         csrf: None,
     }
+}
+
+// Test-only transport glue. All domain preparation, source/grant checks, GET
+// intake, graph authorization and result release stay in execute_with_reader.
+// This is not OwnedStockService's configured HTTPS/credential/list-page path.
+struct InjectedNativeService {
+    host: Host,
+    source: TrustedHomeBoxSource,
+    registration: r::SourceRegistration,
+    detail: Vec<u8>,
+    maintenance: Vec<u8>,
+    observed: Arc<Mutex<Vec<String>>>,
+}
+impl mcp::ServicePort<mcp::NativePrincipal, mcp::NativeOperation> for InjectedNativeService {
+    type Output = mcp::NativeOutput;
+
+    fn execute<'a>(
+        &'a self,
+        principal: &'a mcp::NativePrincipal,
+        operation: mcp::NativeOperation,
+    ) -> mcp::PortFuture<'a, Self::Output> {
+        let host = self.host.clone();
+        let source = self.source.clone();
+        let registration = self.registration.clone();
+        let detail = self.detail.clone();
+        let maintenance = self.maintenance.clone();
+        let observed = Arc::clone(&self.observed);
+        let original = principal.original().clone();
+        let handle = tokio::runtime::Handle::current();
+        // Match the existing blocking-owner handoff. No RequestPrincipal or
+        // Access/Store/Core guard crosses this await or the original GET.
+        Box::pin(async move {
+            tokio::task::spawn_blocking(move || {
+                let (access, store) = {
+                    let core = host.core.lock().map_err(|_| mcp::PortError::Unavailable)?;
+                    (Arc::clone(&core.access), Arc::clone(&core.store))
+                };
+                let mut reader = r::HomeBoxReader::new_stock(
+                    registration,
+                    FixedGet { detail, maintenance, access, store, core: Arc::clone(&host.core), observed },
+                    FixedClock,
+                    r::Limits::default(),
+                    None,
+                ).map_err(|_| mcp::PortError::Unavailable)?;
+                let principal = RequestPrincipal::new(original);
+                execute_with_reader(
+                    &host, &principal, operation.request().raw().clone(), &source, &mut reader, &handle,
+                ).map(|result| mcp::NativeOutput { request: operation.request, result })
+                    .map_err(|_| mcp::PortError::Unavailable)
+            }).await.map_err(|_| mcp::PortError::Unavailable)?
+        })
+    }
+}
+
+type NativeAdapter = mcp::McpAdapter<mcp::NativePrincipalPort, mcp::NativeCatalog, InjectedNativeService>;
+
+async fn rpc(
+    adapter: &NativeAdapter,
+    session: &mut mcp::Session<mcp::NativeContext>,
+    message: Value,
+) -> Result<Value, lifecycle::Failure> {
+    let bytes = adapter.handle(session, &serde_json::to_vec(&message)?)
+        .await.ok_or("Missing actual MCP response")?;
+    let reply: Value = serde_json::from_slice(&bytes)?;
+    assert_eq!(reply["jsonrpc"], "2.0");
+    assert_eq!(reply["id"], message["id"]);
+    assert!(reply.get("error").is_none());
+    Ok(reply)
+}
+
+fn snapshot(host: &Host, original: &a::Principal) -> Result<s::Snapshot, lifecycle::Failure> {
+    let (access, store, scope) = {
+        let core = host.core.lock().map_err(|_| "Core unavailable")?;
+        (Arc::clone(&core.access), Arc::clone(&core.store),
+            serde_json::from_value::<s::Scope>(serde_json::to_value(&core.home.scope)?)?)
+    };
+    let principal = RequestPrincipal::new(original.clone());
+    let value = store.lock().map_err(|_| "Store unavailable")?
+        .read_snapshot_with_authorization(&ReadAuthority(access), &principal, &scope)?;
+    Ok(value)
 }
 
 #[test]
@@ -226,6 +308,12 @@ fn healthy_native_homebox_root_reads_preserve_original_authority() -> Result<(),
         .truncate(2);
     let maintenance_bytes = serde_json::to_vec(&maintenance)?;
     let observed = Arc::new(Mutex::new(Vec::new()));
+    let snapshot_original = access.lock().unwrap().authorize(
+        &evidence(a::Method::Get, Some(&cookie)), &scope, a::Action::Read,
+    )?;
+    let before = snapshot(&host, &snapshot_original)?;
+    let mut parity = Vec::new();
+    let validation = wire::StockValidation::new()?;
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .enable_all()
@@ -284,7 +372,14 @@ fn healthy_native_homebox_root_reads_preserve_original_authority() -> Result<(),
             json!({})
         };
         let raw = json!({"schemaVersion":3,"commandId":operation.as_str(),"requestId":id(900+index as u32),"context":{"workspaceId":id(1),"homeId":id(2)},"target":target,"payload":payload});
-        let result = execute_with_reader(&host, &p, raw, &source, &mut reader, runtime.handle())?;
+        let result = execute_with_reader(&host, &p, raw.clone(), &source, &mut reader, runtime.handle())?;
+        let parsed = wire::StockRequest::parse(&validation, raw.clone())?;
+        wire::StockResponse::parse(&validation, &parsed, result.wire.clone(), &result.children)?;
+        assert_eq!(result.wire["schemaVersion"], 3);
+        assert_eq!(result.wire["requestId"], raw["requestId"]);
+        assert_eq!(result.wire["resolvedScope"], raw["context"]);
+        assert_eq!(result.wire["status"], "read");
+        assert_eq!(result.wire["replayed"], false);
         assert!(result.children.is_empty());
         assert_eq!(result.wire["commandId"], operation.as_str());
         assert_eq!(result.wire["data"]["sourceStatus"], "unresolved");
@@ -309,6 +404,7 @@ fn healthy_native_homebox_root_reads_preserve_original_authority() -> Result<(),
                         .any(|row| row["target"]["resourceId"] == id(61)
                             && row["data"]["name"] == "Captured native number")
                 );
+                assert!(resources.iter().all(|row| row["data"]["value"]["value"] == json!(9007199254740991_i64)));
             }
             d::stock::OperationId::HomeboxMaintenanceList
             | d::stock::OperationId::HomeboxMaintenanceGet => {
@@ -318,10 +414,88 @@ fn healthy_native_homebox_root_reads_preserve_original_authority() -> Result<(),
                         .any(|row| row["target"]["resourceId"] == id(302)
                             && row["data"]["name"] == "Completed check")
                 );
+                for row in resources {
+                    let original = maintenance.as_array().ok_or("Missing native maintenance input")?
+                        .iter().find(|input| input["id"] == row["target"]["resourceId"])
+                        .ok_or("Missing exact native maintenance member")?;
+                    assert_eq!(row["data"]["cost"], original["cost"]);
+                    for key in ["scheduledDate", "completedDate"] {
+                        let expected = match original[key].as_str().ok_or("Missing native date")? {
+                            "" => Value::Null,
+                            text => json!(text),
+                        };
+                        assert_eq!(row["data"][key], expected);
+                    }
+                }
             }
             _ => unreachable!(),
         }
+        if list {
+            assert!(result.wire["data"]["nextCursor"].is_null());
+            assert_eq!(resources.len(), if operation == d::stock::OperationId::HomeboxFieldList { 1 } else { 2 });
+        }
+        parity.push((raw, result.wire));
     }
     assert_eq!(observed.lock().unwrap().len(), 5);
+    assert_eq!(snapshot(&host, &snapshot_original)?, before);
+
+    runtime.block_on(async {
+        use mcp::PrincipalPort;
+        let principal = access.lock().unwrap().authorize(
+            &evidence(a::Method::Get, Some(&cookie)), &scope, a::Action::Read,
+        )?;
+        assert_eq!(principal.role(), a::Role::Viewer);
+        let context = mcp::NativeContext::from_principal(principal);
+        let principals = mcp::NativePrincipalPort::new(Arc::clone(&access));
+        let current = principals.resolve(&context).await.map_err(|_| "Actual MCP principal unavailable")?;
+        let schemas = mcp::NativeSchemas::from_bytes(
+            include_bytes!("../../../../contracts/stock-wire3/agent/agent.schema.json"),
+            include_bytes!("../../../../packages/contracts/schemas/atlas.schema.json"),
+        ).map_err(|_| "Actual schemas unavailable")?;
+        // This finite synthetic profile is not the mounted configured Host.
+        let catalog = mcp::NativeCatalog::with_admitted_operations(&schemas, &current, [
+            wire::OperationId::HomeboxEntityTagsGet, wire::OperationId::HomeboxFieldList,
+            wire::OperationId::HomeboxFieldGet, wire::OperationId::HomeboxMaintenanceList,
+            wire::OperationId::HomeboxMaintenanceGet,
+        ]).map_err(|_| "Actual catalog unavailable")?;
+        let adapter = mcp::McpAdapter::new(principals, catalog, InjectedNativeService {
+            host: host.clone(), source: source.clone(), registration: reader_registration.clone(),
+            detail: detail_bytes.clone(), maintenance: maintenance_bytes.clone(), observed: Arc::clone(&observed),
+        }, mcp::AdapterConfig::default()).map_err(|_| "MCP adapter unavailable")?;
+        let mut session = adapter.open(context);
+        let initialized = rpc(&adapter, &mut session, json!({"jsonrpc":"2.0","id":"initialize","method":"initialize",
+            "params":{"protocolVersion":mcp::PROTOCOL_VERSION,"capabilities":{},
+                "clientInfo":{"name":"Synthetic native read delegation","version":"0.1.0"}}})).await?;
+        assert_eq!(initialized["result"]["protocolVersion"], mcp::PROTOCOL_VERSION);
+        let notification = serde_json::to_vec(&json!({"jsonrpc":"2.0","method":"notifications/initialized"}))?;
+        assert!(adapter.handle(&mut session, &notification).await.is_none());
+        assert_eq!(session.state(), mcp::SessionState::Ready);
+        for (raw, native) in parity {
+            let parsed = wire::StockRequest::parse(&validation, raw.clone())?;
+            let family = wire::operation(parsed.id())?.tool_family.as_str();
+            let reply = rpc(&adapter, &mut session, json!({"jsonrpc":"2.0","id":raw["requestId"],
+                "method":"tools/call","params":{"name":family,"arguments":raw}})).await?;
+            let result = &reply["result"];
+            assert_eq!(result["isError"], false);
+            let structured = result.get("structuredContent").ok_or("Missing actual native structured result")?;
+            let content = result["content"].as_array().ok_or("Missing actual native text")?;
+            assert_eq!(content.len(), 1);
+            assert_eq!(content[0]["type"], "text");
+            assert_eq!(serde_json::from_str::<Value>(content[0]["text"].as_str().ok_or("Missing native text bytes")?)?, *structured);
+            assert_eq!(structured, &native);
+            wire::StockResponse::parse(&validation, &parsed, structured.clone(), &[])?;
+        }
+        session.close();
+        drop(session);
+        drop(adapter);
+        Ok::<(), lifecycle::Failure>(())
+    })?;
+    assert_eq!(snapshot(&host, &snapshot_original)?, before);
+    let detail_path = format!("/api/v1/entities/{}", id(2));
+    let maintenance_path = format!("{detail_path}/maintenance");
+    assert_eq!(*observed.lock().unwrap(), [
+        detail_path.clone(), detail_path.clone(), detail_path.clone(), maintenance_path.clone(), maintenance_path.clone(),
+        detail_path.clone(), detail_path.clone(), detail_path, maintenance_path.clone(), maintenance_path,
+    ]);
     Ok(())
 }
