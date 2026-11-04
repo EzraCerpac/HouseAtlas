@@ -133,3 +133,6 @@ async fn cached(
 
 #[cfg(test)]
 mod homebox_native_healthy;
+
+#[cfg(test)]
+mod homebox_stock_healthy;

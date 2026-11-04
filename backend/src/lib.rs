@@ -1,5 +1,8 @@
 //! Shared Rust baseline. Feature modules are integrated by their owners.
 
+#[cfg(test)]
+extern crate self as houseatlas_backend;
+
 pub mod access;
 pub mod ai;
 pub mod app;

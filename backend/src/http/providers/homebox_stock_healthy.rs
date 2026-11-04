@@ -34,6 +34,11 @@ fn main() -> Result<(), Failure> {
         .block_on(healthy())
 }
 
+#[test]
+fn healthy_cached_homebox_stock_and_mcp_reads() -> Result<(), Failure> {
+    main()
+}
+
 // A new store from a cloned public fixture. Only synthetic collection IDs are
 // rebound for the published stock UUID schema; source observations stay intact.
 fn prepare_local(directory: &Path) -> Result<Core, Failure> {

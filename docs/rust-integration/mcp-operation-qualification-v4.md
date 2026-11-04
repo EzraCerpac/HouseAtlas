@@ -7,8 +7,8 @@ deliverable, not a new dispatcher, grant list, test suite or acceptance release.
 Version 3 grouped operation classes but did not join individual IDs to execution
 evidence. This ledger lists all 168 canonical IDs once, including family,
 effect/confirmation class, actual owner/profile and a bounded disposition.
-Counts after the M20–M30 increments: 67 QUALIFIED-SYNTHETIC paths,
-16 BLOCKED for broader operation evidence,
+Counts after the M20–M32 increments: 74 QUALIFIED-SYNTHETIC paths,
+9 BLOCKED for broader operation evidence,
 80 UNSUPPORTED-GENERIC, two HELD and three FORBIDDEN. These are profile/evidence
 dispositions, not the static catalog counts (154 pending, nine unsupported,
 two held, three forbidden). A missing generic binding is not proof that a
@@ -372,6 +372,64 @@ transfer, imported-shape validity, accepted mapping/placement, renderer,
 installation and WebMCP/device acceptance. Asset creation remains dedicated,
 geometry replacement forbidden, and #288 remains open.
 
+### Cached HomeBox and saved Network increment, 4 November 2026
+
+M31 registers the existing cached HomeBox example body as one ordinary default
+backend-library test, preserving its standalone entry point and all assertions.
+Exact corrected source head `ebfad7e220a0cbd1ff2ca013971ee0a5b7d9f211` (tree
+`14237f1673a222c5138c28aa26b67e1fc91e62a1`, base
+`c2a73c820dc3ec34dfeed6c0ffa1692ef07600e6`) was checked out by
+[backend job 126628500729 / run 41845668770](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41845668770/job/126628500729).
+It explicitly passed `healthy_cached_homebox_stock_and_mcp_reads` at
+14:17:38 UTC, finishing with 245 passed, zero failed, 12 ignored and three
+filtered out. The test-only self alias is confined to the backend library root,
+so the shared example keeps its ordinary external-library import under either
+target. Initial head `127b32a4` also passed its library run; review identified
+and corrected that dual-target alias ambiguity and missing scope documentation.
+No assertion changed or local test/build/formatter/Clippy qualification ran.
+
+M31 uses real Viewer Access, source registrations, SQLite, native StockService
+and borrowed in-process MCP for homebox.entity.get/list and
+homebox.location.get/list. Public fixture collection IDs are consistently rebound
+to UUIDs; this is not opaque-ID compatibility. Native and MCP structured/text
+results are equal and wire-validated, with independent expected checks for
+selected identity/name/original timestamps and stale sourceStatus. Each list
+returns one resource at pageSize 100, cursor null, includeArchived false and
+terminal nextCursor null. No continuation, search or archive variant is proved.
+Access/Store reopen precedes the reads, and before/after snapshots remain equal;
+there is no second post-read reopen or cursor-persistence claim. Private
+disposable-file handling and the example body remain unchanged. No refresh,
+transport/provider call, mediated history, native tags/fields/maintenance or
+installed HomeBox acceptance is established.
+
+M32 reconciles already executed saved Network operations without adding a test
+or dispatch. On the same corrected source, existing Linux
+[source job 126628501132 / run 41845668770](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41845668770/job/126628501132)
+explicitly emitted the genuine Editor/current-CSRF mounted-MCP all-three saved
+query PASS at 14:18:21 UTC, followed by the exactly-one-passive-GET and disposable
+certificate/key cleanup PASS. Prior resulting-main
+[job 126617043586 / run 41842353571](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41842353571/job/126617043586)
+on `c2a73c82` emitted the same passes at 13:57:43 UTC. The unchanged
+`healthy_network_host.rs` and existing `healthy-network-loopback.py` driver use
+the actual canonical Access/lifecycle/source/partition owners and native
+NetworkBinding with reviewed-origin custody-aware publication from one disposable
+TLS inventory GET. Genuine Viewer HTTP-owner reads precede fresh Editor MCP
+initialization/discovery and network.inventory.get/snapshot.get/history.get.
+Full canonical request/result correlation, wire validation and complete data
+equality with those actual HTTP reads are checked, with no extra upstream GET
+during MCP reads. Scope is one synthetic reviewed-allowlist generation, five
+nodes, three inventory/snapshot relations and one history relation, retaining
+the selected unresolved endpoint with null ID. Native archive close/reopen
+requires exact original bytes/hash/registration/generation; it is not a reopened
+Host/MCP execution, multi-generation history, household installation or
+revocation/failure/concurrency proof. This is distinct from fake saved-query peers.
+
+Only seven dispositions advance (67/16 becomes 74/9): four cached HomeBox and
+three saved Network reads. Other 161 operation rows, M20–M30, #533 and static
+catalog statuses remain unchanged. G-full still excludes other profiles and
+variants, bridge/WebMCP/device and installed acceptance. No workflow command,
+provider harness, production admission or authority changes. #288 remains open.
+
 | Key | Exact existing case | Observed result | Method and limit |
 | --- | --- | --- | --- |
 | M01 | `transports::mcp::healthy_download::healthy_asset_download_sealed_codecs_preserve_canonical_wire` | PASS | fake download codec |
@@ -404,6 +462,8 @@ geometry replacement forbidden, and #288 remains open.
 | M28 | `transports::mcp::healthy_local_atlas::bindings_reconciliation::healthy_native_reconciliation_lifecycle_pages_and_reopen` | PASS | real local Editor/StockService/SQLite; reviewed-correction create/tombstone/restore over real retired/accepted unresolved binding pairs, complete filtered active/archive lists, three-event history and strict reopen equality; no remap; retained Access |
 | M29 | `transports::mcp::healthy_local_atlas::media_metadata::healthy_native_geometry_metadata_pages_history_and_reopen` | PASS | real local Editor/StockService/SQLite; missing-original geometry metadata create/get/list/history/tombstone/restore, owner import time, empty/proposed-null-external mappings, complete filtered cursor chains and strict reopen; retained Access; no bytes/shape/accepted placement |
 | M30 | `transports::mcp::healthy_local_atlas::media_metadata::healthy_native_missing_asset_metadata_history_and_reopen` | PASS | real local Editor/StockService/SQLite; seeded missing asset get/list/history/download-only review/tombstone/restore, public projection, initially empty history and actual non-null seed digest anchor, three-event cursor chain and strict reopen; singleton/empty lists only; no transfer |
+| M31 | `http::providers::homebox_stock_healthy::healthy_cached_homebox_stock_and_mcp_reads` | PASS | real Viewer Access/source registrations/reopened SQLite/native StockService and borrowed MCP; four cached get/list reads, stale dates, canonical parity and unchanged snapshots; UUID-rebound collection, singleton first-page lists only; no provider IO or post-read reopen |
+| M32 | `healthy-network-loopback.py` driving `healthy-network-root-router` / `healthy_network_host.rs` mounted-MCP saved-query loop | PASS | existing real canonical Access/native NetworkBinding/disposable TLS publication; genuine Editor/current-CSRF MCP for three saved reads equals actual Viewer HTTP-owner data, five nodes/one generation/unresolved endpoint; one upstream GET total, immutable archive reopen only |
 | B01 | `healthy_large_read_page` | PASS | Fake bridge evidence-list/cursor forwarding and geometry page below 2 MiB; no native cursor/record owner |
 | B02 | `denial_read_profile_bounds` | PASS | Fake bridge scope/page/response refusal and retained read availability; no native expiry or provider execution |
 | B03 | `denial_read_correlation` | PASS | Fake bridge request ID/command/scope mismatch refusal; no actual private connector invocation |
@@ -443,6 +503,14 @@ M21's real factory and canonical MCP helpers. The test-only factory's default
 still delegates to exactly the Standard profile; an explicit profile option
 selects the existing GeometryMetadata ingress only for these two cases.
 No production owner, lifecycle fixture or workflow selection changes.
+
+M31 reuses `backend/src/http/providers/homebox_stock_healthy.rs` as both its
+existing example and a test-only library module; the fixture body is not copied.
+M32 already runs from `tools/rust-integration/examples/healthy_network_host.rs`
+through the explicit existing Linux source-job command. It is separate from
+the default backend-library test count. AGENTS and the verification guide name
+the new M31 scope and reconcile the eleven already merged M20–M30 cases plus
+#533's three retained cases; those documentation changes add no execution.
 
 ## Profile and domain owner key
 
@@ -572,8 +640,8 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | `atlas.reconciliation.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M28 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.binding.remap` | atlas_bindings | supported-pending-qualification | write; exact-impact-human | A-derived; L,E (owner inputs); W?; B-write? | none beyond shared metadata | BLOCKED; G-remap |
 | `atlas.asset.download` | atlas_media_geometry | supported-pending-qualification | read; none | A-download; M (issuer/redemption); W?; B-read? | M01, M02 | BLOCKED; G-transfer |
-| `homebox.entity.get` | homebox_entities_locations | supported-pending-qualification | read; none | H-cache; R,M (cache scoped); W?; B-read? | none beyond shared metadata | BLOCKED; G-provider |
-| `homebox.entity.list` | homebox_entities_locations | supported-pending-qualification | read; none | H-cache; R,M (cache scoped); W?; B-read? | none beyond shared metadata | BLOCKED; G-provider |
+| `homebox.entity.get` | homebox_entities_locations | supported-pending-qualification | read; none | H-cache; R,M (cache scoped); W?; B-read? | M31 | QUALIFIED-SYNTHETIC; G-full |
+| `homebox.entity.list` | homebox_entities_locations | supported-pending-qualification | read; none | H-cache; R,M (cache scoped); W?; B-read? | M31 | QUALIFIED-SYNTHETIC; G-full |
 | `homebox.entity.history` | homebox_entities_locations | unsupported-capability | read; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.entity.create` | homebox_entities_locations | supported-pending-qualification | write; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.entity.update` | homebox_entities_locations | supported-pending-qualification | write; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
@@ -583,8 +651,8 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | `homebox.entity.delete` | homebox_entities_locations | supported-pending-qualification | write; permanent-delete-human | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.entity.restore-deleted` | homebox_entities_locations | unsupported-capability | write; permanent-delete-human | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.entity.duplicate` | homebox_entities_locations | supported-pending-qualification | write; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
-| `homebox.location.get` | homebox_entities_locations | supported-pending-qualification | read; none | H-cache; R,M (cache scoped); W?; B-read? | none beyond shared metadata | BLOCKED; G-provider |
-| `homebox.location.list` | homebox_entities_locations | supported-pending-qualification | read; none | H-cache; R,M (cache scoped); W?; B-read? | none beyond shared metadata | BLOCKED; G-provider |
+| `homebox.location.get` | homebox_entities_locations | supported-pending-qualification | read; none | H-cache; R,M (cache scoped); W?; B-read? | M31 | QUALIFIED-SYNTHETIC; G-full |
+| `homebox.location.list` | homebox_entities_locations | supported-pending-qualification | read; none | H-cache; R,M (cache scoped); W?; B-read? | M31 | QUALIFIED-SYNTHETIC; G-full |
 | `homebox.location.history` | homebox_entities_locations | unsupported-capability | read; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.location.create` | homebox_entities_locations | supported-pending-qualification | write; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.location.update` | homebox_entities_locations | supported-pending-qualification | write; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
@@ -657,9 +725,9 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | `atlas.evidence.replace` | atlas_records | forbidden-append-only | write; exact-impact-human | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | FORBIDDEN; G-admission |
 | `atlas.geometry.replace` | atlas_media_geometry | forbidden-append-only | write; exact-impact-human | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | FORBIDDEN; G-admission |
 | `atlas.reconciliation.replace` | atlas_records | forbidden-append-only | write; exact-impact-human | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | FORBIDDEN; G-admission |
-| `network.inventory.get` | network_queries | supported-pending-qualification | read; none | N-saved; M (binding scoped); W?; B-read? | none beyond shared metadata | BLOCKED; G-provider |
-| `network.snapshot.get` | network_queries | supported-pending-qualification | read; none | N-saved; M (binding scoped); W?; B-read? | none beyond shared metadata | BLOCKED; G-provider |
-| `network.history.get` | network_queries | supported-pending-qualification | read; none | N-saved; M (binding scoped); W?; B-read? | none beyond shared metadata | BLOCKED; G-provider |
+| `network.inventory.get` | network_queries | supported-pending-qualification | read; none | N-saved; M (binding scoped); W?; B-read? | M32 | QUALIFIED-SYNTHETIC; G-full |
+| `network.snapshot.get` | network_queries | supported-pending-qualification | read; none | N-saved; M (binding scoped); W?; B-read? | M32 | QUALIFIED-SYNTHETIC; G-full |
+| `network.history.get` | network_queries | supported-pending-qualification | read; none | N-saved; M (binding scoped); W?; B-read? | M32 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.batch.execute` | atlas_records | supported-pending-qualification | write; inherits-child-exact-impact-human | A-batch; L,E (each child); W?; B-write? | M12 | QUALIFIED-SYNTHETIC; G-full |
 | `homebox.bulk.execute` | homebox_product_features | supported-pending-qualification | write; exact-impact-human | not-bound; no R/L/M/E; W7-unbound; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.import.csv` | homebox_product_features | supported-pending-qualification | write; exact-impact-human | not-bound; no R/L/M/E; W7-unbound; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
@@ -685,8 +753,9 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | WebMCP document/session/visible completion | DEFERRED for browser/device; partial synthetic adapter evidence separate | Exact current host binding, one document registration owner, visible commit ordering, replacement context/cleanup and unsupported-browser behavior still require their admitted owner/evidence |
 | Complete per-operation installed matrix | OPEN | This ledger completes the 168-ID source/evidence index only. It cannot certify installed execution, private data, operational roles, whole-profile admission or deferred device acceptance |
 
-The initial version-4 publication changed documentation only. M20–M30 add
+The initial version-4 publication changed documentation only. M20–M31 add
 ordinary in-process native fixture cases in the existing default backend-library
-selection, with no runner/workflow registration change. No
+selection; M32 records the existing Linux loopback harness. No runner/workflow
+command changes. No
 production routing, credentials, grants, provider calls, held controls, browser,
 model work or deployment. No local build/test/Clippy qualification gate ran.

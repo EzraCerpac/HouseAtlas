@@ -156,6 +156,49 @@ inside the already admitted media flow; one 60 s startup request, unchanged
 15 s subsequent calls and close-aware owned-child cleanup) named in the workflow and in the verification guide. A PR that
 extends CI names the added scope here and in the verification guide.
 
+The default backend-library set also executes exactly
+`http::providers::homebox_stock_healthy::healthy_cached_homebox_stock_and_mcp_reads`,
+calling the existing cached HomeBox example body. Actual synthetic Access/source
+registrations and reopened SQLite feed native StockService and borrowed in-process
+MCP entity/location get/list reads, with full wire parity and unchanged snapshots.
+Each list is one resource with pageSize 100 and null cursors; fixture collection
+IDs are rebound to UUIDs. This adds no listener, provider call, refresh, continuation,
+search/archive, mediated history, opaque-ID compatibility or installed acceptance.
+Private disposable files and the standalone example entry point are preserved;
+no workflow command or held selection is added.
+
+The same default-library set includes the eleven merged #288 M20–M30 cases,
+with exact names and execution pins in the
+[operation ledger](docs/rust-integration/mcp-operation-qualification-v4.md#evidence-identity-and-method).
+Their source is [healthy_local_atlas.rs](backend/src/transports/mcp/healthy_local_atlas.rs)
+and its test-only children `healthy_identity.rs`, `healthy_evidence_lifecycle.rs`,
+`healthy_infrastructure.rs`, `healthy_places_relations.rs`,
+`healthy_bindings_reconciliation.rs` and `healthy_media_metadata.rs` in that directory.
+They use actual synthetic Access/StockService/disposable SQLite for bounded
+evidence, identity, valve/circuit, proposed location-semantics, documented-relation,
+unresolved binding/correction-journal and geometry/missing-asset metadata variants.
+Applicable unknown/null/Unicode fields, guarded lifecycle results, filtered native
+cursor lists, ordered audit/intent/digest history and strict store reopen are
+checked with retained Access. Asset lists are singleton/empty, and seeded asset
+history has no create prehistory; only actual later events anchor to its real seed.
+These are not arbitrary payload/guard/profile qualification, process/session
+restart or crash durability, source adoption/remap, available bytes/transfer,
+renderer/accepted placement, installed provider or WebMCP/device acceptance.
+This documents existing execution and changes no command or held selection.
+
+The default-library lane also retains #533's three existing cases in
+`backend/src/transports/mcp/lifecycle/synthetic_contracts.rs`, under
+`transports::mcp::lifecycle::synthetic_contracts::`:
+`absolute_expiry_at_dispatch_rejects_original_credentials_without_owner_work`,
+`absolute_expiry_withholds_completed_read_and_fresh_login_cannot_rebind` and
+`http_rotation_rejects_old_cookie_and_session_before_fresh_initialization`.
+The expiry cases use controlled generated Access/MCP clock and owner-Gate seams
+for dispatch/disclosure and old-session non-rebinding. The rotation case uses
+actual in-process middleware/router/rotation and registry to refuse old
+cookie/session before fresh initialization. These already executed cases use no
+listener, TLS, browser, provider or private installed state and establish no
+installed-authority acceptance. No #289 source or execution selection changes.
+
 The frontend and loopback jobs of `rust-react-ordinary.yml` run their browser
 checks in one exact Chrome for Testing build, not the runner image's Chrome: the
 shared setup action downloads it, verifies its recorded SHA-256 and reported

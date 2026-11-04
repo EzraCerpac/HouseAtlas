@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 20162,
-      "sha256": "6b15cadd09b99f6d2e87899bde35a3165a46350e7b79ad41cce00b7557861bf7",
+      "bytes": 23247,
+      "sha256": "12ab5a0307771ca183dbb796a4b2549ae66ed24a7b06b18b199143363b7f58f2",
       "owner": "core-integration"
     },
     {
@@ -2631,15 +2631,15 @@
     {
       "path": "backend/src/http/providers/homebox_stock_healthy.rs",
       "mode": "100644",
-      "bytes": 12822,
-      "sha256": "95176eb703fc052feaeb66b4e73fd17008962c04e1e82a95fb8c425c6380ff12",
+      "bytes": 12917,
+      "sha256": "fc9f9a3e7d1d58a15eae9f81e1f64f047283f12837f80b8a6e55e228f0dc6e9e",
       "owner": "core-integration"
     },
     {
       "path": "backend/src/http/providers/mod.rs",
       "mode": "100644",
-      "bytes": 4178,
-      "sha256": "fd1ab5e98a59ff83014d4cd40c7aed56cd6a3f9c9f77051995a1e94822550e7e",
+      "bytes": 4219,
+      "sha256": "6ef26680c7c83d81c72641a6335b0fcb0c611a604ebf0d3e41f8d576804cd47d",
       "owner": "core-integration"
     },
     {
@@ -2890,8 +2890,8 @@
     {
       "path": "backend/src/lib.rs",
       "mode": "100644",
-      "bytes": 543,
-      "sha256": "e1fb1bd932448334e4ab2d66e36d5dfb34460d63e0272dffa965c4c8ee676109",
+      "bytes": 598,
+      "sha256": "574acc0e866f41cc2530a1f1bbd2feea90be1e9a312fe925c3bce25e0b365699",
       "owner": "core-integration"
     },
     {
@@ -6460,8 +6460,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 208000,
-      "sha256": "1680725497002a7369e1ba74d1a2504b193400f50f7c45169810d77b95e9db2c",
+      "bytes": 211506,
+      "sha256": "76f55620cfb6ab0599fa23414ef54f9b53214e6c74028ea31632fbfb355ccdf2",
       "owner": "core-integration"
     },
     {
@@ -7174,8 +7174,8 @@
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v4.md",
       "mode": "100644",
-      "bytes": 76879,
-      "sha256": "0a8bd86e8112b8d11fc3de8160c940520d3edd7861455760682fab9521e3822c",
+      "bytes": 82261,
+      "sha256": "8a7507cc079d2d4d383b4a0673bb372b228b7f84e41148a627c80775cdc3caa0",
       "owner": "core-integration"
     },
     {
