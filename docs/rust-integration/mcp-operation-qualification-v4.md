@@ -7,8 +7,8 @@ deliverable, not a new dispatcher, grant list, test suite or acceptance release.
 Version 3 grouped operation classes but did not join individual IDs to execution
 evidence. This ledger lists all 168 canonical IDs once, including family,
 effect/confirmation class, actual owner/profile and a bounded disposition.
-Counts after the M20–M26 increments: 46 QUALIFIED-SYNTHETIC paths,
-37 BLOCKED for broader operation evidence,
+Counts after the M20–M28 increments: 55 QUALIFIED-SYNTHETIC paths,
+28 BLOCKED for broader operation evidence,
 80 UNSUPPORTED-GENERIC, two HELD and three FORBIDDEN. These are profile/evidence
 dispositions, not the static catalog counts (154 pending, nine unsupported,
 two held, three forbidden). A missing generic binding is not proof that a
@@ -17,9 +17,9 @@ dedicated application/native owner is absent.
 QUALIFIED-SYNTHETIC means only the concrete operation/variant executed by the
 listed real Access/StockService/disposable SQLite fixture. It does not qualify
 all payloads, actors, profiles or installed operation. Binding create is the
-unresolved/source-free synthetic path; binding review is a committed rejected
-business decision. Batch evidence is an ordered successful two-circuit atomic
-batch, not arbitrary partial/provider/unknown results. Every qualified row still
+unresolved synthetic path; explicit binding reviews cover rejected, retired
+and accepted fixture decisions without adopting source presence. Batch evidence
+is an ordered successful two-circuit atomic batch, not arbitrary partial/provider/unknown results. Every qualified row still
 has G-full. Descriptors, protocol fixtures and fake downloads/read peers never
 receive real-service qualification by themselves.
 
@@ -257,6 +257,66 @@ G-full remains: accepted/known-elevation semantics, other relation/endpoint
 variants, arbitrary graph/guard/authority cases, R/M/W?/B? profiles, installed
 execution, media and unknown outcomes remain unqualified. #288 remains open.
 
+### Native unresolved-binding and correction-journal increment, 4 November 2026
+
+M27/M28 add actual local Editor Access/StockService/disposable-SQLite evidence
+for unresolved binding list/tombstone/restore and ordinary direct reconciliation
+read/create/tombstone/restore. Exact source head
+`b21981d8f85680040271e5ccc3438f6140499570` (tree
+`c0edd94568fe753a2d8955e879694a29e9748b4e`, base
+`a9ad6eb95ff611cf0a9e6cab060550a83b4f3388`) was checked out by
+[backend job 126582182194 / run 41832233468](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41832233468/job/126582182194).
+The log explicitly passed
+`healthy_native_unresolved_binding_lifecycle_pages_and_reopen` at 12:51:28 UTC
+and `healthy_native_reconciliation_lifecycle_pages_and_reopen` at 12:51:31.
+Totals: 242 passed, zero failed, 12 ignored and three filtered out. No source/CI
+repair or local qualification ran for this increment.
+
+Both cases create fresh fictional evidence and one native item identity through
+the actual owners, then create bindings with unique fictional keys under the
+existing fixture source configuration. Binding input omits sourceState; the
+actual owner derives unresolved, which exact committed/readback payloads retain.
+This asserts neither provider presence nor provider absence and contacts no
+provider. Explicit null/unknown/Unicode evidence, canonical null approval/create
+fields and complete required binding/journal payloads remain exact. Those closed
+payloads have no nullable optional slot to invent.
+
+M27 creates three bindings out of UUID order, reviews one rejected with new
+evidence and complete old/new guards, then tombstones/restores it at revisions
+1/2/3/4. Existing binding restore derives the genuine retained tombstoned
+preimage from the authorized snapshot; this unresolved variant needs no Media
+input or client-supplied original. It does not qualify restore of present-source
+bindings requiring the separate presence owner or other derivation variants.
+
+M28 creates three disjoint pairs of actual native bindings for the same item.
+Real review commands commit retired source and accepted destination decisions
+at revision 2 while both source states remain unresolved. These are synthetic
+binding review statuses, not external identity adoption, source presence or
+operational acceptance. Distinct retained compatible pairs and no outgoing
+destination edges meet the native journal compatibility/no-cycle contract.
+Three reviewed-correction journals are created with current evidence/identity
+and actual revision-2 binding guards. One follows create/tombstone/restore at
+revisions 1/2/3, retaining its immutable payload. No binding remap is invoked;
+immutable reconciliation replacement stays FORBIDDEN.
+
+The existing canonical MCP client validates full request/command/scope/schema,
+text/structured equality, replayed=false and original-intent digest correlation.
+Exact committed/get records, complete filtered UUID-ordered native cursor lists
+and active-only/includeArchived selection through tombstone/restore are required.
+Four-event binding and three-event journal history use only owner-issued cursors
+to terminal null, matching actual event IDs, actor, target, original intent and
+committed state, plus null create preimage and digest continuity. Strict SQLite
+close/reopen requires equal family/dependency records via native get and equal
+fresh complete list/history traversals. Access is retained; process/session
+restart, cursor persistence and crash durability remain unproved.
+
+Only nine dispositions advance (46/37 becomes 55/28): three binding and six
+reconciliation paths. Four already-qualified binding rows gain bounded evidence
+without reclassification; other 155 operation rows, M20–M26 registry entries,
+static catalog statuses and #533 are preserved. G-full still excludes other
+source states/reasons, graph/guard/authority variants, actual remap, R/M/W?/B?
+profiles, installed/media/WebMCP/device and unknown outcomes. #288 stays open.
+
 | Key | Exact existing case | Observed result | Method and limit |
 | --- | --- | --- | --- |
 | M01 | `transports::mcp::healthy_download::healthy_asset_download_sealed_codecs_preserve_canonical_wire` | PASS | fake download codec |
@@ -285,6 +345,8 @@ execution, media and unknown outcomes remain unqualified. #288 remains open.
 | M24 | `transports::mcp::healthy_local_atlas::infrastructure::healthy_native_circuit_lifecycle_lists_history_and_reopen` | PASS | real local Editor/StockService/SQLite; guarded circuit descriptor lifecycle with actual item-panel dependency, complete filtered active/archive lists, four-event history and strict reopen equality; retained Access |
 | M25 | `transports::mcp::healthy_local_atlas::places_relations::healthy_native_location_semantics_lifecycle_pages_and_reopen` | PASS | real local Editor/StockService/SQLite; proposed unclassified/floor-unknown location semantics, guarded lifecycle, complete filtered active/archive lists, four-event history and strict reopen equality; retained Access |
 | M26 | `transports::mcp::healthy_local_atlas::places_relations::healthy_native_documented_relation_lifecycle_pages_and_reopen` | PASS | real local Editor/StockService/SQLite; documented-connection with native item endpoints and unknown medium/uncertainty, guarded lifecycle, complete filtered active/archive lists, four-event history and strict reopen equality; retained Access |
+| M27 | `transports::mcp::healthy_local_atlas::bindings_reconciliation::healthy_native_unresolved_binding_lifecycle_pages_and_reopen` | PASS | real local Editor/StockService/SQLite; unresolved create/rejected review/tombstone/original-derived restore, complete filtered active/archive lists, four-event history and strict reopen equality; retained Access |
+| M28 | `transports::mcp::healthy_local_atlas::bindings_reconciliation::healthy_native_reconciliation_lifecycle_pages_and_reopen` | PASS | real local Editor/StockService/SQLite; reviewed-correction create/tombstone/restore over real retired/accepted unresolved binding pairs, complete filtered active/archive lists, three-event history and strict reopen equality; no remap; retained Access |
 | B01 | `healthy_large_read_page` | PASS | Fake bridge evidence-list/cursor forwarding and geometry page below 2 MiB; no native cursor/record owner |
 | B02 | `denial_read_profile_bounds` | PASS | Fake bridge scope/page/response refusal and retained read availability; no native expiry or provider execution |
 | B03 | `denial_read_correlation` | PASS | Fake bridge request ID/command/scope mismatch refusal; no actual private connector invocation |
@@ -313,6 +375,11 @@ M25/M26 live in `backend/src/transports/mcp/healthy_places_relations.rs`, reusin
 M21's real factory and M23/M24's canonical record/list/history assertions through
 test-only parent visibility. Shared list selection takes the same valve/circuit
 kind/query tuple as before; all prior assertions and M20–M24 entries remain intact.
+
+M27/M28 live in `backend/src/transports/mcp/healthy_bindings_reconciliation.rs`,
+reusing the unchanged actual M21 factory and M23/M24 canonical read/history
+helpers. Only its test-only child declaration is added; prior helpers and
+M20–M26 assertions remain intact.
 
 ## Profile and domain owner key
 
@@ -376,13 +443,13 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | `atlas.identity.replace` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M21 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.identity.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M21 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.identity.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M21 | QUALIFIED-SYNTHETIC; G-full |
-| `atlas.binding.get` | atlas_bindings | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M12 | QUALIFIED-SYNTHETIC; G-full |
-| `atlas.binding.list` | atlas_bindings | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.binding.history` | atlas_bindings | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M12 | QUALIFIED-SYNTHETIC; G-full |
-| `atlas.binding.create` | atlas_bindings | supported-pending-qualification | write; none | A-derived; L,E (owner inputs); W?; B-write? | M12 | QUALIFIED-SYNTHETIC; G-full |
-| `atlas.binding.review` | atlas_bindings | supported-pending-qualification | write; none | A-derived; L,E (owner inputs); W?; B-write? | M12 | QUALIFIED-SYNTHETIC; G-full |
-| `atlas.binding.tombstone` | atlas_bindings | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.binding.restore` | atlas_bindings | supported-pending-qualification | write; none | A-derived; L,E (owner inputs); W?; B-write? | none beyond shared metadata | BLOCKED; G-media/operation |
+| `atlas.binding.get` | atlas_bindings | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M12, M27, M28 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.binding.list` | atlas_bindings | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M27 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.binding.history` | atlas_bindings | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M12, M27 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.binding.create` | atlas_bindings | supported-pending-qualification | write; none | A-derived; L,E (owner inputs); W?; B-write? | M12, M27, M28 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.binding.review` | atlas_bindings | supported-pending-qualification | write; none | A-derived; L,E (owner inputs); W?; B-write? | M12, M27, M28 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.binding.tombstone` | atlas_bindings | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M27 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.binding.restore` | atlas_bindings | supported-pending-qualification | write; none | A-derived; L,E (owner inputs); W?; B-write? | M27 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.evidence.get` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M02, M11, M20, M22 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.evidence.list` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | B01, B02, B03, M20, M22 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.evidence.history` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M11, M20, M22 | QUALIFIED-SYNTHETIC; G-full |
@@ -434,12 +501,12 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | `atlas.asset.review` | atlas_media_geometry | supported-pending-qualification | write; none | A-derived; L,E (owner inputs); W?; B-write? | none beyond shared metadata | BLOCKED; G-media/operation |
 | `atlas.asset.tombstone` | atlas_media_geometry | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
 | `atlas.asset.restore` | atlas_media_geometry | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.reconciliation.get` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.reconciliation.list` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.reconciliation.history` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.reconciliation.create` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.reconciliation.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.reconciliation.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
+| `atlas.reconciliation.get` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M28 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.reconciliation.list` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M28 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.reconciliation.history` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M28 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.reconciliation.create` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M28 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.reconciliation.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M28 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.reconciliation.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M28 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.binding.remap` | atlas_bindings | supported-pending-qualification | write; exact-impact-human | A-derived; L,E (owner inputs); W?; B-write? | none beyond shared metadata | BLOCKED; G-remap |
 | `atlas.asset.download` | atlas_media_geometry | supported-pending-qualification | read; none | A-download; M (issuer/redemption); W?; B-read? | M01, M02 | BLOCKED; G-transfer |
 | `homebox.entity.get` | homebox_entities_locations | supported-pending-qualification | read; none | H-cache; R,M (cache scoped); W?; B-read? | none beyond shared metadata | BLOCKED; G-provider |
@@ -555,7 +622,7 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | WebMCP document/session/visible completion | DEFERRED for browser/device; partial synthetic adapter evidence separate | Exact current host binding, one document registration owner, visible commit ordering, replacement context/cleanup and unsupported-browser behavior still require their admitted owner/evidence |
 | Complete per-operation installed matrix | OPEN | This ledger completes the 168-ID source/evidence index only. It cannot certify installed execution, private data, operational roles, whole-profile admission or deferred device acceptance |
 
-The initial version-4 publication changed documentation only. M20–M26 add
+The initial version-4 publication changed documentation only. M20–M28 add
 ordinary in-process native fixture cases in the existing default backend-library
 selection, with no runner/workflow registration change. No
 production routing, credentials, grants, provider calls, held controls, browser,
