@@ -2323,8 +2323,8 @@
     {
       "path": "backend/src/http/agents/asset_download_healthy.rs",
       "mode": "100644",
-      "bytes": 13476,
-      "sha256": "c5c15df960666430d69918c01b419aac629704d04cdf5f4f0ee0712c8f445f71",
+      "bytes": 15287,
+      "sha256": "90217cf4710559cee743277cc4cfe81585610cc20eb8c316ba4b0c293991e24b",
       "owner": "core-integration"
     },
     {
