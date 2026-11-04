@@ -5774,8 +5774,8 @@
     {
       "path": "backend/src/transports/mcp/lifecycle/synthetic_contracts.rs",
       "mode": "100644",
-      "bytes": 31528,
-      "sha256": "8d9265f842c904235978606c126374ba4856aa1e2d6cfa1331ac3c6b5ff21d99",
+      "bytes": 43142,
+      "sha256": "104e994e9491edf9ecd33510e8956941c8bfcea28be75bbb4eba7ad13e19c04c",
       "owner": "mcp"
     },
     {

@@ -10,7 +10,7 @@ use std::{
     pin::{Pin, pin},
     sync::{
         Arc, Mutex,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering},
     },
     task::{Context, Poll, Waker},
 };
@@ -771,5 +771,339 @@ fn native_circuit_list_pages_preserve_canonical_records_and_empty_query() -> Res
     assert_eq!(empty["data"]["sourceStatus"], "current");
     assert_eq!(gate.dispatches.load(Ordering::SeqCst), 10);
     session.close();
+    Ok(())
+}
+
+// The clock is installed before any AuthenticatedIdentity is issued. The Store
+// keeps the same Arc<Mutex<AccessBoundary>>; no borrowed principal is rebound.
+fn expiry_fixture() -> Result<(Fixture, Arc<AtomicI64>, i64), Failure> {
+    let fixture = Fixture::new()?;
+    let now = i64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_millis(),
+    )?;
+    let clock = Arc::new(AtomicI64::new(now));
+    let current = Arc::clone(&clock);
+    let access = a::AccessBoundary::open_existing(
+        fixture._scratch.path().join("fixture/access.sqlite"),
+        a::AccessConfig::new(vec![ORIGIN.into()])?
+            .with_clock(move || current.load(Ordering::SeqCst)),
+    )?;
+    *fixture.core.access.lock().unwrap() = access;
+    let expires = fixture
+        .core
+        .access
+        .lock()
+        .unwrap()
+        .session_info(&observed(Some(&fixture.cookie), Some(&fixture.csrf)))?
+        .expires_at_ms();
+    assert!(now < expires);
+    Ok((fixture, clock, expires))
+}
+
+#[test]
+fn absolute_expiry_at_dispatch_rejects_original_credentials_without_owner_work()
+-> Result<(), Failure> {
+    let (fixture, clock, expires) = expiry_fixture()?;
+    let identity = fixture.authenticate()?;
+    let gate = Arc::new(Gate::default());
+    gate.release();
+    let mut session = fixture.open(&identity, &gate);
+    clock.store(expires - 1, Ordering::SeqCst);
+    let before: Value = serde_json::from_slice(&call(fixture.read(), json!("before-expiry")))?;
+    assert_eq!(
+        frame(&mut session, &identity, before)["result"]["structuredContent"]["status"],
+        "read"
+    );
+    assert_eq!(gate.dispatches.load(Ordering::SeqCst), 1);
+
+    // Equality is expired, not one millisecond later. Retained handles and old
+    // credentials must both fail, without rotation or a revocation event.
+    clock.store(expires, Ordering::SeqCst);
+    assert!(matches!(
+        fixture.authenticate(),
+        Err(a::AccessError::Unauthenticated)
+    ));
+    assert_eq!(
+        ready(session.handle(&identity, &call(fixture.read(), json!("at-expiry")),)),
+        Err(PortError::Unauthenticated)
+    );
+    assert_eq!(gate.dispatches.load(Ordering::SeqCst), 1);
+    clock.store(expires + 1, Ordering::SeqCst);
+    assert_eq!(
+        ready(session.handle(&identity, &call(fixture.read(), json!("after-expiry")),)),
+        Err(PortError::Unauthenticated)
+    );
+    assert_eq!(gate.dispatches.load(Ordering::SeqCst), 1);
+    Ok(())
+}
+
+#[test]
+fn absolute_expiry_withholds_completed_read_and_fresh_login_cannot_rebind() -> Result<(), Failure> {
+    let (fixture, clock, expires) = expiry_fixture()?;
+    let identity = fixture.authenticate()?;
+    let gate = Arc::new(Gate::default());
+    let mut session = fixture.open(&identity, &gate);
+    clock.store(expires - 1, Ordering::SeqCst);
+    let bytes = call(fixture.read(), json!("expiry-during-owner"));
+    {
+        let mut pending = pin!(session.handle(&identity, &bytes));
+        assert!(poll_once(pending.as_mut()).is_pending());
+        assert!(gate.reached.load(Ordering::SeqCst));
+        assert_eq!(
+            gate.owner_wire.lock().unwrap().as_ref().unwrap()["status"],
+            "read"
+        );
+        clock.store(expires, Ordering::SeqCst);
+        gate.release();
+        assert_eq!(
+            poll_once(pending.as_mut()),
+            Poll::Ready(Err(PortError::Unauthenticated))
+        );
+        assert!(gate.drained.load(Ordering::SeqCst));
+    }
+    assert_eq!(gate.dispatches.load(Ordering::SeqCst), 1);
+
+    // Genuine generated-state login after expiry is independent of the old
+    // protocol session. No clock rewind, old-session refresh or read retry.
+    clock.store(expires + 1, Ordering::SeqCst);
+    let receipt: Value = serde_json::from_slice(&fs::read(
+        fixture._scratch.path().join("fixture/smoke-session.json"),
+    )?)?;
+    let body = serde_json::to_vec(receipt.get("editorLogin").ok_or("Missing login")?)?;
+    let login = fixture.core.access.lock().unwrap().login(
+        &observed(None, None),
+        &body,
+        "agent289-synthetic-fresh",
+    )?;
+    let cookie = login.set_cookie().split(';').next().unwrap();
+    let fresh = fixture.authenticate_with(cookie, login.info().csrf_token())?;
+    assert_eq!(
+        ready(session.handle(
+            &fresh,
+            br#"{"jsonrpc":"2.0","id":"no-rebind","method":"ping"}"#,
+        )),
+        Err(PortError::Forbidden)
+    );
+    assert_eq!(gate.dispatches.load(Ordering::SeqCst), 1);
+    let fresh_gate = Arc::new(Gate::default());
+    fresh_gate.release();
+    let mut independent = fixture.open(&fresh, &fresh_gate);
+    let read: Value = serde_json::from_slice(&call(fixture.read(), json!("fresh-read")))?;
+    assert_eq!(
+        frame(&mut independent, &fresh, read)["result"]["structuredContent"]["status"],
+        "read"
+    );
+    Ok(())
+}
+
+async fn http_exchange(
+    app: axum::Router,
+    path: &str,
+    cookie: &str,
+    csrf: &str,
+    session: Option<&str>,
+    body: Value,
+) -> Result<(axum::http::StatusCode, axum::http::HeaderMap, Value), Failure> {
+    use axum::{body::Body, extract::ConnectInfo, http::Request};
+    use tower::ServiceExt;
+
+    let bytes = serde_json::to_vec(&body)?;
+    let mut request = Request::builder()
+        .method("POST")
+        .uri(path)
+        .header("host", "atlas.synthetic.invalid")
+        .header("origin", ORIGIN)
+        .header("sec-fetch-site", "same-origin")
+        .header("accept", "application/json, text/event-stream")
+        .header("content-type", "application/json")
+        .header("content-length", bytes.len())
+        .header("cookie", cookie)
+        .header("x-atlas-csrf", csrf)
+        .header("mcp-protocol-version", super::super::PROTOCOL_VERSION);
+    if let Some(session) = session {
+        request = request.header("mcp-session-id", session);
+    }
+    let mut request = request.body(Body::from(bytes))?;
+    request.extensions_mut().insert(ConnectInfo(
+        "127.0.0.1:50123".parse::<std::net::SocketAddr>()?,
+    ));
+    // Actual middleware/router/HTTP framing, with generated in-process requests.
+    // No listener, TLS setup, browser or external transport is opened.
+    let response = app.oneshot(request).await?;
+    let status = response.status();
+    let headers = response.headers().clone();
+    let bytes = axum::body::to_bytes(response.into_body(), 1024 * 1024).await?;
+    let body = if bytes.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_slice(&bytes)?
+    };
+    Ok((status, headers, body))
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn http_rotation_rejects_old_cookie_and_session_before_fresh_initialization()
+-> Result<(), Failure> {
+    use axum::http::StatusCode;
+
+    let fixture = Fixture::new()?;
+    let scope = fixture.core.home.scope.clone();
+    let path = format!(
+        "/api/atlas/mcp/workspaces/{}/homes/{}",
+        scope.workspace_id, scope.home_id
+    );
+    let request = fixture.read();
+    let cookie = fixture.cookie;
+    let csrf = fixture.csrf;
+    let _scratch = fixture._scratch;
+    let host = crate::http::Host::new(
+        fixture.core,
+        ORIGIN.into(),
+        Arc::new(std::collections::BTreeMap::new()),
+        vec![],
+    )?;
+    let app = crate::http::router(host);
+    let initialize = json!({"jsonrpc":"2.0","id":"init","method":"initialize","params":{
+        "protocolVersion":super::super::PROTOCOL_VERSION,"capabilities":{},
+        "clientInfo":{"name":"Synthetic old HTTP authority","version":"1"}}});
+    let (status, headers, body) =
+        http_exchange(app.clone(), &path, &cookie, &csrf, None, initialize.clone()).await?;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["id"], "init");
+    assert!(body.get("error").is_none());
+    let old_session = headers
+        .get("mcp-session-id")
+        .ok_or("Missing session")?
+        .to_str()?
+        .to_owned();
+    let initialized = json!({"jsonrpc":"2.0","method":"notifications/initialized"});
+    let (status, _, body) = http_exchange(
+        app.clone(),
+        &path,
+        &cookie,
+        &csrf,
+        Some(&old_session),
+        initialized.clone(),
+    )
+    .await?;
+    assert_eq!(status, StatusCode::ACCEPTED);
+    assert_eq!(body, Value::Null);
+
+    let initial_call: Value =
+        serde_json::from_slice(&call(request.clone(), json!("before-rotation")))?;
+    let (status, _, body) = http_exchange(
+        app.clone(),
+        &path,
+        &cookie,
+        &csrf,
+        Some(&old_session),
+        initial_call,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["result"]["structuredContent"]["status"], "read");
+    assert_eq!(
+        body["result"]["structuredContent"]["resolvedScope"],
+        json!(scope)
+    );
+
+    // Invoke the actual HTTP rotation handler, including registry notification.
+    let (status, headers, body) = http_exchange(
+        app.clone(),
+        "/api/atlas/auth/rotate",
+        &cookie,
+        &csrf,
+        None,
+        json!({}),
+    )
+    .await?;
+    assert_eq!(status, StatusCode::OK);
+    let replacement_cookie = headers
+        .get("set-cookie")
+        .ok_or("Missing rotated cookie")?
+        .to_str()?
+        .split(';')
+        .next()
+        .ok_or("Missing cookie pair")?
+        .to_owned();
+    let replacement_csrf = body["csrfToken"]
+        .as_str()
+        .ok_or("Missing rotated CSRF")?
+        .to_owned();
+    let ping = json!({"jsonrpc":"2.0","id":"old","method":"ping"});
+    for session in [Some(old_session.as_str()), None] {
+        let (status, headers, body) = http_exchange(
+            app.clone(),
+            &path,
+            &cookie,
+            &csrf,
+            session,
+            initialize.clone(),
+        )
+        .await?;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert_eq!(body["error"]["code"], -32001);
+        assert!(body.get("result").is_none());
+        assert!(!headers.contains_key("mcp-session-id"));
+    }
+    let (status, _, body) = http_exchange(
+        app.clone(),
+        &path,
+        &replacement_cookie,
+        &replacement_csrf,
+        Some(&old_session),
+        ping,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["error"]["code"], -32000);
+    assert!(body.get("result").is_none());
+
+    let (status, headers, body) = http_exchange(
+        app.clone(),
+        &path,
+        &replacement_cookie,
+        &replacement_csrf,
+        None,
+        initialize,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.get("error").is_none());
+    let fresh_session = headers
+        .get("mcp-session-id")
+        .ok_or("Missing new session")?
+        .to_str()?
+        .to_owned();
+    assert_ne!(fresh_session, old_session);
+    let (status, _, _) = http_exchange(
+        app.clone(),
+        &path,
+        &replacement_cookie,
+        &replacement_csrf,
+        Some(&fresh_session),
+        initialized,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::ACCEPTED);
+    let read: Value = serde_json::from_slice(&call(request, json!("fresh-http-read")))?;
+    let (status, _, body) = http_exchange(
+        app,
+        &path,
+        &replacement_cookie,
+        &replacement_csrf,
+        Some(&fresh_session),
+        read,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["id"], "fresh-http-read");
+    assert_eq!(body["result"]["structuredContent"]["status"], "read");
+    assert_eq!(
+        body["result"]["structuredContent"]["resolvedScope"],
+        json!(scope)
+    );
     Ok(())
 }
