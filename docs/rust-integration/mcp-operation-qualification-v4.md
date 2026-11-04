@@ -7,8 +7,8 @@ deliverable, not a new dispatcher, grant list, test suite or acceptance release.
 Version 3 grouped operation classes but did not join individual IDs to execution
 evidence. This ledger lists all 168 canonical IDs once, including family,
 effect/confirmation class, actual owner/profile and a bounded disposition.
-Counts after the M20/M21 increments: 20 QUALIFIED-SYNTHETIC paths,
-63 BLOCKED for broader operation evidence,
+Counts after the M20–M22 increments: 22 QUALIFIED-SYNTHETIC paths,
+61 BLOCKED for broader operation evidence,
 80 UNSUPPORTED-GENERIC, two HELD and three FORBIDDEN. These are profile/evidence
 dispositions, not the static catalog counts (154 pending, nine unsupported,
 two held, three forbidden). A missing generic binding is not proof that a
@@ -115,6 +115,43 @@ are preserved. G-full still applies; this filtered synthetic item query does not
 qualify all identity kinds/variants, R/M/W?/B? profiles or installed execution.
 The separate #289/#533 expiry/session evidence and its matrix are not changed.
 
+### Native evidence lifecycle increment, 4 November 2026
+
+M22 adds actual local Editor Access/StockService/disposable-SQLite evidence for
+`atlas.evidence.tombstone` and `atlas.evidence.restore`. Exact source head
+`54f4d1c569fc9e88a8cb38984696cef65777005f` (tree
+`62185cae17973a2409b84cdc41850f03b8829abe`, base
+`6ab8365f383fead09d9fc2596413e6cbc418a165`) was checked out by
+[backend job 126533327556 / run 41817860552](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41817860552/job/126533327556).
+Its log explicitly emitted
+`healthy_native_evidence_tombstone_restore_pages_history_and_reopen ... ok`
+at 11:04:17 UTC. Totals: 236 passed, zero failed, 12 ignored and three filtered
+out. Retained M20 and M21 cases also explicitly passed. No local qualification
+ran and no source/CI repair was needed for this increment.
+
+Three new fictional evidence records are created out of UUID order. Source is
+null, references/supersedes are empty and no other record refers to their IDs;
+the documented dependency guard set is empty. One follows create/tombstone/restore
+with current target preconditions and revisions 1/2/3. Empty lifecycle command
+payloads retain its complete original Unicode and explicit unknown/null content.
+Canonical commit/get envelopes are validated by the existing native MCP client.
+Complete filtered owner-cursor list chains require UUID order, active-only
+exclusion and includeArchived inclusion. Three-event native history traverses
+only actual returned cursors to terminal null and matches event IDs, actor,
+target and original intent digests to the committed results, preserving null
+create preimage and before/after digest continuity. Strict SQLite close/reopen
+requires equal records and history entries through fresh complete cursor chains.
+Access is retained; process/session restart and cursor persistence are not proved.
+
+Only these two dispositions advance (20/63 becomes 22/61). Already-qualified
+evidence create/get/list/history gain bounded M22 evidence without reclassification.
+The other 162 operation rows and the M20/M21 registry entries are preserved.
+Evidence replace stays FORBIDDEN append-only, with its row and all canonical
+schemas/admission unchanged. This does not qualify retirement/restoration of
+referenced or source/media-dependent evidence, other guard/authority variants,
+R/M/W?/B? profiles, installed operations, transfer or unknown outcomes. G-full
+remains on every qualified row; #288 remains open.
+
 | Key | Exact existing case | Observed result | Method and limit |
 | --- | --- | --- | --- |
 | M01 | `transports::mcp::healthy_download::healthy_asset_download_sealed_codecs_preserve_canonical_wire` | PASS | fake download codec |
@@ -138,6 +175,7 @@ The separate #289/#533 expiry/session evidence and its matrix are not changed.
 | M19 | `transports::mcp::lifecycle::synthetic_contracts::revocation_and_membership_change_withhold_completed_native_reads` | PASS | real identity read revocation/membership control; not expiry |
 | M20 | `transports::mcp::healthy_local_atlas::healthy_native_evidence_create_pages_get_and_reopened_history` | PASS | real Access/StockService/SQLite; three evidence creates, complete filtered native cursor traversal, get/single-create history equality after strict store reopen; retained Access |
 | M21 | `transports::mcp::healthy_local_atlas::identity::healthy_native_identity_lifecycle_lists_history_and_reopen` | PASS | real local Editor/StockService/SQLite; item create/guarded replace/tombstone/restore, complete filtered active/archive lists and four-event history, get and strict store-reopen equality; retained Access |
+| M22 | `transports::mcp::healthy_local_atlas::evidence_lifecycle::healthy_native_evidence_tombstone_restore_pages_history_and_reopen` | PASS | real local Editor/StockService/SQLite; unreferenced evidence create/tombstone/restore, unknown/null payload retention, complete filtered active/archive lists and three-event history, strict reopen equality; retained Access |
 | B01 | `healthy_large_read_page` | PASS | Fake bridge evidence-list/cursor forwarding and geometry page below 2 MiB; no native cursor/record owner |
 | B02 | `denial_read_profile_bounds` | PASS | Fake bridge scope/page/response refusal and retained read availability; no native expiry or provider execution |
 | B03 | `denial_read_correlation` | PASS | Fake bridge request ID/command/scope mismatch refusal; no actual private connector invocation |
@@ -153,6 +191,10 @@ row but is deliberately not repeated as operation-execution evidence.
 M21 lives in `backend/src/transports/mcp/healthy_identity.rs`, a test-only child
 of `healthy_local_atlas`; it reuses the same actual canonical MCP client and
 command helpers. No lifecycle fixture or workflow selection is replaced.
+
+M22 lives in `backend/src/transports/mcp/healthy_evidence_lifecycle.rs`, another
+test-only child, reusing M21's actual factory/client/reopen helper through parent
+visibility only. M20/M21 assertions and #533 lifecycle fixtures remain unchanged.
 
 ## Profile and domain owner key
 
@@ -223,12 +265,12 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | `atlas.binding.review` | atlas_bindings | supported-pending-qualification | write; none | A-derived; L,E (owner inputs); W?; B-write? | M12 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.binding.tombstone` | atlas_bindings | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
 | `atlas.binding.restore` | atlas_bindings | supported-pending-qualification | write; none | A-derived; L,E (owner inputs); W?; B-write? | none beyond shared metadata | BLOCKED; G-media/operation |
-| `atlas.evidence.get` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M02, M11, M20 | QUALIFIED-SYNTHETIC; G-full |
-| `atlas.evidence.list` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | B01, B02, B03, M20 | QUALIFIED-SYNTHETIC; G-full |
-| `atlas.evidence.history` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M11, M20 | QUALIFIED-SYNTHETIC; G-full |
-| `atlas.evidence.create` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M20 | QUALIFIED-SYNTHETIC; G-full |
-| `atlas.evidence.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
-| `atlas.evidence.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | none beyond shared metadata | BLOCKED; G-operation |
+| `atlas.evidence.get` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M02, M11, M20, M22 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.evidence.list` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | B01, B02, B03, M20, M22 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.evidence.history` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | M11, M20, M22 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.evidence.create` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M20, M22 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.evidence.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M22 | QUALIFIED-SYNTHETIC; G-full |
+| `atlas.evidence.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M22 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.location-semantics.get` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
 | `atlas.location-semantics.list` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
 | `atlas.location-semantics.history` | atlas_records | supported-pending-qualification | read; none | A-read; R,L,M; W?; B-read? | none beyond shared metadata | BLOCKED; G-operation |
@@ -395,7 +437,7 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | WebMCP document/session/visible completion | DEFERRED for browser/device; partial synthetic adapter evidence separate | Exact current host binding, one document registration owner, visible commit ordering, replacement context/cleanup and unsupported-browser behavior still require their admitted owner/evidence |
 | Complete per-operation installed matrix | OPEN | This ledger completes the 168-ID source/evidence index only. It cannot certify installed execution, private data, operational roles, whole-profile admission or deferred device acceptance |
 
-The initial version-4 publication changed documentation only. M20 and M21 add
+The initial version-4 publication changed documentation only. M20–M22 add
 ordinary in-process native fixture cases in the existing default backend-library
 selection, with no runner/workflow registration change. No
 production routing, credentials, grants, provider calls, held controls, browser,
