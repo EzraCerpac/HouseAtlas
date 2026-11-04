@@ -558,6 +558,34 @@ existing test selection are retained. This is one positive same-Host lifetime,
 without sockets, TLS, provider calls, browser, expiry/revocation, second-process
 restart, renderer or installed acceptance; no workflow command is added.
 
+The same default-library job also selects the single #296 case
+`http::agents::asset_download_healthy::healthy_contextual_five_format_native_post_receipt_original_readback`.
+It reuses #542's request helper and disposable same-Host construction. Setup
+creates a native location with a real stock HTTP batch, then each of the five
+existing generated originals (JPEG, progressive JPEG, PNG, PDF and UTF-8 text)
+receives a fresh native admission read and one multipart POST to the contextual
+native-place evidence route. This is not five standalone asset creates.
+
+The unchanged native intake, retained Access, stock mutation fence, actual
+SQLite journal and Media vault validate and commit asset/evidence/identity
+linkage. The test reads the actual saved original root and durable child
+envelopes for canonical wire validation; it never fabricates completion
+responses or deserializes upload authority. Current record GETs, exact evidence
+reference and cumulative identity linkage, opaque unverified picker claims,
+unknown fact time and bounded server intake time are asserted. Authenticated
+native original GET must equal each input byte-for-byte and by SHA-256; HEAD
+must retain MIME/size/attachment/no-store headers and return no body. The
+journal must contain exactly one additional operation per submitted intent
+and remain unchanged by readback/reconciliation.
+
+This remains one positive disposable native lifetime, not post-capture reopen,
+process restart, installed recovery, decoder peak-memory/interruptibility,
+load/concurrency, physical provenance or GUI/device acceptance. It opens no
+socket, TLS session or browser and contacts no provider. Existing storage and
+body/work bounds are unchanged. The already selected backend `--lib` lane
+executes it without a new workflow command; execution must be evidenced by
+the exact test name in the exact-head/resulting-main job log.
+
 The default-library lane additionally selects exactly
 `http::providers::homebox_stock_history_healthy::healthy_native_prepared_homebox_history_cuts_and_reopen`.
 A fresh profile-6 Core/Store bootstraps only a synthetic source/cache epoch.
