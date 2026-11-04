@@ -5695,6 +5695,13 @@
       "owner": "mcp"
     },
     {
+      "path": "backend/src/transports/mcp/healthy_bindings_reconciliation.rs",
+      "mode": "100644",
+      "bytes": 14276,
+      "sha256": "7b1dab3368dd79fedf9907fe29c1aeb4493f69fe00c86a947c33b9d146efba73",
+      "owner": "mcp"
+    },
+    {
       "path": "backend/src/transports/mcp/healthy_download.rs",
       "mode": "100644",
       "bytes": 15283,
@@ -5732,8 +5739,8 @@
     {
       "path": "backend/src/transports/mcp/healthy_local_atlas.rs",
       "mode": "100644",
-      "bytes": 29736,
-      "sha256": "a599c9c7ad01cc2f7d317f284f0c5541859c486d3dc51fbcd639377d1ca3debf",
+      "bytes": 29813,
+      "sha256": "3e27cb81cc9155917f3f45504804165dc8b00912d73574f8f43d1aa4fb74b2e6",
       "owner": "mcp"
     },
     {
