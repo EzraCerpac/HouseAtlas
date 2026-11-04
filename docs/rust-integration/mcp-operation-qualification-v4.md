@@ -443,7 +443,19 @@ derived and batch operations remain admitted. Canonical schemas/catalog status,
 bridge exact-approval holds and existing approval owners are unchanged.
 
 M33 adds one explicit ordinary in-process actual Access/StockService/SQLite
-hold case, currently NOT RUN pending hosted qualification. It covers null and
+hold case. Exact source `f4764e1a324a2152bfb793e1a61b27e4270b7f20` (tree
+`58c21f34b74e96a3e3c917e96d1e9f54afabd752`, base
+`813bf7b70b629fa91d6c3ba3134f37056716fb0d`) was checked out by
+[backend job 126672962958 / run 41858271936](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41858271936/job/126672962958).
+It explicitly passed `native_remap_hold_preserves_store_and_permitted_batch`
+at 15:35:25 UTC, finishing 246 passed, zero failed, 12 ignored and three filtered
+out. On the same source, existing Linux
+[source job 126672963246](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41858271936/job/126672963246)
+explicitly passed seven-child/nine-entry lower-level Store coverage and nine
+reopened record/history pairs at 15:32:41 UTC, then the specialized root's
+unapproved remap hold and independent positives at 15:32:42 UTC. These are
+separate actual execution logs, not metadata or compiler-only evidence.
+The M33 case covers null and
 unproven receipt UUIDs, direct singles and containing mixed batches in both
 orders, MCP discovery/refusal, exact row equality in ten owned
 record/reservation/audit/receipt tables after each attempt, strict store reopen
@@ -456,11 +468,16 @@ ran the case but failed before refusal
 attempts because a substring assertion searched complete tool descriptors,
 including unchanged canonical output schemas (245 passed, one failed).
 That failed execution establishes
-no M33 qualification. The corrected fixture resolves actual input top-level and
+no M33 qualification. The successful corrected fixture resolves actual input top-level and
 batch-child arms, requires remap absent and permitted arms present, and validates
 canonical refused/permitted requests against those advertised input schemas.
-Output contracts are preserved. NOT RUN refers to this corrected fixture until
-its complete hosted execution is observed.
+Output contracts are preserved. Initial `99a230e8` also failed before tests on a
+fixture Result/Option method mismatch and formatting; `f2402f8b` exposed three
+further formatting hunks. That superseded run printed M33 and 246/0 before
+cancellation, but its formatting failure/cancelled conclusion is not a green
+source run. Exact hosted formatting and the actual lifecycle Result
+contract were applied without local qualification or production-predicate changes.
+Only the complete successful M33 execution above qualifies this bounded hold.
 
 The existing specialized root example replaces its invalid positive remap with
 explicit refusal and unchanged native snapshot. Ordinary supported binding
@@ -506,7 +523,7 @@ broader #288 acceptance remain open.
 | M30 | `transports::mcp::healthy_local_atlas::media_metadata::healthy_native_missing_asset_metadata_history_and_reopen` | PASS | real local Editor/StockService/SQLite; seeded missing asset get/list/history/download-only review/tombstone/restore, public projection, initially empty history and actual non-null seed digest anchor, three-event cursor chain and strict reopen; singleton/empty lists only; no transfer |
 | M31 | `http::providers::homebox_stock_healthy::healthy_cached_homebox_stock_and_mcp_reads` | PASS | real Viewer Access/source registrations/reopened SQLite/native StockService and borrowed MCP; four cached get/list reads, stale dates, canonical parity and unchanged snapshots; UUID-rebound collection, singleton first-page lists only; no provider IO or post-read reopen |
 | M32 | `healthy-network-loopback.py` driving `healthy-network-root-router` / `healthy_network_host.rs` mounted-MCP saved-query loop | PASS | existing real canonical Access/native NetworkBinding/disposable TLS publication; genuine Editor/current-CSRF MCP for three saved reads equals actual Viewer HTTP-owner data, five nodes/one generation/unresolved endpoint; one upstream GET total, immutable archive reopen only |
-| M33 | `transports::mcp::healthy_local_atlas::remap_hold::native_remap_hold_preserves_store_and_permitted_batch` | NOT RUN | actual synthetic Editor/StockService/SQLite hold: null/unproven receipt singles and both mixed-batch orders, current MCP refusal, exact retained rows/reopen and permitted direct/derived batch; no remap approval or success |
+| M33 | `transports::mcp::healthy_local_atlas::remap_hold::native_remap_hold_preserves_store_and_permitted_batch` | PASS (hold only) | actual synthetic Editor/StockService/SQLite hold: null/unproven receipt singles and both mixed-batch orders, actual input-arm/schema and MCP refusal checks, exact retained rows/reopen and permitted direct/derived batch; no remap approval or success |
 | B01 | `healthy_large_read_page` | PASS | Fake bridge evidence-list/cursor forwarding and geometry page below 2 MiB; no native cursor/record owner |
 | B02 | `denial_read_profile_bounds` | PASS | Fake bridge scope/page/response refusal and retained read availability; no native expiry or provider execution |
 | B03 | `denial_read_correlation` | PASS | Fake bridge request ID/command/scope mismatch refusal; no actual private connector invocation |
@@ -681,7 +698,7 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | `atlas.reconciliation.create` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M28 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.reconciliation.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M28 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.reconciliation.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M28 | QUALIFIED-SYNTHETIC; G-full |
-| `atlas.binding.remap` | atlas_bindings | supported-pending-qualification | write; exact-impact-human | native-held; no R/L/M/E; W?; B-write? (separate exact owner required) | M33 NOT RUN | BLOCKED; G-remap |
+| `atlas.binding.remap` | atlas_bindings | supported-pending-qualification | write; exact-impact-human | native-held; no R/L/M/E; W?; B-write? (separate exact owner required) | M33 (hold only) | BLOCKED; G-remap |
 | `atlas.asset.download` | atlas_media_geometry | supported-pending-qualification | read; none | A-download; M (issuer/redemption); W?; B-read? | M01, M02 | BLOCKED; G-transfer |
 | `homebox.entity.get` | homebox_entities_locations | supported-pending-qualification | read; none | H-cache; R,M (cache scoped); W?; B-read? | M31 | QUALIFIED-SYNTHETIC; G-full |
 | `homebox.entity.list` | homebox_entities_locations | supported-pending-qualification | read; none | H-cache; R,M (cache scoped); W?; B-read? | M31 | QUALIFIED-SYNTHETIC; G-full |
