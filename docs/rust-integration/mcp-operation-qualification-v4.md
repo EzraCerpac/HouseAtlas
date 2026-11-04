@@ -7,8 +7,8 @@ deliverable, not a new dispatcher, grant list, test suite or acceptance release.
 Version 3 grouped operation classes but did not join individual IDs to execution
 evidence. This ledger lists all 168 canonical IDs once, including family,
 effect/confirmation class, actual owner/profile and a bounded disposition.
-Counts after the M20–M34 increments: 75 QUALIFIED-SYNTHETIC paths,
-8 BLOCKED for broader operation evidence,
+Counts after the M20–M35 increments: 77 QUALIFIED-SYNTHETIC paths,
+6 BLOCKED for broader operation evidence,
 80 UNSUPPORTED-GENERIC, two HELD and three FORBIDDEN. These are profile/evidence
 dispositions, not the static catalog counts (154 pending, nine unsupported,
 two held, three forbidden). A missing generic binding is not proof that a
@@ -540,20 +540,71 @@ type/size variants, preview/renderer, provider/browser/device or installed
 acceptance. No production behavior, grant, workflow command or dependency changes.
 Broader #288 acceptance remains open.
 
-M35 prepares one ordinary backend-library actual prepared-history case in
-`backend/src/http/providers/homebox_stock_history_healthy.rs`. A fresh profile-6
-Core/Store uses source-only synthetic bootstrap and genuine Editor Access grants
-for six actual prepared reservations. Actual Viewer borrowed MCP and shared
-StockService/HistoryPeer read the native history owner, never the standalone
-example's fixture-local history authority. Two family-specific owner cursor cuts,
-later reservations, complete fresh chains, exact event/actor/original-intent
-correlation and strict store-reopen equality with retained Access are asserted.
-Cursor DATA may legitimately persist; fixed activity/record/source content,
-rather than whole-database bytes, is compared. **NOT RUN** pending exact hosted
-named execution; both history rows and the 75/8 counts remain unchanged.
-Admission is unavailable and must never be called. No approval, provider
-observation/IO/completion, generated target, quantity execution, recovered
-producer/admission, Access/process/session restart or installed acceptance follows.
+M35 qualifies the two existing mediated HomeBox prepared-history reads through
+the actual shared service/native owner. Exact source
+`dac9d04c3b9f414c2894f9b5f50e9a4ed1269c23`, tree
+`f7da3152a9aae562945bd4b407f91bdecdac1d99`, has base
+`65ed4e1b51fb3e8b69d6bd9f36ed06aab90b8026`.
+[Backend job 126735295675 / run 41875688314](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41875688314/job/126735295675)
+checked out that exact source and explicitly passed
+`healthy_native_prepared_homebox_history_cuts_and_reopen` at 17:19:02 UTC.
+It completed all backend steps successfully, finishing 248 passed, zero failed,
+12 ignored and three filtered out at 17:22:25 UTC. Final-head checks and review
+remain separately required before merge; no aggregate status is inferred from
+the named-case evidence alone.
+
+A fresh profile-6 Core/Store bootstraps only a fictional source/cache epoch,
+without provider observations or Atlas records. The reservation-only peer
+retains genuine Editor/source/partition Access grants and validates exact
+original allocation, command, authority and SyntheticFixture activity registration
+under the actual transaction guard. Six real StockActivitySession reservations
+(three entity-quantity intents and three location-update intents) remain
+prepared/not-dispatched. Admission is unavailable and its call count stays zero.
+Their null approval and unproven provider-observation handle intent data does
+not supply approval, admission or provider completion.
+
+Actual Viewer borrowed `bind_read` MCP reaches StockService, shared
+`homebox_stock::execute`, HistoryPeer and NativeHomeBoxStockHistory. No
+fixture-local HistoryAuthority or fabricated history result is substituted.
+Every page equals actual shared native dispatch output, with canonical schema,
+request/command/scope/status/replayed correlation and structured/text parity.
+Expected event ID, command, original actor, validated intent digest and timestamp
+come from the actual independent reservation outputs, with prepared state and
+atlas-mediated-only coverage/completeness. Both command families address the
+same exact fictional entity identity but have separate command-prefix selections;
+this proves no upstream record presence.
+
+PageSize-1 owner-issued cursors first pin two-reservation cuts for each family.
+After a third actual reservation is added to each, saved continuations return
+exactly the second and terminate, excluding the newer third. Fresh complete
+chains return all three in reservation order, without duplicate event IDs or
+cursor loops. Adapters/sessions and Store close; strict
+`Store::open_existing` reopens profile 6 while retaining the actual Access owner.
+Saved continuations and complete fresh page data/cursors remain equal after
+reopen. Twelve fixed activity/record/source tables remain unchanged around reads
+and reopen. Immutable cursor DATA may legitimately persist and is separate;
+whole-database immutability is not claimed. includeArchived is retained query
+data, not a proof of resource-archive filtering.
+
+Initial `49644a62` failed the hosted source-platform formatting checks
+([Linux job 126732646272](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41875185265/job/126732646272)).
+Its [backend job 126732646375](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41875185265/job/126732646375)
+printed M35 PASS at 17:13:59 UTC but concluded cancelled; that superseded run is
+not promoted to green. Corrected `dac9d04c` applies exactly the 29 emitted
+fixture formatting hunks and matching manifest row, preserving assertions,
+payloads, expected owner behavior and production bytes. Its complete successful
+backend execution above supplies the evidence.
+
+Only `homebox.entity.mediated-history` and
+`homebox.location.mediated-history` advance: 75/8 becomes 77 qualified / six
+blocked. The other 166 operation rows, static catalog statuses, M20–M34 and #533
+remain unchanged. This is prepared-only mediated activity, not admitted,
+dispatched, applied/rejected or recovered operation qualification, arbitrary
+query/authority/lifetime variants, upstream audit completeness, generated-target
+results or provider/quantity execution. No profile-5 upgrade, Access/process/session
+restart, recovered producer/admission rights, browser/device or installed
+acceptance follows. There is no new production behavior, grant, dependency,
+workflow command or runner. Broader #288 acceptance remains open.
 
 | Key | Exact existing case | Observed result | Method and limit |
 | --- | --- | --- | --- |
@@ -591,7 +642,7 @@ producer/admission, Access/process/session restart or installed acceptance follo
 | M32 | `healthy-network-loopback.py` driving `healthy-network-root-router` / `healthy_network_host.rs` mounted-MCP saved-query loop | PASS | existing real canonical Access/native NetworkBinding/disposable TLS publication; genuine Editor/current-CSRF MCP for three saved reads equals actual Viewer HTTP-owner data, five nodes/one generation/unresolved endpoint; one upstream GET total, immutable archive reopen only |
 | M33 | `transports::mcp::healthy_local_atlas::remap_hold::native_remap_hold_preserves_store_and_permitted_batch` | PASS (hold only) | actual synthetic Editor/StockService/SQLite hold: null/unproven receipt singles and both mixed-batch orders, actual input-arm/schema and MCP refusal checks, exact retained rows/reopen and permitted direct/derived batch; no remap approval or success |
 | M34 | `http::agents::asset_download_healthy::healthy_mounted_mcp_asset_download_redeems_original` | PASS | actual same-Host generated text multipart upload, mounted MCP issuance and authenticated opaque-handle redemption; canonical parity, measured bytes/headers/hash/size/type and equal asset readback; one positive lifetime only |
-| M35 | `http::providers::homebox_stock_history_healthy::healthy_native_prepared_homebox_history_cuts_and_reopen` | NOT RUN | actual profile-6 source-only bootstrap, six SyntheticFixture prepared reservations, real Viewer shared native/MCP history owner, family-specific saved cuts/fresh chains and strict Store reopen with retained Access; no admission/provider completion |
+| M35 | `http::providers::homebox_stock_history_healthy::healthy_native_prepared_homebox_history_cuts_and_reopen` | PASS | actual profile-6 source-only bootstrap, six SyntheticFixture prepared reservations, real Viewer shared native/MCP history owner, family-specific saved cuts/fresh chains and strict Store reopen with retained Access; no admission/provider completion |
 | B01 | `healthy_large_read_page` | PASS | Fake bridge evidence-list/cursor forwarding and geometry page below 2 MiB; no native cursor/record owner |
 | B02 | `denial_read_profile_bounds` | PASS | Fake bridge scope/page/response refusal and retained read availability; no native expiry or provider execution |
 | B03 | `denial_read_correlation` | PASS | Fake bridge request ID/command/scope mismatch refusal; no actual private connector invocation |
@@ -791,9 +842,9 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | `homebox.location.restore-deleted` | homebox_entities_locations | unsupported-capability | write; permanent-delete-human | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.location.duplicate` | homebox_entities_locations | supported-pending-qualification | write; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.entity.children.sync` | homebox_entities_locations | supported-pending-qualification | write; exact-impact-human | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
-| `homebox.entity.mediated-history` | homebox_entities_locations | supported-pending-qualification | read; none | H-mediated; R,M (history enabled); W?; B-read? | none beyond shared metadata | BLOCKED; G-provider |
+| `homebox.entity.mediated-history` | homebox_entities_locations | supported-pending-qualification | read; none | H-mediated; R,M (history enabled); W?; B-read? | M35 | QUALIFIED-SYNTHETIC; G-full |
 | `homebox.location.children.sync` | homebox_entities_locations | supported-pending-qualification | write; exact-impact-human | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
-| `homebox.location.mediated-history` | homebox_entities_locations | supported-pending-qualification | read; none | H-mediated; R,M (history enabled); W?; B-read? | none beyond shared metadata | BLOCKED; G-provider |
+| `homebox.location.mediated-history` | homebox_entities_locations | supported-pending-qualification | read; none | H-mediated; R,M (history enabled); W?; B-read? | M35 | QUALIFIED-SYNTHETIC; G-full |
 | `homebox.entity.quantity.set` | homebox_entities_locations | supported-pending-qualification | write; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.entity.type.set` | homebox_entities_locations | supported-pending-qualification | write; exact-impact-human | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
 | `homebox.location.tree` | homebox_entities_locations | supported-pending-qualification | read; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
@@ -889,6 +940,8 @@ M33 is separate: its bounded fail-closed predicate changes native Editor
 admission and shared-root remap eligibility, with one explicitly selected
 ordinary hold regression. M34 separately adds one in-process actual mounted-Host
 upload/download/redemption case; its positive same-Host text-original lifetime
-changes no production routing or held-control class. No new runner/workflow command, approval issuer,
+changes no production routing or held-control class. M35 adds one actual-owner
+prepared-history case in fresh profile 6, without provider admission/IO or
+production changes. No new runner/workflow command, approval issuer,
 credential/grant, provider call, browser action, model work or deployment.
 No local build/test/Clippy qualification gate ran.
