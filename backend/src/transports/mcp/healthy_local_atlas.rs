@@ -22,6 +22,9 @@ use super::{
 
 const ORIGIN: &str = "https://atlas.synthetic.invalid";
 
+#[path = "healthy_bindings_reconciliation.rs"]
+mod bindings_reconciliation;
+
 #[path = "healthy_evidence_lifecycle.rs"]
 mod evidence_lifecycle;
 
