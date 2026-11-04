@@ -215,6 +215,26 @@ authority, provider/quantity execution, recovery, installed or browser acceptanc
 is proved. This adds one in-process case to the existing selection, with no new
 workflow command, runner or held execution selection.
 
+The existing default-library case
+`http::providers::homebox_native_healthy::healthy_native_homebox_root_reads_preserve_original_authority`
+additionally checks five unmounted MCP calls for entity tags, field get/list and
+maintenance get/list. A test-only ServicePort only delegates to the existing
+`homebox_native::execute_with_reader` owner through its blocking handoff.
+Actual NativePrincipalPort/NativeCatalog and genuine Viewer/source/partition
+Access checks remain in use; the GET peer and clock are explicitly injected
+public fixtures, with original native bytes and no socket. Five original native
+GET assertions stay intact, then five MCP GETs check complete native/structured/
+text wire parity, the maximum safe integer field, exact cost strings, empty-date
+to null preservation, unresolved/observation-only status and unchanged authorized
+Store snapshots. Lists are one terminal pageSize-100 fixture page (one field,
+two maintenance rows); no search/archive or continuation claim follows.
+This is an explicit synthetic admission profile, not the mounted McpStockContext,
+configured NativeHomeBoxReadBinding HTTPS/credential-custody path or its
+NativeListPages successor. The existing pre-read Store close/open remains;
+post-read reopen, Access/process/session restart, provider/installed/browser
+acceptance and new production grants/hooks are not proved. No test name,
+workflow command, runner or held execution selection is added.
+
 The same default-library set includes the eleven merged #288 M20–M30 cases,
 with exact names and execution pins in the
 [operation ledger](docs/rust-integration/mcp-operation-qualification-v4.md#evidence-identity-and-method).

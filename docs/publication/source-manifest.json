@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 26752,
-      "sha256": "38ce379458272c9d250a20a4a1483b38e96adda8a9f768c72b46814c9a23e966",
+      "bytes": 28194,
+      "sha256": "6c7bcce7eeeaedfe8fd1b5fdbd298447206fc954e5c37fa4cc00c211485f2933",
       "owner": "core-integration"
     },
     {
@@ -2617,8 +2617,8 @@
     {
       "path": "backend/src/http/providers/homebox_native_healthy.rs",
       "mode": "100644",
-      "bytes": 11921,
-      "sha256": "e7caef38a46be84ab6776665a17bc79a791e620ef2e873918538a164a4720919",
+      "bytes": 23134,
+      "sha256": "5da71d6d1f9bb84f0548ef40a37d2c922bfe27567aa19be070cde924650f97f8",
       "owner": "core-integration"
     },
     {
@@ -6481,8 +6481,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 215210,
-      "sha256": "63ea2bcdbc0e4ce40db89eeee2393931066bb1605dd33e7f4c084b254ad31e9f",
+      "bytes": 216652,
+      "sha256": "e1991baa150b8e09323d0adf362849cef7ac39fde1f9b7f565bef0592bbfe38c",
       "owner": "core-integration"
     },
     {
@@ -7195,8 +7195,8 @@
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v4.md",
       "mode": "100644",
-      "bytes": 96433,
-      "sha256": "3e0ac5ba4be3dd49ddebf39a16b87a4d6e29b9586404ff3fdd6b0ac73dc2f9ae",
+      "bytes": 102579,
+      "sha256": "82fe46438300727f2fd217b53da66daa5ed46a589bb83a5a1559f29035e0637d",
       "owner": "core-integration"
     },
     {
