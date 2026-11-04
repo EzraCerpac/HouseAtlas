@@ -791,12 +791,14 @@ fn expiry_fixture() -> Result<(Fixture, Arc<AtomicI64>, i64), Failure> {
             .with_clock(move || current.load(Ordering::SeqCst)),
     )?;
     *fixture.core.access.lock().unwrap() = access;
+    let mut session_request = observed(Some(&fixture.cookie), Some(&fixture.csrf));
+    session_request.method = a::Method::Get;
     let expires = fixture
         .core
         .access
         .lock()
         .unwrap()
-        .session_info(&observed(Some(&fixture.cookie), Some(&fixture.csrf)))?
+        .session_info(&session_request)?
         .expires_at_ms();
     assert!(now < expires);
     Ok((fixture, clock, expires))
