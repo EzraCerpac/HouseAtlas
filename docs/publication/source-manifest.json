@@ -5886,8 +5886,8 @@
     {
       "path": "backend/src/transports/mcp/remap_hold.rs",
       "mode": "100644",
-      "bytes": 8244,
-      "sha256": "1c5e09c4a93e68a952cc103762e1d4041e4bfc58149a790daf2598b67a0b7f41",
+      "bytes": 9270,
+      "sha256": "ba6a65c7ddab13a8e3c424a9ca6fdce2bd459c57920572dc0c0f725c751b9cbe",
       "owner": "mcp"
     },
     {
@@ -12837,8 +12837,8 @@
     {
       "path": "tools/rust-integration/examples/healthy_specialized_atlas.rs",
       "mode": "100644",
-      "bytes": 23428,
-      "sha256": "3cf63695447e1bdfd9717f7cc0dc2b1ed4262f3e98c8fd6189143435518a20c1",
+      "bytes": 23760,
+      "sha256": "9540b6283ee8923a2d8a3f0e23588cf71c8385ff7f89460802ed8f5ba9a8cebd",
       "owner": "core-integration"
     },
     {
@@ -12998,8 +12998,8 @@
     {
       "path": "tools/rust-integration/healthy-stock-write-loopback.mjs",
       "mode": "100644",
-      "bytes": 63063,
-      "sha256": "f39abc3ef09a3fed5e66c9eea8c2cc476a6d9cb33ccf421ee6bdbff2e08f8644",
+      "bytes": 63266,
+      "sha256": "900bf5321090ce97f689fc281e0b4825f43e8e057afb3cce74b433bdb2b944b4",
       "owner": "core-integration"
     },
     {

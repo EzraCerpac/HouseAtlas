@@ -362,27 +362,52 @@ pub fn healthy() -> Result<(), Failure> {
         "approvalReceiptId":null,"preconditions":{"target":{"kind":"atlas","value":1},
             "guards":[guard("identity",201,1),guard("evidence",100,1),guard("binding",301,1)]}});
     wire::StockRequest::parse(&validator, remap.clone())?;
-    let path = format!("/api/atlas/stock/v3/workspaces/{}/homes/{}/commands",
-        core.home.scope.workspace_id,core.home.scope.home_id);
+    let path = format!(
+        "/api/atlas/stock/v3/workspaces/{}/homes/{}/commands",
+        core.home.scope.workspace_id, core.home.scope.home_id
+    );
     let issued = principal(&core, &cookie, &csrf, true, &path)?;
     let scope = serde_json::from_value(serde_json::to_value(&core.home.scope)?)?;
-    let before = core.store.lock().map_err(|_| "Store unavailable")?
-        .read_snapshot_with_authorization(&ReadAuthority(Arc::clone(&core.access)),&issued,&scope)?;
-    assert!(matches!(stock_dispatch::execute(&core,&issued,remap),
-        Err(houseatlas_backend::domain::stock::StockError::CapabilityHeld)));
-    let after = core.store.lock().map_err(|_| "Store unavailable")?
-        .read_snapshot_with_authorization(&ReadAuthority(Arc::clone(&core.access)),&issued,&scope)?;
-    assert_eq!(before,after);
+    let before = core
+        .store
+        .lock()
+        .map_err(|_| "Store unavailable")?
+        .read_snapshot_with_authorization(
+            &ReadAuthority(Arc::clone(&core.access)),
+            &issued,
+            &scope,
+        )?;
+    assert!(matches!(
+        stock_dispatch::execute(&core, &issued, remap),
+        Err(houseatlas_backend::domain::stock::StockError::CapabilityHeld)
+    ));
+    let after = core
+        .store
+        .lock()
+        .map_err(|_| "Store unavailable")?
+        .read_snapshot_with_authorization(
+            &ReadAuthority(Arc::clone(&core.access)),
+            &issued,
+            &scope,
+        )?;
+    assert_eq!(before, after);
     // Independent lower-level Store semantics still need an active binding.
     // Create it through the ordinary owner; no remap approval is fabricated.
     let ordinary_binding = command(
-        &client,"atlas.binding.create",target("binding",931),
+        &client,
+        "atlas.binding.create",
+        target("binding", 931),
         json!({"atlasId":id(201),"source":{"sourceInstanceId":id(10),
             "collectionId":"synthetic-collection-a","sourceKind":"homebox-entity",
             "externalId":id(504)},"reviewStatus":"proposed","evidenceIds":[id(100)]}),
-        None,vec![guard("identity",201,1),guard("evidence",100,1)],25,
+        None,
+        vec![guard("identity", 201, 1), guard("evidence", 100, 1)],
+        25,
     )?;
-    assert_eq!(ordinary_binding["data"]["records"][0]["payload"]["sourceState"],"unresolved");
+    assert_eq!(
+        ordinary_binding["data"]["records"][0]["payload"]["sourceState"],
+        "unresolved"
+    );
     let mut geometry_input = geometry_payload;
     geometry_input
         .as_object_mut()
@@ -510,7 +535,14 @@ pub fn healthy() -> Result<(), Failure> {
             0,
         ),
         (14, "binding", 300, "atlas.binding.restore", &restored, 0),
-        (15, "binding", 931, "atlas.binding.create", &ordinary_binding, 0),
+        (
+            15,
+            "binding",
+            931,
+            "atlas.binding.create",
+            &ordinary_binding,
+            0,
+        ),
         (18, "geometry", 933, "atlas.geometry.create", &geometry, 0),
         (19, "asset", 600, "atlas.asset.review", &asset_reviews[0], 0),
         (20, "asset", 600, "atlas.asset.review", &asset_reviews[1], 0),
