@@ -489,6 +489,17 @@ The remap row remains BLOCKED; the 74/9 counts and other 167 rows' dispositions
 are unchanged. Installed exposure, actual human approval/consumption and all
 broader #288 acceptance remain open.
 
+M34 prepares one ordinary backend-library mounted-MCP original-download case
+in `backend/src/http/agents/asset_download_healthy.rs`. It uses the actual
+same-Host login/current-CSRF, multipart upload, native download issuer and
+router redemption owners for one generated UTF-8 text original, with canonical
+wire/parity and exact original bytes/headers/hash/size plus equal public asset
+readback. **NOT RUN**: hosted named execution is still required. The download
+row and 74/9 counts remain unchanged. No expiry/revocation, second-process
+restart, renderer, installed or general media-variant acceptance is claimed.
+This increment is based on reviewed #541 head
+`1c10190929568ac4255354c0a91810949b65f958` and depends on that integration.
+
 | Key | Exact existing case | Observed result | Method and limit |
 | --- | --- | --- | --- |
 | M01 | `transports::mcp::healthy_download::healthy_asset_download_sealed_codecs_preserve_canonical_wire` | PASS | fake download codec |
@@ -524,6 +535,7 @@ broader #288 acceptance remain open.
 | M31 | `http::providers::homebox_stock_healthy::healthy_cached_homebox_stock_and_mcp_reads` | PASS | real Viewer Access/source registrations/reopened SQLite/native StockService and borrowed MCP; four cached get/list reads, stale dates, canonical parity and unchanged snapshots; UUID-rebound collection, singleton first-page lists only; no provider IO or post-read reopen |
 | M32 | `healthy-network-loopback.py` driving `healthy-network-root-router` / `healthy_network_host.rs` mounted-MCP saved-query loop | PASS | existing real canonical Access/native NetworkBinding/disposable TLS publication; genuine Editor/current-CSRF MCP for three saved reads equals actual Viewer HTTP-owner data, five nodes/one generation/unresolved endpoint; one upstream GET total, immutable archive reopen only |
 | M33 | `transports::mcp::healthy_local_atlas::remap_hold::native_remap_hold_preserves_store_and_permitted_batch` | PASS (hold only) | actual synthetic Editor/StockService/SQLite hold: null/unproven receipt singles and both mixed-batch orders, actual input-arm/schema and MCP refusal checks, exact retained rows/reopen and permitted direct/derived batch; no remap approval or success |
+| M34 | `http::agents::asset_download_healthy::healthy_mounted_mcp_asset_download_redeems_original` | NOT RUN | actual same-Host generated text multipart upload, mounted MCP issuance and authenticated opaque-handle redemption; canonical parity, measured bytes/headers/hash/size/type and equal asset readback; one positive lifetime only |
 | B01 | `healthy_large_read_page` | PASS | Fake bridge evidence-list/cursor forwarding and geometry page below 2 MiB; no native cursor/record owner |
 | B02 | `denial_read_profile_bounds` | PASS | Fake bridge scope/page/response refusal and retained read availability; no native expiry or provider execution |
 | B03 | `denial_read_correlation` | PASS | Fake bridge request ID/command/scope mismatch refusal; no actual private connector invocation |
