@@ -7174,8 +7174,8 @@
     {
       "path": "docs/rust-integration/ai-host-integration.md",
       "mode": "100644",
-      "bytes": 17303,
-      "sha256": "09250f0e752f8bebfc1cd8fa33037367aa373ecec676ecb14b2d9b82c66c7b18",
+      "bytes": 17317,
+      "sha256": "bb5ebb55891966d79dd1c2d6b6c75b4d45e4237cc6fb132711dfc5898a07ba57",
       "owner": "core-integration"
     },
     {

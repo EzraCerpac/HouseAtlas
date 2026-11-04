@@ -48,7 +48,7 @@ required. Admission is durably recorded before model selection. A selection fail
 the original request correlation, typed reason and unknown usage. Prelaunch
 selection failures retain terminal lifecycle receipts; local Stopped outcomes
 release the browser slot while preserving provider uncertainty. Exact integrated
-review remains pending. No AI request, OS credential call, live
+review remains pending. No live AI/provider request, OS credential call, live
 account/provider/NAS, remote listener, spend, credential/grant provisioning or
 deployment occurs. The finite synthetic failure/hold/readiness cases below
 have executed in hosted CI. Other held controls, actual credential/provider
