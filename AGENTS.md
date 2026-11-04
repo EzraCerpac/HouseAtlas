@@ -181,6 +181,20 @@ Store fixture; that fixture's injected authorization is not human approval or
 root admission. No new command, listener, provider, browser, grant or installed
 acceptance is added; other held selections remain separate.
 
+The default-library lane additionally selects exactly
+`http::agents::asset_download_healthy::healthy_mounted_mcp_asset_download_redeems_original`.
+A disposable actual Host authenticates its generated Editor and current CSRF,
+stages one short UTF-8 text original through the real multipart upload owner,
+then initializes mounted MCP on that same Host. Native StockService/Media/Store
+issue the opaque `atlas.asset.download` handle; authenticated router redemption
+must return the measured original hash, size, type, attachment headers and exact
+bytes. Canonical request/result correlation, structured/text parity, actual
+admitted input schema and equal public asset get records before/after redemption
+are checked. Private disposable files, default read-only MCP admission and the
+existing test selection are retained. This is one positive same-Host lifetime,
+without sockets, TLS, provider calls, browser, expiry/revocation, second-process
+restart, renderer or installed acceptance; no workflow command is added.
+
 The same default-library set includes the eleven merged #288 M20–M30 cases,
 with exact names and execution pins in the
 [operation ledger](docs/rust-integration/mcp-operation-qualification-v4.md#evidence-identity-and-method).

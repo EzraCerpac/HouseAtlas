@@ -7,8 +7,8 @@ deliverable, not a new dispatcher, grant list, test suite or acceptance release.
 Version 3 grouped operation classes but did not join individual IDs to execution
 evidence. This ledger lists all 168 canonical IDs once, including family,
 effect/confirmation class, actual owner/profile and a bounded disposition.
-Counts after the M20–M32 increments: 74 QUALIFIED-SYNTHETIC paths,
-9 BLOCKED for broader operation evidence,
+Counts after the M20–M34 increments: 75 QUALIFIED-SYNTHETIC paths,
+8 BLOCKED for broader operation evidence,
 80 UNSUPPORTED-GENERIC, two HELD and three FORBIDDEN. These are profile/evidence
 dispositions, not the static catalog counts (154 pending, nine unsupported,
 two held, three forbidden). A missing generic binding is not proof that a
@@ -489,6 +489,57 @@ The remap row remains BLOCKED; the 74/9 counts and other 167 rows' dispositions
 are unchanged. Installed exposure, actual human approval/consumption and all
 broader #288 acceptance remain open.
 
+M34 qualifies one positive managed-original download through actual mounted
+MCP on one disposable Host. Exact source
+`cebde4734203ff728c8177dd93b230e7a2583a4a`, tree
+`1cb5a692e93a48014ae4477348d507db38c629dd`, is reconciled onto #541's
+actual merged main `780700d449897d92d6bf2fecf6a4d16479ffd832`.
+[Backend job 126708866513 / run 41868277792](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41868277792/job/126708866513)
+checked out that exact source and explicitly passed
+`healthy_mounted_mcp_asset_download_redeems_original` at 16:36:12 UTC.
+At 16:40:33 UTC it finished 247 passed, zero failed, 12 ignored and three
+filtered out. Linux source, frontend and all loopback shards also succeeded;
+source macOS was still running at this evidence checkpoint, so full required
+final-head success is not inferred.
+
+The fixture authenticates the generated Editor/current CSRF on a fresh actual
+Host with its unchanged default read-only MCP profile. The real multipart upload
+owner stages one generated UTF-8 text original through the vault and commits the
+owner-chosen available text/plain, download-only evidence-original asset.
+Its complete public record preserves unknown source license and explicit null
+reference. Read-only observation of the owner's saved original request validates
+the actual upload response/digest without constructing a stage token or receipt.
+Mounted MCP on the same Host uses real Access, OwnedStockService, Store, Media and
+the native download-handle manager. Actual admitted input-schema acceptance,
+canonical request/result correlation and schema validation, structured/text parity,
+exact asset target and independently measured hash/UTF-8 byte size/type/disposition
+are checked. Authenticated router GET redeems the actual opaque handle and must
+return exact original bytes, measured digest, content length/type, attachment,
+private/no-store, nosniff and sandbox headers. Public MCP asset-get records before
+and after redemption equal the actual committed record. No fake domain owner/result or fabricated media receipt substitutes for actual
+issuance and byte redemption.
+
+Initial `e8fa8ffc` failed its hosted
+[formatting check](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41866276025/job/126701249188).
+Its [backend job 126701249316](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41866276025/job/126701249316)
+printed M34 PASS at 16:22:56 UTC and 247/0 at 16:26:23, but the superseded run
+concluded cancelled and formatting failed. Corrected `0f5ef63e` applied only
+the exact hosted wrapping/trailing commas/equivalent closure braces and manifest
+hash; [backend job 126704653577](https://github.com/EzraCerpac/HouseAtlas/actions/runs/41867193662/job/126704653577)
+printed M34 PASS at 16:29:13 before reconciliation cancelled it without a complete
+suite result. Neither superseded run is promoted to green. The reconciled
+`cebde473` changes ancestry only and has identical corrected executable bytes;
+its complete successful backend execution above supplies the bounded evidence.
+
+Only `atlas.asset.download` advances: 74/9 becomes 75 qualified / eight blocked,
+with all other 167 operation rows, static catalog statuses, M20–M33 and #533
+preserved. This is one current authenticated same-Host positive lifetime for one
+generated available text original. It proves no expiry/revocation or authority
+change, second-process/session restart, crash durability, additional media
+type/size variants, preview/renderer, provider/browser/device or installed
+acceptance. No production behavior, grant, workflow command or dependency changes.
+Broader #288 acceptance remains open.
+
 | Key | Exact existing case | Observed result | Method and limit |
 | --- | --- | --- | --- |
 | M01 | `transports::mcp::healthy_download::healthy_asset_download_sealed_codecs_preserve_canonical_wire` | PASS | fake download codec |
@@ -524,6 +575,7 @@ broader #288 acceptance remain open.
 | M31 | `http::providers::homebox_stock_healthy::healthy_cached_homebox_stock_and_mcp_reads` | PASS | real Viewer Access/source registrations/reopened SQLite/native StockService and borrowed MCP; four cached get/list reads, stale dates, canonical parity and unchanged snapshots; UUID-rebound collection, singleton first-page lists only; no provider IO or post-read reopen |
 | M32 | `healthy-network-loopback.py` driving `healthy-network-root-router` / `healthy_network_host.rs` mounted-MCP saved-query loop | PASS | existing real canonical Access/native NetworkBinding/disposable TLS publication; genuine Editor/current-CSRF MCP for three saved reads equals actual Viewer HTTP-owner data, five nodes/one generation/unresolved endpoint; one upstream GET total, immutable archive reopen only |
 | M33 | `transports::mcp::healthy_local_atlas::remap_hold::native_remap_hold_preserves_store_and_permitted_batch` | PASS (hold only) | actual synthetic Editor/StockService/SQLite hold: null/unproven receipt singles and both mixed-batch orders, actual input-arm/schema and MCP refusal checks, exact retained rows/reopen and permitted direct/derived batch; no remap approval or success |
+| M34 | `http::agents::asset_download_healthy::healthy_mounted_mcp_asset_download_redeems_original` | PASS | actual same-Host generated text multipart upload, mounted MCP issuance and authenticated opaque-handle redemption; canonical parity, measured bytes/headers/hash/size/type and equal asset readback; one positive lifetime only |
 | B01 | `healthy_large_read_page` | PASS | Fake bridge evidence-list/cursor forwarding and geometry page below 2 MiB; no native cursor/record owner |
 | B02 | `denial_read_profile_bounds` | PASS | Fake bridge scope/page/response refusal and retained read availability; no native expiry or provider execution |
 | B03 | `denial_read_correlation` | PASS | Fake bridge request ID/command/scope mismatch refusal; no actual private connector invocation |
@@ -699,7 +751,7 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | `atlas.reconciliation.tombstone` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M28 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.reconciliation.restore` | atlas_records | supported-pending-qualification | write; none | A-direct; L,E; W?; B-write? | M28 | QUALIFIED-SYNTHETIC; G-full |
 | `atlas.binding.remap` | atlas_bindings | supported-pending-qualification | write; exact-impact-human | native-held; no R/L/M/E; W?; B-write? (separate exact owner required) | M33 (hold only) | BLOCKED; G-remap |
-| `atlas.asset.download` | atlas_media_geometry | supported-pending-qualification | read; none | A-download; M (issuer/redemption); W?; B-read? | M01, M02 | BLOCKED; G-transfer |
+| `atlas.asset.download` | atlas_media_geometry | supported-pending-qualification | read; none | A-download; M (issuer/redemption); W?; B-read? | M01, M02, M34 | QUALIFIED-SYNTHETIC; G-full |
 | `homebox.entity.get` | homebox_entities_locations | supported-pending-qualification | read; none | H-cache; R,M (cache scoped); W?; B-read? | M31 | QUALIFIED-SYNTHETIC; G-full |
 | `homebox.entity.list` | homebox_entities_locations | supported-pending-qualification | read; none | H-cache; R,M (cache scoped); W?; B-read? | M31 | QUALIFIED-SYNTHETIC; G-full |
 | `homebox.entity.history` | homebox_entities_locations | unsupported-capability | read; none | not-bound; no R/L/M/E; W?; B-unavailable | none beyond shared metadata | UNSUPPORTED-GENERIC; G-provider |
@@ -807,7 +859,7 @@ end-to-end operation. A native synthetic pass does not qualify W? or B? automati
 | G-media/operation | BLOCKED | Qualified derivation/Media input owner and exact correlated result evidence required; binding-review evidence does not qualify restore/geometry/asset variants |
 | G-batch | BLOCKED beyond successful local fixture | Ordered two-circuit success is observed; complete intended partial/unknown/per-child failure classes remain unqualified. Atomic Atlas success does not imply provider partial-outcome handling |
 | G-remap | BLOCKED; native root/admission hold | No remap-specific trusted human issuer and atomic consumption owner in this composition. Null/supplied receipt IDs are unproven; singles and containing batches refuse. Lower-level synthetic Store authorization is not human approval. A genuine exact actor/home/target/intent/impact/epochs/expiry-bound owner and actual remap qualification remain required; no receipt/grant minted |
-| G-transfer | BLOCKED | Actual owner-issued upload/download, byte/type/size/hash/original identity, expiry and final current authorization/readback remain unqualified. Link rendering/codec equality is not completed transfer |
+| G-transfer | BLOCKED | M34 proves one actual owner-issued generated available text/plain original upload/download, measured byte/type/size/hash/identity, same-Host current authenticated redemption and equal readback. Other media variants, expiry/revocation or authority changes, restart/lifetime, renderer and installed transfer acceptance remain unqualified. Codec/link equality alone remains insufficient |
 | Actual expiry / cancellation lifetime | NOT RUN for expiry | M18 rotation and M19 revocation/membership controls are not clock-driven expiry evidence. No expiry guarantee is inferred |
 | Unknown durable outcome / replay | BLOCKED | Bounded response or dropped delivery after a known commit proves that known synthetic effect survives; it does not qualify every unknown transport failure or authorize retry/replay |
 | WebMCP document/session/visible completion | DEFERRED for browser/device; partial synthetic adapter evidence separate | Exact current host binding, one document registration owner, visible commit ordering, replacement context/cleanup and unsupported-browser behavior still require their admitted owner/evidence |
@@ -819,6 +871,8 @@ selection; M32 records the existing Linux loopback harness. Those M20–M32
 increments changed no production routing or held-control classes.
 M33 is separate: its bounded fail-closed predicate changes native Editor
 admission and shared-root remap eligibility, with one explicitly selected
-ordinary hold regression. No new runner/workflow command, approval issuer,
+ordinary hold regression. M34 separately adds one in-process actual mounted-Host
+upload/download/redemption case; its positive same-Host text-original lifetime
+changes no production routing or held-control class. No new runner/workflow command, approval issuer,
 credential/grant, provider call, browser action, model work or deployment.
 No local build/test/Clippy qualification gate ran.

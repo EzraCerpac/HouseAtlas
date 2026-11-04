@@ -1,4 +1,7 @@
 //! Same-origin stock host with exact caller envelopes and original AT11 authority.
+#[cfg(test)]
+mod asset_download_healthy;
+
 pub mod capabilities;
 mod errors;
 mod homebox_partition_catalog;
