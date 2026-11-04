@@ -2,6 +2,9 @@
 //! children. The fixture uses the existing synthetic Core, a real Access-issued
 //! editor principal, and Access's synchronous mutation guard. It does not mount
 //! or exercise an HTTP route.
+//! Its fixture-local Store authorization supplies synthetic semantics coverage,
+//! not human approval or generic root admission. Native root remap remains held;
+//! binding 931 is ordinary owner-created setup, never a remap approval receipt.
 
 use houseatlas_backend::{
     access as a,
@@ -277,7 +280,9 @@ impl s::StockAuthorization for FixtureAuthorization<'_, '_> {
 }
 
 /// Run after the existing specialized positive mutations have created active
-/// bindings 930/931 and geometry 933, before the caller closes/reopens SQLite.
+/// bindings 930/931 through ordinary supported creation and geometry 933,
+/// before the caller closes/reopens SQLite. This lower-level fixture is not
+/// the shared HTTP/MCP execution path or a production approval issuer.
 pub fn healthy(core: &Core, cookie: &str, csrf: &str) -> Result<s::StockAtlasCommit, Failure> {
     let path = format!(
         "/api/atlas/stock/v3/workspaces/{}/homes/{}/commands",

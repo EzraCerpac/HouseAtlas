@@ -16,8 +16,13 @@ cached HomeBox reads, and configured HomeBox history. The separately owned
 
 The existing private root Editor lifecycle binding selects the actual host
 capability map under trusted `McpCommandProfile::ExistingEditorCommands`.
-That map already includes 31 direct and six derived Atlas command IDs plus
-ordered batches. These are real stock/SQLite handlers. AT38 adds no copy of
+That map includes 31 direct and five admitted derived Atlas command IDs plus
+ordered non-remap batches. Binding remap is held until a genuine remap-specific
+human approval issuer and atomic consumption owner exist; null or supplied UUID
+receipt fields do not supply approval. The shared root refuses remap singles
+and containing batches even for direct/stale callers. The canonical catalog and
+lower-level planner/Store remap semantics remain intact. These are real
+stock/SQLite handlers. AT38 adds no copy of
 their transaction, graph, approval or result rules.
 
 `bind_local_atlas(&Core, &access::RequestEvidence, &access::Scope)` exposes an

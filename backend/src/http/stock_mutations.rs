@@ -44,21 +44,28 @@ fn domain(error: d::DomainError) -> st::StockError {
 fn require(value: bool) -> st::StockResult<()> {
     if value { Ok(()) } else { Err(changed()) }
 }
+/// Generic native admission has no remap-specific human approval issuer or
+/// atomic consumption owner. A receipt UUID, session or planner mapping cannot
+/// supply that authority. Keep discovery and shared-root execution aligned.
+pub(super) fn generic_mutation_supported(id: st::OperationId) -> bool {
+    id != st::OperationId::AtlasBindingRemap
+        && (st::atlas_direct_operation(id).is_some() || st::atlas_derived_operation(id))
+}
+
 fn supported(request: &st::ValidatedRequest) -> st::StockResult<()> {
     use st::OperationId as O;
-    let mapped = |id| st::atlas_direct_operation(id).is_some();
     if request.id() == O::AtlasBatchExecute {
         if !request.children().is_empty()
             && request
                 .children()
                 .iter()
-                .all(|child| mapped(child.id()) || st::atlas_derived_operation(child.id()))
+                .all(|child| generic_mutation_supported(child.id()))
         {
             Ok(())
         } else {
             Err(st::StockError::CapabilityHeld)
         }
-    } else if mapped(request.id()) || st::atlas_derived_operation(request.id()) {
+    } else if generic_mutation_supported(request.id()) {
         Ok(())
     } else {
         Err(st::StockError::CapabilityHeld)
