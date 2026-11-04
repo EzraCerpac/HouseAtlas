@@ -238,3 +238,31 @@ current registration adds only these exact commands to the existing SOURCE
 list; exact composed-head named-case logs are required for execution evidence.
 Passing unrelated CI does not establish these cases. Recovery and actual
 browser/device acceptance remain open.
+
+## Native five-format contextual readback (#296)
+
+The default backend-library case
+`http::agents::asset_download_healthy::healthy_contextual_five_format_native_post_receipt_original_readback`
+uses the actual same-Host router and the five existing generated originals.
+It creates a native place with a real stock HTTP batch, reads current native
+admission before every intent and submits each file once to
+`native-places/{record_id}/evidence` with multipart v2 picker provenance.
+The existing upload owner performs original validation/measurement, staging
+and the genuine asset/evidence/identity atomic commit under retained Access.
+
+The test correlates the authentic stored root and child wire receipts, public
+asset/evidence/identity readback, exact selected-place identity and cumulative
+evidence links. It preserves opaque unverified selection labels, unknown fact
+time and the server's actual intake timestamp. Each authenticated native
+original GET must return the unchanged fixture bytes and SHA-256; HEAD must
+return the same type/size with an empty body. Durable operation counts enforce
+one commit per fresh intent and no added commit from readback/reconciliation.
+There is no standalone asset-create replacement or fabricated domain response.
+
+The older `healthy-contextual-evidence-capture` example retains its narrower
+validation/preparation scope; it is not POST/GET execution evidence. The new
+case is test source until exact named hosted logs record a pass. It changes no
+production owner or ordinary workflow command and opens no socket/browser.
+It establishes no post-capture reopen, installed compatibility/recovery,
+peak-memory/interruptibility, target load/concurrency, actual GUI one-submit
+behavior, iPhone format or physical-capture guarantee. HEIC remains unsupported.

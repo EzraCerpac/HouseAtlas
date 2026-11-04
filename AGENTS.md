@@ -254,6 +254,22 @@ restart or crash durability, source adoption/remap, available bytes/transfer,
 renderer/accepted placement, installed provider or WebMCP/device acceptance.
 This documents existing execution and changes no command or held selection.
 
+
+The same default-library selection includes
+`http::agents::asset_download_healthy::healthy_contextual_five_format_native_post_receipt_original_readback`.
+One disposable same-Host fixture creates a native place through an actual stock
+HTTP batch, then obtains fresh native place admission and submits exactly five
+contextual multipart intents: the existing generated JPEG, progressive JPEG,
+PNG, PDF and UTF-8 text files. Real Access/Store/Media owners commit the linked
+asset, evidence and selected identity. Actual retained root/child journal
+envelopes, current record GETs, opaque picker provenance, unknown fact time,
+server intake time, authenticated original GET byte/hash equality and empty
+HEAD bodies are checked. No provider, socket, TLS, browser, authority
+reconstruction, private input or production hook is added. This one positive
+native lifetime supplies no post-capture reopen, installed recovery, target
+resource, interruption or physical-device guarantee; hosted named-case logs
+establish execution.
+
 The default-library lane also retains #533's three existing cases in
 `backend/src/transports/mcp/lifecycle/synthetic_contracts.rs`, under
 `transports::mcp::lifecycle::synthetic_contracts::`:
