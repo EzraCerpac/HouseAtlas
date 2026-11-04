@@ -1,5 +1,5 @@
-/** Generated-only checks. The exact --case healthy command is registered in
- * run-healthy.mjs. Other named selections remain outside that healthy list.
+/** Generated-only checks. The four exact --case selections below are registered
+ * in run-healthy.mjs, one process each, with generated owners/focus objects.
  * No native host, browser, credentials or writes; the PDF UI is not mounted. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -11,7 +11,7 @@ import { build } from 'vite';
 
 assert.equal(process.version, 'v26.10.0');
 const selectedCase = process.argv.length === 2 ? 'healthy' : process.argv.length === 4 && process.argv[2] === '--case' ? process.argv[3] : null;
-assert(['healthy', 'reentrant-retirement', 'pdf-unavailable-metadata', 'dialog-focus-restoration'].includes(selectedCase), 'Select the healthy example or the separately registered retirement case');
+assert(['healthy', 'reentrant-retirement', 'pdf-unavailable-metadata', 'dialog-focus-restoration'].includes(selectedCase), 'Select one of the four registered generated Electrical Library cases');
 const root = resolve(fileURLToPath(new URL('../../', import.meta.url)));
 const scratch = mkdtempSync(join(tmpdir(), 'houseatlas-electrical-library-read-'));
 const paths = ['frontend/integration/native-electrical-library-reader.ts', 'frontend/src/lantern/electrical-library/project.ts',
