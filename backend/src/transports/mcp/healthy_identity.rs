@@ -18,18 +18,18 @@ use std::{collections::BTreeSet, fs, sync::Arc, sync::Mutex};
 
 const QUERY: &str = "00000000-0000-4000-8000-0000000031";
 
-struct Fixture {
+pub(super) struct Fixture {
     core: Core,
     scratch: tempfile::TempDir,
     scope: a::Scope,
-    context: Value,
+    pub(super) context: Value,
     url: String,
     cookie: String,
     csrf: String,
 }
 
 impl Fixture {
-    fn new() -> Result<Self, Failure> {
+    pub(super) fn new() -> Result<Self, Failure> {
         let scratch = tempfile::Builder::new()
             .prefix("houseatlas-mcp288-identity-")
             .tempdir_in("/tmp")?;
@@ -87,7 +87,7 @@ impl Fixture {
         })
     }
 
-    fn client(&self) -> Client<'_> {
+    pub(super) fn client(&self) -> Client<'_> {
         Client {
             core: &self.core,
             scope: &self.scope,
@@ -97,7 +97,7 @@ impl Fixture {
         }
     }
 
-    fn reopen(mut self) -> Result<Self, Failure> {
+    pub(super) fn reopen(mut self) -> Result<Self, Failure> {
         let Core {
             access,
             store,
