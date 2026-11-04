@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 28694,
-      "sha256": "dda578252aee1b9feeaf9c1191b188b278642adcb51ec2d583ee4f5eaa4edaba",
+      "bytes": 29713,
+      "sha256": "c8a08029df6a369ac58e20b2217214108c986d14cf1efcdb2c1ca870818f7b88",
       "owner": "core-integration"
     },
     {
@@ -1028,8 +1028,8 @@
     {
       "path": "backend/src/ai/host/startup/stock_read_contract.rs",
       "mode": "100644",
-      "bytes": 17795,
-      "sha256": "1b93e090b190ce665a7bfff6d0fcfc023edb0f1aae1c88f369c8a76824028000",
+      "bytes": 19113,
+      "sha256": "ab2d61d6a63d1477cf63155271742994a9770c074b887df837da226430dc63a1",
       "owner": "ai"
     },
     {
@@ -1169,7 +1169,7 @@
       "path": "backend/src/ai/stock.rs",
       "mode": "100644",
       "bytes": 15070,
-      "sha256": "dcd26fa81d851e2d74f0d1105b3d0361c1102eeb546ba53791d497ca2add4175",
+      "sha256": "aba4b74ff828d74ee3b9950705fb94582164d0c733455451ceef34611cf6a1e5",
       "owner": "ai"
     },
     {
@@ -2330,8 +2330,8 @@
     {
       "path": "backend/src/http/agents/asset_download_healthy.rs",
       "mode": "100644",
-      "bytes": 15287,
-      "sha256": "90217cf4710559cee743277cc4cfe81585610cc20eb8c316ba4b0c293991e24b",
+      "bytes": 33389,
+      "sha256": "984c80b1c6aada40a0ae4016a96a6f6a7f66c25a1feb222f186be7d70ac239a7",
       "owner": "core-integration"
     },
     {
@@ -6488,8 +6488,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 218074,
-      "sha256": "627ec2cdb1773808c36b878f4ff0eb8d04b4fb02e2f28b96977861e379717830",
+      "bytes": 219958,
+      "sha256": "3b3f79157fe82adda88744f15d4e2fd4875ef0441ed8311f4390b23e88bcb8cf",
       "owner": "core-integration"
     },
     {
@@ -7006,8 +7006,8 @@
     {
       "path": "docs/operations/contextual-evidence-capture.md",
       "mode": "100644",
-      "bytes": 15207,
-      "sha256": "13ab8a36c714ce754b677797a0ea4ed132b9a68c1180654b12f969e6176f323e",
+      "bytes": 17001,
+      "sha256": "8181f2b1bebf4deab476879b7e64dec8796f0d8ccfbdd0a6ae3bfb332fb8f410",
       "owner": "core-integration"
     },
     {

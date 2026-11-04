@@ -21,6 +21,7 @@ use crate::{
             AccountModels, ConnectionActionPort, ConnectionActionRequest, ConnectionActionResult,
             HumanReviewPort, HumanReviewResult, ModelsPort, ReviewInput,
         },
+        stock::{STOCK_COMMAND_COUNT, STOCK_CONTRACT_VERSION, SharedStockPort},
     },
     app::{RequestPrincipal, access_scope},
     contracts::stock as wire,
@@ -32,6 +33,7 @@ use rusqlite::{Connection, OpenFlags};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
+    collections::BTreeSet,
     fs::{self, OpenOptions},
     io::Write,
     os::unix::fs::OpenOptionsExt,
@@ -396,6 +398,35 @@ async fn typed_ai_request_executes_native_stock_read_and_retains_unknown_usage()
         "context":context,"target":target,"payload":{}
     });
     let never = Never::default();
+    let catalog = native_read_catalog(&application, authority.clone())?;
+    let canonical: Value = serde_json::from_slice(include_bytes!(
+        "../../../../../contracts/stock-wire3/agent/operation-catalog.json"
+    ))?;
+    let projection = catalog.domain().projection(&native)?;
+    assert_eq!(canonical["contractVersion"], STOCK_CONTRACT_VERSION);
+    assert_eq!(projection.contract_version, STOCK_CONTRACT_VERSION);
+    let canonical_commands = canonical["commands"].as_array().unwrap();
+    assert_eq!(canonical_commands.len(), STOCK_COMMAND_COUNT);
+    let expected_membership: BTreeSet<_> = canonical_commands
+        .iter()
+        .map(|command| {
+            (
+                command["toolFamily"].as_str().unwrap().to_owned(),
+                command["commandId"].as_str().unwrap().to_owned(),
+            )
+        })
+        .collect();
+    let actual_membership: BTreeSet<_> = projection
+        .families
+        .iter()
+        .flat_map(|family| {
+            family.commands.iter().map(|command| {
+                (family.family.as_str().to_owned(), command.command_id.clone())
+            })
+        })
+        .collect();
+    assert_eq!(expected_membership.len(), STOCK_COMMAND_COUNT);
+    assert_eq!(actual_membership, expected_membership);
     let host = AiHost {
         peers: Peers {
             runtime: SyntheticRuntime {
@@ -404,7 +435,7 @@ async fn typed_ai_request_executes_native_stock_read_and_retains_unknown_usage()
                 requests: Mutex::default(),
                 received: Mutex::default(),
             },
-            catalog: native_read_catalog(&application, authority.clone())?,
+            catalog,
             continuations: HostContinuations::new(
                 authority.clone(),
                 never.clone(),

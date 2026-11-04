@@ -414,3 +414,433 @@ async fn healthy() -> Result<(), Failure> {
     scratch.close()?;
     Ok(())
 }
+
+// One positive native lifetime. Setup is a real HTTP stock batch, followed by
+// five contextual uploads through this same Host; no plain asset-create substitute.
+#[test]
+fn healthy_contextual_five_format_native_post_receipt_original_readback() -> Result<(), Failure> {
+    rustix::process::umask(rustix::fs::Mode::from_raw_mode(0o077));
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?
+        .block_on(contextual_five_originals())
+}
+
+async fn capture_json(
+    app: &Router,
+    method: Method,
+    path: &str,
+    bytes: Vec<u8>,
+    content_type: Option<&str>,
+    cookie: &str,
+    csrf: Option<&str>,
+) -> Result<Value, Failure> {
+    let response = app
+        .clone()
+        .oneshot(request(
+            method,
+            path,
+            bytes,
+            content_type,
+            Some(cookie),
+            csrf,
+            None,
+        )?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()["content-type"], "application/json");
+    Ok(serde_json::from_slice(
+        &to_bytes(response.into_body(), MAX_RESPONSE).await?,
+    )?)
+}
+
+fn capture_journal(
+    directory: &std::path::Path,
+    result: &Value,
+    validation: &wire::StockValidation,
+) -> Result<i64, Failure> {
+    let database = rusqlite::Connection::open_with_flags(
+        directory.join("atlas.sqlite"),
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )?;
+    let (original, committed): (String, String) = database.query_row(
+        "SELECT original_json,commit_json FROM stock_operations WHERE operation_id=?1",
+        [result["operationId"]
+            .as_str()
+            .ok_or("Missing actual operation")?],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    let original: Value = serde_json::from_str(&original)?;
+    let committed: Value = serde_json::from_str(&committed)?;
+    assert_eq!(committed["originalRequest"], original);
+    assert_eq!(committed["wire"], *result);
+    let parsed = wire::StockRequest::parse(validation, original)?;
+    let children = committed["children"]
+        .as_array()
+        .ok_or("Missing actual durable child envelopes")?;
+    wire::StockResponse::parse(validation, &parsed, result.clone(), children)?;
+    assert_eq!(result["data"]["requestDigest"], parsed.intent_digest());
+    Ok(
+        database.query_row("SELECT count(*) FROM stock_operations", [], |row| {
+            row.get(0)
+        })?,
+    )
+}
+
+async fn contextual_five_originals() -> Result<(), Failure> {
+    let scratch = tempfile::Builder::new()
+        .prefix("houseatlas-contextual296-")
+        .tempdir_in("/tmp")?;
+    let directory = scratch.path().join("fixture");
+    let core = lifecycle::prepare(&directory, ORIGIN)?;
+    assert_eq!(
+        fs::metadata(&directory)?.permissions().mode() & 0o777,
+        0o700
+    );
+    let context =
+        json!({"workspaceId":core.home.scope.workspace_id,"homeId":core.home.scope.home_id});
+    let scope_path = format!(
+        "workspaces/{}/homes/{}",
+        core.home.scope.workspace_id, core.home.scope.home_id
+    );
+    let prefix = format!("/api/atlas/stock/v3/{scope_path}");
+    let place = id(26003);
+    let identity = id(26002);
+    let seed_evidence = id(26001);
+    let place_path = format!("/api/atlas/editing/v1/{scope_path}/native-places/{place}");
+    let receipt: Value = serde_json::from_slice(&fs::read(directory.join("smoke-session.json"))?)?;
+    let login = receipt["editorLogin"].clone();
+    drop(receipt);
+    let app = router(Host::new(
+        core,
+        ORIGIN.into(),
+        Arc::new(BTreeMap::new()),
+        vec![],
+    )?);
+    let response = app
+        .clone()
+        .oneshot(request(
+            Method::POST,
+            "/api/atlas/auth/login",
+            serde_json::to_vec(&login)?,
+            Some("application/json"),
+            None,
+            None,
+            None,
+        )?)
+        .await?;
+    drop(login);
+    assert_eq!(response.status(), StatusCode::OK);
+    let cookie = response.headers()["set-cookie"]
+        .to_str()?
+        .split(';')
+        .next()
+        .ok_or("Missing cookie pair")?
+        .to_owned();
+    let session: Value = serde_json::from_slice(&to_bytes(response.into_body(), 4096).await?)?;
+    let csrf = session["csrfToken"]
+        .as_str()
+        .ok_or("Missing current CSRF")?;
+    let validation = wire::StockValidation::new()?;
+    let license = json!({"status":"unknown","reference":null});
+    let reason = "Synthetic contextual original round trip";
+    let create = |kind: &str, record_id: &str, payload: Value, serial| {
+        json!({"schemaVersion":3,"commandId":format!("atlas.{kind}.create"),
+            "requestId":id(serial),"idempotencyKey":id(serial+100),"context":context,
+            "target":{"authority":"atlas","recordType":kind,"recordId":record_id},
+            "payload":payload,"reason":reason,"approvalReceiptId":null,
+            "preconditions":{"target":null,"guards":[]}})
+    };
+    let setup = json!({"schemaVersion":3,"commandId":"atlas.batch.execute",
+        "requestId":id(26100),"idempotencyKey":id(26200),"context":context,
+        "target":{"authority":"atlas","kind":"batch","batchId":id(26300)},
+        "payload":{"commands":[
+            create("evidence", &seed_evidence, json!({"statement":"Synthetic native capture target",
+                "provenance":{"source":null,"sourceRevision":null,"sourceConfidence":null,
+                    "evidenceBasis":"unknown","factAt":null,"retrievedAt":"2026-01-01T00:00:00Z",
+                    "vantage":null,"uncertainty":{"status":"unknown","explanation":null}},
+                "supersedesEvidenceIds":[],"references":[]}), 26101),
+            create("identity", &identity, json!({"kind":"location","evidenceIds":[seed_evidence]}), 26102),
+            create("location-semantics", &place, json!({"atlasId":identity,"semanticKind":"other",
+                "reviewStatus":"accepted","evidenceIds":[seed_evidence],"label":"Synthetic capture target"}), 26103)
+        ]},"reason":reason,"approvalReceiptId":null,"preconditions":{"target":null,"guards":[]}});
+    let setup_result = capture_json(
+        &app,
+        Method::POST,
+        &format!("{prefix}/commands"),
+        serde_json::to_vec(&setup)?,
+        Some("application/json"),
+        &cookie,
+        Some(csrf),
+    )
+    .await?;
+    assert_eq!(setup_result["status"], "committed");
+    assert_eq!(setup_result["requestId"], setup["requestId"]);
+    let baseline_operations = capture_journal(&directory, &setup_result, &validation)?;
+    let mut evidence_ids = vec![json!(seed_evidence)];
+    let mut asset_ids = std::collections::BTreeSet::new();
+    let mut upload_posts = 0_i64;
+    let originals: [(&str, &str, &str, &[u8]); 5] = [
+        (
+            "synthetic-photo.jpg",
+            "image/jpeg",
+            "camera-request",
+            include_bytes!(
+                "../../../../frontend/capture-evidence-tests/fixtures/synthetic-photo.jpg"
+            ),
+        ),
+        (
+            "synthetic-photo-progressive.jpg",
+            "image/jpeg",
+            "photo-picker",
+            include_bytes!(
+                "../../../../frontend/capture-evidence-tests/fixtures/synthetic-photo-progressive.jpg"
+            ),
+        ),
+        (
+            "synthetic-image.png",
+            "image/png",
+            "photo-picker",
+            include_bytes!(
+                "../../../../frontend/capture-evidence-tests/fixtures/synthetic-image.png"
+            ),
+        ),
+        (
+            "synthetic-document.pdf",
+            "application/pdf",
+            "file-picker",
+            include_bytes!(
+                "../../../../frontend/capture-evidence-tests/fixtures/synthetic-document.pdf"
+            ),
+        ),
+        (
+            "synthetic-note.txt",
+            "text/plain",
+            "file-picker",
+            include_bytes!(
+                "../../../../frontend/capture-evidence-tests/fixtures/synthetic-note.txt"
+            ),
+        ),
+    ];
+    for (index, (filename, content_type, method, original)) in originals.into_iter().enumerate() {
+        let admission =
+            capture_json(&app, Method::GET, &place_path, vec![], None, &cookie, None).await?;
+        assert_eq!(admission["admissionKind"], "native-location");
+        assert_eq!(admission["scope"], context);
+        assert_eq!(admission["record"]["recordId"], place);
+        assert_eq!(admission["identity"]["recordId"], identity);
+        assert_eq!(admission["identity"]["revision"], index + 1);
+        assert_eq!(
+            admission["identity"]["payload"]["evidenceIds"],
+            json!(evidence_ids)
+        );
+        assert_eq!(admission["canAttachEvidence"], true);
+        assert_eq!(
+            admission["attachmentPolicy"]["maximumBytes"],
+            10 * 1024 * 1024
+        );
+        assert!(original.len() <= 10 * 1024 * 1024);
+        let capture = json!({"schemaVersion":1,"selectionMethod":method,
+            "selectedAt":"2026-01-01T00:00:00Z","filename":filename,
+            "reportedContentType":content_type,"byteOrigin":"browser-returned-unmodified"});
+        let metadata = json!({"schemaVersion":2,"requestId":id(26400+index as u32),
+            "idempotencyKey":id(26500+index as u32),"context":context,"recordId":place,
+            "expectedRevision":admission["record"]["revision"],"guards":admission["guards"],
+            "statement":format!("Generated {filename} contextual evidence"),"sourceLicense":license,
+            "reason":reason,"filename":filename,"contentType":content_type,"capture":capture});
+        let boundary = "houseatlas-contextual-five-originals";
+        let mut body = format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"metadata\"\r\n\r\n{}\r\n--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\nContent-Type: {content_type}\r\n\r\n",
+            serde_json::to_string(&metadata)?
+        ).into_bytes();
+        body.extend_from_slice(original);
+        body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+        let mut upload = request(
+            Method::POST,
+            &format!("{place_path}/evidence"),
+            body,
+            Some(&format!("multipart/form-data; boundary={boundary}")),
+            Some(&cookie),
+            Some(csrf),
+            None,
+        )?;
+        upload.headers_mut().insert(
+            "x-atlas-upload-request-id",
+            metadata["requestId"]
+                .as_str()
+                .ok_or("Missing fixture request ID")?
+                .parse()?,
+        );
+        let started = time::OffsetDateTime::now_utc();
+        upload_posts += 1;
+        let response = app.clone().oneshot(upload).await?;
+        let finished = time::OffsetDateTime::now_utc();
+        assert_eq!(response.status(), StatusCode::OK);
+        let result: Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), MAX_RESPONSE).await?)?;
+        assert_eq!(result["commandId"], "atlas.batch.execute");
+        assert_eq!(result["requestId"], metadata["requestId"]);
+        assert_eq!(result["resolvedScope"], context);
+        assert_eq!(result["status"], "committed");
+        assert_eq!(result["replayed"], false);
+        assert_eq!(result["data"]["auditIds"].as_array().unwrap().len(), 3);
+        assert_eq!(
+            capture_journal(&directory, &result, &validation)?,
+            baseline_operations + upload_posts
+        );
+        let records = result["data"]["records"]
+            .as_array()
+            .ok_or("Missing native receipt records")?;
+        assert_eq!(records.len(), 3);
+        let asset = &records[0];
+        let evidence = &records[1];
+        let updated_identity = &records[2];
+        assert_eq!(asset["target"]["recordType"], "asset");
+        assert_eq!(evidence["target"]["recordType"], "evidence");
+        assert_eq!(updated_identity["target"]["recordType"], "identity");
+        assert_eq!(updated_identity["target"]["recordId"], identity);
+        let asset_id = asset["target"]["recordId"]
+            .as_str()
+            .ok_or("Missing native asset ID")?;
+        let evidence_id = evidence["target"]["recordId"]
+            .as_str()
+            .ok_or("Missing native evidence ID")?;
+        assert!(asset_ids.insert(asset_id.to_owned()));
+        evidence_ids.push(json!(evidence_id));
+        assert_eq!(updated_identity["revision"], index + 2);
+        assert_eq!(
+            updated_identity["payload"]["evidenceIds"],
+            json!(evidence_ids)
+        );
+        assert_eq!(evidence["payload"]["statement"], metadata["statement"]);
+        assert_eq!(
+            evidence["payload"]["references"],
+            json!([{"kind":"atlas-asset","assetId":asset_id}])
+        );
+        let provenance = &evidence["payload"]["provenance"];
+        assert_eq!(provenance["factAt"], Value::Null);
+        assert_eq!(provenance["evidenceBasis"], "unknown");
+        assert_eq!(provenance["source"], Value::Null);
+        assert_eq!(provenance["sourceRevision"], Value::Null);
+        assert_eq!(provenance["sourceConfidence"], Value::Null);
+        assert_eq!(
+            provenance["uncertainty"],
+            json!({"status":"unknown","explanation":null})
+        );
+        let claim = provenance["vantage"]
+            .as_str()
+            .ok_or("Missing opaque selection claim")?
+            .strip_prefix("Browser selection claim v1: ")
+            .ok_or("Missing claim prefix")?;
+        assert_eq!(serde_json::from_str::<Value>(claim)?, capture);
+        let retrieved = time::OffsetDateTime::parse(
+            provenance["retrievedAt"]
+                .as_str()
+                .ok_or("Missing actual intake time")?,
+            &time::format_description::well_known::Rfc3339,
+        )?;
+        assert!(retrieved >= started && retrieved <= finished);
+        let digest = format!("{:x}", Sha256::digest(original));
+        assert_eq!(asset["payload"]["sha256"], digest);
+        assert_eq!(asset["payload"]["byteSize"], original.len());
+        assert_eq!(asset["payload"]["contentType"], content_type);
+        assert_eq!(asset["payload"]["owner"], "atlas");
+        assert_eq!(asset["payload"]["purpose"], "evidence-original");
+        assert_eq!(asset["payload"]["sourceLicense"], license);
+        assert_eq!(asset["payload"]["availability"], "available");
+        if content_type == "image/jpeg" {
+            assert_eq!(asset["payload"]["previewPolicy"], "download-only");
+        }
+        for record in records {
+            let path = format!(
+                "{prefix}/records/{}/{}",
+                record["target"]["recordType"].as_str().unwrap(),
+                record["target"]["recordId"].as_str().unwrap()
+            );
+            let read = capture_json(&app, Method::GET, &path, vec![], None, &cookie, None).await?;
+            assert_eq!(read["status"], "read");
+            assert_eq!(read["resolvedScope"], context);
+            assert_eq!(read["data"]["sourceStatus"], "current");
+            assert_eq!(read["data"]["nextCursor"], Value::Null);
+            assert_eq!(read["data"]["records"], json!([record]));
+        }
+        let descriptor = json!({"assetId":asset_id,"kind":"atlas-asset"});
+        let descriptor_digest = crate::contracts::semantics::canonical_digest(&descriptor)?;
+        let path = format!(
+            "/api/atlas/media/{}/{}/{descriptor_digest}/download",
+            context["workspaceId"].as_str().unwrap(),
+            context["homeId"].as_str().unwrap()
+        );
+        for method in [Method::GET, Method::HEAD] {
+            let head = method == Method::HEAD;
+            let response = app
+                .clone()
+                .oneshot(request(
+                    method,
+                    &path,
+                    vec![],
+                    None,
+                    Some(&cookie),
+                    None,
+                    None,
+                )?)
+                .await?;
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers()["content-type"], content_type);
+            assert_eq!(
+                response.headers()["content-length"]
+                    .to_str()?
+                    .parse::<usize>()?,
+                original.len()
+            );
+            assert!(
+                response.headers()["content-disposition"]
+                    .to_str()?
+                    .starts_with("attachment;")
+            );
+            assert_eq!(response.headers()["cache-control"], "private, no-store");
+            assert_eq!(response.headers()["x-content-type-options"], "nosniff");
+            assert_eq!(
+                response.headers()["content-security-policy"],
+                "default-src 'none'; sandbox"
+            );
+            let downloaded = to_bytes(response.into_body(), MAX_RESPONSE).await?;
+            if head {
+                assert!(downloaded.is_empty());
+            } else {
+                assert_eq!(downloaded.as_ref(), original);
+                assert_eq!(format!("{:x}", Sha256::digest(&downloaded)), digest);
+            }
+        }
+        let observed = capture_json(
+            &app,
+            Method::GET,
+            &format!(
+                "{place_path}/evidence/requests/{}",
+                metadata["requestId"].as_str().unwrap()
+            ),
+            vec![],
+            None,
+            &cookie,
+            None,
+        )
+        .await?;
+        assert_eq!(observed["kind"], "native-evidence-reconciliation");
+        assert_eq!(observed["requestId"], metadata["requestId"]);
+        assert_eq!(observed["recordId"], place);
+        assert_eq!(observed["scope"], context);
+        assert_eq!(observed["outcome"], "committed");
+        assert_eq!(observed["result"], result);
+        assert_eq!(
+            capture_journal(&directory, &result, &validation)?,
+            baseline_operations + upload_posts
+        );
+    }
+    assert_eq!(upload_posts, 5);
+    assert_eq!(asset_ids.len(), 5);
+    assert_eq!(evidence_ids.len(), 6);
+    drop(session);
+    drop(app);
+    scratch.close()?;
+    Ok(())
+}

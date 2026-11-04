@@ -11,7 +11,7 @@ use std::collections::HashSet;
 
 pub const STOCK_CONTRACT_VERSION: &str = "0.3.0-at34.stock.2";
 pub const STOCK_WIRE_VERSION: u8 = 3;
-pub const STOCK_COMMAND_COUNT: usize = 164;
+pub const STOCK_COMMAND_COUNT: usize = 168;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -235,7 +235,7 @@ pub struct DomainDispatch {
 pub trait SharedStockPort<C> {
     type Prepared: Send + Sync;
 
-    /// Preserve all 164 catalog entries across the ten original families, while
+    /// Preserve all 168 catalog entries across the ten original families, while
     /// advertising only authorized supported arms. Resolve schema resources
     /// offline; catalog design status does not enable provider/live readiness.
     fn projection(&self, context: &C) -> Result<StockCatalogProjection, AiError>;
