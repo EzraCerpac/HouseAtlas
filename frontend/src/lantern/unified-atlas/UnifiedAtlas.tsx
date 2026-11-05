@@ -33,7 +33,7 @@ import { daylightAt, resolveSunPlace, stageBackdrop, stageColors } from './dayli
 import { showModelGeographic, useSunLocation } from './sun-place';
 import { DaylightControl, useLightingTime } from './DaylightControl';
 import { shownTier, stageTier } from './model-tier';
-import { NetworkGraph } from './NetworkGraph';
+import { NetworkGraph, type StageTrace } from './NetworkGraph';
 import { LayerDetailsDock, useLayerDetailsFocus, useShortLayerDetails } from './LayerDetailsDock';
 import { NetworkStageConnections, networkRoomConnections } from './NetworkStageConnections';
 import { PLAN_ORDER, PlanRoom, PlanTile, planTileLevels } from './plan-presentation';
@@ -824,6 +824,10 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
 
   // The whole property's qualified room associations, independent of focus or
   // count-label collision suppression. These are logical summaries, not routes.
+  // A device's route to the router, chosen in the network graph, also lights on the stage.
+  const [networkTrace, setNetworkTrace] = useState<StageTrace | null>(null);
+  const onNetworkTrace = useCallback((graphKey: string, trace: StageTrace | null) =>
+    setNetworkTrace(current => trace ?? (current?.graphKey === graphKey ? null : current)), []);
   const networkConnections = useMemo(() => networkRoomConnections(networkOn ? runtime.records : null,
     networkOn && runtime.records ? [...runtime.records.rooms.keys()].flatMap(roomId =>
       (model.roomsById.get(roomId)?.occurrenceIds ?? []).flatMap(occurrenceId => {
@@ -1463,9 +1467,9 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
           {siteNames.length > 0 && <g className="ua-site-names" style={{ opacity: planBlend }}>
             {siteNames.map(row => <text key={row.key} x={row.x} y={row.y} textAnchor="middle">{row.text}</text>)}
           </g>}
-          {networkOn && planBlend < 1 && <g opacity={1 - planBlend}>
-            <NetworkStageConnections connections={networkConnections} selected={selected} />
-          </g>}
+          {/* Associations fade out into a plan; a traced route stays, between the plan's own rooms. */}
+          {networkOn && (planBlend < 1 || networkTrace) && <NetworkStageConnections connections={networkConnections} selected={selected}
+            trace={networkTrace} fade={1 - planBlend} shown={planBlend < .5 ? undefined : onStage} />}
           {positions.length > 0 && <g className="ua-positions">
             {positions.map(row => <rect key={row.key} className={row.context ? 'is-context' : undefined} style={{ '--layer': TONE_COLOR[row.kind] } as CSSProperties}
               x={row.x - 4} y={row.y - 4} width={8} height={8} transform={`rotate(45 ${row.x} ${row.y})`} />)}
@@ -1596,7 +1600,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
           <button type="button" className="chip-btn ua-graph-close" onClick={closeGraph}><Icon name="close" size={15} /><span>Close graph</span></button>
         </header>
         <div className="ua-graph-body">
-          {graphs.map(graph => <NetworkGraph key={graph.key} graph={graph} />)}
+          {graphs.map(graph => <NetworkGraph key={graph.key} graph={graph} onTrace={onNetworkTrace} />)}
         </div>
       </section>}
     </div>
@@ -1621,7 +1625,8 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
         </section>
         : <NetworkLensSection graphs={graphs} networkOn={networkOn} published={!runtimeConfigured}
           availability={runtime.records?.network ?? (!runtimeConfigured ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
-          headingId={`${graphId}-network`} showLayer={() => dispatch({ type: 'layer', layer: 'network', on: true })} />}
+          headingId={`${graphId}-network`} showLayer={() => dispatch({ type: 'layer', layer: 'network', on: true })}
+          onTrace={onNetworkTrace} />}
     </div>, hostLens.target)}
   </section>;
 }
