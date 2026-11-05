@@ -1,5 +1,6 @@
 import { AtlasReadError, type AtlasScene, type LiveAtlasPresentationPort, type LiveAtlasSelection, type StoredAtlasRead } from '../src/lantern/unified-atlas/types';
 import { decodeStoredOverlays } from '../src/lantern/unified-atlas/stored-overlays';
+import type { OfflineAtlasReferenceV1 } from '../src/offline/live-copy-types';
 import type { LastAtlasCopy } from '../src/offline/SavedAtlasHost';
 import { openUnifiedAtlasStore, readLastAtlas } from './unified-atlas-cache';
 import { readCachedUnifiedAtlas } from './unified-atlas-reader';
@@ -14,13 +15,18 @@ import { readCachedUnifiedAtlas } from './unified-atlas-reader';
  * view (`events`, usually the window) and the pointer is gone or names
  * another copy, the selection is withdrawn and the held bytes released. */
 export async function openLastAtlasCopy(factory: IDBFactory | undefined, signal: AbortSignal,
-  events?: Pick<EventTarget, 'addEventListener' | 'removeEventListener'>): Promise<LastAtlasCopy | null> {
+  events?: Pick<EventTarget, 'addEventListener' | 'removeEventListener'>, expected?: OfflineAtlasReferenceV1): Promise<LastAtlasCopy | null> {
   const store = openUnifiedAtlasStore(factory);
   try {
     await store.ready(); signal.throwIfAborted();
     const last = await readLastAtlas(store); signal.throwIfAborted();
     if (!last) { await store.close(); return null; }
     const { pointer, cache } = last;
+    if (expected && (expected.version !== 1 || expected.scope.workspaceId !== pointer.workspaceId
+      || expected.scope.homeId !== pointer.homeId || expected.publicationId !== pointer.publicationId
+      || expected.manifestSha256 !== pointer.manifestSha256 || expected.atlasActorRevision !== pointer.actorRevision)) {
+      await store.close(); return null;
+    }
     const selection: LiveAtlasSelection = Object.freeze({ kind: 'live', overview: Object.freeze({ owner: Object.freeze({}),
       scope: Object.freeze({ workspaceId: pointer.workspaceId, homeId: pointer.homeId }), expiresAt: new Date(0).toISOString(),
       publicationId: pointer.publicationId, manifestSha256: pointer.manifestSha256 }) });

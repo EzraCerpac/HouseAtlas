@@ -82,6 +82,41 @@ let currentSession: AtlasSessionInfo | null = null;
 let currentQuantityScope: Scope | null = null;
 let currentStockAdmission: StockAdmission | null = null;
 let currentReadyView: ReadyView | null = null;
+// Optional retained display data is separate from canonical application/session owners.
+let liveCopies: import("./live-copy-retention").LiveCopyRetention | null = null;
+let liveCopiesOpening: Promise<import("./live-copy-retention").LiveCopyRetention> | null = null;
+let liveCopyObservation: Promise<unknown> = Promise.resolve();
+/** Consumer uses the read/storage ports only; no stored value configures live clients. */
+export function getLiveCopyRetention(): Promise<import("./live-copy-retention").LiveCopyRetention> {
+  return liveCopiesOpening ??= import("./live-copy-retention").then(module => {
+    const storage = navigator.storage;
+    const channel = typeof BroadcastChannel === "undefined" ? undefined : new BroadcastChannel("houseatlas-live-readonly-copy-v1");
+    liveCopies = module.createLiveCopyRetention({
+      factory: typeof indexedDB === "undefined" ? undefined : indexedDB,
+      state: () => ({ session: currentSession, view: currentReadyView }),
+      events: window,
+      documents: () => sourceDocuments.current(),
+      async atlasReference(identity, signal) {
+        const [cache, store] = await Promise.all([import("./unified-atlas-cache"), getAtlasStore()]);
+        signal.throwIfAborted(); const last = await cache.readLastAtlas(store); signal.throwIfAborted();
+        const p = last?.pointer;
+        if (!p || p.actorId !== identity.actorId || p.workspaceId !== identity.scope.workspaceId || p.homeId !== identity.scope.homeId) return null;
+        return { version: 1, scope: { workspaceId: p.workspaceId, homeId: p.homeId }, publicationId: p.publicationId,
+          manifestSha256: p.manifestSha256, atlasActorRevision: p.actorRevision };
+      },
+      ...(storage && typeof storage.estimate === "function" && typeof storage.persisted === "function"
+        && typeof storage.persist === "function" ? { storage } : {}),
+      ...(channel ? { channel } : {}),
+    });
+    return liveCopies;
+  });
+}
+function observeLiveCopyActor(value: AtlasSessionInfo | null): void {
+  if (value === null) liveCopies?.retire();
+  const observedGeneration = sessionGeneration;
+  const current = () => observedGeneration === sessionGeneration && currentSession === value;
+  liveCopyObservation = getLiveCopyRetention().then(owner => current() ? owner.observe(value, current) : undefined).catch(() => undefined);
+}
 /** Read-only tool admission for the current scope; cleared with every scope clear. */
 let currentQuantityAdmission: QuantityToolAdmission | null = null;
 const quantityEvents = new EventTarget();
@@ -106,6 +141,7 @@ let atlasActor: Promise<AtlasCacheActor | null> = Promise.resolve(null);
  * copy may open offline. An unavailable session read keeps the prior witness;
  * pending reads, cached IDs and outbox rows never become live authority. */
 function observeAtlasActor(value: AtlasSessionInfo | null): void {
+  observeLiveCopyActor(value);
   const generation = sessionGeneration;
   const current = () => generation === sessionGeneration && currentSession === value;
   atlasCacheOwner = null;
@@ -182,6 +218,7 @@ const sessions: AtlasSessionClient = {
     currentReadyView = null;
     quantityChanged();
     // Device copies are deleted even when the sign-out request fails.
+    liveCopies?.retire();
     try { await nativeSignOut(signal); }
     finally {
       atlasCacheOwner = null;
@@ -190,6 +227,8 @@ const sessions: AtlasSessionClient = {
         getAtlasStore().then(store => store.clear()).catch(() => undefined),
         import('../src/lantern/unified-atlas/detail-store').then(detail => detail.clearDetailStore()).catch(() => undefined)]);
       captureDrafts.announceSessionChange();
+      const cleared = await getLiveCopyRetention().then(owner => owner.storage.clear());
+      if (cleared.status !== 'ok') throw new Error('Offline copies could not be removed; storage cleanup is incomplete');
     }
   } } : {}),
   // Mode is informational and writes no shared state; local and proxy sign-in
@@ -665,6 +704,19 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
       }
       if (!signal.aborted && attempt === generation && sameSession()) {
         currentReadyView = view.status === "ready" ? view : null; quantityChanged();
+        if (view.status === "ready") {
+          // Completion, actual session allocation and scope remain current after lazy storage opening.
+          const observation = liveCopyObservation;
+          void observation.then(() => getLiveCopyRetention()).then(owner => {
+            if (!signal.aborted && attempt === generation && sameSession() && currentReadyView === view)
+              return owner.capture(view, signal);
+          }).catch(() => undefined);
+        } else if (view.status === "denied" || view.status === "expired" || view.status === "revoked") {
+          liveCopies?.retire();
+          void getLiveCopyRetention().then(owner => {
+            if (!signal.aborted && attempt === generation && sameSession()) return owner.storage.clear();
+          }).catch(() => undefined);
+        }
       }
       return view;
     };
