@@ -138,6 +138,7 @@ export function createElectricalDataProjector(schema, nativeSchema) {
     }
     const breakerByCircuit = new Map(breakers.map(row => [key(row.circuit), row]));
     let memberships = 0;
+    const contradictedFixtures = new Set();
     const mappings = data.mappings.map(row => {
       const reasons = assess('mapping', row);
       const fixtureIds = row.target.kind === 'fixture' ? (fixtures.has(row.target.id) ? [row.target.id] : [])
@@ -150,11 +151,20 @@ export function createElectricalDataProjector(schema, nativeSchema) {
         || breakerByCircuit.get(key(pin))?.status !== 'current') reasons.push('circuit-descriptor-not-current');
       if (row.basis === 'test') {
         const evidence = currentEvidence(row.test.evidence);
-        if (row.test.outcome !== 'confirmed' || !equal([...row.test.fixtureIds].sort(), [...fixtureIds].sort())
-          || !row.review.evidence.some(pin => samePin(pin, row.test.evidence))
-          || evidence?.payload.provenance.evidenceBasis !== 'physical-survey'
-          || evidence?.payload.provenance.factAt !== row.test.observedAt
-          || evidence?.payload.provenance.uncertainty.status !== 'supported') reasons.push('test-not-confirmed-for-exact-target');
+        const exactTestEvidence = equal([...row.test.fixtureIds].sort(), [...fixtureIds].sort())
+          && row.review.evidence.some(pin => samePin(pin, row.test.evidence))
+          && evidence?.payload.provenance.evidenceBasis === 'physical-survey'
+          && evidence?.payload.provenance.factAt === row.test.observedAt
+          && evidence?.payload.provenance.uncertainty.status === 'supported';
+        // A current reviewed negative result cannot be discarded merely because
+        // this row itself cannot yield a positive association. Preserve it as a
+        // veto for every overlapping group/fixture association, even when their
+        // candidate circuit IDs agree. Unreviewed/stale/unknown assertions do
+        // not acquire current test authority through this comparison.
+        if (!reasons.length && exactTestEvidence && row.test.outcome === 'contradicted') {
+          for (const id of fixtureIds) contradictedFixtures.add(id);
+        }
+        if (row.test.outcome !== 'confirmed' || !exactTestEvidence) reasons.push('test-not-confirmed-for-exact-target');
       }
       return { ...copy(row), fixtureIds: copy(fixtureIds), reasons, status: reasons.length ? 'withheld' : 'reviewed-association',
         currentCircuitId: reasons.length ? null : row.candidates[0].recordId,
@@ -168,9 +178,14 @@ export function createElectricalDataProjector(schema, nativeSchema) {
       for (const pin of row.candidates) candidates.add(key(pin));
       candidatesByFixture.set(id, candidates);
     }
-    for (const row of mappings) if (row.fixtureIds.some(id => candidatesByFixture.get(id).size > 1)) {
-      row.reasons.push('conflicting-fixture-circuit-candidates'); row.status = 'withheld';
-      row.currentCircuitId = null; row.verifiedWiring = false;
+    for (const row of mappings) {
+      const candidateConflict = row.fixtureIds.some(id => candidatesByFixture.get(id).size > 1);
+      const testConflict = row.fixtureIds.some(id => contradictedFixtures.has(id));
+      if (candidateConflict) row.reasons.push('conflicting-fixture-circuit-candidates');
+      if (testConflict) row.reasons.push('contradictory-fixture-circuit-tests');
+      if (candidateConflict || testConflict) {
+        row.status = 'withheld'; row.currentCircuitId = null; row.verifiedWiring = false;
+      }
     }
     return { schema: 'houseatlas.electrical-data-projection.v1', scope: copy(data.scope), viewKey: data.viewKey,
       fixtureLedgerSha256: data.fixtureLedgerSha256, panels, breakers, mappings,

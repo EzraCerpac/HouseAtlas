@@ -142,6 +142,68 @@ test('healthy documentary-only intake and separate reviewed electrical data cont
       assert(result.mappings.some(row => row.currentCircuitId === null), kind);
     }
   });
+  await t.test('current contradictory same-circuit tests withhold every overlapping association in either order',()=>{
+    const contradiction = (positiveKind, negativeKind) => {
+      const fixture = structuredClone(generated), positive = fixture.data.mappings[2];
+      const target = kind => ({kind, id: kind === 'fixture' ? 'generated-symbol-3' : 'generated-group-3'});
+      positive.target = target(positiveKind); refreshReview(fixture, 'mapping', positive);
+      const evidence = structuredClone(fixture.context.records.find(record => record.recordId === positive.test.evidence.recordId));
+      evidence.recordId = '00000000-0000-4000-8000-000000008803';
+      evidence.lastAuditId = '00000000-0000-4000-8000-000000018803';
+      evidence.payload.statement = 'GENERATED contradictory test assertion for the same fictional fixture and circuit';
+      fixture.context.records.push(evidence);
+      const evidencePin = {recordType: 'evidence', recordId: evidence.recordId, revision: evidence.revision};
+      const negative = structuredClone(positive);
+      negative.id = 'generated-independent-contradicted-mapping'; negative.target = target(negativeKind);
+      negative.test = {...negative.test, evidence: evidencePin, outcome: 'contradicted'};
+      negative.review = {...negative.review, evidence: [evidencePin], receipt: {
+        id: 'generated-independent-negative-review',
+        sha256: createHash('sha256').update('Generated independent negative review only').digest('hex')
+      }};
+      fixture.data.mappings.push(negative);
+      fixture.context.currentReviews.push({receipt: structuredClone(negative.review.receipt),
+        subject: electricalReviewSubject(fixture.data, 'mapping', negative)});
+      return fixture;
+    };
+    for (const positiveKind of ['fixture', 'documentary-group']) for (const negativeKind of ['fixture', 'documentary-group']) {
+      for (const negativeFirst of [false, true]) {
+        const fixture = contradiction(positiveKind, negativeKind);
+        if (negativeFirst) fixture.data.mappings.splice(2, 2, fixture.data.mappings[3], fixture.data.mappings[2]);
+        const before = structuredClone(fixture), result = project(fixture.data, fixture.context);
+        for (const id of ['generated-mapping-3', 'generated-independent-contradicted-mapping']) {
+          const row = result.mappings.find(row => row.id === id);
+          assert.equal(row.status, 'withheld'); assert.equal(row.currentCircuitId, null);
+          assert.equal(row.verifiedWiring, false);
+          assert(row.reasons.includes('contradictory-fixture-circuit-tests'));
+          assert.deepEqual(row.candidates, [fixture.data.breakers[2].circuit]);
+          assert.deepEqual(row.test, fixture.data.mappings.find(input => input.id === id).test);
+        }
+        assert.deepEqual(result.mappings.slice(0, 2).map(row => row.currentCircuitId), generated.expected.currentCircuitIds.slice(0, 2));
+        assert(result.mappings.slice(0, 2).every(row => !row.verifiedWiring));
+        assert.deepEqual(fixture, before);
+      }
+    }
+    // A current contradicted test also withholds a same-circuit owner report;
+    // negative evidence is not meaningful only when another row claims a test.
+    const report = contradiction('documentary-group', 'fixture'), positive = report.data.mappings[2];
+    positive.basis = 'owner-report'; delete positive.test; refreshReview(report, 'mapping', positive);
+    assert.equal(project(report.data, report.context).mappings[2].currentCircuitId, null);
+    // Generated unreviewed/unknown or inconclusive assertions cannot become a
+    // current negative test just by carrying the same circuit/fixture IDs.
+    for (const change of [
+      row => { row.review.status = 'unreviewed'; },
+      row => { row.review.confidence = 'unknown'; },
+      row => { row.test.outcome = 'inconclusive'; },
+    ]) {
+      const fixture = contradiction('fixture', 'documentary-group'), negative = fixture.data.mappings[3];
+      change(negative); refreshReview(fixture, 'mapping', negative);
+      const result = project(fixture.data, fixture.context);
+      assert.equal(result.mappings[2].currentCircuitId, generated.expected.currentCircuitIds[2]);
+      assert.equal(result.mappings[2].verifiedWiring, true);
+      assert.equal(result.mappings[3].currentCircuitId, null);
+      assert.equal(result.mappings[3].verifiedWiring, false);
+    }
+  });
   await t.test('exact scope/receipt/test evidence is required and input cannot assert verified wiring or routes',()=>{
     const noReview = structuredClone(generated); noReview.context.currentReviews = [];
     assert(project(noReview.data, noReview.context).mappings.every(row => row.currentCircuitId === null));

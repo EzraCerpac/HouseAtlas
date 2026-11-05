@@ -57,10 +57,11 @@ a fake iCloud helper; no launchd, network or real data) with the runner's
 known/approximate affine fits, property-wide inventory, documentary-only intake,
 reviewed withdrawal, revision reconciliation, stale current identities and
 source-uncertainty hull coverage (including malformed explicit row tolerances).
-The existing documentary-only top-level case also contains exactly three
+The existing documentary-only top-level case also contains exactly four
 generated electrical-data subtests for #554: canonical panel/circuit/evidence
 joins and report/label/test distinction; unknown/stale/ambiguous/conflicting
-withholding; and exact scope/review/test coverage. They use the read schema,
+withholding; same-circuit contradictory tests across group/fixture overlap in
+both row orders; and exact scope/review/test coverage. They use the read schema,
 pure projector and generated fixture in `contracts/electrical-data/README.md`,
 with already pinned contracts Ajv. Original registration assertions and the
 eight-case command remain; no workflow, provider, native write or UI is added.

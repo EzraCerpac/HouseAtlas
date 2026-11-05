@@ -95,7 +95,15 @@ Malformed or cross-home inputs throw. Missing/stale/tombstoned native references
 unavailable/disputed/withdrawn/superseded evidence, absent exact reviews and
 nonunique candidates retain rows but withhold joins. Overlapping group/fixture
 candidates that disagree withhold all affected joins; no first-row or label
-fallback exists. Duplicate occupied panel ways similarly withhold affected
+fallback exists. A separately current, exactly reviewed test with a contradicted
+outcome also withholds every overlapping association, even when confirmed and
+contradicted assertions name the same circuit. Group/fixture overlap is checked
+through exact documentary membership. Both assertions stay visible; row order,
+timestamp or label cannot select a winner. An unreviewed, unknown-confidence or
+inconclusive assertion does not become a current negative test. Releasing the
+hold requires explicit reconciliation of current review/evidence by the existing
+host owners, not a new override, synthetic authority or automatic time ordering.
+Duplicate occupied panel ways similarly withhold affected
 breaker/mapping joins. Even a conflicting proposal requires explicit
 reconciliation; source ordering cannot silently override it. Absent known
 metadata remains absent, rather than being converted into a guessed value.
@@ -111,10 +119,14 @@ label match and an explicitly **GENERATED tested-state example**. The last
 demonstrates the contract branch; no electrical test was performed and none of
 these records or receipts describes an installed house.
 
-The existing eight-top-level electrical registration selection contains three
+The existing eight-top-level electrical registration selection contains four
 new explicit subtests in `healthy documentary-only intake and separate reviewed
 electrical data contract`: canonical/schema joins and provenance, withheld
-unknown/stale/conflicting cases, and exact scope/receipt/test limitations.
+unknown/stale/conflicting cases, same-circuit contradictory tests in both row
+orders and all group/fixture overlap combinations, and exact scope/receipt/test
+limitations. The contradictory-test subtest derives a separate generated native
+evidence record and independent review subject from the existing fixture; it
+preserves both original assertions and checks unrelated report/label mappings.
 Its previous documentary assertions are preserved. The existing command is:
 
 ```sh

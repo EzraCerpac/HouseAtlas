@@ -2832,11 +2832,13 @@ adding a new workflow, dependency, listener or browser check. Named-case output
 from that step is execution evidence; unrelated green CI is not.
 
 The existing documentary-only top-level case now additionally contains exactly
-three #554 source-contract subtests, described in
+four #554 source-contract subtests, described in
 [electrical data read contract v1](../../contracts/electrical-data/README.md):
 generated panel/native circuit/evidence joins and owner-report/label-match/test
-distinction; unknown, absent, stale, ambiguous and conflicting withholding; and
-exact scope, retained review subject and test-coverage requirements. The generated
+distinction; unknown, absent, stale, ambiguous and conflicting withholding;
+independently current contradictory same-circuit tests across group/fixture
+overlap in both row orders; and exact scope, retained review subject and
+test-coverage requirements. The generated
 fixture includes an explicitly invented tested-state example, never household
 wiring evidence. These subtests preserve the original documentary assertions and
 use already pinned contracts Ajv with no new command, workflow, dependency,
