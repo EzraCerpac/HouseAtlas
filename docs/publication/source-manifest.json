@@ -6915,8 +6915,8 @@
     {
       "path": "docs/offline-live-copy.md",
       "mode": "100644",
-      "bytes": 7566,
-      "sha256": "f3666ad69745eea19fd3da2fc527c45c3351336f51d6440e33e9042975de7c02",
+      "bytes": 7682,
+      "sha256": "4cad5c1c51a67f3b85688f73f609c7c798647441343852ea2a693b97185b95e7",
       "owner": "core-integration"
     },
     {
@@ -7552,8 +7552,8 @@
     {
       "path": "frontend/integration/live-copy-retention.ts",
       "mode": "100644",
-      "bytes": 11250,
-      "sha256": "a9ca1344726edec4e2495eedddb04392c10210270510c1e7ca1ed771098a6f9e",
+      "bytes": 12128,
+      "sha256": "1daae6240a7459c3fa84caddbfdac7360072d91c34950890a3e9ab8c64f750c3",
       "owner": "core-integration"
     },
     {

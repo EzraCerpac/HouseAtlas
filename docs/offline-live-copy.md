@@ -32,7 +32,9 @@ it must not call `observe` with a cached actor or create a session from a snapsh
   attachment is not a native source Document; do not join them by title or UUID.
 - `atlasReference(handle, signal)` joins the copy's actor/home to the existing
   last-Atlas pointer through its separately revalidated witness. Null means no
-  matching Atlas; unavailable means the optional resolver is not supplied.
+  matching Atlas; unavailable means pointer storage/resolution failed. The default
+  resolver opens and closes the existing verified cache reader; a host can supply
+  an equivalent resolver.
   Pass the returned reference as the fourth argument of `openLastAtlasCopy`.
   That existing reader refuses a different actor revision, scope, publication or
   manifest before reading, then retains its original admission, hash and final

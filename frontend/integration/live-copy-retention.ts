@@ -56,9 +56,21 @@ export function createLiveCopyRetention(options: {
     read: { readLast: owner.readLast, readCatalog: owner.readCatalog, readDocument: owner.readDocument, documentStatus: owner.documentStatus,
       async atlasReference(handle, signal) {
         const identity = await owner.copyIdentity(handle, signal); if (identity.status !== 'ok') return identity;
-        if (!options.atlasReference) return { status: 'unavailable' } as const;
         try {
-          const reference = await options.atlasReference(identity.value, signal);
+          const resolve: NonNullable<typeof options.atlasReference> = options.atlasReference ?? (async (selected, requestSignal) => {
+            const module = await import('./unified-atlas-cache');
+            requestSignal.throwIfAborted();
+            const store = module.openUnifiedAtlasStore(options.factory);
+            try {
+              await store.ready(); requestSignal.throwIfAborted();
+              const last = await module.readLastAtlas(store); requestSignal.throwIfAborted();
+              const p = last?.pointer;
+              if (!p || p.actorId !== selected.actorId || p.workspaceId !== selected.scope.workspaceId || p.homeId !== selected.scope.homeId) return null;
+              return { version: 1 as const, scope: { workspaceId: p.workspaceId, homeId: p.homeId },
+                publicationId: p.publicationId, manifestSha256: p.manifestSha256, atlasActorRevision: p.actorRevision };
+            } finally { await store.close(); }
+          });
+          const reference = await resolve(identity.value, signal);
           const latest = await owner.copyIdentity(handle, signal); if (latest.status !== 'ok') return latest;
           if (reference && (reference.version !== 1 || reference.scope.workspaceId !== identity.value.scope.workspaceId
             || reference.scope.homeId !== identity.value.scope.homeId || typeof reference.publicationId !== 'string'
