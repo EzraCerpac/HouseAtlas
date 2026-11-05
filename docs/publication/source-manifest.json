@@ -7965,8 +7965,8 @@
     {
       "path": "frontend/lantern-tests/mesh-layer-browser.mjs",
       "mode": "100644",
-      "bytes": 28147,
-      "sha256": "9d1405bf824b4f321df834a207781c9583a4a9c6f37efdfc3a8d8d559f28c4bc",
+      "bytes": 28335,
+      "sha256": "2b0fada34153bef77b722988e278a3ca76c5f2876d77e1f7262cf7f2c00e733c",
       "owner": "web"
     },
     {
@@ -9337,8 +9337,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/MeshLayer.tsx",
       "mode": "100644",
-      "bytes": 14204,
-      "sha256": "5909aa1c879b12ff03fe2a1a3720507946cacab3aff9a40a4a87a8a9f7d8cb5b",
+      "bytes": 14499,
+      "sha256": "0ba867ed6c6c25c753a6e381bbf47e203bab3099736b8d99ff8881d3f98a8ff7",
       "owner": "web"
     },
     {
@@ -9393,8 +9393,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-scene.ts",
       "mode": "100644",
-      "bytes": 65003,
-      "sha256": "5a850615cec6b14f93d513dfcc68097f91ce816fea75dba134010622758cdc82",
+      "bytes": 65208,
+      "sha256": "ff8292d9dcd43bf6643b23c2002ddce60eb230192939b7d5e039f7794b47ca19",
       "owner": "web"
     },
     {

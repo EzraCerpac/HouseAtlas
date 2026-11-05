@@ -51,6 +51,8 @@ export interface MeshScene {
   advance(): void;
   /** Whether every stage is drawn: nothing is left to prepare. */
   complete(): boolean;
+  /** Whether a later stage failed to prepare: the stages drawn so far are all there will be. */
+  failed(): boolean;
   /** Draw one frame. `appearance` is null when only the camera moved since the last frame.
    * `occlusion` (0 to 1) blends in contact shading; 0 skips its passes entirely.
    * Returns true while another frame of the same view would still refine the contact shading. */
@@ -814,7 +816,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     let drawnAt = 0, preparedAt = 0, shadingReady = false;
     const drawable = new Set<MeshPass | 'ghost'>(), wanted = new Map<Mesh, boolean>();
     /** The appearance of a frame skipped while drawing waits, applied by the next one drawn. */
-    let held: AppearanceInput | null = null;
+    let held: AppearanceInput | null = null, failure = false;
     const draw = (q: Projection, appearance: AppearanceInput | null, width: number, height: number, shading: number): boolean => {
       if (disposed) return false;
       // Whether only uniforms changed: a new hour leaves the table, by night the sun's map,
@@ -883,7 +885,8 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
         preparedAt++; onStage?.();
       }
     })().catch(error => {
-      if (!disposed && !signal?.aborted) console.warn('3D view kept at its last prepared stage', error);
+      if (disposed || signal?.aborted) return;
+      failure = true; console.warn('3D view kept at its last prepared stage', error); onStage?.();
     });
     return {
       backend,
@@ -891,6 +894,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       get stage() { return STAGES[drawnAt]!; },
       pending: () => drawnAt < preparedAt ? STAGES[drawnAt + 1]! : null,
       complete: () => drawnAt === STAGES.length - 1,
+      failed: () => failure,
       advance() {
         if (drawnAt >= preparedAt) return;
         const stage = STAGES[++drawnAt]!;

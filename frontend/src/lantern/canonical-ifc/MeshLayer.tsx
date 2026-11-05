@@ -143,7 +143,7 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       // A canvas replaced meanwhile leaves the check to its successor; a hidden one (Plan, or a set still swapping in),
       // or one whose predecessor is still checking, waits until it can run.
       if (probeState === 'done' || disposed || !scene) return;
-      if (probeState === 'running' || latest.current.hidden || latest.current.building || !scene.complete()) { setTimeout(() => void probe(shownAt), PROBE_DELAY_MS); return; }
+      if (probeState === 'running' || latest.current.hidden || latest.current.building || !scene.complete() && !scene.failed()) { setTimeout(() => void probe(shownAt), PROBE_DELAY_MS); return; }
       probeState = 'running';
       if (frame !== null) cancelAnimationFrame(frame); frame = null;
       probing = true;
@@ -165,8 +165,14 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       if (disposed || !scene) return;
       const p = latest.current;
       // A set swapping in is shown only once every stage is drawn, so a more detailed
-      // model never replaces a finished view with its shell.
-      if (p.building) { while (scene.pending()) scene.advance(); if (!scene.complete()) return; }
+      // model never replaces a finished view with its shell; one that cannot finish is
+      // given up, and its owner keeps the view on screen. A shown view that cannot finish
+      // keeps the stages it has.
+      if (p.building) {
+        while (scene.pending()) scene.advance();
+        if (scene.failed() && !scene.complete()) { fail('The 3D model cannot be rendered.'); return; }
+        if (!scene.complete()) return;
+      }
       if (p.hidden) { ready(); return; }
       // A refining frame is expected to cost about what the last one did.
       const now = performance.now(), refine = refineOnly; refineOnly = false;
