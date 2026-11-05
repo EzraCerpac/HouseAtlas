@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 30258,
-      "sha256": "306d6993350a1582eace4173188540ff909276956daefc6ab6346faa6b9dfb11",
+      "bytes": 30470,
+      "sha256": "0a4f035695abacd5c73a02c5d5ac976d44349c1fe97179ceff6db8787537064a",
       "owner": "core-integration"
     },
     {
@@ -6488,8 +6488,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 221617,
-      "sha256": "9bed17a1f8611331b58c5e919d00f305ebca1fd7487727180a35bac469ce5be1",
+      "bytes": 222324,
+      "sha256": "8266bfd342be552dc879c12fa78aa051e1197999626a88b9aa83ea60edccd02a",
       "owner": "core-integration"
     },
     {
@@ -7825,8 +7825,8 @@
     {
       "path": "frontend/lantern-tests/canonical-mesh-preparation.test.mjs",
       "mode": "100644",
-      "bytes": 11731,
-      "sha256": "b1290d7b275f674f6cb678e08d180e4913ba3581df8c4b15fa3548719b098df7",
+      "bytes": 17911,
+      "sha256": "ca4c2c6a3053eb6364a600ef708827998cd4e0d963375f3334af6fb0cb14cb2e",
       "owner": "web"
     },
     {
@@ -9421,15 +9421,15 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/render-probe.ts",
       "mode": "100644",
-      "bytes": 7258,
-      "sha256": "a3c797e26552fde18c4f90b34edb04fd5312b2ec4480953d70fc8b0656a15bc1",
+      "bytes": 7633,
+      "sha256": "fbdfe3a2a5184e855c724a7fccf479e21cf440e7ced70b1acc84542d3218f8b6",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/canonical-ifc/scene-build-observation.ts",
       "mode": "100644",
-      "bytes": 7408,
-      "sha256": "643495533e90f9493aa7b43282a5360c1aa09dbfe5980cae2e7467592d2aee5a",
+      "bytes": 8042,
+      "sha256": "16bc95edf5d98f7617adef7b4ed96db948d3761aedb01e3b4a89d9285959698c",
       "owner": "web"
     },
     {

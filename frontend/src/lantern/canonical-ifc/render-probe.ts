@@ -85,7 +85,7 @@ export async function runRenderProbe({ scene, meshes, projection, width, height,
       ...observation.phases.map(phase => `${phase.name}: ${ms(phase.wallMs)} wall; ${ms(phase.waitMs)} explicit slice wait; `
         + `${phase.compileCalls ?? 'unavailable'} compile calls / ${phase.compileWallMs === null ? 'unavailable' : ms(phase.compileWallMs)} compile wall; `
         + `${phase.creationRequests ?? 'unavailable'} backend creation requests`),
-      `Counters: compile ${observation.compileCounter}; backend creation ${observation.creationCounter}. Calls/requests are not completed GPU pipelines or proven cache hits.`,
+      `Hooks: compile ${observation.compileCounter}; backend creation ${observation.creationCounter}. Per-phase unavailable means no complete hook coverage; requests are not completed GPU pipelines or proven cache hits.`,
       `First successful render call: ${observation.firstDrawCpuMs === null ? 'unavailable' : ms(observation.firstDrawCpuMs)} CPU wall; `
         + `${observation.firstDrawCreationRequests ?? 'unavailable'} backend creation requests. No GPU/paint synchronization added.`,
     ] : []),
@@ -103,15 +103,18 @@ export function showProbeReport(text: string): void {
   const panel = document.createElement('div');
   panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', '3D speed check');
   panel.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:9999;max-width:560px;margin:0 auto;padding:12px;'
+    + 'box-sizing:border-box;max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px);display:flex;flex-direction:column;overflow:hidden;'
     + 'border-radius:12px;background:Canvas;color:CanvasText;box-shadow:0 4px 24px rgb(0 0 0 / .3);font:12px/1.45 ui-monospace,monospace';
   const body = document.createElement('pre');
-  body.style.cssText = 'margin:0 0 8px;white-space:pre-wrap'; body.textContent = text;
+  body.style.cssText = 'margin:0 0 8px;white-space:pre-wrap;min-height:0;flex:1 1 auto;overflow:auto;overscroll-behavior:contain'; body.textContent = text;
   const button = (label: string, act: () => void) => {
     const element = document.createElement('button'); element.type = 'button'; element.className = 'btn'; element.textContent = label;
     element.style.marginRight = '8px'; element.addEventListener('click', act); return element;
   };
   const copy = button('Copy', () => { void navigator.clipboard?.writeText(text).then(() => { copy.textContent = 'Copied'; }, () => undefined); });
-  panel.append(body, copy, button('Close', () => panel.remove()));
+  const actions = document.createElement('div'); actions.style.cssText = 'flex:0 0 auto';
+  actions.append(copy, button('Close', () => panel.remove()));
+  panel.append(body, actions);
   panel.dataset.shownAt = String(performance.now());
   document.body.append(panel);
 }
