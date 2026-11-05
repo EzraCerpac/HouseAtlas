@@ -487,9 +487,33 @@ and the 16-slot cap; pixel checks do not establish real-fixture visual strength.
 The same selections open the generated house with `?render-probe` (the
 on-device speed check, `render-probe.ts`) and check that its report lists all
 five cases (as drawn, a quarter of the pixels, half and a quarter of the
-triangles, contact shading) and that the view redraws afterwards. The timings
-come from the runner's software GPU and say nothing about any device; only the
-check run on the device itself does.
+triangles, contact shading) and that the view redraws afterwards.
+
+The report's startup diagnostics distinguish dynamic module import, adapter
+selection/renderer construction, renderer initialization, scene-graph setup,
+geometry/material assembly, effect-graph setup, direct/lighting/contact-target
+preparation and effect preparation. These are wall-clock boundaries, not CPU
+profiling. Phase wall times include all waits; explicit frame-slice waits are
+reported as a subset, while internal library/device waits remain unattributed.
+Compile-call wall sums may overlap and are not additive GPU costs; deferred
+node-graph building remains inside compile-call time. Guarded
+renderer-instance hooks count compile calls and backend pipeline-creation
+requests, not completed native pipelines or proven cache hits. Unsupported or
+replaced hooks are reported unavailable/incomplete, never as zero work. Hooks
+preserve original this/arguments/results/promises/errors and are restored after
+the first successful render call or owned cleanup. Default non-probe rendering
+has no observation hooks; eager preparation order and all existing swap
+witnesses remain unchanged.
+
+First-render-call CPU duration excludes GPU completion and witnessed paint.
+Approximate readiness derives from the existing delayed timer (or hidden
+readiness), not a physical visibility measurement. No extra queue drain, warm
+draw, progressive policy, timing budget, probe selection or workflow is added.
+The existing pure geometry test file additionally checks the observation helper
+with fake clock/renderer owners; these assertions do not qualify real Three/GPU
+hook availability. Software-GPU and stage timings are observations only: they
+neither attribute the reported phone delay nor establish device improvement.
+The existing probe's five frame-workload comparisons remain unchanged.
 
 ```sh
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2   # in the healthy suite

@@ -14,6 +14,7 @@ import { occlusionHistory } from './occlusion-history';
 import { PreparationRefused, prepareEffectPipelines } from './prepare-effect-pipelines';
 import type { PreparedMesh, Projection } from './geometry';
 import type { EmbeddedTexture } from './embedded-png-material';
+import type { SceneBuildObservation } from './scene-build-observation';
 import { GLOW_HEIGHT, GLOW_SPREAD, LUMA } from './sky-light';
 import { GLASS_CLEAR, GLASS_FROSTED, GLOW_STOPS, MAX_LAMPS, MeshPass, STATE_FLOATS, STATE_TEXELS, writeAppearance, type AppearanceInput } from './mesh-appearance';
 
@@ -109,11 +110,15 @@ const afterNextFrame = () => new Promise<void>(resolve => {
 });
 
 /** Work between frames: `due()` once a slice is spent, then `next()` lets a frame draw first. */
-function frameSlices(signal: AbortSignal | undefined) {
+function frameSlices(signal: AbortSignal | undefined, observation?: SceneBuildObservation) {
   let start = performance.now();
   return {
     due: () => performance.now() - start > SLICE_MS,
-    async next() { await afterNextFrame(); signal?.throwIfAborted(); start = performance.now(); },
+    async next() {
+      const finishWait = observation?.wait();
+      try { await afterNextFrame(); } finally { finishWait?.(); }
+      signal?.throwIfAborted(); start = performance.now();
+    },
   };
 }
 
@@ -121,7 +126,8 @@ function frameSlices(signal: AbortSignal | undefined) {
  * pipeline compiles are spread over frames before it resolves, so the first
  * render() does no bulk work. `signal` abandons a build that is no longer wanted. */
 export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonly PreparedMesh[], useMaterials: boolean,
-  onLost: (message: string) => void, signal?: AbortSignal): Promise<MeshScene> {
+  onLost: (message: string) => void, signal?: AbortSignal, observation?: SceneBuildObservation): Promise<MeshScene> {
+  observation?.phase('adapter-and-renderer-construction');
   // Choose the backend here: WebGL2 is an expected fallback, not something for three.js to warn about.
   const webgpu = await navigator.gpu?.requestAdapter().then(adapter => adapter !== null, () => false) ?? false;
   const renderer = new WebGPURenderer({ canvas, antialias: true, alpha: true, forceWebGL: !webgpu });
@@ -133,14 +139,18 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
   renderer.onDeviceLost = () => onLost('3D view closed by the browser. Reopen the viewer to retry.');
   const owned: { dispose(): void }[] = [];
   try { return await build(); } catch (error) {
+    observation?.close();
     for (const item of owned) item.dispose();
     renderer.dispose(); throw error;
   }
 
   async function build(): Promise<MeshScene> {
+    observation?.phase('renderer-init');
     await renderer.init();
     signal?.throwIfAborted();
-    const slice = frameSlices(signal);
+    observation?.watch(renderer);
+    observation?.phase('scene-graph');
+    const slice = frameSlices(signal, observation);
     // three.js runs its own requestAnimationFrame clock from init, which also
     // advances its node frame. This view draws only on demand, so the idle loop
     // is stopped and render() advances the frame itself.
@@ -470,6 +480,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       camera.updateMatrixWorld(true);
       solidCamera.copy(camera);
     };
+    observation?.phase('geometry-material-assembly');
     const textures = new Map<string, DataTexture>();
     const mapOf = (pin: EmbeddedTexture | undefined) => {
       if (!pin) return undefined;
@@ -641,6 +652,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     // Contact shading (GTAO): a depth-and-normal pass without multisampling feeds
     // it (GTAO cannot read multisampled depth on WebGPU), then the antialiased
     // colour pass is darkened in corners on its way to the canvas.
+    observation?.phase('effect-graph');
     const geometryPass = pass(solidScene, solidCamera, { samples: 0 }), colorPass = pass(scene, camera);
     const depth = geometryPass.getTextureNode('depth'), normal = geometryPass.getTextureNode('output');
     const occlusion = ao(depth, normal, solidCamera);
@@ -691,6 +703,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       } finally { renderer.setRenderTarget(null); }
       signal?.throwIfAborted();
     };
+    observation?.phase('direct-preparation');
     for (const { mesh } of layers) {
       await compile(mesh, camera, scene, null);
       if (!uploaded.has(mesh.geometry)) {
@@ -707,12 +720,15 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     colorPass.renderTarget.samples = renderer.samples;
     for (const [within, view, target] of [[solidScene, sun, sunTarget], [shelterScene, sun, sunTarget], [roomScene, roomView, roomTarget],
       [scene, camera, colorPass.renderTarget], [solidScene, solidCamera, geometryPass.renderTarget]] as const) for (const body of within.children) {
+      observation?.phase(target === colorPass.renderTarget || target === geometryPass.renderTarget
+        ? 'contact-target-preparation' : 'lighting-preparation');
       await compile(body as Mesh, view, within, target); if (slice.due()) await slice.next();
     }
 
     // Preparing early only saves the first shaded frame its pause, so a clean refusal
     // (an unrecognised three.js shape) keeps the view and leaves that frame to compile
     // as it did before. Cancellation and any other failure still end the build.
+    observation?.phase('effect-preparation');
     try {
       await prepareEffectPipelines(renderer, { pipeline, relit, occlusion, history, passes: [geometryPass, colorPass] }, () => slice.next(), signal);
     } catch (error) {
@@ -801,6 +817,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       },
       dispose() {
         if (disposed) return; disposed = true;
+        observation?.close();
         for (const item of owned) item.dispose();
         renderer.dispose();
       },

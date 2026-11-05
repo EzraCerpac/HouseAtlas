@@ -1,5 +1,6 @@
 import type { PreparedMesh, Projection } from './geometry';
 import type { MeshScene } from './mesh-scene';
+import type { SceneBuildSnapshot } from './scene-build-observation';
 
 /** On-device speed check for the 3D view, opened by adding ?render-probe to the
  * address (Safari on a phone can, where the installed app cannot). Once the model
@@ -30,9 +31,11 @@ export interface ProbeSetup {
   readonly projection: Projection;
   readonly width: number;
   readonly height: number;
-  /** Milliseconds from opening the page to the model's first frame, and building its GPU scene. */
+  /** Existing timer-derived readiness timestamp; may include hidden readiness. Not paint. */
   readonly shownAt: number;
+  /** Wall interval from before dynamic scene import through eager constructor completion. */
   readonly buildMs: number;
+  readonly observation?: SceneBuildSnapshot;
   /** Aborted when the canvas is released: the check stops and reports nothing. */
   readonly signal: AbortSignal;
 }
@@ -47,7 +50,7 @@ const percentile = (sorted: readonly number[], p: number) => sorted[Math.min(sor
 const ms = (value: number) => `${value.toFixed(1)} ms`;
 
 /** Runs every case and returns the report as plain text. The caller redraws the view afterwards. */
-export async function runRenderProbe({ scene, meshes, projection, width, height, shownAt, buildMs, signal }: ProbeSetup): Promise<string> {
+export async function runRenderProbe({ scene, meshes, projection, width, height, shownAt, buildMs, observation, signal }: ProbeSetup): Promise<string> {
   const rows: string[] = [];
   let drawnVertices = 0;
   try {
@@ -72,7 +75,17 @@ export async function runRenderProbe({ scene, meshes, projection, width, height,
   return [
     '3D speed check',
     `${scene.backend} · ${width} × ${height} px (device pixel ratio ${window.devicePixelRatio || 1}) · ${triangles.toLocaleString('en')} triangles · ${(drawnVertices / 1e6).toFixed(2)}M vertices a frame`,
-    `Model on screen ${(shownAt / 1000).toFixed(1)} s after opening; GPU scene built in ${(buildMs / 1000).toFixed(1)} s`,
+    `Approximate render-call readiness ${(shownAt / 1000).toFixed(1)} s from the performance time origin; scene-import/build wall time ${(buildMs / 1000).toFixed(1)} s`,
+    'Readiness uses a delayed timer (or hidden readiness), not GPU completion or witnessed paint.',
+    ...(observation ? [
+      'Build phases: wall includes waits; explicit slice waits are subsets. Compile-call wall sums may overlap; none are additive GPU costs.',
+      ...observation.phases.map(phase => `${phase.name}: ${ms(phase.wallMs)} wall; ${ms(phase.waitMs)} explicit slice wait; `
+        + `${phase.compileCalls ?? 'unavailable'} compile calls / ${phase.compileWallMs === null ? 'unavailable' : ms(phase.compileWallMs)} compile wall; `
+        + `${phase.creationRequests ?? 'unavailable'} backend creation requests`),
+      `Counters: compile ${observation.compileCounter}; backend creation ${observation.creationCounter}. Calls/requests are not completed GPU pipelines or proven cache hits.`,
+      `First successful render call: ${observation.firstDrawCpuMs === null ? 'unavailable' : ms(observation.firstDrawCpuMs)} CPU wall; `
+        + `${observation.firstDrawCreationRequests ?? 'unavailable'} backend creation requests. No GPU/paint synchronization added.`,
+    ] : []),
     '',
     `${''.padEnd(20)}${'median'.padStart(9)}${'slow 10%'.padStart(10)}`,
     ...rows,

@@ -1,5 +1,5 @@
-// Generated positive CPU geometry cases only. No browser, listener, native
-// state, source admission, failure injection or household input is exercised.
+// Generated CPU geometry and observational-counter contracts only. No browser,
+// GPU, listener, native state or household input is exercised.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
@@ -111,4 +111,69 @@ test('bindings, source colours, input views and independent result buffers remai
   bound[0].vertices.fill(42);
   assert.deepEqual(bytes(positions), beforePositions); assert.deepEqual(bytes(indices), beforeIndices);
   assert.deepEqual(bytes(bound[1].vertices), saved); assert.deepEqual(bytes(again[0].vertices), saved);
+});
+
+// The actual opt-in diagnostics module is pure: a fake clock and renderer verify
+// attribution and hook ownership without compiling a shader or drawing anything.
+const observationFile = new URL('../src/lantern/canonical-ifc/scene-build-observation.ts', import.meta.url);
+const observationCode = (await transformWithOxc(readFileSync(observationFile, 'utf8'), observationFile.pathname,
+  { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false })).code;
+assert(!/\b(?:import|require)\s*\(?/.test(observationCode), 'Observation module must have no runtime imports');
+const { SceneBuildObservation } = await import('data:text/javascript;base64,' + Buffer.from(observationCode).toString('base64'));
+
+test('build observations preserve promise/result identity and report inclusive wall phases', async () => {
+  let now = 0, complete;
+  const pending = new Promise(resolve => { complete = resolve; });
+  const marker = {}, calls = [];
+  const backend = { createRenderPipeline(...args) { calls.push([this, args]); return marker; } };
+  const renderer = { backend, compileAsync(...args) { assert.equal(this, renderer);
+    assert.equal(backend.createRenderPipeline(...args), marker); return pending; } };
+  const originalCompile = Object.getOwnPropertyDescriptor(renderer, 'compileAsync');
+  const originalCreate = Object.getOwnPropertyDescriptor(backend, 'createRenderPipeline');
+  const seen = new SceneBuildObservation(() => now);
+  seen.phase('module-import'); now = 3; seen.phase('renderer-init');
+  const waited = seen.wait(); now = 5; waited(); now = 8;
+  seen.watch(renderer); seen.phase('direct-preparation');
+  assert.equal(renderer.compileAsync('synthetic'), pending, 'original promise identity');
+  assert.deepEqual(calls, [[backend, ['synthetic']]], 'original this and arguments');
+  now = 12; complete(marker); assert.equal(await pending, marker);
+  now = 15; seen.finishBuild();
+  const finishDraw = seen.firstDraw(); now = 18;
+  assert.equal(backend.createRenderPipeline('first draw'), marker);
+  finishDraw();
+  const report = seen.snapshot(), phase = name => report.phases.find(row => row.name === name);
+  assert.equal(report.buildWallMs, 15);
+  assert.equal(phase('module-import').wallMs, 3);
+  assert.deepEqual([phase('renderer-init').wallMs, phase('renderer-init').waitMs], [5, 2], 'wait is a subset');
+  assert.deepEqual([phase('direct-preparation').wallMs, phase('direct-preparation').compileCalls,
+    phase('direct-preparation').compileWallMs, phase('direct-preparation').creationRequests], [7, 1, 4, 1]);
+  assert.deepEqual([report.firstDrawCpuMs, report.firstDrawCreationRequests], [3, 1]);
+  assert.equal(report.compileCounter, 'observed'); assert.equal(report.creationCounter, 'observed');
+  assert.deepEqual(Object.getOwnPropertyDescriptor(renderer, 'compileAsync'), originalCompile);
+  assert.deepEqual(Object.getOwnPropertyDescriptor(backend, 'createRenderPipeline'), originalCreate);
+  assert.equal(seen.firstDraw(), undefined, 'no second observation or hook installation');
+});
+
+test('observation refusals stay unknown and cleanup preserves errors and newer owners', async () => {
+  let now = 0;
+  const error = new Error('synthetic compiler rejection'), rejected = Promise.reject(error);
+  const backend = Object.freeze({ createRenderPipeline() { return 1; } });
+  const prototype = { compileAsync() { return rejected; } };
+  const renderer = Object.assign(Object.create(prototype), { backend });
+  const seen = new SceneBuildObservation(() => now); seen.phase('effect-preparation'); seen.watch(renderer);
+  assert.equal(renderer.compileAsync(), rejected);
+  now = 4; await assert.rejects(rejected, value => value === error);
+  seen.finishBuild(); seen.close();
+  assert.equal(Object.hasOwn(renderer, 'compileAsync'), false, 'inherited method restored');
+  const report = seen.snapshot();
+  assert.equal(report.creationCounter, 'unavailable');
+  assert(report.phases.every(row => row.creationRequests === null), 'unsupported is never a zero/cache-hit claim');
+  assert.equal(report.firstDrawCpuMs, null, 'no fake rendered frame');
+  const another = new SceneBuildObservation(() => now), owned = { compileAsync() { throw error; } };
+  another.phase('direct-preparation'); another.watch(owned);
+  assert.throws(() => owned.compileAsync(), value => value === error, 'same synchronous error');
+  const replacement = () => Promise.resolve();
+  owned.compileAsync = replacement; another.close();
+  assert.equal(owned.compileAsync, replacement, 'cleanup does not overwrite a newer hook');
+  assert.equal(another.snapshot().compileCounter, 'incomplete');
 });

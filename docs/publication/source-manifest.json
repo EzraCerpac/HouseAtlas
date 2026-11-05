@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 29713,
-      "sha256": "c8a08029df6a369ac58e20b2217214108c986d14cf1efcdb2c1ca870818f7b88",
+      "bytes": 30258,
+      "sha256": "306d6993350a1582eace4173188540ff909276956daefc6ab6346faa6b9dfb11",
       "owner": "core-integration"
     },
     {
@@ -6488,8 +6488,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 219958,
-      "sha256": "3b3f79157fe82adda88744f15d4e2fd4875ef0441ed8311f4390b23e88bcb8cf",
+      "bytes": 221617,
+      "sha256": "9bed17a1f8611331b58c5e919d00f305ebca1fd7487727180a35bac469ce5be1",
       "owner": "core-integration"
     },
     {
@@ -7825,8 +7825,8 @@
     {
       "path": "frontend/lantern-tests/canonical-mesh-preparation.test.mjs",
       "mode": "100644",
-      "bytes": 7152,
-      "sha256": "7ea47e5b386117b5ce879761aa13c1352b480336677002cd395f6a1bdab39014",
+      "bytes": 11731,
+      "sha256": "b1290d7b275f674f6cb678e08d180e4913ba3581df8c4b15fa3548719b098df7",
       "owner": "web"
     },
     {
@@ -9337,8 +9337,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/MeshLayer.tsx",
       "mode": "100644",
-      "bytes": 11685,
-      "sha256": "10c5139dff96d916b13f762ff9276b7a0db6de641e1afb2abe867ed3cc57c68b",
+      "bytes": 12112,
+      "sha256": "2c8a37e835fd799a5c81ae9e10f350c259b8c143dcf2f0f93d8fa4a8d1885934",
       "owner": "web"
     },
     {
@@ -9393,8 +9393,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-scene.ts",
       "mode": "100644",
-      "bytes": 57407,
-      "sha256": "2e2d792bc2659ce85deccca51dfde77d1788d3848e551415cd5480ed816ae086",
+      "bytes": 58244,
+      "sha256": "ec836dc469385a38b395a90541c50331ebb6e126a4bc359f90ff347e9f5ca52e",
       "owner": "web"
     },
     {
@@ -9421,8 +9421,15 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/render-probe.ts",
       "mode": "100644",
-      "bytes": 5482,
-      "sha256": "91bbbc278bcd49debaadad9bf929ea8b61816bc83f5b482a3cf08d91ce1b9550",
+      "bytes": 6836,
+      "sha256": "059a515c3cc78ef4127646f2b39ad856cb6a9edfd61dd892ef3a031c0f1d8eae",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/scene-build-observation.ts",
+      "mode": "100644",
+      "bytes": 7408,
+      "sha256": "643495533e90f9493aa7b43282a5360c1aa09dbfe5980cae2e7467592d2aee5a",
       "owner": "web"
     },
     {
