@@ -1337,6 +1337,11 @@ assert.deepEqual(scene.pickTarget(model, stackedPresentation, stacked, 0, stacke
   const solidModel = testModel(false);
   assert.deepEqual(scene.pickTarget(solidModel, presentAtlas(solidModel, state, none), state, 0, projection, ...pixel),
     { kind: 'level', levelId }, 'ordinary opaque structure still occludes the room');
+  const lampModel = { ...testModel(false), parts: [part({ ...pane, sourceNight: 'emitter', sourceGlass: true }, 'structure'), roomPart] };
+  const lampShown = presentAtlas(lampModel, state, none);
+  assert.ok(!lampShown.transparent.has(pane.meshKey));
+  assert.deepEqual(scene.pickTarget(lampModel, lampShown, state, 0, projection, ...pixel),
+    { kind: 'level', levelId }, 'lamp glass, solid with its glow at night, occludes the room');
 }
 // Stacked with one floor in focus: lower floors only, cut at the focus section.
 for (const [levelId, keys] of [['syn-level-ground', ['syn-occ-hall', 'syn-occ-living', 'syn-occ-stairs-ground']],
