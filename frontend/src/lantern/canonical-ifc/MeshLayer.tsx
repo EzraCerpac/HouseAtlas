@@ -40,6 +40,9 @@ const MOVE_BUDGET_MS = 1000 / 30;
 let moveScale = 1;
 /** Each adjustment changes the pixel count by about 28%; frame cost is mostly per pixel on phones. */
 const MOVE_STEP = 0.85;
+/** One moving frame in this many is timed. The GPU queue is drained first, so the time is
+ * that frame's own and not the backlog of frames submitted ahead of it. */
+const MEASURE_EVERY = 8;
 
 /** The on-device speed check (render-probe.ts) runs once per page, this long after the first model is on screen. */
 const PROBE = typeof location !== 'undefined' && new URLSearchParams(location.search).has('render-probe'), PROBE_DELAY_MS = 1500;
@@ -88,7 +91,9 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
   useLayoutEffect(() => {
     const element = canvas.current; if (!element || props.meshes.length === 0) return;
     const usesMaterials = props.sourceMaterials === true && props.meshes.some(mesh => mesh.sourceMaterial !== undefined);
-    let disposed = false, frame: number | null = null, scene: MeshScene | null = null, drawn = false, probing = false, buildMs = 0, timing = false;
+    let disposed = false, frame: number | null = null, scene: MeshScene | null = null, drawn = false, probing = false, buildMs = 0;
+    // Moving frames since the last timed one; whether the next moving frame is timed; whether drawing waits on the GPU queue (and a frame is pending).
+    let untimed = 0, timeNext = false, waiting = false, deferred = false;
     // The scene builds over several frames; releasing the canvas abandons that build.
     const building = new AbortController();
     // Ready once a frame is drawn (or there is nothing to draw while hidden), so promoting this canvas never shows it empty.
@@ -104,7 +109,8 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     const still = () => { settle = null; fading = performance.now(); schedule(); };
     const schedule = (refine = false) => {
       if (!refine) refineOnly = false;
-      if (disposed || !scene || frame !== null || document.hidden || probing) return;
+      if (waiting) deferred = true;
+      if (disposed || !scene || frame !== null || document.hidden || probing || waiting) return;
       refineOnly = refine;
       frame = requestAnimationFrame(() => { frame = null; try { render(); } catch { fail('The 3D model cannot be rendered.'); } });
     };
@@ -166,14 +172,19 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       const moving = shading <= 0, [w, h] = size(moving ? moveScale : 1);
       // While the view is still, each further frame averages the contact shading down to a clean result.
       if (scene.render(p.projection, stale.current ? p : null, w, h, shading)) schedule(true);
-      if (moving && scene.backend === 'webgpu' && !timing) {
-        timing = true;
-        void scene.finished().then(() => {
-          timing = false;
-          const spent = performance.now() - now, floor = 1 / Math.min(window.devicePixelRatio || 1, 2);
-          if (spent > MOVE_BUDGET_MS * 1.1) moveScale = Math.max(floor, moveScale * MOVE_STEP);
-          else if (spent < MOVE_BUDGET_MS * 0.6) moveScale = Math.min(1, moveScale / MOVE_STEP);
-        }, () => { timing = false; });
+      if (moving && scene.backend === 'webgpu') {
+        const timed = timeNext; timeNext = false;
+        if (timed || ++untimed >= MEASURE_EVERY) {
+          untimed = 0; waiting = true;
+          // Either drain the queue ahead of the next moving frame, or time this one on a drained queue.
+          void scene.finished().then(() => {
+            if (timed) {
+              const spent = performance.now() - now, floor = 1 / Math.min(window.devicePixelRatio || 1, 2);
+              if (spent > MOVE_BUDGET_MS * 1.1) moveScale = Math.max(floor, moveScale * MOVE_STEP);
+              else if (spent < MOVE_BUDGET_MS * 0.6) moveScale = Math.min(1, moveScale / MOVE_STEP);
+            } else timeNext = true;
+          }, () => undefined).finally(() => { waiting = false; if (deferred) { deferred = false; schedule(); } });
+        }
       }
       drawnAt = now; stale.current = false; ready();
     };
