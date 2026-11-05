@@ -3452,7 +3452,7 @@ installation or operational adoption. See the maintained
 ### Retained read-only live-copy data — #372/#560
 
 The existing `node frontend/lantern-tests/offline-root-entry-healthy.mjs` command
-also invokes eleven generated transactional-interface contracts from
+also invokes thirteen generated transactional-interface contracts from
 `offline-live-copy-fixture.mjs`. They load actual type-stripped owner/backend/
 integration modules with fake storage and native-reader ports. The unchanged
 ordinary healthy runner selects this case; no workflow, browser lane, permission

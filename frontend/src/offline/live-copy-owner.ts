@@ -99,6 +99,7 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
   const run = async <T>(work: () => Promise<T>): Promise<OfflineResult<T>> => {
     try { return { status: 'ok', value: await work() }; }
     catch (error) { return { status: error instanceof Refusal ? error.status
+      : (error as { name?: string })?.name === 'OfflineCommitUnknown' ? 'uncertain'
       : (error as { name?: string })?.name === 'QuotaExceededError' ? 'quota' : 'unavailable' }; }
   };
   const fence = async (tx: OfflineTransaction, b: Binding) => {
@@ -155,6 +156,8 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
     need(current() && !closed, 'retired');
     const tombstone: Control = { version: 1, epoch: crypto.randomUUID(), actorId: null, home: null };
     await backend.transaction(true, async tx => { need(current() && !closed, 'retired'); await tx.put('control', 'witness', tombstone); });
+    // Durable retirement is already committed. Notify other visible tabs even if physical deletion fails.
+    changed();
     await backend.transaction(true, async tx => {
       need(current() && !closed, 'retired');
       const latest = await tx.get<Control>('control', 'witness');
@@ -303,7 +306,7 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
           : [null, null];
         check(undefined, signal);
         return { bytes: rows.reduce((sum, r) => sum + r.value.bytes, 0), documents: rows.filter(r => r.value.kind === 'document').length,
-          budgetBytes: LIVE_COPY_LIMITS.bytes, estimatedUsage: estimate?.usage ?? null, estimatedQuota: estimate?.quota ?? null,
+          budgetBytes: limits.bytes, estimatedUsage: estimate?.usage ?? null, estimatedQuota: estimate?.quota ?? null,
           persistence: persisted === null ? 'unsupported' : persisted ? 'granted' : 'not-granted' };
       });
     },

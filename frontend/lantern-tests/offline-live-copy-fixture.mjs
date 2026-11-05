@@ -60,7 +60,8 @@ export async function checkLiveCopyContracts() {
   assert.equal(projected.entries[0].entity.quantity, '1.20');
   cases.push('live-copy-explicit-display-allowlist');
 
-  const backend = memory(), owner = createLiveCopyOwner(backend, { now: () => Date.parse(view.now) });
+  let peer;
+  const backend = memory(), owner = createLiveCopyOwner(backend, { now: () => Date.parse(view.now), changed: () => peer?.refreshCopies() });
   const actor = await owner.observeActor('generated-actor-a', () => true); assert.equal(actor.status, 'ok');
   const home = owner.bindHome(actor.value, scope, () => true); assert.equal(home.status, 'ok');
   assert.equal((await owner.keepView(home.value, view, signal())).status, 'ok');
@@ -114,9 +115,17 @@ export async function checkLiveCopyContracts() {
   cases.push('live-copy-cancelled-and-withdrawn-writes');
 
   assert.equal((await owner.keepView(returnedHome.value, view, signal())).status, 'ok');
+  peer = createLiveCopyOwner(backend);
+  const peerRead = await peer.readLast(signal()); assert.equal(peerRead.status, 'ok');
+  let peerVisible = true, peerNotices = 0;
+  peer.subscribe(() => { peerVisible = false; peerNotices++; });
   backend.fail(new Error('generated deletion failure'), 2);
   assert.equal((await owner.clear()).status, 'unavailable');
   assert(backend.data().get('metadata').size > 0, 'failed deletion was not reported as removal');
+  assert.equal(peerVisible, false, 'visible second owner withdraws on durable tombstone, not successful cleanup');
+  assert.equal(peerNotices, 1, 'retirement notice is sent before failed deletion');
+  assert.equal((await peer.readCatalog(peerRead.value.handle, signal())).status, 'retired');
+  cases.push('live-copy-cross-tab-tombstone-notice-before-cleanup-failure');
   const reopened = createLiveCopyOwner(backend);
   assert.equal((await reopened.readLast(signal())).status, 'missing', 'committed tombstone prevents reload exposure');
   assert.equal((await owner.keepView(returnedHome.value, view, signal())).status, 'retired');
@@ -145,7 +154,8 @@ export async function checkLiveCopyContracts() {
   assert.equal((await createLiveCopyOwner(memory()).status(signal())).value.persistence, 'unsupported');
   cases.push('live-copy-explicit-persistence-outcomes');
 
-  const small = createLiveCopyOwner(memory(), { limits: { rows: 3, documents: 2 } });
+  const small = createLiveCopyOwner(memory(), { limits: { rows: 3, documents: 2, bytes: 65536 } });
+  assert.equal((await small.status(signal())).value.budgetBytes, 65536, 'status reports the enforced configured bound');
   const sa = await small.observeActor('small-actor', () => true), sh = small.bindHome(sa.value, scope, () => true);
   const secondPin = { ...pin, documentId: uuid(6), assetId: uuid(7) };
   const secondCatalog = { ...catalog, documents: [...catalog.documents,
@@ -190,6 +200,22 @@ export async function checkLiveCopyContracts() {
   const lateRead = late.transaction(false, async () => null); late.close(); opening.onsuccess();
   await assert.rejects(lateRead, /closed/); assert.equal(lateClosed, true);
   cases.push('live-copy-actual-backend-completion-abort-and-late-close-interface');
+  const timerCallbacks = new Map(); let nextTimer = 0;
+  const fakeTimers = { set(callback, milliseconds) { assert.equal(milliseconds, 10000); const id = ++nextTimer; timerCallbacks.set(id, callback); return id; },
+    clear(id) { timerCallbacks.delete(id); } };
+  const timedBackend = openLiveCopyBackend(factory, fakeTimers), observedSettlements = [];
+  const uncertain = timedBackend.transaction(true, tx => tx.get('control', 'witness'));
+  void uncertain.then(() => observedSettlements.push('success'), error => observedSettlements.push(error.name));
+  await setImmediate();
+  const timedTx = transactions.at(-1); timedTx.abort = () => { throw new Error('generated already committing'); };
+  assert.equal(timerCallbacks.size, 1);
+  [...timerCallbacks.values()][0]();
+  await assert.rejects(uncertain, error => error.name === 'OfflineCommitUnknown');
+  timedTx.oncomplete(); await setImmediate();
+  assert.deepEqual(observedSettlements, ['OfflineCommitUnknown'], 'late completion cannot turn timeout into success');
+  assert.equal(timerCallbacks.size, 0); timedBackend.close();
+  cases.push('live-copy-backend-timeout-late-completion-stays-uncertain');
+
 
   const adapterSource = readFileSync(new URL('../integration/live-copy-retention.ts', import.meta.url), 'utf8');
   const dataModule = source => 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');

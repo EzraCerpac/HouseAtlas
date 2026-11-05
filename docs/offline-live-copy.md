@@ -68,6 +68,9 @@ does not establish completeness of HomeBox, electrical or other document sources
 
 The replaceable IndexedDB backend acknowledges transaction completion, propagates
 quota/abort/blocked errors and bounds opening/transactions to ten seconds.
+A timed-out write reports uncertain completion, including when abort cannot stop
+commit; a late completion cannot convert the rejected promise to success. Callers
+must reconcile retained state, not assume rollback or automatically replay.
 An explicit 250 MiB data-layer bound is a preliminary policy cap, not measured
 available space; per-file 128 MiB, view 8 MiB, catalog 2 MiB, 2048 catalog documents
 and 2056 total rows are additional bounds. Tests can only lower these limits.
@@ -76,7 +79,8 @@ eviction count; not-held does not distinguish never-held from previously evicted
 The existing native reader may have stricter per-file limits, which stay unchanged.
 
 Clear retires local handles immediately, commits a null-actor epoch tombstone,
-then deletes data only if that tombstone still owns the store. An intervening
+then notifies subscribers/other tabs immediately, even if cleanup fails, and
+deletes data only if that tombstone still owns the store. An intervening
 new actor is not erased by the old cleanup. Failure is returned and recorded:
 if deletion fails after the fence, reload cannot select old bytes; if even the
 fence cannot commit, complete removal is not established. The live sign-out
@@ -102,9 +106,9 @@ build verification/pruning merely to make a missing consumer appear available.
 The existing offline-root-entry healthy selection invokes generated contracts
 in `offline-live-copy-fixture.mjs`: allowlist/decimal preservation; stale roundtrip
 and opaque no-authority handles; catalog/byte integrity and availability; home/
-account A-B-A fences; cancelled/withdrawn writes; wipe failure/tombstone; quota
+account A-B-A fences; cancelled/withdrawn writes; wipe failure/tombstone and second-owner withdrawal notification; quota
 and atomic refusal; explicit persistence outcomes; bounded LRU; actual backend
-completion/abort/late-open interface; and actual adapter native-pin/withdrawal
+completion/abort/late-open interface and fake-timer timeout/late completion; and actual adapter native-pin/withdrawal
 handling. Actual production modules are type-stripped for Node, with generated
 transaction, IDB-interface and native-reader ports. No validation implementation
 is copied, no new selection/workflow is added, and Node stripping is not semantic

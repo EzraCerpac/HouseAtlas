@@ -46,7 +46,7 @@ export interface OfflineCatalogV1 {
   readonly completeness: 'captured-pages' | 'captured-complete';
   readonly documents: readonly OfflineCatalogItemV1[];
 }
-export type OfflineFailure = 'unavailable' | 'retired' | 'missing' | 'integrity' | 'quota' | 'limit' | 'invalid' | 'aborted';
+export type OfflineFailure = 'unavailable' | 'retired' | 'missing' | 'integrity' | 'quota' | 'limit' | 'invalid' | 'aborted' | 'uncertain';
 export type OfflineResult<T> = Readonly<{ status: 'ok'; value: T }> | Readonly<{ status: OfflineFailure }>;
 /** Opaque local historical selection, with no live authorization. */
 export interface OfflineCopyHandle { readonly kind: 'stored-copy' }

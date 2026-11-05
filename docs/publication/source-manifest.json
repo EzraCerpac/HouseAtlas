@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 30411,
-      "sha256": "a586e4c376b4a49d3cba32367f8a93dc4fceddb8012a715584795ce2827dd564",
+      "bytes": 30413,
+      "sha256": "c2b0e6dec80ae9fb57626b278d2da7db2a4cd7cd87eefb0b71d5515693806bca",
       "owner": "core-integration"
     },
     {
@@ -6488,8 +6488,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 221330,
-      "sha256": "56184312507844e514d2bba26ab3d56ea2e391ce52eaa1767440a74040e59f80",
+      "bytes": 221332,
+      "sha256": "ef6327774e47cf7241784850a2b654d72948b8c0b0381c7420edd21064e39057",
       "owner": "core-integration"
     },
     {
@@ -6915,8 +6915,8 @@
     {
       "path": "docs/offline-live-copy.md",
       "mode": "100644",
-      "bytes": 7682,
-      "sha256": "4cad5c1c51a67f3b85688f73f609c7c798647441343852ea2a693b97185b95e7",
+      "bytes": 8073,
+      "sha256": "c40c53597acdbe155db60507db593aa7fb8510f5ef99661947b7f786d5b7ef42",
       "owner": "core-integration"
     },
     {
@@ -8224,8 +8224,8 @@
     {
       "path": "frontend/lantern-tests/offline-live-copy-fixture.mjs",
       "mode": "100644",
-      "bytes": 17176,
-      "sha256": "f196e267e78ace22515988318974af2e1d896a24bf955d75d9d030e76656e0bc",
+      "bytes": 19121,
+      "sha256": "ba4f4af1ddd03967b03fb38adfef3bdb44129ad89efa38b3866b8a8c5180c1e4",
       "owner": "web"
     },
     {
@@ -10464,22 +10464,22 @@
     {
       "path": "frontend/src/offline/live-copy-indexeddb.ts",
       "mode": "100644",
-      "bytes": 3983,
-      "sha256": "44e2b2d94383340a03889712e3c35aeb6d4fc08d0af0788ea9eeb1523abe975e",
+      "bytes": 4934,
+      "sha256": "bd274c3c0e5945d3565feea6e3adc243cb711638aeceb9dc29f2b51a5b69b546",
       "owner": "web"
     },
     {
       "path": "frontend/src/offline/live-copy-owner.ts",
       "mode": "100644",
-      "bytes": 26597,
-      "sha256": "fab1b09f0bbf095b0a27ffafa28499ed463f0f5888259f9340acc44a0920cd8a",
+      "bytes": 26793,
+      "sha256": "6838861e0bfb8de71933455b440b5ce92c3046e7eedc70bc8b9c6b785ce9d27a",
       "owner": "web"
     },
     {
       "path": "frontend/src/offline/live-copy-types.ts",
       "mode": "100644",
-      "bytes": 5083,
-      "sha256": "a77159d98732824156a66658fd35f509ac05ae57a52af536f8f8f1195d0f3c26",
+      "bytes": 5097,
+      "sha256": "cbc531e903ec2aec0a09b3f16769b512905bcafe23a814d775d59eb0d9880cb1",
       "owner": "web"
     },
     {

@@ -433,7 +433,7 @@ input, NAS contact, transport, installer, credential, mutation dispatch or settl
 effect is exercised. Same-host subprocess readback is not another storage failure
 domain; source/CI success does not establish operational adoption.
 
-The existing `offline-root-entry-healthy.mjs` selection also invokes the eleven
+The existing `offline-root-entry-healthy.mjs` selection also invokes the thirteen
 generated live-copy data contracts in `offline-live-copy-fixture.mjs`.
 They load the actual type-stripped retention owner, IndexedDB adapter and native
 reader integration through generated transactional/IDB-interface/native-reader
