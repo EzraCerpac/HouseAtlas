@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 29713,
-      "sha256": "c8a08029df6a369ac58e20b2217214108c986d14cf1efcdb2c1ca870818f7b88",
+      "bytes": 30303,
+      "sha256": "9854608f7adae37f90075a554fdc2330c0f60ad0476ee707bf713d199fe76813",
       "owner": "core-integration"
     },
     {
@@ -2330,8 +2330,8 @@
     {
       "path": "backend/src/http/agents/asset_download_healthy.rs",
       "mode": "100644",
-      "bytes": 33389,
-      "sha256": "984c80b1c6aada40a0ae4016a96a6f6a7f66c25a1feb222f186be7d70ac239a7",
+      "bytes": 43172,
+      "sha256": "476718861d650c90793b62a1a8a9b4fb63ce8c3bcfa1301f52ee3e87901ba491",
       "owner": "core-integration"
     },
     {
@@ -6488,8 +6488,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 219958,
-      "sha256": "3b3f79157fe82adda88744f15d4e2fd4875ef0441ed8311f4390b23e88bcb8cf",
+      "bytes": 221209,
+      "sha256": "6ab3e48b6d6eb12a4d0d2443edb8777255f75a679033006c0782dd5933382acd",
       "owner": "core-integration"
     },
     {
@@ -7006,8 +7006,8 @@
     {
       "path": "docs/operations/contextual-evidence-capture.md",
       "mode": "100644",
-      "bytes": 17001,
-      "sha256": "8181f2b1bebf4deab476879b7e64dec8796f0d8ccfbdd0a6ae3bfb332fb8f410",
+      "bytes": 18144,
+      "sha256": "ee34c8b914e9adff022b32914fb155178a41e8299e27b40b7c3308370df8c474",
       "owner": "core-integration"
     },
     {
