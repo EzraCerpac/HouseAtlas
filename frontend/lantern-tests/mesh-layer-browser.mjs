@@ -243,7 +243,8 @@ try {
     // A new hour over a still view keeps the contact shading already averaged and
     // redraws only the colour: after a scrub, the same picture as that hour drawn whole.
     const quiet = async () => {
-      await poll(`window.lastDrawn && performance.now() - window.lastDrawn > 2000`, 120_000, 'The view did not settle');
+      // Settled: every stage drawn (a stage still being prepared can pause drawing), then 2 s without a frame.
+      await poll(`document.querySelector('canvas')?.dataset.stage === 'shading' && window.lastDrawn && performance.now() - window.lastDrawn > 2000`, 120_000, 'The view did not settle');
       return shot();
     };
     const meanDifference = (a, b) => { let sum = 0; for (let i = 0; i < a.pixels.length; i++) sum += Math.abs(a.pixels[i] - b.pixels[i]); return sum / a.pixels.length; };

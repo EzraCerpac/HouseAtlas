@@ -25,13 +25,14 @@ type F = Node<'float'>; type V3 = Node<'vec3'>; type V4 = Node<'vec4'>; type B =
 /** What the view draws while the rest is prepared, in the order it is prepared. The
  * shell is the house's opaque faces in their palette tones under the hour's light,
  * without the sun's shadows; `lit` adds the sun's map, the source materials and their
- * textures; then glass, the cutaway veils (and reference layers), and contact shading.
+ * textures (and the shell's reference layers in their own tone); then glass, the
+ * cutaway veils, and contact shading. Every layer the shell draws stays drawn from `lit` on.
  * `lit` must follow the shell; the later stages may come in any order. */
 export const STAGES = ['shell', 'lit', 'glass', 'veils', 'shading'] as const;
 export type MeshStage = typeof STAGES[number];
 /** The layers each stage adds to the drawn scene. */
 const STAGE_PASSES: Record<MeshStage, readonly (MeshPass | 'ghost')[]> = {
-  shell: [], lit: [MeshPass.Unbound, MeshPass.Bound], glass: [MeshPass.Glass], veils: ['ghost', MeshPass.Reference], shading: [],
+  shell: [], lit: [MeshPass.Unbound, MeshPass.Bound, MeshPass.Reference], glass: [MeshPass.Glass], veils: ['ghost'], shading: [],
 };
 /** When a stage was ready to draw (performance.now(), from opening the page) and how long its preparation took. */
 export interface StageTime { readonly stage: MeshStage; readonly at: number; readonly ms: number }
@@ -725,6 +726,8 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     // never moves all its buffers, or waits on its shaders, inside one frame. The canvas,
     // the sun's map, the night maps and the contact shading targets each have pipelines
     // of their own; all are prepared before the stage that first draws them.
+    // Released: nothing more is drawn or prepared.
+    let disposed = false;
     const uploaded = new Set<BufferGeometry>();
     let pending = 0;
     /** A see-through material while one of its sides is compiled; frames drawn meanwhile see it two-sided. */
@@ -751,6 +754,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
         try { await run(stand); } finally { material.side = DoubleSide; swapped = null; }
       }
       signal?.throwIfAborted();
+      if (disposed) throw new Error('Scene released');
     };
     const passOf = new Map<unknown, MeshPass | 'ghost'>(layers.map(({ pass, mesh }) => [mesh, pass]));
     /** Compiles every body of `within` (of `passes` only, when given) as `target` draws it. */
@@ -808,7 +812,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     timeline.push({ stage: 'shell', at: performance.now(), ms: performance.now() - begun });
 
     // The view the contact shading history belongs to; any change starts it over.
-    let disposed = false, sunStale = true, averaged: Projection | null = null;
+    let sunStale = true, averaged: Projection | null = null;
     // The table as last uploaded; NaN never compares equal, so the first write uploads.
     const drawnTable = new Float32Array(table.length).fill(NaN);
     /** Index in STAGES of the stage drawn and of the last one prepared; the layers its passes
@@ -876,7 +880,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       return history.settling;
     };
     // The richer stages are prepared after the shell is returned, while it is drawn.
-    void (async () => {
+    const preparing = (async () => {
       for (const stage of STAGES.slice(1) as Exclude<MeshStage, 'shell'>[]) {
         begun = performance.now();
         await work[stage]();
@@ -925,11 +929,12 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
         }
         return vertices;
       },
+      // Drawing stops at once; GPU objects are released once a stage still being prepared
+      // has settled, as three.js finishes an awaited compile on the objects it was given.
       dispose() {
         if (disposed) return; disposed = true;
         observation?.close();
-        for (const item of owned) item.dispose();
-        renderer.dispose();
+        void preparing.finally(() => { for (const item of owned) item.dispose(); renderer.dispose(); });
       },
     };
   }
