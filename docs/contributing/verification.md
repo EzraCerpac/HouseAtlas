@@ -3448,3 +3448,24 @@ filesystem pins, explicit observation permits, scoped journal/readback, bounds
 and uncertainty. They contact no NAS or private source and exercise no mutation,
 installation or operational adoption. See the maintained
 [filesystem observation contract](../../tools/model-input-disposition/FILESYSTEM-OBSERVATION.md).
+
+### Retained read-only live-copy data — #372/#560
+
+The existing `node frontend/lantern-tests/offline-root-entry-healthy.mjs` command
+also invokes eleven generated transactional-interface contracts from
+`offline-live-copy-fixture.mjs`. They load actual type-stripped owner/backend/
+integration modules with fake storage and native-reader ports. The unchanged
+ordinary healthy runner selects this case; no workflow, browser lane, permission
+call or new test selection is added. Existing command bounds remain unchanged.
+No local execution accompanied source preparation; Node type stripping does not
+establish semantic TypeScript correctness or real IndexedDB durability.
+
+The cases cover the explicit display allowlist, stale roundtrip/no authority,
+exact catalog/asset hashes and availability, home/account A-B-A fencing,
+cancelled/withdrawn writes, wipe-tombstone/deletion failure, quota/atomic refusal,
+explicit persistence outcomes, bounded LRU, actual backend completion/abort/late
+close, and native-reader pin/withdrawal integration. They establish no native
+original completeness, PDF/mounted focus behavior, offline live-shell routing,
+storage-pressure retention or real iPhone/PWA acceptance. The safe root fallback
+is unchanged pending the read-only Host consumer. Contract and remaining source
+dependencies: [Read-only live-copy v1](../offline-live-copy.md).
