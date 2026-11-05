@@ -8308,8 +8308,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 6166,
-      "sha256": "331c1e014d444b06dcd68f41d3193b5c693d168286214feba6b86650f3548bc8",
+      "bytes": 6215,
+      "sha256": "e6a153bf50b979f80e7ac99ed0b1d94fbe6a1528d2e720310a56b75cb9285ce4",
       "owner": "web"
     },
     {
@@ -8518,8 +8518,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
-      "bytes": 141679,
-      "sha256": "e52f7d5d1bcad45cf59dbb39ab851f6fbaf14524174d57d10fc3cfcd4d4543e6",
+      "bytes": 141793,
+      "sha256": "852e96cf24faede6c957a94c2a067926d35cd67766b2756ed93edfa98aa8d749",
       "owner": "web"
     },
     {
@@ -8527,6 +8527,13 @@
       "mode": "100644",
       "bytes": 7453,
       "sha256": "727fc978bba07806b6d1c71234315843cab05f11795b5ed1ba2a23178d26c118",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/unified-atlas-network-trace-healthy.mjs",
+      "mode": "100644",
+      "bytes": 5228,
+      "sha256": "5798d4759d3489a17720670f8e4f4b95cec22c022106755241a3f6171ab1a72b",
       "owner": "web"
     },
     {
@@ -8798,9 +8805,9 @@
     {
       "path": "frontend/src/ai/host/AiSessionOwner.tsx",
       "mode": "100644",
-      "owner": "ai",
       "bytes": 2923,
-      "sha256": "04766ed04cbf2a1798b453f0c845c37c5ec1aaebe14f1364da5164a5d8d7d8c0"
+      "sha256": "04766ed04cbf2a1798b453f0c845c37c5ec1aaebe14f1364da5164a5d8d7d8c0",
+      "owner": "ai"
     },
     {
       "path": "frontend/src/ai/host/README.md",
@@ -9036,9 +9043,9 @@
     {
       "path": "frontend/src/app/LazyPlaceEditor.tsx",
       "mode": "100644",
-      "owner": "web",
       "bytes": 682,
-      "sha256": "8fe2308734630eb978322854abcd2f8c76892eaa19f787009a7ca7596432a23c"
+      "sha256": "8fe2308734630eb978322854abcd2f8c76892eaa19f787009a7ca7596432a23c",
+      "owner": "web"
     },
     {
       "path": "frontend/src/app/PlaceEditor.tsx",
@@ -10156,15 +10163,15 @@
     {
       "path": "frontend/src/lantern/unified-atlas/NetworkGraph.tsx",
       "mode": "100644",
-      "bytes": 31508,
-      "sha256": "63faae45dcb1a8373e16c772236dc5ff00d7eb34754bc62d840f0a4e2a61795d",
+      "bytes": 35120,
+      "sha256": "2de41164e9b1c7accfc5e209d94c0de45b65f3f3cdbee9d03c3576d8f3218c6b",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/unified-atlas/NetworkStageConnections.tsx",
       "mode": "100644",
-      "bytes": 3936,
-      "sha256": "f64f321dbcd347a0d022fdad2b3d835c58e4afafa6e8dacabf238b6b4814717f",
+      "bytes": 5104,
+      "sha256": "a7dfa676144519529f1d99103c755971dbef9616f5b5389487cdefb3c2d9e90f",
       "owner": "web"
     },
     {
@@ -10177,8 +10184,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 119370,
-      "sha256": "031a907c230e6e463f0b2b2d2a7c626f071d2b7cc467aaf741580819dad06a91",
+      "bytes": 119784,
+      "sha256": "426766238d7e2169f376f6ce3b13919e220421e4dec2eb52c3f1877362e83705",
       "owner": "web"
     },
     {
@@ -10247,8 +10254,15 @@
     {
       "path": "frontend/src/lantern/unified-atlas/network-graph.css",
       "mode": "100644",
-      "bytes": 8923,
-      "sha256": "481295507ecc40ec479c9d35ead07af3e990eda45ede6ceaa4cecb0d76a2ee94",
+      "bytes": 10271,
+      "sha256": "a599c90deecd555766d4b745e99df182ce5fbf582000cd9ae196520ce2cea1e1",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/unified-atlas/network-trace.ts",
+      "mode": "100644",
+      "bytes": 4397,
+      "sha256": "422b4ed16c40c0306d03bb9d05f591f735fa2ec6d2e5ccbcf11d18bc80e52bc6",
       "owner": "web"
     },
     {
@@ -10303,8 +10317,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/unified-atlas.css",
       "mode": "100644",
-      "bytes": 93147,
-      "sha256": "9cd3eaf1996b524769d4d2cacf7110f1a15751ef25e77f67611a138201c8d99e",
+      "bytes": 93735,
+      "sha256": "a76e736f8b0081a4fde78f1f76b1ef31d808bd83333a38b1629458a6efba5e32",
       "owner": "web"
     },
     {

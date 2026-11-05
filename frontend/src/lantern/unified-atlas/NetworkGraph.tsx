@@ -1,6 +1,7 @@
-import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { NetworkOverlayData, NetworkOverlayDevice, NetworkOverlayEndpoint, NetworkOverlayLink } from '../overlays/network/types';
 import type { DocumentaryNetworkGraph } from './runtime-overlays';
+import { traceEdgeCertain, traceToRoot, type NetworkTrace } from './network-trace';
 import './network-graph.css';
 
 /** The complete recorded network in its own frame, apart from the house. The
@@ -243,7 +244,20 @@ function LineSample({ tone }: { readonly tone: EdgeTone }) {
     <path className={`ung-edge is-${tone}`} d="M1 5H25" /></svg>;
 }
 
-export function NetworkGraph({ graph }: { readonly graph: DocumentaryNetworkGraph }) {
+/** What the stage needs to light the same route between rooms. */
+export interface StageTrace {
+  readonly graphKey: string;
+  /** Source link IDs in order from the chosen device to the root. */
+  readonly linkIds: readonly string[];
+  readonly deviceIds: ReadonlySet<string>;
+  readonly segmentIds: ReadonlySet<string>;
+}
+
+export function NetworkGraph({ graph, onTrace }: {
+  readonly graph: DocumentaryNetworkGraph;
+  /** Called with the chosen device's route to the root, or null when none is shown. */
+  readonly onTrace?: (graphKey: string, trace: StageTrace | null) => void;
+}) {
   const { data } = graph;
   const built = useMemo(() => buildGraph(data), [data]);
   const view = useMemo(() => layoutGraph(built.nodes, built.edges), [built]);
@@ -268,6 +282,18 @@ export function NetworkGraph({ graph }: { readonly graph: DocumentaryNetworkGrap
   }, [choice]);
   const label = (id: string) => built.nodes.get(id)?.label ?? id;
 
+  // A chosen device traces its recorded route back to the root.
+  const trace = useMemo(() => chosen?.kind === 'device' ? traceToRoot(built.nodes.values(), built.edges, chosen.id) : null, [chosen, built]);
+  const stageTrace = useMemo((): StageTrace | null => {
+    if (trace?.status !== 'traced') return null;
+    const sources = trace.nodes.map(id => built.nodes.get(id));
+    return { graphKey: graph.key, linkIds: trace.edges.map(edge => edge.link.id),
+      deviceIds: new Set(sources.flatMap(node => node?.kind === 'device' ? [node.sourceId] : [])),
+      segmentIds: new Set(sources.flatMap(node => node?.endpoint?.kind === 'segment' ? [node.sourceId] : [])) };
+  }, [trace, built, graph.key]);
+  useEffect(() => { onTrace?.(graph.key, stageTrace); }, [onTrace, graph.key, stageTrace]);
+  useEffect(() => () => onTrace?.(graph.key, null), [onTrace, graph.key]);
+
   // A graph wider than its panel says so, and its frame fades at the side
   // that still has branches, until the reader scrolls there.
   const scroller = useRef<HTMLDivElement>(null);
@@ -290,9 +316,11 @@ export function NetworkGraph({ graph }: { readonly graph: DocumentaryNetworkGrap
   const lit = useMemo(() => {
     if (chosenEdge) return { nodes: new Set([chosenEdge.a, chosenEdge.b]), edges: new Set([chosenEdge.key]) };
     if (!chosen) return null;
+    if (trace?.status === 'traced') return { nodes: new Set(trace.nodes), edges: new Set(trace.edges.map(edge => edge.key)) };
     const edges = built.edges.filter(edge => edge.a === chosen.id || edge.b === chosen.id);
     return { nodes: new Set([chosen.id, ...edges.flatMap(edge => [edge.a, edge.b])]), edges: new Set(edges.map(edge => edge.key)) };
-  }, [chosen, chosenEdge, built]);
+  }, [chosen, chosenEdge, built, trace]);
+  const hop = useMemo(() => new Map(trace?.status === 'traced' ? trace.edges.map((edge, at) => [edge.key, at]) : []), [trace]);
   const { tags: names, frame: nameFrame } = useMemo(() => placeNames(view, built.nodes, chosen?.id ?? null, lit?.nodes ?? null), [view, built, chosen, lit]);
 
   // Parallel links between the same two nodes bow apart instead of overlapping.
@@ -341,7 +369,8 @@ export function NetworkGraph({ graph }: { readonly graph: DocumentaryNetworkGrap
         style={{ width: `clamp(${Math.round((frame.r - frame.l) * .8)}px, 100%, ${Math.round((frame.r - frame.l) * 1.3)}px)` }}
         aria-label="Logical layout of the recorded network. Positions are not places in the house and lines are not cable routes.">
         <g className={`ung-edges${lit ? ' is-dimmed' : ''}`}>
-          {drawn.map(({ edge, d }) => <g key={edge.key} className={lit?.edges.has(edge.key) ? 'is-lit' : undefined}>
+          {drawn.map(({ edge, d }) => <g key={edge.key} className={lit?.edges.has(edge.key) ? hop.has(edge.key) ? 'is-lit is-trace' : 'is-lit' : undefined}
+            style={hop.has(edge.key) ? { '--hop': hop.get(edge.key) } as CSSProperties : undefined}>
             <path className={`ung-edge is-${edge.tone}${choice?.kind === 'link' && choice.id === edge.key ? ' is-chosen' : ''}`} d={d} />
             <path className="ung-edge-hit" d={d} onClick={() => choose({ kind: 'link', id: edge.key })} />
           </g>)}
@@ -376,6 +405,7 @@ export function NetworkGraph({ graph }: { readonly graph: DocumentaryNetworkGrap
     <p className="ung-note">Positions show topology only, not places in the house. Every line is a recorded association, not a cable route.</p>
 
     {(chosen || chosenEdge) && <div className="ung-detail" aria-live="polite" ref={detail} tabIndex={-1} aria-label="Selected network record">
+      {chosen && trace && <TraceDetail trace={trace} label={label} chooseNode={id => select({ kind: 'node', id })} />}
       {chosen && <NodeDetail node={chosen} edges={built.edges.filter(edge => edge.a === chosen.id || edge.b === chosen.id)} label={label}
         chooseLink={key => select({ kind: 'link', id: key })} />}
       {chosenEdge && <LinkDetail edge={chosenEdge} data={data} label={label} chooseNode={id => select({ kind: 'node', id })} />}
@@ -408,6 +438,32 @@ export function NetworkGraph({ graph }: { readonly graph: DocumentaryNetworkGrap
       </dl>
     </details>
   </figure>;
+}
+
+const TRACE_NOTE: Record<Exclude<NetworkTrace['status'], 'traced'>, string> = {
+  'is-root': 'This is where the recorded network starts.',
+  'no-root': 'The source records no router or gateway, so there is nothing to trace back to.',
+  unreachable: 'No recorded connection leads from here to the router.',
+};
+
+/** The route as a chain of steps, each one tappable, from this device to the root. */
+function TraceDetail({ trace, label, chooseNode }: {
+  readonly trace: NetworkTrace; readonly label: (id: string) => string; readonly chooseNode: (id: string) => void;
+}) {
+  if (trace.status !== 'traced') return <p className="ung-trace-note">{TRACE_NOTE[trace.status]}</p>;
+  return <section className="ung-trace" aria-label={`Route to ${label(trace.root!)}`}>
+    <h5>Route to {label(trace.root!)} · {trace.edges.length === 1 ? '1 step' : `${trace.edges.length} steps`}</h5>
+    <ol>
+      {trace.nodes.map((id, at) => <li key={id}>
+        {at === 0 ? <span className="ung-trace-here">{label(id)}</span>
+          : <button type="button" className="text-btn inline" onClick={() => chooseNode(id)}>{label(id)}</button>}
+        {at < trace.edges.length && <span className={`ung-trace-hop${traceEdgeCertain(trace.edges[at]!) ? '' : ' is-uncertain'}`}>
+          {trace.edges[at]!.link.medium || 'medium unknown'} · {trace.edges[at]!.link.confidence}</span>}
+      </li>)}
+    </ol>
+    {trace.uncertain && <p className="ung-trace-note">Part of this route rests on an uncertain or hypothetical link.</p>}
+    <p className="ung-trace-note">Recorded connections only; not a cable route.</p>
+  </section>;
 }
 
 function NodeDetail({ node, edges, label, chooseLink }: {
