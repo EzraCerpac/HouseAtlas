@@ -22,12 +22,35 @@ import { GLASS_CLEAR, GLASS_FROSTED, GLOW_STOPS, MAX_LAMPS, MeshPass, STATE_FLOA
 const ROW = 128;
 type F = Node<'float'>; type V3 = Node<'vec3'>; type V4 = Node<'vec4'>; type B = Node<'bool'>;
 
+/** What the view draws while the rest is prepared, in the order it is prepared. The
+ * shell is the house's opaque faces in their palette tones under the hour's light,
+ * without the sun's shadows; `lit` adds the sun's map, the source materials and their
+ * textures; then glass, the cutaway veils (and reference layers), and contact shading.
+ * `lit` must follow the shell; the later stages may come in any order. */
+export const STAGES = ['shell', 'lit', 'glass', 'veils', 'shading'] as const;
+export type MeshStage = typeof STAGES[number];
+/** The layers each stage adds to the drawn scene. */
+const STAGE_PASSES: Record<MeshStage, readonly (MeshPass | 'ghost')[]> = {
+  shell: [], lit: [MeshPass.Unbound, MeshPass.Bound], glass: [MeshPass.Glass], veils: ['ghost', MeshPass.Reference], shading: [],
+};
+/** When a stage was ready to draw (performance.now(), from opening the page) and how long its preparation took. */
+export interface StageTime { readonly stage: MeshStage; readonly at: number; readonly ms: number }
+
 /** One prepared mesh set on one canvas, drawn by three.js on WebGPU, or on
  * WebGL2 where the browser has no WebGPU adapter. Geometry is merged into a few
  * buffers, and every mesh's presentation lives in one state table, so a frame
  * is a handful of draws however many meshes there are. */
 export interface MeshScene {
   readonly backend: 'webgpu' | 'webgl2';
+  /** The stage drawn now, and when each stage so far was prepared. */
+  readonly stage: MeshStage;
+  readonly timeline: readonly StageTime[];
+  /** The next stage, once it is prepared and until advance() draws it; null otherwise. */
+  pending(): MeshStage | null;
+  /** Draws the next prepared stage from the next frame on. */
+  advance(): void;
+  /** Whether every stage is drawn: nothing is left to prepare. */
+  complete(): boolean;
   /** Draw one frame. `appearance` is null when only the camera moved since the last frame.
    * `occlusion` (0 to 1) blends in contact shading; 0 skips its passes entirely.
    * Returns true while another frame of the same view would still refine the contact shading. */
@@ -122,11 +145,13 @@ function frameSlices(signal: AbortSignal | undefined, observation?: SceneBuildOb
   };
 }
 
-/** Builds the scene in frame-sized slices: geometry merges, uploads and
- * pipeline compiles are spread over frames before it resolves, so the first
- * render() does no bulk work. `signal` abandons a build that is no longer wanted. */
+/** Builds the scene in frame-sized slices: geometry merges, uploads and the
+ * shell's pipeline are spread over frames before it resolves, so the first
+ * render() does no bulk work. The later stages are prepared after it resolves;
+ * `onStage` is called as each is ready to draw. `signal` abandons a build that is
+ * no longer wanted. */
 export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonly PreparedMesh[], useMaterials: boolean,
-  onLost: (message: string) => void, signal?: AbortSignal, observation?: SceneBuildObservation): Promise<MeshScene> {
+  onLost: (message: string) => void, signal?: AbortSignal, observation?: SceneBuildObservation, onStage?: () => void): Promise<MeshScene> {
   observation?.phase('adapter-and-renderer-construction');
   // Choose the backend here: WebGL2 is an expected fallback, not something for three.js to warn about.
   const webgpu = await navigator.gpu?.requestAdapter().then(adapter => adapter !== null, () => false) ?? false;
@@ -255,18 +280,20 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     const roomPoint = varying(positionGeometry).add(facing(normalize(vNormal)).mul(ROOM_REACH));
     const roofed = float(1).sub(outdoors).mul(select(u.rooms.greaterThan(.5), inRoom(roomPoint), float(1)));
     const sunlit = select(night, float(1), outdoors), indoor = select(night, roofed, float(0));
-    const lit = (n: V3): F => {
+    // `sl` and `inside` default to the sun's map; the shell (drawn before that map's
+    // pipelines exist) passes plain values instead.
+    const lit = (n: V3, sl: F = sunlit): F => {
       const facingSun = dot(n, u.light);
-      return clamp(u.ambient.mul(sky(n)).add(float(1).sub(u.ambient).mul(u.direct).mul(facingSun).mul(select(facingSun.greaterThan(0), sunlit, 1))), 0, 1);
+      return clamp(u.ambient.mul(sky(n)).add(float(1).sub(u.ambient).mul(u.direct).mul(facingSun).mul(select(facingSun.greaterThan(0), sl, 1))), 0, 1);
     };
     /** Flat tops keep their tone and darken towards the shade tone in shadow. */
-    const top = (tone: V3, shade: V3): V3 => mix(tone, shade, float(1).sub(sunlit).mul(u.direct).mul(.45));
+    const top = (tone: V3, shade: V3, sl: F = sunlit): V3 => mix(tone, shade, float(1).sub(sl).mul(u.direct).mul(.45));
     /** The hour's light on a drawn tone: sky colour, sun colour as far as the sun
      * reaches the face, lamp light indoors after dusk, and selection and overlay
      * tints held near full strength. */
-    const graded = (c: V3, n: V3, s7: V4): V3 => {
-      const sun = float(1).sub(u.ambient).mul(u.direct).mul(max(dot(n, u.light), 0)).mul(sunlit).mul(SUN_TINT_GAIN);
-      const light = mix(mix(u.tint.mul(skyColor(n)), u.sunTint, clamp(sun, 0, 1)), u.lampTint, u.lamp.mul(indoor));
+    const graded = (c: V3, n: V3, s7: V4, sl: F = sunlit, inside: F = indoor): V3 => {
+      const sun = float(1).sub(u.ambient).mul(u.direct).mul(max(dot(n, u.light), 0)).mul(sl).mul(SUN_TINT_GAIN);
+      const light = mix(mix(u.tint.mul(skyColor(n)), u.sunTint, clamp(sun, 0, 1)), u.lampTint, u.lamp.mul(inside));
       return clamp(c.mul(mix(light, vec3(1), s7.y.mul(KEEP_TONE))), 0, 1);
     };
 
@@ -294,11 +321,11 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     };
 
     /** Architectural face tones: flat tops, pitched faces and lit walls. */
-    const shaded = (s: readonly V4[], n: V3): V3 => {
-      const [s0, s1, , s3, s4] = s as [V4, V4, V4, V4, V4], light = lit(n);
+    const shaded = (s: readonly V4[], n: V3, sl: F = sunlit): V3 => {
+      const [s0, s1, , s3, s4] = s as [V4, V4, V4, V4, V4], light = lit(n, sl);
       return select(s0.w.greaterThan(.5),
-        select(n.y.greaterThanEqual(.97), top(s0.xyz, s4.xyz), mix(s4.xyz, select(n.y.greaterThan(.2), s3.xyz, s1.xyz), light)),
-        select(n.y.greaterThan(.8), top(s0.xyz, s4.xyz), mix(s4.xyz, s1.xyz, light)));
+        select(n.y.greaterThanEqual(.97), top(s0.xyz, s4.xyz, sl), mix(s4.xyz, select(n.y.greaterThan(.2), s3.xyz, s1.xyz), light)),
+        select(n.y.greaterThan(.8), top(s0.xyz, s4.xyz, sl), mix(s4.xyz, s1.xyz, light)));
     };
     /** How far a surrounding face has faded into the stage (0 for every other mesh), by the
      * ground it is seen against: not at all up to the near edge of the fade past the house's
@@ -560,6 +587,20 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       // The fade follows the view, so it never removes a face here: the sun's map stays one view.
       return vec4(normalize(cameraViewMatrix.mul(vec4(facing(normalize(vNormal)), 0)).xyz), float(1).sub(fade));
     })();
+    // The shell: every drawn, uncut opaque face once, in its palette tone under the hour's
+    // sky and sun, without the sun's map, materials, glass, lamps or veils. One small
+    // pipeline, so the house is on screen while the rest is still being prepared.
+    const shellScene = new Scene(), shell = new NodeMaterial();
+    shell.side = DoubleSide; owned.push(shell);
+    shell.vertexNode = solid.vertexNode;
+    shell.outputNode = Fn(() => {
+      const s = [0, 1, 2, 3, 4, 5, 6, 7].map(t => read(vId, t)) as [V4, V4, V4, V4, V4, V4, V4, V4];
+      const [, s1, s2, s3, , , , s7] = s;
+      Discard(s2.w.greaterThan(.5).and(vY.greaterThan(s3.w)));
+      const n = facing(normalize(vNormal)), open = float(1), none = float(0);
+      const tone = select(cutFace(s2.w), display(s2.xyz, s1.w), display(shaded(s, n, open), s1.w));
+      return vec4(hazed(graded(tone, n, s7, open, none)), 1);
+    })();
     owned.push(shared.reference, shared.ghost, shared.glass);
     const layers: { readonly pass: MeshPass | 'ghost'; readonly mesh: Mesh }[] = [];
     const add = (geometry: BufferGeometry, pass: MeshPass | 'ghost', material: NodeMaterial, order: number) => {
@@ -569,6 +610,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
         const body = new Mesh(geometry, solid); body.frustumCulled = false; body.matrixAutoUpdate = false; solidScene.add(body);
         const roof = new Mesh(geometry, shelter); roof.frustumCulled = false; roof.matrixAutoUpdate = false; shelterScene.add(roof);
         const room = new Mesh(geometry, roomVolume); room.frustumCulled = false; room.matrixAutoUpdate = false; roomScene.add(room);
+        const hull = new Mesh(geometry, shell); hull.frustumCulled = false; hull.matrixAutoUpdate = false; shellScene.add(hull);
       }
     };
     const textured = (index: number) => useMaterials && meshes[index]!.sourceMaterial !== undefined && meshes[index]!.materialVertices !== undefined;
@@ -675,129 +717,193 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     relit.outputColorTransform = false;
     owned.push(geometryPass, colorPass, occlusion, history, pipeline, relit);
 
-    // Upload every piece and compile every pipeline ahead of the first frame,
-    // at most a piece's worth of buffers per frame, so a large model never
-    // moves all its buffers, or waits on its shaders, inside one frame, and
-    // many small textured meshes share frames. The canvas and the sun's map
-    // are separate targets, each with its own pipelines; the night map's
-    // shelter pipelines are compiled too, so the first frame after dusk waits on none.
+    // Prepared in stages (STAGES), each drawn as soon as its pipelines exist, so a device
+    // that takes long over each pipeline still shows the house within seconds. The shell
+    // uploads every piece, at most a piece's worth of buffers per frame, so a large model
+    // never moves all its buffers, or waits on its shaders, inside one frame. The canvas,
+    // the sun's map, the night maps and the contact shading targets each have pipelines
+    // of their own; all are prepared before the stage that first draws them.
     const uploaded = new Set<BufferGeometry>();
     let pending = 0;
-    /** Compiles `body` as `target` will draw it. three.js draws a two-sided see-through
+    /** A see-through material while one of its sides is compiled; frames drawn meanwhile see it two-sided. */
+    let swapped: NodeMaterial | null = null;
+    /** Compiles `body` as `target` will draw it, hidden or not. compileAsync reads the
+     * target and the objects before its first await, so the canvas is the target again at
+     * once and frames drawn meanwhile land on it. three.js draws a two-sided see-through
      * material as its back faces, then its front faces, each with its own shader, while
      * compileAsync prepares only the two-sided one. Each side is compiled here on its own
      * stand-in object, as the frame draws each side as its own render object. */
     const compile = async (body: Mesh, view: Camera, within: Scene, target: RenderTarget | null) => {
       const material = body.material as NodeMaterial;
       const sides = material.transparent && material.side === DoubleSide && !material.forceSinglePass ? [BackSide, FrontSide] as const : null;
-      renderer.setRenderTarget(target);
-      try {
-        if (!sides) await renderer.compileAsync(body, view, within);
-        else for (const side of sides) {
-          const stand = new Mesh(body.geometry, material);
-          stand.frustumCulled = body.frustumCulled; stand.matrixAutoUpdate = stand.matrixWorldAutoUpdate = false;
-          stand.matrixWorld.copy(body.matrixWorld);
-          material.side = side;
-          try { await renderer.compileAsync(stand, view, within); } finally { material.side = DoubleSide; }
-        }
-      } finally { renderer.setRenderTarget(null); }
+      const run = (object: Mesh) => {
+        const visible = object.visible; object.visible = true; renderer.setRenderTarget(target);
+        try { return renderer.compileAsync(object, view, within); } finally { renderer.setRenderTarget(null); object.visible = visible; }
+      };
+      if (!sides) await run(body);
+      else for (const side of sides) {
+        const stand = new Mesh(body.geometry, material);
+        stand.frustumCulled = body.frustumCulled; stand.matrixAutoUpdate = stand.matrixWorldAutoUpdate = false;
+        stand.matrixWorld.copy(body.matrixWorld);
+        material.side = side; swapped = material;
+        try { await run(stand); } finally { material.side = DoubleSide; swapped = null; }
+      }
       signal?.throwIfAborted();
     };
+    const passOf = new Map<unknown, MeshPass | 'ghost'>(layers.map(({ pass, mesh }) => [mesh, pass]));
+    /** Compiles every body of `within` (of `passes` only, when given) as `target` draws it. */
+    const prepare = async (within: Scene, view: Camera, target: RenderTarget | null, passes?: readonly (MeshPass | 'ghost')[]) => {
+      for (const body of within.children) if (!passes || passes.includes(passOf.get(body)!)) {
+        await compile(body as Mesh, view, within, target); if (slice.due()) await slice.next();
+      }
+    };
+    /** Drawing waits while the effect pipelines are prepared: that preparation holds three.js's own state across frames. */
+    let holding = false;
+    const work: Record<Exclude<MeshStage, 'shell'>, () => Promise<void>> = {
+      // The night's shelter and room maps come with the sun's, so the first frame after dusk waits on none.
+      lit: async () => {
+        await prepare(scene, camera, null, STAGE_PASSES.lit);
+        for (const [within, view, target] of [[solidScene, sun, sunTarget], [shelterScene, sun, sunTarget], [roomScene, roomView, roomTarget]] as const)
+          await prepare(within, view, target);
+      },
+      glass: () => prepare(scene, camera, null, STAGE_PASSES.glass),
+      veils: () => prepare(scene, camera, null, STAGE_PASSES.veils),
+      // The contact shading passes draw the same objects into targets of their own, so they
+      // need pipelines of their own too; without them the first shaded frame, once the view
+      // settles, compiles them all at once. The colour pass takes the canvas's samples when
+      // its pipeline is set up; it is given them here first.
+      shading: async () => {
+        colorPass.renderTarget.samples = renderer.samples;
+        await prepare(scene, camera, colorPass.renderTarget);
+        await prepare(solidScene, solidCamera, geometryPass.renderTarget);
+        // Preparing early only saves the first shaded frame its pause, so a clean refusal
+        // (an unrecognised three.js shape) keeps the view and leaves that frame to compile
+        // as it did before. Cancellation and any other failure still end the stage.
+        holding = true;
+        try {
+          await prepareEffectPipelines(renderer, { pipeline, relit, occlusion, history, passes: [geometryPass, colorPass] }, () => slice.next(), signal);
+        } catch (error) {
+          signal?.throwIfAborted();
+          if (!(error instanceof PreparationRefused)) throw error;
+          console.warn('Effect pipelines not prepared; the first shaded frame compiles them', error);
+        } finally { holding = false; }
+      },
+    };
+
+    // The shell: every piece uploaded and its one pipeline compiled.
     observation?.phase('direct-preparation');
-    for (const { mesh } of layers) {
-      await compile(mesh, camera, scene, null);
-      if (!uploaded.has(mesh.geometry)) {
-        uploaded.add(mesh.geometry);
+    const timeline: StageTime[] = [];
+    let begun = performance.now();
+    for (const body of shellScene.children as Mesh[]) {
+      await compile(body, camera, shellScene, null);
+      if (!uploaded.has(body.geometry)) {
+        uploaded.add(body.geometry);
         // Interleaved attributes share one array; count it once.
-        for (const array of new Set(Object.values(mesh.geometry.attributes).map(attribute => attribute.array))) pending += array.byteLength;
+        for (const array of new Set(Object.values(body.geometry.attributes).map(attribute => attribute.array))) pending += array.byteLength;
       }
       if (pending >= PIECE_BYTES || slice.due()) { pending = 0; await slice.next(); }
     }
-    // The contact shading passes draw the same objects into targets of their own, so they
-    // need pipelines of their own too; without them the first shaded frame, once the view
-    // settles, compiles them all at once. The colour pass takes the canvas's samples when
-    // its pipeline is set up; it is given them here first.
-    colorPass.renderTarget.samples = renderer.samples;
-    for (const [within, view, target] of [[solidScene, sun, sunTarget], [shelterScene, sun, sunTarget], [roomScene, roomView, roomTarget],
-      [scene, camera, colorPass.renderTarget], [solidScene, solidCamera, geometryPass.renderTarget]] as const) for (const body of within.children) {
-      observation?.phase(target === colorPass.renderTarget || target === geometryPass.renderTarget
-        ? 'contact-target-preparation' : 'lighting-preparation');
-      await compile(body as Mesh, view, within, target); if (slice.due()) await slice.next();
-    }
-
-    // Preparing early only saves the first shaded frame its pause, so a clean refusal
-    // (an unrecognised three.js shape) keeps the view and leaves that frame to compile
-    // as it did before. Cancellation and any other failure still end the build.
-    observation?.phase('effect-preparation');
-    try {
-      await prepareEffectPipelines(renderer, { pipeline, relit, occlusion, history, passes: [geometryPass, colorPass] }, () => slice.next(), signal);
-    } catch (error) {
-      signal?.throwIfAborted();
-      if (!(error instanceof PreparationRefused)) throw error;
-      console.warn('Effect pipelines not prepared; the first shaded frame compiles them', error);
-    }
+    timeline.push({ stage: 'shell', at: performance.now(), ms: performance.now() - begun });
 
     // The view the contact shading history belongs to; any change starts it over.
     let disposed = false, sunStale = true, averaged: Projection | null = null;
     // The table as last uploaded; NaN never compares equal, so the first write uploads.
     const drawnTable = new Float32Array(table.length).fill(NaN);
+    /** Index in STAGES of the stage drawn and of the last one prepared; the layers its passes
+     * allow; and each layer's visibility as the appearance wants it. */
+    let drawnAt = 0, preparedAt = 0, shadingReady = false;
+    const drawable = new Set<MeshPass | 'ghost'>(), wanted = new Map<Mesh, boolean>();
+    /** The appearance of a frame skipped while drawing waits, applied by the next one drawn. */
+    let held: AppearanceInput | null = null;
+    const draw = (q: Projection, appearance: AppearanceInput | null, width: number, height: number, shading: number): boolean => {
+      if (disposed) return false;
+      // Whether only uniforms changed: a new hour leaves the table, by night the sun's map,
+      // and always the contact shading as they were.
+      let relight = false;
+      if (appearance) {
+        const frame = writeAppearance(meshes, appearance, table);
+        let changed = false;
+        for (let i = 0; i < table.length; i++) if (table[i] !== drawnTable[i]) { changed = true; break; }
+        if (changed) { drawnTable.set(table); state.needsUpdate = true; } else relight = true;
+        const [lx, ly, lz] = frame.light, night = frame.night ? 1 : 0, rooms = frame.rooms ? 1 : 0;
+        if (changed || night !== u.night.value || rooms !== u.rooms.value || lx !== u.light.value.x || ly !== u.light.value.y || lz !== u.light.value.z) sunStale = true;
+        u.paper.value.set(...frame.materialPaper); u.ambient.value = frame.ambient; u.twoSided.value = frame.twoSided ? 1 : 0;
+        u.light.value.set(...frame.light);
+        u.ghostAlpha.value = frame.ghostAlpha; u.ghost.value.set(...frame.ghostColor); u.ghostShade.value.set(...frame.ghostShade);
+        u.direct.value = frame.direct; u.night.value = frame.night ? 1 : 0; u.lamp.value = frame.lamp; u.rooms.value = frame.rooms ? 1 : 0;
+        u.tint.value.set(...frame.tint); u.sunTint.value.set(...frame.sunTint); u.lampTint.value.set(...frame.lampTint);
+        const { sky } = frame;
+        const dome = [sky.zenith, sky.horizon, sky.ground, sky.glow, sky.glowToward];
+        (u.sky.array as Vector4[]).forEach((slot, k) => slot.set(...(k < 9 ? sky.irradiance.slice(k * 3, k * 3 + 3) as [number, number, number] : dome[k - 9]!), 0));
+        (u.lamps.array as Vector4[]).forEach((point, at) => { const lamp = frame.lamps[at];
+          point.set(lamp?.at[0] ?? 0, lamp?.at[1] ?? 0, lamp?.at[2] ?? 0, lamp ? frame.lamp : 0); });
+        (u.lampAims.array as Vector4[]).forEach((aim, at) => { const toward = frame.lamps[at]?.aim;
+          aim.set(toward?.[0] ?? 0, toward?.[1] ?? 0, toward?.[2] ?? 0, toward ? 1 : 0); });
+        (u.lampColors.array as Vector4[]).forEach((color, at) => color.set(...frame.lamps[at]?.color ?? [0, 0, 0], 0));
+        if (frame.fade) {
+          const { center, half, near, far, ground, backdrop } = frame.fade;
+          u.fadeCenter.value.set(...center); u.fadeHalf.value.set(...half); u.fadeNear.value = near; u.fadeFar.value = far; u.fadeGround.value = ground;
+          u.stageTop.value.set(...backdrop.top); u.stageBottom.value.set(...backdrop.bottom); u.stageGlow.value.set(...backdrop.glow);
+          u.glowAt.value.set(...backdrop.glowAt); u.glowRadii.value.set(...backdrop.glowRadii);
+        }
+        for (const { geometry, index, y } of glassBounds) geometry.boundingSphere!.center.y = y + table[index * STATE_FLOATS + 19]!;
+        for (const { pass, mesh } of layers) wanted.set(mesh, pass === 'ghost' ? frame.ghosts : frame.passes.has(pass));
+      }
+      for (const { pass, mesh } of layers) mesh.visible = (wanted.get(mesh) ?? true) && drawable.has(pass);
+      frame(q); u.viewDir.value.set(q.st * q.cf, q.sf, q.ct * q.cf);
+      if (canvas.width !== width || canvas.height !== height) { renderer.setSize(width, height, false); averaged = null; }
+      if (drawnAt === 0) { renderer.render(shellScene, camera); return false; }
+      if (sunStale) { drawSun(); sunStale = false; }
+      if (appearance && !relight) averaged = null;
+      if (shading <= 0 || !shadingReady) { averaged = null; renderer.render(scene, camera); return false; }
+      if (relight && averaged === q && history.count > 0) {
+        strength.value = Math.min(1, shading); kept.value = history.getTextureNode().value;
+        internals._nodes.nodeFrame.update();
+        relit.render();
+        // Refining resumes only once the house or the view changes again; resuming here
+        // would draw the whole contact shading between the moves of a scrub.
+        return false;
+      }
+      if (averaged !== q) { averaged = q; history.count = 0; }
+      // Reach: OCCLUSION_RADIUS metres, at most OCCLUSION_REACH_PX layout pixels (k is pixels per metre).
+      occlusion.radius.value = Math.min(OCCLUSION_RADIUS, OCCLUSION_REACH_PX / q.k);
+      strength.value = Math.min(1, shading);
+      // Post-processing passes redraw once per three.js frame.
+      internals._nodes.nodeFrame.update();
+      pipeline.render();
+      return history.settling;
+    };
+    // The richer stages are prepared after the shell is returned, while it is drawn.
+    void (async () => {
+      for (const stage of STAGES.slice(1) as Exclude<MeshStage, 'shell'>[]) {
+        begun = performance.now();
+        await work[stage]();
+        if (disposed) return;
+        timeline.push({ stage, at: performance.now(), ms: performance.now() - begun });
+        preparedAt++; onStage?.();
+      }
+    })().catch(error => {
+      if (!disposed && !signal?.aborted) console.warn('3D view kept at its last prepared stage', error);
+    });
     return {
       backend,
+      timeline,
+      get stage() { return STAGES[drawnAt]!; },
+      pending: () => drawnAt < preparedAt ? STAGES[drawnAt + 1]! : null,
+      complete: () => drawnAt === STAGES.length - 1,
+      advance() {
+        if (drawnAt >= preparedAt) return;
+        const stage = STAGES[++drawnAt]!;
+        for (const pass of STAGE_PASSES[stage]) drawable.add(pass);
+        if (stage === 'shading') shadingReady = true;
+      },
       render(q, appearance, width, height, shading) {
         if (disposed) return false;
-        // Whether only uniforms changed: a new hour leaves the table, by night the sun's map,
-        // and always the contact shading as they were.
-        let relight = false;
-        if (appearance) {
-          const frame = writeAppearance(meshes, appearance, table);
-          let changed = false;
-          for (let i = 0; i < table.length; i++) if (table[i] !== drawnTable[i]) { changed = true; break; }
-          if (changed) { drawnTable.set(table); state.needsUpdate = true; } else relight = true;
-          const [lx, ly, lz] = frame.light, night = frame.night ? 1 : 0, rooms = frame.rooms ? 1 : 0;
-          if (changed || night !== u.night.value || rooms !== u.rooms.value || lx !== u.light.value.x || ly !== u.light.value.y || lz !== u.light.value.z) sunStale = true;
-          u.paper.value.set(...frame.materialPaper); u.ambient.value = frame.ambient; u.twoSided.value = frame.twoSided ? 1 : 0;
-          u.light.value.set(...frame.light);
-          u.ghostAlpha.value = frame.ghostAlpha; u.ghost.value.set(...frame.ghostColor); u.ghostShade.value.set(...frame.ghostShade);
-          u.direct.value = frame.direct; u.night.value = frame.night ? 1 : 0; u.lamp.value = frame.lamp; u.rooms.value = frame.rooms ? 1 : 0;
-          u.tint.value.set(...frame.tint); u.sunTint.value.set(...frame.sunTint); u.lampTint.value.set(...frame.lampTint);
-          const { sky } = frame;
-          const dome = [sky.zenith, sky.horizon, sky.ground, sky.glow, sky.glowToward];
-          (u.sky.array as Vector4[]).forEach((slot, k) => slot.set(...(k < 9 ? sky.irradiance.slice(k * 3, k * 3 + 3) as [number, number, number] : dome[k - 9]!), 0));
-          (u.lamps.array as Vector4[]).forEach((point, at) => { const lamp = frame.lamps[at];
-            point.set(lamp?.at[0] ?? 0, lamp?.at[1] ?? 0, lamp?.at[2] ?? 0, lamp ? frame.lamp : 0); });
-          (u.lampAims.array as Vector4[]).forEach((aim, at) => { const toward = frame.lamps[at]?.aim;
-            aim.set(toward?.[0] ?? 0, toward?.[1] ?? 0, toward?.[2] ?? 0, toward ? 1 : 0); });
-          (u.lampColors.array as Vector4[]).forEach((color, at) => color.set(...frame.lamps[at]?.color ?? [0, 0, 0], 0));
-          if (frame.fade) {
-            const { center, half, near, far, ground, backdrop } = frame.fade;
-            u.fadeCenter.value.set(...center); u.fadeHalf.value.set(...half); u.fadeNear.value = near; u.fadeFar.value = far; u.fadeGround.value = ground;
-            u.stageTop.value.set(...backdrop.top); u.stageBottom.value.set(...backdrop.bottom); u.stageGlow.value.set(...backdrop.glow);
-            u.glowAt.value.set(...backdrop.glowAt); u.glowRadii.value.set(...backdrop.glowRadii);
-          }
-          for (const { geometry, index, y } of glassBounds) geometry.boundingSphere!.center.y = y + table[index * STATE_FLOATS + 19]!;
-          for (const { pass, mesh } of layers) mesh.visible = pass === 'ghost' ? frame.ghosts : frame.passes.has(pass);
-        }
-        frame(q); u.viewDir.value.set(q.st * q.cf, q.sf, q.ct * q.cf);
-        if (canvas.width !== width || canvas.height !== height) { renderer.setSize(width, height, false); averaged = null; }
-        if (sunStale) { drawSun(); sunStale = false; }
-        if (appearance && !relight) averaged = null;
-        if (shading <= 0) { averaged = null; renderer.render(scene, camera); return false; }
-        if (relight && averaged === q && history.count > 0) {
-          strength.value = Math.min(1, shading); kept.value = history.getTextureNode().value;
-          internals._nodes.nodeFrame.update();
-          relit.render();
-          // Refining resumes only once the house or the view changes again; resuming here
-          // would draw the whole contact shading between the moves of a scrub.
-          return false;
-        }
-        if (averaged !== q) { averaged = q; history.count = 0; }
-        // Reach: OCCLUSION_RADIUS metres, at most OCCLUSION_REACH_PX layout pixels (k is pixels per metre).
-        occlusion.radius.value = Math.min(OCCLUSION_RADIUS, OCCLUSION_REACH_PX / q.k);
-        strength.value = Math.min(1, shading);
-        // Post-processing passes redraw once per three.js frame.
-        internals._nodes.nodeFrame.update();
-        pipeline.render();
-        return history.settling;
+        if (holding) { held = appearance ?? held; return false; }
+        // Drawing is synchronous, so a side swapped for compiling is put back for exactly this frame.
+        const look = appearance ?? held, material = swapped, side = material?.side; held = null;
+        if (material) material.side = DoubleSide;
+        try { return draw(q, look, width, height, shading); } finally { if (material) material.side = side!; }
       },
       async finished() {
         const device = (renderer.backend as { device?: { queue: { onSubmittedWorkDone(): Promise<void> } } }).device;

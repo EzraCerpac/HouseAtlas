@@ -273,7 +273,7 @@ try {
 
     // 2. Embedded PNG materials: textured, selected, dimmed and ghost samples each draw on the same backend.
     await open('/lantern-tests/embedded-png-material-visual/index.html', 1400, 900);
-    await poll(`document.querySelectorAll('canvas[data-renderer]').length === 4`, 120_000, 'Material samples did not draw');
+    await poll(`document.querySelectorAll('canvas[data-stage="shading"]').length === 4`, 120_000, 'Material samples did not draw');
     assert.deepEqual(await evaluate(`[...document.querySelectorAll('canvas')].map(c => c.dataset.renderer)`), Array(4).fill(expected));
     assert.equal(await evaluate(`[...document.querySelectorAll('output')].map(o => o.textContent).join('')`), '');
     await new Promise(done => setTimeout(done, 500));
@@ -290,7 +290,7 @@ try {
     // The same generated material entry also exercises the glass shader. The
     // two source orders must agree, while orbiting reverses the foreground tint.
     await open('/lantern-tests/embedded-png-material-visual/index.html?glass', 1400, 900);
-    await poll(`document.querySelectorAll('canvas[data-renderer]').length === 4`, 120_000, 'Glass samples did not draw');
+    await poll(`document.querySelectorAll('canvas[data-stage="shading"]').length === 4`, 120_000, 'Glass samples did not draw');
     assert.deepEqual(await evaluate(`[...document.querySelectorAll('canvas')].map(c => c.dataset.renderer)`), Array(4).fill(expected));
     assert.equal(await evaluate(`[...document.querySelectorAll('output')].map(o => o.textContent).join('')`), '');
     await new Promise(done => setTimeout(done, 500));
@@ -309,7 +309,7 @@ try {
     }
     assert(orderError / 1200 < 2, `Glass depends on source submission order (${orderError / 1200} mean channel difference)`);
     await evaluate(`document.querySelector('#toggle-glass-materials').click()`);
-    await poll(`document.querySelectorAll('canvas[data-renderer]').length === 4`, 120_000, 'Glass material toggle did not draw');
+    await poll(`document.querySelectorAll('canvas[data-stage="shading"]').length === 4`, 120_000, 'Glass material toggle did not draw');
     await new Promise(done => setTimeout(done, 500));
     const unmapped = await shot(); let mapDifference = 0;
     for (let dy = -10; dy < 10; dy++) for (let dx = -10; dx < 10; dx++) {
@@ -322,7 +322,7 @@ try {
     // 3. A closed elevated emitter lights a distant receiver without losing its
     // nearby metal pool; the finite envelope ends at 10 m. Same existing GPU case.
     await open('/lantern-tests/embedded-png-material-visual/index.html?lamps', 1400, 900);
-    await poll(`document.querySelectorAll('canvas[data-renderer]').length === 4`, 120_000, 'Lamp receivers did not draw');
+    await poll(`document.querySelectorAll('canvas[data-stage="shading"]').length === 4`, 120_000, 'Lamp receivers did not draw');
     assert.deepEqual(await evaluate(`[...document.querySelectorAll('canvas')].map(c => c.dataset.renderer)`), Array(4).fill(expected));
     assert.deepEqual(await evaluate(`[...document.querySelectorAll('[data-lamp-height]')].map(s => [Number(s.dataset.lampHeight), s.dataset.bulbOmni, s.dataset.receiverEmitter])`),
       [1, 6, 10, 12].map(height => [height, 'true', 'false']), 'closed bulbs stay omni and receivers never emit');
