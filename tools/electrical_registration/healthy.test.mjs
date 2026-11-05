@@ -1,7 +1,11 @@
 // Generated healthy examples only. No private intake, provider, listener or controls suite.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { applyAffine, fitAffine, assessRegistration, projectInventory } from './registration.mjs';
+import { createElectricalDataProjector, electricalReviewSubject } from '../../packages/contracts/src/electrical-data.mjs';
+import { validateLedger } from '../electrical_registry/registry.mjs';
 const hash='1'.repeat(64), evidence={sha256:hash,locator:'/generated/evidence'};
 const source={sheetId:'sheet',regionId:'region',originalPhotoSha256:hash,renderedPhotoSha256:hash};
 const frame={workspaceId:'workspace',homeId:'home',publicationId:'publication',semanticsSha256:hash,modelSha256:hash,coordinateFrameId:'world-once',units:'m',horizontalAxes:['X','Z']};
@@ -53,12 +57,126 @@ test('healthy property inventory retains registered, unresolved and uncovered so
   assert.deepEqual(next.records[0].placements[0].target,{...nextFrame,...binding});assert.equal(next.records[0].placements[0].registrationId,'registration-two');
   assert.equal(next.records.length,3);assert.equal(next.records[0].highlighted,true);assert.equal(next.counts.withApproximateScenePlacement,1);
 });
-test('healthy documentary-only intake explicitly enumerates pending landmark evidence without dropping inventory',()=>{
+test('healthy documentary-only intake and separate reviewed electrical data contract',async t=>{
   const p=example();p.controls=[];p.checks=[];p.reviewStatus='pending';p.reviewEvidence=null;
   const a=assessRegistration(p,context);assert.equal(a.status,'withheld');assert.equal(a.fit,null);
   assert.ok(a.reasons.includes('Three spanning nondegenerate fitted controls are required'));
   const r=projectInventory([{...source,fixtureId:'documentary',sourcePoint:[0.3,0.7],bindings:[binding]}],[a],context);
   assert.equal(r.counts.inventory,1);assert.equal(r.records[0].placements.length,0);assert.equal(r.counts.withoutApproximateScenePlacement,1);
+  const readJson = path => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8'));
+  const generated = readJson('../../contracts/electrical-data/generated.fixture.json');
+  const project = createElectricalDataProjector(readJson('../../contracts/electrical-data/v1.schema.json'),
+    readJson('../../packages/contracts/schemas/atlas.v2.schema.json'));
+  // These are generated context observations, never native review issuance.
+  const refreshReview = (fixture, kind, row) => {
+    const existing = fixture.context.currentReviews.find(review => review.receipt.id === row.review.receipt?.id);
+    if (existing) existing.subject = electricalReviewSubject(fixture.data, kind, row);
+  };
+  await t.test('generated panel/native circuit joins retain report, label and exact tested bases',()=>{
+    const before = structuredClone(generated), result = project(generated.data, generated.context);
+    assert.equal(generated.synthetic, true);
+    assert.deepEqual(validateLedger(generated.context.documentary.data), []);
+    assert.equal(createHash('sha256').update(JSON.stringify(generated.context.documentary.data)).digest('hex'), generated.data.fixtureLedgerSha256);
+    assert.equal(result.panels[0].reviewedRoomId, generated.expected.reviewedRoomId);
+    assert.equal(result.panels[0].label, 'Generated panel Δ');
+    assert.deepEqual(result.mappings.map(row => row.currentCircuitId), generated.expected.currentCircuitIds);
+    assert.deepEqual(result.mappings.map(row => row.verifiedWiring), [false, false, true]);
+    assert.deepEqual(result.mappings.map(row => row.basis), ['owner-report', 'label-match', 'test']);
+    assert.deepEqual(result.mappings.map(row => row.review.confidence), ['low', 'medium', 'high']);
+    assert.deepEqual(result.breakers.map(row => row.nativeRecord), generated.expected.currentCircuitIds.map(id =>
+      generated.context.records.find(record => record.recordType === 'circuit' && record.recordId === id)));
+    assert.equal(result.breakers[0].ratingAmperes, 16); assert.equal(result.breakers[0].protection, null);
+    assert.equal(result.breakers[1].nativeRecord.payload.label, null);
+    assert.equal(Object.hasOwn(result.breakers[1], 'ratingAmperes'), false);
+    assert.equal(Object.hasOwn(result.breakers[1].effectiveDetails, 'protection'), false);
+    assert.equal(result.breakers[2].ratingAmperes, null);
+    assert.equal(result.breakers[2].position.label, 'A3–A4');
+    assert.equal(result.wireRoutes, null); assert.equal(result.physicalCableCoordinates, null);
+    assert.equal(result.nativeQualified, false);
+    assert(generated.context.documentary.data.groups.every(group => group.currentCircuitId === null && group.verifiedWiring === false));
+    assert.deepEqual(generated, before);
+    result.panels[0].label = 'projection-copy-only';
+    assert.deepEqual(generated, before);
+  });
+  await t.test('unknown, absent, unreviewed, stale, ambiguous and conflicting joins withhold without label fallback',()=>{
+    for (const status of ['unreviewed', 'ambiguous', 'conflicting', 'stale']) {
+      const fixture = structuredClone(generated), row = fixture.data.mappings[0];
+      row.review.status = status; refreshReview(fixture, 'mapping', row);
+      const result = project(fixture.data, fixture.context);
+      assert.equal(result.mappings[0].currentCircuitId, null, status);
+      assert.equal(result.mappings[0].verifiedWiring, false, status);
+      assert(result.mappings[0].reasons.includes(`review-${status}`));
+    }
+    for (const value of [null, undefined]) {
+      const fixture = structuredClone(generated), row = fixture.data.panels[0];
+      if (value === undefined) delete row.roomAssociation; else row.roomAssociation = value;
+      refreshReview(fixture, 'panel', row);
+      const result = project(fixture.data, fixture.context);
+      assert.equal(result.panels[0].reviewedRoomId, null);
+      assert.equal(Object.hasOwn(result.panels[0], 'roomAssociation'), value !== undefined);
+    }
+    const unknown = structuredClone(generated);
+    unknown.data.mappings[0].basis = 'unknown'; unknown.data.mappings[0].review.confidence = 'unknown';
+    unknown.data.mappings[0].candidates = []; refreshReview(unknown, 'mapping', unknown.data.mappings[0]);
+    assert.equal(project(unknown.data, unknown.context).mappings[0].currentCircuitId, null);
+    const ambiguous = structuredClone(generated);
+    ambiguous.data.mappings[0].candidates.push(ambiguous.data.breakers[1].circuit);
+    refreshReview(ambiguous, 'mapping', ambiguous.data.mappings[0]);
+    assert.equal(project(ambiguous.data, ambiguous.context).mappings[0].currentCircuitId, null);
+    const conflict = structuredClone(generated), other = structuredClone(conflict.data.mappings[1]);
+    other.id = 'generated-conflicting-fixture'; other.target = { kind: 'fixture', id: 'generated-symbol-1' };
+    conflict.data.mappings.push(other);
+    const conflicts = project(conflict.data, conflict.context).mappings;
+    assert.equal(conflicts[0].currentCircuitId, null); assert.equal(conflicts[3].currentCircuitId, null);
+    assert(conflicts[0].reasons.includes('conflicting-fixture-circuit-candidates'));
+    const positions = structuredClone(generated);
+    positions.data.breakers[2].position.ways = ['A1']; refreshReview(positions, 'breaker', positions.data.breakers[2]);
+    const positionResult = project(positions.data, positions.context);
+    assert(positionResult.breakers[0].reasons.includes('conflicting-panel-position'));
+    assert.equal(positionResult.mappings[0].currentCircuitId, null);
+    for (const kind of ['identity', 'circuit', 'location-semantics', 'evidence']) {
+      const stale = structuredClone(generated);
+      const record = stale.context.records.find(record => record.recordType === kind);
+      record.revision++;
+      const result = project(stale.data, stale.context);
+      assert(result.mappings.some(row => row.currentCircuitId === null), kind);
+    }
+  });
+  await t.test('exact scope/receipt/test evidence is required and input cannot assert verified wiring or routes',()=>{
+    const noReview = structuredClone(generated); noReview.context.currentReviews = [];
+    assert(project(noReview.data, noReview.context).mappings.every(row => row.currentCircuitId === null));
+    const swapped = structuredClone(generated);
+    swapped.data.mappings[0].review.receipt = swapped.data.mappings[1].review.receipt;
+    assert.equal(project(swapped.data, swapped.context).mappings[0].currentCircuitId, null);
+    const altered = structuredClone(generated); altered.data.panels[0].label = 'Changed after review';
+    assert.equal(project(altered.data, altered.context).panels[0].status, 'withheld');
+    for (const change of [
+      f => { f.context.scope.homeId = '00000000-0000-4000-8000-000000000099'; },
+      f => { f.context.records[0].homeId = '00000000-0000-4000-8000-000000000099'; },
+      f => { f.context.viewKey = 'another-current-view'; },
+      f => { f.context.documentary.sha256 = 'f'.repeat(64); },
+      f => { f.data.mappings[0].verifiedWiring = true; },
+      f => { f.data.breakers[0].wireRoute = [[1, 2, 3]]; },
+      f => { f.data.breakers[0].ratingAmperes = -1; },
+    ]) {
+      const fixture = structuredClone(generated); change(fixture);
+      assert.throws(() => project(fixture.data, fixture.context), TypeError);
+    }
+    for (const change of [
+      f => { f.data.mappings[2].test.outcome = 'inconclusive'; },
+      f => { f.data.mappings[2].test.fixtureIds = ['generated-symbol-1']; },
+      f => { f.data.mappings[2].test.observedAt = '2026-10-02T12:00:00Z'; },
+      f => { f.data.mappings[2].review.confidence = 'unknown'; },
+      f => { f.context.records.find(record => record.recordId === f.data.mappings[2].test.evidence.recordId).payload.provenance.evidenceBasis = 'document'; },
+      f => { f.context.records.find(record => record.recordId === f.data.mappings[2].test.evidence.recordId).payload.provenance.uncertainty.status = 'disputed'; },
+    ]) {
+      const fixture = structuredClone(generated); change(fixture);
+      refreshReview(fixture, 'mapping', fixture.data.mappings[2]);
+      const result = project(fixture.data, fixture.context);
+      assert.equal(result.mappings[2].verifiedWiring, false);
+      assert.equal(result.mappings[2].currentCircuitId, null);
+    }
+  });
 });
 
 test('healthy reviewed nomination withdrawal retains provenance and inventory without fitting the withdrawn association',()=>{
