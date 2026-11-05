@@ -172,7 +172,9 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       const moving = shading <= 0, [w, h] = size(moving ? moveScale : 1);
       // While the view is still, each further frame averages the contact shading down to a clean result.
       if (scene.render(p.projection, stale.current ? p : null, w, h, shading)) schedule(true);
-      if (moving && scene.backend === 'webgpu') {
+      // A shaded frame drawn after a drain queues work of its own, so the pending sample waits for the next drain.
+      if (!moving) timeNext = false;
+      else if (scene.backend === 'webgpu') {
         const timed = timeNext; timeNext = false;
         if (timed || ++untimed >= MEASURE_EVERY) {
           untimed = 0; waiting = true;
