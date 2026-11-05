@@ -7965,8 +7965,8 @@
     {
       "path": "frontend/lantern-tests/mesh-layer-browser.mjs",
       "mode": "100644",
-      "bytes": 28119,
-      "sha256": "5d8053b94da4e922f16d56434acd16fe9f4b517f88459d59c3f06ecc8cebc27c",
+      "bytes": 28512,
+      "sha256": "f866c725850edd1049d8903011ba7efadc1ec580cdbbfea614e4d6c490034455",
       "owner": "web"
     },
     {
@@ -8798,9 +8798,9 @@
     {
       "path": "frontend/src/ai/host/AiSessionOwner.tsx",
       "mode": "100644",
-      "owner": "ai",
       "bytes": 2923,
-      "sha256": "04766ed04cbf2a1798b453f0c845c37c5ec1aaebe14f1364da5164a5d8d7d8c0"
+      "sha256": "04766ed04cbf2a1798b453f0c845c37c5ec1aaebe14f1364da5164a5d8d7d8c0",
+      "owner": "ai"
     },
     {
       "path": "frontend/src/ai/host/README.md",
@@ -9036,9 +9036,9 @@
     {
       "path": "frontend/src/app/LazyPlaceEditor.tsx",
       "mode": "100644",
-      "owner": "web",
       "bytes": 682,
-      "sha256": "8fe2308734630eb978322854abcd2f8c76892eaa19f787009a7ca7596432a23c"
+      "sha256": "8fe2308734630eb978322854abcd2f8c76892eaa19f787009a7ca7596432a23c",
+      "owner": "web"
     },
     {
       "path": "frontend/src/app/PlaceEditor.tsx",
@@ -9337,15 +9337,15 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/MeshLayer.tsx",
       "mode": "100644",
-      "bytes": 12112,
-      "sha256": "2c8a37e835fd799a5c81ae9e10f350c259b8c143dcf2f0f93d8fa4a8d1885934",
+      "bytes": 14499,
+      "sha256": "0ba867ed6c6c25c753a6e381bbf47e203bab3099736b8d99ff8881d3f98a8ff7",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/canonical-ifc/canonical-ifc.css",
       "mode": "100644",
-      "bytes": 10977,
-      "sha256": "c87c5bff40c7e04314db420c7ecad97d865800630d9565921e94feba09259423",
+      "bytes": 11116,
+      "sha256": "8e7fc51b3cf7278d8d47d04bef38aa1967a49e15e7baa10f26979dd93fb31ca1",
       "owner": "web"
     },
     {
@@ -9393,8 +9393,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-scene.ts",
       "mode": "100644",
-      "bytes": 58244,
-      "sha256": "ec836dc469385a38b395a90541c50331ebb6e126a4bc359f90ff347e9f5ca52e",
+      "bytes": 65633,
+      "sha256": "039cdae9542d439a7c0d19130da4dc56f7817699fef057f66c97b5e42cf0c661",
       "owner": "web"
     },
     {
@@ -9421,8 +9421,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/render-probe.ts",
       "mode": "100644",
-      "bytes": 7223,
-      "sha256": "e15e555d3fe751413ca14409a7fcb4d70e3dc421c21cab08c28efef094448f4f",
+      "bytes": 7633,
+      "sha256": "fbdfe3a2a5184e855c724a7fccf479e21cf440e7ced70b1acc84542d3218f8b6",
       "owner": "web"
     },
     {
