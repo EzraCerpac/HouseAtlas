@@ -56,7 +56,7 @@ assert.equal(rootRank(null), -1);
   assert.deepEqual(ids(trace), ['link-2', 'link-1', 'link-0']);
   assert.equal(trace.uncertain, false);
   // The root itself and an unknown node.
-  assert.deepEqual(traceToRoot(nodes, edges, 'd:router'), { from: 'd:router', root: 'd:router', status: 'is-root', nodes: ['d:router'], edges: [], uncertain: false,
+  assert.deepEqual(traceToRoot(nodes, edges, 'd:router'), { from: 'd:router', root: 'd:router', status: 'is-root', nodes: ['d:router'], edges: [], uncertain: false, certain: [],
     reachable: new Set(['d:router']) });
   assert.equal(traceToRoot(nodes, edges, 'd:missing').status, 'unreachable');
 }
@@ -92,6 +92,14 @@ assert.equal(rootRank(null), -1);
   const only = traceToRoot(nodes, [qualified, edge('d:a', 'd:router')], 'd:cam');
   assert.deepEqual(only.nodes, ['d:cam', 'd:a', 'd:router']);
   assert.equal(only.uncertain, true);
+}
+
+{ // A hop through an endpoint the source does not list stays uncertain, whatever the link's own confidence.
+  const nodes = [device('router', 'router'), { id: 'u:missing', device: null, kind: 'unresolved' }, device('laptop', 'computer')];
+  const trace = traceToRoot(nodes, [edge('d:laptop', 'u:missing'), edge('u:missing', 'd:router')], 'd:laptop');
+  assert.deepEqual(trace.nodes, ['d:laptop', 'u:missing', 'd:router']);
+  assert.deepEqual(trace.certain, [false, false]);
+  assert.equal(trace.uncertain, true);
 }
 
 { // Through a shared segment (powerline), and the nearest root wins; router beats gateway on a tie.

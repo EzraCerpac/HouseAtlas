@@ -1,7 +1,7 @@
 import { type CSSProperties, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { NetworkOverlayData, NetworkOverlayDevice, NetworkOverlayEndpoint, NetworkOverlayLink } from '../overlays/network/types';
 import type { DocumentaryNetworkGraph } from './runtime-overlays';
-import { isHypothesisLink, traceEdgeCertain, traceToRoot, type NetworkTrace } from './network-trace';
+import { isHypothesisLink, traceToRoot, type NetworkTrace } from './network-trace';
 import './network-graph.css';
 
 /** The complete recorded network in its own frame, apart from the house. The
@@ -464,7 +464,7 @@ function TraceDetail({ trace, label, chooseNode }: {
       {trace.nodes.map((id, at) => <li key={id}>
         {at === 0 ? <span className="ung-trace-here">{label(id)}</span>
           : <button type="button" className="text-btn inline" onClick={() => chooseNode(id)}>{label(id)}</button>}
-        {at < trace.edges.length && <span className={`ung-trace-hop${traceEdgeCertain(trace.edges[at]!) ? '' : ' is-uncertain'}`}>
+        {at < trace.edges.length && <span className={`ung-trace-hop${trace.certain[at] ? '' : ' is-uncertain'}`}>
           {trace.edges[at]!.link.medium || 'medium unknown'} · {trace.edges[at]!.link.confidence}</span>}
       </li>)}
     </ol>

@@ -2,7 +2,11 @@ import type { NetworkOverlayDevice, NetworkOverlayLink } from '../overlays/netwo
 
 /** A recorded route from one device back to the network's root, read from the
  * source's links alone. It says which records connect, never where a cable runs. */
-export interface TraceNode { readonly id: string; readonly device: NetworkOverlayDevice | null }
+export interface TraceNode {
+  readonly id: string; readonly device: NetworkOverlayDevice | null;
+  /** 'unresolved' marks a link end the source does not list; hops through it stay uncertain. */
+  readonly kind?: string;
+}
 export interface TraceEdge { readonly key: string; readonly a: string; readonly b: string; readonly link: NetworkOverlayLink }
 export type NetworkTraceStatus = 'traced' | 'is-root' | 'no-root' | 'unreachable';
 export interface NetworkTrace {
@@ -15,6 +19,8 @@ export interface NetworkTrace {
   readonly edges: readonly TraceEdge[];
   /** True when any hop rests on a link that is not accepted or recorded. */
   readonly uncertain: boolean;
+  /** Per hop, in order: whether it rests on accepted or recorded evidence between known records. */
+  readonly certain: readonly boolean[];
   /** Every node connected to the chosen one, itself included, so a route that
    * ends short of the root can still show what it does reach. */
   readonly reachable: ReadonlySet<string>;
@@ -54,9 +60,10 @@ export function traceToRoot(nodes: Iterable<TraceNode>, edges: readonly TraceEdg
   const byId = new Map<string, TraceNode>();
   for (const node of nodes) byId.set(node.id, node);
   const roots = [...byId.values()].filter(node => rootRank(node.device) >= 0);
+  const unresolved = (edge: TraceEdge) => byId.get(edge.a)?.kind === 'unresolved' || byId.get(edge.b)?.kind === 'unresolved';
   let reachable: ReadonlySet<string> = new Set([from]);
   const empty = (status: NetworkTraceStatus, root: string | null = null): NetworkTrace =>
-    ({ from, root, status, nodes: [from], edges: [], uncertain: false, reachable });
+    ({ from, root, status, nodes: [from], edges: [], uncertain: false, certain: [], reachable });
   if (!byId.has(from)) return empty('unreachable');
   if (rootRank(byId.get(from)!.device) >= 0) return empty('is-root', from);
 
@@ -79,7 +86,7 @@ export function traceToRoot(nodes: Iterable<TraceNode>, edges: readonly TraceEdg
     const here = dist.get(next)!;
     for (const { edge, other } of near.get(next) ?? []) {
       if (done.has(other)) continue;
-      const d = { hops: here.hops + 1, penalty: here.penalty + penalty(edge.link) }, known = dist.get(other);
+      const d = { hops: here.hops + 1, penalty: here.penalty + penalty(edge.link) + (unresolved(edge) ? .9 : 0) }, known = dist.get(other);
       if (known === undefined || compare(d, known) < 0) { dist.set(other, d); back.set(other, edge); }
     }
   }
@@ -95,5 +102,6 @@ export function traceToRoot(nodes: Iterable<TraceNode>, edges: readonly TraceEdg
     at = edge.a === at ? edge.b : edge.a; path.push(at);
   }
   path.reverse(); hops.reverse();
-  return { from, root: root.id, status: 'traced', nodes: path, edges: hops, uncertain: hops.some(edge => !traceEdgeCertain(edge)), reachable };
+  const certain = hops.map(edge => traceEdgeCertain(edge) && !unresolved(edge));
+  return { from, root: root.id, status: 'traced', nodes: path, edges: hops, uncertain: certain.includes(false), certain, reachable };
 }
