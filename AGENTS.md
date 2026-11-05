@@ -378,6 +378,17 @@ they add no ordinary check scope, persistent access, household intake, native
 qualification or deployment. Generated media requires inspection before any
 coordinated commit; the workflow never commits it automatically.
 
+The existing generated `canonical-mesh-preparation.test.mjs` selection also
+checks the actual opt-in scene-build observation helper with a fake clock and
+renderer: phase/wait attribution, original promise/result/error preservation,
+unknown unsupported/pre-hook counters and exact owned-hook restoration. A
+fictional-element source contract calls the actual report builder to check
+viewport bounds, scrollable text and a separate Copy/Close row; it establishes
+no computed layout or device result. These contracts compile no shader, draw
+no frame and add no test selection or workflow. The existing
+`?render-probe` report may include observational build/first-render-call phases;
+these are not GPU completion, witnessed paint or a phone performance result.
+
 web/AGENTS.md governs interface text. Preserve accessible names, scope,
 uncertainty, freshness, access and file availability. Use short functional
 headings and guidance only when needed for the current action or state.

@@ -3,6 +3,7 @@ import type { PreparedMesh, Projection } from './geometry';
 import { materialGpuResources, RENDER_LIMITS } from './gpu-budget';
 import type { AppearanceInput } from './mesh-appearance';
 import type { MeshScene } from './mesh-scene';
+import { SceneBuildObservation } from './scene-build-observation';
 
 export type { MeshPalette } from './mesh-appearance';
 export { materialGpuResources, RENDER_LIMITS } from './gpu-budget';
@@ -79,6 +80,7 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     const element = canvas.current; if (!element || props.meshes.length === 0) return;
     const usesMaterials = props.sourceMaterials === true && props.meshes.some(mesh => mesh.sourceMaterial !== undefined);
     let disposed = false, frame: number | null = null, scene: MeshScene | null = null, drawn = false, probing = false, buildMs = 0;
+    let observation: SceneBuildObservation | undefined;
     // The scene builds over several frames; releasing the canvas abandons that build.
     const building = new AbortController();
     // Ready once a frame is drawn (or there is nothing to draw while hidden), so promoting this canvas never shows it empty.
@@ -103,7 +105,7 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       if (frame !== null) cancelAnimationFrame(frame); frame = null;
       if (settle !== null) clearTimeout(settle); settle = null;
       if (redraw.current === schedule) redraw.current = null;
-      scene?.dispose(); scene = null;
+      observation?.close(); scene?.dispose(); scene = null;
     };
     const fail = (message: string) => { const live = !disposed; release(); if (live) latest.current.onUnavailable(message); };
     const lost = (message: string) => {
@@ -132,7 +134,7 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
         const [width, height] = size();
         if (!disposed && scene) {
           const report = await runRenderProbe({ scene, meshes: props.meshes, projection: latest.current.projection, width, height,
-            shownAt: shownAt - PROBE_DELAY_MS, buildMs, signal: building.signal });
+            shownAt: shownAt - PROBE_DELAY_MS, buildMs, observation: observation?.snapshot(), signal: building.signal });
           if (!disposed) { probeState = 'done'; showProbeReport(report); }
         }
       } catch {
@@ -154,7 +156,9 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
         if (shading < 1) schedule(); else fading = null;
       } else if (shading < 1 && settle === null) settle = setTimeout(still, SETTLE_MS);
       // While the view is still, each further frame averages the contact shading down to a clean result.
+      const finishFirstDraw = observation?.firstDraw();
       if (scene.render(p.projection, stale.current ? p : null, w, h, shading)) schedule(true);
+      finishFirstDraw?.();
       drawnAt = now; stale.current = false; ready();
     };
     document.addEventListener('visibilitychange', visibility);
@@ -162,9 +166,12 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     try { materialGpuResources(props.meshes, usesMaterials, props.uploadBytes); } catch { fail('The 3D model cannot be rendered.'); }
     if (!disposed) {
       const buildStart = performance.now();
-      void import('./mesh-scene').then(({ createMeshScene }) => createMeshScene(element, props.meshes, usesMaterials, lost, building.signal)).then(created => {
+      observation = PROBE ? new SceneBuildObservation() : undefined;
+      observation?.phase('module-import');
+      void import('./mesh-scene').then(({ createMeshScene }) => createMeshScene(element, props.meshes, usesMaterials, lost, building.signal, observation)).then(created => {
         if (disposed) { created.dispose(); return; }
         buildMs = performance.now() - buildStart;
+        observation?.finishBuild();
         scene = created; stale.current = true; element.dataset.renderer = created.backend;
         redraw.current = schedule; schedule();
       }, () => fail(drawable() ? 'The 3D model cannot be rendered.' : 'This browser cannot draw the 3D model. Update the browser to view it.'));
