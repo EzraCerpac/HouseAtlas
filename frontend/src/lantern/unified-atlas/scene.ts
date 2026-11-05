@@ -1,5 +1,5 @@
 import type { PlanRing, PlanShape } from '../canonical-ifc/model';
-import { LABEL_WORK, labelPoint, pointInShape, type PreparedMesh, type Projection } from '../canonical-ifc/geometry';
+import { isGlass, LABEL_WORK, labelPoint, pointInShape, type PreparedMesh, type Projection } from '../canonical-ifc/geometry';
 import type { Surroundings } from '../canonical-ifc/mesh-appearance';
 import type { StandardGlb } from '../canonical-ifc/standard-glb';
 import {
@@ -860,7 +860,7 @@ const sectionOf = (model: AtlasModel, levelId: string) => model.floorY.get(level
 const GHOST_ROLES: ReadonlySet<MeshRole> = new Set(['structure', 'roof', 'slab']);
 /** Building glazing eligible for the Unified Atlas daylight pass. */
 export const isAtlasGlazing = (part: AtlasPart): boolean =>
-  (part.role === 'structure' || part.role === 'roof') && part.mesh.sourceNight === 'glazing';
+  (part.role === 'structure' || part.role === 'roof') && isGlass(part.mesh);
 
 export function presentAtlas(model: AtlasModel, state: AtlasViewState, highlighted: ReadonlySet<string>): AtlasPresentation {
   const plan = state.view === 'plan';
