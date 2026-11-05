@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 29713,
-      "sha256": "c8a08029df6a369ac58e20b2217214108c986d14cf1efcdb2c1ca870818f7b88",
+      "bytes": 30404,
+      "sha256": "615909a66f7c0932399efd206cfd57e7c69d34d28136a05d834aaaaa6373aa94",
       "owner": "core-integration"
     },
     {
@@ -5954,6 +5954,27 @@
       "owner": "contracts"
     },
     {
+      "path": "contracts/electrical-data/README.md",
+      "mode": "100644",
+      "bytes": 13877,
+      "sha256": "b517fb5e123745f246c45a91db70bbacd5c6e64aa5a1bdf3f4fab999bace5c55",
+      "owner": "contracts"
+    },
+    {
+      "path": "contracts/electrical-data/generated.fixture.json",
+      "mode": "100644",
+      "bytes": 38063,
+      "sha256": "4b6bd1241bdf152063aed0d82a54f9adb6e7433dd986021423a3b38cd4f3ecf0",
+      "owner": "contracts"
+    },
+    {
+      "path": "contracts/electrical-data/v1.schema.json",
+      "mode": "100644",
+      "bytes": 11575,
+      "sha256": "0dc896581975350aae34027975ed64db2a5bbe85ac44f7e6bce168e84f3b5cd0",
+      "owner": "contracts"
+    },
+    {
       "path": "contracts/geodata-wire-v2/README.md",
       "mode": "100644",
       "bytes": 3627,
@@ -6488,8 +6509,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 219958,
-      "sha256": "3b3f79157fe82adda88744f15d4e2fd4875ef0441ed8311f4390b23e88bcb8cf",
+      "bytes": 221058,
+      "sha256": "93c4f398af15b3e07a577615137cbf02bd917682ad15f5c2be7a460c81da8613",
       "owner": "core-integration"
     },
     {
@@ -11085,6 +11106,13 @@
       "owner": "contracts"
     },
     {
+      "path": "packages/contracts/src/electrical-data.mjs",
+      "mode": "100644",
+      "bytes": 14006,
+      "sha256": "23969acbe76167fd6c0ec04e7ecd8d098f50b28a50520a070398c165a0ad765e",
+      "owner": "contracts"
+    },
+    {
       "path": "packages/contracts/src/index.mjs",
       "mode": "100644",
       "bytes": 37369,
@@ -11780,8 +11808,8 @@
     {
       "path": "tools/electrical_registration/healthy.test.mjs",
       "mode": "100644",
-      "bytes": 14541,
-      "sha256": "7c9703a394a07d58bb8ccb54d63fb1df28dcb88f194b53347c6af9b3fb1166b3",
+      "bytes": 28070,
+      "sha256": "e9126d32137115fcd9b684e86ef85409ac2738f270a63194e8426f45ea9fcbc4",
       "owner": "media"
     },
     {
