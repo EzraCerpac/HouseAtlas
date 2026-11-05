@@ -48,20 +48,24 @@ export function NetworkStageConnections({ connections, selected, trace = null }:
   const rows = [
     ...connections.connections.map(row => ({ ...row, medium: row.link.medium,
       hop: order && row.graphKey === trace!.graphKey ? order.get(row.link.id) ?? null : null,
+      reversed: trace?.reversedLinkIds.has(row.link.id) ?? false,
       detail: [row.link.kind, row.link.sourceConfidence, row.link.temporalStatus, row.link.recordedAt, row.link.basis, row.link.notes].filter(Boolean).join(' · ') })),
     // A shared medium is on the route when the route passes through its segment
     // between the two devices it associates.
     ...connections.sharedMediumAssociations.map(row => ({ ...row,
       hop: order && row.graphKey === trace!.graphKey && trace!.segmentIds.has(row.segment.id)
-        && trace!.deviceIds.has(row.from.sourceId) && trace!.deviceIds.has(row.to.sourceId)
+        && trace!.deviceOrder.has(row.from.sourceId) && trace!.deviceOrder.has(row.to.sourceId)
         ? Math.min(...row.memberships.map(link => order.get(link.id) ?? Infinity)) : null,
+      reversed: (trace?.deviceOrder.get(row.from.sourceId) ?? 0) > (trace?.deviceOrder.get(row.to.sourceId) ?? 0),
       detail: 'Shared-medium association from recorded segment memberships' })),
   ].map(row => ({ ...row, hop: row.hop === Infinity ? null : row.hop }));
   return <g pointerEvents="none" fill="none" stroke={TONE_COLOR.network} strokeWidth={1.8} strokeDasharray="6 4"
     data-network-associations="room-summary" className={trace ? 'ua-net-tracing' : undefined}>
     {rows.flatMap((row, index) => row.placements.map(placement => {
-      const [x1, y1] = placement.from.point, [x2, y2] = placement.to.point;
       const traced = row.hop !== null;
+      // A traced hop draws from the chosen device's side toward the root.
+      const [start, end] = traced && row.reversed ? [placement.to, placement.from] : [placement.from, placement.to];
+      const [x1, y1] = start.point, [x2, y2] = end.point;
       const focused = traced || (!trace && (selected === placement.from.occurrenceId || selected === placement.to.occurrenceId));
       const dx = x2 - x1, dy = y2 - y1, length = Math.hypot(dx, dy);
       const bend = ((index % 5) - 2) * 5;

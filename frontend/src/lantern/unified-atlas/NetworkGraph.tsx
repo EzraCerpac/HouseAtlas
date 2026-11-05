@@ -248,7 +248,10 @@ export interface StageTrace {
   readonly graphKey: string;
   /** Source link IDs in order from the chosen device to the root. */
   readonly linkIds: readonly string[];
-  readonly deviceIds: ReadonlySet<string>;
+  /** Links the route crosses from their recorded `to` end toward their `from` end. */
+  readonly reversedLinkIds: ReadonlySet<string>;
+  /** Source device IDs on the route, by their position from the chosen device. */
+  readonly deviceOrder: ReadonlyMap<string, number>;
   readonly segmentIds: ReadonlySet<string>;
 }
 
@@ -287,7 +290,8 @@ export function NetworkGraph({ graph, onTrace }: {
     if (trace?.status !== 'traced') return null;
     const sources = trace.nodes.map(id => built.nodes.get(id));
     return { graphKey: graph.key, linkIds: trace.edges.map(edge => edge.link.id),
-      deviceIds: new Set(sources.flatMap(node => node?.kind === 'device' ? [node.sourceId] : [])),
+      reversedLinkIds: new Set(trace.edges.flatMap((edge, at) => edge.a === trace.nodes[at] ? [] : [edge.link.id])),
+      deviceOrder: new Map(sources.flatMap((node, at) => node?.kind === 'device' ? [[node.sourceId, at] as const] : [])),
       segmentIds: new Set(sources.flatMap(node => node?.endpoint?.kind === 'segment' ? [node.sourceId] : [])) };
   }, [trace, built, graph.key]);
   useEffect(() => { onTrace?.(graph.key, stageTrace); }, [onTrace, graph.key, stageTrace]);

@@ -3,23 +3,32 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'vite';
 assert.equal(process.version, 'v26.10.0');
 assert.deepEqual(process.argv.slice(2), []);
 const scratch = mkdtempSync(join(tmpdir(), 'atlas-network-trace-'));
 const root = fileURLToPath(new URL('../../', import.meta.url));
-let traceToRoot, rootRank;
+let traceToRoot, rootRank, NetworkStageConnections, createElement, renderToStaticMarkup;
 try {
   const entry = join(scratch, 'entry.ts');
-  writeFileSync(entry, `export { traceToRoot, rootRank } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/network-trace.ts'))};`);
-  const built = await build({ root: join(root, 'frontend'), configFile: false, logLevel: 'silent', build: {
+  writeFileSync(entry, `export { traceToRoot, rootRank } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/network-trace.ts'))};
+export { NetworkStageConnections } from ${JSON.stringify(join(root, 'frontend/src/lantern/unified-atlas/NetworkStageConnections.tsx'))};
+`);
+  const react = { name: 'frontend-react', enforce: 'pre', resolveId(id) {
+    if (id === 'react' || id.startsWith('react/')) return { id: pathToFileURL(createRequire(join(root, 'frontend/package.json')).resolve(id)).href, external: true };
+  } };
+  const built = await build({ root: join(root, 'frontend'), configFile: false, logLevel: 'silent', plugins: [react], build: {
     write: false, target: 'node26', lib: { entry, formats: ['es'] },
+    // React stays the frontend's own installed module, shared with react-dom/server below.
     rolldownOptions: { output: { codeSplitting: false } }, minify: false,
   } });
   const output = Array.isArray(built) ? built[0] : built, modulePath = join(scratch, 'trace.mjs');
   writeFileSync(modulePath, output.output.find(row => row.type === 'chunk' && row.isEntry).code);
-  ({ traceToRoot, rootRank } = await import(pathToFileURL(modulePath).href));
+  ({ traceToRoot, rootRank, NetworkStageConnections } = await import(pathToFileURL(modulePath).href));
+  ({ createElement } = await import('react'));
+  ({ renderToStaticMarkup } = await import('react-dom/server'));
 } finally { rmSync(scratch, { recursive: true }); }
 
 const device = (id, kind = 'switch') => ({ id: `d:${id}`, device: { id, label: `Generated ${id}`, kind, mobility: 'fixed',
@@ -102,6 +111,29 @@ assert.equal(rootRank(null), -1);
   assert.equal(island.status, 'unreachable');
   assert.equal(island.root, null);
   assert.deepEqual(island.nodes, ['d:a']);
+}
+
+{ // The stage lights only the traced links, and draws each hop from the chosen device toward the root,
+  // even where the source records the link the other way round.
+  const anchor = (nodeId, x) => ({ graphKey: 'g', nodeKind: 'device', nodeId, roomId: `room-${nodeId}`, occurrenceId: `occ-${nodeId}`,
+    point: [x, 0], basis: 'room-summary', qualification: 'Generated' });
+  const end = (sourceId, x) => ({ sourceId, label: sourceId, nodeKey: sourceId, ownerDeviceKey: null, anchors: [anchor(sourceId, x)], placementReason: 'admitted-anchor' });
+  const connection = (id, from, fx, to, tx) => {
+    const a = end(from, fx), b = end(to, tx);
+    return { key: id, graphKey: 'g', link: edge(from, to).link && { ...edge(from, to).link, id }, source: {}, qualification: 'Generated',
+      from: a, to: b, renderable: true, placements: [{ key: `${id}:p`, from: a.anchors[0], to: b.anchors[0], coincident: false }] };
+  };
+  const connections = { nodes: [], sharedMediumAssociations: [], coverage: {}, connections: [
+    connection('up', 'router', 100, 'laptop', 0), connection('side', 'laptop', 0, 'printer', 50)] };
+  const render = trace => renderToStaticMarkup(createElement('svg', null, createElement(NetworkStageConnections, { connections, selected: null, trace })));
+  const plain = render(null);
+  assert.equal((plain.match(/ua-net-trace"/g) ?? []).length, 0);
+  const lit = render({ graphKey: 'g', linkIds: ['up'], reversedLinkIds: new Set(['up']), deviceOrder: new Map([['laptop', 0], ['router', 1]]), segmentIds: new Set() });
+  const paths = [...lit.matchAll(/<path[^>]*>/g)].map(match => match[0]);
+  const traced = paths.filter(path => path.includes('ua-net-trace'));
+  assert.equal(traced.length, 1);
+  assert.match(traced[0], /d="M 0 0 Q [^"]* 100 0"/, 'the hop starts at the device, not the router');
+  assert.match(paths.find(path => !path.includes('ua-net-trace')), /opacity="0.14"/, 'other links step back');
 }
 
 console.log('unified-atlas network trace: healthy');
