@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { applyAffine, fitAffine, assessRegistration, projectInventory } from './registration.mjs';
-import { createElectricalDataProjector, electricalReviewSubject } from '../../packages/contracts/src/electrical-data.mjs';
+import { createElectricalDataProjector, electricalReviewSubject, ELECTRICAL_WITHHOLD_REASONS } from '../../packages/contracts/src/electrical-data.mjs';
 import { validateLedger } from '../electrical_registry/registry.mjs';
 const hash='1'.repeat(64), evidence={sha256:hash,locator:'/generated/evidence'};
 const source={sheetId:'sheet',regionId:'region',originalPhotoSha256:hash,renderedPhotoSha256:hash};
@@ -65,8 +65,18 @@ test('healthy documentary-only intake and separate reviewed electrical data cont
   assert.equal(r.counts.inventory,1);assert.equal(r.records[0].placements.length,0);assert.equal(r.counts.withoutApproximateScenePlacement,1);
   const readJson = path => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8'));
   const generated = readJson('../../contracts/electrical-data/generated.fixture.json');
-  const project = createElectricalDataProjector(readJson('../../contracts/electrical-data/v1.schema.json'),
+  const projectData = createElectricalDataProjector(readJson('../../contracts/electrical-data/v1.schema.json'),
     readJson('../../packages/contracts/schemas/atlas.v2.schema.json'));
+  const reasonCodes = new Set(ELECTRICAL_WITHHOLD_REASONS);
+  const project = (data, context) => {
+    const result = projectData(data, context);
+    // Every generated positive/withheld/contradictory case below checks the
+    // public machine-code boundary; diagnostics and source text cannot leak in.
+    for (const row of [...result.panels, ...result.breakers, ...result.mappings]) {
+      assert(row.reasons.every(reason => reasonCodes.has(reason) && /^[a-z]+(?:-[a-z]+)*$/.test(reason)));
+    }
+    return result;
+  };
   // These are generated context observations, never native review issuance.
   const refreshReview = (fixture, kind, row) => {
     const existing = fixture.context.currentReviews.find(review => review.receipt.id === row.review.receipt?.id);
@@ -74,6 +84,7 @@ test('healthy documentary-only intake and separate reviewed electrical data cont
   };
   await t.test('generated panel/native circuit joins retain report, label and exact tested bases',()=>{
     const before = structuredClone(generated), result = project(generated.data, generated.context);
+    assert(Object.isFrozen(ELECTRICAL_WITHHOLD_REASONS));
     assert.equal(generated.synthetic, true);
     assert.deepEqual(validateLedger(generated.context.documentary.data), []);
     assert.equal(createHash('sha256').update(JSON.stringify(generated.context.documentary.data)).digest('hex'), generated.data.fixtureLedgerSha256);

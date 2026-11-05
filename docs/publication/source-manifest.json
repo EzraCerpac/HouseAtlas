@@ -5956,8 +5956,8 @@
     {
       "path": "contracts/electrical-data/README.md",
       "mode": "100644",
-      "bytes": 8553,
-      "sha256": "5c62595e4e919ee3071e8d8472621518af1a39424af81dc512442242c8efdbc6",
+      "bytes": 13877,
+      "sha256": "b517fb5e123745f246c45a91db70bbacd5c6e64aa5a1bdf3f4fab999bace5c55",
       "owner": "contracts"
     },
     {
@@ -11108,8 +11108,8 @@
     {
       "path": "packages/contracts/src/electrical-data.mjs",
       "mode": "100644",
-      "bytes": 12899,
-      "sha256": "90bba26a91766fbb482efa8d7645562153ffad42606e853089d780b1c8495b3e",
+      "bytes": 14006,
+      "sha256": "23969acbe76167fd6c0ec04e7ecd8d098f50b28a50520a070398c165a0ad765e",
       "owner": "contracts"
     },
     {
@@ -11808,8 +11808,8 @@
     {
       "path": "tools/electrical_registration/healthy.test.mjs",
       "mode": "100644",
-      "bytes": 27454,
-      "sha256": "d5bc5408e4bf7a24b4bacd7a443b1b41ea6647ed197121da2a56f7c199c899df",
+      "bytes": 28070,
+      "sha256": "e9126d32137115fcd9b684e86ef85409ac2738f270a63194e8426f45ea9fcbc4",
       "owner": "media"
     },
     {

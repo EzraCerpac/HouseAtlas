@@ -1,6 +1,22 @@
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 
+/** Stable, nonlocalized projection codes. UI text belongs to the consumer.
+ * Existing codes are never renamed/reused within projection v1. Thrown input
+ * validation errors are diagnostics, not entries in this public code set. */
+export const ELECTRICAL_WITHHOLD_REASONS = Object.freeze([
+  'basis-unknown', 'confidence-unknown', 'review-unreviewed', 'review-ambiguous',
+  'review-conflicting', 'review-stale', 'evidence-not-current', 'exact-review-not-current',
+  'panel-item-not-current', 'reviewed-room-not-current', 'native-circuit-not-current',
+  'native-circuit-evidence-not-current', 'native-panel-link-not-current',
+  'native-panel-descriptor-missing', 'position-without-panel', 'conflicting-panel-position',
+  'documentary-target-unavailable', 'circuit-not-unique', 'circuit-descriptor-not-current',
+  'test-not-confirmed-for-exact-target', 'conflicting-fixture-circuit-candidates',
+  'contradictory-fixture-circuit-tests'
+]);
+const REVIEW_REASON = Object.freeze({ unreviewed: 'review-unreviewed', ambiguous: 'review-ambiguous',
+  conflicting: 'review-conflicting', stale: 'review-stale' });
+
 // A read projection only. The host owns canonical native records, source bytes,
 // receipt verification/currentness and authorization. This module issues none.
 const copy = value => structuredClone(value);
@@ -86,7 +102,7 @@ export function createElectricalDataProjector(schema, nativeSchema) {
       const reasons = [];
       if (row.basis === 'unknown') reasons.push('basis-unknown');
       if (row.review.confidence === 'unknown') reasons.push('confidence-unknown');
-      if (row.review.status !== 'reviewed') reasons.push(`review-${row.review.status}`);
+      if (row.review.status !== 'reviewed') reasons.push(REVIEW_REASON[row.review.status]);
       if (!row.review.evidence.length || row.review.evidence.some(pin => {
         const evidence = currentEvidence(pin);
         return !evidence || ['disputed', 'withdrawn', 'superseded'].includes(evidence.payload.provenance.uncertainty.status);

@@ -81,6 +81,89 @@ matching current breaker and its `panelRecordId`; a current panel's
 No UI behavior, glow, automatic resolver, receipt acceptance or native write is
 implemented by this contract.
 
+### Room identity join
+
+`reviewedRoomId` is the native location identity's `recordId`, **not** the
+publication's Atlas `roomId`. `AtlasRoom` carries separate `roomId` and nullable
+`nativePlaceId` fields; `RuntimeRecords.rooms` is keyed by `roomId`. Equality of
+labels, UUID-shaped text or producer `nativeBinding` is not a qualified join.
+
+The existing owner is
+[`createUnifiedAtlasReviewedOverlays`](../../frontend/integration/unified-atlas-room-links-host.ts).
+Its independently authenticated `UnifiedAtlasOverlayReviewedRoomLinks` carries
+`{roomId,nativePlaceId,packagePlaceKey,packagePlaceUuid}` under exact
+workspace/home/publication/semantics pins. The
+[overlay source](../../frontend/integration/unified-atlas-overlay-source.ts)
+correlates those links with accepted source-room mappings and receipt anchors
+before issuing `frame.roomBindings`. While that actual owner says the frame is
+current, match this projection's native `reviewedRoomId` to the qualified
+binding's `nativePlaceId`, then use its `roomId`. Preserve the exact scene/native
+identity, package/receipt membership, building and selectable-room checks in
+`runtime-overlays.ts`. Reverse native-ID uniqueness is not guaranteed: preserve
+qualified bindings as such, never select the first or infer another from a name.
+Missing or ambiguous qualified linkage keeps the room endpoint unplaced; known
+panel/circuit documentary metadata can still be shown without a room anchor.
+This contract adds no second mapping, geometry authority or production host.
+
+### Stable withholding codes
+
+`reasons[]` already consists of nonlocalized machine codes, not source text.
+`ELECTRICAL_WITHHOLD_REASONS` exports the frozen v1 registry from the projector;
+existing codes are not renamed or reused within v1. It contains:
+
+- `basis-unknown`, `confidence-unknown`;
+- `review-unreviewed`, `review-ambiguous`, `review-conflicting`, `review-stale`,
+  `exact-review-not-current`, `evidence-not-current`;
+- `panel-item-not-current`, `reviewed-room-not-current`,
+  `native-circuit-not-current`, `native-circuit-evidence-not-current`,
+  `native-panel-link-not-current`, `native-panel-descriptor-missing`,
+  `position-without-panel`, `conflicting-panel-position`;
+- `documentary-target-unavailable`, `circuit-not-unique`,
+  `circuit-descriptor-not-current`, `test-not-confirmed-for-exact-target`,
+  `conflicting-fixture-circuit-candidates`, `contradictory-fixture-circuit-tests`.
+
+Consumers map codes to their own plain sentences. Reason ordering is not a UI
+priority contract. An unrecognized code should retain an unavailable state,
+never become raw interface text. Thrown `TypeError` validation diagnostics are
+not this code API and should not be rendered as user-facing reasons. No code
+value or withholding behavior changes when importing the registry.
+
+### Offline factual snapshots
+
+The plain JSON projection has no declared session, CSRF, capability, lease,
+reader or issued-URL fields. It can contain private labels/free text, complete
+native circuit records, evidence/receipt identity pins and withheld rows. It is
+**not a sanitizer**. Only factual data the actual account/home/device storage
+owner authorizes may be retained; hiding a row does not remove it from storage.
+Do not serialize live context, `currentReviews` as fresh authority, sessions,
+admissions, leased readers, opaque live frames or issued document/download URLs.
+Retained receipt references/bytes, where independently authorized, remain facts
+about a captured review rather than a newly current approval or capability.
+
+The existing
+[`stored-overlays.ts`](../../frontend/src/lantern/unified-atlas/stored-overlays.ts)
+is display-only and does not yet serialize this projection. Its documented
+`RuntimeRecords` shape-change rule requires matching codec work and a profile
+bump. Consumer storage integration owns that decision, the account partition,
+workspace/home and publication/revision/semantics fences, capture time, resource
+digests and source/native-record/review/ledger pins. These electrical data changes
+do not extend `houseatlas.stored-overlays.v1` or the Saved pack.
+
+On restore, display any `current`/`verifiedWiring` values as **captured assertions**
+at the saved time, including the actual test observation time and uncertainty.
+They establish neither current source freshness, present wiring, fresh authority
+nor electrical isolation safety. The projector has no lease, TTL or invalidation
+subscription; the overlay owner's read deadlines/head-age checks are not a
+projector TTL. Account/home, scene, source, record or review changes must retire
+the corresponding live view through the existing owners; reconnect requires new
+genuine current inputs, not replay of saved review objects. Offline data cannot
+observe intervening changes or revocation. The existing
+[Saved overlay reader](../../frontend/src/offline/saved-atlas-overlays.ts) uses
+`captured-room-identity-join`, not reconstructed `current-native-room-join`
+authority; missing captured closure remains unplaced/unavailable. This is an
+interface boundary for the existing offline/trace writers, not another storage
+owner or an implementation of saved electrical tracing.
+
 An owner report or label match can yield a reviewed documentary association,
 with `verifiedWiring: false`. High confidence does not change that rule. Only a
 current exact **test** mapping can yield true: a confirmed result with a nonempty
@@ -127,6 +210,8 @@ orders and all group/fixture overlap combinations, and exact scope/receipt/test
 limitations. The contradictory-test subtest derives a separate generated native
 evidence record and independent review subject from the existing fixture; it
 preserves both original assertions and checks unrelated report/label mappings.
+Every emitted reason across these generated cases is also asserted to belong
+to the frozen machine-code registry; malformed-input diagnostics stay separate.
 Its previous documentary assertions are preserved. The existing command is:
 
 ```sh
