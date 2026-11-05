@@ -499,7 +499,11 @@ Compile-call wall sums may overlap and are not additive GPU costs; deferred
 node-graph building remains inside compile-call time. Guarded
 renderer-instance hooks count compile calls and backend pipeline-creation
 requests, not completed native pipelines or proven cache hits. Unsupported or
-replaced hooks are reported unavailable/incomplete, never as zero work. Hooks
+replaced hooks are reported unavailable/incomplete, never as zero work. Each
+phase also needs complete coverage from its first segment: import, adapter and
+renderer-init counters remain unavailable because hooks start only after init.
+A later observed hook never converts those unknown values to numeric zeros.
+Wall timing remains available independently. Hooks
 preserve original this/arguments/results/promises/errors and are restored after
 the first successful render call or owned cleanup. Default non-probe rendering
 has no observation hooks; eager preparation order and all existing swap
@@ -513,7 +517,13 @@ The existing pure geometry test file additionally checks the observation helper
 with fake clock/renderer owners; these assertions do not qualify real Three/GPU
 hook availability. Software-GPU and stage timings are observations only: they
 neither attribute the reported phone delay nor establish device improvement.
-The existing probe's five frame-workload comparisons remain unchanged.
+The report panel is bounded by the viewport height (dynamic viewport where
+supported). Its phase text scrolls in a shrinkable body, while Copy/Close stay
+in a separate nonshrinking action row. A generated source-contract check calls
+the actual report builder with fictional element objects and checks these CSS
+and parent/child contracts; it does not establish computed layout, focus,
+phone usability or device acceptance. The existing probe's five frame-workload
+comparisons remain unchanged.
 
 ```sh
 node frontend/lantern-tests/mesh-layer-browser.mjs --case webgl2   # in the healthy suite

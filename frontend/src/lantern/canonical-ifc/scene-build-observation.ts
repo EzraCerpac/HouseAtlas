@@ -5,6 +5,7 @@ export const BUILD_PHASES = ['module-import', 'adapter-and-renderer-construction
 export type BuildPhase = typeof BUILD_PHASES[number];
 interface Phase {
   wallMs: number; waitMs: number; compileCalls: number; compileWallMs: number; creationRequests: number;
+  entered: boolean; compileCovered: boolean; creationCovered: boolean;
 }
 export interface SceneBuildSnapshot {
   readonly phases: readonly Readonly<{ name: BuildPhase; wallMs: number; waitMs: number;
@@ -23,7 +24,8 @@ export class SceneBuildObservation {
   private at: number;
   private active: BuildPhase | null = null;
   private readonly phases = new Map<BuildPhase, Phase>(BUILD_PHASES.map(name => [name,
-    { wallMs: 0, waitMs: 0, compileCalls: 0, compileWallMs: 0, creationRequests: 0 }]));
+    { wallMs: 0, waitMs: 0, compileCalls: 0, compileWallMs: 0, creationRequests: 0,
+      entered: false, compileCovered: false, creationCovered: false }]));
   private buildWallMs: number | null = null;
   private firstDrawCpuMs: number | null = null;
   private firstDrawCreationRequests: number | null = null;
@@ -40,7 +42,12 @@ export class SceneBuildObservation {
     if (this.closed || this.buildWallMs !== null) return;
     const at = this.now();
     if (this.active) this.phases.get(this.active)!.wallMs += Math.max(0, at - this.at);
-    this.active = name; this.at = at;
+    const row = this.phases.get(name)!;
+    // A later hook cannot retroactively observe an earlier or partially covered phase.
+    // Repeated segments of one phase require coverage for EVERY segment.
+    row.compileCovered = (!row.entered || row.compileCovered) && this.compileCounter === 'observed';
+    row.creationCovered = (!row.entered || row.creationCovered) && this.creationCounter === 'observed';
+    row.entered = true; this.active = name; this.at = at;
   }
   /** Wait time is a SUBSET of the phase's wall time, not an additional cost. */
   wait(): () => void {
@@ -125,9 +132,9 @@ export class SceneBuildObservation {
     return { phases: BUILD_PHASES.map(name => {
       const row = this.phases.get(name)!;
       return { name, wallMs: row.wallMs, waitMs: row.waitMs,
-        compileCalls: this.compileCounter === 'observed' ? row.compileCalls : null,
-        compileWallMs: this.compileCounter === 'observed' ? row.compileWallMs : null,
-        creationRequests: this.creationCounter === 'observed' ? row.creationRequests : null };
+        compileCalls: this.compileCounter === 'observed' && row.compileCovered ? row.compileCalls : null,
+        compileWallMs: this.compileCounter === 'observed' && row.compileCovered ? row.compileWallMs : null,
+        creationRequests: this.creationCounter === 'observed' && row.creationCovered ? row.creationRequests : null };
     }), buildWallMs: this.buildWallMs, firstDrawCpuMs: this.firstDrawCpuMs,
       firstDrawCreationRequests: this.creationCounter === 'observed' ? this.firstDrawCreationRequests : null,
       compileCounter: this.compileCounter, creationCounter: this.creationCounter };

@@ -133,7 +133,7 @@ test('build observations preserve promise/result identity and report inclusive w
   const seen = new SceneBuildObservation(() => now);
   seen.phase('module-import'); now = 3; seen.phase('renderer-init');
   const waited = seen.wait(); now = 5; waited(); now = 8;
-  seen.watch(renderer); seen.phase('direct-preparation');
+  seen.watch(renderer); seen.phase('scene-graph'); seen.phase('direct-preparation');
   assert.equal(renderer.compileAsync('synthetic'), pending, 'original promise identity');
   assert.deepEqual(calls, [[backend, ['synthetic']]], 'original this and arguments');
   now = 12; complete(marker); assert.equal(await pending, marker);
@@ -145,6 +145,12 @@ test('build observations preserve promise/result identity and report inclusive w
   assert.equal(report.buildWallMs, 15);
   assert.equal(phase('module-import').wallMs, 3);
   assert.deepEqual([phase('renderer-init').wallMs, phase('renderer-init').waitMs], [5, 2], 'wait is a subset');
+  for (const name of ['module-import', 'adapter-and-renderer-construction', 'renderer-init']) {
+    assert.deepEqual([phase(name).compileCalls, phase(name).compileWallMs, phase(name).creationRequests],
+      [null, null, null], name + ': later hooks cannot make unobserved work zero');
+  }
+  assert.deepEqual([phase('scene-graph').compileCalls, phase('scene-graph').compileWallMs,
+    phase('scene-graph').creationRequests], [0, 0, 0], 'complete hook coverage can truthfully observe zero');
   assert.deepEqual([phase('direct-preparation').wallMs, phase('direct-preparation').compileCalls,
     phase('direct-preparation').compileWallMs, phase('direct-preparation').creationRequests], [7, 1, 4, 1]);
   assert.deepEqual([report.firstDrawCpuMs, report.firstDrawCreationRequests], [3, 1]);
@@ -176,4 +182,43 @@ test('observation refusals stay unknown and cleanup preserves errors and newer o
   owned.compileAsync = replacement; another.close();
   assert.equal(owned.compileAsync, replacement, 'cleanup does not overwrite a newer hook');
   assert.equal(another.snapshot().compileCounter, 'incomplete');
+});
+
+test('phase counters remain unknown across a pre-hook segment and the report keeps actions outside scrolling text', async () => {
+  let now = 0;
+  const seen = new SceneBuildObservation(() => now);
+  const backend = { createRenderPipeline() {} }, renderer = { backend, compileAsync: () => Promise.resolve() };
+  seen.phase('renderer-init'); now = 2; seen.watch(renderer);
+  seen.phase('renderer-init'); now = 4; seen.finishBuild(); seen.close();
+  const row = seen.snapshot().phases.find(item => item.name === 'renderer-init');
+  assert.equal(row.wallMs, 4);
+  assert.deepEqual([row.compileCalls, row.compileWallMs, row.creationRequests], [null, null, null],
+    'a partially observed repeated phase stays unknown');
+
+  const reportFile = new URL('../src/lantern/canonical-ifc/render-probe.ts', import.meta.url);
+  const reportCode = (await transformWithOxc(readFileSync(reportFile, 'utf8'), reportFile.pathname,
+    { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false })).code;
+  assert(!/^\s*import(?:\s|['"]|\()/m.test(reportCode), 'Report builder has no runtime imports');
+  const { showProbeReport } = await import('data:text/javascript;base64,' + Buffer.from(reportCode).toString('base64'));
+  const element = tag => ({ tag, style: {}, dataset: {}, children: [], attributes: {},
+    setAttribute(name, value) { this.attributes[name] = value; },
+    append(...children) { this.children.push(...children); }, addEventListener() {}, remove() {} });
+  const body = element('body'), prior = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  try {
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: { body, createElement: element } });
+    showProbeReport('fictional phase observations');
+    assert.equal(body.children.length, 1);
+    const panel = body.children[0], [text, actions] = panel.children;
+    assert.equal(panel.attributes.role, 'dialog');
+    assert.match(panel.style.cssText, /max-height:calc\(100vh - 16px\)/);
+    assert.match(panel.style.cssText, /max-height:calc\(100dvh - 16px\)/);
+    assert.match(panel.style.cssText, /display:flex;flex-direction:column;overflow:hidden/);
+    assert.equal(text.tag, 'pre'); assert.equal(text.textContent, 'fictional phase observations');
+    assert.match(text.style.cssText, /min-height:0;flex:1 1 auto;overflow:auto/);
+    assert.match(actions.style.cssText, /flex:0 0 auto/);
+    assert.deepEqual(actions.children.map(item => item.textContent), ['Copy', 'Close']);
+    assert(!text.children.length, 'action buttons are not inside the scrolling phase text');
+  } finally {
+    if (prior) Object.defineProperty(globalThis, 'document', prior); else delete globalThis.document;
+  }
 });
