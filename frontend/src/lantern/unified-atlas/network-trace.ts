@@ -15,6 +15,9 @@ export interface NetworkTrace {
   readonly edges: readonly TraceEdge[];
   /** True when any hop rests on a link that is not accepted or recorded. */
   readonly uncertain: boolean;
+  /** Every node connected to the chosen one, itself included, so a route that
+   * ends short of the root can still show what it does reach. */
+  readonly reachable: ReadonlySet<string>;
 }
 
 /** Device kinds that act as the root, best first. */
@@ -51,11 +54,11 @@ export function traceToRoot(nodes: Iterable<TraceNode>, edges: readonly TraceEdg
   const byId = new Map<string, TraceNode>();
   for (const node of nodes) byId.set(node.id, node);
   const roots = [...byId.values()].filter(node => rootRank(node.device) >= 0);
+  let reachable: ReadonlySet<string> = new Set([from]);
   const empty = (status: NetworkTraceStatus, root: string | null = null): NetworkTrace =>
-    ({ from, root, status, nodes: [from], edges: [], uncertain: false });
+    ({ from, root, status, nodes: [from], edges: [], uncertain: false, reachable });
   if (!byId.has(from)) return empty('unreachable');
   if (rootRank(byId.get(from)!.device) >= 0) return empty('is-root', from);
-  if (roots.length === 0) return empty('no-root');
 
   const near = new Map<string, { edge: TraceEdge; other: string }[]>();
   for (const edge of edges) {
@@ -80,6 +83,8 @@ export function traceToRoot(nodes: Iterable<TraceNode>, edges: readonly TraceEdg
       if (known === undefined || compare(d, known) < 0) { dist.set(other, d); back.set(other, edge); }
     }
   }
+  reachable = new Set(dist.keys());
+  if (roots.length === 0) return empty('no-root');
   const reached = roots.filter(node => dist.has(node.id)).sort((p, q) =>
     compare(dist.get(p.id)!, dist.get(q.id)!) || rootRank(p.device) - rootRank(q.device) || (p.id < q.id ? -1 : p.id > q.id ? 1 : 0));
   const root = reached[0];
@@ -90,5 +95,5 @@ export function traceToRoot(nodes: Iterable<TraceNode>, edges: readonly TraceEdg
     at = edge.a === at ? edge.b : edge.a; path.push(at);
   }
   path.reverse(); hops.reverse();
-  return { from, root: root.id, status: 'traced', nodes: path, edges: hops, uncertain: hops.some(edge => !traceEdgeCertain(edge)) };
+  return { from, root: root.id, status: 'traced', nodes: path, edges: hops, uncertain: hops.some(edge => !traceEdgeCertain(edge)), reachable };
 }

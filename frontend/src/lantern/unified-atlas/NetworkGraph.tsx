@@ -320,6 +320,9 @@ export function NetworkGraph({ graph, onTrace }: {
     if (chosenEdge) return { nodes: new Set([chosenEdge.a, chosenEdge.b]), edges: new Set([chosenEdge.key]) };
     if (!chosen) return null;
     if (trace?.status === 'traced') return { nodes: new Set(trace.nodes), edges: new Set(trace.edges.map(edge => edge.key)) };
+    // No route to a root: light everything this device is connected to instead.
+    if (trace && trace.status !== 'is-root' && trace.reachable.size > 1) return { nodes: new Set(trace.reachable),
+      edges: new Set(built.edges.filter(edge => trace.reachable.has(edge.a) && trace.reachable.has(edge.b)).map(edge => edge.key)) };
     const edges = built.edges.filter(edge => edge.a === chosen.id || edge.b === chosen.id);
     return { nodes: new Set([chosen.id, ...edges.flatMap(edge => [edge.a, edge.b])]), edges: new Set(edges.map(edge => edge.key)) };
   }, [chosen, chosenEdge, built, trace]);
@@ -453,7 +456,8 @@ const TRACE_NOTE: Record<Exclude<NetworkTrace['status'], 'traced'>, string> = {
 function TraceDetail({ trace, label, chooseNode }: {
   readonly trace: NetworkTrace; readonly label: (id: string) => string; readonly chooseNode: (id: string) => void;
 }) {
-  if (trace.status !== 'traced') return <p className="ung-trace-note">{TRACE_NOTE[trace.status]}</p>;
+  if (trace.status !== 'traced') return <p className="ung-trace-note">{TRACE_NOTE[trace.status]}
+    {trace.status !== 'is-root' && trace.reachable.size > 1 ? ` Lit: the ${trace.reachable.size - 1} records it does connect to.` : ''}</p>;
   return <section className="ung-trace" aria-label={`Route to ${label(trace.root!)}`}>
     <h5>Route to {label(trace.root!)} · {trace.edges.length === 1 ? '1 step' : `${trace.edges.length} steps`}</h5>
     <ol>

@@ -1467,9 +1467,9 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
           {siteNames.length > 0 && <g className="ua-site-names" style={{ opacity: planBlend }}>
             {siteNames.map(row => <text key={row.key} x={row.x} y={row.y} textAnchor="middle">{row.text}</text>)}
           </g>}
-          {networkOn && planBlend < 1 && <g opacity={1 - planBlend}>
-            <NetworkStageConnections connections={networkConnections} selected={selected} trace={networkTrace} />
-          </g>}
+          {/* Associations fade out into a plan; a traced route stays, between the plan's own rooms. */}
+          {networkOn && (planBlend < 1 || networkTrace) && <NetworkStageConnections connections={networkConnections} selected={selected}
+            trace={networkTrace} fade={1 - planBlend} shown={planBlend < .5 ? undefined : onStage} />}
           {positions.length > 0 && <g className="ua-positions">
             {positions.map(row => <rect key={row.key} className={row.context ? 'is-context' : undefined} style={{ '--layer': TONE_COLOR[row.kind] } as CSSProperties}
               x={row.x - 4} y={row.y - 4} width={8} height={8} transform={`rotate(45 ${row.x} ${row.y})`} />)}

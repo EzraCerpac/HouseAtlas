@@ -56,7 +56,8 @@ assert.equal(rootRank(null), -1);
   assert.deepEqual(ids(trace), ['link-2', 'link-1', 'link-0']);
   assert.equal(trace.uncertain, false);
   // The root itself and an unknown node.
-  assert.deepEqual(traceToRoot(nodes, edges, 'd:router'), { from: 'd:router', root: 'd:router', status: 'is-root', nodes: ['d:router'], edges: [], uncertain: false });
+  assert.deepEqual(traceToRoot(nodes, edges, 'd:router'), { from: 'd:router', root: 'd:router', status: 'is-root', nodes: ['d:router'], edges: [], uncertain: false,
+    reachable: new Set(['d:router']) });
   assert.equal(traceToRoot(nodes, edges, 'd:missing').status, 'unreachable');
 }
 
@@ -106,11 +107,14 @@ assert.equal(rootRank(null), -1);
 
 { // No root recorded, or no connection to it.
   const nodes = [device('a'), device('b')];
-  assert.equal(traceToRoot(nodes, [edge('d:a', 'd:b')], 'd:a').status, 'no-root');
-  const island = traceToRoot([...nodes, device('router', 'router')], [edge('d:a', 'd:b')], 'd:a');
+  const rootless = traceToRoot([...nodes, device('c')], [edge('d:a', 'd:b'), edge('d:b', 'd:c')], 'd:a');
+  assert.equal(rootless.status, 'no-root');
+  assert.deepEqual([...rootless.reachable].sort(), ['d:a', 'd:b', 'd:c'], 'what it does reach, two hops out included');
+  const island = traceToRoot([...nodes, device('c'), device('router', 'router')], [edge('d:a', 'd:b'), edge('d:b', 'd:c')], 'd:a');
   assert.equal(island.status, 'unreachable');
   assert.equal(island.root, null);
   assert.deepEqual(island.nodes, ['d:a']);
+  assert.deepEqual([...island.reachable].sort(), ['d:a', 'd:b', 'd:c']);
 }
 
 { // The stage lights only the traced links, and draws each hop from the chosen device toward the root,
@@ -134,6 +138,15 @@ assert.equal(rootRank(null), -1);
   assert.equal(traced.length, 1);
   assert.match(traced[0], /d="M 0 0 Q [^"]* 100 0"/, 'the hop starts at the device, not the router');
   assert.match(paths.find(path => !path.includes('ua-net-trace')), /opacity="0.14"/, 'other links step back');
+  // In a full plan the untraced associations are gone and the route stays, between the plan's own rooms only.
+  const planTrace = { graphKey: 'g', linkIds: ['up', 'side'], reversedLinkIds: new Set(['up']), deviceOrder: new Map(), segmentIds: new Set() };
+  const planOf = (trace, shown) => [...renderToStaticMarkup(createElement('svg', null, createElement(NetworkStageConnections,
+    { connections, selected: null, trace, fade: 0, shown }))).matchAll(/<path[^>]*>/g)].map(match => match[0]);
+  assert.equal(planOf(null).length, 0);
+  assert.equal(planOf({ ...planTrace, linkIds: ['up'] }).length, 1);
+  const onPlan = planOf(planTrace, occurrence => occurrence !== 'occ-printer');
+  assert.equal(onPlan.length, 1);
+  assert.match(onPlan[0], /d="M 0 0 Q [^"]* 100 0"/);
 }
 
 console.log('unified-atlas network trace: healthy');

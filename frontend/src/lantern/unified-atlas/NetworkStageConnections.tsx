@@ -39,10 +39,14 @@ export function networkRoomConnections(records: RuntimeRecords | null, rooms: re
 
 /** Noninteractive topology decoration keeps existing stage picking intact.
  * Full identities, dates and uncertainty remain in the source records/graph. */
-export function NetworkStageConnections({ connections, selected, trace = null }: {
+export function NetworkStageConnections({ connections, selected, trace = null, fade = 1, shown }: {
   readonly connections: NetworkConnections; readonly selected: string | null;
   /** A device's route to the root, chosen in the network graph. */
   readonly trace?: StageTrace | null;
+  /** Opacity of every untraced association; a plan hides them, a traced route stays. */
+  readonly fade?: number;
+  /** When set, only hops between rooms it admits are drawn (a plan's own floors). */
+  readonly shown?: ((occurrenceId: string) => boolean) | undefined;
 }) {
   const order = trace ? new Map(trace.linkIds.map((id, at) => [id, at])) : null;
   const rows = [
@@ -61,8 +65,10 @@ export function NetworkStageConnections({ connections, selected, trace = null }:
   ].map(row => ({ ...row, hop: row.hop === Infinity ? null : row.hop }));
   return <g pointerEvents="none" fill="none" stroke={TONE_COLOR.network} strokeWidth={1.8} strokeDasharray="6 4"
     data-network-associations="room-summary" className={trace ? 'ua-net-tracing' : undefined}>
-    {rows.flatMap((row, index) => row.placements.map(placement => {
+    {rows.flatMap((row, index) => row.placements.flatMap(placement => {
       const traced = row.hop !== null;
+      if (!traced && fade <= 0) return [];
+      if (shown && !(shown(placement.from.occurrenceId) && shown(placement.to.occurrenceId))) return [];
       // A traced hop draws from the chosen device's side toward the root.
       const [start, end] = traced && row.reversed ? [placement.to, placement.from] : [placement.from, placement.to];
       const [x1, y1] = start.point, [x2, y2] = end.point;
@@ -73,7 +79,7 @@ export function NetworkStageConnections({ connections, selected, trace = null }:
       const path = placement.coincident
         ? `M ${x1} ${y1} c ${-loop} ${-loop * 1.2} ${loop} ${-loop * 1.2} 0 0`
         : `M ${x1} ${y1} Q ${(x1 + x2) / 2 - dy / length * bend} ${(y1 + y2) / 2 + dx / length * bend} ${x2} ${y2}`;
-      return <path key={placement.key} d={path} vectorEffect="non-scaling-stroke" opacity={focused ? 1 : trace ? .14 : .65}
+      return <path key={placement.key} d={path} vectorEffect="non-scaling-stroke" opacity={traced ? 1 : (focused ? 1 : trace ? .14 : .65) * fade}
         strokeWidth={traced ? 3.4 : focused ? 2.8 : 1.8} className={traced ? 'ua-net-trace' : undefined}
         pathLength={traced ? 1 : undefined} style={traced ? { '--hop': row.hop } as CSSProperties : undefined}>
         <title>{`${row.from.label} ↔ ${row.to.label} · ${row.medium} · Logical room association, no cable route · ${row.qualification} · ${row.detail}`}</title>
