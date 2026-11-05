@@ -24,15 +24,26 @@ export const rootRank = (device: NetworkOverlayDevice | null): number => {
   return ROOT_KINDS.findIndex(pattern => pattern.test(device.kind));
 };
 
+const HYPOTHESIS = /hypothes/i;
+/** A link is a hypothesis by kind or by the source's own qualification. */
+export const isHypothesisLink = (link: NetworkOverlayLink): boolean =>
+  link.kind === 'hypothesis' || [link.temporalStatus, link.basis, link.notes].some(text => HYPOTHESIS.test(text ?? ''));
+
 const CONFIDENCE_COST: Record<NetworkOverlayLink['confidence'], number> = {
   accepted: 0, recorded: 0, tentative: .3, unknown: .5, conflicting: .8,
 };
-/** Fewest hops first; among equal hop counts the better-evidenced route wins. */
-const cost = (link: NetworkOverlayLink): number =>
-  1 + CONFIDENCE_COST[link.confidence] + (link.kind === 'hypothesis' || link.kind === 'unresolved-path' ? .9 : 0);
+/** Evidence penalty of one hop; it only orders routes of equal length. */
+const penalty = (link: NetworkOverlayLink): number =>
+  CONFIDENCE_COST[link.confidence] + (isHypothesisLink(link) || link.kind === 'unresolved-path' ? .9 : 0);
 export const traceEdgeCertain = (edge: TraceEdge): boolean =>
   (edge.link.confidence === 'accepted' || edge.link.confidence === 'recorded')
-  && edge.link.kind !== 'hypothesis' && edge.link.kind !== 'unresolved-path';
+  && !isHypothesisLink(edge.link) && edge.link.kind !== 'unresolved-path';
+
+/** Fewest hops first; among equal hop counts the better-evidenced route wins. */
+interface Cost { readonly hops: number; readonly penalty: number }
+const EPSILON = 1e-9;
+const compare = (p: Cost, q: Cost): number =>
+  p.hops - q.hops || (Math.abs(p.penalty - q.penalty) <= EPSILON ? 0 : p.penalty - q.penalty);
 
 /** Cheapest route from `from` to the best reachable root. Deterministic: ties go
  * to the better root kind, then the lower node ID, then the earlier source link. */
@@ -53,22 +64,24 @@ export function traceToRoot(nodes: Iterable<TraceNode>, edges: readonly TraceEdg
       const own = near.get(here) ?? []; own.push({ edge, other }); near.set(here, own);
     }
   }
-  const dist = new Map<string, number>([[from, 0]]), back = new Map<string, TraceEdge>(), done = new Set<string>();
-  const epsilon = 1e-9;
+  const dist = new Map<string, Cost>([[from, { hops: 0, penalty: 0 }]]), back = new Map<string, TraceEdge>(), done = new Set<string>();
   for (;;) {
     let next: string | null = null;
-    for (const [id, d] of dist) if (!done.has(id) && (next === null || d < dist.get(next)! - epsilon
-      || (Math.abs(d - dist.get(next)!) <= epsilon && id < next))) next = id;
+    for (const [id, d] of dist) if (!done.has(id)) {
+      const order = next === null ? -1 : compare(d, dist.get(next)!);
+      if (order < 0 || (order === 0 && id < next!)) next = id;
+    }
     if (next === null) break;
     done.add(next);
+    const here = dist.get(next)!;
     for (const { edge, other } of near.get(next) ?? []) {
       if (done.has(other)) continue;
-      const d = dist.get(next)! + cost(edge.link), known = dist.get(other);
-      if (known === undefined || d < known - epsilon) { dist.set(other, d); back.set(other, edge); }
+      const d = { hops: here.hops + 1, penalty: here.penalty + penalty(edge.link) }, known = dist.get(other);
+      if (known === undefined || compare(d, known) < 0) { dist.set(other, d); back.set(other, edge); }
     }
   }
   const reached = roots.filter(node => dist.has(node.id)).sort((p, q) =>
-    dist.get(p.id)! - dist.get(q.id)! || rootRank(p.device) - rootRank(q.device) || (p.id < q.id ? -1 : p.id > q.id ? 1 : 0));
+    compare(dist.get(p.id)!, dist.get(q.id)!) || rootRank(p.device) - rootRank(q.device) || (p.id < q.id ? -1 : p.id > q.id ? 1 : 0));
   const root = reached[0];
   if (!root) return empty('unreachable');
   const path: string[] = [root.id], hops: TraceEdge[] = [];

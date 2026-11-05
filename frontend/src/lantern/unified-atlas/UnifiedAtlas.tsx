@@ -1625,7 +1625,8 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
         </section>
         : <NetworkLensSection graphs={graphs} networkOn={networkOn} published={!runtimeConfigured}
           availability={runtime.records?.network ?? (!runtimeConfigured ? 'available' : runtime.reason === 'loading' ? 'loading' : 'unavailable')}
-          headingId={`${graphId}-network`} showLayer={() => dispatch({ type: 'layer', layer: 'network', on: true })} />}
+          headingId={`${graphId}-network`} showLayer={() => dispatch({ type: 'layer', layer: 'network', on: true })}
+          onTrace={onNetworkTrace} />}
     </div>, hostLens.target)}
   </section>;
 }

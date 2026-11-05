@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 29713,
-      "sha256": "c8a08029df6a369ac58e20b2217214108c986d14cf1efcdb2c1ca870818f7b88",
+      "bytes": 29907,
+      "sha256": "4fab30e296cd8d675b983a646a710a3590ec13a250123f0cb8812cef7f6024b5",
       "owner": "core-integration"
     },
     {
@@ -6488,8 +6488,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 219958,
-      "sha256": "3b3f79157fe82adda88744f15d4e2fd4875ef0441ed8311f4390b23e88bcb8cf",
+      "bytes": 220356,
+      "sha256": "9e3c60019fd4ffba30739904de22b76018727667fb54786151aef727928233de",
       "owner": "core-integration"
     },
     {
@@ -8532,8 +8532,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-network-trace-healthy.mjs",
       "mode": "100644",
-      "bytes": 5228,
-      "sha256": "5798d4759d3489a17720670f8e4f4b95cec22c022106755241a3f6171ab1a72b",
+      "bytes": 6485,
+      "sha256": "8ef9d4a9218375816695402bdc6e628f0559dbf9e554b2855c82fa6a60876167",
       "owner": "web"
     },
     {
@@ -10135,8 +10135,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/AtlasKeys.tsx",
       "mode": "100644",
-      "bytes": 12914,
-      "sha256": "8f307aaed15460ecc9a5928e2d59f82f737371fe11028e42ae94ccedd9d2c79d",
+      "bytes": 13089,
+      "sha256": "166eccd3506309e8ce7f6834c71b28831101e2185e3df02f531c31e8741e341d",
       "owner": "web"
     },
     {
@@ -10163,8 +10163,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/NetworkGraph.tsx",
       "mode": "100644",
-      "bytes": 35120,
-      "sha256": "2de41164e9b1c7accfc5e209d94c0de45b65f3f3cdbee9d03c3576d8f3218c6b",
+      "bytes": 35025,
+      "sha256": "539eb4100a5e065c34774e7dddaf6464b0663d2bb9b986494d85785bcda20f07",
       "owner": "web"
     },
     {
@@ -10184,8 +10184,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 119784,
-      "sha256": "426766238d7e2169f376f6ce3b13919e220421e4dec2eb52c3f1877362e83705",
+      "bytes": 119819,
+      "sha256": "fbc836d276d6ac8eb97f6d757c9971d841bbbc3d9ac61a47318221a678a1860f",
       "owner": "web"
     },
     {
@@ -10261,8 +10261,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/network-trace.ts",
       "mode": "100644",
-      "bytes": 4397,
-      "sha256": "422b4ed16c40c0306d03bb9d05f591f735fa2ec6d2e5ccbcf11d18bc80e52bc6",
+      "bytes": 5083,
+      "sha256": "e993e6637f0e98802dc51accdff9d14ef71cf905712acf296633f49372ab0d46",
       "owner": "web"
     },
     {
@@ -11683,7 +11683,7 @@
       "path": "tools/ci/lanes.json",
       "mode": "100644",
       "bytes": 58132,
-      "sha256": "5c59b885df54575fe53f9bc631a9229db76e21e543fb59c82430247b1a2aec0f",
+      "sha256": "e897145dd0935e8d99bdfb53a4caafe88e21412b41dddfece7728ce94664c88b",
       "owner": "core-integration"
     },
     {

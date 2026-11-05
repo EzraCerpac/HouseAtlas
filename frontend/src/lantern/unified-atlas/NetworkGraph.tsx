@@ -1,7 +1,7 @@
 import { type CSSProperties, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { NetworkOverlayData, NetworkOverlayDevice, NetworkOverlayEndpoint, NetworkOverlayLink } from '../overlays/network/types';
 import type { DocumentaryNetworkGraph } from './runtime-overlays';
-import { traceEdgeCertain, traceToRoot, type NetworkTrace } from './network-trace';
+import { isHypothesisLink, traceEdgeCertain, traceToRoot, type NetworkTrace } from './network-trace';
 import './network-graph.css';
 
 /** The complete recorded network in its own frame, apart from the house. The
@@ -37,7 +37,6 @@ const TONE_ORDER: readonly EdgeTone[] = ['recorded', 'uncertain', 'membership', 
 const RING = 56, SPACING = 34, WIDTH = 360, MARGIN = 28;
 /** Name text in logical units: characters per line, line height and average glyph widths. */
 const LINE = 16, LEAD = 12, GLYPH = 6.1, ROOT_GLYPH = 6.9;
-const HYPOTHESIS = /hypothes/i;
 const plural = (count: number, one: string, many = `${one}s`) => `${count.toLocaleString()} ${count === 1 ? one : many}`;
 
 /** A name in up to `max` lines of about `width` characters, broken at spaces;
@@ -55,7 +54,7 @@ function wrap(text: string, width: number, max: number): string[] {
 }
 
 function toneOf(link: NetworkOverlayLink, a: string, b: string): EdgeTone {
-  if (link.kind === 'hypothesis' || [link.temporalStatus, link.basis, link.notes].some(text => HYPOTHESIS.test(text ?? ''))) return 'hypothesis';
+  if (isHypothesisLink(link)) return 'hypothesis';
   if (link.kind === 'unresolved-path' || a.startsWith('u:') || b.startsWith('u:')) return 'unresolved';
   if (link.kind === 'segment-membership') return 'membership';
   return link.confidence === 'accepted' || link.confidence === 'recorded' ? 'recorded' : 'uncertain';
@@ -256,7 +255,7 @@ export interface StageTrace {
 export function NetworkGraph({ graph, onTrace }: {
   readonly graph: DocumentaryNetworkGraph;
   /** Called with the chosen device's route to the root, or null when none is shown. */
-  readonly onTrace?: (graphKey: string, trace: StageTrace | null) => void;
+  readonly onTrace?: ((graphKey: string, trace: StageTrace | null) => void) | undefined;
 }) {
   const { data } = graph;
   const built = useMemo(() => buildGraph(data), [data]);

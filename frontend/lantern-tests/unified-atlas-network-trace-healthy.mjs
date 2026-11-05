@@ -64,6 +64,26 @@ assert.equal(rootRank(null), -1);
   assert.equal(shorter.uncertain, true);
 }
 
+{ // Hop count is compared before evidence: two conflicting hops still beat three accepted ones.
+  const nodes = [device('router', 'router'), device('a'), device('b'), device('c'), device('phone', 'phone')];
+  const edges = [edge('d:phone', 'd:a'), edge('d:a', 'd:b'), edge('d:b', 'd:router'),
+    edge('d:phone', 'd:c', 'conflicting'), edge('d:c', 'd:router', 'conflicting')];
+  const trace = traceToRoot(nodes, edges, 'd:phone');
+  assert.deepEqual(trace.nodes, ['d:phone', 'd:c', 'd:router']);
+  assert.equal(trace.uncertain, true);
+}
+
+{ // A link the source qualifies as a hypothesis in its basis or notes is uncertain and loses ties.
+  const nodes = [device('router', 'router'), device('a'), device('b'), device('cam', 'camera')];
+  const guessed = edge('d:cam', 'd:a');
+  const qualified = { ...guessed, link: { ...guessed.link, basis: 'Owner hypothesis, not checked' } };
+  const edges = [qualified, edge('d:a', 'd:router'), edge('d:cam', 'd:b'), edge('d:b', 'd:router')];
+  assert.deepEqual(traceToRoot(nodes, edges, 'd:cam').nodes, ['d:cam', 'd:b', 'd:router']);
+  const only = traceToRoot(nodes, [qualified, edge('d:a', 'd:router')], 'd:cam');
+  assert.deepEqual(only.nodes, ['d:cam', 'd:a', 'd:router']);
+  assert.equal(only.uncertain, true);
+}
+
 { // Through a shared segment (powerline), and the nearest root wins; router beats gateway on a tie.
   const nodes = [device('gw', 'gateway'), device('router', 'router'), segment('plc'), device('adapter'), device('desk', 'computer')];
   const edges = [edge('d:desk', 'd:adapter'), edge('d:adapter', 'e:plc', 'accepted', 'segment-membership'),
