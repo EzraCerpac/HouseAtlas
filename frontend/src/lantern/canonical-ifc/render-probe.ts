@@ -35,7 +35,7 @@ export interface ProbeSetup {
   readonly shownAt: number;
   /** Wall interval from before dynamic scene import through eager constructor completion. */
   readonly buildMs: number;
-  readonly observation?: SceneBuildSnapshot;
+  readonly observation?: SceneBuildSnapshot | undefined;
   /** Aborted when the canvas is released: the check stops and reports nothing. */
   readonly signal: AbortSignal;
 }

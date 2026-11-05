@@ -7825,8 +7825,8 @@
     {
       "path": "frontend/lantern-tests/canonical-mesh-preparation.test.mjs",
       "mode": "100644",
-      "bytes": 14941,
-      "sha256": "1982d277b6d85880367806e74e92ef1316f824e9667e3ce1576a6b8779a06592",
+      "bytes": 17911,
+      "sha256": "ca4c2c6a3053eb6364a600ef708827998cd4e0d963375f3334af6fb0cb14cb2e",
       "owner": "web"
     },
     {
@@ -9421,8 +9421,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/render-probe.ts",
       "mode": "100644",
-      "bytes": 7211,
-      "sha256": "3c30b9d6550f9e27048beb1f0e6ef3ba85c9ed58acb5e74cc70c587a0280fc47",
+      "bytes": 7223,
+      "sha256": "e15e555d3fe751413ca14409a7fcb4d70e3dc421c21cab08c28efef094448f4f",
       "owner": "web"
     },
     {

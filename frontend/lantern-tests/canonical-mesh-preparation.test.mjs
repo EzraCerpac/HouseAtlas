@@ -3,14 +3,71 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { transformWithOxc } from 'vite';
+import { parseAst, transformWithOxc } from 'vite';
+
+/** Parse syntax with the already locked Vite export. Literal/comment text is data,
+ * while imports (including dynamic/re-export forms) and require calls are dependencies.
+ * This is a source-contract guard, not execution or a sandbox/data-flow proof. */
+function runtimeDependencies(source) {
+  const dependencies = [];
+  const propertyName = node => node?.computed
+    ? node.property?.type === 'Literal' ? node.property.value : null
+    : node?.property?.name;
+  const requireReference = node => node?.type === 'Identifier' ? node.name === 'require'
+    : node?.type === 'ChainExpression' || node?.type === 'ParenthesizedExpression' ? requireReference(node.expression)
+    : node?.type === 'SequenceExpression' ? requireReference(node.expressions.at(-1))
+    : node?.type === 'MemberExpression' ? propertyName(node) === 'require'
+      || propertyName(node) === 'resolve' && requireReference(node.object) : false;
+  const visit = node => {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'ImportDeclaration' || node.type === 'ImportExpression'
+      || ((node.type === 'ExportNamedDeclaration' || node.type === 'ExportAllDeclaration') && node.source)
+      || (node.type === 'CallExpression' && (node.callee?.type === 'Import' || requireReference(node.callee)))) {
+      dependencies.push(node.type);
+    }
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) value.forEach(visit);
+      else if (value && typeof value === 'object') visit(value);
+    }
+  };
+  visit(parseAst(source)); // Parse errors refuse; they are never treated as dependency-free.
+  return dependencies;
+}
 
 const file = new URL('../src/lantern/canonical-ifc/geometry.ts', import.meta.url);
 const { code } = await transformWithOxc(readFileSync(file, 'utf8'), file.pathname,
   { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false });
-assert(!/\b(?:import|require)\s*\(?/.test(code), 'Geometry CPU module must have no runtime imports');
+assert.deepEqual(runtimeDependencies(code), [], 'Geometry CPU module must have no runtime dependencies');
 const { prepareMeshes } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
 const bytes = array => Buffer.from(array.buffer, array.byteOffset, array.byteLength);
+
+test('dependency guard parses actual syntax and allows literal/comment phase labels', () => {
+  const data = [
+    'export const phase = "module-import";',
+    "const text = 'require(\"./literal.cjs\")'; const other = `import(\"./literal.js\")`;",
+    String.raw`const pattern = /require\s*\(/; // import "./comment.js";`,
+    '/* require("./comment.cjs"); import("./comment.js"); */ export const value = 1;',
+    'export const origin = import.meta.url;',
+  ];
+  for (const source of data) assert.deepEqual(runtimeDependencies(source), [], source);
+  const dependencies = [
+    'import "./runtime.js";',
+    'import value from "./runtime.js";',
+    'import { value } from "./runtime.js";',
+    'const value = import("./runtime.js");',
+    'export { value } from "./runtime.js";',
+    'export * from "./runtime.js";',
+    'const value = require("./runtime.cjs");',
+    'module.require("./runtime.cjs");',
+    'require.resolve("./runtime.cjs");',
+    'globalThis["require"]("./runtime.cjs");',
+    'require?.("./runtime.cjs");',
+    '(0, require)("./runtime.cjs");',
+    'const value = `${require("./runtime.cjs")}`;',
+  ];
+  for (const source of dependencies) assert(runtimeDependencies(source).length > 0, source);
+  assert.throws(() => runtimeDependencies('import {'), 'malformed source must refuse');
+});
 
 // Frozen pre-optimization implementation from d22eec71488d170509f4cbcad614b7f99789b249,
 // geometry.ts SHA256 943ee4a2ae3241c1e4c0fe4d85bfb6c8e3b7f9c0ef74fa82c700ebd5880ce9f1.
@@ -118,7 +175,7 @@ test('bindings, source colours, input views and independent result buffers remai
 const observationFile = new URL('../src/lantern/canonical-ifc/scene-build-observation.ts', import.meta.url);
 const observationCode = (await transformWithOxc(readFileSync(observationFile, 'utf8'), observationFile.pathname,
   { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false })).code;
-assert(!/\b(?:import|require)\s*\(?/.test(observationCode), 'Observation module must have no runtime imports');
+assert.deepEqual(runtimeDependencies(observationCode), [], 'Observation module must have no runtime dependencies');
 const { SceneBuildObservation } = await import('data:text/javascript;base64,' + Buffer.from(observationCode).toString('base64'));
 
 test('build observations preserve promise/result identity and report inclusive wall phases', async () => {
@@ -198,7 +255,7 @@ test('phase counters remain unknown across a pre-hook segment and the report kee
   const reportFile = new URL('../src/lantern/canonical-ifc/render-probe.ts', import.meta.url);
   const reportCode = (await transformWithOxc(readFileSync(reportFile, 'utf8'), reportFile.pathname,
     { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false })).code;
-  assert(!/^\s*import(?:\s|['"]|\()/m.test(reportCode), 'Report builder has no runtime imports');
+  assert.deepEqual(runtimeDependencies(reportCode), [], 'Report builder must have no runtime dependencies');
   const { showProbeReport } = await import('data:text/javascript;base64,' + Buffer.from(reportCode).toString('base64'));
   const element = tag => ({ tag, style: {}, dataset: {}, children: [], attributes: {},
     setAttribute(name, value) { this.attributes[name] = value; },
