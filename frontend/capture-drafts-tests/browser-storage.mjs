@@ -213,7 +213,7 @@ async function runBrowser(caseName) {
     const { requests, origin } = runningServer;
     profile = await mkdtemp('/tmp/houseatlas-capture-drafts-');
     child = spawn(chromePath, [
-      '--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
+      '--headless=new', '--disable-gpu', '--disable-dev-shm-usage',
       '--disable-background-networking', '--disable-sync', '--disable-default-apps',
       '--disable-extensions', '--disable-service-worker', '--no-first-run', '--no-default-browser-check',
       '--remote-debugging-port=0',
