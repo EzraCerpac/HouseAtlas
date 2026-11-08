@@ -3073,3 +3073,8 @@
 }
 .lantern-host .ua-layer-dialog:modal .ua-key-head { min-height: 44px; }
 .lantern-host .ua-layer-dialog:modal .ua-key-body { overflow: visible; }
+
+/* Room-level documentary membership, never a wire route. */
+.lantern-host .ua-marker.is-electrical-group {
+  box-shadow: 0 0 0 4px rgba(255, 207, 100, .75), 0 0 18px 6px rgba(255, 190, 65, .8);
+}

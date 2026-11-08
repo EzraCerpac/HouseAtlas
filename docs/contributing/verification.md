@@ -2204,6 +2204,15 @@ root ranking and the no-root and unreachable answers, with no DOM or source read
 node frontend/lantern-tests/unified-atlas-network-trace-healthy.mjs
 ```
 
+The generated electrical drawing-group projection checks room-level membership,
+unplaced and missing members, source separation and malformed saved metadata:
+
+```sh
+node frontend/lantern-tests/unified-atlas-electrical-group-healthy.mjs
+```
+
+It does not mount the UI, establish a current circuit or exercise a native host.
+
 It retains original, reversed and parallel links, explicit endpoint ownership,
 within-room loops, complete property occurrences and separately counted shared
 media. The existing overlay-source healthy check also passes its actual generated

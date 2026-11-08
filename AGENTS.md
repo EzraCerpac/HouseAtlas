@@ -166,7 +166,10 @@ inside the already admitted media flow; one 60 s startup request, unchanged
 extends CI names the added scope here and in the verification guide.
 The frontend healthy list also runs `unified-atlas-network-trace-healthy.mjs`
 (#552): the pure network route search over generated topologies, with no DOM,
-browser, native host or source reads.
+browser, native host or source reads. The same list runs
+`unified-atlas-electrical-group-healthy.mjs`: generated documentary membership,
+room and unplaced projections, source separation and incomplete membership; no
+browser, provider, native authority or wiring assertion.
 
 The default backend-library set also executes exactly
 `http::providers::homebox_stock_healthy::healthy_cached_homebox_stock_and_mcp_reads`,

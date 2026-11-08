@@ -10,6 +10,7 @@ import { edgeSpans, MEASURED_BASIS, MEASUREMENT_BASIS, roomArea } from './measur
 import { AreaValue } from './plan-presentation';
 import { elevation, LINK_LABEL, OVERLAY_ICON, OVERLAY_KINDS, OVERLAY_LABEL, plural, UNPLACED_LABEL } from './atlas-text';
 import { DocumentaryRecords } from './AtlasKeys';
+import type { ElectricalGroup } from './electrical-group';
 
 /** Floors listed for the current scope, highest first. */
 export function listedLevels(model: AtlasModel, state: AtlasViewState): readonly AtlasLevel[] {
@@ -20,13 +21,14 @@ export function listedLevels(model: AtlasModel, state: AtlasViewState): readonly
 
 /** Beside the stage when there is room; otherwise a sheet over the stage's
  * lower edge whose head (rooms or the selected room) stays in view. */
-export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen }: {
+export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, electricalGroup, onElectricalGroup, clearElectricalGroup }: {
   readonly model: AtlasModel; readonly state: AtlasViewState; readonly dispatch: (action: AtlasAction) => void;
   readonly context: readonly string[]; readonly openNetwork: (() => void) | undefined;
   readonly renderFailure: string | null;
   readonly runtime: PropertyRecords | null; readonly runtimeReason: string; readonly runtimeConfigured: boolean;
   readonly openDocuments: (() => void) | undefined;
   readonly open: boolean; readonly setOpen: (open: boolean) => void;
+  readonly electricalGroup: ElectricalGroup | null; readonly onElectricalGroup: (key: string) => void; readonly clearElectricalGroup: () => void;
 }) {
   const bodyId = useId();
   const occurrence = state.occurrenceId === null ? null : model.occurrencesById.get(state.occurrenceId)!;
@@ -131,6 +133,12 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
       {/* One group per layer that is on: its glyph, name and how many records
           this room's source supplies, the source state before the rows, then
           the records in source order. */}
+      {electricalGroup && <section className="ua-records" aria-label="Historic drawing group">
+        <h3>Historic drawing group, unverified</h3><p>{electricalGroup.label}</p>
+        <ul>{electricalGroup.members.map(({ record, rooms }) => <li key={record.key}>{record.label}{rooms.length === 0 ? ' — room unknown' : ` — ${rooms.map(id => model.roomsById.get(id)?.label ?? 'Room unavailable').join(', ')}`}</li>)}</ul>
+        {electricalGroup.missing > 0 && <p>{electricalGroup.missing} group members unavailable.</p>}
+        <button type="button" className="text-btn" onClick={clearElectricalGroup}>Clear drawing group</button>
+      </section>}
       {runtime && kinds.map(kind => {
         const records = runtime.rooms.has(room.roomId) && runtime[kind] !== 'unavailable' ? runtime.rooms.get(room.roomId)![kind] : null;
         return <section key={kind} className="ua-records" aria-label={`${OVERLAY_LABEL[kind]} in this room`}>
@@ -139,7 +147,7 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
           {runtime[kind] === 'partial' && <p className="ua-records-state">{kind === 'electrical' ? 'Some electrical sources or buildings are unavailable.' : 'The network source is unavailable for some buildings.'}</p>}
           {!runtime.rooms.has(room.roomId) ? <p className="ua-records-state">Room source link unavailable.</p>
             : runtime[kind] === 'unavailable' ? <p className="ua-records-state">Source unavailable.</p>
-            : <DocumentaryRecords records={records!} openDocuments={openDocuments} />}
+            : <DocumentaryRecords records={records!} openDocuments={openDocuments} onElectricalGroup={kind === 'electrical' ? onElectricalGroup : undefined} />}
         </section>;
       })}
 
