@@ -142,11 +142,21 @@ async function fillDeviceLibrary(owner: import('./live-copy-retention').LiveCopy
   const session = currentSession, view = currentReadyView;
   if (!session || !view) return 'Library files need a current live read.';
   const current = () => currentSession === session && currentReadyView === view;
-  const native = enabled() ? await fillOfflineLibrary(owner, signal, enabled)
-    : (await owner.retainCatalog(signal)).status === 'ok' ? 'Document list kept.' : 'Document list is unavailable.';
-  if (!current() || signal.aborted) return native;
+  // Measure both source lists before either automatic byte pass. Unknown source
+  // sizes do not justify evicting previously held files from another source.
+  const catalog = await owner.retainCatalog(signal);
+  if (catalog.status === 'uncertain' || catalog.status === 'retired' || catalog.status === 'aborted')
+    return `Library download stopped (${catalog.status}). Check held files before trying again.`;
+  if (!current() || signal.aborted) return 'The live view changed.';
+  const measured = await fillOfflineElectricalLibraries({ owner, topology, port: sourceElectricalLibrary, view, current, enabled: () => false, signal });
+  const lists = `${catalog.status === 'ok' ? 'Document list kept.' : 'Document list is unavailable.'} ${measured.message}`;
+  if (!current() || signal.aborted || !enabled()) return lists;
+  if (!measured.complete) return `${lists} Automatic downloads paused until file sizes can be checked.`;
+  let nativeStopped = false;
+  const native = catalog.status === 'ok' ? await fillOfflineLibrary(owner, signal, enabled, () => { nativeStopped = true; }) : 'Document files are unavailable.';
+  if (nativeStopped || !current() || signal.aborted || !enabled()) return native;
   const electrical = await fillOfflineElectricalLibraries({ owner, topology, port: sourceElectricalLibrary, view, current, enabled, signal });
-  return `${native} ${electrical}`;
+  return `${native} ${electrical.message}`;
 }
 function LiveOfflineSettings() {
   const [controls, setControls] = useState<OfflineStorageControls | null>(null);

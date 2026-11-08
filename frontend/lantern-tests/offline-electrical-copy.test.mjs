@@ -161,6 +161,15 @@ test('pristine storage alone allows missing; malformed control and observed acto
   assert.equal((await owner.observeActor('generated-actor', () => true)).status, 'ok');
   assert.equal((await owner.readLast(signal())).status, 'retired');
   await owner.clear(); assert.equal((await owner.readLast(signal())).status, 'retired'); owner.close();
+  const pristine = memory();
+  const failedClear = createLiveCopyOwner({ ...pristine, transaction(write, work) {
+    if (write) return Promise.reject(new Error('Generated tombstone commit failure'));
+    return pristine.transaction(write, work);
+  } });
+  assert.equal((await failedClear.readLast(signal())).status, 'missing');
+  assert.equal((await failedClear.clear()).status, 'unavailable');
+  assert.equal((await failedClear.readLast(signal())).status, 'retired', 'known clear cannot rediscover pristine legacy fallback');
+  failedClear.close();
   const pin = drawing().pin;
   assert(validElectricalPin(pin));
   for (const assetRevision of ['0', '-1', '1.5', '1e99999']) assert(!validElectricalPin({ ...pin, assetRevision }));

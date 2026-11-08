@@ -292,7 +292,7 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
         check(undefined, signal); const initialSerial = readSerial;
         const c = await backend.transaction(false, tx => tx.get<Control>('control', 'witness'));
         check(undefined, signal); need(initialSerial === readSerial, 'retired');
-        need(c !== undefined, 'missing'); need(controlOK(c), 'integrity');
+        need(c !== undefined, observedActor === undefined ? 'missing' : 'retired'); need(controlOK(c), 'integrity');
         need(observedActor === undefined || c!.actorId === observedActor, 'retired'); need(c!.actorId !== null && c!.home !== null, 'retired');
         const b: Binding = { epoch: c!.epoch, actorId: c!.actorId!, scope: { ...c!.home! }, serial: readSerial, live: false, current: () => true };
         let bytes: Uint8Array<ArrayBuffer>;
