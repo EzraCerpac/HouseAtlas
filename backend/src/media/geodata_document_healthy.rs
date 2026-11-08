@@ -42,11 +42,8 @@ fn pin(r: &AssetRecord) -> AssetPin {
         bytes: r.payload.byte_size,
     }
 }
-fn fixture() -> (
-    GeodataDocument,
-    Vec<(AssetRecord, Vec<u8>)>,
-    (AssetRecord, Vec<u8>),
-) {
+type AssetBytes = (AssetRecord, Vec<u8>);
+fn fixture() -> (GeodataDocument, Vec<AssetBytes>, AssetBytes) {
     let raw = original_bytes();
     let source = asset(20, &raw, ContentType::GeoJson, false);
     let png = png_fixture(true, 0).0;
