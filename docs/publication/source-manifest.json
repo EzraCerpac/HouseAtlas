@@ -8182,8 +8182,8 @@
     {
       "path": "frontend/lantern-tests/offline-atlas-mounting-healthy.mjs",
       "mode": "100644",
-      "bytes": 3240,
-      "sha256": "ed4a0c499b450cc5c03c2659ae335bc4961880b7ee0d7e7eafe7559eac9d68be",
+      "bytes": 3348,
+      "sha256": "23a94af4470c5008c44a733821a24680143d5f8720df74089f644b93b832049c",
       "owner": "web"
     },
     {

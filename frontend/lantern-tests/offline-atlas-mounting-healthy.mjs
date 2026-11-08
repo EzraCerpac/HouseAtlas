@@ -10,7 +10,9 @@ assert(renderer.includes('environment.openNetwork')); assert(renderer.includes('
 const host = read('../src/offline/SavedAtlasHost.tsx');
 assert(host.includes('<UnifiedAtlas port={allocation} environment='));
 assert(host.includes('controller.abort(); owned?.dispose()'));
-const entry = read('../integration/saved-main.tsx'); assert(entry.includes('SavedAtlasHost')); assert(!entry.includes('LanternHost'));
+const entry = read('../integration/saved-main.tsx');
+assert(entry.includes('SavedAtlasHost')); assert(entry.includes('OfflineLanternHost'));
+assert(!/\bLanternHost\b/.test(entry), 'The saved entry must not mount the authenticated live host');
 const fixture = read('./offline-atlas-browser/main.tsx');
 assert(fixture.includes('createSavedHouseStore(globalThis.indexedDB)'));
 assert(fixture.includes('await store.begin(')); assert(fixture.includes('await store.put(')); assert(fixture.includes('await store.activate('));
