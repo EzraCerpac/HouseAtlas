@@ -12,7 +12,7 @@ import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { denoise } from 'three/addons/tsl/display/DenoiseNode.js';
 import { occlusionHistory } from './occlusion-history';
 import { PreparationRefused, prepareEffectPipelines } from './prepare-effect-pipelines';
-import type { PreparedMesh, Projection } from './geometry';
+import { isGlass, type PreparedMesh, type Projection } from './geometry';
 import type { EmbeddedTexture } from './embedded-png-material';
 import { GLOW_HEIGHT, GLOW_SPREAD, LUMA } from './sky-light';
 import { GLASS_CLEAR, GLASS_FROSTED, GLOW_STOPS, MAX_LAMPS, MeshPass, STATE_FLOATS, STATE_TEXELS, writeAppearance, type AppearanceInput } from './mesh-appearance';
@@ -358,7 +358,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       return vec4(face.mul(u.tint).mul(u.ghostAlpha), u.ghostAlpha);
     })();
 
-    /** Building glass, over the finished solid house: it covers what lies behind by its
+    /** Building glass, over the finished solid house (a glass lamp shade too): it covers what lies behind by its
      * opacity, and reflects the hour's sky by Fresnel, barely head-on and nearly all at
      * a grazing angle, with the sun's glint. Colours are linear until the output, which
      * is premultiplied. */
@@ -408,9 +408,12 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       const alpha = clamp(fresnel.add(float(1).sub(fresnel).mul(cover)), 0, 1);
       const color = fresnel.mul(reflected).add(float(1).sub(fresnel).mul(cover).mul(body)).div(max(alpha, .001));
       const haze = vec3(...GLASS_HAZE).mul(u.lamp).mul(float(1).sub(fresnel));
+      const pane = vec4(encode(clamp(color, 0, 1)).mul(alpha).add(encode(haze)), alpha);
+      // A lamp's own glass (texel 7.w) fills in with its glow after dusk, as its solid shade would.
+      const glow = u.lamp.mul(float(1).sub(s7.y)).mul(s7.w), lamp = vec4(encode(mix(read(vId, 8).xyz, vec3(1), GLOW_WHITEN)), 1);
       // Surrounding glass fades by its cover: the stage it fades into shows through the canvas.
       Discard(fade.greaterThanEqual(254 / 255));
-      return vec4(encode(clamp(color, 0, 1)).mul(alpha).add(encode(haze)), alpha).mul(float(1).sub(fade));
+      return mix(pane, lamp, glow).mul(float(1).sub(fade));
     })();
 
     const visibleIn = (pass: MeshPass) => (s5: V4): B => s5.x.equal(pass);
@@ -566,7 +569,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
     // Three.js sorts these objects far-to-near at the common glass renderOrder.
     // As with ordinary object transparency, intersecting surfaces or multiple
     // disconnected panes authored inside one primitive still need subdivision.
-    const glazed = (index: number) => meshes[index]!.sourceNight === 'glazing';
+    const glazed = (index: number) => isGlass(meshes[index]!);
     const glassBounds: { geometry: BufferGeometry; index: number; y: number }[] = [];
     const addGlass = (geometry: BufferGeometry, index: number, material = shared.glass) => {
       add(geometry, MeshPass.Glass, material, 3.5);
