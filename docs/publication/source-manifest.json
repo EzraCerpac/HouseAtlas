@@ -8798,9 +8798,9 @@
     {
       "path": "frontend/src/ai/host/AiSessionOwner.tsx",
       "mode": "100644",
-      "owner": "ai",
       "bytes": 2923,
-      "sha256": "04766ed04cbf2a1798b453f0c845c37c5ec1aaebe14f1364da5164a5d8d7d8c0"
+      "sha256": "04766ed04cbf2a1798b453f0c845c37c5ec1aaebe14f1364da5164a5d8d7d8c0",
+      "owner": "ai"
     },
     {
       "path": "frontend/src/ai/host/README.md",
@@ -9036,9 +9036,9 @@
     {
       "path": "frontend/src/app/LazyPlaceEditor.tsx",
       "mode": "100644",
-      "owner": "web",
       "bytes": 682,
-      "sha256": "8fe2308734630eb978322854abcd2f8c76892eaa19f787009a7ca7596432a23c"
+      "sha256": "8fe2308734630eb978322854abcd2f8c76892eaa19f787009a7ca7596432a23c",
+      "owner": "web"
     },
     {
       "path": "frontend/src/app/PlaceEditor.tsx",
@@ -9337,8 +9337,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/MeshLayer.tsx",
       "mode": "100644",
-      "bytes": 11685,
-      "sha256": "10c5139dff96d916b13f762ff9276b7a0db6de641e1afb2abe867ed3cc57c68b",
+      "bytes": 14040,
+      "sha256": "d4a6c21d6704fc55eb32da82e7cdf3ac1c128a1bd1c822c6645e0946ff147303",
       "owner": "web"
     },
     {
