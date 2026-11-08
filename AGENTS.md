@@ -479,3 +479,19 @@ storage failure, integrity/availability, clear tombstones, bounded LRU and expli
 persistence outcomes. No real storage, permission request, native original, PDF,
 browser or device is used. This extends the existing in-process selection, not
 a new workflow or test command. See `docs/offline-live-copy.md`.
+
+The same offline-root selection also runs five generated library-policy cases:
+skip exact held pins, budget before reads, stop on uncertain results, stop when
+the preference is disabled, and stop after snapshot replacement. The explicit
+frontend healthy list additionally runs the eight cases in
+`offline-electrical-copy.test.mjs`, using actual retention/adapters with generated
+transactional and borrowed-reader ports. They preserve evidence/asset revision
+tokens, document/page provenance, independent building completeness, shared
+byte limits, integrity checks and currentness retirement. These in-process
+cases use no native service, provider, browser or real document.
+The existing `live-launch` browser case now also holds generated view/catalog
+data, a native PDF and a two-page electrical PDF. In the pinned Chrome build,
+it reopens offline at phone width, visits all four sections, renders the held
+PDFs, checks storage settings, preserves the exact waiting outbox without writes,
+and verifies that a peer wipe withdraws content and prevents legacy fallback
+on reload. It remains a synthetic browser check, not iOS or installed acceptance.

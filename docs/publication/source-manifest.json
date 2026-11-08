@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 33215,
-      "sha256": "97dfee96cf8650c1b8fbae646b84842e8c1c11edf025f18bd0792a60bf7a59ad",
+      "bytes": 34365,
+      "sha256": "0ec29c8515f23e631d1f00dc2029363c598202e92c0f8eaba43805852a4e9778",
       "owner": "core-integration"
     },
     {
@@ -6509,8 +6509,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 227829,
-      "sha256": "d17f84c36a9786e4e33c74666b12b4262d96a0cb37ee5e57a5bd40e0388c19b6",
+      "bytes": 229057,
+      "sha256": "b042f265036a96f4203cdf46a12c0e259f3729f1566292a6f7d44dc5fbc62e1d",
       "owner": "core-integration"
     },
     {
@@ -7687,7 +7687,7 @@
       "mode": "100644",
       "bytes": 3400,
       "sha256": "0bcc480fb06e27a94729678c9a503ecd3adc35117aac42d164eb788e607a8269",
-      "owner": "web"
+      "owner": "core-integration"
     },
     {
       "path": "frontend/integration/offline-house-acquisition.ts",
@@ -7701,7 +7701,7 @@
       "mode": "100644",
       "bytes": 2387,
       "sha256": "d716ffd74baa70c0fb61778c49918db64551a334d036178159301639e5484863",
-      "owner": "web"
+      "owner": "core-integration"
     },
     {
       "path": "frontend/integration/pinned-file-client.ts",
@@ -8378,8 +8378,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 6267,
-      "sha256": "de9c4b001a209d43c3fe53964e105687b2fe405d91b7f5ecea9a65583e875f8e",
+      "bytes": 6309,
+      "sha256": "1f7b4e06822b216eee2c0e27cccb6fd47bdcb7a8ab698bfbd1546812ae9a2b40",
       "owner": "web"
     },
     {
@@ -11865,7 +11865,7 @@
       "path": "tools/ci/lanes.json",
       "mode": "100644",
       "bytes": 58132,
-      "sha256": "8c42260bce037e6146c8509ba325d550758671921d1624591f06491541e22c22",
+      "sha256": "11ca1b57ff0e3ab2591bafed5bc2d8bab01a74b33e0c6c708776b9371fa36b5c",
       "owner": "core-integration"
     },
     {
