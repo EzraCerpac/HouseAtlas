@@ -1,6 +1,6 @@
 /** Generic source-only host demo for the mounted source ports: the actual
- * LanternHost with the browser-only model chooser in Atlas and native v2 source
- * Documents in Library. The production Documents reader runs unchanged against
+ * LanternHost with an optional unified Atlas and native v2 source Documents
+ * in Library. The production Documents reader runs unchanged against
  * a synthetic in-page transport; every other application fetch is unavailable.
  *
  * `?atlas=generated` adds the unified Atlas: the production scene reader runs
@@ -23,6 +23,8 @@ import { atlasScenePath, buildSyntheticAtlas, composeAtlasEnvelope, createAtlasT
 import type { SourceModelPort } from '../../src/lantern/source-ports';
 import type { ModelOverviewSelection } from '../../src/lantern/source-models/overview-types';
 import { StageTimings } from '../stage-timings/StageTimings';
+import { createSyntheticDrawingGroups } from '../unified-atlas-regression/synthetic-drawing-groups';
+import { createSyntheticElectricalLibrary } from '../electrical-library-visual/synthetic-electrical';
 
 // Kept only for the explicit same-origin fixture paths below.
 const pageFetch = globalThis.fetch.bind(globalThis);
@@ -88,9 +90,8 @@ async function atlasInput(): Promise<{ readonly companionBytes: Uint8Array<Array
 }
 
 async function sourceModels(): Promise<SourceModelPort> {
-  // Browser-only model files with no electrical provider, plus one fictional
-  // site publication through an in-page fake port.
-  const base: SourceModelPort = { localFiles: 'browser-only', site: createSyntheticSitePort() };
+  // One fictional site publication through an in-page fake port.
+  const base: SourceModelPort = { site: createSyntheticSitePort() };
   const input = await atlasInput();
   if (!input) return base;
   const documentaryPath = new URLSearchParams(location.search).get('atlas-documentary');
@@ -102,18 +103,21 @@ async function sourceModels(): Promise<SourceModelPort> {
   const composed = await composeAtlasEnvelope(input.companionBytes, input.glb, SYNTHETIC_ATLAS.revision);
   const transport = createAtlasTransport({ origin: SYNTHETIC_ATLAS.origin, scenePath: atlasScenePath(composed.scope),
     envelopeBytes: composed.envelopeBytes, href: composed.href, glb: input.glb, sha256: composed.sha256, manifestSha256: composed.manifestSha256, revision: SYNTHETIC_ATLAS.revision });
-  const selection: ModelOverviewSelection = { owner: {}, scope: composed.scope, expiresAt: '2099-01-01T00:00:00Z',
+  let selection: ModelOverviewSelection = { owner: {}, scope: composed.scope, expiresAt: '2099-01-01T00:00:00Z',
     publicationId: composed.publicationId, manifestSha256: composed.manifestSha256 };
-  const current = () => selection, subscribe = () => () => {};
+  const drawingGroups = new URLSearchParams(location.search).get('atlas-drawing-groups') === 'generated';
+  const listeners = new Set<() => void>();
+  const current = () => selection, subscribe = (changed: () => void) => {
+    listeners.add(changed); return () => { listeners.delete(changed); };
+  };
+  if (drawingGroups) window.addEventListener('synthetic-atlas-selection-replace', () => {
+    selection = { ...selection, owner: {} }; for (const changed of [...listeners]) changed();
+  });
   return {
     ...base,
-    overview: { current, subscribe, async read(_selection, signal) {
-      signal.throwIfAborted();
-      return { blob: new Blob([input.glb], { type: 'model/gltf-binary' }), label: 'Synthetic unified model',
-        publicationId: selection.publicationId, sourceNote: 'Generated fixture model.', components: [] };
-    } },
     // The production reader, guards and admission against the in-page HTTPS fake.
     atlas: { current, subscribe, entryBuildingId: () => entry,
+      ...(drawingGroups ? { createOverlays: createSyntheticDrawingGroups } : {}),
       ...(saved ? { savedDocumentary: saved } : {}),
       async read(requested, signal) {
         const read = await readUnifiedAtlas({ selection: requested, signal,
@@ -126,9 +130,18 @@ async function sourceModels(): Promise<SourceModelPort> {
 }
 
 const root = createRoot(document.getElementById('root')!);
-void sourceModels().then(models => root.render(<LanternHost view={fixture.view as ReadyView}
+const electricalMode = new URLSearchParams(location.search).get('electrical-library');
+const electrical = electricalMode === 'generated' || electricalMode === 'unavailable'
+  ? createSyntheticElectricalLibrary() : Promise.resolve(null);
+void Promise.all([sourceModels(), electrical]).then(([models, library]) => root.render(<LanternHost view={library?.view ?? fixture.view as ReadyView}
   actions={{ reload: async () => true, switchHome: () => {}, busy: false, notice: '',
-    session: { ...session, signOut: async () => {} } }}
+    session: { ...(library?.session ?? session), signOut: async () => {} } }}
+  {...(library ? { topology: library.topology, sourceElectricalLibrary: {
+    async createReader() {
+      const reader = await library.port.createReader();
+      return electricalMode === 'unavailable' ? { ...reader, createDrawingClient() { throw new Error('Generated drawing source unavailable'); } } : reader;
+    },
+  } } : {})}
   nativeContent={null} sourceModels={models} sourceDocuments={sourceDocuments} />),
 error => root.render(<p role="alert">{error instanceof Error ? error.message : 'The Atlas fixture could not start.'}</p>));
 // Anonymous site and model stage timings, below the host and bounded.
