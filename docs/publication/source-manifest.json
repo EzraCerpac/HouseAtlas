@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 29713,
-      "sha256": "c8a08029df6a369ac58e20b2217214108c986d14cf1efcdb2c1ca870818f7b88",
+      "bytes": 30341,
+      "sha256": "b288fc1d33c19952a8abc3b3fde034ac29fd6b6c004cc1665c059cc1e7218426",
       "owner": "core-integration"
     },
     {
@@ -1070,8 +1070,8 @@
     {
       "path": "backend/src/ai/mod.rs",
       "mode": "100644",
-      "bytes": 575,
-      "sha256": "8b4ba911d6210172759b7975f27150279ab15a6bf054d2eac3f0d83093c8af27",
+      "bytes": 596,
+      "sha256": "67e86b5dadcb09cdbce91ba46f333e15af33104f14113c41df33e7aae2db7c94",
       "owner": "ai"
     },
     {
@@ -1170,6 +1170,34 @@
       "mode": "100644",
       "bytes": 15070,
       "sha256": "aba4b74ff828d74ee3b9950705fb94582164d0c733455451ceef34611cf6a1e5",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/suggestions/mod.rs",
+      "mode": "100644",
+      "bytes": 415,
+      "sha256": "ab2b888a1c01a33491313af6130b44b93a3b86eec36278fa87926834bbf114b3",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/suggestions/synthetic_contracts.rs",
+      "mode": "100644",
+      "bytes": 13963,
+      "sha256": "cfdb117c3d850ae0a920ba5b06a4bfe8bad27ce37c4f69ce77cc0bd669d43d44",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/suggestions/types.rs",
+      "mode": "100644",
+      "bytes": 8534,
+      "sha256": "1eff0a2aa97d69371493112cdb2e107e75a1fb0ad91cb1b31a1ca1bc7df1f1ef",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/suggestions/validate.rs",
+      "mode": "100644",
+      "bytes": 17145,
+      "sha256": "359a527e43d01a0ebafbe140b945e025e81cdbe668bd04cca9d5f73b4ff1699b",
       "owner": "ai"
     },
     {
@@ -6488,8 +6516,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 219958,
-      "sha256": "3b3f79157fe82adda88744f15d4e2fd4875ef0441ed8311f4390b23e88bcb8cf",
+      "bytes": 222243,
+      "sha256": "aa3deb170455bb3f7cc4794e5203506ab4a1d77b416e02bafaa298a651d5df9a",
       "owner": "core-integration"
     },
     {

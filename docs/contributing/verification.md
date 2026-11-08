@@ -22,6 +22,44 @@ reconciles already-executed finite synthetic tests and their boundaries. Real
 reviewed-write continuation/domain-held coverage remains blocked on the
 concrete original reviewed-stock and trusted human-review bridge.
 
+## Review-only AI suggestion contracts
+
+The existing default backend-library job discovers these ten generated functions
+under `ai::suggestions::synthetic_contracts`:
+
+- `inventory_document_and_abstention_keep_exact_sources_and_unknowns`
+- `inventory_refuses_unadmitted_candidates_and_unsupported_changes`
+- `document_requires_selected_content_and_candidate_evidence`
+- `fresh_context_fences_scope_versions_availability_and_disclosure`
+- `snapshot_rejects_invalid_canonical_targets_dates_and_locators`
+- `homebox_child_collections_are_not_individual_candidates`
+- `maintenance_is_interval_only_and_never_an_execution_intent`
+- `answers_require_citations_and_cannot_claim_exhaustive_retrieval`
+- `contradiction_keys_retain_both_sides_and_change_only_with_relevant_evidence`
+- `strict_json_and_resource_bounds_refuse_extra_authority_and_malformed_output`
+
+The source is `backend/src/ai/suggestions/synthetic_contracts.rs`. These are pure
+generated structural checks over the review-only version-1 proposal envelope.
+The validator reuses canonical stock scope/target schemas and evidence record
+references. It bounds output, separates extracted claims from proposals, pins
+the selected feature and exact input versions, limits references to admitted
+inputs, and refuses stale/unavailable/withdrawn current context. It never
+authenticates a caller: the existing read/access owner must supply fresh inputs
+again at disclosure and before any separate native review/apply workflow.
+
+No provider/model, credential, native dispatcher, Access issuer, persistence,
+browser/device, network or consequential write runs. Schema/reference acceptance
+does not prove factual correctness, classification accuracy, true contradiction,
+tested wiring, original availability or human approval. Stable finding keys do
+not implement dismissal persistence. Manual workflows and existing runtime gates
+are unchanged; no workflow or runner command is added.
+
+Publication preparation on 8 November 2026 performed source review and whitespace
+checks only. Compilation, formatting, Clippy and these tests are **NOT RUN** in
+that environment because the pinned Rust tools are absent. Exact candidate
+execution remains separate; the existing hosted account-billing block is not
+bypassed or treated as a test result.
+
 ## Approved scoped bridge read cases
 
 The owner approved exactly these three existing selections for the existing

@@ -415,6 +415,15 @@ summaries. No filesystem payload operation, network, consumer, receipt emission,
 service, credential or operational adoption occurs. Hosted logs establish test
 outcomes; validated claims establish no authority or custody.
 
+The existing default backend-library selection also discovers the ten generated
+`ai::suggestions::synthetic_contracts` cases listed in the verification guide.
+They check closed review-only proposal decoding, canonical target/input pins,
+bounded evidence/candidate references, current-context refusal and deterministic
+finding keys. Inputs and claims are fictional; no native owner, Access issuer,
+provider, model, credential, browser, device, socket or write port runs. These
+are structural validation cases, not classification/groundedness accuracy or
+live authorization qualification. No workflow or runner command is added.
+
 The same ordinary-core job also runs the 75 generated methods in
 `tools/model-input-disposition/test_storage_adapter.py` against injected fake
 clock, registry, resolver, ledger, readback and conditional-dispatch ports.
