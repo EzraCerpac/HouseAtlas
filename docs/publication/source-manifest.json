@@ -2491,8 +2491,8 @@
     {
       "path": "backend/src/http/geodata_original_healthy.rs",
       "mode": "100644",
-      "bytes": 12439,
-      "sha256": "a636a0172bae82e816f3acdbcef7ec5ceb7ebe22e0897de6c52b0c26e54f7ef1",
+      "bytes": 12668,
+      "sha256": "22e273a3d3a503de84fd7011a40a04b0fc9199d382d4100d629c3135ff6336db",
       "owner": "core-integration"
     },
     {
@@ -2925,8 +2925,8 @@
     {
       "path": "backend/src/lifecycle/ai_host.rs",
       "mode": "100644",
-      "bytes": 14663,
-      "sha256": "01e109e0f714fbd0e6c49df866744cf6b36b285286c89074f7ec7145266a7d87",
+      "bytes": 14662,
+      "sha256": "bf043d9a3c52786fec6335aa2c54bd8d8d6cf520a109b7b8e47296cc82fba55b",
       "owner": "core-integration"
     },
     {
@@ -3156,8 +3156,8 @@
     {
       "path": "backend/src/media/canonical_ifc_source.rs",
       "mode": "100644",
-      "bytes": 20371,
-      "sha256": "c3ca66e35401881f9b6c91011ba6bcaa2b0473219bdceafacdf68f32cb933abb",
+      "bytes": 20526,
+      "sha256": "f86b6d43bf9220dbf96c00f435959e4bcd8d052bf8e8a56fa3e1a3287ffa8d30",
       "owner": "media"
     },
     {
@@ -3198,8 +3198,8 @@
     {
       "path": "backend/src/media/geodata_document_healthy.rs",
       "mode": "100644",
-      "bytes": 11640,
-      "sha256": "b80819668531466dda1386699b707e4068bbd34bf001656b19a9e0b05a023c11",
+      "bytes": 11643,
+      "sha256": "0a9d458d41a000c59a2612fa1105549b1f43763f2912538e3f1c382a7affe5ac",
       "owner": "media"
     },
     {
@@ -3331,8 +3331,8 @@
     {
       "path": "backend/src/media/ifc_glb.rs",
       "mode": "100644",
-      "bytes": 18174,
-      "sha256": "5d093c620d21471a90d5fa8ef46807de88e964fa9436f6664e69e50e9747eb98",
+      "bytes": 18184,
+      "sha256": "948aff0a2710633e481c46cf21daa999b9e59e3aa39c272356d6da1afa8aea55",
       "owner": "media"
     },
     {
@@ -3632,8 +3632,8 @@
     {
       "path": "backend/src/providers/homebox/read/credentials_healthy.rs",
       "mode": "100644",
-      "bytes": 9283,
-      "sha256": "853b431aebd6deb470534229466da25cb726e0e38abf8c9cdd142c77d90e793e",
+      "bytes": 9293,
+      "sha256": "2767954b3b64905b1a13ec73d35901446fe0e0cff2bcea3764dfb6204ed15c52",
       "owner": "homebox"
     },
     {
@@ -4893,7 +4893,7 @@
       "path": "backend/src/storage/cache_repository.rs",
       "mode": "100644",
       "bytes": 12994,
-      "sha256": "5398402232289ded2458968a26fef363771d5f0cd480ed57382e29aa89e280a0",
+      "sha256": "7daa527b91294f5e31137297c309b69cb791f8311f0a1c5d6689fbcf492a1552",
       "owner": "storage"
     },
     {
