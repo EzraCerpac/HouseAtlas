@@ -154,7 +154,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 75 source, 1 build, 6 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 75 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
@@ -3610,3 +3610,28 @@ waiting-outbox retention without write dispatch. A second owner wipes the copy;
 the visible PDF/Atlas withdraw and reload refuses stale legacy fallback. This
 uses disposable Chrome storage and no backend, provider or real household file;
 it establishes neither iOS eviction/durability nor installed acceptance.
+
+### Synthetic draft IndexedDB storage — #297
+
+The existing healthy frontend browser runner selects this one exact command:
+
+```sh
+HOUSEATLAS_CHROMIUM=/absolute/path/to/inspected/chromium \
+  node frontend/capture-drafts-tests/browser-storage.mjs synthetic-save-reopen-remove
+```
+
+A fresh pinned Chrome profile runs actual production controller/store modules
+against real IndexedDB, generated original bytes and fake session/canonical
+owners. Assertions cover import without database creation, exact original
+bytes/hash/provenance, persisted field allowlisting before/after review, rejection
+of a prior controller's review token, the four-draft limit, and explicit removal
+retained after closing/reopening store connections. No fetch/form submission or
+external application request is allowed. Owned database/profile/browser/listener
+cleanup is bounded. Chrome retains its browser sandbox.
+
+`openDraftStore` opens the database eagerly; the laziness assertion concerns only
+module import. This case neither mounts the product shell nor establishes
+ordinary browsing/Add evidence behavior. Reopen is within one page, not a page
+or process restart. No native upload, installed UI, crash/power-loss survival,
+eviction, byte-limit boundary or phone acceptance follows. Other retained browser
+cases and the native UI journey remain outside this healthy selection.

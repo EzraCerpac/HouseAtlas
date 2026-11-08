@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 34955,
-      "sha256": "84e896aebdc3e82c0851a74581e8bba0d6e5078c0c4603a04f66ee6a8a2f60ac",
+      "bytes": 35734,
+      "sha256": "80aff7b95b55e6f3e368ac42ad82561875b8a9c1f44d75c41a51c39ebea5e297",
       "owner": "core-integration"
     },
     {
@@ -6509,8 +6509,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 230344,
-      "sha256": "3af50a248cdfec5d540909aa03a1c30dd23dc51572258161388f6760adfc5dab",
+      "bytes": 231704,
+      "sha256": "b09ed2ac3729a514de0dad907b86bbc84e4e3d7a388dab056879e25166d23840",
       "owner": "core-integration"
     },
     {
@@ -7447,15 +7447,15 @@
     {
       "path": "frontend/capture-drafts-tests/browser-cases.mjs",
       "mode": "100644",
-      "bytes": 19273,
-      "sha256": "2fcf54b8af187ab9d87cc5dd91a0b2c6269eaf9ef5b8aa668649db995e82f29a",
+      "bytes": 23094,
+      "sha256": "ede6026bdea3ea0e37d18a59305c8ad9f92538dbd32e6ff074132069a250cb57",
       "owner": "core-integration"
     },
     {
       "path": "frontend/capture-drafts-tests/browser-storage.mjs",
       "mode": "100644",
-      "bytes": 13451,
-      "sha256": "0009e7f31bb29944c39d475938f429e3100b0ea5c930d4d9302c73531a608aba",
+      "bytes": 13849,
+      "sha256": "dbb3c4eb93dca686096521c6cc163ae7f36e72c5b40def7b8741a4f384f74274",
       "owner": "core-integration"
     },
     {
@@ -8378,8 +8378,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 6373,
-      "sha256": "eb655cf98821e4044f94cd582e86f2d3f4a1309cfa7533d8e44a64d5b10ee0a7",
+      "bytes": 6462,
+      "sha256": "49cbb571c78262762c46078e502332455b808a9b0e04408fd4532fc48d8b347b",
       "owner": "web"
     },
     {
@@ -11872,7 +11872,7 @@
       "path": "tools/ci/lanes.json",
       "mode": "100644",
       "bytes": 58132,
-      "sha256": "ca6a1eb8a2e939d48e8cfe50c9e503ae065d3fd6821c8cb84e813a039e351f4f",
+      "sha256": "5f06c5d561aa2ad34e72a8f98c74a25f11839e740e4ad43d1191150f910ba246",
       "owner": "core-integration"
     },
     {

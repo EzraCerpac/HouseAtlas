@@ -71,6 +71,7 @@ const BROWSER = [
   ...cases('mesh-layer-browser.mjs', '--case', ['webgl2']),
   node('unified-atlas-plan-wheel-browser.mjs'),
   node('unified-atlas-regression/browser.mjs', '--electrical'),
+  ['frontend/capture-drafts-tests/browser-storage.mjs', 'synthetic-save-reopen-remove'],
 ];
 
 const only = process.argv[2] === '--only' ? process.argv[3] : null;
