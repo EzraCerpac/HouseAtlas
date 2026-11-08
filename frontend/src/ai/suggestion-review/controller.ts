@@ -79,7 +79,7 @@ export function createSuggestionReviewController(input: SuggestionReviewView, po
   const cancel = () => { sequence++; active?.abort(); active = null; };
   const unsubscribe = ports.subscribe(() => {
     if (!current()) { cancel(); state = superseded; }
-    else if (current()?.availability !== 'ready') {
+    else if (current()?.availability !== 'ready' && !consumed) {
       cancel();
       if (state.phase === 'checking' || state.phase === 'inspecting')
         state = Object.freeze({ ...state, phase: resumePhase, message: 'Review paused. Check availability before continuing.' });

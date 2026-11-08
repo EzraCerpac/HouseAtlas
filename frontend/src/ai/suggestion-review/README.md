@@ -55,11 +55,11 @@ Proposed scoped non-device command, using the repository-pinned Node 26.10.0:
 
     node --test frontend/lantern-tests/ai-suggestion-review.test.mjs
 
-Thirteen generated controller cases load the actual type-stripped controller:
+Fourteen generated controller cases load the actual type-stripped controller:
 explicit fields/edits, candidate selection, document pages, stale dismissal,
 source revisions, A-B-A/late inspections, superseded checks, offline/disabled
 states, availability interruption, repeat/re-entry, uncertain callback delivery,
-dismiss/disposal and unavailable originals/abstention. No validation engine or
+dismiss/disposal, availability loss during uncertain handoff, and unavailable originals/abstention. No validation engine or
 controller behavior is copied into the fixtures. Node stripping is not semantic
 TypeScript checking; these cases do not mount React or establish DOM focus,
 visual layout, accessibility interaction, native originals, inference quality

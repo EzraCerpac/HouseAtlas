@@ -137,3 +137,16 @@ test('unavailable originals, abstention and untrusted text remain explicit displ
   assert.equal(s.controller.getSnapshot().view.sources[0].label, '<script>generated text</script>');
   assert.equal(s.controller.getSnapshot().view.sources[0].original, 'unavailable');
 });
+
+test('availability-only changes preserve a consumed callback delivery failure without replay', async () => {
+  const pending = deferred(), entered = deferred(); let deliveries = 0;
+  const s = setup({}, { onIntent: () => { deliveries++; entered.resolve(); return pending.promise; } });
+  s.controller.selectField('category', true); const sent = s.controller.decide('accept-for-review');
+  await entered.promise; s.set({ ...s.current(), availability: 'offline' });
+  pending.reject(new Error('generated delivery failure')); await sent;
+  assert.equal(s.controller.getSnapshot().phase, 'handoff-unconfirmed');
+  s.set({ ...s.current(), availability: 'ready' });
+  assert.equal(s.controller.getSnapshot().phase, 'handoff-unconfirmed');
+  await s.controller.decide('accept-for-review'); await s.controller.decide('reject');
+  assert.equal(deliveries, 1, 'uncertain delivery stays consumed across availability changes');
+});
