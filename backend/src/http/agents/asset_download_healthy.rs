@@ -514,12 +514,7 @@ async fn contextual_five_originals() -> Result<(), Failure> {
     let receipt: Value = serde_json::from_slice(&fs::read(directory.join("smoke-session.json"))?)?;
     let login = receipt["editorLogin"].clone();
     drop(receipt);
-    let host = Host::new(
-        core,
-        ORIGIN.into(),
-        Arc::new(BTreeMap::new()),
-        vec![],
-    )?;
+    let host = Host::new(core, ORIGIN.into(), Arc::new(BTreeMap::new()), vec![])?;
     let first_core = host.core.clone();
     let core_released = Arc::downgrade(&first_core);
     let (store_released, access_released, vault_released) = {
@@ -991,8 +986,16 @@ async fn contextual_five_originals() -> Result<(), Failure> {
             .ok_or("Missing fresh CSRF")?
             .is_empty()
     );
-    let admission =
-        capture_json(&reopened, Method::GET, &place_path, vec![], None, &cookie, None).await?;
+    let admission = capture_json(
+        &reopened,
+        Method::GET,
+        &place_path,
+        vec![],
+        None,
+        &cookie,
+        None,
+    )
+    .await?;
     for field in [
         "admissionKind",
         "scope",
@@ -1053,7 +1056,15 @@ async fn contextual_five_originals() -> Result<(), Failure> {
             let head = method == Method::HEAD;
             let response = reopened
                 .clone()
-                .oneshot(request(method, &path, vec![], None, Some(&cookie), None, None)?)
+                .oneshot(request(
+                    method,
+                    &path,
+                    vec![],
+                    None,
+                    Some(&cookie),
+                    None,
+                    None,
+                )?)
                 .await?;
             assert_eq!(response.status(), StatusCode::OK);
             assert_eq!(response.headers()["content-type"], *content_type);
