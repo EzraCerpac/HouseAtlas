@@ -120,6 +120,47 @@ is not a reusable byte-read port and its 10 MiB capture cap does not cover arbit
 Library PDFs. They remain listed as needing a connection. No claim of every
 possible Library source being retained follows from this increment.
 
+### Remaining HomeBox original-read contract
+
+The source boundary for the remaining #372/#560 HomeBox work is concrete:
+
+| Existing owner | Available behavior and limit |
+| --- | --- |
+| [`http/providers/homebox_native.rs`](../backend/src/http/providers/homebox_native.rs), `OPERATIONS` | Configured stock reads cover entity tags, fields and maintenance; file download is not an admitted operation. |
+| [`http/mod.rs`](../backend/src/http/mod.rs), pinned-file routes; [`http/homebox_pinned_files.rs`](../backend/src/http/homebox_pinned_files.rs), `capture_selected` | The mounted original producer consumes a fresh capture request before provider I/O, then issues a finite token through the pinned artifact broker. Availability/redemption operate on that issued token. They are not an independent original-read route. |
+| [`read/client.rs`](../backend/src/providers/homebox/read/client.rs), `capture_native_file_snapshot`; [`read/http_transport.rs`](../backend/src/providers/homebox/read/http_transport.rs); [`media/homebox_pinned_artifacts.rs`](../backend/src/media/homebox_pinned_artifacts.rs), `measure` | Intake and broker measurement enforce [`media::MAX_BYTES`](../backend/src/media/mod.rs), 10 MiB. A separate offline storage bound does not enlarge these limits. |
+| [`read/query/native_file_owner.rs`](../backend/src/providers/homebox/read/query/native_file_owner.rs), `current_snapshot` | Qualified bytes can be borrowed only under the current original Access guard, original grants, source mutex and finite local capture window. This owner establishes a local snapshot, not an upstream version or remote currentness. |
+| [`read/query/owned_file_source.rs`](../backend/src/providers/homebox/read/query/owned_file_source.rs), `NativeStoredFileOwner` | The alternate provider-version adapter requires a genuine original owner. Its only concrete implementation in this tree is the generated `LocalOwner` in `owned_file_source_healthy.rs`; it does not supply a production fallback. |
+| [`api/pinned-file-client.ts`](../frontend/src/api/pinned-file-client.ts), `PinnedFileClient` | Discovery, explicit capture and one availability observation expose facts/offers, with the same 10 MiB bound. No borrowed Blob/frame read exists. [`PinnedFileAction.tsx`](../frontend/src/lantern/components/PinnedFileAction.tsx) owns this explicit UI exchange. |
+
+The smallest missing producer is an authenticated read-only HomeBox original
+owner and its frontend borrowed-reader port. It must deliver measured bytes
+under the existing exact workspace/home/source-instance/collection/entity/
+attachment association and current session/source/partition authorization,
+without issuing capture offers or acquiring evidence/submission authority.
+A completed read needs a distinct local observation identity, measured digest
+and length, preserved lexical retrieval facts and explicit content-type
+qualification. A local observation must remain labeled historical; hashes,
+titles, attachment timestamps and native paths cannot supply a provider revision
+or prove current remote membership. Reuse the existing native qualification
+owner where its semantics apply instead of fabricating a `HomeboxFileVersion`.
+
+The producer needs explicit cancellation, final authorization/disclosure checks,
+bounded lifetime and owned-frame release. Files above the existing 10 MiB
+capture limit need a separately reviewed original-read resource policy; changing
+the capture limit or replaying fresh captures is not this contract. No such
+producer or larger-file support is implemented here.
+
+Once that producer exists, the retention consumer can add an independent
+HomeBox namespace to `live-copy-types.ts` and `live-copy-owner.ts`, following the
+electrical borrowed-reader integration. Its pins must include the complete
+source association and local observation identity; it must share the account/
+home/epoch witness, withdrawal, tombstone, acknowledged transactions, integrity
+checks and aggregate byte budget. Catalog enumeration/completeness must come
+from an actual HomeBox read owner, not the currently captured view or a title
+join. Failed, unknown or withdrawn originals remain unavailable. No placeholder
+adapter is registered while the producer is missing.
+
 ## Public bootstrap and presentation
 
 Root navigation retains the established network-first handoff to the sealed
