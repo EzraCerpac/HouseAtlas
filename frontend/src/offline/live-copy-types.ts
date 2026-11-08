@@ -46,6 +46,35 @@ export interface OfflineCatalogV1 {
   readonly completeness: 'captured-pages' | 'captured-complete';
   readonly documents: readonly OfflineCatalogItemV1[];
 }
+/** Separate captured evidence-original identity; never a native Document v2 ID. */
+export interface OfflineElectricalPinV1 {
+  readonly source: 'electrical-evidence'; readonly buildingId: string;
+  readonly evidenceId: string; readonly evidenceRevision: number; readonly assetId: string;
+  readonly assetRevision: string; readonly byteSize: string; readonly sha256: string;
+  readonly contentType: 'application/pdf';
+}
+export interface OfflineElectricalPageV1 {
+  readonly sheetId: string; readonly title: string; readonly pdfPage: number; readonly sourceDate: string | null;
+  readonly correlationId: string; readonly correlationSha256: string;
+  readonly originalPhotoSha256: string; readonly renderedPhotoSha256: string;
+}
+export interface OfflineElectricalBuildingV1 {
+  readonly buildingId: string; readonly capturedAt: string;
+  readonly provenance: Readonly<{
+    historicalRoomMappingReceipt: Readonly<{ id: string; sha256: string }>;
+    fixtureLedgerSha256: string; supportOriginalSha256: string;
+    currentNativeRoomReview: Readonly<{ id: string; sha256: string }>;
+  }> | null;
+  readonly documents: readonly Readonly<{ pin: OfflineElectricalPinV1; pages: readonly OfflineElectricalPageV1[] }>[];
+}
+export interface OfflineElectricalCatalogV1 {
+  readonly version: 1; readonly capturedAt: string;
+  /** Independently captured buildings, never a claim of whole-home enumeration. */
+  readonly buildings: readonly OfflineElectricalBuildingV1[];
+}
+export type OfflineElectricalAvailability =
+  | Readonly<{ availability: 'held'; bytes: number; pin: OfflineElectricalPinV1 }>
+  | Readonly<{ availability: 'not-held' | 'failed-integrity'; bytes: number }>;
 export type OfflineFailure = 'unavailable' | 'retired' | 'missing' | 'integrity' | 'quota' | 'limit' | 'invalid' | 'aborted' | 'uncertain';
 export type OfflineResult<T> = Readonly<{ status: 'ok'; value: T }> | Readonly<{ status: OfflineFailure }>;
 /** Opaque local historical selection, with no live authorization. */
@@ -56,6 +85,9 @@ export interface OfflineReadPort {
   atlasReference(handle: OfflineCopyHandle, signal: AbortSignal): Promise<OfflineResult<OfflineAtlasReferenceV1 | null>>;
   readCatalog(handle: OfflineCopyHandle, signal: AbortSignal): Promise<OfflineResult<OfflineCatalogV1>>;
   readDocument(handle: OfflineCopyHandle, pin: OfflineDocumentPinV1, signal: AbortSignal): Promise<OfflineResult<Blob>>;
+  readElectricalCatalog(handle: OfflineCopyHandle, signal: AbortSignal): Promise<OfflineResult<OfflineElectricalCatalogV1>>;
+  electricalStatus(handle: OfflineCopyHandle, pin: OfflineElectricalPinV1, signal: AbortSignal): Promise<OfflineResult<OfflineElectricalAvailability>>;
+  readElectricalDocument(handle: OfflineCopyHandle, pin: OfflineElectricalPinV1, signal: AbortSignal): Promise<OfflineResult<Blob>>;
   subscribe(changed: () => void): () => void;
 }
 export interface OfflineStorageStatus {

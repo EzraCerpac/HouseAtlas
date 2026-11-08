@@ -1,8 +1,10 @@
+import type { ElectricalLibraryReader, ElectricalLibraryFrame } from '../src/lantern/electrical-library/types';
+import type { NativeEvidenceDocumentFrame } from '../src/lantern/scans/native-evidence-document-types';
 import type { ReadyView } from '../src/app/types';
 import type { AtlasSessionInfo } from '../src/app/session';
 import type { SourceDocumentsPort, SourceDocument, SourceDocumentFrame } from '../src/lantern/source-documents/types';
-import type { OfflineCatalogItemV1, OfflineCatalogV1, OfflineDocumentPinV1, OfflineResult, OfflineBackend, OfflineAtlasReferenceV1, OfflineReadPort } from '../src/offline/live-copy-types';
-import { createLiveCopyOwner, LIVE_COPY_LIMITS, type LiveCopyActor, type LiveCopyHome } from '../src/offline/live-copy-owner';
+import type { OfflineElectricalPinV1, OfflineElectricalBuildingV1, OfflineCatalogItemV1, OfflineCatalogV1, OfflineDocumentPinV1, OfflineResult, OfflineBackend, OfflineAtlasReferenceV1, OfflineReadPort } from '../src/offline/live-copy-types';
+import { createLiveCopyOwner, LIVE_COPY_LIMITS, electricalPinBytes, validElectricalPin, type LiveCopyActor, type LiveCopyHome } from '../src/offline/live-copy-owner';
 import { openLiveCopyBackend } from '../src/offline/live-copy-indexeddb';
 
 type State = { readonly session: AtlasSessionInfo | null; readonly view: ReadyView | null };
@@ -53,7 +55,7 @@ export function createLiveCopyRetention(options: {
     bytes: row.original.bytes, recordedAvailability: row.availability.original,
   });
   return {
-    read: { readLast: owner.readLast, readCatalog: owner.readCatalog, readDocument: owner.readDocument, documentStatus: owner.documentStatus,
+    read: { readElectricalCatalog: owner.readElectricalCatalog, electricalStatus: owner.electricalStatus, readElectricalDocument: owner.readElectricalDocument, readLast: owner.readLast, readCatalog: owner.readCatalog, readDocument: owner.readDocument, documentStatus: owner.documentStatus,
       async atlasReference(handle, signal) {
         const identity = await owner.copyIdentity(handle, signal); if (identity.status !== 'ok') return identity;
         try {
@@ -147,6 +149,96 @@ export function createLiveCopyRetention(options: {
         return remember(result.status === 'ok' ? { status: 'ok', value: pin } : result);
       } catch { return remember({ status: signal.aborted ? 'aborted' : b.value.current() ? 'unavailable' : 'retired' }); }
       finally { if (frame) reader?.release(frame); reader?.dispose(); }
+    },
+    /** Captures one genuinely read building. The caller retains ownership of its reader/frame. */
+    async retainElectricalLibrary(reader: ElectricalLibraryReader, frame: ElectricalLibraryFrame, signal: AbortSignal,
+      retention: { readonly includeBytes?: boolean; readonly evidenceId?: string; readonly enabled?: () => boolean } = {}): Promise<OfflineResult<{ held: number; unavailable: number; bytes: number }>> {
+      const b = binding(); if (b.status !== 'ok') return remember(b);
+      const identity = reader.owner();
+      const current = () => b.value.current() && reader.owner() === identity && identity !== null && reader.isCurrent(frame);
+      const retired = (): OfflineResult<never> => ({ status: signal.aborted ? 'aborted' : 'retired' });
+      let client: ReturnType<ElectricalLibraryReader['createDrawingClient']> | null = null;
+      let opened: NativeEvidenceDocumentFrame | null = null;
+      try {
+        if (!current() || signal.aborted || !actor) return remember(retired());
+        const scope = options.state().view!.scope;
+        if (frame.scope.workspaceId !== scope.workspaceId || frame.scope.homeId !== scope.homeId) return remember({ status: 'integrity' });
+        const live = owner.bindHome(actor, frame.scope, current); if (live.status !== 'ok') return remember(live);
+        const documents = frame.documents.map(document => {
+          const pin: OfflineElectricalPinV1 = { source: 'electrical-evidence', buildingId: frame.buildingId,
+            evidenceId: document.evidenceId, evidenceRevision: document.evidenceRevision, assetId: document.assetId,
+            assetRevision: document.assetRevision.token, byteSize: document.byteSize.token, sha256: document.sha256, contentType: 'application/pdf' };
+          if (!validElectricalPin(pin)) throw new Error('Invalid electrical original pins');
+          const pages = document.pages.map(page => {
+            const reference = page.reference;
+            if (reference.workspaceId !== frame.scope.workspaceId || reference.homeId !== frame.scope.homeId
+              || reference.buildingId !== frame.buildingId || reference.evidenceId !== pin.evidenceId
+              || reference.evidenceRevision !== pin.evidenceRevision || reference.assetId !== pin.assetId
+              || reference.assetRevision.token !== pin.assetRevision || reference.byteSize.token !== pin.byteSize
+              || reference.assetSha256 !== pin.sha256 || reference.sheetId !== page.sheet.id || reference.pdfPage !== page.sheet.pdfPage
+              || reference.originalPhotoSha256 !== page.sheet.originalPhotoSha256 || reference.renderedPhotoSha256 !== page.sheet.renderedPhotoSha256)
+              throw new Error('Electrical page correlation differs');
+            return { sheetId: page.sheet.id, title: page.sheet.title, pdfPage: page.sheet.pdfPage, sourceDate: page.sheet.sourceDate,
+              correlationId: reference.correlationId, correlationSha256: reference.correlationSha256,
+              originalPhotoSha256: reference.originalPhotoSha256, renderedPhotoSha256: reference.renderedPhotoSha256 };
+          });
+          return { pin, pages };
+        });
+        const p = frame.provenance;
+        const building: OfflineElectricalBuildingV1 = { buildingId: frame.buildingId, capturedAt: new Date().toISOString(), documents,
+          provenance: p ? { historicalRoomMappingReceipt: { id: p.historicalRoomMappingReceipt.id, sha256: p.historicalRoomMappingReceipt.sha256 },
+            fixtureLedgerSha256: p.fixtureLedgerSha256, supportOriginalSha256: p.supportOriginalSha256,
+            currentNativeRoomReview: { id: p.currentNativeRoomReview.id, sha256: p.currentNativeRoomReview.sha256 } } : null };
+        const catalogResult = await owner.keepElectricalCatalog(live.value, building, signal);
+        if (catalogResult.status !== 'ok') return remember(catalogResult);
+        const bytes = documents.reduce((sum, row) => sum + electricalPinBytes(row.pin), 0);
+        let held = 0, unavailable = 0;
+        const summary = () => ({ status: 'ok' as const, value: { held, unavailable, bytes } });
+        if (retention.includeBytes === false || retention.enabled?.() === false) return remember(summary());
+        const copy = await owner.readLast(signal); if (copy.status !== 'ok') return remember(copy);
+        const [electrical, native, storage] = await Promise.all([owner.readElectricalCatalog(copy.value.handle, signal),
+          owner.readCatalog(copy.value.handle, signal), owner.status(signal)]);
+        if (electrical.status !== 'ok') return remember(electrical);
+        if (storage.status !== 'ok') return remember(storage);
+        if (native.status !== 'ok' && native.status !== 'missing') return remember(native);
+        const allBytes = electrical.value.buildings.reduce((sum, row) => sum + row.documents.reduce((n, d) => n + electricalPinBytes(d.pin), 0), 0)
+          + (native.status === 'ok' ? native.value.documents.filter(row => row.lifecycle === 'active').reduce((sum, row) => sum + row.bytes, 0) : 0);
+        // Explicit opens may keep their selected original; automatic fill refuses budget churn.
+        if (!retention.evidenceId && allBytes > storage.value.budgetBytes * 0.8) return remember(summary());
+        client = reader.createDrawingClient(frame);
+        for (const document of documents) {
+          if (retention.evidenceId && document.pin.evidenceId !== retention.evidenceId) continue;
+          if (!current() || signal.aborted) return remember(retired());
+          if (retention.enabled?.() === false) break;
+          const pin = document.pin, previous = await owner.electricalStatus(copy.value.handle, pin, signal);
+          if (previous.status === 'ok' && previous.value.availability === 'held') { held++; continue; }
+          if (previous.status !== 'ok' && previous.status !== 'missing' && previous.status !== 'integrity') return remember(previous);
+          try { opened = await client.open(pin.evidenceId, signal); }
+          catch {
+            if (!current() || signal.aborted) return remember(retired());
+            unavailable++; continue;
+          }
+          const byteCurrent = () => current() && opened !== null && client!.isCurrent(opened);
+          if (!byteCurrent() || signal.aborted) return remember(retired());
+          const asset = opened.asset;
+          if (opened.mode !== 'original-download' || opened.evidenceId !== pin.evidenceId || opened.evidenceRevision !== pin.evidenceRevision
+            || asset.assetId !== pin.assetId || asset.revision.token !== pin.assetRevision || asset.byteSize.token !== pin.byteSize
+            || asset.sha256 !== pin.sha256 || asset.contentType !== 'application/pdf' || asset.purpose !== 'evidence-original')
+            return remember({ status: 'integrity' });
+          const blob = client.getBlob(opened);
+          if (!blob || blob.size !== electricalPinBytes(pin) || blob.type !== 'application/pdf') return remember({ status: 'integrity' });
+          const original = await blob.arrayBuffer();
+          if (!byteCurrent() || signal.aborted || !actor) return remember(retired());
+          const admitted = owner.bindHome(actor, frame.scope, byteCurrent); if (admitted.status !== 'ok') return remember(admitted);
+          const result = await owner.keepElectricalDocument(admitted.value, pin, original, signal);
+          client.release(opened); opened = null;
+          if (result.status === 'ok') held++;
+          else if (result.status === 'retired' || result.status === 'aborted' || result.status === 'uncertain') return remember(result);
+          else unavailable++;
+        }
+        return remember(summary());
+      } catch { return remember({ status: signal.aborted ? 'aborted' : current() ? 'integrity' : 'retired' }); }
+      finally { if (opened) client?.release(opened); client?.dispose(); }
     },
     close() { generation++; actor = null; observed = null; owner.close(); outcomeListeners.clear();
       options.events?.removeEventListener('focus', recheckCopies); options.events?.removeEventListener('visibilitychange', recheckCopies);

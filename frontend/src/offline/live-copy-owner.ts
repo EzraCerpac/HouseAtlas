@@ -1,6 +1,6 @@
 import type { ReadyView, Scope } from '../app/types';
 import type { OfflineBackend, OfflineTransaction, OfflineResult, OfflineFailure, OfflineDisplayData,
-  OfflineViewSnapshotV1, OfflineDocumentPinV1, OfflineDocumentReferenceV1, OfflineDocumentAvailability, OfflineCatalogV1, OfflineCopyHandle, OfflineStorageStatus } from './live-copy-types';
+  OfflineElectricalPinV1, OfflineElectricalAvailability, OfflineElectricalBuildingV1, OfflineElectricalCatalogV1, OfflineViewSnapshotV1, OfflineDocumentPinV1, OfflineDocumentReferenceV1, OfflineDocumentAvailability, OfflineCatalogV1, OfflineCopyHandle, OfflineStorageStatus } from './live-copy-types';
 
 const MiB = 1024 * 1024;
 export const LIVE_COPY_LIMITS = Object.freeze({ bytes: 250 * MiB, entryBytes: 128 * MiB,
@@ -50,8 +50,8 @@ export function projectOfflineDisplay(view: Pick<OfflineDisplayData, 'scope' | '
 }
 interface Control { version: 1; epoch: string; actorId: string | null; home: Scope | null }
 interface Binding { epoch: string; actorId: string; scope: Scope; serial: number; live: boolean; current: () => boolean }
-interface Row { version: 1; epoch: string; scope: Scope; kind: 'view' | 'catalog' | 'document';
-  bytes: number; sha256: string; usedAt: number; pin?: OfflineDocumentPinV1 }
+interface Row { version: 1; epoch: string; scope: Scope; kind: 'view' | 'catalog' | 'document' | 'electrical-catalog' | 'electrical-document';
+  bytes: number; sha256: string; usedAt: number; pin?: OfflineDocumentPinV1 | OfflineElectricalPinV1 }
 export interface LiveCopyActor { readonly kind: 'online-observed-actor' }
 export interface LiveCopyHome { readonly kind: 'online-observed-home' }
 export function validOfflinePin(pin: OfflineDocumentPinV1): boolean {
@@ -71,12 +71,16 @@ function controlOK(v: Control | undefined): v is Control {
 }
 function rowOK(row: Row): boolean {
   return !!row && row.version === 1 && UUID.test(row.epoch) && scopeOK(row.scope)
-    && ['view', 'catalog', 'document'].includes(row.kind) && Number.isSafeInteger(row.bytes) && row.bytes > 0
-    && row.bytes <= (row.kind === 'view' ? LIVE_COPY_LIMITS.viewBytes : row.kind === 'catalog' ? LIVE_COPY_LIMITS.catalogBytes : LIVE_COPY_LIMITS.entryBytes) && SHA.test(row.sha256) && Number.isFinite(row.usedAt)
-    && (row.kind !== 'document' || !!row.pin && validOfflinePin(row.pin) && row.pin.sha256 === row.sha256 && row.pin.bytes === row.bytes);
+    && ['view', 'catalog', 'document', 'electrical-catalog', 'electrical-document'].includes(row.kind) && Number.isSafeInteger(row.bytes) && row.bytes > 0
+    && row.bytes <= (row.kind === 'view' ? LIVE_COPY_LIMITS.viewBytes : row.kind === 'catalog' || row.kind === 'electrical-catalog' ? LIVE_COPY_LIMITS.catalogBytes : LIVE_COPY_LIMITS.entryBytes) && SHA.test(row.sha256) && Number.isFinite(row.usedAt)
+    && (row.kind !== 'document' || !!row.pin && validOfflinePin(row.pin as OfflineDocumentPinV1) && row.pin.sha256 === row.sha256 && (row.pin as OfflineDocumentPinV1).bytes === row.bytes)
+    && (row.kind !== 'electrical-document' || !!row.pin && validElectricalPin(row.pin as OfflineElectricalPinV1) && row.pin.sha256 === row.sha256 && electricalPinBytes(row.pin as OfflineElectricalPinV1) === row.bytes);
 }
-const keyFor = (b: Binding, kind: string, pin?: OfflineDocumentPinV1) => JSON.stringify([b.epoch, b.scope.workspaceId, b.scope.homeId, kind,
-  ...(pin ? [pin.documentId, pin.documentRevision, pin.assetId, pin.assetRevision, pin.sha256, pin.bytes, pin.contentType] : [])]);
+type StoredPin = OfflineDocumentPinV1 | OfflineElectricalPinV1;
+const keyFor = (b: Binding, kind: string, pin?: StoredPin) => JSON.stringify([b.epoch, b.scope.workspaceId, b.scope.homeId, kind,
+  ...(pin ? 'source' in pin ? [pin.source, pin.buildingId, pin.evidenceId, pin.evidenceRevision, pin.assetId, pin.assetRevision, pin.sha256, pin.byteSize, pin.contentType]
+    : [pin.documentId, pin.documentRevision, pin.assetId, pin.assetRevision, pin.sha256, pin.bytes, pin.contentType] : [])]);
+const documentKind = (kind: Row['kind']) => kind === 'document' || kind === 'electrical-document';
 /** Local storage/display owner only; caller supplies actual completed canonical observations. */
 export function createLiveCopyOwner(backend: OfflineBackend, options: {
   readonly now?: () => number; readonly changed?: () => void;
@@ -107,21 +111,22 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
     need(controlOK(c) && c.epoch === b.epoch && c.actorId === b.actorId, 'retired'); check(b); return c;
   };
   const put = async (b: Binding, kind: Row['kind'], bytes: Uint8Array<ArrayBuffer>, sha256: string, signal: AbortSignal,
-    pin?: OfflineDocumentPinV1): Promise<number> => {
+    pin?: StoredPin, expectedSha256?: string | null): Promise<number> => {
     check(b, signal); need(bytes.byteLength > 0 && bytes.byteLength <= limits.entryBytes, 'limit'); const key = keyFor(b, kind, pin);
     return backend.transaction(true, async tx => {
       const c = await fence(tx, b); check(b, signal);
       const rows = await tx.list<Row>('metadata'); need(rows.length <= limits.rows, 'integrity');
       need(rows.every(r => rowOK(r.value) && r.value.epoch === b.epoch), 'integrity');
       const previous = rows.find(r => r.key === key);
+      if (expectedSha256 !== undefined) need((previous?.value.sha256 ?? null) === expectedSha256, 'retired');
       let total = rows.reduce((sum, r) => sum + r.value.bytes, 0) - (previous?.value.bytes ?? 0);
       let count = rows.length - (previous ? 1 : 0), evicted = 0;
-      let documentCount = rows.filter(r => r.key !== key && r.value.kind === 'document').length;
-      const ordered = rows.filter(r => r.key !== key).sort((a, z) => Number(a.value.kind !== 'document') - Number(z.value.kind !== 'document') || a.value.usedAt - z.value.usedAt);
-      while (total + bytes.byteLength > limits.bytes || count + 1 > limits.rows || kind === 'document' && documentCount + 1 > limits.documents) {
+      let documentCount = rows.filter(r => r.key !== key && documentKind(r.value.kind)).length;
+      const ordered = rows.filter(r => r.key !== key).sort((a, z) => Number(!documentKind(a.value.kind)) - Number(!documentKind(z.value.kind)) || a.value.usedAt - z.value.usedAt);
+      while (total + bytes.byteLength > limits.bytes || count + 1 > limits.rows || documentKind(kind) && documentCount + 1 > limits.documents) {
         const old = ordered.shift(); need(old, 'limit');
         await tx.remove('metadata', old!.key); await tx.remove('bytes', old!.key);
-        total -= old!.value.bytes; count--; if (old!.value.kind === 'document') documentCount--; evicted++;
+        total -= old!.value.bytes; count--; if (documentKind(old!.value.kind)) documentCount--; evicted++;
       }
       check(b, signal);
       const row: Row = { version: 1, epoch: b.epoch, scope: b.scope, kind, bytes: bytes.byteLength, sha256, usedAt: now(),
@@ -131,13 +136,13 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
       check(b, signal); return evicted;
     });
   };
-  const read = async (b: Binding, kind: Row['kind'], signal: AbortSignal, pin?: OfflineDocumentPinV1) => {
+  const read = async (b: Binding, kind: Row['kind'], signal: AbortSignal, pin?: StoredPin) => {
     check(b, signal); const key = keyFor(b, kind, pin);
     const value = await backend.transaction(true, async tx => {
       await fence(tx, b); const row = await tx.get<Row>('metadata', key), bytes = await tx.get<ArrayBuffer>('bytes', key);
       need(row && bytes, 'missing'); need(rowOK(row!) && row!.epoch === b.epoch && sameScope(row!.scope, b.scope)
         && row!.kind === kind && bytes instanceof ArrayBuffer && bytes.byteLength === row!.bytes, 'integrity');
-      if (pin) need(row!.pin && samePin(row!.pin, pin), 'integrity');
+      if (pin) need(row!.pin && ('source' in pin ? sameElectricalPin(row!.pin as OfflineElectricalPinV1, pin) : samePin(row!.pin as OfflineDocumentPinV1, pin)), 'integrity');
       await tx.put('metadata', key, { ...row, usedAt: now() }); check(b, signal);
       return { row: row!, bytes: new Uint8Array(bytes!) };
     });
@@ -171,6 +176,22 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
         const after = decode(await read(b, 'catalog', signal)) as OfflineCatalogV1; validateCatalog(after); need(catalogPin(after, pin), 'missing');
         check(b, signal); return new Blob([bytes], { type: pin.contentType }); });
   };
+  let electricalTail: Promise<unknown> = Promise.resolve();
+  const readElectricalCatalog = (handle: OfflineCopyHandle, signal: AbortSignal) => run(async () => {
+    const b = copy(handle), value = decode(await read(b, 'electrical-catalog', signal)) as OfflineElectricalCatalogV1;
+    validateElectricalCatalog(value); return value;
+  });
+  const electricalCatalogPin = (catalog: OfflineElectricalCatalogV1, pin: OfflineElectricalPinV1) => catalog.buildings.some(building =>
+    building.buildingId === pin.buildingId && building.documents.some(document => sameElectricalPin(document.pin, pin)));
+  const readElectricalDocument = (handle: OfflineCopyHandle, pin: OfflineElectricalPinV1, signal: AbortSignal) => run(async () => {
+    const b = copy(handle); need(validElectricalPin(pin)); pin = { ...pin };
+    const before = decode(await read(b, 'electrical-catalog', signal)) as OfflineElectricalCatalogV1; validateElectricalCatalog(before);
+    need(electricalCatalogPin(before, pin), 'missing');
+    const bytes = await read(b, 'electrical-document', signal, pin);
+    const after = decode(await read(b, 'electrical-catalog', signal)) as OfflineElectricalCatalogV1; validateElectricalCatalog(after);
+    need(electricalCatalogPin(after, pin), 'missing'); check(b, signal);
+    return new Blob([bytes], { type: pin.contentType });
+  });
   return {
     subscribe(cb: () => void) { listeners.add(cb); return () => { listeners.delete(cb); }; },
     /** Retire borrowed UI handles on another tab's change; next read reacquires the durable witness. */
@@ -232,14 +253,53 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
         const evicted = await put(b, 'document', bytes, sha, signal, pin); check(b, signal); changed(); return { evicted };
       });
     },
+    /** Building captures are serialized in this owner; each remains independently timestamped. */
+    keepElectricalCatalog(handle: LiveCopyHome, building: OfflineElectricalBuildingV1, signal: AbortSignal) {
+      const captured = structuredClone(building);
+      const pending = electricalTail.then(() => run(async () => {
+        const b = home(handle); check(b, signal); let previous: OfflineElectricalCatalogV1 | null = null, previousSha: string | null = null;
+        try { const priorBytes = await read(b, 'electrical-catalog', signal); previous = decode(priorBytes) as OfflineElectricalCatalogV1; validateElectricalCatalog(previous); previousSha = await hash(priorBytes); }
+        catch (error) { if (!(error instanceof Refusal && error.status === 'missing')) throw error; }
+        const value: OfflineElectricalCatalogV1 = { version: 1, capturedAt: new Date(now()).toISOString(),
+          buildings: [...(previous?.buildings ?? []).filter(row => row.buildingId !== captured.buildingId), captured] };
+        validateElectricalCatalog(value); const bytes = encode(value); need(bytes.byteLength <= limits.catalogBytes, 'limit');
+        const sha = await hash(bytes); check(b, signal); const evicted = await put(b, 'electrical-catalog', bytes, sha, signal, undefined, previousSha);
+        check(b, signal); changed(); return { evicted };
+      }));
+      electricalTail = pending.catch(() => undefined); return pending;
+    },
+    keepElectricalDocument(handle: LiveCopyHome, pin: OfflineElectricalPinV1, input: ArrayBuffer, signal: AbortSignal) {
+      return run(async () => {
+        const b = home(handle); need(validElectricalPin(pin)); pin = { ...pin };
+        need(input instanceof ArrayBuffer && input.byteLength === electricalPinBytes(pin), 'integrity');
+        const bytes = new Uint8Array(input.slice(0)), sha = await hash(bytes); check(b, signal); need(sha === pin.sha256, 'integrity');
+        const evicted = await put(b, 'electrical-document', bytes, sha, signal, pin); check(b, signal); changed(); return { evicted };
+      });
+    },
+    readElectricalCatalog,
+    readElectricalDocument,
+    electricalStatus(handle: OfflineCopyHandle, pin: OfflineElectricalPinV1, signal: AbortSignal): Promise<OfflineResult<OfflineElectricalAvailability>> {
+      return run(async () => {
+        need(validElectricalPin(pin)); const result = await readElectricalDocument(handle, pin, signal), bytes = electricalPinBytes(pin);
+        if (result.status === 'integrity') return { availability: 'failed-integrity', bytes };
+        if (result.status === 'missing') return { availability: 'not-held', bytes };
+        if (result.status !== 'ok') throw new Refusal(result.status);
+        return { availability: 'held', bytes, pin: { ...pin } };
+      });
+    },
     readLast(signal: AbortSignal) {
       return run(async () => {
         check(undefined, signal); const initialSerial = readSerial;
         const c = await backend.transaction(false, tx => tx.get<Control>('control', 'witness'));
         check(undefined, signal); need(initialSerial === readSerial, 'retired');
-        need(observedActor === undefined || c?.actorId === observedActor, 'retired'); need(controlOK(c) && c.actorId !== null && c.home !== null, 'missing');
+        need(c !== undefined, 'missing'); need(controlOK(c), 'integrity');
+        need(observedActor === undefined || c!.actorId === observedActor, 'retired'); need(c!.actorId !== null && c!.home !== null, 'retired');
         const b: Binding = { epoch: c!.epoch, actorId: c!.actorId!, scope: { ...c!.home! }, serial: readSerial, live: false, current: () => true };
-        const bytes = await read(b, 'view', signal), value = decode(bytes) as OfflineViewSnapshotV1;
+        let bytes: Uint8Array<ArrayBuffer>;
+        try { bytes = await read(b, 'view', signal); } catch (error) {
+          if (error instanceof Refusal && error.status === 'missing') throw new Refusal('retired'); throw error;
+        }
+        const value = decode(bytes) as OfflineViewSnapshotV1;
         need(Object.keys(value).sort().join(',') === 'actorRevision,capturedAt,coverage,data,freshness,kind,payloadSha256,snapshotRevision,version'
           && value.version === 1 && value.kind === 'stored-display' && value.freshness === 'stale'
           && value.actorRevision === b.epoch && UUID.test(value.snapshotRevision) && Number.isFinite(Date.parse(value.capturedAt))
@@ -276,7 +336,7 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
           await fence(tx, b); const rows = await tx.list<Row>('metadata'); need(rows.length <= limits.rows, 'integrity');
           return rows.filter(({ value: row }) => {
             need(rowOK(row), 'integrity');
-            const p = row.pin;
+            const p = row.pin as OfflineDocumentPinV1 | undefined;
             return row.kind === 'document' && row.epoch === b.epoch && sameScope(row.scope, b.scope) && p
               && p.documentId === ref.documentId && p.documentRevision === ref.documentRevision && p.assetId === ref.assetId
               && p.assetRevision === ref.assetRevision && p.sha256 === ref.sha256 && p.bytes === ref.bytes;
@@ -285,11 +345,11 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
         check(b, signal);
         if (!matches.length) return { availability: 'not-held', bytes: ref.bytes };
         need(matches.length === 1 && matches[0]!.value.pin, 'integrity');
-        const pin = { ...matches[0]!.value.pin! }, result = await readDocument(handle, pin, signal);
+        const pin = { ...matches[0]!.value.pin! }, result = await readDocument(handle, pin as OfflineDocumentPinV1, signal);
         if (result.status === 'integrity') return { availability: 'failed-integrity', bytes: ref.bytes };
         if (result.status === 'missing') return { availability: 'not-held', bytes: ref.bytes };
         if (result.status !== 'ok') throw new Refusal(result.status);
-        check(b, signal); return { availability: 'held', bytes: pin.bytes, pin };
+        check(b, signal); return { availability: 'held', bytes: (pin as OfflineDocumentPinV1).bytes, pin: pin as OfflineDocumentPinV1 };
       });
     },
     removeDocument(handle: LiveCopyHome, pin: OfflineDocumentPinV1, signal: AbortSignal) {
@@ -305,7 +365,7 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
         const [estimate, persisted] = options.storage ? await Promise.all([options.storage.estimate(), options.storage.persisted()])
           : [null, null];
         check(undefined, signal);
-        return { bytes: rows.reduce((sum, r) => sum + r.value.bytes, 0), documents: rows.filter(r => r.value.kind === 'document').length,
+        return { bytes: rows.reduce((sum, r) => sum + r.value.bytes, 0), documents: rows.filter(r => documentKind(r.value.kind)).length,
           budgetBytes: limits.bytes, estimatedUsage: estimate?.usage ?? null, estimatedQuota: estimate?.quota ?? null,
           persistence: persisted === null ? 'unsupported' : persisted ? 'granted' : 'not-granted' };
       });
@@ -341,4 +401,62 @@ function validateCatalog(catalog: OfflineCatalogV1): void {
       'assetRevision', 'sha256', 'bytes', 'recordedAvailability'].sort().join(','));
   }
   need(Object.keys(catalog).sort().join(',') === 'capturedAt,completeness,documents,version');
+}
+
+/** Positive integral JSON decimal, retaining its lexical token without rounding. */
+function positiveDecimal(token: string): boolean {
+  if (typeof token !== 'string' || token.length > 4096) return false;
+  const match = /^(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$/.exec(token);
+  if (!match) return false;
+  const digits = (match[1]! + (match[2] ?? '')).replace(/^0+/, '');
+  const exponent = Number(match[3] ?? '0');
+  if (!digits || !Number.isSafeInteger(exponent) || Math.abs(exponent) > 4096) return false;
+  const shift = exponent - (match[2]?.length ?? 0);
+  return shift >= 0 || -shift <= digits.length && digits.endsWith('0'.repeat(-shift));
+}
+export function electricalPinBytes(pin: OfflineElectricalPinV1): number { return Number(pin.byteSize); }
+export function validElectricalPin(pin: OfflineElectricalPinV1): boolean {
+  return !!pin && pin.source === 'electrical-evidence' && UUID.test(pin.buildingId) && UUID.test(pin.evidenceId)
+    && Number.isSafeInteger(pin.evidenceRevision) && pin.evidenceRevision > 0 && UUID.test(pin.assetId)
+    && positiveDecimal(pin.assetRevision) && positiveDecimal(pin.byteSize) && SHA.test(pin.sha256)
+    && Number.isSafeInteger(electricalPinBytes(pin)) && electricalPinBytes(pin) > 0 && electricalPinBytes(pin) <= LIVE_COPY_LIMITS.entryBytes
+    && pin.contentType === 'application/pdf' && Object.keys(pin).sort().join(',') ===
+      'assetId,assetRevision,buildingId,byteSize,contentType,evidenceId,evidenceRevision,sha256,source';
+}
+function sameElectricalPin(a: OfflineElectricalPinV1, b: OfflineElectricalPinV1): boolean {
+  return validElectricalPin(a) && validElectricalPin(b) && a.source === b.source && a.buildingId === b.buildingId
+    && a.evidenceId === b.evidenceId && a.evidenceRevision === b.evidenceRevision && a.assetId === b.assetId
+    && a.assetRevision === b.assetRevision && a.byteSize === b.byteSize && a.sha256 === b.sha256 && a.contentType === b.contentType;
+}
+function exactKeys(value: object, keys: string): boolean { return !!value && Object.keys(value).sort().join(',') === keys; }
+function validateElectricalCatalog(value: OfflineElectricalCatalogV1): void {
+  need(value?.version === 1 && Number.isFinite(Date.parse(value.capturedAt)) && Array.isArray(value.buildings)
+    && value.buildings.length <= 256 && exactKeys(value, 'buildings,capturedAt,version'));
+  const buildings = new Set<string>(); let count = 0;
+  for (const building of value.buildings) {
+    need(UUID.test(building.buildingId) && !buildings.has(building.buildingId) && Number.isFinite(Date.parse(building.capturedAt))
+      && Array.isArray(building.documents) && exactKeys(building, 'buildingId,capturedAt,documents,provenance'));
+    buildings.add(building.buildingId); const ids = new Set<string>();
+    if (building.provenance !== null) {
+      const p = building.provenance;
+      need(exactKeys(p, 'currentNativeRoomReview,fixtureLedgerSha256,historicalRoomMappingReceipt,supportOriginalSha256')
+        && SHA.test(p.fixtureLedgerSha256) && SHA.test(p.supportOriginalSha256));
+      for (const receipt of [p.historicalRoomMappingReceipt, p.currentNativeRoomReview])
+        need(exactKeys(receipt, 'id,sha256') && bounded(receipt.id, 4096) && receipt.id.length > 0 && SHA.test(receipt.sha256));
+    }
+    for (const document of building.documents) {
+      count++; need(count <= LIVE_COPY_LIMITS.documents && exactKeys(document, 'pages,pin') && validElectricalPin(document.pin)
+        && document.pin.buildingId === building.buildingId && !ids.has(document.pin.evidenceId)
+        && Array.isArray(document.pages) && document.pages.length > 0 && document.pages.length <= 2048);
+      ids.add(document.pin.evidenceId); const pages = new Set<string>();
+      for (const page of document.pages) {
+        need(exactKeys(page, 'correlationId,correlationSha256,originalPhotoSha256,pdfPage,renderedPhotoSha256,sheetId,sourceDate,title')
+          && bounded(page.sheetId, 4096) && page.sheetId.length > 0 && !pages.has(page.sheetId) && bounded(page.title, 4096)
+          && Number.isSafeInteger(page.pdfPage) && page.pdfPage > 0 && (page.sourceDate === null || bounded(page.sourceDate, 256))
+          && bounded(page.correlationId, 4096) && page.correlationId.length > 0 && SHA.test(page.correlationSha256)
+          && SHA.test(page.originalPhotoSha256) && SHA.test(page.renderedPhotoSha256));
+        pages.add(page.sheetId);
+      }
+    }
+  }
 }
