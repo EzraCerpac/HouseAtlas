@@ -8,7 +8,8 @@ export interface OfflineStorageControls {
   /** Present only under the actual authenticated live owner. */
   readonly fillLibrary?: (signal: AbortSignal) => Promise<string>;
 }
-export const storageSize = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
+export const storageSize = (bytes: number) => bytes < 1024 ? `${bytes} bytes`
+  : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KiB` : `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
 
 export function OfflineStorageSettings({ controls }: { controls: OfflineStorageControls }) {
   const enabled = useSyncExternalStore(subscribeKeepLibrary, keepLibrary, () => true);

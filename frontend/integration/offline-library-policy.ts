@@ -1,16 +1,25 @@
 import type { LiveCopyRetention } from './live-copy-retention';
 
 /** One bounded pass, with no retry of uncertain storage results or invented authority. */
-export async function fillOfflineLibrary(owner: LiveCopyRetention, signal: AbortSignal, enabled: () => boolean = () => true): Promise<string> {
+export async function fillOfflineLibrary(owner: LiveCopyRetention, signal: AbortSignal, enabled: () => boolean = () => true, onStop?: () => void): Promise<string> {
+  const stopped = (message: string) => { onStop?.(); return message; };
   const catalog = await owner.retainCatalog(signal);
-  if (catalog.status !== 'ok') return `The document list could not be read (${catalog.status}).`;
+  if (catalog.status !== 'ok') {
+    if (catalog.status === 'uncertain' || catalog.status === 'retired' || catalog.status === 'aborted') onStop?.();
+    return `The document list could not be read (${catalog.status}).`;
+  }
   const initial = await owner.read.readLast(signal);
   if (initial.status !== 'ok') return 'The held home is unavailable.';
   const revision = initial.value.snapshot.snapshotRevision;
   const rows = catalog.value.documents.filter(row => row.lifecycle === 'active');
   const status = await owner.storage.status(signal);
   if (status.status !== 'ok') return 'Device storage status is unavailable.';
-  const bytes = rows.reduce((sum, row) => sum + row.bytes, 0);
+  const electrical = await owner.read.readElectricalCatalog(initial.value.handle, signal);
+  if (electrical.status !== 'ok' && electrical.status !== 'missing') return 'Electrical PDF sizes could not be checked. Automatic downloads paused.';
+  // These lexical sizes were admitted as bounded exact integers by the storage owner.
+  const electricalBytes = electrical.status === 'ok' ? electrical.value.buildings.reduce((total, building) =>
+    total + building.documents.reduce((sum, document) => sum + Number(document.pin.byteSize), 0), 0) : 0;
+  const bytes = rows.reduce((sum, row) => sum + row.bytes, 0) + electricalBytes;
   // Leave room for metadata and other held information; avoid cycling an oversized library through LRU.
   if (bytes > status.value.budgetBytes * 0.8) return 'These documents exceed the automatic storage budget. Files opened online can still be kept.';
   let kept = 0, unavailable = 0;
@@ -24,7 +33,7 @@ export async function fillOfflineLibrary(owner: LiveCopyRetention, signal: Abort
     if (signal.aborted || !enabled()) return 'Library download stopped. Files already held remain on this device.';
     const result = await owner.retainDocument(row.documentId, row.documentRevision, signal);
     if (result.status === 'ok') kept++;
-    else if (result.status === 'retired' || result.status === 'aborted' || result.status === 'uncertain') return `Library download stopped (${result.status}). Check held files before trying again.`;
+    else if (result.status === 'retired' || result.status === 'aborted' || result.status === 'uncertain') return stopped(`Library download stopped (${result.status}). Check held files before trying again.`);
     else unavailable++;
   }
   return `${kept} ${kept === 1 ? 'file' : 'files'} on this device${unavailable ? `; ${unavailable} unavailable` : ''}.`;

@@ -14,7 +14,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -172,6 +172,14 @@ try {
     assert(!exceptionDetails, exceptionDetails?.exception?.description ?? exceptionDetails?.text);
     return result.value;
   };
+  const screenshot = async name => {
+    const directory = process.env.HOUSEATLAS_OFFLINE_SCREENSHOTS;
+    if (!directory) return;
+    await evaluate(`Promise.all(document.getAnimations().filter(animation => animation.effect?.getComputedTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => undefined)))`);
+    mkdirSync(directory, { recursive: true });
+    const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+    writeFileSync(join(directory, name + '.png'), Buffer.from(data, 'base64'));
+  };
   const poll = async (expression, ms, label) => {
     const until = Date.now() + ms;
     for (;;) {
@@ -293,6 +301,7 @@ try {
     assert.equal(await evaluate(`document.querySelector('main').textContent.includes('Operation history is not held')`), true);
     await tab('Library');
     await poll(`document.querySelector('main').textContent.includes('On this device')`, 5_000, 'PDF availability not shown');
+    await screenshot('phone-offline-library');
     await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Open Generated held PDF').click()`);
     await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Generated held PDF, PDF page 1"]');
       return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held PDF did not render offline');
@@ -303,6 +312,7 @@ try {
     await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Generated electrical sheet · Page 2').click()`);
     await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Electrical reference PDF, PDF page 2"]');
       return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held electrical PDF did not render its referenced page offline');
+    await screenshot('phone-offline-electrical-page');
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
     await evaluate(`document.querySelector('button[aria-label="Settings"]').click()`);
