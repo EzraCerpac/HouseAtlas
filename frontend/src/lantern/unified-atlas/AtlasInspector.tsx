@@ -21,14 +21,14 @@ export function listedLevels(model: AtlasModel, state: AtlasViewState): readonly
 
 /** Beside the stage when there is room; otherwise a sheet over the stage's
  * lower edge whose head (rooms or the selected room) stays in view. */
-export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, electricalGroup, onElectricalGroup, clearElectricalGroup }: {
+export function Inspector({ model, state, dispatch, context, openNetwork, openDocuments, renderFailure, runtime, runtimeReason, runtimeConfigured, open, setOpen, electricalGroup, canElectricalGroup, onElectricalGroup, clearElectricalGroup }: {
   readonly model: AtlasModel; readonly state: AtlasViewState; readonly dispatch: (action: AtlasAction) => void;
   readonly context: readonly string[]; readonly openNetwork: (() => void) | undefined;
   readonly renderFailure: string | null;
   readonly runtime: PropertyRecords | null; readonly runtimeReason: string; readonly runtimeConfigured: boolean;
   readonly openDocuments: (() => void) | undefined;
   readonly open: boolean; readonly setOpen: (open: boolean) => void;
-  readonly electricalGroup: ElectricalGroup | null; readonly onElectricalGroup: (key: string) => void; readonly clearElectricalGroup: () => void;
+  readonly electricalGroup: ElectricalGroup | null; readonly canElectricalGroup: (key: string) => boolean; readonly onElectricalGroup: (key: string) => void; readonly clearElectricalGroup: () => void;
 }) {
   const bodyId = useId();
   const occurrence = state.occurrenceId === null ? null : model.occurrencesById.get(state.occurrenceId)!;
@@ -147,7 +147,7 @@ export function Inspector({ model, state, dispatch, context, openNetwork, openDo
           {runtime[kind] === 'partial' && <p className="ua-records-state">{kind === 'electrical' ? 'Some electrical sources or buildings are unavailable.' : 'The network source is unavailable for some buildings.'}</p>}
           {!runtime.rooms.has(room.roomId) ? <p className="ua-records-state">Room source link unavailable.</p>
             : runtime[kind] === 'unavailable' ? <p className="ua-records-state">Source unavailable.</p>
-            : <DocumentaryRecords records={records!} openDocuments={openDocuments} onElectricalGroup={kind === 'electrical' ? onElectricalGroup : undefined} />}
+            : <DocumentaryRecords records={records!} openDocuments={openDocuments} onElectricalGroup={kind === 'electrical' ? onElectricalGroup : undefined} canElectricalGroup={canElectricalGroup} />}
         </section>;
       })}
 

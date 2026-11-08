@@ -18,7 +18,9 @@ export function electricalGroups(records: PropertyRecords | null): ElectricalGro
   for (const record of records.unplaced.electrical) if (!entries.has(record.key)) entries.set(record.key, { record, rooms: new Set() });
   const groups = new Map<string, { label: string; ids: string[]; members: Map<string, { record: DocumentaryRecord; rooms: Set<string> }> }>();
   for (const entry of entries.values()) {
-    if (entry.record.category !== 'Historical symbol') continue;
+    // Merged observations can carry different source or room joins for one ID.
+    // Withhold the ambiguous entity until each observation can be joined separately.
+    if (entry.record.category !== 'Historical symbol' || entry.record.observations?.length) continue;
     try {
       const identity = JSON.parse(entry.record.key);
       const group = JSON.parse(entry.record.sourceFacts.find(f => f.label === 'Drawing group membership')?.value ?? 'null');

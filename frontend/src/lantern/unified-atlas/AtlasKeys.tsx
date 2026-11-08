@@ -34,7 +34,7 @@ export function NetworkLensSection({ graphs, networkOn, published, availability,
   </section>;
 }
 
-export function DocumentaryRecords({ records, openDocuments, onElectricalGroup }: { readonly records: readonly DocumentaryRecord[]; readonly openDocuments: (() => void) | undefined; readonly onElectricalGroup?: ((recordKey: string) => void) | undefined }) {
+export function DocumentaryRecords({ records, openDocuments, onElectricalGroup, canElectricalGroup }: { readonly records: readonly DocumentaryRecord[]; readonly openDocuments: (() => void) | undefined; readonly onElectricalGroup?: ((recordKey: string) => void) | undefined; readonly canElectricalGroup?: ((recordKey: string) => boolean) | undefined }) {
   // Short type names and glyphs for the categories the source names; any other
   // category shows its original string. The full category stays in the details.
   const types: Readonly<Record<string, { readonly short: string; readonly icon: string }>> = {
@@ -66,7 +66,7 @@ export function DocumentaryRecords({ records, openDocuments, onElectricalGroup }
         <div><dt>Retrieved</dt><dd>{record.retrievedAt ?? 'unknown'}</dd></div>
         {record.connections.length > 0 && <div><dt>Connections</dt><dd><ul>{record.connections.map((connection, at) => <li key={at}>{connection}</li>)}</ul></dd></div>}
       </dl>
-      {onElectricalGroup && record.category === 'Historical symbol' && record.sourceFacts.some(fact => fact.label === 'Drawing group membership' && fact.value !== null) && <button type="button" className="text-btn" onClick={() => onElectricalGroup(record.key)}>Show drawing group</button>}
+      {onElectricalGroup && canElectricalGroup?.(record.key) && <button type="button" className="text-btn" onClick={() => onElectricalGroup(record.key)}>Show drawing group</button>}
       {openDocuments && (record.category === 'Electrical drawing' || record.category === 'Historical symbol') && <button type="button" className="text-btn" onClick={openDocuments}>Open Documents</button>}
       <details className="ua-source"><summary>Source</summary><dl><div><dt>Source record</dt><dd>{record.id}</dd></div>
         {record.sourceFacts.map(fact => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value ?? 'unknown'}</dd></div>)}

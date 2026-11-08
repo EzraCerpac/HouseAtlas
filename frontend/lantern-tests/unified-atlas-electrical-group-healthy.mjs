@@ -23,5 +23,6 @@ assert.deepEqual(group.members.map(row => row.rooms), [['room-1'], ['room-2'], [
 assert.equal(electricalGroups({ ...data, unplaced: { electrical: [], network: [] } })[0].missing, 1);
 assert.equal(electricalGroups({ ...data, rooms: new Map([['room-1', { electrical: [record('a', 'other')], network: [] }]]) }).length, 2);
 assert.equal(electricalGroups({ ...data, rooms: new Map([['room-1', { electrical: [record('a', 'generated-source', 'invalid')], network: [] }]]), unplaced: { electrical: [], network: [] } }).length, 0);
+assert.equal(electricalGroups({ ...data, rooms: new Map([['room-1', { electrical: [{ ...a, observations: [record('a', 'other')] }], network: [] }]]), unplaced: { electrical: [], network: [] } }).length, 0);
 assert.deepEqual(electricalGroups(null), []);
 console.log('Generated electrical drawing group projection passed');

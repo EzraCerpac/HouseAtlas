@@ -826,12 +826,17 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
   // The whole property's qualified room associations, independent of focus or
   // count-label collision suppression. These are logical summaries, not routes.
   // A device's route to the router, chosen in the network graph, also lights on the stage.
-  const [electricalGroupKey, setElectricalGroupKey] = useState<string | null>(null);
-  useEffect(() => { setElectricalGroupKey(null); }, [runtime.records, electricalOn]);
+  const [electricalGroupSelection, setElectricalGroupSelection] = useState<{ key: string; records: typeof runtime.records } | null>(null);
+  useEffect(() => { setElectricalGroupSelection(null); }, [runtime.records, electricalOn]);
+  useEffect(() => { if (state.occurrenceId === null) setElectricalGroupSelection(null); }, [state.occurrenceId]);
   const groups = useMemo(() => electricalGroups(electricalOn ? runtime.records : null), [electricalOn, runtime.records]);
-  const electricalGroup = groups.find(group => group.key === electricalGroupKey) ?? null;
+  const electricalGroup = state.occurrenceId === null || electricalGroupSelection?.records !== runtime.records ? null
+    : groups.find(group => group.key === electricalGroupSelection.key) ?? null;
   const groupRooms = new Set(electricalGroup?.members.flatMap(member => member.rooms) ?? []);
-  const onElectricalGroup = (key: string) => setElectricalGroupKey(groups.find(group => group.members.some(member => member.record.key === key))?.key ?? null);
+  const onElectricalGroup = (key: string) => {
+    const group = groups.find(row => row.members.some(member => member.record.key === key));
+    setElectricalGroupSelection(group ? { key: group.key, records: runtime.records } : null);
+  };
   const [networkTrace, setNetworkTrace] = useState<StageTrace | null>(null);
   const onNetworkTrace = useCallback((graphKey: string, trace: StageTrace | null) =>
     setNetworkTrace(current => trace ?? (current?.graphKey === graphKey ? null : current)), []);
@@ -1614,7 +1619,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
 
     <Inspector model={model} state={state} dispatch={dispatch} context={context} renderFailure={failure}
       runtime={runtime.records} runtimeReason={runtime.reason} runtimeConfigured={runtimeConfigured}
-      electricalGroup={electricalGroup} onElectricalGroup={onElectricalGroup} clearElectricalGroup={() => setElectricalGroupKey(null)}
+      electricalGroup={electricalGroup} canElectricalGroup={key => groups.some(group => group.members.some(member => member.record.key === key))} onElectricalGroup={onElectricalGroup} clearElectricalGroup={() => setElectricalGroupSelection(null)}
       open={sheetOpen} setOpen={setSheetOpen}
       openDocuments={environment.openDocuments}
       openNetwork={environment.openNetwork} />
