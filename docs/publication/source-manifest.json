@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 31423,
-      "sha256": "03d6c6a9053743c6b23de97e79afdf8164fc0ac88650fa9b7e1295e64d1778bf",
+      "bytes": 32180,
+      "sha256": "733425994ed841bbb2b7273b73c00124b199199de8290f04fbdbb7b7c07d8009",
       "owner": "core-integration"
     },
     {
@@ -6509,8 +6509,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 223030,
-      "sha256": "13e611ddf55e14dbd5e534675d86604d41f29c10b0de7604ade79234decc052c",
+      "bytes": 225396,
+      "sha256": "4950f5e5c010810b4226aee641281a7c3c027b0d800580790eacea2e1132fdfd",
       "owner": "core-integration"
     },
     {
@@ -7846,8 +7846,8 @@
     {
       "path": "frontend/lantern-tests/canonical-mesh-preparation.test.mjs",
       "mode": "100644",
-      "bytes": 7152,
-      "sha256": "7ea47e5b386117b5ce879761aa13c1352b480336677002cd395f6a1bdab39014",
+      "bytes": 20998,
+      "sha256": "25a2e9ca2baa6a5a67bbb798163cab742960b3a3a54303ce077726920a8185b0",
       "owner": "web"
     },
     {
@@ -7986,8 +7986,8 @@
     {
       "path": "frontend/lantern-tests/mesh-layer-browser.mjs",
       "mode": "100644",
-      "bytes": 28119,
-      "sha256": "5d8053b94da4e922f16d56434acd16fe9f4b517f88459d59c3f06ecc8cebc27c",
+      "bytes": 28512,
+      "sha256": "f866c725850edd1049d8903011ba7efadc1ec580cdbbfea614e4d6c490034455",
       "owner": "web"
     },
     {
@@ -8467,6 +8467,27 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/surroundings-review/README.md",
+      "mode": "100644",
+      "bytes": 821,
+      "sha256": "371fc24c789bf5a6274e3c03433de86b52988eed0098e46412fd43b3f9122205",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/surroundings-review/index.html",
+      "mode": "100644",
+      "bytes": 768,
+      "sha256": "2b6397ec559644c9681486c3a42bd8eabceb3ce342d7a7ea7c4d164134db5b13",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/surroundings-review/main.tsx",
+      "mode": "100644",
+      "bytes": 5137,
+      "sha256": "e2b33e007a84fcb68bfb853465272ab93bf35bc6b76ec3385cc885a5ef4273a6",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/synthetic-indexeddb.mjs",
       "mode": "100644",
       "bytes": 7296,
@@ -8532,8 +8553,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-daylight-healthy.mjs",
       "mode": "100644",
-      "bytes": 27488,
-      "sha256": "cbcccfac5ff6dc32055c84d0e82809d44f004e980003b8566b59ae215e3b6e5a",
+      "bytes": 29665,
+      "sha256": "ed3416eb728983afc9d24b07f83a1d3bc11f89e8477f8bb7957d228595691326",
       "owner": "web"
     },
     {
@@ -8546,8 +8567,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
-      "bytes": 141793,
-      "sha256": "852e96cf24faede6c957a94c2a067926d35cd67766b2756ed93edfa98aa8d749",
+      "bytes": 142232,
+      "sha256": "aa06c49b0717608b9fd75ad5810004b6d2b527bde504941e01553256a1002f4c",
       "owner": "web"
     },
     {
@@ -9372,15 +9393,22 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/MeshLayer.tsx",
       "mode": "100644",
-      "bytes": 11685,
-      "sha256": "10c5139dff96d916b13f762ff9276b7a0db6de641e1afb2abe867ed3cc57c68b",
+      "bytes": 17422,
+      "sha256": "1bff0a178768bfe58d0a2144ef9693aadd060ab6f9cd82495737f8ed0e150f6d",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/after-next-frame.ts",
+      "mode": "100644",
+      "bytes": 1376,
+      "sha256": "66f009b0f261235afd2ac6a85dd9db999ea42d7ac2816e8b82da108a9ea2cdbd",
       "owner": "web"
     },
     {
       "path": "frontend/src/lantern/canonical-ifc/canonical-ifc.css",
       "mode": "100644",
-      "bytes": 10977,
-      "sha256": "c87c5bff40c7e04314db420c7ecad97d865800630d9565921e94feba09259423",
+      "bytes": 11116,
+      "sha256": "8e7fc51b3cf7278d8d47d04bef38aa1967a49e15e7baa10f26979dd93fb31ca1",
       "owner": "web"
     },
     {
@@ -9393,8 +9421,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/geometry.ts",
       "mode": "100644",
-      "bytes": 24744,
-      "sha256": "436db645c2e040cf0d90b435bf9351b978e2d2e6c8e820a7cc60baf05b8f1ede",
+      "bytes": 26346,
+      "sha256": "b8e770be70d7ee6c30649250ebe4ff508700cfb10acae8a692fd8e0dbbec9f0c",
       "owner": "web"
     },
     {
@@ -9428,8 +9456,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-scene.ts",
       "mode": "100644",
-      "bytes": 57407,
-      "sha256": "2e2d792bc2659ce85deccca51dfde77d1788d3848e551415cd5480ed816ae086",
+      "bytes": 66062,
+      "sha256": "3670371882cb7db7699d0bbb87d03a7b492bc758032ca03f91cd512e5e3305af",
       "owner": "web"
     },
     {
@@ -9456,8 +9484,15 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/render-probe.ts",
       "mode": "100644",
-      "bytes": 5482,
-      "sha256": "91bbbc278bcd49debaadad9bf929ea8b61816bc83f5b482a3cf08d91ce1b9550",
+      "bytes": 7633,
+      "sha256": "fbdfe3a2a5184e855c724a7fccf479e21cf440e7ced70b1acc84542d3218f8b6",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/canonical-ifc/scene-build-observation.ts",
+      "mode": "100644",
+      "bytes": 8042,
+      "sha256": "16bc95edf5d98f7617adef7b4ed96db948d3761aedb01e3b4a89d9285959698c",
       "owner": "web"
     },
     {
@@ -9491,8 +9526,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/standard-glb.ts",
       "mode": "100644",
-      "bytes": 15122,
-      "sha256": "22b86ac7551527d878599b59948c5a3f9d5fb49892b09a025612f4f34367d137",
+      "bytes": 15329,
+      "sha256": "88b40d3932f70f94166dc2386a708d85b08a7c3c47cdcdff6e1ecf457d6b19f6",
       "owner": "web"
     },
     {
@@ -10324,8 +10359,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/scene.ts",
       "mode": "100644",
-      "bytes": 92832,
-      "sha256": "e7114cd364410f3e1a8aec57a987e57f697eb10f2dc40fe021b257483ac999aa",
+      "bytes": 92957,
+      "sha256": "0d036b7291afc032b2c9822fbb8b37eccdabfa228a2f8032f5c515640e2841b8",
       "owner": "web"
     },
     {

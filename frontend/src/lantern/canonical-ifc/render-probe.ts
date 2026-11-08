@@ -1,5 +1,6 @@
 import type { PreparedMesh, Projection } from './geometry';
-import type { MeshScene } from './mesh-scene';
+import type { MeshScene, StageTime } from './mesh-scene';
+import type { SceneBuildSnapshot } from './scene-build-observation';
 
 /** On-device speed check for the 3D view, opened by adding ?render-probe to the
  * address (Safari on a phone can, where the installed app cannot). Once the model
@@ -30,9 +31,13 @@ export interface ProbeSetup {
   readonly projection: Projection;
   readonly width: number;
   readonly height: number;
-  /** Milliseconds from opening the page to the model's first frame, and building its GPU scene. */
+  /** Existing timer-derived readiness timestamp; may include hidden readiness. Not paint. */
   readonly shownAt: number;
+  /** Wall interval from before dynamic scene import through eager constructor completion. */
   readonly buildMs: number;
+  readonly observation?: SceneBuildSnapshot | undefined;
+  /** When each stage of the scene was ready to draw, and how long it took to prepare. */
+  readonly stages: readonly StageTime[];
   /** Aborted when the canvas is released: the check stops and reports nothing. */
   readonly signal: AbortSignal;
 }
@@ -45,9 +50,10 @@ function turned(q: Projection, angle: number): Projection {
 
 const percentile = (sorted: readonly number[], p: number) => sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))]!;
 const ms = (value: number) => `${value.toFixed(1)} ms`;
+const s = (value: number) => `${(value / 1000).toFixed(1)} s`;
 
 /** Runs every case and returns the report as plain text. The caller redraws the view afterwards. */
-export async function runRenderProbe({ scene, meshes, projection, width, height, shownAt, buildMs, signal }: ProbeSetup): Promise<string> {
+export async function runRenderProbe({ scene, meshes, projection, width, height, shownAt, buildMs, observation, stages, signal }: ProbeSetup): Promise<string> {
   const rows: string[] = [];
   let drawnVertices = 0;
   try {
@@ -72,7 +78,20 @@ export async function runRenderProbe({ scene, meshes, projection, width, height,
   return [
     '3D speed check',
     `${scene.backend} · ${width} × ${height} px (device pixel ratio ${window.devicePixelRatio || 1}) · ${triangles.toLocaleString('en')} triangles · ${(drawnVertices / 1e6).toFixed(2)}M vertices a frame`,
-    `Model on screen ${(shownAt / 1000).toFixed(1)} s after opening; GPU scene built in ${(buildMs / 1000).toFixed(1)} s`,
+    `Approximate render-call readiness ${(shownAt / 1000).toFixed(1)} s from the performance time origin; scene-import/build wall time ${(buildMs / 1000).toFixed(1)} s`,
+    'Readiness uses a delayed timer (or hidden readiness), not GPU completion or witnessed paint.',
+    ...(observation ? [
+      'Build phases: wall includes waits; explicit slice waits are subsets. Compile-call wall sums may overlap; none are additive GPU costs.',
+      ...observation.phases.map(phase => `${phase.name}: ${ms(phase.wallMs)} wall; ${ms(phase.waitMs)} explicit slice wait; `
+        + `${phase.compileCalls ?? 'unavailable'} compile calls / ${phase.compileWallMs === null ? 'unavailable' : ms(phase.compileWallMs)} compile wall; `
+        + `${phase.creationRequests ?? 'unavailable'} backend creation requests`),
+      `Hooks: compile ${observation.compileCounter}; backend creation ${observation.creationCounter}. Per-phase unavailable means no complete hook coverage; requests are not completed GPU pipelines or proven cache hits.`,
+      `First successful render call: ${observation.firstDrawCpuMs === null ? 'unavailable' : ms(observation.firstDrawCpuMs)} CPU wall; `
+        + `${observation.firstDrawCreationRequests ?? 'unavailable'} backend creation requests. No GPU/paint synchronization added.`,
+    ] : []),
+    '',
+    `${'Stage'.padEnd(20)}${'ready at'.padStart(9)}${'prepared in'.padStart(13)}`,
+    ...stages.map(({ stage, at, ms }) => `${stage.padEnd(20)}${s(at).padStart(9)}${s(ms).padStart(13)}`),
     '',
     `${''.padEnd(20)}${'median'.padStart(9)}${'slow 10%'.padStart(10)}`,
     ...rows,
@@ -84,15 +103,18 @@ export function showProbeReport(text: string): void {
   const panel = document.createElement('div');
   panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', '3D speed check');
   panel.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:9999;max-width:560px;margin:0 auto;padding:12px;'
+    + 'box-sizing:border-box;max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px);display:flex;flex-direction:column;overflow:hidden;'
     + 'border-radius:12px;background:Canvas;color:CanvasText;box-shadow:0 4px 24px rgb(0 0 0 / .3);font:12px/1.45 ui-monospace,monospace';
   const body = document.createElement('pre');
-  body.style.cssText = 'margin:0 0 8px;white-space:pre-wrap'; body.textContent = text;
+  body.style.cssText = 'margin:0 0 8px;white-space:pre-wrap;min-height:0;flex:1 1 auto;overflow:auto;overscroll-behavior:contain'; body.textContent = text;
   const button = (label: string, act: () => void) => {
     const element = document.createElement('button'); element.type = 'button'; element.className = 'btn'; element.textContent = label;
     element.style.marginRight = '8px'; element.addEventListener('click', act); return element;
   };
   const copy = button('Copy', () => { void navigator.clipboard?.writeText(text).then(() => { copy.textContent = 'Copied'; }, () => undefined); });
-  panel.append(body, copy, button('Close', () => panel.remove()));
+  const actions = document.createElement('div'); actions.style.cssText = 'flex:0 0 auto';
+  actions.append(copy, button('Close', () => panel.remove()));
+  panel.append(body, actions);
   panel.dataset.shownAt = String(performance.now());
   document.body.append(panel);
 }
