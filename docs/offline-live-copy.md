@@ -1,7 +1,9 @@
 # Read-only live-copy data contract v1
 
-This is the data half of #372/#560. It does not boot the live shell offline,
-supply UI, issue authority or establish device/storage acceptance.
+This implements retained app reading for #372/#560 through the verified public
+bootstrap. It mounts the shared section navigation with Atlas, Upkeep, Library
+and Changes, without SessionApp or reconstructed live authority. Device/storage
+acceptance remains separate.
 
 ## Consumer surface
 
@@ -89,17 +91,57 @@ promise deletion/durability when it fails or the browser independently evicts da
 No snapshot or local actor witness authenticates a live operation. Existing
 outbox authentication, drafts, reconnect and explicit Saved packs are unchanged.
 
-## Root-worker/Host dependency
+## Electrical originals and policy
 
-Root navigation deliberately still falls back to the existing Saved entry.
-No worker or build closure changes in this increment. Before a switch, Claude's
-read-only Host must consume these ports without SessionApp's authenticated branch.
-Then the root worker needs a separately sealed public offline bootstrap for the
-live bundle and exact root-scope asset allowlisting. The current plugin retains
-/assets and Saved HTML, not live index HTML; the imported root worker does not
-serve those assets. Never cache authenticated root/API/auth/media responses,
-convert returned authentication failures to offline success, or alter exact
-build verification/pruning merely to make a missing consumer appear available.
+Electrical evidence is a separate source namespace, never a Document v2 ID.
+Its independently captured building lists retain evidence/asset identities,
+lexical asset revision and byte-size tokens, PDF page correlations, source dates
+and allowlisted provenance. The existing electrical reader owns every current
+association and evidence-original join. Retention checks its frame, exact original
+pins, measured PDF type, purpose, bytes and digest before completion. Reader and
+original leases are released; no native link, authority or lease is persisted.
+Read handles use the same account/home/epoch fence, tombstone and aggregate LRU
+budget as native Documents. Catalog replacement removes open eligibility for
+withdrawn correlations even when older bytes remain within the LRU budget.
+
+The live host enumerates reviewed buildings through the existing bounded topology
+reader/projection, with an additional 128-building scheduling cap, then uses one
+owned electrical reader per building. Whole-library filling defaults on for
+native Documents and electrical PDFs while their measured catalogs fit below
+80% of the configured 250 MiB soft budget. This leaves room for metadata and
+avoids cycling an oversized set through LRU. Unavailable files remain marked;
+uncertain writes stop that pass without automatic retry. Switching off automatic
+keeping stops additional original downloads. Explicitly opened files can still
+be retained within the hard budget. Settings reports measured source sizes and
+held storage separately; browser persistence is an explicit button action.
+
+HomeBox attachments remain a separate source. Their one-use capture/offer client
+is not a reusable byte-read port and its 10 MiB capture cap does not cover arbitrary
+Library PDFs. They remain listed as needing a connection. No claim of every
+possible Library source being retained follows from this increment.
+
+## Public bootstrap and presentation
+
+Root navigation retains the established network-first handoff to the sealed
+public `/saved/index.html` bootstrap on network rejection or timeout only.
+HTTP authentication/error responses still pass through. This bootstrap now opens
+the retained app shell when a display snapshot exists; explicit Saved entry keeps
+its existing full viewer. No authenticated root HTML or API response is cached,
+and no root-scope fixed-name asset interception is introduced. The public build
+closure includes every lazy section/PDF asset as before.
+
+The shared navigation remains available across retained sections. Atlas uses its
+independently verified reference; Upkeep preserves source dates; Changes reports
+the existing waiting count without configuring outbox authority; uncaptured
+operation history is stated in place. Library distinguishes held, missing and
+failed-integrity files and draws held native and electrical PDFs through the
+existing sandboxed canvas viewer. Owned signals withdraw rendered bytes on copy
+invalidation. Native and electrical lists have independent capture times.
+
+Only pristine missing copy storage permits the legacy last-Atlas fallback. A
+known tombstone, malformed witness, missing view under an existing witness or
+retirement does not reopen the legacy Atlas. An already displayed app selection
+also cannot fall back after it is withdrawn.
 
 ## Qualification
 
@@ -114,5 +156,12 @@ transaction, IDB-interface and native-reader ports. No validation implementation
 is copied, no new selection/workflow is added, and Node stripping is not semantic
 TypeScript checking. This does not exercise real IndexedDB flush, storage pressure,
 native documents, PDF rendering, root live-shell boot, mounted navigation or devices.
-Source preparation ran none of these cases locally. Hosted execution, independent
-review, merge, installation and owner/device acceptance remain separate.
+The sprint ran the generated root/data/policy contracts, the eight electrical
+owner/adapter contracts and semantic TypeScript checking locally with pinned Node
+26.10.0. The browser live-launch case seeds generated snapshot/catalog/originals
+through production storage and checks all four phone-width tabs, native PDF and
+referenced electrical PDF page rendering, storage Settings, queue preservation
+and peer tombstone withdrawal. These checks use a disposable Chrome profile and
+loopback static build only, with no backend/provider/account/credential access.
+Hosted execution, exact integration review, installation and owner/device
+acceptance remain separate.

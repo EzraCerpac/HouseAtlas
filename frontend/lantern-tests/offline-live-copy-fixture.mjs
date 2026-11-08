@@ -102,7 +102,7 @@ export async function checkLiveCopyContracts() {
   assert.equal((await owner.keepView(home.value, view, signal())).status, 'retired');
   assert.equal((await owner.readDocument(read.value.handle, pin, signal())).status, 'retired');
   const returned = await owner.observeActor('generated-actor-a', () => true); assert.equal(returned.status, 'ok');
-  assert.equal((await owner.readLast(signal())).status, 'missing', 'A-B-A does not restore old history');
+  assert.equal((await owner.readLast(signal())).status, 'retired', 'A-B-A does not restore old history');
   cases.push('live-copy-home-and-account-revision-fences');
 
   const returnedHome = owner.bindHome(returned.value, scope, () => true);
@@ -127,7 +127,7 @@ export async function checkLiveCopyContracts() {
   assert.equal((await peer.readCatalog(peerRead.value.handle, signal())).status, 'retired');
   cases.push('live-copy-cross-tab-tombstone-notice-before-cleanup-failure');
   const reopened = createLiveCopyOwner(backend);
-  assert.equal((await reopened.readLast(signal())).status, 'missing', 'committed tombstone prevents reload exposure');
+  assert.equal((await reopened.readLast(signal())).status, 'retired', 'committed tombstone prevents reload exposure');
   assert.equal((await owner.keepView(returnedHome.value, view, signal())).status, 'retired');
   assert.equal((await reopened.clear()).status, 'ok');
   assert.equal(backend.data().get('metadata').size, 0);
@@ -139,7 +139,7 @@ export async function checkLiveCopyContracts() {
   const quotaError = new Error('generated quota'); quotaError.name = 'QuotaExceededError';
   quotaStore.fail(quotaError);
   assert.equal((await quotaOwner.keepView(qh.value, view, signal())).status, 'quota');
-  assert.equal((await quotaOwner.readLast(signal())).status, 'missing', 'failed transaction publishes no pointer');
+  assert.equal((await quotaOwner.readLast(signal())).status, 'retired', 'failed transaction publishes no pointer');
   cases.push('live-copy-acknowledged-quota-and-atomic-failure');
 
   let persistenceCalls = 0;

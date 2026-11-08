@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useSourcePorts } from '../source-ports';
 import { Empty } from '../components/ui';
 import { useTopology } from '../topology/TopologyProvider';
 import type { NativeEvidenceDocumentClient } from '../scans/native-evidence-document-types';
-import type { ElectricalLibraryFrame, ElectricalLibraryPage, ElectricalLibraryPort, ElectricalLibraryReader, ElectricalLibrarySheet } from './types';
+import type { ElectricalLibraryDocument, ElectricalLibraryFrame, ElectricalLibraryPage, ElectricalLibraryPort, ElectricalLibraryReader, ElectricalLibrarySheet } from './types';
 import { filterElectricalLibrary } from './project';
 import './electrical-library.css';
 import '../scans/native-ui/native-scene.css';
@@ -122,6 +123,7 @@ function BuildingDrawings({ reader, buildingId, query }: { readonly reader: Elec
         {visible.matchedSheets === 0 && visible.totalSheets > 0 && <Empty>No drawing references match this search.</Empty>}
         <ul className="electrical-library-documents">{visible.documents.map(({ document, pages }) => <li key={document.key}>
           <h3>Electrical reference PDF</h3>
+          <ElectricalHeldStatus frame={current} document={document} />
           <p>{query.trim() !== '' ? `${pages.length} of ${document.pages.length} referenced sheets match` : `${document.pages.length} referenced ${document.pages.length === 1 ? 'sheet' : 'sheets'}`} · {document.byteSize.token} bytes</p>
           <details><summary>Document identity</summary><dl>
             <dt>Evidence</dt><dd>{document.evidenceId} · revision {document.evidenceRevision}</dd>
@@ -149,7 +151,13 @@ function BuildingDrawings({ reader, buildingId, query }: { readonly reader: Elec
 
 function DrawingDialog({ reader, frame, page, opener, onClose }: { readonly reader: ElectricalLibraryReader; readonly frame: ElectricalLibraryFrame;
   readonly page: ElectricalLibraryPage; readonly opener: HTMLElement; readonly onClose: () => void }) {
+  const { electricalLibrary } = useSourcePorts();
   const [client, setClient] = useState<NativeEvidenceDocumentClient | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    void electricalLibrary?.retainOpened?.(reader, frame, page.reference.evidenceId, controller.signal).catch(() => undefined);
+    return () => controller.abort();
+  }, [electricalLibrary, reader, frame, page]);
   const [failed, setFailed] = useState(false);
   const close = () => {
     const activeAtClose = document.activeElement;
@@ -172,4 +180,23 @@ function DrawingDialog({ reader, frame, page, opener, onClose }: { readonly read
         current={() => reader.isCurrent(frame)} onClose={close} />}
     </Suspense>
   </div>;
+}
+
+function ElectricalHeldStatus({ frame, document }: { frame: ElectricalLibraryFrame; document: ElectricalLibraryDocument }) {
+  const { electricalLibrary } = useSourcePorts();
+  const [status, setStatus] = useState<'held' | 'not-held' | 'failed-integrity' | 'unavailable' | null>(null);
+  useEffect(() => {
+    if (!electricalLibrary?.heldStatus) return;
+    let controller: AbortController | null = null;
+    const refresh = () => {
+      controller?.abort(); controller = new AbortController(); const signal = controller.signal;
+      void electricalLibrary.heldStatus!(frame, document, signal).then(value => { if (!signal.aborted) setStatus(value); }, () => {
+        if (!signal.aborted) setStatus('unavailable');
+      });
+    };
+    const stop = electricalLibrary.subscribeHeld?.(refresh); refresh();
+    return () => { stop?.(); controller?.abort(); };
+  }, [electricalLibrary, frame, document]);
+  return electricalLibrary?.heldStatus ? <p>{status === 'held' ? 'On this device' : status === 'failed-integrity'
+    ? 'Held file failed verification' : status === 'not-held' ? 'Not held on this device' : 'Device copy not verified'}</p> : null;
 }

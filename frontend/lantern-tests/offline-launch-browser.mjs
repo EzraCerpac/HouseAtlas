@@ -97,6 +97,15 @@ async function liveLaunchSeed() {
   const catalog = { version: 1, capturedAt: '2026-01-03T10:05:00Z', completeness: 'captured-complete', documents: [{
     ...pin, contentType: undefined, title: 'Generated held PDF', lifecycle: 'active', recordedAvailability: 'available',
   }] };
+  // Same UUID-shaped evidence/asset values remain a different source identity.
+  const electricalPin = { source: 'electrical-evidence', buildingId: '00000000-0000-4000-8000-000000000852',
+    evidenceId: pin.documentId, evidenceRevision: 1, assetId: pin.assetId, assetRevision: '1.0', byteSize: String(pdf.length),
+    sha256: pin.sha256, contentType: 'application/pdf' };
+  const electricalBuilding = { buildingId: electricalPin.buildingId, capturedAt: '2026-01-03T10:10:00Z', provenance: null,
+    documents: [{ pin: electricalPin, pages: [{ sheetId: 'generated-electrical-sheet', title: 'Generated electrical sheet', pdfPage: 2,
+      sourceDate: '2020', correlationId: 'generated-correlation', correlationSha256: 'a'.repeat(64),
+      originalPhotoSha256: 'b'.repeat(64), renderedPhotoSha256: 'c'.repeat(64) }] }] };
+
   const owner = { actorId: 'synthetic-offline-launch-actor', ...scope };
   const requestId = 'synthetic-offline-launch-request';
   // Same persisted entry shape as the existing generated outbox examples. It
@@ -109,7 +118,7 @@ async function liveLaunchSeed() {
     body: JSON.stringify({ commandId: 'atlas.batch.execute', requestId,
       idempotencyKey: 'synthetic-offline-launch-key', target: 'synthetic-room', base: 1 }),
     createdAt: '2026-01-03T10:15:00.000Z', state: 'waiting', sent: false, problem: null, settledAt: null };
-  return { cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, catalog, pin, pdf: [...pdf], owner, entry, publicationId: SYNTHETIC_ATLAS.publicationId,
+  return { cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, catalog, pin, electricalPin, electricalBuilding, pdf: [...pdf], owner, entry, publicationId: SYNTHETIC_ATLAS.publicationId,
     manifestSha256: composed.manifestSha256, modelSha256: composed.sha256,
     envelopeSha256: await sha256Hex(composed.envelopeBytes), envelope: [...composed.envelopeBytes], model: [...glb] };
 }
@@ -192,7 +201,7 @@ try {
   const reopenWrites = [];
   if (selected === 'live-launch') {
     seeded = await liveLaunchSeed();
-    const { cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, catalog, pin, pdf, owner, entry, publicationId, manifestSha256, modelSha256,
+    const { cacheURL, outboxURL, copyOwnerURL, copyBackendURL, view, catalog, pin, electricalPin, electricalBuilding, pdf, owner, entry, publicationId, manifestSha256, modelSha256,
       envelopeSha256, envelope, model } = seeded;
     assert.deepEqual(await evaluate(`(async () => {
       const { openUnifiedAtlasStore, observeUnifiedAtlasActor, createUnifiedAtlasCache } = await import(${JSON.stringify(cacheURL)});
@@ -220,6 +229,8 @@ try {
         check(await copies.keepView(home, ${JSON.stringify(view)}, signal));
         check(await copies.keepCatalog(home, ${JSON.stringify(catalog)}, signal));
         check(await copies.keepDocument(home, ${JSON.stringify(pin)}, new Uint8Array(${JSON.stringify(pdf)}).buffer, signal));
+        check(await copies.keepElectricalCatalog(home, ${JSON.stringify(electricalBuilding)}, signal));
+        check(await copies.keepElectricalDocument(home, ${JSON.stringify(electricalPin)}, new Uint8Array(${JSON.stringify(pdf)}).buffer, signal));
       } finally { copies.close(); }
       const outbox = openOutboxStore(indexedDB);
       try { await outbox.put(${JSON.stringify(entry)}); return await outbox.list(); }
@@ -288,8 +299,14 @@ try {
     assert.deepEqual(servedPaths.filter(path => !updateChecks.has(path)), [], 'Tabs and held PDF must not fetch public bytes or data from network');
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
+    await poll(`[...document.querySelectorAll('main button')].some(button => button.textContent === 'Generated electrical sheet · Page 2' && !button.disabled)`, 5_000, 'Electrical file availability not shown');
+    await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Generated electrical sheet · Page 2').click()`);
+    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Electrical reference PDF, PDF page 2"]');
+      return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Held electrical PDF did not render its referenced page offline');
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
     await evaluate(`document.querySelector('button[aria-label="Settings"]').click()`);
-    await poll(`document.body.textContent.includes('Native library:')`, 5_000, 'Offline storage settings did not read size');
+    await poll(`document.body.textContent.includes('Documents:')`, 5_000, 'Offline storage settings did not read size');
     // Opened on purpose from the live app (its link marks the tab session), the
     // same page keeps the full Saved view with Saved scope and shell removal.
     await evaluate(`sessionStorage.setItem('houseatlas.saved-entry.v1', '1')`);
@@ -305,7 +322,35 @@ try {
       try { return await store.list(); } finally { store.close(); }
     })()`), [seeded.entry], 'closing and reopening offline retains the exact owner, intent, command bytes and waiting state');
     assert.deepEqual(reopenWrites, [], 'the read-only offline reopen does not dispatch the queued edit or another write');
-    console.log('PASS live-launch: cached Atlas, all four phone-width tabs, held PDF canvas and storage settings after tab close/reopen; exact queue retained and zero writes; no reconnect/device qualification');
+    // Retiring only the app copy must not expose its still-held legacy Atlas.
+    await evaluate(`sessionStorage.removeItem('houseatlas.saved-entry.v1')`);
+    await send('Page.reload', {});
+    await poll(`document.querySelector('.navrail') !== null`, 10_000, 'App shell did not reopen for withdrawal');
+    await tab('Library');
+    await poll(`[...document.querySelectorAll('main button')].some(button => button.textContent === 'Generated electrical sheet · Page 2' && !button.disabled)`, 5_000, 'Electrical original unavailable before withdrawal');
+    await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Generated electrical sheet · Page 2').click()`);
+    await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Electrical reference PDF, PDF page 2"]');
+      return canvas && canvas.width > 0 && getComputedStyle(canvas).visibility !== 'hidden'; })()`, 15_000, 'Electrical PDF unavailable before withdrawal');
+    const second = await cdp.send('Target.createTarget', { url: origin + '/saved/index.html' });
+    const attached = await cdp.send('Target.attachToTarget', { targetId: second.targetId, flatten: true });
+    await cdp.send('Runtime.enable', {}, attached.sessionId);
+    const cleared = await cdp.send('Runtime.evaluate', { expression: `(async () => {
+      const { createLiveCopyOwner } = await import(${JSON.stringify(seeded.copyOwnerURL)});
+      const { openLiveCopyBackend } = await import(${JSON.stringify(seeded.copyBackendURL)});
+      const channel = new BroadcastChannel('houseatlas-live-readonly-copy-v1');
+      const owner = createLiveCopyOwner(openLiveCopyBackend(indexedDB), { changed: () => channel.postMessage('changed') });
+      try { return await owner.clear(); } finally { owner.close(); channel.close(); }
+    })()`, awaitPromise: true, returnByValue: true }, attached.sessionId);
+    assert.equal(cleared.exceptionDetails, undefined);
+    assert.equal(cleared.result.value.status, 'ok');
+    await poll(`document.body.textContent.includes('Held app information is unavailable or was removed.')
+      && document.querySelector('.source-pdf-page canvas, .offline-atlas, .saved-stage') === null`, 10_000, 'Peer tombstone did not withdraw held drawing and Atlas');
+    assert.equal((await cdp.send('Target.closeTarget', { targetId: second.targetId })).success, true);
+    await send('Page.reload', {});
+    await poll(`document.body.textContent.includes('Held app information is unavailable or was removed.')
+      && document.querySelector('.saved-stage, .offline-atlas') === null`, 10_000, 'Cold tombstone reopened a legacy Atlas');
+
+    console.log('PASS live-launch: cached Atlas, all four phone-width tabs, native and electrical PDF canvases and storage settings after tab close/reopen; exact queue retained and zero writes; no reconnect/device qualification');
   }
   console.log(`PASS ${selected}: Saved shell shown ${launchMs} ms after reopening /; generated build only, not iOS or installed-PWA proof`);
 } catch (error) {

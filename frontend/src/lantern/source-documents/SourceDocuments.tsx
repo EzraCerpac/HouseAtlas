@@ -106,6 +106,7 @@ function SourceDocumentList({ reader }: { readonly reader: SourceDocumentReader 
               <span>{LICENCE[document.provenance.license.status]}</span>
               {document.availability.original !== 'available' && <span>Original: {AVAILABILITY[document.availability.original]}</span>}
               <span>Preview: {AVAILABILITY[document.availability.preview]}</span>
+              <HeldSourceStatus document={document} />
               {document.lifecycle === 'tombstoned' && <span>Withdrawn</span>}
             </span>
           </div>
@@ -225,4 +226,23 @@ function Provenance({ document }: { readonly document: SourceDocument }) {
       : 'No qualified preview'}</dd></div>
     <div><dt>Record</dt><dd>Revision {document.revision}, {document.lifecycle === 'active' ? 'active' : 'withdrawn'}, updated {fmtDateTime(document.updatedAt)}</dd></div>
   </dl>;
+}
+
+function HeldSourceStatus({ document }: { document: SourceDocument }) {
+  const { documents } = useSourcePorts();
+  const [status, setStatus] = useState<'held' | 'not-held' | 'failed-integrity' | 'unavailable' | null>(null);
+  useEffect(() => {
+    if (!documents?.heldStatus) return;
+    let controller: AbortController | null = null;
+    const refresh = () => {
+      controller?.abort(); controller = new AbortController(); const signal = controller.signal;
+      void documents.heldStatus!(document, signal).then(value => { if (!signal.aborted) setStatus(value); }, () => {
+        if (!signal.aborted) setStatus('unavailable');
+      });
+    };
+    const stop = documents.subscribeHeld?.(refresh); refresh();
+    return () => { stop?.(); controller?.abort(); };
+  }, [documents, document]);
+  return documents?.heldStatus ? <span>{status === 'held' ? 'On this device' : status === 'failed-integrity'
+    ? 'Held file failed verification' : status === 'not-held' ? 'Not held on this device' : 'Device copy not verified'}</span> : null;
 }

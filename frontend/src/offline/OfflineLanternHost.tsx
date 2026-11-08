@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { LiveCopyRetention } from '../../integration/live-copy-retention';
-import type { OfflineCatalogItemV1, OfflineCatalogV1, OfflineCopyHandle, OfflineDocumentAvailability, OfflineViewSnapshotV1 } from './live-copy-types';
+import type { OfflineCatalogItemV1, OfflineCatalogV1, OfflineCopyHandle, OfflineDocumentAvailability, OfflineElectricalCatalogV1, OfflineElectricalBuildingV1, OfflineElectricalPinV1, OfflineElectricalAvailability, OfflineViewSnapshotV1 } from './live-copy-types';
 import { SectionNavigation } from '../lantern/components/SectionNavigation';
 import type { ViewId } from '../lantern/state/store';
 import { Icon } from '../lantern/components/Icon';
@@ -26,17 +26,19 @@ export function OfflineLanternHost({ owner, openAtlas, openLegacyAtlas }: {
   owner: LiveCopyRetention; openAtlas: OpenAtlas; openLegacyAtlas(signal: AbortSignal): Promise<LastAtlasCopy | null>;
 }) {
   const [selection, setSelection] = useState<Selection | null>(null), [missing, setMissing] = useState(false);
+  const [unavailable, setUnavailable] = useState(false), acquired = useRef(false);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let controller: AbortController | null = null;
     const refresh = () => {
       box.current?.setAttribute('hidden', ''); controller?.abort();
       controller = new AbortController(); const signal = controller.signal;
-      setSelection(null); setMissing(false);
+      setSelection(null); setMissing(false); setUnavailable(false);
       void owner.read.readLast(signal).then(result => {
         if (signal.aborted) return;
-        if (result.status === 'ok') setSelection({ ...result.value, signal });
-        else setMissing(true);
+        if (result.status === 'ok') { acquired.current = true; setSelection({ ...result.value, signal }); }
+        else if (result.status === 'missing' && !acquired.current) setMissing(true);
+        else setUnavailable(true);
         box.current?.removeAttribute('hidden');
       });
     };
@@ -45,7 +47,9 @@ export function OfflineLanternHost({ owner, openAtlas, openLegacyAtlas }: {
   }, [owner]);
   return <div ref={box} className="offline-app-root">
     {selection ? <RetainedApp key={selection.snapshot.snapshotRevision} owner={owner} selection={selection} openAtlas={openAtlas} />
-      : missing ? <SavedAtlasHost openLastCopy={openLegacyAtlas} /> : <p role="status">Opening held information…</p>}
+      : missing ? <SavedAtlasHost openLastCopy={openLegacyAtlas} /> : unavailable
+        ? <main className="lantern-host saved-atlas-app"><p role="status">Held app information is unavailable or was removed.</p><a href="/?live">Open live</a></main>
+        : <p role="status">Opening held information…</p>}
   </div>;
 }
 
@@ -115,15 +119,15 @@ function OfflineLibrary({ owner, selection }: { owner: LiveCopyRetention; select
     return () => { active = false; };
   }, [owner, selection]);
   const attachments = selection.snapshot.data.entries.flatMap(entry => entry.attachments.map(attachment => ({ entry, attachment })));
-  return <><h2>Native documents</h2>{catalog ? <>
-      <p>{catalog.completeness === 'captured-complete' ? 'Native catalog captured' : 'Partial native catalog'}: <time dateTime={catalog.capturedAt}>{catalog.capturedAt}</time>.</p>
-      {!catalog.documents.length && <p>No native documents in this captured catalog.</p>}
+  return <><h2>Documents</h2>{catalog ? <>
+      <p>{catalog.completeness === 'captured-complete' ? 'Document list captured' : 'Some documents captured'}: <time dateTime={catalog.capturedAt}>{catalog.capturedAt}</time>.</p>
+      {!catalog.documents.length && <p>No documents in this captured list.</p>}
       <ul className="offline-documents">{catalog.documents.map(row => <DocumentRow key={row.documentId} row={row} owner={owner} selection={selection} />)}</ul>
-    </> : <p role="status">{loading ? 'Reading held catalog…' : 'The native document catalog is not held on this device.'}</p>}
+    </> : <p role="status">{loading ? 'Reading held documents…' : 'The document list is not held on this device.'}</p>}
     <h2>HomeBox attachments</h2>{attachments.length ? <ul>{attachments.map(({ entry, attachment }) => <li key={`${entry.key}:${attachment.attachmentId}`}>
       <strong>{attachment.title ?? 'Untitled attachment'}</strong> · {entry.entity.name}<p>Not held on this device · Open live{attachment.kind === 'external-link' ? ' for the external link' : ' to read this file'}.</p>
     </li>)}</ul> : <p>No HomeBox attachments were captured.</p>}
-    <p>Electrical discovery needs a current live read.</p>
+    <OfflineElectricalLibrary owner={owner} selection={selection} />
   </>;
 }
 
@@ -155,7 +159,7 @@ function HeldDocument({ owner, selection, pin, title }: { owner: LiveCopyRetenti
     });
     return () => { selection.signal.removeEventListener('abort', abort); controller.abort(); };
   }, [owner, selection, pin, controller]);
-  return blob ? pin.contentType === 'application/pdf' ? <SourcePdf blob={blob} title={title} signal={controller.signal} />
+  return blob ? pin.contentType === 'application/pdf' ? <><SourcePdf blob={blob} title={title} signal={controller.signal} /><HeldDownload blob={blob} title={title} signal={controller.signal} /></>
     : <HeldDownload blob={blob} title={title} signal={controller.signal} />
     : <p role="status">{failed ? 'The held file is unavailable or changed.' : 'Verifying held file…'}</p>;
 }
@@ -168,4 +172,74 @@ function HeldDownload({ blob, title, signal }: { blob: Blob; title: string; sign
     return () => { signal.removeEventListener('abort', revoke); URL.revokeObjectURL(held); };
   }, [blob, signal]);
   return url ? <a className="btn" href={url} download={title} onClick={event => { if (signal.aborted) event.preventDefault(); }}>Save held original</a> : null;
+}
+
+
+function OfflineElectricalLibrary({ owner, selection }: { owner: LiveCopyRetention; selection: Selection }) {
+  const [catalog, setCatalog] = useState<OfflineElectricalCatalogV1 | null>(null), [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    void owner.read.readElectricalCatalog(selection.handle, selection.signal).then(result => {
+      if (active && !selection.signal.aborted) { setCatalog(result.status === 'ok' ? result.value : null); setLoading(false); }
+    });
+    return () => { active = false; };
+  }, [owner, selection]);
+  return <section className="section"><h2>Electrical drawings</h2><p>Historical sheet references do not establish current wiring.</p>
+    {catalog ? <>
+      <p>Drawings were kept separately for each building. Some buildings may be missing.</p>
+      {catalog.buildings.map(building => <section key={building.buildingId} className="section">
+        <p>Captured <time dateTime={building.capturedAt}>{building.capturedAt}</time>.</p>
+        {!building.documents.length && <p>No verified PDF reference was kept for this building.</p>}
+        <ul className="offline-documents">{building.documents.map(document => <ElectricalDocumentRow key={document.pin.evidenceId}
+          owner={owner} selection={selection} document={document} />)}</ul>
+        <details><summary>Drawing provenance</summary><p>Building: {building.buildingId}</p>
+          {building.provenance ? <dl>
+            <dt>Historical mapping receipt</dt><dd>{building.provenance.historicalRoomMappingReceipt.id}</dd>
+            <dt>Historical mapping digest</dt><dd>{building.provenance.historicalRoomMappingReceipt.sha256}</dd>
+            <dt>Fixture ledger digest</dt><dd>{building.provenance.fixtureLedgerSha256}</dd>
+            <dt>Support original digest</dt><dd>{building.provenance.supportOriginalSha256}</dd>
+            <dt>Room review receipt</dt><dd>{building.provenance.currentNativeRoomReview.id}</dd>
+            <dt>Room review digest</dt><dd>{building.provenance.currentNativeRoomReview.sha256}</dd>
+          </dl> : <p>No drawing provenance was captured.</p>}
+        </details>
+      </section>)}
+    </> : <p role="status">{loading ? 'Reading held electrical drawings…' : 'Electrical drawing references are not held. Open live to read them.'}</p>}
+  </section>;
+}
+function ElectricalDocumentRow({ owner, selection, document }: { owner: LiveCopyRetention; selection: Selection; document: OfflineElectricalBuildingV1['documents'][number] }) {
+  const [status, setStatus] = useState<OfflineElectricalAvailability | null>(null), [page, setPage] = useState<number | null>(null);
+  useEffect(() => {
+    let active = true;
+    void owner.read.electricalStatus(selection.handle, document.pin, selection.signal).then(result => {
+      if (active && !selection.signal.aborted) setStatus(result.status === 'ok' ? result.value : null);
+    });
+    return () => { active = false; };
+  }, [owner, selection, document]);
+  return <li><strong>Electrical reference PDF</strong> · {document.pin.byteSize} bytes
+    <p>{status?.availability === 'held' ? 'On this device' : status?.availability === 'failed-integrity' ? 'Held file failed verification' : 'Not held on this device'}</p>
+    <ul>{document.pages.map(sheet => <li key={sheet.sheetId}>
+      <button type="button" className="btn" disabled={status?.availability !== 'held'} onClick={() => setPage(sheet.pdfPage)}>{sheet.title} · Page {sheet.pdfPage}</button>
+      <p>Drawing date: {sheet.sourceDate ?? 'Not recorded'}</p>
+    </li>)}</ul>
+    <details><summary>Original identity</summary><dl><dt>Evidence</dt><dd>{document.pin.evidenceId} · revision {document.pin.evidenceRevision}</dd>
+      <dt>Asset</dt><dd>{document.pin.assetId} · revision {document.pin.assetRevision}</dd><dt>SHA-256</dt><dd>{document.pin.sha256}</dd></dl></details>
+    {page !== null && status?.availability === 'held' && <Modal title="Electrical reference PDF" onClose={() => setPage(null)} wide>
+      <HeldElectricalDocument owner={owner} selection={selection} pin={status.pin} page={page} />
+    </Modal>}
+  </li>;
+}
+function HeldElectricalDocument({ owner, selection, pin, page }: { owner: LiveCopyRetention; selection: Selection; pin: OfflineElectricalPinV1; page: number }) {
+  const [blob, setBlob] = useState<Blob | null>(null), [failed, setFailed] = useState(false);
+  const [controller] = useState(() => new AbortController());
+  useEffect(() => {
+    const abort = () => controller.abort(); selection.signal.addEventListener('abort', abort, { once: true });
+    if (selection.signal.aborted) controller.abort();
+    void owner.read.readElectricalDocument(selection.handle, pin, controller.signal).then(result => {
+      if (!controller.signal.aborted) { setBlob(result.status === 'ok' ? result.value : null); setFailed(result.status !== 'ok'); }
+    });
+    return () => { selection.signal.removeEventListener('abort', abort); controller.abort(); };
+  }, [owner, selection, pin, controller]);
+  return blob ? <><SourcePdf blob={blob} title="Electrical reference PDF" initialPage={page} signal={controller.signal} />
+    <HeldDownload blob={blob} title="electrical-reference.pdf" signal={controller.signal} /></>
+    : <p role="status">{failed ? 'The held electrical PDF is unavailable or changed.' : 'Verifying held electrical PDF…'}</p>;
 }

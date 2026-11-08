@@ -1,5 +1,6 @@
 import { OfflineStorageSettings, type OfflineStorageControls } from '../src/offline/OfflineStorageSettings';
 import { keepLibrary } from '../src/offline/library-preference';
+import { fillOfflineElectricalLibraries } from './offline-electrical-policy';
 import { fillOfflineLibrary } from './offline-library-policy';
 import { StrictMode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -116,6 +117,20 @@ export function getLiveCopyRetention(): Promise<import("./live-copy-retention").
 }
 const retainedSourceDocuments: import('../src/lantern/source-documents/types').SourceDocumentsPort = {
   createReader: () => sourceDocuments.current().createReader(),
+  async heldStatus(document, signal) {
+    const owner = await getLiveCopyRetention(), copy = await owner.read.readLast(signal);
+    if (copy.status !== 'ok' || copy.value.snapshot.data.scope.workspaceId !== document.scope.workspaceId
+      || copy.value.snapshot.data.scope.homeId !== document.scope.homeId) return 'unavailable';
+    const result = await owner.read.documentStatus(copy.value.handle, { documentId: document.documentId,
+      documentRevision: document.revision, assetId: document.original.assetId, assetRevision: document.original.revision,
+      sha256: document.original.sha256, bytes: document.original.bytes }, signal);
+    return result.status === 'ok' ? result.value.availability : 'unavailable';
+  },
+  subscribeHeld(changed) {
+    let stop: (() => void) | undefined, active = true;
+    void getLiveCopyRetention().then(owner => { if (active) { stop = owner.read.subscribe(changed); changed(); } });
+    return () => { active = false; stop?.(); };
+  },
   async retainOpenedOriginal(documentId, revision, signal) {
     const owner = await getLiveCopyRetention();
     if (signal.aborted) return;
@@ -123,12 +138,22 @@ const retainedSourceDocuments: import('../src/lantern/source-documents/types').S
     if ((await owner.retainCatalog(signal)).status === 'ok') await owner.retainDocument(documentId, revision, signal);
   },
 };
+async function fillDeviceLibrary(owner: import('./live-copy-retention').LiveCopyRetention, signal: AbortSignal, enabled: () => boolean): Promise<string> {
+  const session = currentSession, view = currentReadyView;
+  if (!session || !view) return 'Library files need a current live read.';
+  const current = () => currentSession === session && currentReadyView === view;
+  const native = enabled() ? await fillOfflineLibrary(owner, signal, enabled)
+    : (await owner.retainCatalog(signal)).status === 'ok' ? 'Document list kept.' : 'Document list is unavailable.';
+  if (!current() || signal.aborted) return native;
+  const electrical = await fillOfflineElectricalLibraries({ owner, topology, port: sourceElectricalLibrary, view, current, enabled, signal });
+  return `${native} ${electrical}`;
+}
 function LiveOfflineSettings() {
   const [controls, setControls] = useState<OfflineStorageControls | null>(null);
   useEffect(() => {
     let active = true;
     void getLiveCopyRetention().then(owner => { if (active) setControls({ read: owner.read, storage: owner.storage,
-      fillLibrary: signal => fillOfflineLibrary(owner, signal) }); });
+      fillLibrary: signal => fillDeviceLibrary(owner, signal, () => true) }); });
     return () => { active = false; };
   }, []);
   return controls ? <OfflineStorageSettings controls={controls} /> : null;
@@ -430,6 +455,23 @@ const makeSceneDocumentOwner = () => createNativeEvidenceDocumentClient({
 // Electrical Library discovery uses existing current read authority and separate
 // original-document leases. Neither geometry nor a Document v2 facet admits it.
 const sourceElectricalLibrary: ElectricalLibraryPort = {
+  async retainOpened(reader, frame, evidenceId, signal) {
+    const owner = await getLiveCopyRetention();
+    if (!signal.aborted) await owner.retainElectricalLibrary(reader, frame, signal, { includeBytes: true, evidenceId });
+  },
+  async heldStatus(frame, document, signal) {
+    const owner = await getLiveCopyRetention(), copy = await owner.read.readLast(signal);
+    if (copy.status !== 'ok' || copy.value.snapshot.data.scope.workspaceId !== frame.scope.workspaceId
+      || copy.value.snapshot.data.scope.homeId !== frame.scope.homeId) return 'unavailable';
+    const result = await owner.read.electricalStatus(copy.value.handle, {
+      source: 'electrical-evidence', buildingId: frame.buildingId, evidenceId: document.evidenceId,
+      evidenceRevision: document.evidenceRevision, assetId: document.assetId, assetRevision: document.assetRevision.token,
+      sha256: document.sha256, byteSize: document.byteSize.token, contentType: 'application/pdf',
+    }, signal);
+    return result.status === 'ok' ? result.value.availability : 'unavailable';
+  },
+  subscribeHeld: changed => retainedSourceDocuments.subscribeHeld?.(changed) ?? (() => undefined),
+
   async createReader() {
     const { createNativeElectricalLibraryReader } = await import("./native-electrical-library-reader");
     return createNativeElectricalLibraryReader({
@@ -733,8 +775,7 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
             if (!signal.aborted && attempt === generation && sameSession() && currentReadyView === view)
               return owner.capture(view, signal).then(async result => {
                 if (result.status !== 'ok' || signal.aborted || currentReadyView !== view) return;
-                if (keepLibrary()) await fillOfflineLibrary(owner, signal, keepLibrary);
-                else await owner.retainCatalog(signal);
+                await fillDeviceLibrary(owner, signal, keepLibrary);
               });
           }).catch(() => undefined);
         } else if (view.status === "denied" || view.status === "expired" || view.status === "revoked") {

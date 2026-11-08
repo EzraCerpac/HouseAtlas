@@ -1,6 +1,7 @@
 // One named generated root/Saved lifecycle check. VM-local transports only:
 // no global fetch replacement, socket, browser, native state or real private data.
 import assert from 'node:assert/strict';
+import { checkOfflineLibraryPolicy } from './offline-library-policy-fixture.mjs';
 import { checkLiveCopyContracts } from './offline-live-copy-fixture.mjs';
 import { createHash, webcrypto } from 'node:crypto';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -477,6 +478,7 @@ try {
   assert.equal(public_(unpinned).length, 3);
   cases.push('lagging-racing-or-unpinned-root-keeps-its-shell');
   cases.push(...await checkLiveCopyContracts());
+  cases.push(...await checkOfflineLibraryPolicy());
   console.log(JSON.stringify({ result: 'healthy', cases, generatedBuilds: [first.buildId, second.buildId, concurrent.buildId, third.buildId, fourth.buildId],
     evidence: 'source/generated VM cache and worker lifecycle; capture labeling inspected at existing component seams; no browser/device claim' }));
 } finally { rmSync(scratch, { recursive: true, force: true }); }

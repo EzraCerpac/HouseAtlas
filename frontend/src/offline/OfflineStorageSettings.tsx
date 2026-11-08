@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { OfflineReadPort, OfflineStoragePort, OfflineStorageStatus } from './live-copy-types';
+import { ExactDecimal } from '../numeric/decimal';
 import { keepLibrary, setKeepLibrary, subscribeKeepLibrary } from './library-preference';
 
 export interface OfflineStorageControls {
@@ -13,6 +14,7 @@ export function OfflineStorageSettings({ controls }: { controls: OfflineStorageC
   const enabled = useSyncExternalStore(subscribeKeepLibrary, keepLibrary, () => true);
   const [status, setStatus] = useState<OfflineStorageStatus | null>(null);
   const [library, setLibrary] = useState<{ bytes: number; complete: boolean } | null>(null);
+  const [electricalBytes, setElectricalBytes] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null), [busy, setBusy] = useState(false);
   useEffect(() => {
     let request: AbortController | null = null;
@@ -21,6 +23,8 @@ export function OfflineStorageSettings({ controls }: { controls: OfflineStorageC
       void controls.storage.status(signal).then(result => { if (!signal.aborted) setStatus(result.status === 'ok' ? result.value : null); });
       void controls.read.readLast(signal).then(async copy => {
         const result = copy.status === 'ok' ? await controls.read.readCatalog(copy.value.handle, signal) : null;
+        const electrical = copy.status === 'ok' ? await controls.read.readElectricalCatalog(copy.value.handle, signal) : null;
+        if (!signal.aborted) setElectricalBytes(electrical?.status === 'ok' ? electrical.value.buildings.reduce((total, building) => total + building.documents.reduce((sum, document) => sum + (ExactDecimal.parse(document.pin.byteSize).toSafeInteger() ?? 0), 0), 0) : null);
         if (!signal.aborted) setLibrary(result?.status === 'ok' ? {
           bytes: result.value.documents.filter(row => row.lifecycle === 'active').reduce((sum, row) => sum + row.bytes, 0),
           complete: result.value.completeness === 'captured-complete',
@@ -43,8 +47,8 @@ export function OfflineStorageSettings({ controls }: { controls: OfflineStorageC
     <label><input type="checkbox" checked={enabled} onChange={event => {
       const value = event.currentTarget.checked; setKeepLibrary(value); if (value) void fill();
       else { attempt.controller?.abort(); setBusy(false); setMessage('Automatic library downloads are off. Held files remain on this device.'); }
-    }} /> Keep the native document library on this device</label>
-    <p className="setting-static">{library ? `${library.complete ? 'Native library' : 'Partial native catalog'}: ${storageSize(library.bytes)}.` : 'Native library size is unavailable.'} HomeBox attachments and electrical discovery are separate sources.</p>
+    }} /> Keep Library files on this device</label>
+    <p className="setting-static">{library ? `${library.complete ? 'Documents' : 'Some documents'}: ${storageSize(library.bytes)}.` : 'Document sizes are unavailable.'} {electricalBytes !== null ? `Electrical PDFs read so far: ${storageSize(electricalBytes)}.` : 'Electrical PDF sizes are unavailable.'} HomeBox attachments require a connection.</p>
     <p className="setting-static">{status ? `${status.documents} files held · ${storageSize(status.bytes)} of ${storageSize(status.budgetBytes)} soft budget. Storage persistence: ${status.persistence}.` : 'Device storage status is unavailable.'}</p>
     {controls.fillLibrary ? <button type="button" className="btn" disabled={busy} onClick={() => void fill()}>Keep library now</button>
       : <p className="setting-static">Open live to download missing files. This preference applies on the next live read.</p>}
