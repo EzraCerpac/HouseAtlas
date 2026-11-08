@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 32180,
-      "sha256": "733425994ed841bbb2b7273b73c00124b199199de8290f04fbdbb7b7c07d8009",
+      "bytes": 32515,
+      "sha256": "2c602b8c65d78b862a0de9268334766a476c8f34d30ec6e88466014928f26489",
       "owner": "core-integration"
     },
     {
@@ -6509,8 +6509,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 225396,
-      "sha256": "4950f5e5c010810b4226aee641281a7c3c027b0d800580790eacea2e1132fdfd",
+      "bytes": 226455,
+      "sha256": "c8075395943dbbc856624ea0770124117267040505defc9f604d425a07a8ee0f",
       "owner": "core-integration"
     },
     {
@@ -11760,7 +11760,7 @@
       "path": "tools/ci/lanes.json",
       "mode": "100644",
       "bytes": 58132,
-      "sha256": "e897145dd0935e8d99bdfb53a4caafe88e21412b41dddfece7728ce94664c88b",
+      "sha256": "8c42260bce037e6146c8509ba325d550758671921d1624591f06491541e22c22",
       "owner": "core-integration"
     },
     {

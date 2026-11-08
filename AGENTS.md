@@ -407,9 +407,13 @@ unknown unsupported/pre-hook counters and exact owned-hook restoration. A
 fictional-element source contract calls the actual report builder to check
 viewport bounds, scrollable text and a separate Copy/Close row; it establishes
 no computed layout or device result. These contracts compile no shader, draw
-no frame and add no test selection or workflow. The existing
+no frame and add no test selection or workflow. The same CPU file exercises the
+production frame-yield helper with controlled RAF/message-task/visibility owners
+for normal, hidden and aborted cleanup, without a browser or shader. The existing
 `?render-probe` report may include observational build/first-render-call phases;
 these are not GPU completion, witnessed paint or a phone performance result.
+The build observation ends at shell readiness; later staged preparation has
+separate timing and does not retroactively populate unobserved build phases.
 
 web/AGENTS.md governs interface text. Preserve accessible names, scope,
 uncertainty, freshness, access and file availability. Use short functional
