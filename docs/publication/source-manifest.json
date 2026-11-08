@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 29713,
-      "sha256": "c8a08029df6a369ac58e20b2217214108c986d14cf1efcdb2c1ca870818f7b88",
+      "bytes": 30803,
+      "sha256": "25883148a9a1dea79dad03cbcc19037c08b62cfcca033a36c4d55ae7e82197ea",
       "owner": "core-integration"
     },
     {
@@ -3709,8 +3709,15 @@
     {
       "path": "backend/src/providers/homebox/read/native_list_pages.rs",
       "mode": "100644",
-      "bytes": 27448,
-      "sha256": "faf9a65679d9d50774d78e6c9fa0b16838444aa89c428321969576bba5e17932",
+      "bytes": 27516,
+      "sha256": "a7bce5cd844b0b34f32d66163b26c8acba6803389ee83612c7a0558eaab56f75",
+      "owner": "homebox"
+    },
+    {
+      "path": "backend/src/providers/homebox/read/native_list_pages_healthy.rs",
+      "mode": "100644",
+      "bytes": 12873,
+      "sha256": "532e142102ba991f1949403bc0fa68346d5cba69a9e1c1f4514fc1814336c588",
       "owner": "homebox"
     },
     {
@@ -6488,8 +6495,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 219958,
-      "sha256": "3b3f79157fe82adda88744f15d4e2fd4875ef0441ed8311f4390b23e88bcb8cf",
+      "bytes": 221048,
+      "sha256": "6e19e3ff3586f4458255e49c349db7293396d091838e4f867866f92cc128979b",
       "owner": "core-integration"
     },
     {
