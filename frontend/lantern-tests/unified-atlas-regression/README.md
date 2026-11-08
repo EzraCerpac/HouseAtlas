@@ -28,8 +28,9 @@ HOUSEATLAS_CHROMIUM=/absolute/path/to/inspected/chromium \
 The fixture builds with the production Vite plugins under its own root, so the
 offline-shell plugin cannot replace its HTML entry. The runner declares a
 1600 × 1100 viewport, observes WebGL 1/2 draw calls without changing rendering,
-and reports CDP pipe errors and page text on failure. No ordinary runner or CI
-scope is changed here. Synthetic DOM, software-renderer and generated-source
+and reports CDP pipe errors and page text on failure. The existing healthy
+frontend runner selects this exact five-case command when the pinned browser
+is supplied. Synthetic DOM, software-renderer and generated-source
 results do not establish installed source authority, physical wiring, GPU
 hardware or device acceptance. The historical matrix below retains its original
 attribution.

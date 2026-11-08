@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 34365,
-      "sha256": "0ec29c8515f23e631d1f00dc2029363c598202e92c0f8eaba43805852a4e9778",
+      "bytes": 34955,
+      "sha256": "84e896aebdc3e82c0851a74581e8bba0d6e5078c0c4603a04f66ee6a8a2f60ac",
       "owner": "core-integration"
     },
     {
@@ -6509,8 +6509,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 229057,
-      "sha256": "b042f265036a96f4203cdf46a12c0e259f3729f1566292a6f7d44dc5fbc62e1d",
+      "bytes": 230344,
+      "sha256": "3af50a248cdfec5d540909aa03a1c30dd23dc51572258161388f6760adfc5dab",
       "owner": "core-integration"
     },
     {
@@ -6936,8 +6936,8 @@
     {
       "path": "docs/offline-live-copy.md",
       "mode": "100644",
-      "bytes": 11280,
-      "sha256": "acbbcbfeb57be860d267678057dc7a20727559d3609064813abee50dee5b9801",
+      "bytes": 15512,
+      "sha256": "bc43a08a397eb50ae8014937035019e01928eb835591ca88fdc76ac2df6a8491",
       "owner": "core-integration"
     },
     {
@@ -7923,8 +7923,8 @@
     {
       "path": "frontend/lantern-tests/electrical-library-visual/synthetic-electrical.ts",
       "mode": "100644",
-      "bytes": 16701,
-      "sha256": "3ca620c11e726e3c679244226a1a9d1f6a047d6debb9687784116ba41501169d",
+      "bytes": 16780,
+      "sha256": "49dd3ef7469125dcebb2435a602a7f74248cc804c7eb8d5622446f57af3c3db4",
       "owner": "web"
     },
     {
@@ -8378,8 +8378,8 @@
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
       "mode": "100644",
-      "bytes": 6309,
-      "sha256": "1f7b4e06822b216eee2c0e27cccb6fd47bdcb7a8ab698bfbd1546812ae9a2b40",
+      "bytes": 6373,
+      "sha256": "eb655cf98821e4044f94cd582e86f2d3f4a1309cfa7533d8e44a64d5b10ee0a7",
       "owner": "web"
     },
     {
@@ -8476,8 +8476,8 @@
     {
       "path": "frontend/lantern-tests/source-host-visual/main.tsx",
       "mode": "100644",
-      "bytes": 8750,
-      "sha256": "147134d21aacf8900e5d558ed954af53b97775ccc74439368297c6de50982f06",
+      "bytes": 9680,
+      "sha256": "eafbafe036287c051917174775729cb8eba678984bafd34326becb98bf4f7c57",
       "owner": "web"
     },
     {
@@ -8658,8 +8658,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-regression/README.md",
       "mode": "100644",
-      "bytes": 10500,
-      "sha256": "fbab9bae2e6292f216526bb38e445ea5067488f38f9de0c63a75ab2840e30491",
+      "bytes": 13033,
+      "sha256": "091152c2875dc90096eaf029d97529b56a6555797f346b04bd56ed07b8154eb6",
       "owner": "web"
     },
     {
@@ -8672,8 +8672,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-regression/browser.mjs",
       "mode": "100644",
-      "bytes": 17261,
-      "sha256": "906894a935673b61c1d08f8d4df250d3b44ea3a102dd799a8339711cd947a274",
+      "bytes": 28571,
+      "sha256": "c0eac49dac004dbe2f4210a3d671c3f2060c54204a10922ddf90927e378e91ec",
       "owner": "web"
     },
     {
@@ -8688,6 +8688,13 @@
       "mode": "100644",
       "bytes": 66788,
       "sha256": "d8a47bef080e8b77926272812f73efb182c8696b0cc949172a8259095f2b6100",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/unified-atlas-regression/synthetic-drawing-groups.ts",
+      "mode": "100644",
+      "bytes": 5688,
+      "sha256": "cd48cdeced04d7eeb431e7bff919f2483fc1df1026a08bd84402300b17af224a",
       "owner": "web"
     },
     {
@@ -11865,7 +11872,7 @@
       "path": "tools/ci/lanes.json",
       "mode": "100644",
       "bytes": 58132,
-      "sha256": "11ca1b57ff0e3ab2591bafed5bc2d8bab01a74b33e0c6c708776b9371fa36b5c",
+      "sha256": "ca6a1eb8a2e939d48e8cfe50c9e503ae065d3fd6821c8cb84e813a039e351f4f",
       "owner": "core-integration"
     },
     {

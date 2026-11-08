@@ -154,7 +154,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 75 source, 1 build, 5 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 75 source, 1 build, 6 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
@@ -2253,7 +2253,7 @@ node frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs
 This changes no assertion, fixture, loader or scope. Record which invocation
 actually emitted the forty names; do not attribute it to the file-only run.
 
-The separately selected electrical browser successor uses the existing generated
+The explicitly selected electrical browser successor uses the existing generated
 host with an optional fake documentary source owner and the existing fictional
 Electrical Library parser fixture:
 
@@ -2272,8 +2272,9 @@ source frames and ownership events are generated. The 1600 × 1100 DOM check
 uses trusted CDP input in the pinned browser, an owned loopback listener and a
 fresh profile, with passive rendering observations and full cleanup. No real
 PDF, provider, native service, household evidence, installed authority or device
-acceptance is exercised. This explicit browser command adds no ordinary runner
-or CI selection. Its adjacent README preserves historical results separately.
+acceptance is exercised. The existing healthy frontend runner includes this
+exact five-case command when the pinned browser is supplied. Its adjacent README
+preserves historical results separately.
 
 The separate property-network association positive is documented in
 [the architecture contract](../architecture/property-network-connections.md).
@@ -3576,11 +3577,10 @@ installation or operational adoption. See the maintained
 The existing `node frontend/lantern-tests/offline-root-entry-healthy.mjs` command
 also invokes thirteen generated transactional-interface contracts from
 `offline-live-copy-fixture.mjs`. They load actual type-stripped owner/backend/
-integration modules with fake storage and native-reader ports. The unchanged
-ordinary healthy runner selects this case; no workflow, browser lane, permission
-call or new test selection is added. Existing command bounds remain unchanged.
-No local execution accompanied source preparation; Node type stripping does not
-establish semantic TypeScript correctness or real IndexedDB durability.
+integration modules with fake storage and native-reader ports. The existing
+ordinary healthy runner selects this case; no workflow or permission call is
+added. Node type stripping does not establish semantic TypeScript correctness
+or real IndexedDB durability; compilation and browser execution are separate.
 
 The cases cover the explicit display allowlist, stale roundtrip/no authority,
 exact catalog/asset hashes and availability, home/account A-B-A fencing,
@@ -3588,9 +3588,10 @@ cancelled/withdrawn writes, wipe-tombstone/deletion failure, quota/atomic refusa
 explicit persistence outcomes, bounded LRU, actual backend completion/abort/late
 close, and native-reader pin/withdrawal integration. They establish no native
 original completeness, PDF/mounted focus behavior, offline live-shell routing,
-storage-pressure retention or real iPhone/PWA acceptance. The safe root fallback
-is unchanged pending the read-only Host consumer. Contract and remaining source
-dependencies: [Read-only live-copy v1](../offline-live-copy.md).
+storage-pressure retention or real iPhone/PWA acceptance. The read-only Host
+consumer and offline root fallback are exercised by the separate browser case
+below. Contract and remaining source dependencies:
+[Read-only live-copy v1](../offline-live-copy.md).
 
 The offline-root case additionally executes five generated library-policy
 contracts (exact held-pin skipping, budget preflight, uncertain-result stop,

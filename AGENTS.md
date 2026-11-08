@@ -495,3 +495,12 @@ it reopens offline at phone width, visits all four sections, renders the held
 PDFs, checks storage settings, preserves the exact waiting outbox without writes,
 and verifies that a peer wipe withdraws content and prevents legacy fallback
 on reload. It remains a synthetic browser check, not iOS or installed acceptance.
+
+The existing healthy frontend browser list also selects exactly
+`unified-atlas-regression/browser.mjs --electrical`: five generated DOM cases
+cover historic drawing-group badges, unknown placement, selection/source
+retirement, reduced motion and pending/unavailable PDF dialog keyboard focus.
+The pinned Chrome uses a fresh profile and owned loopback fixture with fake
+documentary and drawing-reader owners. It supplies no provider, real document,
+physical wiring, hardware-GPU or installed-device acceptance. The historical
+full interaction suite remains outside this explicit selection.
