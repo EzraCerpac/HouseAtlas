@@ -108,6 +108,7 @@ export interface LanternActions {
   /** Optional saved Network relations reader; never a source owner or currentness authority. */
   networkRelations?: NetworkRelationsClient;
   nativeContent: ReactNode;
+  offlineStorage?: ReactNode;
 }
 function initial(house: HouseData): AppState {
   return { houseId: house.id, houses: { [house.id]: house }, view: 'atlas', atlasLens: null, selection: null,

@@ -1,5 +1,6 @@
 import { lazy, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { useReducedMotion, useStore, type ViewId } from './state/store';
+import { useReducedMotion, useStore } from './state/store';
+import { SectionNavigation } from './components/SectionNavigation';
 import { Icon } from './components/Icon';
 import { AtlasView } from './atlas/AtlasView';
 import { DeferredView } from './DeferredView';
@@ -23,14 +24,6 @@ import { AiActivityStatus, useAiHostAvailable } from '../ai/host/index.js';
 const UpkeepView = lazy(() => import('./views/UpkeepView').then(m => ({ default: m.UpkeepView })));
 const LibraryView = lazy(() => import('./views/LibraryView').then(m => ({ default: m.LibraryView })));
 const ChangesView = lazy(() => import('./views/ChangesView').then(m => ({ default: m.ChangesView })));
-
-/** `short`: the phone tab bar's visible name where the full one would wrap; the full name stays the control's name. */
-const VIEWS: { id: ViewId; label: string; short?: string; icon: string }[] = [
-  { id: 'atlas', label: 'Atlas', icon: 'atlas' },
-  { id: 'upkeep', label: 'Upkeep', icon: 'upkeep' },
-  { id: 'library', label: 'Library', icon: 'library' },
-  { id: 'changes', label: 'Changes', icon: 'changes' },
-];
 
 /** Whether a media query matches now; read again when it changes. */
 function useMedia(query: string): boolean {
@@ -242,21 +235,7 @@ export function App() {
         </button>
       </header>
 
-      <nav className="navrail" aria-label="Sections">
-        {VIEWS.map((v) => (
-          <button key={v.id} type="button" className={`nav-btn${state.view === v.id ? ' is-current' : ''}`} aria-label={v.short ? v.label : undefined} aria-current={state.view === v.id ? 'page' : undefined} onClick={() => dispatch({ type: 'view', view: v.id })}>
-            <Icon name={v.icon} size={20} />
-            {v.short
-              ? <span className="nav-label" data-short={v.short}><span className="nav-label-full">{v.label}</span></span>
-              : <span className="nav-label">{v.label}</span>}
-            {v.id === 'changes' && reviewCount > 0 && (
-              <span className="nav-badge" aria-label={`${reviewCount} to review`}>
-                {reviewCount}
-              </span>
-            )}
-          </button>
-        ))}
-      </nav>
+      <SectionNavigation view={state.view} onView={view => dispatch({ type: 'view', view })} reviewCount={reviewCount} />
 
       <div className="shell-tools">
         <SyncStatus />
