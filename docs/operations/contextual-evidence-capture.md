@@ -259,10 +259,26 @@ return the same type/size with an empty body. Durable operation counts enforce
 one commit per fresh intent and no added commit from readback/reconciliation.
 There is no standalone asset-create replacement or fabricated domain response.
 
+The same case extends those observations across clean native owner close/reopen
+within one process. It saves actual receipts and final current records only as
+expected data, closes Store and proves release of the first Core/Store/Access/
+vault owners with weak references. Strict existing-owner APIs reopen the same
+canonical Access/Atlas/vault files with default options, without initialization,
+reseeding, replay, migration or a manufactured persistent-server receipt.
+A fresh Core/Host starts with empty process-local caches; the existing generated
+Editor logs in ordinarily. Fresh target admission, exact asset/evidence/final
+identity records, authentic historical request reconciliation and all five
+original GET/HEAD bytes, hashes and delivery headers must agree. The historical
+identity revisions in receipts are not compared as the final current identity.
+No additional durable operation may appear across reopen or these reads.
+
 The older `healthy-contextual-evidence-capture` example retains its narrower
 validation/preparation scope; it is not POST/GET execution evidence. The new
-case is test source until exact named hosted logs record a pass. It changes no
+extension is test source until exact named hosted logs record a pass on the
+extended source; earlier one-lifetime execution does not qualify it. It changes no
 production owner or ordinary workflow command and opens no socket/browser.
-It establishes no post-capture reopen, installed compatibility/recovery,
-peak-memory/interruptibility, target load/concurrency, actual GUI one-submit
-behavior, iPhone format or physical-capture guarantee. HEIC remains unsupported.
+It establishes no process restart, crash/power-loss durability, installed
+startup/compatibility/recovery, old-session invalidation, renderer/preview
+authority restoration, opaque-handle continuity, peak-memory/interruptibility,
+target load/concurrency, actual GUI one-submit behavior, iPhone format or
+physical-capture guarantee. HEIC remains unsupported.
