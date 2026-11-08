@@ -164,12 +164,28 @@ function DrawingDialog({ reader, frame, page, opener, onClose }: { readonly read
       return () => { owned.dispose(); };
     } catch { setFailed(true); }
   }, [reader, frame]);
+  const pending = <DrawingPending failed={failed} onClose={close} />;
   return <div className="electrical-library-backdrop">
-    {failed && <div role="status">The drawing source is unavailable. <button type="button" onClick={close}>Close drawing</button></div>}
-    <Suspense fallback={<div role="status">Preparing drawing… <button type="button" onClick={close}>Close drawing</button></div>}>
-      {client && <Drawing client={client} sheet={page.sheet} reference={page.reference}
+    <Suspense fallback={pending}>
+      {client ? <Drawing client={client} sheet={page.sheet} reference={page.reference}
         evidenceIds={evidenceIds} {...(frame.provenance ? { provenance: frame.provenance } : {})}
-        current={() => reader.isCurrent(frame)} onClose={close} />}
+        current={() => reader.isCurrent(frame)} onClose={close} /> : pending}
     </Suspense>
   </div>;
+}
+
+/** Keep the loading and unavailable states keyboard-operable while the viewer loads. */
+function DrawingPending({ failed, onClose }: { readonly failed: boolean; readonly onClose: () => void }) {
+  const close = useRef<HTMLButtonElement>(null);
+  useEffect(() => { close.current?.focus(); }, []);
+  return <section role="dialog" aria-modal="true" aria-label="Electrical drawing" className="electrical-library-pending"
+    onKeyDown={event => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        if (!event.nativeEvent.isComposing && !event.defaultPrevented) { event.preventDefault(); onClose(); }
+      } else if (event.key === 'Tab') { event.preventDefault(); close.current?.focus(); }
+    }}>
+    <p role="status">{failed ? 'The drawing source is unavailable.' : 'Preparing drawing…'}</p>
+    <button ref={close} type="button" onClick={onClose}>Close drawing</button>
+  </section>;
 }

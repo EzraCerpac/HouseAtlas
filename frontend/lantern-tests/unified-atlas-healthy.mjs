@@ -63,7 +63,9 @@ const planPresentationURL = await sourceURL('../src/lantern/unified-atlas/plan-p
   '../canonical-ifc/geometry': geometryURL, '../canonical-ifc/tones': tonesURL, './scene': sceneURL,
 });
 const { PlanTile, AreaValue, planTileLevels } = await import(planPresentationURL);
+const traceURL = await sourceURL('../src/lantern/unified-atlas/network-trace.ts');
 const graphURL = await sourceURL('../src/lantern/unified-atlas/NetworkGraph.tsx', {
+  './network-trace': traceURL,
   react: new URL('./node_modules/react/index.js', frontend).href,
   'react/jsx-runtime': new URL('./node_modules/react/jsx-runtime.js', frontend).href,
   // CSS has no server execution; component logic and React are the actual modules.
