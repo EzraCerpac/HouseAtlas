@@ -2253,6 +2253,28 @@ node frontend/lantern-tests/unified-atlas-regression/interactions.test.mjs
 This changes no assertion, fixture, loader or scope. Record which invocation
 actually emitted the forty names; do not attribute it to the file-only run.
 
+The separately selected electrical browser successor uses the existing generated
+host with an optional fake documentary source owner and the existing fictional
+Electrical Library parser fixture:
+
+```sh
+HOUSEATLAS_CHROMIUM=/absolute/path/to/inspected/chromium \
+  node frontend/lantern-tests/unified-atlas-regression/browser.mjs --electrical
+```
+
+Exactly five cases exercise historic group membership through the actual overlay
+feed and documentary projector, badge highlights and unplaced/unverified facts,
+group retirement on clear room/layer/source/selection changes, reduced motion,
+and keyboard containment, Escape closure and opener restoration in the pending
+and unavailable drawing dialogs. The pending case holds the real lazy viewer
+chunk; the unavailable case uses a throwing fake drawing-client owner. All data,
+source frames and ownership events are generated. The 1600 × 1100 DOM check
+uses trusted CDP input in the pinned browser, an owned loopback listener and a
+fresh profile, with passive rendering observations and full cleanup. No real
+PDF, provider, native service, household evidence, installed authority or device
+acceptance is exercised. This explicit browser command adds no ordinary runner
+or CI selection. Its adjacent README preserves historical results separately.
+
 The separate property-network association positive is documented in
 [the architecture contract](../architecture/property-network-connections.md).
 After inspecting its pure projector, stage join and generated test body, run:
