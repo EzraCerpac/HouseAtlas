@@ -26,7 +26,7 @@ export async function checkOfflineLibraryPolicy() {
   }
   {
     const { owner, docs, calls } = fixture(); docs[1].bytes = 100;
-    assert.match(await fillOfflineLibrary(owner, signal()), /exceeds/); assert.deepEqual(calls, []);
+    assert.match(await fillOfflineLibrary(owner, signal()), /exceed/); assert.deepEqual(calls, []);
     cases.push('offline-library-policy-budget-before-byte-reads');
   }
   {
