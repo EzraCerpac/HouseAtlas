@@ -5,6 +5,70 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { parseAst, transformWithOxc } from 'vite';
 
+const frameFile = new URL('../src/lantern/canonical-ifc/after-next-frame.ts', import.meta.url);
+const frameCode = (await transformWithOxc(readFileSync(frameFile, 'utf8'), frameFile.pathname,
+  { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false })).code;
+const { afterNextFrame } = await import('data:text/javascript;base64,' + Buffer.from(frameCode).toString('base64'));
+
+// Controlled browser scheduling ports exercise the actual scene-yield owner.
+// No browser, GPU, wall-clock wait or real MessageChannel is needed.
+test('scene yields settle and release scheduling owners when hidden or abandoned', async () => {
+  const names = ['document', 'requestAnimationFrame', 'cancelAnimationFrame', 'MessageChannel'];
+  const originals = names.map(name => Object.getOwnPropertyDescriptor(globalThis, name));
+  const doc = new EventTarget(), frames = new Map(), messages = [];
+  let next = 0, ports = 0;
+  doc.hidden = false;
+  Object.assign(globalThis, {
+    document: doc,
+    requestAnimationFrame(callback) { const id = ++next; frames.set(id, callback); return id; },
+    cancelAnimationFrame(id) { frames.delete(id); },
+    MessageChannel: class {
+      constructor() {
+        this.port1 = { onmessage: null, close() { ports--; } };
+        this.port2 = { close() { ports--; }, postMessage: () => messages.push(() => this.port1.onmessage?.()) };
+        ports += 2;
+      }
+    },
+  });
+  try {
+    const normal = afterNextFrame();
+    assert.equal(frames.size, 1);
+    frames.values().next().value();
+    assert.equal(frames.size, 0);
+    assert.equal(ports, 2);
+    messages.shift()(); await normal;
+    assert.equal(ports, 0, 'both message ports close after a frame');
+
+    const controller = new AbortController(), reason = new Error('scene replaced');
+    const abandoned = afterNextFrame(controller.signal);
+    assert.equal(frames.size, 1);
+    controller.abort(reason);
+    await assert.rejects(abandoned, error => error === reason);
+    assert.equal(frames.size, 0, 'abort cancels a suspended RAF without needing visibility');
+    assert.equal(ports, 0);
+
+    const hidden = afterNextFrame();
+    doc.hidden = true; doc.dispatchEvent(new Event('visibilitychange'));
+    assert.equal(frames.size, 0, 'hiding replaces a suspended RAF with a message task');
+    messages.shift()(); await hidden;
+    assert.equal(ports, 0);
+
+    const late = new AbortController(), inTask = afterNextFrame(late.signal);
+    assert.equal(ports, 2);
+    late.abort(reason);
+    await assert.rejects(inTask, error => error === reason);
+    assert.equal(ports, 0, 'abort also releases an already queued message');
+    messages.shift()();
+    doc.dispatchEvent(new Event('visibilitychange'));
+    assert.equal(ports, 0, 'late callbacks and retired visibility listeners cannot reopen work');
+    await assert.rejects(afterNextFrame(late.signal), error => error === reason);
+    assert.equal(ports, 0);
+  } finally {
+    names.forEach((name, index) => originals[index]
+      ? Object.defineProperty(globalThis, name, originals[index]) : Reflect.deleteProperty(globalThis, name));
+  }
+});
+
 /** Parse syntax with the already locked Vite export. Literal/comment text is data,
  * while imports (including dynamic/re-export forms) and require calls are dependencies.
  * This is a source-contract guard, not execution or a sandbox/data-flow proof. */

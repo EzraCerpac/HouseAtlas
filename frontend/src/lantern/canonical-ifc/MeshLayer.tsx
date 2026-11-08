@@ -51,15 +51,17 @@ const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce
 
 /** Lays a copy of the frame `canvas` has just drawn over it and fades the copy out.
  * Runs in the task that drew the frame, while the drawing buffer still holds it. */
-function fadeOut(canvas: HTMLCanvasElement) {
+function fadeOut(canvas: HTMLCanvasElement): () => void {
   const copy = document.createElement('canvas'), context = copy.getContext('2d');
-  if (!context || !canvas.parentElement) return;
+  if (!context || !canvas.parentElement) return () => {};
   copy.width = canvas.width; copy.height = canvas.height;
-  try { context.drawImage(canvas, 0, 0); } catch { return; }
+  try { context.drawImage(canvas, 0, 0); } catch { return () => {}; }
   copy.className = 'cifc-canvas cifc-stage-fade'; copy.setAttribute('aria-hidden', 'true');
   canvas.after(copy);
   const done = () => copy.remove();
-  copy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: STAGE_FADE_MS, easing: 'ease-out' }).finished.then(done, done);
+  const animation = copy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: STAGE_FADE_MS, easing: 'ease-out' });
+  void animation.finished.then(done, done);
+  return () => { animation.cancel(); done(); };
 }
 
 /** The on-device speed check (render-probe.ts) runs once per page, this long after the first model is on screen. */
@@ -113,6 +115,7 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     // Moving frames since the last timed one; whether the next moving frame is timed; whether drawing waits on the GPU queue (and a frame is pending).
     let untimed = 0, timeNext = false, waiting = false, deferred = false;
     let observation: SceneBuildObservation | undefined;
+    let clearFade: (() => void) | null = null;
     // The scene builds over several frames; releasing the canvas abandons that build.
     const building = new AbortController();
     // Ready once a frame is drawn (or there is nothing to draw while hidden), so promoting this canvas never shows it empty.
@@ -137,6 +140,7 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       if (disposed) return; disposed = true; building.abort();
       if (frame !== null) cancelAnimationFrame(frame); frame = null;
       if (settle !== null) clearTimeout(settle); settle = null;
+      clearFade?.(); clearFade = null;
       if (redraw.current === schedule) redraw.current = null;
       observation?.close(); scene?.dispose(); scene = null;
     };
@@ -188,11 +192,17 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
         if (scene.failed() && !scene.complete()) { fail('The 3D model cannot be rendered.'); return; }
         if (!scene.complete()) return;
       }
-      if (p.hidden) { ready(); return; }
+      if (p.hidden) { clearFade?.(); clearFade = null; ready(); return; }
+      // Effect preparation can hold renderer state across RAFs. A skipped frame
+      // cannot promote a swapping canvas or close the first-draw observation.
+      if (!scene.canRender()) return;
       // A refining frame is expected to cost about what the last one did.
       const now = performance.now(), refine = refineOnly; refineOnly = false;
       if (!refine) refineUntil = now + REFINE_MS; else if (2 * now - drawnAt > refineUntil) return;
-      if (moved.current) { moved.current = false; shading = 0; fading = null; if (settle !== null) clearTimeout(settle); settle = null; }
+      if (moved.current) {
+        moved.current = false; shading = 0; fading = null; clearFade?.(); clearFade = null;
+        if (settle !== null) clearTimeout(settle); settle = null;
+      }
       if (fading !== null) {
         shading = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 1 : Math.min(1, (performance.now() - fading) / FADE_MS);
         if (shading < 1) schedule(); else fading = null;
@@ -204,7 +214,8 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       const next = scene.pending();
       if (next !== null) {
         if (next !== 'shading' && drawn && !reducedMotion()) {
-          scene.render(p.projection, stale.current ? p : null, w, h, shading); stale.current = false; fadeOut(element);
+          scene.render(p.projection, stale.current ? p : null, w, h, shading); stale.current = false;
+          clearFade?.(); clearFade = fadeOut(element);
         }
         scene.advance();
         if (next === 'shading' && shading > 0) { shading = 0; fading = performance.now(); }
@@ -216,14 +227,14 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       if (scene.render(p.projection, stale.current ? p : null, w, h, shading)) schedule(true);
       // A shaded frame drawn after a drain queues work of its own, so the pending sample waits for the next drain.
       if (!moving) timeNext = false;
-      else if (scene.backend === 'webgpu') {
+      else if (scene.backend === 'webgpu' && scene.complete()) {
         const timed = timeNext; timeNext = false;
         if (timed || ++untimed >= MEASURE_EVERY) {
           untimed = 0; waiting = true;
           // Either drain the queue ahead of the next moving frame, or time this one on a drained queue.
           void scene.finished().then(() => {
-            if (timed) {
-              const spent = performance.now() - now, floor = 1 / Math.min(window.devicePixelRatio || 1, 2);
+            if (timed && !disposed) {
+              const spent = performance.now() - now, floor = 1 / Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
               if (spent > MOVE_BUDGET_MS * 1.1) moveScale = Math.max(floor, moveScale * MOVE_STEP);
               else if (spent < MOVE_BUDGET_MS * 0.6) moveScale = Math.min(1, moveScale / MOVE_STEP);
             } else timeNext = true;

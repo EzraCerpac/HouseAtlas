@@ -11,6 +11,7 @@ import {
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { denoise } from 'three/addons/tsl/display/DenoiseNode.js';
 import { occlusionHistory } from './occlusion-history';
+import { afterNextFrame } from './after-next-frame';
 import { PreparationRefused, prepareEffectPipelines } from './prepare-effect-pipelines';
 import { isGlass, type PreparedMesh, type Projection } from './geometry';
 import type { EmbeddedTexture } from './embedded-png-material';
@@ -54,6 +55,8 @@ export interface MeshScene {
   complete(): boolean;
   /** Whether a later stage failed to prepare: the stages drawn so far are all there will be. */
   failed(): boolean;
+  /** False while preparation temporarily owns renderer state; no frame is drawn then. */
+  canRender(): boolean;
   /** Draw one frame. `appearance` is null when only the camera moved since the last frame.
    * `occlusion` (0 to 1) blends in contact shading; 0 skips its passes entirely.
    * Returns true while another frame of the same view would still refine the contact shading. */
@@ -128,13 +131,6 @@ const PIECE_BYTES = PIECE_VERTICES * (12 + 8 + 4);
  * between slices, so the page keeps moving while a large model is prepared. */
 const SLICE_MS = 6;
 
-/** Resolves just after the next frame is drawn, or at once while the page is
- * hidden and draws nothing. A message task, unlike a timer, is never throttled. */
-const afterNextFrame = () => new Promise<void>(resolve => {
-  const run = () => { const channel = new MessageChannel(); channel.port1.onmessage = () => { channel.port1.close(); resolve(); }; channel.port2.postMessage(null); };
-  if (document.hidden) run(); else requestAnimationFrame(run);
-});
-
 /** Work between frames: `due()` once a slice is spent, then `next()` lets a frame draw first. */
 function frameSlices(signal: AbortSignal | undefined, observation?: SceneBuildObservation) {
   let start = performance.now();
@@ -142,7 +138,7 @@ function frameSlices(signal: AbortSignal | undefined, observation?: SceneBuildOb
     due: () => performance.now() - start > SLICE_MS,
     async next() {
       const finishWait = observation?.wait();
-      try { await afterNextFrame(); } finally { finishWait?.(); }
+      try { await afterNextFrame(signal); } finally { finishWait?.(); }
       signal?.throwIfAborted(); start = performance.now();
     },
   };
@@ -742,6 +738,8 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
      * compileAsync prepares only the two-sided one. Each side is compiled here on its own
      * stand-in object, as the frame draws each side as its own render object. */
     const compile = async (body: Mesh, view: Camera, within: Scene, target: RenderTarget | null) => {
+      signal?.throwIfAborted();
+      if (disposed) throw new Error('Scene released');
       const material = body.material as NodeMaterial;
       const sides = material.transparent && material.side === DoubleSide && !material.forceSinglePass ? [BackSide, FrontSide] as const : null;
       const run = (object: Mesh) => {
@@ -750,6 +748,8 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       };
       if (!sides) await run(body);
       else for (const side of sides) {
+        signal?.throwIfAborted();
+        if (disposed) throw new Error('Scene released');
         const stand = new Mesh(body.geometry, material);
         stand.frustumCulled = body.frustumCulled; stand.matrixAutoUpdate = stand.matrixWorldAutoUpdate = false;
         stand.matrixWorld.copy(body.matrixWorld);
@@ -813,6 +813,9 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       if (pending >= PIECE_BYTES || slice.due()) { pending = 0; await slice.next(); }
     }
     timeline.push({ stage: 'shell', at: performance.now(), ms: performance.now() - begun });
+    // Background stages can start before this async constructor's caller runs.
+    // Seal the shell observation here so their compiles are never charged to it.
+    observation?.finishBuild();
 
     // The view the contact shading history belongs to; any change starts it over.
     let sunStale = true, averaged: Projection | null = null;
@@ -902,6 +905,7 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
       pending: () => drawnAt < preparedAt ? STAGES[drawnAt + 1]! : null,
       complete: () => drawnAt === STAGES.length - 1,
       failed: () => failure,
+      canRender: () => !disposed && !holding,
       advance() {
         if (drawnAt >= preparedAt) return;
         const stage = STAGES[++drawnAt]!;
