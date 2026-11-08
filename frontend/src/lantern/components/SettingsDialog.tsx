@@ -71,6 +71,8 @@ export function SettingsDialog() {
 
         <SyncSettings />
 
+        {actions.offlineStorage}
+
         <fieldset className="field">
           <legend>Model quality</legend>
           <Choice label="Model quality" value={modelQuality} onChange={setModelQuality}

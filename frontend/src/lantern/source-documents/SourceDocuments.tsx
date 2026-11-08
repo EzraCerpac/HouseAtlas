@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
+import { useSourcePorts } from '../source-ports';
 import { Modal } from '../components/Modal';
 import { Empty } from '../components/ui';
 import { fmtDate, fmtDateTime } from '../data/time';
@@ -138,6 +139,7 @@ type Shown = { readonly frame: SourceDocumentFrame; readonly url: string; readon
 function LeasedPayload({ reader, document, mode }: {
   readonly reader: SourceDocumentReader; readonly document: SourceDocument; readonly mode: 'preview' | 'original';
 }) {
+  const { documents } = useSourcePorts();
   const box = useRef<HTMLDivElement>(null);
   const withdrawRef = useRef<() => void>(() => undefined);
   const [shown, setShown] = useState<Shown | null>(null);
@@ -164,12 +166,13 @@ function LeasedPayload({ reader, document, mode }: {
       const stop = reader.subscribeInvalidation(frame, () => { ended = true; withdraw(CHANGED); });
       const blob = reader.getBlob(frame);
       if (ended || !blob) { stop(); reader.release(frame); setStatus(CHANGED); return; }
+      if (mode === 'original') void documents?.retainOpenedOriginal?.(document.documentId, document.revision, controller.signal).catch(() => undefined);
       held = { frame, url: URL.createObjectURL(blob), stop, view: new AbortController() };
       box.current?.removeAttribute('hidden');
       setShown({ frame, url: held.url, blob, signal: held.view.signal }); setStatus(null);
     }, error => { if (!controller.signal.aborted) setStatus(readFailure(error)); });
     return () => { controller.abort(); withdraw(null); withdrawRef.current = () => undefined; };
-  }, [reader, document, mode, availability]);
+  }, [reader, document, mode, availability, documents]);
   const save = useCallback((frame: SourceDocumentFrame) => (event: { preventDefault(): void }) => {
     if (!reader.isCurrent(frame)) { event.preventDefault(); withdrawRef.current(); }
   }, [reader]);

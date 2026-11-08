@@ -8,7 +8,7 @@ export const LIVE_COPY_LIMITS = Object.freeze({ bytes: 250 * MiB, entryBytes: 12
 const SHA = /^[a-f0-9]{64}$/, UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const MIMES = new Set(['application/pdf', 'application/geo+json', 'application/city+json',
   'application/json', 'image/tiff', 'image/png']);
-class Refusal extends Error { constructor(readonly status: OfflineFailure) { super(status); } }
+class Refusal extends Error { readonly status: OfflineFailure; constructor(status: OfflineFailure) { super(status); this.status = status; } }
 const need = (value: unknown, status: OfflineFailure = 'invalid') => { if (!value) throw new Refusal(status); };
 const bounded = (s: unknown, cap = 65536): s is string => typeof s === 'string' && s.length <= cap;
 const scopeOK = (s: Scope) => s && UUID.test(s.workspaceId) && UUID.test(s.homeId);

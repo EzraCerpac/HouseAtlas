@@ -42,7 +42,7 @@ class OptionalToolBoundary extends Component<{ readonly children: ReactNode }, {
 }
 
 /** The existing session/view/stock owners remain above this presentation seam. */
-export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinnedFiles, networkRelations, topology, nativePlaces, nativeEvidenceDocuments, sourceModels, sourceDocuments, sourceElectricalLibrary, houseAcquisition }: {
+export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinnedFiles, networkRelations, topology, nativePlaces, nativeEvidenceDocuments, sourceModels, sourceDocuments, sourceElectricalLibrary, houseAcquisition, offlineStorage }: {
   view: ReadyView; actions: AtlasContentActions; nativeContent: ReactNode;
   quantityWebMcp?: { readonly admission: QuantityAdmissionPort; readonly modelContext: ModelContextPort };
   /** Optional local HomeBox file consumer; its actions are explicit user reads. */
@@ -60,6 +60,7 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
   /** Optional electrical evidence discovery using existing native read authority. */
   sourceElectricalLibrary?: ElectricalLibraryPort;
   houseAcquisition?: HouseAcquisitionPort;
+  offlineStorage?: ReactNode;
 }) {
   const sources = useMemo(() => ({ ...(sourceModels ? { models: sourceModels } : {}), ...(sourceDocuments ? { documents: sourceDocuments } : {}), ...(sourceElectricalLibrary ? { electricalLibrary: sourceElectricalLibrary } : {}) }), [sourceModels, sourceDocuments, sourceElectricalLibrary]);
   const client = useMemo(() => createGeometryClient(), []);
@@ -127,7 +128,7 @@ export function LanternHost({ view, actions, nativeContent, quantityWebMcp, pinn
     if (renderedHistoryScope.current.view !== view || renderedHistoryScope.current.session !== session) return;
     setArchive({ view, session, included });
   } }), [view, session, includeArchived]);
-  const ports = useMemo(() => ({ ...actions, nativeContent: <>{houseAcquisition && <SaveHouseCopy port={houseAcquisition} />}{nativeContent}</>, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, nativeContent, archiveVisibility, pinnedFiles, networkRelations, houseAcquisition]);
+  const ports = useMemo(() => ({ ...actions, offlineStorage, nativeContent: <>{houseAcquisition && <SaveHouseCopy port={houseAcquisition} />}{nativeContent}</>, archiveVisibility, ...(pinnedFiles ? { pinnedFiles } : {}), ...(networkRelations ? { networkRelations } : {}) }), [actions, nativeContent, archiveVisibility, pinnedFiles, networkRelations, houseAcquisition, offlineStorage]);
   return <StoreProvider key={projection.house.id} projection={projection} actions={ports}>
     <TopologyProvider client={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments}><SourcePortsContext value={sources}><App /></SourcePortsContext><ReloadPlacesOnSync /></TopologyProvider>
     <NativeActions />

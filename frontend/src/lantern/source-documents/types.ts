@@ -71,4 +71,8 @@ export interface SourceDocumentReader {
 }
 
 /** Host port. The reader module loads only when a Documents surface opens. */
-export interface SourceDocumentsPort { createReader(): Promise<SourceDocumentReader> }
+export interface SourceDocumentsPort {
+  createReader(): Promise<SourceDocumentReader>;
+  /** Optional live host retention after an explicit original read. No extra authority. */
+  retainOpenedOriginal?(documentId: string, revision: number, signal: AbortSignal): Promise<void>;
+}

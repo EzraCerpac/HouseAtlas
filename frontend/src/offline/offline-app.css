@@ -1,0 +1,11 @@
+.offline-app-root { height: 100%; }
+.offline-app .offline-pill { border: 1px solid var(--frame-line); border-radius: 999px; background: var(--sheet); padding: 6px 12px; color: var(--ink-2); font-size: var(--fs-xs); text-decoration: none; }
+.offline-app .offline-atlas { height: 100%; min-height: 0; }
+.offline-app .offline-atlas > .ua-shell { height: 100%; }
+.offline-app .offline-documents { display: grid; gap: 12px; padding-left: 20px; }
+.offline-app .view > h2 { margin-top: 20px; }
+@media (max-width: 759px) {
+  .offline-app .topbar { gap: 8px; }
+  .offline-app .shell-tools { display: flex; }
+  .offline-app .brand-name { display: none; }
+}

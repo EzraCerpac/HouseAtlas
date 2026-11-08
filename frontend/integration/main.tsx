@@ -1,3 +1,6 @@
+import { OfflineStorageSettings, type OfflineStorageControls } from '../src/offline/OfflineStorageSettings';
+import { keepLibrary } from '../src/offline/library-preference';
+import { fillOfflineLibrary } from './offline-library-policy';
 import { StrictMode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { LanternHost } from "../src/lantern/Host";
@@ -110,6 +113,25 @@ export function getLiveCopyRetention(): Promise<import("./live-copy-retention").
     });
     return liveCopies;
   });
+}
+const retainedSourceDocuments: import('../src/lantern/source-documents/types').SourceDocumentsPort = {
+  createReader: () => sourceDocuments.current().createReader(),
+  async retainOpenedOriginal(documentId, revision, signal) {
+    const owner = await getLiveCopyRetention();
+    if (signal.aborted) return;
+    // Refresh catalog pins before admitting the exact original; no retry on uncertain storage.
+    if ((await owner.retainCatalog(signal)).status === 'ok') await owner.retainDocument(documentId, revision, signal);
+  },
+};
+function LiveOfflineSettings() {
+  const [controls, setControls] = useState<OfflineStorageControls | null>(null);
+  useEffect(() => {
+    let active = true;
+    void getLiveCopyRetention().then(owner => { if (active) setControls({ read: owner.read, storage: owner.storage,
+      fillLibrary: signal => fillOfflineLibrary(owner, signal) }); });
+    return () => { active = false; };
+  }, []);
+  return controls ? <OfflineStorageSettings controls={controls} /> : null;
 }
 function observeLiveCopyActor(value: AtlasSessionInfo | null): void {
   if (value === null) liveCopies?.retire();
@@ -709,7 +731,11 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
           const observation = liveCopyObservation;
           void observation.then(() => getLiveCopyRetention()).then(owner => {
             if (!signal.aborted && attempt === generation && sameSession() && currentReadyView === view)
-              return owner.capture(view, signal);
+              return owner.capture(view, signal).then(async result => {
+                if (result.status !== 'ok' || signal.aborted || currentReadyView !== view) return;
+                if (keepLibrary()) await fillOfflineLibrary(owner, signal, keepLibrary);
+                else await owner.retainCatalog(signal);
+              });
           }).catch(() => undefined);
         } else if (view.status === "denied" || view.status === "expired" || view.status === "revoked") {
           liveCopies?.retire();
@@ -727,6 +753,6 @@ export function HostApplication({ ai }: { readonly ai?: AiApplicationPort }) {
   }, []);
   // Keep the concrete editing port stable through view/catalog refreshes.
   // Each place admission and command obtains the actual request authority.
-  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp initialHomeBootstrap={initialHomeBootstrap} onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments} sourceModels={sourceModels} sourceDocuments={sourceDocuments.current()} sourceElectricalLibrary={sourceElectricalLibrary} houseAcquisition={houseAcquisition.port} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
+  return <div className="lantern-integration"><AccountObservationProvider client={account}><SessionApp initialHomeBootstrap={initialHomeBootstrap} onScopeCommit={captureDrafts.setScope} localCaptures={captureDrafts.port} renderContent={(view, content, actions) => <CaptureDraftProvider port={captureDrafts.port}>{view.status === "ready" ? <LanternHost view={view} actions={{ ...actions, quantity }} nativeContent={content} pinnedFiles={pinnedFiles} networkRelations={networkRelations} topology={topology} nativePlaces={nativePlaces} nativeEvidenceDocuments={nativeEvidenceDocuments} sourceModels={sourceModels} sourceDocuments={retainedSourceDocuments} sourceElectricalLibrary={sourceElectricalLibrary} houseAcquisition={houseAcquisition.port} offlineStorage={<LiveOfflineSettings />} {...(modelContext ? { quantityWebMcp: { admission: quantityAdmissionPort, modelContext } } : {})} /> : content}</CaptureDraftProvider>} client={client} sessions={sessions} accessEvents={window} editing={editing} stock={{ schemas, service, admission, downloads }} {...(ai ? { ai } : {})} /></AccountObservationProvider></div>;
 }
 createRoot(root).render(<StrictMode><HostApplication /></StrictMode>);

@@ -7,7 +7,7 @@ import { setImmediate } from 'node:timers/promises';
 
 export async function checkLiveCopyContracts() {
   const source = readFileSync(new URL('../src/offline/live-copy-owner.ts', import.meta.url), 'utf8');
-  const code = stripTypeScriptTypes(source, { mode: 'transform' });
+  const code = stripTypeScriptTypes(source);
   assert(!/^\s*import(?:\s|['"])/m.test(code), 'actual owner has no runtime imports');
   const { createLiveCopyOwner, projectOfflineDisplay } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
   const cases = [], signal = () => new AbortController().signal;
@@ -171,7 +171,7 @@ export async function checkLiveCopyContracts() {
   cases.push('live-copy-bounded-lru-keeps-metadata-before-document-bytes');
 
   const backendSource = readFileSync(new URL('../src/offline/live-copy-indexeddb.ts', import.meta.url), 'utf8');
-  const backendCode = stripTypeScriptTypes(backendSource, { mode: 'transform' });
+  const backendCode = stripTypeScriptTypes(backendSource);
   const { openLiveCopyBackend } = await import('data:text/javascript;base64,' + Buffer.from(backendCode).toString('base64'));
   const transactions = [], db = {
     objectStoreNames: { contains: () => true }, close() {},
@@ -219,7 +219,7 @@ export async function checkLiveCopyContracts() {
 
   const adapterSource = readFileSync(new URL('../integration/live-copy-retention.ts', import.meta.url), 'utf8');
   const dataModule = source => 'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
-  const adapterCode = stripTypeScriptTypes(adapterSource, { mode: 'transform' })
+  const adapterCode = stripTypeScriptTypes(adapterSource)
     .replace(/(['"])\.\.\/src\/offline\/live-copy-owner\1/g, JSON.stringify(dataModule(code)))
     .replace(/(['"])\.\.\/src\/offline\/live-copy-indexeddb\1/g, JSON.stringify(dataModule(backendCode)));
   assert(!adapterCode.includes("from '../") && !adapterCode.includes('from "../'), 'all actual adapter imports are resolved to the actual modules');
