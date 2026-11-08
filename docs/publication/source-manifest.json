@@ -9869,8 +9869,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx",
       "mode": "100644",
-      "bytes": 25190,
-      "sha256": "7a8c1b4d884fb69fef0818a10e87d51fa56720a4792d2e0c3979bd480110b015",
+      "bytes": 25321,
+      "sha256": "e074eb3b8ae7af4eef104c6d64cb2ffe57823f26f51f7b94c8184aff77433891",
       "owner": "web"
     },
     {
