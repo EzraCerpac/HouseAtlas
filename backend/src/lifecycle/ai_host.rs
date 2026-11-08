@@ -367,7 +367,7 @@ mod existing_store_tests {
         // Empty synthetic Access only; no account, session or grant is created.
         let access = Arc::new(std::sync::Mutex::new(
             crate::access::AccessBoundary::open(
-                &root.join("synthetic-access.sqlite"),
+                root.join("synthetic-access.sqlite"),
                 crate::access::AccessConfig::new(vec!["https://synthetic.example.invalid".into()])
                     .unwrap(),
             )

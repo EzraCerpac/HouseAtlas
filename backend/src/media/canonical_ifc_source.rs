@@ -379,38 +379,40 @@ mod tests {
     #[test]
     fn synthetic_source_ledger_parent_and_immutability() {
         let mut db = Connection::open_in_memory().unwrap();
-        let mut ledger = SourceLedger::fresh(&mut db).unwrap();
-        let p = proof();
-        let root = source(R1, None);
-        let digest = ledger.append(&root, &p).unwrap();
-        assert_eq!(ledger.append(&root, &p).unwrap(), digest);
-        assert_eq!(ledger.read(R1).unwrap(), root);
-        assert_eq!(
-            ledger.append(&source(R2, None), &p),
-            Err(MediaError::Conflict)
-        );
-        // A new revision must have a new retained IFC original asset.
-        assert_eq!(
-            ledger.append(&source(R2, Some(R1)), &p),
-            Err(MediaError::Conflict)
-        );
-        let mut child = source(R2, Some(R1));
-        child.ifc_asset.asset_id = A2.into();
-        child.ifc_asset.sha256 = "b".repeat(64);
-        let mut child_proof = proof();
-        child_proof.record.record_id = A2.into();
-        child_proof.record.payload.sha256 = "b".repeat(64);
-        assert!(ledger.append(&child, &child_proof).is_ok());
-        assert_eq!(ledger.read(R2).unwrap(), child);
-        let mut unrelated_parent = source("00000000-0000-4000-8000-000000000009", Some(A));
-        unrelated_parent.ifc_asset.asset_id = "00000000-0000-4000-8000-000000000010".into();
-        let mut unrelated_proof = proof();
-        unrelated_proof.record.record_id = unrelated_parent.ifc_asset.asset_id.clone();
-        assert_eq!(
-            ledger.append(&unrelated_parent, &unrelated_proof),
-            Err(MediaError::Conflict)
-        );
-        drop(ledger);
+        let digest = {
+            let mut ledger = SourceLedger::fresh(&mut db).unwrap();
+            let p = proof();
+            let root = source(R1, None);
+            let digest = ledger.append(&root, &p).unwrap();
+            assert_eq!(ledger.append(&root, &p).unwrap(), digest);
+            assert_eq!(ledger.read(R1).unwrap(), root);
+            assert_eq!(
+                ledger.append(&source(R2, None), &p),
+                Err(MediaError::Conflict)
+            );
+            // A new revision must have a new retained IFC original asset.
+            assert_eq!(
+                ledger.append(&source(R2, Some(R1)), &p),
+                Err(MediaError::Conflict)
+            );
+            let mut child = source(R2, Some(R1));
+            child.ifc_asset.asset_id = A2.into();
+            child.ifc_asset.sha256 = "b".repeat(64);
+            let mut child_proof = proof();
+            child_proof.record.record_id = A2.into();
+            child_proof.record.payload.sha256 = "b".repeat(64);
+            assert!(ledger.append(&child, &child_proof).is_ok());
+            assert_eq!(ledger.read(R2).unwrap(), child);
+            let mut unrelated_parent = source("00000000-0000-4000-8000-000000000009", Some(A));
+            unrelated_parent.ifc_asset.asset_id = "00000000-0000-4000-8000-000000000010".into();
+            let mut unrelated_proof = proof();
+            unrelated_proof.record.record_id = unrelated_parent.ifc_asset.asset_id.clone();
+            assert_eq!(
+                ledger.append(&unrelated_parent, &unrelated_proof),
+                Err(MediaError::Conflict)
+            );
+            digest
+        };
         let reopened = SourceLedger::reopen(&mut db).unwrap();
         assert_eq!(reopened.read(R1).unwrap().digest().unwrap(), digest);
         assert!(

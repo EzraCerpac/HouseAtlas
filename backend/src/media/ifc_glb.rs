@@ -421,7 +421,7 @@ mod tests {
             "nodes":[{"name":"synthetic-mesh","mesh":0}],"scenes":[{"nodes":[0]}],"scene":0
         });
         let mut document = serde_json::to_vec(&doc).unwrap();
-        while document.len() % 4 != 0 {
+        while !document.len().is_multiple_of(4) {
             document.push(b' ');
         }
         let mut bytes = Vec::new();
