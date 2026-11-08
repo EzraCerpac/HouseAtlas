@@ -1,5 +1,5 @@
 import type { PreparedMesh, Projection } from './geometry';
-import type { MeshScene } from './mesh-scene';
+import type { MeshScene, StageTime } from './mesh-scene';
 import type { SceneBuildSnapshot } from './scene-build-observation';
 
 /** On-device speed check for the 3D view, opened by adding ?render-probe to the
@@ -36,6 +36,8 @@ export interface ProbeSetup {
   /** Wall interval from before dynamic scene import through eager constructor completion. */
   readonly buildMs: number;
   readonly observation?: SceneBuildSnapshot | undefined;
+  /** When each stage of the scene was ready to draw, and how long it took to prepare. */
+  readonly stages: readonly StageTime[];
   /** Aborted when the canvas is released: the check stops and reports nothing. */
   readonly signal: AbortSignal;
 }
@@ -48,9 +50,10 @@ function turned(q: Projection, angle: number): Projection {
 
 const percentile = (sorted: readonly number[], p: number) => sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))]!;
 const ms = (value: number) => `${value.toFixed(1)} ms`;
+const s = (value: number) => `${(value / 1000).toFixed(1)} s`;
 
 /** Runs every case and returns the report as plain text. The caller redraws the view afterwards. */
-export async function runRenderProbe({ scene, meshes, projection, width, height, shownAt, buildMs, observation, signal }: ProbeSetup): Promise<string> {
+export async function runRenderProbe({ scene, meshes, projection, width, height, shownAt, buildMs, observation, stages, signal }: ProbeSetup): Promise<string> {
   const rows: string[] = [];
   let drawnVertices = 0;
   try {
@@ -86,6 +89,9 @@ export async function runRenderProbe({ scene, meshes, projection, width, height,
       `First successful render call: ${observation.firstDrawCpuMs === null ? 'unavailable' : ms(observation.firstDrawCpuMs)} CPU wall; `
         + `${observation.firstDrawCreationRequests ?? 'unavailable'} backend creation requests. No GPU/paint synchronization added.`,
     ] : []),
+    '',
+    `${'Stage'.padEnd(20)}${'ready at'.padStart(9)}${'prepared in'.padStart(13)}`,
+    ...stages.map(({ stage, at, ms }) => `${stage.padEnd(20)}${s(at).padStart(9)}${s(ms).padStart(13)}`),
     '',
     `${''.padEnd(20)}${'median'.padStart(9)}${'slow 10%'.padStart(10)}`,
     ...rows,

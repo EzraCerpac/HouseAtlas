@@ -110,6 +110,11 @@
   pointer-events: none;
 }
 
+/* The last frame of a stage, fading out over the next (MeshLayer fadeOut). */
+.lantern-host .cifc-stage-fade {
+  pointer-events: none;
+}
+
 .lantern-host .cifc-plan-space {
   fill: #f7efdd;
   stroke: rgba(24, 35, 58, 0.32);

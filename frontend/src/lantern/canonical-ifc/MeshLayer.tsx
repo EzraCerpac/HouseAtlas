@@ -44,6 +44,23 @@ const MOVE_STEP = 0.85;
 /** One moving frame in this many is timed. The GPU queue is drained first, so the time is
  * that frame's own and not the backlog of frames submitted ahead of it. */
 const MEASURE_EVERY = 8;
+/** A new stage of the scene (mesh-scene.ts STAGES) cross-fades in over this long: a copy
+ * of the last frame of the stage before fades out over it. */
+const STAGE_FADE_MS = 400;
+const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+
+/** Lays a copy of the frame `canvas` has just drawn over it and fades the copy out.
+ * Runs in the task that drew the frame, while the drawing buffer still holds it. */
+function fadeOut(canvas: HTMLCanvasElement) {
+  const copy = document.createElement('canvas'), context = copy.getContext('2d');
+  if (!context || !canvas.parentElement) return;
+  copy.width = canvas.width; copy.height = canvas.height;
+  try { context.drawImage(canvas, 0, 0); } catch { return; }
+  copy.className = 'cifc-canvas cifc-stage-fade'; copy.setAttribute('aria-hidden', 'true');
+  canvas.after(copy);
+  const done = () => copy.remove();
+  copy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: STAGE_FADE_MS, easing: 'ease-out' }).finished.then(done, done);
+}
 
 /** The on-device speed check (render-probe.ts) runs once per page, this long after the first model is on screen. */
 const PROBE = typeof location !== 'undefined' && new URLSearchParams(location.search).has('render-probe'), PROBE_DELAY_MS = 1500;
@@ -141,7 +158,7 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       // A canvas replaced meanwhile leaves the check to its successor; a hidden one (Plan, or a set still swapping in),
       // or one whose predecessor is still checking, waits until it can run.
       if (probeState === 'done' || disposed || !scene) return;
-      if (probeState === 'running' || latest.current.hidden || latest.current.building) { setTimeout(() => void probe(shownAt), PROBE_DELAY_MS); return; }
+      if (probeState === 'running' || latest.current.hidden || latest.current.building || !scene.complete() && !scene.failed()) { setTimeout(() => void probe(shownAt), PROBE_DELAY_MS); return; }
       probeState = 'running';
       if (frame !== null) cancelAnimationFrame(frame); frame = null;
       probing = true;
@@ -150,7 +167,7 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
         const [width, height] = size();
         if (!disposed && scene) {
           const report = await runRenderProbe({ scene, meshes: props.meshes, projection: latest.current.projection, width, height,
-            shownAt: shownAt - PROBE_DELAY_MS, buildMs, observation: observation?.snapshot(), signal: building.signal });
+            shownAt: shownAt - PROBE_DELAY_MS, buildMs, observation: observation?.snapshot(), stages: scene.timeline, signal: building.signal });
           if (!disposed) { probeState = 'done'; showProbeReport(report); }
         }
       } catch {
@@ -161,7 +178,17 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
     };
     const render = () => {
       if (disposed || !scene) return;
-      const p = latest.current; if (p.hidden) { ready(); return; }
+      const p = latest.current;
+      // A set swapping in is shown only once every stage is drawn, so a more detailed
+      // model never replaces a finished view with its shell; one that cannot finish is
+      // given up, and its owner keeps the view on screen. A shown view that cannot finish
+      // keeps the stages it has.
+      if (p.building) {
+        while (scene.pending()) scene.advance();
+        if (scene.failed() && !scene.complete()) { fail('The 3D model cannot be rendered.'); return; }
+        if (!scene.complete()) return;
+      }
+      if (p.hidden) { ready(); return; }
       // A refining frame is expected to cost about what the last one did.
       const now = performance.now(), refine = refineOnly; refineOnly = false;
       if (!refine) refineUntil = now + REFINE_MS; else if (2 * now - drawnAt > refineUntil) return;
@@ -172,6 +199,18 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       } else if (shading < 1 && settle === null) settle = setTimeout(still, SETTLE_MS);
       // Frames without contact shading are the moving ones (and the moment before the view settles).
       const moving = shading <= 0, [w, h] = size(moving ? moveScale : 1);
+      // A newly prepared stage: the frame as it was, copied and faded out over the first frame
+      // of the new stage. Contact shading fades in by its own strength instead.
+      const next = scene.pending();
+      if (next !== null) {
+        if (next !== 'shading' && drawn && !reducedMotion()) {
+          scene.render(p.projection, stale.current ? p : null, w, h, shading); stale.current = false; fadeOut(element);
+        }
+        scene.advance();
+        if (next === 'shading' && shading > 0) { shading = 0; fading = performance.now(); }
+        if (scene.pending() !== null || fading !== null) schedule();
+      }
+      if (element.dataset.stage !== scene.stage) element.dataset.stage = scene.stage;
       // While the view is still, each further frame averages the contact shading down to a clean result.
       const finishFirstDraw = observation?.firstDraw();
       if (scene.render(p.projection, stale.current ? p : null, w, h, shading)) schedule(true);
@@ -201,9 +240,9 @@ function MeshCanvas(props: Props & { readonly building: boolean; readonly onRead
       const buildStart = performance.now();
       observation = PROBE ? new SceneBuildObservation() : undefined;
       observation?.phase('module-import');
-      void import('./mesh-scene').then(({ createMeshScene }) => createMeshScene(element, props.meshes, usesMaterials, lost, building.signal, observation)).then(created => {
+      void import('./mesh-scene').then(({ createMeshScene }) => createMeshScene(element, props.meshes, usesMaterials, lost, building.signal, observation, () => schedule())).then(created => {
         if (disposed) { created.dispose(); return; }
-        buildMs = performance.now() - buildStart;
+        buildMs = performance.now() - buildStart; // the shell, the first stage drawn
         observation?.finishBuild();
         scene = created; stale.current = true; element.dataset.renderer = created.backend;
         redraw.current = schedule; schedule();
