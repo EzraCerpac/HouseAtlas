@@ -7580,8 +7580,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 47425,
-      "sha256": "e502c4c2f6f11627dc8b1e9b6522e221ce0e87515481e553c92965dde30b8e76",
+      "bytes": 48388,
+      "sha256": "ad64b8c4782f6c7d7d66e106fdc9cda6424cc20c332317debfedd2effce9be03",
       "owner": "core-integration"
     },
     {
@@ -7685,8 +7685,8 @@
     {
       "path": "frontend/integration/offline-electrical-policy.ts",
       "mode": "100644",
-      "bytes": 3400,
-      "sha256": "0bcc480fb06e27a94729678c9a503ecd3adc35117aac42d164eb788e607a8269",
+      "bytes": 3680,
+      "sha256": "49625add6ec9f76747540d9ee6b7bafb1335dc9622132385e75cc7e7cfce652b",
       "owner": "core-integration"
     },
     {
@@ -7699,8 +7699,8 @@
     {
       "path": "frontend/integration/offline-library-policy.ts",
       "mode": "100644",
-      "bytes": 2387,
-      "sha256": "d716ffd74baa70c0fb61778c49918db64551a334d036178159301639e5484863",
+      "bytes": 3177,
+      "sha256": "f2faab098c8cd237bda18035b2d1c81996210161b35f02906870e3109cbf2198",
       "owner": "core-integration"
     },
     {
@@ -8238,8 +8238,8 @@
     {
       "path": "frontend/lantern-tests/offline-electrical-copy.test.mjs",
       "mode": "100644",
-      "bytes": 15230,
-      "sha256": "65cccf70d73fe44f0d945c33f4e27f27f442baf592b5b3840a8423e34ec53530",
+      "bytes": 15780,
+      "sha256": "ddb34ba6acdff47ed43755bce2795d4296f4d924f1a4c46e19adf415e63232aa",
       "owner": "web"
     },
     {
@@ -8252,8 +8252,8 @@
     {
       "path": "frontend/lantern-tests/offline-launch-browser.mjs",
       "mode": "100644",
-      "bytes": 27235,
-      "sha256": "ad0065216943d10e028b0cd4d847f27156152b5021d2c15d5500c9230192e7e0",
+      "bytes": 27938,
+      "sha256": "28ee1d50939410fb186611ac317144359a36f183e94c5287b19354cc1ede4cdb",
       "owner": "web"
     },
     {
@@ -8266,8 +8266,8 @@
     {
       "path": "frontend/lantern-tests/offline-library-policy-fixture.mjs",
       "mode": "100644",
-      "bytes": 3243,
-      "sha256": "9f2e77b290933677249bc53c6f14ac4041a4188a60673cdbb67b24222d8248a6",
+      "bytes": 4102,
+      "sha256": "605113e629e9033a52255552ea806ecd728315440840413bf98ef4fdd489b3c0",
       "owner": "web"
     },
     {
@@ -10548,8 +10548,8 @@
     {
       "path": "frontend/src/offline/OfflineStorageSettings.tsx",
       "mode": "100644",
-      "bytes": 4996,
-      "sha256": "04f7689f5fb3559c3dd46b71eb3c236faf61fbe0a99c4feafa43fbe0cb743a93",
+      "bytes": 5091,
+      "sha256": "ded2e7cad41a781ac3a3545ad38d795197f873631a6640aded7e8b9161f8a336",
       "owner": "web"
     },
     {
@@ -10604,8 +10604,8 @@
     {
       "path": "frontend/src/offline/library-preference.ts",
       "mode": "100644",
-      "bytes": 758,
-      "sha256": "1576690ec9ae1ed06b5162495058f23b54b2bfa9cf19abbc9ee55c5441a2aec3",
+      "bytes": 903,
+      "sha256": "66203e3d25b941af114e5550d0052a42c6ce38d7e4f5f6da6767f427dfac0c1a",
       "owner": "web"
     },
     {
@@ -10618,8 +10618,8 @@
     {
       "path": "frontend/src/offline/live-copy-owner.ts",
       "mode": "100644",
-      "bytes": 36817,
-      "sha256": "759a28a02a42c932e02e8245bc90deefb16fd4eef446715d279bc9408773a62f",
+      "bytes": 36859,
+      "sha256": "a5aae7680e05359047de6e7909df6366e5559d6b378a3332ae8ddcd97cd70030",
       "owner": "web"
     },
     {
