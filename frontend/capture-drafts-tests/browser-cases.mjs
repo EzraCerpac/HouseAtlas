@@ -7,6 +7,7 @@ const knownCases = new Set([
   'storage-deletion-denies-stale-resume',
   'concurrent-handoff-single-winner',
   'change-callback-abort-preserves-row',
+  'synthetic-save-reopen-remove',
 ]);
 const params = new URLSearchParams(location.search);
 const caseName = params.get('case');
@@ -122,6 +123,57 @@ async function execute(name) {
     return { controller, store, calls: newOwner.calls };
   };
   try {
+    if (name === 'synthetic-save-reopen-remove') {
+      assert(!(await indexedDB.databases()).some(db => db.name === DRAFT_DATABASE),
+        'Importing draft modules unexpectedly created the feature database');
+      const first = makeController();
+      const id = await saveOne(first.controller);
+      const saved = (await first.store.read())[0];
+      assert(saved && saved.sha256 === await sha256Hex(content) && sameBytes(new Uint8Array(await saved.original.arrayBuffer())),
+        'Saved bytes or digest differed');
+      const expectedKeys = ['format', 'id', 'owner', 'targetSourceRef', 'recordId', 'original', 'contentType', 'lastModified',
+        'sha256', 'capture', 'form', 'createdAt', 'expiresAt', 'state', 'attempt'].sort();
+      assert(JSON.stringify(Object.keys(saved).sort()) === JSON.stringify(expectedKeys)
+        && JSON.stringify(Object.keys(saved.owner).sort()) === JSON.stringify(['actorId', 'homeId', 'workspaceId'])
+        && saved.state === 'unsent' && saved.attempt === null, 'Unexpected persisted authority or row fields');
+      const review = await first.controller.review(id, new AbortController().signal);
+      const afterReview = (await first.store.read())[0];
+      assert(JSON.stringify(Object.keys(afterReview).sort()) === JSON.stringify(expectedKeys)
+        && afterReview.state === 'unsent' && afterReview.attempt === null,
+      'Review persisted authority or changed the unsent row');
+      first.controller.close();
+      const reopened = makeController();
+      let staleDenied = false;
+      try { await reopened.controller.beginAttempt(review.token, { confirmed: true }, new AbortController().signal); }
+      catch (error) { staleDenied = error instanceof Error && error.message.includes('Review and confirm'); }
+      const rows = await reopened.store.read();
+      const row = rows[0];
+      assert(rows.length === 1 && row.id === id && row.sha256 === await sha256Hex(content)
+        && sameBytes(new Uint8Array(await row.original.arrayBuffer()))
+        && JSON.stringify(row.capture) === JSON.stringify(selection().capture)
+        && JSON.stringify(row.targetSourceRef) === JSON.stringify(source())
+        && JSON.stringify(row.form) === JSON.stringify(form()) && staleDenied,
+      'Reopened draft, provenance or review authority differed');
+      const ids = [id];
+      for (const digit of ['1', '2', '3']) {
+        const nextId = `${digit.repeat(8)}-${digit.repeat(4)}-4${digit.repeat(3)}-8${digit.repeat(3)}-${digit.repeat(12)}`;
+        await reopened.controller.save({ localId: nextId, selection: selection(), form: form(), targetSourceRef: source(), recordId, optedIn: true });
+        ids.push(nextId);
+      }
+      let limitDenied = false;
+      try {
+        await reopened.controller.save({ localId: '44444444-4444-4444-8444-444444444444', selection: selection(), form: form(), targetSourceRef: source(), recordId, optedIn: true });
+      } catch (error) { limitDenied = error instanceof RangeError; }
+      assert(limitDenied && (await reopened.store.read()).length === 4, 'Fifth draft did not preserve the bounded four saved rows');
+      for (const savedId of ids) await reopened.controller.discard(savedId, { loseUnknownOutcome: false });
+      reopened.controller.close();
+      const final = makeController();
+      assert((await final.store.read()).length === 0 && forbiddenActivity.length === 0,
+        'Explicit removal did not survive reopen or caused network activity');
+      return { idb: 'real-chromium-indexeddb', moduleImportCreatedDatabase: false, bytesAndHashPreserved: true,
+        provenancePreserved: true, storedFieldsAllowlisted: true, oldReviewDenied: true, fourDraftLimitEnforced: true,
+        removalRetainedAfterReopen: true, networkOrSubmitCalls: forbiddenActivity.length };
+    }
     if (name === 'retained-original-after-reopen') {
       const first = makeController();
       const id = await saveOne(first.controller);
