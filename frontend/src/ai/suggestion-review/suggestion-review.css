@@ -1,0 +1,16 @@
+.ha-suggestion-review { color: inherit; max-width: 52rem; }
+.ha-suggestion-review article, .ha-suggestion-review fieldset {
+  margin-block: 1rem; padding: .875rem; border: 1px solid var(--line, #b9b9b9); border-radius: .5rem;
+}
+.ha-suggestion-review h2, .ha-suggestion-review h3, .ha-suggestion-review h4 { margin-block: .5rem; }
+.ha-suggestion-review p, .ha-suggestion-review dd, .ha-suggestion-review blockquote { overflow-wrap: anywhere; }
+.ha-suggestion-review dl { display: grid; grid-template-columns: minmax(6rem, 1fr) minmax(0, 3fr); gap: .25rem .75rem; }
+.ha-suggestion-review dt { font-weight: 600; }
+.ha-suggestion-review dd { margin: 0; }
+.ha-suggestion-review blockquote { margin-inline: 0; white-space: pre-wrap; }
+.ha-suggestion-review label { display: block; margin-block: .375rem; }
+.ha-suggestion-review input:not([type=checkbox]) { box-sizing: border-box; width: 100%; min-width: 0; font: inherit; }
+.ha-suggestion-review footer { display: flex; flex-wrap: wrap; gap: .5rem; margin-block: 1rem; }
+.ha-suggestion-review button { font: inherit; min-height: 2.75rem; }
+.ha-suggestion-review :focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+@media (max-width: 30rem) { .ha-suggestion-review dl { grid-template-columns: 1fr; } }
