@@ -128,7 +128,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
           const currentGeneration = !disposed && generationRef.current === generation;
           withdraw(); controller.abort();
           if (currentGeneration && !disposed && generationRef.current === generation) {
-            setStatus('This saved drawing is no longer current. Close it and reload scans.');
+            setStatus('This saved drawing is no longer current. Close it and reload drawings.');
           }
         });
         if (!live() || !client.isCurrent(frame) || held !== frame) { withdraw(); return; }
@@ -140,7 +140,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
       clearTimeout(timer);
       timing({ status: 'unavailable', unreadable });
       if (live()) {
-        if (reference) { setStatus('The correlated reference PDF is unavailable for this current drawing. Close it and reload scans.'); return; }
+        if (reference) { setStatus('The correlated reference PDF is unavailable for this current drawing. Close it and reload drawings.'); return; }
         const next = pageStart + page.length;
         if (next < evidenceIds.length) {
           setContinuation({ generation, next, unreadable });
@@ -148,7 +148,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
           setStatus(`${unreadable ? 'Some checked drawing references could not be read.' : 'No current saved PNG matches the checked references.'} ${remaining} ${remaining === 1 ? 'reference remains' : 'references remain'} to check.`);
         } else setStatus(unreadable
           ? 'Some saved drawing references could not be read. Close it and try again.'
-          : 'No current saved PNG or qualified reference PDF is available for this drawing. Reload scans after its source is available.');
+          : 'No current saved PNG or qualified reference PDF is available for this drawing. Reload drawings after its source is available.');
       }
     })().catch(() => { clearTimeout(timer); timing({ status: 'failed' }); withdraw(); if (live()) setStatus('The current saved drawing could not be read. Close it and try again.'); });
     const aborted = () => {
@@ -175,7 +175,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
     pdfDocumentOwner.current = null; hidePdf();
     const blob = client.getBlob(shown.frame);
     if (!blob || blob.type !== 'application/pdf' || !live()) {
-      setPdfDocument(null); setPdfPageCount(null); setPdfStatus('This reference PDF is no longer current. Close it and reload scans.');
+      setPdfDocument(null); setPdfPageCount(null); setPdfStatus('This reference PDF is no longer current. Close it and reload drawings.');
       return;
     }
     setPdfDocument(null); setPdfPageCount(null); setPdfStatus('Loading reference PDF…');
@@ -301,7 +301,11 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
     setStatus('The saved PNG could not be rendered. Close it and try again.');
   };
   const keys = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key === 'Escape') { event.preventDefault(); stageMark('scene-drawing', 'drawing-close', { input: 'keyboard' }); deliberateClose.current = true; onClose(); return; }
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      if (event.nativeEvent.isComposing || event.defaultPrevented) return;
+      event.preventDefault(); stageMark('scene-drawing', 'drawing-close', { input: 'keyboard' }); deliberateClose.current = true; onClose(); return;
+    }
     if (event.key !== 'Tab') return;
     const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), summary, [tabindex="0"]')];
     const first = controls[0], last = controls.at(-1);
@@ -368,7 +372,7 @@ export function NativeSceneDrawing({ client, sheet, evidenceIds, reference, prov
           if (!currentRef.current() || !client.isCurrent(shown.frame)
             || activeDrawing.current?.generation !== shown.generation) {
             event.preventDefault(); activeDrawing.current?.withdraw();
-            setStatus('This reference PDF is no longer current. Close it and reload scans.');
+            setStatus('This reference PDF is no longer current. Close it and reload drawings.');
           }
         }}>Download reference PDF</a>
       </> : <>

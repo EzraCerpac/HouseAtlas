@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 30833,
-      "sha256": "eca9611995d646a4625f5385c6e8c31a3447c7bde1a3b326610ecf72e52682f9",
+      "bytes": 31423,
+      "sha256": "03d6c6a9053743c6b23de97e79afdf8164fc0ac88650fa9b7e1295e64d1778bf",
       "owner": "core-integration"
     },
     {
@@ -2330,8 +2330,8 @@
     {
       "path": "backend/src/http/agents/asset_download_healthy.rs",
       "mode": "100644",
-      "bytes": 33389,
-      "sha256": "984c80b1c6aada40a0ae4016a96a6f6a7f66c25a1feb222f186be7d70ac239a7",
+      "bytes": 43172,
+      "sha256": "476718861d650c90793b62a1a8a9b4fb63ce8c3bcfa1301f52ee3e87901ba491",
       "owner": "core-integration"
     },
     {
@@ -6509,8 +6509,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 221779,
-      "sha256": "2a8d3d0d017b65a44fa19e1a7a2599be6dde32150e66849588935231267f68df",
+      "bytes": 223030,
+      "sha256": "13e611ddf55e14dbd5e534675d86604d41f29c10b0de7604ade79234decc052c",
       "owner": "core-integration"
     },
     {
@@ -7027,8 +7027,8 @@
     {
       "path": "docs/operations/contextual-evidence-capture.md",
       "mode": "100644",
-      "bytes": 17001,
-      "sha256": "8181f2b1bebf4deab476879b7e64dec8796f0d8ccfbdd0a6ae3bfb332fb8f410",
+      "bytes": 18144,
+      "sha256": "ee34c8b914e9adff022b32914fb155178a41e8299e27b40b7c3308370df8c474",
       "owner": "core-integration"
     },
     {
@@ -9904,8 +9904,8 @@
     {
       "path": "frontend/src/lantern/scans/native-ui/NativeSceneDrawing.tsx",
       "mode": "100644",
-      "bytes": 25190,
-      "sha256": "7a8c1b4d884fb69fef0818a10e87d51fa56720a4792d2e0c3979bd480110b015",
+      "bytes": 25321,
+      "sha256": "e074eb3b8ae7af4eef104c6d64cb2ffe57823f26f51f7b94c8184aff77433891",
       "owner": "web"
     },
     {

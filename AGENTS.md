@@ -279,11 +279,18 @@ PNG, PDF and UTF-8 text files. Real Access/Store/Media owners commit the linked
 asset, evidence and selected identity. Actual retained root/child journal
 envelopes, current record GETs, opaque picker provenance, unknown fact time,
 server intake time, authenticated original GET byte/hash equality and empty
-HEAD bodies are checked. No provider, socket, TLS, browser, authority
-reconstruction, private input or production hook is added. This one positive
-native lifetime supplies no post-capture reopen, installed recovery, target
-resource, interruption or physical-device guarantee; hosted named-case logs
-establish execution.
+HEAD bodies are checked. The same case then closes Store, releases every first
+Core/Store/Access/vault owner with weak-reference witnesses, and reopens the
+same canonical files through strict existing-owner APIs with default options.
+A fresh Core/Host has empty process-local caches and ordinary generated-Editor
+login. Fresh admission/current records, final identity linkage, historical
+receipts and all five original GET/HEAD results must remain equal, with no
+additional durable operation. Expected observations confer no authority.
+No provider, socket, TLS, browser, private input or production hook is added.
+This is clean owner close/reopen within one process, not process restart,
+crash durability, installed startup/recovery, old-session invalidation,
+renderer-authority restoration, opaque-handle continuity, target resource or
+physical-device acceptance; exact named hosted logs establish execution.
 
 The default-library lane also retains #533's three existing cases in
 `backend/src/transports/mcp/lifecycle/synthetic_contracts.rs`, under
