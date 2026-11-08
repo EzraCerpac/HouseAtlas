@@ -20,9 +20,10 @@ StockService and direct native-owner compositions are distinguished per row.
 M36 uses an injected-reader owner and unmounted MCP; its configured mounted
 M path remains G-native-configured even when that row is QUALIFIED-SYNTHETIC.
 This does not qualify
-all payloads, actors, profiles or installed operation. Binding create is the
-unresolved synthetic path; explicit binding reviews cover rejected, retired
-and accepted fixture decisions without adopting source presence. Batch evidence
+all payloads, actors, profiles or installed operation. Binding create is
+qualified for the synthetic owner-derived unresolved source-state variant;
+explicit binding reviews cover rejected, retired and accepted fixture decisions
+without adopting source presence. Binding remap remains blocked. Batch evidence
 is an ordered successful two-circuit atomic batch, not arbitrary partial/provider/unknown results. Every qualified row still
 has G-full. Descriptors, protocol fixtures and fake downloads/read peers never
 receive real-service qualification by themselves.
