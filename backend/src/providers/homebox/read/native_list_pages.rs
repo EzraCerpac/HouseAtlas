@@ -789,3 +789,7 @@ fn changed() -> st::StockError {
 fn unavailable() -> st::StockError {
     st::StockError::OwnerUnavailable
 }
+
+#[cfg(test)]
+#[path = "native_list_pages_healthy.rs"]
+mod healthy;

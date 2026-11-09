@@ -3572,66 +3572,19 @@ and uncertainty. They contact no NAS or private source and exercise no mutation,
 installation or operational adoption. See the maintained
 [filesystem observation contract](../../tools/model-input-disposition/FILESYSTEM-OBSERVATION.md).
 
-### Retained read-only live-copy data — #372/#560
 
-The existing `node frontend/lantern-tests/offline-root-entry-healthy.mjs` command
-also invokes thirteen generated transactional-interface contracts from
-`offline-live-copy-fixture.mjs`. They load actual type-stripped owner/backend/
-integration modules with fake storage and native-reader ports. The existing
-ordinary healthy runner selects this case; no workflow or permission call is
-added. Node type stripping does not establish semantic TypeScript correctness
-or real IndexedDB durability; compilation and browser execution are separate.
 
-The cases cover the explicit display allowlist, stale roundtrip/no authority,
-exact catalog/asset hashes and availability, home/account A-B-A fencing,
-cancelled/withdrawn writes, wipe-tombstone/deletion failure, quota/atomic refusal,
-explicit persistence outcomes, bounded LRU, actual backend completion/abort/late
-close, and native-reader pin/withdrawal integration. They establish no native
-original completeness, PDF/mounted focus behavior, offline live-shell routing,
-storage-pressure retention or real iPhone/PWA acceptance. The read-only Host
-consumer and offline root fallback are exercised by the separate browser case
-below. Contract and remaining source dependencies:
-[Read-only live-copy v1](../offline-live-copy.md).
-
-The offline-root case additionally executes five generated library-policy
-contracts (exact held-pin skipping, budget preflight, uncertain-result stop,
-preference withdrawal and snapshot replacement). The healthy runner also
-selects `offline-electrical-copy.test.mjs`: eight generated owner/adapter cases
-cover exact lexical evidence/asset revisions, retained page/provenance metadata,
-independent building completeness, shared byte budgets, integrity and borrowed
-reader retirement. Both use controlled ports only.
-
-The existing `offline-launch-browser.mjs --case live-launch` additionally seeds
-a generated held view and native/electrical catalogs, a native PDF and a two-page
-electrical PDF through production retention APIs. After closing and reopening
-offline at 390-pixel width it visits Atlas, Upkeep, Library and Changes, draws
-both held PDFs (electrical page 2), inspects storage settings and verifies exact
-waiting-outbox retention without write dispatch. A second owner wipes the copy;
-the visible PDF/Atlas withdraw and reload refuses stale legacy fallback. This
-uses disposable Chrome storage and no backend, provider or real household file;
-it establishes neither iOS eviction/durability nor installed acceptance.
-
-### Synthetic draft IndexedDB storage — #297
-
-The existing healthy frontend browser runner selects this one exact command:
-
-```sh
-HOUSEATLAS_CHROMIUM=/absolute/path/to/inspected/chromium \
-  node frontend/capture-drafts-tests/browser-storage.mjs synthetic-save-reopen-remove
-```
-
-A fresh pinned Chrome profile runs actual production controller/store modules
-against real IndexedDB, generated original bytes and fake session/canonical
-owners. Assertions cover import without database creation, exact original
-bytes/hash/provenance, persisted field allowlisting before/after review, rejection
-of a prior controller's review token, the four-draft limit, and explicit removal
-retained after closing/reopening store connections. No fetch/form submission or
-external application request is allowed. Owned database/profile/browser/listener
-cleanup is bounded. Chrome retains its browser sandbox.
-
-`openDraftStore` opens the database eagerly; the laziness assertion concerns only
-module import. This case neither mounts the product shell nor establishes
-ordinary browsing/Add evidence behavior. Reopen is within one page, not a page
-or process restart. No native upload, installed UI, crash/power-loss survival,
-eviction, byte-limit boundary or phone acceptance follows. Other retained browser
-cases and the native UI journey remain outside this healthy selection.
+The default backend-library selection additionally discovers
+`providers::homebox::read::native_list_pages::healthy::healthy_native_list_continuations_retain_capture_and_retire_terminal`.
+This generated in-process test uses five field or maintenance rows, one injected
+GET per list, actual in-memory Access and the existing NativeListPages owner to
+check 2/2/1 pages, retained capture/bytes/timestamp identity, fresh captured grants
+per continuation and terminal cursor retirement. A private test-only snapshot is
+assembled from the actual native decoder; its baseline is correlation data, not a
+Store read. Configured capture, credential custody, byte accounting, domain
+bind/dispatch/disclosure, mounted HTTP/MCP, live providers, browser/device acceptance
+and broader continuation variants are not qualified. No production API, workflow
+command or runner is added. Source registration is not execution evidence; the
+new named case and Rust formatting/compilation remain NOT RUN until verified by
+an environment with the pinned toolchain. Existing #288 qualification rows stay
+unchanged.
