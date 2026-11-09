@@ -4,6 +4,7 @@
 mod types;
 mod validate;
 mod disclosure;
+pub mod evaluation;
 
 pub use types::*;
 pub use validate::{AdmittedSnapshot, ReviewProposal, SuggestionError, validate_generated};

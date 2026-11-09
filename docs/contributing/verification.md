@@ -15,6 +15,66 @@ activation stay unbound; the continuity module remains DATA-only without native
 publication or startup-guard changes. Hosted failure before any job step is not
 a source-test result and releases no merge, rerun, billing or deployment action.
 
+## Supplied inventory/document proposal scoring
+
+`backend/src/ai/suggestions/evaluation.rs` adds a reusable generated-data-only
+`evaluate_supplied` function over the existing proposal/evidence contract and
+`validate_generated` boundary. It scores a deliberately supplied fictional output
+against caller-supplied fictional labels; it runs no model, prompt, inference,
+runtime, credential, provider, source workflow or native action. Its
+`model_executed: false` field describes this function, not an attestation about
+an arbitrary caller's bytes. Only explicitly fictional inputs are in scope.
+
+Label integrity checks pin the admitted context (including exact source versions,
+dates, retrieval time and availability), constrain classification/candidate labels
+and their evidence references, require cited rationales, and refuse contradictory
+required-prediction/required-abstention annotations. They do not prove semantic
+truth: fictional evidence and expected rationale still require source review.
+Inventory classification uses exact strings; document classes and all three
+duplicate relationships retain existing contract values. The scorer does not
+normalize taxonomy, infer probability or select a production threshold.
+
+Per-case reports retain admitted/current canonical source stamps, source/output/
+label hashes, and separate counts for allowed, unexpected, missing-required and
+forbidden proposals. Forbidden is a subset of unexpected, not an additional
+independent error to sum twice. Classification, duplicate relationships and
+document associations have separate reports. Same-product/distinct-item and
+ambiguous relationships are not collapsed into same-item duplicates. Unknown
+classification, per-domain no-candidate results and overall abstention are
+recorded separately. Expected-refused output passing the structural validator
+is an unsafe-acceptance counter relative to that annotation, never native approval
+or dispatch. A refused output has null/unscored quality/abstention fields, rather
+than invented zero-error accuracy. No aggregate accuracy or model result is emitted.
+
+The existing default backend-library selection discovers these nine authored
+functions under `ai::suggestions::evaluation::healthy`:
+
+- `same_product_different_item_is_not_a_duplicate_identity_error`
+- `classification_errors_and_duplicate_identity_errors_are_independent`
+- `document_class_is_separate_from_wrong_association_and_original_dates`
+- `ambiguous_unreadable_evidence_can_require_abstention_without_quality_invention`
+- `explicit_document_unknown_is_not_a_class_prediction_or_invalid_output`
+- `misleading_source_instructions_cannot_add_tools_and_refusal_is_not_abstention`
+- `stale_or_withdrawn_context_refuses_without_counting_quality_success`
+- `validation_confusion_is_not_collapsed_into_classification_or_unknown`
+- `annotations_must_pin_versions_and_ground_each_label_in_admitted_evidence`
+
+The small generated fixture bank in `evaluation_healthy.rs` controls scorer
+behavior with explicit serial/model differences, ambiguous unreadable material,
+document-versus-appliance correspondence and untrusted instruction text. It is
+not a replacement for the separately reported unpublished 32-scenario annotation
+corpus. Adapting that corpus requires its exact retained artifact; no import,
+execution or contract compatibility of that artifact is claimed here.
+
+All nine tests are **authored, NOT RUN**. No actual evaluation/metric artifact,
+model accuracy, fitted thresholds or calibration result was produced. Compiler,
+formatter, Clippy, test, browser/device and actual model execution remain unrun
+at this increment. Source/whitespace/manifest audits are separate; no workflow,
+lane, CI rerun, billing setting or activation changes. The existing 77 source /
+1 build / 7 browser frontend inventory is unchanged. Inventory tags/location,
+live OCR, genuine retrieval completeness, prompt-injection model behavior,
+human review, native writes and operational acceptance are outside this scorer.
+
 ## Offline continuity plan data
 
 `backend/src/lifecycle/continuity_plan.rs` is a refusal-first evidence validator

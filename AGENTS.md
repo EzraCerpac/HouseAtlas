@@ -474,6 +474,17 @@ They use generated data and the actual controller, without browser, provider,
 credentials or native writes. Registration is not execution evidence. No
 app-root, workflow, browser selection or other held selection changes.
 
+The default backend-library set additionally discovers nine generated
+`ai::suggestions::evaluation::healthy` scorer controls. They call the existing
+proposal validator over deliberately supplied fictional outputs, with source-pin
+and cited annotation checks. Classification, duplicate relationships, document
+association, abstention/unknown and validator acceptance/refusal remain separate
+integer counts; refused output is unscored, not a correct abstention. These are
+scorer controls, not a model benchmark or the separate unpublished corpus. No
+model, calibrated probability, fitted threshold, runtime/host port, provider,
+credential, browser or native write is involved. Execution is not inferred from
+test registration; see the verification guide for exact scope and limitations.
+
 The same ordinary-core job also runs the 75 generated methods in
 `tools/model-input-disposition/test_storage_adapter.py` against injected fake
 clock, registry, resolver, ledger, readback and conditional-dispatch ports.
