@@ -257,3 +257,35 @@ test('maintenance bounds refuse unknown units due-date metadata and unsupported 
   assert.throws(() => maintenanceSetup({ kind: 'contradictions' }));
   const empty = maintenanceSetup({ maintenance: [] }); assert.deepEqual(empty.controller.getSnapshot().maintenance, []);
 });
+
+test('maintenance canonical bounds and CR controls hold editable drafts before source checks', async () => {
+  for (const patch of [{ title: 'x'.repeat(257) }, { title: 'é'.repeat(129) }, { title: 'Service\rtask' },
+    { conditions: ['x'.repeat(513)] }, { conditions: ['é'.repeat(257)] }, { conditions: ['Service\rcondition'] },
+    { interval: { kind: 'periodic', every: '100001', unit: 'days' } },
+    { interval: { kind: 'conditional', condition: 'x'.repeat(1025) } },
+    { interval: { kind: 'conditional', condition: 'é'.repeat(513) } },
+    { interval: { kind: 'conditional', condition: 'Service\rcondition' } }]) {
+    const s = maintenanceSetup(), c = s.controller;
+    c.selectMaintenanceTask('task-1', true); assert.equal(c.editMaintenanceTask('task-1', patch), true);
+    assert.equal(c.getSnapshot().maintenance[0].valid, false);
+    await c.decide('accept-for-review'); assert.equal(s.checks.length, 0); assert.equal(s.intents.length, 0);
+    assert.equal(c.getSnapshot().phase, 'reviewing');
+    assert.equal(c.editMaintenanceTask('task-1', { title: 'Corrected\nservice\ttask', conditions: ['Reviewed\nsource\tcondition'],
+      interval: { kind: 'conditional', condition: 'When\nindicator\tchanges' } }), true);
+    assert.equal(c.getSnapshot().maintenance[0].valid, true);
+    await c.decide('accept-for-review'); await c.decide('accept-for-review');
+    assert.equal(s.checks.length, 1); assert.equal(s.intents.length, 1);
+    c.dispose();
+  }
+});
+
+test('maintenance canonical UTF-8 and interval upper boundaries remain valid', async () => {
+  for (const interval of [{ kind: 'periodic', every: '100000', unit: 'days' },
+    { kind: 'conditional', condition: 'é'.repeat(512) }]) {
+    const s = maintenanceSetup(), c = s.controller;
+    c.selectMaintenanceTask('task-1', true);
+    assert.equal(c.editMaintenanceTask('task-1', { title: 'é'.repeat(128), conditions: ['é'.repeat(256)], interval }), true);
+    assert.equal(c.getSnapshot().maintenance[0].valid, true);
+    await c.decide('accept-for-review'); assert.equal(s.intents.length, 1); c.dispose();
+  }
+});

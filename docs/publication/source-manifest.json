@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 38815,
-      "sha256": "b59a518ffd8249d02a3df2603dcdbcd121ea58d603b1a59d1bf18ca2bd2c3648",
+      "bytes": 39851,
+      "sha256": "a73bfc6bb88f33efe6691fbe7d51b2db6f726570e7f3f8fb25067c40d77c7b98",
       "owner": "core-integration"
     },
     {
@@ -6586,8 +6586,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 247285,
-      "sha256": "ead7c04c0d8e649cd46b3c96da35b37035d143664c8802a763cdf7f6e995e865",
+      "bytes": 249402,
+      "sha256": "c3f779e5a2d9790d06be4181c2deecad0ba81a4b5248ca69863d16aa8248adc8",
       "owner": "core-integration"
     },
     {
@@ -7923,15 +7923,15 @@
     {
       "path": "frontend/lantern-tests/ai-suggestion-adapter.test.mjs",
       "mode": "100644",
-      "bytes": 12499,
-      "sha256": "af4162744894768176d87573bb8520eaaa81e8d44f7617cd47fa80d3a2542d26",
+      "bytes": 15359,
+      "sha256": "0a104d1d24eefd2ddfb187bd6203812bc07ce6dc237a1483cfb6831394b8dac2",
       "owner": "web"
     },
     {
       "path": "frontend/lantern-tests/ai-suggestion-review.test.mjs",
       "mode": "100644",
-      "bytes": 20428,
-      "sha256": "64844cb5b15f617c92ef736d5d3b867d6daad35e0dc11c9625922a6f8c96b068",
+      "bytes": 22516,
+      "sha256": "8a58d047b08c1fee73e7d492a7dbff487af76ad485aa2e9637349a1443e0e679",
       "owner": "web"
     },
     {
@@ -9120,15 +9120,15 @@
     {
       "path": "frontend/src/ai/suggestion-adapter/session.ts",
       "mode": "100644",
-      "bytes": 13644,
-      "sha256": "2be191116579fd897ab04d6db7415570d4afda7a5eb78afa2f656748e397de32",
+      "bytes": 12136,
+      "sha256": "f2d3951cb525b3ffd5704d5f5cc31ec55d239635389286e003304c872088b4f2",
       "owner": "ai"
     },
     {
       "path": "frontend/src/ai/suggestion-review/README.md",
       "mode": "100644",
-      "bytes": 7763,
-      "sha256": "0cfb0d255377ce9904be29327c1c9af57c5b2c1001266b485943a1bf5eddc066",
+      "bytes": 8638,
+      "sha256": "d25ad1d8c208c59f42130516682db27f53acf846b780dc63e5cab44ac0febb83",
       "owner": "ai"
     },
     {
@@ -9141,8 +9141,8 @@
     {
       "path": "frontend/src/ai/suggestion-review/controller.ts",
       "mode": "100644",
-      "bytes": 20035,
-      "sha256": "f5c435acd47a547f1fe8844d0124402ec264f258fdde8ed19209187e2f096d22",
+      "bytes": 21186,
+      "sha256": "43be0b9396d1a68e7a1ed8cc625a08b27acd1f34f3f3bdb3bdea8602828d2022",
       "owner": "ai"
     },
     {
@@ -12053,8 +12053,8 @@
     {
       "path": "tools/ci/lanes.json",
       "mode": "100644",
-      "bytes": 58305,
-      "sha256": "d7169bd1ecbb8857c87c6717493c1af08ca3b1d2ad00acea6ace828bd2c2b4c7",
+      "bytes": 58306,
+      "sha256": "e6a6696c792d2c3aec04ba32c43987dbf25a50c4d994cb6f2de126e09b4e63d1",
       "owner": "core-integration"
     },
     {

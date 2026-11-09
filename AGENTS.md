@@ -468,8 +468,8 @@ rechecks, owner-supplied inspection labels and non-authoritative selection keys.
 No route, original-open capability, approval or native dispatch is issued.
 The review-only browser adapter consumes this DTO with the retained #569
 controller and an explicit owner-supplied React mount. The existing healthy
-runner's SOURCE list selects exactly `ai-suggestion-review.test.mjs` (twenty-three
-controller cases) and `ai-suggestion-adapter.test.mjs` (nine adapter cases).
+runner's SOURCE list selects exactly `ai-suggestion-review.test.mjs` (twenty-five
+controller cases) and `ai-suggestion-adapter.test.mjs` (eleven adapter cases).
 They use generated data and the actual controller, without browser, provider,
 credentials or native writes. Registration is not execution evidence. No
 app-root, workflow, browser selection or other held selection changes.
@@ -560,3 +560,18 @@ Raw interval spelling/property-order edits may retain an interval editedFields
 marker even when normalized canonical values coincide; all actual value changes
 must still be declared, and other spurious markers refuse. Canonical UTF-8 limits
 and Rust-equivalent control-character refusal apply before owner delivery.
+
+
+The maintenance edit repair shares validateMaintenanceValues between controller
+pre-consumption draft checks and session defensive validation. It retains the
+Rust canonical limits: title 256 UTF-8 bytes, up to 16 conditions of 512 bytes,
+conditional text 1024 bytes, periodic count 1..100000 and bounded unit/urgency.
+Controls including CR refuse; LF/TAB remain valid in nonempty text. Lone UTF-16
+surrogates refuse. Invalid local edits stay reviewing/editable with valid:false,
+without source checks, owner delivery or consumption. A corrected draft can be
+sent once. Actual/uncertain owner callback failure remains consumed and cannot
+replay. Inventory/document behavior and genuine current-owner gates are unchanged.
+Two new controller and two new adapter cases plus the corrected invalid-edit
+regression are authored, NOT RUN. Existing source selections remain 77/1/7;
+counts are now 25 controller / 11 adapter cases. No local tests, compilation,
+formatting, Clippy, browser/device qualification or workflow rerun was performed.

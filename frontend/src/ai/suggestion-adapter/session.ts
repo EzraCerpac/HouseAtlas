@@ -1,4 +1,4 @@
-import { createSuggestionReviewController } from '../suggestion-review/controller';
+import { createSuggestionReviewController, validateMaintenanceValues } from '../suggestion-review/controller';
 import type { SuggestionReviewContext, SuggestionReviewIntent, SuggestionReviewView } from '../suggestion-review/view-types';
 
 type ObjectData = Record<string, unknown>;
@@ -45,31 +45,6 @@ const freeze = <T>(value: T): T => {
   if (value && typeof value === 'object') { for (const v of Object.values(value)) freeze(v); Object.freeze(value); }
   return value;
 };
-
-/** Local canonical-value bounds, not a replacement for Rust proposal validation.
- * Edited values remain review intent DATA; the original owner revalidates them. */
-function maintenanceValues(value: ObjectData) {
-  const text = (v: unknown, cap: number): string => {
-    if (typeof v !== 'string' || !v.trim() || new TextEncoder().encode(v).length > cap
-      || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(v))
-      throw new TypeError('Invalid canonical maintenance text');
-    return v;
-  };
-  text(value.title, 256);
-  if (!Array.isArray(value.conditions) || value.conditions.length > 16) throw new TypeError('Invalid maintenance conditions');
-  value.conditions.forEach(v => text(v, 512));
-  if (typeof value.urgency !== 'string' || !['unknown', 'routine', 'review-soon'].includes(value.urgency)) throw new TypeError('Invalid maintenance urgency');
-  const interval = object(value.interval);
-  if (interval.kind === 'periodic') {
-    exact(interval, ['kind', 'every', 'unit']);
-    if (!Number.isSafeInteger(interval.every) || Number(interval.every) < 1 || Number(interval.every) > 100000
-      || typeof interval.unit !== 'string' || !['days', 'weeks', 'months', 'years', 'usage-hours'].includes(interval.unit)) throw new TypeError('Invalid canonical interval');
-  } else if (interval.kind === 'conditional') {
-    exact(interval, ['kind', 'condition']); text(interval.condition, 1024);
-  } else {
-    exact(interval, ['kind']); if (interval.kind !== 'unknown') throw new TypeError('Unsupported maintenance interval');
-  }
-}
 
 /** Decode only a source-owner-produced disclosure, NEVER raw generated output.
  * Structural checks and context pins are not authentication. No fetch/URL/API
@@ -145,7 +120,7 @@ export function createSuggestionReviewSession(json: string, context: object, own
       if (binding.kind !== 'maintenance-task' || binding.taskIndex !== tasks.length || task.targetKey !== target
         || task.key !== `maintenance:${binding.taskIndex}:${target}` || task.baselineDate !== null)
         throw new TypeError('Mismatched canonical maintenance binding');
-      maintenanceValues(task); tasks.push(task); selectionKeys.push(task.key);
+      validateMaintenanceValues(task); tasks.push(task); selectionKeys.push(task.key);
     }
   }
   if (sourceKeys.length !== Object.keys(inspections).length || selectionKeys.length !== Object.keys(selections).length)
@@ -166,7 +141,7 @@ export function createSuggestionReviewSession(json: string, context: object, own
       for (const edited of reviewedTasks) {
         const original = tasks.find(task => task.key === edited.key);
         if (!original || edited.targetKey !== original.targetKey) throw new TypeError('Changed maintenance target');
-        maintenanceValues(edited as unknown as ObjectData);
+        validateMaintenanceValues(edited as unknown as ObjectData);
         const fields = ['title', 'interval', 'conditions', 'urgency'] as const;
         const signature = (value: unknown) => {
           const i = object(value); return JSON.stringify([i.kind, i.every ?? null, i.unit ?? null, i.condition ?? null]);

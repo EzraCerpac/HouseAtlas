@@ -137,20 +137,60 @@ test('maintenance session preserves canonical variants and binds edits without c
     same.session.dispose();
   }
 });
-test('maintenance session refuses edits outside canonical bounds before owner delivery', async () => {
+test('maintenance canonical edit rejection remains editable before consumption and correction delivers once', async () => {
   for (const patch of [{ title: 'x'.repeat(257) }, { title: 'é'.repeat(129) },
     { interval: { kind: 'periodic', every: '100001', unit: 'days' } },
     { interval: { kind: 'conditional', condition: 'x'.repeat(1025) } }, { conditions: ['x'.repeat(513)] },
     { title: 'Service\u0000task' }, { conditions: ['Service\u0085condition'] },
-    { interval: { kind: 'conditional', condition: 'Service\u007fcondition' } }]) {
+    { interval: { kind: 'conditional', condition: 'Service\u007fcondition' } },
+    { title: 'Service\rtask' }, { conditions: ['Service\rcondition'] },
+    { interval: { kind: 'conditional', condition: 'Service\rcondition' } }, { title: 'Service\ud800task' }]) {
     const s = setup(maintenanceFixture()), c = s.session.controller;
+    let checks = 0; s.owner.recheck = async () => { checks++; return 'current'; };
     c.selectMaintenanceTask('maintenance:0:item2', true);
     assert.equal(c.editMaintenanceTask('maintenance:0:item2', patch), true);
+    assert.equal(c.getSnapshot().maintenance[0].valid, false);
     await c.decide('accept-for-review'); await c.decide('accept-for-review');
     assert.equal(s.intents.length, 0);
-    assert.equal(c.getSnapshot().phase, 'handoff-unconfirmed');
+    assert.equal(checks, 0, 'invalid local edits do not start source checks or delivery');
+    assert.equal(c.getSnapshot().phase, 'reviewing');
+    assert.equal(c.editMaintenanceTask('maintenance:0:item2', { title: 'Corrected service',
+      interval: { kind: 'periodic', every: '6', unit: 'months' }, conditions: [], urgency: 'unknown' }), true);
+    assert.equal(c.getSnapshot().maintenance[0].valid, true);
+    await c.decide('accept-for-review'); await c.decide('accept-for-review');
+    assert.equal(s.intents.length, 1); assert.equal(checks, 1);
     s.session.dispose();
   }
+});
+test('maintenance LF and TAB remain valid in titles conditions and conditional intervals', async () => {
+  const wire = maintenanceFixture({ kind: 'conditional', condition: 'When\nindicator\tchanges' });
+  wire.view.maintenance[0].title = 'Review\nservice\ttask';
+  wire.view.maintenance[0].conditions = ['Check\nsource\tcontext'];
+  const s = setup(wire), c = s.session.controller;
+  c.selectMaintenanceTask('maintenance:0:item2', true);
+  assert.equal(c.editMaintenanceTask('maintenance:0:item2', { title: 'Edited\nservice\ttask',
+    conditions: ['Edited\nsource\tcontext'], interval: { kind: 'conditional', condition: 'Edited\nindicator\tcondition' } }), true);
+  assert.equal(c.getSnapshot().maintenance[0].valid, true);
+  await c.decide('accept-for-review');
+  assert.equal(s.intents.length, 1);
+  const task = s.intents[0].intent.maintenance[0];
+  assert.equal(task.title, 'Edited\nservice\ttask');
+  assert.deepEqual(task.conditions, ['Edited\nsource\tcontext']);
+  assert.equal(task.interval.condition, 'Edited\nindicator\tcondition');
+  s.session.dispose();
+});
+test('maintenance actual owner handoff failure remains consumed after a correctable local rejection', async () => {
+  const s = setup(maintenanceFixture()), c = s.session.controller; let deliveries = 0;
+  s.owner.onIntent = async () => { deliveries++; throw new Error('Synthetic uncertain delivery'); };
+  c.selectMaintenanceTask('maintenance:0:item2', true);
+  c.editMaintenanceTask('maintenance:0:item2', { title: 'x'.repeat(257) });
+  await c.decide('accept-for-review'); assert.equal(deliveries, 0);
+  assert.equal(c.editMaintenanceTask('maintenance:0:item2', { title: 'Corrected service' }), true);
+  await c.decide('accept-for-review');
+  assert.equal(deliveries, 1); assert.equal(c.getSnapshot().phase, 'handoff-unconfirmed');
+  assert.equal(c.editMaintenanceTask('maintenance:0:item2', { title: 'Do not replay' }), false);
+  await c.decide('accept-for-review'); await c.decide('reject');
+  assert.equal(deliveries, 1); s.session.dispose();
 });
 test('maintenance disclosure refuses invented targets, indices, baselines and schedules', () => {
   for (const mutate of [

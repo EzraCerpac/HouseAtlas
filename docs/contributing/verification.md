@@ -225,7 +225,7 @@ intent state. Explicit retirement releases mounted views even when an owner
 cleanup callback throws. `mount.tsx` mounts only into an explicitly supplied empty
 owned element; it changes no app root and starts no inference or native write.
 
-Nine generated adapter tests use the actual session and retained controller
+Eleven generated adapter tests use the actual session and retained controller
 without a browser, service, source owner, credential or network. Registered scoped
 source selections with pinned Node 26.10.0 are:
 
@@ -234,7 +234,7 @@ node --test frontend/lantern-tests/ai-suggestion-review.test.mjs
 node --test frontend/lantern-tests/ai-suggestion-adapter.test.mjs
 ```
 
-The first file contains #569's twenty-three controller cases. The second
+The first file contains the retained controller plus the scoped repair (twenty-five cases). The second
 covers inventory/document/maintenance binding, context retirement, retained-controller
 non-replay, cleanup refusal, canonical maintenance edit bounds and malformed
 disclosure rejection. The #562 source
@@ -386,7 +386,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 77 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The two AI source selections contain twenty-three controller and nine disclosure-adapter cases using generated data without browser, provider, credentials or source writes. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 77 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The two AI source selections contain twenty-five controller and eleven disclosure-adapter cases using generated data without browser, provider, credentials or source writes. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
@@ -3859,7 +3859,7 @@ capability, scheduling, source write or app-root activation is installed.
 The donor README's UNAPPLIED bridge note is its standalone six-file status;
 this composition supplies that bridge, while real authenticated ports stay unbound.
 Two new backend cases and four new session cases are authored, NOT RUN.
-The existing two SOURCE selections now contain 23 controller and 9 adapter cases;
+The existing two SOURCE selections now contain 25 controller and 11 adapter cases;
 77 source / 1 build / 7 browser selections remain unchanged. TypeScript/Rust
 compilation, formatting, Clippy, Node tests, React mounting, cross-language and
 device checks have not run at this composed head. Source review/manifest audits
@@ -3869,3 +3869,34 @@ Raw interval spelling/property-order edits may retain an interval editedFields
 marker even when normalized canonical values coincide; all actual value changes
 must still be declared, and other spurious markers refuse. Canonical UTF-8 limits
 and Rust-equivalent control-character refusal apply before owner delivery.
+
+
+### Maintenance edit validation before consumption
+
+The source repair shares one frontend validateMaintenanceValues function between
+controller display/draft validation and session defensive delivery checks. Rust
+remains the canonical authority. All editable fields are covered: title <=256
+UTF-8 bytes; conditions <=16, each <=512 bytes; conditional interval text <=1024
+bytes; periodic integer 1..100000 with canonical units; canonical urgency enum.
+Text refuses controls including CR and lone UTF-16 surrogates, while preserving
+valid LF/TAB. Invalid drafts have valid:false, remain reviewing/editable and do
+not start source checks or consume the once-only intent. Corrected proposals may
+deliver once. Actual/uncertain owner handoff failure still consumes permanently;
+there is no re-enable-after-callback-failure path. No UI design or authority change.
+
+Authored scoped regression cases (NOT RUN):
+
+- Controller: `maintenance canonical bounds and CR controls hold editable drafts before source checks`
+- Controller: `maintenance canonical UTF-8 and interval upper boundaries remain valid`
+- Session (corrected existing case): `maintenance canonical edit rejection remains editable before consumption and correction delivers once`
+- Session: `maintenance LF and TAB remain valid in titles conditions and conditional intervals`
+- Session: `maintenance actual owner handoff failure remains consumed after a correctable local rejection`
+
+Four cases are new and one existing case is corrected, bringing the existing
+selections to 25 controller / 11 adapter cases without a new runner or workflow.
+They use generated in-memory fixtures and the actual controller/session modules;
+TypeScript stripping is not semantic type checking. Tests, build/compilation,
+formatter/Clippy, React rendering, browser/device and exact-head hosted execution
+remain unqualified. Only source, whitespace and scoped byte/manifest audits are
+performed for publication. The historical corpus and standalone Python report
+remain unchanged; no model, grant, native operation, scheduling or activation runs.

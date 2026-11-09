@@ -5,13 +5,21 @@ import type { SuggestionReviewView, SuggestionReviewPorts, SuggestionReviewSnaps
 
 const units = ['days', 'weeks', 'months', 'years', 'usage-hours'];
 const urgencies = ['unknown', 'routine', 'review-soon'];
+// Mirrors maintenance bounds in backend/src/ai/suggestions/{types,validate}.rs.
+// Shared by display/draft validation and the session's defensive delivery check;
+// this is local review DATA validation, never native authorization.
+function maintenanceText(value: unknown, cap: number): value is string {
+  return typeof value === 'string' && !!value.trim() && new TextEncoder().encode(value).length <= cap
+    && !/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/u.test(value)
+    && !/[\ud800-\udfff]/u.test(value);
+}
 function intervalView(interval: MaintenanceIntervalView): MaintenanceIntervalView {
   const exact = (keys: string[]) => Object.keys(interval).sort().join(',') === keys.sort().join(',');
   if (!interval || typeof interval !== 'object') throw new TypeError('Invalid maintenance interval');
   if (interval.kind === 'periodic' && exact(['kind', 'every', 'unit']) && Number.isSafeInteger(interval.every)
-    && interval.every > 0 && interval.every <= 4294967295 && units.includes(interval.unit)) return Object.freeze({ ...interval });
+    && interval.every > 0 && interval.every <= 100000 && units.includes(interval.unit)) return Object.freeze({ ...interval });
   if (interval.kind === 'conditional' && exact(['kind', 'condition']) && typeof interval.condition === 'string'
-    && interval.condition.trim().length > 0 && interval.condition.length <= 4096) return Object.freeze({ ...interval });
+    && maintenanceText(interval.condition, 1024)) return Object.freeze({ ...interval });
   if (interval.kind === 'unknown' && exact(['kind'])) return Object.freeze({ kind: 'unknown' });
   throw new TypeError('Unsupported maintenance interval');
 }
@@ -28,12 +36,23 @@ function copyIntervalDraft(interval: MaintenanceIntervalDraft): MaintenanceInter
     && interval.condition.length <= 4096) return Object.freeze({ ...interval });
   throw new TypeError('Unsupported interval edit');
 }
-function validTask(task: Pick<MaintenanceTaskDraft, 'title' | 'interval' | 'conditions'>): boolean {
+/** Same canonical-value check before consumption and at the session boundary.
+ * The original Rust validator/owner remains authoritative for every workflow. */
+export function validateMaintenanceValues(value: unknown): void {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid maintenance values');
+  const task = value as Record<string, unknown>;
+  if (!maintenanceText(task.title, 256) || !Array.isArray(task.conditions) || task.conditions.length > 16
+    || !task.conditions.every(v => maintenanceText(v, 512)) || typeof task.urgency !== 'string'
+    || !urgencies.includes(task.urgency)) throw new TypeError('Invalid canonical maintenance values');
+  intervalView(task.interval as MaintenanceIntervalView);
+}
+function validTask(task: Pick<MaintenanceTaskDraft, 'title' | 'interval' | 'conditions' | 'urgency'>): boolean {
   const i = task.interval;
-  return task.title.trim().length > 0 && task.conditions.every(v => v.trim().length > 0)
-    && (i.kind === 'unknown' || i.kind === 'conditional' && i.condition.trim().length > 0
-      || i.kind === 'periodic' && i.unit !== null && /^[0-9]{1,10}$/.test(i.every)
-        && Number(i.every) > 0 && Number(i.every) <= 4294967295);
+  if (i.kind === 'periodic' && (i.unit === null || !/^[0-9]{1,10}$/.test(i.every))) return false;
+  try {
+    validateMaintenanceValues({ ...task, interval: i.kind === 'periodic' ? { ...i, every: Number(i.every) } : i });
+    return true;
+  } catch { return false; }
 }
 function editedTask(task: MaintenanceTaskDraft, original: MaintenanceTaskView): readonly MaintenanceEditedField[] {
   const changed: MaintenanceEditedField[] = [];
@@ -94,7 +113,8 @@ function copyView(view: SuggestionReviewView): SuggestionReviewView {
       const allowed = ['key', 'targetKey', 'targetLabel', 'title', 'interval', 'conditions', 'urgency', 'reason', 'uncertainty', 'evidenceKeys', 'baselineDate'];
       if (!task || Object.keys(task).sort().join(',') !== allowed.sort().join(',') || !urgencies.includes(task.urgency))
         throw new TypeError('Invalid maintenance display');
-      const title = text(task.title); if (!title.trim()) throw new TypeError('Maintenance title required');
+      validateMaintenanceValues(task);
+      const title = task.title;
       const conditions = list(task.conditions).map(value => { text(value); if (!value.trim()) throw new TypeError('Empty condition'); return value; });
       return Object.freeze({ key: key(task.key), targetKey: key(task.targetKey), targetLabel: text(task.targetLabel),
         title, interval: intervalView(task.interval), conditions: Object.freeze(conditions), urgency: task.urgency,
