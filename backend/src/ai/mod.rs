@@ -7,6 +7,7 @@ pub mod responses;
 pub mod runner;
 pub mod runtime;
 pub mod stock;
+pub mod suggestions;
 pub mod transport;
 pub mod types;
 

@@ -22,6 +22,98 @@ reconciles already-executed finite synthetic tests and their boundaries. Real
 reviewed-write continuation/domain-held coverage remains blocked on the
 concrete original reviewed-stock and trusted human-review bridge.
 
+## Review-only AI suggestion contracts
+
+The existing default backend-library job discovers these ten generated functions
+under `ai::suggestions::synthetic_contracts`:
+
+- `inventory_document_and_abstention_keep_exact_sources_and_unknowns`
+- `inventory_refuses_unadmitted_candidates_and_unsupported_changes`
+- `document_requires_selected_content_and_candidate_evidence`
+- `fresh_context_fences_scope_versions_availability_and_disclosure`
+- `snapshot_rejects_invalid_canonical_targets_dates_and_locators`
+- `homebox_child_collections_are_not_individual_candidates`
+- `maintenance_is_interval_only_and_never_an_execution_intent`
+- `answers_require_citations_and_cannot_claim_exhaustive_retrieval`
+- `contradiction_keys_retain_both_sides_and_change_only_with_relevant_evidence`
+- `strict_json_and_resource_bounds_refuse_extra_authority_and_malformed_output`
+
+The source is `backend/src/ai/suggestions/synthetic_contracts.rs`. These are pure
+generated structural checks over the review-only version-1 proposal envelope.
+The validator reuses canonical stock scope/target schemas and evidence record
+references. It bounds output, separates extracted claims from proposals, pins
+the selected feature and exact input versions, limits references to admitted
+inputs, and refuses stale/unavailable/withdrawn current context. It never
+authenticates a caller: the existing read/access owner must supply fresh inputs
+again at disclosure and before any separate native review/apply workflow.
+
+No provider/model, credential, native dispatcher, Access issuer, persistence,
+browser/device, network or consequential write runs. Schema/reference acceptance
+does not prove factual correctness, classification accuracy, true contradiction,
+tested wiring, original availability or human approval. Stable finding keys do
+not implement dismissal persistence. Manual workflows and existing runtime gates
+are unchanged; no workflow or runner command is added.
+
+Publication preparation on 8 November 2026 performed source review and whitespace
+checks only. Compilation, formatting, Clippy and these tests are **NOT RUN** in
+that environment because the pinned Rust tools are absent. Exact candidate
+execution remains separate; the existing hosted account-billing block is not
+bypassed or treated as a test result.
+
+## Validated inventory/document disclosure adapter
+
+The composed suggestion source includes #569's unchanged six presentation files
+and #570's canonical validation lane. `disclose_review` rechecks the immutable
+review against fresh original-owner input before producing a closed display DTO
+for inventory/document results. Exact versions, independent dates, original
+excerpts, page/text locators, supporting and contradicting extracted claims and
+unknown current field values are retained. Original availability is labeled only
+from the caller's explicitly supplied original-owner evidence IDs; the label is
+not an inspect capability. Inspection and selections carry correlation data,
+never model URLs, approvals or native operation envelopes.
+
+Three additional default-library functions under
+`ai::suggestions::synthetic_contracts` are authored:
+
+- `review_disclosure_preserves_contradicting_claims_exact_sources_and_selection_bindings`
+- `review_disclosure_rechecks_current_sources_and_refuses_unadmitted_inspection`
+- `document_disclosure_separates_classification_from_links_and_abstention_keeps_unknowns`
+
+`frontend/src/ai/suggestion-adapter/session.ts` decodes only a backend/source-owner
+disclosure, then supplies the unchanged review controller with exact inspection
+and selection bindings. The original owner must authenticate and revalidate at
+every disclosure, inspection and review handoff. Pin equality does not establish
+authority. Selection starts empty; edited fields remain untrusted review text.
+The same session/controller survives navigation remounts, preserving consumed
+intent state. Explicit retirement releases mounted views even when an owner
+cleanup callback throws. `mount.tsx` mounts only into an explicitly supplied empty
+owned element; it changes no app root and starts no inference or native write.
+
+Five generated adapter tests use the actual session and unchanged controller
+without a browser, service, source owner, credential or network. Proposed scoped
+commands with pinned Node 26.10.0 are:
+
+```sh
+node --test frontend/lantern-tests/ai-suggestion-review.test.mjs
+node --test frontend/lantern-tests/ai-suggestion-adapter.test.mjs
+```
+
+The first file contains #569's fourteen unchanged controller cases. The second
+covers inventory/document binding, context retirement, retained-controller
+non-replay, cleanup refusal and malformed disclosure rejection. Neither command
+is added to `run-healthy.mjs` here: that file and actual application-root mounting
+remain with #562's integration owner. No workflow or CI command inventory changes.
+
+These cases are **authored, NOT RUN** in the source executor (Rust tools absent;
+Node 24.19.0 does not satisfy the pin). TypeScript compilation, Rust formatting,
+Clippy, rendering, mounted focus/visual checks and cross-language execution are
+also NOT RUN. Source/delta review and focused byte/manifest audits are separate
+from execution; no CI rerun or billing/check change is implied. This increment
+does not implement a default application mount, authenticated disclosure route,
+live inference, provider write, native approval or device acceptance. Existing
+read/access/inspection/workflow owners must supply those separately qualified
+ports; manual browsing remains independent.
+
 ## Approved scoped bridge read cases
 
 The owner approved exactly these three existing selections for the existing
