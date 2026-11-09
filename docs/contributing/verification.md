@@ -3825,14 +3825,19 @@ Its standalone README and HISTORICAL-CHECKS.txt describe the November 8 artifact
 the historical 18-test Python integrity success is not current-head execution.
 The Python mutation suite is not added to a default runner. See INTEGRATION.md
 for original hashes, exact mappings and exclusions.
-The existing default backend-library selection discovers three additional
+The existing default backend-library selection discovers six
 `ai::suggestions::evaluation::retained_corpus` cases: frozen corpus/mapping
-limits; separate supplied inventory classification/identity counters; and
-alternative document links with changed/withdrawn context refusal. The bridge
-is cfg(test)-only and reuses evaluate_supplied/the existing canonical validator.
-Only inv-identity and doc-ambiguous have mapped allowed dimensions. The other
-30 cases, positive recall, unique-winner selection, field-specific abstentions,
+limits; separate supplied inventory classification/identity counters;
+alternative document links with changed/withdrawn context refusal; and exact
+original inv-stale, inv-revoked and doc-revoked structural context-refusal cases.
+The latter split observed/current versions or project disclosure_revoked into
+current Withdrawn DATA; this is not real Access revocation. All semantic-quality,
+unknown and semantic-abstention scores must be null for these refused outputs.
+The bridge is cfg(test)-only and reuses evaluate_supplied/the existing canonical validator.
+Only inv-identity and doc-ambiguous have mapped allowed dimensions; three more
+cases map structural refusal only. The other 27 cases, positive recall,
+unique-winner selection, field-specific abstentions,
 unknown prose, unmapped negative annotations and native effects stay unscored.
-These three authored Rust cases and current-head formatting/compilation/Clippy
+These six authored Rust cases and current-head formatting/compilation/Clippy
 are NOT RUN. No model/API, production corpus import, real authority or write,
 new workflow, runtime readiness or issue acceptance follows.

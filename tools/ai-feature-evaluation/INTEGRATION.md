@@ -44,16 +44,38 @@ in the adapted data. Scorer set counters describe only the mapped dimensions;
 they are not a complete case pass. In particular, the doc-ambiguous adapter
 cannot detect a presentation claiming one candidate is uniquely correct.
 
-The other 30 cases return no adapted case and remain explicitly unscored,
+Three further cases map structural context refusal only:
+
+| Original case | Observed → current DATA projection |
+| --- | --- |
+| inv-stale | item-a v1 → item-a v2, as separately selected snapshots of the same fictional target |
+| inv-revoked | item-a v1 available → withdrawn |
+| doc-revoked | invoice v1 available → withdrawn; item-a v1 remains available |
+
+The first mapping uses the exact `changed_versions` observed/current annotations;
+it never admits two versions of one identity simultaneously. Each version keeps
+its own original source date, retrieval date and excerpts. The other two project
+`disclosure_revoked` to canonical snapshot availability DATA. They do not invoke
+Access, remove a grant, prove authentication or execute native revocation. The
+corpus candidate lists are not native authority and provide no new semantic labels.
+
+Three new authored cases first check the deliberately supplied no-change envelope
+against its observed snapshot, then require the exact ContextChanged or
+ContextWithdrawn error against current context. The existing scorer must report
+expected structural refusal with null classification, duplicate, document,
+unknown and semantic-abstention scores. An empty proposal is a test input, not
+a gold semantic abstention, model response or complete case pass.
+
+The other 27 cases return no adapted case and remain explicitly unscored,
 including the same-product-only inventory case and every maintenance, cited
 answer and contradiction case. A model/product match is never translated into
 physical identity. More mappings need an explicit semantic/dimension review;
 the corpus's original annotations must not be rewritten to manufacture coverage.
 
-Three authored default-library Rust cases check frozen corpus/cardinality and
+Six authored default-library Rust cases check frozen corpus/cardinality and
 mapping limits, separate supplied inventory category/identity counters, retained
-alternative document links and changed/withdrawn context refusal through the
-existing validator. Supplied JSON is deliberately handwritten. Rust formatting,
+alternative document links, the three original context-refusal cases and
+changed/withdrawn context refusal through the existing validator. Supplied JSON is deliberately handwritten. Rust formatting,
 compilation, Clippy and these tests are **NOT RUN** at this integration. There is
 no generated evaluation-result artifact, model accuracy, calibrated probability,
 fitted threshold or complete child-issue acceptance claim. No workflow or new
