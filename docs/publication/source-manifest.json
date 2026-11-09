@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 30341,
-      "sha256": "b288fc1d33c19952a8abc3b3fde034ac29fd6b6c004cc1665c059cc1e7218426",
+      "bytes": 31131,
+      "sha256": "f55bfef174c5a913679384484a758ddf683fafbfdce1f76880b425ae5e6bade4",
       "owner": "core-integration"
     },
     {
@@ -1173,17 +1173,24 @@
       "owner": "ai"
     },
     {
+      "path": "backend/src/ai/suggestions/disclosure.rs",
+      "mode": "100644",
+      "bytes": 9551,
+      "sha256": "5603843b3c0e20ee946af0edfb85e7667350f9c0f6d7332169b7d264ef3345c2",
+      "owner": "ai"
+    },
+    {
       "path": "backend/src/ai/suggestions/mod.rs",
       "mode": "100644",
-      "bytes": 415,
-      "sha256": "ab2b888a1c01a33491313af6130b44b93a3b86eec36278fa87926834bbf114b3",
+      "bytes": 488,
+      "sha256": "caf724c76c40de6130b4a52960610698732b39149b53bf3faae4a923ae892bab",
       "owner": "ai"
     },
     {
       "path": "backend/src/ai/suggestions/synthetic_contracts.rs",
       "mode": "100644",
-      "bytes": 13963,
-      "sha256": "cfdb117c3d850ae0a920ba5b06a4bfe8bad27ce37c4f69ce77cc0bd669d43d44",
+      "bytes": 17355,
+      "sha256": "120e9807d74684ea4e993e66317669f70604f24bc65fbe8e23c1d73168a3071d",
       "owner": "ai"
     },
     {
@@ -6516,8 +6523,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 222243,
-      "sha256": "aa3deb170455bb3f7cc4794e5203506ab4a1d77b416e02bafaa298a651d5df9a",
+      "bytes": 225497,
+      "sha256": "a1639901bb587df8efc66e3f5322cf00aeb0ba436032ce946f2cca88e6684a08",
       "owner": "core-integration"
     },
     {
@@ -7823,6 +7830,20 @@
       "owner": "web"
     },
     {
+      "path": "frontend/lantern-tests/ai-suggestion-adapter.test.mjs",
+      "mode": "100644",
+      "bytes": 6711,
+      "sha256": "af0bca65fa7a09bddf6214436b4ebc43e602f9f4c7eeba1d4c45a740ad81c358",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/ai-suggestion-review.test.mjs",
+      "mode": "100644",
+      "bytes": 11570,
+      "sha256": "09b47447655e33f98f6b3eeded5a870d314693dc3b29e9909280ad800514d672",
+      "owner": "web"
+    },
+    {
       "path": "frontend/lantern-tests/backup-settings-healthy.mjs",
       "mode": "100644",
       "bytes": 7527,
@@ -8933,6 +8954,55 @@
       "mode": "100644",
       "bytes": 4062,
       "sha256": "d3b05369e708144fab7f110630f2d8778e40b696c28100e271a86375b6b9753b",
+      "owner": "ai"
+    },
+    {
+      "path": "frontend/src/ai/suggestion-adapter/mount.tsx",
+      "mode": "100644",
+      "bytes": 1204,
+      "sha256": "5e4fb64da1b2e9839b7fe75527319c91cd967104488cf7720a6e3e5b291b9f38",
+      "owner": "ai"
+    },
+    {
+      "path": "frontend/src/ai/suggestion-adapter/session.ts",
+      "mode": "100644",
+      "bytes": 9384,
+      "sha256": "7cf00e85f48057f1c04611179b5b4be4ddd93bcdbdffb35f2fd2b919db1fd6cc",
+      "owner": "ai"
+    },
+    {
+      "path": "frontend/src/ai/suggestion-review/README.md",
+      "mode": "100644",
+      "bytes": 4759,
+      "sha256": "7f6e28e0de9d5146c260fdb04b76671d9af8dc70bdb5808d4524729af4d9d2f9",
+      "owner": "ai"
+    },
+    {
+      "path": "frontend/src/ai/suggestion-review/SuggestionReview.tsx",
+      "mode": "100644",
+      "bytes": 5338,
+      "sha256": "512139c28479e5c52e0e6b59c994ec0bc8e77af253655b5c5618d1128c4710c3",
+      "owner": "ai"
+    },
+    {
+      "path": "frontend/src/ai/suggestion-review/controller.ts",
+      "mode": "100644",
+      "bytes": 11745,
+      "sha256": "cd81c622378f9fcb425827f8be435f94a4364cc05f2bd90af768d3d9bbd17fd5",
+      "owner": "ai"
+    },
+    {
+      "path": "frontend/src/ai/suggestion-review/suggestion-review.css",
+      "mode": "100644",
+      "bytes": 1267,
+      "sha256": "6b15fd1b255f1d63cb77e62a5b781897dcae253379b5dd39b12ce706efcb446c",
+      "owner": "ai"
+    },
+    {
+      "path": "frontend/src/ai/suggestion-review/view-types.ts",
+      "mode": "100644",
+      "bytes": 4016,
+      "sha256": "4ceb2391b018467bff96d23b97ca1084e60566a7a3dc835099384691639af1a1",
       "owner": "ai"
     },
     {

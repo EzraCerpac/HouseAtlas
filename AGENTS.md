@@ -424,6 +424,17 @@ provider, model, credential, browser, device, socket or write port runs. These
 are structural validation cases, not classification/groundedness accuracy or
 live authorization qualification. No workflow or runner command is added.
 
+The same default backend-library module additionally contains three generated
+disclosure projection tests. They join validated review data to the inventory/
+document display DTO and check exact evidence/contrary claims, source revision
+rechecks, owner-supplied inspection labels and non-authoritative selection keys.
+No route, original-open capability, approval or native dispatch is issued.
+The review-only browser adapter consumes this DTO with the unchanged #569
+controller and an explicit owner-supplied React mount. Its five generated source
+tests and #569's fourteen controller cases have standalone pinned-Node commands
+in the verification guide, but remain off the shared healthy-runner list pending
+the existing integration owner. No app-root, workflow or held selection changes.
+
 The same ordinary-core job also runs the 75 generated methods in
 `tools/model-input-disposition/test_storage_adapter.py` against injected fake
 clock, registry, resolver, ledger, readback and conditional-dispatch ports.

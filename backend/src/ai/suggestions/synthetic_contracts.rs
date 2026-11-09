@@ -218,3 +218,55 @@ fn strict_json_and_resource_bounds_refuse_extra_authority_and_malformed_output()
     assert_eq!(validate(&switched, &snapshot).unwrap_err(), SuggestionError::InvalidOutput);
     assert_eq!(validate_generated(&vec![b' '; MAX_OUTPUT_BYTES + 1], &snapshot, &snapshot).unwrap_err(), SuggestionError::LimitExceeded);
 }
+
+#[test]
+fn review_disclosure_preserves_contradicting_claims_exact_sources_and_selection_bindings() {
+    let snapshot = AdmittedSnapshot::new(input()).unwrap();
+    let review = validate(&output(&snapshot, inventory()), &snapshot).unwrap();
+    let inspectable = ["e1".to_owned()].into_iter().collect();
+    let disclosure = disclose_review(&review, &snapshot, &inspectable).unwrap();
+    let wire = disclosure.value();
+    assert_eq!(wire["schemaVersion"], 1);
+    assert_eq!(wire["contextPin"], snapshot.context_pin());
+    assert_eq!(wire["view"]["fields"][0]["current"], Value::Null);
+    assert_eq!(wire["view"]["sources"][0]["sourceDate"], Value::Null);
+    assert_eq!(wire["view"]["sources"][0]["excerpt"], input().sources[0].evidence[0].excerpt);
+    assert_eq!(wire["view"]["sources"][0]["page"], 2);
+    assert_eq!(wire["view"]["sources"][0]["original"], "available");
+    assert_eq!(wire["view"]["sources"][1]["original"], "unavailable");
+    assert_eq!(wire["view"]["uncalibratedScore"], Value::Null);
+    let duplicate = wire["view"]["candidates"].as_array().unwrap().iter()
+        .find(|c| c["key"] == "duplicate:input2").unwrap();
+    assert!(duplicate["reason"].as_str().unwrap().contains("Contradicting extracted claim"));
+    assert!(duplicate["evidenceKeys"].as_array().unwrap().contains(&json!("e2")));
+    assert_eq!(wire["selections"]["container:input3"]["inputRef"], "input3");
+    assert_eq!(wire["inspections"]["e1"]["version"], "revision-1");
+    assert_eq!(wire["inspections"]["e1"]["location"], json!({"kind":"page","page":2,"pageCount":3}));
+}
+
+#[test]
+fn review_disclosure_rechecks_current_sources_and_refuses_unadmitted_inspection() {
+    let snapshot = AdmittedSnapshot::new(input()).unwrap();
+    let review = validate(&output(&snapshot, inventory()), &snapshot).unwrap();
+    let mut changed = input(); changed.sources[0].version = "revision-2".into();
+    let current = AdmittedSnapshot::new(changed).unwrap();
+    assert_eq!(disclose_review(&review, &current, &Default::default()).unwrap_err(), SuggestionError::ContextChanged);
+    let invented = ["invented-original".to_owned()].into_iter().collect();
+    assert_eq!(disclose_review(&review, &snapshot, &invented).unwrap_err(), SuggestionError::UnadmittedReference);
+}
+
+#[test]
+fn document_disclosure_separates_classification_from_links_and_abstention_keeps_unknowns() {
+    let mut admitted = input(); admitted.feature = SuggestionFeature::Document; admitted.sources[0].kind = CandidateKind::Document;
+    let snapshot = AdmittedSnapshot::new(admitted).unwrap();
+    let review = validate(&output(&snapshot, document()), &snapshot).unwrap();
+    let wire = disclose_review(&review, &snapshot, &Default::default()).unwrap();
+    assert_eq!(wire.value()["view"]["fields"][0]["key"], "document-class");
+    assert_eq!(wire.value()["view"]["candidates"][0]["key"], "document-link:input2");
+    let mut empty = output(&snapshot, json!({"kind":"document","classification":null,"links":[]})); empty["claims"] = json!([]);
+    let review = validate(&empty, &snapshot).unwrap();
+    let wire = disclose_review(&review, &snapshot, &Default::default()).unwrap();
+    assert_eq!(wire.value()["view"]["sources"][0]["original"], "unavailable");
+    assert_eq!(wire.value()["inspections"]["subject:input1"]["evidenceRef"], Value::Null);
+    assert!(wire.value()["view"]["fields"].as_array().unwrap().is_empty());
+}
