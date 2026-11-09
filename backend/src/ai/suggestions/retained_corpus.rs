@@ -1,6 +1,7 @@
 //! Test-only bridge from the unchanged November 8 annotations to the supplied
 //! proposal scorer. This module is never imported into a production runtime.
 //! Four cases map allowed labels, one aggregate no-proposal, three context refusal.
+//! Three maintenance controls use validator/disclosure only, never quality scores.
 //! All other cases and unsupported dimensions remain explicitly unscored.
 use super::*;
 use crate::contracts::stock::{AtlasRecordKind, AtlasTarget, StockContext};
@@ -423,4 +424,140 @@ fn retained_invoice_case_preserves_class_alternatives_and_serial_backed_associat
         assert_eq!(report.document_associations.unwrap().allowed_predictions, 1);
         assert!(!report.model_executed);
     }
+}
+
+/// Representational controls only. No Labels/CaseReport or quality counts exist
+/// for maintenance: evaluate_supplied deliberately does not support this feature.
+struct MaintenanceControl {
+    snapshot: AdmittedSnapshot,
+    proposal: Value,
+    mapped_label: String,
+    unmapped_labels: Vec<String>,
+}
+
+fn maintenance_control(case_id: &str) -> Option<MaintenanceControl> {
+    let (subject, mapped_label, interval) = match case_id {
+        "maint-periodic" => ("manual", "interval_90_days", json!({"kind":"periodic","every":90,"unit":"days"})),
+        "maint-no-baseline" => ("manual", "interval_120_days", json!({"kind":"periodic","every":120,"unit":"days"})),
+        "maint-condition-match" => ("notice", "conditional_inspection_review", json!({"kind":"conditional",
+            "condition":"Service notice applies only to fictional pump P9. Inspect only if indicator is lit."})),
+        _ => return None,
+    };
+    let data = corpus();
+    let case = data["cases"].as_array().unwrap().iter().find(|c| c["id"] == case_id).unwrap();
+    assert_eq!(case["feature"], "maintenance");
+    assert_eq!(case["effects_allowed"], json!([]));
+    assert_eq!(case["review_required"], true);
+    let sources = case["input_sources"].as_array().unwrap().iter().map(|input| source_input(&data,
+        input["source_id"].as_str().unwrap(), input["version"].as_str().unwrap(), subject, true)).collect();
+    let snapshot = AdmittedSnapshot::new(SnapshotInput {
+        feature: SuggestionFeature::Maintenance,
+        scope: StockContext { workspace_id: id(90), home_id: id(91) },
+        actor_id: id(92), authority_epoch: "retained-fictional-corpus-only".into(), sources,
+    }).unwrap();
+    let annotation = case["expected_claims"].as_array().unwrap().iter().find(|c| c["label"] == mapped_label).unwrap();
+    let candidate = annotation["candidate_id"].as_str().unwrap();
+    assert!(snapshot.input().sources.iter().any(|s| s.input_ref == candidate && s.role == InputRole::Candidate));
+    let mut claims = Vec::new();
+    let mut claim_refs = Vec::new();
+    for citation in annotation["evidence"].as_array().unwrap() {
+        let source = citation["source_id"].as_str().unwrap();
+        let version = citation["version"].as_str().unwrap();
+        let evidence = evidence_id(source, version, citation["section"].as_str().unwrap());
+        let admitted = snapshot.input().sources.iter().find(|s| s.input_ref == source && s.version == version).unwrap();
+        let excerpt = &admitted.evidence.iter().find(|e| e.evidence_ref == evidence).unwrap().excerpt;
+        assert_eq!(excerpt.as_str(), citation["quote"].as_str().unwrap());
+        claims.push(json!({"claimRef":evidence,"sourceRef":source,"evidenceRefs":[evidence],
+            "text":excerpt,"uncertainty":"unknown"}));
+        claim_refs.push(evidence);
+    }
+    let conditions = if subject == "manual" {
+        // Preserve this exact qualifier from both retained manual revisions;
+        // this is not a decision that ordinary-use conditions actually hold.
+        assert!(annotation["evidence"][0]["quote"].as_str().unwrap().contains("under ordinary use"));
+        vec!["under ordinary use"]
+    } else {
+        assert_eq!(interval["condition"], annotation["evidence"][0]["quote"]);
+        vec![]
+    };
+    let proposal = json!({"schemaVersion":1,"contextPin":snapshot.context_pin(),"subjectRef":subject,
+        "claims":claims,"missingEvidence":case["unknowns"],"result":{"kind":"maintenance","tasks":[{
+            "candidateRef":candidate,"title":"Review documented service proposal","interval":interval,"conditions":conditions,
+            "urgency":"unknown","support":{"claimRefs":claim_refs,"rationale":format!("Supplied structural control for {mapped_label}; no scheduling or condition-state decision."),"uncertainty":"unknown"}}]}});
+    let unmapped_labels = case["expected_claims"].as_array().unwrap().iter().filter(|c| c["label"] != mapped_label)
+        .map(|c| c["label"].as_str().unwrap().to_string()).collect();
+    Some(MaintenanceControl { snapshot, proposal, mapped_label: mapped_label.into(), unmapped_labels })
+}
+
+fn check_maintenance_control(control: &MaintenanceControl) -> Value {
+    let bytes = serde_json::to_vec(&control.proposal).unwrap();
+    let review = validate_generated(&bytes, &control.snapshot, &control.snapshot).unwrap();
+    let disclosure = disclose_review(&review, &control.snapshot, &Default::default()).unwrap();
+    let wire = disclosure.value();
+    assert_eq!(wire["view"]["kind"], "maintenance");
+    assert_eq!(wire["view"]["maintenance"][0]["baselineDate"], Value::Null);
+    assert_eq!(wire["view"]["maintenance"][0]["interval"], control.proposal["result"]["tasks"][0]["interval"]);
+    let candidate = control.proposal["result"]["tasks"][0]["candidateRef"].as_str().unwrap();
+    let key = format!("maintenance:0:{candidate}");
+    assert_eq!(wire["selections"][&key]["inputRef"], candidate);
+    assert_eq!(wire["selections"][&key]["taskIndex"], 0);
+    // Derivative supplied-output controls, not new original corpus scenarios.
+    for field in ["dueDate", "schedule"] {
+        let mut supplied = control.proposal.clone();
+        supplied["result"]["tasks"][0][field] = json!("unsupported-control-only");
+        assert_eq!(validate_generated(&serde_json::to_vec(&supplied).unwrap(), &control.snapshot, &control.snapshot).unwrap_err(), SuggestionError::InvalidOutput);
+    }
+    for withdrawn in [false, true] {
+        let mut current = control.snapshot.input().clone();
+        if withdrawn { current.sources[1].availability = Availability::Withdrawn; }
+        else { current.sources[1].version.push_str("-mutated-control-only"); }
+        let current = AdmittedSnapshot::new(current).unwrap();
+        let expected = if withdrawn { SuggestionError::ContextWithdrawn } else { SuggestionError::ContextChanged };
+        assert_eq!(validate_generated(&bytes, &control.snapshot, &current).unwrap_err(), expected);
+        assert_eq!(disclose_review(&review, &current, &Default::default()).unwrap_err(), expected);
+    }
+    wire.clone()
+}
+
+#[test]
+fn retained_maintenance_periodic_maps_ninety_days_but_not_the_due_date_label() {
+    let control = maintenance_control("maint-periodic").unwrap();
+    assert_eq!(control.mapped_label, "interval_90_days");
+    assert_eq!(control.unmapped_labels, vec!["due_2030_04_01".to_string()]);
+    assert_eq!(control.snapshot.input().sources.len(), 2);
+    assert_eq!(control.snapshot.input().sources[1].evidence.iter().find(|e| e.evidence_ref == "item-a-v1-service").unwrap().excerpt, "Last cleaned 2030-01-01.");
+    let wire = check_maintenance_control(&control);
+    assert_eq!(wire["view"]["maintenance"][0]["interval"], json!({"kind":"periodic","every":90,"unit":"days"}));
+    assert_eq!(wire["view"]["maintenance"][0]["evidenceKeys"], json!(["item-a-v1-identity","manual-v1-p4"]));
+    assert_eq!(wire["view"]["sources"][0]["sourceDate"], "2030-01-01");
+    assert_eq!(wire["view"]["sources"][0]["retrievedAt"], "2030-04-01T12:00:00Z");
+}
+
+#[test]
+fn retained_maintenance_unknown_baseline_keeps_revision_two_and_interval_only() {
+    let control = maintenance_control("maint-no-baseline").unwrap();
+    assert_eq!(control.mapped_label, "interval_120_days");
+    assert!(control.unmapped_labels.is_empty());
+    assert_eq!(control.snapshot.input().sources.len(), 2);
+    assert!(control.snapshot.input().sources.iter().all(|s| s.version == "2"));
+    assert_eq!(control.snapshot.input().sources[1].evidence.iter().find(|e| e.evidence_ref == "item-a-v2-service").unwrap().excerpt, "Last cleaning unknown.");
+    let wire = check_maintenance_control(&control);
+    assert_eq!(wire["view"]["maintenance"][0]["interval"], json!({"kind":"periodic","every":120,"unit":"days"}));
+    assert_eq!(wire["view"]["sources"][0]["sourceDate"], "2030-03-01");
+    assert!(wire["view"]["uncertainty"].as_array().unwrap().contains(&json!("last cleaning date")));
+}
+
+#[test]
+fn retained_maintenance_matching_pump_remains_conditional_with_unknown_indicator() {
+    let control = maintenance_control("maint-condition-match").unwrap();
+    assert_eq!(control.mapped_label, "conditional_inspection_review");
+    assert!(control.unmapped_labels.is_empty());
+    assert_eq!(control.snapshot.input().sources.len(), 2);
+    assert_eq!(control.snapshot.input().sources[1].input_ref, "pump");
+    assert_eq!(control.snapshot.input().sources[1].source_date, None);
+    let wire = check_maintenance_control(&control);
+    assert_eq!(wire["view"]["maintenance"][0]["interval"]["kind"], "conditional");
+    assert_eq!(wire["view"]["maintenance"][0]["interval"]["condition"], "Service notice applies only to fictional pump P9. Inspect only if indicator is lit.");
+    assert_eq!(wire["view"]["maintenance"][0]["targetKey"], "pump");
+    assert!(wire["view"]["uncertainty"].as_array().unwrap().contains(&json!("indicator state")));
 }

@@ -69,13 +69,14 @@ expected structural refusal with null classification, duplicate, document,
 unknown and semantic-abstention scores. An empty proposal is a test input, not
 a gold semantic abstention, model response or complete case pass.
 
-The other 24 cases return no adapted case and remain explicitly unscored,
-including the same-product-only inventory case and every maintenance, cited
-answer and contradiction case. A model/product match is never translated into
+The inventory/document adapter leaves 24 cases unscored; three of these now
+have the separate maintenance representational controls described below. The
+other 21 cases have no bridge. Quality remains unscored for the same-product-only
+inventory case and every maintenance, cited-answer and contradiction case. A model/product match is never translated into
 physical identity. More mappings need an explicit semantic/dimension review;
 the corpus's original annotations must not be rewritten to manufacture coverage.
 
-Nine authored default-library Rust cases check frozen corpus/cardinality and
+The nine retained inventory/document default-library Rust cases check frozen corpus/cardinality and
 mapping limits, separate supplied inventory category/identity counters, retained
 alternative document links, the three original context-refusal cases and
 changed/withdrawn context refusal through the existing validator. Supplied JSON is deliberately handwritten. Rust formatting,
@@ -90,7 +91,8 @@ runner selection is added; the standalone Python mutation suite stays separate.
 The retained inv-sparse, doc-electrical and doc-invoice annotations now join the
 same supplied-proposal scorer without changing its production contract. There
 are four allowed-label mappings, one limited aggregate no-proposal control and
-three structural-refusal mappings; the other 24 cases remain wholly unmapped.
+three structural-refusal mappings. Three separate maintenance controls below
+leave 21 cases with no bridge; all maintenance quality remains unscored.
 
 inv-sparse selects only capture-blur v1. Its annotation candidate lists do not
 admit item-a/item-b or provide native authority, and no negative citation is
@@ -131,3 +133,59 @@ No model accuracy, calibration, threshold, complete child acceptance, real Acces
 revocation or native authority is evaluated. The frontend maintenance repair and
 all original corpus file bytes are preserved. Local tests/build/compiler/Clippy/
 formatting/browser/device execution were not performed; no CI lane is added.
+
+
+## Interval-only maintenance representational controls
+
+Three original maintenance cases now have deliberately supplied canonical
+proposals checked through validate_generated and disclose_review only. They
+never call evaluate_supplied, construct Labels/CaseReport or emit empty quality
+counts. The production scorer still supports only inventory/document dimensions;
+there are no maintenance accuracy, calibration or full-case success metrics.
+
+| Original case | Mapped representation | Explicitly unmapped or unqualified |
+| --- | --- | --- |
+| maint-periodic | interval_90_days → periodic 90 days; selected manual v1 / item-a v1; original ordinary-use qualifier and citations | due_2030_04_01 remains a retained, UNMAPPED label because the contract has no due-date field; service-date interpretation, actual usage, purchase/scheduling/native effects |
+| maint-no-baseline | interval_120_days → periodic 120 days; selected manual v2 / item-a v2; ordinary-use qualifier and citations | Unknown last cleaning remains unknown; no due date, scheduling, real baseline or native acceptance |
+| maint-condition-match | conditional_inspection_review → full original P9 notice as conditional text; selected notice v1 / pump v1 and original citations | Indicator state, whether the condition holds, due date, safety diagnosis, scheduling or native acceptance |
+
+The adapter uses only input_sources, never extra annotation candidate records or
+access grants. It retains exact source/version/section excerpts, independent
+source/retrieval dates and the same fictional canonical target join as the prior
+bridge. Claims point to the original mapped annotation citations. The periodic
+case's original service excerpt remains in the admitted input; it is not erased
+or interpreted into a due date. The due label is retained in unmapped_labels,
+not scored as an error or silently discarded. Supplied titles/rationales describe
+structural controls, not generated model judgments. Urgency stays unknown.
+The original unknowns remain proposal missingEvidence.
+
+Canonical maintenance has no qualified service-baseline input: disclosure keeps
+baselineDate null for all three controls, including the case whose original text
+records a cleaning date. This is a representation limit, not a claim the source
+text is absent. Intervals/conditions are proposals only; no fact-time inference,
+condition-state decision or automatic scheduling occurs.
+
+Each authored case asserts the exact positive interval/conditional projection,
+target/index/citation correlation and unknown UI baseline. Shared derivative
+supplied-output mutations assert refusal of unsupported dueDate/schedule fields
+and stale/withdrawn context through the existing validator/disclosure. The mutated
+version suffix and Withdrawn DATA are negative controls, NOT new original corpus
+scenarios, recorded source versions, real Access revocations or native actions.
+A refused dueDate field tests the contract boundary, not failure of the original
+retained due_2030_04_01 annotation.
+
+New authored case names (NOT RUN):
+
+- retained_maintenance_periodic_maps_ninety_days_but_not_the_due_date_label
+- retained_maintenance_unknown_baseline_keeps_revision_two_and_interval_only
+- retained_maintenance_matching_pump_remains_conditional_with_unknown_indicator
+
+All nine earlier bridge tests and eight inventory/document mappings remain
+unchanged, including null semantic scores for structural refusal. The bridge now
+has twelve authored tests: nine prior plus these three. Eleven original cases
+have some bounded bridge (eight inventory/document plus three representational
+maintenance controls); 21 have none. The existing inventory/document count test
+still correctly marks 24 cases outside its scorer, including all maintenance.
+No original corpus file, production contract, frontend repair, runner selection
+or workflow changes. All tests, builds, type checking, compilation, formatting/
+Clippy, browser/device and actual host/model/acceptance qualification remain unrun.

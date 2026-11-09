@@ -3834,7 +3834,7 @@ Its standalone README and HISTORICAL-CHECKS.txt describe the November 8 artifact
 the historical 18-test Python integrity success is not current-head execution.
 The Python mutation suite is not added to a default runner. See INTEGRATION.md
 for original hashes, exact mappings and exclusions.
-The existing default backend-library selection discovers nine
+The existing default backend-library selection discovers twelve
 `ai::suggestions::evaluation::retained_corpus` cases: frozen corpus/mapping
 limits; separate supplied inventory classification/identity counters;
 alternative document links with changed/withdrawn context refusal; and exact
@@ -3848,7 +3848,7 @@ doc-electrical and doc-invoice); inv-sparse maps aggregate no-proposal only;
 three more cases map structural refusal only. The other 24 cases, positive recall,
 unique-winner selection, field-specific abstentions,
 unknown prose, unmapped negative annotations and native effects stay unscored.
-These nine authored Rust cases and current-head formatting/compilation/Clippy
+These twelve authored Rust cases and current-head formatting/compilation/Clippy
 are NOT RUN. No model/API, production corpus import, real authority or write,
 new workflow, runtime readiness or issue acceptance follows.
 
@@ -3917,7 +3917,8 @@ electrical truth, sparse field-specific unknowns/location, unadmitted negative
 candidates and native effects stay unscored. No annotation candidate list is an
 access grant, and no negative citation is fabricated. There are now eight
 partially mapped cases (four allowed-label, one aggregate, three refusal) and
-24 wholly unmapped cases. Three new tests bring the bridge to nine authored
+24 cases outside inventory/document scoring (three maintenance controls below),
+with 21 having no bridge. The earlier three tests brought the bridge to nine authored
 cases, NOT RUN; supplied outputs are not model evaluations. Exact interpretation,
 original hashes and case names are in tools/ai-feature-evaluation/INTEGRATION.md.
 The production scorer/validator, repaired frontend, original corpus files and
@@ -3997,3 +3998,22 @@ Tests, TypeScript/Rust compilation, formatting/Clippy, rendering, cross-language
 browser/device and genuine original-owner qualification are NOT RUN here.
 Independent source review and scoped byte/manifest audits establish no conflict
 truth, correction authority, durable audit/dismissal, model behavior or acceptance.
+
+
+Three retained maintenance cases now have interval-only representational controls
+in the same cfg(test) bridge: maint-periodic (90 days), maint-no-baseline (120 days)
+and maint-condition-match (the full original conditional P9 notice). Only selected
+sources are admitted, preserving original versions/dates/target/citation joins.
+The due_2030_04_01 label remains explicitly unmapped: the canonical contract has
+no due date. Raw service text is retained but not converted to a service baseline;
+disclosure baselineDate stays null. Ordinary-use qualifiers remain, and unknown
+cleaning/indicator state never becomes a schedule or safety/condition decision.
+These controls call only the existing validator/disclosure, NOT evaluate_supplied;
+no maintenance Labels/CaseReport, quality counts or model metrics are constructed.
+Shared derivative negative controls refuse dueDate/schedule fields and stale/
+withdrawn DATA; they are not new original scenarios or real revocation evidence.
+Three new authored cases bring the bridge to twelve tests, all NOT RUN; the nine
+prior tests/eight inventory/document mappings remain unchanged. Eleven cases now
+have some bounded representation and 21 none; all maintenance quality is unscored.
+Exact names/limits are in tools/ai-feature-evaluation/INTEGRATION.md. Production
+contracts, frontend, corpus originals and 77/1/7 selections are unchanged.
