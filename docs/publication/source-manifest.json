@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 29713,
-      "sha256": "c8a08029df6a369ac58e20b2217214108c986d14cf1efcdb2c1ca870818f7b88",
+      "bytes": 30505,
+      "sha256": "22a05270fc5e92d9ca793067261387f971d13e701426dcb8507203492f3472d3",
       "owner": "core-integration"
     },
     {
@@ -2937,6 +2937,20 @@
       "owner": "core-integration"
     },
     {
+      "path": "backend/src/lifecycle/continuity_plan.rs",
+      "mode": "100644",
+      "bytes": 17507,
+      "sha256": "242c196145e232589552aba6fad36de879adefe07837cc26ff967f3988760ebd",
+      "owner": "core-integration"
+    },
+    {
+      "path": "backend/src/lifecycle/continuity_plan_healthy.rs",
+      "mode": "100644",
+      "bytes": 12617,
+      "sha256": "b977f6ea870cc1d1a6fae8db7ea9233b56cbc8312a6e0346f4eb4d5cd635b50b",
+      "owner": "core-integration"
+    },
+    {
       "path": "backend/src/lifecycle/geodata_full_backup.rs",
       "mode": "100644",
       "bytes": 16997,
@@ -2946,8 +2960,8 @@
     {
       "path": "backend/src/lifecycle/mod.rs",
       "mode": "100644",
-      "bytes": 12588,
-      "sha256": "4b7a90d485ae9aee4fe78cd6bf213cfcdcdd3c18dd495412b8e420fe13a0eaa8",
+      "bytes": 12613,
+      "sha256": "8094a0e6ce2d2663ef9a4e991e5b21debb50b5c701a9254530218ec81e5f93aa",
       "owner": "core-integration"
     },
     {
@@ -6488,8 +6502,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 219958,
-      "sha256": "3b3f79157fe82adda88744f15d4e2fd4875ef0441ed8311f4390b23e88bcb8cf",
+      "bytes": 223809,
+      "sha256": "3a83cc844e716ec363a09e5317d2abcb9bca6f97ff4a493878d61053b535c5f5",
       "owner": "core-integration"
     },
     {

@@ -432,3 +432,14 @@ writes and permission fixtures are confined to those disposable roots. No privat
 input, NAS contact, transport, installer, credential, mutation dispatch or settled
 effect is exercised. Same-host subprocess readback is not another storage failure
 domain; source/CI success does not establish operational adoption.
+
+The default backend-library selection also discovers thirteen generated
+`lifecycle::continuity_plan::healthy` cases. These validate observation DATA and
+an in-memory offline journal model only: historical/current cuts, every SQLite
+sidecar/absence, original receipt type, lock/staged-file identities, ordered
+preservation/publication records, permanent uncertainty and conservative metadata
+rollback candidates. They open no file, database, socket, lock or service and
+perform no restore, fsync, rename, receipt publication or startup reconciliation.
+The existing guard is unchanged. Plan success grants no authority and cannot
+authenticate a baseline or prove native exclusion/durability. Source registration
+does not establish execution; the verification guide records remaining bindings.
