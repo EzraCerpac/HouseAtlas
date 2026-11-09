@@ -467,10 +467,12 @@ document display DTO and check exact evidence/contrary claims, source revision
 rechecks, owner-supplied inspection labels and non-authoritative selection keys.
 No route, original-open capability, approval or native dispatch is issued.
 The review-only browser adapter consumes this DTO with the unchanged #569
-controller and an explicit owner-supplied React mount. Its five generated source
-tests and #569's fourteen controller cases have standalone pinned-Node commands
-in the verification guide, but remain off the shared healthy-runner list pending
-the existing integration owner. No app-root, workflow or held selection changes.
+controller and an explicit owner-supplied React mount. The existing healthy
+runner's SOURCE list selects exactly `ai-suggestion-review.test.mjs` (fourteen
+controller cases) and `ai-suggestion-adapter.test.mjs` (five adapter cases).
+They use generated data and the actual controller, without browser, provider,
+credentials or native writes. Registration is not execution evidence. No
+app-root, workflow, browser selection or other held selection changes.
 
 The same ordinary-core job also runs the 75 generated methods in
 `tools/model-input-disposition/test_storage_adapter.py` against injected fake

@@ -1,5 +1,20 @@
 # HouseAtlas
 
+## Continuing sprint source composition — 9 November 2026
+
+The continuation of #562 preserves its original candidate `2aa7c59f` and composes
+unchanged donor heads #571 `2620c4b3`, #572 `3875ab34` and #573 `3e6f1418`.
+The two existing AI source files are registered in the healthy list, with the
+matching 77 source / 1 build / 7 browser inventory. The inspected stdlib-only CI
+inventory generator rewrites documentation; it executes no listed command.
+Donor/source/manifest/whitespace audits are separate from executable qualification.
+No compilation, formatter, Clippy, test, browser or device execution is claimed
+for this combined head. Earlier #562 checks remain historical evidence at their
+original source pins. Authenticated AI source/inspection/review ports and app-root
+activation stay unbound; the continuity module remains DATA-only without native
+publication or startup-guard changes. Hosted failure before any job step is not
+a source-test result and releases no merge, rerun, billing or deployment action.
+
 ## Offline continuity plan data
 
 `backend/src/lifecycle/continuity_plan.rs` is a refusal-first evidence validator
@@ -149,8 +164,8 @@ cleanup callback throws. `mount.tsx` mounts only into an explicitly supplied emp
 owned element; it changes no app root and starts no inference or native write.
 
 Five generated adapter tests use the actual session and unchanged controller
-without a browser, service, source owner, credential or network. Proposed scoped
-commands with pinned Node 26.10.0 are:
+without a browser, service, source owner, credential or network. Registered scoped
+source selections with pinned Node 26.10.0 are:
 
 ```sh
 node --test frontend/lantern-tests/ai-suggestion-review.test.mjs
@@ -159,9 +174,12 @@ node --test frontend/lantern-tests/ai-suggestion-adapter.test.mjs
 
 The first file contains #569's fourteen unchanged controller cases. The second
 covers inventory/document binding, context retirement, retained-controller
-non-replay, cleanup refusal and malformed disclosure rejection. Neither command
-is added to `run-healthy.mjs` here: that file and actual application-root mounting
-remain with #562's integration owner. No workflow or CI command inventory changes.
+non-replay, cleanup refusal and malformed disclosure rejection. The #562 source
+composition adds exactly these two files to `run-healthy.mjs` SOURCE, moving its
+inventory from 75 source / 1 build / 7 browser selections to 77 / 1 / 7. No
+workflow command or browser/held selection changes. Actual application-root
+mounting and genuine source/inspection/review ports remain unbound. This source
+registration does not establish test execution or activate inference.
 
 These cases are **authored, NOT RUN** in the source executor (Rust tools absent;
 Node 24.19.0 does not satisfy the pin). TypeScript compilation, Rust formatting,
@@ -305,7 +323,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 75 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 77 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The two AI source selections contain fourteen controller and five disclosure-adapter cases using generated data without browser, provider, credentials or source writes. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |

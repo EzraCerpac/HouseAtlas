@@ -19,6 +19,8 @@ const cases = (file, flag, names) => names.map(name => node(file, ...(flag ? [fl
 
 const SOURCE = [
   node('healthy-read.mjs'),
+  node('ai-suggestion-review.test.mjs'),
+  node('ai-suggestion-adapter.test.mjs'),
   node('canonical-geometry.test.mjs', '--healthy'),
   node('canonical-mesh-preparation.test.mjs'),
   node('electricity-overlay-read.mjs'),
