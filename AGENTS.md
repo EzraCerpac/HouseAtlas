@@ -461,15 +461,15 @@ provider, model, credential, browser, device, socket or write port runs. These
 are structural validation cases, not classification/groundedness accuracy or
 live authorization qualification. No workflow or runner command is added.
 
-The same default backend-library module additionally contains five generated
+The same default backend-library module additionally contains eight generated
 disclosure projection tests. They join validated review data to the inventory/
-document/maintenance display DTO and check exact evidence/contrary claims, source revision
+document/maintenance/cited-answer display DTO and check exact evidence/contrary claims, source revision
 rechecks, owner-supplied inspection labels and non-authoritative selection keys.
 No route, original-open capability, approval or native dispatch is issued.
 The review-only browser adapter consumes this DTO with the retained #569
 controller and an explicit owner-supplied React mount. The existing healthy
-runner's SOURCE list selects exactly `ai-suggestion-review.test.mjs` (twenty-five
-controller cases) and `ai-suggestion-adapter.test.mjs` (eleven adapter cases).
+runner's SOURCE list selects exactly `ai-suggestion-review.test.mjs` (thirty-two
+controller cases) and `ai-suggestion-adapter.test.mjs` (fifteen adapter cases).
 They use generated data and the actual controller, without browser, provider,
 credentials or native writes. Registration is not execution evidence. No
 app-root, workflow, browser selection or other held selection changes.
@@ -591,3 +591,19 @@ cases, NOT RUN; supplied outputs are not model evaluations. Exact interpretation
 original hashes and case names are in tools/ai-feature-evaluation/INTEGRATION.md.
 The production scorer/validator, repaired frontend, original corpus files and
 77/1/7 frontend selection inventory are unchanged. No runner/workflow is added.
+
+
+Cited-answer composition preserves donor #569 eb217ae3 and its exact six paths,
+including the maintenance repair. The existing canonical disclosure/session now
+projects Answer route, ordered ranked_refs, partial/no-answer coverage, supported
+statement text/rationale/uncertainty and exact evidence. Answer-only rankings
+metadata binds each local rank key to inputRef, version and original rank index;
+rank order is not access, factual certainty or an original-open capability.
+Selections are empty and the session defensively refuses answer intent delivery;
+the donor controller refuses every edit/select/accept/reject path. Only existing
+owner-bound source inspection and local dismissal remain. Real host ports,
+question/inference/runtime binding, native effects and app activation are unbound.
+Three backend and four session cases are authored, NOT RUN. Existing SOURCE
+selections now hold 32 controller / 15 adapter cases; inventory remains 77/1/7.
+Finite DTO bounds may refuse projection rather than invent or truncate evidence.
+No model ranking, answer quality, device or end-to-end host qualification follows.

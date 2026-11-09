@@ -218,3 +218,73 @@ test('maintenance currentness and reject keep review intents separate from effec
   assert.equal(rejected.intents[0].intent.authority, 'none');
   rejected.session.dispose();
 });
+
+function answerFixture() {
+  const wire = fixture('document');
+  wire.view.kind = 'answer'; wire.view.fields = []; wire.view.candidates = []; wire.selections = {};
+  wire.view.sources.push({ ...wire.view.sources[0], key: 'e2', label: 'Generated ranked record', page: null });
+  wire.inspections.e2 = { inputRef: 'item2', version: 'record-1', evidenceRef: 'e2', location: { kind: 'record' } };
+  wire.view.answer = { route: 'documents', coverage: 'partial',
+    rankedCandidates: [{ key: 'rank:item2', label: 'item2 · record-1' }, { key: 'rank:doc1', label: 'doc1 · record-1' }],
+    statements: [{ key: 'answer:0', text: 'Generated documentary association only.', reason: 'Review exact generated evidence', uncertainty: 'Ambiguous', evidenceKeys: ['e1', 'e2'] }],
+    missingEvidence: ['Actual physical correspondence unknown'] };
+  wire.rankings = { 'rank:item2': { inputRef: 'item2', version: 'record-1', rankIndex: 0 },
+    'rank:doc1': { inputRef: 'doc1', version: 'record-1', rankIndex: 1 } };
+  return wire;
+}
+test('answer session binds exact ordered ranks and citations without any intent delivery', async () => {
+  const s = setup(answerFixture()), c = s.session.controller; let checks = 0;
+  s.owner.recheck = async () => { checks++; return 'current'; };
+  assert.deepEqual(c.getSnapshot().view.answer.rankedCandidates.map(v => v.key), ['rank:item2', 'rank:doc1']);
+  assert.equal(c.selectField('document-class', true), false);
+  assert.equal(c.editField('document-class', 'invoice'), false);
+  assert.equal(c.selectCandidate('rank:item2', true), false);
+  assert.equal(c.selectMaintenanceTask('task-1', true), false);
+  assert.equal(c.editMaintenanceTask('task-1', { title: 'No edit' }), false);
+  await c.decide('accept-for-review'); await c.decide('reject');
+  assert.equal(checks, 0); assert.equal(s.intents.length, 0);
+  await c.inspectSource('e1');
+  assert.equal(s.inspected[0].binding.inputRef, 'doc1');
+  assert.equal(s.inspected[0].binding.version, 'record-1');
+  assert.deepEqual(s.inspected[0].binding.location, { kind: 'page', page: 2, pageCount: 3 });
+  c.dismiss(); assert.equal(c.getSnapshot().view, null); assert.equal(s.intents.length, 0); s.session.dispose();
+});
+test('answer no-answer clarify and unknown sessions retain gaps without invented sources', async () => {
+  for (const route of ['clarify', 'unknown']) {
+    const wire = answerFixture(); wire.view.answer = { route, coverage: 'no-answer', rankedCandidates: [], statements: [], missingEvidence: ['Generated retrieval is incomplete'] };
+    wire.rankings = {};
+    wire.view.sources = [{ ...wire.view.sources[0], key: 'subject:doc1', original: 'unavailable', page: null, excerpt: '' }];
+    wire.inspections = { 'subject:doc1': { inputRef: 'doc1', version: 'record-1', evidenceRef: null, location: null } };
+    const s = setup(wire), c = s.session.controller;
+    assert.deepEqual(c.getSnapshot().view.answer.missingEvidence, ['Generated retrieval is incomplete']);
+    await c.inspectSource('subject:doc1'); await c.decide('reject');
+    assert.equal(s.inspected.length, 0); assert.equal(s.intents.length, 0); s.session.dispose();
+  }
+});
+test('answer decoder refuses reordered ranks invented citations and authority fields', () => {
+  for (const mutate of [
+    w => { w.view.answer.rankedCandidates.reverse(); },
+    w => { w.rankings['rank:item2'].inputRef = 'other'; },
+    w => { w.rankings['rank:item2'].version = 'record-2'; },
+    w => { w.rankings['rank:item2'].url = 'https://generated.invalid'; },
+    w => { w.view.answer.statements[0].evidenceKeys = ['not-admitted']; },
+    w => { w.view.answer.statements[0].key = 'answer:1'; },
+    w => { w.selections.write = { kind: 'native-write', inputRef: 'item2' }; },
+    w => { w.view.answer.coverage = 'exhaustive'; },
+    w => { w.view.answer.route = 'unknown'; },
+    w => { w.view.answer.approval = 'invented'; },
+  ]) { const wire = answerFixture(); mutate(wire); assert.throws(() => setup(wire)); }
+});
+test('answer offline disabled and superseded sessions cannot inspect or deliver', async () => {
+  for (const availability of ['offline', 'disabled']) {
+    const s = setup(answerFixture()), c = s.session.controller;
+    s.change({ context: s.context, proposalRevision: revision, sourceSetRevision: pin, availability });
+    await c.inspectSource('e1'); await c.decide('accept-for-review');
+    assert.equal(s.inspected.length, 0); assert.equal(s.intents.length, 0);
+    c.dismiss(); assert.equal(c.getSnapshot().view, null); s.session.dispose();
+  }
+  const s = setup(answerFixture());
+  s.change({ context: {}, proposalRevision: revision, sourceSetRevision: pin, availability: 'ready' });
+  assert.equal(s.session.controller.getSnapshot().view, null);
+  await s.session.controller.inspectSource('e1'); assert.equal(s.inspected.length, 0); s.session.dispose();
+});

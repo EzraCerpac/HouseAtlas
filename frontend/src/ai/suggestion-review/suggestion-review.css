@@ -15,3 +15,5 @@
 .ha-suggestion-review :focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 @media (max-width: 30rem) { .ha-suggestion-review dl { grid-template-columns: 1fr; } }
 .ha-suggestion-review select, .ha-suggestion-review textarea { box-sizing: border-box; width: 100%; min-width: 0; font: inherit; }
+
+.ha-suggestion-review .ha-suggestion-answer-text { white-space: pre-wrap; overflow-wrap: anywhere; }

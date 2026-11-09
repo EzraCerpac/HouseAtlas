@@ -17,7 +17,7 @@ impl ReviewDisclosure {
 
 /// `inspectable` is supplied by the current original owner, never the model.
 /// Its IDs only label availability; they confer no original-open authority.
-/// Answer/contradiction variants are deliberately refused by this consumer.
+/// Contradiction variants are deliberately refused by this consumer.
 pub fn disclose_review(
     review: &ReviewProposal,
     current: &AdmittedSnapshot,
@@ -33,6 +33,8 @@ pub fn disclose_review(
     let mut fields = Vec::new();
     let mut candidates = Vec::new();
     let mut maintenance = Vec::new();
+    let mut answer = None;
+    let mut rankings = BTreeMap::new();
     let mut selections = BTreeMap::new();
     let mut used = BTreeSet::new();
     let source = |id: &str| input.sources.iter().find(|s| s.input_ref == id)
@@ -117,6 +119,32 @@ pub fn disclose_review(
             }
             "maintenance"
         }
+        ProposalResult::Answer { route, ranked_refs, coverage, statements } => {
+            let mut ranked = Vec::new();
+            for (index, id) in ranked_refs.iter().enumerate() {
+                let s = source(id)?;
+                let key = format!("rank:{id}");
+                ranked.push(json!({"key":key,"label":format!("{} · {}",s.input_ref,s.version)}));
+                rankings.insert(key, json!({"inputRef":s.input_ref,"version":s.version,"rankIndex":index}));
+            }
+            let mut supported = Vec::new();
+            for (index, statement) in statements.iter().enumerate() {
+                let mut evidence = BTreeSet::new();
+                for id in &statement.support.claim_refs {
+                    let claim = p.claims.iter().find(|c| &c.claim_ref == id)
+                        .ok_or(SuggestionError::UnadmittedReference)?;
+                    evidence.extend(claim.evidence_refs.iter().cloned());
+                }
+                used.extend(evidence.iter().cloned());
+                supported.push(json!({"key":format!("answer:{index}"),"text":statement.text,
+                    "reason":statement.support.rationale,"uncertainty":format!("{:?}",statement.support.uncertainty),
+                    "evidenceKeys":evidence}));
+            }
+            if supported.len() > 16 { return Err(SuggestionError::LimitExceeded); }
+            answer = Some(json!({"route":route,"coverage":coverage,"rankedCandidates":ranked,
+                "statements":supported,"missingEvidence":p.missing_evidence}));
+            "answer"
+        }
         _ => return Err(SuggestionError::InvalidOutput),
     };
     let all_evidence: BTreeSet<_> = input.sources.iter().flat_map(|s| s.evidence.iter().map(|e| e.evidence_ref.clone())).collect();
@@ -148,10 +176,14 @@ pub fn disclose_review(
     if sources.len() > 16 || fields.len() > 16 || candidates.len() > 16 || maintenance.len() > 16 || uncertainty.len() > 16 { return Err(SuggestionError::LimitExceeded); }
     let mut disclosure = json!({"schemaVersion":1,"contextPin":p.context_pin,"view":{
         "key":format!("review:{revision}"),"revision":revision,"sourceSetRevision":p.context_pin,"kind":kind,
-        "title":match kind {"inventory"=>"Inventory suggestions","maintenance"=>"Maintenance suggestions",_=>"Document suggestions"},
+        "title":match kind {"inventory"=>"Inventory suggestions","maintenance"=>"Maintenance suggestions","answer"=>"Cited answer",_=>"Document suggestions"},
         "sources":sources,"fields":fields,"candidates":candidates,"uncertainty":uncertainty,"uncalibratedScore":null
     },"inspections":inspections,"selections":selections});
     if kind == "maintenance" { disclosure["view"]["maintenance"] = json!(maintenance); }
+    if let Some(answer) = answer {
+        disclosure["view"]["answer"] = answer;
+        disclosure["rankings"] = json!(rankings);
+    }
     if serde_json::to_vec(&disclosure).map_err(|_| SuggestionError::InvalidOutput)?.len() > MAX_OUTPUT_BYTES { return Err(SuggestionError::LimitExceeded); }
     Ok(ReviewDisclosure(disclosure))
 }

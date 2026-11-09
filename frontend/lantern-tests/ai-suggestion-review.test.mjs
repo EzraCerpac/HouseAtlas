@@ -59,7 +59,7 @@ test('document evidence keeps exact page/version and unknown dates; invalid page
   assert.equal(s.inspected[0].evidence.recordVersion, 'record-1'); assert.equal(s.inspected[0].evidence.sourceDate, null);
   assert.equal(s.inspected[0].v.kind, 'document'); assert.equal(s.intents.length, 0);
   assert.throws(() => setup({ sources: [{ ...s.view.sources[0], page: 0 }] }));
-  assert.throws(() => setup({ kind: 'answer' }), /Unsupported/);
+  assert.throws(() => setup({ kind: 'contradictions' }), /Unsupported/);
 });
 test('stale source is held and can be dismissed without an intent', async () => {
   const s = setup(); s.ports.recheck = async () => 'stale'; // controller holds the actual port object
@@ -253,7 +253,7 @@ test('maintenance bounds refuse unknown units due-date metadata and unsupported 
   assert.throws(() => maintenanceSetup({ maintenance: [{ ...task, dueDate: '2099-01-01' }] }));
   assert.throws(() => maintenanceSetup({ maintenance: [{ ...task, evidenceKeys: ['missing-source'] }] }));
   assert.throws(() => maintenanceSetup({ maintenance: undefined }));
-  assert.throws(() => maintenanceSetup({ kind: 'answer' }));
+  assert.throws(() => maintenanceSetup({ kind: 'routing' }));
   assert.throws(() => maintenanceSetup({ kind: 'contradictions' }));
   const empty = maintenanceSetup({ maintenance: [] }); assert.deepEqual(empty.controller.getSnapshot().maintenance, []);
 });
@@ -288,4 +288,115 @@ test('maintenance canonical UTF-8 and interval upper boundaries remain valid', a
     assert.equal(c.getSnapshot().maintenance[0].valid, true);
     await c.decide('accept-for-review'); assert.equal(s.intents.length, 1); c.dispose();
   }
+});
+
+function answerSetup(overrides = {}, ports = {}) {
+  return setup({ kind: 'answer', fields: [], candidates: [], uncalibratedScore: null,
+    answer: { route: 'documents', coverage: 'partial',
+      rankedCandidates: [{ key: 'rank-b', label: 'Generated record B' }, { key: 'rank-a', label: 'Generated record A' }],
+      statements: [{ key: 'statement-1', text: 'Generated record reports an association; current placement is unknown.',
+        reason: 'Generated quoted record', uncertainty: 'Not independently tested', evidenceKeys: ['source-1'] }],
+      missingEvidence: ['Current placement evidence is missing'] }, ...overrides }, ports);
+}
+test('cited partial answer preserves rank evidence and inert text with no review intent', async () => {
+  const s = answerSetup(), c = s.controller, view = c.getSnapshot().view;
+  assert.deepEqual(view.answer.rankedCandidates.map(v => v.key), ['rank-b', 'rank-a']);
+  assert.equal(view.answer.coverage, 'partial'); assert.equal(view.sources[0].recordVersion, 'record-1');
+  assert.equal(view.sources[0].sourceDate, null); assert.equal(view.sources[0].retrievedAt, '2026-01-01T00:00:00Z');
+  assert.equal(view.sources[0].page, 2); assert.equal(view.sources[0].label, '<script>generated text</script>');
+  assert.equal(view.sources[0].excerpt, s.view.sources[0].excerpt);
+  assert.equal(view.answer.statements[0].uncertainty, 'Not independently tested');
+  assert.deepEqual(view.answer.missingEvidence, ['Current placement evidence is missing']);
+  assert(Object.isFrozen(view.answer)); assert(Object.isFrozen(view.answer.statements[0].evidenceKeys));
+  assert.equal(c.selectField('category', true), false); assert.equal(c.editField('category', 'new'), false);
+  assert.equal(c.selectCandidate('rank-b', true), false); assert.equal(c.selectMaintenanceTask('task-1', true), false);
+  assert.equal(c.editMaintenanceTask('task-1', { title: 'new' }), false);
+  await c.decide('accept-for-review'); await c.decide('reject'); await c.decide('accept-for-review');
+  assert.equal(s.intents.length, 0); assert.equal(s.checks.length, 0);
+  c.dismiss(); assert.equal(c.getSnapshot().view, null); c.dispose();
+});
+test('cited no-answer clarify and unknown keep empty retrieval and honest missing evidence', async () => {
+  for (const route of ['inventory', 'documents', 'maintenance', 'electrical', 'network', 'clarify', 'unknown']) {
+    const s = answerSetup({ sources: [], answer: { route, coverage: 'no-answer', rankedCandidates: [],
+      statements: [], missingEvidence: ['No admitted supporting evidence'] } });
+    assert.equal(s.controller.getSnapshot().view.answer.route, route);
+    assert.deepEqual(s.controller.getSnapshot().view.sources, []);
+    await s.controller.inspectSource('source-1'); await s.controller.decide('reject');
+    assert.equal(s.inspected.length, 0); assert.equal(s.intents.length, 0); s.controller.dispose();
+  }
+});
+test('cited answer inspection retains exact version page and source availability', async () => {
+  const s = answerSetup(); await s.controller.inspectSource('source-1');
+  assert.equal(s.inspected.length, 1); assert.equal(s.inspected[0].evidence.recordVersion, 'record-1');
+  assert.equal(s.inspected[0].evidence.page, 2); assert.equal(s.inspected[0].evidence.sourceDate, null);
+  assert.equal(s.inspected[0].v.answer.route, 'documents'); assert.equal(s.intents.length, 0);
+  const source = s.view.sources[0];
+  for (const original of ['unavailable', 'withdrawn']) {
+    const held = answerSetup({ sources: [{ ...source, original }] });
+    await held.controller.inspectSource('source-1');
+    assert.equal(held.inspected.length, 0); assert.equal(held.intents.length, 0);
+    if (original === 'withdrawn') assert.equal(held.controller.getSnapshot().phase, 'stale');
+    held.controller.dismiss(); assert.equal(held.controller.getSnapshot().view, null); held.controller.dispose();
+  }
+  const historical = answerSetup({ sources: [{ ...source, freshness: 'stale' }] });
+  assert.equal(historical.controller.getSnapshot().phase, 'stale');
+  await historical.controller.inspectSource('source-1'); assert.equal(historical.inspected.length, 1);
+  assert.equal(historical.controller.getSnapshot().phase, 'stale'); historical.controller.dispose(); s.controller.dispose();
+});
+test('cited answer newer source and account contexts abort late inspection without resurrection', async () => {
+  const pending = deferred(); let signal;
+  const s = answerSetup({}, { inspectSource: (_view, _source, value) => { signal = value; return pending.promise; } });
+  const opening = s.controller.inspectSource('source-1');
+  s.set({ ...s.current(), context: {} }); assert(signal.aborted);
+  s.set({ ...s.current(), context: {} }); pending.resolve(); await opening;
+  assert.equal(s.controller.getSnapshot().view, null); assert.equal(s.intents.length, 0); s.controller.dispose();
+  const changed = answerSetup(); changed.set({ ...changed.current(), sourceSetRevision: 'sources-2' }, false);
+  assert.equal(changed.controller.getSnapshot().phase, 'superseded');
+  await changed.controller.inspectSource('source-1'); assert.equal(changed.inspected.length, 0); changed.controller.dispose();
+  const replaced = answerSetup(); replaced.set({ ...replaced.current(), proposalRevision: 'proposal-2' });
+  assert.equal(replaced.controller.getSnapshot().view, null); replaced.controller.dispose();
+});
+test('cited answer offline disabled and unavailable refuse dispatch and allow local dismissal', async () => {
+  for (const availability of ['offline', 'disabled', 'unavailable']) {
+    const s = answerSetup(); s.set({ ...s.current(), availability });
+    assert.equal(s.controller.getSnapshot().phase, 'unavailable');
+    await s.controller.inspectSource('source-1'); await s.controller.decide('reject'); await s.controller.decide('accept-for-review');
+    assert.equal(s.inspected.length, 0); assert.equal(s.checks.length, 0); assert.equal(s.intents.length, 0);
+    s.controller.dismiss(); assert.equal(s.controller.getSnapshot().phase, 'closed'); s.controller.dispose();
+  }
+});
+test('cited answer bounds refuse unsupported coverage unresolved evidence and editable payloads', () => {
+  const a = answerSetup().view.answer, st = a.statements[0];
+  for (const answer of [{ ...a, route: 'tools' }, { ...a, coverage: 'exhaustive' },
+    { ...a, coverage: 'no-answer' }, { ...a, route: 'clarify' }, { ...a, route: 'unknown' },
+    { ...a, statements: [] }, { ...a, statements: [{ ...st, evidenceKeys: [] }] },
+    { ...a, statements: [{ ...st, evidenceKeys: ['unadmitted'] }] },
+    { ...a, statements: [{ ...st, text: 'x'.repeat(2049) }] },
+    { ...a, statements: [{ ...st, text: 'quoted\rcontrol' }] },
+    { ...a, statements: [st, st] }, { ...a, rankedCandidates: [a.rankedCandidates[0], a.rankedCandidates[0]] },
+    { ...a, rankedCandidates: Array.from({ length: 33 }, (_, i) => ({ key: 'r-' + i, label: 'Generated' })) },
+    { ...a, url: 'https://invalid.example/generated' },
+    { route: 'unknown', coverage: 'no-answer', statements: [], rankedCandidates: [], missingEvidence: [] }]) {
+    assert.throws(() => answerSetup({ answer }));
+  }
+  assert.throws(() => answerSetup({ answer: undefined }));
+  assert.throws(() => answerSetup({ fields: setup().view.fields }));
+  assert.throws(() => answerSetup({ candidates: setup().view.candidates }));
+  assert.throws(() => answerSetup({ maintenance: [] }));
+  assert.throws(() => answerSetup({ sources: [] }));
+  assert.throws(() => setup({ answer: a }));
+});
+test('cited answer source contract exposes inspection dismissal and qualified text without action controls', () => {
+  const viewSource = readFileSync(new URL('../src/ai/suggestion-review/SuggestionReview.tsx', import.meta.url), 'utf8');
+  const start = viewSource.indexOf("{view.kind === 'answer' && view.answer");
+  const end = viewSource.indexOf("<section aria-labelledby={id + '-unknowns'}>", start);
+  const answer = viewSource.slice(start, end);
+  assert(start > 0 && end > start);
+  assert(answer.includes('Partial answer; retrieved records are not exhaustive.'));
+  assert(answer.includes('No supported answer.')); assert(answer.includes('tested wiring'));
+  assert(answer.includes('safe breaker')); assert(answer.includes('physical route'));
+  assert(answer.includes('view.answer.rankedCandidates.map'));
+  assert(!/onClick|onChange|href=|dangerouslySetInnerHTML/.test(answer));
+  assert(viewSource.includes("<footer>{view.kind !== 'answer' && <>"));
+  assert(viewSource.includes('onClick={controller.dismiss}'));
 });

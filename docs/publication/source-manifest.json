@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 40961,
-      "sha256": "ef8156a9ae572352bbf8c455e4eea06a3c8ec41b570866650c2866ac17b7c96f",
+      "bytes": 42094,
+      "sha256": "862655b6ac08711265e5f904fca0fec508be89457a3aa396adc3648d56eb33a2",
       "owner": "core-integration"
     },
     {
@@ -1175,8 +1175,8 @@
     {
       "path": "backend/src/ai/suggestions/disclosure.rs",
       "mode": "100644",
-      "bytes": 10858,
-      "sha256": "1522c7fea0b7d284f8894b9383bc544c45b2c9555e63da58a8b0a56930d82889",
+      "bytes": 12655,
+      "sha256": "721883df07e3490c5eb68708c6f30c2999de043579970a75fd98f07c7ea11432",
       "owner": "ai"
     },
     {
@@ -1210,8 +1210,8 @@
     {
       "path": "backend/src/ai/suggestions/synthetic_contracts.rs",
       "mode": "100644",
-      "bytes": 20405,
-      "sha256": "ef875a7fa90922a92100af97288341ab71e2ff710b815d3eb58b061055a5a16b",
+      "bytes": 24456,
+      "sha256": "8dcb67139ba2806f24b9800a3b4486f1317745adeff415ee850c3c268c3ec32e",
       "owner": "ai"
     },
     {
@@ -6586,8 +6586,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 250512,
-      "sha256": "b565fa95a4fd6ef87ce19e744e8681252c639e79b681a504ad2b57908232a118",
+      "bytes": 253169,
+      "sha256": "109bc7c22c5aec8f50265b93ab5a9d5df8cbafad53d3e30a6a4ad24ec4d6458b",
       "owner": "core-integration"
     },
     {
@@ -7923,15 +7923,15 @@
     {
       "path": "frontend/lantern-tests/ai-suggestion-adapter.test.mjs",
       "mode": "100644",
-      "bytes": 15359,
-      "sha256": "0a104d1d24eefd2ddfb187bd6203812bc07ce6dc237a1483cfb6831394b8dac2",
+      "bytes": 20184,
+      "sha256": "836732a968f005e1a34ded03f25238523dd6a8fa73c9948586a4e58332ba3c48",
       "owner": "web"
     },
     {
       "path": "frontend/lantern-tests/ai-suggestion-review.test.mjs",
       "mode": "100644",
-      "bytes": 22516,
-      "sha256": "8a58d047b08c1fee73e7d492a7dbff487af76ad485aa2e9637349a1443e0e679",
+      "bytes": 31015,
+      "sha256": "d74b220d6f155c7c7f1b44c0d434154bcc7aef21cf8be95c96916d49a9036663",
       "owner": "web"
     },
     {
@@ -9120,43 +9120,43 @@
     {
       "path": "frontend/src/ai/suggestion-adapter/session.ts",
       "mode": "100644",
-      "bytes": 12136,
-      "sha256": "f2d3951cb525b3ffd5704d5f5cc31ec55d239635389286e003304c872088b4f2",
+      "bytes": 14350,
+      "sha256": "32401998beb9d70aaafa9c7d20e78bff67942ccefbf113ecd59342d04fd84670",
       "owner": "ai"
     },
     {
       "path": "frontend/src/ai/suggestion-review/README.md",
       "mode": "100644",
-      "bytes": 8638,
-      "sha256": "d25ad1d8c208c59f42130516682db27f53acf846b780dc63e5cab44ac0febb83",
+      "bytes": 12744,
+      "sha256": "c072c280730ab8d81df72c87ed7b20cd0b8639c60525e76099196f9136e4f59e",
       "owner": "ai"
     },
     {
       "path": "frontend/src/ai/suggestion-review/SuggestionReview.tsx",
       "mode": "100644",
-      "bytes": 11619,
-      "sha256": "e8d51097fe9fcc0b98ec41c7c73d16b524edf75a289b565bf93814256fa95c9b",
+      "bytes": 14105,
+      "sha256": "4223926de8ee2bc51bc6ce9039c8877a17636053af6a301bb2695ab46b3e5625",
       "owner": "ai"
     },
     {
       "path": "frontend/src/ai/suggestion-review/controller.ts",
       "mode": "100644",
-      "bytes": 21186,
-      "sha256": "43be0b9396d1a68e7a1ed8cc625a08b27acd1f34f3f3bdb3bdea8602828d2022",
+      "bytes": 23693,
+      "sha256": "0c85658eec14b7699a01678e36b165c60036c66096120ce36f00a5c5fcc880de",
       "owner": "ai"
     },
     {
       "path": "frontend/src/ai/suggestion-review/suggestion-review.css",
       "mode": "100644",
-      "bytes": 1398,
-      "sha256": "0fc1e0aa944ab7503e755773334d3650bb2a8aa9e17110604c083b88060a5d75",
+      "bytes": 1500,
+      "sha256": "224231094e3a15464f1b5143feec0b49fde7e3781dfb61e005564d21bcc637b7",
       "owner": "ai"
     },
     {
       "path": "frontend/src/ai/suggestion-review/view-types.ts",
       "mode": "100644",
-      "bytes": 6214,
-      "sha256": "d41d8905f9fe2a86001654e3398909cdb97972a2c7cfcdc2b4efad4ca4648b78",
+      "bytes": 7121,
+      "sha256": "7f87b680339bbc42a05663ae5716a3b23fb58bb3dea4006951cfd34e01736645",
       "owner": "ai"
     },
     {
@@ -12054,7 +12054,7 @@
       "path": "tools/ci/lanes.json",
       "mode": "100644",
       "bytes": 58306,
-      "sha256": "e6a6696c792d2c3aec04ba32c43987dbf25a50c4d994cb6f2de126e09b4e63d1",
+      "sha256": "9c481e306c7f686b9d3e3de73fe2287f7f1af016a38738afe53ce38e764c12dd",
       "owner": "core-integration"
     },
     {

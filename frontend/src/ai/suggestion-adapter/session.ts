@@ -51,11 +51,13 @@ const freeze = <T>(value: T): T => {
  * fallback exists. The canonical generated-output validator remains in Rust. */
 export function createSuggestionReviewSession(json: string, context: object, owner: SuggestionSessionOwner) {
   if (typeof json !== 'string' || new TextEncoder().encode(json).length > 65536) throw new TypeError('Review disclosure too large');
-  const wire = exact(JSON.parse(json), ['schemaVersion', 'contextPin', 'view', 'inspections', 'selections']);
+  const parsed = object(JSON.parse(json));
+  const isAnswer = object(parsed.view).kind === 'answer';
+  const wire = exact(parsed, ['schemaVersion', 'contextPin', 'view', 'inspections', 'selections', ...(isAnswer ? ['rankings'] : [])]);
   if (wire.schemaVersion !== 1) throw new TypeError('Unsupported review disclosure');
   const pin = hash(wire.contextPin);
   const isMaintenance = object(wire.view).kind === 'maintenance';
-  const display = exact(wire.view, ['key', 'revision', 'sourceSetRevision', 'kind', 'title', 'sources', 'fields', 'candidates', 'uncertainty', 'uncalibratedScore', ...(isMaintenance ? ['maintenance'] : [])]);
+  const display = exact(wire.view, ['key', 'revision', 'sourceSetRevision', 'kind', 'title', 'sources', 'fields', 'candidates', 'uncertainty', 'uncalibratedScore', ...(isMaintenance ? ['maintenance'] : []), ...(isAnswer ? ['answer'] : [])]);
   const revision = hash(display.revision);
   if (display.key !== 'review:' + revision || display.sourceSetRevision !== pin || display.uncalibratedScore !== null)
     throw new TypeError('Mismatched review disclosure identity');
@@ -123,6 +125,34 @@ export function createSuggestionReviewSession(json: string, context: object, own
       validateMaintenanceValues(task); tasks.push(task); selectionKeys.push(task.key);
     }
   }
+  if (isAnswer) {
+    if (display.fields.length || display.candidates.length || Object.keys(selections).length)
+      throw new TypeError('Answer disclosure is read-only');
+    const answer = exact(display.answer, ['route', 'coverage', 'rankedCandidates', 'statements', 'missingEvidence']);
+    const rankings = object(wire.rankings);
+    if (!Array.isArray(answer.rankedCandidates) || answer.rankedCandidates.length > 32
+      || !Array.isArray(answer.statements) || answer.statements.length > 16)
+      throw new TypeError('Invalid answer lists');
+    const rankKeys = new Set<string>();
+    answer.rankedCandidates.forEach((value, index) => {
+      const rank = exact(value, ['key', 'label']);
+      if (typeof rank.key !== 'string' || !Object.hasOwn(rankings, rank.key) || rankKeys.has(rank.key))
+        throw new TypeError('Unbound answer rank');
+      const binding = exact(rankings[rank.key], ['inputRef', 'version', 'rankIndex']);
+      const input = ref(binding.inputRef);
+      if (rank.key !== 'rank:' + input || binding.rankIndex !== index || typeof binding.version !== 'string'
+        || !binding.version.trim() || new TextEncoder().encode(binding.version).length > 256
+        || rank.label !== `${input} · ${binding.version}`) throw new TypeError('Mismatched exact rank binding');
+      rankKeys.add(rank.key);
+    });
+    if (rankKeys.size !== Object.keys(rankings).length) throw new TypeError('Unreferenced answer rank');
+    answer.statements.forEach((value, index) => {
+      const statement = exact(value, ['key', 'text', 'reason', 'uncertainty', 'evidenceKeys']);
+      if (statement.key !== 'answer:' + index || !Array.isArray(statement.evidenceKeys)
+        || !statement.evidenceKeys.length || statement.evidenceKeys.some(key => typeof key !== 'string' || !sourceKeys.includes(key)))
+        throw new TypeError('Mismatched answer citation');
+    });
+  }
   if (sourceKeys.length !== Object.keys(inspections).length || selectionKeys.length !== Object.keys(selections).length)
     throw new TypeError('Unreferenced disclosure bindings');
   freeze(wire);
@@ -136,6 +166,8 @@ export function createSuggestionReviewSession(json: string, context: object, own
     recheck: (_view, signal) => owner.recheck(identity, signal),
     inspectSource: (_view, s, signal) => owner.inspect(identity, inspections[s.key] as unknown as InspectionBinding, signal),
     onIntent(intent) {
+      // Defense in depth if a future controller accidentally attempts delivery.
+      if (isAnswer) throw new TypeError('Read-only answers cannot deliver review intents');
       const reviewedTasks = intent.maintenance ?? [];
       if (!isMaintenance && reviewedTasks.length) throw new TypeError('Unexpected maintenance intent');
       for (const edited of reviewedTasks) {

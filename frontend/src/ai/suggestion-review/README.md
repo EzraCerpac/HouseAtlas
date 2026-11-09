@@ -2,10 +2,10 @@
 
 This unmounted island is a LOCAL view/controller seam for #563, covering #564
 inventory/duplicate candidates, #565 document categories/associations and #566
-maintenance proposals. It is
+maintenance proposals and #567 cited answers. It is
 not the shared proposal/evidence wire envelope, its validator, an inference route
 or a native/source write owner. The existing backend/source writer owns those
-contracts. Cited-answer and contradiction variants remain unsupported.
+contracts. Contradiction presentation remains unsupported.
 
 ## Integration contract
 
@@ -91,13 +91,67 @@ all currentness fences. Do not treat this local view shape as wire authority.
 That bridge, production mount and shared registration/manifest updates are
 UNAPPLIED in this six-file increment.
 
+## Cited answer local presentation contract
+
+Answer is a read-only kind with empty fields/candidates, no maintenance property
+and exactly one answer object. Its fields are:
+- route: inventory, documents, maintenance, electrical, network, clarify or unknown;
+- coverage: partial or no-answer (never exhaustive);
+- rankedCandidates: ordered {key, label} objects, at most 32 unique local keys;
+- statements: at most 16 {key, text, reason, uncertainty, evidenceKeys} objects;
+- missingEvidence: at most 16 nonempty source-owned strings.
+
+The existing source owner maps canonical ProposalResult::Answer.route/coverage
+directly; ranked_refs to rankedCandidates in the same original order and through
+its admitted input bindings; SupportedText.text/support to statement text,
+rationale, qualitative uncertainty and exact evidence references; and the
+proposal-level missing_evidence to missingEvidence. Local keys are display
+bindings only, not canonical authority, identity confidence, URLs or read grants.
+The adapter must preserve exact source record versions, dates, page/section and
+support/claim joins in sources/evidenceKeys. Do not manufacture missing metadata.
+Statements require resolved nonempty evidence. Supported text is limited to 2048
+UTF-8 bytes and rationale/missing-evidence text to 1024; prohibited controls and
+lone surrogates refuse. Unknown uncertainty is displayed explicitly.
+
+No-answer has no statements; partial has at least one. Clarify/unknown routes
+cannot contain statements. An empty answer requires missing-evidence detail.
+Sources may be empty only for an unsupported/no-answer display; such absence
+does not establish completeness, access or a fresh source observation. Ranking
+is displayed without changing order, introducing selection, or upgrading it
+to identity, probability or approval. Electrical/network limitations are visible
+beside the answer; documentary text establishes no tested circuit, safe breaker,
+physical route or instruction to operate equipment.
+
+All answer edit/select methods refuse and decide returns without recheck,
+consumption or onIntent, including direct accept/reject calls. The component
+renders no accept/reject/edit controls for answers. Only exact owner-authorized
+source inspection and local dismissal remain. Existing current generation,
+source revision, availability, cancellation and stale/historical-inspection
+contracts apply. Withdrawn/unavailable originals cannot be opened, and a replaced
+context cannot resurrect on late completion. React renders text, never retrieved
+HTML, tool calls, hyperlinks or permissions. There is no question box/inference,
+new host port, persisted answer, native action or production route.
+
+The #562 integrator must add canonical disclosure and strict session-decoder
+answer projection with exact source/rank joins, and must ensure any answer
+session's public review API also refuses intent delivery. Those shared files
+remain UNAPPLIED here. This donor does not supply model eligibility, routing/
+groundedness evaluation, live host mounting, API admission or acceptance.
+
+Seven authored answer cases add partial ordered/cited/inert data and no-intent
+actions, empty no-answer/clarify/unknown routes, exact/historical/unavailable
+source inspection, source/account replacement with cancelled late inspection,
+offline/disabled dismissal, bounded/refused shapes, and a deterministic source
+contract for read-only controls and electrical/network qualifiers. The last
+case reads source text only; it is not mounted React or a rendered UI result.
+
 ## Generated checks and boundaries
 
 Proposed scoped non-device command, using the repository-pinned Node 26.10.0:
 
     node --test frontend/lantern-tests/ai-suggestion-review.test.mjs
 
-Twenty-five generated controller cases load the actual type-stripped controller:
+Thirty-two generated controller/source cases load the actual type-stripped controller:
 explicit fields/edits, candidate selection, document pages, stale dismissal,
 source revisions, A-B-A/late inspections, superseded checks, offline/disabled
 states, availability interruption, repeat/re-entry, uncertain callback delivery,
@@ -111,7 +165,7 @@ Nine maintenance cases add periodic/conditional/unknown intervals, exact target/
 evidence, explicit edits, incomplete-edit refusal, superseded manuals/context,
 offline states, rejected/uncertain once-only intent, and bounded source shapes.
 These are authored source cases, NOT executed results. The composition owner
-must update its existing registration documentation/count (14 to 23); no new
+must update its existing registration documentation/count (25 to 32 for this continuation); no new
 selection or CI lane is introduced here.
 
 The desktop executor is unavailable during preparation. These cases, semantic
@@ -137,3 +191,13 @@ UTF-8/interval boundaries. These and the composed session regressions are author
 NOT RUN. Canonical disclosure/session binding is supplied by #562; the earlier
 UNAPPLIED notes describe this donor's standalone six-file increment. Real ports,
 application activation, task creation/scheduling and native authority stay unbound.
+
+## Donor composition provenance
+
+Before adding answer behavior, this branch copies exactly the controller,
+README and existing test bodies from #562 at
+2e3f7f343be83d17c4f58676b9e7ce15c82eae1d. The separate preservation commit
+retains the integration-owned canonical maintenance edit repair, including CR/
+UTF-8/interval bounds and its two authored cases. No unrelated #562 source,
+runner, manifest, backend or private ancestry is merged into this donor.
+The following answer commit changes only these same six owned paths.

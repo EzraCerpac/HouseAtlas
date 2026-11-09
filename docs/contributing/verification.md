@@ -194,19 +194,19 @@ that environment because the pinned Rust tools are absent. Exact candidate
 execution remains separate; the existing hosted account-billing block is not
 bypassed or treated as a test result.
 
-## Validated inventory/document/maintenance disclosure adapter
+## Validated inventory/document/maintenance/cited-answer disclosure adapter
 
 The composed suggestion source includes #569's retained six presentation files
 and #570's canonical validation lane. `disclose_review` rechecks the immutable
 review against fresh original-owner input before producing a closed display DTO
-for inventory/document/maintenance results. Exact versions, independent dates, original
+for inventory/document/maintenance/answer results. Exact versions, independent dates, original
 excerpts, page/text locators, supporting and contradicting extracted claims and
 unknown current field values are retained. Original availability is labeled only
 from the caller's explicitly supplied original-owner evidence IDs; the label is
 not an inspect capability. Inspection and selections carry correlation data,
 never model URLs, approvals or native operation envelopes.
 
-Five additional default-library functions under
+Eight additional default-library functions under
 `ai::suggestions::synthetic_contracts` are authored:
 
 - `review_disclosure_preserves_contradicting_claims_exact_sources_and_selection_bindings`
@@ -214,6 +214,9 @@ Five additional default-library functions under
 - `document_disclosure_separates_classification_from_links_and_abstention_keeps_unknowns`
 - `maintenance_disclosure_binds_canonical_tasks_and_keeps_baseline_unknown`
 - `maintenance_disclosure_refuses_changed_and_withdrawn_current_sources`
+- `answer_disclosure_preserves_rank_order_citations_and_read_only_bindings`
+- `answer_disclosure_preserves_clarify_unknown_and_no_answer_gaps`
+- `answer_disclosure_refuses_changed_or_withdrawn_current_context`
 
 `frontend/src/ai/suggestion-adapter/session.ts` decodes only a backend/source-owner
 disclosure, then supplies the retained review controller with exact inspection
@@ -225,7 +228,7 @@ intent state. Explicit retirement releases mounted views even when an owner
 cleanup callback throws. `mount.tsx` mounts only into an explicitly supplied empty
 owned element; it changes no app root and starts no inference or native write.
 
-Eleven generated adapter tests use the actual session and retained controller
+Fifteen generated adapter tests use the actual session and retained controller
 without a browser, service, source owner, credential or network. Registered scoped
 source selections with pinned Node 26.10.0 are:
 
@@ -234,8 +237,8 @@ node --test frontend/lantern-tests/ai-suggestion-review.test.mjs
 node --test frontend/lantern-tests/ai-suggestion-adapter.test.mjs
 ```
 
-The first file contains the retained controller plus the scoped repair (twenty-five cases). The second
-covers inventory/document/maintenance binding, context retirement, retained-controller
+The first file contains the retained controller plus the scoped repair and cited-answer continuation (thirty-two cases). The second
+covers inventory/document/maintenance/answer binding, context retirement, retained-controller
 non-replay, cleanup refusal, canonical maintenance edit bounds and malformed
 disclosure rejection. The #562 source
 composition adds exactly these two files to `run-healthy.mjs` SOURCE, moving its
@@ -386,7 +389,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 77 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The two AI source selections contain twenty-five controller and eleven disclosure-adapter cases using generated data without browser, provider, credentials or source writes. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 77 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The two AI source selections contain thirty-two controller and fifteen disclosure-adapter cases using generated data without browser, provider, credentials or source writes. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
@@ -3916,3 +3919,39 @@ cases, NOT RUN; supplied outputs are not model evaluations. Exact interpretation
 original hashes and case names are in tools/ai-feature-evaluation/INTEGRATION.md.
 The production scorer/validator, repaired frontend, original corpus files and
 77/1/7 frontend selection inventory are unchanged. No runner/workflow is added.
+
+
+### Read-only cited-answer composition
+
+The six #569 donor paths at eb217ae3 remain byte-identical in this composition.
+Its d1f6235c repair-copy parent matches the earlier integration maintenance repair
+exactly; README/fixture conflicts were reconciled to that reviewed donor after
+verifying all three copied repair files, without discarding repair behavior.
+
+The existing source-owner disclosure now projects canonical ProposalResult::Answer
+into the exact donor view. Statement text, support rationale/uncertainty and cited
+admitted evidence retain their original revisions, locators, dates and excerpts.
+Answer ranked_refs retain array order. A closed answer-only rankings map binds
+rank keys to exact admitted inputRef/version/index under the existing source pin;
+this metadata grants no original-open, selection or native authority. Finite DTO
+bounds refuse over-budget evidence rather than fabricate, truncate or rank more.
+Clarify/unknown and partial/no-answer/gaps are preserved without exhaustive claims.
+
+Answer fields/candidates/selections are empty. The controller refuses all intent
+APIs and the session additionally rejects answer delivery before owner.onIntent.
+Only source inspection through the existing owner and local dismissal are exposed.
+Disabled/offline/replaced-source fences remain. The donor README's UNAPPLIED
+source-bridge note records its standalone status; this composition supplies that
+bridge, while real authenticated ports and root/runtime activation remain unbound.
+
+Three authored backend cases check ordered rank/statement/evidence projection,
+clarify/unknown/no-answer gaps and changed/withdrawn-context refusal. Four authored
+session cases check rank/citation binding and no intent, no-answer gaps, malformed
+rank/citation/authority refusal, and offline/disabled/superseded withholding. These
+join the seven new donor cases in existing selections, now 32 controller/source
+and 15 session cases (77 source / 1 build / 7 browser selections unchanged).
+All tests, TypeScript/Rust compilation, formatting/Clippy, React rendering,
+cross-language/host/browser/device checks are NOT RUN for the composed head.
+Source/delta review, whitespace and scoped byte/manifest audits are separate from
+execution. No model/API, ranking quality, factual grounding, live account/runtime,
+credential, approval, write, deployment or acceptance qualification is claimed.

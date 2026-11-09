@@ -318,3 +318,66 @@ fn maintenance_disclosure_refuses_changed_and_withdrawn_current_sources() {
         assert_eq!(disclose_review(&review, &current, &Default::default()).unwrap_err(), expected);
     }
 }
+
+#[test]
+fn answer_disclosure_preserves_rank_order_citations_and_read_only_bindings() {
+    let mut admitted = input(); admitted.feature = SuggestionFeature::Answer;
+    admitted.sources[0].source_date = Some("2020-01-01".into());
+    let snapshot = AdmittedSnapshot::new(admitted).unwrap();
+    let result = json!({"kind":"answer","route":"electrical","rankedRefs":["input3","input2"],"coverage":"partial",
+        "statements":[{"text":"Generated documentary association; tested wiring remains unknown.","support":support(&["c1","c2"])}]});
+    let review = validate(&output(&snapshot, result), &snapshot).unwrap();
+    let wire = disclose_review(&review, &snapshot, &["e1".to_string()].into_iter().collect()).unwrap();
+    let wire = wire.value();
+    assert_eq!(wire["view"]["kind"], "answer");
+    assert_eq!(wire["view"]["answer"]["route"], "electrical");
+    assert_eq!(wire["view"]["answer"]["coverage"], "partial");
+    assert_eq!(wire["view"]["answer"]["rankedCandidates"][0]["key"], "rank:input3");
+    assert_eq!(wire["view"]["answer"]["rankedCandidates"][1]["key"], "rank:input2");
+    assert_eq!(wire["rankings"]["rank:input3"], json!({"inputRef":"input3","version":"revision-1","rankIndex":0}));
+    assert_eq!(wire["view"]["answer"]["statements"][0]["evidenceKeys"], json!(["e1","e2"]));
+    assert_eq!(wire["view"]["answer"]["statements"][0]["reason"], "Generated review rationale");
+    assert_eq!(wire["inspections"]["e1"]["location"], json!({"kind":"page","page":2,"pageCount":3}));
+    assert_eq!(wire["view"]["sources"][0]["sourceDate"], "2020-01-01");
+    assert_eq!(wire["view"]["sources"][0]["retrievedAt"], "2026-11-08T12:00:00Z");
+    assert_eq!(wire["view"]["sources"][0]["original"], "available");
+    assert_eq!(wire["selections"], json!({}));
+    assert!(wire["view"]["fields"].as_array().unwrap().is_empty());
+    assert!(wire["view"]["candidates"].as_array().unwrap().is_empty());
+    assert!(wire["view"].get("maintenance").is_none());
+    assert!(wire["inspections"].get("e3").is_none()); // Rank order is not an inspect capability.
+}
+
+#[test]
+fn answer_disclosure_preserves_clarify_unknown_and_no_answer_gaps() {
+    let mut admitted = input(); admitted.feature = SuggestionFeature::Answer;
+    let snapshot = AdmittedSnapshot::new(admitted).unwrap();
+    for route in ["clarify", "unknown"] {
+        let review = validate(&output(&snapshot, json!({"kind":"answer","route":route,"rankedRefs":[],
+            "coverage":"no-answer","statements":[]})), &snapshot).unwrap();
+        let wire = disclose_review(&review, &snapshot, &Default::default()).unwrap();
+        let wire = wire.value();
+        assert_eq!(wire["view"]["answer"]["route"], route);
+        assert_eq!(wire["view"]["answer"]["coverage"], "no-answer");
+        assert_eq!(wire["view"]["answer"]["missingEvidence"], json!(["Actual physical correspondence is unknown"]));
+        assert_eq!(wire["rankings"], json!({}));
+        assert_eq!(wire["selections"], json!({}));
+        assert_eq!(wire["view"]["sources"][0]["original"], "unavailable");
+    }
+}
+
+#[test]
+fn answer_disclosure_refuses_changed_or_withdrawn_current_context() {
+    let mut admitted = input(); admitted.feature = SuggestionFeature::Answer;
+    let snapshot = AdmittedSnapshot::new(admitted.clone()).unwrap();
+    let review = validate(&output(&snapshot, json!({"kind":"answer","route":"documents","rankedRefs":["input2"],
+        "coverage":"partial","statements":[{"text":"Generated cited record only.","support":support(&["c2"])}]})), &snapshot).unwrap();
+    for withdrawn in [false, true] {
+        let mut current = admitted.clone();
+        if withdrawn { current.sources[1].availability = Availability::Withdrawn; }
+        else { current.sources[1].version = "revision-2".into(); }
+        let current = AdmittedSnapshot::new(current).unwrap();
+        let expected = if withdrawn { SuggestionError::ContextWithdrawn } else { SuggestionError::ContextChanged };
+        assert_eq!(disclose_review(&review, &current, &Default::default()).unwrap_err(), expected);
+    }
+}
