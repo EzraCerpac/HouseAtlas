@@ -1,6 +1,6 @@
 /** LOCAL presentation seam only. Not a wire envelope, validator or approval contract.
  * Adapt only the shared source writer's validated proposal/evidence into this shape. */
-export type SuggestionKind = 'inventory' | 'document';
+export type SuggestionKind = 'inventory' | 'document' | 'maintenance';
 export interface SuggestionSourceView {
   readonly key: string; readonly label: string; readonly recordVersion: string;
   readonly sourceDate: string | null; readonly retrievedAt: string | null;
@@ -18,11 +18,43 @@ export interface SuggestionCandidateView {
   readonly relation: 'possible-duplicate' | 'same-product' | 'proposed-association';
   readonly reason: string; readonly uncertainty: string; readonly evidenceKeys: readonly string[];
 }
+/** Private presentation values matching canonical interval/urgency semantics; no wire envelope. */
+export type MaintenanceUnit = 'days' | 'weeks' | 'months' | 'years' | 'usage-hours';
+export type MaintenanceUrgency = 'unknown' | 'routine' | 'review-soon';
+export type MaintenanceIntervalView =
+  | Readonly<{ kind: 'periodic'; every: number; unit: MaintenanceUnit }>
+  | Readonly<{ kind: 'conditional'; condition: string }>
+  | Readonly<{ kind: 'unknown' }>;
+export interface MaintenanceTaskView {
+  readonly key: string; readonly targetKey: string; readonly targetLabel: string;
+  readonly title: string; readonly interval: MaintenanceIntervalView;
+  readonly conditions: readonly string[]; readonly urgency: MaintenanceUrgency;
+  readonly reason: string; readonly uncertainty: string; readonly evidenceKeys: readonly string[];
+  /** Exact source-owned baseline text or unknown. Never an inferred due date. */
+  readonly baselineDate: string | null;
+}
+export type MaintenanceIntervalDraft =
+  | Readonly<{ kind: 'periodic'; every: string; unit: MaintenanceUnit | null }>
+  | Readonly<{ kind: 'conditional'; condition: string }>
+  | Readonly<{ kind: 'unknown' }>;
+export interface MaintenanceTaskDraft {
+  readonly key: string; readonly selected: boolean; readonly title: string;
+  readonly interval: MaintenanceIntervalDraft; readonly conditions: readonly string[];
+  readonly urgency: MaintenanceUrgency; readonly valid: boolean; readonly edited: boolean;
+}
+export type MaintenanceEditedField = 'title' | 'interval' | 'conditions' | 'urgency';
+export interface MaintenanceTaskReviewIntent {
+  readonly key: string; readonly targetKey: string; readonly title: string;
+  readonly interval: MaintenanceIntervalView; readonly conditions: readonly string[];
+  readonly urgency: MaintenanceUrgency; readonly editedFields: readonly MaintenanceEditedField[];
+}
 export interface SuggestionReviewView {
   /** Replace for EVERY account/home/selection generation, including A-B-A. */
   readonly context: object;
   readonly key: string; readonly revision: string; readonly sourceSetRevision: string;
   readonly kind: SuggestionKind; readonly title: string;
+  /** Present only for maintenance. Other kinds keep their original shape. */
+  readonly maintenance?: readonly MaintenanceTaskView[];
   readonly sources: readonly SuggestionSourceView[];
   readonly fields: readonly SuggestionFieldView[];
   readonly candidates: readonly SuggestionCandidateView[];
@@ -41,6 +73,8 @@ export interface SuggestionReviewIntent {
   readonly action: 'accept-for-review' | 'reject';
   readonly fields: readonly { readonly key: string; readonly value: string; readonly edited: boolean }[];
   readonly candidateKeys: readonly string[];
+  /** Present only for maintenance; reject carries an empty list. */
+  readonly maintenance?: readonly MaintenanceTaskReviewIntent[];
 }
 export interface SuggestionReviewPorts {
   /** Side-effect-free; supplied by the current authenticated/source owner. */
@@ -63,4 +97,5 @@ export interface SuggestionReviewSnapshot {
   readonly view: SuggestionReviewView | null;
   readonly fields: readonly { readonly key: string; readonly value: string; readonly selected: boolean; readonly edited: boolean }[];
   readonly candidateKeys: readonly string[];
+  readonly maintenance: readonly MaintenanceTaskDraft[];
 }

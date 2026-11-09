@@ -1,9 +1,13 @@
 import { useId, useSyncExternalStore } from 'react';
 import type { SuggestionReviewController } from './controller';
+import type { MaintenanceTaskView, MaintenanceTaskDraft, MaintenanceUnit, MaintenanceUrgency } from './view-types';
 import './suggestion-review.css';
 
 const relation = { 'possible-duplicate': 'Possible duplicate', 'same-product': 'Same product, identity unconfirmed',
   'proposed-association': 'Proposed association' };
+const headings = { inventory: 'Inventory suggestions', document: 'Document suggestions', maintenance: 'Maintenance suggestions' };
+const unitLabels: Record<MaintenanceUnit, string> = { days: 'Days', weeks: 'Weeks', months: 'Months', years: 'Years', 'usage-hours': 'Usage hours' };
+const urgencyLabels: Record<MaintenanceUrgency, string> = { unknown: 'Unknown', routine: 'Routine', 'review-soon': 'Review soon' };
 const freshness = { 'snapshot-current': 'Snapshot current at proposal', stale: 'Stale source', unknown: 'Freshness unknown' };
 /** Unmounted review island. The host owns the stable controller and all source resolution. */
 export function SuggestionReview({ controller }: { readonly controller: SuggestionReviewController }) {
@@ -11,10 +15,11 @@ export function SuggestionReview({ controller }: { readonly controller: Suggesti
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const view = state.view, editable = state.phase === 'reviewing';
   if (!view) return <section className="ha-suggestion-review" aria-label="Suggestion review"><p role="status">{state.message}</p></section>;
-  const selected = state.fields.some(f => f.selected) || state.candidateKeys.length > 0;
+  const selected = state.fields.some(f => f.selected) || state.candidateKeys.length > 0 || state.maintenance.some(task => task.selected);
+  const incomplete = state.maintenance.some(task => task.selected && !task.valid);
   const inspectable = state.phase === 'reviewing' || state.phase === 'stale';
   return <section className="ha-suggestion-review" aria-labelledby={id + '-title'}>
-    <header><h2 id={id + '-title'}>{view.kind === 'inventory' ? 'Inventory suggestions' : 'Document suggestions'}</h2>
+    <header><h2 id={id + '-title'}>{headings[view.kind]}</h2>
       <p>{view.title}</p><p>Proposals require source-owner review before a change.</p></header>
     <p role="status" aria-live="polite">{state.message}</p>
     <section aria-labelledby={id + '-evidence'}><h3 id={id + '-evidence'}>Original evidence</h3>
@@ -29,7 +34,7 @@ export function SuggestionReview({ controller }: { readonly controller: Suggesti
           onClick={() => { void controller.inspectSource(source.key); }}>Inspect source {index + 1}</button>
       </article>)}
     </section>
-    <section aria-labelledby={id + '-fields'}><h3 id={id + '-fields'}>Proposed fields</h3>
+    {view.kind !== 'maintenance' && <><section aria-labelledby={id + '-fields'}><h3 id={id + '-fields'}>Proposed fields</h3>
       {!view.fields.length && <p>No field suggestion.</p>}
       {view.fields.map((field, index) => {
         const draft = state.fields.find(f => f.key === field.key)!;
@@ -56,13 +61,92 @@ export function SuggestionReview({ controller }: { readonly controller: Suggesti
         <p>Evidence: {candidate.evidenceKeys.map(key => view.sources.find(s => s.key === key)!.label).join('; ')}</p>
       </fieldset>)}
     </section>
+    </>}
+    {view.kind === 'maintenance' && <section aria-labelledby={id + '-maintenance'}>
+      <h3 id={id + '-maintenance'}>Proposed maintenance</h3>
+      {!view.maintenance?.length && <p>No maintenance task suggested.</p>}
+      {view.maintenance?.map((task, index) => <MaintenanceTaskEditor key={task.key} task={task}
+        draft={state.maintenance.find(v => v.key === task.key)!} controller={controller}
+        disabled={!editable} id={id + '-task-' + index}
+        evidenceLabels={task.evidenceKeys.map(key => view.sources.find(source => source.key === key)!.label)} />)}
+      {incomplete && <p role="status">Complete each selected task title, interval and condition before review.</p>}
+    </section>}
     <section aria-labelledby={id + '-unknowns'}><h3 id={id + '-unknowns'}>Uncertainty</h3>
       {view.uncertainty.length ? <ul>{view.uncertainty.map((text, index) => <li key={index}>{text}</li>)}</ul> : <p>No uncertainty detail supplied.</p>}
       {view.uncalibratedScore !== null && <p>Uncalibrated model score: {view.uncalibratedScore}. This is not a probability or approval.</p>}
       {view.kind === 'document' && <p>Documentary links do not establish tested wiring or physical placement.</p>}
     </section>
-    <footer><button type="button" disabled={!editable || !selected} onClick={() => { void controller.decide('accept-for-review'); }}>Accept selection for review</button>
+    <footer><button type="button" disabled={!editable || !selected || incomplete} onClick={() => { void controller.decide('accept-for-review'); }}>Accept selection for review</button>
       <button type="button" disabled={!editable} onClick={() => { void controller.decide('reject'); }}>Reject suggestion</button>
       <button type="button" onClick={controller.dismiss}>Dismiss</button></footer>
   </section>;
+}
+
+function MaintenanceTaskEditor({ task, draft, controller, disabled, id, evidenceLabels }: {
+  readonly task: MaintenanceTaskView; readonly draft: MaintenanceTaskDraft;
+  readonly controller: SuggestionReviewController; readonly disabled: boolean; readonly id: string; readonly evidenceLabels: readonly string[];
+}) {
+  const proposed = task.interval.kind === 'periodic' ? 'Every ' + task.interval.every + ' ' + unitLabels[task.interval.unit].toLowerCase()
+    : task.interval.kind === 'conditional' ? 'When: ' + task.interval.condition : 'Unknown';
+  return <fieldset disabled={disabled}>
+    <legend>{task.title}</legend>
+    <p>Target: {task.targetLabel || 'Unknown'}</p>
+    <p>Recorded service baseline: {task.baselineDate ?? 'Unknown'}</p>
+    <p>Proposed interval: {proposed}</p>
+    <p>Proposed urgency: {urgencyLabels[task.urgency]}</p>
+    <label><input type="checkbox" checked={draft.selected}
+      onChange={event => { controller.selectMaintenanceTask(task.key, event.target.checked); }} />Select task for review</label>
+    {draft.edited && <p>Edited for review</p>}
+    <label htmlFor={id + '-title'}>Task title for review</label>
+    <input id={id + '-title'} value={draft.title} maxLength={4096}
+      onChange={event => { controller.editMaintenanceTask(task.key, { title: event.target.value }); }} />
+    <label htmlFor={id + '-kind'}>Interval for review</label>
+    <select id={id + '-kind'} value={draft.interval.kind} onChange={event => {
+      const kind = event.target.value; if (kind === draft.interval.kind) return;
+      if (kind === 'periodic') controller.editMaintenanceTask(task.key, { interval: { kind, every: '', unit: null } });
+      else if (kind === 'conditional') controller.editMaintenanceTask(task.key, { interval: { kind, condition: '' } });
+      else if (kind === 'unknown') controller.editMaintenanceTask(task.key, { interval: { kind } });
+    }}>
+      <option value="unknown">Unknown interval</option><option value="periodic">Periodic</option><option value="conditional">Condition-based</option>
+    </select>
+    {draft.interval.kind === 'periodic' && <>
+      <label htmlFor={id + '-every'}>Every</label>
+      <input id={id + '-every'} inputMode="numeric" value={draft.interval.every} maxLength={10}
+        onChange={event => { if (draft.interval.kind === 'periodic') controller.editMaintenanceTask(task.key,
+          { interval: { ...draft.interval, every: event.target.value } }); }} />
+      <label htmlFor={id + '-unit'}>Unit</label>
+      <select id={id + '-unit'} value={draft.interval.unit ?? ''} onChange={event => {
+        if (draft.interval.kind === 'periodic') controller.editMaintenanceTask(task.key,
+          { interval: { ...draft.interval, unit: event.target.value === '' ? null : event.target.value as MaintenanceUnit } });
+      }}><option value="">Select unit</option>
+        {(Object.keys(unitLabels) as MaintenanceUnit[]).map(unit => <option key={unit} value={unit}>{unitLabels[unit]}</option>)}
+      </select>
+    </>}
+    {draft.interval.kind === 'conditional' && <>
+      <label htmlFor={id + '-condition'}>Interval condition</label>
+      <textarea id={id + '-condition'} value={draft.interval.condition} maxLength={4096}
+        onChange={event => { if (draft.interval.kind === 'conditional') controller.editMaintenanceTask(task.key,
+          { interval: { kind: 'conditional', condition: event.target.value } }); }} />
+    </>}
+    <label htmlFor={id + '-urgency'}>Urgency for review</label>
+    <select id={id + '-urgency'} value={draft.urgency}
+      onChange={event => { controller.editMaintenanceTask(task.key, { urgency: event.target.value as MaintenanceUrgency }); }}>
+      {(Object.keys(urgencyLabels) as MaintenanceUrgency[]).map(urgency => <option key={urgency} value={urgency}>{urgencyLabels[urgency]}</option>)}
+    </select>
+    <p>Conditions for review</p>
+    {!draft.conditions.length && <p>No conditions specified.</p>}
+    {draft.conditions.map((condition, index) => <div key={index}>
+      <label htmlFor={id + '-condition-' + index}>Condition {index + 1}</label>
+      <textarea id={id + '-condition-' + index} value={condition} maxLength={4096} onChange={event => {
+        controller.editMaintenanceTask(task.key, { conditions: draft.conditions.map((v, i) => i === index ? event.target.value : v) });
+      }} />
+      <button type="button" onClick={() => { controller.editMaintenanceTask(task.key,
+        { conditions: draft.conditions.filter((_, i) => i !== index) }); }}>Remove condition {index + 1}</button>
+    </div>)}
+    <button type="button" disabled={disabled || draft.conditions.length >= 16} onClick={() => {
+      controller.editMaintenanceTask(task.key, { conditions: [...draft.conditions, ''] });
+    }}>Add condition</button>
+    <p>Proposal rationale: {task.reason}</p><p>Uncertainty: {task.uncertainty || 'Not supplied'}</p>
+    <p>Evidence: {evidenceLabels.join('; ')}</p>
+  </fieldset>;
 }

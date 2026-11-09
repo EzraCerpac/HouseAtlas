@@ -461,15 +461,15 @@ provider, model, credential, browser, device, socket or write port runs. These
 are structural validation cases, not classification/groundedness accuracy or
 live authorization qualification. No workflow or runner command is added.
 
-The same default backend-library module additionally contains three generated
+The same default backend-library module additionally contains five generated
 disclosure projection tests. They join validated review data to the inventory/
-document display DTO and check exact evidence/contrary claims, source revision
+document/maintenance display DTO and check exact evidence/contrary claims, source revision
 rechecks, owner-supplied inspection labels and non-authoritative selection keys.
 No route, original-open capability, approval or native dispatch is issued.
-The review-only browser adapter consumes this DTO with the unchanged #569
+The review-only browser adapter consumes this DTO with the retained #569
 controller and an explicit owner-supplied React mount. The existing healthy
-runner's SOURCE list selects exactly `ai-suggestion-review.test.mjs` (fourteen
-controller cases) and `ai-suggestion-adapter.test.mjs` (five adapter cases).
+runner's SOURCE list selects exactly `ai-suggestion-review.test.mjs` (twenty-three
+controller cases) and `ai-suggestion-adapter.test.mjs` (nine adapter cases).
 They use generated data and the actual controller, without browser, provider,
 credentials or native writes. Registration is not execution evidence. No
 app-root, workflow, browser selection or other held selection changes.
@@ -538,3 +538,25 @@ unknown prose, unmapped negative annotations and native effects stay unscored.
 These six authored Rust cases and current-head formatting/compilation/Clippy
 are NOT RUN. No model/API, production corpus import, real authority or write,
 new workflow, runtime readiness or issue acceptance follows.
+
+
+The maintenance disclosure/session composition retains donor #569 at 1aa24a45.
+Task keys bind the exact canonical proposal index and admitted candidate inputRef;
+separate tasks may refer to the same candidate. Interval/conditions/urgency and
+exact evidence are preserved. The canonical proposal has no service-history
+baseline input, so baselineDate is always null and no due date is inferred.
+The session checks the target/index and canonical UTF-8/interval bounds again
+for structured user edits, including complete editedFields value-change correspondence. Delivery
+remains authority:none intent DATA after the existing currentness/once-only
+fences; the original owner must independently validate current authority and
+edited semantics. No task scheduling, source write, real host port or app-root
+activation is bound. Two new backend projection/currentness cases and four new
+session cases are authored, NOT RUN. Existing frontend selections remain 77/1/7;
+no new command/workflow/browser lane or live inference is added. Donor README
+UNAPPLIED statements describe its six-file standalone increment; this composition
+adds the canonical disclosure/session bridge but leaves genuine host ports unbound.
+
+Raw interval spelling/property-order edits may retain an interval editedFields
+marker even when normalized canonical values coincide; all actual value changes
+must still be declared, and other spurious markers refuse. Canonical UTF-8 limits
+and Rust-equivalent control-character refusal apply before owner delivery.

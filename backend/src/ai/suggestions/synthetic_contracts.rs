@@ -270,3 +270,51 @@ fn document_disclosure_separates_classification_from_links_and_abstention_keeps_
     assert_eq!(wire.value()["inspections"]["subject:input1"]["evidenceRef"], Value::Null);
     assert!(wire.value()["view"]["fields"].as_array().unwrap().is_empty());
 }
+
+#[test]
+fn maintenance_disclosure_binds_canonical_tasks_and_keeps_baseline_unknown() {
+    let mut admitted = input(); admitted.feature = SuggestionFeature::Maintenance;
+    let snapshot = AdmittedSnapshot::new(admitted).unwrap();
+    let intervals = [json!({"kind":"periodic","every":6,"unit":"months"}),
+        json!({"kind":"conditional","condition":"Only after the documented condition"}), json!({"kind":"unknown"})];
+    let tasks: Vec<_> = intervals.iter().map(|interval| json!({"candidateRef":"input2","title":"Review filter service",
+        "interval":interval,"conditions":["Service baseline unknown"],"urgency":"review-soon","support":support(&["c1","c2"])})).collect();
+    let review = validate(&output(&snapshot, json!({"kind":"maintenance","tasks":tasks})), &snapshot).unwrap();
+    let disclosure = disclose_review(&review, &snapshot, &Default::default()).unwrap();
+    let wire = disclosure.value();
+    assert_eq!(wire["view"]["kind"], "maintenance");
+    assert!(wire["view"]["fields"].as_array().unwrap().is_empty());
+    assert!(wire["view"]["candidates"].as_array().unwrap().is_empty());
+    for (index, interval) in intervals.iter().enumerate() {
+        let task = &wire["view"]["maintenance"][index];
+        assert_eq!(task["interval"], *interval);
+        assert_eq!(task["baselineDate"], Value::Null);
+        assert_eq!(task["targetKey"], "input2");
+        assert_eq!(task["urgency"], "review-soon");
+        let key = format!("maintenance:{index}:input2");
+        assert_eq!(task["key"], key);
+        assert_eq!(wire["selections"][&key], json!({"kind":"maintenance-task","inputRef":"input2","taskIndex":index}));
+        assert!(task["evidenceKeys"].as_array().unwrap().contains(&json!("e1")));
+        assert!(task["evidenceKeys"].as_array().unwrap().contains(&json!("e2")));
+        assert!(task.get("dueDate").is_none());
+    }
+    assert_eq!(wire["view"]["sources"][0]["recordVersion"], "revision-1");
+    assert_eq!(wire["view"]["sources"][0]["page"], 2);
+}
+
+#[test]
+fn maintenance_disclosure_refuses_changed_and_withdrawn_current_sources() {
+    let mut admitted = input(); admitted.feature = SuggestionFeature::Maintenance;
+    let snapshot = AdmittedSnapshot::new(admitted.clone()).unwrap();
+    let tasks = json!([{"candidateRef":"input2","title":"Review service","interval":{"kind":"unknown"},
+        "conditions":[],"urgency":"unknown","support":support(&["c1","c2"])}]);
+    let review = validate(&output(&snapshot, json!({"kind":"maintenance","tasks":tasks})), &snapshot).unwrap();
+    for withdrawn in [false, true] {
+        let mut current = admitted.clone();
+        if withdrawn { current.sources[1].availability = Availability::Withdrawn; }
+        else { current.sources[1].version = "revision-2".into(); }
+        let current = AdmittedSnapshot::new(current).unwrap();
+        let expected = if withdrawn { SuggestionError::ContextWithdrawn } else { SuggestionError::ContextChanged };
+        assert_eq!(disclose_review(&review, &current, &Default::default()).unwrap_err(), expected);
+    }
+}

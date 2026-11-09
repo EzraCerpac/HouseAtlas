@@ -17,7 +17,7 @@ impl ReviewDisclosure {
 
 /// `inspectable` is supplied by the current original owner, never the model.
 /// Its IDs only label availability; they confer no original-open authority.
-/// Non-inventory/document variants are deliberately refused by this consumer.
+/// Answer/contradiction variants are deliberately refused by this consumer.
 pub fn disclose_review(
     review: &ReviewProposal,
     current: &AdmittedSnapshot,
@@ -32,6 +32,7 @@ pub fn disclose_review(
         .map_err(|_| SuggestionError::InvalidOutput)?));
     let mut fields = Vec::new();
     let mut candidates = Vec::new();
+    let mut maintenance = Vec::new();
     let mut selections = BTreeMap::new();
     let mut used = BTreeSet::new();
     let source = |id: &str| input.sources.iter().find(|s| s.input_ref == id)
@@ -102,6 +103,20 @@ pub fn disclose_review(
             }
             "document"
         }
+        ProposalResult::Maintenance { tasks } => {
+            for (index, task) in tasks.iter().enumerate() {
+                let (reason, evidence) = support(&task.support, &[])?;
+                used.extend(evidence.iter().cloned());
+                let key = format!("maintenance:{index}:{}", task.candidate_ref);
+                maintenance.push(json!({"key":key,"targetKey":task.candidate_ref,
+                    "targetLabel":format!("Maintenance target {}", source(&task.candidate_ref)?.input_ref),
+                    "title":task.title,"interval":task.interval,"conditions":task.conditions,
+                    "urgency":task.urgency,"reason":reason,"uncertainty":format!("{:?}",task.support.uncertainty),
+                    "evidenceKeys":evidence,"baselineDate":null}));
+                selections.insert(key, json!({"kind":"maintenance-task","inputRef":task.candidate_ref,"taskIndex":index}));
+            }
+            "maintenance"
+        }
         _ => return Err(SuggestionError::InvalidOutput),
     };
     let all_evidence: BTreeSet<_> = input.sources.iter().flat_map(|s| s.evidence.iter().map(|e| e.evidence_ref.clone())).collect();
@@ -127,12 +142,16 @@ pub fn disclose_review(
     }
     let mut uncertainty = p.missing_evidence.clone();
     uncertainty.push("Extracted claims and associations are proposals, not verified identity, physical placement or tested wiring.".into());
-    if sources.len() > 16 || fields.len() > 16 || candidates.len() > 16 || uncertainty.len() > 16 { return Err(SuggestionError::LimitExceeded); }
-    let disclosure = json!({"schemaVersion":1,"contextPin":p.context_pin,"view":{
+    if kind == "maintenance" {
+        uncertainty.push("Service baseline unknown; no due date, task creation or scheduling is inferred.".into());
+    }
+    if sources.len() > 16 || fields.len() > 16 || candidates.len() > 16 || maintenance.len() > 16 || uncertainty.len() > 16 { return Err(SuggestionError::LimitExceeded); }
+    let mut disclosure = json!({"schemaVersion":1,"contextPin":p.context_pin,"view":{
         "key":format!("review:{revision}"),"revision":revision,"sourceSetRevision":p.context_pin,"kind":kind,
-        "title":if kind=="inventory" {"Inventory suggestions"} else {"Document suggestions"},
+        "title":match kind {"inventory"=>"Inventory suggestions","maintenance"=>"Maintenance suggestions",_=>"Document suggestions"},
         "sources":sources,"fields":fields,"candidates":candidates,"uncertainty":uncertainty,"uncalibratedScore":null
     },"inspections":inspections,"selections":selections});
+    if kind == "maintenance" { disclosure["view"]["maintenance"] = json!(maintenance); }
     if serde_json::to_vec(&disclosure).map_err(|_| SuggestionError::InvalidOutput)?.len() > MAX_OUTPUT_BYTES { return Err(SuggestionError::LimitExceeded); }
     Ok(ReviewDisclosure(disclosure))
 }

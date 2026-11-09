@@ -6,7 +6,11 @@ export interface InspectionBinding {
   readonly inputRef: string; readonly version: string;
   readonly evidenceRef: string | null; readonly location: unknown;
 }
-export interface SelectionBinding { readonly kind: string; readonly inputRef: string }
+export interface SelectionBinding {
+  readonly kind: string; readonly inputRef: string;
+  /** Maintenance only: exact index in the revision-pinned canonical task list. */
+  readonly taskIndex?: number;
+}
 export interface ReviewIdentity { readonly proposalRevision: string; readonly sourceSetRevision: string }
 export interface SuggestionSessionOwner {
   current(): SuggestionReviewContext | null;
@@ -42,6 +46,31 @@ const freeze = <T>(value: T): T => {
   return value;
 };
 
+/** Local canonical-value bounds, not a replacement for Rust proposal validation.
+ * Edited values remain review intent DATA; the original owner revalidates them. */
+function maintenanceValues(value: ObjectData) {
+  const text = (v: unknown, cap: number): string => {
+    if (typeof v !== 'string' || !v.trim() || new TextEncoder().encode(v).length > cap
+      || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(v))
+      throw new TypeError('Invalid canonical maintenance text');
+    return v;
+  };
+  text(value.title, 256);
+  if (!Array.isArray(value.conditions) || value.conditions.length > 16) throw new TypeError('Invalid maintenance conditions');
+  value.conditions.forEach(v => text(v, 512));
+  if (typeof value.urgency !== 'string' || !['unknown', 'routine', 'review-soon'].includes(value.urgency)) throw new TypeError('Invalid maintenance urgency');
+  const interval = object(value.interval);
+  if (interval.kind === 'periodic') {
+    exact(interval, ['kind', 'every', 'unit']);
+    if (!Number.isSafeInteger(interval.every) || Number(interval.every) < 1 || Number(interval.every) > 100000
+      || typeof interval.unit !== 'string' || !['days', 'weeks', 'months', 'years', 'usage-hours'].includes(interval.unit)) throw new TypeError('Invalid canonical interval');
+  } else if (interval.kind === 'conditional') {
+    exact(interval, ['kind', 'condition']); text(interval.condition, 1024);
+  } else {
+    exact(interval, ['kind']); if (interval.kind !== 'unknown') throw new TypeError('Unsupported maintenance interval');
+  }
+}
+
 /** Decode only a source-owner-produced disclosure, NEVER raw generated output.
  * Structural checks and context pins are not authentication. No fetch/URL/API
  * fallback exists. The canonical generated-output validator remains in Rust. */
@@ -50,12 +79,14 @@ export function createSuggestionReviewSession(json: string, context: object, own
   const wire = exact(JSON.parse(json), ['schemaVersion', 'contextPin', 'view', 'inspections', 'selections']);
   if (wire.schemaVersion !== 1) throw new TypeError('Unsupported review disclosure');
   const pin = hash(wire.contextPin);
-  const display = exact(wire.view, ['key', 'revision', 'sourceSetRevision', 'kind', 'title', 'sources', 'fields', 'candidates', 'uncertainty', 'uncalibratedScore']);
+  const isMaintenance = object(wire.view).kind === 'maintenance';
+  const display = exact(wire.view, ['key', 'revision', 'sourceSetRevision', 'kind', 'title', 'sources', 'fields', 'candidates', 'uncertainty', 'uncalibratedScore', ...(isMaintenance ? ['maintenance'] : [])]);
   const revision = hash(display.revision);
   if (display.key !== 'review:' + revision || display.sourceSetRevision !== pin || display.uncalibratedScore !== null)
     throw new TypeError('Mismatched review disclosure identity');
   if (!Array.isArray(display.sources) || !Array.isArray(display.fields) || !Array.isArray(display.candidates)) throw new TypeError('Missing review display lists');
   const inspections = object(wire.inspections), selections = object(wire.selections);
+  const tasks: ObjectData[] = [];
   const sourceKeys: string[] = [], selectionKeys: string[] = [];
   for (const value of display.sources) {
     const s = exact(value, ['key', 'label', 'recordVersion', 'sourceDate', 'retrievedAt', 'page', 'section', 'excerpt', 'freshness', 'original']);
@@ -103,6 +134,20 @@ export function createSuggestionReviewSession(json: string, context: object, own
     if (b.kind === 'inventory-duplicate' && !['possible-duplicate', 'same-product'].includes(String(c.relation))) throw new TypeError('Unsupported duplicate relationship');
     selectionKeys.push(c.key);
   }
+  if (isMaintenance) {
+    if (display.fields.length || display.candidates.length || !Array.isArray(display.maintenance) || display.maintenance.length > 16)
+      throw new TypeError('Invalid maintenance disclosure lists');
+    for (const value of display.maintenance) {
+      const task = exact(value, ['key', 'targetKey', 'targetLabel', 'title', 'interval', 'conditions', 'urgency', 'reason', 'uncertainty', 'evidenceKeys', 'baselineDate']);
+      if (typeof task.key !== 'string' || !Object.hasOwn(selections, task.key)) throw new TypeError('Unbound maintenance task');
+      const binding = exact(selections[task.key], ['kind', 'inputRef', 'taskIndex']);
+      const target = ref(binding.inputRef);
+      if (binding.kind !== 'maintenance-task' || binding.taskIndex !== tasks.length || task.targetKey !== target
+        || task.key !== `maintenance:${binding.taskIndex}:${target}` || task.baselineDate !== null)
+        throw new TypeError('Mismatched canonical maintenance binding');
+      maintenanceValues(task); tasks.push(task); selectionKeys.push(task.key);
+    }
+  }
   if (sourceKeys.length !== Object.keys(inspections).length || selectionKeys.length !== Object.keys(selections).length)
     throw new TypeError('Unreferenced disclosure bindings');
   freeze(wire);
@@ -116,7 +161,24 @@ export function createSuggestionReviewSession(json: string, context: object, own
     recheck: (_view, signal) => owner.recheck(identity, signal),
     inspectSource: (_view, s, signal) => owner.inspect(identity, inspections[s.key] as unknown as InspectionBinding, signal),
     onIntent(intent) {
-      const selected = [...intent.fields.map(f => f.key), ...intent.candidateKeys];
+      const reviewedTasks = intent.maintenance ?? [];
+      if (!isMaintenance && reviewedTasks.length) throw new TypeError('Unexpected maintenance intent');
+      for (const edited of reviewedTasks) {
+        const original = tasks.find(task => task.key === edited.key);
+        if (!original || edited.targetKey !== original.targetKey) throw new TypeError('Changed maintenance target');
+        maintenanceValues(edited as unknown as ObjectData);
+        const fields = ['title', 'interval', 'conditions', 'urgency'] as const;
+        const signature = (value: unknown) => {
+          const i = object(value); return JSON.stringify([i.kind, i.every ?? null, i.unit ?? null, i.condition ?? null]);
+        };
+        const changed = fields.filter(key => key === 'interval' ? signature(edited[key]) !== signature(original[key])
+          : JSON.stringify(edited[key]) !== JSON.stringify(original[key]));
+        // The retained controller also marks raw interval spelling/key-order
+        // edits. Preserve that intent marker even if canonical values coincide.
+        const declared = fields.filter(key => changed.includes(key) || key === 'interval' && edited.editedFields.includes(key));
+        if (JSON.stringify(edited.editedFields) !== JSON.stringify(declared)) throw new TypeError('Mismatched maintenance edits');
+      }
+      const selected = [...intent.fields.map(f => f.key), ...intent.candidateKeys, ...reviewedTasks.map(task => task.key)];
       const bindings = Object.fromEntries(selected.map(key => {
         if (!Object.hasOwn(selections, key)) throw new TypeError('Unbound selection');
         return [key, selections[key] as unknown as SelectionBinding];

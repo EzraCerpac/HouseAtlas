@@ -661,7 +661,7 @@
       "run": ["node frontend/lantern-tests/run-healthy.mjs"],
       "toolchain": ["node", "chromium"],
       "files": ["frontend/lantern-tests/run-healthy.mjs"],
-      "scope": "Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The two AI source selections contain fourteen controller and five disclosure-adapter cases using generated data without browser, provider, credentials or source writes.",
+      "scope": "Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The two AI source selections contain twenty-three controller and nine disclosure-adapter cases using generated data without browser, provider, credentials or source writes.",
       "cases": {"counter": "run-healthy-list", "file": "frontend/lantern-tests/run-healthy.mjs", "expected": {"SOURCE": 77, "BUILD": 1, "BROWSER": 7}},
       "claims": [
         ["frontend/lantern-tests/run-healthy.mjs", "['offline-launch', 'hung-network', 'live-launch']"],

@@ -90,3 +90,91 @@ test('closed disclosure decoder refuses invented pages, bindings, versions and e
     w => { w.view.fields[0].key = 'arbitrary-native-write'; },
   ]) { const w = fixture(); mutate(w); assert.throws(() => setup(w)); }
 });
+
+function maintenanceFixture(interval = { every: 6, kind: 'periodic', unit: 'months' }) {
+  const wire = fixture();
+  wire.view.kind = 'maintenance'; wire.view.fields = []; wire.view.candidates = [];
+  wire.view.sources.push({ ...wire.view.sources[0], key: 'e2', label: 'Generated candidate', page: null, excerpt: 'Generated candidate instance; service date unknown' });
+  wire.inspections.e2 = { inputRef: 'item2', version: 'record-1', evidenceRef: 'e2', location: { kind: 'record' } };
+  wire.view.maintenance = [{ key: 'maintenance:0:item2', targetKey: 'item2', targetLabel: 'Generated target item2',
+    title: 'Review filter service', interval, conditions: ['Service baseline unknown'], urgency: 'unknown',
+    reason: 'Generated source interval and candidate evidence only', uncertainty: 'Ambiguous', evidenceKeys: ['e1', 'e2'], baselineDate: null }];
+  wire.selections = { 'maintenance:0:item2': { kind: 'maintenance-task', inputRef: 'item2', taskIndex: 0 } };
+  return wire;
+}
+test('maintenance session preserves canonical variants and binds edits without creating tasks', async () => {
+  for (const interval of [{ every: 6, kind: 'periodic', unit: 'months' }, { kind: 'conditional', condition: 'Only after documented usage' }, { kind: 'unknown' }]) {
+    const s = setup(maintenanceFixture(interval)), c = s.session.controller;
+    assert.equal(c.getSnapshot().maintenance[0].selected, false);
+    assert.equal(c.getSnapshot().view.maintenance[0].baselineDate, null);
+    c.selectMaintenanceTask('maintenance:0:item2', true);
+    await c.decide('accept-for-review'); await c.decide('accept-for-review');
+    assert.equal(s.intents.length, 1);
+    assert.equal(s.intents[0].intent.authority, 'none');
+    assert.deepEqual(s.intents[0].intent.maintenance[0].editedFields, []);
+    assert.deepEqual(s.intents[0].selections['maintenance:0:item2'], { kind: 'maintenance-task', inputRef: 'item2', taskIndex: 0 });
+    s.session.dispose();
+  }
+  const s = setup(maintenanceFixture()), c = s.session.controller;
+  c.selectMaintenanceTask('maintenance:0:item2', true);
+  c.editMaintenanceTask('maintenance:0:item2', { title: 'Review edited service', interval: { kind: 'conditional', condition: 'When documented indicator appears' }, conditions: ['Owner review required'], urgency: 'review-soon' });
+  await c.decide('accept-for-review');
+  assert.equal(s.intents.length, 1);
+  const task = s.intents[0].intent.maintenance[0];
+  assert.equal(task.targetKey, 'item2');
+  assert.deepEqual(task.editedFields, ['title', 'interval', 'conditions', 'urgency']);
+  assert.deepEqual(task.interval, { kind: 'conditional', condition: 'When documented indicator appears' });
+  assert.equal(Object.hasOwn(task, 'dueDate'), false);
+  s.session.dispose();
+  for (const every of ['6', '06']) {
+    const same = setup(maintenanceFixture()), controller = same.session.controller;
+    controller.selectMaintenanceTask('maintenance:0:item2', true);
+    controller.editMaintenanceTask('maintenance:0:item2', { interval: { kind: 'periodic', every, unit: 'months' } });
+    await controller.decide('accept-for-review');
+    assert.equal(same.intents.length, 1, 'raw same-value interval edits remain deliverable');
+    assert.deepEqual(same.intents[0].intent.maintenance[0].editedFields, ['interval']);
+    assert.equal(same.intents[0].intent.maintenance[0].interval.every, 6);
+    same.session.dispose();
+  }
+});
+test('maintenance session refuses edits outside canonical bounds before owner delivery', async () => {
+  for (const patch of [{ title: 'x'.repeat(257) }, { title: 'é'.repeat(129) },
+    { interval: { kind: 'periodic', every: '100001', unit: 'days' } },
+    { interval: { kind: 'conditional', condition: 'x'.repeat(1025) } }, { conditions: ['x'.repeat(513)] },
+    { title: 'Service\u0000task' }, { conditions: ['Service\u0085condition'] },
+    { interval: { kind: 'conditional', condition: 'Service\u007fcondition' } }]) {
+    const s = setup(maintenanceFixture()), c = s.session.controller;
+    c.selectMaintenanceTask('maintenance:0:item2', true);
+    assert.equal(c.editMaintenanceTask('maintenance:0:item2', patch), true);
+    await c.decide('accept-for-review'); await c.decide('accept-for-review');
+    assert.equal(s.intents.length, 0);
+    assert.equal(c.getSnapshot().phase, 'handoff-unconfirmed');
+    s.session.dispose();
+  }
+});
+test('maintenance disclosure refuses invented targets, indices, baselines and schedules', () => {
+  for (const mutate of [
+    w => { w.view.maintenance[0].targetKey = 'other'; },
+    w => { w.selections['maintenance:0:item2'].taskIndex = 1; },
+    w => { w.selections['maintenance:0:item2'].inputRef = 'other'; },
+    w => { w.view.maintenance[0].baselineDate = '2030-01-01'; },
+    w => { w.view.maintenance[0].dueDate = '2030-02-01'; },
+    w => { w.view.maintenance[0].interval.every = 100001; },
+    w => { w.selections['maintenance:0:item2'].approval = 'invented'; },
+  ]) { const wire = maintenanceFixture(); mutate(wire); assert.throws(() => setup(wire)); }
+});
+test('maintenance currentness and reject keep review intents separate from effects', async () => {
+  const stale = setup(maintenanceFixture());
+  stale.owner.recheck = async () => 'stale';
+  stale.session.controller.selectMaintenanceTask('maintenance:0:item2', true);
+  await stale.session.controller.decide('accept-for-review');
+  assert.equal(stale.intents.length, 0);
+  assert.equal(stale.session.controller.getSnapshot().phase, 'stale');
+  stale.session.dispose();
+  const rejected = setup(maintenanceFixture());
+  await rejected.session.controller.decide('reject');
+  assert.deepEqual(rejected.intents[0].intent.maintenance, []);
+  assert.deepEqual(rejected.intents[0].selections, {});
+  assert.equal(rejected.intents[0].intent.authority, 'none');
+  rejected.session.dispose();
+});
