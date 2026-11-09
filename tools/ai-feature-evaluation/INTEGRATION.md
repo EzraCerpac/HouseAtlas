@@ -30,10 +30,13 @@ excerpts and source/version/section evidence identities, and assigns fictional
 Atlas record targets solely for the generated join. These are no real records,
 access grants, originals, OCR results or custody receipts.
 
-| Original case | Mapped allowed labels |
+| Original case | Mapped dimensions |
 | --- | --- |
 | inv-identity | `fan_category` → category `fan`; `same_physical_item_candidate` for item-a → `item-a:possible-same-item` |
 | doc-ambiguous | `manual_category` → class `manual`; both `possible_document_link` annotations → allowed item-a/item-b associations |
+| inv-sparse | Aggregate no-proposal control only; selected capture-blur v1 remains the sole admitted source |
+| doc-electrical | `electrical_drawing_category` → class `electrical-drawing` only |
+| doc-invoice | `invoice_category` / `warranty_category` → allowed class alternatives invoice / warranty; `document_link` → allowed item-a association from original invoice p1 / item-a identity citations |
 
 Allowed alternatives are not required winners. Required sets remain empty;
 positive recall/missing-required outcomes are **unscored**, not measured zero
@@ -66,13 +69,13 @@ expected structural refusal with null classification, duplicate, document,
 unknown and semantic-abstention scores. An empty proposal is a test input, not
 a gold semantic abstention, model response or complete case pass.
 
-The other 27 cases return no adapted case and remain explicitly unscored,
+The other 24 cases return no adapted case and remain explicitly unscored,
 including the same-product-only inventory case and every maintenance, cited
 answer and contradiction case. A model/product match is never translated into
 physical identity. More mappings need an explicit semantic/dimension review;
 the corpus's original annotations must not be rewritten to manufacture coverage.
 
-Six authored default-library Rust cases check frozen corpus/cardinality and
+Nine authored default-library Rust cases check frozen corpus/cardinality and
 mapping limits, separate supplied inventory category/identity counters, retained
 alternative document links, the three original context-refusal cases and
 changed/withdrawn context refusal through the existing validator. Supplied JSON is deliberately handwritten. Rust formatting,
@@ -80,3 +83,51 @@ compilation, Clippy and these tests are **NOT RUN** at this integration. There i
 no generated evaluation-result artifact, model accuracy, calibrated probability,
 fitted threshold or complete child-issue acceptance claim. No workflow or new
 runner selection is added; the standalone Python mutation suite stays separate.
+
+
+## Three bounded inventory/document additions
+
+The retained inv-sparse, doc-electrical and doc-invoice annotations now join the
+same supplied-proposal scorer without changing its production contract. There
+are four allowed-label mappings, one limited aggregate no-proposal control and
+three structural-refusal mappings; the other 24 cases remain wholly unmapped.
+
+inv-sparse selects only capture-blur v1. Its annotation candidate lists do not
+admit item-a/item-b or provide native authority, and no negative citation is
+invented. The adapter requires aggregate no-proposal for its deliberately
+supplied control; an empty category/duplicate output satisfies this limited
+expectation. A deliberately supplied category demonstrates missing aggregate
+abstention separately from structural acceptance. This is not field-specific
+unknown truth, identity/duplicate accuracy, location truth or native-effect
+qualification. Empty-set quality counters and classification_unknown are only
+mechanical output indicators, not measured zero errors for those unmapped
+semantic dimensions. Unadmitted-candidate negatives remain unscored.
+
+doc-electrical maps only the original class annotation from drawing v1/sheet1,
+retaining source date 2020-01-01 and retrieval 2030-04-01. It cannot establish
+current circuit mapping, tested wiring, safe breakers or physical placement.
+
+doc-invoice maps invoice and warranty as allowed alternatives in the single
+canonical classification slot; neither is required and selecting either is not
+mixed-purpose completeness or a full-case success. Warranty eligibility remains
+unknown. Mixed-purpose completeness stays unscored. Other class representations
+fall outside this mapping: an unexpected-label counter is not evidence that
+their mixed-purpose interpretation is wrong. Counters compare mapped labels only. The item-a link
+uses exactly the original serial-backed citations. Item-b remains a selected
+fictional input, but its annotation negative is unscored because no mapped
+negative claim-specific citation basis exists. No negative basis is fabricated.
+
+Three new authored Rust cases (NOT RUN):
+
+- retained_sparse_case_scores_only_aggregate_no_proposal_without_invented_candidates
+- retained_electrical_case_scores_document_class_without_wiring_claims
+- retained_invoice_case_preserves_class_alternatives_and_serial_backed_association
+
+These bring the test bridge to nine authored cases in the existing default
+backend-library path. The earlier five mappings, including null quality/unknown/
+abstention scores for structural refusal, remain intact. Labels are fictional
+reference expectations and outputs deliberately supplied, not model responses.
+No model accuracy, calibration, threshold, complete child acceptance, real Access
+revocation or native authority is evaluated. The frontend maintenance repair and
+all original corpus file bytes are preserved. Local tests/build/compiler/Clippy/
+formatting/browser/device execution were not performed; no CI lane is added.

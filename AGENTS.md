@@ -522,7 +522,7 @@ Its standalone README and HISTORICAL-CHECKS.txt describe the November 8 artifact
 the historical 18-test Python integrity success is not current-head execution.
 The Python mutation suite is not added to a default runner. See INTEGRATION.md
 for original hashes, exact mappings and exclusions.
-The existing default backend-library selection discovers six
+The existing default backend-library selection discovers nine
 `ai::suggestions::evaluation::retained_corpus` cases: frozen corpus/mapping
 limits; separate supplied inventory classification/identity counters;
 alternative document links with changed/withdrawn context refusal; and exact
@@ -531,11 +531,12 @@ The latter split observed/current versions or project disclosure_revoked into
 current Withdrawn DATA; this is not real Access revocation. All semantic-quality,
 unknown and semantic-abstention scores must be null for these refused outputs.
 The bridge is cfg(test)-only and reuses evaluate_supplied/the existing canonical validator.
-Only inv-identity and doc-ambiguous have mapped allowed dimensions; three more
-cases map structural refusal only. The other 27 cases, positive recall,
+Four cases have mapped allowed dimensions (inv-identity, doc-ambiguous,
+doc-electrical and doc-invoice); inv-sparse maps aggregate no-proposal only;
+three more cases map structural refusal only. The other 24 cases, positive recall,
 unique-winner selection, field-specific abstentions,
 unknown prose, unmapped negative annotations and native effects stay unscored.
-These six authored Rust cases and current-head formatting/compilation/Clippy
+These nine authored Rust cases and current-head formatting/compilation/Clippy
 are NOT RUN. No model/API, production corpus import, real authority or write,
 new workflow, runtime readiness or issue acceptance follows.
 
@@ -575,3 +576,18 @@ Two new controller and two new adapter cases plus the corrected invalid-edit
 regression are authored, NOT RUN. Existing source selections remain 77/1/7;
 counts are now 25 controller / 11 adapter cases. No local tests, compilation,
 formatting, Clippy, browser/device qualification or workflow rerun was performed.
+
+
+Three more original retained corpus cases have bounded mappings in the same
+cfg(test)-only bridge: inv-sparse aggregate no-proposal with only capture-blur v1
+admitted; doc-electrical class only; doc-invoice invoice/warranty alternatives
+and the original serial-backed item-a association. Mixed-purpose completeness,
+electrical truth, sparse field-specific unknowns/location, unadmitted negative
+candidates and native effects stay unscored. No annotation candidate list is an
+access grant, and no negative citation is fabricated. There are now eight
+partially mapped cases (four allowed-label, one aggregate, three refusal) and
+24 wholly unmapped cases. Three new tests bring the bridge to nine authored
+cases, NOT RUN; supplied outputs are not model evaluations. Exact interpretation,
+original hashes and case names are in tools/ai-feature-evaluation/INTEGRATION.md.
+The production scorer/validator, repaired frontend, original corpus files and
+77/1/7 frontend selection inventory are unchanged. No runner/workflow is added.

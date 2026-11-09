@@ -1,6 +1,6 @@
 //! Test-only bridge from the unchanged November 8 annotations to the supplied
 //! proposal scorer. This module is never imported into a production runtime.
-//! Two cases map allowed labels; three map structural context refusal only.
+//! Four cases map allowed labels, one aggregate no-proposal, three context refusal.
 //! All other cases and unsupported dimensions remain explicitly unscored.
 use super::*;
 use crate::contracts::stock::{AtlasRecordKind, AtlasTarget, StockContext};
@@ -68,7 +68,10 @@ struct Adapted {
 fn adapt(case_id: &str) -> Option<Adapted> {
     let subject = match case_id {
         "inv-identity" => "capture-a",
+        "inv-sparse" => "capture-blur",
         "doc-ambiguous" => "manual",
+        "doc-electrical" => "drawing",
+        "doc-invoice" => "invoice",
         _ => return None,
     };
     let data = corpus();
@@ -102,8 +105,11 @@ fn adapt(case_id: &str) -> Option<Adapted> {
         let (dimension, value) = match claim["label"].as_str().unwrap() {
             "fan_category" => (0, "fan".to_string()),
             "manual_category" => (0, "manual".to_string()),
+            "invoice_category" => (0, "invoice".to_string()),
+            "warranty_category" => (0, "warranty".to_string()),
+            "electrical_drawing_category" => (0, "electrical-drawing".to_string()),
             "same_physical_item_candidate" => (1, duplicate_label(claim["candidate_id"].as_str().unwrap(), DuplicateRelationship::PossibleSameItem)),
-            "possible_document_link" => (2, claim["candidate_id"].as_str().unwrap().to_string()),
+            "possible_document_link" | "document_link" => (2, claim["candidate_id"].as_str().unwrap().to_string()),
             _ => panic!("unmapped annotation in a mapped case"),
         };
         let evidence_refs = claim["evidence"].as_array().unwrap().iter().map(|citation| {
@@ -119,11 +125,24 @@ fn adapt(case_id: &str) -> Option<Adapted> {
         set.allowed.insert(value.clone());
         set.basis.insert(value, AnnotationBasis { evidence_refs, rationale: case["explanation"].as_str().unwrap().into() });
     }
-    Some(Adapted { snapshot, labels, unscored: vec![
+    let mut unscored = vec![
         "positive recall: allowed alternatives are not mandatory winners",
         "candidate-negative labels without claim-specific citation mapping",
         "field-specific abstentions, unknown text, unique-winner selection and native effects",
-    ] })
+    ];
+    match case_id {
+        "inv-sparse" => {
+            // Only aggregate no-proposal is represented, not field-wise unknown
+            // truth or negative labels for records absent from input_sources.
+            assert_eq!(case["expected_claims"], json!([]));
+            labels.abstention = ExpectedAbstention::Required;
+            unscored.push("sparse field-specific unknowns, absent-candidate negatives and location truth");
+        }
+        "doc-invoice" => unscored.push("mixed-purpose completeness and warranty eligibility; one class slot only"),
+        "doc-electrical" => unscored.push("tested wiring, safe breakers, current mapping and physical placement"),
+        _ => {}
+    }
+    Some(Adapted { snapshot, labels, unscored })
 }
 
 fn supplied(case: &Adapted, result: Value) -> Vec<u8> {
@@ -211,15 +230,15 @@ fn adapt_refusal(case_id: &str) -> Option<RefusalAdapted> {
 }
 
 #[test]
-fn retained_corpus_mapping_keeps_twenty_seven_cases_explicitly_unscored() {
+fn retained_corpus_mapping_keeps_twenty_four_cases_explicitly_unscored() {
     let data = corpus();
     assert_eq!(data["cases"].as_array().unwrap().len(), 32);
     assert_eq!(data["sources"].as_array().unwrap().len(), 20);
     let mapped: Vec<_> = data["cases"].as_array().unwrap().iter().filter_map(|c| adapt(c["id"].as_str().unwrap())).collect();
-    assert_eq!(mapped.len(), 2);
+    assert_eq!(mapped.len(), 5);
     let refused: Vec<_> = data["cases"].as_array().unwrap().iter().filter_map(|c| adapt_refusal(c["id"].as_str().unwrap())).collect();
     assert_eq!(refused.len(), 3);
-    assert_eq!(32 - mapped.len() - refused.len(), 27);
+    assert_eq!(32 - mapped.len() - refused.len(), 24);
     assert!(refused.iter().all(|c| !c.observed.unscored.is_empty()));
     assert!(mapped.iter().all(|c| !c.unscored.is_empty() && c.labels.classification.required.is_empty()));
     let inventory = adapt("inv-identity").unwrap();
@@ -330,5 +349,78 @@ fn retained_document_keeps_both_possible_links_and_refuses_changed_context() {
         let report = evaluate_supplied(&labels, &bytes, &case.snapshot, &current).unwrap();
         assert_eq!(report.validation.correct_refusal, 1);
         assert!(report.classification.is_none());
+    }
+}
+
+#[test]
+fn retained_sparse_case_scores_only_aggregate_no_proposal_without_invented_candidates() {
+    let case = adapt("inv-sparse").unwrap();
+    let sources = &case.snapshot.input().sources;
+    assert_eq!(sources.len(), 1);
+    assert_eq!(sources[0].input_ref, "capture-blur");
+    assert_eq!(sources[0].version, "1");
+    assert_eq!(sources[0].source_date, None);
+    assert_eq!(sources[0].retrieved_at, "2030-04-01T12:00:00Z");
+    assert_eq!(sources[0].evidence[0].excerpt, "Unclear generated image description: pale object, label unreadable.");
+    assert!(case.labels.classification.allowed.is_empty());
+    assert!(case.labels.duplicate_relationships.forbidden.is_empty());
+    let bytes = supplied(&case, json!({"kind":"inventory","changes":[],"duplicates":[]}));
+    let report = evaluate_supplied(&case.labels, &bytes, &case.snapshot, &case.snapshot).unwrap();
+    assert_eq!(report.validation.correct_acceptance, 1);
+    let abstention = report.abstention.unwrap();
+    assert!(abstention.observed);
+    assert_eq!(abstention.required_missing, 0);
+    // Empty class output is a mechanical indicator, not field-wise truth.
+    assert_eq!(report.classification_unknown, Some(true));
+    let bytes = supplied(&case, json!({"kind":"inventory","changes":[{"field":"category","value":"unsupported-category",
+        "support":support(&["capture-blur-v1-description"])}],"duplicates":[]}));
+    let report = evaluate_supplied(&case.labels, &bytes, &case.snapshot, &case.snapshot).unwrap();
+    assert_eq!(report.validation.correct_acceptance, 1); // Structure does not prove entailment.
+    assert_eq!(report.abstention.unwrap().required_missing, 1);
+    assert_eq!(report.classification.unwrap().unexpected_predictions, 1);
+    assert!(!report.model_executed);
+}
+
+#[test]
+fn retained_electrical_case_scores_document_class_without_wiring_claims() {
+    let case = adapt("doc-electrical").unwrap();
+    assert_eq!(case.snapshot.input().sources.len(), 1);
+    let drawing = &case.snapshot.input().sources[0];
+    assert_eq!(drawing.input_ref, "drawing");
+    assert_eq!(drawing.version, "1");
+    assert_eq!(drawing.source_date.as_deref(), Some("2020-01-01"));
+    assert_eq!(drawing.retrieved_at, "2030-04-01T12:00:00Z");
+    assert_eq!(drawing.evidence[0].excerpt, "Historical documentary group C1 labeled Blue. No tested circuit mapping is recorded.");
+    assert!(case.labels.document_associations.allowed.is_empty());
+    assert!(case.unscored.iter().any(|gap| gap.contains("tested wiring")));
+    let bytes = supplied(&case, json!({"kind":"document","classification":{"category":"electrical-drawing",
+        "support":support(&["drawing-v1-sheet1"])},"links":[]}));
+    let report = evaluate_supplied(&case.labels, &bytes, &case.snapshot, &case.snapshot).unwrap();
+    assert_eq!(report.validation.correct_acceptance, 1);
+    assert_eq!(report.classification.unwrap().allowed_predictions, 1);
+    assert_eq!(report.document_association_abstained, Some(true));
+    assert!(!report.model_executed);
+}
+
+#[test]
+fn retained_invoice_case_preserves_class_alternatives_and_serial_backed_association() {
+    let case = adapt("doc-invoice").unwrap();
+    assert_eq!(case.labels.classification.allowed, ["invoice".into(), "warranty".into()].into_iter().collect::<BTreeSet<String>>());
+    assert!(case.labels.classification.required.is_empty());
+    assert!(case.labels.document_associations.required.is_empty());
+    // The corpus negative item-b label has no mapped negative citation basis.
+    assert!(case.labels.document_associations.forbidden.is_empty());
+    assert!(case.unscored.iter().any(|gap| gap.contains("mixed-purpose completeness")));
+    assert_eq!(case.labels.document_associations.basis["item-a"].evidence_refs,
+        vec!["invoice-v1-p1".to_string(), "item-a-v1-identity".to_string()]);
+    for (category, citation) in [("invoice", "invoice-v1-p1"), ("warranty", "invoice-v1-p2")] {
+        let bytes = supplied(&case, json!({"kind":"document","classification":{"category":category,
+            "support":support(&[citation])},"links":[{"candidateRef":"item-a",
+                "support":support(&["invoice-v1-p1","item-a-v1-identity"])}]}));
+        let report = evaluate_supplied(&case.labels, &bytes, &case.snapshot, &case.snapshot).unwrap();
+        assert_eq!(report.validation.correct_acceptance, 1);
+        assert_eq!(report.classification.unwrap().allowed_predictions, 1);
+        assert_eq!(report.document_associations.unwrap().allowed_predictions, 1);
+        assert!(!report.model_executed);
     }
 }
