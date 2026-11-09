@@ -3,6 +3,7 @@
 //! Four cases map allowed labels, one aggregate no-proposal, three context refusal.
 //! Three maintenance controls use validator/disclosure only, never quality scores.
 //! Three answer controls likewise check supplied representations, not model quality.
+//! Three comparison controls check representation/withholding, never truth or history.
 //! All other cases and unsupported dimensions remain explicitly unscored.
 use super::*;
 use crate::contracts::stock::{AtlasRecordKind, AtlasTarget, StockContext};
@@ -703,4 +704,180 @@ fn retained_answer_injection_cites_p2_while_p1_remains_inert_source_data() {
     assert_eq!(wire["view"]["answer"]["statements"][0]["evidenceKeys"], json!(["injection-v1-p2"]));
     assert!(wire["inspections"].get("injection-v1-p1").is_none());
     // No model consumed this text; this does not qualify prompt-injection resistance.
+}
+
+struct ComparisonControl {
+    snapshot: AdmittedSnapshot,
+    current: AdmittedSnapshot,
+    proposal: Value,
+    mapped_label: Option<String>,
+    abstain_from: Vec<String>,
+}
+
+fn comparison_control(case_id: &str) -> Option<ComparisonControl> {
+    let (label, uncertainty) = match case_id {
+        "review-conflict" => (Some("contradiction_review"), "ambiguous"),
+        "review-unknown-date" => (Some("possible_conflict_review"), "tentative"),
+        "review-revoked" => (None, "unknown"),
+        _ => return None,
+    };
+    let data = corpus();
+    let case = data["cases"].as_array().unwrap().iter().find(|c| c["id"] == case_id).unwrap();
+    assert_eq!(case["feature"], "review");
+    assert_eq!(case["effects_allowed"], json!([]));
+    let sources = case["input_sources"].as_array().unwrap().iter().map(|input| {
+        let mut source = source_input(&data, input["source_id"].as_str().unwrap(),
+            input["version"].as_str().unwrap(), "item-a", false);
+        if source.input_ref != "item-a" { source.role = InputRole::Source; source.kind = CandidateKind::Other; }
+        source
+    }).collect();
+    let snapshot = AdmittedSnapshot::new(SnapshotInput {
+        feature: SuggestionFeature::Contradictions,
+        scope: StockContext { workspace_id: id(90), home_id: id(91) },
+        actor_id: id(92), authority_epoch: "retained-fictional-corpus-only".into(), sources,
+    }).unwrap();
+    let mut current = snapshot.input().clone();
+    for source in &mut current.sources {
+        if case["disclosure_revoked"].as_array().unwrap().iter().any(|id| id.as_str() == Some(source.input_ref.as_str())) {
+            source.availability = Availability::Withdrawn;
+        }
+    }
+    let current = AdmittedSnapshot::new(current).unwrap();
+    let mut claims = Vec::new();
+    let mut references = Vec::new();
+    if let Some(label) = label {
+        let annotation = case["expected_claims"].as_array().unwrap().iter().find(|c| c["label"] == label).unwrap();
+        for citation in annotation["evidence"].as_array().unwrap() {
+            let input = citation["source_id"].as_str().unwrap();
+            let version = citation["version"].as_str().unwrap();
+            let evidence = evidence_id(input, version, citation["section"].as_str().unwrap());
+            let source = snapshot.input().sources.iter().find(|s| s.input_ref == input && s.version == version).unwrap();
+            let quote = &source.evidence.iter().find(|e| e.evidence_ref == evidence).unwrap().excerpt;
+            assert_eq!(quote.as_str(), citation["quote"].as_str().unwrap());
+            claims.push(json!({"claimRef":evidence,"sourceRef":input,"evidenceRefs":[evidence],"text":quote,"uncertainty":"unknown"}));
+            references.push(evidence);
+        }
+    } else {
+        assert_eq!(case["expected_claims"], json!([])); // Do not invent a safe withdrawn-side summary.
+    }
+    let findings = if label.is_some() { vec![json!({"pattern":"incompatible-location","claimRefs":references,
+        "rationale":case["explanation"],"uncertainty":uncertainty})] } else { vec![] };
+    let proposal = json!({"schemaVersion":1,"contextPin":snapshot.context_pin(),"subjectRef":"item-a",
+        "claims":claims,"missingEvidence":case["unknowns"],"result":{"kind":"contradictions","findings":findings}});
+    let abstain_from = case["abstain_from"].as_array().unwrap().iter().map(|v| v.as_str().unwrap().to_string()).collect();
+    Some(ComparisonControl { snapshot, current, proposal, mapped_label: label.map(String::from), abstain_from })
+}
+
+fn check_comparison_control(control: &ComparisonControl) -> Value {
+    let bytes = serde_json::to_vec(&control.proposal).unwrap();
+    let review = validate_generated(&bytes, &control.snapshot, &control.current).unwrap();
+    let disclosure = disclose_review(&review, &control.current, &Default::default()).unwrap();
+    let wire = disclosure.value();
+    let key = format!("finding:{}", review.finding_keys()[0]);
+    let finding = &wire["view"]["contradictions"]["findings"][0];
+    assert_eq!(finding["key"], key);
+    assert_eq!(wire["comparisons"][&key]["findingKey"], review.finding_keys()[0]);
+    assert_eq!(wire["comparisons"][&key]["findingIndex"], 0);
+    assert_eq!(wire["view"]["contradictions"]["missingEvidence"], control.proposal["missingEvidence"]);
+    assert_eq!(finding["assertions"].as_array().unwrap().len(), control.proposal["claims"].as_array().unwrap().len());
+    for (index, claim) in control.proposal["claims"].as_array().unwrap().iter().enumerate() {
+        let id = claim["claimRef"].as_str().unwrap();
+        let input = claim["sourceRef"].as_str().unwrap();
+        let source = control.snapshot.input().sources.iter().find(|s| s.input_ref == input).unwrap();
+        assert_eq!(finding["assertions"][index]["key"], id);
+        assert_eq!(finding["assertions"][index]["inputKey"], input);
+        assert_eq!(finding["assertions"][index]["text"], claim["text"]);
+        assert_eq!(finding["assertions"][index]["factDate"], Value::Null);
+        assert_eq!(wire["comparisons"][&key]["assertions"][id], json!({"inputRef":input,"version":source.version,"evidenceRefs":claim["evidenceRefs"]}));
+        for evidence in claim["evidenceRefs"].as_array().unwrap() {
+            let evidence = evidence.as_str().unwrap();
+            assert_eq!(wire["inspections"][evidence]["inputRef"], input);
+            assert_eq!(wire["inspections"][evidence]["version"], source.version);
+        }
+    }
+    assert_eq!(wire["selections"], json!({}));
+    // Derivative structural controls, not new original scenarios or semantic gold.
+    let refs = control.proposal["result"]["findings"][0]["claimRefs"].as_array().unwrap();
+    for (references, expected) in [
+        (json!([refs[0]]), SuggestionError::MissingSupport),
+        (json!(["not-selected-control", refs[1]]), SuggestionError::UnadmittedReference),
+        (json!([refs[0], refs[0]]), SuggestionError::InvalidOutput),
+    ] {
+        let mut supplied = control.proposal.clone(); supplied["result"]["findings"][0]["claimRefs"] = references;
+        assert_eq!(validate_generated(&serde_json::to_vec(&supplied).unwrap(), &control.snapshot, &control.current).unwrap_err(), expected);
+    }
+    let mut supplied = control.proposal.clone();
+    supplied["claims"][0]["evidenceRefs"] = control.proposal["claims"][1]["evidenceRefs"].clone();
+    assert_eq!(validate_generated(&serde_json::to_vec(&supplied).unwrap(), &control.snapshot, &control.current).unwrap_err(), SuggestionError::UnadmittedReference);
+    for field in ["winner", "correction", "action"] {
+        let mut supplied = control.proposal.clone(); supplied["result"]["findings"][0][field] = json!("unsupported-control-only");
+        assert_eq!(validate_generated(&serde_json::to_vec(&supplied).unwrap(), &control.snapshot, &control.current).unwrap_err(), SuggestionError::InvalidOutput);
+    }
+    let mut reversed = control.proposal.clone();
+    reversed["result"]["findings"][0]["claimRefs"].as_array_mut().unwrap().reverse();
+    let reordered = validate_generated(&serde_json::to_vec(&reversed).unwrap(), &control.snapshot, &control.current).unwrap();
+    assert_eq!(review.finding_keys(), reordered.finding_keys());
+    let reordered_display = disclose_review(&reordered, &control.current, &Default::default()).unwrap();
+    assert_eq!(reordered_display.value()["view"]["contradictions"]["findings"][0]["key"], key);
+    assert_eq!(reordered_display.value()["view"]["contradictions"]["findings"][0]["assertions"][0]["key"], refs[1]);
+    for withdrawn in [false, true] {
+        let mut current = control.snapshot.input().clone();
+        if withdrawn { current.sources[1].availability = Availability::Withdrawn; }
+        else { current.sources[1].version.push_str("-mutated-control-only"); }
+        let current = AdmittedSnapshot::new(current).unwrap();
+        let expected = if withdrawn { SuggestionError::ContextWithdrawn } else { SuggestionError::ContextChanged };
+        assert_eq!(validate_generated(&bytes, &control.snapshot, &current).unwrap_err(), expected);
+        assert_eq!(disclose_review(&review, &current, &Default::default()).unwrap_err(), expected);
+        if !withdrawn {
+            let mut fresh = control.proposal.clone(); fresh["contextPin"] = json!(current.context_pin());
+            let changed = validate_generated(&serde_json::to_vec(&fresh).unwrap(), &current, &current).unwrap();
+            assert_ne!(review.finding_keys(), changed.finding_keys());
+        }
+    }
+    wire.clone()
+}
+
+#[test]
+fn retained_comparison_conflict_preserves_both_sides_without_a_winner_or_fact_date() {
+    let control = comparison_control("review-conflict").unwrap();
+    assert_eq!(control.mapped_label.as_deref(), Some("contradiction_review"));
+    assert!(control.abstain_from.contains(&"select_winner".to_string()));
+    assert_eq!(control.snapshot.input().sources.len(), 2);
+    let wire = check_comparison_control(&control);
+    assert_eq!(wire["view"]["contradictions"]["findings"][0]["assertions"][0]["text"], "Recorded in synthetic room Blue.");
+    assert_eq!(wire["view"]["contradictions"]["findings"][0]["assertions"][1]["text"], "item-a was recorded in Amber on 2030-01-01; current status unreviewed.");
+    assert_eq!(wire["view"]["sources"][1]["sourceDate"], "2030-01-01");
+    assert_eq!(wire["view"]["sources"][1]["retrievedAt"], "2030-04-01T12:00:00Z");
+}
+
+#[test]
+fn retained_comparison_unknown_date_keeps_tentative_text_and_null_typed_fact_dates() {
+    let control = comparison_control("review-unknown-date").unwrap();
+    assert_eq!(control.mapped_label.as_deref(), Some("possible_conflict_review"));
+    assert!(control.abstain_from.contains(&"certain_contradiction".to_string()));
+    let wire = check_comparison_control(&control);
+    let finding = &wire["view"]["contradictions"]["findings"][0];
+    assert_eq!(finding["uncertainty"], "tentative");
+    assert_eq!(finding["assertions"][1]["text"], "item-a recorded in Amber; fact date and review status unknown.");
+    assert_eq!(wire["view"]["sources"][1]["sourceDate"], Value::Null);
+    assert_eq!(wire["view"]["contradictions"]["missingEvidence"], json!(["fact date","review status"]));
+}
+
+#[test]
+fn retained_comparison_revoked_side_refuses_any_disclosure_and_preserves_other_side() {
+    let control = comparison_control("review-revoked").unwrap();
+    assert!(control.mapped_label.is_none());
+    assert!(control.abstain_from.contains(&"disclose_source".to_string()));
+    assert_eq!(control.proposal["claims"], json!([]));
+    assert_eq!(control.proposal["result"]["findings"], json!([]));
+    assert_eq!(control.current.input().sources[1].input_ref, "location-conflict");
+    assert_eq!(control.current.input().sources[1].availability, Availability::Withdrawn);
+    assert_eq!(serde_json::to_value(&control.snapshot.input().sources[0]).unwrap(), serde_json::to_value(&control.current.input().sources[0]).unwrap());
+    assert_eq!(control.current.input().sources[0].availability, Availability::Available);
+    let bytes = serde_json::to_vec(&control.proposal).unwrap();
+    let observed = validate_generated(&bytes, &control.snapshot, &control.snapshot).unwrap(); // Structural baseline only.
+    assert_eq!(validate_generated(&bytes, &control.snapshot, &control.current).unwrap_err(), SuggestionError::ContextWithdrawn);
+    let disclosure = disclose_review(&observed, &control.current, &Default::default());
+    assert!(disclosure.is_err());
+    assert_eq!(disclosure.unwrap_err(), SuggestionError::ContextWithdrawn); // No disclosure object or safe summary.
 }

@@ -71,7 +71,8 @@ a gold semantic abstention, model response or complete case pass.
 
 The inventory/document adapter leaves 24 cases unscored; three of these now
 have the separate maintenance representational controls described below, and
-three more have recorded-source answer controls. The other 18 have no bridge.
+three more have answer controls, and three comparison/withdrawal controls follow.
+The other 15 have no bridge.
 Quality remains unscored for the same-product-only
 inventory case and every maintenance, cited-answer and contradiction case. A model/product match is never translated into
 physical identity. More mappings need an explicit semantic/dimension review;
@@ -92,8 +93,9 @@ runner selection is added; the standalone Python mutation suite stays separate.
 The retained inv-sparse, doc-electrical and doc-invoice annotations now join the
 same supplied-proposal scorer without changing its production contract. There
 are four allowed-label mappings, one limited aggregate no-proposal control and
-three structural-refusal mappings. Three maintenance and three answer controls below
-leave 18 cases with no bridge; their quality remains unscored.
+three structural-refusal mappings. Separate maintenance, answer and comparison
+controls cover three cases each, leaving 15 with no bridge; their quality remains
+unscored.
 
 inv-sparse selects only capture-blur v1. Its annotation candidate lists do not
 admit item-a/item-b or provide native authority, and no negative citation is
@@ -184,9 +186,9 @@ New authored case names (NOT RUN):
 All nine earlier bridge tests and eight inventory/document mappings remain
 unchanged, including null semantic scores for structural refusal. At this
 maintenance checkpoint the bridge had twelve authored tests: nine
-prior plus these three. The answer controls below bring it to fifteen tests.
-Fourteen original cases now have some bounded bridge (eight inventory/document,
-three maintenance and three answer controls); 18 have none. The existing
+prior plus these three. The answer and comparison controls below bring it to eighteen tests.
+Seventeen original cases now have some bounded bridge (eight inventory/document,
+three maintenance, three answer and three comparison controls); 15 have none. The existing
 inventory/document count test
 still correctly marks 24 cases outside its scorer, including all maintenance.
 No original corpus file, production contract, frontend repair, runner selection
@@ -238,10 +240,63 @@ New authored case names (NOT RUN):
 - retained_answer_electrical_preserves_historical_dates_without_safe_action
 - retained_answer_injection_cites_p2_while_p1_remains_inert_source_data
 
-All twelve prior bridge tests remain unchanged. There are now fifteen authored
-cases and fourteen original scenarios with some bounded bridge; eighteen have
-none. All answer/maintenance quality is unscored, and the production scorer still
+All twelve prior bridge tests remain unchanged. At this answer checkpoint there were fifteen authored cases; the comparison
+controls below bring the total to eighteen. Seventeen original scenarios have
+some bounded bridge and fifteen none. All answer/maintenance quality is unscored, and the production scorer still
 supports inventory/document only. Corpus bytes, production contracts/disclosure,
 frontend repairs and runner inventory are unchanged. No new lane or runtime.
 Tests/build/typecheck/compiler/format/Clippy/browser/device and actual model/
 owner/acceptance qualification remain unrun; automatic CI is only observed.
+
+
+## Retained comparison and withdrawal controls
+
+Only original review-conflict, review-unknown-date and review-revoked are added.
+Deliberately supplied canonical proposals use the existing validator/disclosure,
+never evaluate_supplied, Labels/CaseReport or contradiction-quality counts.
+
+| Original case | Bounded control | Explicit limits |
+| --- | --- | --- |
+| review-conflict | contradiction_review with both exact item-a v1/location and location-conflict v1/location assertions | No automatic winner, overwrite, merge or typed fact-date inference |
+| review-unknown-date | possible_conflict_review, supplied tentative finding interpretation, original unknown fact-date/review-status prose and gaps | Text/structure is checked, not a semantic-certainty detector or simultaneous truth |
+| review-revoked | Original disclosure_revoked maps location-conflict to current Withdrawn DATA; empty claims/findings refuse validation and disclosure | No safe summary of the withdrawn side, real Access revocation or qualified prior history |
+
+Only original selected sources are admitted. Assertion records use Source/Other
+roles rather than annotation candidate lists as authority. Quotes, exact source/
+version/section evidence IDs, source/retrieval dates and all cited sides remain.
+Canonical finding key/index and every claim/input/version/evidence join are
+asserted. Every typed factDate stays null, even when prose or a source date
+contains a date. Finding and claim uncertainty remain qualitative supplied DATA;
+unknown-date caveats are not evidence the validator verifies semantic certainty.
+Selections remain empty and no corrected truth, decision or action is issued.
+
+The revoked case has no positive original claim annotation. It creates no such
+claim or summary. An all-available snapshot is only a structural baseline to
+obtain the existing immutable review type; it is not historical authorization.
+Current availability comes from the original withdrawal annotation. The other
+side stays byte-equivalent/available, and the canonical boundary returns
+ContextWithdrawn with no disclosure object, including for the empty proposal.
+
+Derivative controls cover missing/one-sided/duplicate claims, cross-input
+evidence, unsupported winner/correction/action fields and changed/withdrawn DATA.
+Reversing presentation keeps the existing canonical finding key while preserving
+the requested assertion order. A freshly pinned synthetic version mutation
+changes that key. These are correlation checks, not new original scenarios,
+recorded source history, persisted dismissal/audit, deduplication or automatic
+non-resurrection. review-corrected and its simultaneous-version/durable-history
+expectations remain outside this increment, as do the other unmapped review cases.
+
+New authored case names (NOT RUN):
+
+- retained_comparison_conflict_preserves_both_sides_without_a_winner_or_fact_date
+- retained_comparison_unknown_date_keeps_tentative_text_and_null_typed_fact_dates
+- retained_comparison_revoked_side_refuses_any_disclosure_and_preserves_other_side
+
+All fifteen prior bridge tests/code remain unchanged. There are now eighteen
+authored Rust cases and seventeen original scenarios with some bounded bridge;
+fifteen have none. All comparison/answer/maintenance quality remains unscored.
+The production inventory/document scorer is unchanged. Original corpus files,
+frontend repairs, production contracts/validator/disclosure, runner selections
+and workflows are unchanged. No second truth store, native owner, runtime or
+host/root binding is added. Tests/build/typecheck/compiler/format/Clippy/browser/
+device/live-model/actual-owner qualification remain unrun; CI is observed only.
