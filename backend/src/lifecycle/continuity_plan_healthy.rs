@@ -58,6 +58,8 @@ fn events(plan: &PlanData) -> Vec<EventData> {
 fn missing_baseline_cannot_be_replaced_by_a_current_copy_or_integrity_claim() {
     let mut input = fixture(); input.baseline = None;
     assert_eq!(assess(&input).unwrap_err(), Hold::MissingHistoricalBaseline);
+    let mut input = fixture(); input.baseline.as_mut().unwrap().cut = input.current.clone();
+    assert_eq!(assess(&input).unwrap_err(), Hold::IdentityChanged);
 }
 #[test]
 fn exact_device_only_observations_produce_plan_data_without_authority() {

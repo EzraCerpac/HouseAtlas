@@ -2946,8 +2946,8 @@
     {
       "path": "backend/src/lifecycle/continuity_plan_healthy.rs",
       "mode": "100644",
-      "bytes": 12617,
-      "sha256": "b977f6ea870cc1d1a6fae8db7ea9233b56cbc8312a6e0346f4eb4d5cd635b50b",
+      "bytes": 12778,
+      "sha256": "045faf71c3d73f907c9a652d899dc00ff4b3c59994dc31c30535e40a210099a4",
       "owner": "core-integration"
     },
     {
