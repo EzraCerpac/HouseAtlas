@@ -2,10 +2,10 @@
 
 This unmounted island is a LOCAL view/controller seam for #563, covering #564
 inventory/duplicate candidates, #565 document categories/associations and #566
-maintenance proposals and #567 cited answers. It is
+maintenance proposals, #567 cited answers and #568 comparison candidates. It is
 not the shared proposal/evidence wire envelope, its validator, an inference route
 or a native/source write owner. The existing backend/source writer owns those
-contracts. Contradiction presentation remains unsupported.
+contracts. Answer and comparison kinds are read-only.
 
 ## Integration contract
 
@@ -145,13 +145,95 @@ offline/disabled dismissal, bounded/refused shapes, and a deterministic source
 contract for read-only controls and electrical/network qualifiers. The last
 case reads source text only; it is not mounted React or a rendered UI result.
 
+## Comparison candidate local presentation contract
+
+The contradictions kind is a read-only inspection seam, not a correction or
+conflict-resolution workflow. It has empty fields/candidates, no maintenance or
+answer property, and one contradictions object with:
+
+- findings: at most 16 {key, pattern, assertions, rationale, uncertainty};
+- missingEvidence: at most 16 nonempty source-owned strings.
+
+pattern is incompatible-location, conflicting-association or
+possible-supersession. Each finding has at most 16 assertions and must involve
+at least two distinct owner-bound inputKey values. Each assertion is exactly
+{key, inputKey, text, uncertainty, factDate, evidenceKeys}. Finding and assertion
+uncertainty are the canonical qualitative tentative/ambiguous/unknown values,
+not scores or measured confidence. Assertion text is at most 2048 UTF-8 bytes;
+rationale/missing evidence are at most 1024. Date text, when actually known, is
+nonempty and bounded to 256 UTF-8 bytes. Prohibited controls and lone surrogates
+refuse. An empty finding list needs missing-evidence detail and is never proof
+that records agree. Evidence references must resolve; overflow refuses rather
+than truncating a side or inventing evidence.
+
+The source integrator maps validated ProposalResult::Contradictions.findings
+in original order. Bind each finding key to the corresponding existing
+ReviewProposal.finding_keys entry (or an exact local alias); this UI does not
+compute it or persist deduplication. Map pattern/rationale/uncertainty directly.
+For every finding.claim_refs entry, preserve the referenced ExtractedClaim text,
+qualitative uncertainty and all exact evidence_refs. Bind assertion.key to
+claim_ref and inputKey to source_ref through source-owner mappings. Each
+evidenceKeys entry must resolve to evidence from that SAME admitted input and
+its exact target/version, never just a matching label. Local distinct input
+strings and list uniqueness are presentation consistency checks, not native
+identity, access, truth or deduplication authority. The Rust validator remains
+the source of canonical two-input/finding-key admission.
+
+sources retains source_date as Source date and retrieved_at as Retrieved,
+with exact recordVersion/page/section/excerpt/freshness/original availability.
+factDate is separately owner-supplied known fact time or null (Unknown).
+The canonical ExtractedClaim has NO fact-date field: the first canonical
+adapter must use null unless the original qualified source owner supplies an
+independent exact fact-time binding to that assertion/version. Never copy
+source or retrieval time into factDate and never infer chronology, falsity,
+superiority or a winner. Likewise, this contract supplies no invented
+reviewed/tested/current-truth status; those are not fields on the canonical
+finding/claim. Inspecting originals remains with the actual read owner.
+
+The display preserves both/all assertions symmetrically, their exact citations,
+why flagged, uncertainty and missing information. Pattern labels say Possible.
+Compatible history or distinct same-name items may explain apparent differences.
+Electrical/network comparison text establishes no tested wiring, safe breaker,
+physical route or equipment instruction. All retrieved/model text is inert
+React text, never HTML, URLs, permissions or tools. No claim is selected as right.
+
+The controller refuses all edit/select/decide actions for contradictions before
+recheck, consumption or onIntent, preserving the same answer no-intent guard.
+The component exposes source inspection and local dismissal only. Dismissal
+is not persistence, an accepted decision, audit history, deduplication or a
+correction; a new independently admitted controller can still show the same
+unresolved key. No winner/merge/delete/relink/correction API or control exists.
+Current generation/source revisions, availability, source-owner inspection
+and AbortSignal fences are retained. Stale admitted history can still be
+inspected through its owner; unavailable/withdrawn originals cannot open, and
+an actually retired/revoked context is synchronously hidden and cannot return
+on late completion. This island issues no Access/read grant.
+
+The sole #562 integrator must add the canonical disclosure/session mapping and
+strict nested decoding; preserve exact claim/input/evidence/finding-key joins;
+require independent current source/access checks on disclosure and inspection;
+and defensively refuse public comparison review-intent APIs. Shared count docs
+(32 to 39), matching manifest and composition remain UNAPPLIED here, as do real
+host mounting and runtime binding. Existing correction/audit authority, accepted
+decision persistence and repeated-evaluation deduplication are separate later
+owner-bound gaps. Nothing here satisfies #568's consequential workflow,
+deduplication, model-quality or installed/device acceptance.
+
+Seven new generated cases cover exact two-side/source/fact/retrieval dates,
+all patterns with unknown dates and compatible-history/distinct-item limits,
+both-source inspection and stale/unavailable/withdrawn originals, corrected/
+retired/replaced context with late cancellation, direct no-intent/offline/local
+dismissal, bounded malformed payload refusal, and source-only control/date/
+qualification presentation. They test no conflict detector or truth resolution.
+The source-text contract is not React rendering or mounted interaction.
+
 ## Generated checks and boundaries
 
 Proposed scoped non-device command, using the repository-pinned Node 26.10.0:
 
     node --test frontend/lantern-tests/ai-suggestion-review.test.mjs
 
-Thirty-two generated controller/source cases load the actual type-stripped controller:
+Thirty-nine generated controller/source cases load the actual type-stripped controller:
 explicit fields/edits, candidate selection, document pages, stale dismissal,
 source revisions, A-B-A/late inspections, superseded checks, offline/disabled
 states, availability interruption, repeat/re-entry, uncertain callback delivery,
@@ -165,7 +247,7 @@ Nine maintenance cases add periodic/conditional/unknown intervals, exact target/
 evidence, explicit edits, incomplete-edit refusal, superseded manuals/context,
 offline states, rejected/uncertain once-only intent, and bounded source shapes.
 These are authored source cases, NOT executed results. The composition owner
-must update its existing registration documentation/count (25 to 32 for this continuation); no new
+must update its existing registration documentation/count (32 to 39 for this continuation); no new
 selection or CI lane is introduced here.
 
 The desktop executor is unavailable during preparation. These cases, semantic
@@ -201,3 +283,14 @@ retains the integration-owned canonical maintenance edit repair, including CR/
 UTF-8/interval bounds and its two authored cases. No unrelated #562 source,
 runner, manifest, backend or private ancestry is merged into this donor.
 The following answer commit changes only these same six owned paths.
+
+## Comparison continuation provenance
+
+This increment continues eb217ae3f44287bd383c80d5f3eef7e818a2f442.
+All six owned preimages match #562 at
+b43e8c0d1ede78cce3cc748e56671932780d476a. No additional repair is copied from the
+integration branch and none of its backend/adapter/runner/manifest changes is
+merged here. Existing inventory/document/maintenance behavior, canonical
+pre-consumption maintenance validation and read-only answers are retained.
+Only the same six owned files change; all original corpus files stay untouched.
+All 39 authored cases and semantic compiler/build/React/device checks are NOT RUN.

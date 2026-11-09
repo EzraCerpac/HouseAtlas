@@ -59,7 +59,7 @@ test('document evidence keeps exact page/version and unknown dates; invalid page
   assert.equal(s.inspected[0].evidence.recordVersion, 'record-1'); assert.equal(s.inspected[0].evidence.sourceDate, null);
   assert.equal(s.inspected[0].v.kind, 'document'); assert.equal(s.intents.length, 0);
   assert.throws(() => setup({ sources: [{ ...s.view.sources[0], page: 0 }] }));
-  assert.throws(() => setup({ kind: 'contradictions' }), /Unsupported/);
+  assert.throws(() => setup({ kind: 'unsupported-kind' }), /Unsupported/);
 });
 test('stale source is held and can be dismissed without an intent', async () => {
   const s = setup(); s.ports.recheck = async () => 'stale'; // controller holds the actual port object
@@ -254,7 +254,7 @@ test('maintenance bounds refuse unknown units due-date metadata and unsupported 
   assert.throws(() => maintenanceSetup({ maintenance: [{ ...task, evidenceKeys: ['missing-source'] }] }));
   assert.throws(() => maintenanceSetup({ maintenance: undefined }));
   assert.throws(() => maintenanceSetup({ kind: 'routing' }));
-  assert.throws(() => maintenanceSetup({ kind: 'contradictions' }));
+  assert.throws(() => maintenanceSetup({ kind: 'unsupported-kind' }));
   const empty = maintenanceSetup({ maintenance: [] }); assert.deepEqual(empty.controller.getSnapshot().maintenance, []);
 });
 
@@ -397,6 +397,151 @@ test('cited answer source contract exposes inspection dismissal and qualified te
   assert(answer.includes('safe breaker')); assert(answer.includes('physical route'));
   assert(answer.includes('view.answer.rankedCandidates.map'));
   assert(!/onClick|onChange|href=|dangerouslySetInnerHTML/.test(answer));
-  assert(viewSource.includes("<footer>{view.kind !== 'answer' && <>"));
+  assert(viewSource.includes("<footer>{!readOnly && <>"));
+  assert(viewSource.includes("view.kind === 'answer' || view.kind === 'contradictions'"));
   assert(viewSource.includes('onClick={controller.dismiss}'));
+});
+
+function comparisonSetup(overrides = {}, ports = {}) {
+  const sources = [
+    { key: 'evidence-a', label: 'Generated item', recordVersion: 'version-a', sourceDate: '2024-01-02',
+      retrievedAt: '2026-04-01T00:00:00Z', page: 3, section: 'Generated assertion A', excerpt: 'Generated documentary excerpt A',
+      freshness: 'snapshot-current', original: 'available' },
+    { key: 'evidence-b', label: 'Generated item', recordVersion: 'version-b', sourceDate: '2025-01-02',
+      retrievedAt: '2026-03-01T00:00:00Z', page: 8, section: 'Generated assertion B', excerpt: 'Generated documentary excerpt B',
+      freshness: 'snapshot-current', original: 'available' },
+  ];
+  return setup({ kind: 'contradictions', fields: [], candidates: [], sources, uncalibratedScore: null,
+    contradictions: { findings: [{ key: 'finding-1', pattern: 'incompatible-location',
+      assertions: [
+        { key: 'claim-a', inputKey: 'input-a', text: 'Recorded in generated container A', uncertainty: 'tentative',
+          factDate: '2024-01-01', evidenceKeys: ['evidence-a'] },
+        { key: 'claim-b', inputKey: 'input-b', text: 'Recorded in generated container B', uncertainty: 'unknown',
+          factDate: '2025-01-01', evidenceKeys: ['evidence-b'] },
+      ], rationale: 'Temporal overlap is not established', uncertainty: 'ambiguous' }],
+      missingEvidence: ['Current identity and overlapping fact time are unknown'] }, ...overrides }, ports);
+}
+test('comparison preserves both assertions and distinct source fact and retrieval dates without a winner', async () => {
+  const s = comparisonSetup(), view = s.controller.getSnapshot().view, finding = view.contradictions.findings[0];
+  assert.deepEqual(finding.assertions.map(a => a.key), ['claim-a', 'claim-b']);
+  assert.deepEqual(finding.assertions.map(a => a.inputKey), ['input-a', 'input-b']);
+  assert.deepEqual(finding.assertions.map(a => a.factDate), ['2024-01-01', '2025-01-01']);
+  assert.deepEqual(view.sources.map(v => v.sourceDate), ['2024-01-02', '2025-01-02']);
+  assert.deepEqual(view.sources.map(v => v.retrievedAt), ['2026-04-01T00:00:00Z', '2026-03-01T00:00:00Z']);
+  assert.deepEqual(view.sources.map(v => v.recordVersion), ['version-a', 'version-b']);
+  assert.equal(view.sources[0].label, view.sources[1].label, 'matching labels are not collapsed');
+  assert.equal(finding.rationale, 'Temporal overlap is not established'); assert.equal(finding.uncertainty, 'ambiguous');
+  assert.deepEqual(view.contradictions.missingEvidence, ['Current identity and overlapping fact time are unknown']);
+  assert(!Object.hasOwn(finding, 'winner')); assert(Object.isFrozen(finding.assertions[0]));
+  assert(Object.isFrozen(finding.assertions[0].evidenceKeys)); assert.equal(s.intents.length, 0); s.controller.dispose();
+});
+test('comparison patterns and unknown dates preserve compatible history and distinct-item uncertainty', () => {
+  const original = comparisonSetup().view;
+  for (const pattern of ['incompatible-location', 'conflicting-association', 'possible-supersession']) {
+    const finding = { ...original.contradictions.findings[0], pattern,
+      rationale: 'Compatible history or distinct same-name items may explain these records',
+      uncertainty: 'unknown',
+      assertions: original.contradictions.findings[0].assertions.map(a => ({ ...a, factDate: null, uncertainty: 'unknown' })) };
+    const s = comparisonSetup({ sources: original.sources.map(v => ({ ...v, sourceDate: null, retrievedAt: null })),
+      contradictions: { findings: [finding], missingEvidence: ['Fact dates and canonical identity resolution missing'] } });
+    const v = s.controller.getSnapshot().view;
+    assert.equal(v.contradictions.findings[0].pattern, pattern); assert.equal(v.contradictions.findings[0].uncertainty, 'unknown');
+    assert.deepEqual(v.contradictions.findings[0].assertions.map(a => a.factDate), [null, null]);
+    assert.deepEqual(v.sources.map(v => v.sourceDate), [null, null]); assert.deepEqual(v.sources.map(v => v.retrievedAt), [null, null]);
+    assert.deepEqual(v.contradictions.findings[0].assertions.map(a => a.inputKey), ['input-a', 'input-b']);
+    s.controller.dismiss(); assert.equal(s.intents.length, 0); s.controller.dispose();
+  }
+  const empty = comparisonSetup({ sources: [], contradictions: { findings: [], missingEvidence: ['No admitted two-source comparison'] } });
+  assert.deepEqual(empty.controller.getSnapshot().view.contradictions.findings, []); empty.controller.dispose();
+});
+test('comparison exact source inspection preserves both versions and unavailable stale withdrawn behavior', async () => {
+  const s = comparisonSetup(); await s.controller.inspectSource('evidence-a'); await s.controller.inspectSource('evidence-b');
+  assert.deepEqual(s.inspected.map(v => [v.evidence.key, v.evidence.recordVersion, v.evidence.page]),
+    [['evidence-a', 'version-a', 3], ['evidence-b', 'version-b', 8]]);
+  assert.equal(s.inspected[0].evidence.sourceDate, '2024-01-02'); assert.equal(s.inspected[0].evidence.retrievedAt, '2026-04-01T00:00:00Z');
+  assert.equal(s.intents.length, 0);
+  for (const original of ['unavailable', 'withdrawn']) {
+    const held = comparisonSetup({ sources: s.view.sources.map(v => v.key === 'evidence-b' ? { ...v, original } : v) });
+    await held.controller.inspectSource('evidence-b'); assert.equal(held.inspected.length, 0);
+    if (original === 'withdrawn') assert.equal(held.controller.getSnapshot().phase, 'stale');
+    held.controller.dispose();
+  }
+  const historical = comparisonSetup({ sources: s.view.sources.map(v => ({ ...v, freshness: 'stale' })) });
+  assert.equal(historical.controller.getSnapshot().phase, 'stale'); await historical.controller.inspectSource('evidence-a');
+  assert.equal(historical.inspected.length, 1); assert.equal(historical.controller.getSnapshot().phase, 'stale');
+  historical.controller.dispose(); s.controller.dispose();
+});
+test('comparison corrected or retired contexts abort late inspection and never resurrect old candidates', async () => {
+  const pending = deferred(); let signal;
+  const s = comparisonSetup({}, { inspectSource: (_v, _e, abort) => { signal = abort; return pending.promise; } });
+  const opening = s.controller.inspectSource('evidence-a');
+  s.set({ ...s.current(), sourceSetRevision: 'corrected-sources-2' }); assert(signal.aborted);
+  pending.resolve(); await opening; assert.equal(s.controller.getSnapshot().view, null); assert.equal(s.intents.length, 0);
+  const original = s.view, finding = original.contradictions.findings[0];
+  const corrected = comparisonSetup({ context: {}, revision: 'proposal-2', sourceSetRevision: 'corrected-sources-2',
+    sources: original.sources.map(v => v.key === 'evidence-a' ? { ...v, recordVersion: 'corrected-version-a' } : v),
+    contradictions: { findings: [{ ...finding, key: 'finding-corrected', assertions: finding.assertions.map(a =>
+      a.key === 'claim-a' ? { ...a, text: 'Corrected generated assertion A' } : a) }], missingEvidence: ['Comparison remains unresolved'] } });
+  assert.equal(corrected.controller.getSnapshot().view.sources[0].recordVersion, 'corrected-version-a');
+  assert.equal(corrected.controller.getSnapshot().view.contradictions.findings[0].assertions[0].text, 'Corrected generated assertion A');
+  const replaced = comparisonSetup(); replaced.set({ ...replaced.current(), context: {} }); replaced.set({ ...replaced.current(), context: {} });
+  assert.equal(replaced.controller.getSnapshot().view, null);
+  const withdrawn = comparisonSetup(); withdrawn.set(null); assert.equal(withdrawn.controller.getSnapshot().view, null);
+  const unnotified = comparisonSetup(); unnotified.set({ ...unnotified.current(), sourceSetRevision: 'new-version' }, false);
+  assert.equal(unnotified.controller.getSnapshot().phase, 'superseded'); await unnotified.controller.inspectSource('evidence-a');
+  assert.equal(unnotified.inspected.length, 0);
+  for (const v of [s, corrected, replaced, withdrawn, unnotified]) v.controller.dispose();
+});
+test('comparison direct actions and offline states cannot emit intent or persist dismissal', async () => {
+  const s = comparisonSetup(), c = s.controller;
+  assert.equal(c.selectField('claim-a', true), false); assert.equal(c.editField('claim-a', 'winner'), false);
+  assert.equal(c.selectCandidate('input-a', true), false); assert.equal(c.selectMaintenanceTask('task-1', true), false);
+  assert.equal(c.editMaintenanceTask('task-1', { title: 'Correction' }), false);
+  await c.decide('accept-for-review'); await c.decide('reject'); await c.decide('accept-for-review');
+  assert.equal(s.intents.length, 0); assert.equal(s.checks.length, 0); c.dismiss(); c.dispose();
+  const reopened = comparisonSetup(); assert.equal(reopened.controller.getSnapshot().view.contradictions.findings[0].key, 'finding-1');
+  reopened.controller.dispose();
+  for (const availability of ['offline', 'disabled', 'unavailable']) {
+    const held = comparisonSetup(); held.set({ ...held.current(), availability });
+    await held.controller.inspectSource('evidence-a'); await held.controller.decide('reject');
+    assert.equal(held.controller.getSnapshot().phase, 'unavailable');
+    assert.equal(held.inspected.length, 0); assert.equal(held.checks.length, 0); assert.equal(held.intents.length, 0);
+    held.controller.dismiss(); assert.equal(held.controller.getSnapshot().phase, 'closed'); held.controller.dispose();
+  }
+});
+test('comparison bounded local shapes refuse missing sides evidence and invented winner fields', () => {
+  const v = comparisonSetup().view, f = v.contradictions.findings[0], a = f.assertions[0];
+  for (const finding of [{ ...f, pattern: 'confirmed-conflict' }, { ...f, uncertainty: 'certain' },
+    { ...f, winner: 'claim-a' }, { ...f, assertions: [a] },
+    { ...f, assertions: f.assertions.map(v => ({ ...v, inputKey: 'input-a' })) },
+    { ...f, assertions: [a, a] }, { ...f, rationale: 'x'.repeat(1025) },
+    { ...f, assertions: [{ ...a, text: 'x'.repeat(2049) }, f.assertions[1]] },
+    { ...f, assertions: [{ ...a, text: 'control\rtext' }, f.assertions[1]] },
+    { ...f, assertions: [{ ...a, factDate: undefined }, f.assertions[1]] },
+    { ...f, assertions: [{ ...a, factDate: '' }, f.assertions[1]] },
+    { ...f, assertions: [{ ...a, evidenceKeys: ['missing'] }, f.assertions[1]] },
+    { ...f, assertions: [{ ...a, evidenceKeys: [] }, f.assertions[1]] }]) {
+    assert.throws(() => comparisonSetup({ contradictions: { findings: [finding], missingEvidence: [] } }));
+  }
+  for (const contradictions of [{ findings: [], missingEvidence: [] },
+    { findings: [f, f], missingEvidence: [] }, { findings: Array(17).fill(f), missingEvidence: [] },
+    { findings: [f], missingEvidence: [], action: 'correct' }]) assert.throws(() => comparisonSetup({ contradictions }));
+  assert.throws(() => comparisonSetup({ contradictions: undefined })); assert.throws(() => comparisonSetup({ sources: [] }));
+  assert.throws(() => comparisonSetup({ fields: setup().view.fields }));
+  assert.throws(() => comparisonSetup({ candidates: setup().view.candidates }));
+  assert.throws(() => comparisonSetup({ answer: answerSetup().view.answer }));
+  assert.throws(() => comparisonSetup({ maintenance: [] }));
+  assert.throws(() => setup({ contradictions: v.contradictions }));
+});
+test('comparison source contract keeps dates qualifiers and read-only controls without a winner action', () => {
+  const source = readFileSync(new URL('../src/ai/suggestion-review/SuggestionReview.tsx', import.meta.url), 'utf8');
+  const start = source.indexOf("{view.kind === 'contradictions' && view.contradictions");
+  const end = source.indexOf("<section aria-labelledby={id + '-unknowns'}>", start), block = source.slice(start, end);
+  assert(start > 0 && end > start);
+  for (const value of ['Why flagged:', 'Fact date:', 'Source date', 'Retrieved', 'Version', 'Assertion uncertainty:',
+    'Matching names do not establish the same item.', 'compatible history', 'safe breaker',
+    'Dismissal is local;', 'persistent decision', 'No comparison candidate supplied']) assert(block.includes(value), value);
+  assert(block.includes('finding.assertions.map')); assert(!/onClick|onChange|href=|dangerouslySetInnerHTML/.test(block));
+  assert(source.includes("view.kind === 'answer' || view.kind === 'contradictions'"));
+  assert(source.includes('<footer>{!readOnly && <>')); assert(source.includes('onClick={controller.dismiss}'));
 });

@@ -5,11 +5,14 @@ import './suggestion-review.css';
 
 const relation = { 'possible-duplicate': 'Possible duplicate', 'same-product': 'Same product, identity unconfirmed',
   'proposed-association': 'Proposed association' };
-const headings = { inventory: 'Inventory suggestions', document: 'Document suggestions', maintenance: 'Maintenance suggestions', answer: 'Cited answer' };
+const headings = { inventory: 'Inventory suggestions', document: 'Document suggestions', maintenance: 'Maintenance suggestions', answer: 'Cited answer', contradictions: 'Record comparisons' };
 const unitLabels: Record<MaintenanceUnit, string> = { days: 'Days', weeks: 'Weeks', months: 'Months', years: 'Years', 'usage-hours': 'Usage hours' };
 const urgencyLabels: Record<MaintenanceUrgency, string> = { unknown: 'Unknown', routine: 'Routine', 'review-soon': 'Review soon' };
 const answerRoutes = { inventory: 'Inventory', documents: 'Documents', maintenance: 'Maintenance',
   electrical: 'Electrical records', network: 'Network records', clarify: 'Clarification needed', unknown: 'Route unknown' };
+const comparisonPatterns = { 'incompatible-location': 'Possible incompatible locations',
+  'conflicting-association': 'Possible conflicting associations', 'possible-supersession': 'Possible supersession' };
+const qualitative = { tentative: 'Tentative', ambiguous: 'Ambiguous', unknown: 'Unknown' };
 const freshness = { 'snapshot-current': 'Snapshot current at proposal', stale: 'Stale source', unknown: 'Freshness unknown' };
 /** Unmounted review island. The host owns the stable controller and all source resolution. */
 export function SuggestionReview({ controller }: { readonly controller: SuggestionReviewController }) {
@@ -17,12 +20,13 @@ export function SuggestionReview({ controller }: { readonly controller: Suggesti
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
   const view = state.view, editable = state.phase === 'reviewing';
   if (!view) return <section className="ha-suggestion-review" aria-label="Suggestion review"><p role="status">{state.message}</p></section>;
+  const readOnly = view.kind === 'answer' || view.kind === 'contradictions';
   const selected = state.fields.some(f => f.selected) || state.candidateKeys.length > 0 || state.maintenance.some(task => task.selected);
   const incomplete = state.maintenance.some(task => task.selected && !task.valid);
   const inspectable = state.phase === 'reviewing' || state.phase === 'stale';
   return <section className="ha-suggestion-review" aria-labelledby={id + '-title'}>
     <header><h2 id={id + '-title'}>{headings[view.kind]}</h2>
-      <p>{view.title}</p><p>{view.kind === 'answer' ? 'Read-only answer from bounded source evidence.' : 'Proposals require source-owner review before a change.'}</p></header>
+      <p>{view.title}</p><p>{view.kind === 'answer' ? 'Read-only answer from bounded source evidence.' : view.kind === 'contradictions' ? 'Comparison candidates; no assertion has been selected as correct.' : 'Proposals require source-owner review before a change.'}</p></header>
     <p role="status" aria-live="polite">{state.message}</p>
     <section aria-labelledby={id + '-evidence'}><h3 id={id + '-evidence'}>Original evidence</h3>
       {!view.sources.length && <p>No cited source supplied.</p>}
@@ -99,12 +103,44 @@ export function SuggestionReview({ controller }: { readonly controller: Suggesti
       {(view.answer.route === 'electrical' || view.answer.route === 'network') &&
         <p>Source records do not establish tested wiring, a safe breaker, a physical route or an instruction to operate equipment.</p>}
     </section>}
+    {view.kind === 'contradictions' && view.contradictions && <section aria-labelledby={id + '-comparisons'}>
+      <h3 id={id + '-comparisons'}>Flagged comparisons</h3>
+      <p>Old age or newer retrieval does not establish falsity or superiority. Different assertions may describe compatible history.</p>
+      <p>Matching names do not establish the same item.</p>
+      {!view.contradictions.findings.length && <p>No comparison candidate supplied; this does not establish that records agree.</p>}
+      {view.contradictions.findings.map(finding => <article key={finding.key}>
+        <h4>{comparisonPatterns[finding.pattern]}</h4>
+        <p className="ha-suggestion-assertion-text">Why flagged: {finding.rationale}</p>
+        <p>Comparison uncertainty: {qualitative[finding.uncertainty]}</p>
+        <ol className="ha-suggestion-assertions">{finding.assertions.map(assertion => <li key={assertion.key}>
+          <p className="ha-suggestion-assertion-text">Cited assertion: {assertion.text}</p>
+          <p>Assertion uncertainty: {qualitative[assertion.uncertainty]}</p>
+          <p>Fact date: {assertion.factDate ?? 'Unknown'}</p>
+          {assertion.evidenceKeys.map(key => {
+            const source = view.sources.find(value => value.key === key)!;
+            return <dl key={key}><dt>Source</dt><dd>{source.label}</dd>
+              <dt>Version</dt><dd>{source.recordVersion}</dd>
+              <dt>Source date</dt><dd>{source.sourceDate ?? 'Unknown'}</dd>
+              <dt>Retrieved</dt><dd>{source.retrievedAt ?? 'Unknown'}</dd>
+              <dt>Evidence location</dt><dd>{source.page === null ? 'Page unknown' : 'Page ' + source.page}
+                {source.section ? ' · ' + source.section : ''}</dd>
+              <dt>Freshness</dt><dd>{freshness[source.freshness]}</dd>
+              <dt>Original</dt><dd>{source.original}</dd></dl>;
+          })}
+        </li>)}</ol>
+      </article>)}
+      <h4>Missing information</h4>
+      {view.contradictions.missingEvidence.length ? <ul>{view.contradictions.missingEvidence.map((value, index) =>
+        <li className="ha-suggestion-assertion-text" key={index}>{value}</li>)}</ul> : <p>No missing-information detail supplied; the candidate remains unconfirmed.</p>}
+      <p>These comparisons do not establish tested wiring, a safe breaker, a physical route or an instruction to operate equipment.</p>
+      <p>Dismissal is local; no correction, persistent decision or duplicate-resolution history is recorded.</p>
+    </section>}
     <section aria-labelledby={id + '-unknowns'}><h3 id={id + '-unknowns'}>Uncertainty</h3>
       {view.uncertainty.length ? <ul>{view.uncertainty.map((text, index) => <li key={index}>{text}</li>)}</ul> : <p>No uncertainty detail supplied.</p>}
       {view.uncalibratedScore !== null && <p>Uncalibrated model score: {view.uncalibratedScore}. This is not a probability or approval.</p>}
       {view.kind === 'document' && <p>Documentary links do not establish tested wiring or physical placement.</p>}
     </section>
-    <footer>{view.kind !== 'answer' && <><button type="button" disabled={!editable || !selected || incomplete} onClick={() => { void controller.decide('accept-for-review'); }}>Accept selection for review</button>
+    <footer>{!readOnly && <><button type="button" disabled={!editable || !selected || incomplete} onClick={() => { void controller.decide('accept-for-review'); }}>Accept selection for review</button>
       <button type="button" disabled={!editable} onClick={() => { void controller.decide('reject'); }}>Reject suggestion</button></>}
       <button type="button" onClick={controller.dismiss}>Dismiss</button></footer>
   </section>;
