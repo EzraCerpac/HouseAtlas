@@ -67,7 +67,7 @@ the canonical suggestion does not itself supply a service-history baseline.
 Intervals retain periodic {every, unit}, conditional {condition}, or unknown.
 Units are days/weeks/months/years/usage-hours; urgency is
 unknown/routine/review-soon. Conditions retain separate exact strings.
-Periodic counts must be positive u32 integers. Incomplete user edits remain
+Periodic counts must be canonical positive integers no greater than 100000. Incomplete user edits remain
 raw drafts and cannot be accepted: switching to periodic introduces an empty
 count and no selected unit, not a guessed default. Empty new conditions must
 be completed or deliberately removed. Unknown remains a valid explicit value.
@@ -97,7 +97,7 @@ Proposed scoped non-device command, using the repository-pinned Node 26.10.0:
 
     node --test frontend/lantern-tests/ai-suggestion-review.test.mjs
 
-Twenty-three generated controller cases load the actual type-stripped controller:
+Twenty-five generated controller cases load the actual type-stripped controller:
 explicit fields/edits, candidate selection, document pages, stale dismissal,
 source revisions, A-B-A/late inspections, superseded checks, offline/disabled
 states, availability interruption, repeat/re-entry, uncertain callback delivery,
@@ -123,3 +123,17 @@ Exactly six existing source/documentation/fixture files are handed to the existi
 owned by that composition lane. No existing Host/AI/offline/Library/Atlas source,
 routes, credentials, runtime/account selection, grant or deployment is changed.
 Shared-schema adaptation and actual host mount remain explicit dependencies.
+
+
+## Composed canonical-edit repair
+
+The #562 integration repair shares controller validateMaintenanceValues with the
+session adapter. Draft validity uses canonical UTF-8 text/interval bounds before
+Accept or consumption. Invalid local edits remain held and editable; correction
+can deliver once. CR and other disallowed controls refuse, while LF/TAB remain
+valid. Actual/uncertain owner callback failure remains terminal, with no replay.
+Two new controller cases cover canonical/CR rejection with correction and exact
+UTF-8/interval boundaries. These and the composed session regressions are authored,
+NOT RUN. Canonical disclosure/session binding is supplied by #562; the earlier
+UNAPPLIED notes describe this donor's standalone six-file increment. Real ports,
+application activation, task creation/scheduling and native authority stay unbound.
