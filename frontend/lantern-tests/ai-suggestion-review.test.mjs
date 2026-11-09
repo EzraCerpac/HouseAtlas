@@ -59,7 +59,7 @@ test('document evidence keeps exact page/version and unknown dates; invalid page
   assert.equal(s.inspected[0].evidence.recordVersion, 'record-1'); assert.equal(s.inspected[0].evidence.sourceDate, null);
   assert.equal(s.inspected[0].v.kind, 'document'); assert.equal(s.intents.length, 0);
   assert.throws(() => setup({ sources: [{ ...s.view.sources[0], page: 0 }] }));
-  assert.throws(() => setup({ kind: 'maintenance' }), /Unsupported/);
+  assert.throws(() => setup({ kind: 'answer' }), /Unsupported/);
 });
 test('stale source is held and can be dismissed without an intent', async () => {
   const s = setup(); s.ports.recheck = async () => 'stale'; // controller holds the actual port object
@@ -149,4 +149,111 @@ test('availability-only changes preserve a consumed callback delivery failure wi
   assert.equal(s.controller.getSnapshot().phase, 'handoff-unconfirmed');
   await s.controller.decide('accept-for-review'); await s.controller.decide('reject');
   assert.equal(deliveries, 1, 'uncertain delivery stays consumed across availability changes');
+});
+
+function maintenanceSetup(overrides = {}, ports = {}) {
+  const task = { key: 'task-1', targetKey: 'candidate-maintenance-1', targetLabel: 'Generated appliance',
+    title: 'Generated filter review', interval: { kind: 'periodic', every: 6, unit: 'months' },
+    conditions: ['Generated usage condition'], urgency: 'routine', reason: 'Generated manual excerpt',
+    uncertainty: 'Service history unknown', evidenceKeys: ['source-1'], baselineDate: null };
+  return setup({ kind: 'maintenance', fields: [], candidates: [], maintenance: [task], ...overrides }, ports);
+}
+test('maintenance periodic proposal preserves target evidence interval and unknown baseline', async () => {
+  const s = maintenanceSetup(); assert.equal(s.controller.getSnapshot().maintenance[0].selected, false);
+  await s.controller.decide('accept-for-review'); assert.equal(s.checks.length, 0);
+  assert.equal(s.controller.getSnapshot().view.maintenance[0].baselineDate, null);
+  await s.controller.inspectSource('source-1'); assert.equal(s.inspected[0].evidence.page, 2);
+  s.controller.selectMaintenanceTask('task-1', true); await s.controller.decide('accept-for-review');
+  const intent = s.intents[0]; assert.equal(intent.authority, 'none');
+  assert.deepEqual(intent.fields, []); assert.deepEqual(intent.candidateKeys, []);
+  assert.deepEqual(intent.maintenance, [{ key: 'task-1', targetKey: 'candidate-maintenance-1',
+    title: 'Generated filter review', interval: { kind: 'periodic', every: 6, unit: 'months' },
+    conditions: ['Generated usage condition'], urgency: 'routine', editedFields: [] }]);
+  assert(!JSON.stringify(intent).includes('dueDate')); assert(!JSON.stringify(intent).includes('scheduledDate'));
+  assert(Object.isFrozen(intent.maintenance[0].interval));
+});
+test('maintenance condition-based source preserves exact condition text and conditions', async () => {
+  const original = maintenanceSetup().view.maintenance[0];
+  const s = maintenanceSetup({ maintenance: [{ ...original, interval: { kind: 'conditional', condition: 'When generated indicator changes\nCheck supplied context' },
+    conditions: ['Condition A\ncontinued', 'Condition B'], urgency: 'review-soon' }] });
+  s.controller.selectMaintenanceTask('task-1', true); await s.controller.decide('accept-for-review');
+  assert.deepEqual(s.intents[0].maintenance[0].interval, s.view.maintenance[0].interval);
+  assert.deepEqual(s.intents[0].maintenance[0].conditions, ['Condition A\ncontinued', 'Condition B']);
+  assert.deepEqual(s.intents[0].maintenance[0].editedFields, []);
+});
+test('maintenance unknown interval and urgency remain unknown without invented due dates', async () => {
+  const original = maintenanceSetup().view.maintenance[0];
+  const s = maintenanceSetup({ maintenance: [{ ...original, interval: { kind: 'unknown' }, conditions: [], urgency: 'unknown' }] });
+  s.controller.selectMaintenanceTask('task-1', true); await s.controller.decide('accept-for-review');
+  assert.deepEqual(s.intents[0].maintenance[0].interval, { kind: 'unknown' });
+  assert.equal(s.intents[0].maintenance[0].urgency, 'unknown'); assert.equal(s.intents[0].maintenance[0].conditions.length, 0);
+  assert(!Object.hasOwn(s.intents[0].maintenance[0], 'dueDate'));
+});
+test('maintenance user edits are explicit while the admitted target stays fixed', async () => {
+  const s = maintenanceSetup();
+  assert.equal(s.controller.editMaintenanceTask('task-1', { targetKey: 'other' }), false);
+  assert.equal(s.controller.editMaintenanceTask('task-1', { dueDate: '2099-01-01' }), false);
+  assert(s.controller.editMaintenanceTask('task-1', { title: 'User review title', interval: { kind: 'periodic', every: '12', unit: 'usage-hours' },
+    conditions: ['User supplied condition'], urgency: 'unknown' }));
+  assert.equal(s.controller.getSnapshot().maintenance[0].edited, true);
+  s.controller.selectMaintenanceTask('task-1', true); await s.controller.decide('accept-for-review');
+  assert.deepEqual(s.intents[0].maintenance[0].editedFields, ['title', 'interval', 'conditions', 'urgency']);
+  assert.equal(s.intents[0].maintenance[0].targetKey, 'candidate-maintenance-1');
+  assert.deepEqual(s.intents[0].maintenance[0].interval, { kind: 'periodic', every: 12, unit: 'usage-hours' });
+  assert.equal(s.view.maintenance[0].title, 'Generated filter review');
+});
+test('maintenance incomplete edits hold acceptance until explicitly completed', async () => {
+  const s = maintenanceSetup(); s.controller.selectMaintenanceTask('task-1', true);
+  for (const interval of [{ kind: 'periodic', every: '', unit: null }, { kind: 'periodic', every: '0', unit: 'days' },
+    { kind: 'periodic', every: '4294967296', unit: 'days' }, { kind: 'periodic', every: '2e3', unit: 'days' },
+    { kind: 'conditional', condition: '' }]) {
+    assert(s.controller.editMaintenanceTask('task-1', { interval }));
+    assert.equal(s.controller.getSnapshot().maintenance[0].valid, false);
+    await s.controller.decide('accept-for-review'); assert.equal(s.checks.length, 0);
+  }
+  s.controller.editMaintenanceTask('task-1', { interval: { kind: 'unknown' }, conditions: [''] });
+  await s.controller.decide('accept-for-review'); assert.equal(s.intents.length, 0);
+  s.controller.editMaintenanceTask('task-1', { conditions: [] });
+  assert.equal(s.controller.getSnapshot().maintenance[0].valid, true);
+  await s.controller.decide('accept-for-review'); assert.equal(s.intents.length, 1);
+});
+test('maintenance superseded manuals and newer contexts withdraw pending review', async () => {
+  const stale = maintenanceSetup({}, { recheck: async () => 'stale' });
+  stale.controller.selectMaintenanceTask('task-1', true); await stale.controller.decide('accept-for-review');
+  assert.equal(stale.controller.getSnapshot().phase, 'stale'); assert.equal(stale.intents.length, 0);
+  stale.controller.dismiss(); assert.equal(stale.controller.getSnapshot().view, null);
+  const pending = deferred(), changed = maintenanceSetup({}, { recheck: () => pending.promise });
+  changed.controller.selectMaintenanceTask('task-1', true); const sending = changed.controller.decide('accept-for-review');
+  changed.set({ ...changed.current(), context: {} }); pending.resolve('current'); await sending;
+  assert.equal(changed.intents.length, 0); assert.equal(changed.controller.getSnapshot().view, null);
+});
+test('maintenance offline disabled and unavailable proposals preserve manual-workflow boundaries', async () => {
+  for (const availability of ['offline', 'disabled', 'unavailable']) {
+    const s = maintenanceSetup(); s.controller.selectMaintenanceTask('task-1', true); s.set({ ...s.current(), availability });
+    await s.controller.decide('accept-for-review'); await s.controller.inspectSource('source-1');
+    assert.equal(s.intents.length, 0); assert.equal(s.checks.length, 0); assert.equal(s.inspected.length, 0);
+    assert.equal(s.controller.getSnapshot().phase, 'unavailable');
+    s.controller.dismiss(); assert.equal(s.controller.getSnapshot().phase, 'closed');
+  }
+});
+test('maintenance rejection and repeated uncertain handoff remain once-consumed intent only', async () => {
+  const rejected = maintenanceSetup(); await rejected.controller.decide('reject');
+  assert.equal(rejected.intents[0].action, 'reject'); assert.deepEqual(rejected.intents[0].maintenance, []);
+  const pending = deferred(), entered = deferred(); let deliveries = 0;
+  const s = maintenanceSetup({}, { onIntent: () => { deliveries++; entered.resolve(); return pending.promise; } });
+  s.controller.selectMaintenanceTask('task-1', true); const sent = s.controller.decide('accept-for-review');
+  await entered.promise; s.set({ ...s.current(), availability: 'offline' }); pending.reject(new Error('Generated unknown delivery')); await sent;
+  s.set({ ...s.current(), availability: 'ready' }); await s.controller.decide('accept-for-review');
+  assert.equal(s.controller.getSnapshot().phase, 'handoff-unconfirmed'); assert.equal(deliveries, 1);
+});
+test('maintenance bounds refuse unknown units due-date metadata and unsupported result kinds', () => {
+  const task = maintenanceSetup().view.maintenance[0];
+  assert.throws(() => maintenanceSetup({ maintenance: [{ ...task, interval: { kind: 'periodic', every: 0, unit: 'days' } }] }));
+  assert.throws(() => maintenanceSetup({ maintenance: [{ ...task, interval: { kind: 'periodic', every: 1, unit: 'hours' } }] }));
+  assert.throws(() => maintenanceSetup({ maintenance: [{ ...task, dueDate: '2099-01-01' }] }));
+  assert.throws(() => maintenanceSetup({ maintenance: [{ ...task, evidenceKeys: ['missing-source'] }] }));
+  assert.throws(() => maintenanceSetup({ maintenance: undefined }));
+  assert.throws(() => maintenanceSetup({ kind: 'answer' }));
+  assert.throws(() => maintenanceSetup({ kind: 'contradictions' }));
+  const empty = maintenanceSetup({ maintenance: [] }); assert.deepEqual(empty.controller.getSnapshot().maintenance, []);
 });
