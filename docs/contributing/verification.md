@@ -3817,3 +3817,22 @@ command or runner is added. Source registration is not execution evidence; the
 new named case and Rust formatting/compilation remain NOT RUN until verified by
 an environment with the pinned toolchain. Existing #288 qualification rows stay
 unchanged.
+
+
+The retained generated AI corpus is now published unchanged in
+`tools/ai-feature-evaluation/`: 32 fictional cases and 20 exact source versions.
+Its standalone README and HISTORICAL-CHECKS.txt describe the November 8 artifact;
+the historical 18-test Python integrity success is not current-head execution.
+The Python mutation suite is not added to a default runner. See INTEGRATION.md
+for original hashes, exact mappings and exclusions.
+The existing default backend-library selection discovers three additional
+`ai::suggestions::evaluation::retained_corpus` cases: frozen corpus/mapping
+limits; separate supplied inventory classification/identity counters; and
+alternative document links with changed/withdrawn context refusal. The bridge
+is cfg(test)-only and reuses evaluate_supplied/the existing canonical validator.
+Only inv-identity and doc-ambiguous have mapped allowed dimensions. The other
+30 cases, positive recall, unique-winner selection, field-specific abstentions,
+unknown prose, unmapped negative annotations and native effects stay unscored.
+These three authored Rust cases and current-head formatting/compilation/Clippy
+are NOT RUN. No model/API, production corpus import, real authority or write,
+new workflow, runtime readiness or issue acceptance follows.

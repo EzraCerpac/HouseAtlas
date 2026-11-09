@@ -213,3 +213,7 @@ pub fn evaluate_supplied(labels: &Labels, bytes: &[u8], admitted: &AdmittedSnaps
 #[cfg(test)]
 #[path = "evaluation_healthy.rs"]
 mod healthy;
+
+#[cfg(test)]
+#[path = "retained_corpus.rs"]
+mod retained_corpus;

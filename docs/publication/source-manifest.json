@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 35643,
-      "sha256": "9833a04a44eaaa395dae74348937cee1f26d7148e810d3759a459129aba15902",
+      "bytes": 36919,
+      "sha256": "9d3100955a9ed910c44f5f7c638e06aeaaba1c5f0c6e1b11d0faf4655104d298",
       "owner": "core-integration"
     },
     {
@@ -1182,8 +1182,8 @@
     {
       "path": "backend/src/ai/suggestions/evaluation.rs",
       "mode": "100644",
-      "bytes": 14528,
-      "sha256": "aa7c333da5ab9eb03a6bee0cee47ce33e37a4548df41ccd49b7b731e7f7f7633",
+      "bytes": 14594,
+      "sha256": "84c186a7343923dbced46f9292009d223b2ec03663397ab258f6ea2e0af814be",
       "owner": "ai"
     },
     {
@@ -1198,6 +1198,13 @@
       "mode": "100644",
       "bytes": 508,
       "sha256": "ee329da92298ef6ea2a800c423e1306b6d335368a22817984ab106d6c4b24290",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/suggestions/retained_corpus.rs",
+      "mode": "100644",
+      "bytes": 10909,
+      "sha256": "e1d1388857bbbf40f62d6d3fa94c3f0dd5ecce10d271570e0050965968853b46",
       "owner": "ai"
     },
     {
@@ -6579,8 +6586,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 243691,
-      "sha256": "40e0ee22881aed4cc7aabb6e42f61a433441544c8aa41b5ad06eeae4cb438a9c",
+      "bytes": 244967,
+      "sha256": "8a91aa27dde8c471f93acc031f73b7722e4570d531189def379c6f922b34e01e",
       "owner": "core-integration"
     },
     {
@@ -11930,6 +11937,48 @@
       "bytes": 937,
       "sha256": "a467b883040e3173aceba7c352708356492f74af0b63bed75f126ac9b41cb767",
       "owner": "operations-policy"
+    },
+    {
+      "path": "tools/ai-feature-evaluation/HISTORICAL-CHECKS.txt",
+      "mode": "100644",
+      "bytes": 1797,
+      "sha256": "365f31c6647b70d0ff6282d946df8b24a738cead10e3fa8cbcce0a0eb36c2a0f",
+      "owner": "ai"
+    },
+    {
+      "path": "tools/ai-feature-evaluation/INTEGRATION.md",
+      "mode": "100644",
+      "bytes": 3770,
+      "sha256": "045ce47981af929ee5beae0b4d6abd9e11537737fcc22186806f1880b7ab960b",
+      "owner": "ai"
+    },
+    {
+      "path": "tools/ai-feature-evaluation/README.md",
+      "mode": "100644",
+      "bytes": 5721,
+      "sha256": "4ae5770a3cbf6a99534d8185877cc585249a532376d868cff1153c4e4902881f",
+      "owner": "ai"
+    },
+    {
+      "path": "tools/ai-feature-evaluation/check_corpus.py",
+      "mode": "100644",
+      "bytes": 8750,
+      "sha256": "798baa9fe64cb903ca81bb82669290a24a9950872e3011ace4219d4ef3765003",
+      "owner": "ai"
+    },
+    {
+      "path": "tools/ai-feature-evaluation/corpus.json",
+      "mode": "100644",
+      "bytes": 54588,
+      "sha256": "d4f4d4c8c66a10c0debe7004ff7e187345af7e4d4305a1774e9bb286c4678291",
+      "owner": "ai"
+    },
+    {
+      "path": "tools/ai-feature-evaluation/test_check_corpus.py",
+      "mode": "100644",
+      "bytes": 3969,
+      "sha256": "7cb0da6ed9919b3dcbe9493dc8682c476b290a49b6e023a818763609d0ef4140",
+      "owner": "ai"
     },
     {
       "path": "tools/backup/houseatlas_backup.py",
