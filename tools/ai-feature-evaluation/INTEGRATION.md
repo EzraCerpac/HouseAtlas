@@ -70,8 +70,9 @@ unknown and semantic-abstention scores. An empty proposal is a test input, not
 a gold semantic abstention, model response or complete case pass.
 
 The inventory/document adapter leaves 24 cases unscored; three of these now
-have the separate maintenance representational controls described below. The
-other 21 cases have no bridge. Quality remains unscored for the same-product-only
+have the separate maintenance representational controls described below, and
+three more have recorded-source answer controls. The other 18 have no bridge.
+Quality remains unscored for the same-product-only
 inventory case and every maintenance, cited-answer and contradiction case. A model/product match is never translated into
 physical identity. More mappings need an explicit semantic/dimension review;
 the corpus's original annotations must not be rewritten to manufacture coverage.
@@ -91,8 +92,8 @@ runner selection is added; the standalone Python mutation suite stays separate.
 The retained inv-sparse, doc-electrical and doc-invoice annotations now join the
 same supplied-proposal scorer without changing its production contract. There
 are four allowed-label mappings, one limited aggregate no-proposal control and
-three structural-refusal mappings. Three separate maintenance controls below
-leave 21 cases with no bridge; all maintenance quality remains unscored.
+three structural-refusal mappings. Three maintenance and three answer controls below
+leave 18 cases with no bridge; their quality remains unscored.
 
 inv-sparse selects only capture-blur v1. Its annotation candidate lists do not
 admit item-a/item-b or provide native authority, and no negative citation is
@@ -181,11 +182,66 @@ New authored case names (NOT RUN):
 - retained_maintenance_matching_pump_remains_conditional_with_unknown_indicator
 
 All nine earlier bridge tests and eight inventory/document mappings remain
-unchanged, including null semantic scores for structural refusal. The bridge now
-has twelve authored tests: nine prior plus these three. Eleven original cases
-have some bounded bridge (eight inventory/document plus three representational
-maintenance controls); 21 have none. The existing inventory/document count test
+unchanged, including null semantic scores for structural refusal. At this
+maintenance checkpoint the bridge had twelve authored tests: nine
+prior plus these three. The answer controls below bring it to fifteen tests.
+Fourteen original cases now have some bounded bridge (eight inventory/document,
+three maintenance and three answer controls); 18 have none. The existing
+inventory/document count test
 still correctly marks 24 cases outside its scorer, including all maintenance.
 No original corpus file, production contract, frontend repair, runner selection
 or workflow changes. All tests, builds, type checking, compilation, formatting/
 Clippy, browser/device and actual host/model/acceptance qualification remain unrun.
+
+
+## Recorded-source answer representational controls
+
+Only original qa-location, qa-electrical and qa-injection are newly adapted.
+Each deliberately supplied answer uses the existing validate_generated and
+disclose_review functions. No evaluate_supplied, Labels, CaseReport, routing/
+ranking/groundedness quality counts, model output or calibrated metric exists.
+
+| Original case | Exact represented data | Still unqualified |
+| --- | --- | --- |
+| qa-location | inventory route; quoted recorded_location from spare v1/location | Current physical certainty and exhaustive inventory |
+| qa-electrical | electrical route; historical_documentary_group from drawing v1/sheet1; 2020-01-01 source date separate from 2030-04-01 retrieval | Tested wiring, current circuit mapping, safe breaker or equipment action |
+| qa-injection | electrical route; tested_mapping_unavailable from injection v1/p2 | Live model injection resistance, scope/tool permissions or factual truth |
+
+Every selected source/version/section/excerpt is preserved in the admitted
+snapshot. Source excerpts become exact claims and explicitly attributed quoted
+statements. Original unknowns remain missingEvidence, and original abstain_from
+values remain explicit control metadata. Each case selects one source; the
+supplied rank list uses that bounded selected-input order, not original relevance
+labels or measured ranking quality. Annotation candidates add no records/grants.
+Coverage stays partial, statements retain their exact support/evidence joins,
+and disclosure fields/candidates/selections remain empty. No intent is emitted.
+
+The complete malicious p1 text remains inert admitted source DATA for qa-injection.
+Only p2 supports its supplied claim/statement and disclosure citation; p1 is not
+promoted to a permission, tool, source-scope expansion or executable instruction.
+No model consumes either section. This authored choice does NOT establish prompt
+injection resistance: the structural validator is not a semantic truth/entailment
+checker and may accept other well-shaped text. Exact positive supplied quotes
+are source/representation controls, not routing or groundedness evaluation.
+
+Shared explicitly derivative negative controls mutate unadmitted rank/source/
+evidence references, unknown/clarify routes retaining factual statements,
+unsupported action/tool fields, exhaustive coverage and stale/withdrawn DATA.
+These assert existing structural boundaries only; they are not new original
+corpus scenarios or actual source-access revocation. No unavailable scenario or
+simultaneous-version answer is fabricated: qa-missing, qa-stale and qa-revoked
+remain outside this increment.
+
+New authored case names (NOT RUN):
+
+- retained_answer_location_quotes_recorded_location_without_physical_certainty
+- retained_answer_electrical_preserves_historical_dates_without_safe_action
+- retained_answer_injection_cites_p2_while_p1_remains_inert_source_data
+
+All twelve prior bridge tests remain unchanged. There are now fifteen authored
+cases and fourteen original scenarios with some bounded bridge; eighteen have
+none. All answer/maintenance quality is unscored, and the production scorer still
+supports inventory/document only. Corpus bytes, production contracts/disclosure,
+frontend repairs and runner inventory are unchanged. No new lane or runtime.
+Tests/build/typecheck/compiler/format/Clippy/browser/device and actual model/
+owner/acceptance qualification remain unrun; automatic CI is only observed.

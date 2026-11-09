@@ -3834,7 +3834,7 @@ Its standalone README and HISTORICAL-CHECKS.txt describe the November 8 artifact
 the historical 18-test Python integrity success is not current-head execution.
 The Python mutation suite is not added to a default runner. See INTEGRATION.md
 for original hashes, exact mappings and exclusions.
-The existing default backend-library selection discovers twelve
+The existing default backend-library selection discovers fifteen
 `ai::suggestions::evaluation::retained_corpus` cases: frozen corpus/mapping
 limits; separate supplied inventory classification/identity counters;
 alternative document links with changed/withdrawn context refusal; and exact
@@ -3848,7 +3848,7 @@ doc-electrical and doc-invoice); inv-sparse maps aggregate no-proposal only;
 three more cases map structural refusal only. The other 24 cases, positive recall,
 unique-winner selection, field-specific abstentions,
 unknown prose, unmapped negative annotations and native effects stay unscored.
-These twelve authored Rust cases and current-head formatting/compilation/Clippy
+These fifteen authored Rust cases and current-head formatting/compilation/Clippy
 are NOT RUN. No model/API, production corpus import, real authority or write,
 new workflow, runtime readiness or issue acceptance follows.
 
@@ -3918,7 +3918,7 @@ candidates and native effects stay unscored. No annotation candidate list is an
 access grant, and no negative citation is fabricated. There are now eight
 partially mapped cases (four allowed-label, one aggregate, three refusal) and
 24 cases outside inventory/document scoring (three maintenance controls below),
-with 21 having no bridge. The earlier three tests brought the bridge to nine authored
+with 18 having no bridge after the answer controls below. The earlier three tests brought the bridge to nine authored
 cases, NOT RUN; supplied outputs are not model evaluations. Exact interpretation,
 original hashes and case names are in tools/ai-feature-evaluation/INTEGRATION.md.
 The production scorer/validator, repaired frontend, original corpus files and
@@ -4013,7 +4013,28 @@ no maintenance Labels/CaseReport, quality counts or model metrics are constructe
 Shared derivative negative controls refuse dueDate/schedule fields and stale/
 withdrawn DATA; they are not new original scenarios or real revocation evidence.
 Three new authored cases bring the bridge to twelve tests, all NOT RUN; the nine
-prior tests/eight inventory/document mappings remain unchanged. Eleven cases now
-have some bounded representation and 21 none; all maintenance quality is unscored.
+prior tests/eight inventory/document mappings remain unchanged. At that maintenance checkpoint eleven cases
+had some bounded representation; the answer controls below
+bring the total to fourteen with 18 none. All maintenance quality is unscored.
 Exact names/limits are in tools/ai-feature-evaluation/INTEGRATION.md. Production
 contracts, frontend, corpus originals and 77/1/7 selections are unchanged.
+
+
+Three retained answer cases add validator/disclosure-only supplied controls:
+qa-location quotes spare v1/location with inventory route; qa-electrical quotes
+drawing v1/sheet1 with electrical route and separate 2020 source/2030 retrieval;
+qa-injection cites only injection v1/p2 while all malicious p1 text remains inert
+admitted source data. Original unknowns/abstentions remain explicit. Selected
+input identity/order supplies a bounded rank control, not measured relevance.
+Coverage is partial; exact statements/support/evidence and empty selections remain.
+Derivative controls refuse unadmitted refs, unknown/clarify with factual statements,
+action/tool fields, exhaustive coverage and stale/withdrawn DATA. They neither
+invent new original scenarios nor establish real source-access revocation.
+No evaluate_supplied/Labels/CaseReport or quality counts are used. A well-shaped
+supplied answer is not evidence of semantic truth or live-model injection safety.
+Three new cases bring the bridge to fifteen authored tests, all NOT RUN; twelve
+prior tests remain unchanged. Fourteen original cases have some bounded bridge,
+18 none. qa-missing/qa-stale/qa-revoked remain outside this increment. Exact names,
+limits and original hashes are in tools/ai-feature-evaluation/INTEGRATION.md.
+Corpus, production contracts/scorer/validator/disclosure, frontend and runner
+inventory remain unchanged; no new lane, host/root binding or activation occurs.
