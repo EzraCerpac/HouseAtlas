@@ -1,6 +1,6 @@
 import type { SuggestionReviewView, SuggestionReviewPorts, SuggestionReviewSnapshot,
   SuggestionReviewIntent, SuggestionReviewPhase, MaintenanceTaskView, MaintenanceTaskDraft,
-  MaintenanceIntervalView, MaintenanceIntervalDraft, MaintenanceUrgency, MaintenanceEditedField } from './view-types';
+  MaintenanceIntervalView, MaintenanceIntervalDraft, MaintenanceUrgency, MaintenanceEditedField, CitedAnswerView } from './view-types';
 
 
 const units = ['days', 'weeks', 'months', 'years', 'usage-hours'];
@@ -79,7 +79,7 @@ function copyView(view: SuggestionReviewView): SuggestionReviewView {
   const list = <T>(values: readonly T[], cap = 16) => {
     if (!Array.isArray(values) || values.length > cap) throw new TypeError('Invalid suggestion display list'); return values;
   };
-  if (!view.context || typeof view.context !== 'object' || !['inventory', 'document', 'maintenance'].includes(view.kind))
+  if (!view.context || typeof view.context !== 'object' || !['inventory', 'document', 'maintenance', 'answer'].includes(view.kind))
     throw new TypeError('Unsupported suggestion presentation');
   const unique = (keys: readonly string[]) => { if (new Set(keys).size !== keys.length) throw new TypeError('Duplicate display key'); };
   const sources = list(view.sources).map(s => {
@@ -90,7 +90,7 @@ function copyView(view: SuggestionReviewView): SuggestionReviewView {
       sourceDate: optional(s.sourceDate), retrievedAt: optional(s.retrievedAt), page: s.page, section: optional(s.section),
       excerpt: text(s.excerpt, 8192), freshness: s.freshness, original: s.original });
   });
-  if (!sources.length) throw new TypeError('Source display required');
+  if (!sources.length && view.kind !== 'answer') throw new TypeError('Source display required');
   unique(sources.map(s => s.key)); const sourceKeys = new Set(sources.map(s => s.key));
   const evidence = (keys: readonly string[]) => {
     const result = list(keys).map(key); unique(result);
@@ -123,10 +123,40 @@ function copyView(view: SuggestionReviewView): SuggestionReviewView {
     }));
     unique(maintenance.map(task => task.key));
   } else if (Object.hasOwn(view, 'maintenance')) throw new TypeError('Unexpected maintenance display');
+  let answer: CitedAnswerView | undefined;
+  if (view.kind === 'answer') {
+    if (fields.length || candidates.length) throw new TypeError('Answer is read-only');
+    const value = view.answer;
+    const exact = (v: object, keys: string[]) => !Array.isArray(v) && Object.keys(v).sort().join(',') === keys.sort().join(',');
+    if (!value || !exact(value, ['route', 'coverage', 'rankedCandidates', 'statements', 'missingEvidence'])
+      || !['inventory', 'documents', 'maintenance', 'electrical', 'network', 'clarify', 'unknown'].includes(value.route)
+      || !['partial', 'no-answer'].includes(value.coverage)) throw new TypeError('Invalid answer display');
+    const required = (v: string, cap: number) => {
+      if (!maintenanceText(v, cap)) throw new TypeError('Invalid answer text'); return v;
+    };
+    const rankedCandidates = Object.freeze(list(value.rankedCandidates, 32).map(candidate => {
+      if (!candidate || !exact(candidate, ['key', 'label'])) throw new TypeError('Invalid answer rank');
+      return Object.freeze({ key: key(candidate.key), label: required(candidate.label, 4096) });
+    }));
+    unique(rankedCandidates.map(candidate => candidate.key));
+    const statements = Object.freeze(list(value.statements).map(statement => {
+      if (!statement || !exact(statement, ['key', 'text', 'reason', 'uncertainty', 'evidenceKeys']))
+        throw new TypeError('Invalid supported statement');
+      return Object.freeze({ key: key(statement.key), text: required(statement.text, 2048),
+        reason: required(statement.reason, 1024), uncertainty: required(statement.uncertainty, 4096),
+        evidenceKeys: evidence(statement.evidenceKeys) });
+    }));
+    unique(statements.map(statement => statement.key));
+    const missingEvidence = Object.freeze(list(value.missingEvidence).map(v => required(v, 1024)));
+    if ((value.coverage === 'no-answer') !== (statements.length === 0)
+      || (['clarify', 'unknown'].includes(value.route) && statements.length > 0)
+      || (!statements.length && !missingEvidence.length)) throw new TypeError('Inconsistent answer coverage');
+    answer = Object.freeze({ route: value.route, coverage: value.coverage, rankedCandidates, statements, missingEvidence });
+  } else if (Object.hasOwn(view, 'answer')) throw new TypeError('Unexpected answer display');
   return Object.freeze({ context: view.context, key: key(view.key), revision: key(view.revision), sourceSetRevision: key(view.sourceSetRevision),
     kind: view.kind, title: text(view.title), sources: Object.freeze(sources), fields: Object.freeze(fields),
     candidates: Object.freeze(candidates), uncertainty: Object.freeze(list(view.uncertainty).map(v => text(v))),
-    uncalibratedScore: optional(view.uncalibratedScore), ...(maintenance ? { maintenance } : {}) });
+    uncalibratedScore: optional(view.uncalibratedScore), ...(maintenance ? { maintenance } : {}), ...(answer ? { answer } : {}) });
 }
 const empty = Object.freeze([]);
 const hidden = (phase: 'superseded' | 'closed', message: string): SuggestionReviewSnapshot =>
@@ -137,7 +167,7 @@ export function createSuggestionReviewController(input: SuggestionReviewView, po
   const closed = hidden('closed', 'Suggestion dismissed.');
   const initiallyStale = view.sources.some(s => s.freshness === 'stale' || s.original === 'withdrawn');
   let state: SuggestionReviewSnapshot = Object.freeze({ phase: initiallyStale ? 'stale' : 'reviewing',
-    message: initiallyStale ? 'Source evidence changed or was withdrawn. Dismiss this suggestion and request a current review.' : 'Select fields or candidates to review.',
+    message: initiallyStale ? 'Source evidence changed or was withdrawn. Dismiss this suggestion and request a current review.' : view.kind === 'answer' ? 'Read-only answer. Inspect cited sources or dismiss.' : 'Select fields or candidates to review.',
     view, fields: Object.freeze(view.fields.map(f => Object.freeze({ key: f.key, value: f.proposed, selected: false, edited: false }))),
     candidateKeys: empty, maintenance: Object.freeze((view.maintenance ?? []).map(task => Object.freeze({ key: task.key,
       selected: false, title: task.title, interval: intervalDraft(task.interval), conditions: Object.freeze([...task.conditions]),
@@ -175,7 +205,7 @@ export function createSuggestionReviewController(input: SuggestionReviewView, po
     }
     held = null; emit();
   });
-  const editable = () => ready() && state.phase === 'reviewing' && active === null;
+  const editable = () => view.kind !== 'answer' && ready() && state.phase === 'reviewing' && active === null;
   return {
     getSnapshot: snapshot,
     subscribe(cb: () => void) { listeners.add(cb); return () => { listeners.delete(cb); }; },

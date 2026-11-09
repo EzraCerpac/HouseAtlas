@@ -1,6 +1,6 @@
 /** LOCAL presentation seam only. Not a wire envelope, validator or approval contract.
  * Adapt only the shared source writer's validated proposal/evidence into this shape. */
-export type SuggestionKind = 'inventory' | 'document' | 'maintenance';
+export type SuggestionKind = 'inventory' | 'document' | 'maintenance' | 'answer';
 export interface SuggestionSourceView {
   readonly key: string; readonly label: string; readonly recordVersion: string;
   readonly sourceDate: string | null; readonly retrievedAt: string | null;
@@ -48,6 +48,19 @@ export interface MaintenanceTaskReviewIntent {
   readonly interval: MaintenanceIntervalView; readonly conditions: readonly string[];
   readonly urgency: MaintenanceUrgency; readonly editedFields: readonly MaintenanceEditedField[];
 }
+/** Read-only, owner-admitted answer DATA. Ranking is order, never authority. */
+export type AnswerRoute = 'inventory' | 'documents' | 'maintenance' | 'electrical' | 'network' | 'clarify' | 'unknown';
+export interface AnswerStatementView {
+  readonly key: string; readonly text: string; readonly reason: string;
+  readonly uncertainty: string; readonly evidenceKeys: readonly string[];
+}
+export interface CitedAnswerView {
+  readonly route: AnswerRoute; readonly coverage: 'partial' | 'no-answer';
+  /** Local keys bound by the source adapter to ranked_refs; preserve array order. */
+  readonly rankedCandidates: readonly { readonly key: string; readonly label: string }[];
+  readonly statements: readonly AnswerStatementView[];
+  readonly missingEvidence: readonly string[];
+}
 export interface SuggestionReviewView {
   /** Replace for EVERY account/home/selection generation, including A-B-A. */
   readonly context: object;
@@ -55,6 +68,8 @@ export interface SuggestionReviewView {
   readonly kind: SuggestionKind; readonly title: string;
   /** Present only for maintenance. Other kinds keep their original shape. */
   readonly maintenance?: readonly MaintenanceTaskView[];
+  /** Present only for answer. Never contributes an intent or editable state. */
+  readonly answer?: CitedAnswerView;
   readonly sources: readonly SuggestionSourceView[];
   readonly fields: readonly SuggestionFieldView[];
   readonly candidates: readonly SuggestionCandidateView[];

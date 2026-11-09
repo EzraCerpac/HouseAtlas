@@ -5,9 +5,11 @@ import './suggestion-review.css';
 
 const relation = { 'possible-duplicate': 'Possible duplicate', 'same-product': 'Same product, identity unconfirmed',
   'proposed-association': 'Proposed association' };
-const headings = { inventory: 'Inventory suggestions', document: 'Document suggestions', maintenance: 'Maintenance suggestions' };
+const headings = { inventory: 'Inventory suggestions', document: 'Document suggestions', maintenance: 'Maintenance suggestions', answer: 'Cited answer' };
 const unitLabels: Record<MaintenanceUnit, string> = { days: 'Days', weeks: 'Weeks', months: 'Months', years: 'Years', 'usage-hours': 'Usage hours' };
 const urgencyLabels: Record<MaintenanceUrgency, string> = { unknown: 'Unknown', routine: 'Routine', 'review-soon': 'Review soon' };
+const answerRoutes = { inventory: 'Inventory', documents: 'Documents', maintenance: 'Maintenance',
+  electrical: 'Electrical records', network: 'Network records', clarify: 'Clarification needed', unknown: 'Route unknown' };
 const freshness = { 'snapshot-current': 'Snapshot current at proposal', stale: 'Stale source', unknown: 'Freshness unknown' };
 /** Unmounted review island. The host owns the stable controller and all source resolution. */
 export function SuggestionReview({ controller }: { readonly controller: SuggestionReviewController }) {
@@ -20,9 +22,10 @@ export function SuggestionReview({ controller }: { readonly controller: Suggesti
   const inspectable = state.phase === 'reviewing' || state.phase === 'stale';
   return <section className="ha-suggestion-review" aria-labelledby={id + '-title'}>
     <header><h2 id={id + '-title'}>{headings[view.kind]}</h2>
-      <p>{view.title}</p><p>Proposals require source-owner review before a change.</p></header>
+      <p>{view.title}</p><p>{view.kind === 'answer' ? 'Read-only answer from bounded source evidence.' : 'Proposals require source-owner review before a change.'}</p></header>
     <p role="status" aria-live="polite">{state.message}</p>
     <section aria-labelledby={id + '-evidence'}><h3 id={id + '-evidence'}>Original evidence</h3>
+      {!view.sources.length && <p>No cited source supplied.</p>}
       {view.sources.map((source, index) => <article key={source.key}>
         <h4>{source.label}</h4>
         <dl><dt>Version</dt><dd>{source.recordVersion}</dd><dt>Source date</dt><dd>{source.sourceDate ?? 'Unknown'}</dd>
@@ -34,7 +37,7 @@ export function SuggestionReview({ controller }: { readonly controller: Suggesti
           onClick={() => { void controller.inspectSource(source.key); }}>Inspect source {index + 1}</button>
       </article>)}
     </section>
-    {view.kind !== 'maintenance' && <><section aria-labelledby={id + '-fields'}><h3 id={id + '-fields'}>Proposed fields</h3>
+    {(view.kind === 'inventory' || view.kind === 'document') && <><section aria-labelledby={id + '-fields'}><h3 id={id + '-fields'}>Proposed fields</h3>
       {!view.fields.length && <p>No field suggestion.</p>}
       {view.fields.map((field, index) => {
         const draft = state.fields.find(f => f.key === field.key)!;
@@ -71,13 +74,38 @@ export function SuggestionReview({ controller }: { readonly controller: Suggesti
         evidenceLabels={task.evidenceKeys.map(key => view.sources.find(source => source.key === key)!.label)} />)}
       {incomplete && <p role="status">Complete each selected task title, interval and condition before review.</p>}
     </section>}
+    {view.kind === 'answer' && view.answer && <section aria-labelledby={id + '-answer'}>
+      <h3 id={id + '-answer'}>{answerRoutes[view.answer.route]}</h3>
+      <p>{view.answer.coverage === 'partial' ? 'Partial answer; retrieved records are not exhaustive.' : 'No supported answer.'}</p>
+      {view.answer.route === 'clarify' && <p>The admitted evidence requires clarification before answering.</p>}
+      {view.answer.route === 'unknown' && <p>No supported question route was established.</p>}
+      {view.answer.statements.map(statement => <article key={statement.key}>
+        <p className="ha-suggestion-answer-text">{statement.text}</p>
+        <p>Source rationale: {statement.reason}</p><p>Uncertainty: {statement.uncertainty}</p>
+        <p>Evidence: {statement.evidenceKeys.map(key => {
+          const source = view.sources.find(value => value.key === key)!;
+          return source.label + ' · version ' + source.recordVersion
+            + (source.page === null ? ' · page unknown' : ' · page ' + source.page)
+            + (source.section ? ' · ' + source.section : '') + ' · source date ' + (source.sourceDate ?? 'Unknown');
+        }).join('; ')}</p>
+      </article>)}
+      <h4>Ranked records</h4>
+      {view.answer.rankedCandidates.length ? <><ol>{view.answer.rankedCandidates.map(candidate =>
+        <li key={candidate.key}>{candidate.label}</li>)}</ol><p>Source-provided order; no identity, confidence or approval is established.</p></>
+        : <p>No ranked record supplied.</p>}
+      <h4>Missing evidence</h4>
+      {view.answer.missingEvidence.length ? <ul>{view.answer.missingEvidence.map((value, index) =>
+        <li className="ha-suggestion-answer-text" key={index}>{value}</li>)}</ul> : <p>No missing-evidence detail supplied; coverage remains partial.</p>}
+      {(view.answer.route === 'electrical' || view.answer.route === 'network') &&
+        <p>Source records do not establish tested wiring, a safe breaker, a physical route or an instruction to operate equipment.</p>}
+    </section>}
     <section aria-labelledby={id + '-unknowns'}><h3 id={id + '-unknowns'}>Uncertainty</h3>
       {view.uncertainty.length ? <ul>{view.uncertainty.map((text, index) => <li key={index}>{text}</li>)}</ul> : <p>No uncertainty detail supplied.</p>}
       {view.uncalibratedScore !== null && <p>Uncalibrated model score: {view.uncalibratedScore}. This is not a probability or approval.</p>}
       {view.kind === 'document' && <p>Documentary links do not establish tested wiring or physical placement.</p>}
     </section>
-    <footer><button type="button" disabled={!editable || !selected || incomplete} onClick={() => { void controller.decide('accept-for-review'); }}>Accept selection for review</button>
-      <button type="button" disabled={!editable} onClick={() => { void controller.decide('reject'); }}>Reject suggestion</button>
+    <footer>{view.kind !== 'answer' && <><button type="button" disabled={!editable || !selected || incomplete} onClick={() => { void controller.decide('accept-for-review'); }}>Accept selection for review</button>
+      <button type="button" disabled={!editable} onClick={() => { void controller.decide('reject'); }}>Reject suggestion</button></>}
       <button type="button" onClick={controller.dismiss}>Dismiss</button></footer>
   </section>;
 }
