@@ -491,18 +491,13 @@ effect is exercised. Same-host subprocess readback is not another storage failur
 domain; source/CI success does not establish operational adoption.
 
 
-
-The default backend-library selection additionally discovers
-`providers::homebox::read::native_list_pages::healthy::healthy_native_list_continuations_retain_capture_and_retire_terminal`.
-This generated in-process test uses five field or maintenance rows, one injected
-GET per list, actual in-memory Access and the existing NativeListPages owner to
-check 2/2/1 pages, retained capture/bytes/timestamp identity, fresh captured grants
-per continuation and terminal cursor retirement. A private test-only snapshot is
-assembled from the actual native decoder; its baseline is correlation data, not a
-Store read. Configured capture, credential custody, byte accounting, domain
-bind/dispatch/disclosure, mounted HTTP/MCP, live providers, browser/device acceptance
-and broader continuation variants are not qualified. No production API, workflow
-command or runner is added. Source registration is not execution evidence; the
-new named case and Rust formatting/compilation remain NOT RUN until verified by
-an environment with the pinned toolchain. Existing #288 qualification rows stay
-unchanged.
+The default backend-library selection also discovers thirteen generated
+`lifecycle::continuity_plan::healthy` cases. These validate observation DATA and
+an in-memory offline journal model only: historical/current cuts, every SQLite
+sidecar/absence, original receipt type, lock/staged-file identities, ordered
+preservation/publication records, permanent uncertainty and conservative metadata
+rollback candidates. They open no file, database, socket, lock or service and
+perform no restore, fsync, rename, receipt publication or startup reconciliation.
+The existing guard is unchanged. Plan success grants no authority and cannot
+authenticate a baseline or prove native exclusion/durability. Source registration
+does not establish execution; the verification guide records remaining bindings.

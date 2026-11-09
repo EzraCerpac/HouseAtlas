@@ -1,5 +1,64 @@
 # HouseAtlas
 
+## Offline continuity plan data
+
+`backend/src/lifecycle/continuity_plan.rs` is a refusal-first evidence validator
+and in-memory journal DATA model, not a recovery command. It reuses the strict
+persistent State receipt type. The existing identity guard, receipt upgrader,
+Access behavior, backup and deployment paths are unchanged; no CLI/startup hook
+or publication executor is installed.
+
+The default backend-library set discovers thirteen generated functions under
+`lifecycle::continuity_plan::healthy`, authored in `continuity_plan_healthy.rs`:
+
+- `missing_baseline_cannot_be_replaced_by_a_current_copy_or_integrity_claim`
+- `exact_device_only_observations_produce_plan_data_without_authority`
+- `changed_database_or_sidecar_bytes_and_absence_are_holds`
+- `incomplete_inventory_cannot_omit_absent_sidecars`
+- `inode_configuration_coupled_receipt_and_unknown_operation_refuse`
+- `all_three_original_named_lock_observations_and_closed_writer_claims_are_required`
+- `same_device_requires_no_rebinding_and_unknown_receipt_fields_refuse`
+- `journal_data_requires_preservation_stage_and_observed_publication_order`
+- `bad_sync_data_and_changed_precut_observations_cannot_advance`
+- `interruption_at_every_recorded_phase_stays_held_despite_receipt_readback`
+- `rollback_data_refuses_later_writes_wrong_backup_or_different_original_lease`
+- `staged_receipt_data_must_pin_same_directory_private_identity_and_no_alias`
+- `contradictory_post_publication_data_permanently_poison_the_model`
+
+Fictional complete cuts include both databases, six explicit sidecar-presence/
+absence entries and the receipt. Structural comparison permits only device-number
+differences, requires original inode/configuration/schema/content continuity and
+unchanged historical lock identities, and refuses a missing/changed baseline,
+coupled/full-profile receipts or uncertain prior operation. Integrity alone is
+not continuity. Plans expose candidate hashes, never replacement receipt bytes,
+and explicitly grant no publication authority.
+
+The model requires a preservation-manifest hash bound to the complete selected
+cut, staged private-file/named/directory identity, prepublication recheck and
+postpublication receipt-identity/cut/readback records. A failed postpublication
+observation or explicit interruption permanently holds that model; matching
+hashes cannot resume it. Rollback data identifies only the exact preserved prior
+receipt when data/sidecars/lease remain unchanged. It never restores database
+bytes; restoring prior metadata would not make changed-device startup acceptable.
+
+All inputs and sync/lease records remain caller-supplied DATA. A future separately
+reviewed executor must authenticate historical provenance; retain actual original
+server/deploy/backup locks and exclude all writers; preserve databases, every
+sidecar and receipt in verified durable custody; bind no-follow descriptors and
+same-directory staging; perform and verify atomic rename/file/directory sync;
+persist interruption markers; and require explicit offline outcome reconciliation.
+This module has no persistence or ability to stop a process creating a new model.
+Read-only SQLite can affect WAL/SHM; actual validation should use preserved
+isolated copies under the original closed-state owner. None of those native
+effects or recovery/rollback safety is qualified by these structural cases.
+
+Source/delta and whitespace audits are the only checks claimed for this increment.
+Rust formatting, compilation, Clippy, all thirteen tests and the pinned publication
+verifier are **NOT RUN** in the source executor (Rust tools absent, Node outside
+the pin). No workflow/runner, billing/check setting, service, real input, recovery
+or deployment action is added or performed. Original-owner bindings and current
+continuity evidence remain independent acceptance requirements under #286/#289.
+
 ## Native AI stock read contract
 
 The existing default backend-library job discovers exactly
