@@ -3834,7 +3834,7 @@ Its standalone README and HISTORICAL-CHECKS.txt describe the November 8 artifact
 the historical 18-test Python integrity success is not current-head execution.
 The Python mutation suite is not added to a default runner. See INTEGRATION.md
 for original hashes, exact mappings and exclusions.
-The existing default backend-library selection discovers eighteen
+The existing default backend-library selection discovers twenty-one
 `ai::suggestions::evaluation::retained_corpus` cases: frozen corpus/mapping
 limits; separate supplied inventory classification/identity counters;
 alternative document links with changed/withdrawn context refusal; and exact
@@ -3848,7 +3848,7 @@ doc-electrical and doc-invoice); inv-sparse maps aggregate no-proposal only;
 three more cases map structural refusal only. The other 24 cases, positive recall,
 unique-winner selection, field-specific abstentions,
 unknown prose, unmapped negative annotations and native effects stay unscored.
-These eighteen authored Rust cases and current-head formatting/compilation/Clippy
+These twenty-one authored Rust cases and current-head formatting/compilation/Clippy
 are NOT RUN. No model/API, production corpus import, real authority or write,
 new workflow, runtime readiness or issue acceptance follows.
 
@@ -3918,7 +3918,7 @@ candidates and native effects stay unscored. No annotation candidate list is an
 access grant, and no negative citation is fabricated. There are now eight
 partially mapped cases (four allowed-label, one aggregate, three refusal) and
 24 cases outside inventory/document scoring (three maintenance controls below),
-with 15 having no bridge after the answer/comparison controls below. The earlier three tests brought the bridge to nine authored
+with 12 having no bridge after the later controls below. The earlier three tests brought the bridge to nine authored
 cases, NOT RUN; supplied outputs are not model evaluations. Exact interpretation,
 original hashes and case names are in tools/ai-feature-evaluation/INTEGRATION.md.
 The production scorer/validator, repaired frontend, original corpus files and
@@ -4015,7 +4015,7 @@ withdrawn DATA; they are not new original scenarios or real revocation evidence.
 Three new authored cases bring the bridge to twelve tests, all NOT RUN; the nine
 prior tests/eight inventory/document mappings remain unchanged. At that maintenance checkpoint eleven cases
 had some bounded representation; the answer controls below
-and comparison controls bring the total to seventeen with 15 none. All maintenance quality is unscored.
+and comparison controls bring the total to twenty with 12 none. All maintenance quality is unscored.
 Exact names/limits are in tools/ai-feature-evaluation/INTEGRATION.md. Production
 contracts, frontend, corpus originals and 77/1/7 selections are unchanged.
 
@@ -4034,7 +4034,7 @@ No evaluate_supplied/Labels/CaseReport or quality counts are used. A well-shaped
 supplied answer is not evidence of semantic truth or live-model injection safety.
 Three new cases bring the bridge to fifteen authored tests, all NOT RUN; twelve
 prior tests remain unchanged. At that checkpoint fourteen original cases had some bounded bridge;
-the comparison controls below bring the total to seventeen with 15 none. qa-missing/qa-stale/qa-revoked remain outside this increment. Exact names,
+the comparison controls below bring the total to twenty with 12 none. qa-missing/qa-stale/qa-revoked remain outside this increment. Exact names,
 limits and original hashes are in tools/ai-feature-evaluation/INTEGRATION.md.
 Corpus, production contracts/scorer/validator/disclosure, frontend and runner
 inventory remain unchanged; no new lane, host/root binding or activation occurs.
@@ -4055,7 +4055,25 @@ audit, deduplication, non-resurrection, truth or semantic-certainty detection.
 review-corrected/simultaneous-version history remains outside this increment.
 Three new cases bring the bridge to eighteen authored tests, all NOT RUN;
 fifteen prior tests/code and original corpus bytes remain unchanged. Seventeen
-original cases have some bounded bridge and fifteen none. No contradiction
+original cases had some bounded bridge at that checkpoint; the availability
+controls below bring the total to twenty with twelve none. No contradiction
 scorer, Labels/CaseReport, quality count, model judgment or full-case success.
 Exact limits/names are in tools/ai-feature-evaluation/INTEGRATION.md. Production,
 frontend, runner/workflow, native authority and host/root bindings are unchanged.
+
+
+Three original availability cases add validator/disclosure-only controls:
+doc-unreadable admits only scan metadata with no content/page/candidate;
+doc-unavailable retains readable extraction but exposes no original inspection,
+without converting byte unavailability into record revocation; qa-revoked refuses
+even an empty clarify disclosure at the original Withdrawn DATA boundary.
+Original fixture IDs remain metadata, not capabilities; no URL or extra claim is
+invented. The no-proposal document DTO shows fallback metadata, while extraction
+stays retained in its input. Real original identity/opening and Access revocation
+are not qualified. Three new cases bring the bridge to twenty-one authored tests,
+all NOT RUN; eighteen prior tests and all original corpus bytes are unchanged.
+The complete 32-row INTEGRATION.md ledger records five scorer subsets, fifteen
+structural controls and twelve cases without bridges, with explicit reasons and
+limits for identity, condition truth, simultaneous versions and durable history.
+This ledger is not semantic quality, full-case acceptance or a new report system.
+Production/frontend code, runner/workflow and native/root authority are unchanged.

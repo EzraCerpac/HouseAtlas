@@ -4,6 +4,7 @@
 //! Three maintenance controls use validator/disclosure only, never quality scores.
 //! Three answer controls likewise check supplied representations, not model quality.
 //! Three comparison controls check representation/withholding, never truth or history.
+//! Three availability controls separate record data, readable extraction and originals.
 //! All other cases and unsupported dimensions remain explicitly unscored.
 use super::*;
 use crate::contracts::stock::{AtlasRecordKind, AtlasTarget, StockContext};
@@ -880,4 +881,147 @@ fn retained_comparison_revoked_side_refuses_any_disclosure_and_preserves_other_s
     let disclosure = disclose_review(&observed, &control.current, &Default::default());
     assert!(disclosure.is_err());
     assert_eq!(disclosure.unwrap_err(), SuggestionError::ContextWithdrawn); // No disclosure object or safe summary.
+}
+
+struct AvailabilityControl {
+    snapshot: AdmittedSnapshot,
+    current: AdmittedSnapshot,
+    proposal: Value,
+    original_id: String, // Retained fixture metadata, NEVER a handle or capability.
+    original_readable: bool,
+    unavailable_originals: Vec<String>,
+    inspectable: BTreeSet<String>,
+}
+
+fn availability_control(case_id: &str) -> Option<AvailabilityControl> {
+    let subject = match case_id {
+        "doc-unreadable" => "scan",
+        "doc-unavailable" => "manual",
+        "qa-revoked" => "invoice",
+        _ => return None,
+    };
+    let data = corpus();
+    let case = data["cases"].as_array().unwrap().iter().find(|c| c["id"] == case_id).unwrap();
+    assert_eq!(case["input_sources"].as_array().unwrap().len(), 1);
+    assert_eq!(case["input_sources"][0]["source_id"], subject);
+    assert_eq!(case["expected_claims"], json!([]));
+    assert_eq!(case["effects_allowed"], json!([]));
+    let version = case["input_sources"][0]["version"].as_str().unwrap();
+    let (position, original) = data["sources"].as_array().unwrap().iter().enumerate()
+        .find(|(_, s)| s["id"] == subject && s["version"] == version).unwrap();
+    let readable = original["readable"].as_bool().unwrap();
+    let source = if readable { source_input(&data, subject, version, subject, true) } else {
+        // The existing readable-only helper is unchanged. No excerpt/page is
+        // synthesized for scan metadata; record authority is a different axis.
+        assert_eq!(case_id, "doc-unreadable");
+        assert!(original["sections"].as_object().unwrap().is_empty());
+        SourceInput {
+            input_ref: subject.into(), target: StockTarget::Atlas { target: AtlasTarget::Record {
+                record_type: AtlasRecordKind::Asset, record_id: Some(id(position + 1)),
+            } },
+            version: version.into(), source_date: original["source_date"].as_str().map(String::from),
+            retrieved_at: original["retrieved_at"].as_str().unwrap().into(),
+            availability: Availability::Available, role: InputRole::Subject, kind: CandidateKind::Document, evidence: vec![],
+        }
+    };
+    let answer = case["feature"] == "questions";
+    let snapshot = AdmittedSnapshot::new(SnapshotInput {
+        feature: if answer { SuggestionFeature::Answer } else { SuggestionFeature::Document },
+        scope: StockContext { workspace_id: id(90), home_id: id(91) },
+        actor_id: id(92), authority_epoch: "retained-fictional-corpus-only".into(), sources: vec![source],
+    }).unwrap();
+    let mut current = snapshot.input().clone();
+    if case["disclosure_revoked"].as_array().unwrap().iter().any(|id| id.as_str() == Some(subject)) {
+        current.sources[0].availability = Availability::Withdrawn;
+    }
+    let current = AdmittedSnapshot::new(current).unwrap();
+    let result = if answer { json!({"kind":"answer","route":case["expected_route"],"rankedRefs":[],"coverage":"no-answer","statements":[]}) }
+        else { json!({"kind":"document","classification":null,"links":[]}) };
+    let proposal = json!({"schemaVersion":1,"contextPin":snapshot.context_pin(),"subjectRef":subject,
+        "claims":[],"missingEvidence":case["unknowns"],"result":result});
+    let unavailable_originals = case.get("unavailable_originals").and_then(Value::as_array).map(|ids|
+        ids.iter().map(|id| id.as_str().unwrap().to_string()).collect()).unwrap_or_default();
+    Some(AvailabilityControl { snapshot, current, proposal,
+        original_id: original["original_id"].as_str().unwrap().into(), original_readable: readable,
+        unavailable_originals, inspectable: BTreeSet::new() })
+}
+
+fn check_document_availability(control: &AvailabilityControl) -> Value {
+    let bytes = serde_json::to_vec(&control.proposal).unwrap();
+    let review = validate_generated(&bytes, &control.snapshot, &control.current).unwrap();
+    let disclosure = disclose_review(&review, &control.current, &control.inspectable).unwrap();
+    let wire = disclosure.value();
+    let input = &control.snapshot.input().sources[0];
+    let key = format!("subject:{}", input.input_ref);
+    assert_eq!(input.availability, Availability::Available);
+    assert!(control.inspectable.is_empty());
+    assert_eq!(wire["view"]["sources"][0]["original"], "unavailable");
+    assert_eq!(wire["view"]["sources"][0]["recordVersion"], input.version);
+    assert_eq!(wire["view"]["sources"][0]["excerpt"], "");
+    assert_eq!(wire["inspections"][&key], json!({"inputRef":input.input_ref,"version":input.version,"evidenceRef":null,"location":null}));
+    assert!(wire["view"]["fields"].as_array().unwrap().is_empty());
+    assert!(wire["view"]["candidates"].as_array().unwrap().is_empty());
+    assert_eq!(wire["selections"], json!({}));
+    let invalid_original = [control.original_id.clone()].into_iter().collect();
+    assert_eq!(disclose_review(&review, &control.current, &invalid_original).unwrap_err(), SuggestionError::UnadmittedReference);
+    let mut supplied = control.proposal.clone();
+    supplied["claims"] = json!([{"claimRef":"invented-content","sourceRef":input.input_ref,
+        "evidenceRefs":["not-admitted-control"],"text":"Invented readable content control","uncertainty":"unknown"}]);
+    assert_eq!(validate_generated(&serde_json::to_vec(&supplied).unwrap(), &control.snapshot, &control.current).unwrap_err(), SuggestionError::UnadmittedReference);
+    let mut supplied = control.proposal.clone(); supplied["result"]["links"] = json!([{"candidateRef":"item-a","support":support(&["not-admitted-control"])}]);
+    assert_eq!(validate_generated(&serde_json::to_vec(&supplied).unwrap(), &control.snapshot, &control.current).unwrap_err(), SuggestionError::UnadmittedReference);
+    let mut supplied = control.proposal.clone(); supplied["originalUrl"] = json!("unsupported-control-only");
+    assert_eq!(validate_generated(&serde_json::to_vec(&supplied).unwrap(), &control.snapshot, &control.current).unwrap_err(), SuggestionError::InvalidOutput);
+    wire.clone()
+}
+
+#[test]
+fn retained_unreadable_scan_keeps_unknown_metadata_without_content_or_candidates() {
+    let control = availability_control("doc-unreadable").unwrap();
+    assert_eq!(control.original_id, "original-unreadable");
+    assert!(!control.original_readable);
+    assert_eq!(control.snapshot.input().sources.len(), 1);
+    assert_eq!(control.snapshot.input().sources[0].input_ref, "scan");
+    assert!(control.snapshot.input().sources[0].evidence.is_empty());
+    assert_eq!(control.proposal["claims"], json!([]));
+    let wire = check_document_availability(&control);
+    assert_eq!(wire["view"]["sources"][0]["sourceDate"], Value::Null);
+    assert_eq!(wire["view"]["sources"][0]["retrievedAt"], "2030-04-01T12:00:00Z");
+    assert_eq!(wire["view"]["sources"][0]["page"], Value::Null);
+    assert_eq!(wire["view"]["sources"][0]["section"], Value::Null);
+}
+
+#[test]
+fn retained_unavailable_original_preserves_extraction_without_open_capability_or_revocation() {
+    let control = availability_control("doc-unavailable").unwrap();
+    assert_eq!(control.original_id, "original-manual");
+    assert!(control.original_readable);
+    assert_eq!(control.unavailable_originals, vec!["original-manual".to_string()]);
+    let source = &control.snapshot.input().sources[0];
+    assert_eq!(source.version, "1");
+    assert_eq!(source.evidence.len(), 2);
+    assert_eq!(source.evidence.iter().find(|e| e.evidence_ref == "manual-v1-p4").unwrap().excerpt,
+        "Clean filter every 90 days after last cleaning under ordinary use. If visibly dirty, inspect sooner.");
+    assert_eq!(control.current.input().sources[0].availability, Availability::Available);
+    assert_eq!(control.proposal["claims"], json!([]));
+    let wire = check_document_availability(&control);
+    assert_eq!(wire["view"]["sources"][0]["sourceDate"], "2030-01-01");
+    assert_eq!(wire["view"]["sources"][0]["original"], "unavailable");
+}
+
+#[test]
+fn retained_qa_withdrawal_withholds_even_an_empty_clarify_disclosure() {
+    let control = availability_control("qa-revoked").unwrap();
+    assert_eq!(control.snapshot.input().sources.len(), 1);
+    assert_eq!(control.current.input().sources[0].input_ref, "invoice");
+    assert_eq!(control.current.input().sources[0].availability, Availability::Withdrawn);
+    assert_eq!(control.proposal["result"]["route"], "clarify");
+    assert_eq!(control.proposal["result"]["statements"], json!([]));
+    assert_eq!(control.proposal["claims"], json!([]));
+    let bytes = serde_json::to_vec(&control.proposal).unwrap();
+    let observed = validate_generated(&bytes, &control.snapshot, &control.snapshot).unwrap(); // Structural baseline, not prior authority.
+    assert_eq!(validate_generated(&bytes, &control.snapshot, &control.current).unwrap_err(), SuggestionError::ContextWithdrawn);
+    let disclosure = disclose_review(&observed, &control.current, &control.inspectable);
+    assert!(disclosure.is_err());
+    assert_eq!(disclosure.unwrap_err(), SuggestionError::ContextWithdrawn); // No source-derived safe answer.
 }
