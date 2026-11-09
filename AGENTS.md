@@ -461,15 +461,15 @@ provider, model, credential, browser, device, socket or write port runs. These
 are structural validation cases, not classification/groundedness accuracy or
 live authorization qualification. No workflow or runner command is added.
 
-The same default backend-library module additionally contains eight generated
+The same default backend-library module additionally contains eleven generated
 disclosure projection tests. They join validated review data to the inventory/
-document/maintenance/cited-answer display DTO and check exact evidence/contrary claims, source revision
+document/maintenance/cited-answer/comparison display DTO and check exact evidence/contrary claims, source revision
 rechecks, owner-supplied inspection labels and non-authoritative selection keys.
 No route, original-open capability, approval or native dispatch is issued.
 The review-only browser adapter consumes this DTO with the retained #569
 controller and an explicit owner-supplied React mount. The existing healthy
-runner's SOURCE list selects exactly `ai-suggestion-review.test.mjs` (thirty-two
-controller cases) and `ai-suggestion-adapter.test.mjs` (fifteen adapter cases).
+runner's SOURCE list selects exactly `ai-suggestion-review.test.mjs` (thirty-nine
+controller cases) and `ai-suggestion-adapter.test.mjs` (nineteen adapter cases).
 They use generated data and the actual controller, without browser, provider,
 credentials or native writes. Registration is not execution evidence. No
 app-root, workflow, browser selection or other held selection changes.
@@ -607,3 +607,21 @@ Three backend and four session cases are authored, NOT RUN. Existing SOURCE
 selections now hold 32 controller / 15 adapter cases; inventory remains 77/1/7.
 Finite DTO bounds may refuse projection rather than invent or truncate evidence.
 No model ranking, answer quality, device or end-to-end host qualification follows.
+
+
+Comparison composition preserves exact donor #569 e5281bd9, including prior
+answer and maintenance repairs. Canonical Contradictions findings retain the
+existing ReviewProposal finding_keys, original finding/claim order, exact claim
+text/input/evidence and qualitative uncertainty. A closed comparison-only binding
+map joins finding key/index and assertion claim/input/version/evidence IDs.
+The session checks every assertion citation against inspection input AND version;
+matching labels or arbitrary distinct strings cannot substitute another input.
+Fact dates are always null here: canonical claims have no fact-date field and
+there is no qualified independent fact-time input. Source/retrieval dates remain
+separate. No winner, correction, decision persistence or deduplication is issued.
+Controller and session refuse every comparison review-intent path; inspection
+through the original owner and local dismissal remain the only actions.
+Three backend and four session cases are authored, NOT RUN; existing selections
+now hold 39 controller/source / 19 session cases, with unchanged 77/1/7 inventory.
+Real runtime, host/root mounting, native writes, approvals and activation remain
+unbound. Reusing a finding key is correlation DATA, not a durable decision.

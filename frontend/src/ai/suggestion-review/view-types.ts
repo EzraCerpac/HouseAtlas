@@ -1,6 +1,6 @@
 /** LOCAL presentation seam only. Not a wire envelope, validator or approval contract.
  * Adapt only the shared source writer's validated proposal/evidence into this shape. */
-export type SuggestionKind = 'inventory' | 'document' | 'maintenance' | 'answer';
+export type SuggestionKind = 'inventory' | 'document' | 'maintenance' | 'answer' | 'contradictions';
 export interface SuggestionSourceView {
   readonly key: string; readonly label: string; readonly recordVersion: string;
   readonly sourceDate: string | null; readonly retrievedAt: string | null;
@@ -61,6 +61,27 @@ export interface CitedAnswerView {
   readonly statements: readonly AnswerStatementView[];
   readonly missingEvidence: readonly string[];
 }
+/** Read-only comparison candidates supplied by the canonical source owner. */
+export type ContradictionPattern = 'incompatible-location' | 'conflicting-association' | 'possible-supersession';
+export type QualitativeUncertainty = 'tentative' | 'ambiguous' | 'unknown';
+export interface ComparisonAssertionView {
+  /** Bind to claim_ref and source_ref respectively; not identity or read grants. */
+  readonly key: string; readonly inputKey: string;
+  readonly text: string; readonly uncertainty: QualitativeUncertainty;
+  /** Known fact time from the original owner or null; never copied from retrieval. */
+  readonly factDate: string | null;
+  readonly evidenceKeys: readonly string[];
+}
+export interface ComparisonFindingView {
+  /** Owner-supplied finding binding. This view performs no durable deduplication. */
+  readonly key: string; readonly pattern: ContradictionPattern;
+  readonly assertions: readonly ComparisonAssertionView[];
+  readonly rationale: string; readonly uncertainty: QualitativeUncertainty;
+}
+export interface ContradictionsView {
+  readonly findings: readonly ComparisonFindingView[];
+  readonly missingEvidence: readonly string[];
+}
 export interface SuggestionReviewView {
   /** Replace for EVERY account/home/selection generation, including A-B-A. */
   readonly context: object;
@@ -70,6 +91,8 @@ export interface SuggestionReviewView {
   readonly maintenance?: readonly MaintenanceTaskView[];
   /** Present only for answer. Never contributes an intent or editable state. */
   readonly answer?: CitedAnswerView;
+  /** Present only for contradictions; inspection/dismissal only, no intent. */
+  readonly contradictions?: ContradictionsView;
   readonly sources: readonly SuggestionSourceView[];
   readonly fields: readonly SuggestionFieldView[];
   readonly candidates: readonly SuggestionCandidateView[];

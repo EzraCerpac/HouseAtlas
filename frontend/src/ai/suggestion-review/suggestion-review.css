@@ -16,4 +16,7 @@
 @media (max-width: 30rem) { .ha-suggestion-review dl { grid-template-columns: 1fr; } }
 .ha-suggestion-review select, .ha-suggestion-review textarea { box-sizing: border-box; width: 100%; min-width: 0; font: inherit; }
 
-.ha-suggestion-review .ha-suggestion-answer-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ha-suggestion-review .ha-suggestion-answer-text,
+.ha-suggestion-review .ha-suggestion-assertion-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.ha-suggestion-review .ha-suggestion-assertions { padding-inline-start: 1.5rem; }

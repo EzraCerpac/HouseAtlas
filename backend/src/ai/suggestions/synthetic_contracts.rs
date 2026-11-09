@@ -381,3 +381,67 @@ fn answer_disclosure_refuses_changed_or_withdrawn_current_context() {
         assert_eq!(disclose_review(&review, &current, &Default::default()).unwrap_err(), expected);
     }
 }
+
+#[test]
+fn comparison_disclosure_joins_canonical_finding_claims_and_exact_input_evidence() {
+    let mut admitted = input(); admitted.feature = SuggestionFeature::Contradictions;
+    admitted.sources[0].source_date = Some("2020-01-01".into());
+    let snapshot = AdmittedSnapshot::new(admitted).unwrap();
+    let result = json!({"kind":"contradictions","findings":[{"pattern":"incompatible-location","claimRefs":["c2","c1"],
+        "rationale":"Compare generated assertions; current placement remains unknown","uncertainty":"ambiguous"}]});
+    let review = validate(&output(&snapshot, result), &snapshot).unwrap();
+    let disclosure = disclose_review(&review, &snapshot, &["e1".to_string()].into_iter().collect()).unwrap();
+    let wire = disclosure.value();
+    let key = format!("finding:{}", review.finding_keys()[0]);
+    let finding = &wire["view"]["contradictions"]["findings"][0];
+    assert_eq!(finding["key"], key);
+    assert_eq!(finding["pattern"], "incompatible-location");
+    assert_eq!(finding["uncertainty"], "ambiguous");
+    assert_eq!(finding["assertions"][0]["key"], "c2");
+    assert_eq!(finding["assertions"][0]["inputKey"], "input2");
+    assert_eq!(finding["assertions"][0]["text"], "Generated extracted claim 2");
+    assert_eq!(finding["assertions"][0]["evidenceKeys"], json!(["e2"]));
+    assert_eq!(finding["assertions"][1]["key"], "c1");
+    assert_eq!(finding["assertions"][1]["factDate"], Value::Null); // Never copy source/retrieval time.
+    assert_eq!(wire["comparisons"][&key]["findingKey"], review.finding_keys()[0]);
+    assert_eq!(wire["comparisons"][&key]["findingIndex"], 0);
+    assert_eq!(wire["comparisons"][&key]["assertions"]["c2"], json!({"inputRef":"input2","version":"revision-1","evidenceRefs":["e2"]}));
+    assert_eq!(wire["inspections"]["e2"]["inputRef"], "input2");
+    assert_eq!(wire["view"]["sources"][0]["sourceDate"], "2020-01-01");
+    assert_eq!(wire["view"]["sources"][0]["retrievedAt"], "2026-11-08T12:00:00Z");
+    assert_eq!(wire["selections"], json!({}));
+    assert!(wire["view"]["fields"].as_array().unwrap().is_empty());
+    assert!(wire["view"]["candidates"].as_array().unwrap().is_empty());
+    assert!(finding.get("winner").is_none());
+}
+
+#[test]
+fn comparison_disclosure_empty_findings_retain_missing_evidence_without_a_decision() {
+    let mut admitted = input(); admitted.feature = SuggestionFeature::Contradictions;
+    let snapshot = AdmittedSnapshot::new(admitted).unwrap();
+    let review = validate(&output(&snapshot, json!({"kind":"contradictions","findings":[]})), &snapshot).unwrap();
+    let disclosure = disclose_review(&review, &snapshot, &Default::default()).unwrap();
+    let wire = disclosure.value();
+    assert_eq!(wire["view"]["contradictions"]["findings"], json!([]));
+    assert_eq!(wire["view"]["contradictions"]["missingEvidence"], json!(["Actual physical correspondence is unknown"]));
+    assert_eq!(wire["comparisons"], json!({}));
+    assert_eq!(wire["selections"], json!({}));
+    assert_eq!(wire["view"]["sources"][0]["original"], "unavailable");
+}
+
+#[test]
+fn comparison_disclosure_refuses_changed_or_withdrawn_assertion_context() {
+    let mut admitted = input(); admitted.feature = SuggestionFeature::Contradictions;
+    let snapshot = AdmittedSnapshot::new(admitted.clone()).unwrap();
+    let result = json!({"kind":"contradictions","findings":[{"pattern":"possible-supersession","claimRefs":["c1","c2"],
+        "rationale":"Generated version comparison, no selected winner","uncertainty":"unknown"}]});
+    let review = validate(&output(&snapshot, result), &snapshot).unwrap();
+    for withdrawn in [false, true] {
+        let mut current = admitted.clone();
+        if withdrawn { current.sources[1].availability = Availability::Withdrawn; }
+        else { current.sources[1].version = "revision-2".into(); }
+        let current = AdmittedSnapshot::new(current).unwrap();
+        let expected = if withdrawn { SuggestionError::ContextWithdrawn } else { SuggestionError::ContextChanged };
+        assert_eq!(disclose_review(&review, &current, &Default::default()).unwrap_err(), expected);
+    }
+}

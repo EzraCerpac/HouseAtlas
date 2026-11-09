@@ -1,6 +1,6 @@
 import type { SuggestionReviewView, SuggestionReviewPorts, SuggestionReviewSnapshot,
   SuggestionReviewIntent, SuggestionReviewPhase, MaintenanceTaskView, MaintenanceTaskDraft,
-  MaintenanceIntervalView, MaintenanceIntervalDraft, MaintenanceUrgency, MaintenanceEditedField, CitedAnswerView } from './view-types';
+  MaintenanceIntervalView, MaintenanceIntervalDraft, MaintenanceUrgency, MaintenanceEditedField, CitedAnswerView, ContradictionsView } from './view-types';
 
 
 const units = ['days', 'weeks', 'months', 'years', 'usage-hours'];
@@ -79,7 +79,7 @@ function copyView(view: SuggestionReviewView): SuggestionReviewView {
   const list = <T>(values: readonly T[], cap = 16) => {
     if (!Array.isArray(values) || values.length > cap) throw new TypeError('Invalid suggestion display list'); return values;
   };
-  if (!view.context || typeof view.context !== 'object' || !['inventory', 'document', 'maintenance', 'answer'].includes(view.kind))
+  if (!view.context || typeof view.context !== 'object' || !['inventory', 'document', 'maintenance', 'answer', 'contradictions'].includes(view.kind))
     throw new TypeError('Unsupported suggestion presentation');
   const unique = (keys: readonly string[]) => { if (new Set(keys).size !== keys.length) throw new TypeError('Duplicate display key'); };
   const sources = list(view.sources).map(s => {
@@ -90,7 +90,7 @@ function copyView(view: SuggestionReviewView): SuggestionReviewView {
       sourceDate: optional(s.sourceDate), retrievedAt: optional(s.retrievedAt), page: s.page, section: optional(s.section),
       excerpt: text(s.excerpt, 8192), freshness: s.freshness, original: s.original });
   });
-  if (!sources.length && view.kind !== 'answer') throw new TypeError('Source display required');
+  if (!sources.length && view.kind !== 'answer' && view.kind !== 'contradictions') throw new TypeError('Source display required');
   unique(sources.map(s => s.key)); const sourceKeys = new Set(sources.map(s => s.key));
   const evidence = (keys: readonly string[]) => {
     const result = list(keys).map(key); unique(result);
@@ -153,10 +153,46 @@ function copyView(view: SuggestionReviewView): SuggestionReviewView {
       || (!statements.length && !missingEvidence.length)) throw new TypeError('Inconsistent answer coverage');
     answer = Object.freeze({ route: value.route, coverage: value.coverage, rankedCandidates, statements, missingEvidence });
   } else if (Object.hasOwn(view, 'answer')) throw new TypeError('Unexpected answer display');
+  let contradictions: ContradictionsView | undefined;
+  if (view.kind === 'contradictions') {
+    if (fields.length || candidates.length) throw new TypeError('Comparison is read-only');
+    const value = view.contradictions;
+    const exact = (v: object, keys: string[]) => !Array.isArray(v) && Object.keys(v).sort().join(',') === keys.sort().join(',');
+    const required = (v: string, cap: number) => {
+      if (!maintenanceText(v, cap)) throw new TypeError('Invalid comparison text'); return v;
+    };
+    const qualitative = (v: string) => {
+      if (!['tentative', 'ambiguous', 'unknown'].includes(v)) throw new TypeError('Invalid qualitative uncertainty');
+      return v as 'tentative' | 'ambiguous' | 'unknown';
+    };
+    if (!value || !exact(value, ['findings', 'missingEvidence'])) throw new TypeError('Invalid comparison display');
+    const findings = Object.freeze(list(value.findings).map(finding => {
+      if (!finding || !exact(finding, ['key', 'pattern', 'assertions', 'rationale', 'uncertainty'])
+        || !['incompatible-location', 'conflicting-association', 'possible-supersession'].includes(finding.pattern))
+        throw new TypeError('Invalid comparison candidate');
+      const assertions = Object.freeze(list(finding.assertions).map(assertion => {
+        if (!assertion || !exact(assertion, ['key', 'inputKey', 'text', 'uncertainty', 'factDate', 'evidenceKeys']))
+          throw new TypeError('Invalid comparison assertion');
+        return Object.freeze({ key: key(assertion.key), inputKey: key(assertion.inputKey),
+          text: required(assertion.text, 2048), uncertainty: qualitative(assertion.uncertainty),
+          factDate: assertion.factDate === null ? null : required(assertion.factDate, 256),
+          evidenceKeys: evidence(assertion.evidenceKeys) });
+      }));
+      unique(assertions.map(assertion => assertion.key));
+      if (new Set(assertions.map(assertion => assertion.inputKey)).size < 2)
+        throw new TypeError('Comparison needs assertions from at least two admitted inputs');
+      return Object.freeze({ key: key(finding.key), pattern: finding.pattern, assertions,
+        rationale: required(finding.rationale, 1024), uncertainty: qualitative(finding.uncertainty) });
+    }));
+    unique(findings.map(finding => finding.key));
+    const missingEvidence = Object.freeze(list(value.missingEvidence).map(v => required(v, 1024)));
+    if (!findings.length && !missingEvidence.length) throw new TypeError('Empty comparison needs missing evidence');
+    contradictions = Object.freeze({ findings, missingEvidence });
+  } else if (Object.hasOwn(view, 'contradictions')) throw new TypeError('Unexpected comparison display');
   return Object.freeze({ context: view.context, key: key(view.key), revision: key(view.revision), sourceSetRevision: key(view.sourceSetRevision),
     kind: view.kind, title: text(view.title), sources: Object.freeze(sources), fields: Object.freeze(fields),
     candidates: Object.freeze(candidates), uncertainty: Object.freeze(list(view.uncertainty).map(v => text(v))),
-    uncalibratedScore: optional(view.uncalibratedScore), ...(maintenance ? { maintenance } : {}), ...(answer ? { answer } : {}) });
+    uncalibratedScore: optional(view.uncalibratedScore), ...(maintenance ? { maintenance } : {}), ...(answer ? { answer } : {}), ...(contradictions ? { contradictions } : {}) });
 }
 const empty = Object.freeze([]);
 const hidden = (phase: 'superseded' | 'closed', message: string): SuggestionReviewSnapshot =>
@@ -167,7 +203,7 @@ export function createSuggestionReviewController(input: SuggestionReviewView, po
   const closed = hidden('closed', 'Suggestion dismissed.');
   const initiallyStale = view.sources.some(s => s.freshness === 'stale' || s.original === 'withdrawn');
   let state: SuggestionReviewSnapshot = Object.freeze({ phase: initiallyStale ? 'stale' : 'reviewing',
-    message: initiallyStale ? 'Source evidence changed or was withdrawn. Dismiss this suggestion and request a current review.' : view.kind === 'answer' ? 'Read-only answer. Inspect cited sources or dismiss.' : 'Select fields or candidates to review.',
+    message: initiallyStale ? 'Source evidence changed or was withdrawn. Dismiss this suggestion and request a current review.' : view.kind === 'answer' ? 'Read-only answer. Inspect cited sources or dismiss.' : view.kind === 'contradictions' ? 'Read-only candidates. Inspect cited sources or dismiss.' : 'Select fields or candidates to review.',
     view, fields: Object.freeze(view.fields.map(f => Object.freeze({ key: f.key, value: f.proposed, selected: false, edited: false }))),
     candidateKeys: empty, maintenance: Object.freeze((view.maintenance ?? []).map(task => Object.freeze({ key: task.key,
       selected: false, title: task.title, interval: intervalDraft(task.interval), conditions: Object.freeze([...task.conditions]),
@@ -205,7 +241,7 @@ export function createSuggestionReviewController(input: SuggestionReviewView, po
     }
     held = null; emit();
   });
-  const editable = () => view.kind !== 'answer' && ready() && state.phase === 'reviewing' && active === null;
+  const editable = () => view.kind !== 'answer' && view.kind !== 'contradictions' && ready() && state.phase === 'reviewing' && active === null;
   return {
     getSnapshot: snapshot,
     subscribe(cb: () => void) { listeners.add(cb); return () => { listeners.delete(cb); }; },

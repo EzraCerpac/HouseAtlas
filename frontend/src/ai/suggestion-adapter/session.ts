@@ -53,11 +53,12 @@ export function createSuggestionReviewSession(json: string, context: object, own
   if (typeof json !== 'string' || new TextEncoder().encode(json).length > 65536) throw new TypeError('Review disclosure too large');
   const parsed = object(JSON.parse(json));
   const isAnswer = object(parsed.view).kind === 'answer';
-  const wire = exact(parsed, ['schemaVersion', 'contextPin', 'view', 'inspections', 'selections', ...(isAnswer ? ['rankings'] : [])]);
+  const isComparison = object(parsed.view).kind === 'contradictions';
+  const wire = exact(parsed, ['schemaVersion', 'contextPin', 'view', 'inspections', 'selections', ...(isAnswer ? ['rankings'] : []), ...(isComparison ? ['comparisons'] : [])]);
   if (wire.schemaVersion !== 1) throw new TypeError('Unsupported review disclosure');
   const pin = hash(wire.contextPin);
   const isMaintenance = object(wire.view).kind === 'maintenance';
-  const display = exact(wire.view, ['key', 'revision', 'sourceSetRevision', 'kind', 'title', 'sources', 'fields', 'candidates', 'uncertainty', 'uncalibratedScore', ...(isMaintenance ? ['maintenance'] : []), ...(isAnswer ? ['answer'] : [])]);
+  const display = exact(wire.view, ['key', 'revision', 'sourceSetRevision', 'kind', 'title', 'sources', 'fields', 'candidates', 'uncertainty', 'uncalibratedScore', ...(isMaintenance ? ['maintenance'] : []), ...(isAnswer ? ['answer'] : []), ...(isComparison ? ['contradictions'] : [])]);
   const revision = hash(display.revision);
   if (display.key !== 'review:' + revision || display.sourceSetRevision !== pin || display.uncalibratedScore !== null)
     throw new TypeError('Mismatched review disclosure identity');
@@ -153,6 +154,47 @@ export function createSuggestionReviewSession(json: string, context: object, own
         throw new TypeError('Mismatched answer citation');
     });
   }
+  if (isComparison) {
+    if (display.fields.length || display.candidates.length || Object.keys(selections).length)
+      throw new TypeError('Comparison disclosure is read-only');
+    const comparison = exact(display.contradictions, ['findings', 'missingEvidence']);
+    const bindings = object(wire.comparisons);
+    if (!Array.isArray(comparison.findings) || comparison.findings.length > 16)
+      throw new TypeError('Invalid comparison list');
+    const findingKeys = new Set<string>();
+    comparison.findings.forEach((value, index) => {
+      const finding = exact(value, ['key', 'pattern', 'assertions', 'rationale', 'uncertainty']);
+      if (typeof finding.key !== 'string' || !Object.hasOwn(bindings, finding.key) || findingKeys.has(finding.key))
+        throw new TypeError('Unbound comparison finding');
+      const binding = exact(bindings[finding.key], ['findingKey', 'findingIndex', 'assertions']);
+      if (finding.key !== 'finding:' + hash(binding.findingKey) || binding.findingIndex !== index
+        || !Array.isArray(finding.assertions) || finding.assertions.length > 16)
+        throw new TypeError('Mismatched canonical finding');
+      const assertions = object(binding.assertions), claimKeys = new Set<string>();
+      finding.assertions.forEach(value => {
+        const assertion = exact(value, ['key', 'inputKey', 'text', 'uncertainty', 'factDate', 'evidenceKeys']);
+        const claim = ref(assertion.key), input = ref(assertion.inputKey);
+        if (!Object.hasOwn(assertions, claim) || claimKeys.has(claim) || assertion.factDate !== null)
+          throw new TypeError('Unbound claim or invented fact time');
+        const source = exact(assertions[claim], ['inputRef', 'version', 'evidenceRefs']);
+        if (source.inputRef !== input || typeof source.version !== 'string' || !source.version.trim()
+          || !Array.isArray(source.evidenceRefs) || !Array.isArray(assertion.evidenceKeys)
+          || !assertion.evidenceKeys.length || assertion.evidenceKeys.length > 16
+          || JSON.stringify(source.evidenceRefs) !== JSON.stringify(assertion.evidenceKeys))
+          throw new TypeError('Mismatched exact assertion evidence');
+        for (const key of assertion.evidenceKeys) {
+          if (typeof key !== 'string' || !sourceKeys.includes(key)) throw new TypeError('Unresolved assertion evidence');
+          const evidence = object(inspections[key]);
+          if (evidence.inputRef !== input || evidence.version !== source.version || evidence.evidenceRef !== key)
+            throw new TypeError('Assertion evidence belongs to another input or version');
+        }
+        claimKeys.add(claim);
+      });
+      if (claimKeys.size !== Object.keys(assertions).length) throw new TypeError('Unreferenced claim bindings');
+      findingKeys.add(finding.key);
+    });
+    if (findingKeys.size !== Object.keys(bindings).length) throw new TypeError('Unreferenced finding bindings');
+  }
   if (sourceKeys.length !== Object.keys(inspections).length || selectionKeys.length !== Object.keys(selections).length)
     throw new TypeError('Unreferenced disclosure bindings');
   freeze(wire);
@@ -167,7 +209,7 @@ export function createSuggestionReviewSession(json: string, context: object, own
     inspectSource: (_view, s, signal) => owner.inspect(identity, inspections[s.key] as unknown as InspectionBinding, signal),
     onIntent(intent) {
       // Defense in depth if a future controller accidentally attempts delivery.
-      if (isAnswer) throw new TypeError('Read-only answers cannot deliver review intents');
+      if (isAnswer || isComparison) throw new TypeError('Read-only results cannot deliver review intents');
       const reviewedTasks = intent.maintenance ?? [];
       if (!isMaintenance && reviewedTasks.length) throw new TypeError('Unexpected maintenance intent');
       for (const edited of reviewedTasks) {

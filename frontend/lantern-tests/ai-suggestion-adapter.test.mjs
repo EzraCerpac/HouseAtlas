@@ -288,3 +288,66 @@ test('answer offline disabled and superseded sessions cannot inspect or deliver'
   assert.equal(s.session.controller.getSnapshot().view, null);
   await s.session.controller.inspectSource('e1'); assert.equal(s.inspected.length, 0); s.session.dispose();
 });
+
+function comparisonFixture() {
+  const wire = answerFixture(); wire.view.kind = 'contradictions'; delete wire.view.answer; delete wire.rankings;
+  wire.view.sources[0].sourceDate = '2020-01-01';
+  const finding = 'c'.repeat(64), key = 'finding:' + finding;
+  wire.view.contradictions = { findings: [{ key, pattern: 'incompatible-location',
+    assertions: [{ key: 'c1', inputKey: 'doc1', text: 'Generated earlier location assertion', uncertainty: 'tentative', factDate: null, evidenceKeys: ['e1'] },
+      { key: 'c2', inputKey: 'item2', text: 'Generated conflicting assertion; fact time unknown', uncertainty: 'unknown', factDate: null, evidenceKeys: ['e2'] }],
+    rationale: 'Potential contradiction requires original-owner review, not a winner', uncertainty: 'ambiguous' }], missingEvidence: ['Fact dates and current physical location unknown'] };
+  wire.comparisons = { [key]: { findingKey: finding, findingIndex: 0, assertions: {
+    c1: { inputRef: 'doc1', version: 'record-1', evidenceRefs: ['e1'] }, c2: { inputRef: 'item2', version: 'record-1', evidenceRefs: ['e2'] },
+  } } };
+  return wire;
+}
+test('comparison session binds finding claim input and evidence without fact-date inference or intent', async () => {
+  const s = setup(comparisonFixture()), c = s.session.controller; let checks = 0;
+  s.owner.recheck = async () => { checks++; return 'current'; };
+  const view = c.getSnapshot().view;
+  assert.equal(view.sources[0].sourceDate, '2020-01-01');
+  assert.deepEqual(view.contradictions.findings[0].assertions.map(v => v.factDate), [null, null]);
+  assert.equal(c.selectField('category', true), false); assert.equal(c.editField('category', 'winner'), false);
+  assert.equal(c.selectCandidate('c1', true), false); assert.equal(c.selectMaintenanceTask('c1', true), false);
+  assert.equal(c.editMaintenanceTask('c1', { title: 'No correction' }), false);
+  await c.decide('accept-for-review'); await c.decide('reject');
+  assert.equal(checks, 0); assert.equal(s.intents.length, 0);
+  await c.inspectSource('e1');
+  assert.equal(s.inspected[0].binding.inputRef, 'doc1'); assert.equal(s.inspected[0].binding.version, 'record-1');
+  assert.deepEqual(s.inspected[0].binding.location, { kind: 'page', page: 2, pageCount: 3 });
+  c.dismiss(); assert.equal(c.getSnapshot().view, null); assert.equal(s.intents.length, 0); s.session.dispose();
+});
+test('comparison decoder refuses cross-input citations invented fact dates and winner authority', () => {
+  for (const mutate of [
+    w => { w.view.contradictions.findings[0].assertions[0].inputKey = 'other'; },
+    w => { w.comparisons[Object.keys(w.comparisons)[0]].assertions.c1.version = 'record-2'; },
+    w => { const f = w.view.contradictions.findings[0]; f.assertions[0].evidenceKeys = ['e2']; w.comparisons[f.key].assertions.c1.evidenceRefs = ['e2']; },
+    w => { w.view.contradictions.findings[0].assertions[0].factDate = '2020-01-01'; },
+    w => { w.comparisons[Object.keys(w.comparisons)[0]].findingIndex = 1; },
+    w => { w.comparisons[Object.keys(w.comparisons)[0]].findingKey = 'd'.repeat(64); },
+    w => { w.view.contradictions.findings[0].winner = 'c1'; },
+    w => { w.selections.c1 = { kind: 'correct-record', inputRef: 'doc1' }; },
+    w => { w.comparisons[Object.keys(w.comparisons)[0]].assertions.c1.approval = 'invented'; },
+  ]) { const wire = comparisonFixture(); mutate(wire); assert.throws(() => setup(wire)); }
+});
+test('empty comparison retains gaps without agreement persistence or review intent', async () => {
+  const wire = comparisonFixture(); wire.view.contradictions.findings = []; wire.comparisons = {};
+  const s = setup(wire), c = s.session.controller;
+  assert.deepEqual(c.getSnapshot().view.contradictions.missingEvidence, ['Fact dates and current physical location unknown']);
+  await c.decide('reject'); assert.equal(s.intents.length, 0); c.dismiss(); s.session.dispose();
+});
+test('comparison currentness cancels late inspection and offline states cannot deliver', async () => {
+  for (const availability of ['offline', 'disabled']) {
+    const s = setup(comparisonFixture()), c = s.session.controller;
+    s.change({ context: s.context, proposalRevision: revision, sourceSetRevision: pin, availability });
+    await c.inspectSource('e1'); await c.decide('accept-for-review');
+    assert.equal(s.inspected.length, 0); assert.equal(s.intents.length, 0); c.dismiss(); s.session.dispose();
+  }
+  const s = setup(comparisonFixture()), c = s.session.controller; let finish, signal;
+  s.owner.inspect = async (_identity, _binding, abort) => { signal = abort; await new Promise(resolve => { finish = resolve; }); };
+  const pending = c.inspectSource('e1');
+  s.change({ context: {}, proposalRevision: revision, sourceSetRevision: pin, availability: 'ready' });
+  assert.equal(signal.aborted, true); finish(); await pending;
+  assert.equal(c.getSnapshot().view, null); assert.equal(s.intents.length, 0); s.session.dispose();
+});
