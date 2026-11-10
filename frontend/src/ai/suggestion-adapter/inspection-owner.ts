@@ -202,7 +202,7 @@ export function createSuggestionInspectionOwner(options: SuggestionInspectionOpt
         if (target.kind === 'native-source') {
           const reader = options.sourceDocuments; need(reader);
           const owner = reader.owner(); need(owner);
-          cleanup(reader.subscribeOwner(close)); guard(); need(reader.owner() === owner);
+          cleanup(reader.subscribeOwner(retire)); guard(); need(reader.owner() === owner);
           const doc = await wait(reader.get(target.documentId, h.controller.signal), h.controller.signal); guard();
           need(doc.scope.workspaceId === workspaceId && doc.scope.homeId === homeId && doc.documentId === target.documentId
             && doc.revision === target.documentRevision && doc.lifecycle === 'active' && doc.availability.original === 'available'

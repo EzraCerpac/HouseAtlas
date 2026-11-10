@@ -245,6 +245,7 @@ test('native reader owner replacement withdraws current display without an input
   const native = sourceFixture(), s = setup([native.entry], { sourceDocuments: native.reader }); t.after(() => s.owner.dispose());
   await s.inspect(); native.replaceOwner();
   assert.equal(s.views[0].signal.aborted, true); assert.equal(s.views[0].getBlob(), null); assert.equal(s.revoked.length, 1);
+  await assert.rejects(s.inspect(), SuggestionInspectionUnavailable);
 });
 test('native lease can reject a newer byte frame even after matching metadata', async t => {
   const native = sourceFixture(), open = native.reader.openOriginal;
