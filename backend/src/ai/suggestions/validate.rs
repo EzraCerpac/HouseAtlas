@@ -295,9 +295,8 @@ pub fn validate_generated(
         claims: &claims,
         subject: subject_ref,
     };
-    let count;
     let mut finding_keys = Vec::new();
-    match &output.result {
+    let count = match &output.result {
         ProposalResult::Inventory {
             changes,
             duplicates,
@@ -348,7 +347,7 @@ pub fn validate_generated(
                     checks.claim(id)?;
                 }
             }
-            count = changes.len() + duplicates.len();
+            changes.len() + duplicates.len()
         }
         ProposalResult::Document {
             classification,
@@ -375,7 +374,7 @@ pub fn validate_generated(
                 checks.supports_source(&link.support, checks.subject, true)?;
                 checks.supports_source(&link.support, &link.candidate_ref, false)?;
             }
-            count = links.len() + usize::from(classification.is_some());
+            links.len() + usize::from(classification.is_some())
         }
         ProposalResult::Maintenance { tasks } => {
             bounded(tasks, 16)?;
@@ -401,7 +400,7 @@ pub fn validate_generated(
                     _ => {}
                 }
             }
-            count = tasks.len();
+            tasks.len()
         }
         ProposalResult::Answer {
             route,
@@ -428,7 +427,7 @@ pub fn validate_generated(
                 required_text(&statement.text, 2048)?;
                 checks.support(&statement.support)?;
             }
-            count = statements.len();
+            statements.len()
         }
         ProposalResult::Contradictions { findings } => {
             bounded(findings, 16)?;
@@ -472,9 +471,9 @@ pub fn validate_generated(
             if finding_keys.iter().collect::<BTreeSet<_>>().len() != finding_keys.len() {
                 return Err(SuggestionError::InvalidOutput);
             }
-            count = findings.len();
+            findings.len()
         }
-    }
+    };
     if count == 0 && output.missing_evidence.is_empty() {
         return Err(SuggestionError::MissingSupport);
     }

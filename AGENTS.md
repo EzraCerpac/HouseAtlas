@@ -1,5 +1,22 @@
 # HouseAtlas
 
+The same b97433ec loopback execution reached the retained all-response check
+in core, which found four401 responses after viewer login. Media observed8
+viewer /invoke responses against the newly added4-response assumption. That
+assumption is not relaxed or reported fixed: bounded failure diagnostics now
+record only generated command IDs/status/phase metadata to distinguish request
+owners/lifetimes in hosted execution. All response/count/snapshot assertions
+remain unchanged. These unresolved fixture/currentness findings still block
+qualification; source cleanup and prior-head unit success do not settle them.
+
+Hosted source follow-up on b97433ec: formatting passed on both source
+platforms; Ubuntu job130023404862 then denied four Clippy warnings. The
+scoped repair collapses three nested conditionals into equivalent let-chains
+and initializes the suggestion count from its existing exhaustive match.
+Validation branches, refusal values, continuity holds and warning policy are
+unchanged. No new tests or runner selections are added; the next exact head
+still requires hosted qualification. No local compiler, formatter or test ran.
+
 Exact donor d270e238755d8a60ba375f5d7afe2aa9e1b16e54 is composed with
 its c0208153 ancestry intact. Its only source change uses a live isClosed()
 accessor after awaited review-owner handoff, resolving hosted TS2367 without
@@ -27,7 +44,7 @@ awaits the viewer's actual topology readiness and four observed successful reads
 before session replacement; unexpected401 responses remain failures. These
 fixture repairs require new exact-head hosted execution. No local check, new
 runner/workflow, production access/lifecycle relaxation or runtime activation
-is introduced. All13 current donor heads are ancestors of14ff0744; ancestry
+is introduced. All13 previously composed donor heads are ancestors of14ff0744; ancestry
 alone does not establish their remaining acceptance or missing coverage.
 
 Exact donor c020815382919e82244951c047ce8bf101b6934f (parent f7188684)

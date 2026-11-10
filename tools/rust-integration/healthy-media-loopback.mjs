@@ -189,6 +189,12 @@ try {
   const viewerTopologyResponses = () => responses.filter(r => r.requestPhase === 'viewer-login'
     && new URL(r.url).pathname.endsWith('/invoke'));
   await until(() => viewerTopologyResponses().length >= 4, 'Viewer topology responses completed before session replacement');
+  if (viewerTopologyResponses().length !== 4) {
+    console.error(JSON.stringify({ viewerInvokeResponses: viewerTopologyResponses().map(r => ({
+      commandId: JSON.parse(new URL(r.url).searchParams.get('request')).commandId,
+      status: r.status, requestPhase: r.requestPhase, responsePhase: r.responsePhase,
+    })) }));
+  }
   assert.equal(viewerTopologyResponses().length, 4, 'Four completed viewer topology reads');
   assert(viewerTopologyResponses().every(r => r.status === 200), 'Viewer topology reads succeed before session replacement');
   await openAtlasTools();

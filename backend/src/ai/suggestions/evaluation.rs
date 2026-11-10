@@ -420,13 +420,12 @@ pub fn evaluate_supplied(
             classification: class,
             links,
         } => {
-            if let Some(class) = class {
-                if !matches!(class.category, DocumentClass::Unknown) {
-                    let value = serde_json::to_value(class.category)
-                        .map_err(|_| EvaluationError::InvalidLabels)?;
-                    classification
-                        .insert(value.as_str().ok_or(EvaluationError::InvalidLabels)?.into());
-                }
+            if let Some(class) = class
+                && !matches!(class.category, DocumentClass::Unknown)
+            {
+                let value = serde_json::to_value(class.category)
+                    .map_err(|_| EvaluationError::InvalidLabels)?;
+                classification.insert(value.as_str().ok_or(EvaluationError::InvalidLabels)?.into());
             }
             associations.extend(links.iter().map(|link| link.candidate_ref.clone()));
             report.document_associations =

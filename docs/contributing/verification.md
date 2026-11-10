@@ -4410,7 +4410,7 @@ awaits the viewer's actual topology readiness and four observed successful reads
 before session replacement; unexpected401 responses remain failures. These
 fixture repairs require new exact-head hosted execution. No local check, new
 runner/workflow, production access/lifecycle relaxation or runtime activation
-is introduced. All13 current donor heads are ancestors of14ff0744; ancestry
+is introduced. All13 previously composed donor heads are ancestors of14ff0744; ancestry
 alone does not establish their remaining acceptance or missing coverage.
 
 
@@ -4423,3 +4423,22 @@ the newly composed candidate or subsequent checks. All six frontend-owned
 review files match that exact donor. Existing49/25 frontend case counts and
 77 source /1 build /7 browser selections remain unchanged. No local execution,
 tracker metadata write, readiness transition or merge-to-main is performed.
+
+
+Hosted source follow-up on b97433ec: formatting passed on both source
+platforms; Ubuntu job130023404862 then denied four Clippy warnings. The
+scoped repair collapses three nested conditionals into equivalent let-chains
+and initializes the suggestion count from its existing exhaustive match.
+Validation branches, refusal values, continuity holds and warning policy are
+unchanged. No new tests or runner selections are added; the next exact head
+still requires hosted qualification. No local compiler, formatter or test ran.
+
+
+The same b97433ec loopback execution reached the retained all-response check
+in core, which found four401 responses after viewer login. Media observed8
+viewer /invoke responses against the newly added4-response assumption. That
+assumption is not relaxed or reported fixed: bounded failure diagnostics now
+record only generated command IDs/status/phase metadata to distinguish request
+owners/lifetimes in hosted execution. All response/count/snapshot assertions
+remain unchanged. These unresolved fixture/currentness findings still block
+qualification; source cleanup and prior-head unit success do not settle them.

@@ -168,10 +168,10 @@ fn check_cut(cut: &ClosedCut, uid: u32) -> Result<()> {
         return Err(Hold::IncompleteInventory);
     }
     for present in cut.files.values() {
-        if let Presence::Present(i) = present {
-            if !i.identity.safe(uid, false) || i.bytes > 256 * 1024 * 1024 || !is_hash(&i.sha256) {
-                return Err(Hold::InvalidEvidence);
-            }
+        if let Presence::Present(i) = present
+            && (!i.identity.safe(uid, false) || i.bytes > 256 * 1024 * 1024 || !is_hash(&i.sha256))
+        {
+            return Err(Hold::InvalidEvidence);
         }
     }
     for required in [FileKind::Access, FileKind::Atlas, FileKind::Receipt] {
@@ -179,10 +179,10 @@ fn check_cut(cut: &ClosedCut, uid: u32) -> Result<()> {
     }
     let mut identities = BTreeSet::from([(cut.directory.device, cut.directory.inode)]);
     for present in cut.files.values() {
-        if let Presence::Present(i) = present {
-            if !identities.insert((i.identity.device, i.identity.inode)) {
-                return Err(Hold::IdentityChanged);
-            }
+        if let Presence::Present(i) = present
+            && !identities.insert((i.identity.device, i.identity.inode))
+        {
+            return Err(Hold::IdentityChanged);
         }
     }
     if cut.locks.len() != LOCKS.len() {
