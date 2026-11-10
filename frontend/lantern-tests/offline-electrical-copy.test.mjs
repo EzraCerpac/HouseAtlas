@@ -216,3 +216,333 @@ test('shared document LRU enforces one bound across disjoint native and electric
     assert.equal((await owner.readElectricalCatalog(copy.value.handle, signal())).status, 'ok', 'LRU evicts bytes before catalogs');
   } finally { owner.close(); }
 });
+
+// HomeBox borrowed originals (#372/#560): a separate source-native namespace beside native and electrical
+// originals. Generated responses through an injected transport only; no backend, provider or network.
+const readerCode = stripTypeScriptTypes(readFileSync(new URL('../src/offline/homebox-original-reader.ts', import.meta.url), 'utf8'));
+assert(!/^\s*import(?:\s|['"])/m.test(readerCode));
+const homeboxAdapterCode = adapterCode.replace(/(['"])\.\.\/src\/offline\/homebox-original-reader\1/g, JSON.stringify(dataModule(readerCode)));
+const policyCode = stripTypeScriptTypes(readFileSync(new URL('../integration/offline-homebox-policy.ts', import.meta.url), 'utf8'))
+  .replace(/(['"])\.\.\/src\/offline\/live-copy-owner\1/g, JSON.stringify(dataModule(ownerCode)));
+const reader = await import(dataModule(readerCode));
+const { createLiveCopyRetention: createHomeboxRetention } = await import(dataModule(homeboxAdapterCode));
+const { fillOfflineHomeboxOriginals } = await import(dataModule(policyCode));
+const { validHomeboxPin } = await import(dataModule(ownerCode));
+const pdf = new TextEncoder().encode('%PDF-1.7\ngenerated\0original');
+const pdfSha = createHash('sha256').update(pdf).digest('hex');
+const ref = (attachmentId = uuid(42), collectionId = 'generated-opaque-collection') => ({ source: 'homebox-attachment',
+  sourceInstanceId: uuid(40), collectionId, entityId: uuid(41), attachmentId });
+function homeboxView(attachments = [{ attachmentId: uuid(42), byteSize: String(pdf.length) }], collectionId = 'generated-opaque-collection') {
+  return { status: 'ready', scope, homeLabel: 'Generated home', now: '2026-11-10T00:00:00Z', caches: [], entries: [{
+    ...scope, key: 'generated-homebox-entry', source: { sourceInstanceId: uuid(40), collectionId, sourceKind: 'homebox-entity', externalId: uuid(41) },
+    entity: { id: uuid(41), name: 'Generated item', description: '', entityType: null, parent: null, archived: false,
+      quantity: '1', manufacturer: null, modelNumber: null, serialNumber: null, notes: null },
+    kind: 'item', semanticKind: 'unclassified', sourceState: 'present', cacheStatus: 'fresh', sourceUpdatedAt: null,
+    retrievedAt: '2026-11-10T00:00:00Z', aliases: [], mobility: 'unknown', maintenance: [], nativeLinks: [], networkBound: false,
+    networkStates: [], networkRelations: [],
+    attachments: attachments.map(row => ({ attachmentId: row.attachmentId, title: 'Generated manual', kind: 'stored-file',
+      contentType: 'application/pdf', byteSize: row.byteSize ?? null, downloadHref: null, previewHref: null })),
+  }] };
+}
+function facts(request, bytes = pdf, overrides = {}) {
+  return { schemaVersion: 1, requestId: request.requestId, observationId: crypto.randomUUID(),
+    scope: { ...request.context, sourceInstanceId: request.target.sourceInstanceId, collectionId: request.target.collectionId },
+    target: { ...request.target }, sourceRegistrationVersion: 3, sourceRegistrationSha256: 'e'.repeat(64),
+    sha256: createHash('sha256').update(bytes).digest('hex'), byteSize: bytes.length, contentType: 'application/pdf',
+    localCapture: { semantics: 'process-local-pinned-snapshot', beforeRetrievedAt: '2026-11-10T00:00:01Z',
+      bodyRetrievedAt: '2026-11-10T00:00:02.5Z', afterRetrievedAt: '2026-11-10T00:00:03+01:00', statuses: [200, 200, 200] }, ...overrides };
+}
+/** Generated server: answers with the exact facts for the received request unless a case mutates them. */
+function transport(respond = (request) => ({ facts: facts(request) })) {
+  const calls = [];
+  const fetch = async (url, init) => {
+    const parsed = new URL(url, 'https://generated.invalid');
+    assert.equal(parsed.pathname, `/api/atlas/stock/v4/workspaces/${scope.workspaceId}/homes/${scope.homeId}/homebox-offline-original`);
+    assert.deepEqual([...parsed.searchParams.keys()], ['request']);
+    assert.equal(init.credentials, 'same-origin'); assert.equal(init.redirect, 'error'); assert.equal(init.cache, 'no-store');
+    const request = JSON.parse(parsed.searchParams.get('request')); calls.push(request);
+    const answer = await respond(request, init);
+    if (answer instanceof Response) return answer;
+    const body = answer.body ?? pdf;
+    return new Response(body, { status: answer.status ?? 200, headers: { 'content-type': 'application/octet-stream',
+      'x-houseatlas-original': Buffer.from(JSON.stringify(answer.facts)).toString('base64'), ...answer.headers } });
+  };
+  return { fetch, calls };
+}
+async function homeboxSetup(server = transport(), initial = homeboxView()) {
+  const backend = memory(), session = { actorId: 'generated-actor-h', expiresAt: '2099-01-01T00:00:00Z' };
+  let state = { session, view: initial };
+  const owner = createHomeboxRetention({ factory: undefined, backend, state: () => state, homeboxTransport: server.fetch,
+    documents: () => { throw new Error('Synthetic native Document v2 transport trap'); } });
+  assert.equal((await owner.observe(session, () => state.session === session)).status, 'ok');
+  assert.equal((await owner.capture(initial, signal())).status, 'ok');
+  return { owner, backend, server, session, get state() { return state; }, set state(value) { state = value; } };
+}
+
+test('HomeBox reader sends the exact v4 wire with a fresh request ID and measures returned bytes', async () => {
+  for (const collectionId of ['generated-opaque-collection', uuid(43)]) {
+    const server = transport(), first = await reader.readHomeboxOriginal({ scope, ref: ref(uuid(42), collectionId), signal: signal(), transport: server.fetch });
+    const second = await reader.readHomeboxOriginal({ scope, ref: ref(uuid(42), collectionId), signal: signal(), transport: server.fetch });
+    assert.equal(first.status, 'ok'); assert.equal(second.status, 'ok');
+    assert.deepEqual(Object.keys(server.calls[0]).sort(), ['commandId', 'context', 'payload', 'requestId', 'schemaVersion', 'target']);
+    assert.deepEqual({ ...server.calls[0], requestId: null }, { schemaVersion: 4, commandId: 'homebox.file.download', context: scope,
+      target: { authority: 'homebox', sourceInstanceId: uuid(40), collectionId, resourceKind: 'attachment', entityId: uuid(41), resourceId: uuid(42) },
+      payload: {}, requestId: null });
+    assert.notEqual(server.calls[0].requestId, server.calls[1].requestId);
+    assert(validHomeboxPin(first.pin)); assert.equal(first.pin.collectionId, collectionId);
+    assert.equal(first.pin.sha256, pdfSha); assert.equal(first.pin.bytes, pdf.length); assert.equal(first.pin.contentType, 'application/pdf');
+    assert.equal(first.pin.bodyRetrievedAt, '2026-11-10T00:00:02.5Z', 'lexical retrieval facts are preserved');
+    assert.notEqual(first.pin.observationId, second.pin.observationId);
+    assert.deepEqual(new Uint8Array(first.bytes), pdf);
+  }
+  const text = new TextEncoder().encode('generated plain text');
+  const described = await reader.readHomeboxOriginal({ scope, ref: ref(), signal: signal(),
+    transport: transport(request => ({ body: text, facts: facts(request, text) })).fetch });
+  assert.equal(described.status, 'ok');
+  assert.equal(described.pin.contentType, null, 'source MIME alone does not qualify the PDF viewer');
+  assert.equal(described.pin.sourceContentType, 'application/pdf');
+});
+
+test('HomeBox reader keeps definitive, unknown and integrity outcomes distinct and never retries', async () => {
+  const cases = [
+    [() => ({ status: 404, facts: {} }), { status: 'unavailable', sent: true, httpStatus: 404 }],
+    [() => { throw new TypeError('generated network failure'); }, { status: 'unknown', httpStatus: null }],
+    [request => ({ facts: facts(request, pdf, { requestId: uuid(99) }) }), { status: 'unknown', httpStatus: 200 }],
+    [request => ({ facts: { ...facts(request), target: { ...facts(request).target, resourceId: uuid(98) } } }), { status: 'unknown', httpStatus: 200 }],
+    [request => ({ facts: { ...facts(request), scope: { ...facts(request).scope, collectionId: 'other' } } }), { status: 'unknown', httpStatus: 200 }],
+    [request => ({ facts: facts(request, pdf, { extra: true }) }), { status: 'unknown', httpStatus: 200 }],
+    [request => ({ facts: facts(request, pdf, { contentType: 'x'.repeat(4097) }) }), { status: 'unknown', httpStatus: 200 }],
+    [request => ({ facts: facts(request), headers: { 'content-type': 'application/pdf' } }), { status: 'unknown', httpStatus: 200 }],
+    [request => ({ facts: facts(request), headers: { 'content-length': String(10_485_761) } }), { status: 'unknown', httpStatus: 200 }],
+    [request => ({ facts: facts(request), headers: { 'x-houseatlas-original': 'A'.repeat(16_388) } }), { status: 'unknown', httpStatus: 200 }],
+    [request => ({ facts: facts(request, pdf, { sha256: 'f'.repeat(64) }) }), { status: 'integrity' }],
+    [request => ({ facts: facts(request, pdf, { byteSize: pdf.length + 1 }) }), { status: 'integrity' }],
+  ];
+  for (const [respond, expected] of cases) {
+    const server = transport(respond);
+    assert.deepEqual(await reader.readHomeboxOriginal({ scope, ref: ref(), signal: signal(), transport: server.fetch }), expected);
+    assert.equal(server.calls.length, 1);
+  }
+  const aborted = new AbortController(); aborted.abort();
+  const idle = transport();
+  assert.deepEqual(await reader.readHomeboxOriginal({ scope, ref: ref(), signal: aborted.signal, transport: idle.fetch }),
+    { status: 'unavailable', sent: false, httpStatus: null });
+  assert.deepEqual(await reader.readHomeboxOriginal({ scope, ref: { ...ref(), entityId: 'not-a-uuid' }, signal: signal(), transport: idle.fetch }),
+    { status: 'unavailable', sent: false, httpStatus: null });
+  assert.equal(idle.calls.length, 0);
+});
+
+test('retained HomeBox original stays in its own namespace, opens only by its measured pin and is not replayed', async () => {
+  const f = await homeboxSetup();
+  try {
+    const kept = await f.owner.retainHomeboxOriginal(ref(), signal());
+    assert.equal(kept.status, 'ok');
+    const handle = await readCopy(f.owner);
+    const status = await f.owner.read.homeboxStatus(handle, ref(), signal());
+    assert.equal(status.status, 'ok'); assert.equal(status.value.availability, 'held'); assert.deepEqual(status.value.pin, kept.value);
+    const blob = await f.owner.read.readHomeboxDocument(handle, kept.value, signal());
+    assert.equal(blob.status, 'ok'); assert.equal(blob.value.type, 'application/pdf');
+    assert.deepEqual(new Uint8Array(await blob.value.arrayBuffer()), pdf);
+    assert.equal((await f.owner.read.readHomeboxDocument(handle, { ...kept.value, observationId: uuid(77) }, signal())).status, 'integrity');
+    assert.equal((await f.owner.read.readDocument(handle, { documentId: uuid(41), documentRevision: 1, assetId: uuid(42),
+      assetRevision: 1, bytes: pdf.length, sha256: pdfSha, contentType: 'application/pdf' }, signal())).status, 'missing');
+    const stored = JSON.stringify([...f.backend.tables().get('metadata').values()]);
+    assert(!stored.includes(f.server.calls[0].requestId), 'request IDs are not persisted');
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(), signal())).status, 'uncertain', 'a sent association is not read again this session');
+    assert.equal(f.server.calls.length, 1);
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(50)), signal())).status, 'missing', 'only associations listed by the live view');
+    assert.equal(f.server.calls.length, 1);
+  } finally { f.owner.close(); }
+});
+
+test('unknown HomeBox outcomes report uncertain, keep nothing and are not retried with a fresh request ID', async () => {
+  const f = await homeboxSetup(transport(() => { throw new TypeError('generated reset after send'); }));
+  try {
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(), signal())).status, 'uncertain');
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(), signal())).status, 'uncertain');
+    assert.equal(f.server.calls.length, 1);
+    assert.equal([...f.backend.tables().get('metadata').values()].filter(row => row.kind === 'homebox-document').length, 0);
+  } finally { f.owner.close(); }
+});
+
+test('session replacement during the read, withdrawn or re-associated attachments and account change retire HomeBox bytes', async () => {
+  let f;
+  const server = transport(request => { f.state = { ...f.state, session: { ...f.session } }; return { facts: facts(request) }; });
+  f = await homeboxSetup(server);
+  try {
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(), signal())).status, 'retired');
+    assert.equal([...f.backend.tables().get('metadata').values()].filter(row => row.kind === 'homebox-document').length, 0);
+  } finally { f.owner.close(); }
+  const g = await homeboxSetup();
+  try {
+    const kept = await g.owner.retainHomeboxOriginal(ref(), signal()); assert.equal(kept.status, 'ok');
+    const withdrawn = homeboxView([]); g.state = { ...g.state, view: withdrawn };
+    assert.equal((await g.owner.capture(withdrawn, signal())).status, 'ok');
+    const handle = await readCopy(g.owner);
+    assert.equal((await g.owner.read.homeboxStatus(handle, ref(), signal())).value.availability, 'not-held');
+    assert.equal((await g.owner.read.readHomeboxDocument(handle, kept.value, signal())).status, 'missing');
+    const moved = homeboxView(undefined, 'generated-other-collection'); g.state = { ...g.state, view: moved };
+    assert.equal((await g.owner.capture(moved, signal())).status, 'ok');
+    assert.equal((await g.owner.read.readHomeboxDocument(await readCopy(g.owner), kept.value, signal())).status, 'missing');
+    const other = { actorId: 'generated-actor-other', expiresAt: '2099-01-01T00:00:00Z' };
+    assert.equal((await g.owner.observe(other, () => true)).status, 'ok');
+    assert.equal(g.backend.tables().get('bytes').size, 0, 'account change deletes prior-account originals');
+    assert.equal((await g.owner.read.readHomeboxDocument(handle, kept.value, signal())).status, 'retired');
+  } finally { g.owner.close(); }
+});
+
+test('a changed source registration supersedes older HomeBox observations from that partition in one transaction', async () => {
+  let version = 3;
+  const f = await homeboxSetup(transport(request => ({ facts: facts(request, pdf, { sourceRegistrationVersion: version }) })),
+    homeboxView([{ attachmentId: uuid(42), byteSize: '30' }, { attachmentId: uuid(43), byteSize: '30' }]));
+  try {
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(42)), signal())).status, 'ok');
+    version = 4;
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(43)), signal())).status, 'ok');
+    const handle = await readCopy(f.owner);
+    assert.equal((await f.owner.read.homeboxStatus(handle, ref(uuid(42)), signal())).value.availability, 'not-held');
+    assert.equal((await f.owner.read.homeboxStatus(handle, ref(uuid(43)), signal())).value.availability, 'held');
+  } finally { f.owner.close(); }
+});
+
+test('HomeBox registration supersession preserves independent workspace and home histories', async () => {
+  const backend = memory(), owner = createLiveCopyOwner(backend);
+  try {
+    const actor = await owner.observeActor('generated-actor', () => true);
+    assert.equal(actor.status, 'ok');
+    const scopes = [scope, { ...scope, homeId: uuid(3) }, { ...scope, workspaceId: uuid(4) }];
+    const homes = scopes.map(selected => {
+      const home = owner.bindHome(actor.value, selected, () => true);
+      assert.equal(home.status, 'ok'); return home.value;
+    });
+    const pin = { ...ref(), observationId: uuid(70), sourceRegistrationVersion: 3,
+      sourceRegistrationSha256: 'e'.repeat(64), sha256: pdfSha, bytes: pdf.length,
+      contentType: 'application/pdf', sourceContentType: 'application/pdf',
+      beforeRetrievedAt: '2026-11-10T00:00:01Z', bodyRetrievedAt: '2026-11-10T00:00:02Z', afterRetrievedAt: '2026-11-10T00:00:03Z' };
+    assert(validHomeboxPin(pin));
+    const keep = (home, selected) => owner.keepHomeboxDocument(home, selected, pdf.slice().buffer, signal());
+    for (const home of homes) assert.equal((await keep(home, pin)).status, 'ok');
+    const before = structuredClone([...backend.tables().get('metadata')].filter(([, row]) => row.kind === 'homebox-document' && row.scope.homeId === scope.homeId));
+    const newer = { ...pin, attachmentId: uuid(43), observationId: uuid(71), sourceRegistrationVersion: 4 };
+    assert.equal((await keep(homes[1], newer)).status, 'ok');
+    const rows = [...backend.tables().get('metadata')].filter(([, row]) => row.kind === 'homebox-document');
+    assert.deepEqual(rows.filter(([, row]) => row.scope.homeId === scope.homeId), before, 'other scopes stay byte-for-byte unchanged');
+    assert.equal(rows.length, 3, 'only the superseded home row leaves');
+    assert.deepEqual(rows.filter(([, row]) => row.scope.homeId === uuid(3)).map(([, row]) => row.pin), [newer]);
+    assert.equal((await keep(homes[0], { ...pin, attachmentId: uuid(44) })).status, 'ok', 'another home keeps its own lower registration');
+    assert.equal((await keep(homes[1], { ...pin, attachmentId: uuid(44) })).status, 'retired', 'the advanced home still refuses stale registration');
+  } finally { owner.close(); }
+});
+
+test('automatic HomeBox pass rechecks enablement, view retirement and abort after pending status', async () => {
+  for (const stop of ['disabled', 'retired', 'aborted']) {
+    const f = await homeboxSetup(), controller = new AbortController();
+    let enabled = true, current = true, retains = 0, resolveStatus, startedStatus;
+    const pending = new Promise(resolve => { resolveStatus = resolve; });
+    const started = new Promise(resolve => { startedStatus = resolve; });
+    const owner = { ...f.owner, read: { ...f.owner.read, homeboxStatus: async () => { startedStatus(); return pending; } },
+      retainHomeboxOriginal: async () => { retains++; return { status: 'ok' }; } };
+    try {
+      const pass = fillOfflineHomeboxOriginals({ owner, view: f.state.view, current: () => current, enabled: () => enabled, signal: controller.signal });
+      await started;
+      if (stop === 'disabled') enabled = false;
+      else if (stop === 'retired') current = false;
+      else controller.abort();
+      resolveStatus({ status: 'ok', value: { availability: 'not-held', bytes: null } });
+      const result = await pass;
+      assert.equal(result.complete, false, stop);
+      assert.equal(retains, 0, stop);
+      assert.equal(f.server.calls.length, 0, stop);
+      assert.match(result.message, /stopped/);
+    } finally { f.owner.close(); }
+  }
+});
+
+test('automatic HomeBox pass skips unknown sizes, keeps held files, stops on uncertain and respects the budget', async () => {
+  const listed = [{ attachmentId: uuid(42), byteSize: String(pdf.length) }, { attachmentId: uuid(43), byteSize: null },
+    { attachmentId: uuid(44), byteSize: String(pdf.length) }, { attachmentId: uuid(45), byteSize: String(pdf.length) }];
+  const view = homeboxView(listed);
+  const f = await homeboxSetup(transport(request => {
+    if (request.target.resourceId === uuid(44)) throw new TypeError('generated unknown outcome');
+    return { facts: facts(request) };
+  }), view);
+  try {
+    const pass = () => fillOfflineHomeboxOriginals({ owner: f.owner, view, current: () => true, enabled: () => true, signal: signal() });
+    const first = await pass();
+    assert.equal(first.complete, false); assert.match(first.message, /uncertain/);
+    assert.deepEqual(f.server.calls.map(call => call.target.resourceId), [uuid(42), uuid(44)]);
+    const second = await pass();
+    assert.deepEqual(f.server.calls.map(call => call.target.resourceId), [uuid(42), uuid(44), uuid(45)], 'held and sent files are not read again');
+    assert.match(second.message, /2 HomeBox files on this device; 1 unavailable; 1 without a usable size/);
+    const disabled = await fillOfflineHomeboxOriginals({ owner: f.owner, view, current: () => true, enabled: () => false, signal: signal() });
+    assert.equal(disabled.complete, false); assert.equal(f.server.calls.length, 3);
+  } finally { f.owner.close(); }
+  const big = homeboxView([{ attachmentId: uuid(42), byteSize: String(10_485_760) }]);
+  const g = await homeboxSetup(transport(), big);
+  try {
+    const budget = (await g.owner.storage.status(signal())).value.budgetBytes;
+    assert(budget > 10_485_760 / 0.8, 'default budget leaves room; refusal below uses an oversized hint set');
+    const many = homeboxView(Array.from({ length: 25 }, (_, i) => ({ attachmentId: uuid(100 + i), byteSize: String(10_485_760) })));
+    g.state = { ...g.state, view: many };
+    const refused = await fillOfflineHomeboxOriginals({ owner: g.owner, view: many, current: () => true, enabled: () => true, signal: signal() });
+    assert.match(refused.message, /exceed the automatic storage budget/); assert.equal(g.server.calls.length, 0);
+  } finally { g.owner.close(); }
+});
+
+test('concurrent HomeBox retains for one session and association send exactly once', async () => {
+  let release; const gate = new Promise(resolve => { release = resolve; });
+  const f = await homeboxSetup(transport(async request => { await gate; return { facts: facts(request) }; }));
+  try {
+    const both = Promise.all([f.owner.retainHomeboxOriginal(ref(), signal()), f.owner.retainHomeboxOriginal(ref(), signal())]);
+    await new Promise(resolve => setTimeout(resolve, 10)); release();
+    assert.deepEqual((await both).map(result => result.status).sort(), ['ok', 'uncertain']);
+    assert.equal(f.server.calls.length, 1);
+    const aborted = new AbortController(); aborted.abort();
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(60)), aborted.signal)).status, 'missing');
+  } finally { f.owner.close(); }
+  const g = await homeboxSetup(transport(), homeboxView([{ attachmentId: uuid(42), byteSize: '30' }]));
+  try {
+    const aborted = new AbortController(); aborted.abort();
+    assert.equal((await g.owner.retainHomeboxOriginal(ref(), aborted.signal)).status, 'aborted');
+    assert.equal(g.server.calls.length, 0);
+    assert.equal((await g.owner.retainHomeboxOriginal(ref(), signal())).status, 'ok', 'an unsent claim is released');
+  } finally { g.owner.close(); }
+});
+
+test('late lower or conflicting equal source registrations are refused and never delete newer originals', async () => {
+  let version = 4, registration = 'e'.repeat(64);
+  const f = await homeboxSetup(transport(request => ({ facts: facts(request, pdf, { sourceRegistrationVersion: version, sourceRegistrationSha256: registration }) })),
+    homeboxView([{ attachmentId: uuid(42), byteSize: '30' }, { attachmentId: uuid(43), byteSize: '30' }, { attachmentId: uuid(44), byteSize: '30' }]));
+  try {
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(42)), signal())).status, 'ok');
+    version = 3;
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(43)), signal())).status, 'retired');
+    version = 4; registration = 'd'.repeat(64);
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(44)), signal())).status, 'integrity');
+    const handle = await readCopy(f.owner);
+    assert.equal((await f.owner.read.homeboxStatus(handle, ref(uuid(42)), signal())).value.availability, 'held');
+    assert.equal((await f.owner.read.homeboxStatus(handle, ref(uuid(43)), signal())).value.availability, 'not-held');
+    // The high-water survives eviction of every original row in the partition.
+    for (const [key, row] of [...f.backend.tables().get('metadata')]) if (row.kind === 'homebox-document') {
+      f.backend.tables().get('metadata').delete(key); f.backend.tables().get('bytes').delete(key);
+    }
+    const marks = () => [...f.backend.tables().get('control').keys()].filter(key => key.includes('homebox-registration'));
+    assert.equal(marks().length, 1);
+    const other = { actorId: 'generated-actor-other', expiresAt: '2099-01-01T00:00:00Z' };
+    assert.equal((await f.owner.observe(other, () => true)).status, 'ok');
+    assert.equal(marks().length, 0, 'account change removes registration marks with the data');
+  } finally { f.owner.close(); }
+});
+
+test('a HomeBox row stored under another association key never reports or opens as that association', async () => {
+  const f = await homeboxSetup(transport(), homeboxView([{ attachmentId: uuid(42), byteSize: '30' }, { attachmentId: uuid(43), byteSize: '30' }]));
+  try {
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(43)), signal())).status, 'ok');
+    const metadata = f.backend.tables().get('metadata'), bytes = f.backend.tables().get('bytes');
+    const [key, row] = [...metadata].find(([, value]) => value.kind === 'homebox-document');
+    const forged = key.replace(uuid(43), uuid(42));
+    metadata.set(forged, structuredClone(row)); bytes.set(forged, bytes.get(key).slice(0));
+    const status = await f.owner.read.homeboxStatus(await readCopy(f.owner), ref(uuid(42)), signal());
+    assert.equal(status.status, 'ok'); assert.equal(status.value.availability, 'failed-integrity');
+  } finally { f.owner.close(); }
+});

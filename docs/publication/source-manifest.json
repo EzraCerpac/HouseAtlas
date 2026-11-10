@@ -7027,8 +7027,8 @@
     {
       "path": "docs/offline-live-copy.md",
       "mode": "100644",
-      "bytes": 15512,
-      "sha256": "bc43a08a397eb50ae8014937035019e01928eb835591ca88fdc76ac2df6a8491",
+      "bytes": 15694,
+      "sha256": "7bc30e0b10d1d76470394b012951c5b4d0f98786f3f0606f00a7605ba65fbbe1",
       "owner": "core-integration"
     },
     {
@@ -7678,8 +7678,8 @@
     {
       "path": "frontend/integration/live-copy-retention.ts",
       "mode": "100644",
-      "bytes": 20419,
-      "sha256": "028c414f404807bf8030ca18d7be655ff77f9f80cc2fb0f346c8674fb0e384cf",
+      "bytes": 23711,
+      "sha256": "36e3473ddf0022e793178931bb6fc41b888addd7a0c492c0d5f81c6b60cadb0b",
       "owner": "core-integration"
     },
     {
@@ -7792,6 +7792,13 @@
       "mode": "100644",
       "bytes": 3680,
       "sha256": "49625add6ec9f76747540d9ee6b7bafb1335dc9622132385e75cc7e7cfce652b",
+      "owner": "core-integration"
+    },
+    {
+      "path": "frontend/integration/offline-homebox-policy.ts",
+      "mode": "100644",
+      "bytes": 4703,
+      "sha256": "08463cf820874e8124a0c6136b34f092214cbd5715f689ff7507938b0f5fa39d",
       "owner": "core-integration"
     },
     {
@@ -8357,8 +8364,8 @@
     {
       "path": "frontend/lantern-tests/offline-electrical-copy.test.mjs",
       "mode": "100644",
-      "bytes": 15780,
-      "sha256": "ddb34ba6acdff47ed43755bce2795d4296f4d924f1a4c46e19adf415e63232aa",
+      "bytes": 40651,
+      "sha256": "2b742e630cd3cd877bbb129e7b9828d0c6159a7b6e626aaf622bccf72c0ffc2f",
       "owner": "web"
     },
     {
@@ -8371,8 +8378,8 @@
     {
       "path": "frontend/lantern-tests/offline-launch-browser.mjs",
       "mode": "100644",
-      "bytes": 27938,
-      "sha256": "28ee1d50939410fb186611ac317144359a36f183e94c5287b19354cc1ede4cdb",
+      "bytes": 28075,
+      "sha256": "888433bc32b5f7af4a0ac7cbf15112945fa45d76cc11ac1cfe04ad12cb0767ad",
       "owner": "web"
     },
     {
@@ -10716,8 +10723,8 @@
     {
       "path": "frontend/src/offline/OfflineLanternHost.tsx",
       "mode": "100644",
-      "bytes": 18273,
-      "sha256": "dad80a11f3ef6aec241588145923e4195ae09dce5b1726ff8101bfd1746b3d08",
+      "bytes": 21721,
+      "sha256": "093f0d7525c900e586024079d478c4bc1a93f410e4fcebd87da8eb4b316e5b24",
       "owner": "web"
     },
     {
@@ -10777,6 +10784,13 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/offline/homebox-original-reader.ts",
+      "mode": "100644",
+      "bytes": 9719,
+      "sha256": "70f864a692caf7dd23223c41cb14790decdcbf8ad217bc9927d1d63241ae8c1a",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/offline/library-preference.ts",
       "mode": "100644",
       "bytes": 903,
@@ -10793,15 +10807,15 @@
     {
       "path": "frontend/src/offline/live-copy-owner.ts",
       "mode": "100644",
-      "bytes": 36859,
-      "sha256": "a5aae7680e05359047de6e7909df6366e5559d6b378a3332ae8ddcd97cd70030",
+      "bytes": 46281,
+      "sha256": "975c051eb103dc390c1f407ea45840f3bddddb0a5605e71e9bc90aa971ebe990",
       "owner": "web"
     },
     {
       "path": "frontend/src/offline/live-copy-types.ts",
       "mode": "100644",
-      "bytes": 7173,
-      "sha256": "f8b3b84da03b256ec1f90d0b080d31cc027a2127f1af7b1d0d0256117c05fa46",
+      "bytes": 8855,
+      "sha256": "feef245ed50292a63fc3b65591dddebec4ecd4870b6bea47dc8234d98233e664",
       "owner": "web"
     },
     {
