@@ -13,6 +13,12 @@ tests; retained tests/ledger stay 26 and 5 scorer subsets/20 structural/7 unbrid
 Original inv-model-only stays unbridged: its Document subject cannot be silently
 relabelled as an InventoryItem. No inference, physical verification, approval,
 native resolution, runtime activation or new runner/workflow is introduced.
+The composed presentation donor is exactly
+`474fb67c6a963b9c0971a4cb564ab5004c47d98e`, descended from e5281bd9; its five
+changed owned paths are retained verbatim and CSS is unchanged. Two authored
+presentation cases plus the shared session case bring existing frontend
+selections to 41 controller/source and 20 session cases, all NOT RUN. The
+77 source / 1 build / 7 browser selection inventory and workflows are unchanged.
 
 Original maint-duplicate has one additional supplied existing-task review
 control in `ai::suggestions::evaluation::retained_corpus`:
@@ -522,8 +528,8 @@ rechecks, owner-supplied inspection labels and non-authoritative selection keys.
 No route, original-open capability, approval or native dispatch is issued.
 The review-only browser adapter consumes this DTO with the retained #569
 controller and an explicit owner-supplied React mount. The existing healthy
-runner's SOURCE list selects exactly `ai-suggestion-review.test.mjs` (thirty-nine
-controller cases) and `ai-suggestion-adapter.test.mjs` (nineteen adapter cases).
+runner's SOURCE list selects exactly `ai-suggestion-review.test.mjs` (forty-one
+controller cases) and `ai-suggestion-adapter.test.mjs` (twenty adapter cases).
 They use generated data and the actual controller, without browser, provider,
 credentials or native writes. Registration is not execution evidence. No
 app-root, workflow, browser selection or other held selection changes.

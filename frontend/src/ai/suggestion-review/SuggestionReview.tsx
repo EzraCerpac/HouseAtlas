@@ -4,6 +4,7 @@ import type { MaintenanceTaskView, MaintenanceTaskDraft, MaintenanceUnit, Mainte
 import './suggestion-review.css';
 
 const relation = { 'possible-duplicate': 'Possible duplicate', 'same-product': 'Same product, identity unconfirmed',
+  'same-product-identity-unknown': 'Same product; physical identity unknown',
   'proposed-association': 'Proposed association' };
 const headings = { inventory: 'Inventory suggestions', document: 'Document suggestions', maintenance: 'Maintenance suggestions', answer: 'Cited answer', contradictions: 'Record comparisons' };
 const unitLabels: Record<MaintenanceUnit, string> = { days: 'Days', weeks: 'Weeks', months: 'Months', years: 'Years', 'usage-hours': 'Usage hours' };

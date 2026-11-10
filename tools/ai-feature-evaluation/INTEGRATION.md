@@ -448,7 +448,7 @@ Inventory totals: five scorer subsets, twenty structural controls and seven
 without bridges. All semantic completeness, calibrated quality and actual owner
 authority remain unqualified; the ledger does not release any acceptance gate.
 
-## Existing-task review representation
+## Product correspondence with unknown physical identity
 
 Separate generated contract controls support canonical
 `same-product-identity-unknown` without changing any original corpus mapping or
@@ -460,6 +460,8 @@ calibrated probability follows. Original inv-model-only remains unbridged for
 the Document-subject reason in the ledger, not coerced into a new gold label.
 The new scorer control uses independent generated inputs/labels only and is
 authored/unrun; no result for that original is inferred.
+
+## Existing-task review representation
 
 `retained_maintenance_existing_task_review_keeps_task_binding_and_unknown_completion`
 is one additional authored, **NOT RUN** case in the existing default-library

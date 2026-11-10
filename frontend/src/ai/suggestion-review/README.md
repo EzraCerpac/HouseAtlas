@@ -233,7 +233,7 @@ Proposed scoped non-device command, using the repository-pinned Node 26.10.0:
 
     node --test frontend/lantern-tests/ai-suggestion-review.test.mjs
 
-Thirty-nine generated controller/source cases load the actual type-stripped controller:
+Forty-one generated controller/source cases load the actual type-stripped controller:
 explicit fields/edits, candidate selection, document pages, stale dismissal,
 source revisions, A-B-A/late inspections, superseded checks, offline/disabled
 states, availability interruption, repeat/re-entry, uncertain callback delivery,
@@ -247,7 +247,7 @@ Nine maintenance cases add periodic/conditional/unknown intervals, exact target/
 evidence, explicit edits, incomplete-edit refusal, superseded manuals/context,
 offline states, rejected/uncertain once-only intent, and bounded source shapes.
 These are authored source cases, NOT executed results. The composition owner
-must update its existing registration documentation/count (32 to 39 for this continuation); no new
+must update its existing registration documentation/count (39 to 41 for this continuation); no new
 selection or CI lane is introduced here.
 
 The desktop executor is unavailable during preparation. These cases, semantic
@@ -294,3 +294,33 @@ merged here. Existing inventory/document/maintenance behavior, canonical
 pre-consumption maintenance validation and read-only answers are retained.
 Only the same six owned files change; all original corpus files stay untouched.
 All 39 authored cases and semantic compiler/build/React/device checks are NOT RUN.
+
+## Explicit same-product, unknown-identity relation
+
+The local candidate relation same-product-identity-unknown displays
+"Same product; physical identity unknown". It is a distinct admitted value,
+not an alias or redefinition of same-product, possible-duplicate or
+proposed-association. Existing relation values and labels remain unchanged.
+Matching product evidence establishes neither the same nor distinct physical
+item and grants no merge, deletion, relocation, source write or native action.
+
+The source integrator maps the matching canonical SameProductIdentityUnknown
+variant to this exact relation through its existing inventory-duplicate
+disclosure/session binding. The candidate key, original canonical target,
+evidence, uncertainty, currentness recheck and once-consumed authority:none
+candidate-only intent remain unchanged. This local addition creates no wire
+envelope, dispatcher, native effect or production mount.
+
+Two new authored cases cover the explicit label via a source-text contract,
+separate retained relationships, exact source inspection, original candidate/
+proposal intent binding with once-only reentry, stale/replaced source context
+and offline/disabled/unavailable refusal. There are 41 authored cases, all
+NOT RUN; source-text inspection is not rendered UI evidence. Shared count
+docs/manifests, canonical variant/disclosure/session composition and actual
+qualification remain with #562's integrator.
+
+This does NOT bridge the original inv-model-only corpus case: its manual is
+a Document and Inventory still needs an InventoryItem subject. No original
+is relabelled, physical subject invented, corpus mapping/count changed or
+semantic/model-quality/native acceptance inferred. This continuation changes
+only the necessary five owned source/doc/test paths; CSS is unchanged.
