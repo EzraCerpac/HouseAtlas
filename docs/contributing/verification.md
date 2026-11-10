@@ -158,6 +158,28 @@ concrete original reviewed-stock and trusted human-review bridge.
 
 ## Review-only AI suggestion contracts
 
+The existing default-library selection additionally discovers five authored
+completion-adapter functions in `ai::suggestions::synthetic_contracts`:
+
+- `completed_proposal_projects_exact_disclosure_and_preserves_observed_usage`
+- `completed_proposal_never_promotes_refusal_text_or_dispatches_tools`
+- `completed_proposal_withholds_each_noncompleted_outcome_without_losing_usage`
+- `completed_proposal_reuses_context_and_original_inspection_fences`
+- `completed_proposal_refuses_ambiguous_malformed_and_oversized_payloads`
+
+These supply generated `InferenceOutcome` values to the production pure
+`disclose_completed` adapter. They check inventory/document disclosure parity,
+unknown/partial usage, refusal and tool withholding, distinct noncompleted
+states, stale/withdrawn/unavailable context, original-inspection membership,
+and malformed/ambiguous/oversized output. The adapter borrows the original
+outcome; original diagnostics, uncertainty and journal retention stay with the
+caller. A supplied completed enum is not provider execution evidence. No
+runtime, model, credential, network, dispatcher, approval, persistence or route
+is installed, and no structural result proves semantic truth or grounding.
+All five cases and Rust compilation/formatting/Clippy remain **NOT RUN** locally.
+No runner/workflow is added; exact-head hosted execution is separate evidence.
+The existing 25 retained-corpus tests and 32-case coverage ledger are unchanged.
+
 The existing default backend-library job discovers these ten generated functions
 under `ai::suggestions::synthetic_contracts`:
 

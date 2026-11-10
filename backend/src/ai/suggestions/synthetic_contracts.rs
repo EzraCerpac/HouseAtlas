@@ -36,6 +36,131 @@ fn validate(value: &Value, snapshot: &AdmittedSnapshot) -> std::result::Result<R
     validate_generated(&serde_json::to_vec(value).unwrap(), snapshot, snapshot)
 }
 
+fn completed_proposal(snapshot: &AdmittedSnapshot) -> crate::ai::InferenceOutcome {
+    crate::ai::InferenceOutcome::Completed {
+        output: vec![json!({"type":"reasoning","summary":[]}), json!({
+            "type":"message","role":"assistant","status":"completed",
+            "content":[{"type":"output_text","text":serde_json::to_string(&output(snapshot, inventory())).unwrap()}]
+        })],
+        usage: crate::ai::Usage::default(),
+    }
+}
+
+#[test]
+fn completed_proposal_projects_exact_disclosure_and_preserves_observed_usage() {
+    let snapshot = AdmittedSnapshot::new(input()).unwrap();
+    let expected = disclose_review(&validate(&output(&snapshot, inventory()), &snapshot).unwrap(), &snapshot, &Default::default()).unwrap();
+    let mut outcome = completed_proposal(&snapshot);
+    let result = disclose_completed(&outcome, &snapshot, &snapshot, &Default::default());
+    assert_eq!(result.usage, crate::ai::Usage::default());
+    assert_eq!(result.review.unwrap().value(), expected.value());
+    let observed = crate::ai::Usage { input_tokens: Some(7), output_tokens: None, total_tokens: None };
+    if let crate::ai::InferenceOutcome::Completed { usage, .. } = &mut outcome { *usage = observed; }
+    assert_eq!(disclose_completed(&outcome, &snapshot, &snapshot, &Default::default()).usage, observed);
+    let mut document_input = input();
+    document_input.feature = SuggestionFeature::Document;
+    document_input.sources[0].kind = CandidateKind::Document;
+    let snapshot = AdmittedSnapshot::new(document_input).unwrap();
+    let proposal = output(&snapshot, document());
+    let expected = disclose_review(&validate(&proposal, &snapshot).unwrap(), &snapshot, &Default::default()).unwrap();
+    let mut outcome = completed_proposal(&snapshot);
+    if let crate::ai::InferenceOutcome::Completed { output: items, .. } = &mut outcome {
+        items[1]["content"][0]["text"] = json!(serde_json::to_string(&proposal).unwrap());
+    }
+    assert_eq!(disclose_completed(&outcome, &snapshot, &snapshot, &Default::default()).review.unwrap().value(), expected.value());
+}
+
+#[test]
+fn completed_proposal_never_promotes_refusal_text_or_dispatches_tools() {
+    let snapshot = AdmittedSnapshot::new(input()).unwrap();
+    let mut outcome = completed_proposal(&snapshot);
+    if let crate::ai::InferenceOutcome::Completed { output: items, .. } = &mut outcome {
+        // Even valid proposal JSON inside a refusal is not a proposal.
+        let text = items[1]["content"][0]["text"].clone();
+        items[1]["content"] = json!([{"type":"refusal","refusal":text}]);
+    }
+    assert_eq!(disclose_completed(&outcome, &snapshot, &snapshot, &Default::default()).review.unwrap_err(), CompletionRejection::Refused);
+    let mut outcome = completed_proposal(&snapshot);
+    if let crate::ai::InferenceOutcome::Completed { output: items, .. } = &mut outcome {
+        items.push(json!({"type":"function_call","name":"houseatlas.write","arguments":"{}"}));
+    }
+    let result = disclose_completed(&outcome, &snapshot, &snapshot, &Default::default());
+    assert_eq!(result.review.unwrap_err(), CompletionRejection::InvalidEnvelope);
+    assert_eq!(result.usage, crate::ai::Usage::default());
+}
+
+#[test]
+fn completed_proposal_withholds_each_noncompleted_outcome_without_losing_usage() {
+    use crate::ai::{AiError, InferenceOutcome, ProviderDiagnostic, Usage};
+    let snapshot = AdmittedSnapshot::new(input()).unwrap();
+    let usage = Usage { input_tokens: Some(5), output_tokens: None, total_tokens: None };
+    let diagnostic = ProviderDiagnostic { http_status: Some(429), code: Some("synthetic-limit".into()), parameter: None, request_id: None };
+    for (outcome, rejection) in [
+        (InferenceOutcome::Cancelled { usage }, CompletionRejection::Cancelled),
+        (InferenceOutcome::Stopped { usage }, CompletionRejection::Stopped),
+        (InferenceOutcome::Unresolved { usage, reason: AiError::ProviderUnavailable, diagnostic: diagnostic.clone() }, CompletionRejection::Unresolved),
+        (InferenceOutcome::Failed { usage, reason: AiError::UsageLimitReached, diagnostic: diagnostic.clone() }, CompletionRejection::Failed),
+    ] {
+        let result = disclose_completed(&outcome, &snapshot, &snapshot, &Default::default());
+        assert_eq!(result.usage, usage);
+        assert_eq!(result.review.unwrap_err(), rejection);
+        // The original reason and diagnostic remain owned by the caller.
+        match outcome {
+            InferenceOutcome::Unresolved { reason, diagnostic, .. } => {
+                assert_eq!(reason, AiError::ProviderUnavailable);
+                assert_eq!(diagnostic.code.as_deref(), Some("synthetic-limit"));
+            },
+            InferenceOutcome::Failed { reason, diagnostic, .. } => {
+                assert_eq!(reason, AiError::UsageLimitReached);
+                assert_eq!(diagnostic.http_status, Some(429));
+            },
+            _ => {},
+        }
+    }
+}
+
+#[test]
+fn completed_proposal_reuses_context_and_original_inspection_fences() {
+    let snapshot = AdmittedSnapshot::new(input()).unwrap();
+    let outcome = completed_proposal(&snapshot);
+    for (change, expected) in [(0, SuggestionError::ContextChanged), (1, SuggestionError::ContextWithdrawn), (2, SuggestionError::ContextUnavailable)] {
+        let mut current = input();
+        match change {
+            0 => current.sources[0].version = "revision-2".into(),
+            1 => current.sources[1].availability = Availability::Withdrawn,
+            _ => current.sources[0].availability = Availability::Unavailable,
+        }
+        let current = AdmittedSnapshot::new(current).unwrap();
+        assert_eq!(disclose_completed(&outcome, &snapshot, &current, &Default::default()).review.unwrap_err(), CompletionRejection::Validation(expected));
+    }
+    let invented = std::collections::BTreeSet::from(["not-admitted".into()]);
+    assert_eq!(disclose_completed(&outcome, &snapshot, &snapshot, &invented).review.unwrap_err(), CompletionRejection::Validation(SuggestionError::UnadmittedReference));
+}
+
+#[test]
+fn completed_proposal_refuses_ambiguous_malformed_and_oversized_payloads() {
+    let snapshot = AdmittedSnapshot::new(input()).unwrap();
+    for change in 0..11 {
+        let mut outcome = completed_proposal(&snapshot);
+        if let crate::ai::InferenceOutcome::Completed { output: items, .. } = &mut outcome {
+            match change {
+                0 => { let duplicate = items[1].clone(); items.push(duplicate); },
+                1 => items[1]["status"] = json!("in_progress"),
+                2 => items[1]["role"] = json!("user"),
+                3 => items[1]["content"][0]["text"] = json!("not JSON"),
+                4 => items[1]["content"][0]["text"] = json!("x".repeat(MAX_OUTPUT_BYTES + 1)),
+                5 => { items.remove(1); },
+                6 => items[1]["content"] = json!([]),
+                7 => { let part = items[1]["content"][0].clone(); items[1]["content"].as_array_mut().unwrap().push(part); },
+                8 => items[0] = json!({"type":"unknown"}),
+                9 => items[0]["summary"] = json!("x".repeat(1_048_577)),
+                _ => *items = vec![json!({"type":"reasoning"}); 65],
+            }
+        }
+        assert!(disclose_completed(&outcome, &snapshot, &snapshot, &Default::default()).review.is_err(), "change {change}");
+    }
+}
+
 #[test]
 fn inventory_document_and_abstention_keep_exact_sources_and_unknowns() {
     let snapshot = AdmittedSnapshot::new(input()).unwrap();

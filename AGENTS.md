@@ -1,5 +1,19 @@
 # HouseAtlas
 
+The review-only AI module also exports `disclose_completed`, a pure adapter from
+the original `InferenceOutcome` to existing canonical validation/disclosure.
+It accepts one completed assistant JSON text payload (with bounded reasoning
+metadata), rejects refusal/tool/ambiguous/noncompleted output, retains observed
+usage including unknowns, and preserves current-context and inspection fences.
+Original outcomes, diagnostics and journals remain with their owner. It does
+not bind a runtime, credential, route, dispatcher, approval or persistence.
+Five generated `ai::suggestions::synthetic_contracts::completed_proposal_*`
+cases are authored in the existing default-library selection and NOT RUN.
+They cover inventory/document projection, refusal/tools, all noncompleted
+states, usage, context/original inspection and malformed/bounded envelopes.
+Existing 25 retained-corpus tests, originals and coverage ledger are unchanged.
+No local compilation, tests, formatting or Clippy qualification was performed.
+
 HouseAtlas owns physical identities, reviewed cross-system bindings, optional
 geometry, circuits, valves and provenance. HomeBox owns inventory, locations,
 attachments and maintenance; its fields are read-only projections here and

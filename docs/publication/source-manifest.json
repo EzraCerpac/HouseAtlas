@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 50372,
-      "sha256": "05f8b65cf71b0ee551c2733b932c628f780c7b7dec277109b415397994b8c41d",
+      "bytes": 51379,
+      "sha256": "54afbd47785255a2fc04cf583786d1ce5200c4679e83743dfbe626ca93fb8115",
       "owner": "core-integration"
     },
     {
@@ -1173,6 +1173,13 @@
       "owner": "ai"
     },
     {
+      "path": "backend/src/ai/suggestions/completion.rs",
+      "mode": "100644",
+      "bytes": 4678,
+      "sha256": "89b37a87a622583b32eea06b23c8bfff9dc7e68b0dd601e298d35e6c693c081a",
+      "owner": "ai"
+    },
+    {
       "path": "backend/src/ai/suggestions/disclosure.rs",
       "mode": "100644",
       "bytes": 14560,
@@ -1196,8 +1203,8 @@
     {
       "path": "backend/src/ai/suggestions/mod.rs",
       "mode": "100644",
-      "bytes": 508,
-      "sha256": "ee329da92298ef6ea2a800c423e1306b6d335368a22817984ab106d6c4b24290",
+      "bytes": 609,
+      "sha256": "0323b47c47bfe6b4fa5f088b67f81d3256e0a2752641985a9c4a6ea5987bffe7",
       "owner": "ai"
     },
     {
@@ -1210,8 +1217,8 @@
     {
       "path": "backend/src/ai/suggestions/synthetic_contracts.rs",
       "mode": "100644",
-      "bytes": 28564,
-      "sha256": "a363701cb20c6b053dcee71db76d856f506ca64c8df749a2dc2a2f3f852a2dcc",
+      "bytes": 35901,
+      "sha256": "61b27558bf9997bfca225196dd0d0cbfa5cc303b30f962988b25989157d4d79b",
       "owner": "ai"
     },
     {
@@ -6586,8 +6593,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 262950,
-      "sha256": "e8fad15b4a9938e472c95c5a3627c204996f7abab59f7b7124b7ab18a221dad0",
+      "bytes": 264400,
+      "sha256": "0848793a3f92613b6cba83d5a9e552fe86a342ecac96e6ac242c7b4e41945322",
       "owner": "core-integration"
     },
     {
