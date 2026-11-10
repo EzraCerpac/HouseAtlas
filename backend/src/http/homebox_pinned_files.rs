@@ -195,6 +195,26 @@ fn budget() -> Result<(CancelOnDrop, m::WorkBudget), super::HttpFailure> {
     let budget = m::WorkBudget::new(Duration::from_secs(10), cancellation).map_err(media_error)?;
     Ok((cancel, budget))
 }
+// Dropping this future stops our reader from scheduling another GET after the
+// budget is observed cancelled. A request already delivered to the provider
+// may still complete remotely; cancellation is not a remote rollback receipt.
+async fn capture_with_budget<T>(
+    budget: &m::WorkBudget,
+    capture: impl std::future::Future<Output = m::MediaResult<T>>,
+) -> m::MediaResult<T> {
+    tokio::pin!(capture);
+    loop {
+        budget.check()?;
+        tokio::select! {
+            result = &mut capture => {
+                budget.check()?;
+                return result;
+            }
+            _ = tokio::time::sleep(Duration::from_millis(50)) => {}
+        }
+    }
+}
+
 fn original_wire(uri: &Uri) -> Result<Value, super::HttpFailure> {
     let query = uri.query().ok_or_else(invalid)?;
     if query.len() > QUERY_MAX_BYTES {
@@ -392,19 +412,22 @@ async fn capture_selected(
                         .consume(&boundary, original.principal(), session, session_expires_at_ms, &request)?;
                 }
                 // No Core/Store/Access/Broker guard survives these three real GETs.
-                let owner = Arc::new(
-                    runtime
-                        .block_on(NativePinnedFileOwner::capture_configured(
-                            &binding.source,
-                            &binding.credentials,
-                            Arc::clone(&access),
-                            original.clone(),
-                            source_grant.clone(),
-                            partition_grant,
-                            &request,
-                        ))
-                        .map_err(media_error)?,
+                let capture = NativePinnedFileOwner::capture_configured(
+                    &binding.source,
+                    &binding.credentials,
+                    Arc::clone(&access),
+                    original.clone(),
+                    source_grant.clone(),
+                    partition_grant,
+                    &request,
                 );
+                let owner = Arc::new(runtime.block_on(async {
+                    if offline {
+                        capture_with_budget(&budget, capture).await
+                    } else {
+                        capture.await
+                    }
+                }).map_err(media_error)?);
                 budget.check().map_err(media_error)?;
                 if offline {
                     let (facts, bytes) = {
@@ -921,6 +944,43 @@ mod session_retirement_tests {
 #[cfg(test)]
 mod offline_response_tests {
     use super::*;
+
+    #[tokio::test]
+    async fn cancelled_capture_does_not_poll_or_release_a_result() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let cancellation = m::Cancellation::default();
+        let budget = m::WorkBudget::new(Duration::from_secs(10), cancellation.clone()).unwrap();
+        cancellation.cancel();
+        let polled = AtomicBool::new(false);
+        let result = capture_with_budget(&budget, async {
+            polled.store(true, Ordering::SeqCst);
+            Ok::<_, m::MediaError>(())
+        })
+        .await;
+        assert!(result.is_err());
+        assert!(!polled.load(Ordering::SeqCst));
+        let pending_cancel = m::Cancellation::default();
+        let pending_budget =
+            m::WorkBudget::new(Duration::from_secs(10), pending_cancel.clone()).unwrap();
+        let cancel_task = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            pending_cancel.cancel();
+        });
+        let pending = capture_with_budget(
+            &pending_budget,
+            std::future::pending::<m::MediaResult<()>>(),
+        )
+        .await;
+        assert!(pending.is_err());
+        cancel_task.await.unwrap();
+        let live = m::WorkBudget::new(Duration::from_secs(10), m::Cancellation::default()).unwrap();
+        assert_eq!(
+            capture_with_budget(&live, async { Ok::<_, m::MediaError>(7) })
+                .await
+                .unwrap(),
+            7
+        );
+    }
 
     #[test]
     fn metadata_roundtrips_and_remains_bounded() {
