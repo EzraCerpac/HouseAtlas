@@ -109,35 +109,60 @@ impl<C: Sync, P: Send + Sync, A: HostAuthority<C>, G: ExactReviewReady<C, P>>
         cancel: &'a Cancellation,
     ) -> PortFuture<'a, AiCheckpoint<P>> {
         Box::pin(async move {
-            cancel.checkpoint()?;
-            let binding = self.authority.binding(context)?;
-            self.authority.revalidate(context, &binding)?;
-            let mut entries = self
-                .entries
-                .lock()
-                .map_err(|_| AiError::DomainUnavailable)?;
-            let entry = entries
-                .get(continuation_id)
-                .ok_or(AiError::DomainUnavailable)?;
-            if entry.binding != binding
-                || entry.expires <= Instant::now()
-                || entry.checkpoint.request_id != request_id
-            {
-                return Err(AiError::ConnectionUnavailable);
-            }
-            self.review.ready(context, &entry.checkpoint)?;
-            self.authority.revalidate(context, &binding)?;
-            self.journal.append(
-                &binding,
-                request_id,
-                "continuation-claimed",
-                serde_json::json!({"continuationId":continuation_id}),
-            )?;
-            Ok(entries
-                .remove(continuation_id)
-                .ok_or(AiError::DomainUnavailable)?
-                .checkpoint)
+            self.claim_current(context, continuation_id, request_id, cancel, Instant::now)
         })
+    }
+}
+
+impl<A, G, P> HostContinuations<A, G, P> {
+    // The mounted path always uses Instant::now. A private clock argument lets
+    // finite synthetic cases cross the exact expiry boundary without sleeping.
+    fn claim_current<C>(
+        &self,
+        context: &C,
+        continuation_id: &str,
+        request_id: &str,
+        cancel: &Cancellation,
+        now: impl Fn() -> Instant,
+    ) -> Result<AiCheckpoint<P>, AiError>
+    where
+        A: HostAuthority<C>,
+        G: ExactReviewReady<C, P>,
+    {
+        cancel.checkpoint()?;
+        let binding = self.authority.binding(context)?;
+        self.authority.revalidate(context, &binding)?;
+        let mut entries = self
+            .entries
+            .lock()
+            .map_err(|_| AiError::DomainUnavailable)?;
+        let entry = entries
+            .get(continuation_id)
+            .ok_or(AiError::DomainUnavailable)?;
+        if entry.binding != binding
+            || entry.expires <= now()
+            || entry.checkpoint.request_id != request_id
+        {
+            return Err(AiError::ConnectionUnavailable);
+        }
+        self.review.ready(context, &entry.checkpoint)?;
+        self.authority.revalidate(context, &binding)?;
+        // Original review/authority checks may outlast the retained handle
+        // or request a stop. Neither may consume or journal a claimed handle.
+        cancel.checkpoint()?;
+        if entry.expires <= now() {
+            return Err(AiError::ConnectionUnavailable);
+        }
+        self.journal.append(
+            &binding,
+            request_id,
+            "continuation-claimed",
+            serde_json::json!({"continuationId":continuation_id}),
+        )?;
+        Ok(entries
+            .remove(continuation_id)
+            .ok_or(AiError::DomainUnavailable)?
+            .checkpoint)
     }
 }
 
@@ -166,3 +191,7 @@ impl<C, P: Send + Sync, A: HostAuthority<C>, G: Send + Sync> ContinuationRetirem
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "continuation_healthy.rs"]
+mod continuation_healthy;
