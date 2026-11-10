@@ -1,5 +1,5 @@
 import { useId, useSyncExternalStore } from 'react';
-import type { SuggestionReviewController } from './controller';
+import { suggestionFieldTextLimit, type SuggestionReviewController } from './controller';
 import type { MaintenanceTaskView, MaintenanceTaskDraft, MaintenanceUnit, MaintenanceUrgency } from './view-types';
 import './suggestion-review.css';
 
@@ -52,7 +52,7 @@ export function SuggestionReview({ controller }: { readonly controller: Suggesti
             onChange={event => { controller.selectField(field.key, event.target.checked); }} />Select for review</label>
           <p>Current: {field.current ?? 'Unknown'}</p>
           <label htmlFor={id + '-field-' + index}>Proposed value</label>
-          <input id={id + '-field-' + index} value={draft.value} maxLength={4096}
+          <input id={id + '-field-' + index} value={draft.value} maxLength={suggestionFieldTextLimit(view.kind, field.key)}
             onChange={event => { controller.editField(field.key, event.target.value); }} />
           <p>{field.reason}</p><p>Uncertainty: {field.uncertainty || 'Not supplied'}</p>
           <p>Evidence: {field.evidenceKeys.map(key => view.sources.find(s => s.key === key)!.label).join('; ')}</p>
