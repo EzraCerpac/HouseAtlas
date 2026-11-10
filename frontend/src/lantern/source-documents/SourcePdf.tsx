@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef } from 'react';
 import { OptionalViewerBoundary } from '../components/OptionalViewerBoundary';
 import type { SourcePdfOutcome, SourcePdfViewProps } from './SourcePdfView';
 
-export type { SourcePdfOutcome, SourcePdfViewProps } from './SourcePdfView';
+export type { SourcePdfOutcome, SourcePdfViewProps, SourcePdfReadingPosition } from './SourcePdfView';
 
 const SourcePdfView = lazy(() => import('./SourcePdfView').then(module => ({ default: module.SourcePdfView })));
 
@@ -13,7 +13,7 @@ let attempts = 0;
  * viewer chunk, module or render fails, on withdrawal before the viewer
  * loads, or on unmount first. Neighbouring save and provenance stay outside. */
 export function SourcePdf(props: SourcePdfViewProps) {
-  const { blob, signal, initialPage, onOutcome } = props;
+  const { blob, signal, initialPage, initialReadingPosition, onOutcome } = props;
   const notify = useRef(onOutcome);
   notify.current = onOutcome;
   // One attempt per request; its callback is the one current when it began.
@@ -21,7 +21,7 @@ export function SourcePdf(props: SourcePdfViewProps) {
     const target = notify.current;
     let reported = false;
     return { id: ++attempts, report: (value: SourcePdfOutcome) => { if (!reported) { reported = true; target?.(value); } } };
-  }, [blob, signal, initialPage]);
+  }, [blob, signal, initialPage, initialReadingPosition]);
   return <SourcePdfAttempt key={attempt.id} {...props} onOutcome={attempt.report} />;
 }
 

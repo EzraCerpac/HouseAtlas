@@ -76,5 +76,6 @@ export interface SourceDocumentsPort {
   /** Optional live host retention after an explicit original read. No extra authority. */
   heldStatus?(document: SourceDocument, signal: AbortSignal): Promise<'held' | 'not-held' | 'failed-integrity' | 'unavailable'>;
   subscribeHeld?(changed: () => void): () => void;
-  retainOpenedOriginal?(documentId: string, revision: number, signal: AbortSignal): Promise<void>;
+  /** Borrows the caller-owned current original frame; retention must not release it or reopen the original. */
+  retainOpenedOriginal?(reader: SourceDocumentReader, frame: SourceDocumentFrame, document: SourceDocument, signal: AbortSignal): Promise<void>;
 }

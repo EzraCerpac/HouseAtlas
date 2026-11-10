@@ -20,6 +20,7 @@ use axum::{
     http::{HeaderName, HeaderValue, Method, StatusCode, Uri},
     response::IntoResponse,
 };
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::Value;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -140,6 +141,8 @@ impl CaptureRequests {
 pub struct PinnedHomeBoxFileBinding {
     source: Arc<TrustedHomeBoxSource>,
     credentials: Arc<hb::NativeReadCredentialConfig>,
+    #[cfg(test)]
+    certificate: Option<Vec<u8>>,
 }
 impl PinnedHomeBoxFileBinding {
     pub fn new(
@@ -155,6 +158,8 @@ impl PinnedHomeBoxFileBinding {
         Ok(Self {
             source,
             credentials,
+            #[cfg(test)]
+            certificate: None,
         })
     }
     pub(super) fn source(&self) -> &Arc<TrustedHomeBoxSource> {
@@ -194,6 +199,26 @@ fn budget() -> Result<(CancelOnDrop, m::WorkBudget), super::HttpFailure> {
     let budget = m::WorkBudget::new(Duration::from_secs(10), cancellation).map_err(media_error)?;
     Ok((cancel, budget))
 }
+// Dropping this future stops our reader from scheduling another GET after the
+// budget is observed cancelled. A request already delivered to the provider
+// may still complete remotely; cancellation is not a remote rollback receipt.
+async fn capture_with_budget<T>(
+    budget: &m::WorkBudget,
+    capture: impl std::future::Future<Output = m::MediaResult<T>>,
+) -> m::MediaResult<T> {
+    tokio::pin!(capture);
+    loop {
+        budget.check()?;
+        tokio::select! {
+            result = &mut capture => {
+                budget.check()?;
+                return result;
+            }
+            _ = tokio::time::sleep(Duration::from_millis(50)) => {}
+        }
+    }
+}
+
 fn original_wire(uri: &Uri) -> Result<Value, super::HttpFailure> {
     let query = uri.query().ok_or_else(invalid)?;
     if query.len() > QUERY_MAX_BYTES {
@@ -217,7 +242,17 @@ pub(super) async fn capture(
     uri: Uri,
     method: Method,
 ) -> HttpResult {
-    capture_selected(host, workspace_id, home_id, headers, uri, method, false).await
+    capture_selected(
+        host,
+        workspace_id,
+        home_id,
+        headers,
+        uri,
+        method,
+        false,
+        false,
+    )
+    .await
 }
 
 pub(super) async fn capture_v4(
@@ -227,9 +262,40 @@ pub(super) async fn capture_v4(
     uri: Uri,
     method: Method,
 ) -> HttpResult {
-    capture_selected(host, workspace_id, home_id, headers, uri, method, true).await
+    capture_selected(
+        host,
+        workspace_id,
+        home_id,
+        headers,
+        uri,
+        method,
+        true,
+        false,
+    )
+    .await
 }
 
+pub(super) async fn offline_original(
+    State(host): State<Host>,
+    Path((workspace_id, home_id)): Path<(String, String)>,
+    Extension(headers): Extension<CheckedHeaders>,
+    uri: Uri,
+    method: Method,
+) -> HttpResult {
+    capture_selected(
+        host,
+        workspace_id,
+        home_id,
+        headers,
+        uri,
+        method,
+        true,
+        true,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
 async fn capture_selected(
     host: Host,
     workspace_id: String,
@@ -238,6 +304,7 @@ async fn capture_selected(
     uri: Uri,
     method: Method,
     v4: bool,
+    offline: bool,
 ) -> HttpResult {
     let (_cancel, budget) = budget()?;
     let runtime = tokio::runtime::Handle::current();
@@ -349,20 +416,31 @@ async fn capture_selected(
                         .consume(&boundary, original.principal(), session, session_expires_at_ms, &request)?;
                 }
                 // No Core/Store/Access/Broker guard survives these three real GETs.
-                let owner = Arc::new(
-                    runtime
-                        .block_on(NativePinnedFileOwner::capture_configured(
-                            &binding.source,
-                            &binding.credentials,
-                            Arc::clone(&access),
-                            original.clone(),
-                            source_grant.clone(),
-                            partition_grant,
-                            &request,
-                        ))
-                        .map_err(media_error)?,
-                );
+                let owner = Arc::new(runtime.block_on(async {
+                    #[cfg(test)]
+                    if let Some(certificate) = &binding.certificate {
+                        return capture_with_budget(&budget, NativePinnedFileOwner::capture_loopback_fixture(
+                            &binding.source, &binding.credentials, Arc::clone(&access), original.clone(),
+                            source_grant.clone(), partition_grant, &request, certificate,
+                        )).await;
+                    }
+                    let capture = NativePinnedFileOwner::capture_configured(
+                        &binding.source, &binding.credentials, Arc::clone(&access), original.clone(),
+                        source_grant.clone(), partition_grant, &request,
+                    );
+                    if offline { capture_with_budget(&budget, capture).await } else { capture.await }
+                }).map_err(media_error)?);
                 budget.check().map_err(media_error)?;
+                if offline {
+                    let (facts, bytes) = {
+                        let mut boundary = access.lock().map_err(|_| unavailable())?;
+                        m::homebox_pinned_artifacts::read_offline_original(
+                            &mut boundary, &original, &source_grant, &request, &owner, &budget,
+                        ).map_err(media_error)?
+                    };
+                    budget.check().map_err(media_error)?;
+                    return offline_response(&facts, bytes);
+                }
                 let issued = {
                     let mut boundary = access.lock().map_err(|_| unavailable())?;
                     let mut broker = host
@@ -403,6 +481,42 @@ async fn capture_selected(
     })
     .await
     .map_err(|_| unavailable())?
+}
+
+// The metadata is descriptive data, not a redemption capability. Raw bytes
+// and their pins share one response, avoiding a second provider download.
+fn offline_response(facts: &impl serde::Serialize, bytes: Vec<u8>) -> HttpResult {
+    let encoded = STANDARD.encode(serde_json::to_vec(facts).map_err(|_| unavailable())?);
+    if encoded.len() > WIRE_MAX_BYTES {
+        return Err(failure(StatusCode::PAYLOAD_TOO_LARGE));
+    }
+    let mut response = bytes.into_response();
+    let headers = response.headers_mut();
+    headers.insert(
+        "content-type",
+        HeaderValue::from_static("application/octet-stream"),
+    );
+    headers.insert(
+        "cache-control",
+        HeaderValue::from_static("private, no-store"),
+    );
+    headers.insert(
+        "x-content-type-options",
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        "content-security-policy",
+        HeaderValue::from_static("default-src 'none'; sandbox"),
+    );
+    headers.insert(
+        "cross-origin-resource-policy",
+        HeaderValue::from_static("same-origin"),
+    );
+    headers.insert(
+        "x-houseatlas-original",
+        HeaderValue::from_str(&encoded).map_err(|_| unavailable())?,
+    );
+    Ok(response)
 }
 
 fn authenticated_redemption(
@@ -628,6 +742,40 @@ mod session_retirement_tests {
     }
 
     #[test]
+    fn offline_capture_request_cannot_replay_after_an_unknown_outcome() {
+        let (mut access, _clock, scope, _user, _now) = setup();
+        let receipt = access
+            .login_loopback_local(
+                &evidence(a::Method::Post, None, None),
+                "127.0.0.1".parse().unwrap(),
+            )
+            .unwrap();
+        let original = principal(&mut access, &receipt, &scope);
+        let contracts = st::NativeStockContract::new().unwrap();
+        let first = request(&contracts, 100, 6);
+        let mut gate = CaptureRequests::default();
+        assert!(consume(&mut gate, &access, &original, &receipt, &first).is_ok());
+        // This gate is spent before any provider GET, even if the caller never
+        // receives a result. Reusing the ID cannot dispatch another download.
+        assert_eq!(
+            consume(&mut gate, &access, &original, &receipt, &first)
+                .err()
+                .unwrap()
+                .status,
+            StatusCode::CONFLICT
+        );
+        let changed = request(&contracts, 100, 7);
+        assert_eq!(
+            consume(&mut gate, &access, &original, &receipt, &changed)
+                .err()
+                .unwrap()
+                .status,
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
+        assert_eq!(gate.spent.len(), 1);
+    }
+
+    #[test]
     #[ignore = "HELD standalone capture replay/changed-wire/quota controls; source-only, no execution authorized"]
     fn live_capture_replay_controls_source_only() {
         let (mut access, clock, scope, user, now) = setup();
@@ -792,5 +940,316 @@ mod session_retirement_tests {
             .is_ok()
         );
         assert_eq!(gate.spent.len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod offline_response_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn cancelled_capture_does_not_poll_or_release_a_result() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let cancellation = m::Cancellation::default();
+        let budget = m::WorkBudget::new(Duration::from_secs(10), cancellation.clone()).unwrap();
+        cancellation.cancel();
+        let polled = AtomicBool::new(false);
+        let result = capture_with_budget(&budget, async {
+            polled.store(true, Ordering::SeqCst);
+            Ok::<_, m::MediaError>(())
+        })
+        .await;
+        assert!(result.is_err());
+        assert!(!polled.load(Ordering::SeqCst));
+        let pending_cancel = m::Cancellation::default();
+        let pending_budget =
+            m::WorkBudget::new(Duration::from_secs(10), pending_cancel.clone()).unwrap();
+        let cancel_task = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            pending_cancel.cancel();
+        });
+        let pending = capture_with_budget(
+            &pending_budget,
+            std::future::pending::<m::MediaResult<()>>(),
+        )
+        .await;
+        assert!(pending.is_err());
+        cancel_task.await.unwrap();
+        let live = m::WorkBudget::new(Duration::from_secs(10), m::Cancellation::default()).unwrap();
+        assert_eq!(
+            capture_with_budget(&live, async { Ok::<_, m::MediaError>(7) })
+                .await
+                .unwrap(),
+            7
+        );
+    }
+
+    #[test]
+    fn metadata_roundtrips_and_remains_bounded() {
+        let facts = serde_json::json!({"schemaVersion": 1, "contentType": null, "observationId": "fictional"});
+        let Ok(response) = offline_response(&facts, b"original".to_vec()) else {
+            panic!("synthetic response refused");
+        };
+        assert_eq!(
+            response.headers()["content-type"],
+            "application/octet-stream"
+        );
+        assert_eq!(response.headers()["cache-control"], "private, no-store");
+        let encoded = response.headers()["x-houseatlas-original"]
+            .to_str()
+            .unwrap();
+        let decoded: Value = serde_json::from_slice(&STANDARD.decode(encoded).unwrap()).unwrap();
+        assert_eq!(decoded, facts);
+        assert!(
+            offline_response(
+                &serde_json::json!({"large": "x".repeat(WIRE_MAX_BYTES)}),
+                vec![]
+            )
+            .is_err()
+        );
+    }
+}
+
+#[cfg(test)]
+mod mounted_offline_original_tests {
+    use super::*;
+    use axum::{
+        body::{Body, to_bytes},
+        extract::ConnectInfo,
+        http::Request,
+    };
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use serde_json::json;
+    use sha2::{Digest as _, Sha256};
+    use std::{
+        net::{Ipv4Addr, SocketAddr},
+        sync::Arc,
+    };
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
+    use tokio_rustls::{
+        TlsAcceptor,
+        rustls::{self, pki_types::PrivatePkcs8KeyDer},
+    };
+    use tower::ServiceExt;
+
+    const ORIGIN: &str = "https://127.0.0.1:48743";
+    const ORIGINAL: &[u8] = b"%PDF-1.7\nfictional original\n%%EOF\n";
+    fn id(n: u32) -> String {
+        format!("00000000-0000-4000-8000-{n:012}")
+    }
+    fn request(path: &str, cookie: Option<&str>) -> Request<Body> {
+        let mut builder = Request::builder()
+            .method("GET")
+            .uri(path)
+            .header("host", "127.0.0.1:48743")
+            .header("origin", ORIGIN)
+            .header("sec-fetch-site", "same-origin");
+        if let Some(cookie) = cookie {
+            builder = builder.header("cookie", cookie);
+        }
+        let mut request = builder.body(Body::empty()).unwrap();
+        request.extensions_mut().insert(ConnectInfo(
+            "127.0.0.1:50123".parse::<SocketAddr>().unwrap(),
+        ));
+        request
+    }
+    fn path(request_id: u32) -> String {
+        let wire = json!({"schemaVersion":4,"commandId":"homebox.file.download","requestId":id(request_id),
+            "context":{"workspaceId":id(1),"homeId":id(2)},
+            "target":{"authority":"homebox","sourceInstanceId":id(300),"collectionId":id(301),
+                "resourceKind":"attachment","entityId":id(2),"resourceId":id(201)},"payload":{}});
+        let query = url::form_urlencoded::Serializer::new(String::new())
+            .append_pair("request", &wire.to_string())
+            .finish();
+        format!(
+            "/api/atlas/stock/v4/workspaces/{}/homes/{}/homebox-offline-original?{}",
+            id(1),
+            id(2),
+            query
+        )
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn mounted_original_admission_disclosure_error_and_replay()
+    -> Result<(), crate::lifecycle::Failure> {
+        let scratch = tempfile::Builder::new()
+            .prefix("homebox-offline-original-")
+            .tempdir()?;
+        let directory = scratch.path().join("fixture");
+        let core = crate::lifecycle::prepare(&directory, ORIGIN)?;
+        let cookie: Value =
+            serde_json::from_slice(&std::fs::read(directory.join("smoke-session.json"))?)?;
+        let cookie = cookie["cookie"]
+            .as_str()
+            .ok_or("missing synthetic session")?
+            .to_owned();
+        let registration: a::SourceRegistration = serde_json::from_value(json!({
+            "workspaceId":id(1),"homeId":id(2),"sourceInstanceId":id(300),"collectionId":id(301),
+            "owner":"homebox","partitionMode":"reviewed-entity-allowlist","allowedExternalIds":[id(2),id(1)]
+        }))?;
+        let access = Arc::clone(&core.access);
+        access.lock().unwrap().put_source(&registration, None)?;
+        let cert = rcgen::generate_simple_self_signed(vec!["127.0.0.1".into()])?;
+        let leaf = cert.cert.der().to_vec();
+        let tls = rustls::ServerConfig::builder_with_provider(Arc::new(
+            rustls::crypto::aws_lc_rs::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()?
+        .with_no_client_auth()
+        .with_single_cert(
+            vec![cert.cert.der().clone()],
+            PrivatePkcs8KeyDer::from(cert.signing_key.serialize_der()).into(),
+        )?;
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await?;
+        let provider_origin = format!("https://{}", listener.local_addr()?);
+        let durable: storage::SourceRegistration =
+            serde_json::from_value(serde_json::to_value(&registration)?)?;
+        let source = Arc::new(TrustedHomeBoxSource::new_stock(
+            &provider_origin,
+            durable,
+            hb::Limits::default(),
+            None,
+        )?);
+        let credentials = Arc::new(hb::NativeReadCredentialConfig::from_trusted_header(
+            &source.endpoint()?,
+            b"Bearer generated-test-only".to_vec(),
+        )?);
+        let mut binding = PinnedHomeBoxFileBinding::new(source, credentials)?;
+        binding.certificate = Some(leaf);
+        let app = super::super::router(
+            Host::new(core, ORIGIN.into(), Arc::new(BTreeMap::new()), vec![])?
+                .with_pinned_homebox_files(vec![binding])?,
+        );
+        let acceptor = TlsAcceptor::from(Arc::new(tls));
+        let requests = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let observed_requests = Arc::clone(&requests);
+        let (stop, mut shutdown) = tokio::sync::oneshot::channel::<()>();
+        let mut server = tokio::spawn(async move {
+            let detail = include_bytes!("../providers/homebox/wire/fixtures/item.detail.json");
+            let expected = [
+                format!("/api/v1/entities/{}", id(2)),
+                format!("/api/v1/entities/{}/attachments/{}", id(2), id(201)),
+                format!("/api/v1/entities/{}", id(2)),
+                format!("/api/v1/entities/{}", id(2)),
+            ];
+            loop {
+                let accepted = tokio::select! {
+                    _ = &mut shutdown => break,
+                    accepted = listener.accept() => accepted.unwrap(),
+                };
+                let (socket, peer) = accepted;
+                assert!(peer.ip().is_loopback());
+                let mut stream = acceptor.accept(socket).await.unwrap();
+                let mut raw = Vec::new();
+                while !raw.ends_with(b"\r\n\r\n") {
+                    let mut b = [0];
+                    stream.read_exact(&mut b).await.unwrap();
+                    raw.push(b[0]);
+                    assert!(raw.len() < 16384);
+                }
+                let line = String::from_utf8(raw).unwrap();
+                let n = observed_requests.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                if let Some(path) = expected.get(n) {
+                    assert_eq!(line.lines().next().unwrap(), format!("GET {path} HTTP/1.1"));
+                }
+                // Remain capable of answering a later request: an auth failure
+                // cannot be confused with a closed listener/transport failure.
+                let body: &[u8] = if line.lines().next().unwrap().contains("/attachments/") {
+                    ORIGINAL
+                } else if n == 3 {
+                    b"unavailable"
+                } else {
+                    detail
+                };
+                let status = if n == 3 {
+                    "503 Service Unavailable"
+                } else {
+                    "200 OK"
+                };
+                stream
+                    .write_all(
+                        format!(
+                            "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                            body.len()
+                        )
+                        .as_bytes(),
+                    )
+                    .await
+                    .unwrap();
+                stream.write_all(body).await.unwrap();
+                let _ = stream.shutdown().await;
+            }
+        });
+        let first = path(700);
+        assert_eq!(
+            app.clone().oneshot(request(&first, None)).await?.status(),
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(requests.load(std::sync::atomic::Ordering::SeqCst), 0);
+        let response = app.clone().oneshot(request(&first, Some(&cookie))).await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let encoded = response.headers()["x-houseatlas-original"].to_str()?;
+        let facts: Value = serde_json::from_slice(&STANDARD.decode(encoded)?)?;
+        assert_eq!(facts["requestId"], id(700));
+        assert_eq!(facts["scope"]["sourceInstanceId"], id(300));
+        assert_eq!(facts["scope"]["collectionId"], id(301));
+        assert_eq!(facts["target"]["entityId"], id(2));
+        assert_eq!(facts["target"]["resourceId"], id(201));
+        assert_eq!(facts["byteSize"], ORIGINAL.len());
+        assert_eq!(facts["sha256"], format!("{:x}", Sha256::digest(ORIGINAL)));
+        assert_eq!(facts["contentType"], "application/pdf");
+        assert_eq!(&to_bytes(response.into_body(), 1024).await?[..], ORIGINAL);
+        assert_eq!(
+            app.clone()
+                .oneshot(request(&first, Some(&cookie)))
+                .await?
+                .status(),
+            StatusCode::CONFLICT
+        );
+        let failed = path(701);
+        assert_eq!(
+            app.clone()
+                .oneshot(request(&failed, Some(&cookie)))
+                .await?
+                .status(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        assert_eq!(
+            app.clone()
+                .oneshot(request(&failed, Some(&cookie)))
+                .await?
+                .status(),
+            StatusCode::CONFLICT
+        );
+        assert_eq!(requests.load(std::sync::atomic::Ordering::SeqCst), 4);
+        let scope = a::Scope {
+            workspace_id: a::CanonicalId::parse(id(1))?,
+            home_id: a::CanonicalId::parse(id(2))?,
+        };
+        access.lock().unwrap().set_membership(
+            &a::CanonicalId::parse(id(4))?,
+            &scope,
+            a::Role::Viewer,
+            false,
+        )?;
+        assert_eq!(
+            app.oneshot(request(&path(702), Some(&cookie)))
+                .await?
+                .status(),
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(requests.load(std::sync::atomic::Ordering::SeqCst), 4);
+        let _ = stop.send(());
+        match tokio::time::timeout(Duration::from_secs(2), &mut server).await {
+            Ok(result) => result?,
+            Err(_) => {
+                server.abort();
+                return Err("synthetic provider cleanup timed out".into());
+            }
+        }
+        Ok(())
     }
 }

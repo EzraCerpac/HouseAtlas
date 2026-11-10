@@ -343,3 +343,261 @@ test('phase counters remain unknown across a pre-hook segment and the report kee
     if (prior) Object.defineProperty(globalThis, 'document', prior); else delete globalThis.document;
   }
 });
+
+// Transaction boundaries in the actual helper, using the locked Three CPU
+// QuadMesh/NodeMaterial/RendererUtils and explicit synthetic renderer/effects.
+// compileAsync below is a controlled promise: no shader, GPU, frame or browser
+// is exercised, and these controls establish no prepared-pipeline cache result.
+const effectThreeURL = import.meta.resolve('three/webgpu');
+const effectThree = await import(effectThreeURL);
+const effectFile = new URL('../src/lantern/canonical-ifc/prepare-effect-pipelines.ts', import.meta.url);
+const effectCode = (await transformWithOxc(readFileSync(effectFile, 'utf8'), effectFile.pathname,
+  { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false })).code;
+assert.deepEqual(runtimeDependencies(effectCode), ['ImportDeclaration'], 'Only the locked Three runtime import remains');
+assert(effectCode.includes(JSON.stringify('three/webgpu')), 'Expected the actual helper dependency');
+const { prepareEffectPipelines, PreparationRefused } = await import('data:text/javascript;base64,'
+  + Buffer.from(effectCode.replaceAll(JSON.stringify('three/webgpu'), JSON.stringify(effectThreeURL))).toString('base64'));
+
+function effectDeferred() {
+  let resolve, reject;
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+function effectFixture() {
+  const state = { target: { name: 'original target' }, cube: 2, mip: 3, ratio: 1.25,
+    renderObject: () => {}, mrt: { name: 'original MRT' }, clear: [.1, .2, .3], alpha: .4, scissor: true };
+  const cache = new Map();
+  const nativeGet = function(target = null, mrt = null, depth = 0) {
+    if (!cache.has(target)) cache.set(target, new Map());
+    const targets = cache.get(target);
+    if (!targets.has(mrt)) targets.set(mrt, new Map());
+    const levels = targets.get(mrt);
+    if (!levels.has(depth)) levels.set(depth, { target, mrt, depth });
+    return levels.get(depth);
+  };
+  const contexts = Object.create({ get: nativeGet });
+  const nodes = Array.from({ length: 4 }, (_, index) => {
+    const updateBefore = () => { throw new Error('A real effect update must not run in this fixture'); };
+    const node = Object.assign(Object.create({ updateBefore }), { updateBeforeType: `generated-${index}` });
+    if (index === 0) Object.defineProperty(node, 'updateBefore', { value: updateBefore, configurable: true, writable: true, enumerable: true });
+    return node;
+  });
+  const materials = Array.from({ length: 4 }, () => {
+    const material = new effectThree.NodeMaterial(); material.fragmentNode = { generated: true }; return material;
+  });
+  const quads = materials.slice(0, 3).map(material => new effectThree.QuadMesh(material));
+  quads[0].frustumCulled = false;
+  const culling = new Map(quads.map(quad => [quad, quad.frustumCulled]));
+  const vertices = new Map(materials.map(material => [material, material.vertexNode]));
+  const historyTarget = new effectThree.RenderTarget(1, 1), aoTarget = new effectThree.RenderTarget(1, 1);
+  const calls = [];
+  let onCompile = () => Promise.resolve();
+  const renderer = {
+    _renderContexts: contexts, toneMapping: 84, outputColorSpace: 'generated-display-space', xr: { enabled: true }, autoClear: false,
+    getRenderTarget: () => state.target,
+    setRenderTarget(target, cube = 0, mip = 0) { state.target = target; state.cube = cube; state.mip = mip; },
+    getActiveCubeFace: () => state.cube, getActiveMipmapLevel: () => state.mip,
+    getRenderObjectFunction: () => state.renderObject, setRenderObjectFunction(value) { state.renderObject = value; },
+    getPixelRatio: () => state.ratio, setPixelRatio(value) { state.ratio = value; },
+    getMRT: () => state.mrt, setMRT(value) { state.mrt = value; },
+    getClearColor(value) { return value.setRGB(...state.clear); }, getClearAlpha: () => state.alpha,
+    setClearColor(value, alpha = state.alpha) { state.clear = value === 0 ? [0, 0, 0] : [value.r, value.g, value.b]; state.alpha = alpha; },
+    getScissorTest: () => state.scissor, setScissorTest(value) { state.scissor = value; },
+    compileAsync(quad, camera) {
+      assert.equal(camera, quad.camera);
+      const index = calls.length, depth = index === 1 || index === 2 ? 1 : 0;
+      const target = [null, historyTarget, aoTarget, null][index];
+      assert.equal(state.target, target);
+      assert.equal(contexts.get(target, state.mrt), nativeGet(target, state.mrt, depth), 'Exact target/depth context identity');
+      assert.equal(renderer.toneMapping, effectThree.NoToneMapping);
+      assert.equal(renderer.outputColorSpace, effectThree.ColorManagement.workingColorSpace);
+      assert.equal(renderer.xr.enabled, false);
+      assert.notEqual(quad.material.vertexNode, vertices.get(quad.material), 'Actual fullscreen vertex setup is used for compilation');
+      assert.equal(quad.frustumCulled, false);
+      for (const node of nodes) assert.equal(node.updateBefore(), false, 'Effect updates are deferred only inside compilation');
+      if (!culling.has(quad)) culling.set(quad, true); // The helper creates the actual default AO QuadMesh.
+      calls.push(quad);
+      return onCompile(quad, index);
+    },
+  };
+  const output = quad => ({ renderer, _quadMesh: quad,
+    _contextData: { onBeforePipelineCallbacks: [], onAfterPipelineCallbacks: [] }, _update() {} });
+  const history = Object.assign(nodes[3], { count: 0, async prepareQuad(compile) { await compile(quads[2], historyTarget); } });
+  const effects = { pipeline: output(quads[0]), relit: output(quads[1]),
+    occlusion: Object.assign(nodes[2], { _material: materials[3], _aoRenderTarget: aoTarget }), history, passes: nodes.slice(0, 2) };
+  const snapshot = () => ({ renderer: effectThree.RendererUtils.saveRendererState(renderer), xr: renderer.xr.enabled });
+  let expectedState = snapshot();
+  let expectedHooks = nodes.map(node => Object.getOwnPropertyDescriptor(node, 'updateBefore'));
+  const contextDescriptor = Object.getOwnPropertyDescriptor(contexts, 'get');
+  const restored = () => {
+    assert.deepEqual(snapshot(), expectedState, 'Every renderer value, including outer output state, is restored');
+    assert.deepEqual(Object.getOwnPropertyDescriptor(contexts, 'get'), contextDescriptor, 'Inherited context method is restored');
+    assert.equal(contexts.get, nativeGet);
+    nodes.forEach((node, index) => {
+      assert.deepEqual(Object.getOwnPropertyDescriptor(node, 'updateBefore'), expectedHooks[index], 'Exact own/inherited update hook descriptor restored');
+      assert.equal(node.updateBeforeType, `generated-${index}`, 'Runtime dependency type is unchanged');
+    });
+    for (const [material, vertex] of vertices) assert.equal(material.vertexNode, vertex);
+    for (const [quad, culled] of culling) assert.equal(quad.frustumCulled, culled);
+  };
+  return { renderer, effects, nodes, contexts, calls, restored,
+    onCompile(value) { onCompile = value; },
+    observeCurrentState() { expectedState = snapshot(); },
+    observeCurrentHooks() { expectedHooks = nodes.map(node => Object.getOwnPropertyDescriptor(node, 'updateBefore')); },
+    close() { for (const material of materials) material.dispose(); historyTarget.dispose(); aoTarget.dispose(); },
+  };
+}
+
+test('effect preparation restores every shared owner before all four direct-frame yields', async () => {
+  const fixture = effectFixture(); let yields = 0;
+  try {
+    await prepareEffectPipelines(fixture.renderer, fixture.effects, async () => {
+      yields++; fixture.restored(); assert.equal(fixture.effects.history.count, 0);
+      assert.equal(fixture.calls.length, yields, 'Yield follows one settled compilation, never a pending one');
+      // A direct frame may update renderer state; the next transaction must
+      // snapshot this current owner rather than restore the initial build state.
+      fixture.renderer.toneMapping = 84 + yields;
+      fixture.renderer.outputColorSpace = `generated-direct-frame-${yields}`;
+      fixture.renderer.xr.enabled = yields % 2 === 0;
+      fixture.observeCurrentState();
+    });
+    assert.equal(yields, 4); assert.equal(fixture.calls.length, 4); fixture.restored();
+  } finally { fixture.close(); }
+});
+
+test('effect preparation restores owners after synchronous and asynchronous compile failures', async () => {
+  for (const synchronous of [true, false]) {
+    const fixture = effectFixture(), failure = new Error('generated compiler failure'); let yielded = false;
+    try {
+      fixture.onCompile(() => { if (synchronous) throw failure; return Promise.reject(failure); });
+      await assert.rejects(prepareEffectPipelines(fixture.renderer, fixture.effects, async () => { yielded = true; }), error => error === failure);
+      assert.equal(yielded, false); assert.equal(fixture.calls.length, 1); fixture.restored();
+    } finally { fixture.close(); }
+  }
+});
+
+test('effect preparation restores owners before refusing callbacks introduced by compilation', async () => {
+  const fixture = effectFixture(); let yielded = false;
+  try {
+    fixture.onCompile(() => { fixture.effects.pipeline._contextData.onAfterPipelineCallbacks.push(() => {}); return Promise.resolve(); });
+    await assert.rejects(prepareEffectPipelines(fixture.renderer, fixture.effects, async () => { yielded = true; }), error => error instanceof PreparationRefused);
+    assert.equal(yielded, false); fixture.restored();
+  } finally { fixture.close(); }
+});
+
+test('effect preparation retains compilation ownership until a cancelled compile settles', async () => {
+  const fixture = effectFixture(), entered = effectDeferred(), compiled = effectDeferred(), controller = new AbortController();
+  const reason = new Error('generated replacement during compile'); let yields = 0;
+  let run;
+  try {
+    fixture.onCompile(() => { entered.resolve(); return compiled.promise; });
+    run = prepareEffectPipelines(fixture.renderer, fixture.effects, async () => { yields++; }, controller.signal);
+    await Promise.race([entered.promise, run.then(() => assert.fail('Preparation finished before the controlled compile'))]);
+    controller.abort(reason);
+    assert.equal(yields, 0); assert(Object.hasOwn(fixture.contexts, 'get'), 'Pending compile still owns its context override');
+    for (const node of fixture.nodes) assert.equal(node.updateBefore(), false);
+    compiled.resolve(); await assert.rejects(run, error => error === reason);
+    assert.equal(yields, 0); assert.equal(fixture.calls.length, 1); fixture.restored();
+  } finally { compiled.resolve(); await run?.catch(() => undefined); fixture.close(); }
+});
+
+test('effect preparation cancellation in a restored yield starts no later compilation', async () => {
+  const fixture = effectFixture(), controller = new AbortController(), reason = new Error('generated replacement during yield');
+  let yields = 0;
+  try {
+    await assert.rejects(prepareEffectPipelines(fixture.renderer, fixture.effects, async () => {
+      yields++; fixture.restored(); controller.abort(reason);
+    }, controller.signal), error => error === reason);
+    assert.equal(yields, 1); assert.equal(fixture.calls.length, 1); fixture.restored();
+  } finally { fixture.close(); }
+});
+
+test('effect preparation preflights unsupported hooks and advanced history before mutation', async () => {
+  for (const advancedHistory of [false, true]) {
+    const fixture = effectFixture(); let yielded = false;
+    try {
+      if (advancedHistory) fixture.effects.history.count = 1;
+      else { fixture.nodes[2].updateBefore = null; fixture.observeCurrentHooks(); }
+      await assert.rejects(prepareEffectPipelines(fixture.renderer, fixture.effects, async () => { yielded = true; }), error => error instanceof PreparationRefused);
+      assert.equal(fixture.calls.length, 0); assert.equal(yielded, false); fixture.restored();
+    } finally { fixture.close(); }
+  }
+});
+
+test('effect preparation refuses history advanced in a safe window before another compile', async () => {
+  const fixture = effectFixture(); let yields = 0;
+  try {
+    await assert.rejects(prepareEffectPipelines(fixture.renderer, fixture.effects, async () => {
+      yields++; fixture.restored(); fixture.effects.history.count++;
+    }), /Effect preparation advanced the history/);
+    assert.equal(yields, 1); assert.equal(fixture.calls.length, 1); fixture.restored();
+  } finally { fixture.close(); }
+});
+
+test('effect preparation restores earlier hooks after a partial replacement failure', async () => {
+  const fixture = effectFixture(); let yielded = false;
+  try {
+    Object.defineProperty(fixture.nodes[3], 'updateBefore', { value: fixture.nodes[3].updateBefore, configurable: false });
+    fixture.observeCurrentHooks();
+    await assert.rejects(prepareEffectPipelines(fixture.renderer, fixture.effects, async () => { yielded = true; }), error => error instanceof TypeError && !(error instanceof PreparationRefused));
+    assert.equal(fixture.calls.length, 0); assert.equal(yielded, false); fixture.restored();
+  } finally { fixture.close(); }
+});
+
+// Exercise the actual scene callback with a synthetic lexical owner; no second
+// callback implementation, scene build, RAF, camera or rendered frame is used.
+const effectSceneSource = readFileSync(new URL('../src/lantern/canonical-ifc/mesh-scene.ts', import.meta.url), 'utf8');
+const effectSliceStart = '        const nextEffectSlice = async () => {';
+assert.equal(effectSceneSource.split(effectSliceStart).length, 2, 'One actual safe-yield callback owner');
+const effectSliceAt = effectSceneSource.indexOf(effectSliceStart);
+const effectSliceEnd = effectSceneSource.indexOf('\n        };', effectSliceAt);
+assert(effectSliceEnd > effectSliceAt, 'Complete actual safe-yield callback declaration');
+const effectSliceDeclaration = effectSceneSource.slice(effectSliceAt, effectSliceEnd + '\n        };'.length);
+const effectOwnerCode = (await transformWithOxc(`export function sourceEffectSliceOwner(onStage, slice) {
+  let holding = true;
+  ${effectSliceDeclaration}
+  return { nextEffectSlice, held: () => holding };
+}`, 'generated-effect-slice-owner.ts', { lang: 'ts', target: 'esnext', tsconfig: false, sourcemap: false })).code;
+assert.deepEqual(runtimeDependencies(effectOwnerCode), [], 'Safe-yield owner has no hidden runtime dependency');
+const { sourceEffectSliceOwner } = await import('data:text/javascript;base64,' + Buffer.from(effectOwnerCode).toString('base64'));
+
+test('actual scene yield callback reacquires its guard on completion and either failure path', async () => {
+  for (const outcome of ['complete', 'wait-rejected', 'notice-threw']) {
+    const wait = effectDeferred(), failure = new Error(`generated ${outcome}`);
+    let owner, notices = 0, waits = 0;
+    owner = sourceEffectSliceOwner(() => {
+      notices++; assert.equal(owner.held(), false, 'Current-frame notice occurs only in the released window');
+      if (outcome === 'notice-threw') throw failure;
+    }, { next() { waits++; assert.equal(owner.held(), false); return wait.promise; } });
+    assert.equal(owner.held(), true);
+    const running = owner.nextEffectSlice();
+    if (outcome === 'notice-threw') {
+      await assert.rejects(running, error => error === failure); assert.equal(waits, 0);
+    } else {
+      assert.equal(owner.held(), false, 'Guard remains released throughout the controlled restored wait');
+      if (outcome === 'wait-rejected') {
+        const rejected = assert.rejects(running, error => error === failure);
+        wait.reject(failure); await rejected;
+      } else { wait.resolve(); await running; }
+      assert.equal(waits, 1);
+    }
+    assert.equal(notices, 1); assert.equal(owner.held(), true, 'Guard is reacquired before control returns to compilation');
+  }
+});
+
+test('actual helper and scene callback open only restored direct-frame windows', async () => {
+  const fixture = effectFixture(); let owner, notices = 0, waits = 0;
+  try {
+    owner = sourceEffectSliceOwner(() => {
+      notices++; assert.equal(owner.held(), false); fixture.restored();
+      assert.equal(fixture.effects.history.count, 0);
+    }, { async next() {
+      waits++; assert.equal(owner.held(), false); fixture.restored();
+      assert.equal(fixture.effects.history.count, 0);
+    } });
+    fixture.onCompile(() => { assert.equal(owner.held(), true, 'Actual compile retains its scene guard'); return Promise.resolve(); });
+    await prepareEffectPipelines(fixture.renderer, fixture.effects, owner.nextEffectSlice);
+    assert.equal(notices, 4); assert.equal(waits, 4); assert.equal(fixture.calls.length, 4);
+    assert.equal(owner.held(), true); fixture.restored(); assert.equal(fixture.effects.history.count, 0);
+  } finally { fixture.close(); }
+});

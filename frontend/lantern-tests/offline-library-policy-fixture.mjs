@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
+import vm from 'node:vm';
+import { loadNumericSource } from './load-numeric-source.mjs';
 
 export async function checkOfflineLibraryPolicy() {
   const code = stripTypeScriptTypes(readFileSync(new URL('../integration/offline-library-policy.ts', import.meta.url), 'utf8'));
@@ -58,5 +60,70 @@ export async function checkOfflineLibraryPolicy() {
     assert.match(await fillOfflineLibrary(owner, signal()), /changed/); assert.deepEqual(calls, []);
     cases.push('offline-library-policy-snapshot-replacement-stops');
   }
+  const model = await loadNumericSource('lantern/topology/model.ts');
+  const electricalCode = stripTypeScriptTypes(readFileSync(new URL('../integration/offline-electrical-policy.ts', import.meta.url), 'utf8'))
+    .replace("'../src/lantern/topology/model'", JSON.stringify(model));
+  const { fillOfflineElectricalLibraries } = await import('data:text/javascript;base64,' + Buffer.from(electricalCode).toString('base64'));
+  function electricalFixture(reason = 'no-current-association') {
+    const calls = [], binding = {}, identity = {}, buildingId = '00000000-0000-4000-8000-000000000003';
+    let live = true, sameReader = true, retirement = 'ok';
+    const records = {
+      identity: [{ lifecycle: 'active', target: { recordId: buildingId }, payload: { kind: 'location' } }], binding: [], relation: [],
+      'location-semantics': [{ lifecycle: 'active', target: { recordId: 'generated-semantics' },
+        payload: { atlasId: buildingId, reviewStatus: 'accepted', semanticKind: 'building', label: 'Generated building' } }],
+    };
+    const options = { signal: signal(), current: () => live, enabled: () => true,
+      view: { scope: { workspaceId: 'generated-workspace', homeId: 'generated-home' }, entries: [] },
+      topology: { getBinding: () => binding, listAll: async (_binding, kind) => ({ status: 'ready', snapshotSha256: 'a'.repeat(64), records: records[kind] }) },
+      port: { createReader: async () => ({ owner: () => sameReader ? identity : null,
+        read: async () => ({ status: 'unavailable', reason }), dispose() {}, release() { assert.fail('absence has no available frame'); } }) },
+      owner: { retainElectricalLibrary() { assert.fail('absence must not retain an invented frame'); },
+        async retireElectricalLibrary(id, selected, current) { assert.equal(id, buildingId); assert.equal(selected, options.signal);
+          assert(current()); calls.push(id); return { status: retirement }; } },
+    };
+    return { options, calls, retire: value => { retirement = value; }, invalidateReader: () => { sameReader = false; }, stop: () => { live = false; } };
+  }
+  {
+    const f = electricalFixture();
+    assert.equal((await fillOfflineElectricalLibraries(f.options)).complete, true); assert.equal(f.calls.length, 1);
+    const unavailable = electricalFixture('current-source-unavailable');
+    assert.equal((await fillOfflineElectricalLibraries(unavailable.options)).complete, false); assert.equal(unavailable.calls.length, 0);
+    cases.push('offline-electrical-confirmed-absence-only-retires-membership');
+  }
+  {
+    const f = electricalFixture(); f.retire('uncertain');
+    assert.equal((await fillOfflineElectricalLibraries(f.options)).complete, false); assert.equal(f.calls.length, 1);
+    const changed = electricalFixture();
+    const createReader = changed.options.port.createReader;
+    changed.options.port.createReader = async () => { const reader = await createReader(); const read = reader.read;
+      reader.read = async () => { const result = await read(); changed.invalidateReader(); return result; }; return reader; };
+    assert.equal((await fillOfflineElectricalLibraries(changed.options)).complete, false); assert.equal(changed.calls.length, 0);
+    cases.push('offline-electrical-uncertain-or-retired-absence-stops-composition');
+  }
+  // Execute the exact private root function body with generated lazy modules and
+  // owner allocations. Only dynamic module resolution is replaced; no UI/HTTP.
+  const rootSource = readFileSync(new URL('../integration/main.tsx', import.meta.url), 'utf8');
+  const start = rootSource.indexOf('async function fillDeviceLibrary('), end = rootSource.indexOf('function LiveOfflineSettings()', start);
+  assert(start >= 0 && end > start);
+  const fillCode = stripTypeScriptTypes(rootSource.slice(start, end))
+    .replace(/import\('([^']+)'\)/g, (_all, name) => `loadPolicy(${JSON.stringify(name)})`);
+  for (const outcome of ['incomplete', 'uncertain', 'view-replaced', 'aborted', 'disabled', 'complete']) {
+    const session = {}, view = {}; let enabled = true, homebox = 0, electricalPasses = 0;
+    const controller = new AbortController();
+    const context = { currentSession: session, currentReadyView: view, topology: {}, sourceElectricalLibrary: {},
+      loadPolicy: async name => name === './offline-library-policy' ? { fillOfflineLibrary: async () => 'Native complete.' }
+        : name === './offline-homebox-policy' ? { fillOfflineHomeboxOriginals: async () => { homebox++; return { message: 'HomeBox complete.' }; } }
+          : { fillOfflineElectricalLibraries: async () => {
+            if (++electricalPasses === 1) return { complete: true, message: 'Measured.' };
+            if (outcome === 'view-replaced') context.currentReadyView = {};
+            if (outcome === 'aborted') controller.abort(); if (outcome === 'disabled') enabled = false;
+            return { complete: !['incomplete', 'uncertain'].includes(outcome), message: 'Electrical result.' };
+          } },
+    };
+    const fill = vm.runInNewContext(fillCode + '\nfillDeviceLibrary', context);
+    await fill({ retainCatalog: async () => ({ status: 'ok' }) }, controller.signal, () => enabled);
+    assert.equal(homebox, outcome === 'complete' ? 1 : 0, outcome);
+  }
+  cases.push('offline-root-homebox-follows-only-complete-current-enabled-electrical-pass');
   return cases;
 }

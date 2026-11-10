@@ -41,6 +41,7 @@ import { OVERLAY_KINDS, OVERLAY_LABEL, plural, stampTime } from './atlas-text';
 import { FloorStack } from './FloorStack';
 import { Inspector, listedLevels, RoomList } from './AtlasInspector';
 import { electricalGroups } from './electrical-group';
+import type { ElectricalTraceSource } from './electrical-trace';
 import { MeasurementKey, NetworkLensSection, OverlayKey } from './AtlasKeys';
 import '../canonical-ifc/canonical-ifc.css';
 import './unified-atlas.css';
@@ -114,6 +115,9 @@ export interface AtlasPresentationEnvironment {
   readonly archive?: { readonly included: boolean; readonly setIncluded: (included: boolean) => void };
   /** Absent in the saved viewer, which keeps its own graph panel. */
   readonly lens?: AtlasLensHost;
+  /** Reviewed breaker/panel projection from the current overlay-frame owner,
+   * replaced or withdrawn with that frame. No live or saved host supplies it yet. */
+  readonly electricalData?: ElectricalTraceSource;
 }
 interface AtlasProps {
   readonly port: UnifiedAtlasPort | AtlasPresentationPort;
@@ -1620,6 +1624,7 @@ function AtlasStage({ model: lighter, port, selection, entryBuildingId, otherSou
     <Inspector model={model} state={state} dispatch={dispatch} context={context} renderFailure={failure}
       runtime={runtime.records} runtimeReason={runtime.reason} runtimeConfigured={runtimeConfigured}
       electricalGroup={electricalGroup} canElectricalGroup={key => groups.some(group => group.members.some(member => member.record.key === key))} onElectricalGroup={onElectricalGroup} clearElectricalGroup={() => setElectricalGroupSelection(null)}
+      electricalData={electricalOn ? environment.electricalData : undefined}
       open={sheetOpen} setOpen={setSheetOpen}
       openDocuments={environment.openDocuments}
       openNetwork={environment.openNetwork} />

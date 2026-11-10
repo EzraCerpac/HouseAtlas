@@ -165,6 +165,84 @@ struct PendingSnapshot {
     bytes: Vec<u8>,
 }
 
+/// One detached local observation; it grants no continuing remote authority.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct OfflineOriginalFacts {
+    schema_version: u8,
+    request_id: String,
+    source_registration_version: u64,
+    source_registration_sha256: String,
+    observation_id: String,
+    scope: hb::SourceScope,
+    target: StockTarget,
+    sha256: String,
+    byte_size: u64,
+    content_type: Option<String>,
+    local_capture: LocalPinnedCaptureFacts,
+}
+
+pub(crate) fn read_offline_original(
+    access: &mut a::AccessBoundary,
+    original: &RetainedPrincipal,
+    grant: &a::SourceGrant,
+    request: &ValidatedRequest,
+    owner: &NativePinnedFileOwner,
+    budget: &WorkBudget,
+) -> MediaResult<(OfflineOriginalFacts, Vec<u8>)> {
+    budget.check()?;
+    let session = access
+        .authenticated_session_binding(original.principal())
+        .map_err(access_error)?;
+    check_request(original, grant, request)?;
+    let mut output = None;
+    access
+        .with_read_authorization(original.principal(), |guard| -> Result<(), FenceError> {
+            authorize_original(guard, original, grant, budget)?;
+            let snapshot = owner.current_snapshot(guard, original, grant, request, budget)?;
+            check_snapshot_selection(&snapshot, request)?;
+            bound_facts(request.raw(), snapshot.source_metadata(), budget)?;
+            let (bytes, digest, size) = measure(snapshot.bytes(), true, budget)?;
+            let artifact = snapshot_artifact(&snapshot, digest, size)?;
+            let mut nonce = [0u8; 16];
+            getrandom::fill(&mut nonce).map_err(|_| MediaError::Unavailable)?;
+            let facts = OfflineOriginalFacts {
+                schema_version: 1,
+                request_id: request.request_id().to_owned(),
+                source_registration_version: snapshot
+                    .source_metadata()
+                    .source_registration_version(),
+                source_registration_sha256: snapshot
+                    .source_metadata()
+                    .source_registration_sha256()
+                    .to_owned(),
+                observation_id: uuid::Builder::from_random_bytes(nonce)
+                    .into_uuid()
+                    .to_string(),
+                scope: artifact.scope,
+                target: artifact.target,
+                sha256: artifact.sha256,
+                byte_size: artifact.byte_size,
+                content_type: artifact.content_type,
+                local_capture: artifact.local_capture,
+            };
+            snapshot.revalidate(budget)?;
+            authorize_original(guard, original, grant, budget)?;
+            output = Some((facts, bytes));
+            Ok(())
+        })
+        .map_err(|error| error.0)?;
+    if access
+        .authenticated_session_binding(original.principal())
+        .map_err(access_error)?
+        != session
+    {
+        return Err(MediaError::Forbidden);
+    }
+    budget.check()?;
+    output.ok_or(MediaError::Unavailable)
+}
+
 /// Concrete local broker with bounded process-local custody. Default allocates
 /// an empty 64-handle/40-MiB owner; it supplies no source, grant or callback.
 /// Host serializes this broker and supplies the actual configured native owner.
@@ -608,4 +686,28 @@ fn bound_facts(
     serde_json::to_writer(&mut counter, metadata.registration())
         .map_err(|_| MediaError::TooLarge)?;
     budget.check()
+}
+
+#[cfg(test)]
+mod offline_original_tests {
+    use super::*;
+    use crate::media::Cancellation;
+    use std::time::Duration;
+
+    #[test]
+    fn measurement_preserves_bytes_and_refuses_cancelled_or_oversized_work() {
+        let cancellation = Cancellation::default();
+        let budget = WorkBudget::new(Duration::from_secs(10), cancellation.clone()).unwrap();
+        let source = b"%PDF-1.7\nfictional\0original";
+        let (bytes, digest, size) = measure(source, true, &budget).unwrap();
+        assert_eq!(bytes, source);
+        assert_eq!(size, source.len() as u64);
+        assert_eq!(digest, format!("{:x}", Sha256::digest(source)));
+        assert!(matches!(
+            measure(&vec![0; MAX_BYTES + 1], true, &budget),
+            Err(MediaError::TooLarge)
+        ));
+        cancellation.cancel();
+        assert!(measure(source, true, &budget).is_err());
+    }
 }

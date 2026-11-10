@@ -45,8 +45,8 @@ const swapWitnessPlugin = {
         (globalThis as unknown as { __swapRender?: (canvas: HTMLCanvasElement, shading: number) => void }).__swapRender?.(element, shading);
         if (refining) schedule(true);`],
       ['/canonical-ifc/mesh-scene.ts',
-        'await prepareEffectPipelines(renderer, { pipeline, relit, occlusion, history, passes: [geometryPass, colorPass] }, () => slice.next(), signal);',
-        `await prepareEffectPipelines(renderer, { pipeline, relit, occlusion, history, passes: [geometryPass, colorPass] }, () => slice.next(), signal);
+        'await prepareEffectPipelines(renderer, { pipeline, relit, occlusion, history, passes: [geometryPass, colorPass] }, nextEffectSlice, signal);',
+        `await prepareEffectPipelines(renderer, { pipeline, relit, occlusion, history, passes: [geometryPass, colorPass] }, nextEffectSlice, signal);
         (globalThis as unknown as { __swapPreparation?: (canvas: HTMLCanvasElement, outcome: string) => void }).__swapPreparation?.(canvas, 'prepared');`],
       ['/canonical-ifc/mesh-scene.ts',
         "console.warn('Effect pipelines not prepared; the first shaded frame compiles them', error);",

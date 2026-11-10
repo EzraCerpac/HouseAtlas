@@ -1,5 +1,19 @@
 # HouseAtlas
 
+## Mounted HomeBox offline original
+
+The existing default backend-library selection discovers
+`http::homebox_pinned_files::mounted_offline_original_tests::mounted_original_admission_disclosure_error_and_replay`.
+It invokes the registered router with disposable synthetic Access and an
+individually trusted generated loopback TLS peer. The case checks exact bytes
+and source association, anonymous refusal, a provider 503, spent-request
+replay refusal, and a subsequent withdrawn membership. The fixture uses no real
+provider, account or data; its test-only certificate trust is confined to that
+loopback peer. This case is authored, pending exact-head hosted execution. It
+does not establish remote freshness, live provider qualification, revocation
+during a pending download, device acceptance, or consumer-store behavior.
+No workflow command or runner selection is added.
+
 ## Native AI continuation release fence
 
 The existing default backend-library selection discovers these three cases in
@@ -713,7 +727,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 77 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The two AI source selections contain forty-nine controller and twenty-five disclosure-adapter cases using generated data without browser, provider, credentials or source writes. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 78 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The two AI source selections contain forty-nine controller and twenty-five disclosure-adapter cases using generated data without browser, provider, credentials or source writes. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |
@@ -970,6 +984,15 @@ All three cases remain in the existing healthy suite. Reconnect synchronization
 through a canonical signed-in live session, iOS, installed-PWA and real content
 remain separate acceptance. `unified-atlas-cache-healthy.mjs` checks the cached
 copy's actor isolation and lifecycle without a browser.
+Its generated presentation seam also compiles the actual `AtlasPresentation`
+and stage-key function with synthetic hooks, deferred reads and geometry binding.
+It checks stable stage type/key/model/selection during stored-copy failure,
+retry and identical fresh confirmation, held-copy refresh, denial retirement
+and obsolete selection completion.
+The seam does not mount `AtlasStage` or a dialog;
+it does not execute camera state, native focus, Escape/IME or browser layout.
+Those deferred checks remain in #292; the existing compact-layer dock case
+continues to cover its separate synthetic focus and event handlers.
 
 Offline browser teardown observes its owned child immediately after spawn.
 It allows up to 2 s for protocol-requested closure, then 2 s after TERM and
@@ -2867,7 +2890,20 @@ non-reciprocal membership never become a drawing group:
 node frontend/lantern-tests/unified-atlas-electrical-group-healthy.mjs
 ```
 
-It does not mount the UI, establish a current circuit or exercise a native host.
+The same file runs the #554 breaker trace. The actual #557 projector over
+`contracts/electrical-data/generated.fixture.json` feeds `electrical-trace.ts`
+with actual #553 groups. It checks reviewed group and fixture associations
+through the current breaker and panel to a uniquely bound panel room, absent
+versus unknown details and test confirmation only where the projection reports
+it. It also checks per-member circuits, partial coverage, disputed candidates,
+missing reviews and stale circuits. A projection that differs from the supplied
+ledger pin, scene or membership is refused, as is oversized input. Ambiguous
+or unqualified room links stay unplaced, and unrecognized codes read as
+unavailable.
+`ElectricalTraceDetail` is rendered to static markup with react-dom/server.
+
+None of this mounts the Atlas, issues a current circuit or exercises a native
+host or supplier. The tested state is generated; no electrical test was performed.
 
 It retains original, reversed and parallel links, explicit endpoint ownership,
 within-room loops, complete property occurrences and separately counted shared
@@ -4558,3 +4594,33 @@ Startup imports, HomeBox retained-original producer/consumer, model-cache/dialog
 electrical trace details and suggestion-review source remain with their existing
 writers. This composition binds no account, runtime, host port, source write or
 approval and leaves operational/device acceptance and current-head CI open.
+
+
+The next composed source candidate preserves exact donors #555 `0a657eef`,
+#580 `2b28c406`, #582 `054c07c1`, #578 `3905725b`, #581 `70abbeed`
+and #583 `30081ada`. Startup remains lazy with unchanged budgets. HomeBox
+original retention is mounted only after complete, current, enabled native and
+electrical passes; unknown outcomes stop the sequence. The electrical trace
+consumer remains unmounted pending genuine data/review ownership.
+
+Confirmed `no-current-association` now retires only the selected building's
+local catalog eligibility; transient failure preserves it. Document retention
+borrows the already-open original reader/frame/blob, without a second original
+download or taking lease ownership. Foreground refresh still hides, aborts and
+revalidates data; only neutral section/exact-pin/page/zoom/scroll intent survives
+for the same actor revision and scope, with fresh allocation and byte checks.
+Effect preparation restores temporary renderer state before four safe yields;
+the scene permits direct-only redraw there, retaining the compilation guard and
+zero history until shading is ready. No renderer deadline or assertion changes.
+
+New authored controls remain NOT RUN: ten preparation controls (19 declarations
+total), six retention/retirement controls, three policy/root groups, four source
+presentation assertion groups, and a focus/PDF extension in the existing
+live-launch browser case. The default frontend runner now has 78 SOURCE,
+1 BUILD and 7 BROWSER selections. No new lane/workflow or removed case.
+Independent static review is not execution qualification. Producer donor
+`3905725b` separately passed its mounted admission/disclosure/error/replay case
+in hosted job130146474925 (354 passed, zero failed); that does not qualify this
+new composed head, in-flight withdrawal, device acceptance or runtime authority.
+Existing Chromium sandbox launch failures remain unresolved; no sandbox/security
+setting, credential, provider, activation or deployment change is made here.
