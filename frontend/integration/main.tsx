@@ -133,19 +133,18 @@ const retainedSourceDocuments: import('../src/lantern/source-documents/types').S
     void getLiveCopyRetention().then(owner => { if (active) { stop = owner.read.subscribe(changed); changed(); } });
     return () => { active = false; stop?.(); };
   },
-  async retainOpenedOriginal(documentId, revision, signal) {
+  async retainOpenedOriginal(reader, frame, document, signal) {
     const owner = await getLiveCopyRetention();
-    if (signal.aborted) return;
-    // Refresh catalog pins before admitting the exact original; no retry on uncertain storage.
-    if ((await owner.retainCatalog(signal)).status === 'ok') await owner.retainDocument(documentId, revision, signal);
+    if (signal.aborted || !reader.isCurrent(frame)) return;
+    await owner.retainDocumentFrame(reader, frame, document, signal);
   },
 };
 async function fillDeviceLibrary(owner: import('./live-copy-retention').LiveCopyRetention, signal: AbortSignal, enabled: () => boolean): Promise<string> {
   const session = currentSession, view = currentReadyView;
   if (!session || !view) return 'Library files need a current live read.';
   const current = () => currentSession === session && currentReadyView === view;
-  const [{ fillOfflineElectricalLibraries }, { fillOfflineLibrary }] = await Promise.all([
-    import('./offline-electrical-policy'), import('./offline-library-policy'),
+  const [{ fillOfflineElectricalLibraries }, { fillOfflineLibrary }, { fillOfflineHomeboxOriginals }] = await Promise.all([
+    import('./offline-electrical-policy'), import('./offline-library-policy'), import('./offline-homebox-policy'),
   ]);
   // Imports may finish after the owning read has retired; no stale catalog work.
   if (!current() || signal.aborted) return 'The live view changed.';
@@ -163,7 +162,10 @@ async function fillDeviceLibrary(owner: import('./live-copy-retention').LiveCopy
   const native = catalog.status === 'ok' ? await fillOfflineLibrary(owner, signal, enabled, () => { nativeStopped = true; }) : 'Document files are unavailable.';
   if (nativeStopped || !current() || signal.aborted || !enabled()) return native;
   const electrical = await fillOfflineElectricalLibraries({ owner, topology, port: sourceElectricalLibrary, view, current, enabled, signal });
-  return `${native} ${electrical.message}`;
+  if (!electrical.complete || !current() || signal.aborted || !enabled()) return `${native} ${electrical.message}`;
+  // HomeBox originals last: each read spends server admission and provider reads; no retry after unknown outcomes.
+  const homebox = await fillOfflineHomeboxOriginals({ owner, view, current, enabled, signal });
+  return `${native} ${electrical.message} ${homebox.message}`;
 }
 function LiveOfflineSettings() {
   const [controls, setControls] = useState<OfflineStorageControls | null>(null);

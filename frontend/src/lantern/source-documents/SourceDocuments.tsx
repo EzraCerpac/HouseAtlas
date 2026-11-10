@@ -167,7 +167,7 @@ function LeasedPayload({ reader, document, mode }: {
       const stop = reader.subscribeInvalidation(frame, () => { ended = true; withdraw(CHANGED); });
       const blob = reader.getBlob(frame);
       if (ended || !blob) { stop(); reader.release(frame); setStatus(CHANGED); return; }
-      if (mode === 'original') void documents?.retainOpenedOriginal?.(document.documentId, document.revision, controller.signal).catch(() => undefined);
+      if (mode === 'original') void documents?.retainOpenedOriginal?.(reader, frame, document, controller.signal).catch(() => undefined);
       held = { frame, url: URL.createObjectURL(blob), stop, view: new AbortController() };
       box.current?.removeAttribute('hidden');
       setShown({ frame, url: held.url, blob, signal: held.view.signal }); setStatus(null);

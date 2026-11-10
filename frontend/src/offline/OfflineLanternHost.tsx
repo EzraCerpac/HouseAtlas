@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { LiveCopyRetention } from '../../integration/live-copy-retention';
-import type { OfflineCatalogItemV1, OfflineCatalogV1, OfflineCopyHandle, OfflineDocumentAvailability, OfflineElectricalCatalogV1, OfflineElectricalBuildingV1, OfflineElectricalPinV1, OfflineElectricalAvailability, OfflineHomeboxAvailability, OfflineHomeboxPinV1, OfflineViewSnapshotV1 } from './live-copy-types';
+import type { OfflineCatalogItemV1, OfflineCatalogV1, OfflineCopyHandle, OfflineDocumentAvailability, OfflineElectricalCatalogV1, OfflineElectricalBuildingV1, OfflineElectricalAvailability, OfflineHomeboxAvailability, OfflineViewSnapshotV1 } from './live-copy-types';
 import { SectionNavigation } from '../lantern/components/SectionNavigation';
 import type { ViewId } from '../lantern/state/store';
 import { Icon } from '../lantern/components/Icon';
 import { Modal } from '../lantern/components/Modal';
-import { SourcePdf } from '../lantern/source-documents/SourcePdf';
+import { SourcePdf, type SourcePdfReadingPosition } from '../lantern/source-documents/SourcePdf';
+import { emptyReadingIntent, revalidateReadingIntent, openReadingDocument, rememberReadingPosition, closeReadingDocument, readingDocumentKey,
+  type HeldReadingDocument, type OfflineReadingIntent } from './offline-reading-intent';
 import UnifiedAtlas from '../lantern/unified-atlas/UnifiedAtlas';
 import { SavedAtlasHost, type LastAtlasCopy } from './SavedAtlasHost';
 import { markSavedEntry } from './saved-entry';
@@ -18,6 +20,7 @@ import '../lantern/styles/integration.css';
 
 interface Selection {
   readonly handle: OfflineCopyHandle; readonly snapshot: OfflineViewSnapshotV1; readonly signal: AbortSignal;
+  readonly generation: number; readonly owner: LiveCopyRetention;
 }
 type OpenAtlas = (signal: AbortSignal, handle: OfflineCopyHandle) => Promise<LastAtlasCopy | null>;
 
@@ -27,34 +30,68 @@ export function OfflineLanternHost({ owner, openAtlas, openLegacyAtlas }: {
 }) {
   const [selection, setSelection] = useState<Selection | null>(null), [missing, setMissing] = useState(false);
   const [unavailable, setUnavailable] = useState(false), acquired = useRef(false);
+  const generation = useRef(0), intent = useRef<OfflineReadingIntent>(emptyReadingIntent());
+  const [presentation, setPresentation] = useState(intent.current), [completed, setCompleted] = useState(0);
   const box = useRef<HTMLDivElement>(null);
+  const replaceIntent = (next: OfflineReadingIntent) => { intent.current = next; setPresentation(next); };
   useEffect(() => {
     let controller: AbortController | null = null;
     const refresh = () => {
+      const attempt = ++generation.current;
+      // Hide synchronously before retiring the old allocation. Presentation intent
+      // survives in separate state; no handle, bytes or controller survives here.
       box.current?.setAttribute('hidden', ''); controller?.abort();
+      replaceIntent({ ...intent.current, generation: attempt });
       controller = new AbortController(); const signal = controller.signal;
       setSelection(null); setMissing(false); setUnavailable(false);
+      const failed = () => {
+        if (signal.aborted || attempt !== generation.current) return;
+        replaceIntent(emptyReadingIntent(attempt)); setUnavailable(true); setCompleted(attempt);
+      };
       void owner.read.readLast(signal).then(result => {
-        if (signal.aborted) return;
-        if (result.status === 'ok') { acquired.current = true; setSelection({ ...result.value, signal }); }
-        else if (result.status === 'missing' && !acquired.current) setMissing(true);
-        else setUnavailable(true);
-        box.current?.removeAttribute('hidden');
-      });
+        if (signal.aborted || attempt !== generation.current) return;
+        if (result.status === 'ok') {
+          acquired.current = true;
+          replaceIntent(revalidateReadingIntent(intent.current, result.value.snapshot, attempt));
+          setSelection({ ...result.value, signal, generation: attempt, owner });
+        } else {
+          replaceIntent(emptyReadingIntent(attempt));
+          if (result.status === 'missing' && !acquired.current) setMissing(true);
+          else setUnavailable(true);
+        }
+        setCompleted(attempt);
+      }, failed);
     };
     const stop = owner.read.subscribe(refresh); refresh();
     return () => { stop(); controller?.abort(); };
   }, [owner]);
+  // A fulfilled promise is not a React commit. Unhide only after the matching
+  // fresh allocation (or safe failure view) has actually replaced the old DOM.
+  useLayoutEffect(() => {
+    if (completed !== generation.current) return;
+    if (selection?.owner === owner && selection.generation === completed && !selection.signal.aborted
+      || !selection && (missing || unavailable)) box.current?.removeAttribute('hidden');
+  }, [completed, selection, missing, unavailable, owner]);
+  const changePresentation = (change: (state: OfflineReadingIntent) => OfflineReadingIntent) => {
+    if (!selection || selection.owner !== owner || selection.signal.aborted || selection.generation !== generation.current) return;
+    replaceIntent(change(intent.current));
+  };
   return <div ref={box} className="offline-app-root">
-    {selection ? <RetainedApp key={selection.snapshot.snapshotRevision} owner={owner} selection={selection} openAtlas={openAtlas} />
+    {selection?.owner === owner ? <RetainedApp key={selection.generation} owner={owner} selection={selection} openAtlas={openAtlas}
+      presentation={presentation} changePresentation={changePresentation} />
       : missing ? <SavedAtlasHost openLastCopy={openLegacyAtlas} /> : unavailable
         ? <main className="lantern-host saved-atlas-app"><p role="status">Held app information is unavailable or was removed.</p><a href="/?live">Open live</a></main>
         : <p role="status">Opening held information…</p>}
   </div>;
 }
 
-function RetainedApp({ owner, selection, openAtlas }: { owner: LiveCopyRetention; selection: Selection; openAtlas: OpenAtlas }) {
-  const [view, setView] = useState<ViewId>('atlas'), [settings, setSettings] = useState(false);
+function RetainedApp({ owner, selection, openAtlas, presentation, changePresentation }: { owner: LiveCopyRetention; selection: Selection; openAtlas: OpenAtlas;
+  presentation: OfflineReadingIntent; changePresentation(change: (state: OfflineReadingIntent) => OfflineReadingIntent): void }) {
+  const view = presentation.view;
+  const reading = presentation.document;
+  const setView = (view: ViewId) => changePresentation(state => ({ ...state, view, document: null }));
+  const openDocument = (request: HeldReadingDocument, page = 1) => changePresentation(state => openReadingDocument(state, request, page));
+  const [settings, setSettings] = useState(false);
   const [atlas, setAtlas] = useState<LastAtlasCopy | null>(null), [atlasLoading, setAtlasLoading] = useState(true);
   const live = useLiveHost(), outbox = useOutbox();
   const reducedMotion = useSyncExternalStore(changed => {
@@ -88,11 +125,15 @@ function RetainedApp({ owner, selection, openAtlas }: { owner: LiveCopyRetention
         : <div className="view"><header className="view-head"><h1>{view === 'upkeep' ? 'Upkeep' : view === 'library' ? 'Library' : 'Changes'}</h1>
           <p>Held information from <time dateTime={snapshot.capturedAt}>{snapshot.capturedAt}</time>.</p></header>
           {view === 'upkeep' && <OfflineUpkeep snapshot={snapshot} />}
-          {view === 'library' && <OfflineLibrary owner={owner} selection={selection} />}
+          {view === 'library' && <OfflineLibrary owner={owner} selection={selection} openDocument={openDocument} />}
           {view === 'changes' && <><h2>Waiting changes</h2><p>{outbox.loaded ? `${count} changes waiting on this device.` : 'Reading waiting changes…'}</p>
             <p>Open live to review and send waiting changes after signing in.</p><h2>Operation history</h2><p>Operation history is not held on this device. Open live to read it.</p></>}
         </div>}
     </main>
+    {view === 'library' && reading && <ReopenedDocument
+      key={`${selection.generation}:${readingDocumentKey(reading.request)}`} owner={owner} selection={selection}
+      reading={reading} onUnavailable={() => changePresentation(state => closeReadingDocument(state, selection.generation, readingDocumentKey(reading.request)))}
+      onPosition={position => changePresentation(state => rememberReadingPosition(state, selection.generation, readingDocumentKey(reading.request), position))} />}
     {settings && <Modal title="Settings" onClose={() => setSettings(false)}><div className="settings"><OfflineStorageSettings controls={owner} /><a className="btn" href="/saved/index.html" onClick={markSavedEntry}>Saved house copies</a></div></Modal>}
   </div>;
 }
@@ -108,7 +149,7 @@ function OfflineUpkeep({ snapshot }: { snapshot: OfflineViewSnapshotV1 }) {
     </section>)}</>;
 }
 
-function OfflineLibrary({ owner, selection }: { owner: LiveCopyRetention; selection: Selection }) {
+function OfflineLibrary({ owner, selection, openDocument }: { owner: LiveCopyRetention; selection: Selection; openDocument: OpenDocument }) {
   const [catalog, setCatalog] = useState<OfflineCatalogV1 | null>(null), [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
@@ -122,19 +163,19 @@ function OfflineLibrary({ owner, selection }: { owner: LiveCopyRetention; select
   return <><h2>Documents</h2>{catalog ? <>
       <p>{catalog.completeness === 'captured-complete' ? 'Document list captured' : 'Some documents captured'}: <time dateTime={catalog.capturedAt}>{catalog.capturedAt}</time>.</p>
       {!catalog.documents.length && <p>No documents in this captured list.</p>}
-      <ul className="offline-documents">{catalog.documents.map(row => <DocumentRow key={row.documentId} row={row} owner={owner} selection={selection} />)}</ul>
+      <ul className="offline-documents">{catalog.documents.map(row => <DocumentRow key={row.documentId} row={row} owner={owner} selection={selection} openDocument={openDocument} />)}</ul>
     </> : <p role="status">{loading ? 'Reading held documents…' : 'The document list is not held on this device.'}</p>}
     <h2>HomeBox attachments</h2>{attachments.length ? <ul className="offline-documents">{attachments.map(({ entry, attachment }) => attachment.kind === 'stored-file'
-      ? <HomeboxAttachmentRow key={`${entry.key}:${attachment.attachmentId}`} owner={owner} selection={selection} entry={entry} attachment={attachment} />
+      ? <HomeboxAttachmentRow key={`${entry.key}:${attachment.attachmentId}`} owner={owner} selection={selection} entry={entry} attachment={attachment} openDocument={openDocument} />
       : <li key={`${entry.key}:${attachment.attachmentId}`}><strong>{attachment.title ?? 'Untitled attachment'}</strong> · {entry.entity.name}<p>Open live for the external link.</p></li>)}</ul>
       : <p>No HomeBox attachments were captured.</p>}
-    <OfflineElectricalLibrary owner={owner} selection={selection} />
+    <OfflineElectricalLibrary owner={owner} selection={selection} openDocument={openDocument} />
   </>;
 }
 
-function DocumentRow({ row, owner, selection }: { row: OfflineCatalogItemV1; owner: LiveCopyRetention; selection: Selection }) {
+type OpenDocument = (request: HeldReadingDocument, page?: number) => void;
+function DocumentRow({ row, owner, selection, openDocument }: { row: OfflineCatalogItemV1; owner: LiveCopyRetention; selection: Selection; openDocument: OpenDocument }) {
   const [status, setStatus] = useState<OfflineDocumentAvailability | null>(null);
-  const [open, setOpen] = useState(false);
   useEffect(() => {
     let active = true;
     void owner.read.documentStatus(selection.handle, row, selection.signal).then(result => {
@@ -144,26 +185,10 @@ function DocumentRow({ row, owner, selection }: { row: OfflineCatalogItemV1; own
   }, [row, owner, selection]);
   return <li><strong>{row.title}</strong> · {storageSize(row.bytes)}
     <p>{row.lifecycle === 'tombstoned' ? 'Withdrawn document' : status?.availability === 'held' ? 'On this device' : status?.availability === 'failed-integrity' ? 'Held file failed verification' : 'Not held on this device'}</p>
-    {row.lifecycle === 'active' && status?.availability === 'held' && <button className="btn" type="button" onClick={() => setOpen(true)}>Open {row.title}</button>}
-    {open && status?.availability === 'held' && <Modal title={row.title} onClose={() => setOpen(false)} wide><HeldDocument owner={owner} selection={selection} pin={status.pin} title={row.title} /></Modal>}
+    {row.lifecycle === 'active' && status?.availability === 'held' && <button className="btn" type="button" onClick={() => { if (status?.availability === 'held') openDocument({ kind: 'native', pin: status.pin }); }}>Open {row.title}</button>}
   </li>;
 }
 
-function HeldDocument({ owner, selection, pin, title }: { owner: LiveCopyRetention; selection: Selection; pin: Extract<OfflineDocumentAvailability, { availability: 'held' }>['pin']; title: string }) {
-  const [blob, setBlob] = useState<Blob | null>(null), [failed, setFailed] = useState(false);
-  const [controller] = useState(() => new AbortController());
-  useEffect(() => {
-    const abort = () => controller.abort(); selection.signal.addEventListener('abort', abort, { once: true });
-    if (selection.signal.aborted) controller.abort();
-    void owner.read.readDocument(selection.handle, pin, controller.signal).then(result => {
-      if (!controller.signal.aborted) { setBlob(result.status === 'ok' ? result.value : null); setFailed(result.status !== 'ok'); }
-    });
-    return () => { selection.signal.removeEventListener('abort', abort); controller.abort(); };
-  }, [owner, selection, pin, controller]);
-  return blob ? pin.contentType === 'application/pdf' ? <><SourcePdf blob={blob} title={title} signal={controller.signal} /><HeldDownload blob={blob} title={title} signal={controller.signal} /></>
-    : <HeldDownload blob={blob} title={title} signal={controller.signal} />
-    : <p role="status">{failed ? 'The held file is unavailable or changed.' : 'Verifying held file…'}</p>;
-}
 function HeldDownload({ blob, title, signal }: { blob: Blob; title: string; signal: AbortSignal }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
@@ -177,8 +202,8 @@ function HeldDownload({ blob, title, signal }: { blob: Blob; title: string; sign
 
 type HeldEntry = OfflineViewSnapshotV1['data']['entries'][number];
 /** Exact source/entity/attachment association only. A held copy is one earlier server capture, not the current HomeBox file. */
-function HomeboxAttachmentRow({ owner, selection, entry, attachment }: { owner: LiveCopyRetention; selection: Selection; entry: HeldEntry; attachment: HeldEntry['attachments'][number] }) {
-  const [status, setStatus] = useState<OfflineHomeboxAvailability | null>(null), [open, setOpen] = useState(false);
+function HomeboxAttachmentRow({ owner, selection, entry, attachment, openDocument }: { owner: LiveCopyRetention; selection: Selection; entry: HeldEntry; attachment: HeldEntry['attachments'][number]; openDocument: OpenDocument }) {
+  const [status, setStatus] = useState<OfflineHomeboxAvailability | null>(null);
   const title = attachment.title ?? 'Untitled attachment';
   useEffect(() => {
     let active = true;
@@ -192,28 +217,10 @@ function HomeboxAttachmentRow({ owner, selection, entry, attachment }: { owner: 
   return <li><strong>{title}</strong> · {entry.entity.name}{held && <> · {storageSize(held.bytes)}</>}
     <p>{held ? <>On this device · Copied from HomeBox <time dateTime={held.bodyRetrievedAt}>{held.bodyRetrievedAt}</time></>
       : status?.availability === 'failed-integrity' ? 'Held file failed verification · Open live to read this file.' : 'Not held on this device · Open live to read this file.'}</p>
-    {held && <button className="btn" type="button" onClick={() => setOpen(true)}>Open {title}</button>}
-    {open && held && <Modal title={title} onClose={() => setOpen(false)} wide><HeldHomeboxDocument owner={owner} selection={selection} pin={held} title={title} /></Modal>}
+    {held && <button className="btn" type="button" onClick={() => { if (held) openDocument({ kind: 'homebox', pin: held }); }}>Open {title}</button>}
   </li>;
 }
-function HeldHomeboxDocument({ owner, selection, pin, title }: { owner: LiveCopyRetention; selection: Selection; pin: OfflineHomeboxPinV1; title: string }) {
-  const [blob, setBlob] = useState<Blob | null>(null), [failed, setFailed] = useState(false);
-  const [controller] = useState(() => new AbortController());
-  useEffect(() => {
-    const abort = () => controller.abort(); selection.signal.addEventListener('abort', abort, { once: true });
-    if (selection.signal.aborted) controller.abort();
-    void owner.read.readHomeboxDocument(selection.handle, pin, controller.signal).then(result => {
-      if (!controller.signal.aborted) { setBlob(result.status === 'ok' ? result.value : null); setFailed(result.status !== 'ok'); }
-    });
-    return () => { selection.signal.removeEventListener('abort', abort); controller.abort(); };
-  }, [owner, selection, pin, controller]);
-  // Only locally measured PDF bytes reach the sandboxed viewer; other files are offered as a saved copy.
-  return blob ? pin.contentType === 'application/pdf' ? <><SourcePdf blob={blob} title={title} signal={controller.signal} /><HeldDownload blob={blob} title={title} signal={controller.signal} /></>
-    : <><p>This file type is not shown here.</p><HeldDownload blob={blob} title={title} signal={controller.signal} /></>
-    : <p role="status">{failed ? 'The held file is unavailable or changed.' : 'Verifying held file…'}</p>;
-}
-
-function OfflineElectricalLibrary({ owner, selection }: { owner: LiveCopyRetention; selection: Selection }) {
+function OfflineElectricalLibrary({ owner, selection, openDocument }: { owner: LiveCopyRetention; selection: Selection; openDocument: OpenDocument }) {
   const [catalog, setCatalog] = useState<OfflineElectricalCatalogV1 | null>(null), [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
@@ -229,7 +236,7 @@ function OfflineElectricalLibrary({ owner, selection }: { owner: LiveCopyRetenti
         <p>Captured <time dateTime={building.capturedAt}>{building.capturedAt}</time>.</p>
         {!building.documents.length && <p>No verified PDF reference was kept for this building.</p>}
         <ul className="offline-documents">{building.documents.map(document => <ElectricalDocumentRow key={document.pin.evidenceId}
-          owner={owner} selection={selection} document={document} />)}</ul>
+          owner={owner} selection={selection} document={document} openDocument={openDocument} />)}</ul>
         <details><summary>Drawing provenance</summary><p>Building: {building.buildingId}</p>
           {building.provenance ? <dl>
             <dt>Historical mapping receipt</dt><dd>{building.provenance.historicalRoomMappingReceipt.id}</dd>
@@ -244,8 +251,8 @@ function OfflineElectricalLibrary({ owner, selection }: { owner: LiveCopyRetenti
     </> : <p role="status">{loading ? 'Reading held electrical drawings…' : 'Electrical drawing references are not held. Open live to read them.'}</p>}
   </section>;
 }
-function ElectricalDocumentRow({ owner, selection, document }: { owner: LiveCopyRetention; selection: Selection; document: OfflineElectricalBuildingV1['documents'][number] }) {
-  const [status, setStatus] = useState<OfflineElectricalAvailability | null>(null), [page, setPage] = useState<number | null>(null);
+function ElectricalDocumentRow({ owner, selection, document, openDocument }: { owner: LiveCopyRetention; selection: Selection; document: OfflineElectricalBuildingV1['documents'][number]; openDocument: OpenDocument }) {
+  const [status, setStatus] = useState<OfflineElectricalAvailability | null>(null);
   useEffect(() => {
     let active = true;
     void owner.read.electricalStatus(selection.handle, document.pin, selection.signal).then(result => {
@@ -256,28 +263,85 @@ function ElectricalDocumentRow({ owner, selection, document }: { owner: LiveCopy
   return <li><strong>Electrical reference PDF</strong> · {document.pin.byteSize} bytes
     <p>{status?.availability === 'held' ? 'On this device' : status?.availability === 'failed-integrity' ? 'Held file failed verification' : 'Not held on this device'}</p>
     <ul>{document.pages.map(sheet => <li key={sheet.sheetId}>
-      <button type="button" className="btn" disabled={status?.availability !== 'held'} onClick={() => setPage(sheet.pdfPage)}>{sheet.title} · Page {sheet.pdfPage}</button>
+      <button type="button" className="btn" disabled={status?.availability !== 'held'} onClick={() => { if (status?.availability === 'held') openDocument({ kind: 'electrical', pin: status.pin }, sheet.pdfPage); }}>{sheet.title} · Page {sheet.pdfPage}</button>
       <p>Drawing date: {sheet.sourceDate ?? 'Not recorded'}</p>
     </li>)}</ul>
     <details><summary>Original identity</summary><dl><dt>Evidence</dt><dd>{document.pin.evidenceId} · revision {document.pin.evidenceRevision}</dd>
       <dt>Asset</dt><dd>{document.pin.assetId} · revision {document.pin.assetRevision}</dd><dt>SHA-256</dt><dd>{document.pin.sha256}</dd></dl></details>
-    {page !== null && status?.availability === 'held' && <Modal title="Electrical reference PDF" onClose={() => setPage(null)} wide>
-      <HeldElectricalDocument owner={owner} selection={selection} pin={status.pin} page={page} />
-    </Modal>}
   </li>;
 }
-function HeldElectricalDocument({ owner, selection, pin, page }: { owner: LiveCopyRetention; selection: Selection; pin: OfflineElectricalPinV1; page: number }) {
-  const [blob, setBlob] = useState<Blob | null>(null), [failed, setFailed] = useState(false);
-  const [controller] = useState(() => new AbortController());
+
+/** Reopen intent is not a capability: every allocation repeats the actual local
+ * membership/status and original-byte checks before exposing a title or blob. */
+async function readHeldDocument(owner: LiveCopyRetention, selection: Selection, request: HeldReadingDocument, signal: AbortSignal): Promise<{
+  readonly blob: Blob; readonly title: string; readonly downloadName: string; readonly contentType: string | null;
+} | null> {
+  const key = readingDocumentKey(request);
+  if (request.kind === 'native') {
+    const status = await owner.read.documentStatus(selection.handle, request.pin, signal);
+    if (status.status !== 'ok' || status.value.availability !== 'held'
+      || readingDocumentKey({ kind: 'native', pin: status.value.pin }) !== key) return null;
+    const pin = status.value.pin, catalog = await owner.read.readCatalog(selection.handle, signal);
+    if (catalog.status !== 'ok') return null;
+    const row = catalog.value.documents.find(row => row.lifecycle === 'active' && row.documentId === pin.documentId
+      && row.documentRevision === pin.documentRevision && row.assetId === pin.assetId && row.assetRevision === pin.assetRevision
+      && row.sha256 === pin.sha256 && row.bytes === pin.bytes);
+    if (!row) return null;
+    const result = await owner.read.readDocument(selection.handle, pin, signal);
+    return result.status === 'ok' ? { blob: result.value, title: row.title, downloadName: row.title, contentType: pin.contentType } : null;
+  }
+  if (request.kind === 'electrical') {
+    const status = await owner.read.electricalStatus(selection.handle, request.pin, signal);
+    if (status.status !== 'ok' || status.value.availability !== 'held'
+      || readingDocumentKey({ kind: 'electrical', pin: status.value.pin }) !== key) return null;
+    const result = await owner.read.readElectricalDocument(selection.handle, status.value.pin, signal);
+    return result.status === 'ok' ? { blob: result.value, title: 'Electrical reference PDF', downloadName: 'electrical-reference.pdf', contentType: 'application/pdf' } : null;
+  }
+  const status = await owner.read.homeboxStatus(selection.handle, request.pin, signal);
+  if (status.status !== 'ok' || status.value.availability !== 'held'
+    || readingDocumentKey({ kind: 'homebox', pin: status.value.pin }) !== key) return null;
+  const pin = status.value.pin;
+  const listed = selection.snapshot.data.entries.flatMap(entry => entry.source.sourceKind === 'homebox-entity'
+    && entry.source.sourceInstanceId === pin.sourceInstanceId && entry.source.collectionId === pin.collectionId && entry.source.externalId === pin.entityId
+    ? entry.attachments.filter(attachment => attachment.kind === 'stored-file' && attachment.attachmentId === pin.attachmentId) : []);
+  if (listed.length !== 1) return null;
+  const result = await owner.read.readHomeboxDocument(selection.handle, pin, signal), title = listed[0]!.title ?? 'Untitled attachment';
+  return result.status === 'ok' ? { blob: result.value, title, downloadName: title, contentType: pin.contentType } : null;
+}
+
+function ReopenedDocument({ owner, selection, reading, onUnavailable, onPosition }: {
+  owner: LiveCopyRetention; selection: Selection; reading: NonNullable<OfflineReadingIntent['document']>;
+  onUnavailable(): void; onPosition(position: SourcePdfReadingPosition): void;
+}) {
+  // Parent keys this component by fresh allocation AND exact document identity.
+  // Its controller/blob are never carried through a foreground recheck.
+  const [initialPosition] = useState(reading.position);
+  const [allocation, setAllocation] = useState<{ readonly controller: AbortController;
+    readonly ready: Awaited<ReturnType<typeof readHeldDocument>> } | null>(null);
+  const unavailable = useRef(onUnavailable); unavailable.current = onUnavailable;
+  const request = reading.request;
   useEffect(() => {
+    // Effect replay and revalidation each get a new allocation as well as a
+    // fresh read. An already aborted controller is never reused.
+    const controller = new AbortController(); let active = true;
+    setAllocation({ controller, ready: null });
     const abort = () => controller.abort(); selection.signal.addEventListener('abort', abort, { once: true });
     if (selection.signal.aborted) controller.abort();
-    void owner.read.readElectricalDocument(selection.handle, pin, controller.signal).then(result => {
-      if (!controller.signal.aborted) { setBlob(result.status === 'ok' ? result.value : null); setFailed(result.status !== 'ok'); }
-    });
-    return () => { selection.signal.removeEventListener('abort', abort); controller.abort(); };
-  }, [owner, selection, pin, controller]);
-  return blob ? <><SourcePdf blob={blob} title="Electrical reference PDF" initialPage={page} signal={controller.signal} />
-    <HeldDownload blob={blob} title="electrical-reference.pdf" signal={controller.signal} /></>
-    : <p role="status">{failed ? 'The held electrical PDF is unavailable or changed.' : 'Verifying held electrical PDF…'}</p>;
+    else void readHeldDocument(owner, selection, request, controller.signal).then(result => {
+      if (!active || controller.signal.aborted) return;
+      if (result) setAllocation({ controller, ready: result }); else unavailable.current();
+    }, () => { if (active && !controller.signal.aborted) unavailable.current(); });
+    return () => { active = false; selection.signal.removeEventListener('abort', abort); controller.abort(); };
+  }, [owner, selection, request]);
+  const current = allocation && !allocation.controller.signal.aborted ? allocation : null;
+  const ready = current?.ready ?? null;
+  return <Modal title={ready?.title ?? 'Opening held file…'} onClose={onUnavailable} wide>
+    {ready && current ? <>
+      {ready.contentType === 'application/pdf'
+        ? <SourcePdf blob={ready.blob} title={ready.title} signal={current.controller.signal}
+          initialReadingPosition={initialPosition} onReadingPosition={onPosition} />
+        : <p>This file type is not shown here.</p>}
+      <HeldDownload blob={ready.blob} title={ready.downloadName} signal={current.controller.signal} />
+    </> : <p role="status">Verifying held file…</p>}
+  </Modal>;
 }

@@ -546,3 +546,123 @@ test('a HomeBox row stored under another association key never reports or opens 
     assert.equal(status.status, 'ok'); assert.equal(status.value.availability, 'failed-integrity');
   } finally { f.owner.close(); }
 });
+
+// Borrowed native Document originals: an existing verified lease is the only byte source.
+async function borrowedDocumentSetup({ catalog = true } = {}) {
+  const base = memory(), session = { actorId: 'generated-borrower', expiresAt: '2099-01-01T00:00:00Z' };
+  let current = true, identity = {}, beforeBytes = () => {}, beforeWrite = () => {};
+  const counts = { catalogs: 0, lists: 0, opens: 0, releases: 0, disposals: 0 };
+  const document = { scope, documentId: uuid(71), revision: 3, title: 'Generated native original', lifecycle: 'active',
+    original: { assetId: uuid(72), revision: 4, sha256, bytes: original.length }, availability: { original: 'available' } };
+  const other = { ...document, documentId: uuid(73), title: 'Another generated catalog entry' };
+  const frame = { lease: {}, documentId: document.documentId, documentRevision: document.revision, mode: 'original',
+    asset: document.original, measuredContentType: 'application/pdf' };
+  const blob = new Blob([original], { type: 'application/pdf' });
+  blob.arrayBuffer = async () => { beforeBytes(); return original.slice().buffer; };
+  const reader = { owner: () => identity, isCurrent: selected => current && selected === frame,
+    getBlob: selected => current && selected === frame ? blob : null,
+    async openOriginal() { counts.opens++; throw new Error('Borrowed original must never reopen'); },
+    release() { counts.releases++; }, dispose() { counts.disposals++; } };
+  const backend = { ...base, transaction(write, work) {
+    return base.transaction(write, tx => work({ ...tx, async put(table, key, value) {
+      if (write && table === 'metadata' && value.kind === 'document') beforeWrite();
+      return tx.put(table, key, value);
+    } }));
+  } };
+  const owner = createLiveCopyRetention({ factory: undefined, backend, state: () => ({ session, view }),
+    documents: () => ({ async createReader() { counts.catalogs++; const catalogIdentity = {}; return {
+      owner: () => catalogIdentity, async list() { counts.lists++; return { documents: [document, other], nextCursor: null }; },
+      dispose() {}, async openOriginal() { throw new Error('Catalog reader cannot download'); },
+    }; } }) });
+  assert.equal((await owner.observe(session, () => true)).status, 'ok');
+  assert.equal((await owner.capture(view, signal())).status, 'ok');
+  if (catalog) assert.equal((await owner.retainCatalog(signal())).status, 'ok');
+  return { owner, backend: base, document, frame, reader, counts,
+    retire() { current = false; identity = {}; },
+    duringBytes(fn) { beforeBytes = fn; }, duringWrite(fn) { beforeWrite = fn; } };
+}
+
+test('borrowed Document original reuses matching catalog and bytes without reopening or taking ownership', async () => {
+  const f = await borrowedDocumentSetup();
+  try {
+    const lists = f.counts.lists;
+    const result = await f.owner.retainDocumentFrame(f.reader, f.frame, f.document, signal());
+    assert.equal(result.status, 'ok'); assert.equal(f.counts.lists, lists);
+    assert.equal(f.counts.opens, 0); assert.equal(f.counts.releases, 0); assert.equal(f.counts.disposals, 0);
+    const read = await f.owner.read.readDocument(await readCopy(f.owner), result.value, signal());
+    assert.equal(read.status, 'ok'); assert.deepEqual(new Uint8Array(await read.value.arrayBuffer()), original);
+  } finally { f.owner.close(); }
+});
+
+test('borrowed Document original refreshes a real full catalog instead of fabricating a single-entry catalog', async () => {
+  const f = await borrowedDocumentSetup({ catalog: false });
+  try {
+    assert.equal((await f.owner.retainDocumentFrame(f.reader, f.frame, f.document, signal())).status, 'ok');
+    assert.equal(f.counts.catalogs, 1); assert.equal(f.counts.lists, 1); assert.equal(f.counts.opens, 0);
+    const catalog = await f.owner.read.readCatalog(await readCopy(f.owner), signal());
+    assert.equal(catalog.status, 'ok'); assert.equal(catalog.value.completeness, 'captured-complete');
+    assert.deepEqual(catalog.value.documents.map(row => row.documentId), [uuid(71), uuid(73)]);
+  } finally { f.owner.close(); }
+});
+
+test('borrowed Document retirement during materialization or storage refuses bytes without releasing caller ownership', async () => {
+  for (const stage of ['bytes', 'transaction']) {
+    const f = await borrowedDocumentSetup();
+    try {
+      if (stage === 'bytes') f.duringBytes(() => f.retire()); else f.duringWrite(() => f.retire());
+      assert.equal((await f.owner.retainDocumentFrame(f.reader, f.frame, f.document, signal())).status, 'retired');
+      assert.equal([...f.backend.tables().get('metadata').values()].filter(row => row.kind === 'document').length, 0);
+      assert.equal(f.counts.opens, 0); assert.equal(f.counts.releases, 0); assert.equal(f.counts.disposals, 0);
+    } finally { f.owner.close(); }
+  }
+});
+
+test('borrowed Document refuses preview, scope and exact asset-pin mismatches without downloading', async () => {
+  const f = await borrowedDocumentSetup();
+  try {
+    for (const changed of [
+      { ...f.document, scope: { ...scope, homeId: uuid(99) } },
+      { ...f.document, original: { ...f.document.original, revision: 99 } },
+    ]) assert.equal((await f.owner.retainDocumentFrame(f.reader, f.frame, changed, signal())).status, 'integrity');
+    f.frame.mode = 'preview';
+    assert.equal((await f.owner.retainDocumentFrame(f.reader, f.frame, f.document, signal())).status, 'integrity');
+    assert.equal(f.counts.opens, 0); assert.equal(f.counts.releases, 0); assert.equal(f.counts.disposals, 0);
+  } finally { f.owner.close(); }
+});
+
+test('confirmed electrical absence retires only the selected building catalog and original eligibility', async () => {
+  const f = await setup(), a = drawing(uuid(81), uuid(82)), b = drawing(uuid(83), uuid(84));
+  try {
+    for (const d of [a, b]) assert.equal((await f.owner.retainElectricalLibrary(f.makeReader(d), d.frame, signal())).status, 'ok');
+    const before = await f.owner.read.readElectricalCatalog(await readCopy(f.owner), signal());
+    assert.equal(before.status, 'ok');
+    const other = before.value.buildings.find(row => row.buildingId === b.pin.buildingId);
+    assert.equal((await f.owner.read.readElectricalDocument(await readCopy(f.owner), a.pin, signal())).status, 'ok');
+    assert.equal((await f.owner.retireElectricalLibrary(a.pin.buildingId, signal(), () => true)).status, 'ok');
+    const handle = await readCopy(f.owner), catalog = await f.owner.read.readElectricalCatalog(handle, signal());
+    assert.equal(catalog.status, 'ok');
+    assert.deepEqual(catalog.value.buildings.find(row => row.buildingId === a.pin.buildingId).documents, []);
+    assert.deepEqual(catalog.value.buildings.find(row => row.buildingId === b.pin.buildingId), other);
+    assert.equal((await f.owner.read.readElectricalDocument(handle, a.pin, signal())).status, 'missing');
+    const retained = await f.owner.read.readElectricalDocument(handle, b.pin, signal());
+    assert.equal(retained.status, 'ok'); assert.deepEqual(new Uint8Array(await retained.value.arrayBuffer()), original);
+    assert.equal(f.counts().opens, 2, 'Retirement reads no additional original');
+  } finally { f.owner.close(); }
+});
+
+test('stale electrical absence session or currentness refuses catalog retirement without mutating stored data', async () => {
+  for (const stale of ['session', 'currentness']) {
+    const f = await setup(), a = drawing(uuid(85), uuid(86)), b = drawing(uuid(87), uuid(88));
+    try {
+      for (const d of [a, b]) assert.equal((await f.owner.retainElectricalLibrary(f.makeReader(d), d.frame, signal())).status, 'ok');
+      const before = structuredClone(f.backend.tables());
+      if (stale === 'session') f.replaceSession();
+      const result = await f.owner.retireElectricalLibrary(a.pin.buildingId, signal(), () => stale !== 'currentness');
+      assert.equal(result.status, 'retired');
+      assert.deepEqual(f.backend.tables(), before, 'Neither catalog nor original bytes change on stale retirement');
+      const handle = await readCopy(f.owner), catalog = await f.owner.read.readElectricalCatalog(handle, signal());
+      assert.equal(catalog.status, 'ok'); assert.equal(catalog.value.buildings.length, 2);
+      for (const d of [a, b]) assert.equal((await f.owner.read.readElectricalDocument(handle, d.pin, signal())).status, 'ok');
+    } finally { f.owner.close(); }
+  }
+});

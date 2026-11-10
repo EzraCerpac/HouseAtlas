@@ -155,6 +155,13 @@ tree anchors the updated hashes; this is source review, not operation execution.
 The other 63 input pins, every operation/profile/admission value, historical
 evidence entry and current execution/installed/browser state remain unchanged.
 
+The same runner pin was reinspected again at composition parent
+`3dba170d` before publishing the follow-up: one generated offline presentation
+SOURCE selection was added (78 SOURCE / 1 BUILD / 7 BROWSER). It extracts the
+actual root/reopen logic with synthetic hook/owner boundaries, not MCP execution.
+All prior selections and the two sandbox-blocked cases remain. Only this pin is
+refreshed; every operation, historical evidence and qualification state is kept.
+
 ## Maintaining the snapshot and advancing #288
 
 On a changed pinned input the auditor refuses, including when a composed donor

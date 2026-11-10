@@ -2,7 +2,7 @@ import type { ElectricalLibraryReader, ElectricalLibraryFrame } from '../src/lan
 import type { NativeEvidenceDocumentFrame } from '../src/lantern/scans/native-evidence-document-types';
 import type { ReadyView } from '../src/app/types';
 import type { AtlasSessionInfo } from '../src/app/session';
-import type { SourceDocumentsPort, SourceDocument, SourceDocumentFrame } from '../src/lantern/source-documents/types';
+import type { SourceDocumentsPort, SourceDocument, SourceDocumentFrame, SourceDocumentReader } from '../src/lantern/source-documents/types';
 import type { OfflineHomeboxAttachmentRefV1, OfflineHomeboxPinV1, OfflineElectricalPinV1, OfflineElectricalBuildingV1, OfflineCatalogItemV1, OfflineCatalogV1, OfflineDocumentPinV1, OfflineResult, OfflineBackend, OfflineAtlasReferenceV1, OfflineReadPort } from '../src/offline/live-copy-types';
 import { createLiveCopyOwner, LIVE_COPY_LIMITS, electricalPinBytes, validElectricalPin, validHomeboxRef, listsAttachment, type LiveCopyActor, type LiveCopyHome } from '../src/offline/live-copy-owner';
 import { openLiveCopyBackend } from '../src/offline/live-copy-indexeddb';
@@ -60,6 +60,34 @@ export function createLiveCopyRetention(options: {
     assetId: row.original.assetId, assetRevision: row.original.revision, sha256: row.original.sha256,
     bytes: row.original.bytes, recordedAvailability: row.availability.original,
   });
+  /** Explicit authorized enumeration; no partial catalog is constructed from a single open. */
+  async function retainCatalog(signal: AbortSignal, additionalCurrent: () => boolean = () => true): Promise<OfflineResult<OfflineCatalogV1>> {
+    const b = binding(); if (b.status !== 'ok') return remember(b);
+    const retired = () => signal.aborted || !b.value.current() || !additionalCurrent();
+    let reader: Awaited<ReturnType<SourceDocumentsPort['createReader']>> | null = null;
+    try {
+      reader = await options.documents().createReader();
+      if (retired()) return remember({ status: signal.aborted ? 'aborted' : 'retired' });
+      const identity = reader.owner(); if (!identity) return remember({ status: 'retired' });
+      const rows: OfflineCatalogItemV1[] = [], cursors = new Set<string>();
+      let cursor: string | null = null;
+      do {
+        const page = await reader.list(cursor, signal);
+        if (retired() || reader.owner() !== identity) return remember({ status: signal.aborted ? 'aborted' : 'retired' });
+        rows.push(...page.documents.map(metadata));
+        if (rows.length > LIVE_COPY_LIMITS.documents) return remember({ status: 'limit' });
+        cursor = page.nextCursor;
+        if (cursor !== null) { if (cursors.has(cursor)) return remember({ status: 'integrity' }); cursors.add(cursor); }
+      } while (cursor !== null);
+      const catalog: OfflineCatalogV1 = { version: 1, capturedAt: new Date().toISOString(), completeness: 'captured-complete', documents: rows };
+      if (!actor || retired()) return remember({ status: signal.aborted ? 'aborted' : 'retired' });
+      const live = owner.bindHome(actor, options.state().view!.scope, () => !retired() && reader!.owner() === identity);
+      if (live.status !== 'ok') return remember(live);
+      const result = await owner.keepCatalog(live.value, catalog, signal);
+      return remember(result.status === 'ok' ? { status: 'ok', value: catalog } : result);
+    } catch { return remember({ status: signal.aborted ? 'aborted' : retired() ? 'retired' : 'unavailable' }); }
+    finally { reader?.dispose(); }
+  }
   return {
     read: { homeboxStatus: owner.homeboxStatus, readHomeboxDocument: owner.readHomeboxDocument, readElectricalCatalog: owner.readElectricalCatalog, electricalStatus: owner.electricalStatus, readElectricalDocument: owner.readElectricalDocument, readLast: owner.readLast, readCatalog: owner.readCatalog, readDocument: owner.readDocument, documentStatus: owner.documentStatus,
       async atlasReference(handle, signal) {
@@ -103,31 +131,7 @@ export function createLiveCopyRetention(options: {
       if (options.state().view !== view) return remember({ status: 'retired' } as const);
       return remember(await owner.keepView(b.value.home, view, signal));
     },
-    /** Explicit authorized enumeration, not a vault scan. No claim that it includes other sources. */
-    async retainCatalog(signal: AbortSignal): Promise<OfflineResult<OfflineCatalogV1>> {
-      const b = binding(); if (b.status !== 'ok') return remember(b);
-      const retired = () => signal.aborted || !b.value.current();
-      let reader: Awaited<ReturnType<SourceDocumentsPort['createReader']>> | null = null;
-      try {
-        reader = await options.documents().createReader();
-        if (retired()) return remember({ status: signal.aborted ? 'aborted' : 'retired' });
-        const identity = reader.owner(); if (!identity) return remember({ status: 'retired' });
-        const rows: OfflineCatalogItemV1[] = [], cursors = new Set<string>();
-        let cursor: string | null = null;
-        do {
-          const page = await reader.list(cursor, signal);
-          if (retired() || reader.owner() !== identity) return remember({ status: signal.aborted ? 'aborted' : 'retired' });
-          rows.push(...page.documents.map(metadata));
-          if (rows.length > LIVE_COPY_LIMITS.documents) return remember({ status: 'limit' });
-          cursor = page.nextCursor;
-          if (cursor !== null) { if (cursors.has(cursor)) return remember({ status: 'integrity' }); cursors.add(cursor); }
-        } while (cursor !== null);
-        const catalog: OfflineCatalogV1 = { version: 1, capturedAt: new Date().toISOString(), completeness: 'captured-complete', documents: rows };
-        const result = await owner.keepCatalog(b.value.home, catalog, signal);
-        return remember(result.status === 'ok' ? { status: 'ok', value: catalog } : result);
-      } catch { return remember({ status: signal.aborted ? 'aborted' : retired() ? 'retired' : 'unavailable' }); }
-      finally { reader?.dispose(); }
-    },
+    retainCatalog(signal: AbortSignal) { return retainCatalog(signal); },
     /** Pins come from a fresh exact native read and its still-current leased byte frame, never a title or cached URL. */
     async retainDocument(documentId: string, revision: number, signal: AbortSignal): Promise<OfflineResult<OfflineDocumentPinV1>> {
       const b = binding(); if (b.status !== 'ok') return remember(b);
@@ -155,6 +159,56 @@ export function createLiveCopyRetention(options: {
         return remember(result.status === 'ok' ? { status: 'ok', value: pin } : result);
       } catch { return remember({ status: signal.aborted ? 'aborted' : b.value.current() ? 'unavailable' : 'retired' }); }
       finally { if (frame) reader?.release(frame); reader?.dispose(); }
+    },
+    /** Borrows an already verified original; the caller alone owns its reader and lease. */
+    async retainDocumentFrame(reader: SourceDocumentReader, frame: SourceDocumentFrame, document: SourceDocument,
+      signal: AbortSignal): Promise<OfflineResult<OfflineDocumentPinV1>> {
+      const b = binding(); if (b.status !== 'ok') return remember(b);
+      const identity = reader.owner(), scope = options.state().view!.scope;
+      const current = () => b.value.current() && !signal.aborted && identity !== null
+        && reader.owner() === identity && reader.isCurrent(frame);
+      const retired = (): OfflineResult<never> => ({ status: signal.aborted ? 'aborted' : 'retired' });
+      try {
+        if (!current()) return remember(retired());
+        if (document.scope.workspaceId !== scope.workspaceId || document.scope.homeId !== scope.homeId
+          || document.lifecycle !== 'active' || document.availability.original !== 'available'
+          || frame.mode !== 'original' || frame.documentId !== document.documentId || frame.documentRevision !== document.revision
+          || frame.asset.assetId !== document.original.assetId || frame.asset.revision !== document.original.revision
+          || frame.asset.sha256 !== document.original.sha256 || frame.asset.bytes !== document.original.bytes)
+          return remember({ status: 'integrity' });
+        const blob = reader.getBlob(frame);
+        if (!blob || !current()) return remember(retired());
+        if (blob.size !== frame.asset.bytes || blob.type !== frame.measuredContentType) return remember({ status: 'integrity' });
+        const pin: OfflineDocumentPinV1 = { documentId: document.documentId, documentRevision: document.revision,
+          assetId: frame.asset.assetId, assetRevision: frame.asset.revision, sha256: frame.asset.sha256,
+          bytes: frame.asset.bytes, contentType: frame.measuredContentType };
+        const matches = (catalog: OfflineCatalogV1) => catalog.completeness === 'captured-complete'
+          && catalog.documents.some(row => { const expected = metadata(document);
+            return Object.keys(expected).every(key => row[key as keyof OfflineCatalogItemV1] === expected[key as keyof OfflineCatalogItemV1]); });
+        let catalog: OfflineCatalogV1 | null = null;
+        const copy = await owner.readLast(signal); if (!current()) return remember(retired());
+        if (copy.status === 'ok') {
+          const selected = await owner.copyIdentity(copy.value.handle, signal); if (!current()) return remember(retired());
+          if (selected.status !== 'ok') return remember(selected);
+          if (selected.value.actorId === options.state().session!.actorId && selected.value.scope.workspaceId === scope.workspaceId
+            && selected.value.scope.homeId === scope.homeId) {
+            const stored = await owner.readCatalog(copy.value.handle, signal); if (!current()) return remember(retired());
+            if (stored.status === 'ok') catalog = stored.value;
+            else if (stored.status !== 'missing') return remember(stored);
+          }
+        } else if (copy.status !== 'missing') return remember(copy);
+        if (!catalog || !matches(catalog)) {
+          const fresh = await retainCatalog(signal, current); if (!current()) return remember(retired());
+          if (fresh.status !== 'ok') return remember(fresh);
+          if (!matches(fresh.value)) return remember({ status: 'integrity' });
+        }
+        if (!current() || reader.getBlob(frame) !== blob) return remember(retired());
+        const bytes = await blob.arrayBuffer();
+        if (!current() || reader.getBlob(frame) !== blob || !actor) return remember(retired());
+        const live = owner.bindHome(actor, document.scope, current); if (live.status !== 'ok') return remember(live);
+        const result = await owner.keepDocument(live.value, pin, bytes, signal);
+        return remember(result.status === 'ok' ? { status: 'ok', value: pin } : result);
+      } catch { return remember(signal.aborted || !current() ? retired() : { status: 'unavailable' }); }
     },
     /** True when this session allocation already sent a read for the exact association. */
     homeboxSent(ref: OfflineHomeboxAttachmentRefV1): boolean {
@@ -188,6 +242,21 @@ export function createLiveCopyRetention(options: {
         if (!dispatched) claimed.delete(key);
         return remember({ status: signal.aborted ? 'aborted' : b.value.current() ? 'unavailable' : 'retired' });
       }
+    },
+    /** Confirmed absence retires only this building's local catalog membership.
+     * Empty provenance grants no source access; original bytes remain subject to
+     * catalog membership and the existing actor/home/transaction witnesses. */
+    async retireElectricalLibrary(buildingId: string, signal: AbortSignal, current: () => boolean): Promise<OfflineResult<{ evicted: number }>> {
+      const b = binding(); if (b.status !== 'ok') return remember(b);
+      const live = () => !signal.aborted && b.value.current() && current();
+      try {
+        if (!live() || !actor) return remember({ status: signal.aborted ? 'aborted' : 'retired' });
+        const home = owner.bindHome(actor, options.state().view!.scope, live);
+        if (home.status !== 'ok') return remember(home);
+        return remember(await owner.keepElectricalCatalog(home.value, {
+          buildingId, capturedAt: new Date().toISOString(), provenance: null, documents: [],
+        }, signal));
+      } catch { return remember({ status: signal.aborted ? 'aborted' : 'unavailable' }); }
     },
     /** Captures one genuinely read building. The caller retains ownership of its reader/frame. */
     async retainElectricalLibrary(reader: ElectricalLibraryReader, frame: ElectricalLibraryFrame, signal: AbortSignal,

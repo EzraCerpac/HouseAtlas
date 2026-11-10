@@ -788,9 +788,17 @@ export async function createMeshScene(canvas: HTMLCanvasElement, meshes: readonl
         // Preparing early only saves the first shaded frame its pause, so a clean refusal
         // (an unrecognised three.js shape) keeps the view and leaves that frame to compile
         // as it did before. Cancellation and any other failure still end the stage.
+        // The preparation owner restores every temporary renderer mutation before
+        // yielding. Permit direct-only interaction at those safe boundaries; keep
+        // the guard throughout each actual compilation and its restoration.
+        const nextEffectSlice = async () => {
+          holding = false;
+          try { onStage?.(); await slice.next(); }
+          finally { holding = true; }
+        };
         holding = true;
         try {
-          await prepareEffectPipelines(renderer, { pipeline, relit, occlusion, history, passes: [geometryPass, colorPass] }, () => slice.next(), signal);
+          await prepareEffectPipelines(renderer, { pipeline, relit, occlusion, history, passes: [geometryPass, colorPass] }, nextEffectSlice, signal);
         } catch (error) {
           signal?.throwIfAborted();
           if (!(error instanceof PreparationRefused)) throw error;

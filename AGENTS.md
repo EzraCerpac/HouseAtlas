@@ -1,5 +1,35 @@
 # HouseAtlas
 
+The next composed source candidate preserves exact donors #555 `0a657eef`,
+#580 `2b28c406`, #582 `054c07c1`, #578 `3905725b`, #581 `70abbeed`
+and #583 `30081ada`. Startup remains lazy with unchanged budgets. HomeBox
+original retention is mounted only after complete, current, enabled native and
+electrical passes; unknown outcomes stop the sequence. The electrical trace
+consumer remains unmounted pending genuine data/review ownership.
+
+Confirmed `no-current-association` now retires only the selected building's
+local catalog eligibility; transient failure preserves it. Document retention
+borrows the already-open original reader/frame/blob, without a second original
+download or taking lease ownership. Foreground refresh still hides, aborts and
+revalidates data; only neutral section/exact-pin/page/zoom/scroll intent survives
+for the same actor revision and scope, with fresh allocation and byte checks.
+Effect preparation restores temporary renderer state before four safe yields;
+the scene permits direct-only redraw there, retaining the compilation guard and
+zero history until shading is ready. No renderer deadline or assertion changes.
+
+New authored controls remain NOT RUN: ten preparation controls (19 declarations
+total), six retention/retirement controls, three policy/root groups, four source
+presentation assertion groups, and a focus/PDF extension in the existing
+live-launch browser case. The default frontend runner now has 78 SOURCE,
+1 BUILD and 7 BROWSER selections. No new lane/workflow or removed case.
+Independent static review is not execution qualification. Producer donor
+`3905725b` separately passed its mounted admission/disclosure/error/replay case
+in hosted job130146474925 (354 passed, zero failed); that does not qualify this
+new composed head, in-flight withdrawal, device acceptance or runtime authority.
+Existing Chromium sandbox launch failures remain unresolved; no sandbox/security
+setting, credential, provider, activation or deployment change is made here.
+
+
 The existing default backend-library selection discovers the generated mounted
 HomeBox offline-original case in `http::homebox_pinned_files::mounted_offline_original_tests`.
 It exercises the actual router and original owner with disposable Access and a

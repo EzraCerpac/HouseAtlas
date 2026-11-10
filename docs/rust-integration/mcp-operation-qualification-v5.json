@@ -3,7 +3,7 @@
   "baseline": {
     "date": "2026-11-10",
     "mainCommit": "d368ca246da9999e7fdba5140a0870500df8a316",
-    "method": "Read-only review of current public source; no runtime admission query, build, test, provider or browser execution. Original inventory baseline retained; four changed inputs reinspected after composing main 8a20f596cae36bb8922b16f54d9bfd11a6b2ff56 and exact donor 0138f373f167636f596c79163d74ef00724bd0dd at composition parent 5aad47050919fc653a922864c7158f4c646144b6; see the guide for exact source/evidence boundaries"
+    "method": "Read-only review of current public source; no runtime admission query, build, test, provider or browser execution. Original inventory baseline retained; four changed inputs reinspected after composing main 8a20f596cae36bb8922b16f54d9bfd11a6b2ff56 and exact donor 0138f373f167636f596c79163d74ef00724bd0dd at composition parent 5aad47050919fc653a922864c7158f4c646144b6; see the guide for exact source/evidence boundaries; same runner pin reinspected at composition parent 3dba170d for one generated offline presentation SOURCE registration (78/1/7), with all cases and qualification states preserved"
   },
   "boundary": "Reviewed source snapshot and historical evidence index only. Not a runtime allowlist, grant, configured binding, test outcome or operational acceptance. Source digest equality establishes freshness of reviewed inputs, not correctness or execution.",
   "catalogPath": "contracts/stock-wire3/agent/operation-catalog.json",
@@ -829,7 +829,7 @@
     },
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
-      "sha256": "61fb0103633812427a7eeea3167943671e5c624e2b420f0d28750937c6737d71"
+      "sha256": "982e1061772e04356f76b91a2ac9effd02d4808637e550e1b26d45fc2b0eedbf"
     },
     {
       "path": "frontend/lantern-tests/webmcp-adapter-healthy.mjs",

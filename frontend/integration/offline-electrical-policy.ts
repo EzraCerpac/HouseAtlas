@@ -23,7 +23,7 @@ export async function fillOfflineElectricalLibraries(options: {
   if (!current()) return result('The building list changed.');
   const index = buildTopologyIndex({ identities: identity.records, bindings: bindings.records, semantics: semantics.records,
     relations: relations.records, sourceStatuses: [identity.sourceStatus, bindings.sourceStatus, semantics.sourceStatus, relations.sourceStatus] }, view, new Map());
-  let captured = 0, failed = 0;
+  let captured = 0, absent = 0, failed = 0;
   // Existing topology bounds the source read; cap new background work independently.
   if (index.buildings.length > 128) return result('The building count exceeds the offline library download limit.');
   for (const building of index.buildings) {
@@ -32,9 +32,20 @@ export async function fillOfflineElectricalLibraries(options: {
     let frame: Awaited<ReturnType<typeof reader.read>> | null = null;
     try {
       if (!current()) return result('Electrical library download stopped because the live view changed.');
+      const readerOwner = reader.owner();
       frame = await reader.read(building.id, signal);
       if (!current()) return result('Electrical library download stopped because the live view changed.');
-      if (frame.status !== 'available') { if (frame.reason !== 'no-current-association') failed++; continue; }
+      if (frame.status !== 'available') {
+        if (frame.reason !== 'no-current-association') { failed++; continue; }
+        const stillAbsent = () => current() && readerOwner !== null && reader.owner() === readerOwner;
+        if (!stillAbsent()) return result('Electrical library download stopped because the live view changed.');
+        const retired = await owner.retireElectricalLibrary(building.id, signal, stillAbsent);
+        if (retired.status === 'ok') absent++;
+        else if (retired.status === 'uncertain' || retired.status === 'retired' || retired.status === 'aborted')
+          return result(`Electrical library download stopped (${retired.status}). Check held files before trying again.`);
+        else failed++;
+        continue;
+      }
       const retained = await owner.retainElectricalLibrary(reader, frame, signal, {
         includeBytes: options.enabled(), enabled: () => current() && options.enabled(),
       });
@@ -43,5 +54,5 @@ export async function fillOfflineElectricalLibraries(options: {
       else failed++;
     } finally { if (frame?.status === 'available') reader.release(frame); reader.dispose(); }
   }
-  return result(`${captured} building drawing ${captured === 1 ? 'list' : 'lists'} captured${failed ? `; ${failed} unavailable` : ''}.`, failed === 0);
+  return result(`${captured} building drawing ${captured === 1 ? 'list' : 'lists'} captured${absent ? `; ${absent} without a current association` : ''}${failed ? `; ${failed} unavailable` : ''}.`, failed === 0);
 }
