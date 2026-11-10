@@ -300,7 +300,8 @@ try {
     await tab('Changes');
     assert.equal(await evaluate(`document.querySelector('main').textContent.includes('Operation history is not held')`), true);
     await tab('Library');
-    await poll(`document.querySelector('main').textContent.includes('On this device')`, 5_000, 'PDF availability not shown');
+    // Wait for the native row's own action: electrical rows can report "On this device" first.
+    await poll(`[...document.querySelectorAll('main button')].some(button => button.textContent === 'Open Generated held PDF')`, 5_000, 'PDF availability not shown');
     await screenshot('phone-offline-library');
     await evaluate(`[...document.querySelectorAll('main button')].find(button => button.textContent === 'Open Generated held PDF').click()`);
     await poll(`(() => { const canvas = document.querySelector('canvas[aria-label="Generated held PDF, PDF page 1"]');
