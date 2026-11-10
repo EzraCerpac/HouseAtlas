@@ -5,7 +5,8 @@ against public main `d368ca246da9999e7fdba5140a0870500df8a316`.
 
 The [versioned matrix](mcp-operation-qualification-v5.json) contains all 168
 canonical operations, once each in shared catalog order. Every row separates
-catalog metadata, genuine service ownership, reviewed host profiles, conditional
+catalog metadata, genuine service ownership, native dispatch implementation,
+reviewed host profiles, conditional
 WebMCP binding, finite stdio bridge support, applicable limits, exact historical
 test/CI references and remaining qualification. It is an offline source
 inventory, never an input to admission or execution.
@@ -60,7 +61,7 @@ dispatch is `http/agents/stock_dispatch.rs`, native stock read/mutation owners,
 configured `homebox_native` and saved `stock_network_reads`. `NativeCatalog`
 filters input arms and recursively checks every batch child; `OperationMapping`
 joins the published/domain catalogs without enabling an operation. The matrix
-pins its 64 reviewed inputs by SHA-256. Exact source
+pins its 67 reviewed inputs by SHA-256. Exact source
 links can be formed from its baseline commit and source paths.
 
 ## Concrete findings and disposition
@@ -69,14 +70,23 @@ links can be formed from its baseline commit and source paths.
 | --- | --- |
 | The v4 header still says binding create is unresolved, while its M27/M28 rows record qualified unresolved-source creation | The matrix retains the actual row disposition and limits. Read-only inspection of #562 head `5f814c2cb97431386876b5fe2679528d443e81ea` confirms its sole integrator already corrected that paragraph. No competing v4 edit or qualification increment is made here |
 | v4 owner/admission source links retain the older `8d492661…` baseline despite later M20–M36 increments and the remap hold | The v5 matrix separately pins the current reviewed main source and each historical test's exact executed source/job. Historical v4 evidence remains intact |
-| 154 catalog entries say supported-pending-qualification, while the largest reviewed generic profile reaches only 82 | No missing binding can be inferred from a schema or catalog status. Eighty rows are explicitly unsupported in these generic profiles, one remap row is blocked, two held and three forbidden; dedicated application paths remain separate |
+| 154 catalog entries say supported-pending-qualification, while the largest advertised generic profile reaches only 82 | No missing binding can be inferred from a schema or catalog status. The historical eighty UNSUPPORTED-GENERIC labels remain recorded separately from current native implementation; one remap row is blocked, two held and three forbidden; dedicated application paths remain separate |
+| Scene-association get/list/history have a native owner despite absent advertised admission | Correct all three current service-owner rows and mark `nativeDispatch: implemented-unadvertised`. `AtlasReads::read_arm`/`atlas_list_record_type`, native `stock_reads` and Store implement all three. Generic HTTP invoke reaches that shared read dispatcher without comparing advertised `capabilities::admitted`; current Read/ReadHistory, scope and source-closure authorization still apply. R/L/M/E and HTTP admission metadata omit these IDs. Keep historical v4 labels intact and current execution NOT RUN; do not widen admission or describe the actual native implementation as missing |
 | Remap has a lower-level mapping but no trusted human issuer/atomic consumption owner in generic composition | Retain `generic_mutation_supported` exclusion and M33 hold-only evidence. No admission change, receipt, issuer or successful remap claim |
 | M36 native-reader positives use injected GETs and an unmounted MCP delegation | Configured `NativeHomeBoxReadBinding`/credential custody, actual native continuation/domain dispatch and mounted result qualification remain NOT RUN. #571's retained-list test, composed separately in #562, is not copied or promoted |
 | Asset/scene creation has dedicated Media custody, absent from generic MCP | Keep D separate; do not add a generic upload/scene binding. M34's actual same-Host text-byte redemption is distinct from a rendered link or another media/authority/lifetime variant |
 | Generic WebMCP helpers can describe families without supplying an executable operation owner | Each row records helper-family bindability separately from current admission/service intersection. All per-operation WebMCP execution remains NOT RUN; gateway and stock/AI document ownership remain separate integration requirements |
 
+The `hostProfiles.HTTP` column records advertised admission, while
+`nativeDispatch` separately records reviewed implementation/reachability. The
+three unadvertised scene reads demonstrate why these must remain separate. This
+source finding supplies no executed response or new authority. Reconciliation
+of the advertised set with the existing native owner needs its own reviewed
+scope; it must not be accomplished by broadly enabling catalog entries here.
+
 No additional generic service binding or behavioral source repair is justified
-by this inventory. The executable increment is the reusable offline audit and
+by this inventory. The concrete repair is the three-row native-owner/dispatch
+correction. The executable increment is the reusable offline audit and
 machine-readable join that exposes these distinctions without invoking an
 operation. Future binding work needs its actual existing service owner and
 scope; this document supplies no fallback dispatcher or endpoint.

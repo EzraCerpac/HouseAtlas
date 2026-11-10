@@ -7209,15 +7209,15 @@
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v5.json",
       "mode": "100644",
-      "bytes": 225944,
-      "sha256": "f262f826afb31d4043738f5e4fa8fc9dab66d1685733c73541a3d5cd0a0f33f4",
+      "bytes": 231995,
+      "sha256": "09b172de1c9a3b85f664dd3d1165fbc8921ecc74eb0453b1e112eab261350bde",
       "owner": "mcp"
     },
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v5.md",
       "mode": "100644",
-      "bytes": 11756,
-      "sha256": "5e3d5c54ca843b148d2c2296d7261724e8ca92a2da6549e54f94f24fd87fef4a",
+      "bytes": 13044,
+      "sha256": "d00c168a078e4e4196600e906b4cadd88269d384fb62aad9e6891180883812be",
       "owner": "mcp"
     },
     {
@@ -12095,8 +12095,8 @@
     {
       "path": "tools/mcp-qualification/inventory.py",
       "mode": "100644",
-      "bytes": 7498,
-      "sha256": "a31ac6b5ef8d009ca7619e0427d3f8cc3691f25e1e055f58984b71007183e69e",
+      "bytes": 7701,
+      "sha256": "997b5d5280d4510fdf724a4a140c528116f4d2dfca37a44130e9d1681b97b9b2",
       "owner": "mcp"
     },
     {

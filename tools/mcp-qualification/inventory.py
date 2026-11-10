@@ -87,6 +87,9 @@ def audit():
                 f"Catalog metadata differs: {op}")
         require(row["serviceOwner"] in matrix["serviceOwners"],
                 f"Missing service ownership disposition: {op}")
+        require(row["nativeDispatch"] in {"implemented", "implemented-unadvertised",
+                "dedicated-only", "held", "not-bound"},
+                f"Missing native dispatch disposition: {op}")
         require(row["limitKeys"] and set(row["limitKeys"]) <= matrix["limits"].keys(),
                 f"Missing limit disposition: {op}")
         require(set(row["hostProfiles"]) == {"R", "L", "M", "E", "HTTP", "D"},
