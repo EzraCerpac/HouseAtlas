@@ -83,7 +83,8 @@ pub fn disclose_review(
                 let key = format!("duplicate:{}", duplicate.candidate_ref);
                 let relation = match duplicate.relationship {
                     DuplicateRelationship::SameProductDistinctItem => "same-product",
-                    _ => "possible-duplicate",
+                    DuplicateRelationship::SameProductIdentityUnknown => "same-product-identity-unknown",
+                    DuplicateRelationship::PossibleSameItem | DuplicateRelationship::Ambiguous => "possible-duplicate",
                 };
                 candidates.push(json!({"key":key,"label":format!("Inventory candidate {}",source(&duplicate.candidate_ref)?.input_ref),"relation":relation,"reason":reason,"uncertainty":format!("{:?}",duplicate.supporting.uncertainty),"evidenceKeys":evidence}));
                 selections.insert(key, json!({"kind":"inventory-duplicate","inputRef":duplicate.candidate_ref}));

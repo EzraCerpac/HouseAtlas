@@ -27,7 +27,7 @@ pub struct Labels {
     pub source_context_pin: String,
     pub validation: ExpectedValidation,
     pub classification: ExpectedSet,
-    /// Keys use duplicate_label(), retaining all three distinct relationships.
+    /// Keys use duplicate_label(), retaining all four distinct relationships.
     pub duplicate_relationships: ExpectedSet,
     pub document_associations: ExpectedSet,
     pub abstention: ExpectedAbstention,
@@ -84,6 +84,7 @@ pub fn duplicate_label(candidate_ref: &str, relationship: DuplicateRelationship)
     let relationship = match relationship {
         DuplicateRelationship::PossibleSameItem => "possible-same-item",
         DuplicateRelationship::SameProductDistinctItem => "same-product-distinct-item",
+        DuplicateRelationship::SameProductIdentityUnknown => "same-product-identity-unknown",
         DuplicateRelationship::Ambiguous => "ambiguous",
     };
     format!("{candidate_ref}:{relationship}")

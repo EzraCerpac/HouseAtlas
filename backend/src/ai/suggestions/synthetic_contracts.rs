@@ -47,6 +47,51 @@ fn completed_proposal(snapshot: &AdmittedSnapshot) -> crate::ai::InferenceOutcom
 }
 
 #[test]
+fn product_match_unknown_identity_has_distinct_wire_and_disclosure_without_changing_old_relationships() {
+    let mut admitted = input();
+    admitted.sources[0].evidence[0].excerpt = "Generated Aurora-Q product label; physical item identity unknown.".into();
+    admitted.sources[1].evidence[0].excerpt = "Generated second Aurora-Q product label; serial and same/distinct physical identity unknown.".into();
+    let snapshot = AdmittedSnapshot::new(admitted).unwrap();
+    for (raw, display) in [
+        ("possible-same-item", "possible-duplicate"),
+        ("same-product-distinct-item", "same-product"),
+        ("same-product-identity-unknown", "same-product-identity-unknown"),
+        ("ambiguous", "possible-duplicate"),
+    ] {
+        let relationship: DuplicateRelationship = serde_json::from_value(json!(raw)).unwrap();
+        assert_eq!(serde_json::to_value(relationship).unwrap(), raw);
+        let mut proposal = output(&snapshot, json!({"kind":"inventory","changes":[],"duplicates":[{
+            "candidateRef":"input2","relationship":raw,"supporting":support(&["c1","c2"]),"contradictingClaimRefs":[]}]}));
+        for index in 0..2 { proposal["claims"][index]["text"] = json!(snapshot.input().sources[index].evidence[0].excerpt); }
+        proposal["result"]["duplicates"][0]["supporting"]["uncertainty"] = json!("unknown");
+        let review = validate(&proposal, &snapshot).unwrap();
+        assert_eq!(serde_json::to_value(review.proposal()).unwrap()["result"]["duplicates"][0]["relationship"], raw);
+        assert_eq!(serde_json::to_value(review.input()).unwrap(), serde_json::to_value(snapshot.input()).unwrap());
+        let wire = disclose_review(&review, &snapshot, &Default::default()).unwrap();
+        assert_eq!(wire.value()["contextPin"], snapshot.context_pin());
+        assert_eq!(wire.value()["view"]["candidates"][0]["relation"], display);
+        assert_eq!(wire.value()["view"]["candidates"][0]["uncertainty"], "Unknown");
+        assert_eq!(wire.value()["view"]["candidates"][0]["evidenceKeys"], json!(["e1", "e2"]));
+        assert_eq!(wire.value()["inspections"]["e1"]["inputRef"], "input1");
+        assert_eq!(wire.value()["inspections"]["e2"]["inputRef"], "input2");
+        assert_eq!(wire.value()["inspections"]["e2"]["version"], "revision-1");
+        assert_eq!(wire.value()["selections"], json!({"duplicate:input2":{"kind":"inventory-duplicate","inputRef":"input2"}}));
+        // Both cited sides remain mandatory for every relationship. Acceptance
+        // above is structural, not semantic verification of any hypothesis.
+        proposal["result"]["duplicates"][0]["supporting"]["claimRefs"] = json!(["c1"]);
+        assert_eq!(validate(&proposal, &snapshot).unwrap_err(), SuggestionError::MissingSupport);
+    }
+    assert!(serde_json::from_value::<DuplicateRelationship>(json!("same-product-authorized-merge")).is_err());
+    // Do not adapt original inv-model-only by relabeling its Document subject.
+    let mut document_subject = input();
+    document_subject.sources[0].kind = CandidateKind::Document;
+    let snapshot = AdmittedSnapshot::new(document_subject).unwrap();
+    let mut proposal = output(&snapshot, inventory());
+    proposal["result"]["duplicates"][0]["relationship"] = json!("same-product-identity-unknown");
+    assert_eq!(validate(&proposal, &snapshot).unwrap_err(), SuggestionError::InvalidOutput);
+}
+
+#[test]
 fn completed_proposal_envelope_accepts_exact_limit_and_refuses_next_byte() {
     let snapshot = AdmittedSnapshot::new(input()).unwrap();
     let mut outcome = completed_proposal(&snapshot);

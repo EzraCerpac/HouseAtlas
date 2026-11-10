@@ -71,6 +71,43 @@ fn score(gold: &Labels, p: &Value, snapshot: &AdmittedSnapshot) -> CaseReport {
 }
 
 #[test]
+fn product_match_unknown_identity_scores_as_its_own_supplied_relationship_only() {
+    let mut admitted = input(false);
+    admitted.sources[0].evidence[0].excerpt = "Generated selected Aurora-Q product, category air-filter; physical identity unknown.".into();
+    admitted.sources[1].evidence[0].excerpt = "Generated Aurora-Q product candidate; no serial or same/distinct physical identity evidence.".into();
+    let snapshot = AdmittedSnapshot::new(admitted).unwrap();
+    let unknown = duplicate_label("item2", DuplicateRelationship::SameProductIdentityUnknown);
+    assert_eq!(unknown, "item2:same-product-identity-unknown");
+    let mut gold = labels(&snapshot);
+    gold.case_id = "generated-product-match-physical-identity-unknown".into();
+    gold.duplicate_relationships = singleton(&unknown, &["e1", "e2"], "Generated labels name the same product but leave physical same/distinct identity unknown; no original corpus mapping.");
+    for relationship in [DuplicateRelationship::PossibleSameItem, DuplicateRelationship::SameProductDistinctItem, DuplicateRelationship::Ambiguous] {
+        let key = duplicate_label("item2", relationship);
+        assert_ne!(key, unknown);
+        gold.duplicate_relationships.forbidden.insert(key.clone());
+        gold.duplicate_relationships.basis.insert(key, basis(&["e1", "e2"], "This separate supplied control expects the product-positive/physical-unknown representation, not another relationship."));
+    }
+    let supplied = |relationship: &str| {
+        let mut value = proposal(&snapshot, inventory("air-filter", relationship));
+        value["result"]["duplicates"][0]["supporting"]["rationale"] = json!("Generated product-only correspondence; physical identity remains unknown.");
+        value["result"]["duplicates"][0]["supporting"]["uncertainty"] = json!("unknown");
+        value["result"]["duplicates"][0]["contradictingClaimRefs"] = json!([]);
+        value
+    };
+    let report = score(&gold, &supplied("same-product-identity-unknown"), &snapshot);
+    let counts = report.duplicate_relationships.unwrap();
+    assert_eq!((counts.allowed_predictions, counts.unexpected_predictions, counts.missing_required, counts.forbidden_proposals), (1, 0, 0, 0));
+    assert!(!report.model_executed);
+    assert_eq!(report.provenance, "supplied-synthetic-proposal-only");
+    for raw in ["possible-same-item", "same-product-distinct-item", "ambiguous"] {
+        let report = score(&gold, &supplied(raw), &snapshot);
+        let counts = report.duplicate_relationships.unwrap();
+        assert_eq!((counts.unexpected_predictions, counts.missing_required, counts.forbidden_proposals), (1, 1, 1));
+        assert_eq!(report.validation.correct_acceptance, 1);
+    }
+}
+
+#[test]
 fn same_product_different_item_is_not_a_duplicate_identity_error() {
     let snapshot = AdmittedSnapshot::new(input(false)).unwrap(); let gold = labels(&snapshot);
     let r = score(&gold,&proposal(&snapshot,inventory("air-filter","same-product-distinct-item")),&snapshot);

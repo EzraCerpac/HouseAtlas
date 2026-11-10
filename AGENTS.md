@@ -1,5 +1,19 @@
 # HouseAtlas
 
+Inventory review additionally supports `SameProductIdentityUnknown`, serialized
+and locally disclosed as `same-product-identity-unknown`: positive product
+correspondence with physical same/distinct identity unknown. Existing three
+relationship meanings, cited-source validation, selection binding and
+once-consumed authority:none review intents remain unchanged. Source preparation
+must compose the exact reviewed #569 presentation donor before publication;
+the frontend writer retains its six review/controller files. Three new shared
+controls (canonical/disclosure, independent supplied scorer and session binding)
+are authored/unrun. Shared Rust counts are 29 synthetic-contract and 10 scorer
+tests; retained tests/ledger stay 26 and 5 scorer subsets/20 structural/7 unbridged.
+Original inv-model-only stays unbridged: its Document subject cannot be silently
+relabelled as an InventoryItem. No inference, physical verification, approval,
+native resolution, runtime activation or new runner/workflow is introduced.
+
 Original maint-duplicate has one additional supplied existing-task review
 control in `ai::suggestions::evaluation::retained_corpus`:
 `retained_maintenance_existing_task_review_keeps_task_binding_and_unknown_completion`.

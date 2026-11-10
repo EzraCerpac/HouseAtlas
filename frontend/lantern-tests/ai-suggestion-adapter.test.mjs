@@ -37,6 +37,28 @@ function setup(wire = fixture(), options = {}) {
   const session = createSuggestionReviewSession(JSON.stringify(wire), context, owner);
   return { session, owner, context, inspected, intents, change(value) { current = value; for (const cb of [...listeners]) cb(); } };
 }
+test('product match with unknown physical identity retains exact binding and one-use review intent', async () => {
+  const wire = fixture();
+  wire.view.candidates[0].relation = 'same-product-identity-unknown';
+  const s = setup(wire);
+  const view = s.session.controller.getSnapshot();
+  assert.equal(view.view.candidates[0].relation, 'same-product-identity-unknown');
+  assert.deepEqual(view.candidateKeys, []);
+  assert.equal(s.intents.length, 0);
+  s.session.controller.selectCandidate('duplicate:item2', true);
+  await s.session.controller.decide('accept-for-review');
+  await s.session.controller.decide('accept-for-review');
+  assert.equal(s.intents.length, 1);
+  assert.equal(s.intents[0].intent.authority, 'none');
+  assert.deepEqual(s.intents[0].intent.candidateKeys, ['duplicate:item2']);
+  assert.deepEqual(s.intents[0].selections, { 'duplicate:item2': { kind: 'inventory-duplicate', inputRef: 'item2' } });
+  s.session.dispose();
+  const bad = fixture(); bad.view.candidates[0].relation = 'same-product-authorized-merge';
+  assert.throws(() => setup(bad));
+  const unbound = fixture(); unbound.view.candidates[0].relation = 'same-product-identity-unknown';
+  unbound.selections['duplicate:item2'].inputRef = 'different-item';
+  assert.throws(() => setup(unbound));
+});
 test('inventory and document projection connects to actual controller with empty selections', async () => {
   for (const kind of ['inventory', 'document']) {
     const { session, intents, inspected } = setup(fixture(kind));

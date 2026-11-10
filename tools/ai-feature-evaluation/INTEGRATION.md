@@ -412,7 +412,7 @@ native-owner, access, durable decision or issue acceptance is established.
 | Original case | Bridge | Mapped scope / exact remaining gap |
 | --- | --- | --- |
 | inv-identity | Scorer subset | Fan category and possible-same-item candidate; no physical identity/location, recall or merge authority. |
-| inv-model-only | No bridge | Same product does not prove same physical item OR distinctness; no reviewed mapping to the canonical relationship labels. |
+| inv-model-only | No bridge | Product-positive/physical-identity-unknown is canonically representable, but the selected manual is a Document while Inventory requires an InventoryItem subject; do not relabel it or choose an arbitrary physical subject. |
 | inv-sparse | Scorer subset | Aggregate no-proposal only; field unknowns/location and unadmitted negative candidates remain unscored. |
 | inv-conflict | No bridge | Inventory location-conflict review is unadapted; inventory field changes cannot choose a room or relocate an item. |
 | inv-stale | Structural | Observed/current versions separated for context refusal; null semantic scores, no history rendering or real authority. |
@@ -449,6 +449,17 @@ without bridges. All semantic completeness, calibrated quality and actual owner
 authority remain unqualified; the ledger does not release any acceptance gate.
 
 ## Existing-task review representation
+
+Separate generated contract controls support canonical
+`same-product-identity-unknown` without changing any original corpus mapping or
+counts. It retains positive product correspondence while physical same/distinct
+identity stays unknown. It is distinct from possible-same-item,
+same-product-distinct-item and ambiguous in validation/disclosure and supplied
+scorer labels. No physical verification, native resolution, model accuracy or
+calibrated probability follows. Original inv-model-only remains unbridged for
+the Document-subject reason in the ledger, not coerced into a new gold label.
+The new scorer control uses independent generated inputs/labels only and is
+authored/unrun; no result for that original is inferred.
 
 `retained_maintenance_existing_task_review_keeps_task_binding_and_unknown_completion`
 is one additional authored, **NOT RUN** case in the existing default-library

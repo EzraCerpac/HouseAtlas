@@ -152,7 +152,14 @@ pub struct DuplicateCandidate {
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum DuplicateRelationship { PossibleSameItem, SameProductDistinctItem, Ambiguous }
+pub enum DuplicateRelationship {
+    PossibleSameItem,
+    SameProductDistinctItem,
+    /// Positive product correspondence; same/distinct physical identity is unknown.
+    /// This is a review proposal, never physical verification or native authority.
+    SameProductIdentityUnknown,
+    Ambiguous,
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

@@ -158,6 +158,32 @@ concrete original reviewed-stock and trusted human-review bridge.
 
 ## Review-only AI suggestion contracts
 
+Canonical `SameProductIdentityUnknown` has exact serialized/disclosure relation
+`same-product-identity-unknown`, retaining positive product correspondence and
+unknown physical same/distinct identity. Existing relationship mappings and
+acceptance remain unchanged. Strict source support, context and selection
+fences still apply; no classifier label grants native authority. The shared
+source must compose the exact reviewed #569 presentation contract before
+publication; existing frontend ownership and runner selections are preserved.
+
+Three shared controls are authored and **NOT RUN**:
+
+- `ai::suggestions::synthetic_contracts::product_match_unknown_identity_has_distinct_wire_and_disclosure_without_changing_old_relationships`
+- `ai::suggestions::evaluation::healthy::product_match_unknown_identity_scores_as_its_own_supplied_relationship_only`
+- frontend adapter: `product match with unknown physical identity retains exact binding and one-use review intent`
+
+They cover all four relationship wire/disclosure mappings, exact source/evidence/
+version/uncertainty retention, mandatory two-sided support, independent supplied
+scorer labels and strict session binding with empty initial selection and
+once-only authority:none intent. The adapter control requires the matching
+reviewed presentation donor; neither controller nor UI execution is implied.
+New scorer labels belong only to separate generated inputs, never the retained
+original corpus. Original inv-model-only remains unbridged because its Document
+subject cannot satisfy the unchanged InventoryItem requirement. Shared Rust
+counts become 29 synthetic-contract and 10 scorer cases; 26 retained tests and
+the 5/20/7 original ledger remain unchanged. No model accuracy, calibration,
+physical verification or native duplicate-resolution acceptance follows.
+
 The existing default-library retained bridge additionally discovers
 `ai::suggestions::evaluation::retained_corpus::retained_maintenance_existing_task_review_keeps_task_binding_and_unknown_completion`.
 This one authored/NOT RUN test adapts only original maint-duplicate: exact

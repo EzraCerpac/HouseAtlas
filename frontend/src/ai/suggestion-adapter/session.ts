@@ -109,7 +109,7 @@ export function createSuggestionReviewSession(json: string, context: object, own
       : { ['container:' + input]: ['inventory-container', 'proposed-association'], ['duplicate:' + input]: ['inventory-duplicate', c.relation] };
     const pair = expected[c.key];
     if (!pair || b.kind !== pair[0] || c.relation !== pair[1]) throw new TypeError('Mismatched candidate binding');
-    if (b.kind === 'inventory-duplicate' && !['possible-duplicate', 'same-product'].includes(String(c.relation))) throw new TypeError('Unsupported duplicate relationship');
+    if (b.kind === 'inventory-duplicate' && !['possible-duplicate', 'same-product', 'same-product-identity-unknown'].includes(String(c.relation))) throw new TypeError('Unsupported duplicate relationship');
     selectionKeys.push(c.key);
   }
   if (isMaintenance) {
