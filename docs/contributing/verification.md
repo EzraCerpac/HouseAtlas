@@ -2831,7 +2831,10 @@ node frontend/lantern-tests/unified-atlas-network-trace-healthy.mjs
 ```
 
 The generated electrical drawing-group projection checks room-level membership,
-unplaced and missing members, source separation and malformed saved metadata:
+unplaced and missing members, source separation and malformed saved metadata.
+It also passes generated fixture data through the actual documentary projector:
+groups with a current circuit, verified or unknown wiring, duplicate, absent or
+non-reciprocal membership never become a drawing group:
 
 ```sh
 node frontend/lantern-tests/unified-atlas-electrical-group-healthy.mjs

@@ -6593,8 +6593,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 290704,
-      "sha256": "f0262b10992c439b5ef1693ea6cf83ec4c9613732cc00b3b44ceabfd6c71eba0",
+      "bytes": 290920,
+      "sha256": "c10e28f9c4d1b56df87d712d972b0ab44f7bfa2ce8ce7797118fcdb47d0a7142",
       "owner": "core-integration"
     },
     {
@@ -8707,8 +8707,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-electrical-group-healthy.mjs",
       "mode": "100644",
-      "bytes": 2389,
-      "sha256": "fe6ab31b25d25adff83a90a932e1c2d0355dd5c781694f2c6ee02c8f2990ef23",
+      "bytes": 6864,
+      "sha256": "94dafa122fcb1bb127b9facd67928ce76375eeb574058e6111dd8d7d1d928f9e",
       "owner": "web"
     },
     {
