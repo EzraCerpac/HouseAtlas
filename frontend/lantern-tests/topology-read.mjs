@@ -1951,3 +1951,7 @@ assert.equal(index.access.filter(r=>r.payload.assertion==='absent').length,1);
 assert.equal(metres(ExactDecimal.parse('0')),'0 m');assert.equal(metres(ExactDecimal.parse('-0.45')),'−0.45 m');
 assert.equal(calls.length,10);assert(calls.filter(r=>r.payload.buildingId!==undefined).every(r=>r.commandId==='atlas.identity.list'));
 console.log('PASS bounded positive canonical topology invoke, two-page original IDs/correlation, exact source binding, separate Alpha/Beta names, zero/negative/same-datum elevations, unknown and omitted levels, direct and unassigned members, typed access, archived source without invented availability');
+
+const { electricalRecordOwnerCases } = await import('./electrical-record-owner-healthy.mjs');
+await electricalRecordOwnerCases(client, binding, identity.records[0], semantics.records[0]);
+console.log('PASS partial electrical record reads, unavailable review authority, stale pins and withdrawal');

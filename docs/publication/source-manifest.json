@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 70779,
-      "sha256": "f0209a19ae8845866661b9e7a184086903c28f3f063afe321b517728862d09ff",
+      "bytes": 71012,
+      "sha256": "022c7cdba5ac7bbfd9102dc27f3ca5899e041d4c20259d0b49e00e61a34130d6",
       "owner": "core-integration"
     },
     {
@@ -6600,8 +6600,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 293493,
-      "sha256": "f834b66f0d3c7f266dcc089bd681aba1975a660640f732457c4083d2ef70cc2c",
+      "bytes": 293805,
+      "sha256": "8b897e47d4d54d9b75b7413446981e383fe2de448b0db443f09bc0a1d2e21612",
       "owner": "core-integration"
     },
     {
@@ -7669,6 +7669,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "frontend/integration/electrical-record-owner.ts",
+      "mode": "100644",
+      "bytes": 4864,
+      "sha256": "08c754ff35908e581b1d2d3a49760d8c4455fbfb05eb5493551a15ed68a83efb",
+      "owner": "web"
+    },
+    {
       "path": "frontend/integration/last-atlas-copy.ts",
       "mode": "100644",
       "bytes": 5763,
@@ -8044,6 +8051,13 @@
       "mode": "100644",
       "bytes": 16780,
       "sha256": "49dd3ef7469125dcebb2435a602a7f74248cc804c7eb8d5622446f57af3c3db4",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/lantern-tests/electrical-record-owner-healthy.mjs",
+      "mode": "100644",
+      "bytes": 3382,
+      "sha256": "0c4c688b16b8deddcc3ff3a6a8ee342794f5b4510ca06e5b6e9cfdd7f74c26af",
       "owner": "web"
     },
     {
@@ -8665,8 +8679,8 @@
     {
       "path": "frontend/lantern-tests/topology-read.mjs",
       "mode": "100644",
-      "bytes": 66906,
-      "sha256": "1fd1ddc1206ce47079d7c1634b3e859de096b631cd3e3efb93d813aa9b71e070",
+      "bytes": 67205,
+      "sha256": "7c4082d668332fdb728a2054c9b15f9186271ddc15ae8ea23809ae361d098ead",
       "owner": "web"
     },
     {

@@ -454,6 +454,9 @@ loopback flows (including pure fake-child/clock CDP startup/framing/error cases
 inside the already admitted media flow; one 60 s startup request, unchanged
 15 s subsequent calls and close-aware owned-child cleanup) named in the workflow and in the verification guide. A PR that
 extends CI names the added scope here and in the verification guide.
+The existing topology-read case also exercises a partial electrical record reader
+with synthetic identity and location-semantics records, rechecks and retirement;
+circuit, evidence and electrical review authority remain unavailable.
 The frontend healthy list also runs `unified-atlas-network-trace-healthy.mjs`
 (#552): the pure network route search over generated topologies, with no DOM,
 browser, native host or source reads. The same list runs
