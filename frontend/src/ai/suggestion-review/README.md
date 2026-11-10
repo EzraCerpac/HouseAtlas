@@ -233,7 +233,7 @@ Proposed scoped non-device command, using the repository-pinned Node 26.10.0:
 
     node --test frontend/lantern-tests/ai-suggestion-review.test.mjs
 
-Forty-five generated controller/source cases load the actual type-stripped controller:
+Forty-nine generated controller/source cases load the actual type-stripped controller:
 explicit fields/edits, candidate selection, document pages, stale dismissal,
 source revisions, A-B-A/late inspections, superseded checks, offline/disabled
 states, availability interruption, repeat/re-entry, uncertain callback delivery,
@@ -247,7 +247,7 @@ Nine maintenance cases add periodic/conditional/unknown intervals, exact target/
 evidence, explicit edits, incomplete-edit refusal, superseded manuals/context,
 offline states, rejected/uncertain once-only intent, and bounded source shapes.
 These are authored source cases, NOT executed results. The composition owner
-must update its existing registration documentation/count (41 to 45 for this continuation); no new
+must update its existing registration documentation/count (45 to 49 for this continuation); no new
 selection or CI lane is introduced here.
 
 The desktop executor is unavailable during preparation. These cases, semantic
@@ -371,3 +371,58 @@ source wiring assertion is not a React mount or input/device test. All 45
 cases are NOT RUN. The sole #562 integrator owns corresponding backend/session
 controls, count docs/manifests and composition; those files are untouched here.
 No PR description/comment or issue/index write is part of this increment.
+
+## Multiline maintenance titles and proposed fields
+
+The maintenance title and shared proposed-field editor use controlled textareas
+with wrap="soft" instead of single-line text inputs. This represents admitted
+LF line breaks in the editable value instead of the input's line-break
+stripping. Soft wrapping does not insert hard line breaks. Existing labels/ids,
+raw value/onChange handlers, disabled fieldsets, selected/edited/invalid states
+and controller lifecycle are unchanged. No application-level trim, normalization, truncation or new native validation
+is added. Existing textarea styling is reused.
+
+Maintenance title validity remains 256 UTF-8 bytes with its existing control
+rule: LF/TAB are allowed in nonblank text; CR and other prohibited controls
+refuse before intent consumption. Its draft editor maxLength remains 4096.
+The original legend is unchanged; the textarea is the exact editable title
+presentation. The existing Review\nservice\ttask / Edited\nservice\ttask shared
+adapter case is retained, not modified or claimed executed here.
+
+Inventory Category also admits LF/TAB through required_text(value,128) in the
+canonical validator; the disclosure copies that text unchanged into proposed.
+The shared field editor now preserves those raw line breaks and raw edits
+without inferring category normalization or canonical/native validity.
+suggestionFieldTextLimit is unchanged: 4145 UTF-16 units ONLY for Inventory
+tags; 4096 for all other fields, including Category and document classification.
+The prior Inventory tags serialization-bound repair is fully retained. The
+category's canonical 128-byte validation and original source authority remain
+with their existing owners; a bounded raw edit is still only review intent.
+
+These controls concern admitted LF/TAB text; they do not promise arbitrary
+CR/CRLF byte preservation. Original target/source bindings, currentness,
+cancellation and once-consumed authority:none intent are unchanged. No task,
+category mutation, native action or approval follows from editing.
+
+Four new authored controls exercise exact untouched/edited maintenance titles,
+invalid-CR correction before consumption, exact untouched/edited LF/TAB category
+intent, and two source contracts for the controlled soft-wrap textareas, labels,
+bounds and direct raw handlers. They call the actual stripped controller or
+inspect component source text. They are NOT mounted React, actual textarea
+value/selection/focus/keyboard, browser or device evidence. There are now 49
+authored cases, all NOT RUN; semantic TypeScript/build and mounted UI checks
+remain unrun. The input mismatch and proposed textarea correction are
+source-level reasoning, not an empirically executed reproduction.
+
+Only component, existing test and this README change. Controller, types, CSS
+and shared adapter/backend/session are untouched. The sole #562 integrator
+retains exact donor composition, count docs/manifests (45 to 49), any needed
+shared category control and separately permitted mounted qualification.
+No PR description/comment or issue/index write is made.
+
+Normative source references (read only, not browser execution):
+[HTML input Text state](https://html.spec.whatwg.org/multipage/input.html#text-(type=text)-state-and-search-state-(type=search))
+requires newline stripping; [HTML textarea](https://html.spec.whatwg.org/multipage/form-elements.html#the-textarea-element)
+keeps LF API line breaks and soft wrapping does not add hard wrap breaks.
+The textarea API normalizes CR-based endings to LF; the canonical admitted
+LF/TAB domain, not arbitrary invalid CR draft bytes, is the compatibility claim.

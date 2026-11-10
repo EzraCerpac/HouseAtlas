@@ -672,3 +672,85 @@ test('tag raw edit acceptance keeps exact text and non-authoritative once-only c
   retired.set({ ...retired.current(), sourceSetRevision: 'new-sources' }); pending.resolve('current'); await sending;
   assert.equal(retired.intents.length, 0); assert.equal(retired.controller.getSnapshot().view, null); retired.controller.dispose();
 });
+
+test('maintenance admitted LF TAB titles remain exact through untouched and corrected once-only review intent', async () => {
+  for (const edited of [false, true]) {
+    const seed = maintenanceSetup(), original = { ...seed.view.maintenance[0], title: 'Review\nservice\ttask' };
+    seed.controller.dispose();
+    const s = maintenanceSetup({ maintenance: [original] }), c = s.controller;
+    const initial = c.getSnapshot().maintenance[0];
+    assert.equal(initial.title, 'Review\nservice\ttask'); assert.equal(initial.valid, true);
+    assert.equal(initial.selected, false); assert.equal(initial.edited, false);
+    assert(c.selectMaintenanceTask(original.key, true));
+    if (edited) {
+      assert(c.editMaintenanceTask(original.key, { title: 'Review\rservice\ttask' }));
+      assert.equal(c.getSnapshot().maintenance[0].valid, false);
+      await c.decide('accept-for-review'); assert.equal(s.checks.length, 0); assert.equal(s.intents.length, 0);
+      assert.equal(c.getSnapshot().phase, 'reviewing');
+      assert(c.editMaintenanceTask(original.key, { title: 'Edited\nservice\ttask' }));
+      assert.equal(c.getSnapshot().maintenance[0].valid, true);
+      assert.equal(c.getSnapshot().maintenance[0].edited, true);
+    }
+    const expected = edited ? 'Edited\nservice\ttask' : 'Review\nservice\ttask';
+    assert.equal(c.getSnapshot().maintenance[0].title, expected);
+    assert.equal(c.getSnapshot().maintenance[0].selected, true);
+    s.ports.onIntent = async intent => { s.intents.push(intent); await c.decide('accept-for-review'); };
+    await Promise.all([c.decide('accept-for-review'), c.decide('accept-for-review')]); await c.decide('reject');
+    assert.equal(s.checks.length, 1); assert.equal(s.intents.length, 1);
+    const intent = s.intents[0], task = intent.maintenance[0];
+    assert.equal(intent.authority, 'none'); assert.equal(intent.context, s.view.context);
+    assert.equal(intent.proposalRevision, s.view.revision); assert.equal(intent.sourceSetRevision, s.view.sourceSetRevision);
+    assert.equal(task.title, expected); assert.equal(task.key, original.key); assert.equal(task.targetKey, original.targetKey);
+    assert.deepEqual(task.editedFields, edited ? ['title'] : []);
+    assert.deepEqual(task.interval, original.interval); assert.deepEqual(task.conditions, original.conditions);
+    assert.equal(s.view.maintenance[0].title, 'Review\nservice\ttask'); c.dispose();
+  }
+});
+test('maintenance title source contract uses a controlled soft-wrap textarea with unchanged label bound and raw handler', () => {
+  const source = readFileSync(new URL('../src/ai/suggestion-review/SuggestionReview.tsx', import.meta.url), 'utf8');
+  const start = source.indexOf("<label htmlFor={id + '-title'}>Task title for review</label>");
+  const end = source.indexOf("<label htmlFor={id + '-kind'}>", start);
+  assert(start > 0 && end > start);
+  const editor = source.slice(start, end);
+  assert(editor.includes("<textarea id={id + '-title'} value={draft.title} maxLength={4096} wrap=\"soft\""));
+  assert(editor.includes('controller.editMaintenanceTask(task.key, { title: event.target.value })'));
+  assert(!editor.includes('<input'));
+  assert(!/\.(?:trim|replace|normalize|slice|substring)\s*\(/.test(editor));
+  assert(source.includes('<fieldset disabled={disabled}>'));
+});
+
+test('inventory category admitted LF TAB text remains exact through untouched and edited review intent', async () => {
+  for (const edited of [false, true]) {
+    const seed = setup(), original = { ...seed.view.fields[0], proposed: 'Review\ncategory\tlabel' };
+    seed.controller.dispose();
+    const s = setup({ fields: [original], candidates: [] }), c = s.controller;
+    assert.equal(c.getSnapshot().view.fields[0].proposed, 'Review\ncategory\tlabel');
+    assert.equal(c.getSnapshot().fields[0].value, 'Review\ncategory\tlabel');
+    assert.equal(c.getSnapshot().fields[0].selected, false); assert.equal(c.getSnapshot().fields[0].edited, false);
+    const expected = edited ? 'Edited\ncategory\tlabel!' : 'Review\ncategory\tlabel';
+    if (edited) assert(c.editField(original.key, expected));
+    assert.equal(c.getSnapshot().fields[0].value, expected); assert.equal(c.getSnapshot().fields[0].edited, edited);
+    assert(c.selectField(original.key, true));
+    s.ports.onIntent = async intent => { s.intents.push(intent); await c.decide('accept-for-review'); };
+    await Promise.all([c.decide('accept-for-review'), c.decide('accept-for-review')]); await c.decide('reject');
+    assert.equal(s.intents.length, 1); assert.equal(s.checks.length, 1);
+    assert.equal(s.intents[0].authority, 'none'); assert.equal(s.intents[0].context, s.view.context);
+    assert.deepEqual(s.intents[0].fields, [{ key: original.key, value: expected, edited }]);
+    assert.deepEqual(s.intents[0].candidateKeys, []);
+    assert.equal(s.view.fields[0].proposed, 'Review\ncategory\tlabel'); c.dispose();
+  }
+});
+test('shared proposed-field source contract preserves raw multiline edits and existing field-specific bounds', () => {
+  const source = readFileSync(new URL('../src/ai/suggestion-review/SuggestionReview.tsx', import.meta.url), 'utf8');
+  const start = source.indexOf("<label htmlFor={id + '-field-' + index}>Proposed value</label>");
+  const end = source.indexOf('<p>{field.reason}</p>', start);
+  assert(start > 0 && end > start);
+  const editor = source.slice(start, end);
+  assert(editor.includes("<textarea id={id + '-field-' + index} value={draft.value}"));
+  assert(editor.includes('maxLength={suggestionFieldTextLimit(view.kind, field.key)} wrap="soft"'));
+  assert(editor.includes('controller.editField(field.key, event.target.value)'));
+  assert(!editor.includes('<input')); assert(!/\.(?:trim|replace|normalize|slice|substring)\s*\(/.test(editor));
+  assert.equal(suggestionFieldTextLimit('inventory', 'category'), 4096);
+  assert.equal(suggestionFieldTextLimit('inventory', 'tags'), 4145);
+  assert.equal(suggestionFieldTextLimit('document', 'document-class'), 4096);
+});
