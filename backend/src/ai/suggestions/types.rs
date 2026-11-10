@@ -2,6 +2,7 @@ use crate::{contracts::stock::{StockContext, StockTarget}, domain::RecordRef};
 use serde::{Deserialize, Serialize};
 
 pub const SCHEMA_VERSION: u8 = 1;
+pub const SOURCE_FREE_ANSWER_SCHEMA_VERSION: u8 = 2;
 pub const MAX_OUTPUT_BYTES: usize = 65_536;
 
 /// Supplied by the original read/access owner, never by generated output.
@@ -67,6 +68,18 @@ pub struct SnapshotInput {
     pub sources: Vec<SourceInput>,
 }
 
+/// Original request-owner correlation DATA, not authentication or a grant.
+/// The owner must pin the exact accepted prompt bytes and fresh admitted request,
+/// then recheck currentness/cancellation before disclosure. No model deserializer.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuestionBinding {
+    pub request_id: String,
+    pub query_sha256: String,
+    pub registration_id: String,
+    pub cancellation_epoch: String,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum SuggestionFeature { Inventory, Document, Maintenance, Answer, Contradictions }
@@ -78,10 +91,16 @@ pub enum SuggestionFeature { Inventory, Document, Maintenance, Answer, Contradic
 pub struct GeneratedProposal {
     pub schema_version: u8,
     pub context_pin: String,
-    pub subject_ref: String,
+    /// Required string in v1; required literal null in source-free Answer v2.
+    #[serde(deserialize_with = "required_subject_ref")]
+    pub subject_ref: Option<String>,
     pub claims: Vec<ExtractedClaim>,
     pub missing_evidence: Vec<String>,
     pub result: ProposalResult,
+}
+
+fn required_subject_ref<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<String>, D::Error> {
+    Option::<String>::deserialize(deserializer)
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

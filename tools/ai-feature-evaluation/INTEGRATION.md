@@ -427,7 +427,7 @@ native-owner, access, durable decision or issue acceptance is established.
 | maint-condition | Structural | Supplied empty tasks preserve notice/item only, no pump; not model-mismatch, condition-truth or safety detection. |
 | maint-duplicate | Structural | Supplied review of task-a as a MaintenanceTask candidate, manual subject and item supporting source; exact task/index/evidence binding, unknown completion/interval/baseline. No new task, quality score, native duplicate suppression or completion inference. |
 | qa-location | Structural | Quoted recorded location, inventory route and partial source rank; no current physical certainty or exhaustive inventory. |
-| qa-missing | No bridge | Empty retrieval has no canonical subject input; do not invent a record to satisfy snapshot admission. |
+| qa-missing | No bridge | Source-free Answer v2 now represents an explicit no-answer gap without a subject record. This original retained-case adapter is not yet authored; real request/session binding remains separately unbound. |
 | qa-electrical | Structural | Historical documentary quote/route with distinct dates; no safe equipment action or factual-quality score. |
 | qa-injection | Structural | p1 retained inert, p2 cited; no live-model injection resistance or tool/scope authorization claim. |
 | qa-revoked | Structural | Withdrawn invoice refuses disclosure even for empty clarify; not a safe factual answer or actual Access revocation. |
@@ -447,6 +447,15 @@ native-owner, access, durable decision or issue acceptance is established.
 Inventory totals: five scorer subsets, twenty structural controls and seven
 without bridges. All semantic completeness, calibrated quality and actual owner
 authority remain unqualified; the ledger does not release any acceptance gate.
+
+## Source-free Answer contract controls
+
+Source-free Answer v2 has separate generated contract/consumer controls with a
+required null subject, request/query/epoch-bound pin and empty disclosure lists.
+Those supplied controls do not adapt original qa-missing or create a new scored
+gold case. The original corpus bytes and 5/20/7 coverage ledger are unchanged.
+Original request-owner capture, live cancellation/currentness, host publication
+and actual session binding are unqualified; synthetic pins are correlation only.
 
 ## Product correspondence with unknown physical identity
 

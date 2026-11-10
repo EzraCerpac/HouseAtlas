@@ -131,6 +131,11 @@ export function createSuggestionReviewSession(json: string, context: object, own
       throw new TypeError('Answer disclosure is read-only');
     const answer = exact(display.answer, ['route', 'coverage', 'rankedCandidates', 'statements', 'missingEvidence']);
     const rankings = object(wire.rankings);
+    if (!sourceKeys.length && (!['clarify', 'unknown'].includes(String(answer.route))
+      || answer.coverage !== 'no-answer' || !Array.isArray(answer.rankedCandidates) || answer.rankedCandidates.length
+      || !Array.isArray(answer.statements) || answer.statements.length
+      || !Array.isArray(answer.missingEvidence) || !answer.missingEvidence.length))
+      throw new TypeError('Source-free answer requires an explicit bounded no-answer gap');
     if (!Array.isArray(answer.rankedCandidates) || answer.rankedCandidates.length > 32
       || !Array.isArray(answer.statements) || answer.statements.length > 16)
       throw new TypeError('Invalid answer lists');

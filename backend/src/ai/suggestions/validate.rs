@@ -32,6 +32,7 @@ type Result<T> = std::result::Result<T, SuggestionError>;
 pub struct AdmittedSnapshot {
     input: SnapshotInput,
     pin: String,
+    question: Option<QuestionBinding>,
 }
 impl AdmittedSnapshot {
     pub fn new(input: SnapshotInput) -> Result<Self> {
@@ -86,8 +87,30 @@ impl AdmittedSnapshot {
         let bytes = serde_jcs::to_vec(&input).map_err(|_| invalid())?;
         if bytes.len() > 1_048_576 { return Err(SuggestionError::LimitExceeded); }
         let pin = format!("{:x}", Sha256::digest(bytes));
-        Ok(Self { input, pin })
+        Ok(Self { input, pin, question: None })
     }
+    /// Explicit structural source-free admission only. Neither these metadata
+    /// nor a copied pin prove an active authorized question. Host/session owners
+    /// remain unbound and must supply fresh request/epoch/cancellation checks.
+    pub fn source_free_answer(input: SnapshotInput, question: QuestionBinding) -> Result<Self> {
+        let invalid = || SuggestionError::InvalidSnapshot;
+        if input.feature != SuggestionFeature::Answer || !input.sources.is_empty()
+            || uuid::Uuid::parse_str(&input.actor_id).is_err() || !text(&input.authority_epoch, 128)
+            || !text(&question.request_id, 128) || !text(&question.registration_id, 128)
+            || !text(&question.cancellation_epoch, 128)
+            || question.query_sha256.len() != 64
+            || !question.query_sha256.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        { return Err(invalid()); }
+        let validator = StockValidation::new().map_err(|_| invalid())?;
+        validator.validate("#/$defs/contextSelection", &serde_json::to_value(&input.scope).map_err(|_| invalid())?)
+            .map_err(|_| invalid())?;
+        // Record-backed v1 pins are unchanged. Empty questions are separately
+        // domain tagged and include request/query identity and both epochs.
+        let bytes = serde_jcs::to_vec(&("houseatlas-source-free-answer-v2", &input, &question)).map_err(|_| invalid())?;
+        let pin = format!("{:x}", Sha256::digest(bytes));
+        Ok(Self { input, pin, question: Some(question) })
+    }
+    pub(crate) fn is_source_free_answer(&self) -> bool { self.question.is_some() }
     pub fn context_pin(&self) -> &str { &self.pin }
     pub fn input(&self) -> &SnapshotInput { &self.input }
 }
@@ -104,6 +127,7 @@ impl ReviewProposal {
     pub fn proposal(&self) -> &GeneratedProposal { &self.proposal }
     pub fn finding_keys(&self) -> &[String] { &self.finding_keys }
     pub fn input(&self) -> &SnapshotInput { self.admitted.input() }
+    pub(crate) fn is_source_free_answer(&self) -> bool { self.admitted.is_source_free_answer() }
     pub fn revalidate(&self, current: &AdmittedSnapshot) -> Result<()> {
         recheck(&self.proposal, &self.admitted, current)
     }
@@ -118,8 +142,21 @@ pub fn validate_generated(bytes: &[u8], admitted: &AdmittedSnapshot, current: &A
     // unknown nested fields, wrong scalar types and trailing JSON values.
     let output: GeneratedProposal = serde_json::from_slice(bytes).map_err(|_| SuggestionError::InvalidOutput)?;
     recheck(&output, admitted, current)?;
+    if admitted.is_source_free_answer() {
+        if output.subject_ref.is_some() || !output.claims.is_empty() { return Err(SuggestionError::InvalidOutput); }
+        strings(&output.missing_evidence, 16, 1024)?;
+        if output.missing_evidence.is_empty() { return Err(SuggestionError::MissingSupport); }
+        match &output.result {
+            ProposalResult::Answer { route, ranked_refs, coverage, statements }
+                if matches!(route, QuestionRoute::Clarify | QuestionRoute::Unknown)
+                    && *coverage == AnswerCoverage::NoAnswer && ranked_refs.is_empty() && statements.is_empty() => {},
+            _ => return Err(SuggestionError::InvalidOutput),
+        }
+        return Ok(ReviewProposal { proposal: output, admitted: admitted.clone(), finding_keys: vec![] });
+    }
+    let subject_ref = output.subject_ref.as_deref().ok_or(SuggestionError::InvalidOutput)?;
     let sources: BTreeMap<_, _> = admitted.input.sources.iter().map(|s| (s.input_ref.as_str(), s)).collect();
-    let subject = sources.get(output.subject_ref.as_str()).ok_or(SuggestionError::UnadmittedReference)?;
+    let subject = sources.get(subject_ref).ok_or(SuggestionError::UnadmittedReference)?;
     if subject.role != InputRole::Subject { return Err(SuggestionError::UnadmittedReference); }
     available(subject)?;
     bounded(&output.claims, 64)?;
@@ -136,7 +173,7 @@ pub fn validate_generated(bytes: &[u8], admitted: &AdmittedSnapshot, current: &A
             if !source.evidence.iter().any(|e| &e.evidence_ref == id) { return Err(SuggestionError::UnadmittedReference); }
         }
     }
-    let checks = Checks { sources: &sources, claims: &claims, subject: &output.subject_ref };
+    let checks = Checks { sources: &sources, claims: &claims, subject: subject_ref };
     let count;
     let mut finding_keys = Vec::new();
     match &output.result {
@@ -245,7 +282,9 @@ pub fn validate_generated(bytes: &[u8], admitted: &AdmittedSnapshot, current: &A
 fn recheck(output: &GeneratedProposal, admitted: &AdmittedSnapshot, current: &AdmittedSnapshot) -> Result<()> {
     if current.input.sources.iter().any(|s| s.availability == Availability::Withdrawn) { return Err(SuggestionError::ContextWithdrawn); }
     if current.input.sources.iter().any(|s| s.role == InputRole::Subject && s.availability != Availability::Available) { return Err(SuggestionError::ContextUnavailable); }
-    if output.schema_version != SCHEMA_VERSION || output.result.feature() != admitted.input.feature { return Err(SuggestionError::InvalidOutput); }
+    let version = if admitted.is_source_free_answer() { SOURCE_FREE_ANSWER_SCHEMA_VERSION } else { SCHEMA_VERSION };
+    if output.schema_version != version || output.result.feature() != admitted.input.feature { return Err(SuggestionError::InvalidOutput); }
+    if admitted.is_source_free_answer() != current.is_source_free_answer() { return Err(SuggestionError::ContextChanged); }
     if output.context_pin != admitted.pin || admitted.pin != current.pin { return Err(SuggestionError::ContextChanged); }
     Ok(())
 }

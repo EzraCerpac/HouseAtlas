@@ -254,6 +254,57 @@ function answerFixture() {
     'rank:doc1': { inputRef: 'doc1', version: 'record-1', rankIndex: 1 } };
   return wire;
 }
+function sourceFreeAnswerFixture() {
+  const wire = answerFixture();
+  wire.view.sources = []; wire.inspections = {}; wire.rankings = {};
+  wire.view.answer = { route: 'clarify', coverage: 'no-answer', rankedCandidates: [], statements: [],
+    missingEvidence: ['Generated retrieval coverage is missing; this does not mean no parts exist.'] };
+  return wire;
+}
+test('source-free clarify and unknown keep empty bindings and cannot inspect or deliver intent', async () => {
+  for (const route of ['clarify', 'unknown']) {
+    const wire = sourceFreeAnswerFixture(); wire.view.answer.route = route;
+    const s = setup(wire), c = s.session.controller;
+    assert.deepEqual(c.getSnapshot().view.sources, []);
+    assert.deepEqual(c.getSnapshot().view.answer.rankedCandidates, []);
+    assert.deepEqual(c.getSnapshot().view.answer.statements, []);
+    assert.deepEqual(c.getSnapshot().view.answer.missingEvidence, wire.view.answer.missingEvidence);
+    assert.equal(c.selectCandidate('invented', true), false);
+    assert.equal(c.editField('invented', 'no effect'), false);
+    await c.inspectSource('invented'); await c.decide('accept-for-review'); await c.decide('reject');
+    assert.equal(s.inspected.length, 0); assert.equal(s.intents.length, 0);
+    c.dismiss(); assert.equal(c.getSnapshot().view, null); s.session.dispose();
+  }
+});
+test('source-free strict decoder and supplied question replacement refuse late or factual disclosure', () => {
+  for (const mutate of [
+    w => { w.view.answer.route = 'inventory'; },
+    w => { w.view.answer.coverage = 'partial'; },
+    w => { w.view.answer.missingEvidence = []; },
+    w => { w.view.answer.statements = [{ key: 'a', text: 'Invented fact', reason: 'No source', uncertainty: 'Unknown', evidenceKeys: [] }]; },
+    w => { w.view.answer.rankedCandidates = [{ key: 'rank:item2', label: 'item2 · record-1' }];
+      w.rankings = { 'rank:item2': { inputRef: 'item2', version: 'record-1', rankIndex: 0 } }; },
+    w => { w.inspections.invented = { inputRef: 'item2', version: 'record-1', evidenceRef: null, location: null }; },
+    w => { w.selections.invented = { kind: 'inventory-duplicate', inputRef: 'item2' }; },
+    w => { w.view.findings = []; },
+  ]) { const wire = sourceFreeAnswerFixture(); mutate(wire); assert.throws(() => setup(wire)); }
+  for (const newGeneration of [false, true]) {
+    const wireA = sourceFreeAnswerFixture(), s = setup(wireA);
+    const currentB = { context: newGeneration ? {} : s.context, proposalRevision: 'd'.repeat(64),
+      sourceSetRevision: 'c'.repeat(64), availability: 'ready' };
+    s.change(currentB);
+    assert.equal(s.session.controller.getSnapshot().view, null);
+    assert.throws(() => createSuggestionReviewSession(JSON.stringify(wireA), s.context, s.owner));
+    const wireB = sourceFreeAnswerFixture(); wireB.contextPin = currentB.sourceSetRevision;
+    wireB.view.sourceSetRevision = currentB.sourceSetRevision; wireB.view.revision = currentB.proposalRevision;
+    wireB.view.key = 'review:' + currentB.proposalRevision;
+    const next = createSuggestionReviewSession(JSON.stringify(wireB), currentB.context, s.owner);
+    assert.deepEqual(next.controller.getSnapshot().view.sources, []);
+    assert.equal(s.intents.length, 0); next.dispose(); s.session.dispose();
+  }
+  // These are supplied pins and fake owner generations, never authenticated
+  // request capture, cancellation or host/session integration qualification.
+});
 test('answer session binds exact ordered ranks and citations without any intent delivery', async () => {
   const s = setup(answerFixture()), c = s.session.controller; let checks = 0;
   s.owner.recheck = async () => { checks++; return 'current'; };

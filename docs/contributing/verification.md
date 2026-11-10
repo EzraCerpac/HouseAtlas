@@ -158,6 +158,54 @@ concrete original reviewed-stock and trusted human-review bridge.
 
 ## Review-only AI suggestion contracts
 
+### Explicit source-free Answer mode (source only)
+
+`AdmittedSnapshot::source_free_answer` admits only Answer with empty sources,
+using serialize-only QuestionBinding metadata plus existing scope/actor/authority
+epoch. The pin includes the request ID, digest of exact accepted prompt bytes,
+registration ID and cancellation epoch under a v2 domain tag. This validates
+shape and correlation only: no original request/cancellation capture, Access
+check, host publication, current-session producer or root/runtime activation is
+bound. A copied old snapshot or supplied hash proves no current request.
+
+Generated wire v1 still requires a string subject and retains all record-backed
+admission rules and exact pin bytes. Source-free wire v2 requires explicit
+`subjectRef:null`; omission and version/mode mismatches are refused. It permits
+only clarify/unknown, no-answer, empty claims/ranks/statements and nonempty
+bounded missing-evidence text. Extra findings, actions, tools and approval fields
+remain refused. Explanation text is untrusted; structure is not semantic truth.
+
+The independent display DTO stays schema v1 and emits empty sources, inspections,
+selections and rankings, with no fabricated subject fallback or original-open
+capability. Both record and source-free branches share the final 65,536-byte
+display fence, including escaped gap text duplicated in the display. Existing
+completion refusal/noncompleted/unknown-usage behavior is unchanged. The strict
+session permits only the bounded empty-source Answer shape and retains exact
+context/revision retirement. Actual owner integration remains separate.
+
+Six `ai::suggestions::synthetic_contracts` functions are authored, **NOT RUN**:
+
+- `source_free_answer_requires_null_and_discloses_no_fabricated_record_or_capability`
+- `source_free_answer_escaped_gaps_keep_the_final_disclosure_byte_fence`
+- `source_free_answer_rejects_nonempty_or_malformed_admission_and_generated_content`
+- `source_free_answer_replacement_pins_question_scope_registration_and_both_epochs`
+- `source_free_answer_leaves_record_admission_v1_pins_and_subject_rules_unchanged`
+- `source_free_answer_composes_terminal_completion_without_changing_usage_or_refusal_fences`
+
+Two authored/unrun functions join the existing adapter selection:
+
+- `source-free clarify and unknown keep empty bindings and cannot inspect or deliver intent`
+- `source-free strict decoder and supplied question replacement refuse late or factual disclosure`
+
+These use generated requests, digests, current snapshots and fake consumer-owner
+generations, not genuine request-owner/cancellation/authority qualification.
+Current counts are 35 synthetic-contract / 10 scorer / 26 retained / one counter
+Rust tests, 41 presentation/controller and 22 session cases. No original corpus
+mapping, Labels/CaseReport or quality score is added; ledger stays 5/20/7.
+No workflow or selection changes: inventory remains 77 source / 1 build / 7
+browser. Tests/build/typecheck/compiler/formatter/Clippy/browser/device and the
+pinned publication verifier remain NOT RUN locally for this increment.
+
 Canonical `SameProductIdentityUnknown` has exact serialized/disclosure relation
 `same-product-identity-unknown`, retaining positive product correspondence and
 unknown physical same/distinct identity. Existing relationship mappings and
@@ -338,7 +386,7 @@ node --test frontend/lantern-tests/ai-suggestion-review.test.mjs
 node --test frontend/lantern-tests/ai-suggestion-adapter.test.mjs
 ```
 
-The first file contains the retained controller plus repair, answer, comparison and identity-unknown continuations (forty-one cases). The second has twenty cases
+The first file contains the retained controller plus repair, answer, comparison and identity-unknown continuations (forty-one cases). The second has twenty-two cases
 covering inventory/document/maintenance/answer/comparison binding, context retirement, retained-controller
 non-replay, cleanup refusal, canonical maintenance edit bounds and malformed
 disclosure rejection. The #562 source
@@ -490,7 +538,7 @@ hosted step logs remain the execution record.
 | rust-react-ordinary / source | Real root Network router TLS inventory GET and archive reopen | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --example healthy-network-root-router`<br>`python3 tools/rust-integration/healthy-network-loopback.py "$CARGO_TARGET_DIR/debug/examples/healthy-network-root-router"` | backend lane; matrix os [ubuntu-24.04, macos-15]; `runner.os == 'Linux'` |  | Builds the router example, then one fixture TLS GET and real root TLS requests through a disposable listener; no browser. |
 | rust-react-ordinary / unit-tests | Backend library unit tests (default set) | `node tools/ci/cargo-timings.mjs test --locked -p houseatlas-backend --lib -- --skip http::quantity_http_healthy:: --skip providers::homebox::write::stock::quantity_flow_healthy:: --skip providers::homebox::write::stock::quantity_installation_healthy::` | backend lane | default set, 3 skipped | Default non-`#[ignore]` backend library tests, skipping the quantity tests that need `HOUSEATLAS_QUANTITY_REFERENCE_DIR`. |
 | rust-react-ordinary / frontend | Strict TypeScript and production React build | `npm --prefix frontend run typecheck`<br>`npm --prefix frontend run build` | frontend lane |  | Strict TypeScript check and production Vite build of `frontend`. |
-| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 77 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The two AI source selections contain forty-one controller and twenty disclosure-adapter cases using generated data without browser, provider, credentials or source writes. |
+| rust-react-ordinary / frontend | All named healthy frontend checks and real-browser offline launch | `node frontend/lantern-tests/run-healthy.mjs` | frontend lane | 77 source, 1 build, 7 browser | Every entry of the explicit run-healthy list, one process each; browser entries use the pinned Chrome for Testing build against generated build output. The two AI source selections contain forty-one controller and twenty-two disclosure-adapter cases using generated data without browser, provider, credentials or source writes. |
 | rust-react-ordinary / frontend | Model bake on generated geometry, admitted and bound by the viewer | `npm ci --prefix tools/model-bake --ignore-scripts --no-audit --no-fund`<br>`node --test --test-concurrency=1 tools/model-bake/test/bake.test.mjs` | frontend lane | 22 top-level tests | Installs the model-bake lock without scripts, then bakes generated geometry and runs the viewer's admission, selector binding and meshopt decoding on the results. |
 | rust-react-ordinary / loopback | Build the houseatlas binary and the production React app | `node tools/ci/cargo-timings.mjs build --locked -p houseatlas-backend --bin houseatlas`<br>`npm --prefix frontend run build`<br>`printf 'HOUSEATLAS_BINARY=%s/debug/houseatlas\n' "$CARGO_TARGET_DIR" >> "$GITHUB_ENV"` | loopback lane; matrix shard [1, 2, 3] |  | Locked `houseatlas` binary and production React app for this shard's flows; exports `HOUSEATLAS_BINARY`. |
 | rust-react-ordinary / loopback | Real disposable loopback TLS browser read slice | `node tools/rust-integration/healthy-loopback.mjs` | loopback lane; `matrix.shard == 1` |  | Compiled binary, disposable TLS loopback host, built React app and the pinned Chrome for Testing build. |

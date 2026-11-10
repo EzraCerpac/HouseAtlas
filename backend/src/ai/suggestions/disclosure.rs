@@ -26,10 +26,23 @@ pub fn disclose_review(
     review.revalidate(current)?;
     let p = review.proposal();
     let input = review.input();
-    let subject = input.sources.iter().find(|s| s.input_ref == p.subject_ref)
-        .ok_or(SuggestionError::UnadmittedReference)?;
     let revision = format!("{:x}", Sha256::digest(serde_jcs::to_vec(p)
         .map_err(|_| SuggestionError::InvalidOutput)?));
+    if review.is_source_free_answer() {
+        if !inspectable.is_empty() { return Err(SuggestionError::UnadmittedReference); }
+        let ProposalResult::Answer { route, coverage, .. } = &p.result else { return Err(SuggestionError::InvalidOutput); };
+        // This version-1 display DTO already supports empty sources. Do not
+        // invent subject metadata, citations, inspection or selection bindings.
+        return bounded_disclosure(json!({"schemaVersion":1,"contextPin":p.context_pin,"view":{
+            "key":format!("review:{revision}"),"revision":revision,"sourceSetRevision":p.context_pin,
+            "kind":"answer","title":"More context needed","sources":[],"fields":[],"candidates":[],
+            "uncertainty":p.missing_evidence,"uncalibratedScore":null,
+            "answer":{"route":route,"coverage":coverage,"rankedCandidates":[],"statements":[],"missingEvidence":p.missing_evidence}
+        },"inspections":{},"selections":{},"rankings":{}}));
+    }
+    let subject_ref = p.subject_ref.as_deref().ok_or(SuggestionError::InvalidOutput)?;
+    let subject = input.sources.iter().find(|s| s.input_ref == subject_ref)
+        .ok_or(SuggestionError::UnadmittedReference)?;
     let mut fields = Vec::new();
     let mut candidates = Vec::new();
     let mut maintenance = Vec::new();
@@ -191,8 +204,8 @@ pub fn disclose_review(
         }
     }
     if sources.is_empty() {
-        let key = format!("subject:{}",p.subject_ref);
-        sources.push(json!({"key":key,"label":p.subject_ref,"recordVersion":subject.version,"sourceDate":subject.source_date,"retrievedAt":subject.retrieved_at,"page":null,"section":null,"excerpt":"","freshness":"snapshot-current","original":"unavailable"}));
+        let key = format!("subject:{subject_ref}");
+        sources.push(json!({"key":key,"label":subject_ref,"recordVersion":subject.version,"sourceDate":subject.source_date,"retrievedAt":subject.retrieved_at,"page":null,"section":null,"excerpt":"","freshness":"snapshot-current","original":"unavailable"}));
         inspections.insert(key, json!({"inputRef":subject.input_ref,"version":subject.version,"evidenceRef":null,"location":null}));
     }
     let mut uncertainty = p.missing_evidence.clone();
@@ -215,6 +228,10 @@ pub fn disclose_review(
         disclosure["view"]["contradictions"] = contradictions;
         disclosure["comparisons"] = json!(comparisons);
     }
+    bounded_disclosure(disclosure)
+}
+
+fn bounded_disclosure(disclosure: Value) -> Result<ReviewDisclosure, SuggestionError> {
     if serde_json::to_vec(&disclosure).map_err(|_| SuggestionError::InvalidOutput)?.len() > MAX_OUTPUT_BYTES { return Err(SuggestionError::LimitExceeded); }
     Ok(ReviewDisclosure(disclosure))
 }

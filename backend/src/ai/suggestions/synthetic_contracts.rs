@@ -36,6 +36,210 @@ fn validate(value: &Value, snapshot: &AdmittedSnapshot) -> std::result::Result<R
     validate_generated(&serde_json::to_vec(value).unwrap(), snapshot, snapshot)
 }
 
+fn question_input() -> SnapshotInput {
+    let mut value = input();
+    value.feature = SuggestionFeature::Answer;
+    value.sources.clear();
+    value
+}
+fn question_binding() -> QuestionBinding {
+    use sha2::{Digest, Sha256};
+    QuestionBinding { request_id: "generated-question-a".into(),
+        query_sha256: format!("{:x}", Sha256::digest(b"Generated question A: where are the replacement parts?")),
+        registration_id: "generated-registration".into(), cancellation_epoch: "cancel-1".into() }
+}
+fn question_proposal(snapshot: &AdmittedSnapshot) -> Value {
+    json!({"schemaVersion":2,"contextPin":snapshot.context_pin(),"subjectRef":null,"claims":[],
+        "missingEvidence":["Retrieval coverage is missing; no conclusion about whether parts exist."],
+        "result":{"kind":"answer","route":"clarify","coverage":"no-answer","rankedRefs":[],"statements":[]}})
+}
+
+#[test]
+fn source_free_answer_requires_null_and_discloses_no_fabricated_record_or_capability() {
+    let snapshot = AdmittedSnapshot::source_free_answer(question_input(), question_binding()).unwrap();
+    assert!(snapshot.input().sources.is_empty());
+    for route in ["clarify", "unknown"] {
+        let mut supplied = question_proposal(&snapshot); supplied["result"]["route"] = json!(route);
+        let review = validate(&supplied, &snapshot).unwrap();
+        assert!(review.proposal().subject_ref.is_none());
+        assert_eq!(serde_json::to_value(review.proposal()).unwrap()["subjectRef"], Value::Null);
+        assert!(review.finding_keys().is_empty());
+        let wire = disclose_review(&review, &snapshot, &Default::default()).unwrap();
+        let wire = wire.value();
+        assert_eq!(wire["schemaVersion"], 1); // Display DTO version is independent.
+        assert_eq!(wire["contextPin"], snapshot.context_pin());
+        for key in ["sources", "fields", "candidates"] { assert_eq!(wire["view"][key], json!([])); }
+        for key in ["inspections", "selections", "rankings"] { assert_eq!(wire[key], json!({})); }
+        assert_eq!(wire["view"]["answer"]["route"], route);
+        assert_eq!(wire["view"]["answer"]["coverage"], "no-answer");
+        assert_eq!(wire["view"]["answer"]["rankedCandidates"], json!([]));
+        assert_eq!(wire["view"]["answer"]["statements"], json!([]));
+        assert_eq!(wire["view"]["answer"]["missingEvidence"], supplied["missingEvidence"]);
+        let invented = std::collections::BTreeSet::from(["invented-original".into()]);
+        assert_eq!(disclose_review(&review, &snapshot, &invented).unwrap_err(), SuggestionError::UnadmittedReference);
+    }
+}
+
+#[test]
+fn source_free_answer_escaped_gaps_keep_the_final_disclosure_byte_fence() {
+    let snapshot = AdmittedSnapshot::source_free_answer(question_input(), question_binding()).unwrap();
+    let gap = "g".to_owned() + &"\n".repeat(1023);
+    for count in [15, 16] {
+        let mut supplied = question_proposal(&snapshot);
+        supplied["missingEvidence"] = json!(vec![gap.clone(); count]);
+        assert!(serde_json::to_vec(&supplied).unwrap().len() <= MAX_OUTPUT_BYTES);
+        let review = validate(&supplied, &snapshot).unwrap();
+        let result = disclose_review(&review, &snapshot, &Default::default());
+        if count == 15 {
+            assert!(serde_json::to_vec(result.unwrap().value()).unwrap().len() <= MAX_OUTPUT_BYTES);
+        } else {
+            // Valid proposal gaps are duplicated in the display; escaping can
+            // exceed the receiving session's byte cap without exceeding the
+            // proposal or per-string limits. Never return that oversized DTO.
+            assert_eq!(result.unwrap_err(), SuggestionError::LimitExceeded);
+        }
+    }
+}
+
+#[test]
+fn source_free_answer_rejects_nonempty_or_malformed_admission_and_generated_content() {
+    assert!(AdmittedSnapshot::source_free_answer(input(), question_binding()).is_err());
+    let mut nonempty = input(); nonempty.feature = SuggestionFeature::Answer;
+    assert!(AdmittedSnapshot::source_free_answer(nonempty, question_binding()).is_err());
+    for feature in [SuggestionFeature::Inventory, SuggestionFeature::Document, SuggestionFeature::Maintenance, SuggestionFeature::Contradictions] {
+        let mut supplied = question_input(); supplied.feature = feature;
+        assert!(AdmittedSnapshot::source_free_answer(supplied, question_binding()).is_err());
+    }
+    for change in 0..8 {
+        let mut input = question_input(); let mut binding = question_binding();
+        match change {
+            0 => binding.request_id.clear(),
+            1 => binding.registration_id.clear(),
+            2 => binding.cancellation_epoch.clear(),
+            3 => binding.query_sha256 = "a".repeat(63),
+            4 => binding.query_sha256 = "A".repeat(64),
+            5 => binding.query_sha256 = "z".repeat(64),
+            6 => input.actor_id = "not-an-actor".into(),
+            _ => input.scope.home_id = "not-a-home".into(),
+        }
+        assert!(AdmittedSnapshot::source_free_answer(input, binding).is_err());
+    }
+    let snapshot = AdmittedSnapshot::source_free_answer(question_input(), question_binding()).unwrap();
+    for change in 0..16 {
+        let mut supplied = question_proposal(&snapshot);
+        match change {
+            0 => supplied["subjectRef"] = json!("invented-subject"),
+            1 => { supplied.as_object_mut().unwrap().remove("subjectRef"); },
+            2 => supplied["schemaVersion"] = json!(1),
+            3 => supplied["schemaVersion"] = json!(3),
+            4 => supplied["claims"] = json!([{"claimRef":"c1","sourceRef":"invented","evidenceRefs":["e1"],"text":"invented fact","uncertainty":"unknown"}]),
+            5 => supplied["result"]["rankedRefs"] = json!(["invented"]),
+            6 => supplied["result"]["statements"] = json!([{"text":"invented fact","support":support(&["c1"])}]),
+            7 => supplied["result"]["coverage"] = json!("partial"),
+            8 => supplied["result"]["route"] = json!("inventory"),
+            9 => supplied["missingEvidence"] = json!([]),
+            10 => supplied["missingEvidence"] = json!(["x".repeat(1025)]),
+            11 => supplied["missingEvidence"] = json!(vec!["gap"; 17]),
+            12 => supplied["result"]["findings"] = json!([]),
+            13 => supplied["approval"] = json!("invented"),
+            14 => supplied["result"]["tool"] = json!("write"),
+            _ => supplied["result"] = json!({"kind":"maintenance","tasks":[]}),
+        }
+        assert!(validate(&supplied, &snapshot).is_err(), "mutation {change}");
+    }
+    let duplicate = serde_json::to_string(&question_proposal(&snapshot)).unwrap().replacen("\"subjectRef\":null", "\"subjectRef\":null,\"subjectRef\":null", 1);
+    assert!(validate_generated(duplicate.as_bytes(), &snapshot, &snapshot).is_err());
+}
+
+#[test]
+fn source_free_answer_replacement_pins_question_scope_registration_and_both_epochs() {
+    let admitted = AdmittedSnapshot::source_free_answer(question_input(), question_binding()).unwrap();
+    let supplied = question_proposal(&admitted);
+    let review = validate(&supplied, &admitted).unwrap();
+    for change in 0..8 {
+        let mut input = question_input(); let mut binding = question_binding();
+        match change {
+            0 => binding.request_id = "generated-question-b".into(), // Even identical question bytes get a new request identity.
+            1 => binding.query_sha256 = "b".repeat(64), // A reused ID with replaced prompt cannot reuse the pin.
+            2 => binding.registration_id = "other-registration".into(),
+            3 => binding.cancellation_epoch = "cancel-2".into(),
+            4 => input.authority_epoch = "authority-2".into(),
+            5 => input.actor_id = id(500),
+            6 => input.scope.home_id = id(501),
+            _ => input.scope.workspace_id = id(502),
+        }
+        let current = AdmittedSnapshot::source_free_answer(input, binding).unwrap();
+        assert_ne!(admitted.context_pin(), current.context_pin());
+        assert_eq!(validate_generated(&serde_json::to_vec(&supplied).unwrap(), &admitted, &current).unwrap_err(), SuggestionError::ContextChanged);
+        assert_eq!(disclose_review(&review, &current, &Default::default()).unwrap_err(), SuggestionError::ContextChanged);
+    }
+    // These are supplied correlation comparisons, not a live request owner,
+    // real cancellation/Access observation or proof an old clone is current.
+}
+
+#[test]
+fn source_free_answer_leaves_record_admission_v1_pins_and_subject_rules_unchanged() {
+    use sha2::{Digest, Sha256};
+    for (feature, result) in [
+        (SuggestionFeature::Inventory, inventory()),
+        (SuggestionFeature::Document, document()),
+        (SuggestionFeature::Maintenance, json!({"kind":"maintenance","tasks":[]})),
+        (SuggestionFeature::Answer, json!({"kind":"answer","route":"clarify","coverage":"no-answer","rankedRefs":[],"statements":[]})),
+        (SuggestionFeature::Contradictions, json!({"kind":"contradictions","findings":[]})),
+    ] {
+        let mut original = input(); original.feature = feature;
+        if feature == SuggestionFeature::Document { original.sources[0].kind = CandidateKind::Document; }
+        let expected_pin = format!("{:x}", Sha256::digest(serde_jcs::to_vec(&original).unwrap()));
+        let snapshot = AdmittedSnapshot::new(original.clone()).unwrap();
+        assert_eq!(snapshot.context_pin(), expected_pin);
+        let supplied = output(&snapshot, result);
+        assert!(validate(&supplied, &snapshot).is_ok());
+        for change in 0..3 {
+            let mut bad = supplied.clone();
+            match change {
+                0 => bad["subjectRef"] = Value::Null,
+                1 => { bad.as_object_mut().unwrap().remove("subjectRef"); },
+                _ => bad["schemaVersion"] = json!(2),
+            }
+            assert!(validate(&bad, &snapshot).is_err());
+        }
+        original.sources.clear();
+        assert!(AdmittedSnapshot::new(original).is_err());
+    }
+}
+
+#[test]
+fn source_free_answer_composes_terminal_completion_without_changing_usage_or_refusal_fences() {
+    use crate::ai::{InferenceOutcome, Usage, responses::completed_event};
+    let snapshot = AdmittedSnapshot::source_free_answer(question_input(), question_binding()).unwrap();
+    let text = serde_json::to_string(&question_proposal(&snapshot)).unwrap();
+    for wire_usage in [Value::Null, json!({"input_tokens":7})] {
+        let event = json!({"type":"response.completed","response":{"status":"completed","usage":wire_usage,
+            "output":[{"type":"message","status":"completed","role":"assistant","content":[{"type":"output_text","text":text}]}]}});
+        let outcome = completed_event(&event).unwrap();
+        let expected = Usage { input_tokens: wire_usage["input_tokens"].as_u64(), output_tokens: None, total_tokens: None };
+        let result = disclose_completed(&outcome, &snapshot, &snapshot, &Default::default());
+        assert_eq!(result.usage, expected); assert!(result.review.is_ok());
+        let mut binding = question_binding(); binding.request_id = "question-b".into();
+        let current = AdmittedSnapshot::source_free_answer(question_input(), binding).unwrap();
+        assert_eq!(disclose_completed(&outcome, &snapshot, &current, &Default::default()).review.unwrap_err(), CompletionRejection::Validation(SuggestionError::ContextChanged));
+        for refused in [true, false] {
+            let mut bad = event.clone();
+            bad["response"]["output"][0]["content"] = if refused { json!([{"type":"refusal","refusal":text}]) }
+                else { json!([{"type":"output_text","text":text}]) };
+            if !refused { bad["response"]["output"].as_array_mut().unwrap().push(json!({"type":"function_call","name":"write","arguments":"{}"})); }
+            let outcome = completed_event(&bad).unwrap();
+            let result = disclose_completed(&outcome, &snapshot, &snapshot, &Default::default());
+            assert_eq!(result.usage, expected);
+            assert_eq!(result.review.unwrap_err(), if refused { CompletionRejection::Refused } else { CompletionRejection::InvalidEnvelope });
+        }
+        for outcome in [InferenceOutcome::Cancelled { usage: expected }, InferenceOutcome::Stopped { usage: expected }] {
+            let result = disclose_completed(&outcome, &snapshot, &snapshot, &Default::default());
+            assert_eq!(result.usage, expected); assert!(result.review.is_err());
+        }
+    }
+}
+
 fn completed_proposal(snapshot: &AdmittedSnapshot) -> crate::ai::InferenceOutcome {
     crate::ai::InferenceOutcome::Completed {
         output: vec![json!({"type":"reasoning","summary":[]}), json!({

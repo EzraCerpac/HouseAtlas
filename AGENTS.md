@@ -1,5 +1,23 @@
 # HouseAtlas
 
+Explicit source-free Answer admission is structural only. Its serialize-only
+QuestionBinding pins the admitted request ID, accepted-query SHA-256,
+registration and cancellation epoch with existing actor/scope/authority epoch.
+It has no trusted host/session binding: a supplied digest or current clone is
+not authentication, active-request proof or cancellation qualification.
+Generated schema v2 requires subjectRef:null (not missing), empty sources/
+claims/ranks/statements, clarify|unknown, no-answer and bounded explicit gaps.
+Record v1 string subjects, source admission and pin bytes remain unchanged.
+Display DTO v1 emits empty sources/inspections/selections/rankings, retaining
+the shared final byte fence; no subject metadata/capability is invented.
+Six new Rust and two session controls are authored/NOT RUN: shape/versions,
+escaped final-DTO bounds, admission/content refusal, question/epoch replacement,
+record compatibility, terminal usage/refusals and consumer retirement. Current
+counts are 35 synthetic-contract / 10 scorer / 26 retained / one counter Rust
+cases, plus 41 presentation/controller and 22 session cases. The 5/20/7 corpus
+ledger, originals, runner selections and host/root/runtime/authority owners stay
+unchanged. No inference, source write, effect, persistence or activation occurs.
+
 Inventory review additionally supports `SameProductIdentityUnknown`, serialized
 and locally disclosed as `same-product-identity-unknown`: positive product
 correspondence with physical same/distinct identity unknown. Existing three
@@ -8,7 +26,7 @@ once-consumed authority:none review intents remain unchanged. Source preparation
 must compose the exact reviewed #569 presentation donor before publication;
 the frontend writer retains its six review/controller files. Three new shared
 controls (canonical/disclosure, independent supplied scorer and session binding)
-are authored/unrun. Shared Rust counts are 29 synthetic-contract and 10 scorer
+are authored/unrun. Shared Rust counts are 35 synthetic-contract and 10 scorer
 tests; retained tests/ledger stay 26 and 5 scorer subsets/20 structural/7 unbridged.
 Original inv-model-only stays unbridged: its Document subject cannot be silently
 relabelled as an InventoryItem. No inference, physical verification, approval,
@@ -529,7 +547,7 @@ No route, original-open capability, approval or native dispatch is issued.
 The review-only browser adapter consumes this DTO with the retained #569
 controller and an explicit owner-supplied React mount. The existing healthy
 runner's SOURCE list selects exactly `ai-suggestion-review.test.mjs` (forty-one
-controller cases) and `ai-suggestion-adapter.test.mjs` (twenty adapter cases).
+controller cases) and `ai-suggestion-adapter.test.mjs` (twenty-two adapter cases).
 They use generated data and the actual controller, without browser, provider,
 credentials or native writes. Registration is not execution evidence. No
 app-root, workflow, browser selection or other held selection changes.
