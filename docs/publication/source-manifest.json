@@ -9337,8 +9337,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/MeshLayer.tsx",
       "mode": "100644",
-      "bytes": 11685,
-      "sha256": "10c5139dff96d916b13f762ff9276b7a0db6de641e1afb2abe867ed3cc57c68b",
+      "bytes": 14040,
+      "sha256": "d4a6c21d6704fc55eb32da82e7cdf3ac1c128a1bd1c822c6645e0946ff147303",
       "owner": "web"
     },
     {
