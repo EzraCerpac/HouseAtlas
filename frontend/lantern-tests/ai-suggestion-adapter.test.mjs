@@ -37,6 +37,23 @@ function setup(wire = fixture(), options = {}) {
   const session = createSuggestionReviewSession(JSON.stringify(wire), context, owner);
   return { session, owner, context, inspected, intents, change(value) { current = value; for (const cb of [...listeners]) cb(); } };
 }
+test('admitted category LF TAB survives disclosure session and exact once-only field binding', async () => {
+  for (const edited of [false, true]) {
+    const wire = fixture(); wire.view.candidates = []; delete wire.selections['duplicate:item2'];
+    wire.view.fields[0].proposed = 'Generated\ncategory\tlabel';
+    const s = setup(wire), c = s.session.controller;
+    assert.equal(c.getSnapshot().fields[0].value, wire.view.fields[0].proposed);
+    assert.equal(c.getSnapshot().fields[0].edited, false);
+    const expected = edited ? 'Edited\ncategory\tlabel' : wire.view.fields[0].proposed;
+    if (edited) assert.equal(c.editField('category', expected), true);
+    c.selectField('category', true);
+    await c.decide('accept-for-review'); await c.decide('accept-for-review');
+    assert.equal(s.intents.length, 1); assert.equal(s.intents[0].intent.authority, 'none');
+    assert.deepEqual(s.intents[0].intent.fields, [{ key: 'category', value: expected, edited }]);
+    assert.deepEqual(s.intents[0].selections, { category: { kind: 'inventory-category', inputRef: 'subject1' } });
+    s.session.dispose();
+  }
+});
 test('canonical maximum JSON tags cross the actual session boundary losslessly with one review intent', async () => {
   const tags = Array.from({ length: 16 }, (_, n) => Array.from({ length: 4 }, (_, bit) => n & (1 << bit) ? '\\' : '"').join('') + '"'.repeat(124));
   assert.equal(new Set(tags).size, 16);

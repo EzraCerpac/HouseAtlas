@@ -1217,8 +1217,8 @@
     {
       "path": "backend/src/ai/suggestions/synthetic_contracts.rs",
       "mode": "100644",
-      "bytes": 70600,
-      "sha256": "12f198d6ed341e156e8fa28ed0ce6ba823ade94c3f0785dce7aef87e42c6ac7a",
+      "bytes": 71641,
+      "sha256": "6423d489a81d3f188729e87a6f8f49639d01e9d033e614332444839d0691b7b5",
       "owner": "ai"
     },
     {
@@ -7930,8 +7930,8 @@
     {
       "path": "frontend/lantern-tests/ai-suggestion-adapter.test.mjs",
       "mode": "100644",
-      "bytes": 33390,
-      "sha256": "37e149e697bb980d9b23fd0235c419e9969e1c55e58fe2e34282f799d4200c21",
+      "bytes": 34507,
+      "sha256": "092dca6a612f42bba976fd96641381590f7b2c040f3195bae7cca1b5193cfb1c",
       "owner": "web"
     },
     {

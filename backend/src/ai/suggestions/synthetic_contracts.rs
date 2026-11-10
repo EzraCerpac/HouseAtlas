@@ -36,6 +36,23 @@ fn validate(value: &Value, snapshot: &AdmittedSnapshot) -> std::result::Result<R
     validate_generated(&serde_json::to_vec(value).unwrap(), snapshot, snapshot)
 }
 
+#[test]
+fn inventory_category_lf_tab_disclosure_keeps_exact_text_and_canonical_bounds() {
+    let snapshot = AdmittedSnapshot::new(input()).unwrap();
+    let text = "Generated\ncategory\tlabel";
+    let mut supplied = output(&snapshot, json!({"kind":"inventory","changes":[{
+        "field":"category","value":text,"support":support(&["c1"])}],"duplicates":[]}));
+    let review = validate(&supplied, &snapshot).unwrap();
+    let wire = disclose_review(&review, &snapshot, &Default::default()).unwrap();
+    assert_eq!(wire.value()["view"]["fields"][0]["proposed"], text);
+    assert_eq!(wire.value()["selections"]["category"], json!({"kind":"inventory-category","inputRef":"input1"}));
+    for bad in ["Generated\rcategory".to_owned(), "Generated\r\ncategory".to_owned(), "é".repeat(65)] {
+        supplied["result"]["changes"][0]["value"] = json!(bad);
+        assert_eq!(validate(&supplied, &snapshot).unwrap_err(), SuggestionError::InvalidOutput);
+    }
+    // No React/DOM execution or arbitrary CR/CRLF draft-byte promise follows.
+}
+
 fn date_projection_result(feature: SuggestionFeature, cited: bool) -> Value {
     match (feature, cited) {
         (SuggestionFeature::Inventory, true) => inventory(),
