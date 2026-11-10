@@ -7776,8 +7776,8 @@
     {
       "path": "frontend/integration/offline-homebox-policy.ts",
       "mode": "100644",
-      "bytes": 4630,
-      "sha256": "1c10724588a3f9852ca10e324f28ee1ec496e0c157eabffd4ee20bc02765d3da",
+      "bytes": 4703,
+      "sha256": "08463cf820874e8124a0c6136b34f092214cbd5715f689ff7507938b0f5fa39d",
       "owner": "core-integration"
     },
     {
@@ -8343,8 +8343,8 @@
     {
       "path": "frontend/lantern-tests/offline-electrical-copy.test.mjs",
       "mode": "100644",
-      "bytes": 37036,
-      "sha256": "f3ebac0957a08224089d842a5ff231f9c4227baf8e98763a48d286091daccb83",
+      "bytes": 40651,
+      "sha256": "2b742e630cd3cd877bbb129e7b9828d0c6159a7b6e626aaf622bccf72c0ffc2f",
       "owner": "web"
     },
     {
@@ -10779,8 +10779,8 @@
     {
       "path": "frontend/src/offline/live-copy-owner.ts",
       "mode": "100644",
-      "bytes": 46248,
-      "sha256": "d9251cbdc6149d1ece5f0f2d2f32066d7d08f0cebc45bab95f06b5a5bc2878a5",
+      "bytes": 46281,
+      "sha256": "975c051eb103dc390c1f407ea45840f3bddddb0a5605e71e9bc90aa971ebe990",
       "owner": "web"
     },
     {

@@ -319,7 +319,7 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
           }
           await tx.put('control', mark, { version: 1, epoch: b.epoch, registrationVersion: kept.sourceRegistrationVersion,
             registrationSha256: kept.sourceRegistrationSha256 } satisfies Registration);
-          return (row: Row) => row.kind === 'homebox-document' && !!row.pin && (row.pin as OfflineHomeboxPinV1).sourceInstanceId === kept.sourceInstanceId
+          return (row: Row) => row.kind === 'homebox-document' && sameScope(row.scope, b.scope) && !!row.pin && (row.pin as OfflineHomeboxPinV1).sourceInstanceId === kept.sourceInstanceId
             && (row.pin as OfflineHomeboxPinV1).collectionId === kept.collectionId
             && (row.pin as OfflineHomeboxPinV1).sourceRegistrationVersion < kept.sourceRegistrationVersion;
         };

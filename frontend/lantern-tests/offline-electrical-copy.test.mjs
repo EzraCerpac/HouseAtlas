@@ -405,6 +405,59 @@ test('a changed source registration supersedes older HomeBox observations from t
   } finally { f.owner.close(); }
 });
 
+test('HomeBox registration supersession preserves independent workspace and home histories', async () => {
+  const backend = memory(), owner = createLiveCopyOwner(backend);
+  try {
+    const actor = await owner.observeActor('generated-actor', () => true);
+    assert.equal(actor.status, 'ok');
+    const scopes = [scope, { ...scope, homeId: uuid(3) }, { ...scope, workspaceId: uuid(4) }];
+    const homes = scopes.map(selected => {
+      const home = owner.bindHome(actor.value, selected, () => true);
+      assert.equal(home.status, 'ok'); return home.value;
+    });
+    const pin = { ...ref(), observationId: uuid(70), sourceRegistrationVersion: 3,
+      sourceRegistrationSha256: 'e'.repeat(64), sha256: pdfSha, bytes: pdf.length,
+      contentType: 'application/pdf', sourceContentType: 'application/pdf',
+      beforeRetrievedAt: '2026-11-10T00:00:01Z', bodyRetrievedAt: '2026-11-10T00:00:02Z', afterRetrievedAt: '2026-11-10T00:00:03Z' };
+    assert(validHomeboxPin(pin));
+    const keep = (home, selected) => owner.keepHomeboxDocument(home, selected, pdf.slice().buffer, signal());
+    for (const home of homes) assert.equal((await keep(home, pin)).status, 'ok');
+    const before = structuredClone([...backend.tables().get('metadata')].filter(([, row]) => row.kind === 'homebox-document' && row.scope.homeId === scope.homeId));
+    const newer = { ...pin, attachmentId: uuid(43), observationId: uuid(71), sourceRegistrationVersion: 4 };
+    assert.equal((await keep(homes[1], newer)).status, 'ok');
+    const rows = [...backend.tables().get('metadata')].filter(([, row]) => row.kind === 'homebox-document');
+    assert.deepEqual(rows.filter(([, row]) => row.scope.homeId === scope.homeId), before, 'other scopes stay byte-for-byte unchanged');
+    assert.equal(rows.length, 3, 'only the superseded home row leaves');
+    assert.deepEqual(rows.filter(([, row]) => row.scope.homeId === uuid(3)).map(([, row]) => row.pin), [newer]);
+    assert.equal((await keep(homes[0], { ...pin, attachmentId: uuid(44) })).status, 'ok', 'another home keeps its own lower registration');
+    assert.equal((await keep(homes[1], { ...pin, attachmentId: uuid(44) })).status, 'retired', 'the advanced home still refuses stale registration');
+  } finally { owner.close(); }
+});
+
+test('automatic HomeBox pass rechecks enablement, view retirement and abort after pending status', async () => {
+  for (const stop of ['disabled', 'retired', 'aborted']) {
+    const f = await homeboxSetup(), controller = new AbortController();
+    let enabled = true, current = true, retains = 0, resolveStatus, startedStatus;
+    const pending = new Promise(resolve => { resolveStatus = resolve; });
+    const started = new Promise(resolve => { startedStatus = resolve; });
+    const owner = { ...f.owner, read: { ...f.owner.read, homeboxStatus: async () => { startedStatus(); return pending; } },
+      retainHomeboxOriginal: async () => { retains++; return { status: 'ok' }; } };
+    try {
+      const pass = fillOfflineHomeboxOriginals({ owner, view: f.state.view, current: () => current, enabled: () => enabled, signal: controller.signal });
+      await started;
+      if (stop === 'disabled') enabled = false;
+      else if (stop === 'retired') current = false;
+      else controller.abort();
+      resolveStatus({ status: 'ok', value: { availability: 'not-held', bytes: null } });
+      const result = await pass;
+      assert.equal(result.complete, false, stop);
+      assert.equal(retains, 0, stop);
+      assert.equal(f.server.calls.length, 0, stop);
+      assert.match(result.message, /stopped/);
+    } finally { f.owner.close(); }
+  }
+});
+
 test('automatic HomeBox pass skips unknown sizes, keeps held files, stops on uncertain and respects the budget', async () => {
   const listed = [{ attachmentId: uuid(42), byteSize: String(pdf.length) }, { attachmentId: uuid(43), byteSize: null },
     { attachmentId: uuid(44), byteSize: String(pdf.length) }, { attachmentId: uuid(45), byteSize: String(pdf.length) }];
