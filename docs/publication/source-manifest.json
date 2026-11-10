@@ -818,8 +818,8 @@
     {
       "path": "backend/src/ai/host/continuation_healthy.rs",
       "mode": "100644",
-      "bytes": 7949,
-      "sha256": "180d1b47ed19a5b8385227ec42ba9528cc438149ca61fe90ddcf0e80c932c2f0",
+      "bytes": 7918,
+      "sha256": "5b2c2559f36bea65a2e5a2a98d4e6da3ab78cc02f341b85cf4632c9da96aaae4",
       "owner": "ai"
     },
     {

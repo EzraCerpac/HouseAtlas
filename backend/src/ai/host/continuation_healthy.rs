@@ -30,11 +30,7 @@ struct Review {
     cancel: Cancellation,
 }
 impl ExactReviewReady<RegistrationBinding, Arc<()>> for Review {
-    fn ready(
-        &self,
-        _: &RegistrationBinding,
-        _: &AiCheckpoint<Arc<()>>,
-    ) -> Result<(), AiError> {
+    fn ready(&self, _: &RegistrationBinding, _: &AiCheckpoint<Arc<()>>) -> Result<(), AiError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         if self.stop {
             self.cancel.request();
