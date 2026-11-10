@@ -5,6 +5,7 @@
 //! Three answer controls likewise check supplied representations, not model quality.
 //! Three comparison controls check representation/withholding, never truth or history.
 //! Three availability controls separate record data, readable extraction and originals.
+//! Four empty-output controls preserve inputs without semantic no-proposal scoring.
 //! All other cases and unsupported dimensions remain explicitly unscored.
 use super::*;
 use crate::contracts::stock::{AtlasRecordKind, AtlasTarget, StockContext};
@@ -1024,4 +1025,136 @@ fn retained_qa_withdrawal_withholds_even_an_empty_clarify_disclosure() {
     let disclosure = disclose_review(&observed, &control.current, &control.inspectable);
     assert!(disclosure.is_err());
     assert_eq!(disclosure.unwrap_err(), SuggestionError::ContextWithdrawn); // No source-derived safe answer.
+}
+
+struct EmptyOutputControl {
+    snapshot: AdmittedSnapshot,
+    proposal: Value,
+    abstain_from: Vec<String>,
+}
+
+fn empty_output_control(case_id: &str) -> Option<EmptyOutputControl> {
+    match case_id {
+        "maint-condition" | "review-history" | "review-retrieval" | "review-distinct" => {}
+        _ => return None,
+    }
+    let data = corpus();
+    let case = data["cases"].as_array().unwrap().iter().find(|c| c["id"] == case_id).unwrap();
+    assert_eq!(case["expected_claims"], json!([]));
+    assert_eq!(case["effects_allowed"], json!([]));
+    let maintenance = case["feature"] == "maintenance";
+    let selected = case["input_sources"].as_array().unwrap();
+    let subject = selected[0]["source_id"].as_str().unwrap();
+    let sources = selected.iter().map(|input| {
+        let name = input["source_id"].as_str().unwrap();
+        let version = input["version"].as_str().unwrap();
+        let original = data["sources"].as_array().unwrap().iter().find(|s| s["id"] == name && s["version"] == version).unwrap();
+        let mut source = source_input(&data, name, version, subject, original["kind"] == "document");
+        if name != subject { source.role = InputRole::Source; }
+        if original["kind"] == "assertion" { source.kind = CandidateKind::Other; }
+        source
+    }).collect();
+    let snapshot = AdmittedSnapshot::new(SnapshotInput {
+        feature: if maintenance { SuggestionFeature::Maintenance } else { SuggestionFeature::Contradictions },
+        scope: StockContext { workspace_id: id(90), home_id: id(91) },
+        actor_id: id(92), authority_epoch: "retained-fictional-corpus-only".into(), sources,
+    }).unwrap();
+    let result = if maintenance { json!({"kind":"maintenance","tasks":[]}) }
+        else { json!({"kind":"contradictions","findings":[]}) };
+    let proposal = json!({"schemaVersion":1,"contextPin":snapshot.context_pin(),"subjectRef":subject,
+        "claims":[],"missingEvidence":case["unknowns"],"result":result});
+    let abstain_from = case["abstain_from"].as_array().unwrap().iter().map(|v| v.as_str().unwrap().to_string()).collect();
+    Some(EmptyOutputControl { snapshot, proposal, abstain_from })
+}
+
+fn check_empty_output_control(control: &EmptyOutputControl) -> Value {
+    // Deliberately supplied absence of proposals, NOT a detected mismatch,
+    // compatible history, semantic abstention or physical-identity result.
+    assert_eq!(control.proposal["claims"], json!([]));
+    let bytes = serde_json::to_vec(&control.proposal).unwrap();
+    let review = validate_generated(&bytes, &control.snapshot, &control.snapshot).unwrap();
+    let disclosure = disclose_review(&review, &control.snapshot, &Default::default()).unwrap();
+    let wire = disclosure.value();
+    assert_eq!(wire["selections"], json!({}));
+    assert!(wire["view"]["fields"].as_array().unwrap().is_empty());
+    assert!(wire["view"]["candidates"].as_array().unwrap().is_empty());
+    if control.snapshot.input().feature == SuggestionFeature::Maintenance {
+        assert_eq!(wire["view"]["maintenance"], json!([]));
+    } else {
+        assert_eq!(wire["view"]["contradictions"]["findings"], json!([]));
+        assert_eq!(wire["view"]["contradictions"]["missingEvidence"], control.proposal["missingEvidence"]);
+        assert_eq!(wire["comparisons"], json!({}));
+    }
+    // No finding/claim is fabricated to display otherwise unused evidence.
+    let subject = &control.snapshot.input().sources[0];
+    assert_eq!(wire["view"]["sources"].as_array().unwrap().len(), 1);
+    assert_eq!(wire["view"]["sources"][0]["recordVersion"], subject.version);
+    assert_eq!(wire["view"]["sources"][0]["sourceDate"], json!(subject.source_date));
+    assert_eq!(wire["view"]["sources"][0]["retrievedAt"], subject.retrieved_at);
+    assert_eq!(wire["view"]["sources"][0]["excerpt"], "");
+    assert_eq!(wire["view"]["sources"][0]["original"], "unavailable");
+    for field in ["winner", "action"] {
+        let mut supplied = control.proposal.clone(); supplied["result"][field] = json!("unsupported-control-only");
+        assert_eq!(validate_generated(&serde_json::to_vec(&supplied).unwrap(), &control.snapshot, &control.snapshot).unwrap_err(), SuggestionError::InvalidOutput);
+    }
+    wire.clone()
+}
+
+#[test]
+fn retained_wrong_model_notice_keeps_selected_inputs_and_supplied_empty_tasks() {
+    let control = empty_output_control("maint-condition").unwrap();
+    let sources = &control.snapshot.input().sources;
+    assert_eq!(sources.len(), 2);
+    assert_eq!(sources[0].input_ref, "notice"); assert_eq!(sources[1].input_ref, "item-a");
+    assert!(sources.iter().all(|s| s.version == "1"));
+    assert!(!sources.iter().any(|s| s.input_ref == "pump"));
+    assert_eq!(sources[0].evidence[0].excerpt, "Service notice applies only to fictional pump P9. Inspect only if indicator is lit.");
+    assert_eq!(sources[1].evidence.iter().find(|e| e.evidence_ref == "item-a-v1-identity").unwrap().excerpt, "Fictional Lumen fan model F2, serial SYN-A.");
+    assert_eq!(control.proposal["missingEvidence"], json!(["pump candidate","indicator state"]));
+    assert!(control.abstain_from.contains(&"fan_task".to_string()));
+    let wire = check_empty_output_control(&control);
+    assert_eq!(wire["view"]["maintenance"], json!([]));
+}
+
+#[test]
+fn retained_history_dates_remain_inputs_with_supplied_empty_findings() {
+    let control = empty_output_control("review-history").unwrap();
+    let sources = &control.snapshot.input().sources;
+    assert_eq!(sources.len(), 2);
+    assert_eq!(sources[0].input_ref, "location-old"); assert_eq!(sources[1].input_ref, "location-new");
+    assert_eq!(sources[0].source_date.as_deref(), Some("2029-01-01"));
+    assert_eq!(sources[1].source_date.as_deref(), Some("2030-02-01"));
+    assert_eq!(sources[0].evidence[0].excerpt, "item-a was recorded in Blue on 2029-01-01.");
+    assert_eq!(sources[1].evidence[0].excerpt, "item-a was recorded in Amber on 2030-02-01.");
+    assert_eq!(control.proposal["missingEvidence"], json!(["current location"]));
+    assert!(control.abstain_from.contains(&"contradiction_claim".to_string()));
+    check_empty_output_control(&control);
+}
+
+#[test]
+fn retained_retrieval_preserves_distinct_dates_with_supplied_empty_findings() {
+    let control = empty_output_control("review-retrieval").unwrap();
+    let sources = &control.snapshot.input().sources;
+    assert_eq!(sources.len(), 2);
+    assert_eq!(sources[0].input_ref, "drawing"); assert_eq!(sources[0].version, "1");
+    assert_eq!(sources[1].input_ref, "item-a"); assert_eq!(sources[1].version, "2");
+    assert_eq!(sources[0].source_date.as_deref(), Some("2020-01-01"));
+    assert_eq!(sources[0].retrieved_at, "2030-04-01T12:00:00Z");
+    assert_eq!(sources[0].evidence[0].excerpt, "Historical documentary group C1 labeled Blue. No tested circuit mapping is recorded.");
+    assert!(control.abstain_from.contains(&"stale_means_false".to_string()));
+    assert!(control.abstain_from.contains(&"newer_retrieval_wins".to_string()));
+    check_empty_output_control(&control);
+}
+
+#[test]
+fn retained_serial_records_remain_data_with_supplied_empty_findings() {
+    let control = empty_output_control("review-distinct").unwrap();
+    let sources = &control.snapshot.input().sources;
+    assert_eq!(sources.len(), 2);
+    assert_eq!(sources[0].input_ref, "item-a"); assert_eq!(sources[1].input_ref, "item-b");
+    assert_eq!(sources[0].evidence.iter().find(|e| e.evidence_ref == "item-a-v1-identity").unwrap().excerpt, "Fictional Lumen fan model F2, serial SYN-A.");
+    assert_eq!(sources[1].evidence.iter().find(|e| e.evidence_ref == "item-b-v1-identity").unwrap().excerpt, "Fictional Lumen fan model F2, serial SYN-B.");
+    assert_eq!(control.proposal["missingEvidence"], json!(["physical verification"]));
+    assert!(control.abstain_from.contains(&"same_physical_item".to_string()));
+    check_empty_output_control(&control);
 }

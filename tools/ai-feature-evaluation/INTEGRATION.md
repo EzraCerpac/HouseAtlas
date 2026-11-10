@@ -72,7 +72,7 @@ a gold semantic abstention, model response or complete case pass.
 The inventory/document adapter leaves 24 cases unscored; three of these now
 have the separate maintenance representational controls described below, and
 three more have answer controls, and three comparison/withdrawal controls follow.
-Availability/withdrawal controls add three more below; 12 have no bridge.
+Availability/withdrawal and supplied-empty controls follow; eight have no bridge.
 Quality remains unscored for the same-product-only
 inventory case and every maintenance, cited-answer and contradiction case. A model/product match is never translated into
 physical identity. More mappings need an explicit semantic/dimension review;
@@ -95,7 +95,8 @@ same supplied-proposal scorer without changing its production contract. There
 are four allowed-label mappings, one limited aggregate no-proposal control and
 three structural-refusal mappings. Separate maintenance, answer and comparison
 controls cover three cases each, followed by three availability controls.
-Twelve cases have no bridge; these controls remain unscored.
+Eight cases have no bridge after the supplied-empty controls; all these
+structural controls remain unscored.
 
 inv-sparse selects only capture-blur v1. Its annotation candidate lists do not
 admit item-a/item-b or provide native authority, and no negative citation is
@@ -187,7 +188,8 @@ All nine earlier bridge tests and eight inventory/document mappings remain
 unchanged, including null semantic scores for structural refusal. At this
 maintenance checkpoint the bridge had twelve authored tests: nine
 prior plus these three. The later controls below bring it to twenty-one tests.
-Twenty original cases now have some bounded bridge; twelve have none. The existing
+Later controls bring the total to twenty-four bounded cases and eight without
+bridges. The existing
 inventory/document count test
 still correctly marks 24 cases outside its scorer, including all maintenance.
 No original corpus file, production contract, frontend repair, runner selection
@@ -241,7 +243,8 @@ New authored case names (NOT RUN):
 
 All twelve prior bridge tests remain unchanged. At this answer checkpoint there were fifteen authored cases; the comparison
 controls below bring the total to eighteen. Later controls bring the totals to twenty original scenarios with some
-bounded bridge and twelve none. All answer/maintenance quality is unscored, and the production scorer still
+bounded bridge at that checkpoint; the empty controls below bring it to
+twenty-four with eight none. All answer/maintenance quality is unscored, and the production scorer still
 supports inventory/document only. Corpus bytes, production contracts/disclosure,
 frontend repairs and runner inventory are unchanged. No new lane or runtime.
 Tests/build/typecheck/compiler/format/Clippy/browser/device and actual model/
@@ -292,8 +295,8 @@ New authored case names (NOT RUN):
 - retained_comparison_revoked_side_refuses_any_disclosure_and_preserves_other_side
 
 All fifteen prior bridge tests/code remain unchanged. That checkpoint had eighteen authored Rust cases; the availability controls
-below bring it to twenty-one, with twenty bounded scenarios and twelve without
-bridges. All comparison/answer/maintenance quality remains unscored.
+below and supplied-empty controls bring it to twenty-five tests, with twenty-four
+bounded scenarios and eight without bridges. All comparison/answer/maintenance quality remains unscored.
 The production inventory/document scorer is unchanged. Original corpus files,
 frontend repairs, production contracts/validator/disclosure, runner selections
 and workflows are unchanged. No second truth store, native owner, runtime or
@@ -345,10 +348,55 @@ New authored case names (NOT RUN):
 - retained_qa_withdrawal_withholds_even_an_empty_clarify_disclosure
 
 All eighteen earlier tests/code and seventeen partial original-case bridges remain
-unchanged. There are now twenty-one authored bridge tests and twenty original
-cases with some bounded bridge; twelve have none. Historical eighteen-test Python
+unchanged. At that availability checkpoint there were twenty-one authored bridge tests;
+the supplied-empty controls below bring it to twenty-five. Twenty-four original
+cases now have some bounded bridge; eight have none. Historical eighteen-test Python
 integrity success remains a separate original artifact, not these unrun Rust
 controls. Production/frontend code, runner selections and workflows are unchanged.
+
+## Supplied empty task and finding controls
+
+Only maint-condition, review-history, review-retrieval and review-distinct are
+added. Every original expected_claims list is empty. The controls deliberately
+supply empty claims and tasks/findings with the original unknowns; they do not
+call evaluate_supplied or construct Labels/CaseReport/quality counts.
+
+- maint-condition keeps notice v1 and item-a v1, the P9 versus F2 source text,
+  unknown pump candidate/indicator state and original no-effect boundaries. It
+  adds no pump input from annotations and makes no model-mismatch or condition
+  decision. Empty tasks are supplied by the author, not detected from text.
+- review-history retains both location-old/location-new records and their exact
+  dates/excerpts, with current location unknown. Empty findings are not compatible
+  history, temporal reasoning or a current-location truth result.
+- review-retrieval retains drawing v1 source date 2020-01-01 separately from its
+  2030 retrieval and retains item-a v2. Empty findings do not make older evidence
+  false, select a newer record or decide present-day applicability.
+- review-distinct retains both SYN-A/SYN-B serial-bearing records, shared model
+  and original physical-verification gap. Empty findings do not establish native
+  physical identity, a semantic no-conflict decision or actual verification.
+
+Selected sources, targets, versions, evidence and dates remain in each admitted
+input. Annotation candidate lists add no records or authority. No finding/claim
+is fabricated to produce a richer display: existing disclosure returns only the
+subject metadata fallback and original missing-evidence gaps; unused extraction
+stays in the input. This presentation limit is preserved without production edits.
+Empty selections and derivative unsupported winner/action field refusals are
+structural checks only, not native action/Access, model judgment, accepted task,
+semantic abstention, durable history or complete-case success.
+
+New authored case names (NOT RUN):
+
+- retained_wrong_model_notice_keeps_selected_inputs_and_supplied_empty_tasks
+- retained_history_dates_remain_inputs_with_supplied_empty_findings
+- retained_retrieval_preserves_distinct_dates_with_supplied_empty_findings
+- retained_serial_records_remain_data_with_supplied_empty_findings
+
+All 21 prior tests/code remain unchanged. The bridge has 25 authored Rust cases,
+all unrun, and 24 original scenarios with some bounded bridge; eight have none.
+The ledger below classifies five scorer subsets / nineteen structural controls /
+eight no-bridge rows. No model quality/accuracy, real authority or durable decision
+is qualified. Original corpus bytes, production/frontend code, runner inventory
+and workflows are unchanged; no new lane, host/root or runtime is introduced.
 
 ## Complete original corpus coverage inventory
 
@@ -376,7 +424,7 @@ native-owner, access, durable decision or issue acceptance is established.
 | maint-periodic | Structural | 90-day interval/citations/qualifier; due_2030_04_01 explicitly unmapped by the interval-only contract, no scheduling. |
 | maint-no-baseline | Structural | 120-day interval, unknown cleaning baseline; no due date, condition-state truth or native task creation. |
 | maint-superseded | No bridge | Simultaneous manual revisions need a qualified historical view; current snapshot admits one exact identity version, no silent supersession. |
-| maint-condition | No bridge | Wrong-model conditional notice has no supplied no-task control yet; condition truth and safety remain unqualified. |
+| maint-condition | Structural | Supplied empty tasks preserve notice/item only, no pump; not model-mismatch, condition-truth or safety detection. |
 | maint-duplicate | No bridge | Existing-task review is unadapted; duplicate suppression and completion state require separate owned lifecycle evidence. |
 | qa-location | Structural | Quoted recorded location, inventory route and partial source rank; no current physical certainty or exhaustive inventory. |
 | qa-missing | No bridge | Empty retrieval has no canonical subject input; do not invent a record to satisfy snapshot admission. |
@@ -384,10 +432,10 @@ native-owner, access, durable decision or issue acceptance is established.
 | qa-injection | Structural | p1 retained inert, p2 cited; no live-model injection resistance or tool/scope authorization claim. |
 | qa-revoked | Structural | Withdrawn invoice refuses disclosure even for empty clarify; not a safe factual answer or actual Access revocation. |
 | review-conflict | Structural | Both cited sides, null fact dates and correlation key; no winner/correction/truth score. |
-| review-history | No bridge | Compatible dated history is unadapted; claims have no typed fact-time comparison and prose cannot choose current truth. |
-| review-retrieval | No bridge | Retrieval-time versus fact-time applicability is unadapted; newer retrieval cannot establish newer facts or falsity. |
+| review-history | Structural | Supplied empty findings retain both dated inputs and current-location gap; no compatible-history inference or truth choice. |
+| review-retrieval | Structural | Supplied empty findings preserve 2020 source/2030 retrieval and both inputs; no temporal reasoning, newer-wins or falsity detection. |
 | review-unknown-date | Structural | Tentative supplied review/gaps and null fact dates; no semantic-certainty detector. |
-| review-distinct | No bridge | Distinct-instance/name compatibility is unadapted; product/name matching is not native physical identity. |
+| review-distinct | Structural | Supplied empty findings preserve both serial-bearing records; no physical-identity or semantic-abstention result. |
 | review-corrected | No bridge | Simultaneous versions and durable dismissed-finding/non-resurrection history lack an owned projection/store; key correlation is insufficient. |
 | doc-duplicate-original | No bridge | Fixture original-ID equality has no canonical identity/custody field or byte proof; no duplicate import/delete/reuse authority. |
 | doc-unavailable | Structural | Known extraction retained, original inspection unavailable; fallback shows metadata only, no record revocation or invented URL/capability. |
@@ -396,6 +444,6 @@ native-owner, access, durable decision or issue acceptance is established.
 | review-revoked | Structural | Withdrawn-side boundary returns no disclosure; original other side preserved, no safe summary/durable decision. |
 | maint-condition-match | Structural | P9 conditional proposal from exact notice/pump evidence; no lit indicator, condition-is-met, safety or scheduling claim. |
 
-Inventory totals: five scorer subsets, fifteen structural controls and twelve
+Inventory totals: five scorer subsets, nineteen structural controls and eight
 without bridges. All semantic completeness, calibrated quality and actual owner
 authority remain unqualified; the ledger does not release any acceptance gate.
