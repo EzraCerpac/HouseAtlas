@@ -7685,8 +7685,8 @@
     {
       "path": "frontend/integration/main.tsx",
       "mode": "100644",
-      "bytes": 48388,
-      "sha256": "ad64b8c4782f6c7d7d66e106fdc9cda6424cc20c332317debfedd2effce9be03",
+      "bytes": 48987,
+      "sha256": "09c72821009ceac03ac857b1d8770817f84b4d774983f98d3eb17818e0d3270d",
       "owner": "core-integration"
     },
     {
@@ -9909,10 +9909,17 @@
       "owner": "web"
     },
     {
+      "path": "frontend/src/lantern/components/SettingsContents.tsx",
+      "mode": "100644",
+      "bytes": 8899,
+      "sha256": "3f4b5fea6e62a59a4aeed1991046f44901a100327f17f5427c77d0e3d0c62af1",
+      "owner": "web"
+    },
+    {
       "path": "frontend/src/lantern/components/SettingsDialog.tsx",
       "mode": "100644",
-      "bytes": 9273,
-      "sha256": "842474fa898fb8aab6ce9181a580d6c36d6b18fea339aacfe48b6e135f8b0c9b",
+      "bytes": 745,
+      "sha256": "c43cffb33013fb9bc8a5785bf85d95440ca6638513f76cb01a1b1979ade92166",
       "owner": "web"
     },
     {

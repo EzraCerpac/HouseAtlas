@@ -1,8 +1,6 @@
-import { OfflineStorageSettings, type OfflineStorageControls } from '../src/offline/OfflineStorageSettings';
+import type { OfflineStorageControls } from '../src/offline/OfflineStorageSettings';
 import { keepLibrary } from '../src/offline/library-preference';
-import { fillOfflineElectricalLibraries } from './offline-electrical-policy';
-import { fillOfflineLibrary } from './offline-library-policy';
-import { StrictMode, useEffect, useMemo, useState } from "react";
+import { lazy, StrictMode, Suspense, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { LanternHost } from "../src/lantern/Host";
 import { SessionApp } from "../src/app/SessionApp";
@@ -45,6 +43,10 @@ import "../src/ai/ai.css";
 import "../src/ai/host/host.css";
 import type { AiApplicationPort } from "../src/ai/host/index.js";
 import { forgetSavedEntry } from "../src/offline/saved-entry";
+
+// Settings UI loads only when its live settings leaf mounts. Retained bootstrap
+// and actor retirement remain independent of this presentation chunk.
+const OfflineStorageSettings = lazy(() => import('../src/offline/OfflineStorageSettings').then(module => ({ default: module.OfflineStorageSettings })));
 
 // After each launch, keep the public Saved shell and the root offline entry on
 // this build, so a later launch without the server opens the Saved entry with
@@ -142,6 +144,11 @@ async function fillDeviceLibrary(owner: import('./live-copy-retention').LiveCopy
   const session = currentSession, view = currentReadyView;
   if (!session || !view) return 'Library files need a current live read.';
   const current = () => currentSession === session && currentReadyView === view;
+  const [{ fillOfflineElectricalLibraries }, { fillOfflineLibrary }] = await Promise.all([
+    import('./offline-electrical-policy'), import('./offline-library-policy'),
+  ]);
+  // Imports may finish after the owning read has retired; no stale catalog work.
+  if (!current() || signal.aborted) return 'The live view changed.';
   // Measure both source lists before either automatic byte pass. Unknown source
   // sizes do not justify evicting previously held files from another source.
   const catalog = await owner.retainCatalog(signal);
@@ -166,7 +173,9 @@ function LiveOfflineSettings() {
       fillLibrary: signal => fillDeviceLibrary(owner, signal, () => true) }); });
     return () => { active = false; };
   }, []);
-  return controls ? <OfflineStorageSettings controls={controls} /> : null;
+  return controls ? <Suspense fallback={<p className="setting-static" role="status">Loading offline storage…</p>}>
+    <OfflineStorageSettings controls={controls} />
+  </Suspense> : null;
 }
 function observeLiveCopyActor(value: AtlasSessionInfo | null): void {
   if (value === null) liveCopies?.retire();
