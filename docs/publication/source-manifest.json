@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 68864,
-      "sha256": "f3345862d80d2f93b50b41c62cc7a845bbeabea8504185f577625f55bbd34ef7",
+      "bytes": 69461,
+      "sha256": "ed16069b22e481996bc655b1dada12d9d614c285d4ab1c7934cadef35d64549c",
       "owner": "core-integration"
     },
     {
@@ -811,8 +811,15 @@
     {
       "path": "backend/src/ai/host/continuation.rs",
       "mode": "100644",
-      "bytes": 5957,
-      "sha256": "b5e89c448cd47adae4f887a60dbd88aceb3f84fa7bee5054f7059b5cf15f8193",
+      "bytes": 6808,
+      "sha256": "12e74064727df0e0a556afb6efc45ee5e343a76547e6ba46c240ce647d3edbaf",
+      "owner": "ai"
+    },
+    {
+      "path": "backend/src/ai/host/continuation_healthy.rs",
+      "mode": "100644",
+      "bytes": 7918,
+      "sha256": "5b2c2559f36bea65a2e5a2a98d4e6da3ab78cc02f341b85cf4632c9da96aaae4",
       "owner": "ai"
     },
     {
@@ -6488,8 +6495,8 @@
     {
       "path": "docs/ci-performance.md",
       "mode": "100644",
-      "bytes": 14075,
-      "sha256": "1b8d9dd6771d3c838567854899fc8329178c2d2fd06a254af2aca6e2966be1b1",
+      "bytes": 15596,
+      "sha256": "22df3fd2edd277875463dc6d83fa3c153f7dfa056bb43847ef506e9d174f9e43",
       "owner": "core-integration"
     },
     {
@@ -6593,8 +6600,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 290704,
-      "sha256": "f0262b10992c439b5ef1693ea6cf83ec4c9613732cc00b3b44ceabfd6c71eba0",
+      "bytes": 291958,
+      "sha256": "218d702073940471320ba6a640e59655cb9b80d0691bbe680444b9a16e5ede07",
       "owner": "core-integration"
     },
     {
@@ -7317,6 +7324,20 @@
       "bytes": 102654,
       "sha256": "2abbd3a82733d7adf9ebf2d63562d72b544b74761a16889401a5547b37e976ce",
       "owner": "core-integration"
+    },
+    {
+      "path": "docs/rust-integration/mcp-operation-qualification-v5.json",
+      "mode": "100644",
+      "bytes": 231995,
+      "sha256": "09b172de1c9a3b85f664dd3d1165fbc8921ecc74eb0453b1e112eab261350bde",
+      "owner": "mcp"
+    },
+    {
+      "path": "docs/rust-integration/mcp-operation-qualification-v5.md",
+      "mode": "100644",
+      "bytes": 13044,
+      "sha256": "d00c168a078e4e4196600e906b4cadd88269d384fb62aad9e6891180883812be",
+      "owner": "mcp"
     },
     {
       "path": "docs/rust-integration/media-policy-archive.md",
@@ -12471,6 +12492,13 @@
       "owner": "core-integration"
     },
     {
+      "path": "tools/mcp-qualification/inventory.py",
+      "mode": "100644",
+      "bytes": 7701,
+      "sha256": "997b5d5280d4510fdf724a4a140c528116f4d2dfca37a44130e9d1681b97b9b2",
+      "owner": "mcp"
+    },
+    {
       "path": "tools/model-bake/README.md",
       "mode": "100644",
       "bytes": 12160,
@@ -12900,8 +12928,8 @@
     {
       "path": "tools/perf/reporting/adapter.mjs",
       "mode": "100644",
-      "bytes": 3982,
-      "sha256": "eacce7b532347b786b869a04447ddf39c62071a7e294d98bc256bfdc3b6ca3d3",
+      "bytes": 4148,
+      "sha256": "91b0ed5e9edfe340f03e6dbdba399ffa42802229a5517b4a0486c55efb060ed8",
       "owner": "core-integration"
     },
     {
@@ -12991,8 +13019,8 @@
     {
       "path": "tools/perf/reporting/healthy-reporting.test.mjs",
       "mode": "100644",
-      "bytes": 16296,
-      "sha256": "31d9bd439015c55e8843952e598bc41194d55a3da882fd78440e1e2ad920b351",
+      "bytes": 17987,
+      "sha256": "a9d14f8a13928ef18d815a1aa4243ee703603e6ac69982ae340e93f646c2ec52",
       "owner": "core-integration"
     },
     {

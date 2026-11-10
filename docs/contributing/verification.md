@@ -1,5 +1,27 @@
 # HouseAtlas
 
+## Native AI continuation release fence
+
+The existing default backend-library selection discovers these three cases in
+`backend/src/ai/host/continuation_healthy.rs`, under
+`ai::host::continuation::continuation_healthy::`:
+
+- `stop_during_original_checks_preserves_unclaimed_checkpoint`
+- `expiry_during_original_checks_preserves_unclaimed_checkpoint`
+- `original_checkpoint_is_claimed_once_without_replacing_usage`
+
+They use fake review/authority, an opaque prepared allocation and a disposable
+SQLite journal. The actual claim path rechecks cancellation and expiry after
+original review/authority checks, before recording or consuming the claim. A
+private clock drives exact expiry with no sleeps; production uses Instant::now.
+Refused claims preserve the original checkpoint, prior operation correlations
+and unknown usage without a claim observation. Explicit retirement and one-time
+successful claim are checked separately. These are source-authored cases until
+exact hosted logs show execution; no local compilation/test result is claimed.
+They establish no actual approval, native reviewed dispatch, credential/provider
+operation, mounted router, runtime activation or device qualification. No
+workflow, command or held runner selection is added.
+
 ## Continuing sprint source composition — 9 November 2026
 
 The continuation of #562 preserves its original candidate `2aa7c59f` and composes
