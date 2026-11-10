@@ -1,5 +1,19 @@
 # HouseAtlas
 
+## Mounted HomeBox offline original
+
+The existing default backend-library selection discovers
+`http::homebox_pinned_files::mounted_offline_original_tests::mounted_original_admission_disclosure_error_and_replay`.
+It invokes the registered router with disposable synthetic Access and an
+individually trusted generated loopback TLS peer. The case checks exact bytes
+and source association, anonymous refusal, a provider 503, spent-request
+replay refusal, and a subsequent withdrawn membership. The fixture uses no real
+provider, account or data; its test-only certificate trust is confined to that
+loopback peer. This case is authored, pending exact-head hosted execution. It
+does not establish remote freshness, live provider qualification, revocation
+during a pending download, device acceptance, or consumer-store behavior.
+No workflow command or runner selection is added.
+
 ## Native AI continuation release fence
 
 The existing default backend-library selection discovers these three cases in

@@ -141,6 +141,8 @@ impl CaptureRequests {
 pub struct PinnedHomeBoxFileBinding {
     source: Arc<TrustedHomeBoxSource>,
     credentials: Arc<hb::NativeReadCredentialConfig>,
+    #[cfg(test)]
+    certificate: Option<Vec<u8>>,
 }
 impl PinnedHomeBoxFileBinding {
     pub fn new(
@@ -156,6 +158,8 @@ impl PinnedHomeBoxFileBinding {
         Ok(Self {
             source,
             credentials,
+            #[cfg(test)]
+            certificate: None,
         })
     }
     pub(super) fn source(&self) -> &Arc<TrustedHomeBoxSource> {
@@ -412,21 +416,19 @@ async fn capture_selected(
                         .consume(&boundary, original.principal(), session, session_expires_at_ms, &request)?;
                 }
                 // No Core/Store/Access/Broker guard survives these three real GETs.
-                let capture = NativePinnedFileOwner::capture_configured(
-                    &binding.source,
-                    &binding.credentials,
-                    Arc::clone(&access),
-                    original.clone(),
-                    source_grant.clone(),
-                    partition_grant,
-                    &request,
-                );
                 let owner = Arc::new(runtime.block_on(async {
-                    if offline {
-                        capture_with_budget(&budget, capture).await
-                    } else {
-                        capture.await
+                    #[cfg(test)]
+                    if let Some(certificate) = &binding.certificate {
+                        return capture_with_budget(&budget, NativePinnedFileOwner::capture_loopback_fixture(
+                            &binding.source, &binding.credentials, Arc::clone(&access), original.clone(),
+                            source_grant.clone(), partition_grant, &request, certificate,
+                        )).await;
                     }
+                    let capture = NativePinnedFileOwner::capture_configured(
+                        &binding.source, &binding.credentials, Arc::clone(&access), original.clone(),
+                        source_grant.clone(), partition_grant, &request,
+                    );
+                    if offline { capture_with_budget(&budget, capture).await } else { capture.await }
                 }).map_err(media_error)?);
                 budget.check().map_err(media_error)?;
                 if offline {
@@ -1005,5 +1007,249 @@ mod offline_response_tests {
             )
             .is_err()
         );
+    }
+}
+
+#[cfg(test)]
+mod mounted_offline_original_tests {
+    use super::*;
+    use axum::{
+        body::{Body, to_bytes},
+        extract::ConnectInfo,
+        http::Request,
+    };
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use serde_json::json;
+    use sha2::{Digest as _, Sha256};
+    use std::{
+        net::{Ipv4Addr, SocketAddr},
+        sync::Arc,
+    };
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
+    use tokio_rustls::{
+        TlsAcceptor,
+        rustls::{self, pki_types::PrivatePkcs8KeyDer},
+    };
+    use tower::ServiceExt;
+
+    const ORIGIN: &str = "https://127.0.0.1:48743";
+    const ORIGINAL: &[u8] = b"%PDF-1.7\nfictional original\n%%EOF\n";
+    fn id(n: u32) -> String {
+        format!("00000000-0000-4000-8000-{n:012}")
+    }
+    fn request(path: &str, cookie: Option<&str>) -> Request<Body> {
+        let mut builder = Request::builder()
+            .method("GET")
+            .uri(path)
+            .header("host", "127.0.0.1:48743")
+            .header("origin", ORIGIN)
+            .header("sec-fetch-site", "same-origin");
+        if let Some(cookie) = cookie {
+            builder = builder.header("cookie", cookie);
+        }
+        let mut request = builder.body(Body::empty()).unwrap();
+        request.extensions_mut().insert(ConnectInfo(
+            "127.0.0.1:50123".parse::<SocketAddr>().unwrap(),
+        ));
+        request
+    }
+    fn path(request_id: u32) -> String {
+        let wire = json!({"schemaVersion":4,"commandId":"homebox.file.download","requestId":id(request_id),
+            "context":{"workspaceId":id(1),"homeId":id(2)},
+            "target":{"authority":"homebox","sourceInstanceId":id(300),"collectionId":id(301),
+                "resourceKind":"attachment","entityId":id(2),"resourceId":id(201)},"payload":{}});
+        let query = url::form_urlencoded::Serializer::new(String::new())
+            .append_pair("request", &wire.to_string())
+            .finish();
+        format!(
+            "/api/atlas/stock/v4/workspaces/{}/homes/{}/homebox-offline-original?{}",
+            id(1),
+            id(2),
+            query
+        )
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn mounted_original_admission_disclosure_error_and_replay()
+    -> Result<(), crate::lifecycle::Failure> {
+        let scratch = tempfile::Builder::new()
+            .prefix("homebox-offline-original-")
+            .tempdir()?;
+        let directory = scratch.path().join("fixture");
+        let core = crate::lifecycle::prepare(&directory, ORIGIN)?;
+        let cookie: Value =
+            serde_json::from_slice(&std::fs::read(directory.join("smoke-session.json"))?)?;
+        let cookie = cookie["cookie"]
+            .as_str()
+            .ok_or("missing synthetic session")?
+            .to_owned();
+        let registration: a::SourceRegistration = serde_json::from_value(json!({
+            "workspaceId":id(1),"homeId":id(2),"sourceInstanceId":id(300),"collectionId":id(301),
+            "owner":"homebox","partitionMode":"reviewed-entity-allowlist","allowedExternalIds":[id(2),id(1)]
+        }))?;
+        let access = Arc::clone(&core.access);
+        access.lock().unwrap().put_source(&registration, None)?;
+        let cert = rcgen::generate_simple_self_signed(vec!["127.0.0.1".into()])?;
+        let leaf = cert.cert.der().to_vec();
+        let tls = rustls::ServerConfig::builder_with_provider(Arc::new(
+            rustls::crypto::aws_lc_rs::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()?
+        .with_no_client_auth()
+        .with_single_cert(
+            vec![cert.cert.der().clone()],
+            PrivatePkcs8KeyDer::from(cert.signing_key.serialize_der()).into(),
+        )?;
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await?;
+        let provider_origin = format!("https://{}", listener.local_addr()?);
+        let durable: storage::SourceRegistration =
+            serde_json::from_value(serde_json::to_value(&registration)?)?;
+        let source = Arc::new(TrustedHomeBoxSource::new_stock(
+            &provider_origin,
+            durable,
+            hb::Limits::default(),
+            None,
+        )?);
+        let credentials = Arc::new(hb::NativeReadCredentialConfig::from_trusted_header(
+            &source.endpoint()?,
+            b"Bearer generated-test-only".to_vec(),
+        )?);
+        let mut binding = PinnedHomeBoxFileBinding::new(source, credentials)?;
+        binding.certificate = Some(leaf);
+        let app = super::super::router(
+            Host::new(core, ORIGIN.into(), Arc::new(BTreeMap::new()), vec![])?
+                .with_pinned_homebox_files(vec![binding])?,
+        );
+        let acceptor = TlsAcceptor::from(Arc::new(tls));
+        let requests = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let observed_requests = Arc::clone(&requests);
+        let (stop, mut shutdown) = tokio::sync::oneshot::channel::<()>();
+        let mut server = tokio::spawn(async move {
+            let detail = include_bytes!("../providers/homebox/wire/fixtures/item.detail.json");
+            let expected = [
+                format!("/api/v1/entities/{}", id(2)),
+                format!("/api/v1/entities/{}/attachments/{}", id(2), id(201)),
+                format!("/api/v1/entities/{}", id(2)),
+                format!("/api/v1/entities/{}", id(2)),
+            ];
+            loop {
+                let accepted = tokio::select! {
+                    _ = &mut shutdown => break,
+                    accepted = listener.accept() => accepted.unwrap(),
+                };
+                let (socket, peer) = accepted;
+                assert!(peer.ip().is_loopback());
+                let mut stream = acceptor.accept(socket).await.unwrap();
+                let mut raw = Vec::new();
+                while !raw.ends_with(b"\r\n\r\n") {
+                    let mut b = [0];
+                    stream.read_exact(&mut b).await.unwrap();
+                    raw.push(b[0]);
+                    assert!(raw.len() < 16384);
+                }
+                let line = String::from_utf8(raw).unwrap();
+                let n = observed_requests.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                if let Some(path) = expected.get(n) {
+                    assert_eq!(line.lines().next().unwrap(), format!("GET {path} HTTP/1.1"));
+                }
+                // Remain capable of answering a later request: an auth failure
+                // cannot be confused with a closed listener/transport failure.
+                let body: &[u8] = if line.lines().next().unwrap().contains("/attachments/") {
+                    ORIGINAL
+                } else if n == 3 {
+                    b"unavailable"
+                } else {
+                    detail
+                };
+                let status = if n == 3 {
+                    "503 Service Unavailable"
+                } else {
+                    "200 OK"
+                };
+                stream
+                    .write_all(
+                        format!(
+                            "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                            body.len()
+                        )
+                        .as_bytes(),
+                    )
+                    .await
+                    .unwrap();
+                stream.write_all(body).await.unwrap();
+                let _ = stream.shutdown().await;
+            }
+        });
+        let first = path(700);
+        assert_eq!(
+            app.clone().oneshot(request(&first, None)).await?.status(),
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(requests.load(std::sync::atomic::Ordering::SeqCst), 0);
+        let response = app.clone().oneshot(request(&first, Some(&cookie))).await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let encoded = response.headers()["x-houseatlas-original"].to_str()?;
+        let facts: Value = serde_json::from_slice(&STANDARD.decode(encoded)?)?;
+        assert_eq!(facts["requestId"], id(700));
+        assert_eq!(facts["scope"]["sourceInstanceId"], id(300));
+        assert_eq!(facts["scope"]["collectionId"], id(301));
+        assert_eq!(facts["target"]["entityId"], id(2));
+        assert_eq!(facts["target"]["resourceId"], id(201));
+        assert_eq!(facts["byteSize"], ORIGINAL.len());
+        assert_eq!(facts["sha256"], format!("{:x}", Sha256::digest(ORIGINAL)));
+        assert_eq!(facts["contentType"], "application/pdf");
+        assert_eq!(&to_bytes(response.into_body(), 1024).await?[..], ORIGINAL);
+        assert_eq!(
+            app.clone()
+                .oneshot(request(&first, Some(&cookie)))
+                .await?
+                .status(),
+            StatusCode::CONFLICT
+        );
+        let failed = path(701);
+        assert_eq!(
+            app.clone()
+                .oneshot(request(&failed, Some(&cookie)))
+                .await?
+                .status(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+        assert_eq!(
+            app.clone()
+                .oneshot(request(&failed, Some(&cookie)))
+                .await?
+                .status(),
+            StatusCode::CONFLICT
+        );
+        assert_eq!(requests.load(std::sync::atomic::Ordering::SeqCst), 4);
+        let scope = a::Scope {
+            workspace_id: a::CanonicalId::parse(id(1))?,
+            home_id: a::CanonicalId::parse(id(2))?,
+        };
+        access.lock().unwrap().set_membership(
+            &a::CanonicalId::parse(id(4))?,
+            &scope,
+            a::Role::Viewer,
+            false,
+        )?;
+        assert_eq!(
+            app.oneshot(request(&path(702), Some(&cookie)))
+                .await?
+                .status(),
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(requests.load(std::sync::atomic::Ordering::SeqCst), 4);
+        let _ = stop.send(());
+        match tokio::time::timeout(Duration::from_secs(2), &mut server).await {
+            Ok(result) => result?,
+            Err(_) => {
+                server.abort();
+                return Err("synthetic provider cleanup timed out".into());
+            }
+        }
+        Ok(())
     }
 }
