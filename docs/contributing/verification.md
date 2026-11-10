@@ -970,6 +970,15 @@ All three cases remain in the existing healthy suite. Reconnect synchronization
 through a canonical signed-in live session, iOS, installed-PWA and real content
 remain separate acceptance. `unified-atlas-cache-healthy.mjs` checks the cached
 copy's actor isolation and lifecycle without a browser.
+Its generated presentation seam also compiles the actual `AtlasPresentation`
+and stage-key function with synthetic hooks, deferred reads and geometry binding.
+It checks stable stage type/key/model/selection during stored-copy failure,
+retry and identical fresh confirmation, held-copy refresh, denial retirement
+and obsolete selection completion.
+The seam does not mount `AtlasStage` or a dialog;
+it does not execute camera state, native focus, Escape/IME or browser layout.
+Those deferred checks remain in #292; the existing compact-layer dock case
+continues to cover its separate synthetic focus and event handlers.
 
 Offline browser teardown observes its owned child immediately after spawn.
 It allows up to 2 s for protocol-requested closure, then 2 s after TERM and

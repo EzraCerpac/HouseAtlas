@@ -6600,8 +6600,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 293493,
-      "sha256": "f834b66f0d3c7f266dcc089bd681aba1975a660640f732457c4083d2ef70cc2c",
+      "bytes": 294111,
+      "sha256": "a691f24a712a02d287d6de7155dbb495447683b6d82c02b502833f4f25cded96",
       "owner": "core-integration"
     },
     {
@@ -8700,8 +8700,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-cache-healthy.mjs",
       "mode": "100644",
-      "bytes": 37426,
-      "sha256": "7d15f60c86c8f9f8999824b2299e37b0f4634aa0a4d03f5aa5a14f410a8234fd",
+      "bytes": 46262,
+      "sha256": "848bf70afeb750b1811fbd3e5c371e6344496eef529886bee60f4d5f36640f96",
       "owner": "web"
     },
     {

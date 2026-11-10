@@ -35,6 +35,7 @@ const codecURL = await sourceURL('../src/lantern/unified-atlas/stored-overlays.t
 const lastCopyURL = await sourceURL('../integration/last-atlas-copy.ts', { '../src/lantern/unified-atlas/types': typesURL,
   '../src/lantern/unified-atlas/stored-overlays': codecURL, './unified-atlas-cache': cacheURL, './unified-atlas-reader': readerURL });
 const syntheticURL = await sourceURL('./unified-atlas/synthetic-atlas.ts');
+const { AtlasReadError } = await import(typesURL);
 const { readUnifiedAtlas, readCachedUnifiedAtlas } = await import(readerURL);
 const { openUnifiedAtlasStore, createUnifiedAtlasCache, observeUnifiedAtlasActor, readLastAtlas, ATLAS_CACHE_DATABASE } = await import(cacheURL);
 const { openLastAtlasCopy } = await import(lastCopyURL);
@@ -586,3 +587,142 @@ await openProcess(disk, actorA, async ({ cache, store }) => {
 
 for (const line of results) console.log(line);
 console.log('Unified Atlas cache healthy checks passed.');
+
+// #292: exercise the actual presentation's loading hooks and returned stage
+// boundary. Geometry binding and React scheduling are explicit synthetic seams;
+// this checks reconciliation identity, not mounted DOM focus or native dialogs.
+{
+  const atlasFile = new URL('../src/lantern/unified-atlas/UnifiedAtlas.tsx', import.meta.url);
+  const atlasSource = readFileSync(atlasFile, 'utf8');
+  const between = (start, end) => {
+    const a = atlasSource.indexOf(start), b = atlasSource.indexOf(end, a);
+    assert.ok(a >= 0 && b > a, `Presentation seam: ${start}`);
+    return atlasSource.slice(a, b);
+  };
+  const token = Symbol.for('houseatlas.cache-presentation.synthetic');
+  const jsx = dataURL('export const jsx=(type,props,key)=>({type,props,key}); export const jsxs=jsx;');
+  let slots = [], cursor = 0, pending = [], selection, automatic = true, parses = 0;
+  const depsEqual = (a, b) => a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
+  const memo = (make, deps) => {
+    const i = cursor++, previous = slots[i];
+    if (!previous || !depsEqual(previous.deps, deps)) slots[i] = { deps, value: make() };
+    return slots[i].value;
+  };
+  const hooks = {
+    useState(initial) {
+      const i = cursor++;
+      if (!slots[i]) slots[i] = { value: typeof initial === 'function' ? initial() : initial };
+      return [slots[i].value, value => { slots[i].value = typeof value === 'function' ? value(slots[i].value) : value; }];
+    },
+    useRef(value) { const i = cursor++; return slots[i] ?? (slots[i] = { current: value }); },
+    useMemo: memo,
+    useCallback: (value, deps) => memo(() => value, deps),
+    useSyncExternalStore: (_subscribe, current) => current(),
+    useEffect(effect, deps) {
+      const i = cursor++, previous = slots[i];
+      if (!previous || !depsEqual(previous.deps, deps)) pending.push(() => {
+        previous?.cleanup?.(); slots[i] = { deps, cleanup: effect() };
+      });
+    },
+    useModelUpdates: () => automatic ? 'automatic' : 'ask',
+    modelUpdatesAllowed: () => automatic,
+    useModelQuality: () => 'light', fullModelWanted: () => false,
+    admitAtlasDisplayForRead: read => read.displayConfig,
+    bindAtlasModel: (scene, _glb, displayConfig) => ({ scene, displayConfig }),
+    loadStandardGlb: async () => { parses++; return {}; },
+    AtlasReadError, GlbFormatError: class extends Error {},
+    RENDER_LIMITS: { uploadBytes: 1024 }, PREPARED_BYTES_PER_TRIANGLE: 1,
+    AtlasStage: function AtlasStage() {}, LensStatus: function LensStatus() {},
+    FAILURE: { denied: { text: 'Denied' }, stale: { text: 'Stale' } },
+  };
+  globalThis[token] = hooks;
+  const hookURL = dataURL(`export const loadStandardGlb=globalThis[Symbol.for('houseatlas.cache-presentation.synthetic')].loadStandardGlb;`);
+  const presentation = between('function AtlasPresentation(', '// ---------------------------------------------------------------------------');
+  const keys = between('const overviewOwners =', 'function remember(');
+  let { code } = await transformWithOxc(`const {${Object.keys(hooks).join(',')}}=globalThis[Symbol.for('houseatlas.cache-presentation.synthetic')];
+    ${keys}\nexport ${presentation.replace("import('../canonical-ifc/standard-glb')", `import(${JSON.stringify(hookURL)})`)}`,
+    'generated-cache-presentation.tsx', { lang: 'tsx', jsx: { runtime: 'automatic' }, target: 'esnext', tsconfig: false, sourcemap: false });
+  code = code.replaceAll(JSON.stringify('react/jsx-runtime'), JSON.stringify(jsx));
+  const { AtlasPresentation } = await import(dataURL(code));
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const originalScript = Object.getOwnPropertyDescriptor(globalThis, 'HTMLScriptElement');
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: { getElementById: () => null } });
+  Object.defineProperty(globalThis, 'HTMLScriptElement', { configurable: true, value: class {} });
+  const deferred = () => {
+    let resolve, reject;
+    const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+    return { promise, resolve, reject };
+  };
+  const scene = { scope, publication: { publicationId: 'generated', semanticsSha256: 'a'.repeat(64) },
+    selection: { revision: 'b'.repeat(64) }, model: { sha256: 'c'.repeat(64) }, detail: null };
+  const copy = { scene, model: new Uint8Array([1]), envelopeSha256: 'd'.repeat(64), entryBuildingId: 'generated-building',
+    storedAt: '2026-01-01T00:00:00Z' };
+  const select = () => ({ kind: 'live', overview: { manifestSha256: 'e'.repeat(64) } });
+  let cacheRead, freshRead, cacheCalls = 0;
+  const port = { kind: 'live', current: () => selection, subscribe: () => () => {},
+    stored: () => { cacheCalls++; return cacheRead.promise; }, read: () => freshRead.promise };
+  const environment = { reducedMotion: true };
+  const render = () => {
+    cursor = 0; pending = [];
+    const result = AtlasPresentation({ port, environment });
+    for (const effect of pending) effect();
+    return result;
+  };
+  // A single event-loop turn drains the finite promise chain, including the
+  // generated parser import. No real transport, timers or browser are involved.
+  const settle = async () => { await new Promise(resolve => setImmediate(resolve)); };
+  const unmount = () => { for (const slot of slots) slot?.cleanup?.(); slots = []; };
+  const sameStage = (before, after, label) => {
+    assert.equal(after.type, hooks.AtlasStage, label);
+    assert.equal(after.type, before.type, label);
+    assert.equal(after.key, before.key, `${label}: same React reconciliation key`);
+    assert.equal(after.props.model, before.props.model, `${label}: same parsed model`);
+    assert.equal(after.props.selection, before.props.selection, `${label}: same selection owner`);
+  };
+  try {
+    selection = select(); cacheRead = deferred(); freshRead = deferred();
+    render(); cacheRead.resolve(copy); await settle();
+    const pendingStage = render();
+    assert.equal(pendingStage.type, hooks.AtlasStage);
+    assert.equal(pendingStage.props.stored.refresh, 'pending');
+    freshRead.reject(new AtlasReadError('unavailable')); await settle();
+    const failedStage = render(); sameStage(pendingStage, failedStage, 'transport failure');
+    assert.equal(failedStage.props.stored.refresh, 'failed');
+    freshRead = deferred(); failedStage.props.retry();
+    sameStage(pendingStage, render(), 'retry begins with details still mounted');
+    await settle();
+    freshRead.resolve({ ...copy }); await settle();
+    const confirmed = render(); sameStage(pendingStage, confirmed, 'identical fresh confirmation');
+    assert.equal(confirmed.props.stored, undefined);
+    assert.equal(parses, 1, 'confirmation and retry do not parse another stage model');
+    assert.equal(cacheCalls, 1, 'retry reuses the already displayed stored copy');
+
+    // Held downloads open the copy without a fresh read. An explicit refresh
+    // retains that stage, then an authorization refusal must remove it.
+    unmount(); automatic = false; selection = select(); cacheRead = deferred(); freshRead = deferred();
+    render(); cacheRead.resolve(copy); await settle();
+    const held = render(); assert.equal(held.props.stored.refresh, 'held');
+    held.props.retry(); sameStage(held, render(), 'explicit held-copy refresh'); await settle();
+    freshRead.reject(new AtlasReadError('denied')); await settle();
+    assert.notEqual(render().type, hooks.AtlasStage, 'denied refresh retires the stored stage');
+
+    // A superseded read can finish even when its transport ignores abort.
+    // It must neither replace the new selection nor resurrect its old stage.
+    unmount(); automatic = true; selection = select(); cacheRead = deferred(); freshRead = deferred();
+    const obsoleteStored = cacheRead, obsoleteFresh = freshRead;
+    render(); selection = select(); cacheRead = deferred(); freshRead = deferred();
+    render(); cacheRead.resolve(copy); await settle();
+    const currentStage = render();
+    assert.notEqual(currentStage.key, confirmed.key, 'a different selection owner has a distinct stage');
+    obsoleteStored.resolve(copy); obsoleteFresh.resolve(copy); await settle();
+    sameStage(currentStage, render(), 'obsolete selection completion');
+    freshRead.resolve(copy); await settle();
+    sameStage(currentStage, render(), 'current selection confirmation');
+  } finally {
+    unmount(); delete globalThis[token];
+    for (const [name, descriptor] of [['document', originalDocument], ['HTMLScriptElement', originalScript]]) {
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name];
+    }
+  }
+  console.log('cache presentation: stored/pending/failed/retry/confirmed/held/denied/obsolete stage identity passed (synthetic hooks; no DOM)');
+}
