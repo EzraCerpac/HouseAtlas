@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 70779,
-      "sha256": "f0209a19ae8845866661b9e7a184086903c28f3f063afe321b517728862d09ff",
+      "bytes": 71183,
+      "sha256": "b54045775037aa2399aa0bb7f4f9ad3277c662b8dc0c37a0ad00a140fae10429",
       "owner": "core-integration"
     },
     {
@@ -6047,8 +6047,8 @@
     {
       "path": "contracts/electrical-data/README.md",
       "mode": "100644",
-      "bytes": 13877,
-      "sha256": "b517fb5e123745f246c45a91db70bbacd5c6e64aa5a1bdf3f4fab999bace5c55",
+      "bytes": 14746,
+      "sha256": "e8bfe2f05356b7749142f6d389b8fee64fdd09b398eff9349c4feb781350ccb2",
       "owner": "contracts"
     },
     {
@@ -6600,8 +6600,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 294111,
-      "sha256": "a691f24a712a02d287d6de7155dbb495447683b6d82c02b502833f4f25cded96",
+      "bytes": 294973,
+      "sha256": "d4f9c6d57309a41bbe375e91d44cae487e02759815c3012966c0da6c3fefc3b7",
       "owner": "core-integration"
     },
     {
@@ -8735,8 +8735,8 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-electrical-group-healthy.mjs",
       "mode": "100644",
-      "bytes": 6864,
-      "sha256": "94dafa122fcb1bb127b9facd67928ce76375eeb574058e6111dd8d7d1d928f9e",
+      "bytes": 22181,
+      "sha256": "0a231c0116a133e925d268f6ce44dcce8acd247a94513f4e753814eeebc472e9",
       "owner": "web"
     },
     {
@@ -10436,8 +10436,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/AtlasInspector.tsx",
       "mode": "100644",
-      "bytes": 17494,
-      "sha256": "824c9d7a2135db0abf56065922de9961a13d437593a78fbdae03d52f9713afa2",
+      "bytes": 18060,
+      "sha256": "688856ef87149a4682b2279bacf44f64297291953fdbd1627991b120433693f1",
       "owner": "web"
     },
     {
@@ -10452,6 +10452,13 @@
       "mode": "100644",
       "bytes": 9594,
       "sha256": "7ee3a3ff76a47871875e62d1a8d2d55ea3f4758cb7c0a25dcb43ce741d57ba66",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/unified-atlas/ElectricalTraceDetail.tsx",
+      "mode": "100644",
+      "bytes": 4287,
+      "sha256": "aefe8c904e6c79032b83fb6859e9ded35e157d9e9046c2736414ee169b56de17",
       "owner": "web"
     },
     {
@@ -10492,8 +10499,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/UnifiedAtlas.tsx",
       "mode": "100644",
-      "bytes": 121394,
-      "sha256": "e73b696c07c0933949eb3c0ba02fe94d618bf9b5034f6bc56efa42a3d8d4bc73",
+      "bytes": 121751,
+      "sha256": "18539921bdda9c4764a7c33631ff7c8514f92ae5da0bc7ee6aef98880e29f04c",
       "owner": "web"
     },
     {
@@ -10520,8 +10527,15 @@
     {
       "path": "frontend/src/lantern/unified-atlas/electrical-group.ts",
       "mode": "100644",
-      "bytes": 2656,
-      "sha256": "b810b93b32f5902717216df8060ee76fce32d66a708c1f41c8fdfd6aaa908092",
+      "bytes": 3374,
+      "sha256": "92baa185b4bb89018ceef158b411521bf4fa9f9974accddf5b540519c5375a23",
+      "owner": "web"
+    },
+    {
+      "path": "frontend/src/lantern/unified-atlas/electrical-trace.ts",
+      "mode": "100644",
+      "bytes": 11164,
+      "sha256": "566a44b42bbb6035bcfffea1dee0b62bb5036f7ef5a56c6acb514965493b52ce",
       "owner": "web"
     },
     {

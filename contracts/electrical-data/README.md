@@ -81,6 +81,20 @@ matching current breaker and its `panelRecordId`; a current panel's
 No UI behavior, glow, automatic resolver, receipt acceptance or native write is
 implemented by this contract.
 
+The #554 consumer is
+[`electrical-trace.ts`](../../frontend/src/lantern/unified-atlas/electrical-trace.ts)
+with its detail section, `ElectricalTraceDetail.tsx`. It joins one #553 drawing
+group to a supplied projection only when scope, scene source and expanded
+membership match the group, and the supplier's ledger pin (view key and hash)
+matches the projection. The shown group carries no ledger hash, so the supplier
+must bind that pin to the same frame that produced the shown records. A panel
+room is placed only through one unique `current-native-room-join` binding
+from that frame, whose Atlas room also names the same native place. These
+checks establish consistency, not authority. The
+optional `electricalData` Atlas environment input has no live or saved supplier
+yet; the existing owners must bind genuine current inputs before any household
+trace appears.
+
 ### Room identity join
 
 `reviewedRoomId` is the native location identity's `recordId`, **not** the
