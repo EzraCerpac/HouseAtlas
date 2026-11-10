@@ -1,5 +1,18 @@
 # HouseAtlas
 
+Original maint-duplicate has one additional supplied existing-task review
+control in `ai::suggestions::evaluation::retained_corpus`:
+`retained_maintenance_existing_task_review_keeps_task_binding_and_unknown_completion`.
+It preserves task-a/item-a/manual v1 input evidence/dates, manual subject,
+MaintenanceTask candidate and supporting item source; exact task/index selection
+stays bound to task-a. Completion, interval and baseline remain unknown. Its
+generated native targets are DATA only; no task is created or deduplicated,
+service completion inferred, authority issued or quality score calculated.
+One new test brings the retained bridge to 26 authored/unrun cases; all 25 prior
+tests/adapters, original corpus files and production/frontend code are unchanged.
+The complete ledger is five scorer subsets, twenty structural controls and
+seven unbridged originals. No runner/workflow or local execution is added.
+
 The review-only AI module also exports `disclose_completed`, a pure adapter from
 the original `InferenceOutcome` to existing canonical validation/disclosure.
 It accepts one completed assistant JSON text payload (with bounded reasoning

@@ -158,6 +158,22 @@ concrete original reviewed-stock and trusted human-review bridge.
 
 ## Review-only AI suggestion contracts
 
+The existing default-library retained bridge additionally discovers
+`ai::suggestions::evaluation::retained_corpus::retained_maintenance_existing_task_review_keeps_task_binding_and_unknown_completion`.
+This one authored/NOT RUN test adapts only original maint-duplicate: exact
+task-a/item-a/manual v1 inputs/evidence/dates, manual subject, existing
+MaintenanceTask candidate and supporting item Source. It asserts task target
+retention and exact disclosure/selection task-a/index binding, with unknown
+completion/interval and null baseline. Generated native targets are correlation
+DATA, not provider/Access evidence. Derivatives refuse item-a as candidate and
+unsupported create/completion/baseline/due/schedule fields; no native action,
+duplicate suppression, completion inference or maintenance-quality score is
+exercised. The existing frontend key/inputRef/index checks were inspected only,
+not executed. Retained tests total 26 authored/unrun; all 25 previous cases and
+corpus originals remain unchanged. The 32-case ledger now has five scorer
+subsets, twenty structural controls and seven without bridges. No production,
+frontend, runner/workflow or local test/compile/format/Clippy change is included.
+
 The existing default-library selection additionally discovers five authored
 completion-adapter functions in `ai::suggestions::synthetic_contracts`:
 

@@ -6,6 +6,7 @@
 //! Three comparison controls check representation/withholding, never truth or history.
 //! Three availability controls separate record data, readable extraction and originals.
 //! Four empty-output controls preserve inputs without semantic no-proposal scoring.
+//! One existing-task control retains a maintenance candidate, never a new task.
 //! All other cases and unsupported dimensions remain explicitly unscored.
 use super::*;
 use crate::contracts::stock::{AtlasRecordKind, AtlasTarget, StockContext};
@@ -437,6 +438,116 @@ struct MaintenanceControl {
     proposal: Value,
     mapped_label: String,
     unmapped_labels: Vec<String>,
+}
+
+/// The original existing_task_review annotation has no quality-scoring arm.
+/// This supplies a review of the retained task, not an instruction to create one.
+fn existing_task_control() -> MaintenanceControl {
+    use crate::contracts::stock::HomeboxResourceKind;
+    let data = corpus();
+    let case = data["cases"].as_array().unwrap().iter().find(|c| c["id"] == "maint-duplicate").unwrap();
+    assert_eq!(case["feature"], "maintenance");
+    assert_eq!(case["effects_allowed"], json!([]));
+    assert_eq!(case["review_required"], true);
+    let mut sources: Vec<_> = case["input_sources"].as_array().unwrap().iter().map(|input|
+        source_input(&data, input["source_id"].as_str().unwrap(), input["version"].as_str().unwrap(), "manual", true)
+    ).collect();
+    for source in &mut sources {
+        match source.input_ref.as_str() {
+            "task-a" => {
+                source.kind = CandidateKind::MaintenanceTask;
+                source.role = InputRole::Candidate;
+                // Generated native target DATA only, not a provider capture,
+                // Access grant or proof of a real task/entity relationship.
+                source.target = StockTarget::Homebox { source_instance_id: id(80), collection_id: id(81),
+                    resource_kind: HomeboxResourceKind::Maintenance, entity_id: Some(id(82)), resource_id: Some(id(83)) };
+            },
+            "item-a" => {
+                source.role = InputRole::Source;
+                source.target = StockTarget::Homebox { source_instance_id: id(80), collection_id: id(81),
+                    resource_kind: HomeboxResourceKind::Entity, entity_id: Some(id(82)), resource_id: None };
+            },
+            "manual" => {},
+            _ => panic!("unexpected retained input"),
+        }
+    }
+    let snapshot = AdmittedSnapshot::new(SnapshotInput {
+        feature: SuggestionFeature::Maintenance,
+        scope: StockContext { workspace_id: id(90), home_id: id(91) },
+        actor_id: id(92), authority_epoch: "retained-fictional-corpus-only".into(), sources,
+    }).unwrap();
+    assert_eq!(case["expected_claims"].as_array().unwrap().len(), 1);
+    let annotation = &case["expected_claims"][0];
+    assert_eq!(annotation["label"], "existing_task_review");
+    assert_eq!(annotation["candidate_id"], "task-a");
+    let mut claims = Vec::new();
+    let mut claim_refs = Vec::new();
+    for citation in annotation["evidence"].as_array().unwrap() {
+        let source_ref = citation["source_id"].as_str().unwrap();
+        let version = citation["version"].as_str().unwrap();
+        let evidence_ref = evidence_id(source_ref, version, citation["section"].as_str().unwrap());
+        let source = snapshot.input().sources.iter().find(|s| s.input_ref == source_ref && s.version == version).unwrap();
+        let evidence = source.evidence.iter().find(|e| e.evidence_ref == evidence_ref).unwrap();
+        assert_eq!(evidence.excerpt, citation["quote"].as_str().unwrap());
+        claims.push(json!({"claimRef":evidence_ref,"sourceRef":source_ref,"evidenceRefs":[evidence_ref],
+            "text":evidence.excerpt,"uncertainty":"unknown"}));
+        claim_refs.push(evidence_ref);
+    }
+    let proposal = json!({"schemaVersion":1,"contextPin":snapshot.context_pin(),"subjectRef":"manual",
+        "claims":claims,"missingEvidence":case["unknowns"],"result":{"kind":"maintenance","tasks":[{
+            "candidateRef":"task-a","title":"Review existing proposed filter-cleaning task",
+            "interval":{"kind":"unknown"},"conditions":[],"urgency":"unknown",
+            "support":{"claimRefs":claim_refs,"rationale":case["explanation"],"uncertainty":"unknown"}}]}});
+    MaintenanceControl { snapshot, proposal, mapped_label: "existing_task_review".into(), unmapped_labels: vec![] }
+}
+
+#[test]
+fn retained_maintenance_existing_task_review_keeps_task_binding_and_unknown_completion() {
+    let control = existing_task_control();
+    assert_eq!(control.mapped_label, "existing_task_review");
+    assert!(control.unmapped_labels.is_empty());
+    assert_eq!(control.snapshot.input().sources.iter().map(|s| s.input_ref.as_str()).collect::<Vec<_>>(), vec!["task-a", "item-a", "manual"]);
+    let data = corpus();
+    for source in &control.snapshot.input().sources {
+        let original = data["sources"].as_array().unwrap().iter().find(|s| s["id"] == source.input_ref && s["version"] == "1").unwrap();
+        assert_eq!(source.version, "1");
+        assert_eq!(source.source_date, original["source_date"].as_str().map(String::from));
+        assert_eq!(source.retrieved_at, original["retrieved_at"].as_str().unwrap());
+        assert_eq!(source.evidence.len(), original["sections"].as_object().unwrap().len());
+        for (section, excerpt) in original["sections"].as_object().unwrap() {
+            let evidence = source.evidence.iter().find(|e| e.evidence_ref == evidence_id(&source.input_ref, "1", section)).unwrap();
+            assert_eq!(evidence.excerpt, excerpt.as_str().unwrap());
+        }
+    }
+    let task = &control.snapshot.input().sources[0];
+    assert_eq!(task.kind, CandidateKind::MaintenanceTask);
+    assert_eq!(task.role, InputRole::Candidate);
+    assert_eq!(task.source_date, None);
+    assert_eq!(serde_json::to_value(&task.target).unwrap(), json!({"authority":"homebox","sourceInstanceId":id(80),
+        "collectionId":id(81),"resourceKind":"maintenance","entityId":id(82),"resourceId":id(83)}));
+    assert_eq!(control.snapshot.input().sources[1].role, InputRole::Source);
+    assert_eq!(control.snapshot.input().sources[2].role, InputRole::Subject);
+    assert_eq!(control.proposal["claims"].as_array().unwrap().len(), 2);
+    assert_eq!(control.proposal["missingEvidence"], json!(["completion date"]));
+    let review = validate_generated(&serde_json::to_vec(&control.proposal).unwrap(), &control.snapshot, &control.snapshot).unwrap();
+    assert_eq!(review.input().sources[0].target, task.target);
+    let wire = disclose_review(&review, &control.snapshot, &Default::default()).unwrap();
+    assert_eq!(wire.value()["view"]["maintenance"].as_array().unwrap().len(), 1);
+    assert_eq!(wire.value()["view"]["maintenance"][0]["targetKey"], "task-a");
+    assert_eq!(wire.value()["view"]["maintenance"][0]["interval"], json!({"kind":"unknown"}));
+    assert_eq!(wire.value()["view"]["maintenance"][0]["baselineDate"], Value::Null);
+    assert_eq!(wire.value()["view"]["maintenance"][0]["evidenceKeys"], json!(["manual-v1-p4", "task-a-v1-task"]));
+    assert_eq!(wire.value()["selections"], json!({"maintenance:0:task-a":{"kind":"maintenance-task","inputRef":"task-a","taskIndex":0}}));
+    // Derivatives of this one original only; these are not additional gold
+    // scenarios or a claim of duplicate suppression/native create refusal.
+    let mut supplied = control.proposal.clone();
+    supplied["result"]["tasks"][0]["candidateRef"] = json!("item-a");
+    assert_eq!(validate_generated(&serde_json::to_vec(&supplied).unwrap(), &control.snapshot, &control.snapshot).unwrap_err(), SuggestionError::UnadmittedReference);
+    for field in ["createNewTask", "completedDate", "baselineDate", "dueDate", "schedule"] {
+        let mut supplied = control.proposal.clone();
+        supplied["result"]["tasks"][0][field] = json!("unsupported-control-only");
+        assert_eq!(validate_generated(&serde_json::to_vec(&supplied).unwrap(), &control.snapshot, &control.snapshot).unwrap_err(), SuggestionError::InvalidOutput);
+    }
 }
 
 fn maintenance_control(case_id: &str) -> Option<MaintenanceControl> {

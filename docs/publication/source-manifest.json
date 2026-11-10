@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 52342,
-      "sha256": "0bb4326c9abb1291ed19c60490294e19a24e01fbe6e0594de1d268641e927224",
+      "bytes": 53260,
+      "sha256": "a1757f83dd0d15905903de74f8c1308ddf9dc74344cdea46252e86017e36723a",
       "owner": "core-integration"
     },
     {
@@ -1210,8 +1210,8 @@
     {
       "path": "backend/src/ai/suggestions/retained_corpus.rs",
       "mode": "100644",
-      "bytes": 71665,
-      "sha256": "d95061804c4103e8137ebcb1a932c856ad1499bc148c1b795b2d07e52f657721",
+      "bytes": 79194,
+      "sha256": "67a14d737cae7d9672310efd38c86647acca89321f3c2a7b3b4507076fd19d8d",
       "owner": "ai"
     },
     {
@@ -6593,8 +6593,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 266102,
-      "sha256": "f210e528437fe7f83f8333f74040cda53a8efd68accfc4c0887753a1e276d460",
+      "bytes": 267311,
+      "sha256": "b508b0b201e55e259b98b26f22fa864edb155cb29c1b2dfcbbc42b15be97f1ee",
       "owner": "core-integration"
     },
     {
@@ -11955,8 +11955,8 @@
     {
       "path": "tools/ai-feature-evaluation/INTEGRATION.md",
       "mode": "100644",
-      "bytes": 32224,
-      "sha256": "ba2bbf73ef984a66cb1ca1da1e7071b708104e74e93fdc90077f3f675308e468",
+      "bytes": 34140,
+      "sha256": "3ab667f9baa289f3d98875ca6714ea13ddcbe72db4cd775293463fd6c1212ba2",
       "owner": "ai"
     },
     {

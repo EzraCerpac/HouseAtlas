@@ -425,7 +425,7 @@ native-owner, access, durable decision or issue acceptance is established.
 | maint-no-baseline | Structural | 120-day interval, unknown cleaning baseline; no due date, condition-state truth or native task creation. |
 | maint-superseded | No bridge | Simultaneous manual revisions need a qualified historical view; current snapshot admits one exact identity version, no silent supersession. |
 | maint-condition | Structural | Supplied empty tasks preserve notice/item only, no pump; not model-mismatch, condition-truth or safety detection. |
-| maint-duplicate | No bridge | Existing-task review is unadapted; duplicate suppression and completion state require separate owned lifecycle evidence. |
+| maint-duplicate | Structural | Supplied review of task-a as a MaintenanceTask candidate, manual subject and item supporting source; exact task/index/evidence binding, unknown completion/interval/baseline. No new task, quality score, native duplicate suppression or completion inference. |
 | qa-location | Structural | Quoted recorded location, inventory route and partial source rank; no current physical certainty or exhaustive inventory. |
 | qa-missing | No bridge | Empty retrieval has no canonical subject input; do not invent a record to satisfy snapshot admission. |
 | qa-electrical | Structural | Historical documentary quote/route with distinct dates; no safe equipment action or factual-quality score. |
@@ -444,6 +444,32 @@ native-owner, access, durable decision or issue acceptance is established.
 | review-revoked | Structural | Withdrawn-side boundary returns no disclosure; original other side preserved, no safe summary/durable decision. |
 | maint-condition-match | Structural | P9 conditional proposal from exact notice/pump evidence; no lit indicator, condition-is-met, safety or scheduling claim. |
 
-Inventory totals: five scorer subsets, nineteen structural controls and eight
+Inventory totals: five scorer subsets, twenty structural controls and seven
 without bridges. All semantic completeness, calibrated quality and actual owner
 authority remain unqualified; the ledger does not release any acceptance gate.
+
+## Existing-task review representation
+
+`retained_maintenance_existing_task_review_keeps_task_binding_and_unknown_completion`
+is one additional authored, **NOT RUN** case in the existing default-library
+bridge (26 retained tests total). It adapts only original maint-duplicate and its
+existing_task_review annotation: task-a v1, item-a v1 and manual v1 remain the
+entire input set, with exact original section excerpts, source/retrieval dates
+and unknown completion date. Manual is the subject, task-a the sole candidate
+typed MaintenanceTask, and item-a a supporting Source rather than a new-task
+candidate. Generated canonical HomeBox maintenance/entity targets are test-only
+correlation DATA, not provider capture, original-owner grants or real bindings.
+
+The supplied proposal reviews the existing task with unknown interval/urgency,
+no conditions, and no service baseline/due date. It cites only original task/task
+and manual/p4 annotations. Retained input kind/target plus exact disclosure
+targetKey and `maintenance:0:task-a` selection inputRef/index identify that task;
+selection metadata itself confers no authority. The existing frontend session
+checks that exact key/inputRef/index against the revision-pinned proposal, but
+no session, owner callback or native action is executed by this Rust control.
+Derivative controls refuse item-a as candidate and unsupported creation,
+completion/baseline/due-date/scheduling fields. These are structural refusals,
+not native mutation qualification. No evaluate_supplied, Labels/CaseReport,
+maintenance-quality score, service completion, operational duplicate suppression
+or task creation follows. All 25 prior bridge tests/adapters and four original
+corpus files remain unchanged. The other seven representation gaps remain open.
