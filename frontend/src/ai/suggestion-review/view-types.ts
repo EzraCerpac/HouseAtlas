@@ -15,7 +15,7 @@ export interface SuggestionFieldView {
 }
 export interface SuggestionCandidateView {
   readonly key: string; readonly label: string;
-  readonly relation: 'possible-duplicate' | 'same-product' | 'proposed-association';
+  readonly relation: 'possible-duplicate' | 'same-product' | 'same-product-identity-unknown' | 'proposed-association';
   readonly reason: string; readonly uncertainty: string; readonly evidenceKeys: readonly string[];
 }
 /** Private presentation values matching canonical interval/urgency semantics; no wire envelope. */

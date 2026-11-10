@@ -545,3 +545,54 @@ test('comparison source contract keeps dates qualifiers and read-only controls w
   assert(source.includes("view.kind === 'answer' || view.kind === 'contradictions'"));
   assert(source.includes('<footer>{!readOnly && <>')); assert(source.includes('onClick={controller.dismiss}'));
 });
+
+test('same-product identity-unknown has an explicit display and retains the original candidate-only intent', async () => {
+  const original = setup().view.candidates[0];
+  const s = setup({ fields: [], candidates: [
+    { ...original, relation: 'same-product-identity-unknown' },
+    { ...original, key: 'legacy-product', relation: 'same-product' },
+    { ...original, key: 'possible-item', relation: 'possible-duplicate' },
+  ] });
+  const c = s.controller, candidates = c.getSnapshot().view.candidates;
+  assert.deepEqual(candidates.map(v => v.relation), ['same-product-identity-unknown', 'same-product', 'possible-duplicate']);
+  assert.equal(candidates[0].key, original.key); assert.equal(candidates[0].reason, original.reason);
+  assert.equal(candidates[0].uncertainty, original.uncertainty); assert.deepEqual(candidates[0].evidenceKeys, original.evidenceKeys);
+  assert(Object.isFrozen(candidates[0])); assert(Object.isFrozen(candidates[0].evidenceKeys));
+  const viewSource = readFileSync(new URL('../src/ai/suggestion-review/SuggestionReview.tsx', import.meta.url), 'utf8');
+  assert(viewSource.includes("'same-product-identity-unknown': 'Same product; physical identity unknown'"));
+  assert(viewSource.includes("'same-product': 'Same product, identity unconfirmed'"));
+  assert(viewSource.includes("'possible-duplicate': 'Possible duplicate'"));
+  assert(viewSource.includes('{relation[candidate.relation]}'));
+  await c.inspectSource('source-1'); assert.equal(s.inspected[0].evidence.recordVersion, 'record-1');
+  assert.equal(s.inspected[0].evidence.page, 2);
+  await c.decide('accept-for-review'); assert.equal(s.intents.length, 0);
+  s.ports.onIntent = async intent => { s.intents.push(intent); await c.decide('accept-for-review'); };
+  assert(c.selectCandidate(original.key, true));
+  await Promise.all([c.decide('accept-for-review'), c.decide('accept-for-review')]); await c.decide('reject');
+  assert.equal(s.intents.length, 1); assert.equal(s.checks.length, 1);
+  const intent = s.intents[0];
+  assert.equal(intent.authority, 'none'); assert.equal(intent.context, s.view.context);
+  assert.equal(intent.proposalKey, s.view.key); assert.equal(intent.proposalRevision, s.view.revision);
+  assert.equal(intent.sourceSetRevision, s.view.sourceSetRevision);
+  assert.deepEqual(intent.candidateKeys, [original.key]); assert.deepEqual(intent.fields, []);
+  assert(!Object.hasOwn(intent, 'relation')); assert(!Object.hasOwn(intent, 'target'));
+  assert.equal(c.getSnapshot().view.candidates[0].relation, 'same-product-identity-unknown'); c.dispose();
+});
+test('same-product identity-unknown retains stale context and unavailable-source refusal before intent', async () => {
+  const original = setup().view.candidates[0], view = { fields: [], candidates: [{ ...original, relation: 'same-product-identity-unknown' }] };
+  const stale = setup(view, { recheck: async () => 'stale' });
+  stale.controller.selectCandidate(original.key, true); await stale.controller.decide('accept-for-review');
+  assert.equal(stale.controller.getSnapshot().phase, 'stale'); assert.equal(stale.intents.length, 0); stale.controller.dispose();
+  const pending = deferred(), changed = setup(view, { recheck: () => pending.promise });
+  changed.controller.selectCandidate(original.key, true); const sending = changed.controller.decide('accept-for-review');
+  changed.set({ ...changed.current(), context: {} }); pending.resolve('current'); await sending;
+  assert.equal(changed.intents.length, 0); assert.equal(changed.controller.getSnapshot().view, null); changed.controller.dispose();
+  const revised = setup(view); revised.set({ ...revised.current(), sourceSetRevision: 'sources-2' }, false);
+  assert.equal(revised.controller.selectCandidate(original.key, true), false);
+  await revised.controller.decide('accept-for-review'); assert.equal(revised.intents.length, 0); revised.controller.dispose();
+  for (const availability of ['offline', 'disabled', 'unavailable']) {
+    const held = setup(view); held.controller.selectCandidate(original.key, true); held.set({ ...held.current(), availability });
+    await held.controller.decide('accept-for-review'); await held.controller.inspectSource('source-1');
+    assert.equal(held.intents.length, 0); assert.equal(held.checks.length, 0); assert.equal(held.inspected.length, 0); held.controller.dispose();
+  }
+});

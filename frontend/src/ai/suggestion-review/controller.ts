@@ -101,7 +101,7 @@ function copyView(view: SuggestionReviewView): SuggestionReviewView {
     current: optional(f.current), proposed: text(f.proposed), reason: text(f.reason), uncertainty: text(f.uncertainty),
     evidenceKeys: evidence(f.evidenceKeys) }));
   const candidates = list(view.candidates).map(c => {
-    if (!['possible-duplicate', 'same-product', 'proposed-association'].includes(c.relation)) throw new TypeError('Invalid candidate display');
+    if (!['possible-duplicate', 'same-product', 'same-product-identity-unknown', 'proposed-association'].includes(c.relation)) throw new TypeError('Invalid candidate display');
     return Object.freeze({ key: key(c.key), label: text(c.label), relation: c.relation, reason: text(c.reason),
       uncertainty: text(c.uncertainty), evidenceKeys: evidence(c.evidenceKeys) });
   });
