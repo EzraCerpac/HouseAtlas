@@ -158,6 +158,31 @@ concrete original reviewed-stock and trusted human-review bridge.
 
 ## Review-only AI suggestion contracts
 
+The existing default-library retained module additionally discovers two
+authored, **NOT RUN** controls for original qa-missing:
+
+- `ai::suggestions::evaluation::retained_corpus::retained_qa_missing_keeps_original_empty_retrieval_and_explicit_clarify_gap`
+- `ai::suggestions::evaluation::retained_corpus::retained_qa_missing_refuses_fabrication_and_supplied_question_replacement`
+
+The original prompt, empty inputs/candidates/claims, clarify route, missing
+retrieval coverage, explanation and no-effects annotations are retained exactly.
+The supplied v2 proposal has explicit null subject; the existing v1 display has
+no source fallback, inspections, rankings or selections. Negative derivatives
+refuse fabricated output references/content/effects and replaced request/query/
+authority/cancellation pins. They are not extra original scenarios, routing or
+abstention quality scores, accepted corrections or complete-case acceptance.
+
+All scope/actor/request/registration/epoch values are generated DATA. The query
+digest is computed directly from retained fictional prompt bytes; no trusted
+accepted-query owner, journal admission, real cancellation/currentness, host
+publication or session binding is exercised. See INTEGRATION.md for each pin
+input and limit. Retained totals become 28 authored/unrun tests (26 earlier
+tests/adapters unchanged); original ledger is 5 scorer subsets / 21 structural /
+6 unbridged. All original corpus files and production/frontend code remain
+unchanged. Existing 77 source / 1 build / 7 browser selections and workflows
+are unchanged; no tests/build/compiler/typecheck/format/Clippy/browser/device or
+pinned publication verifier ran locally for this increment.
+
 ### Explicit source-free Answer mode (source only)
 
 `AdmittedSnapshot::source_free_answer` admits only Answer with empty sources,
@@ -199,9 +224,9 @@ Two authored/unrun functions join the existing adapter selection:
 
 These use generated requests, digests, current snapshots and fake consumer-owner
 generations, not genuine request-owner/cancellation/authority qualification.
-Current counts are 35 synthetic-contract / 10 scorer / 26 retained / one counter
+Current counts are 35 synthetic-contract / 10 scorer / 28 retained / one counter
 Rust tests, 41 presentation/controller and 22 session cases. No original corpus
-mapping, Labels/CaseReport or quality score is added; ledger stays 5/20/7.
+mapping, Labels/CaseReport or quality score is added by those generic controls; the later qa-missing retained bridge updates coverage to 5/21/6.
 No workflow or selection changes: inventory remains 77 source / 1 build / 7
 browser. Tests/build/typecheck/compiler/formatter/Clippy/browser/device and the
 pinned publication verifier remain NOT RUN locally for this increment.

@@ -427,7 +427,7 @@ native-owner, access, durable decision or issue acceptance is established.
 | maint-condition | Structural | Supplied empty tasks preserve notice/item only, no pump; not model-mismatch, condition-truth or safety detection. |
 | maint-duplicate | Structural | Supplied review of task-a as a MaintenanceTask candidate, manual subject and item supporting source; exact task/index/evidence binding, unknown completion/interval/baseline. No new task, quality score, native duplicate suppression or completion inference. |
 | qa-location | Structural | Quoted recorded location, inventory route and partial source rank; no current physical certainty or exhaustive inventory. |
-| qa-missing | No bridge | Source-free Answer v2 now represents an explicit no-answer gap without a subject record. This original retained-case adapter is not yet authored; real request/session binding remains separately unbound. |
+| qa-missing | Structural | Exact original empty retrieval, clarify route and gaps through supplied source-free v2/null subject and empty display bindings; generated request/digest/epoch DATA only, no model abstention or trusted live-owner qualification. |
 | qa-electrical | Structural | Historical documentary quote/route with distinct dates; no safe equipment action or factual-quality score. |
 | qa-injection | Structural | p1 retained inert, p2 cited; no live-model injection resistance or tool/scope authorization claim. |
 | qa-revoked | Structural | Withdrawn invoice refuses disclosure even for empty clarify; not a safe factual answer or actual Access revocation. |
@@ -444,7 +444,7 @@ native-owner, access, durable decision or issue acceptance is established.
 | review-revoked | Structural | Withdrawn-side boundary returns no disclosure; original other side preserved, no safe summary/durable decision. |
 | maint-condition-match | Structural | P9 conditional proposal from exact notice/pump evidence; no lit indicator, condition-is-met, safety or scheduling claim. |
 
-Inventory totals: five scorer subsets, twenty structural controls and seven
+Inventory totals: five scorer subsets, twenty-one structural controls and six
 without bridges. All semantic completeness, calibrated quality and actual owner
 authority remain unqualified; the ledger does not release any acceptance gate.
 
@@ -452,10 +452,45 @@ authority remain unqualified; the ledger does not release any acceptance gate.
 
 Source-free Answer v2 has separate generated contract/consumer controls with a
 required null subject, request/query/epoch-bound pin and empty disclosure lists.
-Those supplied controls do not adapt original qa-missing or create a new scored
-gold case. The original corpus bytes and 5/20/7 coverage ledger are unchanged.
+Those generic controls do not create a new scored gold case. The additional
+original qa-missing structural bridge below changes coverage only, not gold bytes.
 Original request-owner capture, live cancellation/currentness, host publication
 and actual session binding are unqualified; synthetic pins are correlation only.
+
+## Original qa-missing supplied bridge
+
+Two authored/NOT RUN retained controls adapt only original qa-missing, bringing
+the retained module to 28 tests. Its exact question, "Where are all replacement
+parts?", input_sources/candidate sets/expected_claims/effects (all empty),
+expected_route clarify, unknown "missing retrieval coverage", and explanation
+"No retrieval is not evidence that no parts exist." are preserved. Retrieval
+remains incomplete. review_required remains an annotation, never an approval.
+The supplied generated-v2 proposal has subjectRef:null, empty claims/ranks/
+statements and the original unknown plus explanation as missing-evidence text.
+The existing v1 display emits no source, inspection, ranking or selection data.
+
+Every added context value is explicitly generated DATA:
+
+- workspace/home/actor use the fixture id helper with 90/91/92, not real grants;
+- authority epoch and registration ID are `generated-retained-question-only`;
+- request ID is `generated-retained-qa-missing-a`, not an admitted journal ID;
+- cancellation epoch is `generated-cancel-1`, not an observed cancellation;
+- query SHA-256 is computed directly from the exact original fictional prompt;
+- contextPin uses the existing `houseatlas-source-free-answer-v2` domain tag,
+  complete empty-input scope/actor/authority metadata and this QuestionBinding.
+
+Hashing fixture bytes proves no accepted-query digest ownership or binding to
+an actual original request. No real request capture, currentness/cancellation
+observation, host publication, authenticated session producer or runtime runs.
+Derivative refusal controls use output-only invented references (no invented
+source records), unsupported content/effect fields and generated request B,
+replacement-question digest, cancellation-2 or authority-2 values. These are
+correlation comparisons, not new corpus scenarios or live lifecycle evidence.
+All 26 previous adapters/tests and four original files remain byte-identical.
+No evaluate_supplied, Labels/CaseReport, model abstention/routing/groundedness
+score or full-case acceptance is claimed. Ledger becomes 5 scorer subsets /
+21 structural controls / 6 unbridged; the historical/versioned cases remain
+unbridged. Genuine request/digest custody and host/session integration stay open.
 
 ## Product correspondence with unknown physical identity
 
@@ -494,4 +529,5 @@ completion/baseline/due-date/scheduling fields. These are structural refusals,
 not native mutation qualification. No evaluate_supplied, Labels/CaseReport,
 maintenance-quality score, service completion, operational duplicate suppression
 or task creation follows. All 25 prior bridge tests/adapters and four original
-corpus files remain unchanged. The other seven representation gaps remain open.
+corpus files remain unchanged. That increment left seven representation gaps;
+the qa-missing bridge above reduces the current unbridged ledger to six.

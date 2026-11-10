@@ -7,6 +7,7 @@
 //! Three availability controls separate record data, readable extraction and originals.
 //! Four empty-output controls preserve inputs without semantic no-proposal scoring.
 //! One existing-task control retains a maintenance candidate, never a new task.
+//! One source-free control retains original qa-missing without a record subject.
 //! All other cases and unsupported dimensions remain explicitly unscored.
 use super::*;
 use crate::contracts::stock::{AtlasRecordKind, AtlasTarget, StockContext};
@@ -22,6 +23,112 @@ fn corpus() -> Value {
 
 fn id(n: usize) -> String {
     format!("00000000-0000-4000-8000-{n:012}")
+}
+
+/// Generated correlation DATA only. Hashing this retained fictional prompt is
+/// not proof of accepted-query ownership, journal admission or a current request.
+struct SourceFreeQuestionControl {
+    prompt: String,
+    binding: QuestionBinding,
+    snapshot: AdmittedSnapshot,
+    proposal: Value,
+}
+fn missing_question_control() -> SourceFreeQuestionControl {
+    let data = corpus();
+    let case = data["cases"].as_array().unwrap().iter().find(|c| c["id"] == "qa-missing").unwrap();
+    assert_eq!(case["feature"], "questions");
+    for field in ["input_sources", "authorized_candidates", "allowed_candidates", "forbidden_candidates", "expected_claims", "effects_allowed"] {
+        assert_eq!(case[field], json!([]));
+    }
+    assert_eq!(case["retrieval_complete"], false);
+    assert_eq!(case["review_required"], true); // Annotation, never an approval.
+    assert_eq!(case["expected_route"], "clarify");
+    let prompt = case["prompt"].as_str().unwrap().to_owned();
+    let binding = QuestionBinding {
+        request_id: "generated-retained-qa-missing-a".into(), query_sha256: hash(prompt.as_bytes()),
+        registration_id: "generated-retained-question-only".into(), cancellation_epoch: "generated-cancel-1".into(),
+    };
+    let snapshot = AdmittedSnapshot::source_free_answer(SnapshotInput {
+        feature: SuggestionFeature::Answer,
+        scope: StockContext { workspace_id: id(90), home_id: id(91) },
+        actor_id: id(92), authority_epoch: "generated-retained-question-only".into(), sources: vec![],
+    }, binding.clone()).unwrap();
+    let mut gaps = case["unknowns"].as_array().unwrap().clone();
+    gaps.push(case["explanation"].clone());
+    let proposal = json!({"schemaVersion":2,"contextPin":snapshot.context_pin(),"subjectRef":null,"claims":[],
+        "missingEvidence":gaps,"result":{"kind":"answer","route":case["expected_route"],"coverage":"no-answer","rankedRefs":[],"statements":[]}});
+    SourceFreeQuestionControl { prompt, binding, snapshot, proposal }
+}
+
+#[test]
+fn retained_qa_missing_keeps_original_empty_retrieval_and_explicit_clarify_gap() {
+    let control = missing_question_control();
+    let data = corpus();
+    let case = data["cases"].as_array().unwrap().iter().find(|c| c["id"] == "qa-missing").unwrap();
+    assert_eq!(control.prompt, "Where are all replacement parts?");
+    assert_eq!(control.prompt, case["prompt"].as_str().unwrap());
+    assert_eq!(control.binding.query_sha256, hash(case["prompt"].as_str().unwrap().as_bytes()));
+    assert_eq!(control.binding.request_id, "generated-retained-qa-missing-a");
+    assert_eq!(control.binding.registration_id, "generated-retained-question-only");
+    assert_eq!(control.binding.cancellation_epoch, "generated-cancel-1");
+    assert!(control.snapshot.input().sources.is_empty());
+    assert_eq!(control.proposal["subjectRef"], Value::Null);
+    assert_eq!(control.proposal["missingEvidence"], json!(["missing retrieval coverage", "No retrieval is not evidence that no parts exist."]));
+    assert_eq!(case["abstain_from"], json!(["exhaustive_answer", "invent_records"]));
+    let review = validate_generated(&serde_json::to_vec(&control.proposal).unwrap(), &control.snapshot, &control.snapshot).unwrap();
+    assert!(review.proposal().subject_ref.is_none());
+    assert!(review.proposal().claims.is_empty());
+    assert!(review.finding_keys().is_empty());
+    let disclosure = disclose_review(&review, &control.snapshot, &Default::default()).unwrap();
+    let wire = disclosure.value();
+    assert_eq!(wire["schemaVersion"], 1); // Existing display DTO, not generated v2.
+    assert_eq!(wire["contextPin"], control.snapshot.context_pin());
+    for field in ["sources", "fields", "candidates"] { assert_eq!(wire["view"][field], json!([])); }
+    for field in ["inspections", "selections", "rankings"] { assert_eq!(wire[field], json!({})); }
+    assert_eq!(wire["view"]["answer"], json!({"route":"clarify","coverage":"no-answer","rankedCandidates":[],
+        "statements":[],"missingEvidence":control.proposal["missingEvidence"]}));
+    // Deliberately supplied representation only: no model abstention, routing
+    // quality, exhaustive search, real Access or source/physical truth result.
+}
+
+#[test]
+fn retained_qa_missing_refuses_fabrication_and_supplied_question_replacement() {
+    let control = missing_question_control();
+    for change in 0..10 {
+        let mut supplied = control.proposal.clone();
+        match change {
+            0 => supplied["subjectRef"] = json!("invented-record"),
+            1 => { supplied.as_object_mut().unwrap().remove("subjectRef"); },
+            2 => supplied["claims"] = json!([{"claimRef":"invented","sourceRef":"unadmitted","evidenceRefs":["unadmitted"],"text":"Refusal control only","uncertainty":"unknown"}]),
+            3 => supplied["result"]["rankedRefs"] = json!(["unadmitted"]),
+            4 => supplied["result"]["statements"] = json!([{"text":"Refusal control only","support":{"claimRefs":["invented"],"rationale":"No admitted evidence","uncertainty":"unknown"}}]),
+            5 => supplied["result"]["coverage"] = json!("partial"),
+            6 => supplied["result"]["route"] = json!("inventory"),
+            7 => supplied["missingEvidence"] = json!([]),
+            8 => supplied["result"]["tool"] = json!("write"),
+            _ => supplied["approval"] = json!("invented"),
+        }
+        assert!(validate_generated(&serde_json::to_vec(&supplied).unwrap(), &control.snapshot, &control.snapshot).is_err(), "derivative {change}");
+    }
+    let review = validate_generated(&serde_json::to_vec(&control.proposal).unwrap(), &control.snapshot, &control.snapshot).unwrap();
+    let invented_inspection = BTreeSet::from(["unadmitted".into()]);
+    assert_eq!(disclose_review(&review, &control.snapshot, &invented_inspection).unwrap_err(), SuggestionError::UnadmittedReference);
+    for change in 0..4 {
+        let mut input = control.snapshot.input().clone(); let mut binding = control.binding.clone();
+        match change {
+            0 => binding.request_id = "generated-retained-qa-missing-b".into(),
+            1 => binding.query_sha256 = hash(b"Generated replacement question; not another original corpus scenario"),
+            2 => binding.cancellation_epoch = "generated-cancel-2".into(),
+            _ => input.authority_epoch = "generated-authority-2".into(),
+        }
+        let current = AdmittedSnapshot::source_free_answer(input, binding).unwrap();
+        assert_ne!(control.snapshot.context_pin(), current.context_pin());
+        assert_eq!(validate_generated(&serde_json::to_vec(&control.proposal).unwrap(), &control.snapshot, &current).unwrap_err(), SuggestionError::ContextChanged);
+        assert_eq!(disclose_review(&review, &current, &Default::default()).unwrap_err(), SuggestionError::ContextChanged);
+    }
+    // Fake request IDs, digest recomputation and replaced epochs are DATA.
+    // No original request capture, cancellation observation, host publication,
+    // accepted-query digest custody or actual session binding is exercised.
 }
 
 /// Stable evidence identity retains the original source/version/section tuple.

@@ -1,5 +1,20 @@
 # HouseAtlas
 
+Original qa-missing has one source-free structural bridge and two authored,
+NOT RUN controls in `ai::suggestions::evaluation::retained_corpus`:
+`retained_qa_missing_keeps_original_empty_retrieval_and_explicit_clarify_gap` and
+`retained_qa_missing_refuses_fabrication_and_supplied_question_replacement`.
+It preserves exact prompt, empty input/candidate/claim sets, clarify/no-answer,
+original missing-coverage explanation and no-effects annotations, with explicit
+null subject and empty display/inspection/selection lists. Scope/actor IDs,
+request/registration/authority/cancellation identifiers are generated DATA;
+hashing the retained prompt is not accepted-query digest custody or real request
+capture. Neither synthetic current pins nor epoch replacements establish actual
+cancellation/currentness, host publication, session binding or model abstention.
+There are 28 authored/unrun retained tests; all 26 earlier adapters/tests and
+four original corpus files are unchanged. Ledger is 5 scorer subsets / 21
+structural / 6 unbridged. No scorer quality or new runner/workflow is added.
+
 Explicit source-free Answer admission is structural only. Its serialize-only
 QuestionBinding pins the admitted request ID, accepted-query SHA-256,
 registration and cancellation epoch with existing actor/scope/authority epoch.
@@ -13,8 +28,8 @@ the shared final byte fence; no subject metadata/capability is invented.
 Six new Rust and two session controls are authored/NOT RUN: shape/versions,
 escaped final-DTO bounds, admission/content refusal, question/epoch replacement,
 record compatibility, terminal usage/refusals and consumer retirement. Current
-counts are 35 synthetic-contract / 10 scorer / 26 retained / one counter Rust
-cases, plus 41 presentation/controller and 22 session cases. The 5/20/7 corpus
+counts are 35 synthetic-contract / 10 scorer / 28 retained / one counter Rust
+cases, plus 41 presentation/controller and 22 session cases. The 5/21/6 corpus
 ledger, originals, runner selections and host/root/runtime/authority owners stay
 unchanged. No inference, source write, effect, persistence or activation occurs.
 
