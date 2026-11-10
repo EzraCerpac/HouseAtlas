@@ -7207,6 +7207,20 @@
       "owner": "core-integration"
     },
     {
+      "path": "docs/rust-integration/mcp-operation-qualification-v5.json",
+      "mode": "100644",
+      "bytes": 231995,
+      "sha256": "09b172de1c9a3b85f664dd3d1165fbc8921ecc74eb0453b1e112eab261350bde",
+      "owner": "mcp"
+    },
+    {
+      "path": "docs/rust-integration/mcp-operation-qualification-v5.md",
+      "mode": "100644",
+      "bytes": 13044,
+      "sha256": "d00c168a078e4e4196600e906b4cadd88269d384fb62aad9e6891180883812be",
+      "owner": "mcp"
+    },
+    {
       "path": "docs/rust-integration/media-policy-archive.md",
       "mode": "100644",
       "bytes": 4162,
@@ -12077,6 +12091,13 @@
       "bytes": 4070,
       "sha256": "9f963f128058d05cc32cf9e380ccde984cf1c98e34903b23b3b4d6e8fe583e86",
       "owner": "core-integration"
+    },
+    {
+      "path": "tools/mcp-qualification/inventory.py",
+      "mode": "100644",
+      "bytes": 7701,
+      "sha256": "997b5d5280d4510fdf724a4a140c528116f4d2dfca37a44130e9d1681b97b9b2",
+      "owner": "mcp"
     },
     {
       "path": "tools/model-bake/README.md",
