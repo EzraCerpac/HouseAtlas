@@ -1,5 +1,15 @@
 # HouseAtlas
 
+The existing default backend-library selection discovers the generated mounted
+HomeBox offline-original case in `http::homebox_pinned_files::mounted_offline_original_tests`.
+It exercises the actual router and original owner with disposable Access and a
+generated loopback TLS peer: measured source bytes/association, anonymous and
+withdrawn access refusal, provider 503 and spent-request replay. Its dedicated
+test-only trust root admits only the generated loopback peer. Authored pending
+hosted execution; no live provider, real credentials or device are used. It does not
+establish remote freshness, in-flight revocation or consumer-store acceptance.
+No workflow or runner command is added.
+
 Composition follow-up: main8a20f596 is merged with preserved continuation
 fence (#577), source inventory (#579) and accepted reporting policy (#575).
 Exact electrical projector donor0138f373 is composed as its three-path delta;

@@ -54,6 +54,55 @@ impl NativePinnedFileOwner {
         partition: a::PartitionGrant,
         request: &ValidatedRequest,
     ) -> MediaResult<Self> {
+        Self::capture_inner(
+            homebox,
+            credentials,
+            access,
+            original,
+            grant,
+            partition,
+            request,
+            None,
+        )
+        .await
+    }
+
+    #[cfg(test)]
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn capture_loopback_fixture(
+        homebox: &Arc<TrustedHomeBoxSource>,
+        credentials: &Arc<read::NativeReadCredentialConfig>,
+        access: Arc<Mutex<a::AccessBoundary>>,
+        original: RetainedPrincipal,
+        grant: a::SourceGrant,
+        partition: a::PartitionGrant,
+        request: &ValidatedRequest,
+        certificate: &[u8],
+    ) -> MediaResult<Self> {
+        Self::capture_inner(
+            homebox,
+            credentials,
+            access,
+            original,
+            grant,
+            partition,
+            request,
+            Some(certificate),
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn capture_inner(
+        homebox: &Arc<TrustedHomeBoxSource>,
+        credentials: &Arc<read::NativeReadCredentialConfig>,
+        access: Arc<Mutex<a::AccessBoundary>>,
+        original: RetainedPrincipal,
+        grant: a::SourceGrant,
+        partition: a::PartitionGrant,
+        request: &ValidatedRequest,
+        _certificate: Option<&[u8]>,
+    ) -> MediaResult<Self> {
         let query = selected(&original, &grant, &partition, request)?;
         if homebox.metadata_dialect() != crate::providers::homebox::wire::DIALECT
             || homebox.scope() != *query.scope()
@@ -75,6 +124,15 @@ impl NativePinnedFileOwner {
                     partition.clone(),
                 )
                 .map_err(read_error)?;
+            #[cfg(test)]
+            let mut reader = match _certificate {
+                Some(certificate) => {
+                    homebox.reader_with_loopback_certificate(bound, HostClock, certificate)
+                }
+                None => homebox.reader(bound, HostClock),
+            }
+            .map_err(|_| MediaError::Unavailable)?;
+            #[cfg(not(test))]
             let mut reader = homebox
                 .reader(bound, HostClock)
                 .map_err(|_| MediaError::Unavailable)?;
