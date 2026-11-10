@@ -20,6 +20,7 @@ use axum::{
     http::{HeaderName, HeaderValue, Method, StatusCode, Uri},
     response::IntoResponse,
 };
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::Value;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -217,7 +218,17 @@ pub(super) async fn capture(
     uri: Uri,
     method: Method,
 ) -> HttpResult {
-    capture_selected(host, workspace_id, home_id, headers, uri, method, false).await
+    capture_selected(
+        host,
+        workspace_id,
+        home_id,
+        headers,
+        uri,
+        method,
+        false,
+        false,
+    )
+    .await
 }
 
 pub(super) async fn capture_v4(
@@ -227,9 +238,40 @@ pub(super) async fn capture_v4(
     uri: Uri,
     method: Method,
 ) -> HttpResult {
-    capture_selected(host, workspace_id, home_id, headers, uri, method, true).await
+    capture_selected(
+        host,
+        workspace_id,
+        home_id,
+        headers,
+        uri,
+        method,
+        true,
+        false,
+    )
+    .await
 }
 
+pub(super) async fn offline_original(
+    State(host): State<Host>,
+    Path((workspace_id, home_id)): Path<(String, String)>,
+    Extension(headers): Extension<CheckedHeaders>,
+    uri: Uri,
+    method: Method,
+) -> HttpResult {
+    capture_selected(
+        host,
+        workspace_id,
+        home_id,
+        headers,
+        uri,
+        method,
+        true,
+        true,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
 async fn capture_selected(
     host: Host,
     workspace_id: String,
@@ -238,6 +280,7 @@ async fn capture_selected(
     uri: Uri,
     method: Method,
     v4: bool,
+    offline: bool,
 ) -> HttpResult {
     let (_cancel, budget) = budget()?;
     let runtime = tokio::runtime::Handle::current();
@@ -363,6 +406,16 @@ async fn capture_selected(
                         .map_err(media_error)?,
                 );
                 budget.check().map_err(media_error)?;
+                if offline {
+                    let (facts, bytes) = {
+                        let mut boundary = access.lock().map_err(|_| unavailable())?;
+                        m::homebox_pinned_artifacts::read_offline_original(
+                            &mut boundary, &original, &source_grant, &request, &owner, &budget,
+                        ).map_err(media_error)?
+                    };
+                    budget.check().map_err(media_error)?;
+                    return offline_response(&facts, bytes);
+                }
                 let issued = {
                     let mut boundary = access.lock().map_err(|_| unavailable())?;
                     let mut broker = host
@@ -403,6 +456,42 @@ async fn capture_selected(
     })
     .await
     .map_err(|_| unavailable())?
+}
+
+// The metadata is descriptive data, not a redemption capability. Raw bytes
+// and their pins share one response, avoiding a second provider download.
+fn offline_response(facts: &impl serde::Serialize, bytes: Vec<u8>) -> HttpResult {
+    let encoded = STANDARD.encode(serde_json::to_vec(facts).map_err(|_| unavailable())?);
+    if encoded.len() > WIRE_MAX_BYTES {
+        return Err(failure(StatusCode::PAYLOAD_TOO_LARGE));
+    }
+    let mut response = bytes.into_response();
+    let headers = response.headers_mut();
+    headers.insert(
+        "content-type",
+        HeaderValue::from_static("application/octet-stream"),
+    );
+    headers.insert(
+        "cache-control",
+        HeaderValue::from_static("private, no-store"),
+    );
+    headers.insert(
+        "x-content-type-options",
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        "content-security-policy",
+        HeaderValue::from_static("default-src 'none'; sandbox"),
+    );
+    headers.insert(
+        "cross-origin-resource-policy",
+        HeaderValue::from_static("same-origin"),
+    );
+    headers.insert(
+        "x-houseatlas-original",
+        HeaderValue::from_str(&encoded).map_err(|_| unavailable())?,
+    );
+    Ok(response)
 }
 
 fn authenticated_redemption(
@@ -792,5 +881,35 @@ mod session_retirement_tests {
             .is_ok()
         );
         assert_eq!(gate.spent.len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod offline_response_tests {
+    use super::*;
+
+    #[test]
+    fn metadata_roundtrips_and_remains_bounded() {
+        let facts = serde_json::json!({"schemaVersion": 1, "contentType": null, "observationId": "fictional"});
+        let Ok(response) = offline_response(&facts, b"original".to_vec()) else {
+            panic!("synthetic response refused");
+        };
+        assert_eq!(
+            response.headers()["content-type"],
+            "application/octet-stream"
+        );
+        assert_eq!(response.headers()["cache-control"], "private, no-store");
+        let encoded = response.headers()["x-houseatlas-original"]
+            .to_str()
+            .unwrap();
+        let decoded: Value = serde_json::from_slice(&STANDARD.decode(encoded).unwrap()).unwrap();
+        assert_eq!(decoded, facts);
+        assert!(
+            offline_response(
+                &serde_json::json!({"large": "x".repeat(WIRE_MAX_BYTES)}),
+                vec![]
+            )
+            .is_err()
+        );
     }
 }
