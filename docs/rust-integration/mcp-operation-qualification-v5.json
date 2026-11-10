@@ -3,7 +3,7 @@
   "baseline": {
     "date": "2026-11-10",
     "mainCommit": "d368ca246da9999e7fdba5140a0870500df8a316",
-    "method": "Read-only review of current public source; no runtime admission query, build, test, provider or browser execution"
+    "method": "Read-only review of current public source; no runtime admission query, build, test, provider or browser execution. Original inventory baseline retained; four changed inputs reinspected after composing main 8a20f596cae36bb8922b16f54d9bfd11a6b2ff56 and exact donor 0138f373f167636f596c79163d74ef00724bd0dd at composition parent 5aad47050919fc653a922864c7158f4c646144b6; see the guide for exact source/evidence boundaries"
   },
   "boundary": "Reviewed source snapshot and historical evidence index only. Not a runtime allowlist, grant, configured binding, test outcome or operational acceptance. Source digest equality establishes freshness of reviewed inputs, not correctness or execution.",
   "catalogPath": "contracts/stock-wire3/agent/operation-catalog.json",
@@ -669,7 +669,7 @@
     },
     {
       "path": "backend/src/http/agents/asset_download_healthy.rs",
-      "sha256": "984c80b1c6aada40a0ae4016a96a6f6a7f66c25a1feb222f186be7d70ac239a7"
+      "sha256": "b60565318e6b124de9dd9f55f482bfeb24e6912f38a9c5261a63aaabe273acd9"
     },
     {
       "path": "backend/src/http/agents/capabilities.rs",
@@ -733,7 +733,7 @@
     },
     {
       "path": "backend/src/providers/homebox/read/native_list_pages.rs",
-      "sha256": "faf9a65679d9d50774d78e6c9fa0b16838444aa89c428321969576bba5e17932"
+      "sha256": "a7bce5cd844b0b34f32d66163b26c8acba6803389ee83612c7a0558eaab56f75"
     },
     {
       "path": "backend/src/providers/network/saved_queries.rs",
@@ -825,11 +825,11 @@
     },
     {
       "path": "docs/rust-integration/mcp-operation-qualification-v4.md",
-      "sha256": "82fe46438300727f2fd217b53da66daa5ed46a589bb83a5a1559f29035e0637d"
+      "sha256": "2abbd3a82733d7adf9ebf2d63562d72b544b74761a16889401a5547b37e976ce"
     },
     {
       "path": "frontend/lantern-tests/run-healthy.mjs",
-      "sha256": "331c1e014d444b06dcd68f41d3193b5c693d168286214feba6b86650f3548bc8"
+      "sha256": "61fb0103633812427a7eeea3167943671e5c624e2b420f0d28750937c6737d71"
     },
     {
       "path": "frontend/lantern-tests/webmcp-adapter-healthy.mjs",

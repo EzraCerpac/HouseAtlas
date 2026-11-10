@@ -1,5 +1,25 @@
 # HouseAtlas
 
+Composition follow-up: main8a20f596 is merged with preserved continuation
+fence (#577), source inventory (#579) and accepted reporting policy (#575).
+Exact electrical projector donor0138f373 is composed as its three-path delta;
+its generated case passed in hosted job130052523185, while the sandbox cases
+remained failed separately. The new combined head is not qualified by either
+source's prior checks. No test/browser case or security requirement is removed.
+
+Four changed MCP inventory pins were reinspected: the full native close/reopen
+test addition, test-child registration, v4 introduction clarification, and all
+five source/two browser runner additions. The read-only inventory audit matches
+168 rows/67 pins after only those four hashes and provenance were updated.
+Every operation/profile/admission value, historical evidence identity and
+NOT RUN/OPEN/DEFERRED state remains unchanged. This audit executes no test,
+service or application. No local build/compiler/formatter/browser ran.
+
+Startup imports, HomeBox retained-original producer/consumer, model-cache/dialog,
+electrical trace details and suggestion-review source remain with their existing
+writers. This composition binds no account, runtime, host port, source write or
+approval and leaves operational/device acceptance and current-head CI open.
+
 At exact3f8dd36c, core auth, owned media and stock-write flows passed with
 the reviewed settlement barrier. Shard-one then reached stock-history, whose
 original diagnostics captured four viewer-started401 responses after editor

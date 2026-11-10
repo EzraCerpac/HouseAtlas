@@ -126,6 +126,35 @@ operations are not used as publication prerequisites. Existing automatically
 triggered PR CI supplies its own separate execution outcome. The source auditor
 can subsequently report only its source/metadata audit, never operation success.
 
+## Composed-input reinspection
+
+The JSON retains its original main baseline above. Four pins were reinspected
+after composing main `8a20f596cae36bb8922b16f54d9bfd11a6b2ff56` and exact
+electrical projector donor `0138f373f167636f596c79163d74ef00724bd0dd`, at
+composition parent `5aad47050919fc653a922864c7158f4c646144b6`. The publication
+tree anchors the updated hashes; this is source review, not operation execution.
+
+- `asset_download_healthy.rs` adds #547's separate contextual five-original
+  teardown/reopen fixture: actual Core/Store/Access/Vault release, exact existing
+  store reopening, fresh ordinary authentication and canonical/original readback.
+  Retained home configuration is DATA. This is an in-process router fixture,
+  without installed startup, process restart, socket/TLS or device qualification.
+  M34 still indexes its unchanged same-Host mounted-MCP text case; M04 retains
+  its fake-history method. No historical test is relabelled as this newer case.
+- `native_list_pages.rs` adds only the existing private `cfg(test)` child
+  registration. It enables no configured capture or operation; #571 remains
+  separate from the injected/unmounted M36 evidence.
+- The v4 introduction clarifies the already-recorded synthetic unresolved-source
+  binding-create variant and blocked remap. No ledger row, source commit, CI
+  identity, disposition or remaining qualification is changed.
+- `run-healthy.mjs` adds five SOURCE selections (AI review, AI adapter, offline
+  electrical copy, network trace and electrical group) and two BROWSER selections
+  (electrical regression and capture save/reopen/remove). These are registrations,
+  not per-operation execution evidence; none is removed or disabled here.
+
+The other 63 input pins, every operation/profile/admission value, historical
+evidence entry and current execution/installed/browser state remain unchanged.
+
 ## Maintaining the snapshot and advancing #288
 
 On a changed pinned input the auditor refuses, including when a composed donor
