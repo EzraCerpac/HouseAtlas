@@ -237,6 +237,8 @@ export function createSuggestionReviewController(input: SuggestionReviewView, po
   };
   const emit = () => { for (const cb of [...listeners]) { try { cb(); } catch { /* view observers do not own review */ } } };
   const publish = (phase: SuggestionReviewPhase, message: string) => { state = Object.freeze({ ...state, phase, message }); held = null; emit(); };
+  // Read live phase after owner awaits; dismissal/subscribers can replace state.
+  const isClosed = (): boolean => state.phase === 'closed';
   const ready = () => !disposed && !consumed && current()?.availability === 'ready' && state.phase !== 'closed';
   const cancel = () => { sequence++; active?.abort(); active = null; };
   const unsubscribe = ports.subscribe(() => {
@@ -334,7 +336,7 @@ export function createSuggestionReviewController(input: SuggestionReviewView, po
           return;
         }
         try { await ports.onIntent(intent); }
-        catch { if (!disposed && current() && sequence === operation && state.phase !== 'closed') publish('handoff-unconfirmed', 'Review intent delivery is unconfirmed. Do not resubmit this suggestion.'); }
+        catch { if (!disposed && current() && sequence === operation && !isClosed()) publish('handoff-unconfirmed', 'Review intent delivery is unconfirmed. Do not resubmit this suggestion.'); }
       } catch {
         if (ready() && !controller.signal.aborted && operation === sequence) publish('reviewing', 'The source check failed. No review intent was sent.');
       } finally { if (sequence === operation) active = null; }
