@@ -48,7 +48,7 @@ class Pipe {
           observedUrls.push(message.params.request.url);
           requestPhases.set(message.params.requestId, phase);
           const url = new URL(message.params.request.url);
-          if (url.pathname.endsWith('/invoke')) nativeReads.set(message.params.requestId, {
+          if (phase === 'viewer-login' && message.params.request.method === 'GET' && url.pathname.endsWith('/invoke')) nativeReads.set(message.params.requestId, {
             phase, commandId: JSON.parse(url.searchParams.get('request')).commandId,
             status: null, finished: false, failed: false, canceled: false, authorizedBeforeCancellation: false,
           });

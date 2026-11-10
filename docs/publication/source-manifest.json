@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 66880,
-      "sha256": "9030664cb4ebdf0c724ec4620c52583e634f000f59f7aa79a143c3d58e0f2abd",
+      "bytes": 67871,
+      "sha256": "5d812d4e4d3a61fc82c3ee2a255f61ed5414226b342e0fd3a8cd5d6bde19970a",
       "owner": "core-integration"
     },
     {
@@ -6593,8 +6593,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 288718,
-      "sha256": "c6b1acc3b0298fbab76aff170965e55eef03296f0a63af773245d81883273c30",
+      "bytes": 289710,
+      "sha256": "51d64f2352ee9bb6322f7f3df9918be8163ba386ea79baf4cef156a83d64ed2d",
       "owner": "core-integration"
     },
     {
@@ -13313,8 +13313,8 @@
     {
       "path": "tools/rust-integration/healthy-core-loopback.mjs",
       "mode": "100644",
-      "bytes": 29740,
-      "sha256": "b306c02a16830f15b4c782f32dd96d11d69147e3a98d187e1d21ae0af657fea0",
+      "bytes": 29811,
+      "sha256": "ce7b736befe64f60124e26130d9c585388ece9456351b0a4a639958dda199902",
       "owner": "core-integration"
     },
     {
@@ -13348,8 +13348,8 @@
     {
       "path": "tools/rust-integration/healthy-media-loopback.mjs",
       "mode": "100644",
-      "bytes": 32199,
-      "sha256": "f0f6143c414e3bd1fc23fde66f7a2e2fc31a86ea8d2477122d682ab1ea0a0f0f",
+      "bytes": 32270,
+      "sha256": "3dcbc17dbf1afa0005014b6d48d8edccd3f85313397a47dd60f76aa0bf63f6ae",
       "owner": "core-integration"
     },
     {
@@ -13411,8 +13411,8 @@
     {
       "path": "tools/rust-integration/healthy-stock-write-loopback.mjs",
       "mode": "100644",
-      "bytes": 63266,
-      "sha256": "900bf5321090ce97f689fc281e0b4825f43e8e057afb3cce74b433bdb2b944b4",
+      "bytes": 67107,
+      "sha256": "2bcf464fd87e24c588a48dc268945cee163b97b36cbd6cbf3916754406538096",
       "owner": "core-integration"
     },
     {

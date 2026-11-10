@@ -1,5 +1,20 @@
 # HouseAtlas
 
+Main cc8ea458 (the already-contained551 donor's exact source tree) is
+reconciled through an ancestry merge with zero source delta. The existing
+1933-row manifest was retained after verifying every incoming path remained
+present and all composed source bytes/hashes matched; no donor was reverted.
+
+The16816c4d shard-one auth fixture passed, then the later stock-write fixture
+failed its original all-response assertion at line521. Its identical raw
+viewer-to-editor setup now uses the same request-ID settlement barrier, plus
+bounded failure-only status/command/phase diagnostics. Its actual failure cause
+remains unclassified until hosted evidence supplies the statuses; no assertion
+or access check is removed. Observation is limited to viewer GET invokes, so
+later native POST commands are not misparsed as query-envelope reads. No
+production source, workflow, runner, security setting or qualification gate
+changes. Source review is not execution evidence; the new head must run in CI.
+
 The16816c4d core auth flow passed, while media stopped at the new combined
 status/cancellation barrier. That assertion alone does not classify its failure.
 The refined barrier keeps a bounded command/status/terminal-state diagnostic.
