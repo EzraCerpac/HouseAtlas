@@ -29,6 +29,7 @@ const observedUrls = [], responses = [], runtimeErrors = [];
 // Diagnostics expose route shapes and fixed classifications only: no origin,
 // query values, dynamic IDs, cookies, headers, bodies or raw error messages.
 const requests = new Map(), loadingFailures = [];
+const nativeReads = new Map();
 let phase = 'startup', requestSequence = 0;
 const observationStart = performance.now();
 const elapsedMs = () => Math.round((performance.now() - observationStart) * 1000) / 1000;
@@ -63,6 +64,26 @@ class Pipe {
         const raw = this.buffer.subarray(0, end).toString(); this.buffer = this.buffer.subarray(end + 1);
         if (!raw) continue;
         const message = JSON.parse(raw);
+        if (message.method === 'Network.requestWillBeSent') {
+          const url = new URL(message.params.request.url);
+          if (phase.startsWith('viewer-login') && message.params.request.method === 'GET' && url.pathname.endsWith('/invoke')) nativeReads.set(message.params.requestId, {
+            phase, commandId: JSON.parse(url.searchParams.get('request')).commandId,
+            status: null, finished: false, failed: false, canceled: false, authorizedBeforeCancellation: false,
+          });
+        } else if (message.method === 'Network.responseReceived') {
+          const read = nativeReads.get(message.params.requestId);
+          if (read) read.status = message.params.response.status;
+        } else if (message.method === 'Network.loadingFinished' || message.method === 'Network.loadingFailed') {
+          const read = nativeReads.get(message.params.requestId);
+          if (read) {
+            read.finished = true;
+            if (message.method === 'Network.loadingFailed') {
+              read.failed = true;
+              read.canceled = message.params.canceled === true;
+              read.authorizedBeforeCancellation = read.status === 200;
+            }
+          }
+        }
         if (message.id) {
           const pending = this.pending.get(message.id); if (!pending) continue;
           this.pending.delete(message.id); clearTimeout(pending.timer);
@@ -115,6 +136,25 @@ try {
     assert(!result.exceptionDetails, 'Healthy browser evaluation'); return result.result.value;
   };
   // Open the retained native Atlas surface through Lantern's visible controls.
+  const settleViewerReads = async () => {
+    const rows = () => [...nativeReads.values()].filter(read => read.phase.startsWith('viewer-login'));
+    const describe = () => JSON.stringify({ total: rows().length, reads: rows().slice(0, 32)
+      .map(({ commandId, status, finished, failed, canceled, authorizedBeforeCancellation }) =>
+        ({ commandId, status, finished, failed, canceled, authorizedBeforeCancellation })) });
+    try {
+      await until(() => rows().length >= 4 && rows().every(read => read.finished), 'Every viewer native read settled before session replacement');
+    } catch (error) { throw new Error(error.message + ': ' + describe()); }
+    // An old body may be canceled only AFTER its actual authorized200 headers.
+    // That settles traffic; it does not count as successfully read content.
+    assert(rows().every(read => read.status === 200 && (!read.failed
+      || (read.canceled && read.authorizedBeforeCancellation))), 'Viewer native response or terminal failure: ' + describe());
+    const counts = new Map();
+    for (const read of rows()) counts.set(read.commandId, (counts.get(read.commandId) ?? 0) + 1);
+    assert.deepEqual([...counts.keys()].sort(), ['atlas.binding.list', 'atlas.identity.list', 'atlas.location-semantics.list', 'atlas.relation.list']);
+    assert([...counts.values()].every(count => count === counts.get('atlas.identity.list')), 'Observed viewer topology command counts remain balanced');
+    assert([...counts.keys()].every(commandId => rows().some(read => read.commandId === commandId
+      && read.status === 200 && read.finished && !read.failed)), 'Each topology command has a fully completed successful read: ' + describe());
+  };
   const openAtlasTools = async () => {
     await until(async () => await evaluate(`(() => {
       const button = [...document.querySelectorAll('nav[aria-label="Sections"] button')]
@@ -198,8 +238,11 @@ try {
   await evaluate(`document.getElementById('atlas-username').value=${JSON.stringify(login.username)}; document.getElementById('atlas-password').value=${JSON.stringify(login.password)}; document.querySelector('.session-form').requestSubmit()`);
   assert.equal(await evaluate("document.getElementById('atlas-password')?.value ?? ''"), '');
   await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'Actual successful HTTP login and React home');
+  await until(async () => await evaluate("document.querySelector('.atlas-section .topology-scope [role=status]')?.textContent === 'No reviewed buildings in this home.'"), 'Viewer topology ready before session replacement');
+  await settleViewerReads();
   phase = 'viewer-login-dialog';
   await openAtlasTools();
+  await settleViewerReads();
   const refreshedCookies = await send('Network.getCookies', {urls:[origin]});
   const actualSessionCookie = refreshedCookies.cookies.find(c=>c.name===cookie.slice(0,split));
   assert(actualSessionCookie?.secure && actualSessionCookie.httpOnly && actualSessionCookie.sameSite==='Strict', 'Actual login issues protected browser cookie');

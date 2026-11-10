@@ -4491,3 +4491,19 @@ or access check is removed. Observation is limited to viewer GET invokes, so
 later native POST commands are not misparsed as query-envelope reads. No
 production source, workflow, runner, security setting or qualification gate
 changes. Source review is not execution evidence; the new head must run in CI.
+
+
+At exact3f8dd36c, core auth, owned media and stock-write flows passed with
+the reviewed settlement barrier. Shard-one then reached stock-history, whose
+original diagnostics captured four viewer-started401 responses after editor
+replacement (job130037255180). Shard-two reached stock-read, which failed its
+original all-response check without response details (job130037255170).
+
+Those two matching fixture setups now wait for the actual current topology
+and use the same per-request settlement barrier before/after viewer navigation.
+Stock-history retains its existing detailed diagnostics and phase boundaries,
+including viewer-login-dialog; stock-read adds bounded failure diagnostics.
+All original native read/write/audit, exact measured-count and response checks
+remain intact. No production owner, runner/workflow, security configuration or
+acceptance gate changes. These source-reviewed fixture changes require new
+exact-head hosted execution; no local test/build/browser/compiler ran.

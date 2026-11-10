@@ -26,6 +26,9 @@ const openssl = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-n
 assert.equal(openssl.status, 0, 'Disposable certificate creation');
 let service, browser, cdp, serviceOutput = '', serviceError = '';
 const observedUrls = [], responses = [], runtimeErrors = [];
+let phase = 'initial-view';
+const requestPhases = new Map();
+const nativeReads = new Map();
 class Pipe {
   next = 0; pending = new Map(); buffer = Buffer.alloc(0);
   constructor(process) {
@@ -41,8 +44,34 @@ class Pipe {
           const pending = this.pending.get(message.id); if (!pending) continue;
           this.pending.delete(message.id); clearTimeout(pending.timer);
           message.error ? pending.reject(new Error(message.error.message)) : pending.resolve(message.result);
-        } else if (message.method === 'Network.requestWillBeSent') observedUrls.push(message.params.request.url);
-        else if (message.method === 'Network.responseReceived') responses.push({ url: message.params.response.url, status: message.params.response.status });
+        } else if (message.method === 'Network.requestWillBeSent') {
+          observedUrls.push(message.params.request.url);
+          requestPhases.set(message.params.requestId, phase);
+          const url = new URL(message.params.request.url);
+          if (phase === 'viewer-login' && message.params.request.method === 'GET' && url.pathname.endsWith('/invoke')) nativeReads.set(message.params.requestId, {
+            phase, commandId: JSON.parse(url.searchParams.get('request')).commandId,
+            status: null, finished: false, failed: false, canceled: false, authorizedBeforeCancellation: false,
+          });
+        }
+        else if (message.method === 'Network.responseReceived') {
+          const response = message.params.response;
+          const read = nativeReads.get(message.params.requestId);
+          if (read) read.status = response.status;
+          responses.push({ url: response.url, status: response.status,
+            requestPhase: requestPhases.get(message.params.requestId) ?? 'unknown', responsePhase: phase });
+          requestPhases.delete(message.params.requestId);
+        }
+        else if (message.method === 'Network.loadingFinished' || message.method === 'Network.loadingFailed') {
+          const read = nativeReads.get(message.params.requestId);
+          if (read) {
+            read.finished = true;
+            if (message.method === 'Network.loadingFailed') {
+              read.failed = true;
+              read.canceled = message.params.canceled === true;
+              read.authorizedBeforeCancellation = read.status === 200;
+            }
+          }
+        }
         else if (message.method === 'Runtime.exceptionThrown') runtimeErrors.push(message.params.exceptionDetails.text);
       }
     });
@@ -80,6 +109,25 @@ try {
   const evaluate = async expression => {
     const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
     assert(!result.exceptionDetails, 'Healthy browser evaluation'); return result.result.value;
+  };
+  const settleViewerReads = async () => {
+    const rows = () => [...nativeReads.values()].filter(read => read.phase === 'viewer-login');
+    const describe = () => JSON.stringify({ total: rows().length, reads: rows().slice(0, 32)
+      .map(({ commandId, status, finished, failed, canceled, authorizedBeforeCancellation }) =>
+        ({ commandId, status, finished, failed, canceled, authorizedBeforeCancellation })) });
+    try {
+      await until(() => rows().length >= 4 && rows().every(read => read.finished), 'Every viewer native read settled before session replacement');
+    } catch (error) { throw new Error(error.message + ': ' + describe()); }
+    // An old body may be canceled only AFTER its actual authorized200 headers.
+    // That settles traffic; it does not count as successfully read content.
+    assert(rows().every(read => read.status === 200 && (!read.failed
+      || (read.canceled && read.authorizedBeforeCancellation))), 'Viewer native response or terminal failure: ' + describe());
+    const counts = new Map();
+    for (const read of rows()) counts.set(read.commandId, (counts.get(read.commandId) ?? 0) + 1);
+    assert.deepEqual([...counts.keys()].sort(), ['atlas.binding.list', 'atlas.identity.list', 'atlas.location-semantics.list', 'atlas.relation.list']);
+    assert([...counts.values()].every(count => count === counts.get('atlas.identity.list')), 'Observed viewer topology command counts remain balanced');
+    assert([...counts.keys()].every(commandId => rows().some(read => read.commandId === commandId
+      && read.status === 200 && read.finished && !read.failed)), 'Each topology command has a fully completed successful read: ' + describe());
   };
   // Open the retained native Atlas surface through Lantern's visible controls.
   const openAtlasTools = async () => {
@@ -159,10 +207,14 @@ try {
   assert.equal(await evaluate('document.activeElement?.id'), 'atlas-username');
   // The component stays mounted while signed out. No unauthenticated session
   // request or rejected request is made between successful logout and login.
+  phase = 'viewer-login';
   await evaluate(`document.getElementById('atlas-username').value=${JSON.stringify(login.username)}; document.getElementById('atlas-password').value=${JSON.stringify(login.password)}; document.querySelector('.session-form').requestSubmit()`);
   assert.equal(await evaluate("document.getElementById('atlas-password')?.value ?? ''"), '');
   await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'Actual successful HTTP login and React home');
+  await until(async () => await evaluate("document.querySelector('.atlas-section .topology-scope [role=status]')?.textContent === 'No reviewed buildings in this home.'"), 'Viewer topology ready before session replacement');
+  await settleViewerReads();
   await openAtlasTools();
+  await settleViewerReads();
   const refreshedCookies = await send('Network.getCookies', {urls:[origin]});
   const actualSessionCookie = refreshedCookies.cookies.find(c=>c.name===cookie.slice(0,split));
   assert(actualSessionCookie?.secure && actualSessionCookie.httpOnly && actualSessionCookie.sameSite==='Strict', 'Actual login issues protected browser cookie');
@@ -172,6 +224,7 @@ try {
   // Fresh local-only commands, each submitted once. The browser's real editor
   // login replaces its viewer session; every write carries freshly issued CSRF.
   // This is not a provider operation, replay, stale guard or rejected request.
+  phase = 'editor-writes';
   const writes = await evaluate(`(async () => {
     const prefix=${JSON.stringify(prefix)}, login=${JSON.stringify(editorLogin)}, results=[];
     const request=async(path,body,csrf)=>{const response=await fetch(path,{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',redirect:'error',headers:body?{'content-type':'application/json',...(csrf?{'x-atlas-csrf':csrf}:{})}:{},...(body?{body:JSON.stringify(body)}:{})}); const value=await response.json(); results.push({path,status:response.status});if(response.status!==200)throw new Error('Ordinary fresh local write/read failed');return value;};
@@ -255,7 +308,7 @@ try {
     assert.deepEqual(row.wire.data.records,[row.expected]);assert.equal(row.wire.data.nextCursor,null);assert.equal(row.wire.data.sourceStatus,'current');
   }
   assert(observedUrls.every(url=>url.startsWith(origin+'/')), 'All ordinary core/media/stock requests stay on loopback');
-  assert(responses.every(r=>r.status===200 || (r.status===204 && r.url===origin+'/favicon.ico')), 'All observed core flows remain successful ordinary responses');
+  assert(responses.every(r=>r.status===200 || (r.status===204 && r.url===origin+'/favicon.ico')), 'All observed core flows remain successful ordinary responses: ' + JSON.stringify(responses.filter(r=>!(r.status===200 || (r.status===204 && r.url===origin+'/favicon.ico'))).slice(0,20).map(r=>({path:new URL(r.url).pathname,status:r.status,requestPhase:r.requestPhase,responsePhase:r.responsePhase,commandId:new URL(r.url).pathname.endsWith('/invoke')?(JSON.parse(new URL(r.url).searchParams.get('request') ?? 'null')?.commandId ?? null):null}))));
   assert.equal(runtimeErrors.length,0);
   const sql = [
     'import sqlite3,json,sys', 'from pathlib import Path', 'root=Path(sys.argv[1])',
