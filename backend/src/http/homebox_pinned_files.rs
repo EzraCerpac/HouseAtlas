@@ -20,6 +20,7 @@ use axum::{
     http::{HeaderName, HeaderValue, Method, StatusCode, Uri},
     response::IntoResponse,
 };
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::Value;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -194,6 +195,26 @@ fn budget() -> Result<(CancelOnDrop, m::WorkBudget), super::HttpFailure> {
     let budget = m::WorkBudget::new(Duration::from_secs(10), cancellation).map_err(media_error)?;
     Ok((cancel, budget))
 }
+// Dropping this future stops our reader from scheduling another GET after the
+// budget is observed cancelled. A request already delivered to the provider
+// may still complete remotely; cancellation is not a remote rollback receipt.
+async fn capture_with_budget<T>(
+    budget: &m::WorkBudget,
+    capture: impl std::future::Future<Output = m::MediaResult<T>>,
+) -> m::MediaResult<T> {
+    tokio::pin!(capture);
+    loop {
+        budget.check()?;
+        tokio::select! {
+            result = &mut capture => {
+                budget.check()?;
+                return result;
+            }
+            _ = tokio::time::sleep(Duration::from_millis(50)) => {}
+        }
+    }
+}
+
 fn original_wire(uri: &Uri) -> Result<Value, super::HttpFailure> {
     let query = uri.query().ok_or_else(invalid)?;
     if query.len() > QUERY_MAX_BYTES {
@@ -217,7 +238,17 @@ pub(super) async fn capture(
     uri: Uri,
     method: Method,
 ) -> HttpResult {
-    capture_selected(host, workspace_id, home_id, headers, uri, method, false).await
+    capture_selected(
+        host,
+        workspace_id,
+        home_id,
+        headers,
+        uri,
+        method,
+        false,
+        false,
+    )
+    .await
 }
 
 pub(super) async fn capture_v4(
@@ -227,9 +258,40 @@ pub(super) async fn capture_v4(
     uri: Uri,
     method: Method,
 ) -> HttpResult {
-    capture_selected(host, workspace_id, home_id, headers, uri, method, true).await
+    capture_selected(
+        host,
+        workspace_id,
+        home_id,
+        headers,
+        uri,
+        method,
+        true,
+        false,
+    )
+    .await
 }
 
+pub(super) async fn offline_original(
+    State(host): State<Host>,
+    Path((workspace_id, home_id)): Path<(String, String)>,
+    Extension(headers): Extension<CheckedHeaders>,
+    uri: Uri,
+    method: Method,
+) -> HttpResult {
+    capture_selected(
+        host,
+        workspace_id,
+        home_id,
+        headers,
+        uri,
+        method,
+        true,
+        true,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
 async fn capture_selected(
     host: Host,
     workspace_id: String,
@@ -238,6 +300,7 @@ async fn capture_selected(
     uri: Uri,
     method: Method,
     v4: bool,
+    offline: bool,
 ) -> HttpResult {
     let (_cancel, budget) = budget()?;
     let runtime = tokio::runtime::Handle::current();
@@ -349,20 +412,33 @@ async fn capture_selected(
                         .consume(&boundary, original.principal(), session, session_expires_at_ms, &request)?;
                 }
                 // No Core/Store/Access/Broker guard survives these three real GETs.
-                let owner = Arc::new(
-                    runtime
-                        .block_on(NativePinnedFileOwner::capture_configured(
-                            &binding.source,
-                            &binding.credentials,
-                            Arc::clone(&access),
-                            original.clone(),
-                            source_grant.clone(),
-                            partition_grant,
-                            &request,
-                        ))
-                        .map_err(media_error)?,
+                let capture = NativePinnedFileOwner::capture_configured(
+                    &binding.source,
+                    &binding.credentials,
+                    Arc::clone(&access),
+                    original.clone(),
+                    source_grant.clone(),
+                    partition_grant,
+                    &request,
                 );
+                let owner = Arc::new(runtime.block_on(async {
+                    if offline {
+                        capture_with_budget(&budget, capture).await
+                    } else {
+                        capture.await
+                    }
+                }).map_err(media_error)?);
                 budget.check().map_err(media_error)?;
+                if offline {
+                    let (facts, bytes) = {
+                        let mut boundary = access.lock().map_err(|_| unavailable())?;
+                        m::homebox_pinned_artifacts::read_offline_original(
+                            &mut boundary, &original, &source_grant, &request, &owner, &budget,
+                        ).map_err(media_error)?
+                    };
+                    budget.check().map_err(media_error)?;
+                    return offline_response(&facts, bytes);
+                }
                 let issued = {
                     let mut boundary = access.lock().map_err(|_| unavailable())?;
                     let mut broker = host
@@ -403,6 +479,42 @@ async fn capture_selected(
     })
     .await
     .map_err(|_| unavailable())?
+}
+
+// The metadata is descriptive data, not a redemption capability. Raw bytes
+// and their pins share one response, avoiding a second provider download.
+fn offline_response(facts: &impl serde::Serialize, bytes: Vec<u8>) -> HttpResult {
+    let encoded = STANDARD.encode(serde_json::to_vec(facts).map_err(|_| unavailable())?);
+    if encoded.len() > WIRE_MAX_BYTES {
+        return Err(failure(StatusCode::PAYLOAD_TOO_LARGE));
+    }
+    let mut response = bytes.into_response();
+    let headers = response.headers_mut();
+    headers.insert(
+        "content-type",
+        HeaderValue::from_static("application/octet-stream"),
+    );
+    headers.insert(
+        "cache-control",
+        HeaderValue::from_static("private, no-store"),
+    );
+    headers.insert(
+        "x-content-type-options",
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        "content-security-policy",
+        HeaderValue::from_static("default-src 'none'; sandbox"),
+    );
+    headers.insert(
+        "cross-origin-resource-policy",
+        HeaderValue::from_static("same-origin"),
+    );
+    headers.insert(
+        "x-houseatlas-original",
+        HeaderValue::from_str(&encoded).map_err(|_| unavailable())?,
+    );
+    Ok(response)
 }
 
 fn authenticated_redemption(
@@ -628,6 +740,40 @@ mod session_retirement_tests {
     }
 
     #[test]
+    fn offline_capture_request_cannot_replay_after_an_unknown_outcome() {
+        let (mut access, _clock, scope, _user, _now) = setup();
+        let receipt = access
+            .login_loopback_local(
+                &evidence(a::Method::Post, None, None),
+                "127.0.0.1".parse().unwrap(),
+            )
+            .unwrap();
+        let original = principal(&mut access, &receipt, &scope);
+        let contracts = st::NativeStockContract::new().unwrap();
+        let first = request(&contracts, 100, 6);
+        let mut gate = CaptureRequests::default();
+        assert!(consume(&mut gate, &access, &original, &receipt, &first).is_ok());
+        // This gate is spent before any provider GET, even if the caller never
+        // receives a result. Reusing the ID cannot dispatch another download.
+        assert_eq!(
+            consume(&mut gate, &access, &original, &receipt, &first)
+                .err()
+                .unwrap()
+                .status,
+            StatusCode::CONFLICT
+        );
+        let changed = request(&contracts, 100, 7);
+        assert_eq!(
+            consume(&mut gate, &access, &original, &receipt, &changed)
+                .err()
+                .unwrap()
+                .status,
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
+        assert_eq!(gate.spent.len(), 1);
+    }
+
+    #[test]
     #[ignore = "HELD standalone capture replay/changed-wire/quota controls; source-only, no execution authorized"]
     fn live_capture_replay_controls_source_only() {
         let (mut access, clock, scope, user, now) = setup();
@@ -792,5 +938,72 @@ mod session_retirement_tests {
             .is_ok()
         );
         assert_eq!(gate.spent.len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod offline_response_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn cancelled_capture_does_not_poll_or_release_a_result() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let cancellation = m::Cancellation::default();
+        let budget = m::WorkBudget::new(Duration::from_secs(10), cancellation.clone()).unwrap();
+        cancellation.cancel();
+        let polled = AtomicBool::new(false);
+        let result = capture_with_budget(&budget, async {
+            polled.store(true, Ordering::SeqCst);
+            Ok::<_, m::MediaError>(())
+        })
+        .await;
+        assert!(result.is_err());
+        assert!(!polled.load(Ordering::SeqCst));
+        let pending_cancel = m::Cancellation::default();
+        let pending_budget =
+            m::WorkBudget::new(Duration::from_secs(10), pending_cancel.clone()).unwrap();
+        let cancel_task = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            pending_cancel.cancel();
+        });
+        let pending = capture_with_budget(
+            &pending_budget,
+            std::future::pending::<m::MediaResult<()>>(),
+        )
+        .await;
+        assert!(pending.is_err());
+        cancel_task.await.unwrap();
+        let live = m::WorkBudget::new(Duration::from_secs(10), m::Cancellation::default()).unwrap();
+        assert_eq!(
+            capture_with_budget(&live, async { Ok::<_, m::MediaError>(7) })
+                .await
+                .unwrap(),
+            7
+        );
+    }
+
+    #[test]
+    fn metadata_roundtrips_and_remains_bounded() {
+        let facts = serde_json::json!({"schemaVersion": 1, "contentType": null, "observationId": "fictional"});
+        let Ok(response) = offline_response(&facts, b"original".to_vec()) else {
+            panic!("synthetic response refused");
+        };
+        assert_eq!(
+            response.headers()["content-type"],
+            "application/octet-stream"
+        );
+        assert_eq!(response.headers()["cache-control"], "private, no-store");
+        let encoded = response.headers()["x-houseatlas-original"]
+            .to_str()
+            .unwrap();
+        let decoded: Value = serde_json::from_slice(&STANDARD.decode(encoded).unwrap()).unwrap();
+        assert_eq!(decoded, facts);
+        assert!(
+            offline_response(
+                &serde_json::json!({"large": "x".repeat(WIRE_MAX_BYTES)}),
+                vec![]
+            )
+            .is_err()
+        );
     }
 }

@@ -2589,8 +2589,8 @@
     {
       "path": "backend/src/http/homebox_pinned_files.rs",
       "mode": "100644",
-      "bytes": 30110,
-      "sha256": "f961acc41042acf9c27ca460a4c4886e6c56b90f78a5a77c00d6e445d5910d46",
+      "bytes": 37187,
+      "sha256": "9de6cb8e68835ebb9fc8ff34ffe5969e6cf3b4ba6dfaac377e3c3ddcff306a95",
       "owner": "core-integration"
     },
     {
@@ -2624,8 +2624,8 @@
     {
       "path": "backend/src/http/mod.rs",
       "mode": "100644",
-      "bytes": 24940,
-      "sha256": "ffe72ad3d3b63188ab1554e1eaf67d197501d8c278dd54387dd97f6f1dd72c79",
+      "bytes": 25144,
+      "sha256": "cf97ca13b4589f60f48c9751bf722cef9e0acd9cef9e7776103ef211becf4b38",
       "owner": "core-integration"
     },
     {
@@ -3408,8 +3408,8 @@
     {
       "path": "backend/src/media/homebox_pinned_artifacts.rs",
       "mode": "100644",
-      "bytes": 22682,
-      "sha256": "1dbce8f8eb919ab00f6b3d8475b9ab04392f89a7b4f8173920c61229890ba632",
+      "bytes": 26582,
+      "sha256": "8dc745c5018c982063d51fe7ff193af16e4a35ede1eb7777c698794d5a9e6e97",
       "owner": "media"
     },
     {
