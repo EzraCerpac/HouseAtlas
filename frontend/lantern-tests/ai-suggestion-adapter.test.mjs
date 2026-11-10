@@ -37,6 +37,38 @@ function setup(wire = fixture(), options = {}) {
   const session = createSuggestionReviewSession(JSON.stringify(wire), context, owner);
   return { session, owner, context, inspected, intents, change(value) { current = value; for (const cb of [...listeners]) cb(); } };
 }
+test('canonical maximum JSON tags cross the actual session boundary losslessly with one review intent', async () => {
+  const tags = Array.from({ length: 16 }, (_, n) => Array.from({ length: 4 }, (_, bit) => n & (1 << bit) ? '\\' : '"').join('') + '"'.repeat(124));
+  assert.equal(new Set(tags).size, 16);
+  assert(tags.every(value => new TextEncoder().encode(value).length === 128));
+  const encoded = JSON.stringify(tags);
+  assert.equal(encoded.length, 16 * 128 * 2 + 16 * 2 + 15 + 2);
+  assert.equal(encoded.length, 4145);
+  const wire = fixture(); wire.view.candidates = [];
+  wire.view.fields = [{ ...wire.view.fields[0], key: 'tags', label: 'Tags (JSON list)', current: null, proposed: encoded }];
+  wire.selections = { tags: { kind: 'inventory-tags', inputRef: 'subject1' } };
+  assert(new TextEncoder().encode(JSON.stringify(wire)).length <= 65536);
+  const s = setup(wire), c = s.session.controller;
+  assert.equal(c.getSnapshot().view.fields[0].current, null);
+  assert.equal(c.getSnapshot().fields[0].value, encoded);
+  assert.deepEqual(JSON.parse(c.getSnapshot().fields[0].value), tags);
+  c.selectField('tags', true);
+  const reordered = JSON.stringify([...tags].reverse());
+  assert.equal(reordered.length, 4145);
+  assert.equal(c.editField('tags', reordered), true);
+  assert.equal(c.editField('tags', reordered + ' '), false);
+  await c.decide('accept-for-review'); await c.decide('accept-for-review');
+  assert.equal(s.intents.length, 1);
+  assert.equal(s.intents[0].intent.authority, 'none');
+  assert.equal(s.intents[0].intent.fields[0].value, reordered);
+  assert.equal(s.intents[0].intent.fields[0].edited, true);
+  assert.deepEqual(JSON.parse(s.intents[0].intent.fields[0].value), [...tags].reverse());
+  assert.deepEqual(s.intents[0].selections, { tags: { kind: 'inventory-tags', inputRef: 'subject1' } });
+  s.session.dispose();
+  // The widened bound is exclusive to Inventory tags; other fields keep4096.
+  const ordinary = fixture(); ordinary.view.fields[0].proposed = 'x'.repeat(4097);
+  assert.throws(() => setup(ordinary));
+});
 test('inventory with no proposed changes keeps exact cited inspection without an accept intent', async () => {
   const wire = fixture(); wire.view.fields = []; wire.view.candidates = []; wire.selections = {};
   wire.view.sources[0].excerpt = 'Generated record A reports Blue; current physical location unknown.';

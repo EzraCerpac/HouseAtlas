@@ -1,5 +1,16 @@
 # HouseAtlas
 
+Inventory tag JSON has a tight 4,145 UTF-16-unit compact-display bound:
+16 tags *128 UTF-8 bytes *2 escaping units +32 string quotes +15 commas +2
+brackets. Only LF/tab control characters are admitted; six-character control
+escapes are unreachable. Unique 128-byte quote/backslash tags attain the bound.
+Two backend canonical/disclosure and one strict-session controls are authored,
+NOT RUN. Shared preparation counts are 39 synthetic-contract /10 scorer /
+28 retained /one counter Rust cases and 24 session cases. The session control
+requires the matching reviewed frontend tag-specific capacity donor before
+publication; other field limits, whole-DTO bounds and all native/runtime gates
+remain unchanged. No truncation, normalization or new source/approval is added.
+
 Inventory no-change/no-duplicate disclosure now retains evidence explicitly
 cited by validated extracted claims, so unknown/held results can show exact
 source excerpts/versions/dates for inspection instead of metadata alone.

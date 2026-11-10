@@ -36,6 +36,72 @@ fn validate(value: &Value, snapshot: &AdmittedSnapshot) -> std::result::Result<R
     validate_generated(&serde_json::to_vec(value).unwrap(), snapshot, snapshot)
 }
 
+fn maximal_quote_backslash_tags() -> Vec<String> {
+    (0..16).map(|n| {
+        // Four binary quote/backslash positions give sixteen unique prefixes;
+        // every character of every 128-byte tag requires a two-unit escape.
+        let prefix: String = (0..4).map(|bit| if n & (1 << bit) == 0 { '"' } else { '\\' }).collect();
+        prefix + &"\"".repeat(124)
+    }).collect()
+}
+
+#[test]
+fn canonical_maximum_inventory_tags_survive_lossless_disclosure_with_derived_display_bound() {
+    let snapshot = AdmittedSnapshot::new(input()).unwrap();
+    let tags = maximal_quote_backslash_tags();
+    assert_eq!(tags.len(), 16);
+    assert_eq!(tags.iter().collect::<std::collections::BTreeSet<_>>().len(), 16);
+    assert!(tags.iter().all(|s| s.len() == 128));
+    let supplied = output(&snapshot, json!({"kind":"inventory","changes":[{"field":"tags","values":tags,
+        "support":support(&["c1"])}],"duplicates":[]}));
+    let review = validate(&supplied, &snapshot).unwrap();
+    let disclosure = disclose_review(&review, &snapshot, &Default::default()).unwrap();
+    let field = &disclosure.value()["view"]["fields"][0];
+    let encoded = field["proposed"].as_str().unwrap();
+    // Compact JSON contributes two quotes per tag, fifteen commas and brackets.
+    // Allowed chars contribute <=2 UTF-16 units per source UTF-8 byte. Other
+    // controls (which could require six-character escapes) are prohibited.
+    let bound = 16 * 128 * 2 + 16 * 2 + 15 + 2;
+    assert_eq!(bound, 4145);
+    assert_eq!(encoded.encode_utf16().count(), bound);
+    assert_eq!(encoded.len(), bound); // This extremal fixture is ASCII encoded.
+    assert_eq!(serde_json::from_str::<Vec<String>>(encoded).unwrap(), tags);
+    assert_eq!(field["key"], "tags");
+    assert_eq!(field["current"], Value::Null);
+    assert_eq!(disclosure.value()["selections"]["tags"], json!({"kind":"inventory-tags","inputRef":"input1"}));
+    assert!(serde_json::to_vec(disclosure.value()).unwrap().len() <= MAX_OUTPUT_BYTES);
+}
+
+#[test]
+fn inventory_tag_utf8_control_and_uniqueness_rules_bound_json_escaping() {
+    let snapshot = AdmittedSnapshot::new(input()).unwrap();
+    for tags in [
+        vec!["\"\\\n\t".repeat(32)], // 128 ASCII bytes; only LF/tab controls allowed.
+        vec!["é".repeat(64)],         // 128 UTF-8 bytes, 64 UTF-16 units before JSON.
+        vec!["🧭".repeat(32)],        // 128 UTF-8 bytes, 64 UTF-16 units before JSON.
+    ] {
+        let supplied = output(&snapshot, json!({"kind":"inventory","changes":[{"field":"tags","values":tags,
+            "support":support(&["c1"])}],"duplicates":[]}));
+        let review = validate(&supplied, &snapshot).unwrap();
+        let disclosure = disclose_review(&review, &snapshot, &Default::default()).unwrap();
+        let encoded = disclosure.value()["view"]["fields"][0]["proposed"].as_str().unwrap();
+        assert!(encoded.encode_utf16().count() <= 4145);
+        assert_eq!(serde_json::from_str::<Vec<String>>(encoded).unwrap(), tags);
+    }
+    for tags in [
+        vec!["a".repeat(129)], vec!["é".repeat(65)], vec!["🧭".repeat(33)],
+        vec!["duplicate".into(), "duplicate".into()],
+        (0..17).map(|n| format!("tag-{n}")).collect(),
+        vec!["has\rcarriage-return".into()], vec!["has\u{0001}control".into()],
+        vec!["only\u{007f}delete".into()], vec!["only\u{0085}c1-control".into()],
+        vec![" \n\t".into()],
+    ] {
+        let supplied = output(&snapshot, json!({"kind":"inventory","changes":[{"field":"tags","values":tags,
+            "support":support(&["c1"])}],"duplicates":[]}));
+        assert!(validate(&supplied, &snapshot).is_err());
+    }
+}
+
 fn cited_inventory_abstention() -> (AdmittedSnapshot, Value) {
     let mut admitted = input();
     admitted.sources[0].source_date = Some("2030-01-01".into());

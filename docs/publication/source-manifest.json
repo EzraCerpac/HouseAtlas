@@ -153,8 +153,8 @@
     {
       "path": "AGENTS.md",
       "mode": "100644",
-      "bytes": 58204,
-      "sha256": "6f83e8a5d3c65d1bd0cc9c3302d1caad5bfb1619b818919c3259d4da257f5114",
+      "bytes": 58974,
+      "sha256": "40f0caa791d3783eaf7bcc8a043986a74c626405e64740107559038abf2951e1",
       "owner": "core-integration"
     },
     {
@@ -1217,8 +1217,8 @@
     {
       "path": "backend/src/ai/suggestions/synthetic_contracts.rs",
       "mode": "100644",
-      "bytes": 60732,
-      "sha256": "5a8f528d77f63b259705cef133b8a67c1b1e9f295b19a0afcaf1e4b86ce4a64a",
+      "bytes": 64364,
+      "sha256": "eb639a1cad1c616b4cd12d570cd4f0bb51f0bea441c072b48506bd6f82fcf199",
       "owner": "ai"
     },
     {
@@ -6593,8 +6593,8 @@
     {
       "path": "docs/contributing/verification.md",
       "mode": "100644",
-      "bytes": 276443,
-      "sha256": "6d03b79d14d198b63ffff9dd4ff31a64fa550c71290b5e0a682ae4a9da11362f",
+      "bytes": 278472,
+      "sha256": "494046a64dc6dccd617d2d1a56cdff394e331495fff243d051e68f7848b6beeb",
       "owner": "core-integration"
     },
     {
@@ -7930,8 +7930,8 @@
     {
       "path": "frontend/lantern-tests/ai-suggestion-adapter.test.mjs",
       "mode": "100644",
-      "bytes": 31331,
-      "sha256": "de824af38b7738474af1700e0c6f22986c4f45bfa8488729cab3ed0afd53861e",
+      "bytes": 33390,
+      "sha256": "37e149e697bb980d9b23fd0235c419e9969e1c55e58fe2e34282f799d4200c21",
       "owner": "web"
     },
     {

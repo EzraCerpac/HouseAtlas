@@ -158,6 +158,37 @@ concrete original reviewed-stock and trusted human-review bridge.
 
 ## Review-only AI suggestion contracts
 
+### Canonical Inventory tag JSON capacity
+
+Rust admits 1..16 unique nonblank tags of at most128 UTF-8 bytes each, rejecting
+controls except LF/tab. Compact JSON content therefore uses at most two UTF-16
+units per source UTF-8 byte (quote/backslash/LF/tab escapes are the worst case).
+Quotes, commas and brackets give the tight bound
+`16*128*2 +16*2 +15 +2 =4145`. Unicode scalar content cannot exceed this bound;
+Rust strings cannot contain unpaired surrogates. Six-unit control escapes do
+not occur for canonically permitted tags. This is the decoded field capacity,
+not the separately fenced serialized display DTO size of65,536 bytes.
+
+Three shared controls are authored and **NOT RUN**:
+
+- `ai::suggestions::synthetic_contracts::canonical_maximum_inventory_tags_survive_lossless_disclosure_with_derived_display_bound`
+- `ai::suggestions::synthetic_contracts::inventory_tag_utf8_control_and_uniqueness_rules_bound_json_escaping`
+- adapter: `canonical maximum JSON tags cross the actual session boundary losslessly with one review intent`
+
+Sixteen unique128-byte quote/backslash-heavy tags attain4145 exactly and must
+round-trip without normalization/truncation. Controls include LF/tab, multibyte
+UTF-8, forbidden controls, excessive bytes/count and duplicate tags, plus exact
+null current/proposed/edit field preservation, original binding and once-only
+authority:none handoff. The session control requires the exact reviewed
+frontend donor that aligns only Inventory tags' copy/edit/input capacity; the
+existing4096 default and every other limit stay unchanged. These controls do
+not run a browser, provider, native effect or live owner. Shared preparation
+counts are39 synthetic-contract,10 scorer,28 retained,one counter Rust cases
+and24 session cases; original corpus/ledger and runner selections are unchanged.
+Exact donor/presentation counts and final manifest composition are reconciled
+before publication. No local tests/build/compiler/typecheck/formatter/Clippy or
+interactive/operational qualification is implied.
+
 Inventory proposals with no changes or duplicate suggestions now preserve
 already-validated claim-cited evidence in the ordinary display source list.
 This supports inspecting originals/records behind an unknown/no-suggestion
