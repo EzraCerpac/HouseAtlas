@@ -480,3 +480,16 @@ test('late lower or conflicting equal source registrations are refused and never
     assert.equal(marks().length, 0, 'account change removes registration marks with the data');
   } finally { f.owner.close(); }
 });
+
+test('a HomeBox row stored under another association key never reports or opens as that association', async () => {
+  const f = await homeboxSetup(transport(), homeboxView([{ attachmentId: uuid(42), byteSize: '30' }, { attachmentId: uuid(43), byteSize: '30' }]));
+  try {
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(43)), signal())).status, 'ok');
+    const metadata = f.backend.tables().get('metadata'), bytes = f.backend.tables().get('bytes');
+    const [key, row] = [...metadata].find(([, value]) => value.kind === 'homebox-document');
+    const forged = key.replace(uuid(43), uuid(42));
+    metadata.set(forged, structuredClone(row)); bytes.set(forged, bytes.get(key).slice(0));
+    const status = await f.owner.read.homeboxStatus(await readCopy(f.owner), ref(uuid(42)), signal());
+    assert.equal(status.status, 'ok'); assert.equal(status.value.availability, 'failed-integrity');
+  } finally { f.owner.close(); }
+});

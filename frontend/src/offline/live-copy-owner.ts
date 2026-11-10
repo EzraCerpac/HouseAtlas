@@ -334,7 +334,10 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
         check(b, signal);
         if (!row) return { availability: 'not-held', bytes: null };
         need(rowOK(row) && row.kind === 'homebox-document' && row.epoch === b.epoch, 'integrity');
-        const pin = { ...(row.pin as OfflineHomeboxPinV1) }, result = await readHomeboxDocument(handle, pin, signal);
+        const pin = { ...(row.pin as OfflineHomeboxPinV1) };
+        // The stored pin must name exactly the requested association; a row under another key never stands in.
+        if (homeboxAssociation(pin).join('\n') !== homeboxAssociation(ref).join('\n')) return { availability: 'failed-integrity', bytes: null };
+        const result = await readHomeboxDocument(handle, pin, signal);
         if (result.status === 'integrity') return { availability: 'failed-integrity', bytes: pin.bytes };
         if (result.status === 'missing') return { availability: 'not-held', bytes: null };
         if (result.status !== 'ok') throw new Refusal(result.status);

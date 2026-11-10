@@ -200,13 +200,13 @@ also cannot fall back after it is withdrawn.
 
 ## Qualification
 
-The existing `offline-electrical-copy.test.mjs` selection also holds nine
+The existing `offline-electrical-copy.test.mjs` selection also holds ten
 generated HomeBox cases: exact v4 wire and fresh request IDs for opaque and UUID
 collections, measured PDF versus descriptive MIME, definitive/unknown/integrity
 outcomes without retry, separate namespace and pin-exact opening, no replay after
 unknown, session replacement, withdrawal/re-association and account change,
 source-registration supersession and stale/conflicting refusal, concurrent
-single-send claims, and the automatic pass's size, held, uncertain
+single-send claims, refusal of rows stored under another association, and the automatic pass's size, held, uncertain
 and budget rules. They use an injected generated transport and in-memory store;
 no backend, provider, browser or IndexedDB runs.
 
