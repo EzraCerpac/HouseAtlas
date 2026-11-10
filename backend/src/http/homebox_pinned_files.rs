@@ -717,6 +717,40 @@ mod session_retirement_tests {
     }
 
     #[test]
+    fn offline_capture_request_cannot_replay_after_an_unknown_outcome() {
+        let (mut access, _clock, scope, _user, _now) = setup();
+        let receipt = access
+            .login_loopback_local(
+                &evidence(a::Method::Post, None, None),
+                "127.0.0.1".parse().unwrap(),
+            )
+            .unwrap();
+        let original = principal(&mut access, &receipt, &scope);
+        let contracts = st::NativeStockContract::new().unwrap();
+        let first = request(&contracts, 100, 6);
+        let mut gate = CaptureRequests::default();
+        assert!(consume(&mut gate, &access, &original, &receipt, &first).is_ok());
+        // This gate is spent before any provider GET, even if the caller never
+        // receives a result. Reusing the ID cannot dispatch another download.
+        assert_eq!(
+            consume(&mut gate, &access, &original, &receipt, &first)
+                .err()
+                .unwrap()
+                .status,
+            StatusCode::CONFLICT
+        );
+        let changed = request(&contracts, 100, 7);
+        assert_eq!(
+            consume(&mut gate, &access, &original, &receipt, &changed)
+                .err()
+                .unwrap()
+                .status,
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
+        assert_eq!(gate.spent.len(), 1);
+    }
+
+    #[test]
     #[ignore = "HELD standalone capture replay/changed-wire/quota controls; source-only, no execution authorized"]
     fn live_capture_replay_controls_source_only() {
         let (mut access, clock, scope, user, now) = setup();
