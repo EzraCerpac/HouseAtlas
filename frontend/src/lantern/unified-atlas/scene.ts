@@ -1,5 +1,5 @@
 import type { PlanRing, PlanShape } from '../canonical-ifc/model';
-import { LABEL_WORK, labelPoint, pointInShape, type PreparedMesh, type Projection } from '../canonical-ifc/geometry';
+import { isGlass, LABEL_WORK, labelPoint, pointInShape, type PreparedMesh, type Projection } from '../canonical-ifc/geometry';
 import type { Surroundings } from '../canonical-ifc/mesh-appearance';
 import type { StandardGlb } from '../canonical-ifc/standard-glb';
 import {
@@ -844,7 +844,7 @@ export interface AtlasPresentation {
   readonly dims: ReadonlyMap<string, number>;
   /** Occurrences that can be picked in the current state. */
   readonly pickable: ReadonlySet<string>;
-  /** Building glazing currently drawn transparent; highlighted panes stay solid. */
+  /** Building glazing that picks see through; highlighted panes and lamp glass stay solid. */
   readonly transparent: ReadonlySet<string>;
   readonly focusLevelId: string | null;
   /** Selected display membership; Plan always has at most one member. */
@@ -860,7 +860,7 @@ const sectionOf = (model: AtlasModel, levelId: string) => model.floorY.get(level
 const GHOST_ROLES: ReadonlySet<MeshRole> = new Set(['structure', 'roof', 'slab']);
 /** Building glazing eligible for the Unified Atlas daylight pass. */
 export const isAtlasGlazing = (part: AtlasPart): boolean =>
-  (part.role === 'structure' || part.role === 'roof') && part.mesh.sourceNight === 'glazing';
+  (part.role === 'structure' || part.role === 'roof') && isGlass(part.mesh);
 
 export function presentAtlas(model: AtlasModel, state: AtlasViewState, highlighted: ReadonlySet<string>): AtlasPresentation {
   const plan = state.view === 'plan';
@@ -888,7 +888,8 @@ export function presentAtlas(model: AtlasModel, state: AtlasViewState, highlight
     // Unified Atlas always supplies daylight/twoSided. Its selected, context
     // and overlay occurrences are exactly `highlighted`, matching keepTone in
     // writeAppearance; other building glass takes MeshPass.Glass.
-    if (isAtlasGlazing(part) && (part.mesh.occurrenceId === null || !highlighted.has(part.mesh.occurrenceId))) transparent.add(key);
+    // A lamp's glass fills in with its glow after dusk, so it always takes a pick.
+    if (isAtlasGlazing(part) && part.mesh.sourceNight === 'glazing' && (part.mesh.occurrenceId === null || !highlighted.has(part.mesh.occurrenceId))) transparent.add(key);
     const partExploded = exploded && hasExplodableLevels(model, part.buildingId);
     const members = part.levelIds.map(levelId => model.levelIndex.get(levelId)!);
     const highest = part.levelIds.reduce<string | null>((best, levelId) => best === null || model.levelIndex.get(levelId)! > model.levelIndex.get(best)! ? levelId : best, null);

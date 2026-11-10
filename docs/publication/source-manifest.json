@@ -8511,15 +8511,15 @@
     {
       "path": "frontend/lantern-tests/unified-atlas-daylight-healthy.mjs",
       "mode": "100644",
-      "bytes": 27488,
-      "sha256": "cbcccfac5ff6dc32055c84d0e82809d44f004e980003b8566b59ae215e3b6e5a",
+      "bytes": 29665,
+      "sha256": "ed3416eb728983afc9d24b07f83a1d3bc11f89e8477f8bb7957d228595691326",
       "owner": "web"
     },
     {
       "path": "frontend/lantern-tests/unified-atlas-healthy.mjs",
       "mode": "100644",
-      "bytes": 141793,
-      "sha256": "852e96cf24faede6c957a94c2a067926d35cd67766b2756ed93edfa98aa8d749",
+      "bytes": 142232,
+      "sha256": "aa06c49b0717608b9fd75ad5810004b6d2b527bde504941e01553256a1002f4c",
       "owner": "web"
     },
     {
@@ -9365,8 +9365,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/geometry.ts",
       "mode": "100644",
-      "bytes": 24744,
-      "sha256": "436db645c2e040cf0d90b435bf9351b978e2d2e6c8e820a7cc60baf05b8f1ede",
+      "bytes": 26346,
+      "sha256": "b8e770be70d7ee6c30649250ebe4ff508700cfb10acae8a692fd8e0dbbec9f0c",
       "owner": "web"
     },
     {
@@ -9400,8 +9400,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/mesh-scene.ts",
       "mode": "100644",
-      "bytes": 57407,
-      "sha256": "2e2d792bc2659ce85deccca51dfde77d1788d3848e551415cd5480ed816ae086",
+      "bytes": 57702,
+      "sha256": "e29b7581176babdab8a3d339e738d3b080f8000d741c17f3d9fd310cf03890d5",
       "owner": "web"
     },
     {
@@ -9463,8 +9463,8 @@
     {
       "path": "frontend/src/lantern/canonical-ifc/standard-glb.ts",
       "mode": "100644",
-      "bytes": 15122,
-      "sha256": "22b86ac7551527d878599b59948c5a3f9d5fb49892b09a025612f4f34367d137",
+      "bytes": 15329,
+      "sha256": "88b40d3932f70f94166dc2386a708d85b08a7c3c47cdcdff6e1ecf457d6b19f6",
       "owner": "web"
     },
     {
@@ -10289,8 +10289,8 @@
     {
       "path": "frontend/src/lantern/unified-atlas/scene.ts",
       "mode": "100644",
-      "bytes": 92832,
-      "sha256": "e7114cd364410f3e1a8aec57a987e57f697eb10f2dc40fe021b257483ac999aa",
+      "bytes": 92957,
+      "sha256": "0d036b7291afc032b2c9822fbb8b37eccdabfa228a2f8032f5c515640e2841b8",
       "owner": "web"
     },
     {

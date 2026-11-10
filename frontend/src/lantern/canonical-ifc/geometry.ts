@@ -51,8 +51,28 @@ export function primitiveRoughness(json: Record<string, unknown>, meshIndex: num
   return typeof factor === 'number' && Number.isFinite(factor) && factor >= 0 && factor <= 1 ? factor : undefined;
 }
 
+/** The producer's glazing mark: `alphaMode: "BLEND"` below full alpha. */
+const blended = (alphaMode: unknown, pbr: unknown): boolean => {
+  const alpha: unknown = (pbr as { baseColorFactor?: unknown[] } | undefined)?.baseColorFactor?.[3];
+  return alphaMode === 'BLEND' && typeof alpha === 'number' && Number.isFinite(alpha) && alpha < 1;
+};
+/** Whether an emitter is glass too: it carries the glazing mark as well as its glow, as
+ * a glass lamp shade does. Such glass is see-through by day and glows at night. */
+export function primitiveGlass(json: Record<string, unknown>, meshIndex: number | null, primitiveIndex: number | null): boolean {
+  if (meshIndex === null || primitiveIndex === null || !Array.isArray(json.meshes) || !Array.isArray(json.materials)) return false;
+  const materialIndex: unknown = json.meshes[meshIndex]?.primitives?.[primitiveIndex]?.material;
+  if (!Number.isInteger(materialIndex) || (materialIndex as number) < 0) return false;
+  const material: unknown = json.materials[materialIndex as number];
+  if (!material || typeof material !== 'object') return false;
+  const { alphaMode, pbrMetallicRoughness } = material as Record<string, unknown>;
+  return blended(alphaMode, pbrMetallicRoughness);
+}
+
 /** How a primitive shows: an emitter glows at night; glazing is see-through glass. */
 export type SourceNight = 'emitter' | 'glazing';
+/** Drawn as see-through glass: glazing, or an emitter that is glass too. */
+export const isGlass = (mesh: { readonly sourceNight?: SourceNight; readonly sourceGlass?: true }): boolean =>
+  mesh.sourceNight === 'glazing' || mesh.sourceGlass === true;
 const LAMP_WORD = /\b(lamps?|lanterns?|bulbs?|headlamps?|headlights?|sconces?)\b/i;
 const GLASS_WORD = /\b(glass|glazing|glazed|panes?|lens|bulbs?)\b/i;
 /** The producer marks an emitter with a nonzero core `emissiveFactor` and glazing
@@ -68,8 +88,7 @@ export function primitiveNight(json: Record<string, unknown>, meshIndex: number 
   const { emissiveFactor, alphaMode, name, pbrMetallicRoughness } = material as Record<string, unknown>;
   const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
   if (Array.isArray(emissiveFactor) && emissiveFactor.some(value => finite(value) && value > 0)) return 'emitter';
-  const alpha: unknown = (pbrMetallicRoughness as { baseColorFactor?: unknown[] } | undefined)?.baseColorFactor?.[3];
-  if (alphaMode === 'BLEND' && finite(alpha) && alpha < 1) return 'glazing';
+  if (blended(alphaMode, pbrMetallicRoughness)) return 'glazing';
   if (typeof name !== 'string' || !GLASS_WORD.test(name)) return;
   // Only the material's own name counts, and a stated emissiveFactor (zero here) is the producer's word that it does not glow.
   return LAMP_WORD.test(name) && emissiveFactor === undefined ? 'emitter' : 'glazing';
@@ -111,7 +130,9 @@ export interface MeshInput {
   readonly sourceNight?: SourceNight;
   /** Emitters only: the stated colour of their light. */
   readonly sourceGlow?: readonly [number, number, number];
-  /** Glazing only: the material's roughness, which frosts the pane. */
+  /** Emitters only: also glass (BLEND below full alpha), drawn see-through by day. */
+  readonly sourceGlass?: true;
+  /** Glass only: the material's roughness, which frosts the pane. */
   readonly sourceRoughness?: number;
   readonly sourceMaterial?: EmbeddedMaterial;
   readonly sourceAttributes?: Readonly<{ uv: Float32Array; normal: Float32Array; tangent: Float32Array | null }>;
@@ -130,6 +151,7 @@ export interface PreparedMesh {
   readonly sourceBaseColor?: SourceBaseColor;
   readonly sourceNight?: SourceNight;
   readonly sourceGlow?: readonly [number, number, number];
+  readonly sourceGlass?: true;
   readonly sourceRoughness?: number;
   /** For an emitter whose glowing faces mostly face one way, that way: its beam. */
   readonly aim?: readonly [number, number, number];
@@ -184,6 +206,7 @@ export function prepareMeshes(meshes: readonly MeshInput[], binding: (mesh: Mesh
       ...(mesh.sourceBaseColor ? { sourceBaseColor: mesh.sourceBaseColor } : {}),
       ...(mesh.sourceNight ? { sourceNight: mesh.sourceNight } : {}), ...(aim ? { aim } : {}),
       ...(mesh.sourceNight === 'emitter' && mesh.sourceGlow ? { sourceGlow: mesh.sourceGlow } : {}),
+      ...(mesh.sourceNight === 'emitter' && mesh.sourceGlass ? { sourceGlass: true as const } : {}),
       ...(mesh.sourceRoughness !== undefined ? { sourceRoughness: mesh.sourceRoughness } : {}),
       ...(mesh.sourceMaterial && materialVertices ? { sourceMaterial: mesh.sourceMaterial, materialVertices } : {}),
       yRange: [min[1]!, max[1]!], bounds: { min: [min[0]!, min[1]!, min[2]!], max: [max[0]!, max[1]!, max[2]!] } };
