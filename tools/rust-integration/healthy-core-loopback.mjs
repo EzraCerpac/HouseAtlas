@@ -28,6 +28,7 @@ let service, browser, cdp, serviceOutput = '', serviceError = '';
 const observedUrls = [], responses = [], runtimeErrors = [], nativeListResponses = [];
 let phase = 'initial-view';
 const requestPhases = new Map();
+const nativeReads = new Map();
 class Pipe {
   next = 0; pending = new Map(); buffer = Buffer.alloc(0);
   constructor(process) {
@@ -46,9 +47,16 @@ class Pipe {
         } else if (message.method === 'Network.requestWillBeSent') {
           observedUrls.push(message.params.request.url);
           requestPhases.set(message.params.requestId, phase);
+          const url = new URL(message.params.request.url);
+          if (url.pathname.endsWith('/invoke')) nativeReads.set(message.params.requestId, {
+            phase, commandId: JSON.parse(url.searchParams.get('request')).commandId,
+            status: null, finished: false, failed: false,
+          });
         }
         else if (message.method === 'Network.responseReceived') {
           const response = message.params.response;
+          const read = nativeReads.get(message.params.requestId);
+          if (read) read.status = response.status;
           responses.push({ url: response.url, status: response.status,
             requestPhase: requestPhases.get(message.params.requestId) ?? 'unknown', responsePhase: phase });
           requestPhases.delete(message.params.requestId);
@@ -57,6 +65,10 @@ class Pipe {
           if (new URL(response.url).pathname.endsWith('/invoke'))
             nativeListResponses.push({ id: message.params.requestId, path: new URL(response.url).pathname, status: response.status,
               snapshot: Object.entries(response.headers).find(([name]) => name.toLowerCase() === 'x-atlas-snapshot-sha256')?.[1] ?? null });
+        }
+        else if (message.method === 'Network.loadingFinished' || message.method === 'Network.loadingFailed') {
+          const read = nativeReads.get(message.params.requestId);
+          if (read) { read.finished = true; read.failed = message.method === 'Network.loadingFailed'; }
         }
         else if (message.method === 'Runtime.exceptionThrown') runtimeErrors.push(message.params.exceptionDetails.text);
       }
@@ -95,6 +107,15 @@ try {
   const evaluate = async expression => {
     const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
     assert(!result.exceptionDetails, 'Healthy browser evaluation'); return result.result.value;
+  };
+  const settleViewerReads = async () => {
+    const rows = () => [...nativeReads.values()].filter(read => read.phase === 'viewer-login');
+    await until(() => rows().length >= 4 && rows().every(read => read.finished), 'Every viewer native read completed before session replacement');
+    assert(rows().every(read => read.status === 200 && !read.failed), 'Every viewer native read succeeds without cancellation');
+    const counts = new Map();
+    for (const read of rows()) counts.set(read.commandId, (counts.get(read.commandId) ?? 0) + 1);
+    assert.deepEqual([...counts.keys()].sort(), ['atlas.binding.list', 'atlas.identity.list', 'atlas.location-semantics.list', 'atlas.relation.list']);
+    assert([...counts.values()].every(count => count === counts.get('atlas.identity.list')), 'Observed viewer topology command counts remain balanced');
   };
   // Open the retained native Atlas surface through Lantern's visible controls.
   const openAtlasTools = async () => {
@@ -235,7 +256,10 @@ try {
   await evaluate(`document.getElementById('atlas-username').value=${JSON.stringify(login.username)}; document.getElementById('atlas-password').value=${JSON.stringify(login.password)}; document.querySelector('.session-form').requestSubmit()`);
   assert.equal(await evaluate("document.getElementById('atlas-password')?.value ?? ''"), '');
   await until(async () => (await evaluate('document.body?.innerText ?? ""')).includes('Synthetic home'), 'Actual successful HTTP login and React home');
+  await until(async () => await evaluate("document.querySelector('.atlas-section .topology-scope [role=status]')?.textContent === 'No reviewed buildings in this home.'"), 'Viewer topology ready before session replacement');
+  await settleViewerReads();
   await openAtlasTools();
+  await settleViewerReads();
   const refreshedCookies = await send('Network.getCookies', {urls:[origin]});
   const actualSessionCookie = refreshedCookies.cookies.find(c=>c.name===cookie.slice(0,split));
   assert(actualSessionCookie?.secure && actualSessionCookie.httpOnly && actualSessionCookie.sameSite==='Strict', 'Actual login issues protected browser cookie');

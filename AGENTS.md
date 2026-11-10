@@ -1,5 +1,24 @@
 # HouseAtlas
 
+Exact b1e18e0e hosted source job130028019360 passed after the four Clippy
+repairs, and default-library job130028019422 passed. Its diagnostic media job
+130028019572 observed two successful responses for each topology command in
+the viewer-login phase; core job130028019526 tied all four401 responses to
+viewer-started topology requests arriving after editor session rotation.
+
+Both existing fixtures now correlate every native request by CDP request ID,
+including response status and loading-finished/failed events. After actual current provider readiness, barriers before unmount and again
+before session rotation require a complete balanced set of the four topology commands,
+and successful completion without cancellation for every observed request.
+This replaces the newly introduced one-cohort assumption, not the existing
+four-read measured Atlas/Places assertions or all-observed-response checks.
+Equal aggregate command totals do not establish individual request cohorts,
+and the barrier does not prove that no future viewer request can start. No
+production authentication, lifecycle, runner or workflow is changed. These
+fixture changes require new exact-head hosted execution; no local checks ran.
+The browser launch sandbox blocker is separate and no security override is
+introduced. Runtime, native authority and operational acceptance remain held.
+
 The same b97433ec loopback execution reached the retained all-response check
 in core, which found four401 responses after viewer login. Media observed8
 viewer /invoke responses against the newly added4-response assumption. That
