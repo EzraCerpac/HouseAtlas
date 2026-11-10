@@ -168,20 +168,26 @@ export function createLiveCopyRetention(options: {
       const { session, view } = options.state();
       if (!session || !view || !validHomeboxRef(ref)) return remember({ status: 'invalid' });
       if (!listsAttachment(view, ref)) return remember({ status: 'missing' });
-      const sent = homeboxSent.get(session) ?? new Set<string>(), key = homeboxKey(ref);
-      if (sent.has(key)) return remember({ status: 'uncertain' });
+      // Claim synchronously, before any await, so concurrent calls for one session/association cannot both send.
+      let sent = homeboxSent.get(session); if (!sent) { sent = new Set<string>(); homeboxSent.set(session, sent); }
+      const key = homeboxKey(ref), claimed = sent;
+      if (claimed.has(key)) return remember({ status: 'uncertain' });
+      claimed.add(key); let dispatched = false;
       try {
         const { readHomeboxOriginal } = await import('../src/offline/homebox-original-reader');
-        if (signal.aborted || !b.value.current()) return remember({ status: signal.aborted ? 'aborted' : 'retired' });
-        // Mark before sending: the server spends admission before provider I/O.
-        sent.add(key); homeboxSent.set(session, sent);
+        if (signal.aborted || !b.value.current()) { claimed.delete(key); return remember({ status: signal.aborted ? 'aborted' : 'retired' }); }
+        // The server spends admission before provider I/O; from here the claim is never released after a send.
+        dispatched = true;
         const read = await readHomeboxOriginal({ scope: view.scope, ref, signal, ...(options.homeboxTransport ? { transport: options.homeboxTransport } : {}) });
-        if (read.status === 'unavailable' && !read.sent) sent.delete(key);
+        if (read.status === 'unavailable' && !read.sent) claimed.delete(key);
         if (!b.value.current()) return remember({ status: 'retired' });
         if (read.status !== 'ok') return remember({ status: read.status === 'unknown' ? 'uncertain' : read.status });
         const result = await owner.keepHomeboxDocument(b.value.home, read.pin, read.bytes, signal);
         return remember(result.status === 'ok' ? { status: 'ok', value: read.pin } : result);
-      } catch { return remember({ status: signal.aborted ? 'aborted' : b.value.current() ? 'unavailable' : 'retired' }); }
+      } catch {
+        if (!dispatched) claimed.delete(key);
+        return remember({ status: signal.aborted ? 'aborted' : b.value.current() ? 'unavailable' : 'retired' });
+      }
     },
     /** Captures one genuinely read building. The caller retains ownership of its reader/frame. */
     async retainElectricalLibrary(reader: ElectricalLibraryReader, frame: ElectricalLibraryFrame, signal: AbortSignal,

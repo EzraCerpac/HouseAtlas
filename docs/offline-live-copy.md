@@ -143,8 +143,10 @@ kept as descriptive `sourceContentType`; only a local `%PDF-` signature sets
 only) and the three lexical retrieval times. None of these is a provider revision,
 remote currentness or catalog membership. `live-copy-owner.ts` holds one
 `homebox-document` row per exact association: a newer observation replaces the
-older one, and an observation under a changed source registration removes older
-rows from that source partition in the same transaction. Rows share the account/
+older one. A durable per-partition registration mark (kept in the control table,
+removed with account change/clear, never evicted by LRU) refuses a late lower or a
+conflicting equal registration in the same transaction; a higher one removes older
+rows from that source partition atomically. Rows share the account/
 home/epoch witness, tombstone, acknowledged transactions, digest recheck and the
 aggregate LRU budget with native and electrical originals.
 
@@ -157,8 +159,8 @@ read, so a withdrawn or re-associated attachment stays unavailable.
 `retainHomeboxOriginal(ref, signal)` on the live retention owner admits only an
 exact stored-file association listed by the current live view, loads the reader
 lazily and stores bytes only if the session/view binding is still current after
-the response. A sent association is recorded for that session allocation and is
-not read again automatically, even with a fresh `requestId`; an unknown outcome
+the response. A sent association is claimed synchronously for that session
+allocation (an unsent claim is released) and is not read again automatically, even with a fresh `requestId`; an unknown outcome
 reports `uncertain`. Nothing about sent requests is persisted.
 
 [`offline-homebox-policy.ts`](../frontend/integration/offline-homebox-policy.ts)
@@ -198,12 +200,13 @@ also cannot fall back after it is withdrawn.
 
 ## Qualification
 
-The existing `offline-electrical-copy.test.mjs` selection also holds seven
+The existing `offline-electrical-copy.test.mjs` selection also holds nine
 generated HomeBox cases: exact v4 wire and fresh request IDs for opaque and UUID
 collections, measured PDF versus descriptive MIME, definitive/unknown/integrity
 outcomes without retry, separate namespace and pin-exact opening, no replay after
 unknown, session replacement, withdrawal/re-association and account change,
-source-registration supersession, and the automatic pass's size, held, uncertain
+source-registration supersession and stale/conflicting refusal, concurrent
+single-send claims, and the automatic pass's size, held, uncertain
 and budget rules. They use an injected generated transport and in-memory store;
 no backend, provider, browser or IndexedDB runs.
 

@@ -435,3 +435,48 @@ test('automatic HomeBox pass skips unknown sizes, keeps held files, stops on unc
     assert.match(refused.message, /exceed the automatic storage budget/); assert.equal(g.server.calls.length, 0);
   } finally { g.owner.close(); }
 });
+
+test('concurrent HomeBox retains for one session and association send exactly once', async () => {
+  let release; const gate = new Promise(resolve => { release = resolve; });
+  const f = await homeboxSetup(transport(async request => { await gate; return { facts: facts(request) }; }));
+  try {
+    const both = Promise.all([f.owner.retainHomeboxOriginal(ref(), signal()), f.owner.retainHomeboxOriginal(ref(), signal())]);
+    await new Promise(resolve => setTimeout(resolve, 10)); release();
+    assert.deepEqual((await both).map(result => result.status).sort(), ['ok', 'uncertain']);
+    assert.equal(f.server.calls.length, 1);
+    const aborted = new AbortController(); aborted.abort();
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(60)), aborted.signal)).status, 'missing');
+  } finally { f.owner.close(); }
+  const g = await homeboxSetup(transport(), homeboxView([{ attachmentId: uuid(42), byteSize: '30' }]));
+  try {
+    const aborted = new AbortController(); aborted.abort();
+    assert.equal((await g.owner.retainHomeboxOriginal(ref(), aborted.signal)).status, 'aborted');
+    assert.equal(g.server.calls.length, 0);
+    assert.equal((await g.owner.retainHomeboxOriginal(ref(), signal())).status, 'ok', 'an unsent claim is released');
+  } finally { g.owner.close(); }
+});
+
+test('late lower or conflicting equal source registrations are refused and never delete newer originals', async () => {
+  let version = 4, registration = 'e'.repeat(64);
+  const f = await homeboxSetup(transport(request => ({ facts: facts(request, pdf, { sourceRegistrationVersion: version, sourceRegistrationSha256: registration }) })),
+    homeboxView([{ attachmentId: uuid(42), byteSize: '30' }, { attachmentId: uuid(43), byteSize: '30' }, { attachmentId: uuid(44), byteSize: '30' }]));
+  try {
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(42)), signal())).status, 'ok');
+    version = 3;
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(43)), signal())).status, 'retired');
+    version = 4; registration = 'd'.repeat(64);
+    assert.equal((await f.owner.retainHomeboxOriginal(ref(uuid(44)), signal())).status, 'integrity');
+    const handle = await readCopy(f.owner);
+    assert.equal((await f.owner.read.homeboxStatus(handle, ref(uuid(42)), signal())).value.availability, 'held');
+    assert.equal((await f.owner.read.homeboxStatus(handle, ref(uuid(43)), signal())).value.availability, 'not-held');
+    // The high-water survives eviction of every original row in the partition.
+    for (const [key, row] of [...f.backend.tables().get('metadata')]) if (row.kind === 'homebox-document') {
+      f.backend.tables().get('metadata').delete(key); f.backend.tables().get('bytes').delete(key);
+    }
+    const marks = () => [...f.backend.tables().get('control').keys()].filter(key => key.includes('homebox-registration'));
+    assert.equal(marks().length, 1);
+    const other = { actorId: 'generated-actor-other', expiresAt: '2099-01-01T00:00:00Z' };
+    assert.equal((await f.owner.observe(other, () => true)).status, 'ok');
+    assert.equal(marks().length, 0, 'account change removes registration marks with the data');
+  } finally { f.owner.close(); }
+});

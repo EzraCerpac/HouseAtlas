@@ -117,12 +117,13 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
     need(controlOK(c) && c.epoch === b.epoch && c.actorId === b.actorId, 'retired'); check(b); return c;
   };
   const put = async (b: Binding, kind: Row['kind'], bytes: Uint8Array<ArrayBuffer>, sha256: string, signal: AbortSignal,
-    pin?: StoredPin, expectedSha256?: string | null, supersedes?: (row: Row) => boolean): Promise<number> => {
+    pin?: StoredPin, expectedSha256?: string | null, admit?: (tx: OfflineTransaction) => Promise<(row: Row) => boolean>): Promise<number> => {
     check(b, signal); need(bytes.byteLength > 0 && bytes.byteLength <= limits.entryBytes, 'limit'); const key = keyFor(b, kind, pin);
     return backend.transaction(true, async tx => {
       const c = await fence(tx, b); check(b, signal);
       const listed = await tx.list<Row>('metadata'); need(listed.length <= limits.rows, 'integrity');
       need(listed.every(r => rowOK(r.value) && r.value.epoch === b.epoch), 'integrity');
+      const supersedes = admit ? await admit(tx) : null; check(b, signal);
       const superseded = listed.filter(r => r.key !== key && supersedes?.(r.value));
       for (const r of superseded) { await tx.remove('metadata', r.key); await tx.remove('bytes', r.key); }
       const rows = listed.filter(r => !superseded.includes(r));
@@ -176,7 +177,7 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
       need(current() && !closed, 'retired');
       const latest = await tx.get<Control>('control', 'witness');
       need(latest?.epoch === tombstone.epoch && latest.actorId === null, 'retired');
-      await tx.empty('metadata'); await tx.empty('bytes'); need(current() && !closed, 'retired');
+      await tx.empty('metadata'); await tx.empty('bytes'); await dropRegistrations(tx); need(current() && !closed, 'retired');
     });
   };
   const readDocument = (handle: OfflineCopyHandle, pin: OfflineDocumentPinV1, signal: AbortSignal) => {
@@ -233,7 +234,7 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
           if (prior?.actorId === actorId && actorId !== null) return prior!;
           const next: Control = { version: 1, epoch: crypto.randomUUID(), actorId, home: null };
           await tx.put('control', 'witness', next);
-          await tx.empty('metadata'); await tx.empty('bytes');
+          await tx.empty('metadata'); await tx.empty('bytes'); await dropRegistrations(tx);
           need(current() && admittedSerial === serial && !closed, 'retired'); return next;
         });
         need(current() && admittedSerial === serial && !closed, 'retired'); changed();
@@ -306,13 +307,23 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
         const b = home(handle); need(validHomeboxPin(pin)); pin = { ...pin };
         need(input instanceof ArrayBuffer && input.byteLength === pin.bytes, 'integrity');
         const bytes = new Uint8Array(input.slice(0)), sha = await hash(bytes); check(b, signal); need(sha === pin.sha256, 'integrity');
-        const kept = pin;
-        // A changed source registration retires every older observation from that source partition.
-        const supersedes = (row: Row) => row.kind === 'homebox-document' && !!row.pin && (row.pin as OfflineHomeboxPinV1).sourceInstanceId === kept.sourceInstanceId
-          && (row.pin as OfflineHomeboxPinV1).collectionId === kept.collectionId
-          && ((row.pin as OfflineHomeboxPinV1).sourceRegistrationVersion !== kept.sourceRegistrationVersion
-            || (row.pin as OfflineHomeboxPinV1).sourceRegistrationSha256 !== kept.sourceRegistrationSha256);
-        const evicted = await put(b, 'homebox-document', bytes, sha, signal, pin, undefined, supersedes); check(b, signal); changed(); return { evicted };
+        const kept = pin, mark = registrationKey(b, kept);
+        // Durable per-partition high-water inside the storage transaction: a late lower (or conflicting equal)
+        // registration is refused instead of deleting newer originals. Configuration provenance only.
+        const admit = async (tx: OfflineTransaction) => {
+          const prior = await tx.get<Registration>('control', mark);
+          need(prior === undefined || registrationOK(prior, b.epoch), 'integrity');
+          if (prior) {
+            need(kept.sourceRegistrationVersion >= prior.registrationVersion, 'retired');
+            need(kept.sourceRegistrationVersion > prior.registrationVersion || kept.sourceRegistrationSha256 === prior.registrationSha256, 'integrity');
+          }
+          await tx.put('control', mark, { version: 1, epoch: b.epoch, registrationVersion: kept.sourceRegistrationVersion,
+            registrationSha256: kept.sourceRegistrationSha256 } satisfies Registration);
+          return (row: Row) => row.kind === 'homebox-document' && !!row.pin && (row.pin as OfflineHomeboxPinV1).sourceInstanceId === kept.sourceInstanceId
+            && (row.pin as OfflineHomeboxPinV1).collectionId === kept.collectionId
+            && (row.pin as OfflineHomeboxPinV1).sourceRegistrationVersion < kept.sourceRegistrationVersion;
+        };
+        const evicted = await put(b, 'homebox-document', bytes, sha, signal, pin, undefined, admit); check(b, signal); changed(); return { evicted };
       });
     },
     readHomeboxDocument,
@@ -543,4 +554,16 @@ export function listsAttachment(data: Readonly<{ entries: readonly Readonly<{ so
     && entry.source.sourceInstanceId === ref.sourceInstanceId && entry.source.collectionId === ref.collectionId
     && entry.source.externalId === ref.entityId
     && entry.attachments.some(attachment => attachment.kind === 'stored-file' && attachment.attachmentId === ref.attachmentId));
+}
+interface Registration { version: 1; epoch: string; registrationVersion: number; registrationSha256: string }
+const REGISTRATION = 'homebox-registration';
+const registrationKey = (b: Pick<Binding, 'epoch' | 'scope'>, ref: OfflineHomeboxAttachmentRefV1) =>
+  JSON.stringify([REGISTRATION, b.epoch, b.scope.workspaceId, b.scope.homeId, ref.sourceInstanceId, ref.collectionId]);
+function registrationOK(value: Registration, epoch: string): boolean {
+  return exactKeys(value, 'epoch,registrationSha256,registrationVersion,version') && value.version === 1 && value.epoch === epoch
+    && Number.isSafeInteger(value.registrationVersion) && value.registrationVersion >= 0 && SHA.test(value.registrationSha256);
+}
+/** Registration marks live beside the witness in control; account change and clear remove them with the data. */
+async function dropRegistrations(tx: OfflineTransaction): Promise<void> {
+  for (const row of await tx.list<unknown>('control')) if (row.key.startsWith(`["${REGISTRATION}"`)) await tx.remove('control', row.key);
 }
