@@ -75,7 +75,24 @@ export interface OfflineElectricalCatalogV1 {
 export type OfflineElectricalAvailability =
   | Readonly<{ availability: 'held'; bytes: number; pin: OfflineElectricalPinV1 }>
   | Readonly<{ availability: 'not-held' | 'failed-integrity'; bytes: number }>;
-export type OfflineFailure = 'unavailable' | 'retired' | 'missing' | 'integrity' | 'quota' | 'limit' | 'invalid' | 'aborted' | 'uncertain';
+/** Exact HomeBox attachment association; never a native Document v2 or electrical identity. */
+export interface OfflineHomeboxAttachmentRefV1 {
+  readonly source: 'homebox-attachment'; readonly sourceInstanceId: string; readonly collectionId: string;
+  readonly entityId: string; readonly attachmentId: string;
+}
+/** One finite server-local capture of that attachment. observationId is a random response label and the
+ * registration fields are configuration provenance: neither is a provider revision or current membership.
+ * contentType is measured locally (PDF signature only); sourceContentType stays descriptive source text. */
+export interface OfflineHomeboxPinV1 extends OfflineHomeboxAttachmentRefV1 {
+  readonly observationId: string; readonly sourceRegistrationVersion: number; readonly sourceRegistrationSha256: string;
+  readonly sha256: string; readonly bytes: number; readonly contentType: 'application/pdf' | null;
+  readonly sourceContentType: string | null;
+  readonly beforeRetrievedAt: string; readonly bodyRetrievedAt: string; readonly afterRetrievedAt: string;
+}
+export type OfflineHomeboxAvailability =
+  | Readonly<{ availability: 'held'; bytes: number; pin: OfflineHomeboxPinV1 }>
+  | Readonly<{ availability: 'not-held' | 'failed-integrity'; bytes: number | null }>;
+export type OfflineFailure ='unavailable' | 'retired' | 'missing' | 'integrity' | 'quota' | 'limit' | 'invalid' | 'aborted' | 'uncertain';
 export type OfflineResult<T> = Readonly<{ status: 'ok'; value: T }> | Readonly<{ status: OfflineFailure }>;
 /** Opaque local historical selection, with no live authorization. */
 export interface OfflineCopyHandle { readonly kind: 'stored-copy' }
@@ -88,6 +105,9 @@ export interface OfflineReadPort {
   readElectricalCatalog(handle: OfflineCopyHandle, signal: AbortSignal): Promise<OfflineResult<OfflineElectricalCatalogV1>>;
   electricalStatus(handle: OfflineCopyHandle, pin: OfflineElectricalPinV1, signal: AbortSignal): Promise<OfflineResult<OfflineElectricalAvailability>>;
   readElectricalDocument(handle: OfflineCopyHandle, pin: OfflineElectricalPinV1, signal: AbortSignal): Promise<OfflineResult<Blob>>;
+  /** Held observation for one exact association still present in the held view; no catalog completeness. */
+  homeboxStatus(handle: OfflineCopyHandle, ref: OfflineHomeboxAttachmentRefV1, signal: AbortSignal): Promise<OfflineResult<OfflineHomeboxAvailability>>;
+  readHomeboxDocument(handle: OfflineCopyHandle, pin: OfflineHomeboxPinV1, signal: AbortSignal): Promise<OfflineResult<Blob>>;
   subscribe(changed: () => void): () => void;
 }
 export interface OfflineStorageStatus {

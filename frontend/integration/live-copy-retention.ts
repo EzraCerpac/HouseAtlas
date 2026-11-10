@@ -3,8 +3,8 @@ import type { NativeEvidenceDocumentFrame } from '../src/lantern/scans/native-ev
 import type { ReadyView } from '../src/app/types';
 import type { AtlasSessionInfo } from '../src/app/session';
 import type { SourceDocumentsPort, SourceDocument, SourceDocumentFrame } from '../src/lantern/source-documents/types';
-import type { OfflineElectricalPinV1, OfflineElectricalBuildingV1, OfflineCatalogItemV1, OfflineCatalogV1, OfflineDocumentPinV1, OfflineResult, OfflineBackend, OfflineAtlasReferenceV1, OfflineReadPort } from '../src/offline/live-copy-types';
-import { createLiveCopyOwner, LIVE_COPY_LIMITS, electricalPinBytes, validElectricalPin, type LiveCopyActor, type LiveCopyHome } from '../src/offline/live-copy-owner';
+import type { OfflineHomeboxAttachmentRefV1, OfflineHomeboxPinV1, OfflineElectricalPinV1, OfflineElectricalBuildingV1, OfflineCatalogItemV1, OfflineCatalogV1, OfflineDocumentPinV1, OfflineResult, OfflineBackend, OfflineAtlasReferenceV1, OfflineReadPort } from '../src/offline/live-copy-types';
+import { createLiveCopyOwner, LIVE_COPY_LIMITS, electricalPinBytes, validElectricalPin, validHomeboxRef, listsAttachment, type LiveCopyActor, type LiveCopyHome } from '../src/offline/live-copy-owner';
 import { openLiveCopyBackend } from '../src/offline/live-copy-indexeddb';
 
 type State = { readonly session: AtlasSessionInfo | null; readonly view: ReadyView | null };
@@ -17,6 +17,8 @@ export function createLiveCopyRetention(options: {
   readonly storage?: Pick<StorageManager, 'estimate' | 'persisted' | 'persist'>;
   readonly events?: Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
   readonly channel?: { postMessage(value: string): void; close(): void; onmessage: ((event: MessageEvent) => void) | null };
+  /** Same-origin transport for the HomeBox offline-original GET; defaults to fetch, never configured from storage. */
+  readonly homeboxTransport?: typeof fetch;
 }) {
   const channel = options.channel;
   const owner = createLiveCopyOwner(options.backend ?? openLiveCopyBackend(options.factory), {
@@ -49,13 +51,17 @@ export function createLiveCopyRetention(options: {
     const result = owner.bindHome(actor, view.scope, current);
     return result.status === 'ok' ? { status: 'ok', value: { home: result.value, current } } : result;
   }
+  // Sent HomeBox reads per actual session allocation. Any sent outcome (including unknown) is never repeated
+  // automatically for that association, even with a fresh requestId; nothing here persists.
+  const homeboxSent = new WeakMap<AtlasSessionInfo, Set<string>>();
+  const homeboxKey = (ref: OfflineHomeboxAttachmentRefV1) => JSON.stringify([ref.sourceInstanceId, ref.collectionId, ref.entityId, ref.attachmentId]);
   const metadata = (row: SourceDocument): OfflineCatalogItemV1 => ({
     documentId: row.documentId, documentRevision: row.revision, title: row.title, lifecycle: row.lifecycle,
     assetId: row.original.assetId, assetRevision: row.original.revision, sha256: row.original.sha256,
     bytes: row.original.bytes, recordedAvailability: row.availability.original,
   });
   return {
-    read: { readElectricalCatalog: owner.readElectricalCatalog, electricalStatus: owner.electricalStatus, readElectricalDocument: owner.readElectricalDocument, readLast: owner.readLast, readCatalog: owner.readCatalog, readDocument: owner.readDocument, documentStatus: owner.documentStatus,
+    read: { homeboxStatus: owner.homeboxStatus, readHomeboxDocument: owner.readHomeboxDocument, readElectricalCatalog: owner.readElectricalCatalog, electricalStatus: owner.electricalStatus, readElectricalDocument: owner.readElectricalDocument, readLast: owner.readLast, readCatalog: owner.readCatalog, readDocument: owner.readDocument, documentStatus: owner.documentStatus,
       async atlasReference(handle, signal) {
         const identity = await owner.copyIdentity(handle, signal); if (identity.status !== 'ok') return identity;
         try {
@@ -149,6 +155,33 @@ export function createLiveCopyRetention(options: {
         return remember(result.status === 'ok' ? { status: 'ok', value: pin } : result);
       } catch { return remember({ status: signal.aborted ? 'aborted' : b.value.current() ? 'unavailable' : 'retired' }); }
       finally { if (frame) reader?.release(frame); reader?.dispose(); }
+    },
+    /** True when this session allocation already sent a read for the exact association. */
+    homeboxSent(ref: OfflineHomeboxAttachmentRefV1): boolean {
+      const session = options.state().session;
+      return !!session && homeboxSent.get(session)?.has(homeboxKey(ref)) === true;
+    },
+    /** One borrowed HomeBox original for an exact stored-file association in the current live view.
+     * The reader module loads lazily; unknown transport outcomes report 'uncertain' and are never replayed. */
+    async retainHomeboxOriginal(ref: OfflineHomeboxAttachmentRefV1, signal: AbortSignal): Promise<OfflineResult<OfflineHomeboxPinV1>> {
+      const b = binding(); if (b.status !== 'ok') return remember(b);
+      const { session, view } = options.state();
+      if (!session || !view || !validHomeboxRef(ref)) return remember({ status: 'invalid' });
+      if (!listsAttachment(view, ref)) return remember({ status: 'missing' });
+      const sent = homeboxSent.get(session) ?? new Set<string>(), key = homeboxKey(ref);
+      if (sent.has(key)) return remember({ status: 'uncertain' });
+      try {
+        const { readHomeboxOriginal } = await import('../src/offline/homebox-original-reader');
+        if (signal.aborted || !b.value.current()) return remember({ status: signal.aborted ? 'aborted' : 'retired' });
+        // Mark before sending: the server spends admission before provider I/O.
+        sent.add(key); homeboxSent.set(session, sent);
+        const read = await readHomeboxOriginal({ scope: view.scope, ref, signal, ...(options.homeboxTransport ? { transport: options.homeboxTransport } : {}) });
+        if (read.status === 'unavailable' && !read.sent) sent.delete(key);
+        if (!b.value.current()) return remember({ status: 'retired' });
+        if (read.status !== 'ok') return remember({ status: read.status === 'unknown' ? 'uncertain' : read.status });
+        const result = await owner.keepHomeboxDocument(b.value.home, read.pin, read.bytes, signal);
+        return remember(result.status === 'ok' ? { status: 'ok', value: read.pin } : result);
+      } catch { return remember({ status: signal.aborted ? 'aborted' : b.value.current() ? 'unavailable' : 'retired' }); }
     },
     /** Captures one genuinely read building. The caller retains ownership of its reader/frame. */
     async retainElectricalLibrary(reader: ElectricalLibraryReader, frame: ElectricalLibraryFrame, signal: AbortSignal,

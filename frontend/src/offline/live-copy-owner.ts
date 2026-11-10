@@ -1,6 +1,6 @@
 import type { ReadyView, Scope } from '../app/types';
 import type { OfflineBackend, OfflineTransaction, OfflineResult, OfflineFailure, OfflineDisplayData,
-  OfflineElectricalPinV1, OfflineElectricalAvailability, OfflineElectricalBuildingV1, OfflineElectricalCatalogV1, OfflineViewSnapshotV1, OfflineDocumentPinV1, OfflineDocumentReferenceV1, OfflineDocumentAvailability, OfflineCatalogV1, OfflineCopyHandle, OfflineStorageStatus } from './live-copy-types';
+  OfflineElectricalPinV1, OfflineElectricalAvailability, OfflineHomeboxAttachmentRefV1, OfflineHomeboxAvailability, OfflineHomeboxPinV1, OfflineDisplayData as HeldDisplay, OfflineElectricalBuildingV1, OfflineElectricalCatalogV1, OfflineViewSnapshotV1, OfflineDocumentPinV1, OfflineDocumentReferenceV1, OfflineDocumentAvailability, OfflineCatalogV1, OfflineCopyHandle, OfflineStorageStatus } from './live-copy-types';
 
 const MiB = 1024 * 1024;
 export const LIVE_COPY_LIMITS = Object.freeze({ bytes: 250 * MiB, entryBytes: 128 * MiB,
@@ -50,8 +50,8 @@ export function projectOfflineDisplay(view: Pick<OfflineDisplayData, 'scope' | '
 }
 interface Control { version: 1; epoch: string; actorId: string | null; home: Scope | null }
 interface Binding { epoch: string; actorId: string; scope: Scope; serial: number; live: boolean; current: () => boolean }
-interface Row { version: 1; epoch: string; scope: Scope; kind: 'view' | 'catalog' | 'document' | 'electrical-catalog' | 'electrical-document';
-  bytes: number; sha256: string; usedAt: number; pin?: OfflineDocumentPinV1 | OfflineElectricalPinV1 }
+interface Row { version: 1; epoch: string; scope: Scope; kind: 'view' | 'catalog' | 'document' | 'electrical-catalog' | 'electrical-document' | 'homebox-document';
+  bytes: number; sha256: string; usedAt: number; pin?: StoredPin }
 export interface LiveCopyActor { readonly kind: 'online-observed-actor' }
 export interface LiveCopyHome { readonly kind: 'online-observed-home' }
 export function validOfflinePin(pin: OfflineDocumentPinV1): boolean {
@@ -71,16 +71,22 @@ function controlOK(v: Control | undefined): v is Control {
 }
 function rowOK(row: Row): boolean {
   return !!row && row.version === 1 && UUID.test(row.epoch) && scopeOK(row.scope)
-    && ['view', 'catalog', 'document', 'electrical-catalog', 'electrical-document'].includes(row.kind) && Number.isSafeInteger(row.bytes) && row.bytes > 0
+    && ['view', 'catalog', 'document', 'electrical-catalog', 'electrical-document', 'homebox-document'].includes(row.kind) && Number.isSafeInteger(row.bytes) && row.bytes > 0
     && row.bytes <= (row.kind === 'view' ? LIVE_COPY_LIMITS.viewBytes : row.kind === 'catalog' || row.kind === 'electrical-catalog' ? LIVE_COPY_LIMITS.catalogBytes : LIVE_COPY_LIMITS.entryBytes) && SHA.test(row.sha256) && Number.isFinite(row.usedAt)
     && (row.kind !== 'document' || !!row.pin && validOfflinePin(row.pin as OfflineDocumentPinV1) && row.pin.sha256 === row.sha256 && (row.pin as OfflineDocumentPinV1).bytes === row.bytes)
-    && (row.kind !== 'electrical-document' || !!row.pin && validElectricalPin(row.pin as OfflineElectricalPinV1) && row.pin.sha256 === row.sha256 && electricalPinBytes(row.pin as OfflineElectricalPinV1) === row.bytes);
+    && (row.kind !== 'electrical-document' || !!row.pin && validElectricalPin(row.pin as OfflineElectricalPinV1) && row.pin.sha256 === row.sha256 && electricalPinBytes(row.pin as OfflineElectricalPinV1) === row.bytes)
+    && (row.kind !== 'homebox-document' || !!row.pin && validHomeboxPin(row.pin as OfflineHomeboxPinV1) && row.pin.sha256 === row.sha256 && (row.pin as OfflineHomeboxPinV1).bytes === row.bytes);
 }
-type StoredPin = OfflineDocumentPinV1 | OfflineElectricalPinV1;
-const keyFor = (b: Binding, kind: string, pin?: StoredPin) => JSON.stringify([b.epoch, b.scope.workspaceId, b.scope.homeId, kind,
-  ...(pin ? 'source' in pin ? [pin.source, pin.buildingId, pin.evidenceId, pin.evidenceRevision, pin.assetId, pin.assetRevision, pin.sha256, pin.byteSize, pin.contentType]
-    : [pin.documentId, pin.documentRevision, pin.assetId, pin.assetRevision, pin.sha256, pin.bytes, pin.contentType] : [])]);
-const documentKind = (kind: Row['kind']) => kind === 'document' || kind === 'electrical-document';
+type StoredPin = OfflineDocumentPinV1 | OfflineElectricalPinV1 | OfflineHomeboxPinV1;
+// One HomeBox row per exact association: a newer observation replaces, never accumulates beside, the older one.
+const keyFor = (b: Binding, kind: string, pin?: StoredPin | OfflineHomeboxAttachmentRefV1) => JSON.stringify([b.epoch, b.scope.workspaceId, b.scope.homeId, kind,
+  ...(!pin ? [] : 'source' in pin ? pin.source === 'homebox-attachment' ? homeboxAssociation(pin)
+    : [pin.source, pin.buildingId, pin.evidenceId, pin.evidenceRevision, pin.assetId, pin.assetRevision, pin.sha256, pin.byteSize, pin.contentType]
+    : [pin.documentId, pin.documentRevision, pin.assetId, pin.assetRevision, pin.sha256, pin.bytes, pin.contentType])]);
+const documentKind = (kind: Row['kind']) => kind === 'document' || kind === 'electrical-document' || kind === 'homebox-document';
+const samePinned = (stored: StoredPin, pin: StoredPin) => !('source' in pin) ? !('source' in stored) && samePin(stored, pin)
+  : pin.source === 'homebox-attachment' ? sameHomeboxPin(stored as OfflineHomeboxPinV1, pin)
+  : sameElectricalPin(stored as OfflineElectricalPinV1, pin);
 /** Local storage/display owner only; caller supplies actual completed canonical observations. */
 export function createLiveCopyOwner(backend: OfflineBackend, options: {
   readonly now?: () => number; readonly changed?: () => void;
@@ -111,12 +117,15 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
     need(controlOK(c) && c.epoch === b.epoch && c.actorId === b.actorId, 'retired'); check(b); return c;
   };
   const put = async (b: Binding, kind: Row['kind'], bytes: Uint8Array<ArrayBuffer>, sha256: string, signal: AbortSignal,
-    pin?: StoredPin, expectedSha256?: string | null): Promise<number> => {
+    pin?: StoredPin, expectedSha256?: string | null, supersedes?: (row: Row) => boolean): Promise<number> => {
     check(b, signal); need(bytes.byteLength > 0 && bytes.byteLength <= limits.entryBytes, 'limit'); const key = keyFor(b, kind, pin);
     return backend.transaction(true, async tx => {
       const c = await fence(tx, b); check(b, signal);
-      const rows = await tx.list<Row>('metadata'); need(rows.length <= limits.rows, 'integrity');
-      need(rows.every(r => rowOK(r.value) && r.value.epoch === b.epoch), 'integrity');
+      const listed = await tx.list<Row>('metadata'); need(listed.length <= limits.rows, 'integrity');
+      need(listed.every(r => rowOK(r.value) && r.value.epoch === b.epoch), 'integrity');
+      const superseded = listed.filter(r => r.key !== key && supersedes?.(r.value));
+      for (const r of superseded) { await tx.remove('metadata', r.key); await tx.remove('bytes', r.key); }
+      const rows = listed.filter(r => !superseded.includes(r));
       const previous = rows.find(r => r.key === key);
       if (expectedSha256 !== undefined) need((previous?.value.sha256 ?? null) === expectedSha256, 'retired');
       let total = rows.reduce((sum, r) => sum + r.value.bytes, 0) - (previous?.value.bytes ?? 0);
@@ -142,7 +151,7 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
       await fence(tx, b); const row = await tx.get<Row>('metadata', key), bytes = await tx.get<ArrayBuffer>('bytes', key);
       need(row && bytes, 'missing'); need(rowOK(row!) && row!.epoch === b.epoch && sameScope(row!.scope, b.scope)
         && row!.kind === kind && bytes instanceof ArrayBuffer && bytes.byteLength === row!.bytes, 'integrity');
-      if (pin) need(row!.pin && ('source' in pin ? sameElectricalPin(row!.pin as OfflineElectricalPinV1, pin) : samePin(row!.pin as OfflineDocumentPinV1, pin)), 'integrity');
+      if (pin) need(row!.pin && samePinned(row!.pin, pin), 'integrity');
       await tx.put('metadata', key, { ...row, usedAt: now() }); check(b, signal);
       return { row: row!, bytes: new Uint8Array(bytes!) };
     });
@@ -176,6 +185,19 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
         const after = decode(await read(b, 'catalog', signal)) as OfflineCatalogV1; validateCatalog(after); need(catalogPin(after, pin), 'missing');
         check(b, signal); return new Blob([bytes], { type: pin.contentType }); });
   };
+  // Open eligibility follows the newest held view: a withdrawn or re-associated attachment stays unavailable.
+  const heldAssociation = async (b: Binding, pin: OfflineHomeboxPinV1, signal: AbortSignal) => {
+    const view = decode(await read(b, 'view', signal)) as OfflineViewSnapshotV1;
+    need(view?.data && sameScope(view.data.scope, b.scope), 'integrity');
+    need(listsAttachment(view.data, pin), 'missing');
+  };
+  const readHomeboxDocument = (handle: OfflineCopyHandle, pin: OfflineHomeboxPinV1, signal: AbortSignal) => run(async () => {
+    const b = copy(handle); need(validHomeboxPin(pin)); pin = { ...pin };
+    await heldAssociation(b, pin, signal);
+    const bytes = await read(b, 'homebox-document', signal, pin);
+    await heldAssociation(b, pin, signal); check(b, signal);
+    return new Blob([bytes], { type: pin.contentType ?? 'application/octet-stream' });
+  });
   let electricalTail: Promise<unknown> = Promise.resolve();
   const readElectricalCatalog = (handle: OfflineCopyHandle, signal: AbortSignal) => run(async () => {
     const b = copy(handle), value = decode(await read(b, 'electrical-catalog', signal)) as OfflineElectricalCatalogV1;
@@ -278,6 +300,36 @@ export function createLiveCopyOwner(backend: OfflineBackend, options: {
     },
     readElectricalCatalog,
     readElectricalDocument,
+    /** Bytes must equal the measured pin; superseded rows for this association/source registration leave atomically. */
+    keepHomeboxDocument(handle: LiveCopyHome, pin: OfflineHomeboxPinV1, input: ArrayBuffer, signal: AbortSignal) {
+      return run(async () => {
+        const b = home(handle); need(validHomeboxPin(pin)); pin = { ...pin };
+        need(input instanceof ArrayBuffer && input.byteLength === pin.bytes, 'integrity');
+        const bytes = new Uint8Array(input.slice(0)), sha = await hash(bytes); check(b, signal); need(sha === pin.sha256, 'integrity');
+        const kept = pin;
+        // A changed source registration retires every older observation from that source partition.
+        const supersedes = (row: Row) => row.kind === 'homebox-document' && !!row.pin && (row.pin as OfflineHomeboxPinV1).sourceInstanceId === kept.sourceInstanceId
+          && (row.pin as OfflineHomeboxPinV1).collectionId === kept.collectionId
+          && ((row.pin as OfflineHomeboxPinV1).sourceRegistrationVersion !== kept.sourceRegistrationVersion
+            || (row.pin as OfflineHomeboxPinV1).sourceRegistrationSha256 !== kept.sourceRegistrationSha256);
+        const evicted = await put(b, 'homebox-document', bytes, sha, signal, pin, undefined, supersedes); check(b, signal); changed(); return { evicted };
+      });
+    },
+    readHomeboxDocument,
+    homeboxStatus(handle: OfflineCopyHandle, ref: OfflineHomeboxAttachmentRefV1, signal: AbortSignal): Promise<OfflineResult<OfflineHomeboxAvailability>> {
+      return run(async () => {
+        const b = copy(handle); need(validHomeboxRef(ref)); const key = keyFor(b, 'homebox-document', ref);
+        const row = await backend.transaction(false, async tx => { await fence(tx, b); return tx.get<Row>('metadata', key); });
+        check(b, signal);
+        if (!row) return { availability: 'not-held', bytes: null };
+        need(rowOK(row) && row.kind === 'homebox-document' && row.epoch === b.epoch, 'integrity');
+        const pin = { ...(row.pin as OfflineHomeboxPinV1) }, result = await readHomeboxDocument(handle, pin, signal);
+        if (result.status === 'integrity') return { availability: 'failed-integrity', bytes: pin.bytes };
+        if (result.status === 'missing') return { availability: 'not-held', bytes: null };
+        if (result.status !== 'ok') throw new Refusal(result.status);
+        return { availability: 'held', bytes: pin.bytes, pin };
+      });
+    },
     electricalStatus(handle: OfflineCopyHandle, pin: OfflineElectricalPinV1, signal: AbortSignal): Promise<OfflineResult<OfflineElectricalAvailability>> {
       return run(async () => {
         need(validElectricalPin(pin)); const result = await readElectricalDocument(handle, pin, signal), bytes = electricalPinBytes(pin);
@@ -459,4 +511,36 @@ function validateElectricalCatalog(value: OfflineElectricalCatalogV1): void {
       }
     }
   }
+}
+
+/** Matches the existing 10 MiB HomeBox capture bound; offline storage does not enlarge it. */
+export const HOMEBOX_ORIGINAL_MAX_BYTES = 10_485_760;
+const RFC3339 = /^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]+)?(?:[Zz]|[+-][0-9]{2}:[0-9]{2})$/;
+const homeboxText = (value: unknown, cap: number): value is string => bounded(value, cap) && value.length > 0;
+function homeboxAssociation(ref: OfflineHomeboxAttachmentRefV1): string[] {
+  return [ref.source, ref.sourceInstanceId, ref.collectionId, ref.entityId, ref.attachmentId];
+}
+export function validHomeboxRef(ref: OfflineHomeboxAttachmentRefV1): boolean {
+  return !!ref && ref.source === 'homebox-attachment' && UUID.test(ref.sourceInstanceId) && homeboxText(ref.collectionId, 4096)
+    && UUID.test(ref.entityId) && UUID.test(ref.attachmentId);
+}
+export function validHomeboxPin(pin: OfflineHomeboxPinV1): boolean {
+  return validHomeboxRef(pin) && UUID.test(pin.observationId) && Number.isSafeInteger(pin.sourceRegistrationVersion)
+    && pin.sourceRegistrationVersion >= 0 && SHA.test(pin.sourceRegistrationSha256) && SHA.test(pin.sha256)
+    && Number.isSafeInteger(pin.bytes) && pin.bytes > 0 && pin.bytes <= HOMEBOX_ORIGINAL_MAX_BYTES
+    && (pin.contentType === null || pin.contentType === 'application/pdf')
+    && (pin.sourceContentType === null || bounded(pin.sourceContentType, 4096))
+    && [pin.beforeRetrievedAt, pin.bodyRetrievedAt, pin.afterRetrievedAt].every(time => typeof time === 'string' && RFC3339.test(time))
+    && exactKeys(pin, 'afterRetrievedAt,attachmentId,beforeRetrievedAt,bodyRetrievedAt,bytes,collectionId,contentType,entityId,observationId,sha256,source,sourceContentType,sourceInstanceId,sourceRegistrationSha256,sourceRegistrationVersion');
+}
+function sameHomeboxPin(a: OfflineHomeboxPinV1, b: OfflineHomeboxPinV1): boolean {
+  return validHomeboxPin(a) && validHomeboxPin(b) && (Object.keys(a) as (keyof OfflineHomeboxPinV1)[]).every(key => a[key] === b[key]);
+}
+/** Exact source-native identity in held display data; no title, filename or UUID coincidence join. */
+export function listsAttachment(data: Readonly<{ entries: readonly Readonly<{ source: Readonly<Pick<HeldDisplay['entries'][number]['source'], 'sourceInstanceId' | 'collectionId' | 'sourceKind' | 'externalId'>>;
+  attachments: readonly Readonly<{ kind: string; attachmentId: string }>[] }>[] }>, ref: OfflineHomeboxAttachmentRefV1): boolean {
+  return data.entries.some(entry => entry.source?.sourceKind === 'homebox-entity'
+    && entry.source.sourceInstanceId === ref.sourceInstanceId && entry.source.collectionId === ref.collectionId
+    && entry.source.externalId === ref.entityId
+    && entry.attachments.some(attachment => attachment.kind === 'stored-file' && attachment.attachmentId === ref.attachmentId));
 }

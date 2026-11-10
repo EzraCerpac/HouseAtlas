@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { LiveCopyRetention } from '../../integration/live-copy-retention';
-import type { OfflineCatalogItemV1, OfflineCatalogV1, OfflineCopyHandle, OfflineDocumentAvailability, OfflineElectricalCatalogV1, OfflineElectricalBuildingV1, OfflineElectricalPinV1, OfflineElectricalAvailability, OfflineViewSnapshotV1 } from './live-copy-types';
+import type { OfflineCatalogItemV1, OfflineCatalogV1, OfflineCopyHandle, OfflineDocumentAvailability, OfflineElectricalCatalogV1, OfflineElectricalBuildingV1, OfflineElectricalPinV1, OfflineElectricalAvailability, OfflineHomeboxAvailability, OfflineHomeboxPinV1, OfflineViewSnapshotV1 } from './live-copy-types';
 import { SectionNavigation } from '../lantern/components/SectionNavigation';
 import type { ViewId } from '../lantern/state/store';
 import { Icon } from '../lantern/components/Icon';
@@ -124,9 +124,10 @@ function OfflineLibrary({ owner, selection }: { owner: LiveCopyRetention; select
       {!catalog.documents.length && <p>No documents in this captured list.</p>}
       <ul className="offline-documents">{catalog.documents.map(row => <DocumentRow key={row.documentId} row={row} owner={owner} selection={selection} />)}</ul>
     </> : <p role="status">{loading ? 'Reading held documents…' : 'The document list is not held on this device.'}</p>}
-    <h2>HomeBox attachments</h2>{attachments.length ? <ul>{attachments.map(({ entry, attachment }) => <li key={`${entry.key}:${attachment.attachmentId}`}>
-      <strong>{attachment.title ?? 'Untitled attachment'}</strong> · {entry.entity.name}<p>Not held on this device · Open live{attachment.kind === 'external-link' ? ' for the external link' : ' to read this file'}.</p>
-    </li>)}</ul> : <p>No HomeBox attachments were captured.</p>}
+    <h2>HomeBox attachments</h2>{attachments.length ? <ul className="offline-documents">{attachments.map(({ entry, attachment }) => attachment.kind === 'stored-file'
+      ? <HomeboxAttachmentRow key={`${entry.key}:${attachment.attachmentId}`} owner={owner} selection={selection} entry={entry} attachment={attachment} />
+      : <li key={`${entry.key}:${attachment.attachmentId}`}><strong>{attachment.title ?? 'Untitled attachment'}</strong> · {entry.entity.name}<p>Open live for the external link.</p></li>)}</ul>
+      : <p>No HomeBox attachments were captured.</p>}
     <OfflineElectricalLibrary owner={owner} selection={selection} />
   </>;
 }
@@ -174,6 +175,43 @@ function HeldDownload({ blob, title, signal }: { blob: Blob; title: string; sign
   return url ? <a className="btn" href={url} download={title} onClick={event => { if (signal.aborted) event.preventDefault(); }}>Save held original</a> : null;
 }
 
+type HeldEntry = OfflineViewSnapshotV1['data']['entries'][number];
+/** Exact source/entity/attachment association only. A held copy is one earlier server capture, not the current HomeBox file. */
+function HomeboxAttachmentRow({ owner, selection, entry, attachment }: { owner: LiveCopyRetention; selection: Selection; entry: HeldEntry; attachment: HeldEntry['attachments'][number] }) {
+  const [status, setStatus] = useState<OfflineHomeboxAvailability | null>(null), [open, setOpen] = useState(false);
+  const title = attachment.title ?? 'Untitled attachment';
+  useEffect(() => {
+    let active = true;
+    void owner.read.homeboxStatus(selection.handle, { source: 'homebox-attachment', sourceInstanceId: entry.source.sourceInstanceId,
+      collectionId: entry.source.collectionId, entityId: entry.source.externalId, attachmentId: attachment.attachmentId }, selection.signal).then(result => {
+      if (active && !selection.signal.aborted) setStatus(result.status === 'ok' ? result.value : null);
+    });
+    return () => { active = false; };
+  }, [owner, selection, entry, attachment]);
+  const held = status?.availability === 'held' ? status.pin : null;
+  return <li><strong>{title}</strong> · {entry.entity.name}{held && <> · {storageSize(held.bytes)}</>}
+    <p>{held ? <>On this device · Copied from HomeBox <time dateTime={held.bodyRetrievedAt}>{held.bodyRetrievedAt}</time></>
+      : status?.availability === 'failed-integrity' ? 'Held file failed verification · Open live to read this file.' : 'Not held on this device · Open live to read this file.'}</p>
+    {held && <button className="btn" type="button" onClick={() => setOpen(true)}>Open {title}</button>}
+    {open && held && <Modal title={title} onClose={() => setOpen(false)} wide><HeldHomeboxDocument owner={owner} selection={selection} pin={held} title={title} /></Modal>}
+  </li>;
+}
+function HeldHomeboxDocument({ owner, selection, pin, title }: { owner: LiveCopyRetention; selection: Selection; pin: OfflineHomeboxPinV1; title: string }) {
+  const [blob, setBlob] = useState<Blob | null>(null), [failed, setFailed] = useState(false);
+  const [controller] = useState(() => new AbortController());
+  useEffect(() => {
+    const abort = () => controller.abort(); selection.signal.addEventListener('abort', abort, { once: true });
+    if (selection.signal.aborted) controller.abort();
+    void owner.read.readHomeboxDocument(selection.handle, pin, controller.signal).then(result => {
+      if (!controller.signal.aborted) { setBlob(result.status === 'ok' ? result.value : null); setFailed(result.status !== 'ok'); }
+    });
+    return () => { selection.signal.removeEventListener('abort', abort); controller.abort(); };
+  }, [owner, selection, pin, controller]);
+  // Only locally measured PDF bytes reach the sandboxed viewer; other files are offered as a saved copy.
+  return blob ? pin.contentType === 'application/pdf' ? <><SourcePdf blob={blob} title={title} signal={controller.signal} /><HeldDownload blob={blob} title={title} signal={controller.signal} /></>
+    : <><p>This file type is not shown here.</p><HeldDownload blob={blob} title={title} signal={controller.signal} /></>
+    : <p role="status">{failed ? 'The held file is unavailable or changed.' : 'Verifying held file…'}</p>;
+}
 
 function OfflineElectricalLibrary({ owner, selection }: { owner: LiveCopyRetention; selection: Selection }) {
   const [catalog, setCatalog] = useState<OfflineElectricalCatalogV1 | null>(null), [loading, setLoading] = useState(true);
