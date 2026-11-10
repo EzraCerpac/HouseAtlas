@@ -4462,3 +4462,16 @@ production authentication, lifecycle, runner or workflow is changed. These
 fixture changes require new exact-head hosted execution; no local checks ran.
 The browser launch sandbox blocker is separate and no security override is
 introduced. Runtime, native authority and operational acceptance remain held.
+
+
+The16816c4d core auth flow passed, while media stopped at the new combined
+status/cancellation barrier. That assertion alone does not classify its failure.
+The refined barrier keeps a bounded command/status/terminal-state diagnostic.
+Only explicit body cancellation recorded after actual200 headers may count as
+settled traffic; it never counts as successful content. Missing/non200 headers,
+other network failures and nonterminal requests still refuse. Every topology
+command also requires a fully completed nonfailed200 read and the provider's
+current ready state. Existing exact measured counts and all-response checks
+stay intact. This is fixture synchronization, not an access or lifecycle change;
+new exact-head hosted execution must still establish the result. No local
+compiler, test, formatter, browser, security override or manual rerun occurred.

@@ -50,7 +50,7 @@ class Pipe {
           const url = new URL(message.params.request.url);
           if (url.pathname.endsWith('/invoke')) nativeReads.set(message.params.requestId, {
             phase, commandId: JSON.parse(url.searchParams.get('request')).commandId,
-            status: null, finished: false, failed: false,
+            status: null, finished: false, failed: false, canceled: false, authorizedBeforeCancellation: false,
           });
         }
         else if (message.method === 'Network.responseReceived') {
@@ -68,7 +68,14 @@ class Pipe {
         }
         else if (message.method === 'Network.loadingFinished' || message.method === 'Network.loadingFailed') {
           const read = nativeReads.get(message.params.requestId);
-          if (read) { read.finished = true; read.failed = message.method === 'Network.loadingFailed'; }
+          if (read) {
+            read.finished = true;
+            if (message.method === 'Network.loadingFailed') {
+              read.failed = true;
+              read.canceled = message.params.canceled === true;
+              read.authorizedBeforeCancellation = read.status === 200;
+            }
+          }
         }
         else if (message.method === 'Runtime.exceptionThrown') runtimeErrors.push(message.params.exceptionDetails.text);
       }
@@ -110,12 +117,22 @@ try {
   };
   const settleViewerReads = async () => {
     const rows = () => [...nativeReads.values()].filter(read => read.phase === 'viewer-login');
-    await until(() => rows().length >= 4 && rows().every(read => read.finished), 'Every viewer native read completed before session replacement');
-    assert(rows().every(read => read.status === 200 && !read.failed), 'Every viewer native read succeeds without cancellation');
+    const describe = () => JSON.stringify({ total: rows().length, reads: rows().slice(0, 32)
+      .map(({ commandId, status, finished, failed, canceled, authorizedBeforeCancellation }) =>
+        ({ commandId, status, finished, failed, canceled, authorizedBeforeCancellation })) });
+    try {
+      await until(() => rows().length >= 4 && rows().every(read => read.finished), 'Every viewer native read settled before session replacement');
+    } catch (error) { throw new Error(error.message + ': ' + describe()); }
+    // An old body may be canceled only AFTER its actual authorized200 headers.
+    // That settles traffic; it does not count as successfully read content.
+    assert(rows().every(read => read.status === 200 && (!read.failed
+      || (read.canceled && read.authorizedBeforeCancellation))), 'Viewer native response or terminal failure: ' + describe());
     const counts = new Map();
     for (const read of rows()) counts.set(read.commandId, (counts.get(read.commandId) ?? 0) + 1);
     assert.deepEqual([...counts.keys()].sort(), ['atlas.binding.list', 'atlas.identity.list', 'atlas.location-semantics.list', 'atlas.relation.list']);
     assert([...counts.values()].every(count => count === counts.get('atlas.identity.list')), 'Observed viewer topology command counts remain balanced');
+    assert([...counts.keys()].every(commandId => rows().some(read => read.commandId === commandId
+      && read.status === 200 && read.finished && !read.failed)), 'Each topology command has a fully completed successful read: ' + describe());
   };
   // Open the retained native Atlas surface through Lantern's visible controls.
   const openAtlasTools = async () => {

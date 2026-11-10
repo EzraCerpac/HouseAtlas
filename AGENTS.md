@@ -1,5 +1,17 @@
 # HouseAtlas
 
+The16816c4d core auth flow passed, while media stopped at the new combined
+status/cancellation barrier. That assertion alone does not classify its failure.
+The refined barrier keeps a bounded command/status/terminal-state diagnostic.
+Only explicit body cancellation recorded after actual200 headers may count as
+settled traffic; it never counts as successful content. Missing/non200 headers,
+other network failures and nonterminal requests still refuse. Every topology
+command also requires a fully completed nonfailed200 read and the provider's
+current ready state. Existing exact measured counts and all-response checks
+stay intact. This is fixture synchronization, not an access or lifecycle change;
+new exact-head hosted execution must still establish the result. No local
+compiler, test, formatter, browser, security override or manual rerun occurred.
+
 Exact b1e18e0e hosted source job130028019360 passed after the four Clippy
 repairs, and default-library job130028019422 passed. Its diagnostic media job
 130028019572 observed two successful responses for each topology command in
