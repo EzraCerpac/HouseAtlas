@@ -158,6 +158,42 @@ concrete original reviewed-stock and trusted human-review bridge.
 
 ## Review-only AI suggestion contracts
 
+### Projected date-field compatibility
+
+Successful source cards now require retrievedAt and every non-null sourceDate
+to fit4096 UTF-16 code units, matching the existing consumer optional-text bound.
+The backend uses encode_utf16 with a4097-unit counting stop, rather than UTF-8
+byte or Unicode-scalar length. This affects only dates actually projected after
+canonical validation: cited evidence cards and subject-metadata fallback share
+the fence across Inventory, Document, Maintenance, Answer and Contradictions.
+Uncited data is not published or newly rejected. Source-free empty answers are
+unaffected. Admission/pins retain original syntax-valid strings, null/date-only
+behavior, fractions, offsets and uncertainty; no normalization or truncation.
+Over-bound projected dates return SuggestionError::LimitExceeded before a
+successful disclosure; the independent65,536-byte whole-DTO fence still applies.
+
+Three generated functions are authored and **NOT RUN** in the default library:
+
+- `ai::suggestions::synthetic_contracts::projected_date_text_bounds_cited_and_fallback_cards_for_every_record_feature`
+- `ai::suggestions::synthetic_contracts::date_projection_preserves_null_date_only_offsets_and_ignores_uncited_dates`
+- `ai::suggestions::disclosure::tests::date_display_bound_uses_consumer_utf16_units_not_utf8_or_scalar_count`
+
+The matrix covers4096 exact,4097 one-over and the original4117-unit timestamp
+reproduction (4096 fractional zero digits), both date fields, cited/fallback
+projection and all five record-backed features. Pinned Chrono0.4.42 admission
+is asserted, not locally executed. A size-only mutation of a successful DTO
+template remains below the whole budget while its field exceeds the consumer
+bound; that mutation is never treated as a pinned result. Ordinary/null/date-only
+and exact fractional-offset strings are preserved, and uncited long dates are
+omitted without display refusal. Non-date multibyte strings test only the
+private length helper's units and are never admitted as dates.
+
+Counts are41 synthetic-contract /10 scorer /28 retained /one counter plus one
+date-unit Rust case. Frontend45 controller/source /24 session, original corpus,
+retained adapters/5-21-6 ledger, exact tag donor f7188684 and77/1/7 selections/
+workflows remain unchanged. No local tests/build/compiler/typecheck/formatter/
+Clippy/browser/device or pinned publication verifier ran for this increment.
+
 ### Canonical Inventory tag JSON capacity
 
 Rust admits 1..16 unique nonblank tags of at most128 UTF-8 bytes each, rejecting
@@ -216,7 +252,7 @@ versions/source dates/retrieval dates and unknown identity/location. They do
 not detect semantic contradictions, qualify real original access or run a model.
 No renderer/controller or new display kind is added; existing ordinary edit,
 duplicate and deliberate rejection semantics remain unchanged. Current counts:
-39 synthetic-contract / 10 scorer / 28 retained / one counter Rust cases;
+41 synthetic-contract / 10 scorer / 28 retained / one counter Rust cases;
 45 controller/source and 24 session cases. Corpus originals and ledger 5/21/6
 stay unchanged. Existing 77 source / 1 build / 7 browser selections/workflows
 are unchanged. No tests/build/typecheck/compiler/formatter/Clippy/browser/device
@@ -288,7 +324,7 @@ Two authored/unrun functions join the existing adapter selection:
 
 These use generated requests, digests, current snapshots and fake consumer-owner
 generations, not genuine request-owner/cancellation/authority qualification.
-Current counts are 39 synthetic-contract / 10 scorer / 28 retained / one counter
+Current counts are 41 synthetic-contract / 10 scorer / 28 retained / one counter
 Rust tests, 45 presentation/controller and 24 session cases. No original corpus
 mapping, Labels/CaseReport or quality score is added by those generic controls; the later qa-missing retained bridge updates coverage to 5/21/6.
 No workflow or selection changes: inventory remains 77 source / 1 build / 7

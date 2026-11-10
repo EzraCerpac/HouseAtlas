@@ -1,11 +1,24 @@
 # HouseAtlas
 
+Projected review source-card retrievedAt and non-null sourceDate now have the
+consumer's existing4096 UTF-16-unit fence. Exact original strings, null and
+date-only values remain unchanged; over-bound projected dates return typed
+LimitExceeded, without normalizing/truncating input or changing admission.
+The check covers cited evidence and subject-metadata fallback for all record
+features; uncited date text and source-free empty views remain unaffected.
+Three authored/NOT RUN controls cover4096/4097/4117 units, ordinary dates/null,
+uncited long inputs, all five features, a whole-DTO size counterfactual and
+UTF-16 versus UTF-8/scalar units. Counts are41 synthetic-contract /10 scorer /
+28 retained /one counter plus one date-unit Rust case; frontend45/24 and77/1/7
+selections remain unchanged. No frontend/tag repair, corpus/ledger, runtime,
+authority/currentness semantics or withheld-state redesign is changed.
+
 Inventory tag JSON has a tight 4,145 UTF-16-unit compact-display bound:
 16 tags *128 UTF-8 bytes *2 escaping units +32 string quotes +15 commas +2
 brackets. Only LF/tab control characters are admitted; six-character control
 escapes are unreachable. Unique 128-byte quote/backslash tags attain the bound.
 Two backend canonical/disclosure and one strict-session controls are authored,
-NOT RUN. Shared preparation counts are 39 synthetic-contract /10 scorer /
+NOT RUN. Shared preparation counts are 41 synthetic-contract /10 scorer /
 28 retained /one counter Rust cases and 24 session cases. The session control
 requires the matching reviewed frontend tag-specific capacity donor before
 publication; other field limits, whole-DTO bounds and all native/runtime gates
@@ -25,7 +38,7 @@ Uncited evidence stays omitted; claim-free fallback and all other result paths
 are unchanged. No field/candidate/selection or authority is created. Existing
 currentness/withdrawal, original-owner inspection labels and display bounds
 remain enforced. Two Rust and one existing adapter control are authored/NOT RUN.
-Current counts are 39 synthetic-contract / 10 scorer / 28 retained / one counter
+Current counts are 41 synthetic-contract / 10 scorer / 28 retained / one counter
 Rust cases and 45 presentation/controller / 24 session cases. That no-suggestion
 increment added no new kind, frontend-owner source edit, runner/workflow or
 original corpus mapping.
@@ -62,7 +75,7 @@ the shared final byte fence; no subject metadata/capability is invented.
 Six new Rust and two session controls are authored/NOT RUN: shape/versions,
 escaped final-DTO bounds, admission/content refusal, question/epoch replacement,
 record compatibility, terminal usage/refusals and consumer retirement. Current
-counts are 39 synthetic-contract / 10 scorer / 28 retained / one counter Rust
+counts are 41 synthetic-contract / 10 scorer / 28 retained / one counter Rust
 cases, plus 45 presentation/controller and 24 session cases. The 5/21/6 corpus
 ledger, originals, runner selections and host/root/runtime/authority owners stay
 unchanged. No inference, source write, effect, persistence or activation occurs.
@@ -75,7 +88,7 @@ once-consumed authority:none review intents remain unchanged. Source preparation
 must compose the exact reviewed #569 presentation donor before publication;
 the frontend writer retains its six review/controller files. Three new shared
 controls (canonical/disclosure, independent supplied scorer and session binding)
-are authored/unrun. Shared Rust counts are 39 synthetic-contract and 10 scorer
+are authored/unrun. Shared Rust counts are 41 synthetic-contract and 10 scorer
 tests; retained tests/ledger are 28 and 5 scorer subsets/21 structural/6 unbridged.
 Original inv-model-only stays unbridged: its Document subject cannot be silently
 relabelled as an InventoryItem. No inference, physical verification, approval,

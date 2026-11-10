@@ -36,6 +36,91 @@ fn validate(value: &Value, snapshot: &AdmittedSnapshot) -> std::result::Result<R
     validate_generated(&serde_json::to_vec(value).unwrap(), snapshot, snapshot)
 }
 
+fn date_projection_result(feature: SuggestionFeature, cited: bool) -> Value {
+    match (feature, cited) {
+        (SuggestionFeature::Inventory, true) => inventory(),
+        (SuggestionFeature::Inventory, false) => json!({"kind":"inventory","changes":[],"duplicates":[]}),
+        (SuggestionFeature::Document, true) => document(),
+        (SuggestionFeature::Document, false) => json!({"kind":"document","classification":null,"links":[]}),
+        (SuggestionFeature::Maintenance, true) => json!({"kind":"maintenance","tasks":[{"candidateRef":"input2","title":"Generated review",
+            "interval":{"kind":"unknown"},"conditions":[],"urgency":"unknown","support":support(&["c1","c2"])}]}),
+        (SuggestionFeature::Maintenance, false) => json!({"kind":"maintenance","tasks":[]}),
+        (SuggestionFeature::Answer, true) => json!({"kind":"answer","route":"inventory","coverage":"partial","rankedRefs":[],
+            "statements":[{"text":"Generated recorded claim only","support":support(&["c1","c2"])}]}),
+        (SuggestionFeature::Answer, false) => json!({"kind":"answer","route":"clarify","coverage":"no-answer","rankedRefs":[],"statements":[]}),
+        (SuggestionFeature::Contradictions, true) => json!({"kind":"contradictions","findings":[{"pattern":"incompatible-location",
+            "claimRefs":["c1","c2"],"rationale":"Generated review only","uncertainty":"unknown"}]}),
+        (SuggestionFeature::Contradictions, false) => json!({"kind":"contradictions","findings":[]}),
+    }
+}
+
+#[test]
+fn projected_date_text_bounds_cited_and_fallback_cards_for_every_record_feature() {
+    for feature in [SuggestionFeature::Inventory, SuggestionFeature::Document, SuggestionFeature::Maintenance, SuggestionFeature::Answer, SuggestionFeature::Contradictions] {
+        for cited in [false, true] {
+            for source_date in [false, true] {
+                let mut accepted_wire = None;
+                for units in [4096, 4097, 4117] {
+                    let date = format!("2030-04-01T12:00:00.{}Z", "0".repeat(units - 21));
+                    assert_eq!(date.encode_utf16().count(), units);
+                    let mut admitted = input(); admitted.feature = feature;
+                    if feature == SuggestionFeature::Document { admitted.sources[0].kind = CandidateKind::Document; }
+                    if source_date { admitted.sources[0].source_date = Some(date.clone()); }
+                    else { admitted.sources[0].retrieved_at = date.clone(); }
+                    // Pinned Chrono's syntax admission remains unchanged; no
+                    // truncation/normalization at the source or pin boundary.
+                    let snapshot = AdmittedSnapshot::new(admitted).unwrap();
+                    let mut supplied = output(&snapshot, date_projection_result(feature, cited));
+                    if !cited { supplied["claims"] = json!([]); }
+                    let review = validate(&supplied, &snapshot).unwrap();
+                    let result = disclose_review(&review, &snapshot, &Default::default());
+                    if units == 4096 {
+                        let wire = result.unwrap();
+                        assert_eq!(wire.value()["view"]["sources"][0][if source_date { "sourceDate" } else { "retrievedAt" }], date);
+                        assert!(serde_json::to_vec(wire.value()).unwrap().len() <= MAX_OUTPUT_BYTES);
+                        accepted_wire = Some(wire.value().clone());
+                    } else {
+                        // Size-only counterfactual: the otherwise successful
+                        // DTO template with this long field still fits the
+                        // whole budget. It is never treated as a pinned result.
+                        let mut whole_size_control = accepted_wire.as_ref().unwrap().clone();
+                        whole_size_control["view"]["sources"][0][if source_date { "sourceDate" } else { "retrievedAt" }] = json!(date);
+                        assert!(serde_json::to_vec(&whole_size_control).unwrap().len() <= MAX_OUTPUT_BYTES);
+                        assert_eq!(result.unwrap_err(), SuggestionError::LimitExceeded);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn date_projection_preserves_null_date_only_offsets_and_ignores_uncited_dates() {
+    for source_date in [None, Some("2030-01-01"), Some("2030-01-01T12:00:00.1200+02:00")] {
+        let mut admitted = input();
+        admitted.sources[0].source_date = source_date.map(String::from);
+        admitted.sources[0].retrieved_at = "2030-04-01T12:00:00.1200+02:00".into();
+        // Uncited data remains admitted but must not be published or cause a
+        // display refusal merely because its date text exceeds the view bound.
+        let long = format!("2030-04-01T12:00:00.{}Z", "0".repeat(4096));
+        admitted.sources[2].source_date = Some(long.clone()); admitted.sources[2].retrieved_at = long;
+        let snapshot = AdmittedSnapshot::new(admitted).unwrap();
+        let mut supplied = output(&snapshot, json!({"kind":"inventory","changes":[{"field":"category","value":"filter","support":support(&["c1"])}],"duplicates":[]}));
+        supplied["claims"] = json!([supplied["claims"][0].clone()]);
+        let review = validate(&supplied, &snapshot).unwrap();
+        let wire = disclose_review(&review, &snapshot, &Default::default()).unwrap();
+        assert_eq!(wire.value()["view"]["sources"].as_array().unwrap().len(), 1);
+        assert_eq!(wire.value()["view"]["sources"][0]["sourceDate"], serde_json::to_value(source_date).unwrap());
+        assert_eq!(wire.value()["view"]["sources"][0]["retrievedAt"], "2030-04-01T12:00:00.1200+02:00");
+        assert!(wire.value()["inspections"].get("e3").is_none());
+        supplied["result"] = json!({"kind":"inventory","changes":[],"duplicates":[]}); supplied["claims"] = json!([]);
+        let review = validate(&supplied, &snapshot).unwrap();
+        let fallback = disclose_review(&review, &snapshot, &Default::default()).unwrap();
+        assert_eq!(fallback.value()["view"]["sources"][0]["sourceDate"], serde_json::to_value(source_date).unwrap());
+        assert_eq!(fallback.value()["view"]["sources"][0]["retrievedAt"], "2030-04-01T12:00:00.1200+02:00");
+    }
+}
+
 fn maximal_quote_backslash_tags() -> Vec<String> {
     (0..16).map(|n| {
         // Four binary quote/backslash positions give sixteen unique prefixes;

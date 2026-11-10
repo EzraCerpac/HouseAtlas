@@ -200,6 +200,7 @@ pub fn disclose_review(
     for s in &input.sources {
         for e in &s.evidence {
             if !used.contains(&e.evidence_ref) { continue; }
+            bound_source_dates(s)?;
             let (page, section) = match e.location {
                 EvidenceLocation::Page { page, .. } => (Some(page), None),
                 EvidenceLocation::TextRange { start, end, text_length } => (None, Some(format!("Text characters {start}–{end} of {text_length}"))),
@@ -210,6 +211,7 @@ pub fn disclose_review(
         }
     }
     if sources.is_empty() {
+        bound_source_dates(subject)?;
         let key = format!("subject:{subject_ref}");
         sources.push(json!({"key":key,"label":subject_ref,"recordVersion":subject.version,"sourceDate":subject.source_date,"retrievedAt":subject.retrieved_at,"page":null,"section":null,"excerpt":"","freshness":"snapshot-current","original":"unavailable"}));
         inspections.insert(key, json!({"inputRef":subject.input_ref,"version":subject.version,"evidenceRef":null,"location":null}));
@@ -240,4 +242,32 @@ pub fn disclose_review(
 fn bounded_disclosure(disclosure: Value) -> Result<ReviewDisclosure, SuggestionError> {
     if serde_json::to_vec(&disclosure).map_err(|_| SuggestionError::InvalidOutput)?.len() > MAX_OUTPUT_BYTES { return Err(SuggestionError::LimitExceeded); }
     Ok(ReviewDisclosure(disclosure))
+}
+
+fn fits_consumer_date_text(value: &str) -> bool {
+    // JS String.length / the existing optional-text limit count UTF-16 units,
+    // not UTF-8 bytes or Unicode scalars. Stop counting at the first excess.
+    value.encode_utf16().take(4097).count() <= 4096
+}
+
+fn bound_source_dates(source: &SourceInput) -> Result<(), SuggestionError> {
+    if !fits_consumer_date_text(&source.retrieved_at)
+        || source.source_date.as_deref().is_some_and(|date| !fits_consumer_date_text(date))
+    { return Err(SuggestionError::LimitExceeded); }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn date_display_bound_uses_consumer_utf16_units_not_utf8_or_scalar_count() {
+        // Date syntax is checked separately at admission. These non-date strings
+        // isolate length units; they are never admitted or disclosed as dates.
+        assert!(fits_consumer_date_text(&"é".repeat(4096)));
+        assert!(fits_consumer_date_text(&"🧭".repeat(2048)));
+        assert!(!fits_consumer_date_text(&("🧭".repeat(2048) + "x")));
+        assert!(!fits_consumer_date_text(&"x".repeat(4097)));
+    }
 }
